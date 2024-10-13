@@ -82,6 +82,30 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
     case fir::ICmpInstrSubType::ULT:
       is_true = v1 < v2;
       break;
+    case fir::ICmpInstrSubType::NE:
+      is_true = v1 != v2;
+      break;
+    case fir::ICmpInstrSubType::EQ:
+      is_true = v1 == v2;
+      break;
+    case fir::ICmpInstrSubType::SGT:
+      is_true = (i64)v1 > (i64)v2;
+      break;
+    case fir::ICmpInstrSubType::UGT:
+      is_true = v1 > v2;
+      break;
+    case fir::ICmpInstrSubType::UGE:
+      is_true = v1 >= v2;
+      break;
+    case fir::ICmpInstrSubType::ULE:
+      is_true = v1 <= v2;
+      break;
+    case fir::ICmpInstrSubType::SGE:
+      is_true = (i64)v1 >= (i64)v2;
+      break;
+    case fir::ICmpInstrSubType::SLE:
+      is_true = (i64)v1 <= (i64)v2;
+      break;
     }
     if (is_true) {
       auto new_const_value =

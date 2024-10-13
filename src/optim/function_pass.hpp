@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
+#include "utils/arena.hpp"
 #include "utils/parameters.hpp"
 
 namespace foptim::optim {
@@ -21,6 +22,7 @@ public:
 
   FunctionPass &apply_pass(fir::Context &ctx, fir::Function &f) {
     apply(ctx, f);
+    utils::TempAlloc<void*>::reset();
     return *this;
   }
 

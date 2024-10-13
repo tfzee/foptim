@@ -4,6 +4,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "utils/bitset.hpp"
+#include "utils/helpers.hpp"
 #include <Tracy/tracy/Tracy.hpp>
 #include <deque>
 
@@ -20,6 +21,7 @@ public:
     None = 0,
     Changed = 1,
   };
+
   FVec<Node> bbrs;
   u32 entry;
   fir::Function *func = nullptr;

@@ -105,6 +105,15 @@ public:
     return ValueR(instr);
   }
 
+  ValueR build_zext(ValueR a, TypeR ty) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(InstrData::get_zext(ty));
+    instr.add_arg(a);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_int_mul(ValueR a, ValueR b) {
     check_bb_set();
     Instr instr = ctx->storage.insert_instr(InstrData::get_mul(a.get_type()));

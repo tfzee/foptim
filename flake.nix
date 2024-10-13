@@ -22,20 +22,23 @@
             clang_18
             libllvm
             cmakeCurses
-            mold-wrapped
 
             #perf
             tracy
 
             #for testing
-            nasm
             lit
-            python3
             hyperfine
-            valgrind
-            kdePackages.kcachegrind
+            # python3
+            (pkgs.python3.withPackages (python-pkgs: [
+                python-pkgs.pandas
+                python-pkgs.matplotlib
+              ]))
+            # valgrind
+            # kdePackages.kcachegrind
 
             #for codegen for now
+            nasm
             asmjit
             elfio
 

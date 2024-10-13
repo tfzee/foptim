@@ -15,6 +15,7 @@
 #include "optim/func_passes/sccp.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/logging.hpp"
+#include "utils/arena.hpp"
 #include "utils/parameters.hpp"
 #include "utils/todo.hpp"
 #include "x86_codegen/backend.hpp"
@@ -41,10 +42,10 @@ int main(int argc, char *argv[]) {
 
     ASSERT(ctx->verify());
 
-    for (auto [_, func] : ctx->storage.functions) {
-      Debug << func << "\n";
-    }
-    Debug << "\n\n";
+    // for (auto [_, func] : ctx->storage.functions) {
+    //   Debug << func << "\n";
+    // }
+    // Debug << "\n\n";
 
     {
       ZoneScopedN("Optim");
@@ -57,10 +58,10 @@ int main(int argc, char *argv[]) {
           .apply(ctx);
     }
 
-    for (auto [_, func] : ctx->storage.functions) {
-      Debug << func;
-    }
-    ASSERT(ctx->verify());
+    // for (auto [_, func] : ctx->storage.functions) {
+    //   Debug << func;
+    // }
+    // ASSERT(ctx->verify());
   }
 
   // return 0;
@@ -90,7 +91,7 @@ int main(int argc, char *argv[]) {
 
       for (auto [_, func] : ctx->storage.functions) {
         auto res = foptim::fmir::GreedyMatcher{}.apply(func);
-        Debug << res;
+        // Debug << res;
         funcs.push_back(std::move(res));
       }
     }
@@ -103,10 +104,10 @@ int main(int argc, char *argv[]) {
       foptim::fmir::BBReordering{}.apply(funcs);
     }
 
-    Debug << "\n";
-    for (auto func : funcs) {
-      Debug << func;
-    }
+    // Debug << "\n";
+    // for (auto func : funcs) {
+    //   Debug << func;
+    // }
 
     {
       ZoneScopedN("Codegen");
@@ -115,6 +116,8 @@ int main(int argc, char *argv[]) {
   }
 
   // ctx->print_stats();
+
+  foptim::utils::TempAlloc<void*>::clear();
   FrameMark;
   return 0;
 }

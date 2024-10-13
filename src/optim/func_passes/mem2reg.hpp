@@ -225,6 +225,7 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb, fir::Basi
     if (bb_arg_to_alloca.contains(fir::ValueR(block, arg))) {
       auto bb_arguemnt_value = fir::ValueR(block, arg);
       auto target_alloca = bb_arg_to_alloca.at(bb_arguemnt_value);
+      // utils::Debug << target_alloca << "\n";
       ASSERT(decide_variable_value(target_alloca, current_variable_value,
                                    var_val_res));
       // then we update the arguemtns of the origin jump

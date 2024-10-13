@@ -38,7 +38,7 @@ void BBReordering::apply(MFunc &func) {
     }
 
     if (!is_fallthrough_elsewhere) {
-      utils::Debug << "Copied " << target_bb << " into " << bb1_i << "\n";
+      // utils::Debug << "Copied " << target_bb << " into " << bb1_i << "\n";
       // func.bbs.insert(func.bbs.begin() + bb1_i + 1,
       //                 MBB{func.bbs[target_bb].instrs});
       func.bbs.insert(func.bbs.begin() + bb1_i + 1,

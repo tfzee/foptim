@@ -23,7 +23,7 @@
 using foptim::u32;
 using foptim::u64;
 
-typedef foptim::FMap<const llvm::Value *, foptim::fir::ValueR> V2VMap;
+using V2VMap = foptim::FMap<const llvm::Value *, foptim::fir::ValueR>;
 
 inline void
 convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
@@ -220,27 +220,54 @@ convert_icmp(const llvm::Instruction &any_instr, const llvm::ICmpInst *cmp_inst,
              foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b) {
 
   switch (cmp_inst->getPredicate()) {
+  case llvm::CmpInst::ICMP_UGE:
+  case llvm::CmpInst::ICMP_SLE:
+  case llvm::CmpInst::ICMP_ULE:
+  case llvm::CmpInst::ICMP_SGE:
   case llvm::CmpInst::ICMP_EQ:
   case llvm::CmpInst::ICMP_NE:
   case llvm::CmpInst::ICMP_UGT:
-  case llvm::CmpInst::ICMP_UGE:
-  case llvm::CmpInst::ICMP_ULE:
   case llvm::CmpInst::ICMP_SGT:
-  case llvm::CmpInst::ICMP_SGE:
-  case llvm::CmpInst::ICMP_SLE:
   case llvm::CmpInst::ICMP_ULT:
   case llvm::CmpInst::ICMP_SLT: {
     auto a = convert_instr_arg(cmp_inst->getOperand(0), fctx, ffunc, builder,
                                valueToValue, mod, b2b);
     auto b = convert_instr_arg(cmp_inst->getOperand(1), fctx, ffunc, builder,
                                valueToValue, mod, b2b);
-    foptim::fir::ICmpInstrSubType pred;
-    if (cmp_inst->getPredicate() == llvm::CmpInst::ICMP_ULT) {
+    foptim::fir::ICmpInstrSubType pred = foptim::fir::ICmpInstrSubType::EQ;
+    switch (cmp_inst->getPredicate()) {
+    case llvm::CmpInst::ICMP_EQ:
+      pred = foptim::fir::ICmpInstrSubType::EQ;
+      break;
+    case llvm::CmpInst::ICMP_NE:
+      pred = foptim::fir::ICmpInstrSubType::NE;
+      break;
+    case llvm::CmpInst::ICMP_UGT:
+      pred = foptim::fir::ICmpInstrSubType::UGT;
+      break;
+    case llvm::CmpInst::ICMP_UGE:
+      pred = foptim::fir::ICmpInstrSubType::UGE;
+      break;
+    case llvm::CmpInst::ICMP_ULT:
       pred = foptim::fir::ICmpInstrSubType::ULT;
-    } else if (cmp_inst->getPredicate() == llvm::CmpInst::ICMP_SLT) {
+      break;
+    case llvm::CmpInst::ICMP_ULE:
+      pred = foptim::fir::ICmpInstrSubType::ULE;
+      break;
+    case llvm::CmpInst::ICMP_SGT:
+      pred = foptim::fir::ICmpInstrSubType::SGT;
+      break;
+    case llvm::CmpInst::ICMP_SGE:
+      pred = foptim::fir::ICmpInstrSubType::SGE;
+      break;
+    case llvm::CmpInst::ICMP_SLT:
       pred = foptim::fir::ICmpInstrSubType::SLT;
-    } else {
-      return false;
+      break;
+    case llvm::CmpInst::ICMP_SLE:
+      pred = foptim::fir::ICmpInstrSubType::SLE;
+      break;
+    default:
+      ASSERT(false);
     }
     auto res = builder.build_int_cmp(a, b, pred);
     valueToValue.insert({&any_instr, res});
@@ -330,6 +357,14 @@ convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx);
     auto add = builder.build_sext(arg, dest_ty);
+    valueToValue.insert({&any_instr, add});
+    return;
+  }
+  if (const auto *instr = dyn_cast<llvm::ZExtInst>(&any_instr)) {
+    auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
+                                 valueToValue, mod, b2b);
+    auto dest_ty = convert_type(instr->getDestTy(), fctx);
+    auto add = builder.build_zext(arg, dest_ty);
     valueToValue.insert({&any_instr, add});
     return;
   }
@@ -456,6 +491,7 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
 inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
                     foptim::fir::Context &fctx, V2VMap &valueToValue) {
   if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
+    ZoneScopedN("Converting Global Variable");
     // auto type = convert_type(val->getValueType(), fctx);
     if (val->hasInitializer()) {
       foptim::utils::Debug << "TODO: handle global init\n";
@@ -469,31 +505,37 @@ inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
     auto as_global = fctx->get_constant_value(global);
     valueToValue.insert({(llvm::Value *)&gval, foptim::fir::ValueR(as_global)});
   } else {
-    llvm::errs() << "Not handling global " << gval;
+    // llvm::errs() << "Not handling global " << gval;
   }
 }
 
 inline void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
   V2VMap valueToValue;
-  for (auto &globals : mod.global_values()) {
-    convert(mod, globals, fctx, valueToValue);
+  {
+    ZoneScopedN("Convert Globals");
+    for (auto &globals : mod.global_values()) {
+      convert(mod, globals, fctx, valueToValue);
+    }
   }
-  for (auto &func : mod.functions()) {
-    convert(func, fctx, valueToValue);
+  {
+    ZoneScopedN("Convert Functions");
+    for (auto &func : mod.functions()) {
+      convert(func, fctx, valueToValue);
+    }
   }
 }
 
 void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
-  (void)filename;
-  (void)fctx;
-
   llvm::LLVMContext context;
   llvm::SMDiagnostic error;
-  auto module = llvm::parseIRFile(filename, error, context);
-
+  std::unique_ptr<llvm::Module> module;
+  {
+    ZoneScopedN("LLVM");
+    module = llvm::parseIRFile(filename, error, context);
+  }
   if (module) {
     convert(*module, fctx);
-    module->dump();
+    // module->dump();
   } else {
     llvm::errs() << "FAILED TO LOAD" << error.getMessage() << "\n";
   }

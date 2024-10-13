@@ -8,6 +8,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "utils/logging.hpp"
+#include "utils/vec.hpp"
 #include <algorithm>
 
 namespace foptim::optim {

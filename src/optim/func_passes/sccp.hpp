@@ -172,6 +172,7 @@ public:
 
         break;
       }
+      case fir::InstrType::ZExt:
       case fir::InstrType::SExt: {
         new_value = eval(instr->get_arg(0));
         if (new_value.is_const()) {

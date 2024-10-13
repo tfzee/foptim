@@ -76,6 +76,7 @@ add_library (foptim
                 ./src/utils/logging.cpp
                 ./src/utils/parameters.cpp
                 ./src/utils/todo.cpp
+                ./src/utils/arena.cpp
                )
 
 target_compile_options(foptim PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-private-field)

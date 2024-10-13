@@ -26,6 +26,7 @@ public:
         bool isCritical = true;
         switch (instr->get_instr_type()) {
         case fir::InstrType::BinaryInstr:
+        case fir::InstrType::ZExt:
         case fir::InstrType::SExt:
         case fir::InstrType::LoadInstr:
         case fir::InstrType::AllocaInstr:

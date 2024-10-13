@@ -15,6 +15,7 @@ enum class InstrType : u8 {
   BinaryInstr,
   AllocaInstr,
 
+  ZExt,
   SExt,
   ReturnInstr,
   DirectCallInstr,
@@ -47,6 +48,14 @@ enum class ICmpInstrSubType : u32 {
   INVALID = 0,
   SLT,
   ULT,
+  NE,
+  EQ,
+  SGT,
+  UGT,
+  UGE,
+  ULE,
+  SGE,
+  SLE
 };
 
 enum class BinaryInstrSubType : u32 {
@@ -87,8 +96,6 @@ public:
   constexpr BasicBlock get_parent() { return parent; }
   constexpr const BasicBlock get_parent() const { return parent; }
 
-
-
   bool verify(const BasicBlockData *, utils::Printer) const;
   bool has_result() const;
   bool is_critical() const;
@@ -109,6 +116,8 @@ public:
       }
     case InstrType::SExt:
       return "SExt";
+    case InstrType::ZExt:
+      return "ZExt";
     case InstrType::CondBranchInstr:
       return "CondBranch";
     case InstrType::DirectCallInstr:
@@ -131,6 +140,22 @@ public:
         return "IntULT";
       case ICmpInstrSubType::SLT:
         return "IntSLT";
+      case ICmpInstrSubType::NE:
+        return "IntNE";
+      case ICmpInstrSubType::EQ:
+        return "IntEQ";
+      case ICmpInstrSubType::SGT:
+        return "IntSGT";
+      case ICmpInstrSubType::UGT:
+        return "IntUGT";
+      case ICmpInstrSubType::UGE:
+        return "IntUGE";
+      case ICmpInstrSubType::ULE:
+        return "IntULE";
+      case ICmpInstrSubType::SGE:
+        return "IntSGE";
+      case ICmpInstrSubType::SLE:
+        return "IntSLE";
       }
     }
     ASSERT_M(false, "Add your instruction to the get_name function");
@@ -171,11 +196,11 @@ public:
   static InstrData get_add(TypeR ty);
   static InstrData get_mul(TypeR ty);
   static InstrData get_sext(TypeR ty);
+  static InstrData get_zext(TypeR ty);
   static InstrData get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty);
   static InstrData get_return(TypeR ty);
   static InstrData get_direct_call(TypeR ty);
   static InstrData get_alloca(TypeR ty);
-  // static InstrData get_gep(TypeR ty);
   static InstrData get_load(TypeR ty);
   static InstrData get_store(TypeR ty);
   static InstrData get_branch(ContextData *ctx);
