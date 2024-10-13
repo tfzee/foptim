@@ -1,0 +1,14 @@
+
+valgrind --tool=callgrind --dump-instr=yes --branch-sim=yes --cache-sim=yes --simulate-wb=yes --simulate-hwpref=yes --cacheuse=yes  ./a.out
+
+
+verification
+serialize
+deserialize
+somewhat generic dataflow analysis
+Abstract away graph based matcher (maybe a DSL)
+Replace bitset with custom implementation
+A Allocator for shortlived allocations (per pass or per analysis)
+
+More Passes
+More Tests

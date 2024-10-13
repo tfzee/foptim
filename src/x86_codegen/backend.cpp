@@ -1,0 +1,550 @@
+#include "backend.hpp"
+#include "mir/func.hpp"
+#include "mir/instr.hpp"
+#include "utils/logging.hpp"
+#include "utils/parameters.hpp"
+#include "utils/todo.hpp"
+#include <asmjit/core/emitter.h>
+#include <asmjit/core/func.h>
+#include <asmjit/core/inst.h>
+#include <asmjit/core/logger.h>
+#include <asmjit/core/operand.h>
+#include <asmjit/core/type.h>
+#include <asmjit/x86.h>
+#include <asmjit/x86/x86builder.h>
+#include <asmjit/x86/x86globals.h>
+#include <asmjit/x86/x86operand.h>
+#include <cstdint>
+#include <fstream>
+
+namespace foptim::codegen {
+
+using namespace asmjit;
+using namespace asmjit::x86;
+
+static constexpr TypeId convert_type(fmir::Type type) {
+  switch (type) {
+  case fmir::Type::Float32:
+    return TypeId::kFloat32;
+  case fmir::Type::Float64:
+    return TypeId::kFloat64;
+  case fmir::Type::Int8:
+    return TypeId::kInt8;
+  case fmir::Type::Int16:
+    return TypeId::kInt16;
+  case fmir::Type::Int32:
+    return TypeId::kInt32;
+  case fmir::Type::Int64:
+    return TypeId::kInt64;
+  case fmir::Type::INVALID:
+  }
+  ASSERT(false);
+  std::abort();
+}
+
+auto convert_func_signature(const FVec<fmir::Type> &arg_tys, bool void_ret,
+                            const fmir::Type ret_ty) {
+  auto res = FuncSignatureBuilder();
+  for (auto arg : arg_tys) {
+    res.addArg(convert_type(arg));
+  }
+  if (!void_ret) {
+    res.setRet(convert_type(ret_ty));
+  }
+  return res;
+}
+Reg get_reg_sized(const Reg *regs, u32 size) {
+  switch (size) {
+  case 1:
+    return regs[0];
+  case 2:
+    return regs[1];
+  case 4:
+    return regs[2];
+  case 8:
+    return regs[3];
+  default:
+  }
+  utils::Debug << "Got size: " << size << " but only 1,2,4,8 is valid\n";
+  ASSERT_M(false, "Tried to get invalid reg size");
+  std::abort();
+}
+
+Reg convert_reg(Compiler &, FMap<fmir::VReg, Reg> &, fmir::VReg reg) {
+
+  static_assert(1 == (u16)fmir::Type::Int8);
+  static_assert(4 == (u16)fmir::Type::Int64);
+
+  constexpr Reg a_regs[] = {al, ax, eax, rax};
+  constexpr Reg b_regs[] = {bl, bx, ebx, rbx};
+  constexpr Reg c_regs[] = {cl, cx, ecx, rcx};
+  constexpr Reg d_regs[] = {dl, dx, edx, rdx};
+  constexpr Reg s_regs[] = {sil, si, esi, rsi};
+  constexpr Reg sp_regs[] = {spl, sp, esp, rsp};
+  constexpr Reg bp_regs[] = {bpl, bp, ebp, rbp};
+  constexpr Reg r8_regs[] = {r8b, r8w, r8d, r8};
+  constexpr Reg r9_regs[] = {r9b, r9w, r9d, r9};
+  constexpr Reg r10_regs[] = {r10b, r10w, r10d, r10};
+  constexpr Reg r11_regs[] = {r11b, r11w, r11d, r11};
+  constexpr Reg r12_regs[] = {r12b, r12w, r12d, r12};
+  constexpr Reg r13_regs[] = {r13b, r13w, r13d, r13};
+  constexpr Reg r14_regs[] = {r14b, r14w, r14d, r14};
+  constexpr Reg r15_regs[] = {r15b, r15w, r15d, r15};
+
+  switch (reg.info.ty) {
+  case fmir::VRegType::Virtual:
+    ASSERT(false);
+    std::abort();
+  case fmir::VRegType::A:
+    return get_reg_sized(a_regs, reg.info.reg_size);
+  case fmir::VRegType::B:
+    return get_reg_sized(b_regs, reg.info.reg_size);
+  case fmir::VRegType::C:
+    return get_reg_sized(c_regs, reg.info.reg_size);
+  case fmir::VRegType::D:
+    return get_reg_sized(d_regs, reg.info.reg_size);
+  case fmir::VRegType::S:
+    return get_reg_sized(s_regs, reg.info.reg_size);
+  case fmir::VRegType::SP:
+    return get_reg_sized(sp_regs, reg.info.reg_size);
+  case fmir::VRegType::BP:
+    return get_reg_sized(bp_regs, reg.info.reg_size);
+  case fmir::VRegType::R8:
+    return get_reg_sized(r8_regs, reg.info.reg_size);
+  case fmir::VRegType::R9:
+    return get_reg_sized(r9_regs, reg.info.reg_size);
+  case fmir::VRegType::R10:
+    return get_reg_sized(r10_regs, reg.info.reg_size);
+  case fmir::VRegType::R11:
+    return get_reg_sized(r11_regs, reg.info.reg_size);
+  case fmir::VRegType::R12:
+    return get_reg_sized(r12_regs, reg.info.reg_size);
+  case fmir::VRegType::R13:
+    return get_reg_sized(r13_regs, reg.info.reg_size);
+  case fmir::VRegType::R14:
+    return get_reg_sized(r14_regs, reg.info.reg_size);
+  case fmir::VRegType::R15:
+    return get_reg_sized(r15_regs, reg.info.reg_size);
+  }
+}
+
+Imm convert_imm(Compiler & /*unused*/, u64 imm, fmir::Type ty) {
+  // utils::Debug << "     Converting Imm: " << imm << "\n";
+  switch (ty) {
+  case fmir::Type::Float32:
+  case fmir::Type::Float64:
+    ASSERT(false);
+  case fmir::Type::Int8:
+  case fmir::Type::Int16:
+  case fmir::Type::Int32:
+  case fmir::Type::Int64:
+    return imm;
+  case fmir::Type::INVALID:
+    ASSERT(false);
+    break;
+  }
+  std::abort();
+}
+
+Operand convert_operand(Compiler &cc, FMap<fmir::VReg, Reg> &reg_to_op,
+                        fmir::MArgument &arg) {
+
+  // utils::Debug << "   Converting Op: " << arg << "\n";
+  switch (arg.type) {
+  case fmir::MArgument::ArgumentType::Imm:
+    return convert_imm(cc, arg.imm, arg.ty);
+  case fmir::MArgument::ArgumentType::VReg:
+    return convert_reg(cc, reg_to_op, arg.reg);
+  case fmir::MArgument::ArgumentType::Label: {
+    Label label = cc.labelByName(arg.label.c_str());
+    if (!cc.isLabelValid(label)) {
+      label = cc.newExternalLabel(arg.label.c_str());
+    }
+    return label;
+  }
+  case fmir::MArgument::ArgumentType::MemImmLabel: {
+    auto label = cc.labelByName(arg.label.c_str());
+    if (!cc.isLabelValid(label)) {
+      label = cc.newExternalLabel(arg.label.c_str());
+    }
+    return Mem(label, arg.imm);
+  }
+  case fmir::MArgument::ArgumentType::MemLabel: {
+    auto label = cc.labelByName(arg.label.c_str());
+    if (!cc.isLabelValid(label)) {
+      label = cc.newExternalLabel(arg.label.c_str());
+    }
+    return Mem(label, 0);
+  }
+  case fmir::MArgument::ArgumentType::MemVReg:
+    return Mem(convert_reg(cc, reg_to_op, arg.reg), 0);
+  case fmir::MArgument::ArgumentType::MemImmVReg:
+    return Mem(convert_reg(cc, reg_to_op, arg.reg), (int32_t)arg.imm);
+  case fmir::MArgument::ArgumentType::MemVRegVReg:
+    return Mem(convert_reg(cc, reg_to_op, arg.reg),
+               convert_reg(cc, reg_to_op, arg.indx), 0, 0);
+  case fmir::MArgument::ArgumentType::MemImm:
+  case fmir::MArgument::ArgumentType::MemImmVRegVReg:
+    return Mem(convert_reg(cc, reg_to_op, arg.reg),
+               convert_reg(cc, reg_to_op, arg.indx), 0, (int32_t)arg.imm);
+  case fmir::MArgument::ArgumentType::MemVRegVRegScale:
+  case fmir::MArgument::ArgumentType::MemImmVRegScale:
+  case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
+    ASSERT(false);
+    break;
+  }
+  std::abort();
+}
+
+void emit_instr(fmir::MInstr &instr, FVec<Label> &bb_labels,
+                FMap<fmir::VReg, Reg> &reg_to_op, Compiler &cc) {
+  (void)bb_labels;
+  (void)reg_to_op;
+  (void)cc;
+  // utils::Debug << "Emitting Instr: " << instr << "\n";
+  switch (instr.op) {
+  case fmir::Opcode::arg_setup:
+  case fmir::Opcode::invoke: {
+    ASSERT_M(false, "Invalid instr");
+    return;
+  }
+  case fmir::Opcode::mov_zx: {
+    ASSERT(instr.n_args == 2);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[1]);
+    if (instr.args[1].ty == instr.args[0].ty) {
+      cc.emit(Inst::kIdMov, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Int64 && o1.isReg()) {
+      cc.emit(Inst::kIdMov, o0, o1.as<Gp>().r64());
+    } else {
+      cc.emit(Inst::kIdMovzx, o0, o1);
+    }
+    return;
+  }
+  case fmir::Opcode::mov_sx: {
+    ASSERT(instr.n_args == 2);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[1]);
+    if (instr.args[0].ty == instr.args[1].ty) {
+      cc.emit(Inst::kIdMov, o0, o1);
+    } else if (o1.size() == 4) {
+      cc.emit(Inst::kIdMovsxd, o0, o1);
+    } else {
+      cc.emit(Inst::kIdMovsx, o0, o1);
+    }
+    return;
+  }
+  case fmir::Opcode::mov: {
+    ASSERT(instr.n_args == 2);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[1]);
+
+    u32 o0_size = get_size(instr.args[0].ty);
+    u32 o1_size = get_size(instr.args[1].ty);
+
+    if (o0.isMem() && o1.isMem()) {
+
+    } else if (o0.isMem()) {
+      // utils::Debug << "WAS SETTING SIZE 0??" << instr.args[1].ty << " => " <<
+      // o1_size << "\n";
+      o0_size = o1_size;
+      o0.as<Mem>().setSize(o1_size);
+    } else if (o1.isMem()) {
+      // utils::Debug << "WAS SETTING SIZE 1??" << " => " << o1_size << "\n";
+      o1_size = o0_size;
+      o1.as<Mem>().setSize(o0_size);
+    }
+
+    if (instr.args[0].ty == instr.args[1].ty) {
+      cc.emit(Inst::kIdMov, o0, o1);
+    } else if (o0_size == 8 && o1.isReg()) {
+      cc.emit(Inst::kIdMov, o0, o1.as<Gp>().r64());
+    } else {
+      cc.emit(Inst::kIdMov, o0, o1);
+    }
+    return;
+  }
+  case fmir::Opcode::lea: {
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    cc.emit(Inst::kIdLea, target, o0);
+    return;
+  }
+  case fmir::Opcode::add: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    if (target == o0) {
+      cc.emit(Inst::kIdAdd, target, o1);
+    } else if (target == o1) {
+      cc.emit(Inst::kIdAdd, target, o0);
+    } else {
+      // we move o1 since its mostlikely to be a constant
+      cc.emit(Inst::kIdMov, target, o1);
+      // if (o0.isImm() && instr.args[1].ty == fmir::Type::Int64) {
+      //   // we cant add a 64 bit imm so we also need to move the sec arg
+      //   cc.emit(Inst::kIdMov, helper, o0);
+      //   cc.emit(Inst::kIdAdd, target, helper);
+      // } else {
+      cc.emit(Inst::kIdAdd, target, o0);
+      // }
+    }
+    return;
+  }
+  case fmir::Opcode::sub: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    if (target == o0) {
+      cc.emit(Inst::kIdSub, target, o1);
+    } else if (target == o1) {
+      cc.emit(Inst::kIdSub, target, o0);
+    } else {
+      cc.emit(Inst::kIdMov, target, o0);
+      cc.emit(Inst::kIdSub, target, o1);
+    }
+    return;
+  }
+  case fmir::Opcode::mul: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    if (!o0.isImm() && o1.isImm()) {
+      cc.emit(Inst::kIdImul, target, o0, o1);
+    } else {
+      if (target == o0) {
+        cc.emit(Inst::kIdImul, target, o1);
+      } else if (target == o1) {
+        cc.emit(Inst::kIdImul, target, o0);
+      } else {
+        cc.emit(Inst::kIdMov, target, o0);
+        cc.emit(Inst::kIdImul, target, o1);
+      }
+    }
+    return;
+  }
+  case fmir::Opcode::push: {
+    auto val = convert_operand(cc, reg_to_op, instr.args[0]);
+    if (val.size() < 64 && val.isReg()) {
+      cc.emit(Inst::kIdPush, val.as<Gp>().r64());
+    } else {
+      cc.emit(Inst::kIdPush, val);
+    }
+    return;
+  }
+  case fmir::Opcode::pop: {
+    auto val = convert_operand(cc, reg_to_op, instr.args[0]);
+    if (val.size() < 64 && val.isReg()) {
+      cc.emit(Inst::kIdPop, val.as<Gp>().r64());
+    } else {
+      cc.emit(Inst::kIdPop, val);
+    }
+    return;
+  }
+  case fmir::Opcode::call: {
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    ASSERT(target.isLabel());
+    auto label = target.as<Label>();
+    if (!label.isValid()) {
+      utils::Debug << instr.args[0].label.c_str() << "\n";
+      ASSERT(false);
+      std::abort();
+    }
+    // InvokeNode *node;
+    // cc.invoke(&node, label, FuncSignatureBuilder{});
+    cc.emit(Inst::kIdCall, target);
+    return;
+  }
+  case fmir::Opcode::jmp: {
+    cc.emit(Inst::kIdJmp, bb_labels[instr.bb_ref]);
+    return;
+  }
+  case fmir::Opcode::cjmp: {
+    // auto cond = convert_operand(cc, reg_to_op, instr.args[0]);
+    // TODO: verify that its perior??
+    if (instr.args[0].isImm()) {
+      auto value = instr.args[0].imm;
+      if (value == 0) {
+        // emit nothing
+      } else {
+        cc.emit(Inst::kIdJmp, bb_labels[instr.bb_ref]);
+      }
+    } else {
+      cc.emit(Inst::kIdJnz, bb_labels[instr.bb_ref]);
+    }
+    return;
+  }
+  case fmir::Opcode::cjmp_slt: {
+    auto a = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto b = convert_operand(cc, reg_to_op, instr.args[1]);
+    cc.emit(Inst::kIdCmp, a, b);
+    cc.emit(Inst::kIdJnz, bb_labels[instr.bb_ref]);
+    return;
+  }
+  case fmir::Opcode::icmp_slt: {
+    auto targ = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto a = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto b = convert_operand(cc, reg_to_op, instr.args[2]);
+    cc.emit(Inst::kIdCmp, a, b);
+    cc.emit(Inst::kIdSetl, targ);
+    return;
+  }
+  case fmir::Opcode::ret: {
+    if (instr.n_args > 0) {
+      auto res = convert_operand(cc, reg_to_op, instr.args[0]);
+      if (res != eax) {
+        cc.emit(Inst::kIdMov, eax, res);
+      }
+    }
+    cc.emit(asmjit::x86::Inst::kIdMov, rsp, rbp);
+    cc.emit(asmjit::x86::Inst::kIdPop, rbp);
+    cc.emit(Inst::kIdRet);
+    return;
+  }
+  }
+}
+
+void emit_func(const fmir::MFunc &func, FMap<fmir::VReg, Reg> reg_to_op,
+               Compiler &cc) {
+  FVec<Label> bb_labels;
+
+  bb_labels.reserve(func.bbs.size());
+  for (const auto &_ : func.bbs) {
+    bb_labels.push_back(cc.newLabel());
+  }
+
+  for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
+    const auto &bb = func.bbs[bb_id];
+    Label label_bb = bb_labels[bb_id];
+    cc.bind(label_bb);
+    for (auto instr : bb.instrs) {
+      emit_instr(instr, bb_labels, reg_to_op, cc);
+    }
+  }
+}
+
+void replaceAll(std::string &str, const std::string &from,
+                const std::string &to) {
+  if (from.empty()) {
+    return;
+  }
+  size_t start_pos = 0;
+  while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+    str.replace(start_pos, from.length(), to);
+    start_pos += to.length(); // In case 'to' contains 'from', like replacing
+                              // 'x' with 'yx'
+  }
+}
+
+class MyErrorHandler : public ErrorHandler {
+public:
+  void handleError(Error err, const char *message,
+                   BaseEmitter *origin) override {
+    (void)err;
+    (void)origin;
+    printf("AsmJit error: %s\n", message);
+    std::abort();
+  }
+};
+
+void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
+  JitRuntime rt; // Runtime specialized for JIT code execution.
+  StringLogger logger;
+  CodeHolder code; // Holds code and relocation information.
+
+  code.init(rt.environment(), // Initialize code to match the JIT environment.
+            rt.cpuFeatures());
+  code.setLogger(&logger);
+  MyErrorHandler err_handler{};
+  code.setErrorHandler(&err_handler);
+
+  x86::Compiler cc(&code); // Create and attach x86::Compiler to code.
+
+  // for (const auto &c : globals) {
+  //   auto const_val =
+  //       cc.newConst(ConstPoolScope::kGlobal, c.data.data(), c.data.size());
+  // }
+
+  cc.addDiagnosticOptions(DiagnosticOptions::kValidateAssembler);
+  cc.addDiagnosticOptions(DiagnosticOptions::kValidateIntermediate);
+
+  FMap<fmir::VReg, Reg> reg_to_op;
+  FVec<Label> func_labels;
+  func_labels.reserve(funcs.size());
+  {
+    ZoneScopedN("Assembling");
+    for (auto func : funcs) {
+      func_labels.push_back(cc.newNamedLabel(func.name.c_str()));
+    }
+
+    for (u32 i = 0; i < func_labels.size(); i++) {
+      reg_to_op.clear();
+      const fmir::MFunc &func = funcs[i];
+      // auto builder =
+      //     convert_func_signature(func.arg_tys, func.void_ret, func.res_ty);
+      cc.bind(func_labels.at(i));
+      // cc.addFunc(builder);
+      cc.emit(asmjit::x86::Inst::kIdPush, rbp);
+      cc.emit(asmjit::x86::Inst::kIdMov, rbp, rsp);
+      // for (u32 i = 0; i < func.args.size(); i++) {
+      //   auto target_reg =
+      //       convert_reg(cc, reg_to_op, func.args[i], func.arg_tys[i]);
+      //   cc.emit(asmjit::x86::Inst::kIdMov, target_reg,
+      //           Mem(rbp, 8 * (i + 2), get_size(func.arg_tys[i])));
+      // }
+      emit_func(func, reg_to_op, cc);
+      // cc.endFunc();
+    }
+  }
+  // utils::Debug << "ASM:\n" << logger.data() << "\n";
+
+  cc.finalize();
+
+  // for (auto *section : code.sections()) {
+  //   section->alignment();
+  //   section->flags();
+  //   section->data();
+  // }
+
+  {
+    ZoneScopedN("Output");
+    std::string out_string = logger.data();
+    replaceAll(out_string, "ptr ", "");
+    replaceAll(out_string, "\nshort ", "\n");
+    replaceAll(out_string, "\nrex ", "\n");
+    replaceAll(out_string, ".section .text {#0}", "\n");
+
+    // out_string += ".section .data";
+    if (globals.size() != 0) {
+      out_string += "\nSECTION .data\n";
+      for (const auto &global : globals) {
+        out_string += global.name;
+        out_string += ":\nDB ";
+        for (const auto &data : global.data) {
+          out_string += std::to_string(data);
+          out_string += ", ";
+        }
+        out_string += "0\n";
+      }
+    }
+
+    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    utils::Debug << "Done!\n";
+
+    std::ofstream myfile;
+    myfile.open(utils::out_file_path);
+    myfile << "global _start\n"
+              "_start:\n"
+              "  call main\n"
+              "  mov ebx, eax\n"
+              "  mov eax, 1\n"
+              "  int 0x80\n";
+    myfile << out_string.c_str();
+    myfile.close();
+  }
+}
+
+} // namespace foptim::codegen

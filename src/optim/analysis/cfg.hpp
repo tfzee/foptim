@@ -1,0 +1,121 @@
+#pragma once
+#include "ir/basic_block.hpp"
+#include "ir/basic_block_ref.hpp"
+#include "ir/function.hpp"
+#include "ir/instruction_data.hpp"
+#include "utils/bitset.hpp"
+#include <Tracy/tracy/Tracy.hpp>
+#include <deque>
+
+namespace foptim::optim {
+
+class CFG {
+public:
+  struct Node {
+    fir::BasicBlock bb;
+    FVec<u32> pred;
+    FVec<u32> succ;
+  };
+  enum class IterRes {
+    None = 0,
+    Changed = 1,
+  };
+  FVec<Node> bbrs;
+  u32 entry;
+  fir::Function *func = nullptr;
+  bool is_reversed;
+  // FVec<u32> exits;
+
+  CFG() = default;
+  CFG(fir::Function &func, bool reverse = false)
+      : func(&func), is_reversed(reverse) {
+    update(func, reverse);
+  }
+
+  void dump() const {
+    utils::Debug << "DUMP CFG\n";
+
+    for (const auto &node : bbrs) {
+      utils::Debug << "BB: " << node.bb.get_raw_ptr() << "\n  SUCC:\n";
+      for (const auto &succ : node.succ) {
+        utils::Debug << "    " << bbrs[succ].bb.get_raw_ptr() << "\n";
+      }
+      utils::Debug << "  PRED:\n";
+      for (const auto &pred : node.pred) {
+        utils::Debug << "   " << bbrs[pred].bb.get_raw_ptr() << "\n";
+      }
+    }
+  }
+
+  void update(fir::Function &func, bool reverse) {
+    ZoneScopedN("CFG UPDATE");
+    bbrs.clear();
+    entry = 0;
+
+    bbrs.reserve(func.n_bbs());
+
+    for (auto &bb : func.get_bbs()) {
+      if (bb == func.get_entry_bb()) {
+        entry = bbrs.size();
+      }
+      bbrs.push_back(Node{bb, {}, {}});
+    }
+
+    const auto &bbs = func.get_bbs();
+
+    for (size_t from = 0; from < bbs.size(); from++) {
+      const auto terminator = bbs[from]->instructions.back();
+      if (terminator->is(fir::InstrType::ReturnInstr)) {
+        continue;
+      }
+      bbrs[from].succ.reserve(terminator->is(fir::InstrType::BranchInstr) ? 1
+                                                                          : 2);
+      for (auto target : terminator->get_bb_args()) {
+        for (u32 j = 0; j < bbrs.size(); j++) {
+          if (bbrs[j].bb == target.bb) {
+            bbrs[from].succ.push_back(j);
+            bbrs[j].pred.push_back(from);
+          }
+        }
+      }
+    }
+
+    if (reverse) {
+      // TODO: should i change try aswell ?
+      for (auto &node : bbrs) {
+        std::swap(node.pred, node.succ);
+      }
+    }
+  }
+
+  template <class T> constexpr void postorder(T &&functor) {
+    std::deque<u32> queue{entry};
+    utils::BitSet set{bbrs.size(), false};
+    set[entry] = true;
+
+    while (!queue.empty()) {
+      auto next = queue.front();
+      for (auto child : bbrs[next].succ) {
+        if (!set[child]) {
+          queue.push_back(child);
+          set[child] = true;
+        }
+      }
+      // skip if one got invalidated
+      if (next < bbrs.size() && bbrs[next].bb.is_valid()) {
+        auto res = functor(bbrs[next]);
+        // TODO: handle this
+        if (res == CFG::IterRes::Changed) {
+          update(*func, is_reversed);
+          set.reset(false);
+          queue.clear();
+          queue.push_back(entry);
+          continue;
+        }
+      }
+      queue.pop_front();
+    }
+  }
+};
+
+} // namespace foptim::optim
