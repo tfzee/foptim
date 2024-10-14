@@ -19,7 +19,7 @@ public:
     BitSet frontier;
   };
 
-  FVec<Node> dom_bbs;
+  TVec<Node> dom_bbs;
   const CFG *cfg;
 
   Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }

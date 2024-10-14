@@ -6,16 +6,16 @@ namespace foptim::optim {
 
 struct LoopInfo {
   u32 head;
-  FVec<u32> tails;
-  FVec<u32> body_nodes;
-  FVec<u32> leaving_nodes;
+  TVec<u32> tails;
+  TVec<u32> body_nodes;
+  TVec<u32> leaving_nodes;
 
   void dump() const;
 };
 
 class LoopInfoAnalysis {
 public:
-  FVec<LoopInfo> info;
+  TVec<LoopInfo> info;
 
   LoopInfoAnalysis(Dominators &dom) { update(dom); }
   void update(Dominators &dom);

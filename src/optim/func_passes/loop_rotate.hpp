@@ -30,7 +30,7 @@ public:
     }
   }
 
-  void replace_branch_with_header(FMap<fir::ValueR, fir::ValueR> &repl_map,
+  void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
                                   uint8_t non_exiting_target,
                                   fir::BasicBlock header_bb,
                                   fir::BasicBlock head_pred) {
@@ -128,7 +128,7 @@ public:
 
     // TODO: prob want to replace this map since its never gonna be more then a
     // handful of bb_block args
-    FMap<fir::ValueR, fir::ValueR> repl_map;
+    TMap<fir::ValueR, fir::ValueR> repl_map;
 
     // we need to figure out the headers_terminator which of the two targets is
     // the non exiting one

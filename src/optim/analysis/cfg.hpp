@@ -15,15 +15,15 @@ class CFG {
 public:
   struct Node {
     fir::BasicBlock bb;
-    FVec<u32> pred;
-    FVec<u32> succ;
+    TVec<u32> pred;
+    TVec<u32> succ;
   };
   enum class IterRes {
     None = 0,
     Changed = 1,
   };
 
-  FVec<Node> bbrs;
+  TVec<Node> bbrs;
   u32 entry;
   fir::Function *func = nullptr;
   bool is_reversed;

@@ -54,6 +54,13 @@ public:
     }
     return *this << "]";
   }
+  template <class T> Printer operator<<(const TVec<T> data) const {
+    *this << "[";
+    for (const T &elem : data) {
+      *this << elem << ", ";
+    }
+    return *this << "]";
+  }
 
   Printer operator<<(foptim::fir::FunctionR func) const;
   Printer operator<<(const foptim::fir::Function &func) const;

@@ -77,7 +77,7 @@ class LiveVariables {
 public:
   LiveVariables(fir::Function &func, CFG &cfg) { update(func, cfg); }
 
-  FMap<fir::ValueR, FVec<LiveRange>> live_variables;
+  TMap<fir::ValueR, FVec<LiveRange>> live_variables;
 
   void dump();
 

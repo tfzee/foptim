@@ -11,12 +11,12 @@ void LoopInfoAnalysis::update(Dominators &dom) {
   info.clear();
 
   const CFG &cfg = *dom.cfg;
-  FVec<u32, utils::TempAlloc<u32>> deq{};
+  TVec<u32> deq{};
 
   // if a bb has a incoming edge from a block that it dominates we found a loop
   // header
   for (u32 bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
-    FVec<u32> tails;
+    TVec<u32> tails;
     for (auto pred : cfg.bbrs[bb_id].pred) {
       if (dom.dom_bbs[pred].dominators[bb_id]) {
         tails.push_back(pred);
@@ -47,7 +47,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
       }
 
       // utils::Debug << forward << "\n";
-      FVec<u32> body_nodes;
+      TVec<u32> body_nodes;
       body_nodes.reserve(1 + 1 + tails.size() * 2);
 
       for (auto tail : tails) {
@@ -68,7 +68,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
         }
       }
 
-      FVec<u32> leaving_nodes;
+      TVec<u32> leaving_nodes;
       leaving_nodes.reserve(body_nodes.size() / 2);
       for (u32 node : body_nodes) {
         for (auto succ : cfg.bbrs[node].succ) {

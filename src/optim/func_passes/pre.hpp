@@ -6,6 +6,7 @@
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/function_pass.hpp"
+#include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/logging.hpp"
 #include <algorithm>
@@ -13,18 +14,18 @@
 namespace foptim::optim {
 using utils::BitSet;
 
-typedef FVec<BitSet> BBData;
+using BBData = TVec<BitSet>;
 
-typedef FVec<FVec<BitSet>> DBBData;
+using DBBData = TVec<TVec<BitSet>>;
 
 static void
 init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
-                   const fir::Function &func, const FVec<fir::Instr> &exprs,
-                   const FMap<fir::Instr, FVec<fir::Instr>> &expr_to_instrs) {
+                   const fir::Function &func, const TVec<fir::Instr> &exprs,
+                   const TMap<fir::Instr, TVec<fir::Instr>> &expr_to_instrs) {
 
   for (size_t expr_i = 0; expr_i < exprs.size(); expr_i++) {
     // transparency
-    for (auto &arg : exprs[expr_i]->get_args()) {
+    for (const auto &arg : exprs[expr_i]->get_args()) {
       if (arg.is_instr()) {
         const fir::Instr instr = arg.as_instr();
         const auto parent_bb = instr->get_parent();
@@ -73,17 +74,17 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
 
 static inline void execute(const BBData &save, const BBData &insert_sin,
                            const DBBData &insert_doub, const BBData &redund,
-                           const FVec<fir::Instr> &exprs,
-                           const FVec<fir::BasicBlock> bbs) {
+                           const TVec<fir::Instr> &exprs,
+                           const FVec<fir::BasicBlock>& bbs) {
   // (void)save;
   // (void)insert_doub;
   // (void)redund;
 
   const size_t n_bbs = bbs.size();
-  FVec<fir::ValueR> repl_map(insert_sin[0].size());
+  TVec<fir::ValueR> repl_map(insert_sin[0].size());
 
   for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
-    auto &cbb = bbs[bb_id];
+    const auto &cbb = bbs[bb_id];
 
     // utils::Debug << "Redund: " << redund[bb_id] << "\n";
     // utils::Debug << "Save:   " << save[bb_id] << "\n";
@@ -157,11 +158,11 @@ public:
     assert(cfg.entry == 0);
 
     // expr -> list of instruction that use that expresion;
-    FMap<fir::Instr, FVec<fir::Instr>> expr_to_instrs;
+    TMap<fir::Instr, TVec<fir::Instr>> expr_to_instrs;
     expr_to_instrs.reserve(func.n_instrs());
 
     // list of all unique exprs;
-    FVec<fir::Instr> exprs;
+    TVec<fir::Instr> exprs;
     exprs.reserve(func.n_instrs());
 
     {
@@ -183,7 +184,7 @@ public:
           if (expr == exprs.end()) {
             exprs.push_back(target_instr);
             expr_to_instrs.insert(
-                {target_instr, FVec<fir::Instr>{target_instr}});
+                {target_instr, TVec<fir::Instr>{target_instr}});
           } else {
             expr_to_instrs.at(*expr).push_back(target_instr);
           }
@@ -250,7 +251,7 @@ public:
     // sa_in[cfg.entry] = empty_bitset;
     // save[cfg.entry] = empty_bitset;
 
-    std::deque<u32> worklist = {};
+    std::deque<u32, utils::TempAlloc<u32>> worklist = {};
     for (size_t i = 0; i < cfg.bbrs.size(); i++) {
       worklist.push_back(i);
     }
@@ -267,7 +268,7 @@ public:
     BitSet redund_new{n_exprs, false};
     BitSet doub_update_const{n_exprs, false};
     BitSet av_in_new{n_exprs, false};
-    FVec<BitSet> insert_doub_new = {};
+    TVec<BitSet> insert_doub_new = {};
     insert_doub_new.resize(n_bbs, empty_bitset);
 
     BitSet sa_out_new{n_exprs, false};

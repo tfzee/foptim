@@ -20,13 +20,13 @@ void Instr::remove_from_parent() {
   }
 }
 
-bool Instr::substitute(const FMap<ValueR, ValueR> &repl) {
-  auto *self = operator->();
+template <class T> bool substitute_impl(Instr &t, const T &repl) {
+  auto *self = t.operator->();
   const auto n_args = self->args.size();
   bool replaced = false;
   for (size_t i = 0; i < n_args; i++) {
     if (repl.contains(self->args[i])) {
-      replace_arg(i, repl.at(self->args[i]));
+      t.replace_arg(i, repl.at(self->args[i]));
       replaced = true;
     }
   }
@@ -35,12 +35,18 @@ bool Instr::substitute(const FMap<ValueR, ValueR> &repl) {
     const auto n_args = bb.args.size();
     for (size_t i = 0; i < n_args; i++) {
       if (repl.contains(bb.args[i])) {
-        replace_arg(i, repl.at(bb.args[i]));
+        t.replace_arg(i, repl.at(bb.args[i]));
         replaced = true;
       }
     }
   }
   return replaced;
+}
+bool Instr::substitute(const FMap<ValueR, ValueR> &repl) {
+  return substitute_impl(*this, repl);
+}
+bool Instr::substitute(const TMap<ValueR, ValueR> &repl) {
+  return substitute_impl(*this, repl);
 }
 
 void Instr::clear_args() {

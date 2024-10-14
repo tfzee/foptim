@@ -29,14 +29,18 @@ public:
   u16 add_bb_arg(BasicBlock target, ValueR val);
   ValueR replace_arg(u16 indx, ValueR new_val);
   BasicBlock replace_bb(u16 indx, BasicBlock new_val, bool keepArgs = true);
-  BasicBlock replace_bb(BasicBlock target, BasicBlock new_val, bool keepArgs = true);
+  BasicBlock replace_bb(BasicBlock target, BasicBlock new_val,
+                        bool keepArgs = true);
   ValueR replace_bb_arg(BasicBlock target, u16 indx, ValueR new_val);
   ValueR replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val);
+
   /*
   Substitutes args, bbs and bbargs if they are in the map
   @returns true if it replaced any
   */
   bool substitute(const FMap<ValueR, ValueR> &repl);
+  bool substitute(const TMap<ValueR, ValueR> &repl);
+
   /*
   Removes it from the parent basicblock and cleans up references to it
   aswell as uses of its arguments. Does not delete the instruction.
