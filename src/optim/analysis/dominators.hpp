@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/basic_block_ref.hpp"
 #include "optim/analysis/cfg.hpp"
+#include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/logging.hpp"
 
@@ -41,7 +42,7 @@ public:
     this->cfg = &cfg;
 
     
-    const FVec<CFG::Node> &cfg_bbs = cfg.bbrs;
+    const auto &cfg_bbs = cfg.bbrs;
     const size_t n_bbs = cfg.bbrs.size();
 
     dom_bbs.reserve(n_bbs);
@@ -60,7 +61,7 @@ public:
       // }
     }
 
-    std::deque<u32> worklist{cfg.entry};
+    std::deque<u32, utils::TempAlloc<u32>> worklist{cfg.entry};
 
     while (!worklist.empty()) {
       u32 cur = worklist.front();

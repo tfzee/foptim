@@ -32,7 +32,7 @@ template <class T> struct IterBitSet {
 
 struct BitSet {
   // TODO: FVec
-  FVec<bool> _data;
+  TVec<bool> _data;
 
   constexpr BitSet(size_t size, bool val) { _data.resize(size, val); }
 

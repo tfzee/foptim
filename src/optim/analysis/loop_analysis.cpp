@@ -10,6 +10,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
   info.clear();
 
   const CFG &cfg = *dom.cfg;
+  FVec<u32> deq{};
 
   // if a bb has a incoming edge from a block that it dominates we found a loop
   // header
@@ -29,7 +30,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
 
       forward[bb_id] = true;
 
-      FVec<u32> deq{};
+      deq.clear();
       deq.reserve(32);
       deq.push_back(bb_id);
 

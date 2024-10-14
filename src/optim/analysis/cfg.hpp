@@ -3,6 +3,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/helpers.hpp"
 #include <Tracy/tracy/Tracy.hpp>
@@ -83,7 +84,7 @@ public:
     }
 
     if (reverse) {
-      // TODO: should i change try aswell ?
+      // TODO: should (and how would) i change entry ?
       for (auto &node : bbrs) {
         std::swap(node.pred, node.succ);
       }

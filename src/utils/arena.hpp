@@ -27,12 +27,12 @@ namespace foptim::utils {
 
 template <class T> class TempAlloc : public std::allocator<T> {
 public:
-  T *allocate(size_t count) { return arena_alloc(&global_temp_arena, count); }
+  T *allocate(size_t count) { return (T*)arena_alloc(&global_temp_arena, count*sizeof(T)); }
 
-  [[clang::always_inline]] constexpr void deallocate() {}
+  [[clang::always_inline]] constexpr void deallocate(T* /*unused*/, size_t /*unused*/) {}
 
   static void reset() { arena_reset(&global_temp_arena); }
-  static void clear() { arena_reset(&global_temp_arena); }
+  static void free() { arena_free(&global_temp_arena); }
 };
 
 } // namespace foptim::utils

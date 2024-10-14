@@ -424,6 +424,8 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
 
 constexpr FVec<Pattern> base_pats() {
   FVec<Pattern> res;
+  res.reserve(100);
+
   using Node = Pattern::Node;
   // using Edge = Pattern::Edge;
   using InstrType = fir::InstrType;

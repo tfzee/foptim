@@ -117,7 +117,7 @@ int main(int argc, char *argv[]) {
 
   // ctx->print_stats();
 
-  foptim::utils::TempAlloc<void*>::clear();
+  foptim::utils::TempAlloc<void*>::free();
   FrameMark;
   return 0;
 }

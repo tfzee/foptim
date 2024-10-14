@@ -1,5 +1,6 @@
 #include "live_variables.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "utils/arena.hpp"
 
 namespace foptim::optim {
 
@@ -40,10 +41,10 @@ void LiveVariables::dump() {
 void LiveVariables::update(fir::Function &func, CFG &cfg) {
   ZoneScopedN("LIVEVAR UPDATE");
 
-  FVec<utils::BitSet> liveIn;
-  FVec<utils::BitSet> liveOut;
-  FVec<utils::BitSet> upwExp;
-  FVec<utils::BitSet> defs;
+  TVec<utils::BitSet> liveIn;
+  TVec<utils::BitSet> liveOut;
+  TVec<utils::BitSet> upwExp;
+  TVec<utils::BitSet> defs;
 
   const auto all_values = setup_values(func);
   const size_t n_values = all_values.size();
@@ -53,7 +54,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
   upwExp.resize(func.n_bbs(), utils::BitSet{n_values, false});
   defs.resize(func.n_bbs(), utils::BitSet{n_values, false});
 
-  std::deque<u32> worklist{};
+  std::deque<u32, utils::TempAlloc<u32>> worklist{};
 
   // setup constant values for data flow equation
   auto &bbs = func.get_bbs();
@@ -96,7 +97,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
   }
 
   // data flow
-  auto new_liveOut = utils::BitSet{n_values, false};
+  utils::BitSet new_liveOut{n_values, false};
 
   while (!worklist.empty()) {
     u32 curr_id = worklist.front();
