@@ -57,7 +57,6 @@ add_library (foptim
                 ./src/ir/constant_value.cpp
 
                 #optim
-                ./src/optim/analysis/cfg.cpp
                 ./src/optim/analysis/live_variables.cpp
                 ./src/optim/analysis/loop_analysis.cpp
 
