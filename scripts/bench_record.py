@@ -35,7 +35,7 @@ if __name__ == "__main__":
             hyperfine_run_command += f" -n {name}_clang_O3_run_baseline"
             hyperfine_run_command += f" \"./{out_dir}/{benchy}_clang_O3.tmp.out\""
 
-    os.system(hyperfine_run_command)  
+    # os.system(hyperfine_run_command)  
 
     # for benchy in os.listdir("../test/"):
     #     if(benchy.endswith(".c") or benchy.endswith(".cpp")):

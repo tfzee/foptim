@@ -5,8 +5,8 @@
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/logging.hpp"
+#include "utils/set.hpp"
 #include <algorithm>
-#include <unordered_set>
 
 namespace foptim::optim {
 
@@ -17,8 +17,8 @@ public:
     CFG rev_cfg{func, true};
     Dominators rev_dom{rev_cfg};
 
-    std::unordered_set<fir::Instr> marked{};
-    std::deque<fir::Instr> worklist;
+    TSet<fir::Instr> marked{};
+    std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
     // first mark all critical operations
     // and add them to the worklist
     for (auto &bb : func.get_bbs()) {
@@ -130,11 +130,9 @@ public:
         bb->remove_instr(instr_id_p1 - 1);
       }
     }
-
-    
   }
 
-  void dump(fir::Function &func, std::unordered_set<fir::Instr> marked) {
+  void dump(fir::Function &func, FSet<fir::Instr> &marked) {
     for (auto &bb : func.get_bbs()) {
       utils::Debug << "BB;\n";
       for (auto &instr : bb->get_instrs()) {

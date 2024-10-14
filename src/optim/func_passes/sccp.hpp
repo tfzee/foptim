@@ -5,9 +5,9 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
+#include "utils/arena.hpp"
 #include "utils/logging.hpp"
 #include <algorithm>
-#include <unordered_set>
 
 namespace foptim::optim {
 
@@ -30,9 +30,9 @@ class SCCP final : public FunctionPass {
     fir::ConstantValueR value =
         fir::ConstantValueR(fir::ConstantValueR::invalid());
 
-    constexpr bool is_top() const { return type == ValueType::Top; }
-    constexpr bool is_bottom() const { return type == ValueType::Bottom; }
-    constexpr bool is_const() const { return type == ValueType::Constant; }
+    [[nodiscard]] constexpr bool is_top() const { return type == ValueType::Top; }
+    [[nodiscard]] constexpr bool is_bottom() const { return type == ValueType::Bottom; }
+    [[nodiscard]] constexpr bool is_const() const { return type == ValueType::Constant; }
 
     static ConstantValue Top() {
       return ConstantValue{ValueType::Top,
@@ -58,12 +58,14 @@ class SCCP final : public FunctionPass {
   };
 
   CFG cfg;
-  // TODO: prob can replace edge with just user
-  std::deque<fir::Use> ssa_worklist{};
-  std::deque<fir::BasicBlock> cfg_worklist;
-  FMap<fir::ValueR, ConstantValue> values;
+  // TEMPORARY STORAGE
+  std::deque<fir::Use, utils::TempAlloc<fir::Use>> ssa_worklist{};
+  std::deque<fir::BasicBlock, utils::TempAlloc<fir::BasicBlock>> cfg_worklist;
 
-  std::unordered_set<fir::BasicBlock> reachable_bb{};
+  TMap<fir::ValueR, ConstantValue> values;
+
+  FSet<fir::BasicBlock>
+      reachable_bb{};
 
 public:
   ConstantValue eval(fir::ValueR value) {
@@ -119,7 +121,7 @@ public:
         break;
       }
       case fir::InstrType::BranchInstr: {
-        auto &target = instr->get_bb_args();
+        const auto &target = instr->get_bb_args();
         // utils::Debug << " HIT BRANCH\n\n";
         ASSERT(target.size() == 1);
         if (!reachable_bb.contains(target[0].bb)) {
@@ -136,7 +138,7 @@ public:
         break;
       }
       case fir::InstrType::CondBranchInstr: {
-        auto &targets = instr->get_bb_args();
+        const auto &targets = instr->get_bb_args();
         ASSERT(targets.size() == 2);
         auto arg = eval(instr->get_arg(0));
         // ASSERT(!arg.is_bottom());
@@ -223,7 +225,7 @@ public:
   }
 
   void eval_meets(fir::BasicBlock bb, size_t bb_id) {
-    FVec<ConstantValue> res;
+    TVec<ConstantValue> res;
     res.resize(bb->n_args(), ConstantValue::Top());
 
     for (u32 pred_id : cfg.bbrs[bb_id].pred) {

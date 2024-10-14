@@ -1,4 +1,5 @@
 #include "loop_analysis.hpp"
+#include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/logging.hpp"
 #include "utils/vec.hpp"
@@ -10,7 +11,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
   info.clear();
 
   const CFG &cfg = *dom.cfg;
-  FVec<u32> deq{};
+  FVec<u32, utils::TempAlloc<u32>> deq{};
 
   // if a bb has a incoming edge from a block that it dominates we found a loop
   // header

@@ -92,7 +92,7 @@ public:
   }
 
   template <class T> constexpr void postorder(T &&functor) {
-    std::deque<u32> queue{entry};
+    std::deque<u32, utils::TempAlloc<u32>> queue{entry};
     utils::BitSet set{bbrs.size(), false};
     set[entry] = true;
 

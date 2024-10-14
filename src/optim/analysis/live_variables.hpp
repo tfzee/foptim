@@ -116,8 +116,8 @@ public:
     return false;
   }
 
-  static FMap<fir::ValueR, size_t> setup_values(fir::Function &func) {
-    FMap<fir::ValueR, size_t> values;
+  static TMap<fir::ValueR, size_t> setup_values(fir::Function &func) {
+    TMap<fir::ValueR, size_t> values;
     // values.reserve(func.n_instrs() * 2);
     size_t value_id = 0;
     for (const auto &bb : func.get_bbs()) {
