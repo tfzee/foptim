@@ -370,6 +370,10 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
   FVec<PhiPair> pairs;
   pairs.reserve(args.args.size());
   for (size_t arg_id = 0; arg_id < args.args.size(); arg_id++) {
+    //skip unused bb args
+    if (fir::ValueR(args.bb, arg_id).get_n_uses() == 0) {
+      continue;
+    }
     auto to = valueToArg(fir::ValueR(args.bb, arg_id), res.result, data.alloc);
     auto from = valueToArg(args.args[arg_id], res.result, data.alloc);
     if (to == from) {
@@ -607,7 +611,7 @@ constexpr FVec<Pattern> base_pats() {
 
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
         if (a1.isImm()) {
-          //then we gucci
+          // then we gucci
         } else if (res_reg.ty != a1.ty) {
           auto res_reg =
               data.alloc.get_new_register(VRegInfo{(u8)get_size(res_ty)});
