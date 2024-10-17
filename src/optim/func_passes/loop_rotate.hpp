@@ -46,7 +46,7 @@ public:
       size_t arg_id = 0;
       for (auto arg : old_terminator_args) {
         repl_map.insert({fir::ValueR(header_bb, arg_id), arg});
-        arg_id = 0;
+        arg_id++;
       }
     }
     fir::Builder bb{head_pred};
@@ -56,6 +56,9 @@ public:
     // since they are just inserted at the end we could just use the length
     //  FVec<fir::Instr> new_instrs;
 
+    // utils::Debug << "doing subs\n";
+    // utils::Debug << old_terminator_args << "\n";
+    // utils::Debug << repl_map << "\n";
     for (auto instr : header_bb->instructions) {
       fir::Instr new_instr = bb.insert_copy(instr);
       new_instr.substitute(repl_map);
@@ -86,8 +89,8 @@ public:
     }
     if (linfo.leaving_nodes.size() != 1 ||
         linfo.leaving_nodes[0] != linfo.head) {
-      failure({"Only leaving node can be the header ",
-               {cfg.bbrs[linfo.head].bb}});
+      failure(
+          {"Only leaving node can be the header ", {cfg.bbrs[linfo.head].bb}});
       return false;
     }
     auto header_bb = cfg.bbrs[linfo.head].bb;
@@ -126,10 +129,6 @@ public:
 
     // now the header only got predecessors that use a simple jump to it
 
-    // TODO: prob want to replace this map since its never gonna be more then a
-    // handful of bb_block args
-    TMap<fir::ValueR, fir::ValueR> repl_map;
-
     // we need to figure out the headers_terminator which of the two targets is
     // the non exiting one
     uint8_t non_exiting_target = 1;
@@ -145,6 +144,9 @@ public:
       }
     }
 
+    // TODO: prob want to replace this map since its never gonna be more then a
+    // handful of bb_block args
+    TMap<fir::ValueR, fir::ValueR> repl_map;
     // replace all incoming branch instructions with the full header
     {
       // if we inserted preheader we can just replace it and all the tails

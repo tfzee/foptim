@@ -7,6 +7,7 @@
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
+#include "utils/set.hpp"
 #include <algorithm>
 
 namespace foptim::optim {
@@ -30,9 +31,15 @@ class SCCP final : public FunctionPass {
     fir::ConstantValueR value =
         fir::ConstantValueR(fir::ConstantValueR::invalid());
 
-    [[nodiscard]] constexpr bool is_top() const { return type == ValueType::Top; }
-    [[nodiscard]] constexpr bool is_bottom() const { return type == ValueType::Bottom; }
-    [[nodiscard]] constexpr bool is_const() const { return type == ValueType::Constant; }
+    [[nodiscard]] constexpr bool is_top() const {
+      return type == ValueType::Top;
+    }
+    [[nodiscard]] constexpr bool is_bottom() const {
+      return type == ValueType::Bottom;
+    }
+    [[nodiscard]] constexpr bool is_const() const {
+      return type == ValueType::Constant;
+    }
 
     static ConstantValue Top() {
       return ConstantValue{ValueType::Top,
@@ -64,14 +71,14 @@ class SCCP final : public FunctionPass {
 
   TMap<fir::ValueR, ConstantValue> values;
 
-  FSet<fir::BasicBlock>
-      reachable_bb{};
+  TSet<fir::BasicBlock> reachable_bb;
 
 public:
   ConstantValue eval(fir::ValueR value) {
     if (value.is_constant()) {
       return ConstantValue::Constant(value.as_constant());
-    } else if (values.contains(value)) {
+    }
+    if (values.contains(value)) {
       return values.at(value);
     }
 
@@ -108,6 +115,7 @@ public:
                 a.value->as_int() + b.value->as_int(), a.value->get_type()));
             break;
           case fir::BinaryInstrSubType::IntMul:
+            utils::Debug << "REACHED??\n";
             if (!a.value->is_int() || !b.value->is_int()) {
               break;
             }

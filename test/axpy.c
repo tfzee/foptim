@@ -17,7 +17,7 @@ int main() {
   int a[LEN] = {1, 2, 3, 4, 5};
   int b[LEN] = {1, 2, 1, 2, 1};
   int y[LEN] = {5, 5, 3, 4, 4};
-  int c[LEN];
+  int c[LEN] = {};
 
   axpy(a, b, y, c, LEN);
 

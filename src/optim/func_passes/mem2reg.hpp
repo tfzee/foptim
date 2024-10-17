@@ -9,6 +9,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "utils/logging.hpp"
 #include <algorithm>
+#include <chrono>
 #include <tuple>
 #include <unordered_set>
 
@@ -127,12 +128,13 @@ static bool decide_variable_value(
     fir::ValueR variable,
     const FVec<FMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
         &current_variable_value,
-    std::tuple<fir::BasicBlock, fir::ValueR> &res) {
+    fir::ValueR &res) {
   for (size_t ip1 = current_variable_value.size(); ip1 > 0; ip1--) {
     size_t i = ip1 - 1;
     if (current_variable_value[i].contains(variable)) {
-      res = current_variable_value[i].at(variable);
-      // utils::Debug << "Decided value " << variable << " = " << std::get(res) << "\n";
+      res = std::get<1>(current_variable_value[i].at(variable));
+      // utils::Debug << "Decided value " << variable << " = " << std::get(res)
+      // << "\n";
       return true;
     }
   }
@@ -171,22 +173,20 @@ static inline void decide_value_store(fir::Instr instr, size_t &i,
   block->remove_instr(i);
 }
 
-static inline void decide_value_load(fir::Instr instr, size_t &i,
-                                     const AllocToPhiLoc &phi_insert_locs,
-                                     const VarValueStack &current_variable_value) {
-  std::tuple<fir::BasicBlock, fir::ValueR> var_val_res = {
-      fir::BasicBlock(fir::BasicBlock::invalid()), fir::ValueR()};
+static inline void
+decide_value_load(fir::Instr instr, size_t &i,
+                  const AllocToPhiLoc &phi_insert_locs,
+                  const VarValueStack &current_variable_value) {
+  fir::ValueR load_val = fir::ValueR();
 
   // if we cant find a value here it wasnt initialized which either makes it
   // a function argument or if it is local to the function it would be UB to
   // load it
   if (!decide_variable_value(instr->args[0], current_variable_value,
-                             var_val_res)) {
+                             load_val)) {
     i++;
     return;
   }
-
-  auto [_, load_val] = var_val_res;
 
   // utils::Debug << "====\n" << load_val << "\n" << instr << "\n======\n";
   if (!instr->args[0].is_instr()) {
@@ -208,32 +208,39 @@ static inline void decide_value_load(fir::Instr instr, size_t &i,
 }
 
 static inline void
-decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb, fir::BasicBlock block,
+decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
+                         fir::BasicBlock block,
                          std::unordered_set<fir::BasicBlock> &visited,
                          FMap<fir::ValueR, fir::ValueR> &bb_arg_to_alloca,
                          const AllocToPhiLoc &phi_insert_locs,
                          VarValueStack &current_variable_value) {
 
-  // utils::Debug << "DecideValue at BB: " << (void*)block.get_raw_ptr() << "\n";
-  // dump(current_variable_value);
+  // utils::Debug << "DecideValue at BB: " << (void*)block.get_raw_ptr() <<
+  // "\n"; dump(current_variable_value);
   const auto args = block->get_args();
   // for each bb argument we find the origin
   for (u32 arg = 0; arg < args.size(); arg++) {
-    std::tuple<fir::BasicBlock, fir::ValueR> var_val_res = {
-        fir::BasicBlock(fir::BasicBlock::invalid()), fir::ValueR()};
+    fir::ValueR var_val_res = fir::ValueR();
     // only if the argument is actually part of the allocaremoval
     if (bb_arg_to_alloca.contains(fir::ValueR(block, arg))) {
       auto bb_arguemnt_value = fir::ValueR(block, arg);
       auto target_alloca = bb_arg_to_alloca.at(bb_arguemnt_value);
-      // utils::Debug << target_alloca << "\n";
-      ASSERT(decide_variable_value(target_alloca, current_variable_value,
-                                   var_val_res));
+      // utils::Debug << "BBARG " << fir::ValueR(block, arg) << "   "
+      //              << target_alloca << "\n";
+
+      if (!decide_variable_value(target_alloca, current_variable_value,
+                                 var_val_res)) {
+        // then this is a uninit value this can be valid aslong as we dont load
+        // before the next store
+        auto *ctx = func.ctx;
+        //TODO: should habe a uninit/poision value for these cases?
+        var_val_res = fir::ValueR(ctx->get_constant_value(0, target_alloca.get_type()));
+      }
       // then we update the arguemtns of the origin jump
       // utils::Debug << "Update origin for arg " << arg << "\n";
-      auto [curr_val_from, curr_val] = var_val_res;
       auto term = last_bb->get_terminator();
 
-      term.replace_bb_arg(block, arg, curr_val);
+      term.replace_bb_arg(block, arg, var_val_res);
       current_variable_value.back().insert(
           {target_alloca, {block, bb_arguemnt_value}});
     }
@@ -241,7 +248,6 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb, fir::Basi
   if (visited.contains(block)) {
     return;
   }
-
 
   visited.insert(block);
 
@@ -302,14 +308,12 @@ public:
       }
     }
 
-
     std::unordered_set<fir::BasicBlock> visited{};
     FVec<FMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
         current_variable_value{{}};
-    decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()), func.get_entry_bb(), visited,
-                             bb_arg_to_alloca, insert_locations,
-                             current_variable_value);
-
+    decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()),
+                             func.get_entry_bb(), visited, bb_arg_to_alloca,
+                             insert_locations, current_variable_value);
   }
 };
 

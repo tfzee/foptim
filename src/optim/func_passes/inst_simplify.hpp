@@ -50,7 +50,8 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
       instr->replace_all_uses(instr->args[0]);
       bb->remove_instr(instr_id);
       return true;
-    } else if (c_val->as_int() == 0) {
+    }
+    if (c_val->as_int() == 0) {
       auto zero_const = ctx.data->get_constant_value(0, c_val->get_type());
       instr->replace_all_uses(ValueR{zero_const});
       bb->remove_instr(instr_id);

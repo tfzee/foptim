@@ -30,7 +30,6 @@ public:
         case fir::InstrType::SExt:
         case fir::InstrType::LoadInstr:
         case fir::InstrType::AllocaInstr:
-        case fir::InstrType::CondBranchInstr:
         case fir::InstrType::ICmp:
         case fir::InstrType::BranchInstr:
           isCritical = false;
@@ -38,6 +37,8 @@ public:
         case fir::InstrType::ReturnInstr:
         case fir::InstrType::DirectCallInstr:
         case fir::InstrType::StoreInstr:
+        //FIXME: Shouldnt be marked as critical and instead be automatically deteceted
+        case fir::InstrType::CondBranchInstr:
           isCritical = true;
           break;
         }
@@ -123,7 +124,8 @@ public:
 
         if (instr->is(fir::InstrType::CondBranchInstr)) {
           // TODO: handle it
-          std::abort();
+          utils::Debug << "TODO fix DCE cond branch simplifcation\n";
+          // std::abort();
           continue;
         }
 
@@ -132,7 +134,7 @@ public:
     }
   }
 
-  void dump(fir::Function &func, FSet<fir::Instr> &marked) {
+  void dump(fir::Function &func, TSet<fir::Instr> &marked) {
     for (auto &bb : func.get_bbs()) {
       utils::Debug << "BB;\n";
       for (auto &instr : bb->get_instrs()) {

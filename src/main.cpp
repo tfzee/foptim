@@ -14,8 +14,8 @@
 #include "optim/func_passes/pre.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/function_pass.hpp"
-#include "utils/logging.hpp"
 #include "utils/arena.hpp"
+#include "utils/logging.hpp"
 #include "utils/parameters.hpp"
 #include "utils/todo.hpp"
 #include "x86_codegen/backend.hpp"
@@ -52,18 +52,23 @@ int main(int argc, char *argv[]) {
 
       using namespace foptim::optim;
       foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
+      // foptim::optim::StaticFunctionPassManager<InstSimplify, LVN, EPathPRE,
+      //                                          SCCP, DCE, InstSimplify>{}
+      //     .apply(ctx);
+      // for (auto [_, func] : ctx->storage.functions) {
+      //   Debug << func;
+      // }
       foptim::optim::StaticFunctionPassManager<
           InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify, LoopRotate,
           InstSimplify, Clean>{}
           .apply(ctx);
     }
-
-    // for (auto [_, func] : ctx->storage.functions) {
-    //   Debug << func;
-    // }
-    // ASSERT(ctx->verify());
   }
 
+  for (auto [_, func] : ctx->storage.functions) {
+    Debug << func;
+  }
+  ASSERT(ctx->verify());
   // return 0;
 
   foptim::FVec<foptim::fmir::MFunc> funcs;
@@ -117,7 +122,7 @@ int main(int argc, char *argv[]) {
 
   // ctx->print_stats();
 
-  foptim::utils::TempAlloc<void*>::free();
+  foptim::utils::TempAlloc<void *>::free();
   FrameMark;
   return 0;
 }

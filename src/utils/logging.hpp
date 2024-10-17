@@ -1,6 +1,7 @@
 #pragma once
 #include "types.hpp"
 #include "utils/vec.hpp"
+#include <unordered_map>
 
 namespace foptim::utils {
 struct BitSet;
@@ -47,19 +48,22 @@ public:
   u8 indent;
   LogLevel level;
 
-  template <class T> Printer operator<<(const FVec<T> data) const {
+  template <class T, class Alloc>
+  Printer operator<<(const std::vector<T, Alloc> data) const {
     *this << "[";
     for (const T &elem : data) {
       *this << elem << ", ";
     }
     return *this << "]";
   }
-  template <class T> Printer operator<<(const TVec<T> data) const {
-    *this << "[";
-    for (const T &elem : data) {
-      *this << elem << ", ";
+  template <class K, class V, class Hash, class Equal, class Alloc>
+  Printer
+  operator<<(const std::unordered_map<K, V, Hash, Equal, Alloc> sett) const {
+    *this << "{";
+    for (const auto &[key, value] : sett) {
+      *this << key << ": " << value << ",\n";
     }
-    return *this << "]";
+    return *this << "}";
   }
 
   Printer operator<<(foptim::fir::FunctionR func) const;
@@ -78,14 +82,6 @@ public:
   Printer operator<<(f64 val) const;
   Printer operator<<(const foptim::utils::BitSet &func) const;
   Printer operator<<(const foptim::optim::LiveRange &live) const;
-  // template <class T>
-  // Printer operator<<(const std::unordered_set<T> sett) const {
-  //   *this << "{";
-  //   for (const T &elem : sett) {
-  //     *this << elem << ", ";
-  //   }
-  //   return *this << "}";
-  // }
   Printer operator<<(const char *func) const;
   Printer operator<<(const foptim::fir::ConstantValue &v) const;
   Printer operator<<(const foptim::fir::ConstantValueR v) const;
