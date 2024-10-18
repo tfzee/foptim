@@ -370,7 +370,7 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
   FVec<PhiPair> pairs;
   pairs.reserve(args.args.size());
   for (size_t arg_id = 0; arg_id < args.args.size(); arg_id++) {
-    //skip unused bb args
+    // skip unused bb args
     if (fir::ValueR(args.bb, arg_id).get_n_uses() == 0) {
       continue;
     }
@@ -450,6 +450,7 @@ constexpr FVec<Pattern> base_pats() {
   auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
   auto AllocaNode = Node{NodeType::Instr, InstrType::AllocaInstr, 0};
   auto SExtNode = Node{NodeType::Instr, InstrType::SExt, 0};
+  auto ZExtNode = Node{NodeType::Instr, InstrType::ZExt, 0};
 
   res.push_back(
       Pattern{{AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
@@ -666,7 +667,13 @@ constexpr FVec<Pattern> base_pats() {
         auto cmp_instr = res.matched_instrs[0];
         auto branch_instr = res.matched_instrs[1];
 
-        if (cmp_instr->get_instr_subtype() == (u32)fir::ICmpInstrSubType::SLT) {
+        auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
+
+        // first we check if we can output a simplified version
+        if (sub_type == fir::ICmpInstrSubType::SLT ||
+            sub_type == fir::ICmpInstrSubType::NE ||
+            sub_type == fir::ICmpInstrSubType::ULT) {
+
           auto bb_with_args = branch_instr->bbs[0];
           auto target_bb = branch_instr->bbs[0].bb;
           auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
@@ -674,8 +681,19 @@ constexpr FVec<Pattern> base_pats() {
 
           ASSERT(bb_with_args.args.size() == target_bb->args.size());
           generate_bb_args(bb_with_args, res, data);
-          res.result.push_back(
-              MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
+
+          if (sub_type == fir::ICmpInstrSubType::SLT) {
+            res.result.push_back(
+                MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::ULT) {
+            res.result.push_back(
+                MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::NE) {
+            res.result.push_back(
+                MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
+          } else {
+            TODO("UNREACH");
+          }
         } else {
           utils::Debug << "Failed to smartly match cmp "
                        << cmp_instr->get_instr_subtype() << " +  branch\n";
@@ -715,15 +733,19 @@ constexpr FVec<Pattern> base_pats() {
   res.push_back(Pattern{
       {ReturnNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto ret_instr = res.matched_instrs[0];
-        auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
+        if (ret_instr->has_args()) {
+          auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
 
-        auto res_reg = data.alloc.get_new_register(fir::IRLocation{ret_instr},
-                                                   ret_instr.get_type(),
-                                                   VRegInfo::EAX(), data.lives);
-        auto res_arg = MArgument(res_reg, convert_type(ret_instr.get_type()));
+          auto res_reg = data.alloc.get_new_register(
+              fir::IRLocation{ret_instr}, ret_instr.get_type(), VRegInfo::EAX(),
+              data.lives);
+          auto res_arg = MArgument(res_reg, convert_type(ret_instr.get_type()));
 
-        res.result.emplace_back(Opcode::mov, res_arg, ret_val);
-        res.result.emplace_back(Opcode::ret, res_arg);
+          res.result.emplace_back(Opcode::mov, res_arg, ret_val);
+          res.result.emplace_back(Opcode::ret, res_arg);
+        } else {
+          res.result.emplace_back(Opcode::ret);
+        }
         return true;
       }});
   res.push_back(Pattern{
@@ -734,6 +756,16 @@ constexpr FVec<Pattern> base_pats() {
             valueToArg(fir::ValueR(sext_instr), res.result, data.alloc);
 
         res.result.emplace_back(Opcode::mov_sx, res_reg, val);
+        return true;
+      }});
+  res.push_back(Pattern{
+      {ZExtNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto zext_instr = res.matched_instrs[0];
+        auto val = valueToArg(zext_instr->args[0], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(zext_instr), res.result, data.alloc);
+
+        res.result.emplace_back(Opcode::mov_zx, res_reg, val);
         return true;
       }});
   res.push_back(Pattern{

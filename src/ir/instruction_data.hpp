@@ -234,6 +234,7 @@ public:
   constexpr const FVec<Use> &get_uses() const { return uses; }
   constexpr const FVec<ValueR> &get_args() const { return args; }
   constexpr const ValueR &get_arg(size_t indx) const { return args.at(indx); }
+  constexpr bool has_args() const { return !args.empty(); }
   constexpr const FVec<BBRefWithArgs> &get_bb_args() const { return bbs; }
   constexpr TypeR get_type() const { return value_type; }
 };

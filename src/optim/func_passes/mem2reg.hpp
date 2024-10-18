@@ -233,8 +233,9 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
         // then this is a uninit value this can be valid aslong as we dont load
         // before the next store
         auto *ctx = func.ctx;
-        //TODO: should habe a uninit/poision value for these cases?
-        var_val_res = fir::ValueR(ctx->get_constant_value(0, target_alloca.get_type()));
+        // TODO: should habe a uninit/poision value for these cases?
+        var_val_res =
+            fir::ValueR(ctx->get_constant_value(0, target_alloca.get_type()));
       }
       // then we update the arguemtns of the origin jump
       // utils::Debug << "Update origin for arg " << arg << "\n";

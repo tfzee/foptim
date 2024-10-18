@@ -9,6 +9,7 @@
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/gvn.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
+#include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/pre.hpp"
@@ -58,15 +59,30 @@ int main(int argc, char *argv[]) {
       // for (auto [_, func] : ctx->storage.functions) {
       //   Debug << func;
       // }
+      foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<EPathPRE>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
+      // foptim::optim::StaticFunctionPassManager<
+      //     LoopRotate>{}
+      //     .apply(ctx);
       foptim::optim::StaticFunctionPassManager<
-          InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify, LoopRotate,
-          InstSimplify, Clean>{}
+          InstSimplify>{}
           .apply(ctx);
+      foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
+
+      // foptim::optim::StaticFunctionPassManager<
+      //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
+      //     InstSimplify, Clean>{}
+      //     .apply(ctx);
     }
   }
 
   for (auto [_, func] : ctx->storage.functions) {
-    Debug << func;
+    Debug << func << "\n";
   }
   ASSERT(ctx->verify());
   // return 0;
@@ -109,10 +125,10 @@ int main(int argc, char *argv[]) {
       foptim::fmir::BBReordering{}.apply(funcs);
     }
 
-    // Debug << "\n";
-    // for (auto func : funcs) {
-    //   Debug << func;
-    // }
+    Debug << "\n";
+    for (auto func : funcs) {
+      Debug << func;
+    }
 
     {
       ZoneScopedN("Codegen");

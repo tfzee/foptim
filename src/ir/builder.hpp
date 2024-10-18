@@ -29,6 +29,9 @@ public:
            bb->instructions.begin();
   }
 
+  /*
+    Sets the current insert location to the start of the new Basic Block
+  */
   BasicBlock append_bb() {
     auto res = BasicBlock(ctx->storage.basic_blocks.push_back({func}));
     res.verify_validness();

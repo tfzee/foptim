@@ -140,7 +140,7 @@ Imm convert_imm(Compiler & /*unused*/, u64 imm, fmir::Type ty) {
   case fmir::Type::Int64:
     return imm;
   case fmir::Type::INVALID:
-    ASSERT(false);
+    TODO("Invalid type in MIR");
     break;
   }
   std::abort();
@@ -190,7 +190,7 @@ Operand convert_operand(Compiler &cc, FMap<fmir::VReg, Reg> &reg_to_op,
   case fmir::MArgument::ArgumentType::MemVRegVRegScale:
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-    ASSERT(false);
+    TODO("impl");
     break;
   }
   std::abort();
@@ -377,11 +377,26 @@ void emit_instr(fmir::MInstr &instr, FVec<Label> &bb_labels,
     }
     return;
   }
+  case fmir::Opcode::cjmp_ne:
+  case fmir::Opcode::cjmp_ult:
   case fmir::Opcode::cjmp_slt: {
     auto a = convert_operand(cc, reg_to_op, instr.args[0]);
     auto b = convert_operand(cc, reg_to_op, instr.args[1]);
     cc.emit(Inst::kIdCmp, a, b);
-    cc.emit(Inst::kIdJnz, bb_labels[instr.bb_ref]);
+    switch (instr.op) {
+
+    case fmir::Opcode::cjmp_ne:
+      cc.emit(Inst::kIdJne, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_ult:
+      cc.emit(Inst::kIdJb, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_slt:
+      cc.emit(Inst::kIdJl, bb_labels[instr.bb_ref]);
+      break;
+    default:
+      TODO("UNREAC");
+    }
     return;
   }
   case fmir::Opcode::icmp_slt: {
@@ -434,8 +449,8 @@ void replaceAll(std::string &str, const std::string &from,
   size_t start_pos = 0;
   while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
     str.replace(start_pos, from.length(), to);
-    start_pos += to.length(); // In case 'to' contains 'from', like replacing
-                              // 'x' with 'yx'
+    start_pos += to.length(); // In case 'to' contains 'from', like
+                              // replacing 'x' with 'yx'
   }
 }
 
@@ -465,7 +480,8 @@ void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
 
   // for (const auto &c : globals) {
   //   auto const_val =
-  //       cc.newConst(ConstPoolScope::kGlobal, c.data.data(), c.data.size());
+  //       cc.newConst(ConstPoolScope::kGlobal, c.data.data(),
+  //       c.data.size());
   // }
 
   cc.addDiagnosticOptions(DiagnosticOptions::kValidateAssembler);
@@ -484,7 +500,8 @@ void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
       reg_to_op.clear();
       const fmir::MFunc &func = funcs[i];
       // auto builder =
-      //     convert_func_signature(func.arg_tys, func.void_ret, func.res_ty);
+      //     convert_func_signature(func.arg_tys, func.void_ret,
+      //     func.res_ty);
       cc.bind(func_labels.at(i));
       // cc.addFunc(builder);
       cc.emit(asmjit::x86::Inst::kIdPush, rbp);
@@ -537,6 +554,7 @@ void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
     std::ofstream myfile;
     myfile.open(utils::out_file_path);
     myfile << "global _start\n"
+              "extern _memset\n"
               "_start:\n"
               "  call main\n"
               "  mov ebx, eax\n"

@@ -120,7 +120,7 @@ void InvokeLower::apply(FVec<MFunc> &funcs) {
     auto used_regs = calculate_used_regs(func);
 
     for (auto &bb : func.bbs) {
-      const size_t n_instrs = bb.instrs.size();
+      size_t n_instrs = bb.instrs.size();
       for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
         if (bb.instrs[instr_id].op != Opcode::arg_setup &&
             bb.instrs[instr_id].op != Opcode::invoke) {
@@ -132,6 +132,10 @@ void InvokeLower::apply(FVec<MFunc> &funcs) {
             continue;
           }
           transform(bb.instrs, instr_id, instr_end_id, used_regs);
+          // update the n of instrs since the might have changed it
+          n_instrs = bb.instrs.size();
+          // number of elements
+          // instr_id = 0;
           break;
         }
       }
