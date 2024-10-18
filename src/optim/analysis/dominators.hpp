@@ -41,7 +41,6 @@ public:
     dom_bbs.clear();
     this->cfg = &cfg;
 
-    
     const auto &cfg_bbs = cfg.bbrs;
     const size_t n_bbs = cfg.bbrs.size();
 
@@ -51,10 +50,9 @@ public:
     BitSet emptyBitSet{n_bbs, false};
     // utils::Debug << "TODO POST DOMINATORS\n";
 
-    for (const auto & bbr : cfg.bbrs) {
+    for (const auto &bbr : cfg.bbrs) {
       // if (i == 0) {
-      dom_bbs.push_back(
-          Node{bbr.bb, -1, fullBitSet, emptyBitSet});
+      dom_bbs.push_back(Node{bbr.bb, -1, fullBitSet, emptyBitSet});
       // } else {
       //   dom_bbs.push_back(
       //       Node{cfg.bbrs[i].bb, -1, fullBitSet, emptyBitSet, emptyBitSet});
@@ -63,14 +61,15 @@ public:
 
     std::deque<u32, utils::TempAlloc<u32>> worklist{cfg.entry};
 
+    BitSet newSet = {n_bbs, false};
     while (!worklist.empty()) {
       u32 cur = worklist.front();
       worklist.pop_front();
 
       const auto &pred = cfg_bbs[cur].pred;
-      BitSet newSet = {n_bbs, false};
+      newSet.reset(false);
       if (!pred.empty()) {
-        newSet = dom_bbs[pred[0]].dominators;
+        newSet.assign(dom_bbs[pred[0]].dominators);
         for (size_t i = 1; i < pred.size(); i++) {
           auto &dom = dom_bbs[pred[i]];
           newSet *= dom.dominators;
@@ -80,7 +79,7 @@ public:
       newSet[cur] = true;
 
       if (newSet != dom_bbs[cur].dominators) {
-        dom_bbs[cur].dominators = newSet;
+        dom_bbs[cur].dominators.assign(newSet);
         for (auto succ : cfg_bbs[cur].succ) {
           worklist.push_back(succ);
         }
@@ -88,15 +87,20 @@ public:
     }
 
     BitSet doms{n_bbs, false};
+    BitSet strict_dom{n_bbs, false};
 
     // frontier
     // iter over all blocks look at each successor
     for (u32 node_id = 0; node_id < dom_bbs.size(); node_id++) {
+
       for (u32 succ_id : cfg_bbs[node_id].succ) {
         // if a succ has less dominators then the parent -> its a frontier
+        strict_dom.assign(dom_bbs[succ_id].dominators);
+        strict_dom[succ_id] = false;
         doms.assign(dom_bbs[node_id].dominators)
-            .xor_(dom_bbs[succ_id].dominators)
+            .xor_(strict_dom)
             .mul(dom_bbs[node_id].dominators);
+        // doms.assign().assign(strict_dom).negate();
 
         // auto doms =
         //     (dom_bbs[node_id].dominators ^ dom_bbs[succ_id].dominators) *

@@ -75,7 +75,7 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
 static inline void execute(const BBData &save, const BBData &insert_sin,
                            const DBBData &insert_doub, const BBData &redund,
                            const TVec<fir::Instr> &exprs,
-                           const FVec<fir::BasicBlock>& bbs) {
+                           const FVec<fir::BasicBlock> &bbs) {
   // (void)save;
   // (void)insert_doub;
   // (void)redund;
@@ -123,18 +123,13 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
       repl_map.at(insert_id) = fir::ValueR(copy);
     }
 
-    bool hit = false;
     for (size_t bb2_id = 0; bb2_id < n_bbs; bb2_id++) {
       for (auto insert_loc : insert_doub[bb_id][bb2_id]) {
-        utils::Debug << bb_id << " => " << bb2_id
-                     << " EXPR: " << exprs[insert_loc] << "\n";
-        hit = true;
+        utils::Debug << "TODO epath pre double insert\n";
+        // utils::Debug << bb_id << " => " << bb2_id
+        //              << " EXPR: " << exprs[insert_loc] << "\n";
         (void)insert_loc;
       }
-    }
-    if (hit) {
-      utils::Debug << bbs[0]->get_parent() << "\n";
-      assert(false);
     }
 
     for (auto redund_id : redund[bb_id]) {

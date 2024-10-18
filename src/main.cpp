@@ -43,35 +43,23 @@ int main(int argc, char *argv[]) {
 
     ASSERT(ctx->verify());
 
-    // for (auto [_, func] : ctx->storage.functions) {
-    //   Debug << func << "\n";
-    // }
-    // Debug << "\n\n";
-
     {
       ZoneScopedN("Optim");
 
       using namespace foptim::optim;
       foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-      // foptim::optim::StaticFunctionPassManager<InstSimplify, LVN, EPathPRE,
-      //                                          SCCP, DCE, InstSimplify>{}
-      //     .apply(ctx);
-      // for (auto [_, func] : ctx->storage.functions) {
-      //   Debug << func;
-      // }
       foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<EPathPRE>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-      foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(
+          ctx);
       // foptim::optim::StaticFunctionPassManager<
       //     LoopRotate>{}
       //     .apply(ctx);
-      foptim::optim::StaticFunctionPassManager<
-          InstSimplify>{}
-          .apply(ctx);
+      // foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
       // foptim::optim::StaticFunctionPassManager<

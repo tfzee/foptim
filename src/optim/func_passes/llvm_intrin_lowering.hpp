@@ -10,20 +10,18 @@ namespace foptim::optim {
 class LLVMInstrinsicLowering final : public FunctionPass {
 public:
   void handle_memset(fir::Instr instr, fir::Function &func,
-                     const std::string &) {
+                     const std::string & /*unused*/) {
 
     auto *ctx = func.ctx;
     fir::Builder bb{instr};
     auto target_ptr = instr->args[0];
     auto value = instr->args[1];
     auto size = instr->args[2];
-    // auto is_volatile = instr->args[3];
-    // 0x55ce1661f2a8, 0, 512, 0
 
     auto void_ty = ctx->get_void_type();
     auto *func_ty = instr->get_attrib("callee_type").try_type();
     assert(func_ty);
-    bb.build_direct_call("_memset", *func_ty, void_ty,
+    bb.build_direct_call("foptim.memset", *func_ty, void_ty,
                          {target_ptr, value, size});
 
     instr.remove_from_parent();
@@ -45,7 +43,7 @@ public:
     }
   }
 
-  void apply(fir::Context &, fir::Function &func) override {
+  void apply(fir::Context & /*unused*/, fir::Function &func) override {
     ZoneScopedN("LLVMInstrinsLowering");
     for (auto bb : func.basic_blocks) {
       apply(bb, func);
