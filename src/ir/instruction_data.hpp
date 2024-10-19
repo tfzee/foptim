@@ -86,24 +86,33 @@ class InstrData : public Used, public Attributable {
 
 public:
   using Used::add_usage;
-  FVec<ValueR> args;
+  IRVec<ValueR> args;
   FVec<BBRefWithArgs> bbs;
   BasicBlock parent;
 
-  constexpr InstrType get_instr_type() const { return instr_type; }
-  constexpr u32 get_instr_subtype() const { return subtype; }
+  [[nodiscard]] constexpr InstrType get_instr_type() const {
+    return instr_type;
+  }
+  [[nodiscard]] constexpr u32 get_instr_subtype() const { return subtype; }
   constexpr void set_parent(BasicBlock new_parent) { parent = new_parent; }
-  constexpr BasicBlock get_parent() { return parent; }
-  constexpr const BasicBlock get_parent() const { return parent; }
+  [[nodiscard]] constexpr BasicBlock get_parent() { return parent; }
+  [[nodiscard]] constexpr const BasicBlock get_parent() const { return parent; }
 
-  bool verify(const BasicBlockData *, utils::Printer) const;
-  bool has_result() const;
-  bool is_critical() const;
-  bool pot_modifies_mem() const;
+  [[nodiscard]] constexpr const auto &get_uses() const { return uses; }
+  [[nodiscard]] constexpr const auto &get_args() const { return args; }
+  [[nodiscard]] constexpr const ValueR &get_arg(size_t indx) const {
+    return args.at(indx);
+  }
+  [[nodiscard]] constexpr bool has_args() const { return !args.empty(); }
+  [[nodiscard]] constexpr const auto &get_bb_args() const { return bbs; }
+  [[nodiscard]] constexpr TypeR get_type() const { return value_type; }
+  [[nodiscard]] bool verify(const BasicBlockData *, utils::Printer) const;
+  [[nodiscard]] bool has_result() const;
+  [[nodiscard]] bool is_critical() const;
+  [[nodiscard]] bool pot_modifies_mem() const;
+  [[nodiscard]] bool has_pot_sideeffects() const;
 
-  bool has_pot_sideeffects() const;
-
-  constexpr const char *get_name() const {
+  [[nodiscard]] constexpr const char *get_name() const {
     switch (instr_type) {
     case InstrType::BinaryInstr:
       switch ((BinaryInstrSubType)subtype) {
@@ -162,7 +171,7 @@ public:
     return "UNKNOWN";
   }
 
-  constexpr bool is(InstrType ty) const { return ty == instr_type; }
+  [[nodiscard]] constexpr bool is(InstrType ty) const { return ty == instr_type; }
 
   constexpr void verify() const {
     switch (instr_type) {
@@ -206,7 +215,7 @@ public:
   static InstrData get_branch(ContextData *ctx);
   static InstrData get_cond_branch(ContextData *ctx);
 
-  bool eql_expr(const InstrData &other) const {
+  [[nodiscard]] bool eql_expr(const InstrData &other) const {
     // TODO: compare on type?? value_type.eql(other.value_type)
     if (instr_type != other.instr_type) {
       return false;
@@ -231,12 +240,6 @@ public:
     return true;
   }
 
-  constexpr const FVec<Use> &get_uses() const { return uses; }
-  constexpr const FVec<ValueR> &get_args() const { return args; }
-  constexpr const ValueR &get_arg(size_t indx) const { return args.at(indx); }
-  constexpr bool has_args() const { return !args.empty(); }
-  constexpr const FVec<BBRefWithArgs> &get_bb_args() const { return bbs; }
-  constexpr TypeR get_type() const { return value_type; }
 };
 
 } // namespace foptim::fir

@@ -53,7 +53,7 @@
             shellHook = ''
                 # export CC=clang
                 # export CXX=clang++ 
-                # export TRACY_NO_EXIT=1
+                export TRACY_NO_EXIT=1
             '';
           };
         }

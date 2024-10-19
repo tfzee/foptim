@@ -20,7 +20,9 @@ struct Edge {
   fir::Instr to;
 };
 
-bool has_active_succ_edges(fir::Instr instr, FVec<Edge> &edges) {
+using Edges = IRVec<Edge>;
+
+bool has_active_succ_edges(fir::Instr instr, Edges &edges) {
   for (const auto &edge : edges) {
     if (edge.from == instr) {
       return true;
@@ -119,7 +121,7 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
   return false;
 }
 
-void find_match(fir::Instr instr, FVec<Pattern> &patts, MatchResult &res,
+void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
                 ExtraMatchData &data) {
   // utils::Debug << "Trying to match instr" << instr << "\n";
   ZoneScopedN("Find Match");
@@ -143,13 +145,13 @@ void find_match(fir::Instr instr, FVec<Pattern> &patts, MatchResult &res,
   ASSERT(false);
 }
 
-MBB apply_bb(fir::BasicBlock &bb, FVec<Edge> &active_edges,
-             FVec<Pattern> &patterns, ExtraMatchData &data) {
+MBB apply_bb(fir::BasicBlock &bb, Edges &active_edges,
+             IRVec<Pattern> &patterns, ExtraMatchData &data) {
   ZoneScopedN("Apply BB");
   MBB result_bb;
 
   // all the instructions in this basic block
-  FVec<fir::Instr> instrs;
+  TVec<fir::Instr> instrs;
   // the edges still active in our DAG
   const size_t n_instrs = bb->n_instrs();
   // setup
@@ -277,14 +279,14 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
     }
   }
 
-  FMap<fir::BasicBlock, u32> bbs;
+  TMap<fir::BasicBlock, u32> bbs;
   for (u32 bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
     bbs[func.basic_blocks[bb_id]] = bb_id;
   }
 
   ExtraMatchData extra_data = {alloc, bbs, lives, res_func};
 
-  FVec<Edge> active_edges;
+  Edges active_edges;
   active_edges.reserve(func.n_instrs() * 2);
 
   for (auto bb : func.basic_blocks) {
@@ -315,7 +317,7 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   return res_func;
 }
 
-MArgument valueToArg(fir::ValueR val, FVec<MInstr> &res, DumbRegAlloc &alloc) {
+MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     auto consti = val.as_constant();
     if (consti->is_int()) {
@@ -426,8 +428,8 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
   ASSERT(false);
 }
 
-constexpr FVec<Pattern> base_pats() {
-  FVec<Pattern> res;
+constexpr auto base_pats() {
+  IRVec<Pattern> res;
   res.reserve(100);
 
   using Node = Pattern::Node;

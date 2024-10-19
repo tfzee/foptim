@@ -9,15 +9,17 @@ namespace foptim::fmir {
 
 struct ExtraMatchData {
   DumbRegAlloc &alloc;
-  FMap<fir::BasicBlock, u32> &bbs;
+  TMap<fir::BasicBlock, u32> &bbs;
   optim::LiveVariables &lives;
   MFunc &func;
 };
 
+
+
 struct MatchResult {
   // has the same order as the pattern the match originates from
-  FVec<fir::Instr> matched_instrs;
-  FVec<fmir::MInstr> result;
+  IRVec<fir::Instr> matched_instrs;
+  IRVec<fmir::MInstr> result;
   size_t match_id;
 };
 
@@ -40,15 +42,16 @@ struct Pattern {
     u32 to_arg;
   };
 
-  FVec<Node> nodes;
-  FVec<Edge> edges;
+  IRVec<Node> nodes;
+  IRVec<Edge> edges;
 
   bool (*generator)(MatchResult &, ExtraMatchData &);
 };
 
+
 class Matcher {
 public:
-  FVec<Pattern> patterns;
+  IRVec<Pattern> patterns;
 };
 
 class GreedyMatcher : public Matcher {

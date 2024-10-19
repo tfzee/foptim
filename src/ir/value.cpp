@@ -58,7 +58,7 @@ void ValueR::add_usage(Use u) {
   }
 }
 
-FVec<Use> *ValueR::get_uses() {
+IRVec<Use> *ValueR::get_uses() {
   if (auto *i = std::get_if<Instr>(&origin)) {
     return &(*i)->uses;
   }
@@ -68,7 +68,7 @@ FVec<Use> *ValueR::get_uses() {
   return nullptr;
 }
 
-const FVec<Use> *ValueR::get_uses() const {
+const IRVec<Use> *ValueR::get_uses() const {
   if (const auto *i = std::get_if<Instr>(&origin)) {
     return &(*i)->uses;
   }

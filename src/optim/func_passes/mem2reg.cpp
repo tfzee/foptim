@@ -220,7 +220,7 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
                          const AllocToPhiLoc &phi_insert_locs,
                          VarValueStack &current_variable_value) {
 
-  const auto args = block->get_args();
+  const auto& args = block->get_args();
   // for each bb argument we find the origin
   for (u32 arg = 0; arg < args.size(); arg++) {
     fir::ValueR var_val_res = fir::ValueR();

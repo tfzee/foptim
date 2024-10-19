@@ -11,4 +11,7 @@ using FVec = std::vector<Val, Alloc>;
 template <class Val, class Alloc = utils::TempAlloc<Val>>
 using TVec = std::vector<Val, Alloc>;
 
+template <class Val, class Alloc = utils::IRAlloc<Val>>
+using IRVec = std::vector<Val, Alloc>;
+
 }

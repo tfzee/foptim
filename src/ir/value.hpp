@@ -22,7 +22,7 @@ public:
     return bb == other.bb && arg == other.arg;
   }
 
-  TypeR get_type() const;
+  [[nodiscard]] TypeR get_type() const;
 };
 } // namespace foptim::fir
 
@@ -42,73 +42,74 @@ public:
   using Ty = std::variant<Instr, BBArgumentR, ConstantValueR, InvalidValue>;
   Ty origin;
 
-public:
   void add_usage(Use u);
-  size_t get_n_uses() const;
-  FVec<Use> *get_uses();
-  const FVec<Use> *get_uses() const;
+  [[nodiscard]] size_t get_n_uses() const;
   void remove_usage(Use u);
   void replace_all_uses(ValueR);
-  TypeR get_type() const;
+  [[nodiscard]] IRVec<Use> *get_uses();
+  [[nodiscard]] const IRVec<Use> *get_uses() const;
+  [[nodiscard]] TypeR get_type() const;
 
-public:
   ValueR() : origin(InvalidValue{}) {}
   explicit ValueR(ConstantValueR v) : origin(v) {}
   explicit ValueR(Instr v) : origin(v) {}
   explicit ValueR(BasicBlock v, u32 arg) : origin(BBArgumentR(v, arg)) {}
 
-  bool eql(const ValueR &other) const;
+  [[nodiscard]] bool eql(const ValueR &other) const;
 
   bool operator==(const ValueR &other) const { return this->eql(other); }
 
-  bool is_constant() const { return std::holds_alternative<ConstantValueR>(origin); }
-  bool is_instr() const { return std::holds_alternative<Instr>(origin); }
-  bool is_bb_arg() const { return std::holds_alternative<BBArgumentR>(origin); }
+  [[nodiscard]] bool is_constant() const {
+    return std::holds_alternative<ConstantValueR>(origin);
+  }
+  [[nodiscard]] bool is_instr() const {
+    return std::holds_alternative<Instr>(origin);
+  }
+  [[nodiscard]] bool is_bb_arg() const {
+    return std::holds_alternative<BBArgumentR>(origin);
+  }
 
-  bool is_valid() {
+  [[nodiscard]] bool is_valid() const {
     return !std::holds_alternative<InvalidValue>(origin);
     // TODO: could also check for valid refs
   }
 
-  const Instr as_instr() const {
-    if (auto *res = std::get_if<Instr>(&origin)) {
+  [[nodiscard]] const Instr as_instr() const {
+    if (const auto *res = std::get_if<Instr>(&origin)) {
       return *res;
-    } else {
-      std::abort();
     }
+    std::abort();
   }
 
-  const ConstantValueR as_constant() const {
-    if (auto *res = std::get_if<ConstantValueR>(&origin)) {
+  [[nodiscard]] const ConstantValueR as_constant() const {
+    if (const auto *res = std::get_if<ConstantValueR>(&origin)) {
       return *res;
-    } else {
-      std::abort();
     }
+    std::abort();
   }
 
-  const BBArgumentR as_bb_arg() const {
-    if (auto *res = std::get_if<BBArgumentR>(&origin)) {
+  [[nodiscard]] const BBArgumentR as_bb_arg() const {
+    if (const auto *res = std::get_if<BBArgumentR>(&origin)) {
       return *res;
-    } else {
-      std::abort();
     }
+    std::abort();
   }
 
   Instr as_instr() {
     if (auto *res = std::get_if<Instr>(&origin)) {
       return *res;
-    } else {
-      std::abort();
     }
+    std::abort();
   }
 
-  const Ty &get_raw() { return origin; }
+
+  const Ty &get_raw() const { return origin; }
 };
 
 } // namespace foptim::fir
 
 template <> struct std::hash<foptim::fir::InvalidValue> {
-  std::size_t operator()(const foptim::fir::InvalidValue &) const { return 0; }
+  std::size_t operator()(const foptim::fir::InvalidValue & /*unused*/) const { return 0; }
 };
 
 template <> struct std::hash<foptim::fir::ValueR> {

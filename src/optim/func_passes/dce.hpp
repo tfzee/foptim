@@ -70,7 +70,7 @@ public:
         }
       }
       // same with bb arguments
-      for (auto bb_with_args : curr_i->get_bb_args()) {
+      for (const auto& bb_with_args : curr_i->get_bb_args()) {
         auto term = bb_with_args.bb->get_terminator();
         if (std::get<1>(marked.insert(term))) {
           worklist.push_back(term);

@@ -7,16 +7,16 @@ namespace foptim::fmir {
 
 class MBB {
 public:
-  FVec<MInstr> instrs;
+  IRVec<MInstr> instrs;
 };
 
 class MFunc : public fir::Attributable {
 public:
-  FVec<MBB> bbs;
-  FVec<VReg> args;
+  IRVec<MBB> bbs;
+  IRVec<VReg> args;
 
   std::string name = "UNKNOWN";
-  FVec<Type> arg_tys;
+  IRVec<Type> arg_tys;
 
   uint32_t curr_arg_stack_off;
   

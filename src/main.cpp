@@ -54,9 +54,7 @@ int main(int argc, char *argv[]) {
       foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(
           ctx);
-      foptim::optim::StaticFunctionPassManager<
-          LoopRotate>{}
-          .apply(ctx);
+      foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
       // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
@@ -96,10 +94,12 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      auto matcher =  foptim::fmir::GreedyMatcher{};
       for (auto [_, func] : ctx->storage.functions) {
-        auto res = foptim::fmir::GreedyMatcher{}.apply(func);
+        auto res = matcher.apply(func);
         // Debug << res;
         funcs.push_back(std::move(res));
+        foptim::utils::TempAlloc<void *>::reset();
       }
     }
 
@@ -125,5 +125,6 @@ int main(int argc, char *argv[]) {
   // ctx->print_stats();
 
   foptim::utils::TempAlloc<void *>::free();
+  foptim::utils::IRAlloc<void *>::free();
   return 0;
 }

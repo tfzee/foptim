@@ -11,7 +11,7 @@ namespace foptim::fmir {
 //     VRegType::SP, VRegType::R8,  VRegType::R9,  VRegType::R10, VRegType::R11,
 //     VRegType::R12, VRegType::R13, VRegType::R14, VRegType::R15};
 
-static void transform(FVec<MInstr> &instrs, size_t start, size_t end,
+static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
                       utils::BitSet used_regs) {
   size_t n_args = end - start;
 

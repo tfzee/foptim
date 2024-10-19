@@ -22,7 +22,6 @@
 #include "arena.hpp"
 #include <Tracy/tracy/Tracy.hpp>
 
-Arena global_temp_arena = {nullptr, nullptr};
 
 #include <cstring>
 
@@ -44,6 +43,12 @@ Region *new_region(size_t capacity);
 void free_region(Region *r);
 
 #define ARENA_DA_INIT_CAP 256
+
+
+Arena global_temp_arena = {nullptr, nullptr};
+Arena ir_arena = {nullptr, nullptr};
+
+
 
 #ifdef __cplusplus
 #define cast_ptr(ptr) (decltype(ptr))

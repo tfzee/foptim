@@ -33,11 +33,11 @@ public:
 
 class Used {
 public:
-  FVec<Use> uses;
+  IRVec<Use> uses;
 
   void add_usage(Use u) { uses.push_back(u); }
   [[nodiscard]] size_t get_n_uses() const { return uses.size(); }
-  [[nodiscard]] const FVec<Use> &get_uses() const { return uses; }
+  [[nodiscard]] const IRVec<Use> &get_uses() const { return uses; }
 
   void replace_all_uses(ValueR new_value);
   void remove_usage(const Use &use);

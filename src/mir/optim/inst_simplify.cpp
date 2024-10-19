@@ -6,7 +6,7 @@
 namespace foptim::fmir {
 
 //@returns true if the instruction was deleted
-static bool simplify(MInstr &instr, FVec<MInstr> &instrs,
+static bool simplify(MInstr &instr, IRVec<MInstr> &instrs,
                      size_t instr_id) {
   switch (instr.op) {
   case Opcode::mov:
