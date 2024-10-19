@@ -78,11 +78,11 @@ public:
   AnyType(VoidType t) : type(t) {}
   AnyType(OpaquePointerType t) : type(t) {}
 
-  u32 get_size() const {
+  [[nodiscard]] u32 get_size() const {
     return std::visit([](auto &&v) { return v.get_size(); }, type);
   }
 
-  bool eql(const AnyType &other) const {
+  [[nodiscard]] bool eql(const AnyType &other) const {
     return std::visit(
         [other](auto &&v1) {
           return std::visit(
@@ -98,21 +98,26 @@ public:
         type);
   }
 
-  const FunctionType &as_func_ty() const {
+  [[nodiscard]] const FunctionType &as_func_ty() const {
     if (const auto *ft = std::get_if<FunctionType>(&this->type)) {
       return *ft;
-    } else {
-      std::abort();
     }
+    std::abort();
   }
 
-  u32 as_int() const { return std::get_if<IntegerType>(&type)->bitwidth; }
-  bool is_int() const { return std::holds_alternative<IntegerType>(type); }
-  bool is_void() const { return std::holds_alternative<VoidType>(type); }
-  bool is_ptr() const {
+  [[nodiscard]] u32 as_int() const {
+    return std::get_if<IntegerType>(&type)->bitwidth;
+  }
+  [[nodiscard]] bool is_int() const {
+    return std::holds_alternative<IntegerType>(type);
+  }
+  [[nodiscard]] bool is_void() const {
+    return std::holds_alternative<VoidType>(type);
+  }
+  [[nodiscard]] bool is_ptr() const {
     return std::holds_alternative<OpaquePointerType>(type);
   }
-  const Union &get_raw() const { return type; }
+  [[nodiscard]] const Union &get_raw() const { return type; }
 };
 
 } // namespace foptim::fir

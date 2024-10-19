@@ -11,23 +11,26 @@
 
 namespace foptim::utils {
 
-template <class T, u32 slot_slab_len = 128> class StableVec {
+template <class T, u32 slot_slab_len = 128,
+          class Alloc = std::allocator<Slot<T>>> class StableVec {
   struct FreeInfo {
     Slot<T> *ptr;
     u32 len;
   };
 
   u32 curr_gen = 1;
-  FVec<FreeInfo> free_list;
+  std::vector<FreeInfo> free_list;
 
 public:
   static constexpr u32 _slot_slab_len = slot_slab_len;
-  FVec<Slot<T> *> _slot_slab_starts;
+  std::vector<Slot<T> *> _slot_slab_starts;
 
   StableVec() {
-    _slot_slab_starts.push_back(
-        (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
-    TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
+    _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
+    memset(_slot_slab_starts.back(), 0, slot_slab_len * sizeof(Slot<T>));
+    // _slot_slab_starts.push_back(
+    //     (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
+    // TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
     free_list.push_back({_slot_slab_starts.back(), slot_slab_len});
     curr_gen = 1;
   }
@@ -37,8 +40,9 @@ public:
       for (u32 i = 0; i < slot_slab_len; i++) {
         slot_alloc[i].~Slot<T>();
       }
-      TracyFree(slot_alloc);
-      free(slot_alloc);
+      // TracyFree(slot_alloc);
+      Alloc{}.deallocate(slot_alloc, slot_slab_len);
+      // free(slot_alloc);
     }
   }
 
@@ -86,4 +90,12 @@ public:
 
   void clear() { TODO("not implemented clear yet"); }
 };
+
+// template <class T, u32 slot_slab_len = 128,
+//           class Alloc = IRAlloc<Slot<T>>>
+// using IRStableVec = StableVec<T, slot_slab_len, Alloc>;
+
+template <class T, u32 slot_slab_len = 128, class Alloc = FAlloc<Slot<T>>>
+using FStableVec = StableVec<T, slot_slab_len, Alloc>;
+
 } // namespace foptim::utils

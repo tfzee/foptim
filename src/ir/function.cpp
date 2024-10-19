@@ -15,7 +15,7 @@ bool Function::verify(utils::Printer printer) const {
     printer << "Function type invalid";
     return false;
   }
-  auto ty = func_ty->as_func_ty();
+  auto& ty = func_ty->as_func_ty();
 
   if (ty.arg_types.size() != entry->n_args()) {
     printer << "Entry basic block needs as many arguments as function";
