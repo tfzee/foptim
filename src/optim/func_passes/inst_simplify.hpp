@@ -4,7 +4,6 @@
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
-#include "ir/types_ref.hpp"
 
 namespace foptim::optim {
 

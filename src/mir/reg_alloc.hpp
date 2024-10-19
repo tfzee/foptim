@@ -2,7 +2,7 @@
 #include "ir/value.hpp"
 #include "mir/instr.hpp"
 #include "utils/map.hpp"
-#include <unordered_set>
+#include "utils/set.hpp"
 
 namespace foptim::fir {
 struct IRLocation;
@@ -19,7 +19,7 @@ class FunctionRegAlloatorParent {
 
 class DumbRegAlloc : public FunctionRegAlloatorParent {
   u64 vreg_num = 1;
-  std::unordered_set<VReg> free_regs;
+  FSet<VReg> free_regs;
   FMap<fir::ValueR, VReg> mapping;
 
 public:

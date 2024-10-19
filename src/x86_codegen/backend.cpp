@@ -70,7 +70,7 @@ Reg get_reg_sized(const Reg *regs, u32 size) {
   std::abort();
 }
 
-Reg convert_reg(Compiler &, FMap<fmir::VReg, Reg> &, fmir::VReg reg) {
+Reg convert_reg(Compiler & /*unused*/, FMap<fmir::VReg, Reg> & /*unused*/, fmir::VReg reg) {
 
   static_assert(1 == (u16)fmir::Type::Int8);
   static_assert(4 == (u16)fmir::Type::Int64);
@@ -548,7 +548,7 @@ void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
       }
     }
 
-    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    // utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
     utils::Debug << "Done!\n";
 
     std::ofstream myfile;

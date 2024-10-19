@@ -7,7 +7,6 @@
 #include "optim/analysis/dominators.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
-#include <chrono>
 #include <tuple>
 
 namespace foptim::optim {
@@ -25,7 +24,7 @@ static bool can_be_converted_into_phi(fir::Instr instr) {
   return true;
 }
 
-using AllocToPhiLoc = FMap<fir::Instr, FSet<u32>>;
+using AllocToPhiLoc = TMap<fir::Instr, TSet<u32>>;
 
 // For a alloca instruction get all basic blocks it needs an phi in.
 //  for this we look at all bbs that store to it
@@ -113,7 +112,7 @@ static AllocToPhiLoc phi_insert_locations(fir::Function &func,
 
 [[maybe_unused]]
 static void
-dump(const FVec<FMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
+dump(const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
          &current_variable_value) {
   utils::Debug << "DUMP CURR VAR VALUE\n";
 
@@ -130,7 +129,7 @@ dump(const FVec<FMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
 
 static bool decide_variable_value(
     fir::ValueR variable,
-    const FVec<FMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
+    const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
         &current_variable_value,
     fir::ValueR &res) {
   for (size_t ip1 = current_variable_value.size(); ip1 > 0; ip1--) {
@@ -155,7 +154,7 @@ static bool decide_variable_value(
 }
 
 using VarValueStack =
-    FVec<FMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>;
+    TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>;
 
 static void decide_value_store(fir::Instr instr, size_t &i,
                                fir::BasicBlock block,
@@ -216,8 +215,8 @@ static void decide_value_load(fir::Instr instr, size_t &i,
 
 static void
 decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
-                         fir::BasicBlock block, FSet<fir::BasicBlock> &visited,
-                         FMap<fir::ValueR, fir::ValueR> &bb_arg_to_alloca,
+                         fir::BasicBlock block, TSet<fir::BasicBlock> &visited,
+                         TMap<fir::ValueR, fir::ValueR> &bb_arg_to_alloca,
                          const AllocToPhiLoc &phi_insert_locs,
                          VarValueStack &current_variable_value) {
 
@@ -298,7 +297,7 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   // utils::Debug << func;
   // todo verify prior no basic block args maybe?
 
-  FMap<fir::ValueR, fir::ValueR> bb_arg_to_alloca{};
+  TMap<fir::ValueR, fir::ValueR> bb_arg_to_alloca{};
   // create all 'phis'
   auto insert_locations = phi_insert_locations(func, dom);
 
@@ -320,8 +319,8 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
 
   // utils::Debug << func << "\nokak";
 
-  FSet<fir::BasicBlock> visited{};
-  FVec<FMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
+  TSet<fir::BasicBlock> visited{};
+  TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
       current_variable_value{{}};
   decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()),
                            func.get_entry_bb(), visited, bb_arg_to_alloca,

@@ -38,7 +38,7 @@ Arena global_temp_arena = {nullptr, nullptr};
 #define ARENA_BACKEND ARENA_BACKEND_LIBC_MALLOC
 #endif // ARENA_BACKEND
 
-#define REGION_DEFAULT_CAPACITY (8 * 1024)
+#define REGION_DEFAULT_CAPACITY (size_t)(8 * 1024)
 
 Region *new_region(size_t capacity);
 void free_region(Region *r);
@@ -75,7 +75,7 @@ Region *new_region(size_t capacity) {
   size_t size_bytes = sizeof(Region) + sizeof(uintptr_t) * capacity;
   // TODO: it would be nice if we could guarantee that the regions are allocated
   // by ARENA_BACKEND_LIBC_MALLOC are page aligned
-
+  TracyMessageL("TempArenaRegionAlloc");
   Region *r = (Region *)malloc(size_bytes);
   TracyAlloc(r, size_bytes);
   ARENA_ASSERT(r);
@@ -133,7 +133,7 @@ void *arena_alloc(Arena *a, size_t size_bytes) {
     a->begin = a->end;
   }
 
-  while (a->end->count + size > a->end->capacity && a->end->next != NULL) {
+  while (a->end->count + size > a->end->capacity && a->end->next != nullptr) {
     a->end = a->end->next;
   }
 

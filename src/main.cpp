@@ -27,7 +27,6 @@
 using foptim::utils::Debug;
 
 int main(int argc, char *argv[]) {
-  FrameMark;
   ZoneScopedN("BASE");
   foptim::fir::Context ctx;
 
@@ -68,9 +67,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  for (auto [_, func] : ctx->storage.functions) {
-    Debug << func << "\n";
-  }
+  // for (auto [_, func] : ctx->storage.functions) {
+  //   Debug << func << "\n";
+  // }
   ASSERT(ctx->verify());
   // return 0;
 
@@ -112,10 +111,10 @@ int main(int argc, char *argv[]) {
       foptim::fmir::BBReordering{}.apply(funcs);
     }
 
-    Debug << "\n";
-    for (auto func : funcs) {
-      Debug << func;
-    }
+    // Debug << "\n";
+    // for (auto func : funcs) {
+    //   Debug << func;
+    // }
 
     {
       ZoneScopedN("Codegen");
@@ -126,6 +125,5 @@ int main(int argc, char *argv[]) {
   // ctx->print_stats();
 
   foptim::utils::TempAlloc<void *>::free();
-  FrameMark;
   return 0;
 }

@@ -19,15 +19,16 @@ bool ValueR::eql(const ValueR &other) const {
   if (const Instr *s = std::get_if<Instr>(&origin)) {
     const Instr *o = std::get_if<Instr>(&other.origin);
     return s->get_raw_ptr() == o->get_raw_ptr();
-  } else if (const BBArgumentR *s = std::get_if<BBArgumentR>(&origin)) {
+  }
+  if (const BBArgumentR *s = std::get_if<BBArgumentR>(&origin)) {
     const BBArgumentR *o = std::get_if<BBArgumentR>(&other.origin);
     return *s == *o;
-  } else if (const ConstantValueR *s = std::get_if<ConstantValueR>(&origin)) {
+  }
+  if (const ConstantValueR *s = std::get_if<ConstantValueR>(&origin)) {
     const ConstantValueR *o = std::get_if<ConstantValueR>(&other.origin);
     return (*s)->eql(*o->operator->());
-  } else {
-    return true;
   }
+  return true;
 }
 
 TypeR ValueR::get_type() const {
@@ -47,64 +48,67 @@ TypeR ValueR::get_type() const {
 }
 
 void ValueR::add_usage(Use u) {
-  if (auto i = std::get_if<Instr>(&origin)) {
+  if (auto *i = std::get_if<Instr>(&origin)) {
     (*i)->add_usage(u);
   } else if (auto *i = std::get_if<BBArgumentR>(&origin)) {
     (i->bb->args[i->arg]).add_usage(u);
-  } else if (std::get_if<ConstantValueR>(&origin)) {
-  } else if (std::get_if<InvalidValue>(&origin)) {
+  } else if (std::get_if<ConstantValueR>(&origin) != nullptr) {
+  } else if (std::get_if<InvalidValue>(&origin) != nullptr) {
     // ASSERT(false);
   }
 }
 
 FVec<Use> *ValueR::get_uses() {
-  if (auto i = std::get_if<Instr>(&origin)) {
+  if (auto *i = std::get_if<Instr>(&origin)) {
     return &(*i)->uses;
-  } else if (auto *i = std::get_if<BBArgumentR>(&origin)) {
-    return &(i->bb->args[i->arg]).uses;
-  } else {
-    return nullptr;
   }
+  if (auto *i = std::get_if<BBArgumentR>(&origin)) {
+    return &(i->bb->args[i->arg]).uses;
+  }
+  return nullptr;
 }
 
 const FVec<Use> *ValueR::get_uses() const {
-  if (auto i = std::get_if<Instr>(&origin)) {
+  if (const auto *i = std::get_if<Instr>(&origin)) {
     return &(*i)->uses;
-  } else if (auto *i = std::get_if<BBArgumentR>(&origin)) {
-    return &(i->bb->args[i->arg]).uses;
-  } else {
-    return nullptr;
   }
+  if (const auto *i = std::get_if<BBArgumentR>(&origin)) {
+    return &(i->bb->args[i->arg]).uses;
+  }
+  return nullptr;
 }
 
 size_t ValueR::get_n_uses() const {
-  if (auto i = std::get_if<Instr>(&origin)) {
+  if (const auto *i = std::get_if<Instr>(&origin)) {
     return (*i)->get_n_uses();
-  } else if (auto *i = std::get_if<BBArgumentR>(&origin)) {
-    return (i->bb->args[i->arg]).get_n_uses();
-  } else {
-    return 0;
   }
+  if (const auto *i = std::get_if<BBArgumentR>(&origin)) {
+    return (i->bb->args[i->arg]).get_n_uses();
+  }
+  return 0;
 }
 
 void ValueR::remove_usage(Use u) {
-  if (auto i = std::get_if<Instr>(&origin)) {
+  if (auto *i = std::get_if<Instr>(&origin)) {
     (*i)->remove_usage(u);
     return;
-  } else if (auto *i = std::get_if<BBArgumentR>(&origin)) {
+  }
+  if (auto *i = std::get_if<BBArgumentR>(&origin)) {
     (i->bb->args[i->arg]).remove_usage(u);
     return;
-  } else if (std::get_if<ConstantValueR>(&origin)) {
+  }
+  if (std::get_if<ConstantValueR>(&origin) != nullptr) {
     return;
   }
   // ASSERT(false);
 }
 
 void ValueR::replace_all_uses(ValueR new_value) {
-  if (auto i = std::get_if<Instr>(&origin)) {
+  if (auto *i = std::get_if<Instr>(&origin)) {
     (*i)->replace_all_uses(new_value);
     return;
-  } else if (auto *i = std::get_if<BBArgumentR>(&origin)) {
+  }
+  if (auto *i = std::get_if<BBArgumentR>(&origin)) {
     (i->bb->args[i->arg]).replace_all_uses(new_value);
     return;
   }

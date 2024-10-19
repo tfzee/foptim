@@ -18,7 +18,7 @@ public:
   FVec<FailureReason> failures;
 #endif
 
-  virtual void apply(fir::Context &, fir::Function &) { TODO("impl"); }
+  virtual void apply(fir::Context & /*unused*/, fir::Function & /*unused*/) { TODO("impl"); }
 
   FunctionPass &apply_pass(fir::Context &ctx, fir::Function &f) {
     apply(ctx, f);
