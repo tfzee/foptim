@@ -6,10 +6,10 @@
 namespace foptim::fmir {
 
 // same order as defined in VRegTypeEnum
-static constexpr VRegType g_regs[] = {
-    VRegType::A,   VRegType::C,   VRegType::D,   VRegType::S,
-    VRegType::R8,  VRegType::R9,  VRegType::R10, VRegType::R11,
-    VRegType::R12, VRegType::R13, VRegType::R14, VRegType::R15};
+// static constexpr VRegType g_regs[] = {
+//     VRegType::A,   VRegType::B,   VRegType::C,   VRegType::D,   VRegType::S,
+//     VRegType::SP, VRegType::R8,  VRegType::R9,  VRegType::R10, VRegType::R11,
+//     VRegType::R12, VRegType::R13, VRegType::R14, VRegType::R15};
 
 static void transform(FVec<MInstr> &instrs, size_t start, size_t end,
                       utils::BitSet used_regs) {
@@ -24,8 +24,11 @@ static void transform(FVec<MInstr> &instrs, size_t start, size_t end,
   }
   instrs.erase(instrs.begin() + (i64)start, instrs.begin() + (i64)end + 1);
 
-  if (used_regs[0 + 1]) {
-    auto arg = MArgument{VReg{0, VRegInfo{g_regs[0], 8}}, Type::Int64};
+  bool return_value_overwrites_eax =
+      (call.args[1].isReg() && call.args[1].reg.info.ty == VRegType::A);
+
+  if (used_regs[0] && !return_value_overwrites_eax) {
+    auto arg = MArgument{VReg{0, VRegInfo{(VRegType)(1), 8}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
   }
 
@@ -40,11 +43,12 @@ static void transform(FVec<MInstr> &instrs, size_t start, size_t end,
   // TODO: calling conv
   // restore locals
   // NOTE: skipping first reg so we can save the result in it
-  for (u8 i = 13; i > 1; i--) {
-    if (!used_regs[i]) {
+  for (u8 i = 1; i < ((u8)VRegType::R15) - 1; i++) {
+    auto reg_ty = (VRegType)(i + 1);
+    if (!used_regs[i] || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }
-    auto arg = MArgument{VReg{0, VRegInfo{g_regs[i - 1], 8}}, Type::Int64};
+    auto arg = MArgument{VReg{0, VRegInfo{reg_ty, 8}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
   }
 
@@ -65,11 +69,15 @@ static void transform(FVec<MInstr> &instrs, size_t start, size_t end,
   }
 
   // save locals
-  for (u8 i = 0; i < 13; i++) {
-    if (!used_regs[i + 1]) {
+  for (u8 i = ((u8)VRegType::R15) - 1; i > 0; i--) {
+    auto reg_ty = (VRegType)(i - 1 + 1);
+    if (reg_ty == VRegType::A && return_value_overwrites_eax) {
       continue;
     }
-    auto arg = MArgument{VReg{0, VRegInfo{g_regs[i], 8}}, Type::Int64};
+    if (!used_regs[i - 1] || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
+      continue;
+    }
+    auto arg = MArgument{VReg{0, VRegInfo{reg_ty, 8}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
   }
 }
@@ -93,12 +101,15 @@ utils::BitSet calculate_used_regs(const MFunc &f) {
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
         case MArgument::ArgumentType::VReg: {
+          ASSERT(arg.reg.info.ty != VRegType::Virtual);
           res[(u8)arg.reg.info.ty - 1] = true;
           break;
         }
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale: {
+          ASSERT(arg.reg.info.ty != VRegType::Virtual);
+          ASSERT(arg.indx.info.ty != VRegType::Virtual);
           res[(u8)arg.reg.info.ty - 1] = true;
           res[(u8)arg.indx.info.ty - 1] = true;
           break;
@@ -117,7 +128,11 @@ void InvokeLower::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("InvokeLower");
   for (auto &func : funcs) {
 
+    // FIXME: needs proper liveness analysis
     auto used_regs = calculate_used_regs(func);
+    used_regs[(u8)VRegType::SP - 1] = false;
+    used_regs[(u8)VRegType::BP - 1] = false;
+    utils::Debug << "used regs: " << used_regs << "\n";
 
     for (auto &bb : func.bbs) {
       size_t n_instrs = bb.instrs.size();

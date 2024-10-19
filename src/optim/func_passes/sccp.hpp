@@ -115,7 +115,7 @@ public:
                 a.value->as_int() + b.value->as_int(), a.value->get_type()));
             break;
           case fir::BinaryInstrSubType::IntMul:
-            utils::Debug << "REACHED??\n";
+            // utils::Debug << "REACHED??\n";
             if (!a.value->is_int() || !b.value->is_int()) {
               break;
             }
@@ -287,10 +287,10 @@ public:
     for (auto &[val, consta] : values) {
       if (consta.is_const()) {
         fir::ValueR val_non_const = val;
-        utils::Debug << "SCCP replace: " << val_non_const.as_instr();
-        for (auto &use : *val_non_const.get_uses()) {
-          utils::Debug << use << "\n";
-        }
+        // utils::Debug << "SCCP replace: " << val_non_const.as_instr();
+        // for (auto &use : *val_non_const.get_uses()) {
+        //   utils::Debug << use << "\n";
+        // }
         val_non_const.replace_all_uses(fir::ValueR(consta.value));
       }
     }

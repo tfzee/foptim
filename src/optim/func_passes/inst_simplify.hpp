@@ -24,7 +24,6 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
   // asume theres one and normalzie by putting it into the secodn arg
   {
     if (instr->args[0].is_constant()) {
-      // if(instr->args[1].is_constant() && instr->args[1].as_constant())
       swap_args(instr, 0, 1);
     }
   }
@@ -66,7 +65,16 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
                           fir::Context &ctx) {
   (void)bb;
   using namespace foptim::fir;
-  if (instr->args[0].is_constant() && instr->args[1].is_constant()) {
+
+  bool first_constant = instr->args[0].is_constant();
+  bool second_constant = instr->args[1].is_constant();
+  {
+    // make sure the constant is always at the back if theres only one
+    if (first_constant && !second_constant) {
+      swap_args(instr, 0, 1);
+    }
+  }
+  if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
     ASSERT(c1->is_int());
@@ -123,6 +131,7 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
 static bool simplify_cond_branch(fir::Instr instr, size_t instr_id,
                                  fir::BasicBlock bb, fir::Context &ctx) {
   (void)ctx;
+  //replace conditional branch to simple branch
   if (instr->args[0].is_constant()) {
     fir::Builder b(bb);
     b.at_end(bb);

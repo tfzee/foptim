@@ -20,7 +20,34 @@ public:
       // that target
       auto term = n.bb->get_terminator();
 
-      if (term.is_valid() && term->is(fir::InstrType::BranchInstr)) {
+      if (term.is_valid() && term->is(fir::InstrType::CondBranchInstr)) {
+        CFG::Node &succ1 = cfg.bbrs[n.succ[0]];
+        CFG::Node &succ2 = cfg.bbrs[n.succ[1]];
+
+        if (succ1.bb->n_args() == 0 && succ1.bb->n_instrs() == 1 &&
+            succ1.pred.size() == 1 && succ1.succ.size() == 1) {
+          auto term = n.bb->get_terminator();
+          term.replace_bb(0, succ1.bb->get_terminator()->bbs[0].bb, false);
+          for (auto v : succ1.bb->get_terminator()->bbs[0].args) {
+            term.add_bb_arg(0, v);
+          }
+          assert(succ1.bb->get_n_uses() == 0);
+          succ1.bb->remove_from_parent(true);
+          return Changed;
+        }
+        if (succ2.bb->n_args() == 0 && succ2.bb->n_instrs() == 1 &&
+            succ2.pred.size() == 1 && succ2.succ.size() == 1) {
+          n.bb->get_terminator().replace_bb(
+              1, succ2.bb->get_terminator()->bbs[0].bb);
+          for (auto v : succ2.bb->get_terminator()->bbs[0].args) {
+            term.add_bb_arg(1, v);
+          }
+          assert(succ2.bb->get_n_uses() == 0);
+          succ2.bb->remove_from_parent(true);
+          return Changed;
+        }
+
+      } else if (term.is_valid() && term->is(fir::InstrType::BranchInstr)) {
         CFG::Node &succ = cfg.bbrs[n.succ[0]];
         assert(n.succ.size() == 1);
 
@@ -67,27 +94,37 @@ public:
           return Changed;
         }
 
-        if (succ.bb->n_args() == 0) {
-          //  if the successor has no args we  can copy our bb_args ontop of the
+        if (succ.bb->n_args() == 0 && succ.pred.size() == 1) {
+          //  if the successor has no args and were the only pred of it
+          //     we can copy our bb_args ontop of the
           //     successor and then forward all
           //     incoming edges to the succ
+
+          // if were empty
           if (n.bb->n_instrs() == 1) {
             for (auto pred : n.pred) {
               auto pred_bb = cfg.bbrs[pred].bb;
               pred_bb->get_terminator().replace_bb(n.bb, succ.bb);
             }
 
-            // then we need to move all uses of our own bbargs to the new args
-            succ.bb->args = n.bb->args;
-            for (u32 arg_id = 0; arg_id < succ.bb->args.size(); arg_id++) {
-              succ.bb->args[arg_id].uses.clear();
+            if (n.bb->args.size() > 0) {
+              // then we need to move all uses of our own bbargs to the new
+              // args
+              succ.bb->args = n.bb->args;
+              for (u32 arg_id = 0; arg_id < succ.bb->args.size(); arg_id++) {
+                succ.bb->args[arg_id].uses.clear();
 
-              n.bb->args[arg_id].replace_all_uses(fir::ValueR{succ.bb, arg_id});
-              // utils::Debug << "=========" << old_uses
-              //              << "  == " << succ.bb->args[arg_id].get_n_uses()
-              //              << "\n";
-              // utils::Debug << "=========" << fir::ValueR(succ.bb, arg_id) <<
-              // "\n"; ASSERT(succ.bb->args[arg_id].get_n_uses() == old_uses);
+                n.bb->args[arg_id].replace_all_uses(
+                    fir::ValueR{succ.bb, arg_id});
+                // utils::Debug << "=========" << old_uses
+                //              << "  == " <<
+                //              succ.bb->args[arg_id].get_n_uses()
+                //              << "\n";
+                // utils::Debug << "=========" << fir::ValueR(succ.bb, arg_id)
+                // <<
+                // "\n"; ASSERT(succ.bb->args[arg_id].get_n_uses() ==
+                // old_uses);
+              }
             }
             if (n.bb->get_n_uses() != 0) {
               utils::Debug << n.bb->get_parent();
@@ -106,6 +143,11 @@ public:
             // replace this terminator with succ terminator
             n.bb->set_terminator(succ.bb->get_terminator());
             return None;
+          }
+
+          // then both n and succ got multiple instructions
+          {
+            // we need to merge
           }
         }
       }

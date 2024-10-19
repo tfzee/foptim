@@ -53,14 +53,13 @@ int main(int argc, char *argv[]) {
       foptim::optim::StaticFunctionPassManager<EPathPRE>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
-      foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
       foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(
           ctx);
-      // foptim::optim::StaticFunctionPassManager<
-      //     LoopRotate>{}
-      //     .apply(ctx);
-      // foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-      foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
+      foptim::optim::StaticFunctionPassManager<
+          LoopRotate>{}
+          .apply(ctx);
+      foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+      // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
       // foptim::optim::StaticFunctionPassManager<
       //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,

@@ -253,9 +253,9 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
   if (visited.contains(block)) {
     return;
   }
-  utils::Debug << "\n\nDecideValue at BB: " << (void *)block.get_raw_ptr()
-               << "\n";
-  dump(current_variable_value);
+  // utils::Debug << "\n\nDecideValue at BB: " << (void *)block.get_raw_ptr()
+  //              << "\n";
+  // dump(current_variable_value);
 
   visited.insert(block);
 

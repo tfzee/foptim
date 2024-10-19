@@ -548,7 +548,7 @@ void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
       }
     }
 
-    // utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
     utils::Debug << "Done!\n";
 
     std::ofstream myfile;
