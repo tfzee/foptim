@@ -36,7 +36,7 @@ public:
                                   fir::BasicBlock head_pred) {
     repl_map.clear();
     fir::Instr old_terminator = head_pred->get_terminator();
-    FVec<fir::ValueR> &old_terminator_args = old_terminator->bbs[0].args;
+    auto &old_terminator_args = old_terminator->bbs[0].args;
 
     // head_pred->remove_instr();
 

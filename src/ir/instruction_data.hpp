@@ -29,7 +29,7 @@ enum class InstrType : u8 {
 
 struct BBRefWithArgs {
   BasicBlock bb;
-  FVec<ValueR> args;
+  IRVec<ValueR> args;
 
   constexpr bool operator==(const BBRefWithArgs &other) const {
     if (bb != other.bb || args.size() != other.args.size()) {
@@ -87,7 +87,7 @@ class InstrData : public Used, public Attributable {
 public:
   using Used::add_usage;
   IRVec<ValueR> args;
-  FVec<BBRefWithArgs> bbs;
+  IRVec<BBRefWithArgs> bbs;
   BasicBlock parent;
 
   [[nodiscard]] constexpr InstrType get_instr_type() const {

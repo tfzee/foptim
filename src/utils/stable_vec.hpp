@@ -3,9 +3,9 @@
 #include "stable_vec_slot.hpp"
 #include "todo.hpp"
 #include "types.hpp"
+#include "utils/vec.hpp"
 #include <cassert>
 #include <cstdlib>
-#include "utils/vec.hpp"
 
 #include <Tracy/tracy/Tracy.hpp>
 
@@ -42,14 +42,16 @@ public:
     }
   }
 
-  constexpr size_t size_bytes() const {
+  [[nodiscard]] constexpr size_t size_bytes() const {
     return (_slot_slab_starts.size() * slot_slab_len * sizeof(Slot<T>)) +
            (free_list.size() * sizeof(FreeInfo));
   }
 
-  constexpr size_t n_slabs() const { return _slot_slab_starts.size(); }
+  [[nodiscard]] constexpr size_t n_slabs() const {
+    return _slot_slab_starts.size();
+  }
 
-  constexpr size_t n_used() const {
+  [[nodiscard]] constexpr size_t n_used() const {
     const auto n_slots = _slot_slab_starts.size() * slot_slab_len;
     size_t free_size = 0;
     for (const auto &free : free_list) {
@@ -58,7 +60,7 @@ public:
     return n_slots - free_size;
   }
 
-  constexpr size_t slab_size() const { return slot_slab_len; }
+  [[nodiscard]] constexpr size_t slab_size() const { return slot_slab_len; }
 
   SRef<T> push_back(T value = {}) {
     if (free_list.size() == 0) {

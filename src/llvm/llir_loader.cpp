@@ -5,6 +5,7 @@
 #include "ir/function_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
+#include "utils/set.hpp"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -18,24 +19,21 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
-#include <unordered_set>
 
 using foptim::u32;
 using foptim::u64;
 
-using V2VMap = foptim::FMap<const llvm::Value *, foptim::fir::ValueR>;
+using V2VMap = foptim::TMap<const llvm::Value *, foptim::fir::ValueR>;
+using B2BMap = foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock>;
 
-inline void
-convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
-        foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-        V2VMap &valueToValue, llvm::Module &mod,
-        foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b);
+inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
+                    foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+                    V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b);
 
-inline foptim::fir::ValueR convert_instr_arg(
-    const llvm::Value *value, foptim::fir::Context &fctx,
-    foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-    V2VMap &valueToValue, llvm::Module &mod,
-    foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b) {
+inline foptim::fir::ValueR
+convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
+                  foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+                  V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   (void)ffunc;
   (void)builder;
   if (const auto *const_value = dyn_cast_or_null<llvm::ConstantExpr>(value)) {
@@ -118,17 +116,16 @@ inline void convert_alloca(const llvm::Instruction &any_instr,
   valueToValue.insert({&any_instr, alloca});
 }
 
-inline void
-convert_gep(const llvm::Instruction &any_instr,
-            const llvm::GetElementPtrInst *gep_instr,
-            foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
-            foptim::fir::Builder &builder, V2VMap &valueToValue,
-            llvm::Module &mod,
-            foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b) {
+inline void convert_gep(const llvm::Instruction &any_instr,
+                        const llvm::GetElementPtrInst *gep_instr,
+                        foptim::fir::Context &fctx,
+                        foptim::fir::FunctionR ffunc,
+                        foptim::fir::Builder &builder, V2VMap &valueToValue,
+                        llvm::Module &mod, B2BMap &b2b) {
 
   auto ptr = convert_instr_arg(gep_instr->getPointerOperand(), fctx, ffunc,
                                builder, valueToValue, mod, b2b);
-  foptim::FVec<llvm::Value *> args = {};
+  foptim::TVec<llvm::Value *> args = {};
   auto datalayout = mod.getDataLayout();
   auto result_value = ptr;
 
@@ -166,11 +163,11 @@ convert_gep(const llvm::Instruction &any_instr,
   // args); valueToValue.insert({&any_instr, res});
 }
 
-inline void
-convert_branch(const llvm::BranchInst *branch_instr, foptim::fir::Context &fctx,
-               foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-               V2VMap &valueToValue, llvm::Module &mod,
-               foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b) {
+inline void convert_branch(const llvm::BranchInst *branch_instr,
+                           foptim::fir::Context &fctx,
+                           foptim::fir::FunctionR ffunc,
+                           foptim::fir::Builder &builder, V2VMap &valueToValue,
+                           llvm::Module &mod, B2BMap &b2b) {
 
   if (!branch_instr->isConditional()) {
     auto target = b2b.at(branch_instr->getSuccessor(0));
@@ -193,7 +190,7 @@ convert_call(const llvm::Instruction &any_instr,
              const llvm::CallInst *call_instr, foptim::fir::Context &fctx,
              foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
              V2VMap &valueToValue, llvm::Module &mod,
-             foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b) {
+             B2BMap  &b2b) {
 
   foptim::FVec<foptim::fir::ValueR> args = {};
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {
@@ -217,7 +214,7 @@ convert_icmp(const llvm::Instruction &any_instr, const llvm::ICmpInst *cmp_inst,
              foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
              foptim::fir::Builder &builder, V2VMap &valueToValue,
              llvm::Module &mod,
-             foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b) {
+             B2BMap  &b2b) {
 
   switch (cmp_inst->getPredicate()) {
   case llvm::CmpInst::ICMP_UGE:
@@ -299,7 +296,7 @@ inline void
 convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
         foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
         V2VMap &valueToValue, llvm::Module &mod,
-        foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> &b2b) {
+        B2BMap  &b2b) {
 
   ZoneScopedN("Convert Instr");
   if (const auto *instr =
@@ -507,11 +504,11 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
 
   llvm::BasicBlock &entry_bb = func.getEntryBlock();
 
-  std::unordered_set<llvm::BasicBlock *> visited_bbs;
+  foptim::TSet<llvm::BasicBlock *> visited_bbs;
   std::deque<std::pair<llvm::BasicBlock *, foptim::fir::BasicBlock>> worklist{
       {&entry_bb, ffunc->get_entry_bb()}};
 
-  foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock> b2b{};
+  B2BMap  b2b{};
   auto fentry_bb = ffunc->get_entry_bb();
   b2b.insert({&entry_bb, fentry_bb});
 

@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
   {
     ZoneScopedN("LLIR LOADING");
     load_llvm_ir(argv[1], ctx);
+    foptim::utils::TempAlloc<void *>::reset();
     foptim::utils::out_file_path = argv[2];
   }
   {
@@ -94,7 +95,7 @@ int main(int argc, char *argv[]) {
         }
       }
 
-      auto matcher =  foptim::fmir::GreedyMatcher{};
+      auto matcher = foptim::fmir::GreedyMatcher{};
       for (auto [_, func] : ctx->storage.functions) {
         auto res = matcher.apply(func);
         // Debug << res;

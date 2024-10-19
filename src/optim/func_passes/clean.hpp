@@ -64,7 +64,7 @@ public:
           // on stuff we calculate in this bb
           // or in other words our terminator does not use any results from
           // this bb
-          FVec<fir::ValueR> &old_args = term->bbs[0].args;
+          auto &old_args = term->bbs[0].args;
 
           {
             for (auto bb_arg : old_args) {
