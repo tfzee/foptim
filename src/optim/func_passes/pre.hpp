@@ -14,9 +14,9 @@
 namespace foptim::optim {
 using utils::BitSet;
 
-using BBData = TVec<BitSet>;
+using BBData = TVec<BitSet<>>;
 
-using DBBData = TVec<TVec<BitSet>>;
+using DBBData = TVec<TVec<BitSet<>>>;
 
 static void
 init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
@@ -36,7 +36,7 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
              bb_indx++) {
           fir::BasicBlock search_bb = func.basic_blocks[bb_indx];
           if (search_bb == parent_bb) {
-            transp[bb_indx][expr_i] = false;
+            transp[bb_indx][expr_i].set(false);
             found = true;
             break;
           }
@@ -48,7 +48,7 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
         const size_t bb_indx = std::find(func.basic_blocks.begin(),
                                          func.basic_blocks.end(), bbarg.bb) -
                                func.basic_blocks.begin();
-        transp[bb_indx][expr_i] = false;
+        transp[bb_indx][expr_i].set(false);
       }
     }
 
@@ -64,9 +64,9 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
           std::find(func.basic_blocks.begin(), func.basic_blocks.end(),
                     act_instr_with_expr->get_parent()) -
           func.basic_blocks.begin();
-      comp[act_bb_i][expr_i] = true;
+      comp[act_bb_i][expr_i].set(true);
       if (transp[act_bb_i][expr_i]) {
-        antloc[act_bb_i][expr_i] = true;
+        antloc[act_bb_i][expr_i].set(true);
       }
     }
   }
@@ -189,8 +189,8 @@ public:
 
     const size_t n_bbs = func.basic_blocks.size();
     const size_t n_exprs = exprs.size();
-    const BitSet empty_bitset = BitSet::empty(n_exprs);
-    const BitSet full_bitset = BitSet(n_exprs, true);
+    const BitSet<> empty_bitset(n_exprs, false);
+    const BitSet<> full_bitset(n_exprs, true);
 
     // precomputed
     BBData transp{};
@@ -225,7 +225,7 @@ public:
     insert_doub.resize(n_bbs, {});
     for (size_t i = 0; i < insert_doub.size(); i++) {
       insert_doub[i].resize(n_bbs, i == cfg.entry ? empty_bitset : full_bitset);
-      insert_doub[i][0] = empty_bitset;
+      insert_doub[i][0].assign(empty_bitset);
     }
     BBData sa_out{};
     sa_out.resize(n_bbs, full_bitset);
@@ -263,7 +263,7 @@ public:
     BitSet redund_new{n_exprs, false};
     BitSet doub_update_const{n_exprs, false};
     BitSet av_in_new{n_exprs, false};
-    TVec<BitSet> insert_doub_new = {};
+    TVec<BitSet<>> insert_doub_new = {};
     insert_doub_new.resize(n_bbs, empty_bitset);
 
     BitSet sa_out_new{n_exprs, false};

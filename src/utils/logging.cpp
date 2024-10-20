@@ -69,12 +69,12 @@ Printer Printer::operator<<(PaddingT pad) const {
   return *this;
 }
 
-Printer Printer::operator<<(const foptim::utils::BitSet &bitset) const {
-  for (auto bit : bitset._data) {
-    std::cout << bit;
-  }
-  return *this;
-}
+// Printer Printer::operator<<(const foptim::utils::BitSet &bitset) const {
+//   for (auto bit : bitset._data) {
+//     std::cout << bit;
+//   }
+//   return *this;
+// }
 
 Printer Printer::operator<<(const foptim::fir::Use &use) const {
   *this << (void *)use.user.get_raw_ptr();

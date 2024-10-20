@@ -12,7 +12,7 @@ namespace foptim::fmir {
 //     VRegType::R12, VRegType::R13, VRegType::R14, VRegType::R15};
 
 static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
-                      utils::BitSet used_regs) {
+                      utils::BitSet<> used_regs) {
   size_t n_args = end - start;
 
   FVec<MInstr> args;
@@ -85,8 +85,8 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
 static_assert((u8)VRegType::R15 == 15);
 static_assert((u8)VRegType::A == 1);
 
-utils::BitSet calculate_used_regs(const MFunc &f) {
-  utils::BitSet res{14, false};
+utils::BitSet<> calculate_used_regs(const MFunc &f) {
+  utils::BitSet<> res{14, false};
   for (const auto &bb : f.bbs) {
     for (const auto &instr : bb.instrs) {
       for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
@@ -102,7 +102,7 @@ utils::BitSet calculate_used_regs(const MFunc &f) {
         case MArgument::ArgumentType::MemImmVReg:
         case MArgument::ArgumentType::VReg: {
           ASSERT(arg.reg.info.ty != VRegType::Virtual);
-          res[(u8)arg.reg.info.ty - 1] = true;
+          res[(u8)arg.reg.info.ty - 1].set(true);
           break;
         }
         case MArgument::ArgumentType::MemVRegVReg:
@@ -110,8 +110,8 @@ utils::BitSet calculate_used_regs(const MFunc &f) {
         case MArgument::ArgumentType::MemVRegVRegScale: {
           ASSERT(arg.reg.info.ty != VRegType::Virtual);
           ASSERT(arg.indx.info.ty != VRegType::Virtual);
-          res[(u8)arg.reg.info.ty - 1] = true;
-          res[(u8)arg.indx.info.ty - 1] = true;
+          res[(u8)arg.reg.info.ty - 1].set(true);
+          res[(u8)arg.indx.info.ty - 1].set(true);
           break;
         }
         case MArgument::ArgumentType::MemImmVRegScale:
@@ -130,9 +130,9 @@ void InvokeLower::apply(FVec<MFunc> &funcs) {
 
     // FIXME: needs proper liveness analysis
     auto used_regs = calculate_used_regs(func);
-    used_regs[(u8)VRegType::SP - 1] = false;
-    used_regs[(u8)VRegType::BP - 1] = false;
-    utils::Debug << "used regs: " << used_regs << "\n";
+    used_regs[(u8)VRegType::SP - 1].set(false);
+    used_regs[(u8)VRegType::BP - 1].set(false);
+    // utils::Debug << "used regs: " << used_regs << "\n";
 
     for (auto &bb : func.bbs) {
       size_t n_instrs = bb.instrs.size();

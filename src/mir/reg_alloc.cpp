@@ -35,7 +35,7 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
 
     if (lives.isLive(var, loc) || reg.info != info ||
         !var.get_type()->eql(ty->get_raw())) {
-      free_regs[reg.id - 1] = false;
+      free_regs[reg.id - 1].set(false);
     }
   }
   for (auto reg : free_regs) {
@@ -83,7 +83,7 @@ VReg DumbRegAlloc::get_new_register(fir::ValueR v,
 
     if (lives.collide(var, v) ||
         !var.get_type()->eql(v.get_type()->get_raw())) {
-      free_regs[reg.id - 1] = false;
+      free_regs[reg.id - 1].set(false);
     }
   }
 

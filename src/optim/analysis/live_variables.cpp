@@ -41,10 +41,10 @@ void LiveVariables::dump() {
 void LiveVariables::update(fir::Function &func, CFG &cfg) {
   ZoneScopedN("LIVEVAR UPDATE");
 
-  IRVec<utils::BitSet> liveIn;
-  IRVec<utils::BitSet> liveOut;
-  IRVec<utils::BitSet> upwExp;
-  IRVec<utils::BitSet> defs;
+  IRVec<utils::BitSet<>> liveIn;
+  IRVec<utils::BitSet<>> liveOut;
+  IRVec<utils::BitSet<>> upwExp;
+  IRVec<utils::BitSet<>> defs;
 
   const auto all_values = setup_values(func);
   const size_t n_values = all_values.size();
@@ -62,11 +62,11 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     worklist.push_front(bb_id);
     auto &bb = bbs[bb_id];
     for (u32 arg_id = 0; arg_id < bb->n_args(); arg_id++) {
-      defs[bb_id][all_values.at(fir::ValueR(bb, arg_id))] = true;
+      defs[bb_id][all_values.at(fir::ValueR(bb, arg_id))].set(true);
     }
     for (auto instr : bb->instructions) {
       if (all_values.contains(fir::ValueR(instr))) {
-        defs[bb_id][all_values.at(fir::ValueR(instr))] = true;
+        defs[bb_id][all_values.at(fir::ValueR(instr))].set(true);
       }
 
       for (auto arg : instr->args) {
@@ -79,7 +79,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
         }
         const size_t arg_id = all_values.at(arg);
         if (!defs[bb_id][arg_id]) {
-          upwExp[bb_id][arg_id] = true;
+          upwExp[bb_id][arg_id].set(true);
         }
       }
       for (auto &bb_arg : instr->bbs) {
@@ -89,7 +89,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
           }
           const size_t arg_id = all_values.at(arg);
           if (!defs[bb_id][arg_id]) {
-            upwExp[bb_id][arg_id] = true;
+            upwExp[bb_id][arg_id].set(true);
           }
         }
       }
@@ -115,7 +115,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     // assert(test == liveIn[curr_id]);
 
     if (new_liveOut != liveOut[curr_id]) {
-      liveOut[curr_id] = new_liveOut;
+      liveOut[curr_id].assign(new_liveOut);
 
       for (auto pred : cfg.bbrs[curr_id].pred) {
         worklist.push_back(pred);

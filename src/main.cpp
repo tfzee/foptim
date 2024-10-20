@@ -25,7 +25,6 @@
 
 #include <Tracy/tracy/Tracy.hpp>
 
-using foptim::utils::Debug;
 
 void parse_llvm_ir(foptim::fir::Context &ctx);
 void optimize_fir(foptim::fir::Context &ctx);

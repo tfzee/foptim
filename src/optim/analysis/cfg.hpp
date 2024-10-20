@@ -94,14 +94,14 @@ public:
   template <class T> constexpr void postorder(T &&functor) {
     std::deque<u32, utils::TempAlloc<u32>> queue{entry};
     utils::BitSet set{bbrs.size(), false};
-    set[entry] = true;
+    set[entry].set(true);
 
     while (!queue.empty()) {
       auto next = queue.front();
       for (auto child : bbrs[next].succ) {
         if (!set[child]) {
           queue.push_back(child);
-          set[child] = true;
+          set[child].set(true);
         }
       }
       // skip if one got invalidated

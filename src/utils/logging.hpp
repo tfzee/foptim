@@ -1,11 +1,8 @@
 #pragma once
 #include "types.hpp"
-#include "utils/vec.hpp"
 #include <unordered_map>
+#include <vector>
 
-namespace foptim::utils {
-struct BitSet;
-}
 namespace foptim::fmir {
 class VReg;
 class MArgument;
@@ -80,7 +77,7 @@ public:
   Printer operator<<(bool val) const;
   Printer operator<<(f32 val) const;
   Printer operator<<(f64 val) const;
-  Printer operator<<(const foptim::utils::BitSet &func) const;
+  // Printer operator<<(const foptim::utils::BitSet &func) const;
   Printer operator<<(const foptim::optim::LiveRange &live) const;
   Printer operator<<(const char *func) const;
   Printer operator<<(const foptim::fir::ConstantValue &v) const;

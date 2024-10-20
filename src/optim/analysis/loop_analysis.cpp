@@ -29,7 +29,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
       utils::BitSet forward{cfg.bbrs.size(), false};
       utils::BitSet backward{cfg.bbrs.size(), false};
 
-      forward[bb_id] = true;
+      forward[bb_id].set(true);
 
       deq.clear();
       deq.reserve(32);
@@ -40,7 +40,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
         deq.pop_back();
         for (auto succ : cfg.bbrs[curr].succ) {
           if (!forward[succ]) {
-            forward[succ] = true;
+            forward[succ].set(true);
             deq.push_back(succ);
           }
         }
@@ -51,7 +51,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
       body_nodes.reserve(1 + 1 + tails.size() * 2);
 
       for (auto tail : tails) {
-        backward[tail] = true;
+        backward[tail].set(true);
         body_nodes.push_back(tail);
         deq.push_back(tail);
       }
@@ -61,7 +61,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
         deq.pop_back();
         for (auto pred : cfg.bbrs[curr].pred) {
           if (forward[pred] && !backward[pred]) {
-            backward[pred] = true;
+            backward[pred].set(true);
             body_nodes.push_back(pred);
             deq.push_back(pred);
           }

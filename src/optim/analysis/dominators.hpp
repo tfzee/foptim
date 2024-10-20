@@ -14,9 +14,9 @@ public:
     fir::BasicBlock bb;
     i64 im_dom;
 
-    BitSet dominators;
+    BitSet<> dominators;
     // BitSet postdominators;
-    BitSet frontier;
+    BitSet<> frontier;
   };
 
   TVec<Node> dom_bbs;
@@ -29,9 +29,9 @@ public:
 
     for (const auto &node : dom_bbs) {
       utils::Debug << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
-      utils::Debug << node.dominators << "\n";
+      // utils::Debug << node.dominators << "\n";
       // utils::Debug << "  PostDom: " << node.postdominators << "\n";
-      utils::Debug << "  Frontier: " << node.frontier << "\n";
+      // utils::Debug << "  Frontier: " << node.frontier << "\n";
     }
   }
 
@@ -76,7 +76,7 @@ public:
         }
       }
 
-      newSet[cur] = true;
+      newSet[cur].set(true);
 
       if (newSet != dom_bbs[cur].dominators) {
         dom_bbs[cur].dominators.assign(newSet);
@@ -96,7 +96,7 @@ public:
       for (u32 succ_id : cfg_bbs[node_id].succ) {
         // if a succ has less dominators then the parent -> its a frontier
         strict_dom.assign(dom_bbs[succ_id].dominators);
-        strict_dom[succ_id] = false;
+        strict_dom[succ_id].set(false);
         doms.assign(dom_bbs[node_id].dominators)
             .xor_(strict_dom)
             .mul(dom_bbs[node_id].dominators);
@@ -106,7 +106,7 @@ public:
         //     (dom_bbs[node_id].dominators ^ dom_bbs[succ_id].dominators) *
         //     dom_bbs[node_id].dominators;
         for (auto dom : doms) {
-          dom_bbs[dom].frontier[succ_id] = true;
+          dom_bbs[dom].frontier[succ_id].set(true);
         }
 
         // for (size_t parent_elem : dom_bbs[node_id].dominators) {

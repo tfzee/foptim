@@ -4,7 +4,7 @@
 namespace foptim::utils {
 template <class T> struct Slot {
   u32 generation;
-  bool used = 0;
+  bool used = false;
   T data;
 };
 

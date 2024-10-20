@@ -1,19 +1,44 @@
 #pragma once
 #include "types.hpp"
-#include "utils/vec.hpp"
+#include "utils/arena.hpp"
 #include <cassert>
 
 namespace foptim::utils {
-struct BitSet;
 
-template <class T> struct IterBitSet {
+template <class StorageType = u64> struct BitRef {
+  u16 offset;
+  StorageType *_data;
+
+  constexpr BitRef &set(bool value) {
+    const auto set_val = *_data | (1 << offset);
+    const auto unset_val = *_data & ~(1 << offset);
+    *_data = value ? set_val : unset_val;
+    // *_data = (*_data & ~(1 << offset)) | ((StorageType)value << offset);
+    return *this;
+  }
+
+  constexpr operator bool() const { return (*_data >> offset) & 1; }
+};
+
+template <class StorageType = u64> struct IterBitSet {
+
+  static constexpr u16 StrgTySizeBit = sizeof(StorageType) * 8;
+  static constexpr u16 StrgTySizeByte = sizeof(StorageType);
   size_t indx;
-  T &bs;
+  size_t size;
+  StorageType *_data;
 
-  bool operator==(IterBitSet<T> other) const { return indx == other.indx; }
+  bool operator==(IterBitSet<StorageType> other) const {
+    return indx == other.indx;
+  }
 
   void skip_empty() {
-    while (indx < bs._data.size() && !bs[indx]) {
+    while (indx < size) {
+      BitRef<StorageType> ref = {(u16)(indx % StrgTySizeBit),
+                                 &_data[indx / StrgTySizeBit]};
+      if (ref) {
+        return;
+      }
       indx++;
     }
   }
@@ -25,37 +50,76 @@ template <class T> struct IterBitSet {
   }
 
   size_t operator*() const {
-    ASSERT(bs[indx]);
+    BitRef<StorageType> ref = {(u16)(indx % StrgTySizeBit),
+                               &_data[indx / StrgTySizeBit]};
+    ASSERT(ref);
     return indx;
   }
 };
 
+template <class StorageType = u64, class Alloc = TempAlloc<StorageType>>
 struct BitSet {
-  // TODO: FVec
-  TVec<bool> _data;
 
-  constexpr BitSet(size_t size, bool val) { _data.resize(size, val); }
+  static constexpr u16 StrgTySizeBit = sizeof(StorageType) * 8;
+  static constexpr u16 StrgTySizeByte = sizeof(StorageType);
+  StorageType *_data = nullptr;
+  size_t _size_bits;
 
-  constexpr BitSet &operator=(const BitSet &old) = default;
-  constexpr BitSet(const BitSet &old) { _data = old._data; }
-  constexpr BitSet &operator=(BitSet &&old) {
-    _data = std::move(old._data);
+  constexpr BitSet(size_t size, bool val) : _size_bits(size) {
+    auto n_elems = (size + StrgTySizeBit) / StrgTySizeBit;
+    _data = Alloc{}.allocate(n_elems);
+    reset(val);
+  }
+
+  constexpr ~BitSet() {
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    Alloc{}.deallocate(_data, n_elems);
+  }
+
+  constexpr BitSet &operator=(const BitSet<StorageType, Alloc> &old) {
+    auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
+    auto *new_data = Alloc{}.allocate(n_elems);
+    memcpy(new_data, old._data, n_elems * StrgTySizeByte);
+    _size_bits = old._size_bits;
+    _data = new_data;
+
     return *this;
   }
-  constexpr BitSet(BitSet &&old) { _data = std::move(old._data); }
+  constexpr BitSet(const BitSet &old) {
+    auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
+    auto *new_data = Alloc{}.allocate(n_elems);
+    memcpy(new_data, old._data, n_elems * StrgTySizeByte);
+    _size_bits = old._size_bits;
+    _data = new_data;
+  }
+  constexpr BitSet &operator=(BitSet &&old) {
+    _data = std::move(old._data);
+    _size_bits = old._size_bits;
+    return *this;
+  }
+  constexpr BitSet(BitSet &&old) {
+    _data = std::move(old._data);
+    _size_bits = old._size_bits;
+  }
 
   constexpr static BitSet empty(size_t size) { return BitSet{size, false}; }
 
-  constexpr auto operator[](const u32 indx) const { return _data.at(indx); }
-  constexpr auto operator[](const u32 indx) { return _data.at(indx); }
-  [[nodiscard]] constexpr size_t size() const { return _data.size(); }
+  constexpr BitRef<StorageType> operator[](const size_t indx) const {
+    assert(indx < _size_bits);
+    return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
+  }
+  constexpr BitRef<StorageType> operator[](const size_t indx) {
+    assert(indx < _size_bits);
+    return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
+  }
+  [[nodiscard]] constexpr size_t size() const { return _size_bits; }
 
   constexpr bool operator==(const BitSet &other) const {
-    if (_data.size() != other._data.size()) {
+    if (size() != other.size()) {
       return false;
     }
-
-    for (size_t i = 0; i < _data.size(); i++) {
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    for (size_t i = 0; i < n_elems; i++) {
       if (_data[i] != other._data[i]) {
         return false;
       }
@@ -63,54 +127,22 @@ struct BitSet {
     return true;
   }
 
-  // constexpr BitSet operator^(const BitSet &other) const {
-  //   assert(_data.size() == other._data.size());
-  //   BitSet res{_data.size(), false};
-  //   for (size_t i = 0; i < _data.size(); i++) {
-  //     res._data[i] = _data[i] ^ other._data[i];
-  //   }
-  //   return res;
-  // }
-
-  // constexpr BitSet operator*(const BitSet &other) const {
-  //   assert(_data.size() == other._data.size());
-  //   BitSet res{_data.size(), 0};
-  //   for (size_t i = 0; i < _data.size(); i++) {
-  //     res._data[i] = _data[i] && other._data[i];
-  //   }
-  //   return res;
-  // }
-
-  // constexpr BitSet operator+(const BitSet &other) const {
-  //   assert(_data.size() == other._data.size());
-  //   BitSet res{_data.size(), 0};
-  //   for (size_t i = 0; i < _data.size(); i++) {
-  //     res._data[i] = _data[i] || other._data[i];
-  //   }
-  //   return res;
-  // }
-
-  // constexpr BitSet operator-(const BitSet &other) const {
-  //   assert(_data.size() == other._data.size());
-  //   BitSet res{_data.size(), 0};
-  //   for (size_t i = 0; i < _data.size(); i++) {
-  //     res._data[i] = (!other._data[i]) && _data[i];
-  //   }
-  //   return res;
-  // }
-
   constexpr BitSet &assign(const BitSet &other) {
-    assert(_data.size() == other._data.size());
-    for (size_t i = 0; i < _data.size(); i++) {
+    assert(_size_bits == other._size_bits);
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    for (size_t i = 0; i < n_elems; i++) {
       _data[i] = other._data[i];
     }
     return *this;
   }
 
   constexpr BitSet &negate() {
-    _data.flip();
-    // for (auto && i : _data) {
-    //   i = !i;
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    for (size_t i = 0; i < n_elems; i++) {
+      _data[i] = ~_data[i];
+    }
+    // for (auto &&i : _data) {
+    //   i = ~i;
     // }
     return *this;
   }
@@ -119,68 +151,77 @@ struct BitSet {
 
   constexpr BitSet &mul(const BitSet &other) { return operator*=(other); }
   constexpr BitSet &mul_not(const BitSet &other) {
-    assert(_data.size() == other._data.size());
-    for (size_t i = 0; i < _data.size(); i++) {
-      _data[i] = _data[i] && !other._data[i];
+    assert(_size_bits == other._size_bits);
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    for (size_t i = 0; i < n_elems; i++) {
+      _data[i] = _data[i] & ~other._data[i];
     }
     return *this;
   }
 
   constexpr BitSet &xor_(const BitSet &other) {
-    assert(_data.size() == other._data.size());
-    for (size_t i = 0; i < _data.size(); i++) {
+    assert(_size_bits == other._size_bits);
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    for (size_t i = 0; i < n_elems; i++) {
       _data[i] = _data[i] ^ other._data[i];
     }
     return *this;
   }
 
   constexpr BitSet &reset(bool val) {
-    for (auto &&i : _data) {
-      i = val;
-    }
+    u8 fill_val = val ? ~0 : 0;
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    memset(_data, fill_val, n_elems * StrgTySizeByte);
+    // for (auto &&i : _data) {
+    //   i = val;
+    // }
     return *this;
   }
 
   constexpr BitSet &operator*=(const BitSet &other) {
-    assert(_data.size() == other._data.size());
-    for (size_t i = 0; i < _data.size(); i++) {
-      _data[i] = _data[i] && other._data[i];
+    assert(_size_bits == other._size_bits);
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    for (size_t i = 0; i < n_elems; i++) {
+      _data[i] = _data[i] & other._data[i];
     }
     return *this;
   }
 
   constexpr BitSet &operator+=(const BitSet &other) {
-    assert(_data.size() == other._data.size());
-    for (size_t i = 0; i < _data.size(); i++) {
-      _data[i] = _data[i] || other._data[i];
+    assert(_size_bits == other._size_bits);
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    for (size_t i = 0; i < n_elems; i++) {
+      _data[i] = _data[i] | other._data[i];
     }
     return *this;
   }
 
   // returns ~this
-  constexpr BitSet operator!() const {
-    BitSet res{_data.size(), false};
-    for (size_t i = 0; i < _data.size(); i++) {
-      res._data[i] = !_data[i];
-    }
-    return res;
-  }
+  // constexpr BitSet operator!() const {
+  //   BitSet res{_data.size(), false};
+  //   for (size_t i = 0; i < _data.size(); i++) {
+  //     res._data[i] = !_data[i];
+  //   }
+  //   return res;
+  // }
 
   [[nodiscard]] auto begin() const {
-    auto res = IterBitSet{0, *this};
+    auto res = IterBitSet<StorageType>{0, _size_bits, _data};
     res.skip_empty();
     return res;
   }
   [[nodiscard]] auto end() const {
-    return IterBitSet{this->_data.size(), *this};
+    return IterBitSet<StorageType>{_size_bits, _size_bits, _data};
   }
 
-  auto begin() {
-    auto res = IterBitSet{0, *this};
+  [[nodiscard]] auto begin() {
+    auto res = IterBitSet<StorageType>{0, _size_bits, _data};
     res.skip_empty();
     return res;
   }
-  auto end() { return IterBitSet{this->_data.size(), *this}; }
+  [[nodiscard]] auto end() {
+    return IterBitSet<StorageType>{_size_bits, _size_bits, _data};
+  }
 };
 
 } // namespace foptim::utils
