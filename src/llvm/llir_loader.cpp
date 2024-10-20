@@ -78,7 +78,7 @@ inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
   if (auto *v = llvm::dyn_cast_or_null<llvm::FunctionType>(any_ty)) {
     auto ret_type = convert_type(v->getReturnType(), ctx);
 
-    foptim::FVec<foptim::fir::TypeR> args;
+    foptim::IRVec<foptim::fir::TypeR> args;
     args.reserve(v->getNumParams());
     for (size_t i = 0; i < v->getNumParams(); i++) {
       auto *param = v->getParamType(i);

@@ -5,6 +5,7 @@
 #include "utils/vec.hpp"
 #include <cstdlib>
 #include <typeinfo>
+#include <utility>
 #include <variant>
 
 namespace foptim::fir {
@@ -12,8 +13,8 @@ namespace foptim::fir {
 class IntegerType {
 public:
   u16 bitwidth;
-  constexpr u32 get_size() const { return (bitwidth + 7) / 8; }
-  bool eql(const IntegerType &other) const {
+  [[nodiscard]] constexpr u32 get_size() const { return (bitwidth + 7) / 8; }
+  [[nodiscard]] constexpr bool eql(const IntegerType &other) const {
     return bitwidth == other.bitwidth;
   }
 };
@@ -21,48 +22,57 @@ public:
 class FloatType {
 public:
   u16 bitwidth;
-  constexpr u32 get_size() const { return (bitwidth + 7) / 8; }
-  bool eql(const FloatType &) const {
-    ASSERT(false);
-    std::abort();
+  [[nodiscard]] constexpr u32 get_size() const { return (bitwidth + 7) / 8; }
+  [[nodiscard]] constexpr bool eql(const FloatType &other) const {
+    return bitwidth == other.bitwidth;
   }
 };
 
 class VoidType {
 public:
-  constexpr u32 get_size() const { return 0; }
-  bool eql(const VoidType &) const { return true; }
+  [[nodiscard]] constexpr u32 get_size() const { return 0; }
+  [[nodiscard]] constexpr bool eql(const VoidType & /*unused*/) const {
+    return true;
+  }
 };
 
 class OpaquePointerType {
 public:
   // TODO: address space
-  constexpr u32 get_size() const { return 8; }
-  bool eql(const OpaquePointerType &) const { return true; }
+  [[nodiscard]] constexpr u32 get_size() const { return 8; }
+  [[nodiscard]] constexpr bool eql(const OpaquePointerType & /*unused*/) const {
+    return true;
+  }
 };
 
 class FunctionType {
 public:
   TypeR return_type;
-  FVec<TypeR> arg_types;
-  constexpr u32 get_size() const { return 8; }
-  bool eql(const FunctionType &) const {
+  IRVec<TypeR> arg_types;
+  [[nodiscard]] constexpr u32 get_size() const { return 8; }
+  [[nodiscard]] bool eql(const FunctionType & /*unused*/) const {
     ASSERT(false);
     std::abort();
   }
 };
 
 class VectorType {
-
 public:
-  TypeR member_type;
-  u32 member_number;
-  u32 get_size() const;
+  enum class SubType {
+    Integer,
+    Floating,
+  };
 
-  bool eql(const VectorType &) const {
-    // TODO: impl
-    ASSERT(false);
-    return false;
+  SubType type;
+  // element/type bitwidth
+  u16 bitwidth;
+  u32 member_number;
+  [[nodiscard]] constexpr u32 get_size() const {
+    return ((bitwidth + 7) / 8) * member_number;
+  }
+  [[nodiscard]] constexpr bool eql(const VectorType &other) const {
+    return member_number == other.member_number && type == other.type &&
+           bitwidth == other.bitwidth;
   }
 };
 
@@ -72,7 +82,7 @@ class AnyType {
   Union type;
 
 public:
-  AnyType(Union t) : type(t) {}
+  AnyType(Union t) : type(std::move(t)) {}
   AnyType(IntegerType t) : type(t) {}
   AnyType(FunctionType t) : type(t) {}
   AnyType(VoidType t) : type(t) {}

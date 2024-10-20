@@ -17,7 +17,7 @@ struct ContextData {
   }
 
   TypeR copy(TypeR typee) {
-    //FIXME: do this recusively to the subtypes
+    // FIXME: do this recusively to the subtypes
     auto res = storage.insert_type(*typee.get_raw_ptr());
     return res;
   }
@@ -54,8 +54,8 @@ struct ContextData {
     print_stats_vec(storage.storage_global);
   }
 
-  FunctionTypeR get_func_ty(TypeR ret_type, FVec<TypeR> args) {
-    return storage.insert_type(FunctionType{ret_type, args});
+  FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
+    return storage.insert_type(FunctionType{ret_type, std::move(args)});
   }
 
   ConstantValueR get_constant_value(u64 val, IntTypeR ty) {
@@ -63,7 +63,7 @@ struct ContextData {
   }
 
   ConstantValueR get_constant_value(Global glob) {
-    //NOTE: Idk if this should be static if we add some ptr attribs idk?
+    // NOTE: Idk if this should be static if we add some ptr attribs idk?
     static auto global_ptr_typee =
         storage.insert_type(AnyType{OpaquePointerType()});
     return storage.insert_constant(ConstantValue(glob, global_ptr_typee));
@@ -103,9 +103,13 @@ class Context {
 public:
   ContextData *data;
   Context() { data = new ContextData{}; }
-  ~Context() { delete data; }
+  // ~Context() { delete data; }
 
   ContextData *operator->() { return data; }
   const ContextData *operator->() const { return data; }
+  void free() {
+    delete data;
+    data = nullptr;
+  }
 };
 } // namespace foptim::fir

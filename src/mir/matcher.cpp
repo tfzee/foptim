@@ -50,7 +50,7 @@ struct MatchTodos {
 };
 
 bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
-  FVec<MatchTodos> match_todos;
+  TVec<MatchTodos> match_todos;
   uint32_t n_nodes_matched = 0;
 
   for (size_t start_node_id = 0; start_node_id < patt.nodes.size();

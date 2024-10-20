@@ -15,18 +15,25 @@
             inherit system overlays;
           };
           nativeBuildInputs = with pkgs; [
-            clang-tools_18
+            #build tools
+            cmakeCurses
             cmake
-            gdb
             ninja
             clang_18
+
+            #depend
             libllvm
-            cmakeCurses
+            clang-tools_18
+            cxxopts
+            
+            #for codegen for now
+            nasm
+            asmjit
+            # elfio
 
-            #perf
+            #for testing stuff
             tracy
-
-            #for testing
+            gdb
             lit
             hyperfine
             # python3
@@ -36,11 +43,6 @@
               ]))
             # valgrind
             # kdePackages.kcachegrind
-
-            #for codegen for now
-            nasm
-            asmjit
-            elfio
 
           ];
 

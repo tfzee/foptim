@@ -1,30 +1,24 @@
 #pragma once
-#include "utils/logging.hpp"
-#include "ir/constant_value.hpp"
 #include "ir/attribute.hpp"
-#include <string>
+#include "ir/constant_value.hpp"
+#include "utils/logging.hpp"
 #include "utils/map.hpp"
+#include <string>
 
 namespace foptim::fir {
 
 class Attributable {
-  FMap<std::string, Attribute> attribs;
+  IRMap<std::string, Attribute> attribs;
 
 public:
-  constexpr const FMap<std::string, Attribute> &
-  get_attribs() const {
-    return attribs;
-  }
-  constexpr FMap<std::string, Attribute> &get_attribs() {
-    return attribs;
-  }
+  [[nodiscard]] constexpr const auto &get_attribs() const { return attribs; }
+  [[nodiscard]] constexpr auto &get_attribs() { return attribs; }
 
-  bool has_attrib(const std::string &key) const;
-  const Attribute &get_attrib(const std::string &key) const;
-  Attribute &get_attrib(const std::string &key);
+  [[nodiscard]] bool has_attrib(const std::string &key) const;
+  [[nodiscard]] const Attribute &get_attrib(const std::string &key) const;
+  [[nodiscard]] Attribute &get_attrib(const std::string &key);
 
-  template<class T>
-  void clone_attribs(T& other){
+  template <class T> void clone_attribs(T &other) {
     attribs.reserve(other.attribs.size());
     attribs.insert(other.attribs.begin(), other.attribs.end());
   }

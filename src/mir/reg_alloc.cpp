@@ -96,6 +96,7 @@ VReg DumbRegAlloc::get_new_register(fir::ValueR v,
 
 void DumbRegAlloc::alloc_func(fir::Function &func,
                               optim::LiveVariables &lives) {
+  ZoneScopedN("Dumb Reg Alloc");
   reset();
 
   for (auto curr : func.get_bbs()) {

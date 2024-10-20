@@ -62,8 +62,8 @@ struct LinearRange {
   }
 };
 
-FMap<VReg, LinearRange> linear_lifetime(const MFunc &func) {
-  FMap<VReg, LinearRange> ranges;
+TMap<VReg, LinearRange> linear_lifetime(const MFunc &func) {
+  TMap<VReg, LinearRange> ranges;
 
   for (u32 bb_i = 0; bb_i < func.bbs.size(); bb_i++) {
     const auto &bb = func.bbs[bb_i];
@@ -100,7 +100,7 @@ FMap<VReg, LinearRange> linear_lifetime(const MFunc &func) {
   return ranges;
 }
 
-void replace_args(MInstr &instr, const FMap<size_t, VRegType> &reg_mapping) {
+void replace_args(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
     case MArgument::ArgumentType::Imm:
@@ -138,7 +138,7 @@ void replace_args(MInstr &instr, const FMap<size_t, VRegType> &reg_mapping) {
   }
 }
 
-void gen_arg_mapping(MFunc &func, FMap<size_t, VRegType> & /*unused*/) {
+void gen_arg_mapping(MFunc &func, TMap<size_t, VRegType> & /*unused*/) {
   // TODO: depends on calling conv
   for (u32 arg_i = 0; arg_i < func.args.size(); arg_i++) {
     ASSERT(!func.args[arg_i].info.is_pinned());
@@ -152,7 +152,7 @@ void gen_arg_mapping(MFunc &func, FMap<size_t, VRegType> & /*unused*/) {
 
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
-  FMap<size_t, VRegType> reg_mapping;
+  TMap<size_t, VRegType> reg_mapping;
   {
     ZoneScopedN("Args");
     gen_arg_mapping(func, reg_mapping);
@@ -165,7 +165,7 @@ void apply_func(MFunc &func) {
   }
 
   const auto lifetimes = linear_lifetime(func);
-  FMap<VRegType, LinearRange> lifeness;
+  TMap<VRegType, LinearRange> lifeness;
   lifeness.reserve(32);
   constexpr VRegType regs[] = {
       VRegType::A,   VRegType::C,   VRegType::D,   VRegType::S,   VRegType::R8,
@@ -211,9 +211,8 @@ void apply_func(MFunc &func) {
 
 void RegAlloc::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("RegAlloc");
-  FVec<utils::BitSet> used_regs;
-
-  used_regs.resize(funcs.size(), utils::BitSet::empty(12));
+  // FVec<utils::BitSet> used_regs;
+  // used_regs.resize(funcs.size(), utils::BitSet::empty(12));
 
   for (auto &func : funcs) {
     apply_func(func);

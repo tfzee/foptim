@@ -41,10 +41,10 @@ void LiveVariables::dump() {
 void LiveVariables::update(fir::Function &func, CFG &cfg) {
   ZoneScopedN("LIVEVAR UPDATE");
 
-  TVec<utils::BitSet> liveIn;
-  TVec<utils::BitSet> liveOut;
-  TVec<utils::BitSet> upwExp;
-  TVec<utils::BitSet> defs;
+  IRVec<utils::BitSet> liveIn;
+  IRVec<utils::BitSet> liveOut;
+  IRVec<utils::BitSet> upwExp;
+  IRVec<utils::BitSet> defs;
 
   const auto all_values = setup_values(func);
   const size_t n_values = all_values.size();

@@ -77,7 +77,7 @@ class LiveVariables {
 public:
   LiveVariables(fir::Function &func, CFG &cfg) { update(func, cfg); }
 
-  TMap<fir::ValueR, FVec<LiveRange>> live_variables;
+  IRMap<fir::ValueR, IRVec<LiveRange>> live_variables;
 
   void dump();
 
@@ -116,8 +116,8 @@ public:
     return false;
   }
 
-  static TMap<fir::ValueR, size_t> setup_values(fir::Function &func) {
-    TMap<fir::ValueR, size_t> values;
+  static IRMap<fir::ValueR, size_t> setup_values(fir::Function &func) {
+    IRMap<fir::ValueR, size_t> values;
     // values.reserve(func.n_instrs() * 2);
     size_t value_id = 0;
     for (const auto &bb : func.get_bbs()) {
