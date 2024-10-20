@@ -78,8 +78,6 @@ add_library (foptim
                 ./src/utils/todo.cpp
                 ./src/utils/arena.cpp
 
-                #arg parsing
-                ./src/arg_parsing/parser.cpp
                )
 
 target_compile_options(foptim PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-private-field)
@@ -91,6 +89,9 @@ target_link_libraries(foptim PRIVATE ${llvm_libs} asmjit)
 #foptim main test
 add_executable (foptim_main
                 ./src/main.cpp
+
+                #arg parsing
+                ./src/arg_parsing/parser.cpp
                )
 
 target_compile_options(foptim_main PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-private-field)

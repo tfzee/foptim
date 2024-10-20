@@ -95,10 +95,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
 void lower_to_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
+  ZoneScopedN("FIR to MIR lowering");
   funcs.reserve(ctx->storage.functions.size());
   globals.reserve(ctx->storage.storage_global.n_used());
 
-  ZoneScopedN("Conversion");
   for (const auto *slab_g : ctx->storage.storage_global._slot_slab_starts) {
     for (size_t i = 0;
          i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
@@ -124,6 +124,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
 
 void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
+  ZoneScopedN("MIR Optim");
   (void)globals;
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::fmir::InvokeLower{}.apply(funcs);
