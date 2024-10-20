@@ -1,9 +1,10 @@
 #pragma once
+#include <string>
 
 namespace foptim::utils {
 
-extern const char *out_file_path;
-extern const char *in_file_path;
+extern std::string out_file_path;
+extern std::string in_file_path;
 extern bool print_optimization_failure_reasons;
 
 }

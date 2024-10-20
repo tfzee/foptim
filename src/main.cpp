@@ -23,19 +23,58 @@
 #include "llvm/llir_loader.hpp"
 
 #include <Tracy/tracy/Tracy.hpp>
+#include <argparse/argparse.hpp>
 
 using foptim::utils::Debug;
 
 void parse_args(int argc, char *argv[]) {
-  ASSERT_M(argc == 3,
-           "Takes exactly 2 argument the .ll file and the out .ss file");
-  foptim::utils::in_file_path = argv[1];
-  foptim::utils::out_file_path = argv[2];
+
+  argparse::ArgumentParser program("FIR");
+  program.add_argument("input").required().help("specify the input .ll file.");
+  program.add_argument("output").required().help(
+      "specify the output .ss file.");
+
+  try {
+    program.parse_args(argc, argv);
+  } catch (const std::exception &err) {
+    std::cerr << err.what() << std::endl;
+    std::cerr << program;
+    std::exit(1);
+  }
+
+  foptim::utils::in_file_path = program.get<std::string>("input");
+  foptim::utils::out_file_path = program.get<std::string>("output");
+
+  // foptim::utils::Debug << foptim::utils::in_file_path.c_str() << "   " << foptim::utils::out_file_path.c_str() << "\n";
+  // ArgumentParser::ArgParser parser("FIR");
+  // parser.AddHelp("IR + Optim + Codegen");
+  // parser.AddStringArgument("-i", "--input_file", "Input .ll file")
+  //     .Positional()
+  //     .StoreValue(foptim::utils::in_file_path);
+  // parser.AddStringArgument("-o", "--output_file", "Output .ss file")
+  //     .Default("out.ss").Positional()
+  //     .StoreValue(foptim::utils::out_file_path);
+
+  // if (!parser.Parse(argc, argv)) {
+  //   std::cout << "Failed to parse args\n";
+  //   std::cout << parser.HelpDescription() << std::endl;
+  //   exit(1);
+  // }
+
+  // if (parser.Help()) {
+  //   std::cout << parser.HelpDescription() << std::endl;
+  //   exit(0);
+  // }
+
+  // ASSERT_M(argc == 3,
+  //          "Takes exactly 2 argument the .ll file and the out .ss file");
+  // foptim::utils::in_file_path = argv[1];
+  // foptim::utils::out_file_path = argv[2];
 }
 
 void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
-  load_llvm_ir(foptim::utils::in_file_path, ctx);
+  load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
   foptim::utils::TempAlloc<void *>::reset();
   ASSERT(ctx->verify());
 }

@@ -24,7 +24,7 @@
             #depend
             libllvm
             clang-tools_18
-            cxxopts
+            argparse
             
             #for codegen for now
             nasm

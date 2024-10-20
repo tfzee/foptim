@@ -185,12 +185,12 @@ inline void convert_branch(const llvm::BranchInst *branch_instr,
   // UNREACH
 }
 
-inline void
-convert_call(const llvm::Instruction &any_instr,
-             const llvm::CallInst *call_instr, foptim::fir::Context &fctx,
-             foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-             V2VMap &valueToValue, llvm::Module &mod,
-             B2BMap  &b2b) {
+inline void convert_call(const llvm::Instruction &any_instr,
+                         const llvm::CallInst *call_instr,
+                         foptim::fir::Context &fctx,
+                         foptim::fir::FunctionR ffunc,
+                         foptim::fir::Builder &builder, V2VMap &valueToValue,
+                         llvm::Module &mod, B2BMap &b2b) {
 
   foptim::FVec<foptim::fir::ValueR> args = {};
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {
@@ -209,12 +209,12 @@ convert_call(const llvm::Instruction &any_instr,
   valueToValue.insert({&any_instr, res});
 }
 
-inline bool
-convert_icmp(const llvm::Instruction &any_instr, const llvm::ICmpInst *cmp_inst,
-             foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
-             foptim::fir::Builder &builder, V2VMap &valueToValue,
-             llvm::Module &mod,
-             B2BMap  &b2b) {
+inline bool convert_icmp(const llvm::Instruction &any_instr,
+                         const llvm::ICmpInst *cmp_inst,
+                         foptim::fir::Context &fctx,
+                         foptim::fir::FunctionR ffunc,
+                         foptim::fir::Builder &builder, V2VMap &valueToValue,
+                         llvm::Module &mod, B2BMap &b2b) {
 
   switch (cmp_inst->getPredicate()) {
   case llvm::CmpInst::ICMP_UGE:
@@ -292,11 +292,9 @@ convert_icmp(const llvm::Instruction &any_instr, const llvm::ICmpInst *cmp_inst,
   }
 }
 
-inline void
-convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
-        foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-        V2VMap &valueToValue, llvm::Module &mod,
-        B2BMap  &b2b) {
+inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
+                    foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+                    V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
 
   ZoneScopedN("Convert Instr");
   if (const auto *instr =
@@ -508,7 +506,7 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   std::deque<std::pair<llvm::BasicBlock *, foptim::fir::BasicBlock>> worklist{
       {&entry_bb, ffunc->get_entry_bb()}};
 
-  B2BMap  b2b{};
+  B2BMap b2b{};
   auto fentry_bb = ffunc->get_entry_bb();
   b2b.insert({&entry_bb, fentry_bb});
 
@@ -596,6 +594,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
     convert(*module, fctx);
     // module->dump();
   } else {
-    llvm::errs() << "FAILED TO LOAD" << error.getMessage() << "\n";
+    llvm::errs() << "FAILED TO LOAD: '" << filename << "' " << error.getMessage()
+                 << "\n";
   }
 }

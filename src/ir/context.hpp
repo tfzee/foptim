@@ -77,7 +77,7 @@ struct ContextData {
   FunctionR create_function(std::string name, FunctionTypeR type) {
     storage.functions.insert({name, Function{this, name, type}});
 
-    FunctionR func = FunctionR(&storage.functions.at(name));
+    auto func = FunctionR(&storage.functions.at(name));
     auto init_bb = BasicBlock(storage.basic_blocks.push_back({func}));
     init_bb.verify_validness();
     func->append_bbr(init_bb);
