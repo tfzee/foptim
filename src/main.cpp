@@ -1,3 +1,4 @@
+#include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "mir/func.hpp"
 #include "mir/matcher.hpp"
@@ -23,53 +24,44 @@
 #include "llvm/llir_loader.hpp"
 
 #include <Tracy/tracy/Tracy.hpp>
-#include <argparse/argparse.hpp>
 
 using foptim::utils::Debug;
 
-void parse_args(int argc, char *argv[]) {
+void parse_llvm_ir(foptim::fir::Context &ctx);
+void optimize_fir(foptim::fir::Context &ctx);
+void lower_to_mir(foptim::fir::Context &ctx,
+                  foptim::FVec<foptim::fmir::MFunc> &funcs,
+                  foptim::FVec<foptim::fmir::Global> &globals);
+void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
+                  foptim::FVec<foptim::fmir::Global> &globals);
+void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
+             foptim::FVec<foptim::fmir::Global> &globals);
 
-  argparse::ArgumentParser program("FIR");
-  program.add_argument("input").required().help("specify the input .ll file.");
-  program.add_argument("output").required().help(
-      "specify the output .ss file.");
 
-  try {
-    program.parse_args(argc, argv);
-  } catch (const std::exception &err) {
-    std::cerr << err.what() << std::endl;
-    std::cerr << program;
-    std::exit(1);
-  }
+int main(int argc, char *argv[]) {
+  ZoneScopedN("BASE");
 
-  foptim::utils::in_file_path = program.get<std::string>("input");
-  foptim::utils::out_file_path = program.get<std::string>("output");
+  parse_args(argc, argv);
 
-  // foptim::utils::Debug << foptim::utils::in_file_path.c_str() << "   " << foptim::utils::out_file_path.c_str() << "\n";
-  // ArgumentParser::ArgParser parser("FIR");
-  // parser.AddHelp("IR + Optim + Codegen");
-  // parser.AddStringArgument("-i", "--input_file", "Input .ll file")
-  //     .Positional()
-  //     .StoreValue(foptim::utils::in_file_path);
-  // parser.AddStringArgument("-o", "--output_file", "Output .ss file")
-  //     .Default("out.ss").Positional()
-  //     .StoreValue(foptim::utils::out_file_path);
+  // fir
+  foptim::fir::Context ctx;
+  parse_llvm_ir(ctx);
+  optimize_fir(ctx);
 
-  // if (!parser.Parse(argc, argv)) {
-  //   std::cout << "Failed to parse args\n";
-  //   std::cout << parser.HelpDescription() << std::endl;
-  //   exit(1);
-  // }
+  // mir
+  foptim::FVec<foptim::fmir::MFunc> funcs;
+  foptim::FVec<foptim::fmir::Global> globals;
+  lower_to_mir(ctx, funcs, globals);
+  optimize_mir(funcs, globals);
 
-  // if (parser.Help()) {
-  //   std::cout << parser.HelpDescription() << std::endl;
-  //   exit(0);
-  // }
+  // asm
+  codegen(funcs, globals);
 
-  // ASSERT_M(argc == 3,
-  //          "Takes exactly 2 argument the .ll file and the out .ss file");
-  // foptim::utils::in_file_path = argv[1];
-  // foptim::utils::out_file_path = argv[2];
+  // cleanup
+  ctx.free();
+  foptim::utils::TempAlloc<void *>::free();
+  foptim::utils::IRAlloc<void *>::free();
+  return 0;
 }
 
 void parse_llvm_ir(foptim::fir::Context &ctx) {
@@ -144,30 +136,4 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
 
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, globals);
-}
-
-int main(int argc, char *argv[]) {
-  ZoneScopedN("BASE");
-
-  parse_args(argc, argv);
-
-  // fir
-  foptim::fir::Context ctx;
-  parse_llvm_ir(ctx);
-  optimize_fir(ctx);
-
-  // mir
-  foptim::FVec<foptim::fmir::MFunc> funcs;
-  foptim::FVec<foptim::fmir::Global> globals;
-  lower_to_mir(ctx, funcs, globals);
-  optimize_mir(funcs, globals);
-
-  // asm
-  codegen(funcs, globals);
-
-  // cleanup
-  ctx.free();
-  foptim::utils::TempAlloc<void *>::free();
-  foptim::utils::IRAlloc<void *>::free();
-  return 0;
 }
