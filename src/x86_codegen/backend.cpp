@@ -378,6 +378,7 @@ void emit_instr(fmir::MInstr &instr, FVec<Label> &bb_labels,
     return;
   }
   case fmir::Opcode::cjmp_ne:
+  case fmir::Opcode::cjmp_eq:
   case fmir::Opcode::cjmp_ult:
   case fmir::Opcode::cjmp_slt: {
     auto a = convert_operand(cc, reg_to_op, instr.args[0]);
@@ -387,6 +388,9 @@ void emit_instr(fmir::MInstr &instr, FVec<Label> &bb_labels,
 
     case fmir::Opcode::cjmp_ne:
       cc.emit(Inst::kIdJne, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_eq:
+      cc.emit(Inst::kIdJe, bb_labels[instr.bb_ref]);
       break;
     case fmir::Opcode::cjmp_ult:
       cc.emit(Inst::kIdJb, bb_labels[instr.bb_ref]);

@@ -8,7 +8,7 @@ deserialize
 somewhat generic dataflow analysis
 Abstract away graph based matcher (maybe a DSL)
 Replace bitset with custom implementation
-A Allocator for shortlived allocations (per pass or per analysis)
+convert codegen into library
 
 More Passes
 More Tests
