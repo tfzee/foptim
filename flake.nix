@@ -15,16 +15,18 @@
             inherit system overlays;
           };
           nativeBuildInputs = with pkgs; [
+            #depend
+            # IMPORTANT CLANG TOOLS AT START
+            clang-tools_18
+            libllvm
+            argparse
+
             #build tools
             cmakeCurses
             cmake
             ninja
             clang_18
 
-            #depend
-            libllvm
-            clang-tools_18
-            argparse
             
             #for codegen for now
             nasm
