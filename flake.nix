@@ -34,11 +34,11 @@
             # elfio
 
             #for testing stuff
+            gtest
             tracy
             gdb
             lit
             hyperfine
-            # python3
             (pkgs.python3.withPackages (python-pkgs: [
                 python-pkgs.pandas
                 python-pkgs.matplotlib

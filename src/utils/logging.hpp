@@ -28,7 +28,7 @@ class Use;
 
 namespace foptim::optim {
 struct LiveRange;
-}
+} // namespace foptim::optim
 namespace foptim::utils {
 
 class Printer {

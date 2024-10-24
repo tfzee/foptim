@@ -85,6 +85,17 @@ target_include_directories(foptim PUBLIC ./src/ ${LLVM_INCLUDE_DIRS})
 target_link_libraries(foptim PRIVATE ${llvm_libs} asmjit)
 
 
+
+###############################################
+#foptim unit test
+add_executable (foptim_unit_test
+                ./src/test/test_main.cpp
+               )
+target_compile_options(foptim_unit_test PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-private-field)
+target_link_libraries(foptim_unit_test PRIVATE foptim gtest)
+target_include_directories(foptim_unit_test PRIVATE ./src/)
+
+
 ################################################
 #foptim main test
 add_executable (foptim_main

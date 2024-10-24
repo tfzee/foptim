@@ -1,6 +1,8 @@
 #pragma once
 #include "types.hpp"
 #include "utils/arena.hpp"
+#include "utils/logging.hpp"
+#include "utils/todo.hpp"
 #include <cassert>
 
 namespace foptim::utils {
@@ -13,15 +15,19 @@ template <class StorageType = u64> struct BitRef {
     const auto set_val = *_data | (1 << offset);
     const auto unset_val = *_data & ~(1 << offset);
     *_data = value ? set_val : unset_val;
+
+    ASSERT(offset <= sizeof(StorageType) * 8);
     // *_data = (*_data & ~(1 << offset)) | ((StorageType)value << offset);
     return *this;
   }
 
-  constexpr operator bool() const { return (*_data >> offset) & 1; }
+  constexpr operator bool() const {
+    ASSERT(offset <= sizeof(StorageType) * 8);
+    return (*_data >> offset) & 1;
+  }
 };
 
 template <class StorageType = u64> struct IterBitSet {
-
   static constexpr u16 StrgTySizeBit = sizeof(StorageType) * 8;
   static constexpr u16 StrgTySizeByte = sizeof(StorageType);
   size_t indx;
@@ -52,7 +58,7 @@ template <class StorageType = u64> struct IterBitSet {
   size_t operator*() const {
     BitRef<StorageType> ref = {(u16)(indx % StrgTySizeBit),
                                &_data[indx / StrgTySizeBit]};
-    ASSERT(ref);
+    ASSERT((bool)ref);
     return indx;
   }
 };
@@ -66,22 +72,24 @@ struct BitSet {
   size_t _size_bits;
 
   constexpr BitSet(size_t size, bool val) : _size_bits(size) {
-    auto n_elems = (size + StrgTySizeBit) / StrgTySizeBit;
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
     _data = Alloc{}.allocate(n_elems);
     reset(val);
   }
 
   constexpr ~BitSet() {
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
-    Alloc{}.deallocate(_data, n_elems);
+    if (_data) {
+      Alloc{}.deallocate(_data, n_elems);
+    }
   }
 
   constexpr BitSet &operator=(const BitSet<StorageType, Alloc> &old) {
     auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
     auto *new_data = Alloc{}.allocate(n_elems);
     memcpy(new_data, old._data, n_elems * StrgTySizeByte);
-    _size_bits = old._size_bits;
     _data = new_data;
+    _size_bits = old._size_bits;
 
     return *this;
   }
@@ -89,27 +97,29 @@ struct BitSet {
     auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
     auto *new_data = Alloc{}.allocate(n_elems);
     memcpy(new_data, old._data, n_elems * StrgTySizeByte);
-    _size_bits = old._size_bits;
     _data = new_data;
+    _size_bits = old._size_bits;
   }
   constexpr BitSet &operator=(BitSet &&old) {
-    _data = std::move(old._data);
+    _data = old._data;
     _size_bits = old._size_bits;
+    old._data = nullptr;
     return *this;
   }
   constexpr BitSet(BitSet &&old) {
-    _data = std::move(old._data);
+    _data = old._data;
     _size_bits = old._size_bits;
+    old._data = nullptr;
   }
 
   constexpr static BitSet empty(size_t size) { return BitSet{size, false}; }
 
   constexpr BitRef<StorageType> operator[](const size_t indx) const {
-    assert(indx < _size_bits);
+    ASSERT(indx < _size_bits);
     return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
   }
   constexpr BitRef<StorageType> operator[](const size_t indx) {
-    assert(indx < _size_bits);
+    ASSERT(indx < _size_bits);
     return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
   }
   [[nodiscard]] constexpr size_t size() const { return _size_bits; }
@@ -119,12 +129,17 @@ struct BitSet {
       return false;
     }
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
-    for (size_t i = 0; i < n_elems; i++) {
+    for (size_t i = 0; i < n_elems - 1; i++) {
       if (_data[i] != other._data[i]) {
         return false;
       }
     }
-    return true;
+
+    u16 n_dead_bits = (n_elems * StrgTySizeBit) - _size_bits;
+    u16 n_alive_bits = StrgTySizeBit - n_dead_bits;
+
+    auto mask = ((StorageType)1 << n_alive_bits) - 1;
+    return (_data[n_elems - 1] & mask) == (other._data[n_elems - 1] & mask);
   }
 
   constexpr BitSet &assign(const BitSet &other) {
@@ -223,5 +238,18 @@ struct BitSet {
     return IterBitSet<StorageType>{_size_bits, _size_bits, _data};
   }
 };
+
+template <class Ty, class Alloc>
+Printer operator<<(const Printer &self, const BitSet<Ty, Alloc> sett) {
+  constexpr size_t StrgTySizeBit = sizeof(Ty) * 8;
+  auto n_elems = (sett._size_bits + StrgTySizeBit) / StrgTySizeBit;
+  for (size_t elem = 0; elem < n_elems; elem++) {
+    Ty val = sett._data[elem];
+    for (size_t bit = 0; bit < StrgTySizeBit; bit++) {
+      self << ((val >> bit) & 1 ? "1" : "0");
+    }
+  }
+  return self;
+}
 
 } // namespace foptim::utils
