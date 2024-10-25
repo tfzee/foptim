@@ -24,7 +24,7 @@ using foptim::u32;
 using foptim::u64;
 
 using V2VMap = foptim::TMap<const llvm::Value *, foptim::fir::ValueR>;
-using B2BMap = foptim::FMap<llvm::BasicBlock *, foptim::fir::BasicBlock>;
+using B2BMap = foptim::TMap<llvm::BasicBlock *, foptim::fir::BasicBlock>;
 
 inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
                     foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
@@ -192,7 +192,7 @@ inline void convert_call(const llvm::Instruction &any_instr,
                          foptim::fir::Builder &builder, V2VMap &valueToValue,
                          llvm::Module &mod, B2BMap &b2b) {
 
-  foptim::FVec<foptim::fir::ValueR> args = {};
+  foptim::TVec<foptim::fir::ValueR> args = {};
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {
     auto *arg = call_instr->getOperand(i);
     auto arg_foptim =
@@ -594,7 +594,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
     convert(*module, fctx);
     // module->dump();
   } else {
-    llvm::errs() << "FAILED TO LOAD: '" << filename << "' " << error.getMessage()
-                 << "\n";
+    llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
+                 << error.getMessage() << "\n";
   }
 }

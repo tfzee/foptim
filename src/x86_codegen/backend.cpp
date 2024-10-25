@@ -16,11 +16,14 @@
 #include <asmjit/x86/x86operand.h>
 #include <cstdint>
 #include <fstream>
+#include <span>
 
 namespace foptim::codegen {
 
 using namespace asmjit;
 using namespace asmjit::x86;
+
+using Reg2OpMap = TMap<fmir::VReg, Reg>;
 
 static constexpr TypeId convert_type(fmir::Type type) {
   switch (type) {
@@ -42,7 +45,7 @@ static constexpr TypeId convert_type(fmir::Type type) {
   std::abort();
 }
 
-auto convert_func_signature(const FVec<fmir::Type> &arg_tys, bool void_ret,
+auto convert_func_signature(const std::span<fmir::Type> arg_tys, bool void_ret,
                             const fmir::Type ret_ty) {
   auto res = FuncSignatureBuilder();
   for (auto arg : arg_tys) {
@@ -70,7 +73,7 @@ Reg get_reg_sized(const Reg *regs, u32 size) {
   std::abort();
 }
 
-Reg convert_reg(Compiler & /*unused*/, FMap<fmir::VReg, Reg> & /*unused*/, fmir::VReg reg) {
+Reg convert_reg(Compiler & /*unused*/, Reg2OpMap & /*unused*/, fmir::VReg reg) {
 
   static_assert(1 == (u16)fmir::Type::Int8);
   static_assert(4 == (u16)fmir::Type::Int64);
@@ -146,7 +149,7 @@ Imm convert_imm(Compiler & /*unused*/, u64 imm, fmir::Type ty) {
   std::abort();
 }
 
-Operand convert_operand(Compiler &cc, FMap<fmir::VReg, Reg> &reg_to_op,
+Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
                         fmir::MArgument &arg) {
 
   // utils::Debug << "   Converting Op: " << arg << "\n";
@@ -196,8 +199,8 @@ Operand convert_operand(Compiler &cc, FMap<fmir::VReg, Reg> &reg_to_op,
   std::abort();
 }
 
-void emit_instr(fmir::MInstr &instr, FVec<Label> &bb_labels,
-                FMap<fmir::VReg, Reg> &reg_to_op, Compiler &cc) {
+void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
+                Reg2OpMap &reg_to_op, Compiler &cc) {
   (void)bb_labels;
   (void)reg_to_op;
   (void)cc;
@@ -426,9 +429,9 @@ void emit_instr(fmir::MInstr &instr, FVec<Label> &bb_labels,
   }
 }
 
-void emit_func(const fmir::MFunc &func, FMap<fmir::VReg, Reg> reg_to_op,
+void emit_func(const fmir::MFunc &func, TMap<fmir::VReg, Reg> reg_to_op,
                Compiler &cc) {
-  FVec<Label> bb_labels;
+  TVec<Label> bb_labels;
 
   bb_labels.reserve(func.bbs.size());
   for (const auto &_ : func.bbs) {
@@ -469,7 +472,8 @@ public:
   }
 };
 
-void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
+void run(std::span<const fmir::MFunc> funcs,
+         std::span<const fmir::Global> globals) {
   JitRuntime rt; // Runtime specialized for JIT code execution.
   StringLogger logger;
   CodeHolder code; // Holds code and relocation information.
@@ -491,8 +495,8 @@ void run(const FVec<fmir::MFunc> &funcs, const FVec<fmir::Global> &globals) {
   cc.addDiagnosticOptions(DiagnosticOptions::kValidateAssembler);
   cc.addDiagnosticOptions(DiagnosticOptions::kValidateIntermediate);
 
-  FMap<fmir::VReg, Reg> reg_to_op;
-  FVec<Label> func_labels;
+  Reg2OpMap reg_to_op;
+  TVec<Label> func_labels;
   func_labels.reserve(funcs.size());
   {
     ZoneScopedN("Assembling");

@@ -15,7 +15,7 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
                       utils::BitSet<> used_regs) {
   size_t n_args = end - start;
 
-  FVec<MInstr> args;
+  TVec<MInstr> args;
   MInstr call = instrs[end];
   args.reserve(n_args);
 

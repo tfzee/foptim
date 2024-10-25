@@ -3,7 +3,7 @@
 
 namespace foptim::fmir {
 void BBReordering::apply(MFunc &func) {
-  FVec<u32> new_bb_vals;
+  TVec<u32> new_bb_vals;
   new_bb_vals.reserve(func.bbs.size());
 
   for (size_t bb1_i = 0; bb1_i < func.bbs.size(); bb1_i++) {

@@ -8,6 +8,7 @@
 #include "utils/logging.hpp"
 #include "utils/vec.hpp"
 #include <algorithm>
+#include <span>
 
 namespace foptim::fir {
 class Builder {
@@ -62,7 +63,7 @@ public:
   }
 
   ValueR build_direct_call(std::string name, TypeR func_type, TypeR ret_type,
-                           FVec<ValueR> args) {
+                           std::span<ValueR> args) {
     check_bb_set();
     Instr instr =
         ctx->storage.insert_instr(InstrData::get_direct_call(ret_type));

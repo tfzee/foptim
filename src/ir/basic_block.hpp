@@ -18,14 +18,13 @@ public:
   };
 
   FunctionR func;
-  FVec<Instr> instructions;
-  FVec<Arg> args;
+  IRVec<Instr> instructions;
+  IRVec<Arg> args;
 
   BasicBlockData(FunctionR func) : func(func) {}
 
-  FVec<Instr> &get_instrs() { return instructions; }
-  [[nodiscard]] const FVec<Instr> &get_instrs() const { return instructions; }
-
+  auto &get_instrs() { return instructions; }
+  [[nodiscard]] const auto &get_instrs() const { return instructions; }
 
   void remove_from_parent(bool remove_references, bool cleanup_instr = true);
 
@@ -62,7 +61,7 @@ public:
     }
   }
 
-  FVec<Arg> &get_args() { return args; }
+  auto &get_args() { return args; }
 };
 
 } // namespace foptim::fir

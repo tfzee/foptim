@@ -116,17 +116,17 @@ Printer Printer::operator<<(const foptim::fmir::MArgument &value) const {
   case fmir::MArgument::ArgumentType::MemImmVReg:
     return *this << "[" << value.reg << " + " << value.imm << "]:" << value.ty;
   case fmir::MArgument::ArgumentType::MemImmVRegVReg:
-    return *this << "[" << value.reg << " + " << value.indx << " + " << value.imm
-                 << "]:" << value.ty;
+    return *this << "[" << value.reg << " + " << value.indx << " + "
+                 << value.imm << "]:" << value.ty;
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
-    return *this << "[" << value.indx << "*" << value.scale << " + " << value.imm
-                 << "]:" << value.ty;
+    return *this << "[" << value.indx << "*" << value.scale << " + "
+                 << value.imm << "]:" << value.ty;
   case fmir::MArgument::ArgumentType::MemVRegVRegScale:
-    return *this << "[" << value.reg << " + " << value.indx << "*" << value.scale
-                 << "]:" << value.ty;
+    return *this << "[" << value.reg << " + " << value.indx << "*"
+                 << value.scale << "]:" << value.ty;
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-    return *this << "[" << value.reg << " + " << value.indx << "*" << value.scale
-                 << " + " << value.imm << "]:" << value.ty;
+    return *this << "[" << value.reg << " + " << value.indx << "*"
+                 << value.scale << " + " << value.imm << "]:" << value.ty;
   }
 }
 Printer Printer::operator<<(const foptim::fmir::MBB &bb) const {
@@ -563,6 +563,24 @@ Printer Printer::operator<<(const foptim::fir::Function &func) const {
       pad(2) << bb;
     }
     std::cout << "}";
+  }
+  return *this;
+}
+
+Printer Printer::operator<<(const foptim::fir::IRLocation &loc) const {
+  switch (loc.type) {
+  case fir::IRLocation::LocationType::Function:
+    *this << (void *)loc.func.func;
+    break;
+  case fir::IRLocation::LocationType::Instruction:
+    *this << (void *)loc.func.func << " @BB " << loc.bb << " @I " << loc.instr;
+    break;
+  case fir::IRLocation::LocationType::BasicBlock:
+    *this << (void *)loc.func.func << " @BB " << loc.bb;
+    break;
+  case fir::IRLocation::LocationType::INVALID:
+    *this << " @INVALID ";
+    break;
   }
   return *this;
 }

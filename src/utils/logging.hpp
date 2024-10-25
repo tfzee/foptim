@@ -24,6 +24,7 @@ struct ConstantValue;
 class ConstantValueR;
 class Attribute;
 class Use;
+struct IRLocation;
 } // namespace foptim::fir
 
 namespace foptim::optim {
@@ -45,15 +46,6 @@ public:
   u8 indent;
   LogLevel level;
 
-  template <class K, class V, class Hash, class Equal, class Alloc>
-  Printer
-  operator<<(const std::unordered_map<K, V, Hash, Equal, Alloc> sett) const {
-    *this << "{";
-    for (const auto &[key, value] : sett) {
-      *this << key << ": " << value << ",\n";
-    }
-    return *this << "}";
-  }
 
   Printer operator<<(foptim::fir::FunctionR func) const;
   Printer operator<<(const foptim::fir::Function &func) const;
@@ -71,6 +63,7 @@ public:
   Printer operator<<(f64 val) const;
   // Printer operator<<(const foptim::utils::BitSet &func) const;
   Printer operator<<(const foptim::optim::LiveRange &live) const;
+  Printer operator<<(const foptim::fir::IRLocation &loc) const;
   Printer operator<<(const char *func) const;
   Printer operator<<(const foptim::fir::ConstantValue &v) const;
   Printer operator<<(const foptim::fir::ConstantValueR v) const;

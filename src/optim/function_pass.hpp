@@ -14,8 +14,8 @@ public:
   };
 
 #ifdef OPTIM_STATS
-  FMap<const char *, u32> stats;
-  FVec<FailureReason> failures;
+  IRMap<const char *, u32> stats;
+  IRVec<FailureReason> failures;
 #endif
 
   virtual void apply(fir::Context & /*unused*/, fir::Function & /*unused*/) { TODO("impl"); }
@@ -29,7 +29,8 @@ public:
   FunctionPass &print_failures() {
 #ifdef OPTIM_STATS
     for (auto &reason : failures) {
-      utils::Debug << "LOCTODOLOC " << reason.reason << "\n";
+
+      utils::Debug << reason.loc << ": " << reason.reason << "\n";
     }
 #endif
     return *this;

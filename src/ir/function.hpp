@@ -25,7 +25,7 @@ public:
   ContextData *ctx;
   std::string name;
   FunctionTypeR func_ty;
-  FVec<BasicBlock> basic_blocks;
+  IRVec<BasicBlock> basic_blocks;
   BasicBlock entry;
   // metadata
   CallingConv cc = CallingConv::C;
@@ -37,8 +37,8 @@ public:
   std::string &getName() { return name; }
   const std::string &getName() const { return name; }
 
-  FVec<BasicBlock> &get_bbs() { return basic_blocks; }
-  const FVec<BasicBlock> &get_bbs() const { return basic_blocks; }
+  auto &get_bbs() { return basic_blocks; }
+  const auto &get_bbs() const { return basic_blocks; }
 
   size_t n_instrs() const {
     size_t n_instrs = 0;

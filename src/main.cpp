@@ -25,7 +25,6 @@
 
 #include <Tracy/tracy/Tracy.hpp>
 
-
 void parse_llvm_ir(foptim::fir::Context &ctx);
 void optimize_fir(foptim::fir::Context &ctx);
 void lower_to_mir(foptim::fir::Context &ctx,
@@ -35,7 +34,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals);
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals);
-
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
@@ -136,9 +134,13 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   ZoneScopedN("MIR Optim");
   (void)globals;
   foptim::fmir::RegAlloc{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InvokeLower{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

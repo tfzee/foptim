@@ -369,7 +369,7 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
     return;
   }
 
-  FVec<PhiPair> pairs;
+  TVec<PhiPair> pairs;
   pairs.reserve(args.args.size());
   for (size_t arg_id = 0; arg_id < args.args.size(); arg_id++) {
     // skip unused bb args

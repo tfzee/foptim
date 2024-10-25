@@ -75,8 +75,8 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
 
 static inline void execute(const BBData &save, const BBData &insert_sin,
                            const DBBData &insert_doub, const BBData &redund,
-                           const TVec<fir::Instr> &exprs,
-                           const FVec<fir::BasicBlock> &bbs) {
+                           const std::span<fir::Instr> &exprs,
+                           const std::span<fir::BasicBlock> bbs) {
   // (void)save;
   // (void)insert_doub;
   // (void)redund;
