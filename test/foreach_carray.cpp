@@ -7,7 +7,7 @@
 
 #define LEN 128
 
-int main() {
+extern "C" int main() {
   int c[LEN] = {5,4,5,2,5};
 
   int sum = 0;

@@ -4,6 +4,7 @@
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
 #include <cassert>
+#include <cstring>
 
 namespace foptim::utils {
 

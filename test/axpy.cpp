@@ -13,7 +13,7 @@ void axpy(const int *a, const int *b, const int *y, int *c, unsigned int len) {
   }
 }
 
-int main() {
+extern "C" int main() {
   int a[LEN] = {1, 2, 3, 4, 5};
   int b[LEN] = {1, 2, 1, 2, 1};
   int y[LEN] = {5, 5, 3, 4, 4};

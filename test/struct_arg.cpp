@@ -16,7 +16,7 @@ struct BigStruct {
   int sumit() { return a + b + c + d + e + f; }
 };
 
-int main() {
+extern "C" int main() {
   struct BigStruct s2;
   s2.a = 11;
   s2.b = 1;

@@ -7,7 +7,7 @@
 
 #define LEN 128
 
-int main() {
+extern "C" int main() {
   int a[LEN] = {1, 2, 3, 4, 5};
   a[LEN / 2] = 51;
 

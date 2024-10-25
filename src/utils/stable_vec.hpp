@@ -6,6 +6,7 @@
 #include "utils/vec.hpp"
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 
 #include <Tracy/tracy/Tracy.hpp>
 
@@ -27,7 +28,7 @@ public:
 
   StableVec() {
     _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
-    memset(_slot_slab_starts.back(), 0, slot_slab_len * sizeof(Slot<T>));
+    std::memset(_slot_slab_starts.back(), 0, slot_slab_len * sizeof(Slot<T>));
     // _slot_slab_starts.push_back(
     //     (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
     // TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
