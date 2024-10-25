@@ -90,6 +90,16 @@ public:
   //   return ValueR(instr);
   // }
 
+  ValueR build_int_srem(ValueR a, ValueR b) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(InstrData::get_smod(a.get_type()));
+    instr.add_arg(a);
+    instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_int_add(ValueR a, ValueR b) {
     check_bb_set();
     Instr instr = ctx->storage.insert_instr(InstrData::get_add(a.get_type()));

@@ -62,6 +62,7 @@ add_library (foptim
                 ./src/optim/analysis/live_variables.cpp
                 ./src/optim/analysis/loop_analysis.cpp
                 ./src/optim/func_passes/mem2reg.cpp
+                ./src/optim/func_passes/pre.cpp
 
                 #mir
                 ./src/mir/reg_alloc.cpp

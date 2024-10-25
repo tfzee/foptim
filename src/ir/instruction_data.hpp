@@ -64,7 +64,7 @@ enum class BinaryInstrSubType : u32 {
   // IntSub,
   IntMul,
   // IntDiv,
-  // IntMod,
+  IntSMod,
 
   // IntAnd,
   // IntOr,
@@ -122,6 +122,8 @@ public:
         return "IntAdd";
       case BinaryInstrSubType::IntMul:
         return "IntMul";
+      case BinaryInstrSubType::IntSMod:
+        return "IntSMod";
       }
     case InstrType::SExt:
       return "SExt";
@@ -171,7 +173,9 @@ public:
     return "UNKNOWN";
   }
 
-  [[nodiscard]] constexpr bool is(InstrType ty) const { return ty == instr_type; }
+  [[nodiscard]] constexpr bool is(InstrType ty) const {
+    return ty == instr_type;
+  }
 
   constexpr void verify() const {
     switch (instr_type) {
@@ -202,6 +206,7 @@ public:
     }
   }
 
+  static InstrData get_smod(TypeR ty);
   static InstrData get_add(TypeR ty);
   static InstrData get_mul(TypeR ty);
   static InstrData get_sext(TypeR ty);
@@ -239,7 +244,6 @@ public:
     }
     return true;
   }
-
 };
 
 } // namespace foptim::fir

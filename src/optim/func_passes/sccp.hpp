@@ -66,7 +66,7 @@ class SCCP final : public FunctionPass {
 
   CFG cfg;
   // TEMPORARY STORAGE
-  std::deque<fir::Use, utils::TempAlloc<fir::Use>> ssa_worklist{};
+  std::deque<fir::Use, utils::TempAlloc<fir::Use>> ssa_worklist;
   std::deque<fir::BasicBlock, utils::TempAlloc<fir::BasicBlock>> cfg_worklist;
 
   TMap<fir::ValueR, ConstantValue> values;
@@ -113,6 +113,13 @@ public:
             }
             new_value = ConstantValue::Constant(ctx->get_constant_value(
                 a.value->as_int() + b.value->as_int(), a.value->get_type()));
+            break;
+          case fir::BinaryInstrSubType::IntSMod:
+            if (!a.value->is_int() || !b.value->is_int()) {
+              break;
+            }
+            new_value = ConstantValue::Constant(ctx->get_constant_value(
+                (i64)a.value->as_int() % (i64)b.value->as_int(), a.value->get_type()));
             break;
           case fir::BinaryInstrSubType::IntMul:
             // utils::Debug << "REACHED??\n";

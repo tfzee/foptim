@@ -5,7 +5,7 @@
 
 // CHECK: Result:42
 
-#define LEN 128
+#define LEN 1024
 
 void axpy(const int *a, const int *b, const int *y, int *c, unsigned int len) {
   for (unsigned int i = 0; i < len; i++) {

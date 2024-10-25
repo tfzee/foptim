@@ -132,6 +132,13 @@ InstrData InstrData::get_add(TypeR ty) {
   return res;
 }
 
+InstrData InstrData::get_smod(TypeR ty) {
+  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntSMod,
+                       ty, BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(2);
+  return res;
+}
+
 InstrData InstrData::get_mul(TypeR ty) {
   auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntMul,
                        ty, BasicBlock(BasicBlock::invalid())};

@@ -5,6 +5,49 @@
 using namespace foptim::utils;
 using namespace foptim;
 
+TEST(BitSetTest, BasicSetIter) {
+  constexpr size_t N_BITS = 6;
+  foptim::utils::BitSet<u64> bb{N_BITS, false};
+  {
+    bb.reset(false);
+    auto iter = bb.begin();
+    EXPECT_EQ(iter, bb.end());
+  }
+
+  {
+    bb.reset(true);
+    auto iter = bb.begin();
+    EXPECT_EQ(*iter, 0);
+    ++iter;
+    EXPECT_EQ(*iter, 1);
+    ++iter;
+    EXPECT_EQ(*iter, 2);
+    ++iter;
+    EXPECT_EQ(*iter, 3);
+    ++iter;
+    EXPECT_EQ(*iter, 4);
+    ++iter;
+    EXPECT_EQ(*iter, 5);
+    ++iter;
+    EXPECT_EQ(iter, bb.end());
+  }
+
+  {
+    bb.reset(false);
+    bb[1].set(true);
+    bb[3].set(true);
+    bb[5].set(true);
+    auto iter = bb.begin();
+    EXPECT_EQ(*iter, 1);
+    ++iter;
+    EXPECT_EQ(*iter, 3);
+    ++iter;
+    EXPECT_EQ(*iter, 5);
+    ++iter;
+    EXPECT_EQ(iter, bb.end());
+  }
+}
+
 TEST(BitSetTest, BasicSetGet) {
   constexpr size_t N_BITS = 68;
   foptim::utils::BitSet<u64> bb{N_BITS, false};
