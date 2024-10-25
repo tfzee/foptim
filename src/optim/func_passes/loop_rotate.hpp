@@ -124,6 +124,9 @@ public:
     }
 
     if (needs_preheader) {
+      failure({"TODO: Impl preheader insertion", {cfg.bbrs[linfo.head].bb}});
+      return false;
+
       TODO("TODO preheader insertion");
     }
 

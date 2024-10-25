@@ -88,6 +88,22 @@ void Instr::clear_bb_args(u16 indx) {
 
 TypeR Instr::get_type() const { return (this->operator->())->get_type(); }
 
+u16 Instr::get_bb_id(BasicBlock target) const {
+  const InstrData *self = operator->();
+  u16 bb_indx = 0;
+  for (const auto &bb_ref : self->bbs) {
+    if (bb_ref.bb == target) {
+      return bb_indx;
+    }
+    bb_indx++;
+  }
+  utils::Debug << "In instruction " << *this << "\n";
+  utils::Debug << "Tried to get bb arg" << (void *)target.get_raw_ptr() << "\n";
+  utils::Debug << "BUT it does not reference this basic block\n";
+
+  std::abort();
+}
+
 ValueR Instr::replace_arg(u16 indx, ValueR new_val) {
   InstrData *self = operator->();
   ASSERT(indx < self->args.size());
@@ -117,40 +133,11 @@ BasicBlock Instr::replace_bb(u16 indx, BasicBlock new_val, bool keepArgs) {
 
 BasicBlock Instr::replace_bb(BasicBlock target, BasicBlock new_val,
                              bool keepArgs) {
-  InstrData *self = operator->();
-  u16 bb_indx = 0;
-  for (auto &bb_ref : self->bbs) {
-    if (bb_ref.bb == target) {
-      return replace_bb(bb_indx, new_val, keepArgs);
-    }
-    bb_indx++;
-  }
-  utils::Debug << "In instruction " << *this << "\n";
-  utils::Debug << "  Tried replacing bb '" << (void *)target.get_raw_ptr()
-               << "'\n";
-  utils::Debug << "  with new val '" << new_val << "'\n";
-  utils::Debug << "BUT it does not reference this basic block\n";
-
-  std::abort();
+  return replace_bb(get_bb_id(target), new_val, keepArgs);
 }
 
 ValueR Instr::replace_bb_arg(BasicBlock target, u16 indx, ValueR new_val) {
-  InstrData *self = operator->();
-  u16 bb_indx = 0;
-  for (auto &bb_ref : self->bbs) {
-    if (bb_ref.bb == target) {
-      return replace_bb_arg(bb_indx, indx, new_val);
-    }
-    bb_indx++;
-  }
-  utils::Debug << "In instruction " << *this << "\n";
-  utils::Debug << "  Tried replacing bb arg '" << (void *)target.get_raw_ptr()
-               << "'\n";
-  utils::Debug << "  At index '" << indx << "'\n";
-  utils::Debug << "  with new val '" << new_val << "'\n";
-  utils::Debug << "BUT it does not reference this basic block\n";
-
-  std::abort();
+  return replace_bb_arg(get_bb_id(target), indx, new_val);
 }
 
 ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val) {
@@ -186,21 +173,7 @@ u16 Instr::add_bb_arg(u16 bb, ValueR v) {
 }
 
 u16 Instr::add_bb_arg(BasicBlock target, ValueR val) {
-  InstrData *self = operator->();
-  u16 bb_indx = 0;
-  for (auto &bb_ref : self->bbs) {
-    if (bb_ref.bb == target) {
-      return add_bb_arg(bb_indx, val);
-    }
-    bb_indx++;
-  }
-  utils::Debug << "In instruction " << *this << "\n";
-  utils::Debug << "  Tried adding bb arg '" << (void *)target.get_raw_ptr()
-               << "'\n";
-  utils::Debug << "  with new val '" << val << "'\n";
-  utils::Debug << "BUT it does not reference this basic block\n";
-
-  std::abort();
+  return add_bb_arg(get_bb_id(target), val);
 }
 
 u16 Instr::add_bb(BasicBlock val) {

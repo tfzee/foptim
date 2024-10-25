@@ -74,21 +74,31 @@ void optimize_fir(foptim::fir::Context &ctx) {
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
+
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<EPathPRE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+
+  foptim::optim::StaticFunctionPassManager<EPathPRE>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
+
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
+
+  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+
+  foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
+  ASSERT(ctx->verify());
 
   // foptim::optim::StaticFunctionPassManager<
   //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
   //     InstSimplify, Clean>{}
   //     .apply(ctx);
-  ASSERT(ctx->verify());
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,
@@ -115,7 +125,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   auto matcher = foptim::fmir::GreedyMatcher{};
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
-    // Debug << res;
+    // foptim::utils::Debug << res;
     funcs.push_back(std::move(res));
     foptim::utils::TempAlloc<void *>::reset();
   }

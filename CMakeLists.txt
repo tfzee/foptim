@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16.3)
 project(foptim
         LANGUAGES CXX C)
+set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
 set(CMAKE_CXX_STANDARD 23)
 
 # set(CMAKE_CXX_CLANG_TIDY
@@ -55,6 +56,7 @@ add_library (foptim
                 ./src/ir/use.cpp
                 ./src/ir/attributable.cpp
                 ./src/ir/constant_value.cpp
+                ./src/ir/helpers.cpp
 
                 #optim
                 ./src/optim/analysis/live_variables.cpp

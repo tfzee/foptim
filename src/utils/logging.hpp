@@ -45,14 +45,6 @@ public:
   u8 indent;
   LogLevel level;
 
-  template <class T, class Alloc>
-  Printer operator<<(const std::vector<T, Alloc> data) const {
-    *this << "[";
-    for (const T &elem : data) {
-      *this << elem << ", ";
-    }
-    return *this << "]";
-  }
   template <class K, class V, class Hash, class Equal, class Alloc>
   Printer
   operator<<(const std::unordered_map<K, V, Hash, Equal, Alloc> sett) const {

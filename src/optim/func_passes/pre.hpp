@@ -2,6 +2,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
+#include "ir/helpers.hpp"
 #include "ir/instruction.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
@@ -99,13 +100,18 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
                          return v->eql_expr(*exprs[save_id].operator->());
                        });
       if (res_instr == cbb->instructions.end()) {
-        for (auto instr : cbb->instructions) {
-          utils::Debug << "   : " << instr << "\n";
-        }
-        utils::Debug << cbb->instructions[0]->eql_expr(
-                            *exprs[save_id].operator->())
-                     << "\n";
-        utils::Debug << exprs[save_id] << "\n";
+        // for (auto instr : cbb->instructions) {
+        //   utils::Debug << "   : " << instr << "\n";
+        // }
+        // utils::Debug << cbb->instructions[0]->eql_expr(
+        //                     *exprs[save_id].operator->())
+        //              << "\n";
+
+        utils::Debug << bbs[0]->get_parent() << "\n";
+
+        utils::Debug << "INBB: " << bb_id << "\n";
+        utils::Debug << "SAVE EXPR: " << exprs[save_id] << "\n";
+        utils::Debug << "EXPR NOT FOUND IN BB\n";
 
         assert(false);
       }
@@ -123,12 +129,18 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
       repl_map.at(insert_id) = fir::ValueR(copy);
     }
 
-    for (size_t bb2_id = 0; bb2_id < n_bbs; bb2_id++) {
-      for (auto insert_loc : insert_doub[bb_id][bb2_id]) {
-        utils::Debug << "TODO epath pre double insert\n";
-        // utils::Debug << bb_id << " => " << bb2_id
-        //              << " EXPR: " << exprs[insert_loc] << "\n";
-        (void)insert_loc;
+    {
+      for (size_t bb2_id = 0; bb2_id < n_bbs; bb2_id++) {
+        if (!insert_doub[bb_id][bb2_id].any()) {
+          continue;
+        }
+        auto new_bb = fir::insert_bb_between(bbs[bb_id], bbs[bb2_id]);
+        fir::Builder bb{new_bb};
+        bb.at_penultimate(new_bb);
+
+        for (auto insert_loc : insert_doub[bb_id][bb2_id]) {
+          bb.insert_copy(exprs[insert_loc]);
+        }
       }
     }
 
