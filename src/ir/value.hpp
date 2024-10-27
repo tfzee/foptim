@@ -69,10 +69,7 @@ public:
     return std::holds_alternative<BBArgumentR>(origin);
   }
 
-  [[nodiscard]] bool is_valid() const {
-    return !std::holds_alternative<InvalidValue>(origin);
-    // TODO: could also check for valid refs
-  }
+  [[nodiscard]] bool is_valid(bool check_refs) const; 
 
   [[nodiscard]] const Instr as_instr() const {
     if (const auto *res = std::get_if<Instr>(&origin)) {
@@ -102,14 +99,15 @@ public:
     std::abort();
   }
 
-
   const Ty &get_raw() const { return origin; }
 };
 
 } // namespace foptim::fir
 
 template <> struct std::hash<foptim::fir::InvalidValue> {
-  std::size_t operator()(const foptim::fir::InvalidValue & /*unused*/) const { return 0; }
+  std::size_t operator()(const foptim::fir::InvalidValue & /*unused*/) const {
+    return 0;
+  }
 };
 
 template <> struct std::hash<foptim::fir::ValueR> {

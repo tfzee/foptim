@@ -1,7 +1,9 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
@@ -85,6 +87,217 @@ public:
     return ConstantValue::Bottom();
   }
 
+  ConstantValue eval_instr(fir::Context &ctx, fir::Instr instr) {
+
+    switch (instr->get_instr_type()) {
+    case fir::InstrType::BinaryInstr: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() || !b.is_const()) {
+        return ConstantValue::Top();
+      }
+
+      if (!a.value->is_int() || !b.value->is_int()) {
+        failure({"Cannot do SCCP on binary expr using non integers", instr});
+        return ConstantValue::Bottom();
+        // TODO("impl");
+      }
+      switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
+      case fir::BinaryInstrSubType::INVALID:
+        TODO("¿UNREACH?\n");
+        break;
+      case fir::BinaryInstrSubType::IntAdd:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_int() + b.value->as_int(), a.value->get_type()));
+      case fir::BinaryInstrSubType::IntSRem:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            ((i64)a.value->as_int()) % ((i64)b.value->as_int()),
+            a.value->get_type()));
+      case fir::BinaryInstrSubType::IntMul:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_int() * b.value->as_int(), a.value->get_type()));
+      }
+    }
+    case fir::InstrType::BranchInstr: {
+      const auto &target = instr->get_bb_args();
+      // utils::Debug << " HIT BRANCH\n\n";
+      ASSERT(target.size() == 1);
+      if (!reachable_bb.contains(target[0].bb)) {
+        cfg_worklist.push_back(target[0].bb);
+      }
+      {
+        const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
+                                          [&target](auto &&value) {
+                                            return value.bb == target[0].bb;
+                                          }) -
+                             cfg.bbrs.begin();
+        eval_meets(target[0].bb, bb_id);
+      }
+      return ConstantValue::Top();
+    }
+    case fir::InstrType::CondBranchInstr: {
+      const auto &targets = instr->get_bb_args();
+      ASSERT(targets.size() == 2);
+      auto arg = eval(instr->get_arg(0));
+      // ASSERT(!arg.is_bottom());
+      if (arg.is_bottom()) {
+        if (!reachable_bb.contains(targets[0].bb)) {
+          cfg_worklist.push_back(targets[0].bb);
+        }
+        if (!reachable_bb.contains(targets[1].bb)) {
+          cfg_worklist.push_back(targets[1].bb);
+        }
+
+        {
+          const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
+                                            [&targets](auto &&value) {
+                                              return value.bb == targets[0].bb;
+                                            }) -
+                               cfg.bbrs.begin();
+          eval_meets(targets[0].bb, bb_id);
+        }
+        {
+          const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
+                                            [&targets](auto &&value) {
+                                              return value.bb == targets[1].bb;
+                                            }) -
+                               cfg.bbrs.begin();
+          eval_meets(targets[1].bb, bb_id);
+        }
+        return ConstantValue::Top();
+      }
+      if (arg.is_top()) {
+        return ConstantValue::Top();
+      }
+
+      ASSERT(arg.value->is_int());
+      bool cond = arg.value->as_int() != 0;
+
+      if (cond && !reachable_bb.contains(targets[0].bb)) {
+        cfg_worklist.push_back(targets[0].bb);
+      }
+      if (!cond && !reachable_bb.contains(targets[1].bb)) {
+        cfg_worklist.push_back(targets[1].bb);
+      }
+
+      {
+        const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
+                                          [&targets](auto &&value) {
+                                            return value.bb == targets[0].bb;
+                                          }) -
+                             cfg.bbrs.begin();
+        eval_meets(targets[0].bb, bb_id);
+      }
+      {
+        const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
+                                          [&targets](auto &&value) {
+                                            return value.bb == targets[1].bb;
+                                          }) -
+                             cfg.bbrs.begin();
+        eval_meets(targets[1].bb, bb_id);
+      }
+
+      u8 target_bb_id = cond ? 0 : 1;
+      fir::Builder bb{instr};
+
+      auto replacement_term = bb.build_branch(instr->bbs[target_bb_id].bb);
+      for (auto bb_arg : instr->bbs[target_bb_id].args) {
+        replacement_term.add_bb_arg(0, bb_arg);
+      }
+
+      instr.clear_bb_args(0);
+      instr.clear_bb_args(1);
+      instr.clear_bbs();
+      instr.clear_args();
+      instr.remove_from_parent();
+      // FIXME: properly delete
+      instr._invalidate();
+      // TODO("handle cond branch being constant or skip top\n");
+      values.insert({fir::ValueR(replacement_term), ConstantValue::Top()});
+      cfg.update(*replacement_term->get_parent()->get_parent().func, false);
+      return ConstantValue::Top();
+    }
+    case fir::InstrType::ZExt:
+    case fir::InstrType::SExt: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (a.is_top()) {
+        return ConstantValue::Top();
+      }
+      a.value->type = ctx->copy(instr->get_type());
+      return a;
+    }
+    case fir::InstrType::ICmp: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() || !b.is_const()) {
+        return ConstantValue::Top();
+      }
+
+      if (!a.value->is_int() || !b.value->is_int()) {
+        TODO("IMPL");
+      }
+
+      utils::Debug << (i64)a.value->as_int() << " cmp "
+                   << (i64)b.value->as_int() << "\n";
+      switch ((fir::ICmpInstrSubType)instr->get_instr_subtype()) {
+      case fir::ICmpInstrSubType::INVALID:
+        TODO("¿UNREACH?\n");
+        break;
+      case fir::ICmpInstrSubType::NE:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_int() != b.value->as_int()),
+            ctx->get_int_type(8)));
+      case fir::ICmpInstrSubType::EQ:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_int() == b.value->as_int()),
+            ctx->get_int_type(8)));
+      case fir::ICmpInstrSubType::SLT:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>((i64)a.value->as_int() < (i64)b.value->as_int()),
+            ctx->get_int_type(8)));
+      case fir::ICmpInstrSubType::ULT:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_int() < b.value->as_int()),
+            ctx->get_int_type(8)));
+      case fir::ICmpInstrSubType::SGT:
+        TODO("impl");
+      case fir::ICmpInstrSubType::UGT:
+        TODO("impl");
+      case fir::ICmpInstrSubType::UGE:
+        TODO("impl");
+      case fir::ICmpInstrSubType::ULE:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_int() <= b.value->as_int()),
+            ctx->get_int_type(8)));
+      case fir::ICmpInstrSubType::SGE:
+        TODO("impl");
+      case fir::ICmpInstrSubType::SLE:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>((i64)a.value->as_int() <= (i64)b.value->as_int()),
+            ctx->get_int_type(8)));
+      }
+    }
+    case fir::InstrType::DirectCallInstr:
+    case fir::InstrType::AllocaInstr:
+    case fir::InstrType::ReturnInstr:
+    case fir::InstrType::LoadInstr:
+    case fir::InstrType::StoreInstr:
+      return ConstantValue::Top();
+    }
+    assert(false);
+  }
+
   void eval_and_update(fir::Context &ctx, fir::ValueR value) {
     (void)values;
     (void)cfg;
@@ -94,124 +307,12 @@ public:
     if (value.is_constant()) {
       TODO("constant\n");
     } else if (value.is_instr()) {
-      auto instr = value.as_instr();
-      switch (instr->get_instr_type()) {
-      case fir::InstrType::BinaryInstr: {
-        auto a = eval(instr->get_arg(0));
-        auto b = eval(instr->get_arg(1));
-
-        if (a.is_bottom() || b.is_bottom()) {
-          new_value = ConstantValue::Bottom();
-        } else if (a.is_const() && b.is_const()) {
-          switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
-          case fir::BinaryInstrSubType::INVALID:
-            TODO("¿UNREACH?\n");
-            break;
-          case fir::BinaryInstrSubType::IntAdd:
-            if (!a.value->is_int() || !b.value->is_int()) {
-              break;
-            }
-            new_value = ConstantValue::Constant(ctx->get_constant_value(
-                a.value->as_int() + b.value->as_int(), a.value->get_type()));
-            break;
-          case fir::BinaryInstrSubType::IntSMod:
-            if (!a.value->is_int() || !b.value->is_int()) {
-              break;
-            }
-            new_value = ConstantValue::Constant(ctx->get_constant_value(
-                (i64)a.value->as_int() % (i64)b.value->as_int(), a.value->get_type()));
-            break;
-          case fir::BinaryInstrSubType::IntMul:
-            // utils::Debug << "REACHED??\n";
-            if (!a.value->is_int() || !b.value->is_int()) {
-              break;
-            }
-            new_value = ConstantValue::Constant(ctx->get_constant_value(
-                a.value->as_int() * b.value->as_int(), a.value->get_type()));
-            break;
-          }
-        } else {
-          new_value = ConstantValue::Top();
-        }
-        break;
-      }
-      case fir::InstrType::BranchInstr: {
-        const auto &target = instr->get_bb_args();
-        // utils::Debug << " HIT BRANCH\n\n";
-        ASSERT(target.size() == 1);
-        if (!reachable_bb.contains(target[0].bb)) {
-          cfg_worklist.push_back(target[0].bb);
-        }
-        {
-          const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                                            [&target](auto &&value) {
-                                              return value.bb == target[0].bb;
-                                            }) -
-                               cfg.bbrs.begin();
-          eval_meets(target[0].bb, bb_id);
-        }
-        break;
-      }
-      case fir::InstrType::CondBranchInstr: {
-        const auto &targets = instr->get_bb_args();
-        ASSERT(targets.size() == 2);
-        auto arg = eval(instr->get_arg(0));
-        // ASSERT(!arg.is_bottom());
-        if (arg.is_bottom()) {
-          if (!reachable_bb.contains(targets[0].bb)) {
-            cfg_worklist.push_back(targets[0].bb);
-          }
-          if (!reachable_bb.contains(targets[1].bb)) {
-            cfg_worklist.push_back(targets[1].bb);
-          }
-
-          {
-            const size_t bb_id =
-                std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                             [&targets](auto &&value) {
-                               return value.bb == targets[0].bb;
-                             }) -
-                cfg.bbrs.begin();
-            eval_meets(targets[0].bb, bb_id);
-          }
-          {
-            const size_t bb_id =
-                std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                             [&targets](auto &&value) {
-                               return value.bb == targets[1].bb;
-                             }) -
-                cfg.bbrs.begin();
-            eval_meets(targets[1].bb, bb_id);
-          }
-        } else {
-          TODO("handle cond branch being constant or skip top\n");
-        }
-
-        break;
-      }
-      case fir::InstrType::ZExt:
-      case fir::InstrType::SExt: {
-        new_value = eval(instr->get_arg(0));
-        if (new_value.is_const()) {
-          new_value.value->type = ctx->copy(instr->get_type());
-        }
-        break;
-      }
-
-      case fir::InstrType::DirectCallInstr:
-      case fir::InstrType::AllocaInstr:
-      case fir::InstrType::ReturnInstr:
-      case fir::InstrType::LoadInstr:
-      case fir::InstrType::StoreInstr:
-      case fir::InstrType::ICmp:
-        new_value = ConstantValue::Bottom();
-        break;
-      }
+      new_value = eval_instr(ctx, value.as_instr());
     } else if (value.is_bb_arg()) {
       TODO("UNREACH\n");
     }
 
-    if (new_value != values.at(value)) {
+    if (value.is_valid(true) && values.at(value) != new_value) {
       values.at(value) = new_value;
       for (auto &use : *value.get_uses()) {
         if (reachable_bb.contains(use.user->get_parent())) {
@@ -253,16 +354,14 @@ public:
 
       ASSERT(pred_args != pred_term->get_bb_args().end());
       for (size_t arg_id = 0; arg_id < bb->get_args().size(); arg_id++) {
-        auto a = res[arg_id];
+        auto &a = res[arg_id];
 
         auto b = eval(pred_args->args[arg_id]);
 
         if (a.is_bottom() || b.is_bottom()) {
           res[arg_id] = ConstantValue::Bottom();
-        } else if (a.is_top()) {
-          res[arg_id] = b;
-        } else if (b.is_top()) {
-          res[arg_id] = a;
+        } else if (a.is_top() || b.is_top()) {
+          res[arg_id] = ConstantValue::Top();
         } else if (a.is_const() && b.is_const()) {
           if (a.value->eql(*b.value.operator->())) {
             res[arg_id] = a;
@@ -328,8 +427,9 @@ public:
             func.basic_blocks.begin();
         eval_meets(bb, bb_id);
 
-        for (auto &instr : bb->instructions) {
-          eval_and_update(ctx, fir::ValueR(instr));
+        for (size_t instr_id = 0; instr_id < bb->instructions.size();
+             instr_id++) {
+          eval_and_update(ctx, fir::ValueR(bb->instructions[instr_id]));
         }
 
         // TODO("handle terminator phi stuff merging somehow??\n");
@@ -337,6 +437,9 @@ public:
       while (!ssa_worklist.empty()) {
         fir::Use &use = ssa_worklist.front();
         ssa_worklist.pop_front();
+        if (!use.user.is_valid()) {
+          continue;
+        }
         eval_and_update(ctx, fir::ValueR(use.user));
       }
     }

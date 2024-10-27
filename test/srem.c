@@ -1,0 +1,25 @@
+// RUN: clang -O0 %s -o %t.ll -S -emit-llvm
+// RUN: ../build/foptim_main %t.ll %t.ss
+// RUN: nasm %t.ss -felf64  -g -F dwarf && ld %t.o -o %t.out
+// RUN: %t.out || echo Result:$? | FileCheck %s
+
+// CHECK: Result:0
+
+int main() {
+  int a = 32;
+  int b = -32;
+
+  if (a % 5 != 2) {
+    return 1;
+  }
+  if (a % 7 != 4) {
+    return 2;
+  }
+  if (b % 5 != -2) {
+    return 3;
+  }
+  if (b % 7 != -4) {
+    return 4;
+  }
+  return 0;
+}

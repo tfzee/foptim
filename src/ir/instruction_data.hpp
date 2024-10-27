@@ -64,7 +64,7 @@ enum class BinaryInstrSubType : u32 {
   // IntSub,
   IntMul,
   // IntDiv,
-  IntSMod,
+  IntSRem,
 
   // IntAnd,
   // IntOr,
@@ -109,6 +109,9 @@ public:
   [[nodiscard]] bool verify(const BasicBlockData *, utils::Printer) const;
   [[nodiscard]] bool has_result() const;
   [[nodiscard]] bool is_critical() const;
+  /*true if the instructions arguments can be swapped without changing the
+   * result*/
+  [[nodiscard]] bool is_commutative() const;
   [[nodiscard]] bool pot_modifies_mem() const;
   [[nodiscard]] bool has_pot_sideeffects() const;
 
@@ -122,7 +125,7 @@ public:
         return "IntAdd";
       case BinaryInstrSubType::IntMul:
         return "IntMul";
-      case BinaryInstrSubType::IntSMod:
+      case BinaryInstrSubType::IntSRem:
         return "IntSMod";
       }
     case InstrType::SExt:
@@ -240,6 +243,11 @@ public:
     for (size_t i = 0; i < bbs.size(); i++) {
       if (bbs[i] != other.bbs[i]) {
         return false;
+      }
+      for (size_t j = 0; j < bbs[i].args.size(); j++) {
+        if (!bbs[i].args[j].eql(other.bbs[i].args[j])) {
+          return false;
+        }
       }
     }
     return true;

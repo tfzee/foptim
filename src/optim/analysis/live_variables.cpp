@@ -24,7 +24,11 @@ fir::Instr get_last_use_in_bb(fir::ValueR value, fir::BasicBlock target_bb) {
     }
   }
 
-  ASSERT(found);
+  if (!found) {
+    utils::Debug << value;
+    utils::Debug << "Didnt find " << value << " in bb " << target_bb << "\n";
+    ASSERT(found);
+  }
   ASSERT(final_use_instr.is_valid());
   return final_use_instr;
 }
@@ -66,6 +70,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     }
     for (auto instr : bb->instructions) {
       if (all_values.contains(fir::ValueR(instr))) {
+        ASSERT(instr->get_parent() == bb);
         defs[bb_id][all_values.at(fir::ValueR(instr))].set(true);
       }
 
@@ -157,24 +162,33 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
       bool val_liveIn = bb_liveIn[value_id];
       bool val_liveOut = bb_liveOut[value_id];
       bool val_defined = bb_defs[value_id];
-      bool val_live = val_liveIn | val_liveOut | val_defined;
+      bool val_live = val_liveIn || val_liveOut || val_defined;
 
       // is it live at all
       if (!val_live) {
         continue;
       }
-      auto value_ref = std::ranges::find_if(
-          all_values.begin(), all_values.end(),
-          [value_id](auto &&v) { return v.second == value_id; });
+      auto value_ref =
+          std::ranges::find_if(all_values, [value_id](const auto &v) {
+            return v.second == value_id;
+          });
       auto &live_ranges = live_variables[value_ref->first];
       ASSERT(value_ref != all_values.end());
+      ASSERT(value_ref->second == value_id);
+
+      if (val_defined && value_ref->first.is_instr()) {
+        if (value_ref->first.as_instr()->get_parent() != bbs[bb_id]) {
+          utils::Debug << value_ref->first << "\n";
+        }
+        ASSERT(value_ref->first.as_instr()->get_parent() == bbs[bb_id]);
+      }
 
       // TODO: clean this up into 2x 2 distinc cases of entry or value inside of
       // bb
       if (value_ref->first.get_n_uses() == 0 && value_ref->first.is_instr()) {
         // unused resutl of critical instruction can be discarded and needs no
         // lifetime?
-      } else if (!val_liveIn & val_defined & !val_liveOut &
+      } else if (!val_liveIn && val_defined && !val_liveOut &&
                  value_ref->first.is_instr()) {
         // all uses are defined and used in this bb;
         // so definition is start and last use is end
@@ -185,14 +199,14 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
             fir::IRLocation{value_ref->first.as_instr()},
             fir::IRLocation{final_use_instr}));
 
-      } else if (!val_liveIn & val_defined & val_liveOut &
+      } else if (!val_liveIn && val_defined && val_liveOut &&
                  value_ref->first.is_instr()) {
         // if its not live in and its defined in the block then its live from
         // defined location till end of block
         // TODO can be refined it not live out then it also has all uses in BB
         live_ranges.push_back(LiveRange::start_after_instr(
             fir::IRLocation{value_ref->first.as_instr()}));
-      } else if (val_liveIn & !val_liveOut) {
+      } else if (val_liveIn && !val_liveOut) {
         // if it comes in and never goes out its last use in the bb is the end
         // of this values lifetime
         auto final_use_instr =

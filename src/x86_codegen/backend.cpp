@@ -310,6 +310,19 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     }
     return;
   }
+  case fmir::Opcode::idiv: {
+    ASSERT(instr.n_args == 4);
+    auto div_target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto rem_target = convert_operand(cc, reg_to_op, instr.args[1]);
+    ASSERT(div_target.isPhysReg());
+    ASSERT(rem_target.isPhysReg());
+    ASSERT(div_target == rax || div_target == eax);
+    ASSERT(rem_target == rdx || rem_target == edx);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[2]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[3]);
+    cc.emit(Inst::kIdIdiv, o0, o1);
+    return;
+  }
   case fmir::Opcode::mul: {
     ASSERT(instr.n_args == 3);
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
@@ -407,6 +420,14 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     return;
   }
   case fmir::Opcode::icmp_slt: {
+    auto targ = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto a = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto b = convert_operand(cc, reg_to_op, instr.args[2]);
+    cc.emit(Inst::kIdCmp, a, b);
+    cc.emit(Inst::kIdSetl, targ);
+    return;
+  }
+  case fmir::Opcode::icmp_eq: {
     auto targ = convert_operand(cc, reg_to_op, instr.args[0]);
     auto a = convert_operand(cc, reg_to_op, instr.args[1]);
     auto b = convert_operand(cc, reg_to_op, instr.args[2]);

@@ -49,6 +49,10 @@ public:
   }
   size_t n_bbs() const { return basic_blocks.size(); }
 
+  /*
+    @returns index of the given bb or aborts on invalid bb
+  */
+  [[nodiscard]] size_t bb_id(BasicBlock b) const;
   void append_bbr(BasicBlock bb) { basic_blocks.push_back(bb); }
   void set_entry_bbr(BasicBlock bb) {
     // TODO: verify that its basic block in the local list;

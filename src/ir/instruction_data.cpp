@@ -13,6 +13,35 @@ bool InstrData::verify(const BasicBlockData *exp_parent,
       return false;
     }
   }
+  for (const auto &[bb, bb_args] : bbs) {
+    if (!bb.is_valid()) {
+      printer << "Instr references a invalid bb\n";
+      return false;
+    }
+    if (bb->get_parent() != exp_parent->get_parent()) {
+      printer << "Instr references a bb thats not part of this function\n";
+      return false;
+    }
+    if (bb_args.size() != bb->n_args()) {
+      printer << "Instr has invalid number of basicblock arguments\n";
+      printer << "Expected: " << bb->n_args() << " Got:" << bb_args.size()
+              << "\n";
+      return false;
+    }
+    for (const auto &bb_arg : bb_args) {
+      if (!bb_arg.is_valid(true)) {
+        printer << "Instr references a value that is not valid\n";
+        printer << "Value: " << bb_arg << "\n";
+        return false;
+      }
+      if (!bb_arg.is_constant() && bb_arg.get_n_uses() == 0) {
+        printer << "BB Arg does have 0 uses but its used here\n";
+        printer << "In BBArg: " << bb_arg << "\n";
+        return false;
+      }
+    }
+  }
+
   for (const auto &arg : args) {
     if (!arg.is_constant()) {
       if (arg.get_n_uses() == 0) {
@@ -84,6 +113,47 @@ bool InstrData::is_critical() const {
     return false;
   }
 }
+
+bool InstrData::is_commutative() const {
+  switch (instr_type) {
+  case InstrType::BinaryInstr:
+    switch ((BinaryInstrSubType)subtype) {
+    case BinaryInstrSubType::INVALID:
+    case BinaryInstrSubType::IntAdd:
+    case BinaryInstrSubType::IntMul:
+      return true;
+    case BinaryInstrSubType::IntSRem:
+      return false;
+    }
+  case InstrType::ICmp:
+    switch ((ICmpInstrSubType)subtype) {
+    case ICmpInstrSubType::INVALID:
+    case ICmpInstrSubType::NE:
+    case ICmpInstrSubType::EQ:
+      return true;
+    case ICmpInstrSubType::SLT:
+    case ICmpInstrSubType::ULT:
+    case ICmpInstrSubType::SGT:
+    case ICmpInstrSubType::UGT:
+    case ICmpInstrSubType::UGE:
+    case ICmpInstrSubType::ULE:
+    case ICmpInstrSubType::SGE:
+    case ICmpInstrSubType::SLE:
+      return false;
+    }
+  case InstrType::DirectCallInstr:
+  case InstrType::ReturnInstr:
+  case InstrType::BranchInstr:
+  case InstrType::CondBranchInstr:
+  case InstrType::StoreInstr:
+  case InstrType::AllocaInstr:
+  case InstrType::LoadInstr:
+  case InstrType::SExt:
+  case InstrType::ZExt:
+    return false;
+  }
+}
+
 bool InstrData::pot_modifies_mem() const {
   switch (instr_type) {
   case InstrType::DirectCallInstr:
@@ -133,7 +203,7 @@ InstrData InstrData::get_add(TypeR ty) {
 }
 
 InstrData InstrData::get_smod(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntSMod,
+  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntSRem,
                        ty, BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;

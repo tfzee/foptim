@@ -62,6 +62,18 @@ struct ContextData {
     return storage.insert_constant(ConstantValue(val, ty));
   }
 
+  ConstantValueR get_constant_value(i64 val, IntTypeR ty) {
+    return storage.insert_constant(ConstantValue((u64)val, ty));
+  }
+
+  ConstantValueR get_constant_value(i32 val, IntTypeR ty) {
+    return storage.insert_constant(ConstantValue((u64)(i64)val, ty));
+  }
+
+  ConstantValueR get_constant_value(u32 val, IntTypeR ty) {
+    return storage.insert_constant(ConstantValue((u64)val, ty));
+  }
+
   ConstantValueR get_constant_value(Global glob) {
     // NOTE: Idk if this should be static if we add some ptr attribs idk?
     static auto global_ptr_typee =

@@ -1,0 +1,23 @@
+// RUN: clang++ -O0 %s -o %t.ll -S -emit-llvm
+// RUN: ../build/foptim_main %t.ll %t.ss
+// RUN: nasm %t.ss -felf64 -g -F dwarf && ld %t.o -o %t.out
+// RUN: %t.out || echo Result:$? | FileCheck %s
+
+// CHECK: Result:1
+
+#define SIZE 32
+
+extern "C" int main() {
+  int a[SIZE * SIZE] = {};
+  for (int i = 0; i < SIZE; i++) {
+    for (int j = 0; j < SIZE; j++) {
+      a[i * SIZE + j] = i;
+    }
+  }
+  // int sum = 0;
+  // for (int i : a) {
+  //   sum += i;
+  // }
+  // return static_cast<int>(sum == 15872);
+  return 0;
+}

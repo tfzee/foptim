@@ -1,5 +1,6 @@
 #pragma once
 #include "ir/global.hpp"
+#include "ir/types.hpp"
 #include "types_ref.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
@@ -40,30 +41,33 @@ struct ConstantValue {
   constexpr ConstantValue(u64 v, TypeR typee)
       : value(IntValue{v}), type(typee) {}
 
-  constexpr ConstantValue(Global g, TypeR typee) : value(GlobalPointer{g}), type(typee) {}
+  constexpr ConstantValue(Global g, TypeR typee)
+      : value(GlobalPointer{g}), type(typee) {}
 
-  bool is_global() const {
+  [[nodiscard]] bool is_global() const {
     return std::holds_alternative<GlobalPointer>(value);
   }
-  bool is_int() const { return std::holds_alternative<IntValue>(value); }
-
-  u64 as_int() const {
-    if (auto *res = std::get_if<IntValue>(&value)) {
-      return res->data;
-    } else {
-      std::abort();
-    }
+  [[nodiscard]] bool is_int() const {
+    return std::holds_alternative<IntValue>(value);
   }
 
-  Global as_global() const {
-    if (auto *res = std::get_if<GlobalPointer>(&value)) {
+  [[nodiscard]] u64 as_int() const {
+    if (const auto *res = std::get_if<IntValue>(&value)) {
+      // u32 bitwidth = type->as_int();
+      // const u64 mask = ((u64)1 << bitwidth) - 1;
+      return res->data;// & mask;
+    }
+    std::abort();
+  }
+
+  [[nodiscard]] Global as_global() const {
+    if (const auto *res = std::get_if<GlobalPointer>(&value)) {
       return res->glob;
-    } else {
-      std::abort();
     }
+    std::abort();
   }
-  TypeR get_type() const;
-  bool eql(const ConstantValue &) const;
+  [[nodiscard]] TypeR get_type() const;
+  [[nodiscard]] bool eql(const ConstantValue &) const;
 };
 
 } // namespace foptim::fir

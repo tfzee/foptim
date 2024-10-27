@@ -6,6 +6,15 @@ namespace foptim::fir {
 
 Builder FunctionR::builder() { return Builder{*this}; }
 
+[[nodiscard]] size_t Function::bb_id(BasicBlock b) const {
+  for (size_t bb_indx = 0; bb_indx < basic_blocks.size(); bb_indx++) {
+    if (basic_blocks[bb_indx] == b) {
+      return bb_indx;
+    }
+  }
+  std::abort();
+}
+
 bool Function::verify(utils::Printer printer) const {
   if (!entry.is_valid()) {
     printer << "Entry block needs to be set for function";
@@ -15,7 +24,7 @@ bool Function::verify(utils::Printer printer) const {
     printer << "Function type invalid";
     return false;
   }
-  auto& ty = func_ty->as_func_ty();
+  const auto &ty = func_ty->as_func_ty();
 
   if (ty.arg_types.size() != entry->n_args()) {
     printer << "Entry basic block needs as many arguments as function";

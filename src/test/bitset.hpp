@@ -7,7 +7,16 @@ using namespace foptim;
 
 TEST(BitSetTest, BasicSetIter) {
   constexpr size_t N_BITS = 6;
-  foptim::utils::BitSet<u64> bb{N_BITS, false};
+  foptim::utils::BitSet<u64> a_bb{N_BITS, false};
+  a_bb[3].set(true);
+  auto b_bb = a_bb;
+  auto bb = std::move(b_bb);
+
+  {
+    EXPECT_EQ(bb._data[0], a_bb._data[0]);
+    EXPECT_EQ(b_bb._data, nullptr);
+  }
+
   {
     bb.reset(false);
     auto iter = bb.begin();

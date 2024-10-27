@@ -11,30 +11,18 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
     for (const auto &arg : exprs[expr_i]->get_args()) {
       if (arg.is_instr()) {
         const fir::Instr instr = arg.as_instr();
-        const auto parent_bb = instr->get_parent();
-
-        bool found = false;
-        ASSERT(parent_bb.is_valid());
-        for (size_t bb_indx = 0; bb_indx < func.basic_blocks.size();
-             bb_indx++) {
-          fir::BasicBlock search_bb = func.basic_blocks[bb_indx];
-          if (search_bb == parent_bb) {
-            transp[bb_indx][expr_i].set(false);
-            found = true;
-            break;
-          }
-        }
-        ASSERT(found);
-      }
-      if (arg.is_bb_arg()) {
+        size_t bb_indx = func.bb_id(instr->get_parent());
+        transp[bb_indx][expr_i].set(false);
+      } else if (arg.is_bb_arg()) {
         auto bbarg = arg.as_bb_arg();
-        const size_t bb_indx = std::find(func.basic_blocks.begin(),
-                                         func.basic_blocks.end(), bbarg.bb) -
-                               func.basic_blocks.begin();
+        size_t bb_indx = func.bb_id(bbarg.bb);
         transp[bb_indx][expr_i].set(false);
       }
     }
+  }
 
+  // need to do 2 loops sicne we reuse teh transp result
+  for (size_t expr_i = 0; expr_i < exprs.size(); expr_i++) {
     // Since we in SSA form if the current block declares a arugment
     // it must come prior to the definition as such antloc jsut checks if its
     // transparent in its own block
@@ -43,10 +31,7 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
     // occurence of a expresion to mark it
 
     for (const auto &act_instr_with_expr : expr_to_instrs.at(exprs[expr_i])) {
-      const size_t act_bb_i =
-          std::find(func.basic_blocks.begin(), func.basic_blocks.end(),
-                    act_instr_with_expr->get_parent()) -
-          func.basic_blocks.begin();
+      size_t act_bb_i = func.bb_id(act_instr_with_expr->get_parent());
       comp[act_bb_i][expr_i].set(true);
       if (transp[act_bb_i][expr_i]) {
         antloc[act_bb_i][expr_i].set(true);
@@ -56,7 +41,8 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
 }
 
 static inline void execute(const BBData &save, const BBData &insert_sin,
-                           const DBBData &insert_doub, const BBData &redund,
+                           const DBBData & /*insert_doub*/,
+                           const BBData &redund,
                            const std::span<fir::Instr> exprs,
                            const std::span<fir::BasicBlock> bbs) {
   const size_t n_bbs = bbs.size();
@@ -109,16 +95,19 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
 
     {
       for (size_t bb2_id = 0; bb2_id < n_bbs; bb2_id++) {
-        if (!insert_doub[bb_id][bb2_id].any()) {
-          continue;
-        }
-        auto new_bb = fir::insert_bb_between(bbs[bb_id], bbs[bb2_id]);
-        fir::Builder bb{new_bb};
-        bb.at_penultimate(new_bb);
+        // if (!insert_doub[bb_id][bb2_id].any()) {
+        //   continue;
+        // }
+        utils::Debug << "PRE: Trying to insert doub at " << bb_id << " and "
+                     << bb2_id << "\n";
+        // utils::Debug << bbs[bb_id]->get_parent() << "\n";
+        // auto new_bb = fir::insert_bb_between(bbs[bb_id], bbs[bb2_id]);
+        // fir::Builder bb{new_bb};
+        // bb.at_penultimate(new_bb);
 
-        for (auto insert_loc : insert_doub[bb_id][bb2_id]) {
-          bb.insert_copy(exprs[insert_loc]);
-        }
+        // for (auto insert_loc : insert_doub[bb_id][bb2_id]) {
+        //   bb.insert_copy(exprs[insert_loc]);
+        // }
       }
     }
 
@@ -135,7 +124,7 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
   }
 }
 
-void EPathPRE::apply(fir::Context &ctx, fir::Function &func) {
+void EPathPRE::apply(fir::Context & /*ctx*/, fir::Function &func) {
   ZoneScopedN("EPathPRE");
   CFG cfg{func};
   assert(cfg.entry == 0);
@@ -154,8 +143,7 @@ void EPathPRE::apply(fir::Context &ctx, fir::Function &func) {
       for (size_t i = 0; i + 1 < bb->instructions.size(); i++) {
         auto target_instr = bb->instructions[i];
         // skip stuff with sideeffects
-        if (target_instr->is(fir::InstrType::DirectCallInstr) ||
-            target_instr->is(fir::InstrType::AllocaInstr)) {
+        if (target_instr->has_pot_sideeffects()) {
           continue;
         }
 
@@ -187,9 +175,14 @@ void EPathPRE::apply(fir::Context &ctx, fir::Function &func) {
   BBData antloc{};
   antloc.resize(n_bbs, empty_bitset);
 
-  ASSERT(ctx->verify());
-
   init_transp_antloc(transp, antloc, comp, func, exprs, expr_to_instrs);
+
+  for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
+    utils::Debug << bb_id << "\n";
+    utils::Debug << "Comp  : " << comp[bb_id] << "\n";
+    utils::Debug << "Antloc: " << antloc[bb_id] << "\n";
+    utils::Debug << "Transp: " << transp[bb_id] << "\n";
+  }
 
   // dynamic
   BBData av_in{};
@@ -209,10 +202,10 @@ void EPathPRE::apply(fir::Context &ctx, fir::Function &func) {
   BBData insert_sin{};
   insert_sin.resize(n_bbs, full_bitset);
   DBBData insert_doub{};
-  insert_doub.resize(n_bbs, {});
+  insert_doub.resize(n_bbs);
   for (size_t i = 0; i < insert_doub.size(); i++) {
-    // insert_doub[i].resize(n_bbs, full_bitset);
-    insert_doub[i].resize(n_bbs, i == cfg.entry ? empty_bitset : full_bitset);
+    insert_doub[i].resize(n_bbs, empty_bitset);
+    // insert_doub[i].resize(n_bbs, i == cfg.entry ? empty_bitset : full_bitset);
     // insert_doub[i][0].assign(empty_bitset);
   }
   BBData sa_out{};

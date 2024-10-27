@@ -49,11 +49,18 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
   if (const auto *int_constant =
           llvm::dyn_cast_or_null<llvm::ConstantInt>(value)) {
 
-    u64 val = int_constant->getZExtValue();
     u32 bitwidth = int_constant->getBitWidth();
+    auto value = int_constant->getValue();
+
+    u64 constant = 0;
+    if (value.isNegative()) {
+      constant = value.getSExtValue();
+    } else {
+      constant = value.getZExtValue();
+    }
 
     return foptim::fir::ValueR(
-        fctx->get_constant_value(val, fctx->get_int_type(bitwidth)));
+        fctx->get_constant_value(constant, fctx->get_int_type(bitwidth)));
   }
 
   llvm::errs() << value << " " << typeid(value).name() << "\n";

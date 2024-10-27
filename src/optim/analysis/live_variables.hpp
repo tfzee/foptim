@@ -35,7 +35,8 @@ struct LiveRange {
   // NOTE: not including the first
   static LiveRange between_instr(fir::IRLocation start_not_included,
                                  fir::IRLocation end) {
-    assert(start_not_included.type == fir::IRLocation::LocationType::Instruction);
+    assert(start_not_included.type ==
+           fir::IRLocation::LocationType::Instruction);
     assert(end.type == fir::IRLocation::LocationType::Instruction);
     assert(start_not_included.bb == end.bb);
     assert((void *)start_not_included.func.func == (void *)end.func.func);
@@ -122,12 +123,14 @@ public:
     size_t value_id = 0;
     for (const auto &bb : func.get_bbs()) {
       for (u32 arg_id = 0; arg_id < bb->n_args(); arg_id++) {
-        values.insert({fir::ValueR{bb, arg_id}, value_id});
+        auto [_, ins] = values.insert({fir::ValueR{bb, arg_id}, value_id});
+        ASSERT(ins);
         value_id++;
       }
       for (auto instr : bb->instructions) {
         if (instr->has_result()) {
-          values.insert({fir::ValueR{instr}, value_id});
+          auto [_, ins] = values.insert({fir::ValueR{instr}, value_id});
+          ASSERT(ins);
           value_id++;
         }
       }

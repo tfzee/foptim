@@ -11,6 +11,10 @@ public:
 
   Function *operator->() { return func; }
   const Function *operator->() const { return func; }
+
+  bool operator==(FunctionR other) const{
+    return (void*)func == other.func;
+  } 
   Builder builder();
 };
 } // namespace foptim::fir

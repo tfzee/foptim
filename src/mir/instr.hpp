@@ -15,11 +15,13 @@ enum class Opcode : u32 {
   add,
   sub,
   mul,
+  idiv,
 
   push,
   pop,
 
   icmp_slt,
+  icmp_eq,
 
   cjmp_slt,
   cjmp_ult,
@@ -47,12 +49,16 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     return "mov_sx";
   case Opcode::add:
     return "add";
+  case Opcode::idiv:
+    return "idiv";
   case Opcode::sub:
     return "sub";
   case Opcode::mul:
     return "mul";
   case Opcode::icmp_slt:
     return "icmp_slt";
+  case Opcode::icmp_eq:
+    return "icmp_eq";
   case Opcode::jmp:
     return "jmp";
   case Opcode::call:
@@ -165,6 +171,13 @@ struct VRegInfo {
   static constexpr VRegInfo EAX() {
     VRegInfo res{};
     res.ty = VRegType::A;
+    res.reg_size = 4;
+    return res;
+  }
+
+  static constexpr VRegInfo EDX() {
+    VRegInfo res{};
+    res.ty = VRegType::D;
     res.reg_size = 4;
     return res;
   }

@@ -52,7 +52,7 @@ public:
 
     for (const auto &bbr : cfg.bbrs) {
       // if (i == 0) {
-      dom_bbs.push_back(Node{bbr.bb, -1, fullBitSet, emptyBitSet});
+      dom_bbs.push_back({bbr.bb, -1, fullBitSet, emptyBitSet});
       // } else {
       //   dom_bbs.push_back(
       //       Node{cfg.bbrs[i].bb, -1, fullBitSet, emptyBitSet, emptyBitSet});

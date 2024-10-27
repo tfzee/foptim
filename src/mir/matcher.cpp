@@ -145,8 +145,8 @@ void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
   ASSERT(false);
 }
 
-MBB apply_bb(fir::BasicBlock &bb, Edges &active_edges,
-             IRVec<Pattern> &patterns, ExtraMatchData &data) {
+MBB apply_bb(fir::BasicBlock &bb, Edges &active_edges, IRVec<Pattern> &patterns,
+             ExtraMatchData &data) {
   ZoneScopedN("Apply BB");
   MBB result_bb;
 
@@ -441,6 +441,10 @@ constexpr auto base_pats() {
                          (u32)fir::BinaryInstrSubType::IntAdd};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          (u32)fir::BinaryInstrSubType::IntMul};
+  auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::IntSRem};
+  auto EQNode =
+      Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::EQ};
   auto SLTNode =
       Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::SLT};
   auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
@@ -640,12 +644,47 @@ constexpr auto base_pats() {
                 return true;
               }});
   res.push_back(Pattern{
+      {SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto srem_instr = res.matched_instrs[0];
+        //FIXME: variable size
+        auto res_div = data.alloc.get_new_register(fir::IRLocation{srem_instr},
+                                                   srem_instr.get_type(),
+                                                   VRegInfo::EAX(), data.lives);
+        auto res_rem = data.alloc.get_new_register(fir::IRLocation{srem_instr},
+                                                   srem_instr.get_type(),
+                                                   VRegInfo::EDX(), data.lives);
+        auto res_reg =
+            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
+        auto res_div_arg =
+            MArgument(res_div, convert_type(srem_instr.get_type()));
+        auto res_rem_arg =
+            MArgument(res_rem, convert_type(srem_instr.get_type()));
+
+        res.result.emplace_back(
+            Opcode::idiv, res_div_arg, res_rem_arg,
+            valueToArg(srem_instr->args[0], res.result, data.alloc),
+            valueToArg(srem_instr->args[1], res.result, data.alloc));
+        res.result.emplace_back(Opcode::mov, res_reg, res_rem_arg);
+        return true;
+      }});
+  res.push_back(Pattern{
       {SLTNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto slt_instr = res.matched_instrs[0];
         auto res_reg = data.alloc.get_register(fir::ValueR(slt_instr));
         auto res_arg = MArgument(res_reg, convert_type(slt_instr.get_type()));
         res.result.emplace_back(
             Opcode::icmp_slt, res_arg,
+            valueToArg(slt_instr->args[0], res.result, data.alloc),
+            valueToArg(slt_instr->args[1], res.result, data.alloc));
+        return true;
+      }});
+  res.push_back(Pattern{
+      {EQNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto slt_instr = res.matched_instrs[0];
+        auto res_reg = data.alloc.get_register(fir::ValueR(slt_instr));
+        auto res_arg = MArgument(res_reg, convert_type(slt_instr.get_type()));
+        res.result.emplace_back(
+            Opcode::icmp_eq, res_arg,
             valueToArg(slt_instr->args[0], res.result, data.alloc),
             valueToArg(slt_instr->args[1], res.result, data.alloc));
         return true;

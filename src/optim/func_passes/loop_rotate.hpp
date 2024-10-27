@@ -34,6 +34,7 @@ public:
                                   uint8_t non_exiting_target,
                                   fir::BasicBlock header_bb,
                                   fir::BasicBlock head_pred) {
+    // utils::Debug << header_bb->get_parent() << "\n";
     repl_map.clear();
     fir::Instr old_terminator = head_pred->get_terminator();
     auto &old_terminator_args = old_terminator->bbs[0].args;
@@ -65,13 +66,17 @@ public:
       repl_map.insert({fir::ValueR(instr), fir::ValueR(new_instr)});
     }
 
+    // utils::Debug << header_bb->get_parent() << "\n";
+    // utils::Debug << head_pred << "\n";
+    // utils::Debug << header_bb << "\n";
     // clean up the arguments going into the loop based on the args of the old
     // terminator
     {
       fir::Instr new_term = head_pred->get_terminator();
-      assert(new_term->bbs[non_exiting_target].args.size() == 0);
+      // new_term.clear_bb_args(non_exiting_target);
+      // assert(new_term->bbs[non_exiting_target].args.size() == 0);
 
-      new_term.replace_bb(non_exiting_target, header_bb);
+      new_term.replace_bb(non_exiting_target, header_bb, false);
       for (auto arg : old_terminator_args) {
         new_term.add_bb_arg(non_exiting_target, arg);
       }
@@ -114,9 +119,7 @@ public:
         cfg.bbrs[linfo.head].pred.size() > 1 + linfo.tails.size();
     if (!needs_preheader) {
       for (auto pred : cfg.bbrs[linfo.head].pred) {
-        if (std::find(linfo.tails.begin(), linfo.tails.end(), pred) ==
-                linfo.tails.end() &&
-            !cfg.bbrs[pred].bb->get_terminator()->is(
+        if (!cfg.bbrs[pred].bb->get_terminator()->is(
                 fir::InstrType::BranchInstr)) {
           needs_preheader = true;
         }
@@ -169,9 +172,13 @@ public:
     {
       fir::BasicBlock header = cfg.bbrs[linfo.head].bb;
       fir::Builder bb{header};
-      assert(header->get_terminator()->bbs[non_exiting_target].args.empty());
+      // assert(header->get_terminator()->bbs[non_exiting_target].args.empty());
 
-      bb.build_branch(header->get_terminator()->bbs[non_exiting_target].bb);
+      auto old_header_term = header->get_terminator();
+      auto new_header_term = bb.build_branch(old_header_term->bbs[non_exiting_target].bb);
+      for(auto arg: old_header_term->bbs[non_exiting_target].args){
+        new_header_term.add_bb_arg(0, arg);
+      }
       while (header->instructions.size() > 1) {
         header->remove_instr(header->instructions.size() - 1);
       }

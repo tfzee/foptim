@@ -84,9 +84,13 @@ struct BitSet {
       Alloc{}.deallocate(_data, n_elems);
     }
   }
+  constexpr auto &operator=(const BitSet<StorageType, Alloc> &old) {
+    if (this == &old) {
+      return *this;
+    }
+    const auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
 
-  constexpr BitSet &operator=(const BitSet<StorageType, Alloc> &old) {
-    auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
+    Alloc{}.deallocate(_data, n_elems);
     auto *new_data = Alloc{}.allocate(n_elems);
     memcpy(new_data, old._data, n_elems * StrgTySizeByte);
     _data = new_data;
@@ -94,20 +98,28 @@ struct BitSet {
 
     return *this;
   }
-  constexpr BitSet(const BitSet &old) {
-    auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
+
+  constexpr BitSet(const BitSet<StorageType, Alloc> &old) {
+    const auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
+    Alloc{}.deallocate(_data, n_elems);
     auto *new_data = Alloc{}.allocate(n_elems);
     memcpy(new_data, old._data, n_elems * StrgTySizeByte);
     _data = new_data;
     _size_bits = old._size_bits;
   }
-  constexpr BitSet &operator=(BitSet &&old) {
+
+  constexpr auto &operator=(BitSet<StorageType, Alloc> &&old) {
+    const auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
+    Alloc{}.deallocate(_data, n_elems);
     _data = old._data;
     _size_bits = old._size_bits;
     old._data = nullptr;
     return *this;
   }
-  constexpr BitSet(BitSet &&old) {
+
+  constexpr BitSet(BitSet<StorageType, Alloc> &&old) {
+    const auto n_elems = (old._size_bits + StrgTySizeBit) / StrgTySizeBit;
+    Alloc{}.deallocate(_data, n_elems);
     _data = old._data;
     _size_bits = old._size_bits;
     old._data = nullptr;
@@ -127,7 +139,7 @@ struct BitSet {
     auto mask = ((StorageType)1 << n_alive_bits) - 1;
     return (_data[n_elems - 1] & mask) != 0;
   }
-  
+
   [[nodiscard]] constexpr bool all() const {
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
     for (size_t i = 0; i < n_elems - 1; i++) {

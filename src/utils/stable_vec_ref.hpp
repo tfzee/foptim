@@ -31,6 +31,15 @@ public:
 #endif
   }
 
+  constexpr void _invalidate() {
+    ASSERT(data_ref != nullptr);
+#ifdef SLOT_CHECK_GENERATION
+    ASSERT(generation != 0);
+    ASSERT(data_ref->generation == generation);
+#endif
+    data_ref->used = false;
+  }
+
   [[nodiscard]] constexpr bool is_valid() const {
     if (nullptr == data_ref) {
       return false;

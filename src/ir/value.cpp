@@ -11,6 +11,25 @@ namespace foptim::fir {
 
 TypeR BBArgumentR::get_type() const { return bb->args[arg].type; }
 
+bool ValueR::is_valid(bool check_refs) const{
+  if (std::holds_alternative<InvalidValue>(origin)) {
+    return false;
+  }
+  if (check_refs) {
+    return std::visit(
+        [](auto &&v) {
+          if constexpr (typeid(v) == typeid(ConstantValueR) ||
+                        typeid(v) == typeid(Instr)) {
+            return v.is_valid();
+          }
+          // TOOD: could also check bb arg ref
+          return true;
+        },
+        origin);
+  }
+  return true;
+}
+
 bool ValueR::eql(const ValueR &other) const {
   if (origin.index() != other.origin.index()) {
     return false;

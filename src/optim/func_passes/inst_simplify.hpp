@@ -22,7 +22,7 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
   // since both being constant would be handleded by constant folding we just
   // asume theres one and normalzie by putting it into the secodn arg
   {
-    if (instr->args[0].is_constant()) {
+    if (instr->args[0].is_constant() && instr->is_commutative()) {
       swap_args(instr, 0, 1);
     }
   }
@@ -130,7 +130,7 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
 static bool simplify_cond_branch(fir::Instr instr, size_t instr_id,
                                  fir::BasicBlock bb, fir::Context &ctx) {
   (void)ctx;
-  //replace conditional branch to simple branch
+  // replace conditional branch to simple branch
   if (instr->args[0].is_constant()) {
     fir::Builder b(bb);
     b.at_end(bb);
