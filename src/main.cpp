@@ -89,9 +89,9 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
-  // for(const auto& [_, func]: ctx.data->storage.functions){
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  for(const auto& [_, func]: ctx.data->storage.functions){
+    foptim::utils::Debug << func << "\n";
+  }
 
   // foptim::optim::StaticFunctionPassManager<
   //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
@@ -123,7 +123,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   auto matcher = foptim::fmir::GreedyMatcher{};
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
-    // foptim::utils::Debug << res;
+    foptim::utils::Debug << res;
     funcs.push_back(std::move(res));
     foptim::utils::TempAlloc<void *>::reset();
   }

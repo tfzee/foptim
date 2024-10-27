@@ -37,7 +37,8 @@ public:
         case fir::InstrType::ReturnInstr:
         case fir::InstrType::DirectCallInstr:
         case fir::InstrType::StoreInstr:
-        //FIXME: Shouldnt be marked as critical and instead be automatically deteceted
+        // FIXME: Shouldnt be marked as critical and instead be automatically
+        // deteceted
         case fir::InstrType::CondBranchInstr:
           isCritical = true;
           break;
@@ -70,7 +71,7 @@ public:
         }
       }
       // same with bb arguments
-      for (const auto& bb_with_args : curr_i->get_bb_args()) {
+      for (const auto &bb_with_args : curr_i->get_bb_args()) {
         auto term = bb_with_args.bb->get_terminator();
         if (std::get<1>(marked.insert(term))) {
           worklist.push_back(term);
@@ -130,6 +131,17 @@ public:
         }
 
         bb->remove_instr(instr_id_p1 - 1);
+      }
+    }
+
+    bool done = false;
+    while (!done) {
+      done = true;
+      for (auto &bb : func.get_bbs()) {
+        if (bb != func.get_entry_bb() && bb->get_n_uses() == 0) {
+          bb->remove_from_parent(true, true);
+          done = false;
+        }
       }
     }
   }
