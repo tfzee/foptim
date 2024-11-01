@@ -29,7 +29,7 @@ public:
 
     for (const auto &node : dom_bbs) {
       utils::Debug << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
-      // utils::Debug << node.dominators << "\n";
+      utils::Debug << node.dominators << "\n";
       // utils::Debug << "  PostDom: " << node.postdominators << "\n";
       // utils::Debug << "  Frontier: " << node.frontier << "\n";
     }
@@ -50,13 +50,12 @@ public:
     BitSet emptyBitSet{n_bbs, false};
     // utils::Debug << "TODO POST DOMINATORS\n";
 
-    for (const auto &bbr : cfg.bbrs) {
-      // if (i == 0) {
-      dom_bbs.push_back({bbr.bb, -1, fullBitSet, emptyBitSet});
-      // } else {
-      //   dom_bbs.push_back(
-      //       Node{cfg.bbrs[i].bb, -1, fullBitSet, emptyBitSet, emptyBitSet});
-      // }
+    for (size_t i = 0; i < cfg.bbrs.size(); i++) {
+      if (i == 0) {
+        dom_bbs.push_back({cfg.bbrs[i].bb, -1, fullBitSet, emptyBitSet});
+      } else {
+        dom_bbs.push_back(Node{cfg.bbrs[i].bb, -1, emptyBitSet, emptyBitSet});
+      }
     }
 
     std::deque<u32, utils::TempAlloc<u32>> worklist{cfg.entry};
