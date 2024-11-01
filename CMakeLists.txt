@@ -71,6 +71,7 @@ add_library (foptim
                 ./src/mir/optim/invoke_lower.cpp
                 ./src/mir/optim/bb_reordering.cpp
                 ./src/mir/optim/inst_simplify.cpp
+                ./src/mir/optim/legalization.cpp
 
                 #codegen
                 ./src/x86_codegen/backend.cpp

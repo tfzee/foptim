@@ -11,7 +11,7 @@ namespace foptim::fir {
 
 TypeR BBArgumentR::get_type() const { return bb->args[arg].type; }
 
-bool ValueR::is_valid(bool check_refs) const{
+bool ValueR::is_valid(bool check_refs) const {
   if (std::holds_alternative<InvalidValue>(origin)) {
     return false;
   }
@@ -37,7 +37,7 @@ bool ValueR::eql(const ValueR &other) const {
 
   if (const Instr *s = std::get_if<Instr>(&origin)) {
     const Instr *o = std::get_if<Instr>(&other.origin);
-    return s->get_raw_ptr() == o->get_raw_ptr();
+    return (void *)s->get_raw_ptr() == (void *)o->get_raw_ptr();
   }
   if (const BBArgumentR *s = std::get_if<BBArgumentR>(&origin)) {
     const BBArgumentR *o = std::get_if<BBArgumentR>(&other.origin);
@@ -47,7 +47,10 @@ bool ValueR::eql(const ValueR &other) const {
     const ConstantValueR *o = std::get_if<ConstantValueR>(&other.origin);
     return (*s)->eql(*o->operator->());
   }
-  return true;
+  if (const InvalidValue *s = std::get_if<InvalidValue>(&origin)) {
+    return true;
+  }
+  TODO("UNREACH");
 }
 
 TypeR ValueR::get_type() const {

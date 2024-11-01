@@ -1,4 +1,5 @@
 #pragma once
+#include "utils/logging.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
 #include <string>
@@ -98,6 +99,7 @@ enum class Type : u16 {
 
 };
 
+/*Returns the size in bytes of the given type*/
 static constexpr u32 get_size(fmir::Type type) {
   switch (type) {
   case fmir::Type::Float32:

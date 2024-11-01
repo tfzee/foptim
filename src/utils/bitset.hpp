@@ -13,8 +13,8 @@ template <class StorageType = u64> struct BitRef {
   StorageType *_data;
 
   constexpr BitRef &set(bool value) {
-    const auto set_val = *_data | (1 << offset);
-    const auto unset_val = *_data & ~(1 << offset);
+    const auto set_val = *_data | ((StorageType)1 << offset);
+    const auto unset_val = *_data & ~((StorageType)1 << offset);
     *_data = value ? set_val : unset_val;
 
     ASSERT(offset <= sizeof(StorageType) * 8);
@@ -279,15 +279,17 @@ struct BitSet {
 };
 
 template <class Ty, class Alloc>
-Printer operator<<(const Printer &self, const BitSet<Ty, Alloc> sett) {
-  constexpr size_t StrgTySizeBit = sizeof(Ty) * 8;
-  auto n_elems = (sett._size_bits + StrgTySizeBit) / StrgTySizeBit;
-  for (size_t elem = 0; elem < n_elems; elem++) {
-    Ty val = sett._data[elem];
-    for (size_t bit = 0; bit < StrgTySizeBit; bit++) {
-      self << ((val >> bit) & 1 ? "1" : "0");
-    }
+Printer operator<<(const Printer &self, const BitSet<Ty, Alloc> &sett) {
+  for (size_t i = 0; i < sett._size_bits; i++) {
+    self << (sett[i] ? "1" : "0");
   }
+  // auto n_elems = (sett._size_bits + StrgTySizeBit) / StrgTySizeBit;
+  // for (size_t elem = 0; elem < n_elems; elem++) {
+  //   Ty val = sett._data[elem];
+  //   for (size_t bit = 0; bit < StrgTySizeBit; bit++) {
+  //     self << ((val >> bit) & 1 ? "1" : "0");
+  //   }
+  // }
   return self;
 }
 

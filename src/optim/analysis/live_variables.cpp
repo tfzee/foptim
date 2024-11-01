@@ -45,16 +45,12 @@ void LiveVariables::dump() {
 void LiveVariables::update(fir::Function &func, CFG &cfg) {
   ZoneScopedN("LIVEVAR UPDATE");
 
-  IRVec<utils::BitSet<>> liveIn;
-  IRVec<utils::BitSet<>> liveOut;
   IRVec<utils::BitSet<>> upwExp;
   IRVec<utils::BitSet<>> defs;
 
   const auto all_values = setup_values(func);
   const size_t n_values = all_values.size();
 
-  liveIn.resize(func.n_bbs(), utils::BitSet{n_values, false});
-  liveOut.resize(func.n_bbs(), utils::BitSet{n_values, false});
   upwExp.resize(func.n_bbs(), utils::BitSet{n_values, false});
   defs.resize(func.n_bbs(), utils::BitSet{n_values, false});
 
@@ -101,8 +97,22 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     }
   }
 
+  // utils::Debug << "defs\n";
+  // for (auto def : defs) {
+  //   utils::Debug << def << "\n";
+  // }
+  // utils::Debug << "upwExp\n";
+  // for (auto upwExp : upwExp) {
+  //   utils::Debug << upwExp << "\n";
+  // }
+
   // data flow
+  IRVec<utils::BitSet<>> liveIn;
+  IRVec<utils::BitSet<>> liveOut;
+  liveIn.resize(func.n_bbs(), utils::BitSet{n_values, false});
+  liveOut.resize(func.n_bbs(), utils::BitSet{n_values, true});
   utils::BitSet new_liveOut{n_values, false};
+  utils::BitSet new_liveIn{n_values, false};
 
   while (!worklist.empty()) {
     u32 curr_id = worklist.front();
@@ -112,30 +122,26 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     for (auto succ : cfg.bbrs[curr_id].succ) {
       new_liveOut += liveIn[succ];
     }
-    liveIn[curr_id]
-        .assign(new_liveOut)
+    new_liveIn.assign(new_liveOut)
         .mul_not(defs[curr_id])
         .add(upwExp[curr_id]);
+    // utils::Debug << "Updating " << curr_id << " " << new_liveOut << "  " << new_liveIn
+    //              << "\n";
     // auto test = upwExp[curr_id] + (new_liveOut - defs[curr_id]);
     // assert(test == liveIn[curr_id]);
 
     if (new_liveOut != liveOut[curr_id]) {
       liveOut[curr_id].assign(new_liveOut);
-
+      worklist.push_back(curr_id);
+    }
+    if (new_liveIn != liveIn[curr_id]) {
+      liveIn[curr_id].assign(new_liveIn);
       for (auto pred : cfg.bbrs[curr_id].pred) {
         worklist.push_back(pred);
       }
     }
   }
 
-  // utils::Debug << "defs\n";
-  // for (auto def : defs) {
-  //   utils::Debug << def << "\n";
-  // }
-  // utils::Debug << "upwExp\n";
-  // for (auto upwExp : upwExp) {
-  //   utils::Debug << upwExp << "\n";
-  // }
   // utils::Debug << "LIVEIN\n";
   // for (auto live_in : liveIn) {
   //   utils::Debug << live_in << "\n";
@@ -145,7 +151,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
   //   utils::Debug << live_out << "\n";
   // }
 
-  // generating
   // utils::Debug << "ACT LIVE\n";
 
   utils::BitSet bb_live{n_values, false};
@@ -157,21 +162,28 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     bb_live.assign(bb_liveOut).add(bb_defs).add(bb_liveIn);
     // assert(bb_live == bb_liveOut + bb_defs + bb_liveIn);
 
-    // utils::Debug << "\n = " << bb_live << "\n";
+    // utils::Debug << "For BB:" << bb_id << "\n";
+    // utils::Debug << "--Live: " << bb_live << "\n";
+
     for (size_t value_id = 0; value_id < n_values; value_id++) {
       bool val_liveIn = bb_liveIn[value_id];
       bool val_liveOut = bb_liveOut[value_id];
       bool val_defined = bb_defs[value_id];
       bool val_live = val_liveIn || val_liveOut || val_defined;
 
-      // is it live at all
-      if (!val_live) {
-        continue;
-      }
       auto value_ref =
           std::ranges::find_if(all_values, [value_id](const auto &v) {
             return v.second == value_id;
           });
+      // utils::Debug << "  For: " << value_ref->first << "\n";
+      // is it live at all
+      if (!val_live) {
+        continue;
+      }
+      // utils::Debug << "   LiveIn" << val_liveIn << "\n";
+      // utils::Debug << "   LiveOut" << val_liveOut << "\n";
+      // utils::Debug << "   LiveDef" << val_defined << "\n";
+
       auto &live_ranges = live_variables[value_ref->first];
       ASSERT(value_ref != all_values.end());
       ASSERT(value_ref->second == value_id);

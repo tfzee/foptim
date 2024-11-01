@@ -99,7 +99,7 @@ public:
     std::abort();
   }
 
-  const Ty &get_raw() const { return origin; }
+  [[nodiscard]] const Ty &get_raw() const { return origin; }
 };
 
 } // namespace foptim::fir

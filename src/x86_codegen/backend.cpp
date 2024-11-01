@@ -320,7 +320,21 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     ASSERT(rem_target == rdx || rem_target == edx);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[2]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[3]);
-    cc.emit(Inst::kIdIdiv, o0, o1);
+    ASSERT(o0.isPhysReg());
+    ASSERT(o0 == rax || o0 == eax || o0 == ax);
+    ASSERT(!o1.isPhysReg() || !(o1 == rdx || o1 == edx));
+    if(o0 == rax){
+      //need to sign extend rax into rdx
+      cc.emit(Inst::kIdCqo);
+    } else if(o0 == eax){
+      //need to sign extend eax into edx
+      cc.emit(Inst::kIdCdq);
+    } else if(o0 == ax){
+      //need to sign extend ax into dx
+      cc.emit(Inst::kIdCwd);
+    }
+    //and then div by o1
+    cc.emit(Inst::kIdIdiv, o1);
     return;
   }
   case fmir::Opcode::mul: {
@@ -437,10 +451,11 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   }
   case fmir::Opcode::ret: {
     if (instr.n_args > 0) {
-      auto res = convert_operand(cc, reg_to_op, instr.args[0]);
-      if (res != eax) {
-        cc.emit(Inst::kIdMov, eax, res);
-      }
+      ASSERT(instr.args[0].isReg() && instr.args[0].reg.info.ty == fmir::VRegType::A);
+      // auto res = convert_operand(cc, reg_to_op, instr.args[0]);
+      // if (res != eax) {
+      //   cc.emit(Inst::kIdMov, eax, res);
+      // }
     }
     cc.emit(asmjit::x86::Inst::kIdMov, rsp, rbp);
     cc.emit(asmjit::x86::Inst::kIdPop, rbp);

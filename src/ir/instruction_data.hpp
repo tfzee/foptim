@@ -61,7 +61,7 @@ enum class ICmpInstrSubType : u32 {
 enum class BinaryInstrSubType : u32 {
   INVALID = 0,
   IntAdd,
-  // IntSub,
+  IntSub,
   IntMul,
   // IntDiv,
   IntSRem,
@@ -123,6 +123,8 @@ public:
         return "BINARYOP_INVALID";
       case BinaryInstrSubType::IntAdd:
         return "IntAdd";
+      case BinaryInstrSubType::IntSub:
+        return "IntSub";
       case BinaryInstrSubType::IntMul:
         return "IntMul";
       case BinaryInstrSubType::IntSRem:
@@ -211,6 +213,7 @@ public:
 
   static InstrData get_smod(TypeR ty);
   static InstrData get_add(TypeR ty);
+  static InstrData get_sub(TypeR ty);
   static InstrData get_mul(TypeR ty);
   static InstrData get_sext(TypeR ty);
   static InstrData get_zext(TypeR ty);

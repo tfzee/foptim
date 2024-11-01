@@ -1,5 +1,6 @@
 #include "matcher.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
@@ -14,6 +15,16 @@
 #include <asmjit/x86/x86operand.h>
 
 namespace foptim::fmir {
+
+MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
+                     ExtraMatchData &data) {
+  ASSERT(get_size(reg_type) <= 255);
+  auto helper = data.alloc.get_new_register(
+      VRegInfo{static_cast<u8>(get_size(reg_type))});
+  auto helper_arg = MArgument(helper, reg_type);
+  res.result.emplace_back(Opcode::mov, helper_arg, val);
+  return helper_arg;
+}
 
 struct Edge {
   fir::Instr from;
@@ -419,12 +430,24 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
         found_one = true;
       }
     }
+
+    if (!found_one && !pairs.empty()) {
+      // we just save from of the pair and then generate these moves these later
+      // with the saved from
+      PhiPair pair = *pairs.begin();
+      pairs.erase(pairs.begin() + 0);
+      auto save_reg =
+          data.alloc.get_new_register(VRegInfo{(u8)get_size(pair.from.ty)});
+      auto save_arg = MArgument{save_reg, pair.from.ty};
+      res.result.emplace_back(Opcode::mov, save_arg, pair.from);
+      pairs.push_back(PhiPair{.to = pair.to, .from = save_arg});
+      found_one = true;
+    }
   }
   if (pairs.empty()) {
     return;
   }
 
-  // TODO impl
   ASSERT(false);
 }
 
@@ -439,6 +462,8 @@ constexpr auto base_pats() {
 
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          (u32)fir::BinaryInstrSubType::IntAdd};
+  auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         (u32)fir::BinaryInstrSubType::IntSub};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          (u32)fir::BinaryInstrSubType::IntMul};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -632,6 +657,18 @@ constexpr auto base_pats() {
         return true;
       }});
   res.push_back(
+      Pattern{{IntSubNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto sub_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(sub_instr), res.result, data.alloc);
+
+                res.result.emplace_back(
+                    Opcode::sub, res_reg,
+                    valueToArg(sub_instr->args[0], res.result, data.alloc),
+                    valueToArg(sub_instr->args[1], res.result, data.alloc));
+                return true;
+              }});
+  res.push_back(
       Pattern{{IntMulNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 auto add_instr = res.matched_instrs[0];
                 auto res_reg =
@@ -646,7 +683,7 @@ constexpr auto base_pats() {
   res.push_back(Pattern{
       {SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto srem_instr = res.matched_instrs[0];
-        //FIXME: variable size
+        // FIXME: variable size
         auto res_div = data.alloc.get_new_register(fir::IRLocation{srem_instr},
                                                    srem_instr.get_type(),
                                                    VRegInfo::EAX(), data.lives);
@@ -671,22 +708,25 @@ constexpr auto base_pats() {
       {SLTNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto slt_instr = res.matched_instrs[0];
         auto res_reg = data.alloc.get_register(fir::ValueR(slt_instr));
+
         auto res_arg = MArgument(res_reg, convert_type(slt_instr.get_type()));
-        res.result.emplace_back(
-            Opcode::icmp_slt, res_arg,
-            valueToArg(slt_instr->args[0], res.result, data.alloc),
-            valueToArg(slt_instr->args[1], res.result, data.alloc));
+
+        auto arg1 = valueToArg(slt_instr->args[0], res.result, data.alloc);
+        auto arg2 = valueToArg(slt_instr->args[1], res.result, data.alloc);
+
+        res.result.emplace_back(Opcode::icmp_slt, res_arg, arg1, arg2);
         return true;
       }});
   res.push_back(Pattern{
       {EQNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-        auto slt_instr = res.matched_instrs[0];
-        auto res_reg = data.alloc.get_register(fir::ValueR(slt_instr));
-        auto res_arg = MArgument(res_reg, convert_type(slt_instr.get_type()));
-        res.result.emplace_back(
-            Opcode::icmp_eq, res_arg,
-            valueToArg(slt_instr->args[0], res.result, data.alloc),
-            valueToArg(slt_instr->args[1], res.result, data.alloc));
+        auto eq_instr = res.matched_instrs[0];
+        auto res_reg = data.alloc.get_register(fir::ValueR(eq_instr));
+        auto res_arg = MArgument(res_reg, convert_type(eq_instr.get_type()));
+
+        auto arg1 = valueToArg(eq_instr->args[0], res.result, data.alloc);
+        auto arg2 = valueToArg(eq_instr->args[1], res.result, data.alloc);
+
+        res.result.emplace_back(Opcode::icmp_eq, res_arg, arg1, arg2);
         return true;
       }});
   res.push_back(
@@ -779,15 +819,20 @@ constexpr auto base_pats() {
       {ReturnNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto ret_instr = res.matched_instrs[0];
         if (ret_instr->has_args()) {
+
           auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
-
-          auto res_reg = data.alloc.get_new_register(
-              fir::IRLocation{ret_instr}, ret_instr.get_type(), VRegInfo::EAX(),
-              data.lives);
-          auto res_arg = MArgument(res_reg, convert_type(ret_instr.get_type()));
-
-          res.result.emplace_back(Opcode::mov, res_arg, ret_val);
-          res.result.emplace_back(Opcode::ret, res_arg);
+          if (!ret_val.isReg() || ret_val.reg.info.ty != VRegType::A) {
+            auto converted_type = convert_type(ret_instr.get_type());
+            auto res_reg = data.alloc.get_new_register(
+                fir::IRLocation{ret_instr}, ret_instr.get_type(),
+                VRegInfo{VRegType::A, (u8)get_size(converted_type)},
+                data.lives);
+            auto res_arg = MArgument(res_reg, converted_type);
+            res.result.emplace_back(Opcode::mov, res_arg, ret_val);
+            res.result.emplace_back(Opcode::ret, res_arg);
+          } else {
+            res.result.emplace_back(Opcode::ret, ret_val);
+          }
         } else {
           res.result.emplace_back(Opcode::ret);
         }

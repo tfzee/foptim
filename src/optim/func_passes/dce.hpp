@@ -4,11 +4,42 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "utils/arena.hpp"
 #include "utils/logging.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
 
 namespace foptim::optim {
+
+static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
+  if (cfg.entry == bb_id) {
+    return true;
+  }
+
+  TSet<size_t> seen{};
+  std::deque<size_t, utils::TempAlloc<size_t>> worklist;
+  worklist.push_back(cfg.entry);
+
+  while (!worklist.empty()) {
+    auto curr_id = worklist.back();
+    utils::Debug << "CHECK" << curr_id << "\n";
+    if (seen.contains(curr_id)) {
+      continue;
+    }
+    worklist.pop_back();
+    seen.insert(curr_id);
+    for (auto succ : cfg.bbrs[curr_id].succ) {
+      if (bb_id == succ) {
+        return true;
+      }
+      if (seen.contains(succ)) {
+        continue;
+      }
+      worklist.push_back(succ);
+    }
+  }
+  return false;
+}
 
 class DCE final : public FunctionPass {
 public:
@@ -31,7 +62,6 @@ public:
         case fir::InstrType::LoadInstr:
         case fir::InstrType::AllocaInstr:
         case fir::InstrType::ICmp:
-        case fir::InstrType::BranchInstr:
           isCritical = false;
           break;
         case fir::InstrType::ReturnInstr:
@@ -40,6 +70,7 @@ public:
         // FIXME: Shouldnt be marked as critical and instead be automatically
         // deteceted
         case fir::InstrType::CondBranchInstr:
+        case fir::InstrType::BranchInstr:
           isCritical = true;
           break;
         }
@@ -134,15 +165,18 @@ public:
       }
     }
 
-    bool done = false;
-    while (!done) {
-      done = true;
-      for (auto &bb : func.get_bbs()) {
-        if (bb != func.get_entry_bb() && bb->get_n_uses() == 0) {
-          bb->remove_from_parent(true, true);
-          done = false;
-        }
+    CFG cfg{func};
+    TVec<size_t> dead_blocks;
+    for (size_t bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
+      if (func.basic_blocks[bb_id] != func.get_entry_bb() &&
+          !reachable_from_entry(cfg, bb_id)) {
+        dead_blocks.push_back(bb_id);
       }
+    }
+    //reverse so we run high ones first
+    std::reverse(dead_blocks.begin(), dead_blocks.end());
+    for (auto dead_bb_id : dead_blocks) {
+      func.basic_blocks[dead_bb_id]->remove_from_parent(true, true);
     }
   }
 

@@ -138,6 +138,16 @@ public:
     return ValueR(instr);
   }
 
+  ValueR build_int_sub(ValueR a, ValueR b) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(InstrData::get_sub(a.get_type()));
+    instr.add_arg(a);
+    instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty) {
     check_bb_set();
     Instr instr = ctx->storage.insert_instr(

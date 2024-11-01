@@ -7,7 +7,6 @@ serialize
 deserialize
 somewhat generic dataflow analysis
 Abstract away graph based matcher (maybe a DSL)
-Replace bitset with custom implementation
 convert codegen into library
 
 More Passes

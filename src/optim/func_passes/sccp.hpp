@@ -110,6 +110,9 @@ public:
       case fir::BinaryInstrSubType::INVALID:
         TODO("¿UNREACH?\n");
         break;
+      case fir::BinaryInstrSubType::IntSub:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_int() - b.value->as_int(), a.value->get_type()));
       case fir::BinaryInstrSubType::IntAdd:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() + b.value->as_int(), a.value->get_type()));

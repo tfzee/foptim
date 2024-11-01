@@ -35,9 +35,13 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
   // ret value
   if (call.n_args == 2) {
     // TODO: different sizes
+    auto ret_type = call.args[1].ty;
+
     instrs.insert(
         instrs.begin() + (i64)start,
-        MInstr{Opcode::mov, call.args[1], MArgument{VReg::EAX(), Type::Int32}});
+        MInstr{Opcode::mov, call.args[1],
+               MArgument{VReg{0, VRegInfo{VRegType::A, (u8)get_size(ret_type)}},
+                         ret_type}});
   }
 
   // TODO: calling conv
@@ -86,7 +90,7 @@ static_assert((u8)VRegType::R15 == 15);
 static_assert((u8)VRegType::A == 1);
 
 utils::BitSet<> calculate_used_regs(const MFunc &f) {
-  utils::BitSet<> res{14, false};
+  utils::BitSet<> res{15, false};
   for (const auto &bb : f.bbs) {
     for (const auto &instr : bb.instrs) {
       for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
