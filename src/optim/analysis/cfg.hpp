@@ -35,6 +35,16 @@ public:
     update(func, reverse);
   }
 
+  [[nodiscard]] u32 get_bb_id(fir::BasicBlock search_bb) const {
+    for (u32 id = 0; id < bbrs.size(); id++) {
+      if (bbrs[id].bb == search_bb) {
+        return id;
+      }
+    }
+    ASSERT(false);
+    std::abort();
+  }
+
   void dump() const {
     utils::Debug << "DUMP CFG\n";
 

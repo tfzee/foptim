@@ -88,6 +88,10 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
           if (arg.is_constant()) {
             continue;
           }
+          if (!all_values.contains(arg)) {
+            utils::Debug << "Didnt find value for " << arg << "\n";
+            ASSERT(false);
+          }
           const size_t arg_id = all_values.at(arg);
           if (!defs[bb_id][arg_id]) {
             upwExp[bb_id][arg_id].set(true);
@@ -122,10 +126,9 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     for (auto succ : cfg.bbrs[curr_id].succ) {
       new_liveOut += liveIn[succ];
     }
-    new_liveIn.assign(new_liveOut)
-        .mul_not(defs[curr_id])
-        .add(upwExp[curr_id]);
-    // utils::Debug << "Updating " << curr_id << " " << new_liveOut << "  " << new_liveIn
+    new_liveIn.assign(new_liveOut).mul_not(defs[curr_id]).add(upwExp[curr_id]);
+    // utils::Debug << "Updating " << curr_id << " " << new_liveOut << "  " <<
+    // new_liveIn
     //              << "\n";
     // auto test = upwExp[curr_id] + (new_liveOut - defs[curr_id]);
     // assert(test == liveIn[curr_id]);

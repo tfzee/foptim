@@ -127,10 +127,30 @@ public:
     }
 
     if (needs_preheader) {
+      // also needs to updated cfg
       failure({"TODO: Impl preheader insertion", {cfg.bbrs[linfo.head].bb}});
       return false;
 
       TODO("TODO preheader insertion");
+    }
+
+    // if the header gets bbargs and these bb args are used *after* the loop
+    //   we cant do a simple rotate since that might skip the loop leaving them
+    //   undefined
+    // Or in other terms the issue is a later bb needs to be dominated by the
+    //   header but it wont after the rotate
+    for (auto &arg : header_bb->args) {
+      for (auto &use : arg.uses) {
+        auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
+        if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
+                      user_bb_id) == linfo.body_nodes.end()) {
+
+          failure({"Cannot handle loop rotate on loop whose header arguments "
+                   "are used after the loop",
+                   {use.user}});
+          return false;
+        }
+      }
     }
 
     // now the header only got predecessors that use a simple jump to it
@@ -175,8 +195,9 @@ public:
       // assert(header->get_terminator()->bbs[non_exiting_target].args.empty());
 
       auto old_header_term = header->get_terminator();
-      auto new_header_term = bb.build_branch(old_header_term->bbs[non_exiting_target].bb);
-      for(auto arg: old_header_term->bbs[non_exiting_target].args){
+      auto new_header_term =
+          bb.build_branch(old_header_term->bbs[non_exiting_target].bb);
+      for (auto arg : old_header_term->bbs[non_exiting_target].args) {
         new_header_term.add_bb_arg(0, arg);
       }
       while (header->instructions.size() > 1) {

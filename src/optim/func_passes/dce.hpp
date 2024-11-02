@@ -22,7 +22,7 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 
   while (!worklist.empty()) {
     auto curr_id = worklist.back();
-    utils::Debug << "CHECK" << curr_id << "\n";
+    // utils::Debug << "CHECK" << curr_id << "\n";
     if (seen.contains(curr_id)) {
       continue;
     }

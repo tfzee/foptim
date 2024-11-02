@@ -81,10 +81,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
-  // foptim::utils::Debug << "================LOOPROT====================\n";
-  // for(const auto& [_, func]: ctx.data->storage.functions){
-  //   foptim::utils::Debug << func << "\n";
-  // }
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
@@ -92,12 +88,13 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
 
-  // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
-
   foptim::utils::Debug << "================OPTIMEND====================\n";
   for(const auto& [_, func]: ctx.data->storage.functions){
     foptim::utils::Debug << func << "\n";
   }
+
+  // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
+
 
   // foptim::optim::StaticFunctionPassManager<
   //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
