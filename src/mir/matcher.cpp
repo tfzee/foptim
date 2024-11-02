@@ -338,9 +338,10 @@ MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
       auto global = consti->as_global();
       // TODO: idk if i64 is right here
 
+      Type type_id = convert_type(val.get_type());
       auto helper = MArgument{alloc.get_new_register(VRegInfo{8}), Type::Int64};
       auto arg = MArgument::Mem(
-          "G_" + std::to_string((u64)global.get_raw_ptr()), Type::Int64);
+          "G_" + std::to_string((u64)global.get_raw_ptr()), type_id);
       res.emplace_back(Opcode::lea, helper, arg);
       return helper;
     }
@@ -358,9 +359,10 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
     auto constant = val.as_constant();
     if (constant->is_global()) {
       auto global = constant->as_global();
+      Type type_id = convert_type(val.get_type());
       // TODO: idk if i64 is right here
       return MArgument::Mem("G_" + std::to_string((u64)global.get_raw_ptr()),
-                            Type::Int64);
+                            type_id);
     }
   } else {
     return MArgument::Mem(alloc.get_register(val), type_id);
@@ -556,8 +558,8 @@ constexpr auto base_pats() {
       [](MatchResult &res, ExtraMatchData &data) {
         ASSERT(res.matched_instrs.size() == 2);
         utils::Debug << "MATCHED\n"
-                     << res.matched_instrs[0] << "\n" << res.matched_instrs[1] <<
-                     "\n";
+                     << res.matched_instrs[0] << "\n"
+                     << res.matched_instrs[1] << "\n";
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
         // TODO("impl add+load pattern");
