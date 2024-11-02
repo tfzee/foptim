@@ -98,9 +98,10 @@ Printer Printer::operator<<(const foptim::optim::LiveRange &live) const {
 Printer Printer::operator<<(const foptim::fmir::MArgument &value) const {
   switch (value.type) {
   case fmir::MArgument::ArgumentType::MemLabel:
-    return *this << "[" << value.label.c_str() << "]";
+    return *this << "[" << value.label.c_str() << "]: " << value.ty;
   case fmir::MArgument::ArgumentType::MemImmLabel:
-    return *this << "[" << value.label.c_str() << " + " << value.imm << "]";
+    return *this << "[" << value.label.c_str() << " + " << value.imm << "]"
+                 << value.ty;
   case fmir::MArgument::ArgumentType::Label:
     return *this << value.label.c_str();
   case fmir::MArgument::ArgumentType::Imm:
