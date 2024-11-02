@@ -11,12 +11,11 @@
 
 u64 bench() {
   u64 count = 0;
-  const u64 n = X + 1;
-  unsigned char a[X + 1];
-  for (u64 i = 4; i < n; i += 2) {
+  unsigned char a[X] = {0};
+  for (u64 i = 0; i < X; i += 2) {
     a[i] = 1;
   }
-  for (u64 i = 0; i < n; i++) {
+  for (u64 i = 0; i < X; i++) {
     count += a[i];
   }
   return count;

@@ -170,26 +170,42 @@ Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
     if (!cc.isLabelValid(label)) {
       label = cc.newExternalLabel(arg.label.c_str());
     }
-    return Mem(label, arg.imm);
+    auto res = Mem(label, arg.imm);
+    res.setSize(get_size(arg.ty));
+    return res;
   }
   case fmir::MArgument::ArgumentType::MemLabel: {
     auto label = cc.labelByName(arg.label.c_str());
     if (!cc.isLabelValid(label)) {
       label = cc.newExternalLabel(arg.label.c_str());
     }
-    return Mem(label, 0);
+    auto res = Mem(label, 0);
+    res.setSize(get_size(arg.ty));
+    return res;
   }
-  case fmir::MArgument::ArgumentType::MemVReg:
-    return Mem(convert_reg(cc, reg_to_op, arg.reg), 0);
-  case fmir::MArgument::ArgumentType::MemImmVReg:
-    return Mem(convert_reg(cc, reg_to_op, arg.reg), (int32_t)arg.imm);
-  case fmir::MArgument::ArgumentType::MemVRegVReg:
-    return Mem(convert_reg(cc, reg_to_op, arg.reg),
-               convert_reg(cc, reg_to_op, arg.indx), 0, 0);
+  case fmir::MArgument::ArgumentType::MemVReg: {
+    auto res = Mem(convert_reg(cc, reg_to_op, arg.reg), 0);
+    res.setSize(get_size(arg.ty));
+    return res;
+  }
+  case fmir::MArgument::ArgumentType::MemImmVReg: {
+    auto res = Mem(convert_reg(cc, reg_to_op, arg.reg), (int32_t)arg.imm);
+    res.setSize(get_size(arg.ty));
+    return res;
+  }
+  case fmir::MArgument::ArgumentType::MemVRegVReg: {
+    auto res = Mem(convert_reg(cc, reg_to_op, arg.reg),
+                   convert_reg(cc, reg_to_op, arg.indx), 0, 0);
+    res.setSize(get_size(arg.ty));
+    return res;
+  }
   case fmir::MArgument::ArgumentType::MemImm:
-  case fmir::MArgument::ArgumentType::MemImmVRegVReg:
-    return Mem(convert_reg(cc, reg_to_op, arg.reg),
-               convert_reg(cc, reg_to_op, arg.indx), 0, (int32_t)arg.imm);
+  case fmir::MArgument::ArgumentType::MemImmVRegVReg: {
+    auto res = Mem(convert_reg(cc, reg_to_op, arg.reg),
+                   convert_reg(cc, reg_to_op, arg.indx), 0, (int32_t)arg.imm);
+    res.setSize(get_size(arg.ty));
+    return res;
+  }
   case fmir::MArgument::ArgumentType::MemVRegVRegScale:
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
@@ -243,20 +259,20 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto o1 = convert_operand(cc, reg_to_op, instr.args[1]);
 
     u32 o0_size = get_size(instr.args[0].ty);
-    u32 o1_size = get_size(instr.args[1].ty);
-
-    if (o0.isMem() && o1.isMem()) {
-
-    } else if (o0.isMem()) {
-      // utils::Debug << "WAS SETTING SIZE 0??" << instr.args[1].ty << " => " <<
-      // o1_size << "\n";
-      o0_size = o1_size;
-      o0.as<Mem>().setSize(o1_size);
-    } else if (o1.isMem()) {
-      // utils::Debug << "WAS SETTING SIZE 1??" << " => " << o1_size << "\n";
-      o1_size = o0_size;
-      o1.as<Mem>().setSize(o0_size);
-    }
+    // u32 o1_size = get_size(instr.args[1].ty);
+    // if (o0.isMem() || o1.isMem()) {
+    //   ASSERT(instr.args[0].ty == instr.args[1].ty);
+    // }
+    // } else if (o0.isMem()) {
+    //   // utils::Debug << "WAS SETTING SIZE 0??" << instr.args[1].ty << " => " <<
+    //   // o1_size << "\n";
+    //   // o0_size = o1_size;
+    //   o0.as<Mem>().setSize(o0_size);
+    // } else if (o1.isMem()) {
+    //   // utils::Debug << "WAS SETTING SIZE 1??" << " => " << o1_size << "\n";
+    //   // o1_size = o0_size;
+    //   o1.as<Mem>().setSize(o1_size);
+    // }
 
     if (instr.args[0].ty == instr.args[1].ty) {
       cc.emit(Inst::kIdMov, o0, o1);
@@ -323,17 +339,17 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     ASSERT(o0.isPhysReg());
     ASSERT(o0 == rax || o0 == eax || o0 == ax);
     ASSERT(!o1.isPhysReg() || !(o1 == rdx || o1 == edx));
-    if(o0 == rax){
-      //need to sign extend rax into rdx
+    if (o0 == rax) {
+      // need to sign extend rax into rdx
       cc.emit(Inst::kIdCqo);
-    } else if(o0 == eax){
-      //need to sign extend eax into edx
+    } else if (o0 == eax) {
+      // need to sign extend eax into edx
       cc.emit(Inst::kIdCdq);
-    } else if(o0 == ax){
-      //need to sign extend ax into dx
+    } else if (o0 == ax) {
+      // need to sign extend ax into dx
       cc.emit(Inst::kIdCwd);
     }
-    //and then div by o1
+    // and then div by o1
     cc.emit(Inst::kIdIdiv, o1);
     return;
   }
@@ -451,7 +467,8 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   }
   case fmir::Opcode::ret: {
     if (instr.n_args > 0) {
-      ASSERT(instr.args[0].isReg() && instr.args[0].reg.info.ty == fmir::VRegType::A);
+      ASSERT(instr.args[0].isReg() &&
+             instr.args[0].reg.info.ty == fmir::VRegType::A);
       // auto res = convert_operand(cc, reg_to_op, instr.args[0]);
       // if (res != eax) {
       //   cc.emit(Inst::kIdMov, eax, res);
@@ -592,7 +609,7 @@ void run(std::span<const fmir::MFunc> funcs,
       }
     }
 
-    // utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
     utils::Debug << "Done!\n";
 
     std::ofstream myfile;

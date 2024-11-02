@@ -111,7 +111,9 @@ inline void convert_alloca(const llvm::Instruction &any_instr,
   auto datalayout = mod.getDataLayout();
 
   auto *llvm_type = alloca_instr->getAllocatedType();
-  auto type_size = datalayout.getTypeAllocSize(llvm_type).getFixedValue();
+  auto alloc_size = datalayout.getTypeAllocSize(llvm_type);
+  ASSERT(!alloc_size.isScalable());
+  auto type_size = alloc_size.getFixedValue();
 
   auto alloca = builder.build_alloca(foptim::fir::ValueR(
       fctx->get_constant_value(type_size, fctx->get_int_type(32))));

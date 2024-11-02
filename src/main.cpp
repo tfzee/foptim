@@ -5,8 +5,8 @@
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/invoke_lower.hpp"
-#include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/legalization.hpp"
+#include "mir/optim/reg_alloc.hpp"
 #include "optim/func_passes/clean.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/gvn.hpp"
@@ -66,6 +66,10 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
   foptim::utils::TempAlloc<void *>::reset();
+  // foptim::utils::Debug << "================INIT====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   ASSERT(ctx->verify());
 }
 
@@ -89,12 +93,11 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
 
   foptim::utils::Debug << "================OPTIMEND====================\n";
-  for(const auto& [_, func]: ctx.data->storage.functions){
+  for (const auto &[_, func] : ctx.data->storage.functions) {
     foptim::utils::Debug << func << "\n";
   }
 
   // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
-
 
   // foptim::optim::StaticFunctionPassManager<
   //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
@@ -126,7 +129,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   auto matcher = foptim::fmir::GreedyMatcher{};
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
-    // foptim::utils::Debug << res;
+    foptim::utils::Debug << res;
     funcs.push_back(std::move(res));
     foptim::utils::TempAlloc<void *>::reset();
   }
@@ -151,9 +154,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals) {
 
-  for (const auto& func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // for (const auto &func : funcs) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, globals);
 }

@@ -518,7 +518,7 @@ constexpr auto base_pats() {
 
         auto res_reg =
             valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
-        auto res_ty = convert_type(add_instr.get_type());
+        auto res_ty = convert_type(load_instr.get_type());
 
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
 
@@ -555,9 +555,9 @@ constexpr auto base_pats() {
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
         ASSERT(res.matched_instrs.size() == 2);
-        // utils::Debug << "MATCHED\n"
-        //              << res.matched_instrs[0] << res.matched_instrs[1] <<
-        //              "\n";
+        utils::Debug << "MATCHED\n"
+                     << res.matched_instrs[0] << "\n" << res.matched_instrs[1] <<
+                     "\n";
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
         // TODO("impl add+load pattern");
@@ -566,7 +566,7 @@ constexpr auto base_pats() {
         auto add_instr = res.matched_instrs[0];
         auto store_instr = res.matched_instrs[1];
 
-        auto res_ty = convert_type(add_instr.get_type());
+        auto store_ty = convert_type(store_instr.get_type());
 
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
@@ -574,13 +574,13 @@ constexpr auto base_pats() {
 
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(
-              Opcode::mov, MArgument::Mem(a0.reg, a1.imm, res_ty), value);
+              Opcode::mov, MArgument::Mem(a0.reg, a1.imm, store_ty), value);
         } else if (a0.isImm() && a1.isReg()) {
           res.result.emplace_back(
-              Opcode::mov, MArgument::Mem(a1.reg, a0.imm, res_ty), value);
+              Opcode::mov, MArgument::Mem(a1.reg, a0.imm, store_ty), value);
         } else if (a0.isReg() && a1.isReg()) {
           res.result.emplace_back(
-              Opcode::mov, MArgument::Mem(a0.reg, a1.reg, res_ty), value);
+              Opcode::mov, MArgument::Mem(a0.reg, a1.reg, store_ty), value);
         } else {
           // utils::Debug << "FAILED TO MATCH IT " << add_instr << "\n";
           return false;
