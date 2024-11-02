@@ -520,7 +520,7 @@ constexpr auto base_pats() {
 
         auto res_reg =
             valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
-        auto res_ty = convert_type(load_instr.get_type());
+        auto load_ty = convert_type(load_instr.get_type());
 
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
 
@@ -531,7 +531,7 @@ constexpr auto base_pats() {
                 valueToArgPtr(add_instr->args[1], Type::Int64, data.alloc);
             ASSERT(a1.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(Opcode::mov, res_reg,
-                                    MArgument::Mem(a1.label, a0.imm, res_ty));
+                                    MArgument::Mem(a1.label, a0.imm, load_ty));
             return true;
           }
         }
@@ -539,13 +539,13 @@ constexpr auto base_pats() {
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(Opcode::mov, res_reg,
-                                  MArgument::Mem(a0.reg, a1.imm, res_ty));
+                                  MArgument::Mem(a0.reg, a1.imm, load_ty));
         } else if (a0.isImm() && a1.isReg()) {
           res.result.emplace_back(Opcode::mov, res_reg,
-                                  MArgument::Mem(a1.reg, a0.imm, res_ty));
+                                  MArgument::Mem(a1.reg, a0.imm, load_ty));
         } else if (a0.isReg() && a1.isReg()) {
           res.result.emplace_back(Opcode::mov, res_reg,
-                                  MArgument::Mem(a0.reg, a1.reg, res_ty));
+                                  MArgument::Mem(a0.reg, a1.reg, load_ty));
         } else {
           // utils::Debug << "FAILED TO MATCH IT " << add_instr << "\n";
           return false;
@@ -600,6 +600,7 @@ constexpr auto base_pats() {
         auto a0 =
             valueToArgPtr(load_instr->args[0],
                           convert_type(load_instr.get_type()), data.alloc);
+        a0.ty = convert_type(load_instr.get_type());
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
         res.result.emplace_back(Opcode::add, res_reg, a0, a1);
         return true;
@@ -612,6 +613,7 @@ constexpr auto base_pats() {
                 auto arg = valueToArgPtr(load_instr->args[0],
                                          convert_type(load_instr.get_type()),
                                          data.alloc);
+                arg.ty = convert_type(load_instr.get_type());
                 res.result.emplace_back(Opcode::mov, res_reg, arg);
                 return true;
               }});
@@ -619,9 +621,11 @@ constexpr auto base_pats() {
       {StoreNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto store_instr = res.matched_instrs[0];
         auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
+
         auto ptr_target =
             valueToArgPtr(store_instr->args[0],
                           convert_type(store_instr.get_type()), data.alloc);
+        ptr_target.ty = convert_type(store_instr.get_type());
         res.result.emplace_back(Opcode::mov, ptr_target, value);
         return true;
       }});
