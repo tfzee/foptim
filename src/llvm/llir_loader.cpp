@@ -299,6 +299,7 @@ inline bool convert_icmp(const llvm::Instruction &any_instr,
   case llvm::CmpInst::BAD_ICMP_PREDICATE:
     assert(false);
   }
+  std::abort();
 }
 
 inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,

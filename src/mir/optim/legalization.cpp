@@ -1,5 +1,6 @@
 #include "legalization.hpp"
 #include "mir/instr.hpp"
+#include <limits>
 
 namespace foptim::fmir {
 
