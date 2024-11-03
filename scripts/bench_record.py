@@ -22,10 +22,10 @@ if __name__ == "__main__":
         hyperfine_compile_command += f" \"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.ss\""
 
         hyperfine_compile_command += f" -n {name}_clang_O1_compile_baseline"
-        hyperfine_compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out\""
+        hyperfine_compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out\""
 
         hyperfine_compile_command += f" -n {name}_clang_O3_compile_baseline"
-        hyperfine_compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out\""
+        hyperfine_compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out\""
 
     # print(hyperfine_compile_command)
     os.system(hyperfine_compile_command)  

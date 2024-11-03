@@ -92,10 +92,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
 
-  // foptim::utils::Debug << "================OPTIMEND====================\n";
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  foptim::utils::Debug << "================OPTIMEND====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
 
   // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
@@ -154,9 +154,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals) {
 
-  // for (const auto &func : funcs) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, globals);
 }

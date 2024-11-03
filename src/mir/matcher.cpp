@@ -328,6 +328,22 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   return res_func;
 }
 
+bool is_reg(fir::ValueR val) {
+  if (val.is_constant()) {
+    auto consti = val.as_constant();
+    if (consti->is_int()) {
+      return false;
+    }
+    if (consti->is_global()) {
+      return true;
+    }
+  } else {
+    return true;
+  }
+  ASSERT(false);
+  std::abort();
+}
+
 MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     auto consti = val.as_constant();
@@ -485,23 +501,6 @@ constexpr auto base_pats() {
   auto SExtNode = Node{NodeType::Instr, InstrType::SExt, 0};
   auto ZExtNode = Node{NodeType::Instr, InstrType::ZExt, 0};
 
-  res.push_back(
-      Pattern{{AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-                // TODO: this should be done once for all allocas that only get
-                // executed once
-                auto alloca_instr = res.matched_instrs[0];
-                auto rsp_reg = data.alloc.get_new_register(VRegInfo::RSP());
-                auto rsp_arg = MArgument{rsp_reg, Type::Int64};
-
-                auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
-                                          data.alloc);
-
-                auto size = alloca_instr->args[0].as_constant()->as_int();
-
-                res.result.emplace_back(Opcode::sub, rsp_arg, rsp_arg, size);
-                res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);
-                return true;
-              }});
   res.push_back(Pattern{
       {IntAddNode, LoadNode},
       {{0, 1, 0}},
@@ -557,9 +556,9 @@ constexpr auto base_pats() {
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
         ASSERT(res.matched_instrs.size() == 2);
-        utils::Debug << "MATCHED\n"
-                     << res.matched_instrs[0] << "\n"
-                     << res.matched_instrs[1] << "\n";
+        // utils::Debug << "MATCHED\n"
+        //              << res.matched_instrs[0] << "\n"
+        //              << res.matched_instrs[1] << "\n";
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
         // TODO("impl add+load pattern");
@@ -605,6 +604,78 @@ constexpr auto base_pats() {
         res.result.emplace_back(Opcode::add, res_reg, a0, a1);
         return true;
       }});
+  res.push_back(Pattern{
+      {IntMulNode, IntAddNode},
+      {{0, 1, 1}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        auto mul_instr = res.matched_instrs[0];
+        auto add_instr = res.matched_instrs[1];
+        auto res_ty = convert_type(add_instr.get_type());
+        auto res_ty_size = get_size(res_ty);
+        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+          return false;
+        }
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0])) {
+          return false;
+        }
+        if (!mul_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = mul_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+
+        switch (consti_val) {
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
+        }
+
+        // $1 = $0 + C
+        // R = $2 + $1
+        // where $0 and $2 must be regs and C in [1,2,4,8]
+        auto res_reg =
+            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+        auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
+        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        ASSERT(base.isReg());
+        ASSERT(indx.isReg());
+        res.result.emplace_back(
+            Opcode::lea, res_reg,
+            MArgument::Mem(base.reg, indx.reg, consti_val, res_ty));
+        return true;
+      }});
+  res.push_back(
+      Pattern{{AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                // TODO: this should be done once for all allocas that only get
+                // executed once
+                auto alloca_instr = res.matched_instrs[0];
+                auto rsp_reg = data.alloc.get_new_register(VRegInfo::RSP());
+                auto rsp_arg = MArgument{rsp_reg, Type::Int64};
+
+                auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
+                                          data.alloc);
+
+                auto size = alloca_instr->args[0].as_constant()->as_int();
+
+                res.result.emplace_back(Opcode::sub, rsp_arg, rsp_arg, size);
+                res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);
+                return true;
+              }});
   res.push_back(
       Pattern{{LoadNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 auto load_instr = res.matched_instrs[0];

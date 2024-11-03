@@ -42,24 +42,24 @@ void Legalizer::legalize_cmp(MBB &bb, u32 indx) {
     switch (instr.op) {
     case Opcode::icmp_eq:
       if (big_unsigned_const) {
-        indx = move_arg_to_reg(bb, indx, 2, Type::Int64);
+        indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
         return;
       }
     case Opcode::cjmp_ne:
     case Opcode::cjmp_eq:
     case Opcode::cjmp_ult:
       if (big_unsigned_const) {
-        indx = move_arg_to_reg(bb, indx, 1, Type::Int64);
+        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
         return;
       }
     case Opcode::icmp_slt:
       if (big_signed_const) {
-        indx = move_arg_to_reg(bb, indx, 2, Type::Int64);
+        indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
         return;
       }
     case Opcode::cjmp_slt:
       if (big_signed_const) {
-        indx = move_arg_to_reg(bb, indx, 1, Type::Int64);
+        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
         return;
       }
     default:

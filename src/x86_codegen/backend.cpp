@@ -206,11 +206,22 @@ Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
     res.setSize(get_size(arg.ty));
     return res;
   }
-  case fmir::MArgument::ArgumentType::MemVRegVRegScale:
+  case fmir::MArgument::ArgumentType::MemVRegVRegScale: {
+    auto res = Mem(convert_reg(cc, reg_to_op, arg.reg),
+                   convert_reg(cc, reg_to_op, arg.indx), (int32_t)arg.scale, 0);
+    res.setSize(get_size(arg.ty));
+    return res;
+  }
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
-  case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
     TODO("impl");
     break;
+  case fmir::MArgument::ArgumentType::MemImmVRegVRegScale: {
+    auto res = Mem(convert_reg(cc, reg_to_op, arg.reg),
+                   convert_reg(cc, reg_to_op, arg.indx), (int32_t)arg.scale,
+                   (int32_t)arg.imm);
+    res.setSize(get_size(arg.ty));
+    return res;
+  }
   }
   std::abort();
 }
@@ -264,7 +275,8 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     //   ASSERT(instr.args[0].ty == instr.args[1].ty);
     // }
     // } else if (o0.isMem()) {
-    //   // utils::Debug << "WAS SETTING SIZE 0??" << instr.args[1].ty << " => " <<
+    //   // utils::Debug << "WAS SETTING SIZE 0??" << instr.args[1].ty << " => "
+    //   <<
     //   // o1_size << "\n";
     //   // o0_size = o1_size;
     //   o0.as<Mem>().setSize(o0_size);
@@ -609,7 +621,7 @@ void run(std::span<const fmir::MFunc> funcs,
       }
     }
 
-    // utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
     utils::Debug << "Done!\n";
 
     std::ofstream myfile;

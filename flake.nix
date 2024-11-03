@@ -43,8 +43,9 @@
                 python-pkgs.pandas
                 python-pkgs.matplotlib
               ]))
-            # valgrind
-            # kdePackages.kcachegrind
+            iaito
+            valgrind
+            kdePackages.kcachegrind
 
           ];
 
