@@ -3,4 +3,4 @@ compile_commands.json
 test/Output/
 .cache/
 .direnv/
-.lit_test_times.txt
+**/.lit_test_times.txt
