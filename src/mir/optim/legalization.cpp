@@ -85,7 +85,8 @@ void Legalizer::legalize_idiv(MBB &bb, u32 indx) {
   {
     MInstr &instr = bb.instrs[indx];
     if (!instr.args[3].isReg()) {
-      indx = move_arg_to_reg(bb, indx, 3, instr.args[3].ty);
+      //use the type of the result register since if this is a constant its type might be to big
+      indx = move_arg_to_reg(bb, indx, 3, instr.args[0].ty);
     }
   }
 }

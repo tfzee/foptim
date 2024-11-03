@@ -104,7 +104,8 @@ void DumbRegAlloc::alloc_func(fir::Function &func,
     const u32 n_args = curr->get_args().size();
     for (u32 arg_id = 0; arg_id < n_args; arg_id++) {
       auto new_value = fir::ValueR(curr, arg_id);
-      if (new_value.get_n_uses() > 0) {
+      //entry block args we always need
+      if (new_value.get_n_uses() > 0 || func.get_bbs()[0] == curr) {
         ASSERT(!mapping.contains(new_value));
         auto new_reg = get_new_register(new_value, lives);
         mapping.insert({new_value, new_reg});
