@@ -115,6 +115,7 @@ static constexpr u32 get_size(fmir::Type type) {
   case fmir::Type::Int64:
     return 8;
   case fmir::Type::INVALID:
+    break;
   }
   ASSERT(false);
   std::abort();
@@ -422,8 +423,8 @@ public:
         return other.reg == reg || other.reg == indx || other.indx == reg ||
                other.indx == indx;
       }
-      break;
     }
+    TODO("unreach");
   }
 
   [[nodiscard]] constexpr bool uses_vreg() const {

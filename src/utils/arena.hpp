@@ -33,7 +33,7 @@ public:
     return (T *)arena_alloc(&global_temp_arena, count * sizeof(T));
   }
 
-  [[clang::always_inline]] constexpr void deallocate(T * /*unused*/,
+  constexpr void deallocate(T * /*unused*/,
                                                      size_t /*unused*/) {}
 
   static void reset() {
@@ -49,7 +49,7 @@ public:
     return (T *)arena_alloc(&ir_arena, count * sizeof(T));
   }
 
-  [[clang::always_inline]] constexpr void deallocate(T * /*unused*/,
+  constexpr void deallocate(T * /*unused*/,
                                                      size_t /*unused*/) {}
 
   static void reset() { arena_reset(&ir_arena); }

@@ -136,7 +136,7 @@ Imm convert_imm(Compiler & /*unused*/, u64 imm, fmir::Type ty) {
   switch (ty) {
   case fmir::Type::Float32:
   case fmir::Type::Float64:
-    ASSERT(false);
+    TODO("impl");
   case fmir::Type::Int8:
   case fmir::Type::Int16:
   case fmir::Type::Int32:
@@ -499,7 +499,8 @@ void emit_func(const fmir::MFunc &func, TMap<fmir::VReg, Reg> reg_to_op,
   TVec<Label> bb_labels;
 
   bb_labels.reserve(func.bbs.size());
-  for (const auto &_ : func.bbs) {
+  for (const auto &a : func.bbs) {
+    (void)a;
     bb_labels.push_back(cc.newLabel());
   }
 

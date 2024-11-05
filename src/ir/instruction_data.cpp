@@ -153,6 +153,7 @@ bool InstrData::is_commutative() const {
   case InstrType::ZExt:
     return false;
   }
+  TODO("unreach");
 }
 
 bool InstrData::pot_modifies_mem() const {

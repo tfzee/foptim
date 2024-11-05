@@ -109,7 +109,6 @@ public:
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
       case fir::BinaryInstrSubType::INVALID:
         TODO("¿UNREACH?\n");
-        break;
       case fir::BinaryInstrSubType::IntSub:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() - b.value->as_int(), a.value->get_type()));
@@ -124,6 +123,7 @@ public:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() * b.value->as_int(), a.value->get_type()));
       }
+      TODO("¿UNREACH?\n");
     }
     case fir::InstrType::BranchInstr: {
       const auto &target = instr->get_bb_args();
@@ -290,6 +290,7 @@ public:
             static_cast<u64>((i64)a.value->as_int() <= (i64)b.value->as_int()),
             ctx->get_int_type(8)));
       }
+      break;
     }
     case fir::InstrType::DirectCallInstr:
     case fir::InstrType::AllocaInstr:

@@ -266,9 +266,9 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
     } else if (instr->is(fir::InstrType::StoreInstr)) {
       decide_value_store(instr, i, block, phi_insert_locs,
                          current_variable_value);
-      for (auto [key, val] :
-           current_variable_value[current_variable_value.size() - 1]) {
-      }
+      // for (auto [key, val] :
+      //      current_variable_value[current_variable_value.size() - 1]) {
+      // }
 
     } else {
       i++;

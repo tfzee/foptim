@@ -75,8 +75,7 @@ inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
     u32 width = v->getBitWidth();
     return ctx->get_int_type(width);
   }
-  if (auto *v = llvm::dyn_cast_or_null<llvm::PointerType>(any_ty)) {
-
+  if (llvm::dyn_cast_or_null<llvm::PointerType>(any_ty)) {
     return ctx->get_ptr_type();
   }
   if (any_ty->isVoidTy()) {
@@ -505,6 +504,7 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   case llvm::GlobalValue::InternalLinkage:
   case llvm::GlobalValue::PrivateLinkage:
     ffunc->linkage = foptim::fir::Function::Linkage::Internal;
+    break;
   case llvm::GlobalValue::ExternalLinkage:
   case llvm::GlobalValue::AvailableExternallyLinkage:
   case llvm::GlobalValue::LinkOnceAnyLinkage:
