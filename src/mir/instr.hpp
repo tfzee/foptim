@@ -25,6 +25,7 @@ enum class Opcode : u32 {
   icmp_eq,
 
   cjmp_slt,
+  cjmp_sge,
   cjmp_ult,
   cjmp_ne,
   cjmp_eq,
@@ -78,6 +79,8 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     return "#invoke";
   case Opcode::cjmp_slt:
     return "cjmp_slt";
+  case Opcode::cjmp_sge:
+    return "cjmp_sge";
   case Opcode::cjmp_ne:
     return "cjmp_ne";
   case Opcode::cjmp_eq:
@@ -495,6 +498,13 @@ public:
 
   static MInstr cJmp_slt(MArgument v1, MArgument v2, u32 new_bb_ref) {
     auto res = MInstr{Opcode::cjmp_slt, v1, v2};
+    res.bb_ref = new_bb_ref;
+    res.has_bb_ref = true;
+    return res;
+  }
+
+  static MInstr cJmp_sge(MArgument v1, MArgument v2, u32 new_bb_ref) {
+    auto res = MInstr{Opcode::cjmp_sge, v1, v2};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;
