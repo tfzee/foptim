@@ -113,6 +113,5 @@ target_compile_options(foptim_main PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unus
 target_link_libraries(foptim_main PRIVATE foptim)
 target_include_directories(foptim_main PRIVATE ./src/)
 
-
-
+add_subdirectory(test)
 
