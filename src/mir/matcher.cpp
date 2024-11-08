@@ -659,6 +659,65 @@ constexpr auto base_pats() {
             MArgument::Mem(base.reg, indx.reg, consti_val, res_ty));
         return true;
       }});
+  res.push_back(Pattern{
+      {ICMPNode, CondBranchNode},
+      {{0, 1, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        // utils::Debug << "WE REACHED HERE"
+        //              << " +  branch\n";
+        auto cmp_instr = res.matched_instrs[0];
+        auto branch_instr = res.matched_instrs[1];
+
+        auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
+
+        // first we check if we can output a simplified version
+        if (sub_type == fir::ICmpInstrSubType::SLT ||
+            sub_type == fir::ICmpInstrSubType::SGE ||
+            sub_type == fir::ICmpInstrSubType::NE ||
+            sub_type == fir::ICmpInstrSubType::EQ ||
+            sub_type == fir::ICmpInstrSubType::ULT) {
+
+          auto bb_with_args = branch_instr->bbs[0];
+          auto target_bb = branch_instr->bbs[0].bb;
+          auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+          auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+
+          ASSERT(bb_with_args.args.size() == target_bb->args.size());
+          generate_bb_args(bb_with_args, res, data);
+
+          if (sub_type == fir::ICmpInstrSubType::SLT) {
+            res.result.push_back(
+                MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::ULT) {
+            res.result.push_back(
+                MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::SGE) {
+            res.result.push_back(
+                MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::EQ) {
+            res.result.push_back(
+                MInstr::cJmp_eq(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::NE) {
+            res.result.push_back(
+                MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
+          } else {
+            TODO("UNREACH");
+          }
+        } else {
+          utils::Debug << "Failed to smartly match cmp "
+                       << cmp_instr->get_instr_subtype() << " +  branch\n";
+          return false;
+        }
+
+        {
+          auto bb2_with_args = branch_instr->bbs[1];
+          auto target_bb2 = branch_instr->bbs[1].bb;
+          ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
+          generate_bb_args(bb2_with_args, res, data);
+          res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
+        }
+        return true;
+      }});
   res.push_back(
       Pattern{{AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 // TODO: this should be done once for all allocas that only get
@@ -816,65 +875,6 @@ constexpr auto base_pats() {
                 res.result.push_back(MInstr::jmp(data.bbs[bb_with_args.bb]));
                 return true;
               }});
-  res.push_back(Pattern{
-      {ICMPNode, CondBranchNode},
-      {{0, 1, 0}},
-      [](MatchResult &res, ExtraMatchData &data) {
-        // utils::Debug << "WE REACHED HERE"
-        //              << " +  branch\n";
-        auto cmp_instr = res.matched_instrs[0];
-        auto branch_instr = res.matched_instrs[1];
-
-        auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
-
-        // first we check if we can output a simplified version
-        if (sub_type == fir::ICmpInstrSubType::SLT ||
-            sub_type == fir::ICmpInstrSubType::SGE ||
-            sub_type == fir::ICmpInstrSubType::NE ||
-            sub_type == fir::ICmpInstrSubType::EQ ||
-            sub_type == fir::ICmpInstrSubType::ULT) {
-
-          auto bb_with_args = branch_instr->bbs[0];
-          auto target_bb = branch_instr->bbs[0].bb;
-          auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-          auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
-
-          ASSERT(bb_with_args.args.size() == target_bb->args.size());
-          generate_bb_args(bb_with_args, res, data);
-
-          if (sub_type == fir::ICmpInstrSubType::SLT) {
-            res.result.push_back(
-                MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::ULT) {
-            res.result.push_back(
-                MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::SGE) {
-            res.result.push_back(
-                MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::EQ) {
-            res.result.push_back(
-                MInstr::cJmp_eq(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::NE) {
-            res.result.push_back(
-                MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
-          } else {
-            TODO("UNREACH");
-          }
-        } else {
-          utils::Debug << "Failed to smartly match cmp "
-                       << cmp_instr->get_instr_subtype() << " +  branch\n";
-          return false;
-        }
-
-        {
-          auto bb2_with_args = branch_instr->bbs[1];
-          auto target_bb2 = branch_instr->bbs[1].bb;
-          ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
-          generate_bb_args(bb2_with_args, res, data);
-          res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
-        }
-        return true;
-      }});
   res.push_back(Pattern{
       {CondBranchNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto branch_instr = res.matched_instrs[0];
