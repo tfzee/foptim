@@ -84,6 +84,7 @@ class AnyType {
 public:
   AnyType(Union t) : type(std::move(t)) {}
   AnyType(IntegerType t) : type(t) {}
+  AnyType(FloatType t) : type(t) {}
   AnyType(FunctionType t) : type(t) {}
   AnyType(VoidType t) : type(t) {}
   AnyType(OpaquePointerType t) : type(t) {}

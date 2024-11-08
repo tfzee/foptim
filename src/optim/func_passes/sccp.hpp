@@ -107,6 +107,7 @@ public:
         // TODO("impl");
       }
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
+      default:
       case fir::BinaryInstrSubType::INVALID:
         TODO("¿UNREACH?\n");
       case fir::BinaryInstrSubType::IntSub:
@@ -267,7 +268,8 @@ public:
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SLT:
         utils::Debug << a.value->as_int() << " < " << b.value->as_int() << "\n";
-        utils::Debug << (i64)a.value->as_int() << " < " << (i64)b.value->as_int() << "\n";
+        utils::Debug << (i64)a.value->as_int() << " < "
+                     << (i64)b.value->as_int() << "\n";
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>((i64)a.value->as_int() < (i64)b.value->as_int()),
             ctx->get_int_type(8)));

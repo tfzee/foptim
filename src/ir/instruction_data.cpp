@@ -124,6 +124,9 @@ bool InstrData::is_commutative() const {
       return true;
     case BinaryInstrSubType::IntSub:
     case BinaryInstrSubType::IntSRem:
+    case BinaryInstrSubType::FloatAdd:
+    case BinaryInstrSubType::FloatSub:
+    case BinaryInstrSubType::FloatMul:
       return false;
     }
   case InstrType::ICmp:
@@ -194,6 +197,27 @@ bool InstrData::has_pot_sideeffects() const {
 InstrData InstrData::get_direct_call(TypeR ty) {
   auto res = InstrData{InstrType::DirectCallInstr, ty,
                        BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_float_add(TypeR ty) {
+  auto res =
+      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatAdd, ty,
+                BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_float_sub(TypeR ty) {
+  auto res =
+      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatSub, ty,
+                BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_float_mul(TypeR ty) {
+  auto res =
+      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatMul, ty,
+                BasicBlock(BasicBlock::invalid())};
   return res;
 }
 

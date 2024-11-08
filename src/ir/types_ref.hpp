@@ -17,6 +17,7 @@ public:
 
 typedef TypeR FunctionTypeR;
 typedef TypeR IntTypeR;
+typedef TypeR FloatTypeR;
 typedef TypeR VoidTypeR;
 
 } // namespace foptim::fir

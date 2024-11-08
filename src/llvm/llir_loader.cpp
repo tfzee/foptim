@@ -63,11 +63,26 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     return foptim::fir::ValueR(
         fctx->get_constant_value(constant, fctx->get_int_type(bitwidth)));
   }
+  if (const auto *float_constant =
+          llvm::dyn_cast_or_null<llvm::ConstantFP>(value)) {
+
+    auto value = float_constant->getValue();
+    auto is_float = float_constant->getType()->isFloatTy();
+    auto is_double = float_constant->getType()->isDoubleTy();
+
+    if (is_float) {
+      return foptim::fir::ValueR(fctx->get_constant_value(
+          value.convertToFloat(), fctx->get_float_type(32)));
+    }
+    if (is_double) {
+      return foptim::fir::ValueR(fctx->get_constant_value(
+          value.convertToDouble(), fctx->get_float_type(64)));
+    }
+  }
 
   llvm::errs() << value << " " << typeid(value).name() << "\n";
   llvm::errs() << *value << "\n";
-
-  std::abort();
+  TODO("IDK HOW TO HANDLE THIS ARG");
 }
 
 inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
@@ -75,6 +90,12 @@ inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
   if (auto *v = llvm::dyn_cast_or_null<llvm::IntegerType>(any_ty)) {
     u32 width = v->getBitWidth();
     return ctx->get_int_type(width);
+  }
+  if (any_ty->isFloatTy()) {
+    return ctx->get_float_type(32);
+  }
+  if (any_ty->isDoubleTy()) {
+    return ctx->get_float_type(64);
   }
   if (llvm::dyn_cast_or_null<llvm::PointerType>(any_ty)) {
     return ctx->get_ptr_type();
@@ -422,6 +443,17 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({&any_instr, add});
       return;
     }
+  } else if (any_instr.getOpcode() == llvm::Instruction::FAdd) {
+    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr.getType()->isFloatingPointTy()) {
+      auto add = builder.build_float_add(left, right);
+      valueToValue.insert({&any_instr, add});
+      return;
+    }
   } else if (any_instr.getOpcode() == llvm::Instruction::PHI) {
     auto ftype = convert_type(any_instr.getType(), fctx);
     auto new_arg = builder.get_curr_bb().add_arg(ftype);
@@ -603,8 +635,9 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
           auto from_fbb = b2b.at(phi.getIncomingBlock(phi_arg_id));
           build.at_penultimate(from_fbb);
 
-          auto value = convert_instr_arg(phi.getIncomingValue(phi_arg_id), fctx,
-                                         ffunc, build, valueToValue, *func.getParent(), b2b);
+          auto value =
+              convert_instr_arg(phi.getIncomingValue(phi_arg_id), fctx, ffunc,
+                                build, valueToValue, *func.getParent(), b2b);
           // auto value = valueToValue.at(phi.getIncomingValue(phi_arg_id));
 
           auto term = from_fbb->get_terminator();

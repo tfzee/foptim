@@ -113,6 +113,36 @@ public:
     return ValueR(instr);
   }
 
+  ValueR build_float_add(ValueR a, ValueR b) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(InstrData::get_float_add(a.get_type()));
+    instr.add_arg(a);
+    instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
+  ValueR build_float_sub(ValueR a, ValueR b) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(InstrData::get_float_sub(a.get_type()));
+    instr.add_arg(a);
+    instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
+  ValueR build_float_mul(ValueR a, ValueR b) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(InstrData::get_float_mul(a.get_type()));
+    instr.add_arg(a);
+    instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_sext(ValueR a, TypeR ty) {
     check_bb_set();
     Instr instr = ctx->storage.insert_instr(InstrData::get_sext(ty));

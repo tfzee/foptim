@@ -13,7 +13,6 @@ class ValueR;
 
 struct IntValue {
   u64 data;
-
   bool operator==(const IntValue &other) const { return data == other.data; }
 };
 
@@ -41,6 +40,12 @@ struct ConstantValue {
   constexpr ConstantValue(u64 v, TypeR typee)
       : value(IntValue{v}), type(typee) {}
 
+  constexpr ConstantValue(f64 v, TypeR typee)
+      : value(FloatValue{v}), type(typee) {}
+
+  constexpr ConstantValue(f32 v, TypeR typee)
+      : value(FloatValue{v}), type(typee) {}
+
   constexpr ConstantValue(Global g, TypeR typee)
       : value(GlobalPointer{g}), type(typee) {}
 
@@ -55,7 +60,7 @@ struct ConstantValue {
     if (const auto *res = std::get_if<IntValue>(&value)) {
       // u32 bitwidth = type->as_int();
       // const u64 mask = ((u64)1 << bitwidth) - 1;
-      return res->data;// & mask;
+      return res->data; // & mask;
     }
     std::abort();
   }

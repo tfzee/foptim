@@ -26,6 +26,10 @@ struct ContextData {
     return storage.insert_type(IntegerType{bitwidth});
   }
 
+  IntTypeR get_float_type(u16 bitwidth) {
+    return storage.insert_type(FloatType{bitwidth});
+  }
+
   VoidTypeR get_void_type() { return storage.insert_type(VoidType{}); }
   VoidTypeR get_ptr_type() { return storage.insert_type(OpaquePointerType{}); }
 
@@ -56,6 +60,14 @@ struct ContextData {
 
   FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
     return storage.insert_type(FunctionType{ret_type, std::move(args)});
+  }
+
+  ConstantValueR get_constant_value(f32 val, FloatTypeR ty) {
+    return storage.insert_constant(ConstantValue(val, ty));
+  }
+
+  ConstantValueR get_constant_value(f64 val, FloatTypeR ty) {
+    return storage.insert_constant(ConstantValue(val, ty));
   }
 
   ConstantValueR get_constant_value(u64 val, IntTypeR ty) {
