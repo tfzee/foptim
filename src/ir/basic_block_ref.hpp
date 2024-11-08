@@ -5,6 +5,8 @@
 namespace foptim::fir {
 class BasicBlockData;
 class Instr;
+class TypeR;
+class ValueR;
 
 class BasicBlock : public utils::SRef<BasicBlockData> {
 public:
@@ -18,6 +20,7 @@ public:
 #endif
   }
   void insert_instr(size_t indx, Instr instr);
+  ValueR add_arg(TypeR ty);
 };
 } // namespace foptim::fir
 

@@ -431,7 +431,13 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
         cc.emit(Inst::kIdJmp, bb_labels[instr.bb_ref]);
       }
     } else {
-      cc.emit(Inst::kIdJnz, bb_labels[instr.bb_ref]);
+      auto a = convert_operand(cc, reg_to_op, instr.args[0]);
+      if (a.isReg()) {
+        cc.emit(Inst::kIdCmp, a.as<Gp>().r64(), 0);
+      } else {
+        cc.emit(Inst::kIdCmp, a, 0);
+      }
+      cc.emit(Inst::kIdJne, bb_labels[instr.bb_ref]);
     }
     return;
   }

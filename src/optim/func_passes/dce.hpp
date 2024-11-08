@@ -22,11 +22,10 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 
   while (!worklist.empty()) {
     auto curr_id = worklist.back();
-    // utils::Debug << "CHECK" << curr_id << "\n";
+    worklist.pop_back();
     if (seen.contains(curr_id)) {
       continue;
     }
-    worklist.pop_back();
     seen.insert(curr_id);
     for (auto succ : cfg.bbrs[curr_id].succ) {
       if (bb_id == succ) {

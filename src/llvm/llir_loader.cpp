@@ -19,6 +19,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
+#include <memory>
 
 using foptim::u32;
 using foptim::u64;
@@ -421,6 +422,11 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({&any_instr, add});
       return;
     }
+  } else if (any_instr.getOpcode() == llvm::Instruction::PHI) {
+    auto ftype = convert_type(any_instr.getType(), fctx);
+    auto new_arg = builder.get_curr_bb().add_arg(ftype);
+    valueToValue.insert({&any_instr, new_arg});
+    return;
   }
   llvm::errs() << any_instr << "\n" << "TODO\n";
   TODO("");
@@ -544,10 +550,16 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
 
   auto &fargs = fentry_bb->get_args();
   for (size_t arg_idx = 0; arg_idx < fargs.size(); arg_idx++) {
-    // valueToValue[func.getArg(arg_idx)] = fargs[arg_idx];
     valueToValue.insert(
         {func.getArg(arg_idx), foptim::fir::ValueR(fentry_bb, arg_idx)});
   }
+
+  // FIXME: implement this
+  //     The issue is that the initial bbs arguemtns in this IR are the function
+  //     args
+  //       so we need to insert an aditional bb prior that handles those so the
+  //       actual entry then can handle these phis
+  ASSERT(entry_bb.phis().begin() == entry_bb.phis().end());
 
   while (!worklist.empty()) {
     auto [bb_llvm, bb_foptim] = worklist.front();
@@ -573,6 +585,33 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
       }
       convert(instr, fctx, ffunc, fbuilder, valueToValue, *func.getParent(),
               b2b);
+    }
+  }
+
+  // now we already generated all bbs and their arguments but not the actual phi
+  // arguments -> to branch arguments so we need to fix em up
+  {
+    // so we iterate over all phis and their arguments find their corresponding
+    // fbb and there insert as bb arg
+    //  the phi arg
+    foptim::fir::Builder build{ffunc.func->basic_blocks[0]};
+    for (auto &bb : func) {
+      auto to_fbb = b2b.at(&bb);
+      for (auto &phi : bb.phis()) {
+        for (size_t phi_arg_id = 0; phi_arg_id < phi.getNumIncomingValues();
+             ++phi_arg_id) {
+          auto from_fbb = b2b.at(phi.getIncomingBlock(phi_arg_id));
+          build.at_penultimate(from_fbb);
+
+          auto value = convert_instr_arg(phi.getIncomingValue(phi_arg_id), fctx,
+                                         ffunc, build, valueToValue, *func.getParent(), b2b);
+          // auto value = valueToValue.at(phi.getIncomingValue(phi_arg_id));
+
+          auto term = from_fbb->get_terminator();
+          auto to_bb_id = term.get_bb_id(to_fbb);
+          term.add_bb_arg(to_bb_id, value);
+        }
+      }
     }
   }
 }

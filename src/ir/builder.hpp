@@ -30,6 +30,9 @@ public:
            bb->instructions.begin();
   }
 
+  BasicBlock get_curr_bb(){
+    return bb;
+  }
   /*
     Sets the current insert location to the start of the new Basic Block
   */
