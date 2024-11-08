@@ -444,6 +444,9 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   case fmir::Opcode::cjmp_ne:
   case fmir::Opcode::cjmp_eq:
   case fmir::Opcode::cjmp_ult:
+  case fmir::Opcode::cjmp_ule:
+  case fmir::Opcode::cjmp_ugt:
+  case fmir::Opcode::cjmp_uge:
   case fmir::Opcode::cjmp_sge:
   case fmir::Opcode::cjmp_slt: {
     auto a = convert_operand(cc, reg_to_op, instr.args[0]);
@@ -459,6 +462,15 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       break;
     case fmir::Opcode::cjmp_ult:
       cc.emit(Inst::kIdJb, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_ule:
+      cc.emit(Inst::kIdJbe, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_ugt:
+      cc.emit(Inst::kIdJa, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_uge:
+      cc.emit(Inst::kIdJae, bb_labels[instr.bb_ref]);
       break;
     case fmir::Opcode::cjmp_slt:
       cc.emit(Inst::kIdJl, bb_labels[instr.bb_ref]);

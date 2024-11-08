@@ -27,6 +27,9 @@ enum class Opcode : u32 {
   cjmp_slt,
   cjmp_sge,
   cjmp_ult,
+  cjmp_ule,
+  cjmp_ugt,
+  cjmp_uge,
   cjmp_ne,
   cjmp_eq,
   cjmp,
@@ -87,6 +90,12 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     return "cjmp_eq";
   case Opcode::cjmp_ult:
     return "cjmp_ult";
+  case Opcode::cjmp_ule:
+    return "cjmp_ule";
+  case Opcode::cjmp_uge:
+    return "cjmp_uge";
+  case Opcode::cjmp_ugt:
+    return "cjmp_ugt";
   }
 }
 
@@ -512,6 +521,27 @@ public:
 
   static MInstr cJmp_ult(MArgument v1, MArgument v2, u32 new_bb_ref) {
     auto res = MInstr{Opcode::cjmp_ult, v1, v2};
+    res.bb_ref = new_bb_ref;
+    res.has_bb_ref = true;
+    return res;
+  }
+
+  static MInstr cJmp_ule(MArgument v1, MArgument v2, u32 new_bb_ref) {
+    auto res = MInstr{Opcode::cjmp_ule, v1, v2};
+    res.bb_ref = new_bb_ref;
+    res.has_bb_ref = true;
+    return res;
+  }
+
+  static MInstr cJmp_ugt(MArgument v1, MArgument v2, u32 new_bb_ref) {
+    auto res = MInstr{Opcode::cjmp_ugt, v1, v2};
+    res.bb_ref = new_bb_ref;
+    res.has_bb_ref = true;
+    return res;
+  }
+
+  static MInstr cJmp_uge(MArgument v1, MArgument v2, u32 new_bb_ref) {
+    auto res = MInstr{Opcode::cjmp_uge, v1, v2};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;

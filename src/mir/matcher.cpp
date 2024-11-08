@@ -675,7 +675,10 @@ constexpr auto base_pats() {
             sub_type == fir::ICmpInstrSubType::SGE ||
             sub_type == fir::ICmpInstrSubType::NE ||
             sub_type == fir::ICmpInstrSubType::EQ ||
-            sub_type == fir::ICmpInstrSubType::ULT) {
+            sub_type == fir::ICmpInstrSubType::ULT ||
+            sub_type == fir::ICmpInstrSubType::ULE ||
+            sub_type == fir::ICmpInstrSubType::UGT ||
+            sub_type == fir::ICmpInstrSubType::UGE) {
 
           auto bb_with_args = branch_instr->bbs[0];
           auto target_bb = branch_instr->bbs[0].bb;
@@ -691,6 +694,15 @@ constexpr auto base_pats() {
           } else if (sub_type == fir::ICmpInstrSubType::ULT) {
             res.result.push_back(
                 MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::ULE) {
+            res.result.push_back(
+                MInstr::cJmp_ule(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::UGT) {
+            res.result.push_back(
+                MInstr::cJmp_ugt(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::UGE) {
+            res.result.push_back(
+                MInstr::cJmp_uge(v1, v2, data.bbs[bb_with_args.bb]));
           } else if (sub_type == fir::ICmpInstrSubType::SGE) {
             res.result.push_back(
                 MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
