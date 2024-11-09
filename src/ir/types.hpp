@@ -122,6 +122,12 @@ public:
   [[nodiscard]] bool is_int() const {
     return std::holds_alternative<IntegerType>(type);
   }
+  [[nodiscard]] u32 as_float() const {
+    return std::get_if<FloatType>(&type)->bitwidth;
+  }
+  [[nodiscard]] bool is_float() const {
+    return std::holds_alternative<FloatType>(type);
+  }
   [[nodiscard]] bool is_void() const {
     return std::holds_alternative<VoidType>(type);
   }

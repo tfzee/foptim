@@ -53,26 +53,28 @@ public:
     // and add them to the worklist
     for (auto &bb : func.get_bbs()) {
       for (auto &instr : bb->get_instrs()) {
-        bool isCritical = true;
-        switch (instr->get_instr_type()) {
-        case fir::InstrType::BinaryInstr:
-        case fir::InstrType::ZExt:
-        case fir::InstrType::SExt:
-        case fir::InstrType::LoadInstr:
-        case fir::InstrType::AllocaInstr:
-        case fir::InstrType::ICmp:
-          isCritical = false;
-          break;
-        case fir::InstrType::ReturnInstr:
-        case fir::InstrType::DirectCallInstr:
-        case fir::InstrType::StoreInstr:
-        // FIXME: Shouldnt be marked as critical and instead be automatically
-        // deteceted
-        case fir::InstrType::CondBranchInstr:
-        case fir::InstrType::BranchInstr:
-          isCritical = true;
-          break;
-        }
+        // bool isCritical = true;
+        // switch (instr->get_instr_type()) {
+        // case fir::InstrType::BinaryInstr:
+        // case fir::InstrType::ZExt:
+        // case fir::InstrType::SExt:
+        // case fir::InstrType::LoadInstr:
+        // case fir::InstrType::AllocaInstr:
+        // case fir::InstrType::ICmp:
+        // case fir::InstrType::FCmp:
+        //   isCritical = false;
+        //   break;
+        // case fir::InstrType::ReturnInstr:
+        // case fir::InstrType::DirectCallInstr:
+        // case fir::InstrType::StoreInstr:
+        // // FIXME: Shouldnt be marked as critical and instead be automatically
+        // // deteceted
+        // case fir::InstrType::CondBranchInstr:
+        // case fir::InstrType::BranchInstr:
+        //   isCritical = true;
+        //   break;
+        // }
+        bool isCritical = instr->is_critical();
 
         if (isCritical) {
           worklist.push_back(instr);

@@ -45,9 +45,9 @@ void Legalizer::legalize_cmp(MBB &bb, u32 indx) {
         indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
         return;
       }
-    case Opcode::cjmp_ne:
-    case Opcode::cjmp_eq:
-    case Opcode::cjmp_ult:
+    case Opcode::cjmp_int_ne:
+    case Opcode::cjmp_int_eq:
+    case Opcode::cjmp_int_ult:
       if (big_unsigned_const) {
         indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
         return;
@@ -57,7 +57,7 @@ void Legalizer::legalize_cmp(MBB &bb, u32 indx) {
         indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
         return;
       }
-    case Opcode::cjmp_slt:
+    case Opcode::cjmp_int_slt:
       if (big_signed_const) {
         indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
         return;
@@ -129,10 +129,10 @@ void Legalizer::apply(MFunc &func) {
       switch (bb.instrs[i].op) {
       case Opcode::icmp_slt:
       case Opcode::icmp_eq:
-      case Opcode::cjmp_slt:
-      case Opcode::cjmp_ult:
-      case Opcode::cjmp_ne:
-      case Opcode::cjmp_eq:
+      case Opcode::cjmp_int_slt:
+      case Opcode::cjmp_int_ult:
+      case Opcode::cjmp_int_ne:
+      case Opcode::cjmp_int_eq:
         legalize_cmp(bb, i);
         break;
       case Opcode::idiv:

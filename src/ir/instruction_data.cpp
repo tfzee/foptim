@@ -82,6 +82,7 @@ bool InstrData::has_result() const {
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
   case InstrType::ICmp:
+  case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
     return true;
@@ -108,6 +109,7 @@ bool InstrData::is_critical() const {
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
   case InstrType::ICmp:
+  case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
     return false;
@@ -129,20 +131,28 @@ bool InstrData::is_commutative() const {
     case BinaryInstrSubType::FloatMul:
       return false;
     }
+  case InstrType::FCmp:
+    switch ((FCmpInstrSubType)subtype) {
+    case FCmpInstrSubType::INVALID:
+    case FCmpInstrSubType::AlwFalse:
+    case FCmpInstrSubType::ORD:
+    case FCmpInstrSubType::UNO:
+    case FCmpInstrSubType::OEQ:
+    case FCmpInstrSubType::ONE:
+    case FCmpInstrSubType::UEQ:
+    case FCmpInstrSubType::UNE:
+    case FCmpInstrSubType::AlwTrue:
+      return true;
+    default:
+      return false;
+    }
   case InstrType::ICmp:
     switch ((ICmpInstrSubType)subtype) {
     case ICmpInstrSubType::INVALID:
     case ICmpInstrSubType::NE:
     case ICmpInstrSubType::EQ:
       return true;
-    case ICmpInstrSubType::SLT:
-    case ICmpInstrSubType::ULT:
-    case ICmpInstrSubType::SGT:
-    case ICmpInstrSubType::UGT:
-    case ICmpInstrSubType::UGE:
-    case ICmpInstrSubType::ULE:
-    case ICmpInstrSubType::SGE:
-    case ICmpInstrSubType::SLE:
+    default:
       return false;
     }
   case InstrType::DirectCallInstr:
@@ -171,6 +181,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
   case InstrType::ICmp:
+  case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
     return false;
@@ -188,6 +199,7 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
   case InstrType::ICmp:
+  case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
     return false;
@@ -269,6 +281,14 @@ InstrData InstrData::get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty) {
   // res.args.reserve(2);
   return res;
 }
+
+InstrData InstrData::get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty) {
+  auto res = InstrData{InstrType::FCmp, (u32)cmp_ty, ty,
+                       BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(2);
+  return res;
+}
+
 InstrData InstrData::get_return(TypeR ty) {
   auto res =
       InstrData{InstrType::ReturnInstr, ty, BasicBlock(BasicBlock::invalid())};

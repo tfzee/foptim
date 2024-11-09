@@ -441,41 +441,41 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     }
     return;
   }
-  case fmir::Opcode::cjmp_ne:
-  case fmir::Opcode::cjmp_eq:
-  case fmir::Opcode::cjmp_ult:
-  case fmir::Opcode::cjmp_ule:
-  case fmir::Opcode::cjmp_ugt:
-  case fmir::Opcode::cjmp_uge:
-  case fmir::Opcode::cjmp_sge:
-  case fmir::Opcode::cjmp_slt: {
+  case fmir::Opcode::cjmp_int_ne:
+  case fmir::Opcode::cjmp_int_eq:
+  case fmir::Opcode::cjmp_int_ult:
+  case fmir::Opcode::cjmp_int_ule:
+  case fmir::Opcode::cjmp_int_ugt:
+  case fmir::Opcode::cjmp_int_uge:
+  case fmir::Opcode::cjmp_int_sge:
+  case fmir::Opcode::cjmp_int_slt: {
     auto a = convert_operand(cc, reg_to_op, instr.args[0]);
     auto b = convert_operand(cc, reg_to_op, instr.args[1]);
     cc.emit(Inst::kIdCmp, a, b);
     switch (instr.op) {
 
-    case fmir::Opcode::cjmp_ne:
+    case fmir::Opcode::cjmp_int_ne:
       cc.emit(Inst::kIdJne, bb_labels[instr.bb_ref]);
       break;
-    case fmir::Opcode::cjmp_eq:
+    case fmir::Opcode::cjmp_int_eq:
       cc.emit(Inst::kIdJe, bb_labels[instr.bb_ref]);
       break;
-    case fmir::Opcode::cjmp_ult:
+    case fmir::Opcode::cjmp_int_ult:
       cc.emit(Inst::kIdJb, bb_labels[instr.bb_ref]);
       break;
-    case fmir::Opcode::cjmp_ule:
+    case fmir::Opcode::cjmp_int_ule:
       cc.emit(Inst::kIdJbe, bb_labels[instr.bb_ref]);
       break;
-    case fmir::Opcode::cjmp_ugt:
+    case fmir::Opcode::cjmp_int_ugt:
       cc.emit(Inst::kIdJa, bb_labels[instr.bb_ref]);
       break;
-    case fmir::Opcode::cjmp_uge:
+    case fmir::Opcode::cjmp_int_uge:
       cc.emit(Inst::kIdJae, bb_labels[instr.bb_ref]);
       break;
-    case fmir::Opcode::cjmp_slt:
+    case fmir::Opcode::cjmp_int_slt:
       cc.emit(Inst::kIdJl, bb_labels[instr.bb_ref]);
       break;
-    case fmir::Opcode::cjmp_sge:
+    case fmir::Opcode::cjmp_int_sge:
       cc.emit(Inst::kIdJge, bb_labels[instr.bb_ref]);
       break;
     default:

@@ -239,6 +239,77 @@ inline void convert_call(const llvm::Instruction &any_instr,
   valueToValue.insert({&any_instr, res});
 }
 
+inline bool convert_fcmp(const llvm::Instruction &any_instr,
+                         const llvm::FCmpInst *cmp_inst,
+                         foptim::fir::Context &fctx,
+                         foptim::fir::FunctionR ffunc,
+                         foptim::fir::Builder &builder, V2VMap &valueToValue,
+                         llvm::Module &mod, B2BMap &b2b) {
+  auto a = convert_instr_arg(cmp_inst->getOperand(0), fctx, ffunc, builder,
+                             valueToValue, mod, b2b);
+  auto b = convert_instr_arg(cmp_inst->getOperand(1), fctx, ffunc, builder,
+                             valueToValue, mod, b2b);
+
+  foptim::fir::FCmpInstrSubType pred = foptim::fir::FCmpInstrSubType::AlwTrue;
+  switch (cmp_inst->getPredicate()) {
+  case llvm::CmpInst::FCMP_FALSE:
+    pred = foptim::fir::FCmpInstrSubType::AlwFalse;
+    break;
+  case llvm::CmpInst::FCMP_OEQ:
+    pred = foptim::fir::FCmpInstrSubType::OEQ;
+    break;
+  case llvm::CmpInst::FCMP_OGT:
+    pred = foptim::fir::FCmpInstrSubType::OGT;
+    break;
+  case llvm::CmpInst::FCMP_OGE:
+    pred = foptim::fir::FCmpInstrSubType::OGE;
+    break;
+  case llvm::CmpInst::FCMP_OLT:
+    pred = foptim::fir::FCmpInstrSubType::OLT;
+    break;
+  case llvm::CmpInst::FCMP_OLE:
+    pred = foptim::fir::FCmpInstrSubType::OLE;
+    break;
+  case llvm::CmpInst::FCMP_ONE:
+    pred = foptim::fir::FCmpInstrSubType::ONE;
+    break;
+  case llvm::CmpInst::FCMP_ORD:
+    pred = foptim::fir::FCmpInstrSubType::ORD;
+    break;
+  case llvm::CmpInst::FCMP_UNO:
+    pred = foptim::fir::FCmpInstrSubType::UNO;
+    break;
+  case llvm::CmpInst::FCMP_UEQ:
+    pred = foptim::fir::FCmpInstrSubType::UEQ;
+    break;
+  case llvm::CmpInst::FCMP_UGT:
+    pred = foptim::fir::FCmpInstrSubType::UGT;
+    break;
+  case llvm::CmpInst::FCMP_UGE:
+    pred = foptim::fir::FCmpInstrSubType::UGE;
+    break;
+  case llvm::CmpInst::FCMP_ULT:
+    pred = foptim::fir::FCmpInstrSubType::ULT;
+    break;
+  case llvm::CmpInst::FCMP_ULE:
+    pred = foptim::fir::FCmpInstrSubType::ULE;
+    break;
+  case llvm::CmpInst::FCMP_UNE:
+    pred = foptim::fir::FCmpInstrSubType::UNE;
+    break;
+  case llvm::CmpInst::FCMP_TRUE:
+    pred = foptim::fir::FCmpInstrSubType::AlwTrue;
+    break;
+  case llvm::CmpInst::BAD_FCMP_PREDICATE: {
+  }
+  default:
+    TODO("unreach");
+  }
+  auto res = builder.build_float_cmp(a, b, pred);
+  valueToValue.insert({&any_instr, res});
+  return true;
+}
+
 inline bool convert_icmp(const llvm::Instruction &any_instr,
                          const llvm::ICmpInst *cmp_inst,
                          foptim::fir::Context &fctx,
@@ -246,81 +317,48 @@ inline bool convert_icmp(const llvm::Instruction &any_instr,
                          foptim::fir::Builder &builder, V2VMap &valueToValue,
                          llvm::Module &mod, B2BMap &b2b) {
 
+  auto a = convert_instr_arg(cmp_inst->getOperand(0), fctx, ffunc, builder,
+                             valueToValue, mod, b2b);
+  auto b = convert_instr_arg(cmp_inst->getOperand(1), fctx, ffunc, builder,
+                             valueToValue, mod, b2b);
+  foptim::fir::ICmpInstrSubType pred = foptim::fir::ICmpInstrSubType::EQ;
   switch (cmp_inst->getPredicate()) {
   case llvm::CmpInst::ICMP_UGE:
+    pred = foptim::fir::ICmpInstrSubType::UGE;
+    break;
   case llvm::CmpInst::ICMP_SLE:
+    pred = foptim::fir::ICmpInstrSubType::SLE;
+    break;
   case llvm::CmpInst::ICMP_ULE:
+    pred = foptim::fir::ICmpInstrSubType::ULE;
+    break;
   case llvm::CmpInst::ICMP_SGE:
+    pred = foptim::fir::ICmpInstrSubType::SGE;
+    break;
   case llvm::CmpInst::ICMP_EQ:
+    pred = foptim::fir::ICmpInstrSubType::EQ;
+    break;
   case llvm::CmpInst::ICMP_NE:
+    pred = foptim::fir::ICmpInstrSubType::NE;
+    break;
   case llvm::CmpInst::ICMP_UGT:
+    pred = foptim::fir::ICmpInstrSubType::UGT;
+    break;
   case llvm::CmpInst::ICMP_SGT:
+    pred = foptim::fir::ICmpInstrSubType::SGT;
+    break;
   case llvm::CmpInst::ICMP_ULT:
-  case llvm::CmpInst::ICMP_SLT: {
-    auto a = convert_instr_arg(cmp_inst->getOperand(0), fctx, ffunc, builder,
-                               valueToValue, mod, b2b);
-    auto b = convert_instr_arg(cmp_inst->getOperand(1), fctx, ffunc, builder,
-                               valueToValue, mod, b2b);
-    foptim::fir::ICmpInstrSubType pred = foptim::fir::ICmpInstrSubType::EQ;
-    switch (cmp_inst->getPredicate()) {
-    case llvm::CmpInst::ICMP_EQ:
-      pred = foptim::fir::ICmpInstrSubType::EQ;
-      break;
-    case llvm::CmpInst::ICMP_NE:
-      pred = foptim::fir::ICmpInstrSubType::NE;
-      break;
-    case llvm::CmpInst::ICMP_UGT:
-      pred = foptim::fir::ICmpInstrSubType::UGT;
-      break;
-    case llvm::CmpInst::ICMP_UGE:
-      pred = foptim::fir::ICmpInstrSubType::UGE;
-      break;
-    case llvm::CmpInst::ICMP_ULT:
-      pred = foptim::fir::ICmpInstrSubType::ULT;
-      break;
-    case llvm::CmpInst::ICMP_ULE:
-      pred = foptim::fir::ICmpInstrSubType::ULE;
-      break;
-    case llvm::CmpInst::ICMP_SGT:
-      pred = foptim::fir::ICmpInstrSubType::SGT;
-      break;
-    case llvm::CmpInst::ICMP_SGE:
-      pred = foptim::fir::ICmpInstrSubType::SGE;
-      break;
-    case llvm::CmpInst::ICMP_SLT:
-      pred = foptim::fir::ICmpInstrSubType::SLT;
-      break;
-    case llvm::CmpInst::ICMP_SLE:
-      pred = foptim::fir::ICmpInstrSubType::SLE;
-      break;
-    default:
-      ASSERT(false);
-    }
-    auto res = builder.build_int_cmp(a, b, pred);
-    valueToValue.insert({&any_instr, res});
-    return true;
+    pred = foptim::fir::ICmpInstrSubType::ULT;
+    break;
+  case llvm::CmpInst::ICMP_SLT:
+    pred = foptim::fir::ICmpInstrSubType::SLT;
+    break;
+  default:
+    TODO("unreach");
   }
-  case llvm::CmpInst::FCMP_FALSE:
-  case llvm::CmpInst::FCMP_OEQ:
-  case llvm::CmpInst::FCMP_OGT:
-  case llvm::CmpInst::FCMP_OGE:
-  case llvm::CmpInst::FCMP_OLT:
-  case llvm::CmpInst::FCMP_OLE:
-  case llvm::CmpInst::FCMP_ONE:
-  case llvm::CmpInst::FCMP_ORD:
-  case llvm::CmpInst::FCMP_UNO:
-  case llvm::CmpInst::FCMP_UEQ:
-  case llvm::CmpInst::FCMP_UGT:
-  case llvm::CmpInst::FCMP_UGE:
-  case llvm::CmpInst::FCMP_ULT:
-  case llvm::CmpInst::FCMP_ULE:
-  case llvm::CmpInst::FCMP_UNE:
-  case llvm::CmpInst::FCMP_TRUE:
-  case llvm::CmpInst::BAD_FCMP_PREDICATE:
-  case llvm::CmpInst::BAD_ICMP_PREDICATE:
-    assert(false);
-  }
-  std::abort();
+  auto res = builder.build_int_cmp(a, b, pred);
+  valueToValue.insert({&any_instr, res});
+  return true;
 }
 
 inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
@@ -396,6 +434,12 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::ICmpInst>(&any_instr)) {
     if (convert_icmp(any_instr, instr, fctx, ffunc, builder, valueToValue, mod,
+                     b2b)) {
+      return;
+    }
+  } else if (const auto *instr =
+                 llvm::dyn_cast_or_null<llvm::FCmpInst>(&any_instr)) {
+    if (convert_fcmp(any_instr, instr, fctx, ffunc, builder, valueToValue, mod,
                      b2b)) {
       return;
     }
@@ -587,10 +631,10 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   }
 
   // FIXME: implement this
-  //     The issue is that the initial bbs arguemtns in this IR are the function
-  //     args
-  //       so we need to insert an aditional bb prior that handles those so the
-  //       actual entry then can handle these phis
+  //     The issue is that the initial bbs arguemtns in this IR are the
+  //     function args
+  //       so we need to insert an aditional bb prior that handles those so
+  //       the actual entry then can handle these phis
   ASSERT(entry_bb.phis().begin() == entry_bb.phis().end());
 
   while (!worklist.empty()) {
@@ -620,11 +664,11 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
     }
   }
 
-  // now we already generated all bbs and their arguments but not the actual phi
-  // arguments -> to branch arguments so we need to fix em up
+  // now we already generated all bbs and their arguments but not the actual
+  // phi arguments -> to branch arguments so we need to fix em up
   {
-    // so we iterate over all phis and their arguments find their corresponding
-    // fbb and there insert as bb arg
+    // so we iterate over all phis and their arguments find their
+    // corresponding fbb and there insert as bb arg
     //  the phi arg
     foptim::fir::Builder build{ffunc.func->basic_blocks[0]};
     for (auto &bb : func) {

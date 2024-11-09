@@ -237,6 +237,18 @@ public:
       a.value->type = ctx->copy(instr->get_type());
       return a;
     }
+    case fir::InstrType::FCmp: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() || !b.is_const()) {
+        return ConstantValue::Top();
+      }
+      failure({"Imply fcmp", instr});
+      return ConstantValue::Bottom();
+    }
     case fir::InstrType::ICmp: {
       auto a = eval(instr->get_arg(0));
       auto b = eval(instr->get_arg(1));
@@ -249,7 +261,8 @@ public:
       }
 
       if (!a.value->is_int() || !b.value->is_int()) {
-        TODO("IMPL");
+        failure({"Impl icmp on non ints", instr});
+        return ConstantValue::Bottom();
       }
 
       utils::Debug << (i64)a.value->as_int() << " cmp "

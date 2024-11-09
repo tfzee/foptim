@@ -12,6 +12,7 @@ struct ContextData;
 
 enum class InstrType : u8 {
   ICmp,
+  FCmp,
   BinaryInstr,
   AllocaInstr,
 
@@ -56,6 +57,26 @@ enum class ICmpInstrSubType : u32 {
   ULE,
   SGE,
   SLE
+};
+
+enum class FCmpInstrSubType : u32 {
+  INVALID = 0,
+  AlwFalse,
+  OEQ,
+  OGT,
+  OGE,
+  OLT,
+  OLE,
+  ONE,
+  ORD,
+  UNO,
+  UEQ,
+  UGT,
+  UGE,
+  ULT,
+  ULE,
+  UNE,
+  AlwTrue,
 };
 
 enum class BinaryInstrSubType : u32 {
@@ -179,6 +200,43 @@ public:
       case ICmpInstrSubType::SLE:
         return "IntSLE";
       }
+    case InstrType::FCmp:
+      switch ((FCmpInstrSubType)subtype) {
+      case FCmpInstrSubType::INVALID:
+        return "FloatINVALID";
+      case FCmpInstrSubType::AlwFalse:
+        return "FloatAlwFalse";
+      case FCmpInstrSubType::OEQ:
+        return "FloatOEQ";
+      case FCmpInstrSubType::OGT:
+        return "FloatOGT";
+      case FCmpInstrSubType::OGE:
+        return "FloatOGE";
+      case FCmpInstrSubType::OLT:
+        return "FloatOLT";
+      case FCmpInstrSubType::OLE:
+        return "FloatOLE";
+      case FCmpInstrSubType::ONE:
+        return "FloatONE";
+      case FCmpInstrSubType::ORD:
+        return "FloatORD";
+      case FCmpInstrSubType::UNO:
+        return "FloatUNO";
+      case FCmpInstrSubType::UEQ:
+        return "FloatUEQ";
+      case FCmpInstrSubType::UGT:
+        return "FloatUGT";
+      case FCmpInstrSubType::UGE:
+        return "FloatUGE";
+      case FCmpInstrSubType::ULT:
+        return "FloatULT";
+      case FCmpInstrSubType::ULE:
+        return "FloatULE";
+      case FCmpInstrSubType::UNE:
+        return "FloatUNE";
+      case FCmpInstrSubType::AlwTrue:
+        return "FloatAlwTrue";
+      }
     }
     ASSERT_M(false, "Add your instruction to the get_name function");
     return "UNKNOWN";
@@ -227,6 +285,7 @@ public:
   static InstrData get_sext(TypeR ty);
   static InstrData get_zext(TypeR ty);
   static InstrData get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty);
+  static InstrData get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty);
   static InstrData get_return(TypeR ty);
   static InstrData get_direct_call(TypeR ty);
   static InstrData get_alloca(TypeR ty);

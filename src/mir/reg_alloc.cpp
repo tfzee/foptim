@@ -26,6 +26,9 @@ bool type_can_share_register(fir::TypeR a, fir::TypeR b) {
   if ((a->is_int() || a->is_ptr()) && (b->is_int() || b->is_ptr())) {
     return true;
   }
+  if (a->is_float()&& b->is_float()) {
+    return true;
+  }
   return a->eql(*b.get_raw_ptr());
 }
 
@@ -40,7 +43,7 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
       return reg;
     }
 
-    if (lives.isLive(var, loc) || type_can_share_register(var.get_type(), ty)) {
+    if (lives.isLive(var, loc) || !type_can_share_register(var.get_type(), ty)) {
       free_regs[reg.id - 1].set(false);
     }
   }

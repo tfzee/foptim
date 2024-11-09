@@ -192,6 +192,17 @@ public:
     return ValueR(instr);
   }
 
+  ValueR build_float_cmp(ValueR a, ValueR b, FCmpInstrSubType ty) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(
+        InstrData::get_float_cmp(ctx->get_int_type(8), ty));
+    instr.add_arg(a);
+    instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_alloca(ValueR size) {
     check_bb_set();
     Instr instr =
