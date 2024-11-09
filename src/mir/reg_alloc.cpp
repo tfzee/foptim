@@ -22,6 +22,13 @@ void DumbRegAlloc::reset() {
 //   return VReg{vreg_num};
 // }
 
+bool type_can_share_register(fir::TypeR a, fir::TypeR b) {
+  if ((a->is_int() || a->is_ptr()) && (b->is_int() || b->is_ptr())) {
+    return true;
+  }
+  return a->eql(*b.get_raw_ptr());
+}
+
 VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
                                     VRegInfo info,
                                     optim::LiveVariables &lives) {
@@ -33,8 +40,7 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
       return reg;
     }
 
-    if (lives.isLive(var, loc) || reg.info != info ||
-        !var.get_type()->eql(ty->get_raw())) {
+    if (lives.isLive(var, loc) || type_can_share_register(var.get_type(), ty)) {
       free_regs[reg.id - 1].set(false);
     }
   }
@@ -104,7 +110,7 @@ void DumbRegAlloc::alloc_func(fir::Function &func,
     const u32 n_args = curr->get_args().size();
     for (u32 arg_id = 0; arg_id < n_args; arg_id++) {
       auto new_value = fir::ValueR(curr, arg_id);
-      //entry block args we always need
+      // entry block args we always need
       if (new_value.get_n_uses() > 0 || func.get_bbs()[0] == curr) {
         ASSERT(!mapping.contains(new_value));
         auto new_reg = get_new_register(new_value, lives);
