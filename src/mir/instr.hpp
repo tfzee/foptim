@@ -32,6 +32,21 @@ enum class Opcode : u32 {
   cjmp_int_uge,
   cjmp_int_ne,
   cjmp_int_eq,
+  cjmp_flt_oeq,
+  cjmp_flt_ogt,
+  cjmp_flt_oge,
+  cjmp_flt_olt,
+  cjmp_flt_ole,
+  cjmp_flt_one,
+  cjmp_flt_ord,
+  cjmp_flt_uno,
+  cjmp_flt_ueq,
+  cjmp_flt_ugt,
+  cjmp_flt_uge,
+  cjmp_flt_ult,
+  cjmp_flt_ule,
+  cjmp_flt_une,
+
   cjmp,
   jmp,
 
@@ -81,21 +96,49 @@ constexpr const char *getNameFromOpcode(Opcode code) {
   case Opcode::invoke:
     return "#invoke";
   case Opcode::cjmp_int_slt:
-    return "cjmp_slt";
+    return "cjmp_int_slt";
   case Opcode::cjmp_int_sge:
-    return "cjmp_sge";
+    return "cjmp_int_sge";
   case Opcode::cjmp_int_ne:
-    return "cjmp_ne";
+    return "cjmp_int_ne";
   case Opcode::cjmp_int_eq:
-    return "cjmp_eq";
+    return "cjmp_int_eq";
   case Opcode::cjmp_int_ult:
-    return "cjmp_ult";
+    return "cjmp_int_ult";
   case Opcode::cjmp_int_ule:
-    return "cjmp_ule";
+    return "cjmp_int_ule";
   case Opcode::cjmp_int_uge:
-    return "cjmp_uge";
+    return "cjmp_int_uge";
   case Opcode::cjmp_int_ugt:
-    return "cjmp_ugt";
+    return "cjmp_int_ugt";
+  case Opcode::cjmp_flt_oeq:
+    return "cjmp_flt_oeq";
+  case Opcode::cjmp_flt_ogt:
+    return "cjmp_flt_ogt";
+  case Opcode::cjmp_flt_oge:
+    return "cjmp_flt_oge";
+  case Opcode::cjmp_flt_olt:
+    return "cjmp_flt_olt";
+  case Opcode::cjmp_flt_ole:
+    return "cjmp_flt_ole";
+  case Opcode::cjmp_flt_one:
+    return "cjmp_flt_one";
+  case Opcode::cjmp_flt_ord:
+    return "cjmp_flt_ord";
+  case Opcode::cjmp_flt_uno:
+    return "cjmp_flt_uno";
+  case Opcode::cjmp_flt_ueq:
+    return "cjmp_flt_ueq";
+  case Opcode::cjmp_flt_ugt:
+    return "cjmp_flt_ugt";
+  case Opcode::cjmp_flt_uge:
+    return "cjmp_flt_uge";
+  case Opcode::cjmp_flt_ult:
+    return "cjmp_flt_ult";
+  case Opcode::cjmp_flt_ule:
+    return "cjmp_flt_ule";
+  case Opcode::cjmp_flt_une:
+    return "cjmp_flt_une";
   }
 }
 

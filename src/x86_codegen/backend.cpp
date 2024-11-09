@@ -453,7 +453,6 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto b = convert_operand(cc, reg_to_op, instr.args[1]);
     cc.emit(Inst::kIdCmp, a, b);
     switch (instr.op) {
-
     case fmir::Opcode::cjmp_int_ne:
       cc.emit(Inst::kIdJne, bb_labels[instr.bb_ref]);
       break;
@@ -480,6 +479,68 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       break;
     default:
       TODO("UNREAC");
+    }
+    return;
+  }
+  case fmir::Opcode::cjmp_flt_oeq:
+  case fmir::Opcode::cjmp_flt_ogt:
+  case fmir::Opcode::cjmp_flt_oge:
+  case fmir::Opcode::cjmp_flt_olt:
+  case fmir::Opcode::cjmp_flt_ole:
+  case fmir::Opcode::cjmp_flt_one:
+  case fmir::Opcode::cjmp_flt_ord:
+  case fmir::Opcode::cjmp_flt_uno:
+  case fmir::Opcode::cjmp_flt_ueq:
+  case fmir::Opcode::cjmp_flt_ugt:
+  case fmir::Opcode::cjmp_flt_uge:
+  case fmir::Opcode::cjmp_flt_ult:
+  case fmir::Opcode::cjmp_flt_ule:
+  case fmir::Opcode::cjmp_flt_une: {
+    auto a = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto b = convert_operand(cc, reg_to_op, instr.args[1]);
+    bool is_ordered = instr.op == fmir::Opcode::cjmp_flt_oeq ||
+                      instr.op == fmir::Opcode::cjmp_flt_ogt ||
+                      instr.op == fmir::Opcode::cjmp_flt_oge ||
+                      instr.op == fmir::Opcode::cjmp_flt_olt ||
+                      instr.op == fmir::Opcode::cjmp_flt_ole ||
+                      instr.op == fmir::Opcode::cjmp_flt_one ||
+                      instr.op == fmir::Opcode::cjmp_flt_ord;
+    if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(is_ordered ? Inst::kIdComisd : Inst::kIdUcomisd, a, b);
+    } else if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(is_ordered ? Inst::kIdComiss : Inst::kIdUcomiss, a, b);
+    } else {
+      TODO("UNREACH");
+    }
+    switch (instr.op) {
+    case fmir::Opcode::cjmp_flt_oeq:
+    case fmir::Opcode::cjmp_flt_ueq:
+      cc.emit(Inst::kIdJe, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_flt_une:
+    case fmir::Opcode::cjmp_flt_one:
+      cc.emit(Inst::kIdJne, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_flt_ugt:
+    case fmir::Opcode::cjmp_flt_ogt:
+      cc.emit(Inst::kIdJg, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_flt_uge:
+    case fmir::Opcode::cjmp_flt_oge:
+      cc.emit(Inst::kIdJge, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_flt_ult:
+    case fmir::Opcode::cjmp_flt_olt:
+      cc.emit(Inst::kIdJl, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_flt_ule:
+    case fmir::Opcode::cjmp_flt_ole:
+      cc.emit(Inst::kIdJle, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_flt_ord:
+    case fmir::Opcode::cjmp_flt_uno:
+    default:
+      TODO("UNREACH");
     }
     return;
   }
