@@ -5,9 +5,10 @@
 namespace foptim::fmir {
 
 MArgument Legalizer::get_reg(Type type) {
-  auto size = get_size(type);
-  ASSERT(size <= 255);
-  return {VReg{unique_reg_id++, (u8)size}, type};
+  // auto size = get_size(type);
+  // ASSERT(size <= 255);
+  // bool is_float = type == Type::Float32 || type == Type::Float64;
+  return {VReg{unique_reg_id++, type}, type};
 }
 
 u32 Legalizer::move_arg_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
@@ -85,7 +86,8 @@ void Legalizer::legalize_idiv(MBB &bb, u32 indx) {
   {
     MInstr &instr = bb.instrs[indx];
     if (!instr.args[3].isReg()) {
-      //use the type of the result register since if this is a constant its type might be to big
+      // use the type of the result register since if this is a constant its
+      // type might be to big
       indx = move_arg_to_reg(bb, indx, 3, instr.args[0].ty);
     }
   }

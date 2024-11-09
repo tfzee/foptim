@@ -170,8 +170,9 @@ Imm convert_imm(Compiler & /*unused*/, u64 imm, fmir::Type ty) {
   // utils::Debug << "     Converting Imm: " << imm << "\n";
   switch (ty) {
   case fmir::Type::Float32:
+    return {(f32)imm};
   case fmir::Type::Float64:
-    TODO("impl");
+    return {(f64)imm};
   case fmir::Type::Int8:
   case fmir::Type::Int16:
   case fmir::Type::Int32:
@@ -305,21 +306,6 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto o1 = convert_operand(cc, reg_to_op, instr.args[1]);
 
     u32 o0_size = get_size(instr.args[0].ty);
-    // u32 o1_size = get_size(instr.args[1].ty);
-    // if (o0.isMem() || o1.isMem()) {
-    //   ASSERT(instr.args[0].ty == instr.args[1].ty);
-    // }
-    // } else if (o0.isMem()) {
-    //   // utils::Debug << "WAS SETTING SIZE 0??" << instr.args[1].ty << " => "
-    //   <<
-    //   // o1_size << "\n";
-    //   // o0_size = o1_size;
-    //   o0.as<Mem>().setSize(o0_size);
-    // } else if (o1.isMem()) {
-    //   // utils::Debug << "WAS SETTING SIZE 1??" << " => " << o1_size << "\n";
-    //   // o1_size = o0_size;
-    //   o1.as<Mem>().setSize(o1_size);
-    // }
 
     if (instr.args[0].ty == instr.args[1].ty) {
       cc.emit(Inst::kIdMov, o0, o1);
@@ -371,6 +357,30 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       cc.emit(Inst::kIdMov, target, o0);
       cc.emit(Inst::kIdSub, target, o1);
     }
+    return;
+  }
+  case fmir::Opcode::fadd: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    cc.emit(Inst::kIdAddss, target, o0, o1);
+    return;
+  }
+  case fmir::Opcode::fsub: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    cc.emit(Inst::kIdSubss, target, o0, o1);
+    return;
+  }
+  case fmir::Opcode::fmul: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    cc.emit(Inst::kIdMulss, target, o0, o1);
     return;
   }
   case fmir::Opcode::idiv: {

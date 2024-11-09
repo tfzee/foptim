@@ -56,13 +56,27 @@ struct ConstantValue {
     return std::holds_alternative<IntValue>(value);
   }
 
+  [[nodiscard]] bool is_float() const {
+    return std::holds_alternative<FloatValue>(value);
+  }
+
+  [[nodiscard]] f64 as_float() const {
+    if (const auto *res = std::get_if<FloatValue>(&value)) {
+      if(type->as_float() == 32){
+        return (f32)res->data;
+      }
+      return res->data;
+    }
+    TODO("UNREACH");
+  }
+
   [[nodiscard]] u64 as_int() const {
     if (const auto *res = std::get_if<IntValue>(&value)) {
       // u32 bitwidth = type->as_int();
       // const u64 mask = ((u64)1 << bitwidth) - 1;
       return res->data; // & mask;
     }
-    std::abort();
+    TODO("UNREACH");
   }
 
   [[nodiscard]] Global as_global() const {

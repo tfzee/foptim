@@ -18,9 +18,10 @@ namespace foptim::fmir {
 
 MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
                      ExtraMatchData &data) {
-  ASSERT(get_size(reg_type) <= 255);
-  auto helper = data.alloc.get_new_register(
-      VRegInfo{static_cast<u8>(get_size(reg_type))});
+  // ASSERT(get_size(reg_type) <= 255);
+
+  VReg helper = data.alloc.get_new_register(
+      VRegInfo{reg_type});
   auto helper_arg = MArgument(helper, reg_type);
   res.result.emplace_back(Opcode::mov, helper_arg, val);
   return helper_arg;
@@ -258,9 +259,18 @@ Type convert_type(fir::TypeR type) {
     if (width <= 64) {
       return Type::Int64;
     }
-    ASSERT(false);
+    TODO("IMPL");
   } else if (type->is_ptr()) {
     return Type::Int64;
+  } else if (type->is_float()) {
+    auto width = type->as_float();
+    if (width == 32) {
+      return Type::Float32;
+    }
+    if (width == 64) {
+      return Type::Float64;
+    }
+    TODO("IMPL");
   } else {
     utils::Debug << type << "\n";
     ASSERT(false);
@@ -350,19 +360,24 @@ MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
     if (consti->is_int()) {
       return {consti->as_int()};
     }
+    if (consti->is_float()) {
+      return {consti->as_float()};
+    }
     if (consti->is_global()) {
       auto global = consti->as_global();
       // TODO: idk if i64 is right here
 
       Type type_id = convert_type(val.get_type());
-      auto helper = MArgument{alloc.get_new_register(VRegInfo{8}), Type::Int64};
+      auto helper = MArgument{
+          alloc.get_new_register(VRegInfo{Type::Int64}),
+          Type::Int64};
       auto arg = MArgument::Mem(
           "G_" + std::to_string((u64)global.get_raw_ptr()), type_id);
       res.emplace_back(Opcode::lea, helper, arg);
       return helper;
     }
   } else {
-    ASSERT(val.get_type()->is_int() || val.get_type()->is_ptr());
+    // ASSERT(val.get_type()->is_int() || val.get_type()->is_ptr());
     Type type_id = convert_type(val.get_type());
     return {alloc.get_register(val), type_id};
   }
@@ -454,8 +469,8 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
       // with the saved from
       PhiPair pair = *pairs.begin();
       pairs.erase(pairs.begin() + 0);
-      auto save_reg =
-          data.alloc.get_new_register(VRegInfo{(u8)get_size(pair.from.ty)});
+      auto save_reg = data.alloc.get_new_register(
+          VRegInfo{pair.from.ty});
       auto save_arg = MArgument{save_reg, pair.from.ty};
       res.result.emplace_back(Opcode::mov, save_arg, pair.from);
       pairs.push_back(PhiPair{.to = pair.to, .from = save_arg});
@@ -486,6 +501,12 @@ constexpr auto base_pats() {
                          (u32)fir::BinaryInstrSubType::IntMul};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSRem};
+  auto FloatAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::FloatAdd};
+  auto FloatSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::FloatSub};
+  auto FloatMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::FloatMul};
   auto EQNode =
       Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::EQ};
   auto SLTNode =
@@ -782,7 +803,7 @@ constexpr auto base_pats() {
 
         if (res_reg.ty != a0.ty) {
           auto res_reg =
-              data.alloc.get_new_register(VRegInfo{(u8)get_size(res_ty)});
+              data.alloc.get_new_register(VRegInfo{res_ty});
           auto helper_reg0 = MArgument(res_reg, res_ty);
 
           res.result.emplace_back(Opcode::mov, helper_reg0, a0);
@@ -794,7 +815,7 @@ constexpr auto base_pats() {
           // then we gucci
         } else if (res_reg.ty != a1.ty) {
           auto res_reg =
-              data.alloc.get_new_register(VRegInfo{(u8)get_size(res_ty)});
+              data.alloc.get_new_register(VRegInfo{res_ty});
           auto helper_reg1 = MArgument(res_reg, res_ty);
 
           res.result.emplace_back(Opcode::mov, helper_reg1, a1);
@@ -989,7 +1010,39 @@ constexpr auto base_pats() {
         // }
         return true;
       }});
+  res.push_back(Pattern{
+      {FloatAddNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto f_add_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_add_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArg(f_add_instr->args[1], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
 
+        res.result.emplace_back(Opcode::fadd, res_reg, a1, a2);
+        return true;
+      }});
+  res.push_back(Pattern{
+      {FloatSubNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto f_sub_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_sub_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArg(f_sub_instr->args[1], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
+
+        res.result.emplace_back(Opcode::fsub, res_reg, a1, a2);
+        return true;
+      }});
+  res.push_back(Pattern{
+      {FloatMulNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto f_mul_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArg(f_mul_instr->args[1], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
+
+        res.result.emplace_back(Opcode::fmul, res_reg, a1, a2);
+        return true;
+      }});
   return res;
 }
 

@@ -17,6 +17,9 @@ enum class Opcode : u32 {
   sub,
   mul,
   idiv,
+  fadd,
+  fsub,
+  fmul,
 
   push,
   pop,
@@ -67,14 +70,20 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     return "mov_zx";
   case Opcode::mov_sx:
     return "mov_sx";
-  case Opcode::add:
-    return "add";
   case Opcode::idiv:
     return "idiv";
+  case Opcode::add:
+    return "add";
   case Opcode::sub:
     return "sub";
   case Opcode::mul:
     return "mul";
+  case Opcode::fadd:
+    return "fadd";
+  case Opcode::fsub:
+    return "fsub";
+  case Opcode::fmul:
+    return "fmul";
   case Opcode::icmp_slt:
     return "icmp_slt";
   case Opcode::icmp_eq:
@@ -209,7 +218,7 @@ enum class VRegType : u8 {
   mm13,
   mm14,
   mm15 = 31,
-  //TODO: support the other registers that come with avx so 16 -> 31
+  // TODO: support the other registers that come with avx so 16 -> 31
   N_REGS,
 };
 
@@ -226,54 +235,54 @@ struct VRegInfo {
   VRegClass reg_class;
 
   constexpr VRegInfo()
-      : ty(VRegType::Virtual), reg_size(0),
-        reg_class(VRegClass::GeneralPurpose) {}
-  explicit constexpr VRegInfo(u8 size)
-      : ty(VRegType::Virtual), reg_size(size),
-        reg_class(VRegClass::GeneralPurpose) {}
+      : ty(VRegType::Virtual), reg_size(0), reg_class(VRegClass::INVALID) {}
+  constexpr VRegInfo(VRegClass reg_class)
+      : ty(VRegType::Virtual), reg_size(0), reg_class(reg_class) {}
+  // explicit constexpr VRegInfo(u8 size)
+  //     : ty(VRegType::Virtual), reg_size(size),
+  //       reg_class(VRegClass::GeneralPurpose) {}
   explicit constexpr VRegInfo(u8 size, VRegClass reg_class)
       : ty(VRegType::Virtual), reg_size(size), reg_class(reg_class) {}
 
+  explicit constexpr VRegInfo(Type type)
+      : ty(VRegType::Virtual), reg_size(get_size(type)),
+        reg_class(VRegClass::GeneralPurpose) {
+    if (type == Type::Float32 || type == Type::Float64) {
+      reg_class = VRegClass::Float;
+    } else if (type == Type::INVALID) {
+      reg_class = VRegClass::INVALID;
+    }
+  }
   explicit constexpr VRegInfo(VRegType ty, u8 size)
       : ty(ty), reg_size(size), reg_class(VRegClass::GeneralPurpose) {}
 
   static constexpr VRegInfo RSP() {
-    VRegInfo res{};
+    VRegInfo res{Type::Int64};
     res.ty = VRegType::SP;
-    res.reg_size = 8;
-    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
   static constexpr VRegInfo ESP() {
-    VRegInfo res{};
+    VRegInfo res{Type::Int32};
     res.ty = VRegType::SP;
-    res.reg_size = 4;
-    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
   static constexpr VRegInfo RAX() {
-    VRegInfo res{};
+    VRegInfo res{Type::Int64};
     res.ty = VRegType::A;
-    res.reg_size = 8;
-    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
   static constexpr VRegInfo EAX() {
-    VRegInfo res{};
+    VRegInfo res{Type::Int32};
     res.ty = VRegType::A;
-    res.reg_size = 4;
-    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
   static constexpr VRegInfo EDX() {
-    VRegInfo res{};
+    VRegInfo res{Type::Int32};
     res.ty = VRegType::D;
-    res.reg_size = 4;
-    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
@@ -295,7 +304,10 @@ public:
   constexpr VReg() : id(0) {}
   constexpr VReg(u64 id) : id(id) {}
   constexpr VReg(u64 id, VRegInfo info) : id(id), info(info) {}
-  constexpr VReg(u64 id, u8 size) : id(id), info(size) {}
+  constexpr VReg(u64 id, u8 size, VRegClass reg_class)
+      : id(id), info(VRegInfo{size, reg_class}) {}
+  constexpr VReg(u64 id, Type ty)
+      : id(id), info(ty) {}
 
   static constexpr VReg EAX() {
     VRegInfo res_info{};
@@ -357,6 +369,8 @@ public:
     reg.info.reg_size = get_size(ty);
   }
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
+  MArgument(f64 imm)
+      : type(ArgumentType::Imm), ty(Type::Float64), imm((u64)imm) {}
   MArgument(std::string lab)
       : type(ArgumentType::Label), ty(Type::INVALID), label(std::move(lab)) {}
   MArgument(std::string lab, Type ty)

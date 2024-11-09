@@ -26,7 +26,7 @@ bool type_can_share_register(fir::TypeR a, fir::TypeR b) {
   if ((a->is_int() || a->is_ptr()) && (b->is_int() || b->is_ptr())) {
     return true;
   }
-  if (a->is_float()&& b->is_float()) {
+  if (a->is_float() && b->is_float()) {
     return true;
   }
   return a->eql(*b.get_raw_ptr());
@@ -43,7 +43,8 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
       return reg;
     }
 
-    if (lives.isLive(var, loc) || !type_can_share_register(var.get_type(), ty)) {
+    if (lives.isLive(var, loc) ||
+        !type_can_share_register(var.get_type(), ty)) {
       free_regs[reg.id - 1].set(false);
     }
   }
@@ -57,7 +58,10 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
 
 VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
                                     optim::LiveVariables &lives) {
-  return get_new_register(loc, ty, {}, lives);
+  if (ty->is_float()) {
+    return get_new_register(loc, ty, VRegInfo{VRegClass::Float}, lives);
+  }
+  return get_new_register(loc, ty, VRegInfo{VRegClass::GeneralPurpose}, lives);
 }
 
 VReg DumbRegAlloc::get_new_register(VRegInfo info) {
@@ -96,11 +100,14 @@ VReg DumbRegAlloc::get_new_register(fir::ValueR v,
     }
   }
 
+  bool is_float = v.get_type()->is_float();
   for (auto reg : free_regs) {
-    return VReg{reg + 1, (u8)v.get_type()->get_size()};
+    return VReg{reg + 1, (u8)v.get_type()->get_size(),
+                is_float ? VRegClass::Float : VRegClass::GeneralPurpose};
   }
   vreg_num++;
-  return VReg{vreg_num, (u8)v.get_type()->get_size()};
+  return VReg{vreg_num, (u8)v.get_type()->get_size(),
+              is_float ? VRegClass::Float : VRegClass::GeneralPurpose};
 }
 
 void DumbRegAlloc::alloc_func(fir::Function &func,
