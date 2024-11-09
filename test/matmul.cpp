@@ -4,7 +4,6 @@
 // RUN: %t.out || echo Result:$? | FileCheck %s
 
 // CHECK: Result:0
-// XFAIL: *
 
 #define SIZE 256
 

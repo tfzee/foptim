@@ -4,13 +4,13 @@ import os
 tests_to_record = ["matmul.cpp", "prime_sieve.c"]
 
 if __name__ == "__main__":
-    out_dir = "../test/Output"
+    out_dir = "../build/test/Output"
     hyperfine_compile_command = f"hyperfine -N --export-csv={out_dir}/compile.csv"
 
     benches = [benchy for benchy in os.listdir("../test/") if(benchy.endswith(".c") or benchy.endswith(".cpp"))]
     benches = [bench for bench in benches if bench in tests_to_record];
 
-    clang_options = "-ffreestanding -fno-exceptions"
+    clang_options = "-ffreestanding -fno-exceptions -fno-stack-protector"
     
     
     for benchy in benches:
