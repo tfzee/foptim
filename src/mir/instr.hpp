@@ -193,22 +193,55 @@ enum class VRegType : u8 {
   R13,
   R14,
   R15 = 15,
+  mm0 = 16,
+  mm1,
+  mm2,
+  mm3,
+  mm4,
+  mm5,
+  mm6,
+  mm7,
+  mm8,
+  mm9,
+  mm10,
+  mm11,
+  mm12,
+  mm13,
+  mm14,
+  mm15 = 31,
+  //TODO: support the other registers that come with avx so 16 -> 31
+  N_REGS,
+};
+
+enum class VRegClass {
+  INVALID = 0,
+  GeneralPurpose,
+  Float,
+  // Vector,
 };
 
 struct VRegInfo {
   VRegType ty;
   u8 reg_size;
+  VRegClass reg_class;
 
-  constexpr VRegInfo() : ty(VRegType::Virtual), reg_size(0) {}
+  constexpr VRegInfo()
+      : ty(VRegType::Virtual), reg_size(0),
+        reg_class(VRegClass::GeneralPurpose) {}
   explicit constexpr VRegInfo(u8 size)
-      : ty(VRegType::Virtual), reg_size(size) {}
+      : ty(VRegType::Virtual), reg_size(size),
+        reg_class(VRegClass::GeneralPurpose) {}
+  explicit constexpr VRegInfo(u8 size, VRegClass reg_class)
+      : ty(VRegType::Virtual), reg_size(size), reg_class(reg_class) {}
 
-  explicit constexpr VRegInfo(VRegType ty, u8 size) : ty(ty), reg_size(size) {}
+  explicit constexpr VRegInfo(VRegType ty, u8 size)
+      : ty(ty), reg_size(size), reg_class(VRegClass::GeneralPurpose) {}
 
   static constexpr VRegInfo RSP() {
     VRegInfo res{};
     res.ty = VRegType::SP;
     res.reg_size = 8;
+    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
@@ -216,6 +249,7 @@ struct VRegInfo {
     VRegInfo res{};
     res.ty = VRegType::SP;
     res.reg_size = 4;
+    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
@@ -223,6 +257,7 @@ struct VRegInfo {
     VRegInfo res{};
     res.ty = VRegType::A;
     res.reg_size = 8;
+    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
@@ -230,6 +265,7 @@ struct VRegInfo {
     VRegInfo res{};
     res.ty = VRegType::A;
     res.reg_size = 4;
+    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
@@ -237,6 +273,7 @@ struct VRegInfo {
     VRegInfo res{};
     res.ty = VRegType::D;
     res.reg_size = 4;
+    res.reg_class = VRegClass::GeneralPurpose;
     return res;
   }
 
@@ -245,7 +282,8 @@ struct VRegInfo {
   }
 
   constexpr bool operator==(const VRegInfo &other) const {
-    return ty == other.ty && reg_size == other.reg_size;
+    return ty == other.ty && reg_size == other.reg_size &&
+           reg_class == other.reg_class;
   }
 };
 

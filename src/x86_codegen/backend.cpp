@@ -56,6 +56,7 @@ auto convert_func_signature(const std::span<fmir::Type> arg_tys, bool void_ret,
   }
   return res;
 }
+
 Reg get_reg_sized(const Reg *regs, u32 size) {
   switch (size) {
   case 1:
@@ -128,6 +129,40 @@ Reg convert_reg(Compiler & /*unused*/, Reg2OpMap & /*unused*/, fmir::VReg reg) {
     return get_reg_sized(r14_regs, reg.info.reg_size);
   case fmir::VRegType::R15:
     return get_reg_sized(r15_regs, reg.info.reg_size);
+  case fmir::VRegType::mm0:
+    return xmm0;
+  case fmir::VRegType::mm1:
+    return xmm1;
+  case fmir::VRegType::mm2:
+    return xmm2;
+  case fmir::VRegType::mm3:
+    return xmm3;
+  case fmir::VRegType::mm4:
+    return xmm4;
+  case fmir::VRegType::mm5:
+    return xmm5;
+  case fmir::VRegType::mm6:
+    return xmm6;
+  case fmir::VRegType::mm7:
+    return xmm7;
+  case fmir::VRegType::mm8:
+    return xmm8;
+  case fmir::VRegType::mm9:
+    return xmm9;
+  case fmir::VRegType::mm10:
+    return xmm10;
+  case fmir::VRegType::mm11:
+    return xmm11;
+  case fmir::VRegType::mm12:
+    return xmm12;
+  case fmir::VRegType::mm13:
+    return xmm13;
+  case fmir::VRegType::mm14:
+    return xmm14;
+  case fmir::VRegType::mm15:
+    return xmm15;
+  case fmir::VRegType::N_REGS:
+    TODO("UNREACH");
   }
 }
 
@@ -350,7 +385,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto o1 = convert_operand(cc, reg_to_op, instr.args[3]);
     ASSERT(o0.isPhysReg());
     ASSERT(o0 == rax || o0 == eax || o0 == ax);
-    ASSERT(!o1.isPhysReg() || !(o1 == rdx || o1 == edx));
+    ASSERT(!o1.isPhysReg() || (o1 != rdx && o1 != edx));
     if (o0 == rax) {
       // need to sign extend rax into rdx
       cc.emit(Inst::kIdCqo);

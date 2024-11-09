@@ -150,6 +150,33 @@ void gen_arg_mapping(MFunc &func, TMap<size_t, VRegType> & /*unused*/) {
   }
 }
 
+bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
+  ASSERT(!reg.info.is_pinned());
+
+  switch (reg.info.reg_class) {
+  case VRegClass::INVALID:
+    TODO("UNREACh");
+  case VRegClass::GeneralPurpose:
+    return avail_reg == VRegType::A || avail_reg == VRegType::B ||
+           avail_reg == VRegType::C || avail_reg == VRegType::D ||
+           avail_reg == VRegType::S || avail_reg == VRegType::SP ||
+           avail_reg == VRegType::BP || avail_reg == VRegType::R8 ||
+           avail_reg == VRegType::R9 || avail_reg == VRegType::R10 ||
+           avail_reg == VRegType::R11 || avail_reg == VRegType::R12 ||
+           avail_reg == VRegType::R13 || avail_reg == VRegType::R14 ||
+           avail_reg == VRegType::R15;
+  case VRegClass::Float:
+    return avail_reg == VRegType::mm0 || avail_reg == VRegType::mm1 ||
+           avail_reg == VRegType::mm2 || avail_reg == VRegType::mm3 ||
+           avail_reg == VRegType::mm4 || avail_reg == VRegType::mm5 ||
+           avail_reg == VRegType::mm6 || avail_reg == VRegType::mm7 ||
+           avail_reg == VRegType::mm8 || avail_reg == VRegType::mm9 ||
+           avail_reg == VRegType::mm10 || avail_reg == VRegType::mm11 ||
+           avail_reg == VRegType::mm12 || avail_reg == VRegType::mm13 ||
+           avail_reg == VRegType::mm14 || avail_reg == VRegType::mm15;
+  }
+}
+
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
   TMap<size_t, VRegType> reg_mapping;
@@ -168,9 +195,14 @@ void apply_func(MFunc &func) {
   TMap<VRegType, LinearRange> lifeness;
   lifeness.reserve(32);
   constexpr VRegType regs[] = {
-      VRegType::A,   VRegType::C,   VRegType::D,   VRegType::S,   VRegType::R8,
-      VRegType::R9,  VRegType::R10, VRegType::R11, VRegType::R12, VRegType::R13,
-      VRegType::R14, VRegType::R15, VRegType::B};
+      VRegType::B,    VRegType::C,    VRegType::S,    VRegType::R8,
+      VRegType::R9,   VRegType::R10,  VRegType::R11,  VRegType::R12,
+      VRegType::R13,  VRegType::R14,  VRegType::R15,  VRegType::A,
+      VRegType::D,    VRegType::mm0,  VRegType::mm1,  VRegType::mm2,
+      VRegType::mm3,  VRegType::mm4,  VRegType::mm5,  VRegType::mm6,
+      VRegType::mm7,  VRegType::mm8,  VRegType::mm9,  VRegType::mm10,
+      VRegType::mm11, VRegType::mm12, VRegType::mm13, VRegType::mm14,
+      VRegType::mm15};
 
   {
     ZoneScopedN("Actual Alloc");
@@ -181,6 +213,10 @@ void apply_func(MFunc &func) {
       } else {
         bool found = false;
         for (auto avail_reg : regs) {
+          if (!reg_is_legal(reg, avail_reg)) {
+            continue;
+          }
+
           if (!lifeness.contains(avail_reg)) {
             lifeness.insert({avail_reg, lifetime});
             reg_mapping.insert({reg.id, avail_reg});
