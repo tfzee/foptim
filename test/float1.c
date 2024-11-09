@@ -6,11 +6,11 @@
 // CHECK: Result:0
 
 #define EPS 0.00001f
-float test(float a) { return a + 2; }
+float test(float a) { return a + 2.5F; }
 
 int main() {
-  // float x = 0.0F;
-  // float res = test(x);
+  float x = 0.5F;
+  float res = test(x);
   // if (res < 2 - EPS && res > 2 + EPS) {
   //   return 1;
   // }

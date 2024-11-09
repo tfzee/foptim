@@ -179,7 +179,7 @@ static constexpr u32 get_size(fmir::Type type) {
   case fmir::Type::Int64:
     return 8;
   case fmir::Type::INVALID:
-    break;
+    TODO("INVALID TYPE");
   }
   ASSERT(false);
   std::abort();
@@ -253,8 +253,16 @@ struct VRegInfo {
       reg_class = VRegClass::INVALID;
     }
   }
-  explicit constexpr VRegInfo(VRegType ty, u8 size)
-      : ty(ty), reg_size(size), reg_class(VRegClass::GeneralPurpose) {}
+  // explicit constexpr VRegInfo(VRegType ty, u8 size)
+  //     : ty(ty), reg_size(size), reg_class(VRegClass::GeneralPurpose) {}
+  explicit constexpr VRegInfo(VRegType ty, Type type)
+      : ty(ty), reg_size(get_size(type)), reg_class(VRegClass::GeneralPurpose) {
+    if (type == Type::Float32 || type == Type::Float64) {
+      reg_class = VRegClass::Float;
+    } else if (type == Type::INVALID) {
+      reg_class = VRegClass::INVALID;
+    }
+  }
 
   static constexpr VRegInfo RSP() {
     VRegInfo res{Type::Int64};
@@ -306,8 +314,7 @@ public:
   constexpr VReg(u64 id, VRegInfo info) : id(id), info(info) {}
   constexpr VReg(u64 id, u8 size, VRegClass reg_class)
       : id(id), info(VRegInfo{size, reg_class}) {}
-  constexpr VReg(u64 id, Type ty)
-      : id(id), info(ty) {}
+  constexpr VReg(u64 id, Type ty) : id(id), info(ty) {}
 
   static constexpr VReg EAX() {
     VRegInfo res_info{};
@@ -356,7 +363,10 @@ public:
   ArgumentType type;
   Type ty;
 
-  u64 imm;
+  union{
+    u64 imm;
+    f64 immf;
+  };
   u64 scale;
   VReg reg;
   VReg indx;
@@ -368,9 +378,14 @@ public:
       : type(ArgumentType::VReg), ty(ty), reg(reg) {
     reg.info.reg_size = get_size(ty);
   }
+  MArgument(u8 imm) : type(ArgumentType::Imm), ty(Type::Int8), imm(imm) {}
+  MArgument(u16 imm) : type(ArgumentType::Imm), ty(Type::Int16), imm(imm) {}
+  MArgument(u32 imm) : type(ArgumentType::Imm), ty(Type::Int32), imm(imm) {}
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
   MArgument(f64 imm)
-      : type(ArgumentType::Imm), ty(Type::Float64), imm((u64)imm) {}
+      : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
+  MArgument(f32 imm)
+      : type(ArgumentType::Imm), ty(Type::Float32), immf(imm) {}
   MArgument(std::string lab)
       : type(ArgumentType::Label), ty(Type::INVALID), label(std::move(lab)) {}
   MArgument(std::string lab, Type ty)

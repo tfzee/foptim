@@ -20,8 +20,7 @@ MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
                      ExtraMatchData &data) {
   // ASSERT(get_size(reg_type) <= 255);
 
-  VReg helper = data.alloc.get_new_register(
-      VRegInfo{reg_type});
+  VReg helper = data.alloc.get_new_register(VRegInfo{reg_type});
   auto helper_arg = MArgument(helper, reg_type);
   res.result.emplace_back(Opcode::mov, helper_arg, val);
   return helper_arg;
@@ -358,19 +357,33 @@ MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     auto consti = val.as_constant();
     if (consti->is_int()) {
-      return {consti->as_int()};
+      switch(val.get_type()->as_int()){
+        case 8:
+          return {(u8)consti->as_int()};
+        case 16:
+          return {(u16)consti->as_int()};
+        case 32:
+          return {(u32)consti->as_int()};
+        case 64:
+        default:
+          return {consti->as_int()};
+      }
     }
+
     if (consti->is_float()) {
+      if (val.get_type()->as_float() == 32) {
+        return {(f32)consti->as_float()};
+      }
       return {consti->as_float()};
     }
+
     if (consti->is_global()) {
       auto global = consti->as_global();
       // TODO: idk if i64 is right here
 
       Type type_id = convert_type(val.get_type());
-      auto helper = MArgument{
-          alloc.get_new_register(VRegInfo{Type::Int64}),
-          Type::Int64};
+      auto helper =
+          MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
       auto arg = MArgument::Mem(
           "G_" + std::to_string((u64)global.get_raw_ptr()), type_id);
       res.emplace_back(Opcode::lea, helper, arg);
@@ -469,8 +482,7 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
       // with the saved from
       PhiPair pair = *pairs.begin();
       pairs.erase(pairs.begin() + 0);
-      auto save_reg = data.alloc.get_new_register(
-          VRegInfo{pair.from.ty});
+      auto save_reg = data.alloc.get_new_register(VRegInfo{pair.from.ty});
       auto save_arg = MArgument{save_reg, pair.from.ty};
       res.result.emplace_back(Opcode::mov, save_arg, pair.from);
       pairs.push_back(PhiPair{.to = pair.to, .from = save_arg});
@@ -802,8 +814,7 @@ constexpr auto base_pats() {
         auto res_ty = convert_type(add_instr.get_type());
 
         if (res_reg.ty != a0.ty) {
-          auto res_reg =
-              data.alloc.get_new_register(VRegInfo{res_ty});
+          auto res_reg = data.alloc.get_new_register(VRegInfo{res_ty});
           auto helper_reg0 = MArgument(res_reg, res_ty);
 
           res.result.emplace_back(Opcode::mov, helper_reg0, a0);
@@ -814,8 +825,7 @@ constexpr auto base_pats() {
         if (a1.isImm()) {
           // then we gucci
         } else if (res_reg.ty != a1.ty) {
-          auto res_reg =
-              data.alloc.get_new_register(VRegInfo{res_ty});
+          auto res_reg = data.alloc.get_new_register(VRegInfo{res_ty});
           auto helper_reg1 = MArgument(res_reg, res_ty);
 
           res.result.emplace_back(Opcode::mov, helper_reg1, a1);
@@ -933,15 +943,27 @@ constexpr auto base_pats() {
       {ReturnNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto ret_instr = res.matched_instrs[0];
         if (ret_instr->has_args()) {
-
           auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
-          if (!ret_val.isReg() || ret_val.reg.info.ty != VRegType::A) {
+          auto is_float_val = ret_val.ty == fmir::Type::Float64 ||
+                              ret_val.ty == fmir::Type::Float32;
+
+          if (!is_float_val &&
+              (!ret_val.isReg() || ret_val.reg.info.ty != VRegType::A)) {
             auto converted_type = convert_type(ret_instr.get_type());
             auto res_reg = data.alloc.get_new_register(
                 fir::IRLocation{ret_instr}, ret_instr.get_type(),
-                VRegInfo{VRegType::A, (u8)get_size(converted_type)},
-                data.lives);
+                VRegInfo{VRegType::A, converted_type}, data.lives);
             auto res_arg = MArgument(res_reg, converted_type);
+            res.result.emplace_back(Opcode::mov, res_arg, ret_val);
+            res.result.emplace_back(Opcode::ret, res_arg);
+          } else if (is_float_val && (!ret_val.isReg() ||
+                                      ret_val.reg.info.ty != VRegType::mm0)) {
+            auto converted_type = convert_type(ret_instr.get_type());
+            auto res_reg = data.alloc.get_new_register(
+                fir::IRLocation{ret_instr}, ret_instr.get_type(),
+                VRegInfo{VRegType::mm0, converted_type}, data.lives);
+            auto res_arg = MArgument(res_reg, converted_type);
+            utils::Debug << "RETTY\n";
             res.result.emplace_back(Opcode::mov, res_arg, ret_val);
             res.result.emplace_back(Opcode::ret, res_arg);
           } else {
@@ -977,7 +999,8 @@ constexpr auto base_pats() {
         auto call_instr = res.matched_instrs[0];
         {
           // auto helper_reg = data.alloc.get_new_register(
-          //     optim::IRLocation{call_instr}, fmir::Type::Int64, data.lives);
+          //     optim::IRLocation{call_instr}, fmir::Type::Int64,
+          //     data.lives);
           // auto helper_arg = MArgument(helper_reg, Type::Int64);
           for (auto arg : call_instr->args) {
             auto arg_value = valueToArg(arg, res.result, data.alloc);

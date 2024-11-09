@@ -104,8 +104,15 @@ Printer Printer::operator<<(const foptim::fmir::MArgument &value) const {
                  << value.ty;
   case fmir::MArgument::ArgumentType::Label:
     return *this << value.label.c_str();
-  case fmir::MArgument::ArgumentType::Imm:
-    return *this << value.imm;
+  case fmir::MArgument::ArgumentType::Imm: {
+    if (value.ty == fmir::Type::Float32) {
+      return *this << value.immf << "f";
+    }
+    if (value.ty == fmir::Type::Float64) {
+      return *this << value.immf;
+    }
+    return *this << value.imm << ":" << value.ty;
+  }
   case fmir::MArgument::ArgumentType::VReg:
     return *this << value.reg << ":" << value.ty;
   case fmir::MArgument::ArgumentType::MemVReg:
@@ -325,6 +332,23 @@ Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
       return *this << "$r14d";
     case VRegType::R15:
       return *this << "$r15d";
+    case VRegType::mm0:
+    case VRegType::mm1:
+    case VRegType::mm2:
+    case VRegType::mm3:
+    case VRegType::mm4:
+    case VRegType::mm5:
+    case VRegType::mm6:
+    case VRegType::mm7:
+    case VRegType::mm8:
+    case VRegType::mm9:
+    case VRegType::mm10:
+    case VRegType::mm11:
+    case VRegType::mm12:
+    case VRegType::mm13:
+    case VRegType::mm14:
+    case VRegType::mm15:
+      return *this << "$mm" << ((u8)value.info.ty - (u8)VRegType::mm0);
     default:
     }
   } else if (value.info.reg_size == 8) {
@@ -359,6 +383,23 @@ Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
       return *this << "$r14";
     case VRegType::R15:
       return *this << "$r15";
+    case VRegType::mm0:
+    case VRegType::mm1:
+    case VRegType::mm2:
+    case VRegType::mm3:
+    case VRegType::mm4:
+    case VRegType::mm5:
+    case VRegType::mm6:
+    case VRegType::mm7:
+    case VRegType::mm8:
+    case VRegType::mm9:
+    case VRegType::mm10:
+    case VRegType::mm11:
+    case VRegType::mm12:
+    case VRegType::mm13:
+    case VRegType::mm14:
+    case VRegType::mm15:
+      return *this << "$mm" << ((u8)value.info.ty - (u8)VRegType::mm0);
     default:
     }
   }

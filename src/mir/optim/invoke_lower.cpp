@@ -28,7 +28,7 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
       (call.args[1].isReg() && call.args[1].reg.info.ty == VRegType::A);
 
   if (used_regs[0] && !return_value_overwrites_eax) {
-    auto arg = MArgument{VReg{0, VRegInfo{(VRegType)(1), 8}}, Type::Int64};
+    auto arg = MArgument{VReg{0, VRegInfo{(VRegType)(1), Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
   }
 
@@ -40,7 +40,7 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
     instrs.insert(
         instrs.begin() + (i64)start,
         MInstr{Opcode::mov, call.args[1],
-               MArgument{VReg{0, VRegInfo{VRegType::A, (u8)get_size(ret_type)}},
+               MArgument{VReg{0, VRegInfo{VRegType::A, ret_type}},
                          ret_type}});
   }
 
@@ -52,13 +52,13 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
     if (!used_regs[i] || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }
-    auto arg = MArgument{VReg{0, VRegInfo{reg_ty, 8}}, Type::Int64};
+    auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
   }
 
   // cleanup args
   {
-    auto sp = MArgument{VReg{0, VRegInfo{VRegType::SP, 8}}, Type::Int64};
+    auto sp = MArgument{VReg{0, VRegInfo{VRegType::SP, Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start,
                   MInstr{Opcode::add, sp, sp, 8 * args.size()});
   }
@@ -81,7 +81,7 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
     if (!used_regs[i - 1] || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }
-    auto arg = MArgument{VReg{0, VRegInfo{reg_ty, 8}}, Type::Int64};
+    auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
   }
 }

@@ -166,18 +166,22 @@ Reg convert_reg(Compiler & /*unused*/, Reg2OpMap & /*unused*/, fmir::VReg reg) {
   }
 }
 
-Imm convert_imm(Compiler & /*unused*/, u64 imm, fmir::Type ty) {
+Imm convert_imm(Compiler & /*unused*/, fmir::MArgument arg, fmir::Type ty) {
   // utils::Debug << "     Converting Imm: " << imm << "\n";
   switch (ty) {
-  case fmir::Type::Float32:
-    return {(f32)imm};
+  case fmir::Type::Float32: {
+    auto val = (f32)arg.immf;
+    return {*reinterpret_cast<u32 *>(&val)};
+    // return {(f32)arg.immf};
+  }
   case fmir::Type::Float64:
-    return {(f64)imm};
+    return {*reinterpret_cast<u64 *>(&arg.immf)};
+    // return {arg.immf};
   case fmir::Type::Int8:
   case fmir::Type::Int16:
   case fmir::Type::Int32:
   case fmir::Type::Int64:
-    return imm;
+    return arg.imm;
   case fmir::Type::INVALID:
     TODO("Invalid type in MIR");
     break;
@@ -187,11 +191,9 @@ Imm convert_imm(Compiler & /*unused*/, u64 imm, fmir::Type ty) {
 
 Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
                         fmir::MArgument &arg) {
-
-  // utils::Debug << "   Converting Op: " << arg << "\n";
   switch (arg.type) {
   case fmir::MArgument::ArgumentType::Imm:
-    return convert_imm(cc, arg.imm, arg.ty);
+    return convert_imm(cc, arg, arg.ty);
   case fmir::MArgument::ArgumentType::VReg:
     return convert_reg(cc, reg_to_op, arg.reg);
   case fmir::MArgument::ArgumentType::Label: {
@@ -307,8 +309,16 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
 
     u32 o0_size = get_size(instr.args[0].ty);
 
-    if (instr.args[0].ty == instr.args[1].ty) {
-      cc.emit(Inst::kIdMov, o0, o1);
+    if (instr.args[1].ty != fmir::Type::Float32 &&
+        instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(Inst::kIdMovd, o0, o1);
+    } else if (instr.args[1].ty != fmir::Type::Float64 &&
+               instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(Inst::kIdMovq, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(Inst::kIdMovss, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(Inst::kIdMovsd, o0, o1);
     } else if (o0_size == 8 && o1.isReg()) {
       cc.emit(Inst::kIdMov, o0, o1.as<Gp>().r64());
     } else {
@@ -349,10 +359,9 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    ASSERT(target != o1);
     if (target == o0) {
       cc.emit(Inst::kIdSub, target, o1);
-    } else if (target == o1) {
-      cc.emit(Inst::kIdSub, target, o0);
     } else {
       cc.emit(Inst::kIdMov, target, o0);
       cc.emit(Inst::kIdSub, target, o1);
@@ -364,7 +373,17 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    cc.emit(Inst::kIdAddss, target, o0, o1);
+
+    ASSERT(target != o1);
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(Inst::kIdMovss, target, o0);
+      cc.emit(Inst::kIdAddss, target, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(Inst::kIdMovsd, target, o0);
+      cc.emit(Inst::kIdAddsd, target, o1);
+    } else {
+      TODO("UNREACH");
+    }
     return;
   }
   case fmir::Opcode::fsub: {
@@ -372,6 +391,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    TODO("IMPL");
     cc.emit(Inst::kIdSubss, target, o0, o1);
     return;
   }
@@ -380,6 +400,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    TODO("IMPL");
     cc.emit(Inst::kIdMulss, target, o0, o1);
     return;
   }
@@ -431,20 +452,28 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   }
   case fmir::Opcode::push: {
     auto val = convert_operand(cc, reg_to_op, instr.args[0]);
+    // utils::Debug << instr << "\n";
+    // utils::Debug << instr.args[0] << "\n";
+
+    // if (instr.args[0].ty == fmir::Type::Float32 || instr.args[0].ty ==
+    // fmir::Type::Float64) {
+    //   cc.emit(Inst::kIdPush, val);
+    //   return;
+    // }
     if (val.size() < 64 && val.isReg()) {
       cc.emit(Inst::kIdPush, val.as<Gp>().r64());
-    } else {
-      cc.emit(Inst::kIdPush, val);
+      return;
     }
+    cc.emit(Inst::kIdPush, val);
     return;
   }
   case fmir::Opcode::pop: {
     auto val = convert_operand(cc, reg_to_op, instr.args[0]);
     if (val.size() < 64 && val.isReg()) {
       cc.emit(Inst::kIdPop, val.as<Gp>().r64());
-    } else {
-      cc.emit(Inst::kIdPop, val);
+      return;
     }
+    cc.emit(Inst::kIdPop, val);
     return;
   }
   case fmir::Opcode::call: {
@@ -608,11 +637,8 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   case fmir::Opcode::ret: {
     if (instr.n_args > 0) {
       ASSERT(instr.args[0].isReg() &&
-             instr.args[0].reg.info.ty == fmir::VRegType::A);
-      // auto res = convert_operand(cc, reg_to_op, instr.args[0]);
-      // if (res != eax) {
-      //   cc.emit(Inst::kIdMov, eax, res);
-      // }
+             (instr.args[0].reg.info.ty == fmir::VRegType::A ||
+              instr.args[0].reg.info.ty == fmir::VRegType::mm0));
     }
     cc.emit(asmjit::x86::Inst::kIdMov, rsp, rbp);
     cc.emit(asmjit::x86::Inst::kIdPop, rbp);
