@@ -357,16 +357,16 @@ MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     auto consti = val.as_constant();
     if (consti->is_int()) {
-      switch(val.get_type()->as_int()){
-        case 8:
-          return {(u8)consti->as_int()};
-        case 16:
-          return {(u16)consti->as_int()};
-        case 32:
-          return {(u32)consti->as_int()};
-        case 64:
-        default:
-          return {consti->as_int()};
+      switch (val.get_type()->as_int()) {
+      case 8:
+        return {(u8)consti->as_int()};
+      case 16:
+        return {(u16)consti->as_int()};
+      case 32:
+        return {(u32)consti->as_int()};
+      case 64:
+      default:
+        return {consti->as_int()};
       }
     }
 
@@ -524,6 +524,7 @@ constexpr auto base_pats() {
   auto SLTNode =
       Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::SLT};
   auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
+  auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
   auto BranchNode = Node{NodeType::Instr, InstrType::BranchInstr, 0};
   auto CondBranchNode = Node{NodeType::Instr, InstrType::CondBranchInstr, 0};
   auto ReturnNode = Node{NodeType::Instr, InstrType::ReturnInstr, 0};
@@ -753,6 +754,37 @@ constexpr auto base_pats() {
                        << cmp_instr->get_instr_subtype() << " +  branch\n";
           return false;
         }
+
+        {
+          auto bb2_with_args = branch_instr->bbs[1];
+          auto target_bb2 = branch_instr->bbs[1].bb;
+          ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
+          generate_bb_args(bb2_with_args, res, data);
+          res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
+        }
+        return true;
+      }});
+  res.push_back(Pattern{
+      {FCMPNode, CondBranchNode},
+      {{0, 1, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        // utils::Debug << "WE REACHED HERE"
+        //              << " +  branch\n";
+        auto cmp_instr = res.matched_instrs[0];
+        auto branch_instr = res.matched_instrs[1];
+
+        auto sub_type = (fir::FCmpInstrSubType)cmp_instr->get_instr_subtype();
+
+        auto bb_with_args = branch_instr->bbs[0];
+        auto target_bb = branch_instr->bbs[0].bb;
+        auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+
+        ASSERT(bb_with_args.args.size() == target_bb->args.size());
+        generate_bb_args(bb_with_args, res, data);
+
+        res.result.push_back(
+            MInstr::cJmp_flt(v1, v2, data.bbs[bb_with_args.bb], sub_type));
 
         {
           auto bb2_with_args = branch_instr->bbs[1];
@@ -1014,6 +1046,13 @@ constexpr auto base_pats() {
               Opcode::invoke,
               MArgument(*call_instr->get_attrib("callee").try_string()));
         } else if (res_type->is_int()) {
+          auto res_reg =
+              valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
+          res.result.emplace_back(
+              Opcode::invoke,
+              MArgument(*call_instr->get_attrib("callee").try_string()),
+              res_reg);
+        } else if (res_type->is_float()) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
           res.result.emplace_back(

@@ -597,19 +597,19 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       break;
     case fmir::Opcode::cjmp_flt_ugt:
     case fmir::Opcode::cjmp_flt_ogt:
-      cc.emit(Inst::kIdJg, bb_labels[instr.bb_ref]);
+      cc.emit(Inst::kIdJa, bb_labels[instr.bb_ref]);
       break;
     case fmir::Opcode::cjmp_flt_uge:
     case fmir::Opcode::cjmp_flt_oge:
-      cc.emit(Inst::kIdJge, bb_labels[instr.bb_ref]);
+      cc.emit(Inst::kIdJae, bb_labels[instr.bb_ref]);
       break;
     case fmir::Opcode::cjmp_flt_ult:
     case fmir::Opcode::cjmp_flt_olt:
-      cc.emit(Inst::kIdJl, bb_labels[instr.bb_ref]);
+      cc.emit(Inst::kIdJb, bb_labels[instr.bb_ref]);
       break;
     case fmir::Opcode::cjmp_flt_ule:
     case fmir::Opcode::cjmp_flt_ole:
-      cc.emit(Inst::kIdJle, bb_labels[instr.bb_ref]);
+      cc.emit(Inst::kIdJbe, bb_labels[instr.bb_ref]);
       break;
     case fmir::Opcode::cjmp_flt_ord:
     case fmir::Opcode::cjmp_flt_uno:

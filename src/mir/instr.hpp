@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/instruction_data.hpp"
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
@@ -363,7 +364,7 @@ public:
   ArgumentType type;
   Type ty;
 
-  union{
+  union {
     u64 imm;
     f64 immf;
   };
@@ -382,10 +383,8 @@ public:
   MArgument(u16 imm) : type(ArgumentType::Imm), ty(Type::Int16), imm(imm) {}
   MArgument(u32 imm) : type(ArgumentType::Imm), ty(Type::Int32), imm(imm) {}
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
-  MArgument(f64 imm)
-      : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
-  MArgument(f32 imm)
-      : type(ArgumentType::Imm), ty(Type::Float32), immf(imm) {}
+  MArgument(f64 imm) : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
+  MArgument(f32 imm) : type(ArgumentType::Imm), ty(Type::Float32), immf(imm) {}
   MArgument(std::string lab)
       : type(ArgumentType::Label), ty(Type::INVALID), label(std::move(lab)) {}
   MArgument(std::string lab, Type ty)
@@ -666,6 +665,68 @@ public:
 
   static MInstr cJmp_ne(MArgument v1, MArgument v2, u32 new_bb_ref) {
     auto res = MInstr{Opcode::cjmp_int_ne, v1, v2};
+    res.bb_ref = new_bb_ref;
+    res.has_bb_ref = true;
+    return res;
+  }
+
+  static MInstr cJmp_flt(MArgument v1, MArgument v2, u32 new_bb_ref,
+                         fir::FCmpInstrSubType compare_type) {
+    auto opcode_type = Opcode::cjmp_flt_oeq;
+
+    switch (compare_type) {
+    case fir::FCmpInstrSubType::INVALID:
+      TODO("UNREACH");
+      break;
+    case fir::FCmpInstrSubType::AlwFalse:
+    case fir::FCmpInstrSubType::AlwTrue:
+      TODO("IMPL");
+      break;
+    case fir::FCmpInstrSubType::OEQ:
+      opcode_type = Opcode::cjmp_flt_oeq;
+      break;
+    case fir::FCmpInstrSubType::OGT:
+      opcode_type = Opcode::cjmp_flt_ogt;
+      break;
+    case fir::FCmpInstrSubType::OGE:
+      opcode_type = Opcode::cjmp_flt_oge;
+      break;
+    case fir::FCmpInstrSubType::OLT:
+      opcode_type = Opcode::cjmp_flt_olt;
+      break;
+    case fir::FCmpInstrSubType::OLE:
+      opcode_type = Opcode::cjmp_flt_ole;
+      break;
+    case fir::FCmpInstrSubType::ONE:
+      opcode_type = Opcode::cjmp_flt_one;
+      break;
+    case fir::FCmpInstrSubType::ORD:
+      opcode_type = Opcode::cjmp_flt_ord;
+      break;
+    case fir::FCmpInstrSubType::UNO:
+      opcode_type = Opcode::cjmp_flt_uno;
+      break;
+    case fir::FCmpInstrSubType::UEQ:
+      opcode_type = Opcode::cjmp_flt_ueq;
+      break;
+    case fir::FCmpInstrSubType::UGT:
+      opcode_type = Opcode::cjmp_flt_ugt;
+      break;
+    case fir::FCmpInstrSubType::UGE:
+      opcode_type = Opcode::cjmp_flt_uge;
+      break;
+    case fir::FCmpInstrSubType::ULT:
+      opcode_type = Opcode::cjmp_flt_ult;
+      break;
+    case fir::FCmpInstrSubType::ULE:
+      opcode_type = Opcode::cjmp_flt_ule;
+      break;
+    case fir::FCmpInstrSubType::UNE:
+      opcode_type = Opcode::cjmp_flt_une;
+      break;
+    }
+
+    auto res = MInstr{opcode_type, v1, v2};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;

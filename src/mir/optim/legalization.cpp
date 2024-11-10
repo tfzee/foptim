@@ -61,39 +61,73 @@ u32 Legalizer::move_arg_to_pinned_reg(MBB &bb, u32 indx, u8 arg_id, Type ty,
   return indx + 1;
 }
 
-void Legalizer::legalize_cmp(MBB &bb, u32 indx) {
+void Legalizer::legalize_icmp(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
-  if (instr.args[1].isImm()) {
-    bool big_unsigned_const =
-        instr.args[1].imm > (u64)std::numeric_limits<u16>::max();
-    bool big_signed_const =
-        (i64)instr.args[1].imm > (i64)std::numeric_limits<i16>::max;
+  bool big_unsigned_const =
+      instr.args[1].isImm() &&
+      instr.args[1].imm > (u64)std::numeric_limits<u16>::max();
+  bool big_signed_const =
+      instr.args[1].isImm() &&
+      (i64)instr.args[1].imm > (i64)std::numeric_limits<i16>::max;
 
-    switch (instr.op) {
-    case Opcode::icmp_eq:
-      if (big_unsigned_const) {
-        indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
-        return;
-      }
-    case Opcode::cjmp_int_ne:
-    case Opcode::cjmp_int_eq:
-    case Opcode::cjmp_int_ult:
-      if (big_unsigned_const) {
-        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
-        return;
-      }
-    case Opcode::icmp_slt:
-      if (big_signed_const) {
-        indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
-        return;
-      }
-    case Opcode::cjmp_int_slt:
-      if (big_signed_const) {
-        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
-        return;
-      }
-    default:
+  bool big_unsigned_const2 =
+      instr.args[2].isImm() &&
+      instr.args[2].imm > (u64)std::numeric_limits<u16>::max();
+  bool big_signed_const2 =
+      instr.args[2].isImm() &&
+      (i64)instr.args[2].imm > (i64)std::numeric_limits<i16>::max;
+
+  switch (instr.op) {
+  case Opcode::icmp_eq:
+    if (big_unsigned_const2) {
+      indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
+      return;
     }
+  case Opcode::icmp_slt:
+    if (big_signed_const2) {
+      indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
+      return;
+    }
+  case Opcode::cjmp_int_ne:
+  case Opcode::cjmp_int_eq:
+  case Opcode::cjmp_int_ult:
+    if (big_unsigned_const) {
+      indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+      return;
+    }
+  case Opcode::cjmp_int_slt:
+    if (big_signed_const) {
+      indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+      return;
+    }
+  default:
+  }
+}
+
+void Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
+  MInstr &instr = bb.instrs[indx];
+
+  switch (instr.op) {
+  case Opcode::cjmp_flt_oeq:
+  case Opcode::cjmp_flt_ogt:
+  case Opcode::cjmp_flt_oge:
+  case Opcode::cjmp_flt_olt:
+  case Opcode::cjmp_flt_ole:
+  case Opcode::cjmp_flt_one:
+  case Opcode::cjmp_flt_ord:
+  case Opcode::cjmp_flt_uno:
+  case Opcode::cjmp_flt_ueq:
+  case Opcode::cjmp_flt_ugt:
+  case Opcode::cjmp_flt_uge:
+  case Opcode::cjmp_flt_ult:
+  case Opcode::cjmp_flt_ule:
+  case Opcode::cjmp_flt_une:
+    if (instr.args[1].isImm()) {
+      indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+    }
+    return;
+  default:
+    break;
   }
 }
 
@@ -257,7 +291,23 @@ void Legalizer::apply(MFunc &func) {
       case Opcode::cjmp_int_ult:
       case Opcode::cjmp_int_ne:
       case Opcode::cjmp_int_eq:
-        legalize_cmp(bb, i);
+        legalize_icmp(bb, i);
+        break;
+      case Opcode::cjmp_flt_oeq:
+      case Opcode::cjmp_flt_ogt:
+      case Opcode::cjmp_flt_oge:
+      case Opcode::cjmp_flt_olt:
+      case Opcode::cjmp_flt_ole:
+      case Opcode::cjmp_flt_one:
+      case Opcode::cjmp_flt_ord:
+      case Opcode::cjmp_flt_uno:
+      case Opcode::cjmp_flt_ueq:
+      case Opcode::cjmp_flt_ugt:
+      case Opcode::cjmp_flt_uge:
+      case Opcode::cjmp_flt_ult:
+      case Opcode::cjmp_flt_ule:
+      case Opcode::cjmp_flt_une:
+        legalize_fcmp(bb, i);
         break;
       case Opcode::idiv:
         legalize_idiv(bb, i);
