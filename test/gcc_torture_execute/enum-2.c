@@ -1,8 +1,9 @@
-/* Copyright (C) 2000 Free Software Foundation */
-/* by Alexandre Oliva  <aoliva@redhat.com> */
+// RUN: clang -O0 %s -o %t.ll -S -emit-llvm
+// RUN: %foffcc %t.ll %t.ss
+// RUN: nasm %t.ss -felf64  -g -F dwarf && ld %t.o -o %t.out
+// RUN: %t.out || echo Result:$? | FileCheck %s
 
-void abort (void);
-void exit (int);
+// CHECK: Result:0
 
 enum foo { FOO, BAR };
 
@@ -12,14 +13,13 @@ enum foo { FOO, BAR };
    `unsigned' in the comparison below; we must exit the loop when it
    becomes negative. */
 
-int
-main ()
-{
+int main() {
   int i;
-  for (i = BAR; i >= FOO; --i)
-    if (i == -1)
-      abort ();
+  for (i = BAR; i >= FOO; --i) {
+    if (i == -1) {
+      return 1;
+    }
+  }
 
-  exit (0);
+  return 0;
 }
-
