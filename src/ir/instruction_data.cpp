@@ -83,6 +83,7 @@ bool InstrData::has_result() const {
   case InstrType::LoadInstr:
   case InstrType::ICmp:
   case InstrType::FCmp:
+  case InstrType::ITrunc:
   case InstrType::SExt:
   case InstrType::ZExt:
     return true;
@@ -108,6 +109,7 @@ bool InstrData::is_critical() const {
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
+  case InstrType::ITrunc:
   case InstrType::ICmp:
   case InstrType::FCmp:
   case InstrType::SExt:
@@ -164,6 +166,7 @@ bool InstrData::is_commutative() const {
   case InstrType::LoadInstr:
   case InstrType::SExt:
   case InstrType::ZExt:
+  case InstrType::ITrunc:
     return false;
   }
   TODO("unreach");
@@ -184,6 +187,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
+  case InstrType::ITrunc:
     return false;
   }
 }
@@ -202,6 +206,7 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
+  case InstrType::ITrunc:
     return false;
   }
 }
@@ -264,6 +269,13 @@ InstrData InstrData::get_sub(TypeR ty) {
 InstrData InstrData::get_sext(TypeR ty) {
   auto res =
       InstrData{InstrType::SExt, 0, ty, BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(1);
+  return res;
+}
+
+InstrData InstrData::get_itrunc(TypeR ty) {
+  auto res =
+      InstrData{InstrType::ITrunc, 0, ty, BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(1);
   return res;
 }

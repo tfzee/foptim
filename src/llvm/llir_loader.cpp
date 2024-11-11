@@ -416,20 +416,28 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
     convert_gep(any_instr, instr, fctx, ffunc, builder, valueToValue, mod, b2b);
     return;
   }
+  if (const auto *instr = dyn_cast<llvm::TruncInst>(&any_instr)) {
+    auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
+                                 valueToValue, mod, b2b);
+    auto dest_ty = convert_type(instr->getDestTy(), fctx);
+    auto res = builder.build_itrunc(arg, dest_ty);
+    valueToValue.insert({&any_instr, res});
+    return;
+  }
   if (const auto *instr = dyn_cast<llvm::SExtInst>(&any_instr)) {
     auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx);
-    auto add = builder.build_sext(arg, dest_ty);
-    valueToValue.insert({&any_instr, add});
+    auto res = builder.build_sext(arg, dest_ty);
+    valueToValue.insert({&any_instr, res});
     return;
   }
   if (const auto *instr = dyn_cast<llvm::ZExtInst>(&any_instr)) {
     auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx);
-    auto add = builder.build_zext(arg, dest_ty);
-    valueToValue.insert({&any_instr, add});
+    auto res = builder.build_zext(arg, dest_ty);
+    valueToValue.insert({&any_instr, res});
     return;
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::ICmpInst>(&any_instr)) {

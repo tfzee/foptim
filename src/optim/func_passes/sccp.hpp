@@ -309,6 +309,25 @@ public:
       }
       break;
     }
+    case fir::InstrType::ITrunc: {
+      auto a = eval(instr->get_arg(0));
+
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (a.is_top()) {
+        return ConstantValue::Top();
+      }
+
+      if (!a.value->is_int()) {
+        failure({"Impl icmp on non ints", instr});
+        return ConstantValue::Bottom();
+      }
+
+      auto res_type_width = instr->get_type()->as_int();
+      u64 mask = ((u64)1<<res_type_width)-1;
+      return ConstantValue::Constant(ctx->get_constant_value(a.value->as_int() & mask, ctx->get_int_type(res_type_width)));
+    }
     case fir::InstrType::DirectCallInstr:
     case fir::InstrType::AllocaInstr:
     case fir::InstrType::ReturnInstr:

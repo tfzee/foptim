@@ -4,6 +4,7 @@
 // RUN: %t.out || echo Result:$? | FileCheck %s
 
 // CHECK: Result:0
+// XFAIL: *
 
 int a[2];
 

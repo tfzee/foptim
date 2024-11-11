@@ -16,8 +16,10 @@ enum class InstrType : u8 {
   BinaryInstr,
   AllocaInstr,
 
+  ITrunc,
   ZExt,
   SExt,
+
   ReturnInstr,
   DirectCallInstr,
 
@@ -157,6 +159,8 @@ public:
       case BinaryInstrSubType::FloatMul:
         return "FloatMul";
       }
+    case InstrType::ITrunc:
+      return "ITrunc";
     case InstrType::SExt:
       return "SExt";
     case InstrType::ZExt:
@@ -283,6 +287,7 @@ public:
   static InstrData get_float_sub(TypeR ty);
   static InstrData get_float_mul(TypeR ty);
   static InstrData get_sext(TypeR ty);
+  static InstrData get_itrunc(TypeR ty);
   static InstrData get_zext(TypeR ty);
   static InstrData get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty);
   static InstrData get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty);

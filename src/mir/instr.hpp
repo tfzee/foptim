@@ -10,6 +10,7 @@ namespace foptim::fmir {
 
 enum class Opcode : u32 {
   mov,
+  itrunc,
   mov_zx,
   mov_sx,
   lea,
@@ -67,6 +68,8 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     return "mov";
   case Opcode::lea:
     return "lea";
+  case Opcode::itrunc:
+    return "itrunc";
   case Opcode::mov_zx:
     return "mov_zx";
   case Opcode::mov_sx:

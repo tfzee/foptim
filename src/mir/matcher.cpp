@@ -534,6 +534,7 @@ constexpr auto base_pats() {
   auto AllocaNode = Node{NodeType::Instr, InstrType::AllocaInstr, 0};
   auto SExtNode = Node{NodeType::Instr, InstrType::SExt, 0};
   auto ZExtNode = Node{NodeType::Instr, InstrType::ZExt, 0};
+  auto ITruncNode = Node{NodeType::Instr, InstrType::ITrunc, 0};
 
   res.push_back(Pattern{
       {IntAddNode, LoadNode},
@@ -1024,6 +1025,15 @@ constexpr auto base_pats() {
             valueToArg(fir::ValueR(zext_instr), res.result, data.alloc);
 
         res.result.emplace_back(Opcode::mov_zx, res_reg, val);
+        return true;
+      }});
+  res.push_back(Pattern{
+      {ITruncNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto itrunc_instr = res.matched_instrs[0];
+        auto val = valueToArg(itrunc_instr->args[0], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(itrunc_instr), res.result, data.alloc);
+        res.result.emplace_back(Opcode::itrunc, res_reg, val);
         return true;
       }});
   res.push_back(Pattern{

@@ -276,6 +276,26 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     ASSERT_M(false, "Invalid instr");
     return;
   }
+  case fmir::Opcode::itrunc: {
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto from = convert_operand(cc, reg_to_op, instr.args[1]);
+    if (from.isReg() && instr.args[0].ty == fmir::Type::Int64) {
+      cc.emit(Inst::kIdMov, target, from.as<Gp>().r64());
+    } else if (from.isReg() && instr.args[0].ty == fmir::Type::Int32) {
+      cc.emit(Inst::kIdMov, target, from.as<Gp>().r32());
+    } else if (from.isReg() && instr.args[0].ty == fmir::Type::Int16) {
+      cc.emit(Inst::kIdMov, target, from.as<Gp>().r16());
+    } else if (from.isReg() && instr.args[0].ty == fmir::Type::Int8) {
+      cc.emit(Inst::kIdMov, target, from.as<Gp>().r8());
+    } else if (from.isMem()) {
+      from.as<Mem>().setSize(get_size(instr.args[0].ty));
+      cc.emit(Inst::kIdMov, target, from);
+    } else {
+      cc.emit(Inst::kIdMov, target, from);
+    }
+
+    return;
+  }
   case fmir::Opcode::mov_zx: {
     ASSERT(instr.n_args == 2);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[0]);
