@@ -39,7 +39,8 @@ struct InvalidValue {};
 
 class ValueR {
 public:
-  using Ty = std::variant<Instr, BBArgumentR, ConstantValueR, InvalidValue>;
+  using Ty = std::variant<Instr, BasicBlock, BBArgumentR, ConstantValueR,
+                          InvalidValue>;
   Ty origin;
 
   void add_usage(Use u);
@@ -53,6 +54,7 @@ public:
   ValueR() : origin(InvalidValue{}) {}
   explicit ValueR(ConstantValueR v) : origin(v) {}
   explicit ValueR(Instr v) : origin(v) {}
+  explicit ValueR(BasicBlock v) : origin(v) {}
   explicit ValueR(BasicBlock v, u32 arg) : origin(BBArgumentR(v, arg)) {}
 
   [[nodiscard]] bool eql(const ValueR &other) const;
@@ -65,14 +67,24 @@ public:
   [[nodiscard]] bool is_instr() const {
     return std::holds_alternative<Instr>(origin);
   }
+  [[nodiscard]] bool is_bb() const {
+    return std::holds_alternative<BasicBlock>(origin);
+  }
   [[nodiscard]] bool is_bb_arg() const {
     return std::holds_alternative<BBArgumentR>(origin);
   }
 
-  [[nodiscard]] bool is_valid(bool check_refs) const; 
+  [[nodiscard]] bool is_valid(bool check_refs) const;
 
   [[nodiscard]] const Instr as_instr() const {
     if (const auto *res = std::get_if<Instr>(&origin)) {
+      return *res;
+    }
+    std::abort();
+  }
+
+  [[nodiscard]] const BasicBlock as_bb() const {
+    if (const auto *res = std::get_if<BasicBlock>(&origin)) {
       return *res;
     }
     std::abort();

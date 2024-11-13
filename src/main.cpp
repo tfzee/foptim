@@ -16,6 +16,7 @@
 #include "optim/func_passes/mem2reg.hpp"
 // #include "optim/func_passes/pre.hpp"
 #include "optim/func_passes/sccp.hpp"
+#include "optim/func_passes/simplify_cfg.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
@@ -82,8 +83,8 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
-  
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
 
@@ -91,6 +92,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
   foptim::utils::Debug << "================OPTIMEND====================\n";
   for (const auto &[_, func] : ctx.data->storage.functions) {

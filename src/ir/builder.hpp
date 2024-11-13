@@ -53,6 +53,12 @@ public:
     indx = bbr->instructions.size();
   }
 
+  void at_start(BasicBlock bbr) {
+    bb = bbr;
+    func = bbr->func;
+    indx = 0;
+  }
+
   void at_penultimate(BasicBlock bbr) {
     bb = bbr;
     func = bbr->func;

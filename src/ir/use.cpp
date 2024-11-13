@@ -13,7 +13,7 @@ void Used::replace_all_uses(ValueR new_value) {
       u.user.replace_bb_arg(u.argId, u.bbArgId, new_value);
       break;
     case UseType::BB:
-      std::abort();
+      u.user.replace_bb(u.argId, new_value.as_bb());
       break;
     }
   }
