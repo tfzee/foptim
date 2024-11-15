@@ -2,12 +2,13 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "optim/function_pass.hpp"
 
 namespace foptim::optim {
 
-// + [ ] remove bb with no predecessor
-// + [ ] merge bb with pred if thats only edge
+// + [x] remove bb with no predecessor
+// + [x] merge bb with pred if thats only edge
 // + [ ] eleminate bb args if only 1 pred
 // + [ ] eliminate bb if only a single jump
 // + [ ] convert if else into cmove
@@ -22,10 +23,24 @@ public:
 
     for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
       auto &curr = cfg.bbrs[bb_id];
+      // if not jumped to just delete
       if (curr.pred.empty() && bb_id != cfg.entry) {
         func.basic_blocks[bb_id]->remove_from_parent(true);
         cfg.update(func, false);
       }
+      //if only 1 pred we can replace all the bb args with just the values of the pred
+      if (curr.pred.size() == 1 && curr.bb->n_args() != 0) {
+        auto n_args = curr.bb->n_args();
+        auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
+        auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
+        for(u32 i = 0; i < n_args; i++){
+          curr.bb->args[i].replace_all_uses(pred_term->bbs[pred_term_bb_id].args[i]);
+        }
+        curr.bb->clear_args();
+        pred_term.clear_bb_args(pred_term_bb_id);
+        // TODO("impl");
+      }
+      // if 1 to 1 relation between blocks we can merge them
       if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1) {
         auto succ_id = curr.succ[0];
 
@@ -42,7 +57,7 @@ public:
           for (u32 i = 0; i < succ->n_args(); i++) {
             fir::ValueR{succ, i}.replace_all_uses(term->bbs[0].args[i]);
           }
-          succ->remove_args();
+          succ->clear_args();
         } else if (first_has_args) {
           failure({"impl if previous has args", func.basic_blocks.at(bb_id)});
           continue;
@@ -77,6 +92,35 @@ public:
         // utils::Debug << "\n)))))\n" << func << "\n====\n";
         cfg.update(func, false);
       }
+      // if all incoming values of a bbarg are from a block that dominates the
+      // block with the argument we can replace it with a cmove (also applies if
+      // its a constant) for now only if we have 2 predecessors
+      // and if the condition dominates and decides these 2
+      // if (curr.succ.size() == 2 && curr.bb->n_args() != 0) {
+      //   Dominators doms{cfg};
+      //   auto n_args = curr.bb->n_args();
+      //   TVec<fir::ValueR> incoming_values;
+      //   //for each arg
+      //   for (auto i = n_args; i > 0; i--) {
+      //     auto arg_id = i - 1;
+      //     // we first check if they are dominated or constants
+      //     incoming_values.clear();
+      //     bool all_dominated_or_constant = true;
+      //     for(auto pred: curr.pred) {
+      //       auto term = cfg.bbrs[pred].bb->get_terminator();
+      //       auto incoming_value = term->bbs[term.get_bb_id(curr.bb)].args[arg_id];
+      //       incoming_values.push_back(incoming_value);
+      //       if(!incoming_value.is_constant() /* && TODO: check if its parent doesnt dominte curr */){
+      //         all_dominated_or_constant = false;
+      //         break;
+      //       }
+      //     }
+      //     if(all_dominated_or_constant){
+                        
+      //     }
+      //   }
+      // }
+
       // if (func.basic_blocks[bb_id]->n_instrs() == 1 && curr.succ.size() == 1
       // &&
       //     func.basic_blocks.at(curr.succ[0])->n_args() == 0) {

@@ -30,7 +30,7 @@ bool BasicBlockData::verify(const Function *exp_parent,
   return true;
 }
 
-void BasicBlockData::remove_args() {
+void BasicBlockData::clear_args() {
   for (auto &arg : args) {
     arg.replace_all_uses(ValueR());
   }

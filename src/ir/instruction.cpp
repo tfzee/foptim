@@ -88,6 +88,7 @@ void Instr::clear_bb_args(u16 indx) {
 
 TypeR Instr::get_type() const { return (this->operator->())->get_type(); }
 
+//@returns: the bb id in reference to which index it has in the targets of this instruction
 u16 Instr::get_bb_id(BasicBlock target) const {
   const InstrData *self = operator->();
   u16 bb_indx = 0;
