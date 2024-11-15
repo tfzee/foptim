@@ -30,16 +30,24 @@ bool BasicBlockData::verify(const Function *exp_parent,
   return true;
 }
 
-void BasicBlockData::remove_from_parent(bool remove_references, bool cleanup_instr) {
+void BasicBlockData::remove_args() {
+  for (auto &arg : args) {
+    arg.replace_all_uses(ValueR());
+  }
+  args.clear();
+}
+
+void BasicBlockData::remove_from_parent(bool remove_references,
+                                        bool cleanup_instr) {
   if (remove_references) {
     // replace_all_uses(ValueR());
     for (auto &arg : args) {
       arg.replace_all_uses(ValueR());
     }
   }
-  if(cleanup_instr){
-    while(!instructions.empty()){
-      remove_instr(instructions.size()-1);
+  if (cleanup_instr) {
+    while (!instructions.empty()) {
+      remove_instr(instructions.size() - 1);
     }
   }
   for (size_t t = 0; t < func->basic_blocks.size(); t++) {

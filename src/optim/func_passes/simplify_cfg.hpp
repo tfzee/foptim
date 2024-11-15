@@ -29,11 +29,24 @@ public:
       if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1) {
         auto succ_id = curr.succ[0];
 
-        if (func.basic_blocks.at(bb_id)->n_args() != 0) {
+        bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
+        bool secon_has_args = func.basic_blocks.at(succ_id)->n_args() != 0;
+        if (first_has_args && !secon_has_args) {
+          for (auto arg : func.basic_blocks[bb_id]->args) {
+            auto new_arg = func.basic_blocks[succ_id].add_arg(arg.type);
+            arg.replace_all_uses(new_arg);
+          }
+        } else if (!first_has_args && secon_has_args) {
+          auto term = func.basic_blocks[bb_id]->get_terminator();
+          auto succ = func.basic_blocks[succ_id];
+          for (u32 i = 0; i < succ->n_args(); i++) {
+            fir::ValueR{succ, i}.replace_all_uses(term->bbs[0].args[i]);
+          }
+          succ->remove_args();
+        } else if (first_has_args) {
           failure({"impl if previous has args", func.basic_blocks.at(bb_id)});
           continue;
-        }
-        if (func.basic_blocks.at(succ_id)->n_args() != 0) {
+        } else if (secon_has_args) {
           failure({"impl if succ has args", func.basic_blocks.at(succ_id)});
           continue;
         }
@@ -53,11 +66,11 @@ public:
           new_instr.substitute(subs);
           subs.insert({fir::ValueR{instr}, fir::ValueR{new_instr}});
         }
-        for(auto [from,to]: subs){
+        for (auto [from, to] : subs) {
           fir::ValueR f = from;
           f.replace_all_uses(to);
         }
-        
+
         func.basic_blocks[bb_id]->replace_all_uses(
             fir::ValueR{func.basic_blocks.at(succ_id)});
         func.basic_blocks[bb_id]->remove_from_parent(true);
