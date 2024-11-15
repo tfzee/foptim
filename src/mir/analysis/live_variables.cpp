@@ -1,0 +1,217 @@
+
+#include "live_variables.hpp"
+#include "utils/bitset.hpp"
+#include <deque>
+
+namespace foptim::fmir {
+
+static size_t max_vreg_id(MFunc &func) {
+  size_t unique_reg_id = 0;
+  for (auto &bb : func.bbs) {
+    for (auto &instr : bb.instrs) {
+      for (u8 i = 0; i < instr.n_args; i++) {
+        switch (instr.args[i].type) {
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+          if (!instr.args[i].reg.info.is_pinned()) {
+            unique_reg_id = std::max(unique_reg_id, instr.args[i].reg.id);
+          }
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          if (!instr.args[i].reg.info.is_pinned()) {
+            unique_reg_id = std::max(unique_reg_id, instr.args[i].reg.id);
+          }
+          if (!instr.args[i].indx.info.is_pinned()) {
+            unique_reg_id = std::max(unique_reg_id, instr.args[i].indx.id);
+          }
+          break;
+        default:
+          break;
+        }
+      }
+    }
+  }
+  return unique_reg_id;
+}
+
+size_t reg_to_uid(VReg r) {
+  if (r.info.is_pinned()) {
+    return (u8)r.info.ty - 1;
+  }
+  return (u8)VRegType::N_REGS - 1 + r.id;
+}
+
+void update_def(MInstr &instr, utils::BitSet<> &def) {
+  switch (instr.op) {
+  case Opcode::mov:
+  case Opcode::itrunc:
+  case Opcode::mov_zx:
+  case Opcode::mov_sx:
+  case Opcode::lea:
+  case Opcode::add:
+  case Opcode::sub:
+  case Opcode::mul:
+  case Opcode::fadd:
+  case Opcode::fsub:
+  case Opcode::fmul:
+  case Opcode::pop:
+  case Opcode::icmp_slt:
+  case Opcode::icmp_eq:
+    if (instr.args[0].isReg()) {
+      def[reg_to_uid(instr.args[0].reg)].set(true);
+    }
+    break;
+  case Opcode::invoke:
+    if (instr.args[1].isReg()) {
+      def[reg_to_uid(instr.args[1].reg)].set(true);
+    }
+    break;
+  case Opcode::idiv:
+    def[reg_to_uid(instr.args[0].reg)].set(true);
+    def[reg_to_uid(instr.args[1].reg)].set(true);
+    break;
+  case Opcode::cjmp_int_slt:
+  case Opcode::cjmp_int_sge:
+  case Opcode::cjmp_int_ult:
+  case Opcode::cjmp_int_ule:
+  case Opcode::cjmp_int_ugt:
+  case Opcode::cjmp_int_uge:
+  case Opcode::cjmp_int_ne:
+  case Opcode::cjmp_int_eq:
+  case Opcode::cjmp_flt_oeq:
+  case Opcode::cjmp_flt_ogt:
+  case Opcode::cjmp_flt_oge:
+  case Opcode::cjmp_flt_olt:
+  case Opcode::cjmp_flt_ole:
+  case Opcode::cjmp_flt_one:
+  case Opcode::cjmp_flt_ord:
+  case Opcode::cjmp_flt_uno:
+  case Opcode::cjmp_flt_ueq:
+  case Opcode::cjmp_flt_ugt:
+  case Opcode::cjmp_flt_uge:
+  case Opcode::cjmp_flt_ult:
+  case Opcode::cjmp_flt_ule:
+  case Opcode::cjmp_flt_une:
+  case Opcode::push:
+  case Opcode::cjmp:
+  case Opcode::jmp:
+  case Opcode::call:
+  case Opcode::ret:
+  case Opcode::arg_setup:
+    break;
+  }
+}
+
+void LiveVariables::update(fmir::MFunc &func) {
+
+  TVec<utils::BitSet<>> upwExp;
+  TVec<utils::BitSet<>> defs;
+
+  const auto max_id = max_vreg_id(func);
+  constexpr auto n_regs = (u8)VRegType::N_REGS - 1;
+  const auto n_unique_regs = n_regs + max_id;
+
+  upwExp.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
+  defs.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
+  std::deque<u32, utils::TempAlloc<u32>> worklist{};
+
+  for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
+    worklist.push_front(bb_id);
+    auto &bb = func.bbs[bb_id];
+    for (auto &instr : bb.instrs) {
+      // update defs
+      update_def(instr, defs[bb_id]);
+
+      // update upwexp
+      for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
+        auto &arg = instr.args[arg_id];
+        switch (arg.type) {
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+        case MArgument::ArgumentType::MemImmVRegScale:
+          upwExp[bb_id][reg_to_uid(arg.reg)].set(true);
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          upwExp[bb_id][reg_to_uid(arg.reg)].set(true);
+          upwExp[bb_id][reg_to_uid(arg.indx)].set(true);
+          break;
+        case MArgument::ArgumentType::MemImm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::Imm:
+          break;
+        }
+      }
+      // cleanup upwexp
+      upwExp[bb_id].mul_not(defs[bb_id]);
+    }
+  }
+
+  // utils::Debug << "FUNC\n" << func << "\n";
+  // utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
+  // utils::Debug << "defs\n" << defs << "\n";
+
+  TVec<utils::BitSet<>> liveIn;
+  TVec<utils::BitSet<>> liveOut;
+  liveIn.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
+  liveOut.resize(func.bbs.size(), utils::BitSet{n_unique_regs, true});
+  utils::BitSet new_liveOut{n_unique_regs, false};
+  utils::BitSet new_liveIn{n_unique_regs, false};
+
+  while (!worklist.empty()) {
+    u32 curr_id = worklist.front();
+    worklist.pop_front();
+    new_liveOut.reset(false);
+
+    for (auto succ : cfg.bbrs[curr_id].succ) {
+      new_liveOut += liveIn[succ];
+    }
+    new_liveIn.assign(new_liveOut).mul_not(defs[curr_id]).add(upwExp[curr_id]);
+    // utils::Debug << "Updating " << curr_id << " " << new_liveOut << "  " <<
+    // new_liveIn
+    //              << "\n";
+    // auto test = upwExp[curr_id] + (new_liveOut - defs[curr_id]);
+    // assert(test == liveIn[curr_id]);
+
+    if (new_liveOut != liveOut[curr_id]) {
+      liveOut[curr_id].assign(new_liveOut);
+      worklist.push_back(curr_id);
+    }
+    if (new_liveIn != liveIn[curr_id]) {
+      liveIn[curr_id].assign(new_liveIn);
+      for (auto pred : cfg.bbrs[curr_id].pred) {
+        worklist.push_back(pred);
+      }
+    }
+  }
+
+  // utils::Debug << "\nLIVEIN\n" << liveIn << "\n";
+  // utils::Debug << "LIVEOUT\n" << liveOut << "\n";
+  _live.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
+  for (size_t i = 0; i < cfg.bbrs.size(); i++) {
+    //we also add defs to make sure we alos get variables taht live shorter then 1 block
+    _live[i].assign(liveIn[i]).add(liveOut[i]).add(defs[i]);
+  }
+}
+
+bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
+  auto id = reg_to_uid(reg);
+  if (id >= _live.at(bb_id).size()) {
+    utils::Debug << "Faled to index into live variables with reg " << reg
+                 << " which gets id " << id << "\n";
+    ASSERT(false);
+  }
+  return _live.at(bb_id)[id];
+}
+
+} // namespace foptim::fmir

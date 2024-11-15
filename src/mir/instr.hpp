@@ -319,6 +319,7 @@ public:
   constexpr VReg(u64 id, u8 size, VRegClass reg_class)
       : id(id), info(VRegInfo{size, reg_class}) {}
   constexpr VReg(u64 id, Type ty) : id(id), info(ty) {}
+  constexpr VReg(VRegType ty, Type typ = Type::Int8) : id(0), info(VRegInfo{ty, typ}) {}
 
   static constexpr VReg EAX() {
     VRegInfo res_info{};

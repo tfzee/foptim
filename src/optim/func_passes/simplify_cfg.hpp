@@ -9,7 +9,7 @@ namespace foptim::optim {
 
 // + [x] remove bb with no predecessor
 // + [x] merge bb with pred if thats only edge
-// + [ ] eleminate bb args if only 1 pred
+// + [x] eleminate bb args if only 1 pred
 // + [ ] eliminate bb if only a single jump
 // + [ ] convert if else into cmove
 // + [ ]
@@ -28,13 +28,15 @@ public:
         func.basic_blocks[bb_id]->remove_from_parent(true);
         cfg.update(func, false);
       }
-      //if only 1 pred we can replace all the bb args with just the values of the pred
+      // if only 1 pred we can replace all the bb args with just the values of
+      // the pred
       if (curr.pred.size() == 1 && curr.bb->n_args() != 0) {
         auto n_args = curr.bb->n_args();
         auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
         auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
-        for(u32 i = 0; i < n_args; i++){
-          curr.bb->args[i].replace_all_uses(pred_term->bbs[pred_term_bb_id].args[i]);
+        for (u32 i = 0; i < n_args; i++) {
+          curr.bb->args[i].replace_all_uses(
+              pred_term->bbs[pred_term_bb_id].args[i]);
         }
         curr.bb->clear_args();
         pred_term.clear_bb_args(pred_term_bb_id);
@@ -46,25 +48,28 @@ public:
 
         bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
         bool secon_has_args = func.basic_blocks.at(succ_id)->n_args() != 0;
-        if (first_has_args && !secon_has_args) {
-          for (auto arg : func.basic_blocks[bb_id]->args) {
-            auto new_arg = func.basic_blocks[succ_id].add_arg(arg.type);
-            arg.replace_all_uses(new_arg);
-          }
-        } else if (!first_has_args && secon_has_args) {
+
+        if (secon_has_args) {
           auto term = func.basic_blocks[bb_id]->get_terminator();
           auto succ = func.basic_blocks[succ_id];
           for (u32 i = 0; i < succ->n_args(); i++) {
             fir::ValueR{succ, i}.replace_all_uses(term->bbs[0].args[i]);
           }
           succ->clear_args();
-        } else if (first_has_args) {
-          failure({"impl if previous has args", func.basic_blocks.at(bb_id)});
-          continue;
-        } else if (secon_has_args) {
-          failure({"impl if succ has args", func.basic_blocks.at(succ_id)});
-          continue;
         }
+        if (first_has_args) {
+          for (auto arg : func.basic_blocks[bb_id]->args) {
+            auto new_arg = func.basic_blocks[succ_id].add_arg(arg.type);
+            arg.replace_all_uses(new_arg);
+          }
+        }
+        // } else if (first_has_args) {
+        //   failure({"impl if previous has args",
+        //   func.basic_blocks.at(bb_id)}); continue;
+        // } else if (secon_has_args) {
+        //   failure({"impl if succ has args", func.basic_blocks.at(succ_id)});
+        //   continue;
+        // }
 
         fir::Builder bb{func.basic_blocks[succ_id]};
         bb.at_start(func.basic_blocks[succ_id]);
@@ -108,15 +113,17 @@ public:
       //     bool all_dominated_or_constant = true;
       //     for(auto pred: curr.pred) {
       //       auto term = cfg.bbrs[pred].bb->get_terminator();
-      //       auto incoming_value = term->bbs[term.get_bb_id(curr.bb)].args[arg_id];
+      //       auto incoming_value =
+      //       term->bbs[term.get_bb_id(curr.bb)].args[arg_id];
       //       incoming_values.push_back(incoming_value);
-      //       if(!incoming_value.is_constant() /* && TODO: check if its parent doesnt dominte curr */){
+      //       if(!incoming_value.is_constant() /* && TODO: check if its parent
+      //       doesnt dominte curr */){
       //         all_dominated_or_constant = false;
       //         break;
       //       }
       //     }
       //     if(all_dominated_or_constant){
-                        
+
       //     }
       //   }
       // }

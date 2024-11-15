@@ -53,8 +53,8 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
 
   upwExp.resize(func.n_bbs(), utils::BitSet{n_values, false});
   defs.resize(func.n_bbs(), utils::BitSet{n_values, false});
-
   std::deque<u32, utils::TempAlloc<u32>> worklist{};
+
 
   // setup constant values for data flow equation
   auto &bbs = func.get_bbs();

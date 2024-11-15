@@ -1,4 +1,5 @@
 #include "invoke_lower.hpp"
+#include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/todo.hpp"
@@ -12,7 +13,7 @@ namespace foptim::fmir {
 //     VRegType::R12, VRegType::R13, VRegType::R14, VRegType::R15};
 
 static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
-                      utils::BitSet<> used_regs) {
+                      size_t bb_id, LiveVariables &lives) {
   size_t n_args = end - start;
 
   TVec<MInstr> args;
@@ -27,7 +28,7 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
   bool return_value_overwrites_eax =
       (call.args[1].isReg() && call.args[1].reg.info.ty == VRegType::A);
 
-  if (used_regs[0] && !return_value_overwrites_eax) {
+  if (lives.isAlive(VReg{VRegType::A}, bb_id) && !return_value_overwrites_eax) {
     auto arg =
         MArgument{VReg{0, VRegInfo{(VRegType)(1), Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
@@ -51,7 +52,8 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
   // NOTE: skipping first reg so we can save the result in it
   for (u8 i = 1; i < ((u8)VRegType::R15) - 1; i++) {
     auto reg_ty = (VRegType)(i + 1);
-    if (!used_regs[i] || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
+    if (!lives.isAlive(VReg{reg_ty}, bb_id) || reg_ty == VRegType::SP ||
+        reg_ty == VRegType::BP) {
       continue;
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
@@ -81,7 +83,8 @@ static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
     if (reg_ty == VRegType::A && return_value_overwrites_eax) {
       continue;
     }
-    if (!used_regs[i - 1] || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
+    if (!lives.isAlive(VReg{reg_ty}, bb_id) || reg_ty == VRegType::SP ||
+        reg_ty == VRegType::BP) {
       continue;
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
@@ -134,13 +137,14 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
 void InvokeLower::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("InvokeLower");
   for (auto &func : funcs) {
-
-    // FIXME: needs proper liveness analysis
-    auto used_regs = calculate_used_regs(func);
-    used_regs[(u8)VRegType::SP - 1].set(false);
-    used_regs[(u8)VRegType::BP - 1].set(false);
+    CFG cfg(func);
+    LiveVariables lives(cfg, func);
+    // auto used_regs = calculate_used_regs(func);
+    // used_regs[(u8)VRegType::SP - 1].set(false);
+    // used_regs[(u8)VRegType::BP - 1].set(false);
     // utils::Debug << "used regs: " << used_regs << "\n";
 
+    size_t bb_id = 0;
     for (auto &bb : func.bbs) {
       size_t n_instrs = bb.instrs.size();
       for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
@@ -153,7 +157,8 @@ void InvokeLower::apply(FVec<MFunc> &funcs) {
           if (bb.instrs[instr_end_id].op != Opcode::invoke) {
             continue;
           }
-          transform(bb.instrs, instr_id, instr_end_id, used_regs);
+          // FIXME: needs proper liveness analysis
+          transform(bb.instrs, instr_id, instr_end_id, bb_id, lives);
           // update the n of instrs since the might have changed it
           n_instrs = bb.instrs.size();
           // number of elements
@@ -161,6 +166,7 @@ void InvokeLower::apply(FVec<MFunc> &funcs) {
           break;
         }
       }
+      bb_id++;
     }
   }
 }

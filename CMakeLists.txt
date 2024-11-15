@@ -67,6 +67,7 @@ add_library (foptim
                 #mir
                 ./src/mir/reg_alloc.cpp
                 ./src/mir/matcher.cpp
+                ./src/mir/analysis/live_variables.cpp
                 ./src/mir/optim/reg_alloc.cpp
                 ./src/mir/optim/invoke_lower.cpp
                 ./src/mir/optim/bb_reordering.cpp
