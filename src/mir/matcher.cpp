@@ -289,7 +289,7 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   alloc.alloc_func(func, lives);
 
   {
-    auto &entry_bb = func.entry;
+    auto entry_bb = func.get_entry();
     for (u32 i = 0; i < entry_bb->args.size(); i++) {
       auto arg_reg = alloc.get_register(fir::ValueR{entry_bb, i});
       auto arg_type = entry_bb->args[i].type;

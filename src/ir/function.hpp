@@ -26,17 +26,20 @@ public:
   std::string name;
   FunctionTypeR func_ty;
   IRVec<BasicBlock> basic_blocks;
-  BasicBlock entry;
   // metadata
   CallingConv cc = CallingConv::C;
   Linkage linkage = Linkage::Internal;
 
   Function(ContextData *ctx, std::string name, FunctionTypeR type)
-      : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}), entry({}) {}
+      : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}
 
   std::string &getName() { return name; }
   const std::string &getName() const { return name; }
 
+  [[nodiscard]] BasicBlock get_entry() const {
+    ASSERT(!basic_blocks.empty());
+    return basic_blocks[0];
+  }
   auto &get_bbs() { return basic_blocks; }
   const auto &get_bbs() const { return basic_blocks; }
 
@@ -54,22 +57,7 @@ public:
   */
   [[nodiscard]] size_t bb_id(BasicBlock b) const;
   void append_bbr(BasicBlock bb) { basic_blocks.push_back(bb); }
-  void set_entry_bbr(BasicBlock bb) {
-    // TODO: verify that its basic block in the local list;
-
-    ASSERT_M(bb->args.size() == 0,
-             "Basic block args need to empty to be set as entry block");
-
-    const auto &arg_tys = func_ty->as_func_ty().arg_types;
-    bb->args.reserve(arg_tys.size());
-    for (auto arg_ty : arg_tys) {
-      bb->args.emplace_back(arg_ty);
-    }
-    entry = bb;
-  }
-
   bool verify(utils::Printer) const;
-  constexpr BasicBlock get_entry_bb() const { return entry; }
 };
 
 } // namespace foptim::fir

@@ -525,9 +525,10 @@ inline void generate_memset(foptim::fir::Context &fctx) {
   auto ffunc = fctx->create_function(name, func_ty);
 
   auto bb = ffunc.builder();
-  auto entry_bb = ffunc->get_entry_bb();
+  auto entry_bb = ffunc->get_entry();
   auto loop_body = bb.append_bb();
   auto exit = bb.append_bb();
+  foptim::utils::Debug << ffunc << "\n";
 
   // the arguments
   auto ptr_arg = foptim::fir::ValueR{entry_bb, 0};
@@ -541,7 +542,7 @@ inline void generate_memset(foptim::fir::Context &fctx) {
       foptim::fir::ValueR(fctx->get_constant_value(8, i64_ty));
 
   // === header
-  bb.at_end(ffunc->get_entry_bb());
+  bb.at_end(ffunc->get_entry());
   // i = 0
   auto index = bb.build_alloca(constant_eight);
   index.as_instr()->add_attrib("alloca::type", i64_ty);
@@ -626,10 +627,10 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
 
   foptim::TSet<llvm::BasicBlock *> visited_bbs;
   std::deque<std::pair<llvm::BasicBlock *, foptim::fir::BasicBlock>> worklist{
-      {&entry_bb, ffunc->get_entry_bb()}};
+      {&entry_bb, ffunc->get_entry()}};
 
   B2BMap b2b{};
-  auto fentry_bb = ffunc->get_entry_bb();
+  auto fentry_bb = ffunc->get_entry();
   b2b.insert({&entry_bb, fentry_bb});
 
   auto &fargs = fentry_bb->get_args();

@@ -130,15 +130,12 @@ public:
       const auto &target = instr->get_bb_args();
       // utils::Debug << " HIT BRANCH\n\n";
       ASSERT(target.size() == 1);
+      const auto func = instr->get_parent()->get_parent();
       if (!reachable_bb.contains(target[0].bb)) {
         cfg_worklist.push_back(target[0].bb);
       }
       {
-        const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                                          [&target](auto &&value) {
-                                            return value.bb == target[0].bb;
-                                          }) -
-                             cfg.bbrs.begin();
+        const size_t bb_id = func->bb_id(target[0].bb);
         eval_meets(target[0].bb, bb_id);
       }
       return ConstantValue::Top();
@@ -147,6 +144,7 @@ public:
       const auto &targets = instr->get_bb_args();
       ASSERT(targets.size() == 2);
       auto arg = eval(instr->get_arg(0));
+      const auto func = instr->get_parent()->get_parent();
       // ASSERT(!arg.is_bottom());
       if (arg.is_bottom()) {
         if (!reachable_bb.contains(targets[0].bb)) {
@@ -157,19 +155,12 @@ public:
         }
 
         {
-          const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                                            [&targets](auto &&value) {
-                                              return value.bb == targets[0].bb;
-                                            }) -
-                               cfg.bbrs.begin();
+          const size_t bb_id = func->bb_id(targets[0].bb);
           eval_meets(targets[0].bb, bb_id);
         }
         {
-          const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                                            [&targets](auto &&value) {
-                                              return value.bb == targets[1].bb;
-                                            }) -
-                               cfg.bbrs.begin();
+
+          const size_t bb_id = func->bb_id(targets[1].bb);
           eval_meets(targets[1].bb, bb_id);
         }
         return ConstantValue::Top();
@@ -189,19 +180,11 @@ public:
       }
 
       {
-        const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                                          [&targets](auto &&value) {
-                                            return value.bb == targets[0].bb;
-                                          }) -
-                             cfg.bbrs.begin();
+        const size_t bb_id = func->bb_id(targets[0].bb);
         eval_meets(targets[0].bb, bb_id);
       }
       {
-        const size_t bb_id = std::find_if(cfg.bbrs.begin(), cfg.bbrs.end(),
-                                          [&targets](auto &&value) {
-                                            return value.bb == targets[1].bb;
-                                          }) -
-                             cfg.bbrs.begin();
+        const size_t bb_id = func->bb_id(targets[1].bb);
         eval_meets(targets[1].bb, bb_id);
       }
 
@@ -213,8 +196,6 @@ public:
         replacement_term.add_bb_arg(0, bb_arg);
       }
 
-      instr.clear_bb_args(0);
-      instr.clear_bb_args(1);
       instr.clear_bbs();
       instr.clear_args();
       instr.remove_from_parent();
@@ -325,8 +306,9 @@ public:
       }
 
       auto res_type_width = instr->get_type()->as_int();
-      u64 mask = ((u64)1<<res_type_width)-1;
-      return ConstantValue::Constant(ctx->get_constant_value(a.value->as_int() & mask, ctx->get_int_type(res_type_width)));
+      u64 mask = ((u64)1 << res_type_width) - 1;
+      return ConstantValue::Constant(ctx->get_constant_value(
+          a.value->as_int() & mask, ctx->get_int_type(res_type_width)));
     }
     case fir::InstrType::DirectCallInstr:
     case fir::InstrType::AllocaInstr:
@@ -445,7 +427,7 @@ public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("SCCP");
     cfg.update(func, false);
-    cfg_worklist.push_back(func.get_entry_bb());
+    cfg_worklist.push_back(func.get_entry());
     for (auto bb : func.get_bbs()) {
 
       for (size_t arg_id = 0; arg_id < bb->get_args().size(); arg_id++) {
@@ -462,9 +444,8 @@ public:
         cfg_worklist.pop_front();
         reachable_bb.insert(bb);
 
-        const size_t bb_id =
-            std::find(func.basic_blocks.begin(), func.basic_blocks.end(), bb) -
-            func.basic_blocks.begin();
+        const size_t bb_id = func.bb_id(bb);
+
         eval_meets(bb, bb_id);
 
         for (size_t instr_id = 0; instr_id < bb->instructions.size();

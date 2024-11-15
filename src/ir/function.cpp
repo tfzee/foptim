@@ -1,6 +1,7 @@
 
 #include "builder.hpp"
 #include "utils/logging.hpp"
+#include "utils/todo.hpp"
 
 namespace foptim::fir {
 
@@ -12,12 +13,14 @@ Builder FunctionR::builder() { return Builder{*this}; }
       return bb_indx;
     }
   }
+  utils::Debug << "==\nBLOCK:\n"<< b << "\nIN FUNCTION:\n"<< *this << "==\n";
+  ASSERT_M(false, "Tried to get bb_id of block that is not in this function");
   std::abort();
 }
 
 bool Function::verify(utils::Printer printer) const {
-  if (!entry.is_valid()) {
-    printer << "Entry block needs to be set for function";
+  if (basic_blocks.empty() || !get_entry().is_valid())  {
+    printer << "Function atleast needs an entry block";
     return false;
   }
   if (!func_ty.is_valid()) {
@@ -26,6 +29,7 @@ bool Function::verify(utils::Printer printer) const {
   }
   const auto &ty = func_ty->as_func_ty();
 
+  auto entry = get_entry(); 
   if (ty.arg_types.size() != entry->n_args()) {
     printer << "Entry basic block needs as many arguments as function";
     return false;

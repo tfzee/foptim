@@ -105,7 +105,12 @@ struct ContextData {
     auto init_bb = BasicBlock(storage.basic_blocks.push_back({func}));
     init_bb.verify_validness();
     func->append_bbr(init_bb);
-    func->set_entry_bbr(init_bb);
+    // func->set_entry_bbr(init_bb);
+    const auto &arg_tys = type->as_func_ty().arg_types;
+    init_bb->args.reserve(arg_tys.size());
+    for (auto arg_ty : arg_tys) {
+      init_bb->args.emplace_back(arg_ty);
+    }
 
     return func;
   }

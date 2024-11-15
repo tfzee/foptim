@@ -323,7 +323,7 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
       current_variable_value{{}};
   decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()),
-                           func.get_entry_bb(), visited, bb_arg_to_alloca,
+                           func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
 }
 } // namespace foptim::optim

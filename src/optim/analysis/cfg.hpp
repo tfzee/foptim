@@ -68,7 +68,7 @@ public:
     bbrs.reserve(func.n_bbs());
 
     for (auto &bb : func.get_bbs()) {
-      if (bb == func.get_entry_bb()) {
+      if (bb == func.get_entry()) {
         entry = bbrs.size();
       }
       bbrs.push_back(Node{bb, {}, {}});

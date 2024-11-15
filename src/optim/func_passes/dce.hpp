@@ -169,7 +169,7 @@ public:
     CFG cfg{func};
     TVec<size_t> dead_blocks;
     for (size_t bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
-      if (func.basic_blocks[bb_id] != func.get_entry_bb() &&
+      if (func.basic_blocks[bb_id] != func.get_entry() &&
           !reachable_from_entry(cfg, bb_id)) {
         dead_blocks.push_back(bb_id);
       }
