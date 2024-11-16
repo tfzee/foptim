@@ -473,6 +473,39 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({&any_instr, add});
       return;
     }
+  } else if (any_instr.getOpcode() == llvm::Instruction::Shl) {
+    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr.getType()->isIntegerTy()) {
+      auto add = builder.build_shl(left, right);
+      valueToValue.insert({&any_instr, add});
+      return;
+    }
+  } else if (any_instr.getOpcode() == llvm::Instruction::AShr) {
+    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr.getType()->isIntegerTy()) {
+      auto add = builder.build_ashr(left, right);
+      valueToValue.insert({&any_instr, add});
+      return;
+    }
+  } else if (any_instr.getOpcode() == llvm::Instruction::LShr) {
+    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr.getType()->isIntegerTy()) {
+      auto add = builder.build_lshr(left, right);
+      valueToValue.insert({&any_instr, add});
+      return;
+    }
   } else if (any_instr.getOpcode() == llvm::Instruction::Sub) {
     auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);

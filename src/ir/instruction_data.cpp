@@ -131,6 +131,9 @@ bool InstrData::is_commutative() const {
     case BinaryInstrSubType::FloatAdd:
     case BinaryInstrSubType::FloatSub:
     case BinaryInstrSubType::FloatMul:
+    case BinaryInstrSubType::Shl:
+    case BinaryInstrSubType::LShR:
+    case BinaryInstrSubType::AShR:
       return false;
     }
   case InstrType::FCmp:
@@ -255,7 +258,24 @@ InstrData InstrData::get_smod(TypeR ty) {
 InstrData InstrData::get_mul(TypeR ty) {
   auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntMul,
                        ty, BasicBlock(BasicBlock::invalid())};
-  // res.args.reserve(2);
+  return res;
+}
+
+InstrData InstrData::get_shl(TypeR ty) {
+  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::Shl, ty,
+                       BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_ashr(TypeR ty) {
+  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::AShR,
+                       ty, BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_lshr(TypeR ty) {
+  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::LShR,
+                       ty, BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
