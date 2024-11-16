@@ -14,6 +14,9 @@ enum class Opcode : u32 {
   mov_zx,
   mov_sx,
   lea,
+  shl,
+  shr,
+  sar,
 
   add,
   sub,
@@ -152,6 +155,12 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     return "cjmp_flt_ule";
   case Opcode::cjmp_flt_une:
     return "cjmp_flt_une";
+  case Opcode::shl:
+    return "shl";
+  case Opcode::shr:
+    return "shr";
+  case Opcode::sar:
+    return "sar";
   }
 }
 
@@ -292,6 +301,12 @@ struct VRegInfo {
     return res;
   }
 
+  static constexpr VRegInfo CL() {
+    VRegInfo res{Type::Int8};
+    res.ty = VRegType::C;
+    return res;
+  }
+
   static constexpr VRegInfo EDX() {
     VRegInfo res{Type::Int32};
     res.ty = VRegType::D;
@@ -319,7 +334,8 @@ public:
   constexpr VReg(u64 id, u8 size, VRegClass reg_class)
       : id(id), info(VRegInfo{size, reg_class}) {}
   constexpr VReg(u64 id, Type ty) : id(id), info(ty) {}
-  constexpr VReg(VRegType ty, Type typ = Type::Int8) : id(0), info(VRegInfo{ty, typ}) {}
+  constexpr VReg(VRegType ty, Type typ = Type::Int8)
+      : id(0), info(VRegInfo{ty, typ}) {}
 
   static constexpr VReg EAX() {
     VRegInfo res_info{};

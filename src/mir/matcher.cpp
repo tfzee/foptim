@@ -519,6 +519,12 @@ constexpr auto base_pats() {
                            (u32)fir::BinaryInstrSubType::FloatSub};
   auto FloatMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                            (u32)fir::BinaryInstrSubType::FloatMul};
+  auto ShlNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                      (u32)fir::BinaryInstrSubType::Shl};
+  auto ShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                      (u32)fir::BinaryInstrSubType::Shr};
+  auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::AShr};
   auto EQNode =
       Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::EQ};
   auto SLTNode =
@@ -879,6 +885,75 @@ constexpr auto base_pats() {
                     valueToArg(sub_instr->args[0], res.result, data.alloc),
                     valueToArg(sub_instr->args[1], res.result, data.alloc));
                 return true;
+              }});
+  res.push_back(Pattern{
+      {ShlNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto shift_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
+
+        auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
+
+        if (b.isImm()) {
+          res.result.emplace_back(Opcode::shl, res_reg, a, b);
+        } else {
+          auto shift_reg = data.alloc.get_new_pinned_register(VRegInfo::CL());
+          auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
+          if (b.ty == Type::Int8) {
+            res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
+          } else {
+            res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
+          }
+          res.result.emplace_back(Opcode::shl, res_reg, a, shift_reg_arg);
+        }
+        return true;
+      }});
+  res.push_back(
+      Pattern{{ShrNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto shift_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
+
+        auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
+
+        if (b.isImm()) {
+          res.result.emplace_back(Opcode::shr, res_reg, a, b);
+        } else {
+          auto shift_reg = data.alloc.get_new_pinned_register(VRegInfo::CL());
+          auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
+          if (b.ty == Type::Int8) {
+            res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
+          } else {
+            res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
+          }
+          res.result.emplace_back(Opcode::shr, res_reg, a, shift_reg_arg);
+        }
+        return true;
+              }});
+  res.push_back(
+      Pattern{{AShrNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto shift_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
+
+        auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
+
+        if (b.isImm()) {
+          res.result.emplace_back(Opcode::sar, res_reg, a, b);
+        } else {
+          auto shift_reg = data.alloc.get_new_pinned_register(VRegInfo::CL());
+          auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
+          if (b.ty == Type::Int8) {
+            res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
+          } else {
+            res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
+          }
+          res.result.emplace_back(Opcode::sar, res_reg, a, shift_reg_arg);
+        }
+        return true;
               }});
   res.push_back(
       Pattern{{IntMulNode}, {}, [](MatchResult &res, ExtraMatchData &data) {

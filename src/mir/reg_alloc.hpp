@@ -28,6 +28,7 @@ public:
                         optim::LiveVariables &);
   VReg get_new_register(fir::IRLocation, fir::TypeR ty, VRegInfo info,
                         optim::LiveVariables &);
+  VReg get_new_pinned_register(VRegInfo info);
   VReg get_new_register(fir::IRLocation, Type ty,
                         optim::LiveVariables &);
   VReg get_new_register(VRegInfo info);

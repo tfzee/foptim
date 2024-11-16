@@ -388,6 +388,48 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     }
     return;
   }
+  case fmir::Opcode::shl: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    ASSERT(target != o1);
+    if (target == o0) {
+      cc.emit(Inst::kIdShl, target, o1);
+    } else {
+      cc.emit(Inst::kIdMov, target, o0);
+      cc.emit(Inst::kIdShl, target, o1);
+    }
+    return;
+  }
+  case fmir::Opcode::shr: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    ASSERT(target != o1);
+    if (target == o0) {
+      cc.emit(Inst::kIdShr, target, o1);
+    } else {
+      cc.emit(Inst::kIdMov, target, o0);
+      cc.emit(Inst::kIdShr, target, o1);
+    }
+    return;
+  }
+  case fmir::Opcode::sar: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    ASSERT(target != o1);
+    if (target == o0) {
+      cc.emit(Inst::kIdSar, target, o1);
+    } else {
+      cc.emit(Inst::kIdMov, target, o0);
+      cc.emit(Inst::kIdSar, target, o1);
+    }
+    return;
+  }
   case fmir::Opcode::fadd: {
     ASSERT(instr.n_args == 3);
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);

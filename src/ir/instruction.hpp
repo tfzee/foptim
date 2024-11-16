@@ -27,7 +27,7 @@ public:
   u16 add_bb(BasicBlock val);
   u16 add_bb_arg(u16 bb, ValueR val);
   u16 add_bb_arg(BasicBlock target, ValueR val);
-  u16 get_bb_id(BasicBlock target) const;
+  [[nodiscard]] u16 get_bb_id(BasicBlock target) const;
   ValueR replace_arg(u16 indx, ValueR new_val);
   BasicBlock replace_bb(u16 indx, BasicBlock new_val, bool keepArgs = true);
   BasicBlock replace_bb(BasicBlock target, BasicBlock new_val,

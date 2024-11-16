@@ -89,8 +89,8 @@ enum class BinaryInstrSubType : u32 {
   // IntDiv,
   IntSRem,
   Shl,
-  LShR,
-  AShR,
+  Shr,
+  AShr,
 
   // IntAnd,
   // IntOr,
@@ -163,9 +163,9 @@ public:
         return "FloatMul";
       case BinaryInstrSubType::Shl:
         return "Shl";
-      case BinaryInstrSubType::LShR:
+      case BinaryInstrSubType::Shr:
         return "LShR";
-      case BinaryInstrSubType::AShR:
+      case BinaryInstrSubType::AShr:
         return "AShR";
       }
     case InstrType::ITrunc:

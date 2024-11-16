@@ -32,6 +32,14 @@ bool type_can_share_register(fir::TypeR a, fir::TypeR b) {
   return a->eql(*b.get_raw_ptr());
 }
 
+VReg DumbRegAlloc::get_new_pinned_register(VRegInfo info) {
+  utils::BitSet free_regs{vreg_num, true};
+  bool wants_pinned = info.is_pinned();
+  ASSERT(wants_pinned);
+  vreg_num++;
+  return VReg{vreg_num, info};
+}
+
 VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
                                     VRegInfo info,
                                     optim::LiveVariables &lives) {

@@ -54,6 +54,9 @@ void update_def(MInstr &instr, utils::BitSet<> &def) {
   case Opcode::mov_sx:
   case Opcode::lea:
   case Opcode::add:
+  case Opcode::shl:
+  case Opcode::shr:
+  case Opcode::sar:
   case Opcode::sub:
   case Opcode::mul:
   case Opcode::fadd:
