@@ -10,6 +10,12 @@ void BasicBlock::insert_instr(size_t indx, Instr instr) {
   self->instructions.insert(self->instructions.begin() + indx, instr);
 }
 
+void BasicBlock::push_instr(Instr instr) {
+  auto *self = operator->();
+  instr->set_parent(*this);
+  self->instructions.push_back(instr);
+}
+
 ValueR BasicBlock::add_arg(TypeR type) {
   auto *self = operator->();
   self->args.emplace_back(type);
