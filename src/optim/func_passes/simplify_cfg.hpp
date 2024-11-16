@@ -112,11 +112,16 @@ public:
     CFG cfg{func};
     // utils::Debug << func << "\n";
 
-    //NOTE: make this iterative till it converges
+    auto iter = 0;
     for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
+      iter++;
       if (simplify_cfg(cfg, func, bb_id - 1)) {
         cfg.update(func, false);
         bb_id = 0;
+      }
+      if (iter > 1000) {
+        failure({"Didnt converge fixme\n", func.basic_blocks[bb_id]});
+        return;
       }
     }
   }
