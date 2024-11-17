@@ -5,11 +5,12 @@
 #include "ir/function_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "utils/types.hpp"
+#include <unordered_map>
 
 namespace foptim::fir {
 
 struct IRLocation {
-  enum class LocationType {
+  enum class LocationType : u8 {
     INVALID = 0,
     Function,
     BasicBlock,
@@ -50,6 +51,7 @@ struct IRLocation {
   }
 
   IRLocation() : type(LocationType::INVALID), func(nullptr) {}
+  ~IRLocation() = default;
 
   IRLocation(fir::Instr from_instr)
       : type(LocationType::Instruction),
@@ -64,3 +66,16 @@ struct IRLocation {
   }
 };
 } // namespace foptim::fir
+
+template <> struct std::hash<foptim::fir::IRLocation::LocationType> {
+  std::size_t operator()(const foptim::fir::IRLocation::LocationType &k) const noexcept {
+    return hash<foptim::u8>()((foptim::u8)k);
+  }
+};
+
+template <> struct std::hash<foptim::fir::IRLocation> {
+  std::size_t operator()(const foptim::fir::IRLocation &k) const noexcept {
+    return hash<foptim::u32>()(k.bb) ^ hash<foptim::u32>()(k.instr) ^
+           hash<foptim::fir::IRLocation::LocationType>()(k.type);
+  }
+};

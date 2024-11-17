@@ -1,4 +1,5 @@
 #include "reg_alloc.hpp"
+#include "ir/IRLocation.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/value.hpp"
 #include "mir/instr.hpp"
@@ -32,12 +33,14 @@ bool type_can_share_register(fir::TypeR a, fir::TypeR b) {
   return a->eql(*b.get_raw_ptr());
 }
 
-VReg DumbRegAlloc::get_new_pinned_register(VRegInfo info) {
+VReg DumbRegAlloc::get_new_pinned_register(fir::IRLocation loc, VRegInfo info) {
   utils::BitSet free_regs{vreg_num, true};
   bool wants_pinned = info.is_pinned();
   ASSERT(wants_pinned);
   vreg_num++;
-  return VReg{vreg_num, info};
+  auto res = VReg{vreg_num, info};
+  additional_alives[loc].push_back(res);
+  return res;
 }
 
 VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
@@ -51,17 +54,25 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
       return reg;
     }
 
+    auto& addit = additional_alives[loc];
+    bool is_already_localy_used = std::ranges::find(addit, reg) != addit.cend();
+
     if (lives.isLive(var, loc) ||
-        !type_can_share_register(var.get_type(), ty)) {
+        !type_can_share_register(var.get_type(), ty) || is_already_localy_used) {
       free_regs[reg.id - 1].set(false);
     }
   }
+
   for (auto reg : free_regs) {
-    return VReg{reg + 1, info};
+    auto res = VReg{reg + 1, info};
+    additional_alives[loc].push_back(res);
+    return res;
   }
 
   vreg_num++;
-  return VReg{vreg_num, info};
+  auto res = VReg{vreg_num, info};
+  additional_alives[loc].push_back(res);
+  return res;
 }
 
 VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
@@ -77,21 +88,11 @@ VReg DumbRegAlloc::get_new_register(VRegInfo info) {
   return VReg{vreg_num, info};
 }
 
-VReg DumbRegAlloc::get_new_register(fir::IRLocation /*unused*/, Type /*unused*/,
+VReg DumbRegAlloc::get_new_register(fir::IRLocation /*unused*/, Type t,
                                     optim::LiveVariables & /*unused*/) {
   // TODO: imrpvoe
-  //  utils::BitSet free_regs{vreg_num - 1, true};
-  //  for (auto [var, reg] : mapping) {
-  //    if (lives.isLive(var, loc) || !var.get_type()->eql(ty->get_raw())) {
-  //      free_regs[reg.id - 1] = false;
-  //    }
-  //  }
-  //  for (auto reg : free_regs) {
-  //    return VReg{reg + 1};
-  //  }
-
   vreg_num++;
-  return VReg{vreg_num};
+  return VReg{vreg_num, VRegInfo{t}};
 }
 
 VReg DumbRegAlloc::get_new_register(fir::ValueR v,

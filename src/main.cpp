@@ -7,7 +7,6 @@
 #include "mir/optim/invoke_lower.hpp"
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
-#include "optim/func_passes/clean.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/gvn.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
@@ -67,10 +66,10 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
   foptim::utils::TempAlloc<void *>::reset();
-  // foptim::utils::Debug << "================INIT====================\n";
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  foptim::utils::Debug << "================INIT====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
   ASSERT(ctx->verify());
 }
 
@@ -79,12 +78,17 @@ void optimize_fir(foptim::fir::Context &ctx) {
   using namespace foptim::optim;
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
 
+  foptim::utils::Debug << "================OPTIMEND====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
+
+  ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-  // ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
@@ -133,7 +137,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   auto matcher = foptim::fmir::GreedyMatcher{};
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
-    // foptim::utils::Debug << res;
+    foptim::utils::Debug << res;
     funcs.push_back(std::move(res));
     foptim::utils::TempAlloc<void *>::reset();
   }

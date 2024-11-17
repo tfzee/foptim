@@ -29,6 +29,8 @@ namespace foptim::utils {
 
 template <class T> class TempAlloc : public std::allocator<T> {
 public:
+  using pointer = T*;
+
   T *allocate(size_t count) {
     return (T *)arena_alloc(&global_temp_arena, count * sizeof(T));
   }
@@ -45,6 +47,8 @@ public:
 
 template <class T> class IRAlloc : public std::allocator<T> {
 public:
+  using pointer = T*;
+
   T *allocate(size_t count) {
     return (T *)arena_alloc(&ir_arena, count * sizeof(T));
   }

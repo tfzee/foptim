@@ -47,7 +47,7 @@ bool ValueR::eql(const ValueR &other) const {
     const ConstantValueR *o = std::get_if<ConstantValueR>(&other.origin);
     return (*s)->eql(*o->operator->());
   }
-  if (const InvalidValue *s = std::get_if<InvalidValue>(&origin)) {
+  if (std::get_if<InvalidValue>(&origin)) {
     return true;
   }
   TODO("UNREACH");

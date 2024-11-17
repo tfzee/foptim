@@ -94,7 +94,8 @@ bool InstrData::has_result() const {
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
     return false;
-    break;
+  default:
+    std::abort();
   }
 }
 
@@ -115,6 +116,8 @@ bool InstrData::is_critical() const {
   case InstrType::SExt:
   case InstrType::ZExt:
     return false;
+  default:
+    std::abort();
   }
 }
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/IRLocation.hpp"
 #include "ir/value.hpp"
 #include "mir/instr.hpp"
 #include "utils/map.hpp"
@@ -21,6 +22,7 @@ class DumbRegAlloc : public FunctionRegAlloatorParent {
   u64 vreg_num = 1;
   IRSet<VReg> free_regs;
   IRMap<fir::ValueR, VReg> mapping;
+  IRMap<fir::IRLocation, IRVec<VReg>> additional_alives;
 
 public:
   VReg get_new_register(fir::ValueR, optim::LiveVariables &);
@@ -28,7 +30,7 @@ public:
                         optim::LiveVariables &);
   VReg get_new_register(fir::IRLocation, fir::TypeR ty, VRegInfo info,
                         optim::LiveVariables &);
-  VReg get_new_pinned_register(VRegInfo info);
+  VReg get_new_pinned_register(fir::IRLocation loc, VRegInfo info);
   VReg get_new_register(fir::IRLocation, Type ty,
                         optim::LiveVariables &);
   VReg get_new_register(VRegInfo info);

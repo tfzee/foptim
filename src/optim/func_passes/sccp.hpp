@@ -375,10 +375,10 @@ public:
                                     [bb](auto &&v) { return v.bb == bb; });
 
       ASSERT(pred_args != pred_term->get_bb_args().end());
+      ASSERT(pred_args->args.size() == bb->get_args().size());
       for (size_t arg_id = 0; arg_id < bb->get_args().size(); arg_id++) {
         auto &a = res[arg_id];
-
-        auto b = eval(pred_args->args[arg_id]);
+        auto b = eval(pred_args->args.at(arg_id));
 
         if (a.is_bottom() || b.is_bottom()) {
           res[arg_id] = ConstantValue::Bottom();

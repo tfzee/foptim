@@ -195,10 +195,10 @@ void apply_func(MFunc &func) {
   TMap<VRegType, LinearRange> lifeness;
   lifeness.reserve(32);
   constexpr VRegType regs[] = {
-      VRegType::B,    VRegType::C,    VRegType::S,    VRegType::R8,
-      VRegType::R9,   VRegType::R10,  VRegType::R11,  VRegType::R12,
-      VRegType::R13,  VRegType::R14,  VRegType::R15,  VRegType::A,
-      VRegType::D,    VRegType::mm0,  VRegType::mm1,  VRegType::mm2,
+      VRegType::A,    VRegType::D,    VRegType::B,    VRegType::C,
+      VRegType::S,    VRegType::R8,   VRegType::R9,   VRegType::R10,
+      VRegType::R11,  VRegType::R12,  VRegType::R13,  VRegType::R14,
+      VRegType::R15,  VRegType::mm0,  VRegType::mm1,  VRegType::mm2,
       VRegType::mm3,  VRegType::mm4,  VRegType::mm5,  VRegType::mm6,
       VRegType::mm7,  VRegType::mm8,  VRegType::mm9,  VRegType::mm10,
       VRegType::mm11, VRegType::mm12, VRegType::mm13, VRegType::mm14,
@@ -206,10 +206,14 @@ void apply_func(MFunc &func) {
 
   {
     ZoneScopedN("Actual Alloc");
-
     for (auto [reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
         lifeness.insert({reg.info.ty, lifetime});
+      }
+    }
+
+    for (auto [reg, lifetime] : lifetimes) {
+      if (reg.info.is_pinned()) {
       } else {
         bool found = false;
         for (auto avail_reg : regs) {

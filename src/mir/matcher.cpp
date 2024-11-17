@@ -898,7 +898,7 @@ constexpr auto base_pats() {
         if (b.isImm()) {
           res.result.emplace_back(Opcode::shl, res_reg, a, b);
         } else {
-          auto shift_reg = data.alloc.get_new_pinned_register(VRegInfo::CL());
+          auto shift_reg = data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -921,7 +921,7 @@ constexpr auto base_pats() {
         if (b.isImm()) {
           res.result.emplace_back(Opcode::shr, res_reg, a, b);
         } else {
-          auto shift_reg = data.alloc.get_new_pinned_register(VRegInfo::CL());
+          auto shift_reg = data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -944,7 +944,7 @@ constexpr auto base_pats() {
         if (b.isImm()) {
           res.result.emplace_back(Opcode::sar, res_reg, a, b);
         } else {
-          auto shift_reg = data.alloc.get_new_pinned_register(VRegInfo::CL());
+          auto shift_reg = data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);

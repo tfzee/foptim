@@ -91,6 +91,10 @@ public:
     return false;
   }
 
+  void setLive(fir::ValueR v, fir::IRLocation location) {
+    live_variables.at(v).emplace_back(location);
+  }
+
   u32 numLive(fir::IRLocation location) {
     u32 num = 0;
     for (const auto &[val, locs] : live_variables) {
