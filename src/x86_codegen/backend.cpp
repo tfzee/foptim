@@ -584,6 +584,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   case fmir::Opcode::cjmp_int_ugt:
   case fmir::Opcode::cjmp_int_uge:
   case fmir::Opcode::cjmp_int_sge:
+  case fmir::Opcode::cjmp_int_sgt:
   case fmir::Opcode::cjmp_int_slt: {
     auto a = convert_operand(cc, reg_to_op, instr.args[0]);
     auto b = convert_operand(cc, reg_to_op, instr.args[1]);
@@ -612,6 +613,9 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       break;
     case fmir::Opcode::cjmp_int_sge:
       cc.emit(Inst::kIdJge, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_int_sgt:
+      cc.emit(Inst::kIdJg, bb_labels[instr.bb_ref]);
       break;
     default:
       TODO("UNREAC");

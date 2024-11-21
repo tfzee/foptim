@@ -86,8 +86,9 @@ enum class BinaryInstrSubType : u32 {
   IntAdd,
   IntSub,
   IntMul,
-  // IntDiv,
   IntSRem,
+  IntSDiv,
+  IntUDiv,
   Shl,
   Shr,
   AShr,
@@ -154,7 +155,11 @@ public:
       case BinaryInstrSubType::IntMul:
         return "IntMul";
       case BinaryInstrSubType::IntSRem:
-        return "IntSMod";
+        return "IntSRem";
+      case BinaryInstrSubType::IntSDiv:
+        return "IntSDiv";
+      case BinaryInstrSubType::IntUDiv:
+        return "IntUDiv";
       case BinaryInstrSubType::FloatAdd:
         return "FloatAdd";
       case BinaryInstrSubType::FloatSub:
@@ -295,6 +300,7 @@ public:
   static InstrData get_shl(TypeR ty);
   static InstrData get_ashr(TypeR ty);
   static InstrData get_lshr(TypeR ty);
+  static InstrData get_binary(TypeR ty,BinaryInstrSubType sub_type);
   static InstrData get_float_add(TypeR ty);
   static InstrData get_float_sub(TypeR ty);
   static InstrData get_float_mul(TypeR ty);

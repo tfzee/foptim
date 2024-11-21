@@ -97,7 +97,7 @@ inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
   if (any_ty->isDoubleTy()) {
     return ctx->get_float_type(64);
   }
-  if (llvm::dyn_cast_or_null<llvm::PointerType>(any_ty)) {
+  if (llvm::dyn_cast_or_null<llvm::PointerType>(any_ty) != nullptr) {
     return ctx->get_ptr_type();
   }
   if (any_ty->isVoidTy()) {
@@ -470,6 +470,30 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
 
     if (any_instr.getType()->isIntegerTy()) {
       auto add = builder.build_int_add(left, right);
+      valueToValue.insert({&any_instr, add});
+      return;
+    }
+  } else if (any_instr.getOpcode() == llvm::Instruction::SDiv) {
+    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr.getType()->isIntegerTy()) {
+      auto add = builder.build_binary_op(
+          left, right, foptim::fir::BinaryInstrSubType::IntSDiv);
+      valueToValue.insert({&any_instr, add});
+      return;
+    }
+  } else if (any_instr.getOpcode() == llvm::Instruction::UDiv) {
+    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr.getType()->isIntegerTy()) {
+      auto add = builder.build_binary_op(
+          left, right, foptim::fir::BinaryInstrSubType::IntUDiv);
       valueToValue.insert({&any_instr, add});
       return;
     }

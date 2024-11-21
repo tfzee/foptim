@@ -79,6 +79,7 @@ void update_def(MInstr &instr, utils::BitSet<> &def) {
     break;
   case Opcode::cjmp_int_slt:
   case Opcode::cjmp_int_sge:
+  case Opcode::cjmp_int_sgt:
   case Opcode::cjmp_int_ult:
   case Opcode::cjmp_int_ule:
   case Opcode::cjmp_int_ugt:

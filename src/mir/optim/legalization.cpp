@@ -181,6 +181,23 @@ bool Legalizer::legalize_push(MBB &bb, u32 indx) {
   return false;
 }
 
+bool Legalizer::legalize_one_byte_load(MBB &bb, u32 indx) {
+  // we wanna transform every one/two byte load into a movzx;
+  //  this awoids a false dependency and also clears the upper half with zero
+  //  which then makes further usage easier
+  MInstr &instr = bb.instrs[indx];
+  if (instr.args[0].isReg() &&
+      (instr.args[0].ty == Type::Int8 || instr.args[0].ty == Type::Int16) &&
+      instr.args[1].isMem()) {
+    utils::Debug << "Fixing : " << instr << "\n";
+    instr.op = Opcode::mov_zx;
+    instr.args[0].ty = Type::Int32;
+    instr.args[0].reg.info.reg_size = 4;
+    return true;
+  }
+  return false;
+}
+
 bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
   bool modified = false;
   {
@@ -299,6 +316,11 @@ void Legalizer::apply(MFunc &func) {
     for (size_t ioff = 1; ioff <= bb.instrs.size(); ioff++) {
       auto i = ioff - 1;
       switch (bb.instrs[i].op) {
+      case Opcode::mov:
+        if (legalize_one_byte_load(bb, i)) {
+          ioff = 0;
+        }
+        break;
       case Opcode::icmp_slt:
       case Opcode::icmp_eq:
       case Opcode::cjmp_int_slt:

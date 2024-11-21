@@ -714,6 +714,7 @@ constexpr auto base_pats() {
         // first we check if we can output a simplified version
         if (sub_type == fir::ICmpInstrSubType::SLT ||
             sub_type == fir::ICmpInstrSubType::SGE ||
+            sub_type == fir::ICmpInstrSubType::SGT ||
             sub_type == fir::ICmpInstrSubType::NE ||
             sub_type == fir::ICmpInstrSubType::EQ ||
             sub_type == fir::ICmpInstrSubType::ULT ||
@@ -732,6 +733,9 @@ constexpr auto base_pats() {
           if (sub_type == fir::ICmpInstrSubType::SLT) {
             res.result.push_back(
                 MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::SGT) {
+            res.result.push_back(
+                MInstr::cJmp_sgt(v1, v2, data.bbs[bb_with_args.bb]));
           } else if (sub_type == fir::ICmpInstrSubType::ULT) {
             res.result.push_back(
                 MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));

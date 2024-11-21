@@ -34,6 +34,7 @@ enum class Opcode : u32 {
 
   cjmp_int_slt,
   cjmp_int_sge,
+  cjmp_int_sgt,
   cjmp_int_ult,
   cjmp_int_ule,
   cjmp_int_ugt,
@@ -65,104 +66,64 @@ enum class Opcode : u32 {
   invoke,
 };
 
+#define ReturnString(name)                                                     \
+  case Opcode::name:                                                           \
+    return #name;
+
 constexpr const char *getNameFromOpcode(Opcode code) {
   switch (code) {
-  case Opcode::mov:
-    return "mov";
-  case Opcode::lea:
-    return "lea";
-  case Opcode::itrunc:
-    return "itrunc";
-  case Opcode::mov_zx:
-    return "mov_zx";
-  case Opcode::mov_sx:
-    return "mov_sx";
-  case Opcode::idiv:
-    return "idiv";
-  case Opcode::add:
-    return "add";
-  case Opcode::sub:
-    return "sub";
-  case Opcode::mul:
-    return "mul";
-  case Opcode::fadd:
-    return "fadd";
-  case Opcode::fsub:
-    return "fsub";
-  case Opcode::fmul:
-    return "fmul";
-  case Opcode::icmp_slt:
-    return "icmp_slt";
-  case Opcode::icmp_eq:
-    return "icmp_eq";
-  case Opcode::jmp:
-    return "jmp";
-  case Opcode::call:
-    return "call";
-  case Opcode::push:
-    return "push";
-  case Opcode::pop:
-    return "pop";
-  case Opcode::cjmp:
-    return "cjmp";
-  case Opcode::ret:
-    return "ret";
-  case Opcode::arg_setup:
-    return "#arg_setup";
-  case Opcode::invoke:
-    return "#invoke";
-  case Opcode::cjmp_int_slt:
-    return "cjmp_int_slt";
-  case Opcode::cjmp_int_sge:
-    return "cjmp_int_sge";
-  case Opcode::cjmp_int_ne:
-    return "cjmp_int_ne";
-  case Opcode::cjmp_int_eq:
-    return "cjmp_int_eq";
-  case Opcode::cjmp_int_ult:
-    return "cjmp_int_ult";
-  case Opcode::cjmp_int_ule:
-    return "cjmp_int_ule";
-  case Opcode::cjmp_int_uge:
-    return "cjmp_int_uge";
-  case Opcode::cjmp_int_ugt:
-    return "cjmp_int_ugt";
-  case Opcode::cjmp_flt_oeq:
-    return "cjmp_flt_oeq";
-  case Opcode::cjmp_flt_ogt:
-    return "cjmp_flt_ogt";
-  case Opcode::cjmp_flt_oge:
-    return "cjmp_flt_oge";
-  case Opcode::cjmp_flt_olt:
-    return "cjmp_flt_olt";
-  case Opcode::cjmp_flt_ole:
-    return "cjmp_flt_ole";
-  case Opcode::cjmp_flt_one:
-    return "cjmp_flt_one";
-  case Opcode::cjmp_flt_ord:
-    return "cjmp_flt_ord";
-  case Opcode::cjmp_flt_uno:
-    return "cjmp_flt_uno";
-  case Opcode::cjmp_flt_ueq:
-    return "cjmp_flt_ueq";
-  case Opcode::cjmp_flt_ugt:
-    return "cjmp_flt_ugt";
-  case Opcode::cjmp_flt_uge:
-    return "cjmp_flt_uge";
-  case Opcode::cjmp_flt_ult:
-    return "cjmp_flt_ult";
-  case Opcode::cjmp_flt_ule:
-    return "cjmp_flt_ule";
-  case Opcode::cjmp_flt_une:
-    return "cjmp_flt_une";
-  case Opcode::shl:
-    return "shl";
-  case Opcode::shr:
-    return "shr";
-  case Opcode::sar:
-    return "sar";
+    ReturnString(mov);
+    ReturnString(lea);
+    ReturnString(itrunc);
+    ReturnString(mov_zx);
+    ReturnString(mov_sx);
+    ReturnString(idiv);
+    ReturnString(add);
+    ReturnString(sub);
+    ReturnString(mul);
+    ReturnString(fadd);
+    ReturnString(fsub);
+    ReturnString(fmul);
+    ReturnString(icmp_slt);
+    ReturnString(icmp_eq);
+    ;
+    ReturnString(jmp);
+    ReturnString(call);
+    ReturnString(push);
+    ReturnString(pop);
+    ReturnString(cjmp);
+    ReturnString(ret);
+    ReturnString(arg_setup);
+    ReturnString(invoke);
+    ReturnString(cjmp_int_slt);
+    ReturnString(cjmp_int_sge);
+    ReturnString(cjmp_int_sgt);
+    ReturnString(cjmp_int_ne);
+    ReturnString(cjmp_int_eq);
+    ReturnString(cjmp_int_ult);
+    ReturnString(cjmp_int_ule);
+    ReturnString(cjmp_int_uge);
+    ReturnString(cjmp_int_ugt);
+    ReturnString(cjmp_flt_oeq);
+    ReturnString(cjmp_flt_ogt);
+    ReturnString(cjmp_flt_oge);
+    ReturnString(cjmp_flt_olt);
+    ReturnString(cjmp_flt_ole);
+    ReturnString(cjmp_flt_one);
+    ReturnString(cjmp_flt_ord);
+    ReturnString(cjmp_flt_uno);
+    ReturnString(cjmp_flt_ueq);
+    ReturnString(cjmp_flt_ugt);
+    ReturnString(cjmp_flt_uge);
+    ReturnString(cjmp_flt_ult);
+    ReturnString(cjmp_flt_ule);
+    ReturnString(cjmp_flt_une);
+    ReturnString(shl);
+    ReturnString(shr);
+    ReturnString(sar);
   }
 }
+#undef ReturnString
 
 enum class Type : u16 {
   INVALID = 0,
@@ -474,6 +435,25 @@ public:
   [[nodiscard]] constexpr bool isLabel() const {
     return type == ArgumentType::Label;
   }
+  [[nodiscard]] constexpr bool isMem() const {
+    switch (type) {
+    case ArgumentType::Imm:
+    case ArgumentType::VReg:
+    case ArgumentType::Label:
+      return false;
+    case ArgumentType::MemVReg:
+    case ArgumentType::MemVRegVReg:
+    case ArgumentType::MemImm:
+    case ArgumentType::MemImmVReg:
+    case ArgumentType::MemImmVRegVReg:
+    case ArgumentType::MemVRegVRegScale:
+    case ArgumentType::MemImmVRegScale:
+    case ArgumentType::MemImmVRegVRegScale:
+    case ArgumentType::MemLabel:
+    case ArgumentType::MemImmLabel:
+      return true;
+    }
+  }
 
   constexpr bool operator==(const MArgument &other) const {
     if (type != other.type || ty != other.ty) {
@@ -589,6 +569,14 @@ public:
   }
 };
 
+#define COND_JUMP_GEN(NAME, TYP)                                               \
+  static MInstr NAME(MArgument v1, MArgument v2, u32 new_bb_ref) {             \
+    auto res = MInstr{TYP, v1, v2};                                            \
+    res.bb_ref = new_bb_ref;                                                   \
+    res.has_bb_ref = true;                                                     \
+    return res;                                                                \
+  }
+
 class MInstr {
 public:
   bool has_bb_ref;
@@ -634,61 +622,15 @@ public:
     return res;
   }
 
-  static MInstr cJmp_slt(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_slt, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
-
-  static MInstr cJmp_sge(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_sge, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
-
-  static MInstr cJmp_ult(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_ult, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
-
-  static MInstr cJmp_ule(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_ule, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
-
-  static MInstr cJmp_ugt(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_ugt, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
-
-  static MInstr cJmp_uge(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_uge, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
-
-  static MInstr cJmp_eq(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_eq, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
-
-  static MInstr cJmp_ne(MArgument v1, MArgument v2, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp_int_ne, v1, v2};
-    res.bb_ref = new_bb_ref;
-    res.has_bb_ref = true;
-    return res;
-  }
+  COND_JUMP_GEN(cJmp_slt, Opcode::cjmp_int_slt)
+  COND_JUMP_GEN(cJmp_sge, Opcode::cjmp_int_sge)
+  COND_JUMP_GEN(cJmp_sgt, Opcode::cjmp_int_sgt)
+  COND_JUMP_GEN(cJmp_ult, Opcode::cjmp_int_ult)
+  COND_JUMP_GEN(cJmp_ule, Opcode::cjmp_int_ule)
+  COND_JUMP_GEN(cJmp_ugt, Opcode::cjmp_int_ugt)
+  COND_JUMP_GEN(cJmp_uge, Opcode::cjmp_int_uge)
+  COND_JUMP_GEN(cJmp_eq, Opcode::cjmp_int_eq)
+  COND_JUMP_GEN(cJmp_ne, Opcode::cjmp_int_ne)
 
   static MInstr cJmp_flt(MArgument v1, MArgument v2, u32 new_bb_ref,
                          fir::FCmpInstrSubType compare_type) {
@@ -752,6 +694,7 @@ public:
     return res;
   }
 };
+#undef COND_JUMP_GEN
 
 } // namespace foptim::fmir
 
