@@ -513,6 +513,8 @@ constexpr auto base_pats() {
                          (u32)fir::BinaryInstrSubType::IntMul};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSRem};
+  auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::IntSDiv};
   auto FloatAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                            (u32)fir::BinaryInstrSubType::FloatAdd};
   auto FloatSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -993,6 +995,30 @@ constexpr auto base_pats() {
             valueToArg(srem_instr->args[0], res.result, data.alloc),
             valueToArg(srem_instr->args[1], res.result, data.alloc));
         res.result.emplace_back(Opcode::mov, res_reg, res_rem_arg);
+        return true;
+      }});
+  res.push_back(Pattern{
+      {SDivNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto sdiv_instr = res.matched_instrs[0];
+        // FIXME: variable size
+        auto res_div = data.alloc.get_new_register(fir::IRLocation{sdiv_instr},
+                                                   sdiv_instr.get_type(),
+                                                   VRegInfo::EAX(), data.lives);
+        auto res_rem = data.alloc.get_new_register(fir::IRLocation{sdiv_instr},
+                                                   sdiv_instr.get_type(),
+                                                   VRegInfo::EDX(), data.lives);
+        auto res_reg =
+            valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
+        auto res_div_arg =
+            MArgument(res_div, convert_type(sdiv_instr.get_type()));
+        auto res_rem_arg =
+            MArgument(res_rem, convert_type(sdiv_instr.get_type()));
+
+        res.result.emplace_back(
+            Opcode::idiv, res_div_arg, res_rem_arg,
+            valueToArg(sdiv_instr->args[0], res.result, data.alloc),
+            valueToArg(sdiv_instr->args[1], res.result, data.alloc));
+        res.result.emplace_back(Opcode::mov, res_reg, res_div_arg);
         return true;
       }});
   res.push_back(Pattern{
