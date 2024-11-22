@@ -101,10 +101,9 @@ public:
         return ConstantValue::Top();
       }
 
-      if (!a.value->is_int() || !b.value->is_int()) {
+      if ((!a.value->is_int() && !a.value->is_float()) || (!b.value->is_int() && !b.value->is_float())) {
         failure({"Cannot do SCCP on binary expr using non integers", instr});
         return ConstantValue::Bottom();
-        // TODO("impl");
       }
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
       default:
@@ -123,6 +122,9 @@ public:
       case fir::BinaryInstrSubType::IntMul:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() * b.value->as_int(), a.value->get_type()));
+      case fir::BinaryInstrSubType::FloatAdd:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_float() + b.value->as_float(), a.value->get_type()));
       }
       TODO("¿UNREACH?\n");
     }
@@ -227,6 +229,31 @@ public:
       if (!a.is_const() || !b.is_const()) {
         return ConstantValue::Top();
       }
+
+      switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
+      case fir::FCmpInstrSubType::OGT:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_float() > b.value->as_float(), ctx->get_int_type(8)));
+      case fir::FCmpInstrSubType::OLT:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_float() < b.value->as_float(), ctx->get_int_type(8)));
+      case fir::FCmpInstrSubType::INVALID:
+      case fir::FCmpInstrSubType::AlwFalse:
+      case fir::FCmpInstrSubType::OEQ:
+      case fir::FCmpInstrSubType::OGE:
+      case fir::FCmpInstrSubType::OLE:
+      case fir::FCmpInstrSubType::ONE:
+      case fir::FCmpInstrSubType::ORD:
+      case fir::FCmpInstrSubType::UNO:
+      case fir::FCmpInstrSubType::UEQ:
+      case fir::FCmpInstrSubType::UGT:
+      case fir::FCmpInstrSubType::UGE:
+      case fir::FCmpInstrSubType::ULT:
+      case fir::FCmpInstrSubType::ULE:
+      case fir::FCmpInstrSubType::UNE:
+      case fir::FCmpInstrSubType::AlwTrue:
+        break;
+      }
       failure({"Imply fcmp", instr});
       return ConstantValue::Bottom();
     }
@@ -246,8 +273,8 @@ public:
         return ConstantValue::Bottom();
       }
 
-      utils::Debug << (i64)a.value->as_int() << " cmp "
-                   << (i64)b.value->as_int() << "\n";
+      // utils::Debug << (i64)a.value->as_int() << " cmp "
+      //              << (i64)b.value->as_int() << "\n";
       switch ((fir::ICmpInstrSubType)instr->get_instr_subtype()) {
       case fir::ICmpInstrSubType::INVALID:
         TODO("¿UNREACH?\n");
@@ -329,6 +356,7 @@ public:
     if (value.is_constant()) {
       TODO("constant\n");
     } else if (value.is_instr()) {
+      // utils::Debug << "SCCP: "<< value << "\n";
       new_value = eval_instr(ctx, value.as_instr());
     } else if (value.is_bb_arg()) {
       TODO("UNREACH\n");

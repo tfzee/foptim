@@ -15,14 +15,17 @@ struct ContextData {
   BasicBlock copy(BasicBlock bb, V2VMap &subs, bool apply_subs = true) {
     auto res = storage.insert_bb(*bb.get_raw_ptr());
     subs.insert({ValueR{bb}, ValueR{res}});
+
     res->args.clear();
     for (u32 arg_id = 0; arg_id < bb->args.size(); arg_id++) {
       subs.insert({ValueR{bb, arg_id}, ValueR{res, arg_id}});
       res.add_arg(copy(bb->args[arg_id].type));
     }
+
     res->instructions.clear();
     for (auto &instr : bb->instructions) {
       auto new_instr = copy(instr);
+      new_instr->uses.clear();
       if (apply_subs) {
         new_instr.substitute(subs);
       }

@@ -79,10 +79,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   using namespace foptim::optim;
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
 
-  foptim::utils::Debug << "================OPTIMSTART====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // foptim::utils::Debug << "================OPTIMSTART====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
 
   ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
@@ -102,6 +102,11 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
+
+
+  //ensure no constants math left
+  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   ASSERT(ctx->verify());
 
   foptim::utils::Debug << "================OPTIMEND====================\n";

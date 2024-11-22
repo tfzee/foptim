@@ -21,7 +21,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   // if not jumped to just delete
   if (curr.pred.empty() && bb_id != cfg.entry) {
     func.basic_blocks[bb_id]->remove_from_parent(true);
-    // utils::Debug << 1 << "\n";
+    utils::Debug << 1 << "\n";
     return true;
   }
 
@@ -37,21 +37,22 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     }
     curr.bb->clear_args();
     pred_term.clear_bb_args(pred_term_bb_id);
-    // utils::Debug << 2 << "\n";
+    utils::Debug << 2 << "\n";
     return true;
   }
 
   // if a block only contains a unconditional jump we can replace it
   // TODO: this implentation uses succ this wont work for the entry block
   if (curr.bb->n_instrs() == 1 &&
-      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) &&  bb_id != cfg.entry) {
+      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) &&
+      bb_id != cfg.entry) {
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     if (curr.bb->n_args() != 0 || succ->n_args() != 0) {
       return false;
     }
     curr.bb->replace_all_uses(fir::ValueR(succ));
     func.basic_blocks[bb_id]->remove_from_parent(true);
-    // utils::Debug << 3 << "\n";
+    utils::Debug << 3 << "\n";
     return true;
   }
 
@@ -102,7 +103,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     func.basic_blocks[bb_id]->replace_all_uses(
         fir::ValueR{func.basic_blocks.at(succ_id)});
     func.basic_blocks[bb_id]->remove_from_parent(true);
-    // utils::Debug << 4 << "\n";
+    utils::Debug << 4 << "\n";
     return true;
   }
   return false;
@@ -112,13 +113,12 @@ class SimplifyCFG final : public FunctionPass {
 public:
   void apply(fir::Context &, fir::Function &func) override {
     ZoneScopedN("SimplifyCFG");
+    utils::Debug << func << "\n";
     CFG cfg{func};
-    // utils::Debug << func << "\n";
 
     auto iter = 0;
     for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
       iter++;
-      // utils::Debug << func << "\n";
       if (simplify_cfg(cfg, func, bb_id - 1)) {
         cfg.update(func, false);
         bb_id = 0;
@@ -128,6 +128,8 @@ public:
         return;
       }
     }
+    utils::Debug << func << "\n";
+    utils::Debug << "END\n" << "\n";
   }
 };
 

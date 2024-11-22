@@ -35,12 +35,12 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
   for (size_t bb_id = 0; bb_id < self->bbs.size(); bb_id++) {
     auto& bb = self->bbs[bb_id];
     if(repl.contains(ValueR{bb.bb})){
-      t.replace_bb(bb_id, repl.at(ValueR{bb.bb}).as_bb(), true);
+      t.replace_bb(bb_id, repl.at(ValueR{bb.bb}).as_bb(), true, false);
     }
     const auto n_args = bb.args.size();
     for (size_t i = 0; i < n_args; i++) {
       if (repl.contains(bb.args[i])) {
-        t.replace_bb_arg(bb_id, i, repl.at(bb.args[i]));
+        t.replace_bb_arg(bb_id, i, repl.at(bb.args[i]), false);
         replaced = true;
       }
     }
@@ -122,14 +122,14 @@ ValueR Instr::replace_arg(u16 indx, ValueR new_val, bool verify) {
   return old_val;
 }
 
-BasicBlock Instr::replace_bb(u16 indx, BasicBlock new_val, bool keepArgs) {
+BasicBlock Instr::replace_bb(u16 indx, BasicBlock new_val, bool keepArgs ,bool verify) {
   InstrData *self = operator->();
   ASSERT(indx < self->bbs.size());
   BasicBlock old_val = self->bbs[indx].bb;
   self->bbs[indx].bb = new_val;
 
   new_val->add_usage(Use::bb(*this, indx));
-  old_val->remove_usage(Use::bb(*this, indx), true);
+  old_val->remove_usage(Use::bb(*this, indx), verify);
   if (!keepArgs) {
     clear_bb_args(indx);
   }
@@ -146,7 +146,7 @@ ValueR Instr::replace_bb_arg(BasicBlock target, u16 indx, ValueR new_val) {
   return replace_bb_arg(get_bb_id(target), indx, new_val);
 }
 
-ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val) {
+ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val, bool verify) {
   InstrData *self = operator->();
   auto &bb_ref = self->bbs[bb_id];
   if (bb_ref.args.size() <= indx) {
@@ -156,9 +156,9 @@ ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val) {
   bb_ref.args[indx] = new_val;
 
   new_val.add_usage(Use::bb_arg(*this, bb_id, indx));
-  if (!old_val.is_constant()) {
-    old_val.remove_usage(Use::bb_arg(*this, bb_id, indx));
-  }
+  old_val.remove_usage(Use::bb_arg(*this, bb_id, indx), verify);
+  // if (!old_val.is_constant()) {
+  // }
 
   return old_val;
 }
