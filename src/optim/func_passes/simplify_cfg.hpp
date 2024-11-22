@@ -42,8 +42,9 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   }
 
   // if a block only contains a unconditional jump we can replace it
+  // TODO: this implentation uses succ this wont work for the entry block
   if (curr.bb->n_instrs() == 1 &&
-      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr)) {
+      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) &&  bb_id != cfg.entry) {
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     if (curr.bb->n_args() != 0 || succ->n_args() != 0) {
       return false;
@@ -55,7 +56,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   }
 
   // if 1 to 1 relation between blocks we can merge them
-  // TODO this implentation uses succ this wont work for the entry block
+  // TODO: this implentation uses succ this wont work for the entry block
   if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1 &&
       bb_id != cfg.entry) {
     auto succ_id = curr.succ[0];
@@ -117,6 +118,7 @@ public:
     auto iter = 0;
     for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
       iter++;
+      // utils::Debug << func << "\n";
       if (simplify_cfg(cfg, func, bb_id - 1)) {
         cfg.update(func, false);
         bb_id = 0;
