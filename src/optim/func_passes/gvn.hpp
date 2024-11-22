@@ -1,4 +1,3 @@
-
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"

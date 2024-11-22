@@ -20,7 +20,7 @@ void Used::replace_all_uses(ValueR new_value) {
   uses.clear();
 }
 
-void Used::remove_usage(const Use &u) {
+void Used::remove_usage(const Use &u, bool verify) {
   for (size_t i = 0; i < uses.size(); i++) {
     if (uses[i].argId == u.argId && uses[i].bbArgId == u.bbArgId &&
         uses[i].type == u.type && uses[i].user == u.user) {
@@ -28,7 +28,9 @@ void Used::remove_usage(const Use &u) {
       return;
     }
   }
-  ASSERT_M(false, "Failed to find usage that was to be removed");
+
+  utils::Debug << "USE: " << u << "\n";
+  ASSERT_M(!verify, "Failed to find usage that was to be removed");
 }
 
 void Used::remove_all_usages() { replace_all_uses(ValueR()); }

@@ -3,6 +3,7 @@
 #include "context.hpp"
 #include "function.hpp"
 #include "instruction_data.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
@@ -323,6 +324,13 @@ public:
     instr.add_arg(v);
     bb.insert_instr(indx, instr);
     indx++;
+  }
+
+  BasicBlock insert_copy(BasicBlock bb, ContextData::V2VMap& subs) {
+    BasicBlock new_bb = ctx->copy(bb, subs);
+    new_bb->func = func;
+    func->append_bbr(new_bb);
+    return new_bb;
   }
 
   Instr insert_copy(Instr instr) {

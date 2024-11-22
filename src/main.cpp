@@ -9,6 +9,7 @@
 #include "mir/optim/reg_alloc.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/gvn.hpp"
+#include "optim/func_passes/inline.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
@@ -91,6 +92,9 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
+
+  foptim::optim::StaticFunctionPassManager<Inline>{}.apply(ctx);
+
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
@@ -100,10 +104,11 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   ASSERT(ctx->verify());
 
-  // foptim::utils::Debug << "================OPTIMEND====================\n";
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  foptim::utils::Debug << "================OPTIMEND====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
+  // exit(1);
 
   // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 

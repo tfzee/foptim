@@ -45,7 +45,7 @@ public:
 
   void add_usage(Use u);
   [[nodiscard]] size_t get_n_uses() const;
-  void remove_usage(Use u);
+  void remove_usage(Use u, bool verify = true);
   void replace_all_uses(ValueR);
   [[nodiscard]] IRVec<Use> *get_uses();
   [[nodiscard]] const IRVec<Use> *get_uses() const;

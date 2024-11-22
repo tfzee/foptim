@@ -56,7 +56,10 @@ public:
     @returns index of the given bb or aborts on invalid bb
   */
   [[nodiscard]] size_t bb_id(BasicBlock b) const;
-  void append_bbr(BasicBlock bb) { basic_blocks.push_back(bb); }
+  void append_bbr(BasicBlock bb) {
+    bb->func = FunctionR{this};
+    basic_blocks.push_back(bb);
+  }
   bool verify(utils::Printer) const;
 };
 

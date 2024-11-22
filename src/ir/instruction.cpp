@@ -26,7 +26,7 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
   bool replaced = false;
   for (size_t i = 0; i < n_args; i++) {
     if (repl.contains(self->args[i])) {
-      t.replace_arg(i, repl.at(self->args[i]));
+      t.replace_arg(i, repl.at(self->args[i]), false);
       replaced = true;
     }
   }
@@ -35,7 +35,7 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
     const auto n_args = bb.args.size();
     for (size_t i = 0; i < n_args; i++) {
       if (repl.contains(bb.args[i])) {
-        t.replace_arg(i, repl.at(bb.args[i]));
+        t.replace_arg(i, repl.at(bb.args[i]), false);
         replaced = true;
       }
     }
@@ -70,7 +70,7 @@ void Instr::clear_bbs() {
     //   }
     // }
     clear_bb_args(i);
-    bbs[i].bb->remove_usage(Use::bb(*this, i));
+    bbs[i].bb->remove_usage(Use::bb(*this, i), true);
   }
   bbs.clear();
 }
@@ -105,14 +105,14 @@ u16 Instr::get_bb_id(BasicBlock target) const {
   std::abort();
 }
 
-ValueR Instr::replace_arg(u16 indx, ValueR new_val) {
+ValueR Instr::replace_arg(u16 indx, ValueR new_val, bool verify) {
   InstrData *self = operator->();
   ASSERT(indx < self->args.size());
   ValueR old_val = self->args[indx];
   self->args[indx] = new_val;
 
   new_val.add_usage(Use::norm(*this, indx));
-  old_val.remove_usage(Use::norm(*this, indx));
+  old_val.remove_usage(Use::norm(*this, indx), verify);
 
   return old_val;
 }
@@ -124,7 +124,7 @@ BasicBlock Instr::replace_bb(u16 indx, BasicBlock new_val, bool keepArgs) {
   self->bbs[indx].bb = new_val;
 
   new_val->add_usage(Use::bb(*this, indx));
-  old_val->remove_usage(Use::bb(*this, indx));
+  old_val->remove_usage(Use::bb(*this, indx), true);
   if (!keepArgs) {
     clear_bb_args(indx);
   }

@@ -55,7 +55,9 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   }
 
   // if 1 to 1 relation between blocks we can merge them
-  if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1) {
+  // TODO this implentation uses succ this wont work for the entry block
+  if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1 &&
+      bb_id != cfg.entry) {
     auto succ_id = curr.succ[0];
 
     bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;

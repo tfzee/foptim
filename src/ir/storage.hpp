@@ -28,6 +28,10 @@ public:
     return Instr(this->storage_instr.push_back(v));
   }
 
+  BasicBlock insert_bb(BasicBlockData v) {
+    return BasicBlock(this->basic_blocks.push_back(v));
+  }
+
   ConstantValueR insert_constant(ConstantValue v) {
     return ConstantValueR(this->storage_constant.push_back(v));
   }

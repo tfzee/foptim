@@ -39,6 +39,10 @@ bool ValueR::eql(const ValueR &other) const {
     const Instr *o = std::get_if<Instr>(&other.origin);
     return (void *)s->get_raw_ptr() == (void *)o->get_raw_ptr();
   }
+  if (const auto *s = std::get_if<BasicBlock>(&origin)) {
+    const auto *o = std::get_if<BasicBlock>(&other.origin);
+    return (void *)s->get_raw_ptr() == (void *)o->get_raw_ptr();
+  }
   if (const BBArgumentR *s = std::get_if<BBArgumentR>(&origin)) {
     const BBArgumentR *o = std::get_if<BBArgumentR>(&other.origin);
     return *s == *o;
@@ -50,6 +54,8 @@ bool ValueR::eql(const ValueR &other) const {
   if (std::get_if<InvalidValue>(&origin)) {
     return true;
   }
+
+  utils::Debug << this << " and " << other << "\n";
   TODO("UNREACH");
 }
 
@@ -110,13 +116,13 @@ size_t ValueR::get_n_uses() const {
   return 0;
 }
 
-void ValueR::remove_usage(Use u) {
+void ValueR::remove_usage(Use u, bool verify) {
   if (auto *i = std::get_if<Instr>(&origin)) {
-    (*i)->remove_usage(u);
+    (*i)->remove_usage(u, verify);
     return;
   }
   if (auto *i = std::get_if<BBArgumentR>(&origin)) {
-    (i->bb->args[i->arg]).remove_usage(u);
+    (i->bb->args[i->arg]).remove_usage(u, verify);
     return;
   }
   if (std::get_if<ConstantValueR>(&origin) != nullptr) {

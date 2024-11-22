@@ -40,7 +40,7 @@ public:
   [[nodiscard]] const IRVec<Use> &get_uses() const { return uses; }
 
   void replace_all_uses(ValueR new_value);
-  void remove_usage(const Use &use);
+  void remove_usage(const Use &use, bool verify);
   void remove_all_usages();
 
 };
