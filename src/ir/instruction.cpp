@@ -1,5 +1,6 @@
 #include "ir/instruction.hpp"
 #include "ir/basic_block.hpp"
+#include "ir/value.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
@@ -31,11 +32,15 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
     }
   }
 
-  for (auto &bb : self->bbs) {
+  for (size_t bb_id = 0; bb_id < self->bbs.size(); bb_id++) {
+    auto& bb = self->bbs[bb_id];
+    if(repl.contains(ValueR{bb.bb})){
+      t.replace_bb(bb_id, repl.at(ValueR{bb.bb}).as_bb(), true);
+    }
     const auto n_args = bb.args.size();
     for (size_t i = 0; i < n_args; i++) {
       if (repl.contains(bb.args[i])) {
-        t.replace_arg(i, repl.at(bb.args[i]), false);
+        t.replace_bb_arg(bb_id, i, repl.at(bb.args[i]));
         replaced = true;
       }
     }

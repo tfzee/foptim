@@ -29,8 +29,10 @@ void Used::remove_usage(const Use &u, bool verify) {
     }
   }
 
-  utils::Debug << "USE: " << u << "\n";
-  ASSERT_M(!verify, "Failed to find usage that was to be removed");
+  if (verify) {
+    utils::Debug << "USE: " << u << "\n";
+    ASSERT_M(false, "Failed to find usage that was to be removed");
+  }
 }
 
 void Used::remove_all_usages() { replace_all_uses(ValueR()); }
