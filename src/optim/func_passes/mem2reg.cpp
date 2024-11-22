@@ -51,11 +51,7 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
     if (use.type == fir::UseType::NormalArg && use.argId == 0 &&
         use.user->is(fir::InstrType::StoreInstr)) {
       auto parent_bb = use.user->get_parent();
-      for (u32 bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
-        if (func.basic_blocks[bb_id] == parent_bb) {
-          blocks_containing_store.push_back(bb_id);
-        }
-      }
+      blocks_containing_store.push_back(func.bb_id(parent_bb));
     }
   }
   // for (u32 bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
@@ -171,7 +167,7 @@ static void decide_value_store(fir::Instr instr, size_t &i,
     return;
   }
 
-  auto& back_ref = current_variable_value.back();
+  auto &back_ref = current_variable_value.back();
   if (back_ref.contains(instr->args[0])) {
     back_ref.at(instr->args[0]) = {block, instr->args[1]};
   } else {
@@ -185,16 +181,6 @@ static void decide_value_load(fir::Instr instr, size_t &i,
                               const VarValueStack &current_variable_value) {
   fir::ValueR load_val = fir::ValueR();
 
-  // if we cant find a value here it wasnt initialized which either makes it
-  // a function argument or if it is local to the function it would be UB to
-  // load it
-  if (!decide_variable_value(instr->args[0], current_variable_value,
-                             load_val)) {
-    i++;
-    return;
-  }
-
-  // utils::Debug << "====\n" << load_val << "\n" << instr << "\n======\n";
   if (!instr->args[0].is_instr()) {
     i++;
     return;
@@ -204,6 +190,15 @@ static void decide_value_load(fir::Instr instr, size_t &i,
       !phi_insert_locs.contains(origin_alloca)) {
     i++;
     return;
+  }
+
+  // if we cant find a value here it wasnt initialized which either makes it
+  // a function argument or if it is local to the function it would be UB to
+  // load it
+  if (!decide_variable_value(instr->args[0], current_variable_value,
+                             load_val)) {
+    auto *ctx = instr->get_parent()->get_parent().func->ctx;
+    load_val = fir::ValueR(ctx->get_constant_value(0, load_val.get_type()));
   }
 
   // utils::Debug << "Replacing all uses on " << instr << "\n";
@@ -220,7 +215,7 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
                          const AllocToPhiLoc &phi_insert_locs,
                          VarValueStack &current_variable_value) {
 
-  const auto& args = block->get_args();
+  const auto &args = block->get_args();
   // for each bb argument we find the origin
   for (u32 arg = 0; arg < args.size(); arg++) {
     fir::ValueR var_val_res = fir::ValueR();
@@ -302,10 +297,10 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   auto insert_locations = phi_insert_locations(func, dom);
 
   for (auto &[instr, blocks] : insert_locations) {
-    // utils::Debug << " INSERT:" << instr << "\n";
+    utils::Debug << " INSERT:" << instr << "\n";
     for (const auto &block : blocks) {
       if (instr->has_attrib("alloca::type") && instr->get_n_uses() > 0) {
-        // utils::Debug << "   IN BLOCK: " << block << "\n";
+        utils::Debug << "   IN BLOCK: " << block << "\n";
         cfg.bbrs[block].bb->args.emplace_back(
             *(instr->get_attrib("alloca::type").try_type()));
         const auto key =
