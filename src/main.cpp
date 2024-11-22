@@ -84,7 +84,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   }
 
   ASSERT(ctx->verify());
-  exit(0);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
