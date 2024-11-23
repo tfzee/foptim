@@ -62,11 +62,11 @@ struct MatchTodos {
 
 bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
   TVec<MatchTodos> match_todos;
-  uint32_t n_nodes_matched = 0;
 
   for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
        start_node_id++) {
-    // iterate over all the possible initial notes since tehre can be multiple
+    uint32_t n_nodes_matched = 0;
+    // iterate over all the possible initial notes since there can be multiple
     // candidates we need to iter over this
 
     // if it doesnt match check next
@@ -90,17 +90,12 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
       }
     }
 
-    // utils::Debug << "  Start at " << start_node_id << "\n";
     // do the actualy matching by searching "recursively" up the use chain to
     // find matches
     {
       while (!match_todos.empty()) {
         auto [child_arg, node_id] = match_todos.back();
         match_todos.pop_back();
-        // TODO: can move this test to check before adding to worklist
-        if (!child_arg.is_instr()) {
-          return false;
-        }
         if (!try_match(child_arg, patt.nodes[node_id])) {
           return false;
         }
@@ -110,14 +105,16 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
         res.matched_instrs[node_id] = as_instr;
         n_nodes_matched++;
         for (auto edge : patt.edges) {
-          if (edge.to_instr == node_id) {
-            if (as_instr->args.size() > edge.to_arg) {
-              match_todos.push_back(
-                  {as_instr->args[edge.to_arg], edge.from_instr});
-            } else {
-              return false;
-            }
+          if (edge.to_instr != node_id) {
+            continue;
           }
+          if (as_instr->args.size() <= edge.to_arg) {
+            return false;
+          }
+          if (!as_instr->args[edge.to_arg].is_instr()) {
+            return false;
+          }
+          match_todos.push_back({as_instr->args[edge.to_arg], edge.from_instr});
         }
       }
       // all matches worked out in the worklist then we good
@@ -489,11 +486,8 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
       found_one = true;
     }
   }
-  if (pairs.empty()) {
-    return;
-  }
 
-  ASSERT(false);
+  ASSERT(pairs.empty());
 }
 
 constexpr auto base_pats() {
@@ -549,14 +543,9 @@ constexpr auto base_pats() {
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
         ASSERT(res.matched_instrs.size() == 2);
-        // utils::Debug << "MATCHED\n"
-        //              << res.matched_instrs[0] << res.matched_instrs[1] <<
-        //              "\n";
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
-        // TODO("impl add+load pattern");
 
-        // return false;
         auto add_instr = res.matched_instrs[0];
         auto load_instr = res.matched_instrs[1];
 
@@ -904,7 +893,8 @@ constexpr auto base_pats() {
         if (b.isImm()) {
           res.result.emplace_back(Opcode::shl, res_reg, a, b);
         } else {
-          auto shift_reg = data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
+          auto shift_reg =
+              data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -915,8 +905,8 @@ constexpr auto base_pats() {
         }
         return true;
       }});
-  res.push_back(
-      Pattern{{ShrNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+  res.push_back(Pattern{
+      {ShrNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto shift_instr = res.matched_instrs[0];
         auto res_reg =
             valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
@@ -927,7 +917,8 @@ constexpr auto base_pats() {
         if (b.isImm()) {
           res.result.emplace_back(Opcode::shr, res_reg, a, b);
         } else {
-          auto shift_reg = data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
+          auto shift_reg =
+              data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -937,9 +928,9 @@ constexpr auto base_pats() {
           res.result.emplace_back(Opcode::shr, res_reg, a, shift_reg_arg);
         }
         return true;
-              }});
-  res.push_back(
-      Pattern{{AShrNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+      }});
+  res.push_back(Pattern{
+      {AShrNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto shift_instr = res.matched_instrs[0];
         auto res_reg =
             valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
@@ -950,7 +941,8 @@ constexpr auto base_pats() {
         if (b.isImm()) {
           res.result.emplace_back(Opcode::sar, res_reg, a, b);
         } else {
-          auto shift_reg = data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
+          auto shift_reg =
+              data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -960,7 +952,7 @@ constexpr auto base_pats() {
           res.result.emplace_back(Opcode::sar, res_reg, a, shift_reg_arg);
         }
         return true;
-              }});
+      }});
   res.push_back(
       Pattern{{IntMulNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 auto add_instr = res.matched_instrs[0];
