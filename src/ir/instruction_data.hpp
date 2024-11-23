@@ -122,8 +122,7 @@ public:
   }
   [[nodiscard]] constexpr u32 get_instr_subtype() const { return subtype; }
   constexpr void set_parent(BasicBlock new_parent) { parent = new_parent; }
-  [[nodiscard]] constexpr BasicBlock get_parent() { return parent; }
-  [[nodiscard]] constexpr const BasicBlock get_parent() const { return parent; }
+  [[nodiscard]] constexpr BasicBlock get_parent() const { return parent; }
 
   [[nodiscard]] constexpr const auto &get_uses() const { return uses; }
   [[nodiscard]] constexpr const auto &get_args() const { return args; }

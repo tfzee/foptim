@@ -5,14 +5,13 @@
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "utils/logging.hpp"
-#include "utils/todo.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fir {
 
 class BasicBlockData : public Used {
 public:
-  struct Arg : Used {
+  struct Arg : public Used {
     TypeR type;
     Arg(TypeR ty) : Used(), type(ty) {}
   };
@@ -36,18 +35,8 @@ public:
   [[nodiscard]] size_t n_args() const { return args.size(); }
   bool verify(const Function *, utils::Printer) const;
 
-  FunctionR get_parent() { return func; }
-  [[nodiscard]] const FunctionR get_parent() const { return func; }
-
-  [[nodiscard]] const Instr get_terminator() const {
-    if (instructions.empty()) {
-      ASSERT(false);
-      return Instr(Instr::invalid());
-    }
-    return instructions.back();
-  }
-
-  Instr get_terminator() {
+  [[nodiscard]] FunctionR get_parent() const { return func; }
+  [[nodiscard]] Instr get_terminator() const {
     if (instructions.empty()) {
       return Instr(Instr::invalid());
     }

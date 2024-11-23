@@ -54,7 +54,7 @@ bool inline_call(fir::Instr call) {
   TVec<BasicBlock> new_bbs;
   for (size_t bb_id = 0; bb_id < called_func.n_bbs(); bb_id++) {
     //dont apply the subs here
-    auto new_bb = ctx->copy(called_func.basic_blocks.at(bb_id), subs, true);
+    auto new_bb = ctx->copy(called_func.basic_blocks.at(bb_id), subs, false);
     new_bbs.push_back(new_bb);
     call_func->append_bbr(new_bb);
   }

@@ -51,10 +51,11 @@ int main(void) {
 
   f883b(result, arg1, arg2, arg3, arg4);
 
-  for (i = 0; i < 96; i++)
+  for (i = 0; i < 96; i++) {
     if (result[i] != correct[i]) {
       return 1;
     }
+}
 
   return 0;
 }

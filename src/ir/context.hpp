@@ -15,6 +15,7 @@ struct ContextData {
   BasicBlock copy(BasicBlock bb, V2VMap &subs, bool apply_subs = true) {
     auto res = storage.insert_bb(*bb.get_raw_ptr());
     subs.insert({ValueR{bb}, ValueR{res}});
+    res->uses.clear();
 
     res->args.clear();
     for (u32 arg_id = 0; arg_id < bb->args.size(); arg_id++) {
@@ -158,8 +159,7 @@ public:
   Context() { data = new ContextData{}; }
   // ~Context() { delete data; }
 
-  ContextData *operator->() { return data; }
-  const ContextData *operator->() const { return data; }
+  ContextData *operator->() const { return data; }
   void free() {
     delete data;
     data = nullptr;

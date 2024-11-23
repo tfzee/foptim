@@ -2,7 +2,6 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
-#include "optim/analysis/dominators.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/logging.hpp"
 
@@ -46,6 +45,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) &&
       bb_id != cfg.entry) {
+    ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     if (curr.bb->n_args() != 0 || succ->n_args() != 0) {
       return false;
@@ -111,7 +111,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
 
 class SimplifyCFG final : public FunctionPass {
 public:
-  void apply(fir::Context &, fir::Function &func) override {
+  void apply(fir::Context & /*unused*/, fir::Function &func) override {
     ZoneScopedN("SimplifyCFG");
     utils::Debug << func << "\n";
     CFG cfg{func};

@@ -80,10 +80,11 @@ void ValueR::add_usage(Use u) {
     (*i)->add_usage(u);
   } else if (auto *i = std::get_if<BBArgumentR>(&origin)) {
     (i->bb->args[i->arg]).add_usage(u);
-  } else if (std::get_if<ConstantValueR>(&origin) != nullptr) {
-  } else if (std::get_if<InvalidValue>(&origin) != nullptr) {
-    // ASSERT(false);
   }
+  // else if (std::get_if<ConstantValueR>(&origin) != nullptr) {
+  // } else if (std::get_if<InvalidValue>(&origin) != nullptr) {
+  //   // ASSERT(false);
+  // }
 }
 
 IRVec<Use> *ValueR::get_uses() {

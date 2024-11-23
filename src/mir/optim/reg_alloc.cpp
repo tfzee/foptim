@@ -1,6 +1,5 @@
 #include "reg_alloc.hpp"
 #include "mir/instr.hpp"
-#include "utils/bitset.hpp"
 #include "utils/todo.hpp"
 
 namespace foptim::fmir {
@@ -236,6 +235,7 @@ void apply_func(MFunc &func) {
           }
         }
         if (!found) {
+          TODO("spill it ?");
           ASSERT(false);
         }
       }
