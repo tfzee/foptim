@@ -20,7 +20,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   // if not jumped to just delete
   if (curr.pred.empty() && bb_id != cfg.entry) {
     func.basic_blocks[bb_id]->remove_from_parent(true);
-    utils::Debug << 1 << "\n";
+    // utils::Debug << 1 << "\n";
     return true;
   }
 
@@ -36,7 +36,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     }
     curr.bb->clear_args();
     pred_term.clear_bb_args(pred_term_bb_id);
-    utils::Debug << 2 << "\n";
+    // utils::Debug << 2 << "\n";
     return true;
   }
 
@@ -52,7 +52,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     }
     curr.bb->replace_all_uses(fir::ValueR(succ));
     func.basic_blocks[bb_id]->remove_from_parent(true);
-    utils::Debug << 3 << "\n";
+    // utils::Debug << 3 << "\n";
     return true;
   }
 
@@ -103,7 +103,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     func.basic_blocks[bb_id]->replace_all_uses(
         fir::ValueR{func.basic_blocks.at(succ_id)});
     func.basic_blocks[bb_id]->remove_from_parent(true);
-    utils::Debug << 4 << "\n";
+    // utils::Debug << 4 << "\n";
     return true;
   }
   return false;
@@ -113,7 +113,7 @@ class SimplifyCFG final : public FunctionPass {
 public:
   void apply(fir::Context & /*unused*/, fir::Function &func) override {
     ZoneScopedN("SimplifyCFG");
-    utils::Debug << func << "\n";
+    // utils::Debug << func << "\n";
     CFG cfg{func};
 
     auto iter = 0;
@@ -128,8 +128,8 @@ public:
         return;
       }
     }
-    utils::Debug << func << "\n";
-    utils::Debug << "END\n" << "\n";
+    // utils::Debug << func << "\n";
+    // utils::Debug << "END\n" << "\n";
   }
 };
 

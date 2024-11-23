@@ -139,6 +139,7 @@ void replace_args(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
 
 void gen_arg_mapping(MFunc &func, TMap<size_t, VRegType> & /*unused*/) {
   // TODO: depends on calling conv
+  // TODO: should be moved to invoke lower
   for (u32 arg_i = 0; arg_i < func.args.size(); arg_i++) {
     ASSERT(!func.args[arg_i].info.is_pinned());
 
