@@ -1,6 +1,6 @@
-
 #include <gtest/gtest.h>
 #include "bitset.hpp"
+#include "stable_vec.hpp"
 
 
 

@@ -13,13 +13,16 @@
 namespace foptim::utils {
 
 template <class T, u32 slot_slab_len = 128,
-          class Alloc = std::allocator<Slot<T>>> class StableVec {
+          class Alloc = std::allocator<Slot<T>>>
+class StableVec {
   struct FreeInfo {
     Slot<T> *ptr;
     u32 len;
   };
 
+#ifdef SLOT_CHECK_GENERATION
   u32 curr_gen = 1;
+#endif
   std::vector<FreeInfo> free_list;
 
 public:
@@ -28,12 +31,12 @@ public:
 
   StableVec() {
     _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
-    std::memset((void*)_slot_slab_starts.back(), 0, slot_slab_len * sizeof(Slot<T>));
+    std::memset((void *)_slot_slab_starts.back(), 0,
+                slot_slab_len * sizeof(Slot<T>));
     // _slot_slab_starts.push_back(
     //     (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
     // TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
     free_list.push_back({_slot_slab_starts.back(), slot_slab_len});
-    curr_gen = 1;
   }
 
   ~StableVec() {
@@ -45,6 +48,18 @@ public:
       Alloc{}.deallocate(slot_alloc, slot_slab_len);
       // free(slot_alloc);
     }
+  }
+
+  constexpr void remove(SRef<T> s) {
+    free_list.emplace_back(s.data_ref, 1);
+    s.data_ref->used = false;
+#ifdef SLOT_CHECK_GENERATION
+    curr_gen++;
+    if(curr_gen == 0){
+      curr_gen++;
+    }
+    s.data_ref->generation = 0;
+#endif
   }
 
   [[nodiscard]] constexpr size_t size_bytes() const {
@@ -84,9 +99,13 @@ public:
       free_list.pop_back();
       // TODO("delete last from free list");
     }
-    res_ptr->generation = curr_gen;
     res_ptr->used = true;
+#ifdef SLOT_CHECK_GENERATION
+    res_ptr->generation = curr_gen;
     return SRef{res_ptr, curr_gen};
+#else
+    return SRef{res_ptr, 0};
+#endif
   }
 
   void clear() { TODO("not implemented clear yet"); }
