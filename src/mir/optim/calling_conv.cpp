@@ -7,7 +7,9 @@
 
 namespace foptim::fmir {
 
-VRegType caller_saved[] = {
+utils::BitSet<> calculate_used_regs(const MFunc &f);
+
+constexpr VRegType caller_saved[] = {
     VRegType::A,    VRegType::C,    VRegType::D,    VRegType::SI,
     VRegType::DI,   VRegType::R8,   VRegType::R9,   VRegType::R10,
     VRegType::R11,  VRegType::mm0,  VRegType::mm1,  VRegType::mm2,
@@ -15,34 +17,40 @@ VRegType caller_saved[] = {
     VRegType::mm7,  VRegType::mm8,  VRegType::mm9,  VRegType::mm10,
     VRegType::mm11, VRegType::mm12, VRegType::mm13, VRegType::mm14,
     VRegType::mm15};
-// VRegType caller_saved[] = {
-//     VRegType::A,    VRegType::B,    VRegType::C,    VRegType::D,
-//     VRegType::SI,   VRegType::DI,   VRegType::SP,   VRegType::BP,
-//     VRegType::R8,   VRegType::R9,   VRegType::R10,  VRegType::R11,
-//     VRegType::R12,  VRegType::R13,  VRegType::R14,  VRegType::R15,
-//     VRegType::mm0,  VRegType::mm1,  VRegType::mm2,  VRegType::mm3,
-//     VRegType::mm4,  VRegType::mm5,  VRegType::mm6,  VRegType::mm7,
-//     VRegType::mm8,  VRegType::mm9,  VRegType::mm10, VRegType::mm11,
-//     VRegType::mm12, VRegType::mm13, VRegType::mm14, VRegType::mm15,
-// };
 
-VRegType callee_saved[] = {
+constexpr VRegType callee_saved[] = {
     VRegType::R12, VRegType::R13, VRegType::R14, VRegType::R15,
     VRegType::B,   VRegType::SP,  VRegType::BP,
 };
 
-static void save_regs_callee(MFunc &func, LiveVariables &lives, CFG &cfg) {
-  auto first_bb = func.bbs[0];
-
+static void save_regs_callee(MFunc &func, CFG &cfg) {
+  auto &first_bb = func.bbs[0];
+  auto used_regs = calculate_used_regs(func);
   // store all the regs in the initial bb
-  for (auto reg_ty : callee_saved | std::views::reverse) {
-    if (!lives.isAlive(VReg{reg_ty}, 0) || reg_ty == VRegType::SP ||
+  size_t n_regs_saved = 0;
+  for (auto reg_ty : callee_saved) {
+
+    if (!used_regs[(u8)reg_ty - 1] || reg_ty == VRegType::SP ||
         reg_ty == VRegType::BP) {
       continue;
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
     first_bb.instrs.insert(first_bb.instrs.begin() + 0,
                            MInstr{Opcode::push, arg});
+    n_regs_saved++;
+  }
+
+  // after we saved all regs now our argument loading is potentially fucked
+  // since the argument loading is also handled by the cc we can just clean it
+  // up here
+  //  and assume this always works.
+
+  for (size_t instr_id = n_regs_saved;
+       instr_id < n_regs_saved + func.args.size(); instr_id++) {
+    auto &instr = first_bb.instrs[instr_id];
+    ASSERT(instr.op == Opcode::mov && instr.args[1].isMem());
+    ASSERT(instr.args[1].type == MArgument::ArgumentType::MemImmVReg);
+    instr.args[1].imm += n_regs_saved * 8;
   }
 
   // restore in *every* exiting basic block we first need to find these
@@ -52,15 +60,18 @@ static void save_regs_callee(MFunc &func, LiveVariables &lives, CFG &cfg) {
     if (cfg.bbrs[bb_id].succ.size() != 0) {
       continue;
     }
+    size_t n_regs_restored = 0;
     for (auto reg_ty : callee_saved) {
-      if (!lives.isAlive(VReg{reg_ty}, bb_id) || reg_ty == VRegType::SP ||
+      if (!used_regs[(u8)reg_ty - 1] || reg_ty == VRegType::SP ||
           reg_ty == VRegType::BP) {
         continue;
       }
       auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
-      first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                             MInstr{Opcode::pop, arg});
+      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
+                                    MInstr{Opcode::pop, arg});
+      n_regs_restored++;
     }
+    ASSERT(n_regs_saved == n_regs_restored);
   }
 }
 
@@ -199,7 +210,7 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
     CFG cfg(func);
     LiveVariables lives(cfg, func);
 
-    save_regs_callee(func, lives, cfg);
+    save_regs_callee(func, cfg);
 
     size_t bb_id = 0;
     for (auto &bb : func.bbs) {
@@ -232,6 +243,8 @@ void gen_arg_mapping(MFunc &func) {
   for (u32 arg_i = 0; arg_i < func.args.size(); arg_i++) {
     ASSERT(!func.args[arg_i].info.is_pinned());
     auto arg_ty = func.arg_tys[arg_i];
+    // this needs to stay this way or needs to be synched with the callee
+    // register saving in this cc
     auto instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
                         MArgument::Mem(VReg::RSP(), 8 * (arg_i + 2), arg_ty));
     func.bbs[0].instrs.insert(func.bbs[0].instrs.begin(), instr);

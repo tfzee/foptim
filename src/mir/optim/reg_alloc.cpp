@@ -164,6 +164,52 @@ bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
   }
 }
 
+constexpr size_t N_REGS_SELECTABLE = 30;
+
+constexpr void get_reg_order(MFunc &func, VRegType *regs) {
+
+  static constexpr VRegType leaf_optimized_regs[N_REGS_SELECTABLE] = {
+      VRegType::A,    VRegType::D,    VRegType::C,    VRegType::DI,
+      VRegType::SI,   VRegType::R8,   VRegType::R9,   VRegType::R10,
+      VRegType::R11,  VRegType::R12,  VRegType::R13,  VRegType::R14,
+      VRegType::R15,  VRegType::B,    VRegType::mm0,  VRegType::mm1,
+      VRegType::mm2,  VRegType::mm3,  VRegType::mm4,  VRegType::mm5,
+      VRegType::mm6,  VRegType::mm7,  VRegType::mm8,  VRegType::mm9,
+      VRegType::mm10, VRegType::mm11, VRegType::mm12, VRegType::mm13,
+      VRegType::mm14, VRegType::mm15};
+  static constexpr VRegType basic_regs[N_REGS_SELECTABLE] = {
+      VRegType::B,    VRegType::R12,  VRegType::R13,  VRegType::R14,
+      VRegType::R15,  VRegType::A,    VRegType::D,    VRegType::C,
+      VRegType::DI,   VRegType::SI,   VRegType::R8,   VRegType::R9,
+      VRegType::R10,  VRegType::R11,  VRegType::mm0,  VRegType::mm1,
+      VRegType::mm2,  VRegType::mm3,  VRegType::mm4,  VRegType::mm5,
+      VRegType::mm6,  VRegType::mm7,  VRegType::mm8,  VRegType::mm9,
+      VRegType::mm10, VRegType::mm11, VRegType::mm12, VRegType::mm13,
+      VRegType::mm14, VRegType::mm15};
+
+  bool is_leaf = true;
+  for (auto &bb : func.bbs) {
+    for (auto &instr : bb.instrs) {
+      if (instr.op == Opcode::call || instr.op == Opcode::invoke) {
+        is_leaf = false;
+        break;
+      }
+    }
+    if (!is_leaf) {
+      break;
+    }
+  }
+
+  const VRegType *selected = basic_regs;
+  if (is_leaf) {
+    selected = leaf_optimized_regs;
+  }
+
+  for (size_t i = 0; i < N_REGS_SELECTABLE; i++) {
+    regs[i] = selected[i];
+  }
+}
+
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
   TMap<size_t, VRegType> reg_mapping;
@@ -181,15 +227,8 @@ void apply_func(MFunc &func) {
   const auto lifetimes = linear_lifetime(func);
   TMap<VRegType, LinearRange> lifeness;
   lifeness.reserve(32);
-  constexpr VRegType regs[] = {
-      VRegType::A,    VRegType::D,    VRegType::B,    VRegType::C,
-      VRegType::DI,   VRegType::SI,   VRegType::R8,   VRegType::R9,
-      VRegType::R10,  VRegType::R11,  VRegType::R12,  VRegType::R13,
-      VRegType::R14,  VRegType::R15,  VRegType::mm0,  VRegType::mm1,
-      VRegType::mm2,  VRegType::mm3,  VRegType::mm4,  VRegType::mm5,
-      VRegType::mm6,  VRegType::mm7,  VRegType::mm8,  VRegType::mm9,
-      VRegType::mm10, VRegType::mm11, VRegType::mm12, VRegType::mm13,
-      VRegType::mm14, VRegType::mm15};
+  VRegType regs[N_REGS_SELECTABLE];
+  get_reg_order(func, regs);
 
   {
     ZoneScopedN("Actual Alloc");

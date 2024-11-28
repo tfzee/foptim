@@ -3,8 +3,8 @@
 #include "mir/func.hpp"
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
-#include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/calling_conv.hpp"
+#include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "optim/func_passes/dce.hpp"
@@ -93,7 +93,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
 
-  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
 
@@ -146,8 +146,8 @@ void lower_to_mir(foptim::fir::Context &ctx,
   auto matcher = foptim::fmir::GreedyMatcher{};
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
-    foptim::utils::Debug << res;
     funcs.push_back(std::move(res));
+    foptim::utils::Debug << funcs.back();
     foptim::utils::TempAlloc<void *>::reset();
   }
 }
@@ -172,6 +172,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals) {
 
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, globals);
 }

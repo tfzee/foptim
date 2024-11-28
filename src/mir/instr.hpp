@@ -62,7 +62,14 @@ enum class Opcode : u32 {
   call,
   ret,
 
+  // special purpose helper instructions
+  //  that *cant* be generated and *need* to be lowered
+
+  // used for each arg for a function call
   arg_setup,
+  // used for each function call all arg_setups immediatly prior are the args
+  // while this isntruction only takes the function label and the return
+  // register as args
   invoke,
 };
 
