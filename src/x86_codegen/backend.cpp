@@ -83,7 +83,8 @@ Reg convert_reg(Compiler & /*unused*/, Reg2OpMap & /*unused*/, fmir::VReg reg) {
   constexpr Reg b_regs[] = {bl, bx, ebx, rbx};
   constexpr Reg c_regs[] = {cl, cx, ecx, rcx};
   constexpr Reg d_regs[] = {dl, dx, edx, rdx};
-  constexpr Reg s_regs[] = {sil, si, esi, rsi};
+  constexpr Reg di_regs[] = {dil, di, edi, rdi};
+  constexpr Reg si_regs[] = {sil, si, esi, rsi};
   constexpr Reg sp_regs[] = {spl, sp, esp, rsp};
   constexpr Reg bp_regs[] = {bpl, bp, ebp, rbp};
   constexpr Reg r8_regs[] = {r8b, r8w, r8d, r8};
@@ -107,8 +108,10 @@ Reg convert_reg(Compiler & /*unused*/, Reg2OpMap & /*unused*/, fmir::VReg reg) {
     return get_reg_sized(c_regs, reg.info.reg_size);
   case fmir::VRegType::D:
     return get_reg_sized(d_regs, reg.info.reg_size);
-  case fmir::VRegType::S:
-    return get_reg_sized(s_regs, reg.info.reg_size);
+  case fmir::VRegType::DI:
+    return get_reg_sized(di_regs, reg.info.reg_size);
+  case fmir::VRegType::SI:
+    return get_reg_sized(si_regs, reg.info.reg_size);
   case fmir::VRegType::SP:
     return get_reg_sized(sp_regs, reg.info.reg_size);
   case fmir::VRegType::BP:

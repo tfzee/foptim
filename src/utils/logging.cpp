@@ -11,7 +11,6 @@
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "optim/analysis/live_variables.hpp"
-#include "utils/bitset.hpp"
 #include <iostream>
 
 namespace foptim::utils {
@@ -222,8 +221,10 @@ Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
       return *this << "$c";
     case VRegType::D:
       return *this << "$d";
-    case VRegType::S:
-      return *this << "$s";
+    case VRegType::DI:
+      return *this << "$di";
+    case VRegType::SI:
+      return *this << "$si";
     case VRegType::BP:
       return *this << "$bp";
     case VRegType::R8:
@@ -256,7 +257,9 @@ Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
       return *this << "$cl";
     case VRegType::D:
       return *this << "$dl";
-    case VRegType::S:
+    case VRegType::DI:
+      return *this << "$ldi";
+    case VRegType::SI:
       return *this << "$lsi";
     case VRegType::BP:
       return *this << "$lbp";
@@ -287,7 +290,8 @@ Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
     case VRegType::B:
     case VRegType::C:
     case VRegType::D:
-    case VRegType::S:
+    case VRegType::DI:
+    case VRegType::SI:
     case VRegType::BP:
     case VRegType::R8:
     case VRegType::R9:
@@ -312,7 +316,9 @@ Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
       return *this << "$ecx";
     case VRegType::D:
       return *this << "$edx";
-    case VRegType::S:
+    case VRegType::DI:
+      return *this << "$edi";
+    case VRegType::SI:
       return *this << "$esi";
     case VRegType::BP:
       return *this << "$ebp";
@@ -362,8 +368,10 @@ Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
     case VRegType::C:
       return *this << "$rcx";
     case VRegType::D:
+      return *this << "$rdx";
+    case VRegType::DI:
       return *this << "$rdi";
-    case VRegType::S:
+    case VRegType::SI:
       return *this << "$rsi";
     case VRegType::BP:
       return *this << "$rbp";

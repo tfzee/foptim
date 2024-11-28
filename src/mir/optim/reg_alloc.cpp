@@ -137,7 +137,6 @@ void replace_args(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
   }
 }
 
-
 bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
   ASSERT(!reg.info.is_pinned());
 
@@ -147,12 +146,12 @@ bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
   case VRegClass::GeneralPurpose:
     return avail_reg == VRegType::A || avail_reg == VRegType::B ||
            avail_reg == VRegType::C || avail_reg == VRegType::D ||
-           avail_reg == VRegType::S || avail_reg == VRegType::SP ||
-           avail_reg == VRegType::BP || avail_reg == VRegType::R8 ||
-           avail_reg == VRegType::R9 || avail_reg == VRegType::R10 ||
-           avail_reg == VRegType::R11 || avail_reg == VRegType::R12 ||
-           avail_reg == VRegType::R13 || avail_reg == VRegType::R14 ||
-           avail_reg == VRegType::R15;
+           avail_reg == VRegType::DI || avail_reg == VRegType::SI ||
+           avail_reg == VRegType::SP || avail_reg == VRegType::BP ||
+           avail_reg == VRegType::R8 || avail_reg == VRegType::R9 ||
+           avail_reg == VRegType::R10 || avail_reg == VRegType::R11 ||
+           avail_reg == VRegType::R12 || avail_reg == VRegType::R13 ||
+           avail_reg == VRegType::R14 || avail_reg == VRegType::R15;
   case VRegClass::Float:
     return avail_reg == VRegType::mm0 || avail_reg == VRegType::mm1 ||
            avail_reg == VRegType::mm2 || avail_reg == VRegType::mm3 ||
@@ -184,13 +183,13 @@ void apply_func(MFunc &func) {
   lifeness.reserve(32);
   constexpr VRegType regs[] = {
       VRegType::A,    VRegType::D,    VRegType::B,    VRegType::C,
-      VRegType::S,    VRegType::R8,   VRegType::R9,   VRegType::R10,
-      VRegType::R11,  VRegType::R12,  VRegType::R13,  VRegType::R14,
-      VRegType::R15,  VRegType::mm0,  VRegType::mm1,  VRegType::mm2,
-      VRegType::mm3,  VRegType::mm4,  VRegType::mm5,  VRegType::mm6,
-      VRegType::mm7,  VRegType::mm8,  VRegType::mm9,  VRegType::mm10,
-      VRegType::mm11, VRegType::mm12, VRegType::mm13, VRegType::mm14,
-      VRegType::mm15};
+      VRegType::DI,   VRegType::SI,   VRegType::R8,   VRegType::R9,
+      VRegType::R10,  VRegType::R11,  VRegType::R12,  VRegType::R13,
+      VRegType::R14,  VRegType::R15,  VRegType::mm0,  VRegType::mm1,
+      VRegType::mm2,  VRegType::mm3,  VRegType::mm4,  VRegType::mm5,
+      VRegType::mm6,  VRegType::mm7,  VRegType::mm8,  VRegType::mm9,
+      VRegType::mm10, VRegType::mm11, VRegType::mm12, VRegType::mm13,
+      VRegType::mm14, VRegType::mm15};
 
   {
     ZoneScopedN("Actual Alloc");

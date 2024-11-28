@@ -66,11 +66,11 @@ public:
   Printer operator<<(const foptim::fir::IRLocation &loc) const;
   Printer operator<<(const char *func) const;
   Printer operator<<(const foptim::fir::ConstantValue &v) const;
-  Printer operator<<(const foptim::fir::ConstantValueR v) const;
+  Printer operator<<(foptim::fir::ConstantValueR v) const;
   Printer operator<<(const foptim::fir::BBRefWithArgs &bb_with_args) const;
-  Printer operator<<(const foptim::fir::TypeR ty) const;
+  Printer operator<<(foptim::fir::TypeR ty) const;
   Printer operator<<(const foptim::fir::Attribute &ty) const;
-  Printer operator<<(const foptim::fir::ValueR val) const;
+  Printer operator<<(foptim::fir::ValueR val) const;
   Printer operator<<(const foptim::fir::Use &use) const;
   Printer operator<<(const foptim::fmir::MArgument &) const;
   Printer operator<<(const foptim::fmir::Type &) const;
@@ -78,10 +78,10 @@ public:
   Printer operator<<(const foptim::fmir::MBB &) const;
   Printer operator<<(const foptim::fmir::MFunc &) const;
   Printer operator<<(const foptim::fmir::VReg &) const;
-  Printer operator<<(const foptim::fir::Instr instr) const;
+  Printer operator<<(foptim::fir::Instr instr) const;
   Printer operator<<(const foptim::fir::InstrData *instr) const;
-  Printer operator<<(const foptim::fir::BasicBlock bb) const;
-  Printer operator<<(const PaddingT pad) const;
+  Printer operator<<(foptim::fir::BasicBlock bb) const;
+  Printer operator<<(PaddingT pad) const;
   Printer operator<<(const void *v) const;
 
   void nl() const;
