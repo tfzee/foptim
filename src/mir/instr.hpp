@@ -10,9 +10,10 @@ namespace foptim::fmir {
 
 enum class Opcode : u32 {
   mov,
-  itrunc,
+  cmov,
   mov_zx,
   mov_sx,
+  itrunc,
   lea,
   shl,
   shr,
@@ -80,6 +81,7 @@ enum class Opcode : u32 {
 constexpr const char *getNameFromOpcode(Opcode code) {
   switch (code) {
     ReturnString(mov);
+    ReturnString(cmov);
     ReturnString(lea);
     ReturnString(itrunc);
     ReturnString(mov_zx);
@@ -93,7 +95,6 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(fmul);
     ReturnString(icmp_slt);
     ReturnString(icmp_eq);
-    ;
     ReturnString(jmp);
     ReturnString(call);
     ReturnString(push);

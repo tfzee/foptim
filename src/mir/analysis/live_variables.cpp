@@ -48,6 +48,7 @@ size_t reg_to_uid(VReg r) {
 void update_def(MInstr &instr, utils::BitSet<> &def) {
   switch (instr.op) {
   case Opcode::mov:
+  case Opcode::cmov:
   case Opcode::itrunc:
   case Opcode::mov_zx:
   case Opcode::mov_sx:

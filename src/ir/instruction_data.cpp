@@ -81,6 +81,7 @@ bool InstrData::has_result() const {
   case InstrType::BinaryInstr:
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
+  case InstrType::SelectInstr:
   case InstrType::ICmp:
   case InstrType::FCmp:
   case InstrType::ITrunc:
@@ -94,8 +95,6 @@ bool InstrData::has_result() const {
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
     return false;
-  default:
-    std::abort();
   }
 }
 
@@ -110,14 +109,13 @@ bool InstrData::is_critical() const {
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
+  case InstrType::SelectInstr:
   case InstrType::ITrunc:
   case InstrType::ICmp:
   case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
     return false;
-  default:
-    std::abort();
   }
 }
 
@@ -169,6 +167,7 @@ bool InstrData::is_commutative() const {
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
+  case InstrType::SelectInstr:
   case InstrType::StoreInstr:
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
@@ -188,6 +187,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::AllocaInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
+  case InstrType::SelectInstr:
   case InstrType::ReturnInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
@@ -208,6 +208,7 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
+  case InstrType::SelectInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
   case InstrType::ICmp:
@@ -347,6 +348,13 @@ InstrData InstrData::get_alloca(TypeR ty) {
 InstrData InstrData::get_load(TypeR ty) {
   auto res =
       InstrData{InstrType::LoadInstr, ty, BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(1);
+  return res;
+}
+
+InstrData InstrData::get_select(TypeR ty) {
+  auto res =
+      InstrData{InstrType::SelectInstr, ty, BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(1);
   return res;
 }

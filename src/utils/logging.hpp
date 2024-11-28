@@ -1,7 +1,5 @@
 #pragma once
 #include "types.hpp"
-#include <unordered_map>
-#include <vector>
 
 namespace foptim::fmir {
 class VReg;
@@ -46,7 +44,6 @@ public:
   u8 indent;
   LogLevel level;
 
-
   Printer operator<<(foptim::fir::FunctionR func) const;
   Printer operator<<(const foptim::fir::Function &func) const;
 
@@ -64,12 +61,12 @@ public:
   // Printer operator<<(const foptim::utils::BitSet &func) const;
   Printer operator<<(const foptim::optim::LiveRange &live) const;
   Printer operator<<(const foptim::fir::IRLocation &loc) const;
-  Printer operator<<(const char *func) const;
+  Printer operator<<(const char *str) const;
   Printer operator<<(const foptim::fir::ConstantValue &v) const;
   Printer operator<<(foptim::fir::ConstantValueR v) const;
   Printer operator<<(const foptim::fir::BBRefWithArgs &bb_with_args) const;
   Printer operator<<(foptim::fir::TypeR ty) const;
-  Printer operator<<(const foptim::fir::Attribute &ty) const;
+  Printer operator<<(const foptim::fir::Attribute &attrib) const;
   Printer operator<<(foptim::fir::ValueR val) const;
   Printer operator<<(const foptim::fir::Use &use) const;
   Printer operator<<(const foptim::fmir::MArgument &) const;

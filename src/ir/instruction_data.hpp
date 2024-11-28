@@ -20,12 +20,16 @@ enum class InstrType : u8 {
   ZExt,
   SExt,
 
-  ReturnInstr,
+  SelectInstr,
+
   DirectCallInstr,
 
+  //Terminators
+  ReturnInstr,
   BranchInstr,
   CondBranchInstr,
 
+  //Memory
   LoadInstr,
   StoreInstr,
 };
@@ -176,6 +180,8 @@ public:
       return "ITrunc";
     case InstrType::SExt:
       return "SExt";
+    case InstrType::SelectInstr:
+      return "Select";
     case InstrType::ZExt:
       return "ZExt";
     case InstrType::CondBranchInstr:
@@ -312,6 +318,7 @@ public:
   static InstrData get_direct_call(TypeR ty);
   static InstrData get_alloca(TypeR ty);
   static InstrData get_load(TypeR ty);
+  static InstrData get_select(TypeR ty);
   static InstrData get_store(TypeR ty);
   static InstrData get_branch(ContextData *ctx);
   static InstrData get_cond_branch(ContextData *ctx);

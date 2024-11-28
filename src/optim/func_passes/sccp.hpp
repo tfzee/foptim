@@ -101,7 +101,8 @@ public:
         return ConstantValue::Top();
       }
 
-      if ((!a.value->is_int() && !a.value->is_float()) || (!b.value->is_int() && !b.value->is_float())) {
+      if ((!a.value->is_int() && !a.value->is_float()) ||
+          (!b.value->is_int() && !b.value->is_float())) {
         failure({"Cannot do SCCP on binary expr using non integers", instr});
         return ConstantValue::Bottom();
       }
@@ -336,6 +337,23 @@ public:
       u64 mask = ((u64)1 << res_type_width) - 1;
       return ConstantValue::Constant(ctx->get_constant_value(
           a.value->as_int() & mask, ctx->get_int_type(res_type_width)));
+    }
+    case fir::InstrType::SelectInstr: {
+      auto c = eval(instr->get_arg(0));
+      auto a = eval(instr->get_arg(1));
+      auto b = eval(instr->get_arg(2));
+
+      if (c.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (c.is_top()) {
+        return ConstantValue::Top();
+      }
+
+      if (c.value->as_int() != 0) {
+        return a;
+      }
+      return b;
     }
     case fir::InstrType::DirectCallInstr:
     case fir::InstrType::AllocaInstr:

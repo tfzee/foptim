@@ -299,6 +299,17 @@ public:
     return ValueR(instr);
   }
 
+  ValueR build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(InstrData::get_select(type));
+    instr.add_arg(cond);
+    instr.add_arg(v1);
+    instr.add_arg(v2);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_store(ValueR ptr, ValueR value) {
     check_bb_set();
     Instr instr =

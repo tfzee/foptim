@@ -537,6 +537,7 @@ constexpr auto base_pats() {
   auto SExtNode = Node{NodeType::Instr, InstrType::SExt, 0};
   auto ZExtNode = Node{NodeType::Instr, InstrType::ZExt, 0};
   auto ITruncNode = Node{NodeType::Instr, InstrType::ITrunc, 0};
+  auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, 0};
 
   res.push_back(Pattern{
       {IntAddNode, LoadNode},
@@ -867,6 +868,19 @@ constexpr auto base_pats() {
         }
 
         res.result.emplace_back(Opcode::add, res_reg, a0, a1);
+        return true;
+      }});
+  res.push_back(Pattern{
+      {SelectNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto select_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(select_instr), res.result, data.alloc);
+        auto cond = valueToArg(select_instr->args[0], res.result, data.alloc);
+        auto a = valueToArg(select_instr->args[1], res.result, data.alloc);
+        auto b = valueToArg(select_instr->args[2], res.result, data.alloc);
+
+        res.result.emplace_back(Opcode::mov, res_reg, a);
+        res.result.emplace_back(Opcode::cmov, res_reg, cond, b);
         return true;
       }});
   res.push_back(

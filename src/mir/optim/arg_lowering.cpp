@@ -1,7 +1,6 @@
 #include "arg_lowering.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
-#include "utils/bitset.hpp"
 #include "utils/todo.hpp"
 
 namespace foptim::fmir {

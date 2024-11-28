@@ -189,7 +189,7 @@ bool Legalizer::legalize_one_byte_load(MBB &bb, u32 indx) {
   if (instr.args[0].isReg() &&
       (instr.args[0].ty == Type::Int8 || instr.args[0].ty == Type::Int16) &&
       instr.args[1].isMem()) {
-    utils::Debug << "Fixing : " << instr << "\n";
+    // utils::Debug << "Fixing : " << instr << "\n";
     instr.op = Opcode::mov_zx;
     instr.args[0].ty = Type::Int32;
     instr.args[0].reg.info.reg_size = 4;
@@ -279,6 +279,23 @@ bool Legalizer::legalize_fadd(MBB &bb, u32 indx) {
   return modified;
 }
 
+bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
+  {
+    // 2nd arg cant be a constant
+    MInstr &instr = bb.instrs[indx];
+    if (instr.args[2].isImm()) {
+      if (instr.args[2].ty == Type::Float32 ||
+          instr.args[2].ty == Type::Float64) {
+        indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
+      } else {
+        indx = move_arg_to_reg(bb, indx, 2, instr.args[0].ty);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 void Legalizer::apply(MFunc &func) {
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
@@ -366,6 +383,11 @@ void Legalizer::apply(MFunc &func) {
         break;
       case Opcode::arg_setup:
         if (legalize_arg_setup(bb, i)) {
+          ioff = 0;
+        }
+        break;
+      case Opcode::cmov:
+        if (legalize_cmove(bb, i)) {
           ioff = 0;
         }
         break;

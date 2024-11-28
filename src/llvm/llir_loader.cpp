@@ -396,6 +396,19 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
     valueToValue.insert({&any_instr, load});
     return;
   }
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::SelectInst>(&any_instr)) {
+    assert(instr->getNumOperands() == 3);
+    auto cond = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
+                                   valueToValue, mod, b2b);
+    auto v1 = convert_instr_arg(instr->getOperand(1), fctx, ffunc, builder,
+                                   valueToValue, mod, b2b);
+    auto v2 = convert_instr_arg(instr->getOperand(2), fctx, ffunc, builder,
+                                   valueToValue, mod, b2b);
+    auto type = convert_type(instr->getType(), fctx);
+    auto select = builder.build_select(type, cond, v1, v2);
+    valueToValue.insert({&any_instr, select});
+    return;
+  }
   if (const auto *instr =
           llvm::dyn_cast_or_null<llvm::AllocaInst>(&any_instr)) {
     convert_alloca(any_instr, instr, fctx, builder, valueToValue, mod);
@@ -585,7 +598,7 @@ inline void generate_memset(foptim::fir::Context &fctx) {
   auto entry_bb = ffunc->get_entry();
   auto loop_body = bb.append_bb();
   auto exit = bb.append_bb();
-  foptim::utils::Debug << ffunc << "\n";
+  // foptim::utils::Debug << ffunc << "\n";
 
   // the arguments
   auto ptr_arg = foptim::fir::ValueR{entry_bb, 0};
@@ -634,6 +647,9 @@ inline void generate_memset(foptim::fir::Context &fctx) {
 inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
   if (func.getName().starts_with("llvm.memset")) {
     generate_memset(fctx);
+  }
+  if (func.getName().starts_with("llvm.memcpy")) {
+    TODO("impl memcpy");
   }
 }
 

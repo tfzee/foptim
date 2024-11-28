@@ -349,6 +349,27 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     }
     return;
   }
+  case fmir::Opcode::cmov: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto cond = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto value = convert_operand(cc, reg_to_op, instr.args[2]);
+
+    u32 o0_size = get_size(instr.args[0].ty);
+
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      TODO("fcmove");
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      TODO("fcmove");
+    } else if (o0_size == 8 && value.isReg()) {
+      cc.emit(Inst::kIdTest, cond, cond);
+      cc.emit(Inst::kIdCmovnz, target, value.as<Gp>().r64());
+    } else {
+      cc.emit(Inst::kIdTest, cond, cond);
+      cc.emit(Inst::kIdCmovnz, target, value);
+    }
+    return;
+  }
   case fmir::Opcode::lea: {
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
