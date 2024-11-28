@@ -6,14 +6,9 @@
 
 namespace foptim::fmir {
 
-// same order as defined in VRegTypeEnum
-// static constexpr VRegType g_regs[] = {
-//     VRegType::A,   VRegType::B,   VRegType::C,   VRegType::D,   VRegType::S,
-//     VRegType::SP, VRegType::R8,  VRegType::R9,  VRegType::R10, VRegType::R11,
-//     VRegType::R12, VRegType::R13, VRegType::R14, VRegType::R15};
-
-static void transform(IRVec<MInstr> &instrs, size_t start, size_t end,
+static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
                       size_t bb_id, LiveVariables &lives) {
+
   size_t n_args = end - start;
 
   TVec<MInstr> args;
@@ -158,7 +153,7 @@ void InvokeLower::apply(FVec<MFunc> &funcs) {
             continue;
           }
           // FIXME: needs proper liveness analysis
-          transform(bb.instrs, instr_id, instr_end_id, bb_id, lives);
+          transform_call(bb.instrs, instr_id, instr_end_id, bb_id, lives);
           // update the n of instrs since the might have changed it
           n_instrs = bb.instrs.size();
           // number of elements

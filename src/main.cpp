@@ -5,6 +5,7 @@
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/invoke_lower.hpp"
+#include "mir/optim/arg_lowering.hpp"
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "optim/func_passes/dce.hpp"
@@ -159,6 +160,7 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   ZoneScopedN("MIR Optim");
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::ArgLowering{}.apply(funcs);
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InvokeLower{}.apply(funcs);
@@ -172,9 +174,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals) {
 
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, globals);
 }

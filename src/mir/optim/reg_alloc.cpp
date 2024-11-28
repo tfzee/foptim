@@ -137,18 +137,6 @@ void replace_args(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
   }
 }
 
-void gen_arg_mapping(MFunc &func, TMap<size_t, VRegType> & /*unused*/) {
-  // TODO: depends on calling conv
-  // TODO: should be moved to invoke lower
-  for (u32 arg_i = 0; arg_i < func.args.size(); arg_i++) {
-    ASSERT(!func.args[arg_i].info.is_pinned());
-
-    auto arg_ty = func.arg_tys[arg_i];
-    auto instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
-                        MArgument::Mem(VReg::RSP(), 8 * (arg_i + 2), arg_ty));
-    func.bbs[0].instrs.insert(func.bbs[0].instrs.begin(), instr);
-  }
-}
 
 bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
   ASSERT(!reg.info.is_pinned());
@@ -180,16 +168,16 @@ bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
   TMap<size_t, VRegType> reg_mapping;
-  {
-    ZoneScopedN("Args");
-    gen_arg_mapping(func, reg_mapping);
-    for (auto &bb : func.bbs) {
-      for (auto &instr : bb.instrs) {
-        replace_args(instr, reg_mapping);
-      }
-    }
-    reg_mapping.clear();
-  }
+  // {
+  //   ZoneScopedN("Args");
+  //   gen_arg_mapping(func, reg_mapping);
+  //   for (auto &bb : func.bbs) {
+  //     for (auto &instr : bb.instrs) {
+  //       replace_args(instr, reg_mapping);
+  //     }
+  //   }
+  //   reg_mapping.clear();
+  // }
 
   const auto lifetimes = linear_lifetime(func);
   TMap<VRegType, LinearRange> lifeness;
