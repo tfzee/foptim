@@ -4,8 +4,7 @@
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/inst_simplify.hpp"
-#include "mir/optim/invoke_lower.hpp"
-#include "mir/optim/arg_lowering.hpp"
+#include "mir/optim/calling_conv.hpp"
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "optim/func_passes/dce.hpp"
@@ -104,8 +103,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
-
-  //ensure no constants math left
+  // ensure no constants math left
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   ASSERT(ctx->verify());
@@ -160,10 +158,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   ZoneScopedN("MIR Optim");
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::ArgLowering{}.apply(funcs);
+  foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::InvokeLower{}.apply(funcs);
+  foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

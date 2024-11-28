@@ -70,8 +70,7 @@ add_library (foptim
                 ./src/mir/matcher.cpp
                 ./src/mir/analysis/live_variables.cpp
                 ./src/mir/optim/reg_alloc.cpp
-                ./src/mir/optim/invoke_lower.cpp
-                ./src/mir/optim/arg_lowering.cpp
+                ./src/mir/optim/calling_conv.cpp
                 ./src/mir/optim/bb_reordering.cpp
                 ./src/mir/optim/inst_simplify.cpp
                 ./src/mir/optim/legalization.cpp
