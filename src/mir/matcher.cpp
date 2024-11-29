@@ -63,15 +63,19 @@ struct MatchTodos {
 bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
   TVec<MatchTodos> match_todos;
 
-  for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
-       start_node_id++) {
+  //for now TREE only matching
+  // for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
+  //      start_node_id++) {
+  size_t start_node_id = patt.nodes.size() - 1;
+  {
     uint32_t n_nodes_matched = 0;
     // iterate over all the possible initial notes since there can be multiple
     // candidates we need to iter over this
 
     // if it doesnt match check next
     if (!try_match(fir::ValueR(instr), patt.nodes[start_node_id])) {
-      continue;
+      return false;
+      // continue;
     }
     n_nodes_matched++;
     match_todos.clear();
