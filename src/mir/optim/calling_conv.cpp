@@ -190,7 +190,7 @@ void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
   }
 }
 
-void setup_call_arguments(IRVec<MInstr> &instrs, TVec<MInstr> args,
+void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
                           TVec<ArgPosition> arg_pos, size_t start) {
 
   TVec<MInstr> output_vec;
@@ -245,7 +245,7 @@ void setup_call_arguments(IRVec<MInstr> &instrs, TVec<MInstr> args,
     // if we didnt find any that dont colllide
     // we us a push and pop
     if (!found_one && !worklist.empty()) {
-      instrs.emplace_back(Opcode::push, args[worklist[0]].args[0]);
+      output_vec.emplace_back(Opcode::push, args[worklist[0]].args[0]);
       push_pop_queue.push_back(worklist[0]);
       worklist.erase(worklist.begin() + 0);
     }
@@ -270,7 +270,7 @@ void setup_call_arguments(IRVec<MInstr> &instrs, TVec<MInstr> args,
       TODO("UNREACH");
     }
   }
-  instrs.insert(instrs.begin() + start, output_vec.begin(), output_vec.end());
+  out_instrs.insert(out_instrs.begin() + start, output_vec.begin(), output_vec.end());
 }
 
 static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,

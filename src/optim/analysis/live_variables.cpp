@@ -55,7 +55,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
   defs.resize(func.n_bbs(), utils::BitSet{n_values, false});
   std::deque<u32, utils::TempAlloc<u32>> worklist{};
 
-
   // setup constant values for data flow equation
   auto &bbs = func.get_bbs();
   for (size_t bb_id = 0; bb_id < bbs.size(); bb_id++) {
@@ -158,7 +157,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
 
   utils::BitSet bb_live{n_values, false};
 
-  for (size_t bb_id = 0; bb_id < bbs.size(); bb_id++) {
+  for (u32 bb_id = 0; bb_id < bbs.size(); bb_id++) {
     const auto &bb_liveOut = liveOut[bb_id];
     const auto &bb_liveIn = liveIn[bb_id];
     const auto &bb_defs = defs[bb_id];
@@ -183,9 +182,9 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
       if (!val_live) {
         continue;
       }
-      // utils::Debug << "   LiveIn" << val_liveIn << "\n";
-      // utils::Debug << "   LiveOut" << val_liveOut << "\n";
-      // utils::Debug << "   LiveDef" << val_defined << "\n";
+      // utils::Debug << "   LiveIn: " << val_liveIn << "\n";
+      // utils::Debug << "   LiveOut: " << val_liveOut << "\n";
+      // utils::Debug << "   LiveDef: " << val_defined << "\n";
 
       auto &live_ranges = live_variables[value_ref->first];
       ASSERT(value_ref != all_values.end());
@@ -203,35 +202,22 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
       if (value_ref->first.get_n_uses() == 0 && value_ref->first.is_instr()) {
         // unused resutl of critical instruction can be discarded and needs no
         // lifetime?
-      } else if (!val_liveIn && val_defined && !val_liveOut &&
-                 value_ref->first.is_instr()) {
-        // all uses are defined and used in this bb;
-        // so definition is start and last use is end
-        auto final_use_instr =
-            get_last_use_in_bb(value_ref->first, func.get_bbs()[bb_id]);
-
-        live_ranges.push_back(LiveRange::between_instr(
-            fir::IRLocation{value_ref->first.as_instr()},
-            fir::IRLocation{final_use_instr}));
-
-      } else if (!val_liveIn && val_defined && val_liveOut &&
-                 value_ref->first.is_instr()) {
-        // if its not live in and its defined in the block then its live from
-        // defined location till end of block
-        // TODO can be refined it not live out then it also has all uses in BB
-        live_ranges.push_back(LiveRange::start_after_instr(
-            fir::IRLocation{value_ref->first.as_instr()}));
-      } else if (val_liveIn && !val_liveOut) {
-        // if it comes in and never goes out its last use in the bb is the end
-        // of this values lifetime
-        auto final_use_instr =
-            get_last_use_in_bb(value_ref->first, func.get_bbs()[bb_id]);
-        live_ranges.push_back(
-            LiveRange::end_at_instr(fir::IRLocation{final_use_instr}));
-      } else {
-        // generic case just mark it live in th whole bb
-        live_ranges.emplace_back(bbs[bb_id]);
+        continue;
       }
+
+      auto bb = func.get_bbs()[bb_id];
+      u32 first_use_in_bb = 0;
+      u32 last_use_in_bb = bb->instructions.size();
+      if (!val_liveIn && val_defined && value_ref->first.is_instr()) {
+        first_use_in_bb =
+            fir::IRLocation::get_instr_indx(value_ref->first.as_instr()) + 1;
+      }
+      if (!val_liveOut && value_ref->first.get_n_uses() != 0) {
+        last_use_in_bb = fir::IRLocation::get_instr_indx(
+            get_last_use_in_bb(value_ref->first, func.get_bbs()[bb_id]));
+      }
+
+      live_ranges.emplace_back(bb_id, first_use_in_bb, last_use_in_bb);
     }
   }
   // dump();

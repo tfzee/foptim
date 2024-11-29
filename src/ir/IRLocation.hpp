@@ -53,14 +53,20 @@ struct IRLocation {
   IRLocation() : type(LocationType::INVALID), func(nullptr) {}
   ~IRLocation() = default;
 
-  IRLocation(fir::Instr from_instr)
+  static IRLocation after(fir::Instr after_instr) {
+    IRLocation loc(after_instr);
+    loc.instr++;
+    return loc;
+  }
+
+  constexpr IRLocation(fir::Instr from_instr)
       : type(LocationType::Instruction),
         func(from_instr->get_parent()->get_parent()) {
     bb = get_bb_indx(from_instr->get_parent());
     instr = get_instr_indx(from_instr);
   }
 
-  IRLocation(fir::BasicBlock from_bb)
+  constexpr IRLocation(fir::BasicBlock from_bb)
       : type(LocationType::BasicBlock), instr(0), func(from_bb->get_parent()) {
     bb = get_bb_indx(from_bb);
   }
@@ -68,7 +74,8 @@ struct IRLocation {
 } // namespace foptim::fir
 
 template <> struct std::hash<foptim::fir::IRLocation::LocationType> {
-  std::size_t operator()(const foptim::fir::IRLocation::LocationType &k) const noexcept {
+  std::size_t
+  operator()(const foptim::fir::IRLocation::LocationType &k) const noexcept {
     return hash<foptim::u8>()((foptim::u8)k);
   }
 };

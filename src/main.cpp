@@ -163,10 +163,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  // foptim::fmir::InstSimplify{}.apply(funcs);
-  // foptim::utils::TempAlloc<void *>::reset();
-  // foptim::fmir::BBReordering{}.apply(funcs);
-  // foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::InstSimplify{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::BBReordering{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

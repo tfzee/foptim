@@ -171,21 +171,21 @@ constexpr void get_reg_order(MFunc &func, VRegType *regs) {
   static constexpr VRegType leaf_optimized_regs[N_REGS_SELECTABLE] = {
       VRegType::A,    VRegType::D,    VRegType::C,    VRegType::DI,
       VRegType::SI,   VRegType::R8,   VRegType::R9,   VRegType::R10,
-      VRegType::R11,  VRegType::R12,  VRegType::R13,  VRegType::R14,
-      VRegType::R15,  VRegType::B,    VRegType::mm0,  VRegType::mm1,
-      VRegType::mm2,  VRegType::mm3,  VRegType::mm4,  VRegType::mm5,
-      VRegType::mm6,  VRegType::mm7,  VRegType::mm8,  VRegType::mm9,
+      VRegType::R11,  VRegType::mm0,  VRegType::mm1,  VRegType::mm2,
+      VRegType::mm3,  VRegType::mm4,  VRegType::mm5,  VRegType::mm6,
+      VRegType::mm7,  VRegType::R12,  VRegType::R13,  VRegType::R14,
+      VRegType::R15,  VRegType::B,    VRegType::mm8,  VRegType::mm9,
       VRegType::mm10, VRegType::mm11, VRegType::mm12, VRegType::mm13,
       VRegType::mm14, VRegType::mm15};
   static constexpr VRegType basic_regs[N_REGS_SELECTABLE] = {
       VRegType::B,    VRegType::R12,  VRegType::R13,  VRegType::R14,
-      VRegType::R15,  VRegType::A,    VRegType::D,    VRegType::C,
+      VRegType::R15,  VRegType::mm8,  VRegType::mm9,  VRegType::mm10,
+      VRegType::mm11, VRegType::mm12, VRegType::mm13, VRegType::mm14,
+      VRegType::mm15, VRegType::A,    VRegType::D,    VRegType::C,
       VRegType::DI,   VRegType::SI,   VRegType::R8,   VRegType::R9,
       VRegType::R10,  VRegType::R11,  VRegType::mm0,  VRegType::mm1,
       VRegType::mm2,  VRegType::mm3,  VRegType::mm4,  VRegType::mm5,
-      VRegType::mm6,  VRegType::mm7,  VRegType::mm8,  VRegType::mm9,
-      VRegType::mm10, VRegType::mm11, VRegType::mm12, VRegType::mm13,
-      VRegType::mm14, VRegType::mm15};
+      VRegType::mm6,  VRegType::mm7};
 
   bool is_leaf = true;
   for (auto &bb : func.bbs) {
@@ -199,6 +199,7 @@ constexpr void get_reg_order(MFunc &func, VRegType *regs) {
       break;
     }
   }
+  utils::Debug << "=========IsLeaf:  " << is_leaf << "\n";
 
   const VRegType *selected = basic_regs;
   if (is_leaf) {
@@ -218,8 +219,8 @@ void apply_func(MFunc &func) {
   TMap<size_t, VRegType> reg_mapping;
   {
     ZoneScopedN("Args");
-    for(auto & reg : func.args){
-       if(reg.info.is_pinned()){
+    for (auto &reg : func.args) {
+      if (reg.info.is_pinned()) {
         reg_mapping.insert({reg.id, reg.info.ty});
       }
     }

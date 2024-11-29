@@ -31,9 +31,7 @@ public:
            bb->instructions.begin();
   }
 
-  BasicBlock get_curr_bb(){
-    return bb;
-  }
+  BasicBlock get_curr_bb() { return bb; }
   /*
     Sets the current insert location to the start of the new Basic Block
   */
@@ -112,7 +110,8 @@ public:
 
   ValueR build_binary_op(ValueR a, ValueR b, BinaryInstrSubType sub_type) {
     check_bb_set();
-    Instr instr = ctx->storage.insert_instr(InstrData::get_binary(a.get_type(), sub_type));
+    Instr instr = ctx->storage.insert_instr(
+        InstrData::get_binary(a.get_type(), sub_type));
     instr.add_arg(a);
     instr.add_arg(b);
     bb.insert_instr(indx, instr);
@@ -132,7 +131,8 @@ public:
 
   ValueR build_float_add(ValueR a, ValueR b) {
     check_bb_set();
-    Instr instr = ctx->storage.insert_instr(InstrData::get_float_add(a.get_type()));
+    Instr instr =
+        ctx->storage.insert_instr(InstrData::get_float_add(a.get_type()));
     instr.add_arg(a);
     instr.add_arg(b);
     bb.insert_instr(indx, instr);
@@ -142,7 +142,8 @@ public:
 
   ValueR build_float_sub(ValueR a, ValueR b) {
     check_bb_set();
-    Instr instr = ctx->storage.insert_instr(InstrData::get_float_sub(a.get_type()));
+    Instr instr =
+        ctx->storage.insert_instr(InstrData::get_float_sub(a.get_type()));
     instr.add_arg(a);
     instr.add_arg(b);
     bb.insert_instr(indx, instr);
@@ -152,7 +153,8 @@ public:
 
   ValueR build_float_mul(ValueR a, ValueR b) {
     check_bb_set();
-    Instr instr = ctx->storage.insert_instr(InstrData::get_float_mul(a.get_type()));
+    Instr instr =
+        ctx->storage.insert_instr(InstrData::get_float_mul(a.get_type()));
     instr.add_arg(a);
     instr.add_arg(b);
     bb.insert_instr(indx, instr);
@@ -321,23 +323,26 @@ public:
     return ValueR(instr);
   }
 
-  void build_return() {
+  Instr build_return() {
     check_bb_set();
-    bb.insert_instr(indx, ctx->storage.insert_instr(
-                              InstrData::get_return(ctx->get_void_type())));
+    auto instr =
+        ctx->storage.insert_instr(InstrData::get_return(ctx->get_void_type()));
+    bb.insert_instr(indx, instr);
     indx++;
+    return instr;
   }
 
-  void build_return(ValueR v) {
+  Instr build_return(ValueR v) {
     check_bb_set();
     Instr instr =
         ctx->storage.insert_instr(InstrData::get_return(v.get_type()));
     instr.add_arg(v);
     bb.insert_instr(indx, instr);
     indx++;
+    return instr;
   }
 
-  BasicBlock insert_copy(BasicBlock bb, ContextData::V2VMap& subs) {
+  BasicBlock insert_copy(BasicBlock bb, ContextData::V2VMap &subs) {
     BasicBlock new_bb = ctx->copy(bb, subs);
     new_bb->func = func;
     func->append_bbr(new_bb);

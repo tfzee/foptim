@@ -17,6 +17,8 @@ struct LiveRange {
   u32 start;
   u32 end;
 
+  constexpr LiveRange(u32 bb, u32 start, u32 end) : bb(bb), start(start), end(end) {}
+
   LiveRange(fir::IRLocation a) {
     if (a.type == fir::IRLocation::LocationType::Instruction) {
       bb = a.bb;
@@ -28,36 +30,36 @@ struct LiveRange {
       // end = 0;
       end = a.func->get_bbs()[bb]->n_instrs();
     } else if (a.type == fir::IRLocation::LocationType::Function) {
-      assert(false);
+      ASSERT(false);
     }
   }
 
   // NOTE: not including the first
   static LiveRange between_instr(fir::IRLocation start_not_included,
                                  fir::IRLocation end) {
-    assert(start_not_included.type ==
+    ASSERT(start_not_included.type ==
            fir::IRLocation::LocationType::Instruction);
-    assert(end.type == fir::IRLocation::LocationType::Instruction);
-    assert(start_not_included.bb == end.bb);
-    assert((void *)start_not_included.func.func == (void *)end.func.func);
+    ASSERT(end.type == fir::IRLocation::LocationType::Instruction);
+    ASSERT(start_not_included.bb == end.bb);
+    ASSERT((void *)start_not_included.func.func == (void *)end.func.func);
     LiveRange res{start_not_included};
     res.start++;
     res.end = end.instr;
-    assert(res.start <= res.end);
+    ASSERT(res.start <= res.end);
     return res;
   }
 
   static LiveRange start_after_instr(fir::IRLocation loc) {
-    assert(loc.type == fir::IRLocation::LocationType::Instruction);
+    ASSERT(loc.type == fir::IRLocation::LocationType::Instruction);
     LiveRange res{loc};
     res.start++;
     res.end = loc.func->get_bbs()[res.bb]->n_instrs();
-    assert(res.start <= res.end);
+    ASSERT(res.start <= res.end);
     return res;
   }
 
   static LiveRange end_at_instr(fir::IRLocation loc) {
-    assert(loc.type == fir::IRLocation::LocationType::Instruction);
+    ASSERT(loc.type == fir::IRLocation::LocationType::Instruction);
     LiveRange res{loc};
     res.start = 0;
     return res;

@@ -23,6 +23,7 @@ class Legalizer {
   bool legalize_push(MBB &bb, u32 indx);
   bool legalize_arg_setup(MBB &bb, u32 indx);
   bool legalize_cmove(MBB &bb, u32 indx);
+  bool legalize_sub(MBB &bb, u32 indx);
   bool legalize_one_byte_load(MBB &bb, u32 indx);
   void apply(MFunc &funcs);
 
