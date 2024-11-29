@@ -212,22 +212,26 @@ constexpr void get_reg_order(MFunc &func, VRegType *regs) {
 
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
-  TMap<size_t, VRegType> reg_mapping;
-  // {
-  //   ZoneScopedN("Args");
-  //   gen_arg_mapping(func, reg_mapping);
-  //   for (auto &bb : func.bbs) {
-  //     for (auto &instr : bb.instrs) {
-  //       replace_args(instr, reg_mapping);
-  //     }
-  //   }
-  //   reg_mapping.clear();
-  // }
-
-  const auto lifetimes = linear_lifetime(func);
   TMap<VRegType, LinearRange> lifeness;
   lifeness.reserve(32);
   VRegType regs[N_REGS_SELECTABLE];
+  TMap<size_t, VRegType> reg_mapping;
+  {
+    ZoneScopedN("Args");
+    for(auto & reg : func.args){
+       if(reg.info.is_pinned()){
+        reg_mapping.insert({reg.id, reg.info.ty});
+      }
+    }
+    for (auto &bb : func.bbs) {
+      for (auto &instr : bb.instrs) {
+        replace_args(instr, reg_mapping);
+      }
+    }
+    reg_mapping.clear();
+  }
+
+  const auto lifetimes = linear_lifetime(func);
   get_reg_order(func, regs);
 
   {
@@ -235,6 +239,7 @@ void apply_func(MFunc &func) {
     for (auto [reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
         lifeness.insert({reg.info.ty, lifetime});
+        // reg_mapping.insert({reg.id, reg.info.ty});
       }
     }
 

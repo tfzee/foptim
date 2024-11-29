@@ -288,7 +288,7 @@ struct VRegInfo {
   }
 
   constexpr bool operator==(const VRegInfo &other) const {
-    return ty == other.ty && reg_size == other.reg_size &&
+    return ty == other.ty &&
            reg_class == other.reg_class;
   }
 };
@@ -490,71 +490,46 @@ public:
       break;
     }
   }
-
-  [[nodiscard]] constexpr bool uses_same_vreg(const MArgument &other) const {
-    switch (type) {
-      // no regs
+  [[nodiscard]] constexpr bool uses_same_vreg(const VReg &other) const {
+    switch(type){
     case ArgumentType::Imm:
     case ArgumentType::MemImm:
     case ArgumentType::Label:
     case ArgumentType::MemLabel:
     case ArgumentType::MemImmLabel:
       return false;
-
-      // 1 reg
     case ArgumentType::VReg:
     case ArgumentType::MemVReg:
     case ArgumentType::MemImmVReg:
+      return reg == other;
     case ArgumentType::MemImmVRegScale:
-      switch (other.type) {
-      case ArgumentType::MemImmLabel:
-      case ArgumentType::Imm:
-      case ArgumentType::MemImm:
-      case ArgumentType::Label:
-      case ArgumentType::MemLabel:
-        return false;
-      // 1x1 reg
-      case ArgumentType::VReg:
-      case ArgumentType::MemVReg:
-      case ArgumentType::MemImmVReg:
-      case ArgumentType::MemImmVRegScale:
-        return other.reg == reg;
-      // 1x2 reg
-      case ArgumentType::MemVRegVReg:
-      case ArgumentType::MemImmVRegVReg:
-      case ArgumentType::MemVRegVRegScale:
-      case ArgumentType::MemImmVRegVRegScale:
-        return other.reg == reg || other.indx == reg;
-        break;
-      }
-    // 2 reg
-    case ArgumentType::MemVRegVReg:
     case ArgumentType::MemImmVRegVReg:
     case ArgumentType::MemVRegVRegScale:
+    case ArgumentType::MemVRegVReg:
     case ArgumentType::MemImmVRegVRegScale:
-      switch (other.type) {
-      case ArgumentType::MemImmLabel:
-      case ArgumentType::Imm:
-      case ArgumentType::MemImm:
-      case ArgumentType::Label:
-      case ArgumentType::MemLabel:
-        return false;
-      // 2x1 reg
-      case ArgumentType::VReg:
-      case ArgumentType::MemVReg:
-      case ArgumentType::MemImmVReg:
-      case ArgumentType::MemImmVRegScale:
-        return other.reg == reg || other.reg == indx;
-      // 2x2 reg
-      case ArgumentType::MemVRegVReg:
-      case ArgumentType::MemImmVRegVReg:
-      case ArgumentType::MemVRegVRegScale:
-      case ArgumentType::MemImmVRegVRegScale:
-        return other.reg == reg || other.reg == indx || other.indx == reg ||
-               other.indx == indx;
-      }
+      return reg == other || indx == other;
     }
-    TODO("unreach");
+  }
+
+  [[nodiscard]] constexpr bool uses_same_vreg(const MArgument &other) const {
+    switch(other.type){
+    case ArgumentType::Imm:
+    case ArgumentType::MemImm:
+    case ArgumentType::Label:
+    case ArgumentType::MemLabel:
+    case ArgumentType::MemImmLabel:
+      return false;
+    case ArgumentType::VReg:
+    case ArgumentType::MemVReg:
+    case ArgumentType::MemImmVReg:
+      return uses_same_vreg(other.reg);
+    case ArgumentType::MemImmVRegScale:
+    case ArgumentType::MemImmVRegVReg:
+    case ArgumentType::MemVRegVRegScale:
+    case ArgumentType::MemVRegVReg:
+    case ArgumentType::MemImmVRegVRegScale:
+      return uses_same_vreg(other.reg) || uses_same_vreg(other.indx);
+    }
   }
 
   [[nodiscard]] constexpr bool uses_vreg() const {

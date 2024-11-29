@@ -23,6 +23,16 @@ constexpr VRegType callee_saved[] = {
     VRegType::B,   VRegType::SP,  VRegType::BP,
 };
 
+constexpr VRegType int_arg_reg[] = {
+    VRegType::DI, VRegType::SI, VRegType::D,
+    VRegType::C,  VRegType::R8, VRegType::R9,
+};
+constexpr u32 n_int_arg_regs = sizeof(int_arg_reg) / sizeof(int_arg_reg[0]);
+constexpr VRegType float_arg_reg[] = {
+    VRegType::mm0, VRegType::mm1, VRegType::mm2, VRegType::mm3,
+    VRegType::mm4, VRegType::mm5, VRegType::mm6, VRegType::mm7};
+constexpr u32 n_float_arg_regs = sizeof(int_arg_reg) / sizeof(int_arg_reg[0]);
+
 static void save_regs_callee(MFunc &func, CFG &cfg) {
   auto &first_bb = func.bbs[0];
   auto used_regs = calculate_used_regs(func);
@@ -48,9 +58,14 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
   for (size_t instr_id = n_regs_saved;
        instr_id < n_regs_saved + func.args.size(); instr_id++) {
     auto &instr = first_bb.instrs[instr_id];
-    ASSERT(instr.op == Opcode::mov && instr.args[1].isMem());
-    ASSERT(instr.args[1].type == MArgument::ArgumentType::MemImmVReg);
-    instr.args[1].imm += n_regs_saved * 8;
+    ASSERT(instr.op == Opcode::mov);
+    ASSERT(instr.args[0] == instr.args[1] ||
+           (instr.args[1].isMem() &&
+            instr.args[1].type == MArgument::ArgumentType::MemImmVReg));
+    // only update things given by stack
+    if (instr.args[1].isMem()) {
+      instr.args[1].imm += n_regs_saved * 8;
+    }
   }
 
   // restore in *every* exiting basic block we first need to find these
@@ -75,8 +90,9 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
   }
 }
 
-static void save_args(IRVec<MInstr> &instrs, LiveVariables &lives, size_t start,
-                      size_t bb_id, bool return_value_overwrites_eax) {
+static void save_locals(IRVec<MInstr> &instrs, LiveVariables &lives,
+                        size_t start, size_t bb_id,
+                        bool return_value_overwrites_eax) {
   for (auto reg_ty : caller_saved | std::views::reverse) {
     if (reg_ty == VRegType::A && return_value_overwrites_eax) {
       continue;
@@ -90,9 +106,9 @@ static void save_args(IRVec<MInstr> &instrs, LiveVariables &lives, size_t start,
   }
 }
 
-static void restore_args(IRVec<MInstr> &instrs, LiveVariables &lives,
-                         size_t start, size_t bb_id,
-                         bool return_value_overwrites_eax, MInstr &call) {
+static void restore_locals(IRVec<MInstr> &instrs, LiveVariables &lives,
+                           size_t start, size_t bb_id,
+                           bool return_value_overwrites_eax, MInstr &call) {
   if (lives.isAlive(VReg{VRegType::A}, bb_id) && !return_value_overwrites_eax) {
     auto arg =
         MArgument{VReg{0, VRegInfo{(VRegType)(1), Type::Int64}}, Type::Int64};
@@ -122,6 +138,141 @@ static void restore_args(IRVec<MInstr> &instrs, LiveVariables &lives,
   }
 }
 
+struct ArgPosition {
+  enum Type {
+    IntReg,
+    FloatReg,
+    Stack,
+  };
+  Type ty;
+  u32 position;
+};
+
+u32 calculate_arg_locations(const TVec<MInstr> &args, TVec<ArgPosition> &pos) {
+  u32 int_arg_id = 0;
+  u32 float_arg_id = 0;
+  u32 stack_arg_id = 0;
+  for (const auto &arg : args) {
+    const auto &arg_ty = arg.args[0].ty;
+    bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
+    if (is_float && float_arg_id < n_float_arg_regs) {
+      pos.push_back({ArgPosition::Type::FloatReg, float_arg_id});
+      float_arg_id++;
+    } else if (!is_float && int_arg_id < n_int_arg_regs) {
+      pos.push_back({ArgPosition::Type::IntReg, int_arg_id});
+      int_arg_id++;
+    } else {
+      pos.push_back({ArgPosition::Type::Stack, stack_arg_id});
+      stack_arg_id++;
+    }
+  }
+  return stack_arg_id;
+}
+
+void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
+                  const ArgPosition &arg_pos) {
+  const auto &arg_ty = arg.args[0].ty;
+  switch (arg_pos.ty) {
+  case ArgPosition::IntReg:
+    instrs.emplace_back(
+        Opcode::mov, MArgument{{int_arg_reg[arg_pos.position], arg_ty}, arg_ty},
+        arg.args[0]);
+    break;
+  case ArgPosition::FloatReg:
+    instrs.emplace_back(
+        Opcode::mov,
+        MArgument{{float_arg_reg[arg_pos.position], arg_ty}, arg_ty},
+        arg.args[0]);
+    break;
+  case ArgPosition::Stack:
+    instrs.emplace_back(Opcode::push, arg.args[0]);
+    break;
+  }
+}
+
+void setup_call_arguments(IRVec<MInstr> &instrs, TVec<MInstr> args,
+                          TVec<ArgPosition> arg_pos, size_t start) {
+
+  TVec<MInstr> output_vec;
+  TVec<u32> worklist;
+  for (size_t arg_id = 0; arg_id < args.size(); arg_id++) {
+    if (arg_pos[arg_id].ty == ArgPosition::Type::Stack) {
+      generate_arg(output_vec, args[arg_id], arg_pos[arg_id]);
+    } else {
+      worklist.push_back(arg_id);
+    }
+  }
+
+  // utils::Debug << "HANDLING CALL\n";
+  // queue for saving regs into push and then restoring them at the end
+  TVec<u32> push_pop_queue{};
+  while (!worklist.empty()) {
+    bool found_one = false;
+    for (size_t curr_work_item = 0; curr_work_item < worklist.size();
+         curr_work_item++) {
+      auto arg_id = worklist[curr_work_item];
+      VRegType wants_reg = VRegType::A;
+      switch (arg_pos[arg_id].ty) {
+      case ArgPosition::IntReg:
+        wants_reg = int_arg_reg[arg_pos[arg_id].position];
+        break;
+      case ArgPosition::FloatReg:
+        wants_reg = float_arg_reg[arg_pos[arg_id].position];
+        break;
+      case ArgPosition::Stack:
+        TODO("UNREACH");
+        break;
+      }
+      // utils::Debug << "Checking " << arg_id << " which wants" << wants_reg
+      //              << "\n";
+
+      bool collision = false;
+      for (size_t other_id = 0; other_id < worklist.size(); other_id++) {
+        if (other_id != curr_work_item &&
+            args[worklist[other_id]].args[0].uses_same_vreg(wants_reg)) {
+          collision = true;
+          break;
+        }
+      }
+      // utils::Debug << "   has_coll: " << collision << "\n";
+      if (!collision) {
+        generate_arg(output_vec, args[arg_id], arg_pos[arg_id]);
+        worklist.erase(worklist.begin() + curr_work_item);
+        found_one = true;
+        break;
+      }
+    }
+    // if we didnt find any that dont colllide
+    // we us a push and pop
+    if (!found_one && !worklist.empty()) {
+      instrs.emplace_back(Opcode::push, args[worklist[0]].args[0]);
+      push_pop_queue.push_back(worklist[0]);
+      worklist.erase(worklist.begin() + 0);
+    }
+  }
+
+  for (auto push_pop : push_pop_queue | std::views::reverse) {
+    auto &arg = args[push_pop];
+    auto &arg_ty = arg.args[0].ty;
+    auto arg_po = arg_pos[push_pop];
+    switch (arg_po.ty) {
+    case ArgPosition::IntReg:
+      output_vec.emplace_back(
+          Opcode::pop,
+          MArgument{{int_arg_reg[arg_po.position], arg_ty}, arg_ty});
+      break;
+    case ArgPosition::FloatReg:
+      output_vec.emplace_back(
+          Opcode::pop,
+          MArgument{{float_arg_reg[arg_po.position], arg_ty}, arg_ty});
+      break;
+    case ArgPosition::Stack:
+      TODO("UNREACH");
+    }
+  }
+  instrs.insert(instrs.begin() + start, output_vec.begin(), output_vec.end());
+}
+
 static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
                            size_t bb_id, LiveVariables &lives) {
 
@@ -139,27 +290,33 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   bool return_value_overwrites_eax =
       (call.args[1].isReg() && call.args[1].reg.info.ty == VRegType::A);
 
-  restore_args(instrs, lives, start, bb_id, return_value_overwrites_eax, call);
+  restore_locals(instrs, lives, start, bb_id, return_value_overwrites_eax,
+                 call);
 
+  TVec<ArgPosition> arg_pos;
+  auto n_stack_args = calculate_arg_locations(args, arg_pos);
   // cleanup args
   {
     auto sp =
         MArgument{VReg{0, VRegInfo{VRegType::SP, Type::Int64}}, Type::Int64};
-    instrs.insert(instrs.begin() + (i64)start,
-                  MInstr{Opcode::add, sp, sp, 8 * args.size()});
+    if (n_stack_args > 0) {
+      instrs.insert(instrs.begin() + (i64)start,
+                    MInstr{Opcode::add, sp, sp, 8 * n_stack_args});
+    }
   }
 
   // do call
   instrs.insert(instrs.begin() + (i64)start,
                 MInstr{Opcode::call, call.args[0]});
   // setup args
-  for (auto &arg : args) {
-    instrs.insert(instrs.begin() + (i64)start,
-                  MInstr{Opcode::push, arg.args[0]});
-  }
+  setup_call_arguments(instrs, args, arg_pos, start);
+  // for (auto &arg : args) {
+  //   instrs.insert(instrs.begin() + (i64)start,
+  //                 MInstr{Opcode::push, arg.args[0]});
+  // }
 
   // save locals
-  save_args(instrs, lives, start, bb_id, return_value_overwrites_eax);
+  save_locals(instrs, lives, start, bb_id, return_value_overwrites_eax);
 }
 
 static_assert((u8)VRegType::R15 == 16);
@@ -201,6 +358,22 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
       }
     }
   }
+
+  u32 int_arg_id = 0;
+  u32 float_arg_id = 0;
+  for (u32 arg_i = 0; arg_i < f.args.size(); arg_i++) {
+    auto arg_ty = f.arg_tys[arg_i];
+    // register saving in this cc
+    bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
+    if (is_float && float_arg_id < n_float_arg_regs) {
+      res[(u8)float_arg_reg[float_arg_id] - 1].set(true);
+      float_arg_id++;
+    } else if (!is_float && int_arg_id < n_int_arg_regs) {
+      res[(u8)int_arg_reg[int_arg_id] - 1].set(true);
+      int_arg_id++;
+    }
+  }
+
   return res;
 }
 
@@ -240,13 +413,37 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
 }
 
 void gen_arg_mapping(MFunc &func) {
+  u32 int_arg_id = 0;
+  u32 float_arg_id = 0;
+  u32 n_stack_args = 0;
+
+  (void)float_arg_reg;
+  (void)int_arg_reg;
   for (u32 arg_i = 0; arg_i < func.args.size(); arg_i++) {
     ASSERT(!func.args[arg_i].info.is_pinned());
     auto arg_ty = func.arg_tys[arg_i];
     // this needs to stay this way or needs to be synched with the callee
     // register saving in this cc
-    auto instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
-                        MArgument::Mem(VReg::RSP(), 8 * (arg_i + 2), arg_ty));
+    MInstr instr{Opcode::mov};
+    bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
+    if (is_float && float_arg_id < n_float_arg_regs) {
+      instr = MInstr(Opcode::mov,
+                     MArgument{{float_arg_reg[float_arg_id], arg_ty}, arg_ty},
+                     MArgument{{float_arg_reg[float_arg_id], arg_ty}, arg_ty});
+      func.args[arg_i].info = VRegInfo{float_arg_reg[float_arg_id], arg_ty};
+      float_arg_id++;
+    } else if (!is_float && int_arg_id < n_int_arg_regs) {
+      instr = MInstr(Opcode::mov,
+                     MArgument{{int_arg_reg[int_arg_id], arg_ty}, arg_ty},
+                     MArgument{{int_arg_reg[int_arg_id], arg_ty}, arg_ty});
+      func.args[arg_i].info = VRegInfo{int_arg_reg[int_arg_id], arg_ty};
+      int_arg_id++;
+    } else {
+      instr =
+          MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
+                 MArgument::Mem(VReg::RSP(), 8 * (n_stack_args + 2), arg_ty));
+      n_stack_args++;
+    }
     func.bbs[0].instrs.insert(func.bbs[0].instrs.begin(), instr);
   }
 }
