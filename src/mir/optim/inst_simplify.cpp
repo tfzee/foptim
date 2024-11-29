@@ -6,14 +6,17 @@
 namespace foptim::fmir {
 
 //@returns true if the instruction was deleted
-static bool simplify(MInstr &instr, IRVec<MInstr> &instrs,
-                     size_t instr_id) {
+static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   switch (instr.op) {
   case Opcode::mov:
   case Opcode::mov_zx: {
-    // utils::Debug << instr << "\n";
     if (instr.args[0] == instr.args[1]) {
-      // utils::Debug << "    HIT\n";
+      instrs.erase(instrs.begin() + instr_id);
+      return true;
+    }
+  }
+  case Opcode::cmov: {
+    if (instr.args[0] == instr.args[2]) {
       instrs.erase(instrs.begin() + instr_id);
       return true;
     }
