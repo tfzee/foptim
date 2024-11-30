@@ -2,7 +2,6 @@
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/dominators.hpp"
 #include "utils/logging.hpp"
 
 namespace foptim::optim {
@@ -37,6 +36,7 @@ public:
             auto binstr = bb->instructions[between_i];
             if (binstr->pot_modifies_mem()) {
               pot_store_between = true;
+              break;
             }
           }
           if (!pot_store_between) {
@@ -52,7 +52,7 @@ public:
     }
   }
 
-  void apply(fir::Context &, fir::Function &func) override {
+  void apply(fir::Context & /*unused*/, fir::Function &func) override {
     // ZoneScopedN("GVN TODO");
     // {
     ZoneScopedN("LVN");

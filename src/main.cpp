@@ -8,7 +8,7 @@
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "optim/func_passes/dce.hpp"
-#include "optim/func_passes/gvn.hpp"
+#include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/inline.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
