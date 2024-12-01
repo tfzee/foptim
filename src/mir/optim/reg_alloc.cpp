@@ -165,9 +165,9 @@ bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
 }
 
 constexpr size_t N_REGS_SELECTABLE = 30;
+static_assert((size_t)VRegType::N_REGS - 3 == N_REGS_SELECTABLE);
 
 constexpr void get_reg_order(MFunc &func, VRegType *regs) {
-
   static constexpr VRegType leaf_optimized_regs[N_REGS_SELECTABLE] = {
       VRegType::A,    VRegType::D,    VRegType::C,    VRegType::DI,
       VRegType::SI,   VRegType::R8,   VRegType::R9,   VRegType::R10,
@@ -199,7 +199,6 @@ constexpr void get_reg_order(MFunc &func, VRegType *regs) {
       break;
     }
   }
-  utils::Debug << "=========IsLeaf:  " << is_leaf << "\n";
 
   const VRegType *selected = basic_regs;
   if (is_leaf) {

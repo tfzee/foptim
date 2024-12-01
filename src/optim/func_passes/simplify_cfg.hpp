@@ -11,17 +11,75 @@ namespace foptim::optim {
 // + [x] merge bb with pred if thats only edge
 // + [x] eleminate bb args if only 1 pred
 // + [x] eliminate bb if only a single jump
+// + [x] eliminate bb arg if no uses
 // + [ ] convert if else into cmove
 // + [ ]
 
-inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
+class SimplifyCFG final : public FunctionPass {
+public:
+  bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id);
+  void apply(fir::Context & /*unused*/, fir::Function &func) override {
+    ZoneScopedN("SimplifyCFG");
+    // utils::Debug << func << "\n";
+    CFG cfg{func};
+
+    auto iter = 0;
+    for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
+      iter++;
+      if (simplify_cfg(cfg, func, bb_id - 1)) {
+        cfg.update(func, false);
+        bb_id = 0;
+      }
+      if (iter > 1000) {
+        failure({"Didnt converge fixme\n", func.basic_blocks[bb_id]});
+        return;
+      }
+    }
+    // utils::Debug << func << "\n";
+    // utils::Debug << "END\n" << "\n";
+  }
+};
+
+inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
+                                      size_t bb_id) {
   auto &curr = cfg.bbrs[bb_id];
+  bool is_entry = bb_id == cfg.entry;
   // utils::Debug << bb_id << " ";
   // if not jumped to just delete
-  if (curr.pred.empty() && bb_id != cfg.entry) {
+  if (curr.pred.empty() && !is_entry) {
     func.basic_blocks[bb_id]->remove_from_parent(true);
     // utils::Debug << 1 << "\n";
     return true;
+  }
+
+  // if we got a bb arg that got no use remove it
+  if (curr.bb->n_args() != 0 && !is_entry) {
+    auto n_args = curr.bb->n_args();
+    for (u32 ip1 = n_args; ip1 > 0; ip1--) {
+      u32 i = ip1 - 1;
+      if (curr.bb->args[i].get_n_uses() == 0) {
+        if (i != n_args - 1) {
+          failure({"TODO: Implement it for non last ones needs some swapping or so", {curr.bb}});
+          break;
+        }
+
+        //remove all cases where we jump into this bb
+        for(auto use: curr.bb->get_uses()){
+          switch(use.type){
+          case fir::UseType::BB:
+            use.user->bbs[use.argId].args.pop_back();
+            break;
+          case fir::UseType::BBArg:
+          case fir::UseType::NormalArg:
+            TODO("unreach?");
+          }
+        }
+
+        //drop this arg we cant have any uses
+        curr.bb->args.pop_back();
+        return true;
+      }
+    }
   }
 
   // if only 1 pred we can replace all the bb args with just the values of
@@ -43,8 +101,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   // if a block only contains a unconditional jump we can replace it
   // TODO: this implentation uses succ this wont work for the entry block
   if (curr.bb->n_instrs() == 1 &&
-      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) &&
-      bb_id != cfg.entry) {
+      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) && !is_entry) {
     ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     if (curr.bb->n_args() != 0 || succ->n_args() != 0) {
@@ -59,7 +116,7 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   // if 1 to 1 relation between blocks we can merge them
   // TODO: this implentation uses succ this wont work for the entry block
   if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1 &&
-      bb_id != cfg.entry) {
+      !is_entry) {
     auto succ_id = curr.succ[0];
 
     bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
@@ -108,29 +165,5 @@ inline bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   }
   return false;
 }
-
-class SimplifyCFG final : public FunctionPass {
-public:
-  void apply(fir::Context & /*unused*/, fir::Function &func) override {
-    ZoneScopedN("SimplifyCFG");
-    // utils::Debug << func << "\n";
-    CFG cfg{func};
-
-    auto iter = 0;
-    for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
-      iter++;
-      if (simplify_cfg(cfg, func, bb_id - 1)) {
-        cfg.update(func, false);
-        bb_id = 0;
-      }
-      if (iter > 1000) {
-        failure({"Didnt converge fixme\n", func.basic_blocks[bb_id]});
-        return;
-      }
-    }
-    // utils::Debug << func << "\n";
-    // utils::Debug << "END\n" << "\n";
-  }
-};
 
 } // namespace foptim::optim
