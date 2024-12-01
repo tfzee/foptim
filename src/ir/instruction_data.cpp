@@ -126,6 +126,9 @@ bool InstrData::is_commutative() const {
     case BinaryInstrSubType::INVALID:
     case BinaryInstrSubType::IntAdd:
     case BinaryInstrSubType::IntMul:
+    case BinaryInstrSubType::Or:
+    case BinaryInstrSubType::Xor:
+    case BinaryInstrSubType::And:
       return true;
     case BinaryInstrSubType::IntSub:
     case BinaryInstrSubType::IntSRem:

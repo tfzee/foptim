@@ -4,7 +4,7 @@
 // RUN: %t.out || echo Result:$? | FileCheck %s
 
 // CHECK: Result:0
-// XFAIL: *
+// XF AIL: *
 
 #define int8_t signed char
 #define int16_t signed short

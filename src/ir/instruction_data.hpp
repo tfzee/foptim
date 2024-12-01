@@ -93,12 +93,13 @@ enum class BinaryInstrSubType : u32 {
   IntSRem,
   IntSDiv,
   IntUDiv,
+
   Shl,
   Shr,
   AShr,
-
-  // IntAnd,
-  // IntOr,
+  And,
+  Or,
+  Xor,
 
   FloatAdd,
   FloatSub,
@@ -175,6 +176,12 @@ public:
         return "LShR";
       case BinaryInstrSubType::AShr:
         return "AShR";
+      case BinaryInstrSubType::Or:
+        return "Or";
+      case BinaryInstrSubType::Xor:
+        return "Xor";
+      case BinaryInstrSubType::And:
+        return "And";
       }
     case InstrType::ITrunc:
       return "ITrunc";

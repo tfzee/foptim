@@ -565,6 +565,39 @@ inline void convert(llvm::Instruction* any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
+  } else if (any_instr->getOpcode() == llvm::Instruction::And) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr->getType()->isIntegerTy()) {
+      auto add = builder.build_binary_op(left, right, foptim::fir::BinaryInstrSubType::And);
+      valueToValue.insert({any_instr, add});
+      return;
+    }
+  } else if (any_instr->getOpcode() == llvm::Instruction::Or) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr->getType()->isIntegerTy()) {
+      auto add = builder.build_binary_op(left, right, foptim::fir::BinaryInstrSubType::Or);
+      valueToValue.insert({any_instr, add});
+      return;
+    }
+  } else if (any_instr->getOpcode() == llvm::Instruction::Xor) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
+                                  valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr->getType()->isIntegerTy()) {
+      auto add = builder.build_binary_op(left, right, foptim::fir::BinaryInstrSubType::Xor);
+      valueToValue.insert({any_instr, add});
+      return;
+    }
   } else if (any_instr->getOpcode() == llvm::Instruction::FAdd) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
@@ -582,7 +615,7 @@ inline void convert(llvm::Instruction* any_instr, foptim::fir::Context &fctx,
     valueToValue.insert({any_instr, new_arg});
     return;
   }
-  llvm::errs() << any_instr << "\n" << "TODO\n";
+  llvm::errs() << *any_instr << "\n" << "TODO\n";
   TODO("");
   std::abort();
 }
