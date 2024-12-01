@@ -63,9 +63,9 @@ struct MatchTodos {
 bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
   TVec<MatchTodos> match_todos;
 
-  //for now TREE only matching
-  // for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
-  //      start_node_id++) {
+  // for now TREE only matching
+  //  for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
+  //       start_node_id++) {
   size_t start_node_id = patt.nodes.size() - 1;
   {
     uint32_t n_nodes_matched = 0;
@@ -514,11 +514,11 @@ constexpr auto base_pats() {
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSDiv};
   auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::And};
+                      (u32)fir::BinaryInstrSubType::And};
   auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::Or};
+                     (u32)fir::BinaryInstrSubType::Or};
   auto XorNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::Xor};
+                      (u32)fir::BinaryInstrSubType::Xor};
   auto FloatAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                            (u32)fir::BinaryInstrSubType::FloatAdd};
   auto FloatSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -534,7 +534,8 @@ constexpr auto base_pats() {
   // auto EQNode =
   //     Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::EQ};
   // auto SLTNode =
-  //     Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::SLT};
+  //     Node{NodeType::Instr, InstrType::ICmp,
+  //     (u32)fir::ICmpInstrSubType::SLT};
   auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
   auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
   auto BranchNode = Node{NodeType::Instr, InstrType::BranchInstr, 0};
@@ -702,96 +703,105 @@ constexpr auto base_pats() {
             MArgument::Mem(base.reg, indx.reg, consti_val, res_ty));
         return true;
       }});
-  // res.push_back(Pattern{
-  //     {ICMPNode, CondBranchNode},
-  //     {{0, 1, 0}},
-  //     [](MatchResult &res, ExtraMatchData &data) {
-  //       // utils::Debug << "WE REACHED HERE"
-  //       //              << " +  branch\n";
-  //       auto cmp_instr = res.matched_instrs[0];
-  //       auto branch_instr = res.matched_instrs[1];
+  res.push_back(Pattern{
+      {ICMPNode, CondBranchNode},
+      {{0, 1, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        // utils::Debug << "WE REACHED HERE"
+        //              << " +  branch\n";
+        auto cmp_instr = res.matched_instrs[0];
+        auto branch_instr = res.matched_instrs[1];
 
-  //       auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
+        auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
 
-  //       // first we check if we can output a simplified version
-  //       if (sub_type == fir::ICmpInstrSubType::SLT ||
-  //           sub_type == fir::ICmpInstrSubType::SGE ||
-  //           sub_type == fir::ICmpInstrSubType::SLE ||
-  //           sub_type == fir::ICmpInstrSubType::SGT ||
-  //           sub_type == fir::ICmpInstrSubType::NE ||
-  //           sub_type == fir::ICmpInstrSubType::EQ ||
-  //           sub_type == fir::ICmpInstrSubType::ULT ||
-  //           sub_type == fir::ICmpInstrSubType::ULE ||
-  //           sub_type == fir::ICmpInstrSubType::UGT ||
-  //           sub_type == fir::ICmpInstrSubType::UGE) {
+        // first we check if we can output a simplified version
+        if (sub_type != fir::ICmpInstrSubType::SLT &&
+            sub_type != fir::ICmpInstrSubType::SGE &&
+            sub_type != fir::ICmpInstrSubType::SLE &&
+            sub_type != fir::ICmpInstrSubType::SGT &&
+            sub_type != fir::ICmpInstrSubType::NE &&
+            sub_type != fir::ICmpInstrSubType::EQ &&
+            sub_type != fir::ICmpInstrSubType::ULT &&
+            sub_type != fir::ICmpInstrSubType::ULE &&
+            sub_type != fir::ICmpInstrSubType::UGT &&
+            sub_type != fir::ICmpInstrSubType::UGE) {
+          utils::Debug << "Failed to smartly match cmp "
+                       << cmp_instr->get_instr_subtype() << " +  branch\n";
+          return false;
+        }
 
-  //         auto bb_with_args = branch_instr->bbs[0];
-  //         auto target_bb = branch_instr->bbs[0].bb;
-  //         auto v1_orig = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-  //         auto v2_orig = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+        if (!branch_instr->bbs[0].args.empty() ||
+            !branch_instr->bbs[1].args.empty()) {
+          utils::Debug << "Failed to smartly match cmp "
+                       << cmp_instr->get_instr_subtype()
+                       << " + branch because non emtpy bb args\n";
+          return false;
+        }
 
-  //         auto comp_ty = v1_orig.ty;
+        auto bb_with_args = branch_instr->bbs[0];
+        auto target_bb = branch_instr->bbs[0].bb;
+        auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
-  //         auto v1_reg = data.alloc.get_new_register(VRegInfo{comp_ty});
-  //         auto v2_reg = data.alloc.get_new_register(VRegInfo{comp_ty});
-  //         auto v1 = MArgument{v1_reg, comp_ty};
-  //         auto v2 = MArgument{v2_reg, comp_ty};
+        // auto comp_ty = v1_orig.ty;
 
-  //         //TODO: this is a issue with lifetimes
-  //         res.result.emplace_back(Opcode::mov, v1, v1_orig);
-  //         res.result.emplace_back(Opcode::mov, v2, v2_orig);
+        // auto v1_reg = data.alloc.get_new_register(VRegInfo{comp_ty});
+        // auto v2_reg = data.alloc.get_new_register(VRegInfo{comp_ty});
+        // auto v1 = MArgument{v1_reg, comp_ty};
+        // auto v2 = MArgument{v2_reg, comp_ty};
 
-  //         ASSERT(bb_with_args.args.size() == target_bb->args.size());
-  //         generate_bb_args(bb_with_args, res, data);
+        // TODO: this is a issue with lifetimes
+        // res.result.emplace_back(Opcode::mov, v1, v1_orig);
+        // res.result.emplace_back(Opcode::mov, v2, v2_orig);
 
-  //         if (sub_type == fir::ICmpInstrSubType::SLT) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::SGT) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_sgt(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::ULT) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::ULE) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_ule(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::UGT) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_ugt(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::UGE) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_uge(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::SGE) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::SLE) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_sle(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::EQ) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_eq(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else if (sub_type == fir::ICmpInstrSubType::NE) {
-  //           res.result.push_back(
-  //               MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
-  //         } else {
-  //           TODO("UNREACH");
-  //         }
-  //       } else {
-  //         utils::Debug << "Failed to smartly match cmp "
-  //                      << cmp_instr->get_instr_subtype() << " +  branch\n";
-  //         return false;
-  //       }
+        ASSERT(bb_with_args.args.size() == target_bb->args.size());
+        ASSERT(bb_with_args.args.size() == 0);
+        // generate_bb_args(bb_with_args, res, data);
 
-  //       {
-  //         auto bb2_with_args = branch_instr->bbs[1];
-  //         auto target_bb2 = branch_instr->bbs[1].bb;
-  //         ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
-  //         generate_bb_args(bb2_with_args, res, data);
-  //         res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
-  //       }
-  //       return true;
-  //     }});
+        if (sub_type == fir::ICmpInstrSubType::SLT) {
+          res.result.push_back(
+              MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::SGT) {
+          res.result.push_back(
+              MInstr::cJmp_sgt(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::ULT) {
+          res.result.push_back(
+              MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::ULE) {
+          res.result.push_back(
+              MInstr::cJmp_ule(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::UGT) {
+          res.result.push_back(
+              MInstr::cJmp_ugt(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::UGE) {
+          res.result.push_back(
+              MInstr::cJmp_uge(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::SGE) {
+          res.result.push_back(
+              MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::SLE) {
+          res.result.push_back(
+              MInstr::cJmp_sle(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::EQ) {
+          res.result.push_back(
+              MInstr::cJmp_eq(v1, v2, data.bbs[bb_with_args.bb]));
+        } else if (sub_type == fir::ICmpInstrSubType::NE) {
+          res.result.push_back(
+              MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
+        } else {
+          TODO("UNREACH");
+        }
+
+        {
+          auto bb2_with_args = branch_instr->bbs[1];
+          auto target_bb2 = branch_instr->bbs[1].bb;
+          ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
+          ASSERT(bb2_with_args.args.size() == 0);
+          // generate_bb_args(bb2_with_args, res, data);
+          res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
+        }
+        return true;
+      }});
   res.push_back(Pattern{
       {FCMPNode, CondBranchNode},
       {{0, 1, 0}},
@@ -1100,7 +1110,7 @@ constexpr auto base_pats() {
 
         Opcode op = Opcode::icmp_eq;
 
-        switch((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()){
+        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
         case fir::ICmpInstrSubType::SLT:
           op = Opcode::icmp_slt;
           break;
