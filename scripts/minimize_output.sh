@@ -13,7 +13,7 @@ ld min.o -o min.out || exit 1
 ./min.out
 stats=$?
 echo $stats
-if [[ $stats != 0 && $stats != 1 && $stats != 2 ]]; then
+if [[ $stats != 0 ]]; then
   exit 0
 else
   exit 1

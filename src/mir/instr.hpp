@@ -36,6 +36,14 @@ enum class Opcode : u32 {
 
   icmp_slt,
   icmp_eq,
+  icmp_ult,
+  icmp_ne,
+  icmp_sgt,
+  icmp_ugt,
+  icmp_uge,
+  icmp_ule,
+  icmp_sge,
+  icmp_sle,
 
   cjmp_int_slt,
   cjmp_int_sge,
@@ -85,6 +93,14 @@ enum class Opcode : u32 {
 
 constexpr const char *getNameFromOpcode(Opcode code) {
   switch (code) {
+    ReturnString(icmp_ult);
+    ReturnString(icmp_ne);
+    ReturnString(icmp_sgt);
+    ReturnString(icmp_ugt);
+    ReturnString(icmp_uge);
+    ReturnString(icmp_ule);
+    ReturnString(icmp_sge);
+    ReturnString(icmp_sle);
     ReturnString(mov);
     ReturnString(cmov);
     ReturnString(lea);

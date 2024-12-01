@@ -93,7 +93,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
 
-  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
 
@@ -143,6 +143,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
 
   auto matcher = foptim::fmir::GreedyMatcher{};
+  foptim::utils::Debug << "================MATCHER====================\n";
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
     funcs.push_back(std::move(res));
@@ -171,6 +172,7 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals) {
 
+  foptim::utils::Debug << "================OPTIMEND2====================\n";
   for (const auto &func : funcs) {
     foptim::utils::Debug << func << "\n";
   }

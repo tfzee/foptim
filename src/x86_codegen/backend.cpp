@@ -363,10 +363,10 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       TODO("fcmove");
     } else if (o0_size == 8 && value.isReg()) {
       cc.emit(Inst::kIdTest, cond, cond);
-      cc.emit(Inst::kIdCmovnz, target, value.as<Gp>().r64());
+      cc.emit(Inst::kIdCmovz, target, value.as<Gp>().r64());
     } else {
       cc.emit(Inst::kIdTest, cond, cond);
-      cc.emit(Inst::kIdCmovnz, target, value);
+      cc.emit(Inst::kIdCmovz, target, value);
     }
     return;
   }
@@ -575,11 +575,11 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       }
     } else {
       auto a = convert_operand(cc, reg_to_op, instr.args[0]);
-      if (a.isReg()) {
-        cc.emit(Inst::kIdCmp, a.as<Gp>().r64(), 0);
-      } else {
-        cc.emit(Inst::kIdCmp, a, 0);
-      }
+      // if (a.isReg()) {
+      //   cc.emit(Inst::kIdCmp, a.as<Gp>().r64(), 0);
+      // } else {
+      cc.emit(Inst::kIdCmp, a, 0);
+      // }
       cc.emit(Inst::kIdJne, bb_labels[instr.bb_ref]);
     }
     return;
@@ -695,20 +695,56 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     }
     return;
   }
+  case fmir::Opcode::icmp_ult:
+  case fmir::Opcode::icmp_ne:
+  case fmir::Opcode::icmp_sgt:
+  case fmir::Opcode::icmp_ugt:
+  case fmir::Opcode::icmp_uge:
+  case fmir::Opcode::icmp_ule:
+  case fmir::Opcode::icmp_sge:
+  case fmir::Opcode::icmp_eq:
+  case fmir::Opcode::icmp_sle:
   case fmir::Opcode::icmp_slt: {
     auto targ = convert_operand(cc, reg_to_op, instr.args[0]);
     auto a = convert_operand(cc, reg_to_op, instr.args[1]);
     auto b = convert_operand(cc, reg_to_op, instr.args[2]);
+    auto op = 0;
+    switch (instr.op) {
+    case fmir::Opcode::icmp_ne:
+      op = Inst::kIdSetne;
+      break;
+    case fmir::Opcode::icmp_eq:
+      op = Inst::kIdSete;
+      break;
+    case fmir::Opcode::icmp_ult:
+      op = Inst::kIdSetb;
+      break;
+    case fmir::Opcode::icmp_ule:
+      op = Inst::kIdSetbe;
+      break;
+    case fmir::Opcode::icmp_ugt:
+      op = Inst::kIdSeta;
+      break;
+    case fmir::Opcode::icmp_uge:
+      op = Inst::kIdSetae;
+      break;
+    case fmir::Opcode::icmp_slt:
+      op = Inst::kIdSetl;
+      break;
+    case fmir::Opcode::icmp_sge:
+      op = Inst::kIdSetge;
+      break;
+    case fmir::Opcode::icmp_sle:
+      op = Inst::kIdSetle;
+      break;
+    case fmir::Opcode::icmp_sgt:
+      op = Inst::kIdSetg;
+      break;
+    default:
+      TODO("UNREAC");
+    }
     cc.emit(Inst::kIdCmp, a, b);
-    cc.emit(Inst::kIdSetl, targ);
-    return;
-  }
-  case fmir::Opcode::icmp_eq: {
-    auto targ = convert_operand(cc, reg_to_op, instr.args[0]);
-    auto a = convert_operand(cc, reg_to_op, instr.args[1]);
-    auto b = convert_operand(cc, reg_to_op, instr.args[2]);
-    cc.emit(Inst::kIdCmp, a, b);
-    cc.emit(Inst::kIdSetl, targ);
+    cc.emit(op, targ);
     return;
   }
   case fmir::Opcode::ret: {

@@ -531,10 +531,10 @@ constexpr auto base_pats() {
                       (u32)fir::BinaryInstrSubType::Shr};
   auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::AShr};
-  auto EQNode =
-      Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::EQ};
-  auto SLTNode =
-      Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::SLT};
+  // auto EQNode =
+  //     Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::EQ};
+  // auto SLTNode =
+  //     Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::SLT};
   auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
   auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
   auto BranchNode = Node{NodeType::Instr, InstrType::BranchInstr, 0};
@@ -702,85 +702,96 @@ constexpr auto base_pats() {
             MArgument::Mem(base.reg, indx.reg, consti_val, res_ty));
         return true;
       }});
-  res.push_back(Pattern{
-      {ICMPNode, CondBranchNode},
-      {{0, 1, 0}},
-      [](MatchResult &res, ExtraMatchData &data) {
-        // utils::Debug << "WE REACHED HERE"
-        //              << " +  branch\n";
-        auto cmp_instr = res.matched_instrs[0];
-        auto branch_instr = res.matched_instrs[1];
+  // res.push_back(Pattern{
+  //     {ICMPNode, CondBranchNode},
+  //     {{0, 1, 0}},
+  //     [](MatchResult &res, ExtraMatchData &data) {
+  //       // utils::Debug << "WE REACHED HERE"
+  //       //              << " +  branch\n";
+  //       auto cmp_instr = res.matched_instrs[0];
+  //       auto branch_instr = res.matched_instrs[1];
 
-        auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
+  //       auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
 
-        // first we check if we can output a simplified version
-        if (sub_type == fir::ICmpInstrSubType::SLT ||
-            sub_type == fir::ICmpInstrSubType::SGE ||
-            sub_type == fir::ICmpInstrSubType::SLE ||
-            sub_type == fir::ICmpInstrSubType::SGT ||
-            sub_type == fir::ICmpInstrSubType::NE ||
-            sub_type == fir::ICmpInstrSubType::EQ ||
-            sub_type == fir::ICmpInstrSubType::ULT ||
-            sub_type == fir::ICmpInstrSubType::ULE ||
-            sub_type == fir::ICmpInstrSubType::UGT ||
-            sub_type == fir::ICmpInstrSubType::UGE) {
+  //       // first we check if we can output a simplified version
+  //       if (sub_type == fir::ICmpInstrSubType::SLT ||
+  //           sub_type == fir::ICmpInstrSubType::SGE ||
+  //           sub_type == fir::ICmpInstrSubType::SLE ||
+  //           sub_type == fir::ICmpInstrSubType::SGT ||
+  //           sub_type == fir::ICmpInstrSubType::NE ||
+  //           sub_type == fir::ICmpInstrSubType::EQ ||
+  //           sub_type == fir::ICmpInstrSubType::ULT ||
+  //           sub_type == fir::ICmpInstrSubType::ULE ||
+  //           sub_type == fir::ICmpInstrSubType::UGT ||
+  //           sub_type == fir::ICmpInstrSubType::UGE) {
 
-          auto bb_with_args = branch_instr->bbs[0];
-          auto target_bb = branch_instr->bbs[0].bb;
-          auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-          auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+  //         auto bb_with_args = branch_instr->bbs[0];
+  //         auto target_bb = branch_instr->bbs[0].bb;
+  //         auto v1_orig = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+  //         auto v2_orig = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
-          ASSERT(bb_with_args.args.size() == target_bb->args.size());
-          generate_bb_args(bb_with_args, res, data);
+  //         auto comp_ty = v1_orig.ty;
 
-          if (sub_type == fir::ICmpInstrSubType::SLT) {
-            res.result.push_back(
-                MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::SGT) {
-            res.result.push_back(
-                MInstr::cJmp_sgt(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::ULT) {
-            res.result.push_back(
-                MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::ULE) {
-            res.result.push_back(
-                MInstr::cJmp_ule(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::UGT) {
-            res.result.push_back(
-                MInstr::cJmp_ugt(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::UGE) {
-            res.result.push_back(
-                MInstr::cJmp_uge(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::SGE) {
-            res.result.push_back(
-                MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::SLE) {
-            res.result.push_back(
-                MInstr::cJmp_sle(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::EQ) {
-            res.result.push_back(
-                MInstr::cJmp_eq(v1, v2, data.bbs[bb_with_args.bb]));
-          } else if (sub_type == fir::ICmpInstrSubType::NE) {
-            res.result.push_back(
-                MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
-          } else {
-            TODO("UNREACH");
-          }
-        } else {
-          utils::Debug << "Failed to smartly match cmp "
-                       << cmp_instr->get_instr_subtype() << " +  branch\n";
-          return false;
-        }
+  //         auto v1_reg = data.alloc.get_new_register(VRegInfo{comp_ty});
+  //         auto v2_reg = data.alloc.get_new_register(VRegInfo{comp_ty});
+  //         auto v1 = MArgument{v1_reg, comp_ty};
+  //         auto v2 = MArgument{v2_reg, comp_ty};
 
-        {
-          auto bb2_with_args = branch_instr->bbs[1];
-          auto target_bb2 = branch_instr->bbs[1].bb;
-          ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
-          generate_bb_args(bb2_with_args, res, data);
-          res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
-        }
-        return true;
-      }});
+  //         //TODO: this is a issue with lifetimes
+  //         res.result.emplace_back(Opcode::mov, v1, v1_orig);
+  //         res.result.emplace_back(Opcode::mov, v2, v2_orig);
+
+  //         ASSERT(bb_with_args.args.size() == target_bb->args.size());
+  //         generate_bb_args(bb_with_args, res, data);
+
+  //         if (sub_type == fir::ICmpInstrSubType::SLT) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_slt(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::SGT) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_sgt(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::ULT) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_ult(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::ULE) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_ule(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::UGT) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_ugt(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::UGE) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_uge(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::SGE) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::SLE) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_sle(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::EQ) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_eq(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else if (sub_type == fir::ICmpInstrSubType::NE) {
+  //           res.result.push_back(
+  //               MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
+  //         } else {
+  //           TODO("UNREACH");
+  //         }
+  //       } else {
+  //         utils::Debug << "Failed to smartly match cmp "
+  //                      << cmp_instr->get_instr_subtype() << " +  branch\n";
+  //         return false;
+  //       }
+
+  //       {
+  //         auto bb2_with_args = branch_instr->bbs[1];
+  //         auto target_bb2 = branch_instr->bbs[1].bb;
+  //         ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
+  //         generate_bb_args(bb2_with_args, res, data);
+  //         res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
+  //       }
+  //       return true;
+  //     }});
   res.push_back(Pattern{
       {FCMPNode, CondBranchNode},
       {{0, 1, 0}},
@@ -1078,28 +1089,52 @@ constexpr auto base_pats() {
         return true;
       }});
   res.push_back(Pattern{
-      {SLTNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-        auto slt_instr = res.matched_instrs[0];
-        auto res_reg = data.alloc.get_register(fir::ValueR(slt_instr));
+      {ICMPNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto cmp_instr = res.matched_instrs[0];
+        auto res_reg = data.alloc.get_register(fir::ValueR(cmp_instr));
 
-        auto res_arg = MArgument(res_reg, convert_type(slt_instr.get_type()));
+        auto res_arg = MArgument(res_reg, convert_type(cmp_instr.get_type()));
 
-        auto arg1 = valueToArg(slt_instr->args[0], res.result, data.alloc);
-        auto arg2 = valueToArg(slt_instr->args[1], res.result, data.alloc);
+        auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::icmp_slt, res_arg, arg1, arg2);
-        return true;
-      }});
-  res.push_back(Pattern{
-      {EQNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-        auto eq_instr = res.matched_instrs[0];
-        auto res_reg = data.alloc.get_register(fir::ValueR(eq_instr));
-        auto res_arg = MArgument(res_reg, convert_type(eq_instr.get_type()));
+        Opcode op = Opcode::icmp_eq;
 
-        auto arg1 = valueToArg(eq_instr->args[0], res.result, data.alloc);
-        auto arg2 = valueToArg(eq_instr->args[1], res.result, data.alloc);
-
-        res.result.emplace_back(Opcode::icmp_eq, res_arg, arg1, arg2);
+        switch((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()){
+        case fir::ICmpInstrSubType::SLT:
+          op = Opcode::icmp_slt;
+          break;
+        case fir::ICmpInstrSubType::ULT:
+          op = Opcode::icmp_ult;
+          break;
+        case fir::ICmpInstrSubType::NE:
+          op = Opcode::icmp_ne;
+          break;
+        case fir::ICmpInstrSubType::EQ:
+          op = Opcode::icmp_eq;
+          break;
+        case fir::ICmpInstrSubType::SGT:
+          op = Opcode::icmp_sgt;
+          break;
+        case fir::ICmpInstrSubType::UGT:
+          op = Opcode::icmp_ugt;
+          break;
+        case fir::ICmpInstrSubType::UGE:
+          op = Opcode::icmp_uge;
+          break;
+        case fir::ICmpInstrSubType::ULE:
+          op = Opcode::icmp_ule;
+          break;
+        case fir::ICmpInstrSubType::SGE:
+          op = Opcode::icmp_sge;
+          break;
+        case fir::ICmpInstrSubType::SLE:
+          op = Opcode::icmp_sle;
+          break;
+        case fir::ICmpInstrSubType::INVALID:
+          TODO("UNREACH");
+        }
+        res.result.emplace_back(op, res_arg, arg1, arg2);
         return true;
       }});
   res.push_back(

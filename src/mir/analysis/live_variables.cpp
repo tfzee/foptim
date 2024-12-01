@@ -68,6 +68,14 @@ void update_def(MInstr &instr, utils::BitSet<> &def) {
   case Opcode::pop:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
+  case Opcode::icmp_ult:
+  case Opcode::icmp_ne:
+  case Opcode::icmp_sgt:
+  case Opcode::icmp_ugt:
+  case Opcode::icmp_uge:
+  case Opcode::icmp_ule:
+  case Opcode::icmp_sge:
+  case Opcode::icmp_sle:
     if (instr.args[0].isReg()) {
       def[reg_to_uid(instr.args[0].reg)].set(true);
     }
