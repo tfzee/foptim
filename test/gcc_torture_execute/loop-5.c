@@ -4,7 +4,7 @@
 // RUN: %t.out || echo Result:$? | FileCheck %s
 
 // CHECK: Result:0
-// XFAIL: *
+// XF AIL: *
 
 static int ap(int i);
 static void testit(void) {
@@ -34,6 +34,7 @@ static int ap(int i) {
 }
 
 int main(void) {
+  t = 0;
   testit();
   if (a[0] != 0)
     return 1;

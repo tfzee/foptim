@@ -677,12 +677,71 @@ inline void generate_memset(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
+inline void generate_memcpy(foptim::fir::Context &fctx) {
+  const auto *name = "foptim.memcpy";
+  auto func_ty = fctx->get_func_ty(
+      fctx->get_void_type(),
+      {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
+  auto ffunc = fctx->create_function(name, func_ty);
+
+  auto bb = ffunc.builder();
+  auto entry_bb = ffunc->get_entry();
+  auto loop_body = bb.append_bb();
+  auto exit = bb.append_bb();
+  // foptim::utils::Debug << ffunc << "\n";
+
+  // the arguments
+  auto dst_ptr_arg = foptim::fir::ValueR{entry_bb, 0};
+  auto src_ptr_arg = foptim::fir::ValueR{entry_bb, 1};
+  auto length_arg = foptim::fir::ValueR{entry_bb, 2};
+
+  auto i64_ty = fctx->get_int_type(64);
+  auto constant_zero = foptim::fir::ValueR(fctx->get_constant_value(0, i64_ty));
+  auto constant_one = foptim::fir::ValueR(fctx->get_constant_value(1, i64_ty));
+  auto constant_eight =
+      foptim::fir::ValueR(fctx->get_constant_value(8, i64_ty));
+
+  // === header
+  bb.at_end(ffunc->get_entry());
+  // i = 0
+  auto index = bb.build_alloca(constant_eight);
+  index.as_instr()->add_attrib("alloca::type", i64_ty);
+  bb.build_store(index, constant_zero);
+  // if(length != 0)
+  auto loop_cond = bb.build_int_cmp(length_arg, constant_zero,
+                                    foptim::fir::ICmpInstrSubType::NE);
+  bb.build_cond_branch(loop_cond, loop_body, exit);
+
+  // === loop
+  {
+    bb.at_end(loop_body);
+    // i++
+    auto old_index_val = bb.build_load(i64_ty, index);
+    auto new_index_val = bb.build_int_add(old_index_val, constant_one);
+    bb.build_store(index, new_index_val);
+    // ptr+i = value
+    auto src_offset = bb.build_int_add(src_ptr_arg, old_index_val);
+    auto val  = bb.build_load(i64_ty, src_offset);
+    auto dst_offset = bb.build_int_add(dst_ptr_arg, old_index_val);
+    bb.build_store(dst_offset, val);
+
+    // while(i+1 < length)
+    auto loop_cond = bb.build_int_cmp(new_index_val, length_arg,
+                                      foptim::fir::ICmpInstrSubType::ULT);
+    bb.build_cond_branch(loop_cond, loop_body, exit);
+  }
+
+  // return
+  bb.at_end(exit);
+  bb.build_return();
+}
+
 inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
   if (func.getName().starts_with("llvm.memset")) {
     generate_memset(fctx);
   }
   if (func.getName().starts_with("llvm.memcpy")) {
-    TODO("impl memcpy");
+    generate_memcpy(fctx);
   }
 }
 

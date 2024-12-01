@@ -386,71 +386,54 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else if (target == o1) {
       cc.emit(Inst::kIdAdd, target, o0);
     } else {
-      // we move o1 since its mostlikely to be a constant
       cc.emit(Inst::kIdMov, target, o1);
-      // if (o0.isImm() && instr.args[1].ty == fmir::Type::Int64) {
-      //   // we cant add a 64 bit imm so we also need to move the sec arg
-      //   cc.emit(Inst::kIdMov, helper, o0);
-      //   cc.emit(Inst::kIdAdd, target, helper);
-      // } else {
       cc.emit(Inst::kIdAdd, target, o0);
-      // }
     }
     return;
   }
+  case fmir::Opcode::shl:
+  case fmir::Opcode::shr:
+  case fmir::Opcode::sar:
+  case fmir::Opcode::land:
+  case fmir::Opcode::lor:
+  case fmir::Opcode::lxor:
   case fmir::Opcode::sub: {
     ASSERT(instr.n_args == 3);
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    ASSERT(target != o1);
-    if (target == o0) {
-      cc.emit(Inst::kIdSub, target, o1);
-    } else {
-      cc.emit(Inst::kIdMov, target, o0);
-      cc.emit(Inst::kIdSub, target, o1);
+    Inst::Id opcode;
+    switch (instr.op) {
+    case fmir::Opcode::sub:
+      opcode = Inst::kIdSub;
+      break;
+    case fmir::Opcode::shl:
+      opcode = Inst::kIdShl;
+      break;
+    case fmir::Opcode::shr:
+      opcode = Inst::kIdShr;
+      break;
+    case fmir::Opcode::sar:
+      opcode = Inst::kIdSar;
+      break;
+    case fmir::Opcode::land:
+      opcode = Inst::kIdAnd;
+      break;
+    case fmir::Opcode::lor:
+      opcode = Inst::kIdOr;
+      break;
+    case fmir::Opcode::lxor:
+      opcode = Inst::kIdXor;
+      break;
+    default:
+      TODO("UNREACH");
     }
-    return;
-  }
-  case fmir::Opcode::shl: {
-    ASSERT(instr.n_args == 3);
-    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
-    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
-    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    ASSERT(target != o1);
+
     if (target == o0) {
-      cc.emit(Inst::kIdShl, target, o1);
+      cc.emit(opcode, target, o1);
     } else {
       cc.emit(Inst::kIdMov, target, o0);
-      cc.emit(Inst::kIdShl, target, o1);
-    }
-    return;
-  }
-  case fmir::Opcode::shr: {
-    ASSERT(instr.n_args == 3);
-    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
-    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
-    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    ASSERT(target != o1);
-    if (target == o0) {
-      cc.emit(Inst::kIdShr, target, o1);
-    } else {
-      cc.emit(Inst::kIdMov, target, o0);
-      cc.emit(Inst::kIdShr, target, o1);
-    }
-    return;
-  }
-  case fmir::Opcode::sar: {
-    ASSERT(instr.n_args == 3);
-    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
-    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
-    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    ASSERT(target != o1);
-    if (target == o0) {
-      cc.emit(Inst::kIdSar, target, o1);
-    } else {
-      cc.emit(Inst::kIdMov, target, o0);
-      cc.emit(Inst::kIdSar, target, o1);
+      cc.emit(opcode, target, o1);
     }
     return;
   }
@@ -608,6 +591,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   case fmir::Opcode::cjmp_int_ugt:
   case fmir::Opcode::cjmp_int_uge:
   case fmir::Opcode::cjmp_int_sge:
+  case fmir::Opcode::cjmp_int_sle:
   case fmir::Opcode::cjmp_int_sgt:
   case fmir::Opcode::cjmp_int_slt: {
     auto a = convert_operand(cc, reg_to_op, instr.args[0]);
@@ -637,6 +621,9 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       break;
     case fmir::Opcode::cjmp_int_sge:
       cc.emit(Inst::kIdJge, bb_labels[instr.bb_ref]);
+      break;
+    case fmir::Opcode::cjmp_int_sle:
+      cc.emit(Inst::kIdJle, bb_labels[instr.bb_ref]);
       break;
     case fmir::Opcode::cjmp_int_sgt:
       cc.emit(Inst::kIdJg, bb_labels[instr.bb_ref]);
@@ -872,7 +859,6 @@ void run(std::span<const fmir::MFunc> funcs,
     std::ofstream myfile;
     myfile.open(utils::out_file_path);
     myfile << "global _start\n"
-              "extern _memset\n"
               "_start:\n"
               "  call main\n"
               "  mov ebx, eax\n"

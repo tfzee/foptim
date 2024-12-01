@@ -513,6 +513,12 @@ constexpr auto base_pats() {
                        (u32)fir::BinaryInstrSubType::IntSRem};
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSDiv};
+  auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::And};
+  auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::Or};
+  auto XorNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::Xor};
   auto FloatAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                            (u32)fir::BinaryInstrSubType::FloatAdd};
   auto FloatSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -710,6 +716,7 @@ constexpr auto base_pats() {
         // first we check if we can output a simplified version
         if (sub_type == fir::ICmpInstrSubType::SLT ||
             sub_type == fir::ICmpInstrSubType::SGE ||
+            sub_type == fir::ICmpInstrSubType::SLE ||
             sub_type == fir::ICmpInstrSubType::SGT ||
             sub_type == fir::ICmpInstrSubType::NE ||
             sub_type == fir::ICmpInstrSubType::EQ ||
@@ -747,6 +754,9 @@ constexpr auto base_pats() {
           } else if (sub_type == fir::ICmpInstrSubType::SGE) {
             res.result.push_back(
                 MInstr::cJmp_sge(v1, v2, data.bbs[bb_with_args.bb]));
+          } else if (sub_type == fir::ICmpInstrSubType::SLE) {
+            res.result.push_back(
+                MInstr::cJmp_sle(v1, v2, data.bbs[bb_with_args.bb]));
           } else if (sub_type == fir::ICmpInstrSubType::EQ) {
             res.result.push_back(
                 MInstr::cJmp_eq(v1, v2, data.bbs[bb_with_args.bb]));
@@ -981,6 +991,42 @@ constexpr auto base_pats() {
                     Opcode::mul, res_reg,
                     valueToArg(add_instr->args[0], res.result, data.alloc),
                     valueToArg(add_instr->args[1], res.result, data.alloc));
+                return true;
+              }});
+  res.push_back(
+      Pattern{{OrNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto or_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(or_instr), res.result, data.alloc);
+
+                res.result.emplace_back(
+                    Opcode::lor, res_reg,
+                    valueToArg(or_instr->args[0], res.result, data.alloc),
+                    valueToArg(or_instr->args[1], res.result, data.alloc));
+                return true;
+              }});
+  res.push_back(
+      Pattern{{AndNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto and_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(and_instr), res.result, data.alloc);
+
+                res.result.emplace_back(
+                    Opcode::land, res_reg,
+                    valueToArg(and_instr->args[0], res.result, data.alloc),
+                    valueToArg(and_instr->args[1], res.result, data.alloc));
+                return true;
+              }});
+  res.push_back(
+      Pattern{{XorNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto xor_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(xor_instr), res.result, data.alloc);
+
+                res.result.emplace_back(
+                    Opcode::lxor, res_reg,
+                    valueToArg(xor_instr->args[0], res.result, data.alloc),
+                    valueToArg(xor_instr->args[1], res.result, data.alloc));
                 return true;
               }});
   res.push_back(Pattern{

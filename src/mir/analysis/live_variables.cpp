@@ -56,6 +56,9 @@ void update_def(MInstr &instr, utils::BitSet<> &def) {
   case Opcode::add:
   case Opcode::shl:
   case Opcode::shr:
+  case Opcode::lor:
+  case Opcode::land:
+  case Opcode::lxor:
   case Opcode::sar:
   case Opcode::sub:
   case Opcode::mul:
@@ -80,6 +83,7 @@ void update_def(MInstr &instr, utils::BitSet<> &def) {
     break;
   case Opcode::cjmp_int_slt:
   case Opcode::cjmp_int_sge:
+  case Opcode::cjmp_int_sle:
   case Opcode::cjmp_int_sgt:
   case Opcode::cjmp_int_ult:
   case Opcode::cjmp_int_ule:

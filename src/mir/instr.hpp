@@ -15,9 +15,13 @@ enum class Opcode : u32 {
   mov_sx,
   itrunc,
   lea,
+
   shl,
   shr,
   sar,
+  land,
+  lor,
+  lxor,
 
   add,
   sub,
@@ -35,6 +39,7 @@ enum class Opcode : u32 {
 
   cjmp_int_slt,
   cjmp_int_sge,
+  cjmp_int_sle,
   cjmp_int_sgt,
   cjmp_int_ult,
   cjmp_int_ule,
@@ -105,6 +110,7 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(invoke);
     ReturnString(cjmp_int_slt);
     ReturnString(cjmp_int_sge);
+    ReturnString(cjmp_int_sle);
     ReturnString(cjmp_int_sgt);
     ReturnString(cjmp_int_ne);
     ReturnString(cjmp_int_eq);
@@ -129,6 +135,9 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(shl);
     ReturnString(shr);
     ReturnString(sar);
+    ReturnString(land);
+    ReturnString(lor);
+    ReturnString(lxor);
   }
 }
 #undef ReturnString
@@ -608,6 +617,7 @@ public:
 
   COND_JUMP_GEN(cJmp_slt, Opcode::cjmp_int_slt)
   COND_JUMP_GEN(cJmp_sge, Opcode::cjmp_int_sge)
+  COND_JUMP_GEN(cJmp_sle, Opcode::cjmp_int_sle)
   COND_JUMP_GEN(cJmp_sgt, Opcode::cjmp_int_sgt)
   COND_JUMP_GEN(cJmp_ult, Opcode::cjmp_int_ult)
   COND_JUMP_GEN(cJmp_ule, Opcode::cjmp_int_ule)
