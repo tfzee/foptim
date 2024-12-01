@@ -9,7 +9,8 @@ namespace foptim {
 [[noreturn]] void todo_impl(const char *text, const char *filename,
                                    u64 line) {
   printf("[TODO] @ %s:%lu : %s\n", filename, line, text);
-  std::abort();
+  exit(33);
+  // std::abort();
 }
 
 void ASSERT_HANDLE(bool cond, const char *filename,
@@ -17,7 +18,8 @@ void ASSERT_HANDLE(bool cond, const char *filename,
   if (!cond) {
     std::cout << filename << ":" << lineNumber << " Failed assert! " << message
               << "\n\n";
-    std::abort();
+    exit(33);
+    // std::abort();
   }
 }
 

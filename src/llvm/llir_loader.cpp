@@ -27,7 +27,7 @@ using foptim::u64;
 using V2VMap = foptim::TMap<const llvm::Value *, foptim::fir::ValueR>;
 using B2BMap = foptim::TMap<llvm::BasicBlock *, foptim::fir::BasicBlock>;
 
-inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
+inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                     foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
                     V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b);
 
@@ -40,7 +40,7 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
   if (const auto *const_value = dyn_cast_or_null<llvm::ConstantExpr>(value)) {
     auto *instr = const_value->getAsInstruction();
     ASSERT(instr != nullptr);
-    convert(*instr, fctx, ffunc, builder, valueToValue, mod, b2b);
+    convert(instr, fctx, ffunc, builder, valueToValue, mod, b2b);
     return valueToValue.at(instr);
   }
   if (valueToValue.contains(value)) {
@@ -122,7 +122,7 @@ inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
   std::abort();
 }
 
-inline void convert_alloca(const llvm::Instruction &any_instr,
+inline void convert_alloca(const llvm::Instruction* any_instr,
                            const llvm::AllocaInst *alloca_instr,
                            foptim::fir::Context &fctx,
                            foptim::fir::Builder &builder, V2VMap &valueToValue,
@@ -143,10 +143,10 @@ inline void convert_alloca(const llvm::Instruction &any_instr,
     auto type = convert_type(llvm_type, fctx);
     alloca.as_instr()->add_attrib("alloca::type", type);
   }
-  valueToValue.insert({&any_instr, alloca});
+  valueToValue.insert({any_instr, alloca});
 }
 
-inline void convert_gep(const llvm::Instruction &any_instr,
+inline void convert_gep(const llvm::Instruction* any_instr,
                         const llvm::GetElementPtrInst *gep_instr,
                         foptim::fir::Context &fctx,
                         foptim::fir::FunctionR ffunc,
@@ -175,7 +175,7 @@ inline void convert_gep(const llvm::Instruction &any_instr,
         builder.build_int_mul(arg_foptim, foptim::fir::ValueR(arg_mul_value));
     result_value = builder.build_int_add(result_value, mul);
   }
-  valueToValue.insert({&any_instr, result_value});
+  valueToValue.insert({any_instr, result_value});
 
   // FVec<foptim::fir::ValueR> args = {};
   // instr->getTypeAtIndex();
@@ -215,7 +215,7 @@ inline void convert_branch(const llvm::BranchInst *branch_instr,
   // UNREACH
 }
 
-inline void convert_call(const llvm::Instruction &any_instr,
+inline void convert_call(const llvm::Instruction* any_instr,
                          const llvm::CallInst *call_instr,
                          foptim::fir::Context &fctx,
                          foptim::fir::FunctionR ffunc,
@@ -236,10 +236,10 @@ inline void convert_call(const llvm::Instruction &any_instr,
   auto res = builder.build_direct_call(
       call_instr->getCalledFunction()->getName().str(), func_type_foptim,
       ret_type_foptim, args);
-  valueToValue.insert({&any_instr, res});
+  valueToValue.insert({any_instr, res});
 }
 
-inline bool convert_fcmp(const llvm::Instruction &any_instr,
+inline bool convert_fcmp(const llvm::Instruction* any_instr,
                          const llvm::FCmpInst *cmp_inst,
                          foptim::fir::Context &fctx,
                          foptim::fir::FunctionR ffunc,
@@ -306,11 +306,11 @@ inline bool convert_fcmp(const llvm::Instruction &any_instr,
     TODO("unreach");
   }
   auto res = builder.build_float_cmp(a, b, pred);
-  valueToValue.insert({&any_instr, res});
+  valueToValue.insert({any_instr, res});
   return true;
 }
 
-inline bool convert_icmp(const llvm::Instruction &any_instr,
+inline bool convert_icmp(const llvm::Instruction* any_instr,
                          const llvm::ICmpInst *cmp_inst,
                          foptim::fir::Context &fctx,
                          foptim::fir::FunctionR ffunc,
@@ -357,17 +357,17 @@ inline bool convert_icmp(const llvm::Instruction &any_instr,
     TODO("unreach");
   }
   auto res = builder.build_int_cmp(a, b, pred);
-  valueToValue.insert({&any_instr, res});
+  valueToValue.insert({any_instr, res});
   return true;
 }
 
-inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
+inline void convert(llvm::Instruction* any_instr, foptim::fir::Context &fctx,
                     foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
                     V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
 
   ZoneScopedN("Convert Instr");
   if (const auto *instr =
-          llvm::dyn_cast_or_null<llvm::ReturnInst>(&any_instr)) {
+          llvm::dyn_cast_or_null<llvm::ReturnInst>(any_instr)) {
     if (auto *v = instr->getReturnValue()) {
       auto fv =
           convert_instr_arg(v, fctx, ffunc, builder, valueToValue, mod, b2b);
@@ -377,26 +377,26 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
     }
     return;
   }
-  if (const auto *instr = llvm::dyn_cast_or_null<llvm::StoreInst>(&any_instr)) {
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::StoreInst>(any_instr)) {
     assert(instr->getNumOperands() == 2);
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto ptr = convert_instr_arg(instr->getOperand(1), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto store = builder.build_store(ptr, value);
-    valueToValue.insert({&any_instr, store});
+    valueToValue.insert({any_instr, store});
     return;
   }
-  if (const auto *instr = llvm::dyn_cast_or_null<llvm::LoadInst>(&any_instr)) {
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::LoadInst>(any_instr)) {
     assert(instr->getNumOperands() == 1);
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto type = convert_type(instr->getAccessType(), fctx);
     auto load = builder.build_load(type, value);
-    valueToValue.insert({&any_instr, load});
+    ASSERT(std::get<1>(valueToValue.insert({any_instr, load})));
     return;
   }
-  if (const auto *instr = llvm::dyn_cast_or_null<llvm::SelectInst>(&any_instr)) {
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::SelectInst>(any_instr)) {
     assert(instr->getNumOperands() == 3);
     auto cond = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
@@ -406,180 +406,180 @@ inline void convert(llvm::Instruction &any_instr, foptim::fir::Context &fctx,
                                    valueToValue, mod, b2b);
     auto type = convert_type(instr->getType(), fctx);
     auto select = builder.build_select(type, cond, v1, v2);
-    valueToValue.insert({&any_instr, select});
+    valueToValue.insert({any_instr, select});
     return;
   }
   if (const auto *instr =
-          llvm::dyn_cast_or_null<llvm::AllocaInst>(&any_instr)) {
+          llvm::dyn_cast_or_null<llvm::AllocaInst>(any_instr)) {
     convert_alloca(any_instr, instr, fctx, builder, valueToValue, mod);
     return;
   }
   if (const auto *instr =
-          llvm::dyn_cast_or_null<llvm::BranchInst>(&any_instr)) {
+          llvm::dyn_cast_or_null<llvm::BranchInst>(any_instr)) {
     convert_branch(instr, fctx, ffunc, builder, valueToValue, mod, b2b);
     return;
   }
-  if (const auto *instr = llvm::dyn_cast_or_null<llvm::CallInst>(&any_instr)) {
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::CallInst>(any_instr)) {
     convert_call(any_instr, instr, fctx, ffunc, builder, valueToValue, mod,
                  b2b);
     return;
   }
   if (const auto *instr =
-          llvm::dyn_cast_or_null<llvm::GetElementPtrInst>(&any_instr)) {
+          llvm::dyn_cast_or_null<llvm::GetElementPtrInst>(any_instr)) {
     convert_gep(any_instr, instr, fctx, ffunc, builder, valueToValue, mod, b2b);
     return;
   }
-  if (const auto *instr = dyn_cast<llvm::TruncInst>(&any_instr)) {
+  if (const auto *instr = dyn_cast_or_null<llvm::TruncInst>(any_instr)) {
     auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx);
     auto res = builder.build_itrunc(arg, dest_ty);
-    valueToValue.insert({&any_instr, res});
+    valueToValue.insert({any_instr, res});
     return;
   }
-  if (const auto *instr = dyn_cast<llvm::SExtInst>(&any_instr)) {
+  if (const auto *instr = dyn_cast_or_null<llvm::SExtInst>(any_instr)) {
     auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx);
     auto res = builder.build_sext(arg, dest_ty);
-    valueToValue.insert({&any_instr, res});
+    valueToValue.insert({any_instr, res});
     return;
   }
-  if (const auto *instr = dyn_cast<llvm::ZExtInst>(&any_instr)) {
+  if (const auto *instr = dyn_cast_or_null<llvm::ZExtInst>(any_instr)) {
     auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx);
     auto res = builder.build_zext(arg, dest_ty);
-    valueToValue.insert({&any_instr, res});
+    valueToValue.insert({any_instr, res});
     return;
   }
-  if (const auto *instr = llvm::dyn_cast_or_null<llvm::ICmpInst>(&any_instr)) {
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::ICmpInst>(any_instr)) {
     if (convert_icmp(any_instr, instr, fctx, ffunc, builder, valueToValue, mod,
                      b2b)) {
       return;
     }
   } else if (const auto *instr =
-                 llvm::dyn_cast_or_null<llvm::FCmpInst>(&any_instr)) {
+                 llvm::dyn_cast_or_null<llvm::FCmpInst>(any_instr)) {
     if (convert_fcmp(any_instr, instr, fctx, ffunc, builder, valueToValue, mod,
                      b2b)) {
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::SRem) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::SRem) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_int_srem(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::Add) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::Add) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_int_add(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::SDiv) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::SDiv) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_binary_op(
           left, right, foptim::fir::BinaryInstrSubType::IntSDiv);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::UDiv) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::UDiv) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_binary_op(
           left, right, foptim::fir::BinaryInstrSubType::IntUDiv);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::Shl) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::Shl) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_shl(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::AShr) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::AShr) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_ashr(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::LShr) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::LShr) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_lshr(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::Sub) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::Sub) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_int_sub(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::Mul) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::Mul) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isIntegerTy()) {
+    if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_int_mul(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::FAdd) {
-    auto left = convert_instr_arg(any_instr.getOperand(0), fctx, ffunc, builder,
+  } else if (any_instr->getOpcode() == llvm::Instruction::FAdd) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
-    auto right = convert_instr_arg(any_instr.getOperand(1), fctx, ffunc,
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr.getType()->isFloatingPointTy()) {
+    if (any_instr->getType()->isFloatingPointTy()) {
       auto add = builder.build_float_add(left, right);
-      valueToValue.insert({&any_instr, add});
+      valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr.getOpcode() == llvm::Instruction::PHI) {
-    auto ftype = convert_type(any_instr.getType(), fctx);
+  } else if (any_instr->getOpcode() == llvm::Instruction::PHI) {
+    auto ftype = convert_type(any_instr->getType(), fctx);
     auto new_arg = builder.get_curr_bb().add_arg(ftype);
-    valueToValue.insert({&any_instr, new_arg});
+    valueToValue.insert({any_instr, new_arg});
     return;
   }
   llvm::errs() << any_instr << "\n" << "TODO\n";
@@ -722,11 +722,14 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   while (!worklist.empty()) {
     auto [bb_llvm, bb_foptim] = worklist.front();
     worklist.pop_front();
+    // if(visited_bbs.contains(bb_llvm)){
+    //   //added it twice to q
+    //   continue; 
+    // }
+
     fbuilder.at_end(bb_foptim);
 
-    visited_bbs.insert(bb_llvm);
-
-    for (auto &instr : *bb_llvm) {
+    for (auto& instr : *bb_llvm) {
       // if its the terminator we need to first create the new bbs
       //  it might branch to and also add them to the worklist before
       //  actually handling it
@@ -738,10 +741,11 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
             auto new_bb = fbuilder.append_bb();
             b2b.insert({succ, new_bb});
             worklist.emplace_back(succ, new_bb);
+            visited_bbs.insert(succ);
           }
         }
       }
-      convert(instr, fctx, ffunc, fbuilder, valueToValue, *func.getParent(),
+      convert(&instr, fctx, ffunc, fbuilder, valueToValue, *func.getParent(),
               b2b);
     }
   }
@@ -822,7 +826,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
   }
   if (module) {
     convert(*module, fctx);
-    // module->dump();
+    module->dump();
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
                  << error.getMessage() << "\n";

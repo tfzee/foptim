@@ -4,7 +4,6 @@
 // RUN: %t.out || echo Result:$? | FileCheck %s
 
 // CHECK: Result:0
-// XFAIL: *
 
 int foo(unsigned int n) {
   int i, j = -1;

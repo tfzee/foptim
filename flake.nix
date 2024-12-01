@@ -34,6 +34,7 @@
             # elfio
 
             #for testing stuff
+            cvise
             gtest
             tracy
             gdb
