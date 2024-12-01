@@ -44,7 +44,7 @@
                 python-pkgs.pandas
                 python-pkgs.matplotlib
               ]))
-            # cutter
+            cutter
             valgrind
             kdePackages.kcachegrind
 
