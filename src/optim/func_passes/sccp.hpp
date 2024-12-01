@@ -289,9 +289,9 @@ public:
             static_cast<u64>(a.value->as_int() == b.value->as_int()),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SLT:
-        utils::Debug << a.value->as_int() << " < " << b.value->as_int() << "\n";
-        utils::Debug << (i64)a.value->as_int() << " < "
-                     << (i64)b.value->as_int() << "\n";
+        // utils::Debug << a.value->as_int() << " < " << b.value->as_int() << "\n";
+        // utils::Debug << (i64)a.value->as_int() << " < "
+        //              << (i64)b.value->as_int() << "\n";
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>((i64)a.value->as_int() < (i64)b.value->as_int()),
             ctx->get_int_type(8)));
@@ -300,17 +300,25 @@ public:
             static_cast<u64>(a.value->as_int() < b.value->as_int()),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SGT:
-        TODO("impl");
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>((i64)a.value->as_int() > (i64)b.value->as_int()),
+            ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::UGT:
-        TODO("impl");
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_int() > b.value->as_int()),
+            ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::UGE:
-        TODO("impl");
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_int() >= b.value->as_int()),
+            ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::ULE:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>(a.value->as_int() <= b.value->as_int()),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SGE:
-        TODO("impl");
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>((i64)a.value->as_int() >= (i64)b.value->as_int()),
+            ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SLE:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>((i64)a.value->as_int() <= (i64)b.value->as_int()),
