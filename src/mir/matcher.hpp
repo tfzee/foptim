@@ -7,14 +7,13 @@
 
 namespace foptim::fmir {
 
+
 struct ExtraMatchData {
   DumbRegAlloc &alloc;
   TMap<fir::BasicBlock, u32> &bbs;
   optim::LiveVariables &lives;
   MFunc &func;
 };
-
-
 
 struct MatchResult {
   // has the same order as the pattern the match originates from
@@ -48,7 +47,6 @@ struct Pattern {
   bool (*generator)(MatchResult &, ExtraMatchData &);
 };
 
-
 class Matcher {
 public:
   IRVec<Pattern> patterns;
@@ -60,4 +58,9 @@ public:
   MFunc apply(fir::Function &func);
 };
 
+MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc);
+MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc);
+Type convert_type(fir::TypeR type);
+void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
+                      ExtraMatchData &data);
 } // namespace foptim::fmir
