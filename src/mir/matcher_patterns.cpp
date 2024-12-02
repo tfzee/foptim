@@ -32,6 +32,113 @@ void memory_patterns(IRVec<Pattern> &pats) {
   auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
 
   pats.push_back(Pattern{
+      {IntMulNode, IntAddNode, LoadNode},
+      {{0, 1, 1}, {1, 2, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        auto mul_instr = res.matched_instrs[0];
+        auto add_instr = res.matched_instrs[1];
+        auto load_instr = res.matched_instrs[2];
+        auto load_ty = convert_type(load_instr.get_type());
+        auto add_ty_size = get_size(convert_type(add_instr.get_type()));
+        if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
+          return false;
+        }
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = mul_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+
+        switch (consti_val) {
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
+        }
+
+        // $1 = $0 * C
+        // R = $2 + $1
+        // where $0 and $2 must be regs and C in [1,2,4,8]
+        auto res_reg =
+            valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+        auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
+        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        ASSERT(base.isReg());
+        ASSERT(indx.isReg());
+        res.result.emplace_back(
+            Opcode::mov, res_reg,
+            MArgument::Mem(base.reg, indx.reg, consti_val, load_ty));
+        return true;
+      }});
+  pats.push_back(Pattern{
+      {IntMulNode, IntAddNode, StoreNode},
+      {{0, 1, 1}, {1, 2, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        auto mul_instr = res.matched_instrs[0];
+        auto add_instr = res.matched_instrs[1];
+        auto store_instr = res.matched_instrs[2];
+        auto store_ty = convert_type(store_instr.get_type());
+        auto add_ty_size = get_size(convert_type(add_instr.get_type()));
+        if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
+          return false;
+        }
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = mul_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+
+        switch (consti_val) {
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
+        }
+
+        // $1 = $0 * C
+        // R = $2 + $1
+        // where $0 and $2 must be regs and C in [1,2,4,8]
+        auto value =
+            valueToArg(store_instr->args[1], res.result, data.alloc);
+        auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
+        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        ASSERT(base.isReg());
+        ASSERT(indx.isReg());
+        res.result.emplace_back(
+            Opcode::mov,
+            MArgument::Mem(base.reg, indx.reg, consti_val, store_ty),
+            value);
+        return true;
+      }});
+  pats.push_back(Pattern{
       {IntAddNode, LoadNode},
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
@@ -140,10 +247,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
           return false;
         }
-        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0])) {
-          return false;
-        }
-        if (!mul_instr->args[1].is_constant()) {
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
           return false;
         }
         auto consti = mul_instr->args[1].as_constant();
