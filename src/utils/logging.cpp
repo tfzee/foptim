@@ -144,7 +144,7 @@ Printer Printer::operator<<(const foptim::fmir::MBB &bb) const {
 }
 
 Printer Printer::operator<<(const foptim::fmir::MFunc &func) const {
-  *this << "func " << (void *)&func << "<";
+  *this << "func " << func.name.c_str() << "<";
   const auto &attribs = func.get_attribs();
   for (auto [key, value] : attribs) {
     *this << key.c_str() << value << ", ";

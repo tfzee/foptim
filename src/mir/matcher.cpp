@@ -689,7 +689,7 @@ constexpr auto base_pats() {
           break;
         }
 
-        // $1 = $0 + C
+        // $1 = $0 * C
         // R = $2 + $1
         // where $0 and $2 must be regs and C in [1,2,4,8]
         auto res_reg =
