@@ -119,19 +119,19 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
         }
       }
       if (is_c) {
-        utils::Debug << "FOUND DEAD BB ARG\n";
-        utils::Debug << "  Value: " << c_value << "\n";
-        utils::Debug << "  Arg: " << curr.bb->args[i] << " in bb "
-                     << curr.bb.get_raw_ptr() << "\n";
+        // utils::Debug << "FOUND DEAD BB ARG\n";
+        // utils::Debug << "  Value: " << c_value << "\n";
+        // utils::Debug << "  Arg: " << curr.bb->args[i] << " in bb "
+        //              << curr.bb.get_raw_ptr() << "\n";
         // utils::Debug << "TODO IMPL IT\n";
         // TODO("FOUND ONE");
         for (auto use : curr.bb->uses) {
-          utils::Debug << "      USE: " << use.user << "\n";
+          // utils::Debug << "      USE: " << use.user << "\n";
           ASSERT(use.type == fir::UseType::BB);
           auto user = use.user;
           auto bb_id = user.get_bb_id(curr.bb);
           user.remove_bb_arg(bb_id, i);
-          utils::Debug << "      AFTER USE: " << use.user << "\n";
+          // utils::Debug << "      AFTER USE: " << use.user << "\n";
         }
 
         curr.bb->args[i]->replace_all_uses(c_value);

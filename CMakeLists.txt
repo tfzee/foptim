@@ -62,6 +62,7 @@ add_library (foptim
                 #optim
                 ./src/optim/analysis/live_variables.cpp
                 ./src/optim/analysis/loop_analysis.cpp
+                ./src/optim/analysis/cfg.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/pre.cpp
                 ./src/optim/helper/inline.cpp

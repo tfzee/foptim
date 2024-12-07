@@ -10,6 +10,7 @@
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/inline.hpp"
+#include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
@@ -92,9 +93,9 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
 
-  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
-
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
@@ -103,8 +104,8 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
   // ensure no constants math left
-  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   ASSERT(ctx->verify());
 
   foptim::utils::Debug << "================OPTIMEND====================\n";

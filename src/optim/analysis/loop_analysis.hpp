@@ -5,9 +5,13 @@
 namespace foptim::optim {
 
 struct LoopInfo {
+  //the first node into the loop (kinda dominating the whole loop)
   u32 head;
+  //all backwards edges into header
   TVec<u32> tails;
+  //all nodes including header and tails
   TVec<u32> body_nodes;
+  //all nodes that leave
   TVec<u32> leaving_nodes;
 
   void dump() const;

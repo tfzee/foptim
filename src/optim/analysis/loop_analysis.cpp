@@ -46,14 +46,25 @@ void LoopInfoAnalysis::update(Dominators &dom) {
         }
       }
 
-      // utils::Debug << forward << "\n";
       TVec<u32> body_nodes;
       body_nodes.reserve(1 + 1 + tails.size() * 2);
 
+      // if one of the potential body nodes is not dominated by the header
+      //  we do not consider this a real loop even though there are
+      //  backwards edges
+      bool invalid_loop = false;
+
       for (auto tail : tails) {
         backward[tail].set(true);
+        if (!dom.dom_bbs[tail].dominators[bb_id]) {
+          invalid_loop = true;
+          break;
+        }
         body_nodes.push_back(tail);
         deq.push_back(tail);
+      }
+      if (invalid_loop) {
+        break;
       }
 
       while (!deq.empty()) {
@@ -62,10 +73,20 @@ void LoopInfoAnalysis::update(Dominators &dom) {
         for (auto pred : cfg.bbrs[curr].pred) {
           if (forward[pred] && !backward[pred]) {
             backward[pred].set(true);
+            if (!dom.dom_bbs[pred].dominators[bb_id]) {
+              invalid_loop = true;
+              break;
+            }
             body_nodes.push_back(pred);
             deq.push_back(pred);
           }
         }
+        if (invalid_loop) {
+          break;
+        }
+      }
+      if (invalid_loop) {
+        break;
       }
 
       TVec<u32> leaving_nodes;

@@ -297,10 +297,10 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   auto insert_locations = phi_insert_locations(func, dom);
 
   for (auto &[instr, blocks] : insert_locations) {
-    utils::Debug << " INSERT:" << instr << "\n";
+    // utils::Debug << " INSERT:" << instr << "\n";
     for (const auto &block : blocks) {
       if (instr->has_attrib("alloca::type") && instr->get_n_uses() > 0) {
-        utils::Debug << "   IN BLOCK: " << block << "\n";
+        // utils::Debug << "   IN BLOCK: " << block << "\n";
         auto new_arg = ctx->storage.insert_bb_arg(
             func.basic_blocks[block],
             *instr->get_attrib("alloca::type").try_type());

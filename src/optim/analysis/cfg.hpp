@@ -45,20 +45,8 @@ public:
     std::abort();
   }
 
-  void dump() const {
-    utils::Debug << "DUMP CFG\n";
-
-    for (const auto &node : bbrs) {
-      utils::Debug << "BB: " << node.bb.get_raw_ptr() << "\n  SUCC:\n";
-      for (const auto &succ : node.succ) {
-        utils::Debug << "    " << bbrs[succ].bb.get_raw_ptr() << "\n";
-      }
-      utils::Debug << "  PRED:\n";
-      for (const auto &pred : node.pred) {
-        utils::Debug << "   " << bbrs[pred].bb.get_raw_ptr() << "\n";
-      }
-    }
-  }
+  void dump() const; 
+  void dump_graph() const; 
 
   void update(fir::Function &func, bool reverse) {
     ZoneScopedN("CFG UPDATE");

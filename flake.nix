@@ -34,6 +34,7 @@
             # elfio
 
             #for testing stuff
+            graphviz
             cvise
             gtest
             tracy
