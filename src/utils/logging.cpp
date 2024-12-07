@@ -477,10 +477,9 @@ Printer Printer::operator<<(const foptim::fir::ConstantValueR v) const {
 Printer Printer::operator<<(foptim::fir::ValueR v) const {
   std::visit(
       [this](auto &&v) {
-        if constexpr (typeid(v) == typeid(fir::ConstantValueR)) {
+        if constexpr (typeid(v) == typeid(fir::ConstantValueR) ||
+                      typeid(v) == typeid(fir::BBArgument)) {
           *this << v;
-        } else if constexpr (typeid(v) == typeid(fir::BBArgumentR)) {
-          *this << (void *)(v.bb.get_raw_ptr()) << "[" << v.arg << "]";
         } else if constexpr (typeid(v) == typeid(fir::BasicBlock)) {
           *this << (void *)(v.get_raw_ptr());
         } else if constexpr (typeid(v) == typeid(fir::InvalidValue)) {
@@ -491,6 +490,12 @@ Printer Printer::operator<<(foptim::fir::ValueR v) const {
       },
       v.get_raw());
   return *this;
+}
+
+Printer Printer::operator<<(foptim::fir::BBArgument v) const {
+  // *this << (void *)(v->get_parent().get_raw_ptr()) << "[" << v.get_raw_ptr()
+  // << "]";
+  return *this << "BB[" << v.get_raw_ptr() << "]";
 }
 
 Printer Printer::operator<<(const foptim::fir::Attribute &attrib) const {
@@ -563,10 +568,10 @@ Printer Printer::operator<<(foptim::fir::BasicBlock bb) const {
 
   auto &args = bb->args;
   if (args.size() > 0) {
-    *this << args[0].type;
+    *this << args[0] << ": " << args[0]->get_type();
     //*this << " uses:" << args[0].get_n_uses();
     for (size_t i = 1; i < args.size(); i++) {
-      *this << ", " << args[i].type;
+      *this << ", " << args[i] << ": " << args[i]->get_type();
       //*this << " uses:" << args[i].get_n_uses();
     }
   }

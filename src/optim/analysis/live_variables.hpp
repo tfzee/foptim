@@ -129,7 +129,7 @@ public:
     size_t value_id = 0;
     for (const auto &bb : func.get_bbs()) {
       for (u32 arg_id = 0; arg_id < bb->n_args(); arg_id++) {
-        auto [_, ins] = values.insert({fir::ValueR{bb, arg_id}, value_id});
+        auto [_, ins] = values.insert({fir::ValueR{bb->args[arg_id]}, value_id});
         ASSERT(ins);
         value_id++;
       }

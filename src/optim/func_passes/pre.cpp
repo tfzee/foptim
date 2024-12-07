@@ -15,7 +15,7 @@ init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
         transp[bb_indx][expr_i].set(false);
       } else if (arg.is_bb_arg()) {
         auto bbarg = arg.as_bb_arg();
-        size_t bb_indx = func.bb_id(bbarg.bb);
+        size_t bb_indx = func.bb_id(bbarg->get_parent());
         transp[bb_indx][expr_i].set(false);
       }
     }

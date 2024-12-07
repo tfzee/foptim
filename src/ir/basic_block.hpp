@@ -2,6 +2,7 @@
 #include "function_ref.hpp"
 #include "instruction.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/basic_block_arg.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "utils/logging.hpp"
@@ -11,14 +12,9 @@ namespace foptim::fir {
 
 class BasicBlockData : public Used {
 public:
-  struct Arg : public Used {
-    TypeR type;
-    Arg(TypeR ty) : Used(), type(ty) {}
-  };
-
   FunctionR func;
   IRVec<Instr> instructions;
-  IRVec<Arg> args;
+  IRVec<BBArgument> args;
 
   BasicBlockData(FunctionR func) : func(func) {}
 

@@ -42,7 +42,7 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 
 class DCE final : public FunctionPass {
 public:
-  void apply(fir::Context &, fir::Function &func) override {
+  void apply(fir::Context & /*unused*/, fir::Function &func) override {
     ZoneScopedN("DCE");
     CFG rev_cfg{func, true};
     Dominators rev_dom{rev_cfg};
@@ -96,7 +96,7 @@ public:
             worklist.push_back(arg_instr);
           }
         } else if (arg.is_bb_arg()) {
-          auto term = arg.as_bb_arg().bb->get_terminator();
+          auto term = arg.as_bb_arg()->get_parent()->get_terminator();
           if (std::get<1>(marked.insert(term))) {
             worklist.push_back(term);
           }
@@ -116,7 +116,7 @@ public:
               worklist.push_back(arg_instr);
             }
           } else if (bb_arg.is_bb_arg()) {
-            auto term = bb_arg.as_bb_arg().bb->get_terminator();
+            auto term = bb_arg.as_bb_arg()->get_parent()->get_terminator();
             if (std::get<1>(marked.insert(term))) {
               worklist.push_back(term);
             }

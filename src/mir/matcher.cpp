@@ -293,8 +293,8 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   {
     auto entry_bb = func.get_entry();
     for (u32 i = 0; i < entry_bb->args.size(); i++) {
-      auto arg_reg = alloc.get_register(fir::ValueR{entry_bb, i});
-      auto arg_type = entry_bb->args[i].type;
+      auto arg_reg = alloc.get_register(fir::ValueR{entry_bb->args[i]});
+      auto arg_type = entry_bb->args[i]->get_type();
 
       res_func.args.push_back(arg_reg);
       res_func.arg_tys.push_back(convert_type(arg_type));
@@ -417,10 +417,10 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
   pairs.reserve(args.args.size());
   for (size_t arg_id = 0; arg_id < args.args.size(); arg_id++) {
     // skip unused bb args
-    if (fir::ValueR(args.bb, arg_id).get_n_uses() == 0) {
+    if (args.bb->args[arg_id]->get_n_uses() == 0) {
       continue;
     }
-    auto to = valueToArg(fir::ValueR(args.bb, arg_id), res.result, data.alloc);
+    auto to = valueToArg(fir::ValueR(args.bb->args[arg_id]), res.result, data.alloc);
     auto from = valueToArg(args.args[arg_id], res.result, data.alloc);
     if (to == from) {
       continue;

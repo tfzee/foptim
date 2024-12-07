@@ -27,9 +27,10 @@ void BasicBlock::push_instr(Instr instr) {
   self->instructions.push_back(instr);
 }
 
-ValueR BasicBlock::add_arg(TypeR type) {
+BBArgument BasicBlock::add_arg(BBArgument arg) {
   auto *self = operator->();
-  self->args.emplace_back(type);
-  return ValueR{*this, (u32)self->n_args() - 1};
+  arg->_parent = *this;
+  self->args.push_back(arg);
+  return arg;
 }
 } // namespace foptim::fir

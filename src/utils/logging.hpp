@@ -14,6 +14,7 @@ class Function;
 class FunctionR;
 class ValueR;
 class BasicBlock;
+class BBArgument;
 class Instr;
 class InstrData;
 struct BBRefWithArgs;
@@ -78,6 +79,7 @@ public:
   Printer operator<<(foptim::fir::Instr instr) const;
   Printer operator<<(const foptim::fir::InstrData *instr) const;
   Printer operator<<(foptim::fir::BasicBlock bb) const;
+  Printer operator<<(foptim::fir::BBArgument v) const;
   Printer operator<<(PaddingT pad) const;
   Printer operator<<(const void *v) const;
 

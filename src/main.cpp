@@ -14,7 +14,6 @@
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/mem2reg.hpp"
-// #include "optim/func_passes/pre.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
 #include "optim/function_pass.hpp"
@@ -93,7 +92,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
 
-  // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
 
@@ -119,6 +118,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
   //     InstSimplify, Clean>{}
   //     .apply(ctx);
+  // TODO("OKAK");
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,

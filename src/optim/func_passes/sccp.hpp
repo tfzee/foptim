@@ -451,7 +451,7 @@ public:
     }
 
     for (size_t arg_id = 0; arg_id < bb->get_args().size(); arg_id++) {
-      auto key = fir::ValueR(bb, arg_id);
+      auto key = fir::ValueR(bb->args[arg_id]);
       auto new_value = res.at(arg_id);
 
       if (new_value != values.at(key)) {
@@ -485,7 +485,7 @@ public:
     for (auto bb : func.get_bbs()) {
 
       for (size_t arg_id = 0; arg_id < bb->get_args().size(); arg_id++) {
-        values.insert({fir::ValueR(bb, arg_id), ConstantValue::Top()});
+        values.insert({fir::ValueR(bb->args[arg_id]), ConstantValue::Top()});
       }
       for (auto instr : bb->instructions) {
         values.insert({fir::ValueR(instr), ConstantValue::Top()});

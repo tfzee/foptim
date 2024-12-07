@@ -46,7 +46,7 @@ public:
     {
       size_t arg_id = 0;
       for (auto arg : old_terminator_args) {
-        repl_map.insert({fir::ValueR(header_bb, arg_id), arg});
+        repl_map.insert({fir::ValueR(header_bb->args[arg_id]), arg});
         arg_id++;
       }
     }
@@ -140,7 +140,7 @@ public:
     // Or in other terms the issue is a later bb needs to be dominated by the
     //   header but it wont after the rotate
     for (auto &arg : header_bb->args) {
-      for (auto &use : arg.uses) {
+      for (auto &use : arg->uses) {
         auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
         if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
                       user_bb_id) == linfo.body_nodes.end()) {

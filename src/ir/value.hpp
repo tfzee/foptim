@@ -1,6 +1,7 @@
 #pragma once
 #include "basic_block_ref.hpp"
 #include "instruction.hpp"
+#include "ir/basic_block_arg.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
@@ -11,35 +12,11 @@
 
 namespace foptim::fir {
 
-class BBArgumentR {
-public:
-  BasicBlock bb;
-  u32 arg;
-
-  BBArgumentR(BasicBlock bb, u32 arg) : bb(bb), arg(arg) {}
-
-  bool operator==(const BBArgumentR &other) const {
-    return bb == other.bb && arg == other.arg;
-  }
-
-  [[nodiscard]] TypeR get_type() const;
-};
-} // namespace foptim::fir
-
-template <> struct std::hash<foptim::fir::BBArgumentR> {
-  std::size_t operator()(const foptim::fir::BBArgumentR &k) const {
-    using foptim::u32;
-    using std::hash;
-    return hash<foptim::fir::BasicBlock>()(k.bb) ^ hash<u32>()(k.arg);
-  }
-};
-
-namespace foptim::fir {
 struct InvalidValue {};
 
 class ValueR {
 public:
-  using Ty = std::variant<Instr, BasicBlock, BBArgumentR, ConstantValueR,
+  using Ty = std::variant<Instr, BasicBlock, BBArgument, ConstantValueR,
                           InvalidValue>;
   Ty origin;
 
@@ -55,7 +32,7 @@ public:
   explicit ValueR(ConstantValueR v) : origin(v) {}
   explicit ValueR(Instr v) : origin(v) {}
   explicit ValueR(BasicBlock v) : origin(v) {}
-  explicit ValueR(BasicBlock v, u32 arg) : origin(BBArgumentR(v, arg)) {}
+  explicit ValueR(BBArgument v) : origin(v) {}
 
   [[nodiscard]] bool eql(const ValueR &other) const;
 
@@ -71,34 +48,34 @@ public:
     return std::holds_alternative<BasicBlock>(origin);
   }
   [[nodiscard]] bool is_bb_arg() const {
-    return std::holds_alternative<BBArgumentR>(origin);
+    return std::holds_alternative<BBArgument>(origin);
   }
 
   [[nodiscard]] bool is_valid(bool check_refs) const;
 
-  [[nodiscard]] const Instr as_instr() const {
+  [[nodiscard]] Instr as_instr() const {
     if (const auto *res = std::get_if<Instr>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  [[nodiscard]] const BasicBlock as_bb() const {
+  [[nodiscard]] BasicBlock as_bb() const {
     if (const auto *res = std::get_if<BasicBlock>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  [[nodiscard]] const ConstantValueR as_constant() const {
+  [[nodiscard]] ConstantValueR as_constant() const {
     if (const auto *res = std::get_if<ConstantValueR>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  [[nodiscard]] const BBArgumentR as_bb_arg() const {
-    if (const auto *res = std::get_if<BBArgumentR>(&origin)) {
+  [[nodiscard]] BBArgument as_bb_arg() const {
+    if (const auto *res = std::get_if<BBArgument>(&origin)) {
       return *res;
     }
     std::abort();

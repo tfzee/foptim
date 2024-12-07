@@ -46,7 +46,8 @@ bool inline_call(fir::Instr call) {
   auto end_bb = split_block(call);
 
   if (has_ret_value) {
-    end_bb.add_arg(call->get_type());
+    auto new_arg = ctx->storage.insert_bb_arg(end_bb, call->get_type());
+    end_bb.add_arg(new_arg);
   }
 
   ContextData::V2VMap subs;
@@ -85,7 +86,7 @@ bool inline_call(fir::Instr call) {
   // replace every return isntruction with a jump to the resulting bb
   // who gets an bb_arg that holds the value
   if (has_ret_value) {
-    call->replace_all_uses(ValueR{end_bb, 0});
+    call->replace_all_uses(ValueR{end_bb->args[0]});
   }
   for (auto bb : new_bbs) {
     Builder ret_bb = bb.builder_at_end();

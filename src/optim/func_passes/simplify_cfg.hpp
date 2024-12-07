@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/logging.hpp"
@@ -9,8 +10,9 @@ namespace foptim::optim {
 
 // + [x] remove bb with no predecessor
 // + [x] merge bb with pred if thats only edge
-// + [x] eleminate bb args if only 1 pred
 // + [x] eliminate bb if only a single jump
+// + [x] eleminate bb args if only 1 pred
+// + [x] eliminate bb arg if only one unique incoming value
 // + [x] eliminate bb arg if no uses
 // + [ ] convert if else into cmove
 // + [ ]
@@ -43,6 +45,7 @@ public:
 inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
                                       size_t bb_id) {
   auto &curr = cfg.bbrs[bb_id];
+  auto *ctx = curr.bb->get_parent()->ctx;
   bool is_entry = bb_id == cfg.entry;
   // utils::Debug << bb_id << " ";
   // if not jumped to just delete
@@ -57,15 +60,17 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       u32 i = ip1 - 1;
-      if (curr.bb->args[i].get_n_uses() == 0) {
+      if (curr.bb->args[i]->get_n_uses() == 0) {
         if (i != n_args - 1) {
-          failure({"TODO: Implement it for non last ones needs some swapping or so", {curr.bb}});
+          failure(
+              {"TODO: Implement it for non last ones needs some swapping or so",
+               {curr.bb}});
           break;
         }
 
-        //remove all cases where we jump into this bb
-        for(auto use: curr.bb->get_uses()){
-          switch(use.type){
+        // remove all cases where we jump into this bb
+        for (auto use : curr.bb->get_uses()) {
+          switch (use.type) {
           case fir::UseType::BB:
             use.user->bbs[use.argId].args.pop_back();
             break;
@@ -75,7 +80,7 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
           }
         }
 
-        //drop this arg we cant have any uses
+        // drop this arg we cant have any uses
         curr.bb->args.pop_back();
         return true;
       }
@@ -89,13 +94,52 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
     auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
     auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
     for (u32 i = 0; i < n_args; i++) {
-      curr.bb->args[i].replace_all_uses(
+      curr.bb->args[i]->replace_all_uses(
           pred_term->bbs[pred_term_bb_id].args[i]);
     }
     curr.bb->clear_args();
     pred_term.clear_bb_args(pred_term_bb_id);
     // utils::Debug << 2 << "\n";
     return true;
+  }
+
+  // If we got bb args and multiple predecessors. If all incoming edges either
+  // have the same value or are the bb arg itsself(a loop in which the bb arg
+  // value doesnt change), then we can remove the bb arg and replace all uses
+  // with the value itself
+  if (curr.bb->n_args() != 0 && !is_entry) {
+    auto n_args = curr.bb->n_args();
+    for (u32 i = 0; i < n_args; i++) {
+      fir::ValueR c_value{};
+      bool is_c = true;
+      utils::Debug << "   BB_ARG: " << curr.bb->args[i] << "\n";
+      for (auto pred : curr.pred) {
+        auto pred_term = cfg.bbrs[pred].bb->get_terminator();
+        auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
+        auto incoming_arg = pred_term->bbs[pred_term_bb_id].args[i];
+        utils::Debug << "   INCMONIG: " << incoming_arg << "\n";
+        if (!c_value.is_valid(false) || incoming_arg.eql(c_value)) {
+          c_value = incoming_arg;
+        } else if (incoming_arg.is_bb_arg() &&
+                   incoming_arg.as_bb_arg() == curr.bb->args[i]) {
+        } else {
+          is_c = false;
+          break;
+        }
+      }
+      if (is_c) {
+        utils::Debug << "FOUND DEAD BB ARG\n";
+        utils::Debug << "Value: " << c_value << "\n";
+        utils::Debug << "Arg: " << curr.bb->args[i] << "\n";
+        utils::Debug << "TODO IMPL IT\n";
+        // TODO("FOUND ONE");
+        // curr.bb->args[i].replace_all_uses(
+        //     pred_term->bbs[pred_term_bb_id].args[i]);
+        // curr.bb->clear_args();
+        // pred_term.clear_bb_args(pred_term_bb_id);
+        // return true;
+      }
+    }
   }
 
   // if a block only contains a unconditional jump we can replace it
@@ -125,15 +169,18 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
     if (secon_has_args) {
       auto term = func.basic_blocks[bb_id]->get_terminator();
       auto succ = func.basic_blocks[succ_id];
+      // for (auto arg: succ->args) {
+      //   arg->replace_all_uses(term->bbs[0].args[i]);
+      // }
       for (u32 i = 0; i < succ->n_args(); i++) {
-        fir::ValueR{succ, i}.replace_all_uses(term->bbs[0].args[i]);
+        succ->args[i]->replace_all_uses(term->bbs[0].args[i]);
       }
       succ->clear_args();
     }
     if (first_has_args) {
       for (auto arg : func.basic_blocks[bb_id]->args) {
-        auto new_arg = func.basic_blocks[succ_id].add_arg(arg.type);
-        arg.replace_all_uses(new_arg);
+        auto new_arg = func.basic_blocks[succ_id].add_arg(ctx->copy(arg));
+        arg->replace_all_uses(fir::ValueR{new_arg});
       }
     }
 

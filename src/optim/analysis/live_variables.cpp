@@ -61,7 +61,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     worklist.push_front(bb_id);
     auto &bb = bbs[bb_id];
     for (u32 arg_id = 0; arg_id < bb->n_args(); arg_id++) {
-      defs[bb_id][all_values.at(fir::ValueR(bb, arg_id))].set(true);
+      defs[bb_id][all_values.at(fir::ValueR(bb->args[arg_id]))].set(true);
     }
     for (auto instr : bb->instructions) {
       if (all_values.contains(fir::ValueR(instr))) {

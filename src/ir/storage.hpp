@@ -3,11 +3,12 @@
 #include "basic_block.hpp"
 #include "function.hpp"
 #include "instruction_data.hpp"
+#include "ir/basic_block_arg.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/global.hpp"
 #include "types.hpp"
-#include <string>
 #include "utils/map.hpp"
+#include <string>
 
 namespace foptim::fir {
 
@@ -21,6 +22,7 @@ public:
   utils::FStableVec<GlobalData> storage_global;
   utils::FStableVec<InstrData> storage_instr;
   utils::FStableVec<BasicBlockData> basic_blocks;
+  utils::FStableVec<BBArgumentData> bb_args;
   utils::FStableVec<ConstantValue> storage_constant;
   utils::FStableVec<AnyType> storage_type;
 
@@ -30,6 +32,13 @@ public:
 
   BasicBlock insert_bb(BasicBlockData v) {
     return BasicBlock(this->basic_blocks.push_back(v));
+  }
+
+  BBArgument insert_bb_arg(BBArgumentData v) {
+    return BBArgument(this->bb_args.push_back(v));
+  }
+  BBArgument insert_bb_arg(BasicBlock bb, TypeR t) {
+    return BBArgument(this->bb_args.push_back({bb, t}));
   }
 
   ConstantValueR insert_constant(ConstantValue v) {

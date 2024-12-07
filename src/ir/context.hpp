@@ -1,5 +1,6 @@
 #pragma once
 #include "ir/constant_value_ref.hpp"
+#include "ir/value.hpp"
 #include "storage.hpp"
 #include "types.hpp"
 #include "types_ref.hpp"
@@ -19,8 +20,9 @@ struct ContextData {
 
     res->args.clear();
     for (u32 arg_id = 0; arg_id < bb->args.size(); arg_id++) {
-      subs.insert({ValueR{bb, arg_id}, ValueR{res, arg_id}});
-      res.add_arg(copy(bb->args[arg_id].type));
+      auto new_bb_arg = storage.insert_bb_arg(res, copy(bb->args[arg_id]->get_type()));
+      subs.insert({ValueR{bb->args[arg_id]}, ValueR{new_bb_arg}});
+      res.add_arg(new_bb_arg);
     }
 
     res->instructions.clear();
@@ -33,6 +35,11 @@ struct ContextData {
       subs.insert({ValueR{instr}, ValueR{new_instr}});
       res.push_instr(new_instr);
     }
+    return res;
+  }
+
+  BBArgument copy(BBArgument bb_arg) {
+    auto res = storage.insert_bb_arg({bb_arg->_parent, copy(bb_arg->_type)});
     return res;
   }
 
@@ -134,9 +141,8 @@ struct ContextData {
     const auto &arg_tys = type->as_func_ty().arg_types;
     init_bb->args.reserve(arg_tys.size());
     for (auto arg_ty : arg_tys) {
-      init_bb->args.emplace_back(arg_ty);
+      init_bb->args.push_back(storage.insert_bb_arg(init_bb, arg_ty));
     }
-
     return func;
   }
 

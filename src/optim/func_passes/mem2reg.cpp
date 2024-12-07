@@ -220,8 +220,8 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
   for (u32 arg = 0; arg < args.size(); arg++) {
     fir::ValueR var_val_res = fir::ValueR();
     // only if the argument is actually part of the allocaremoval
-    if (bb_arg_to_alloca.contains(fir::ValueR(block, arg))) {
-      auto bb_arguemnt_value = fir::ValueR(block, arg);
+    if (bb_arg_to_alloca.contains(fir::ValueR(block->args[arg]))) {
+      auto bb_arguemnt_value = fir::ValueR(block->args[arg]);
       auto target_alloca = bb_arg_to_alloca.at(bb_arguemnt_value);
       // utils::Debug << "BBARG " << fir::ValueR(block, arg) << "   "
       //              << target_alloca << "\n";
@@ -301,11 +301,11 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
     for (const auto &block : blocks) {
       if (instr->has_attrib("alloca::type") && instr->get_n_uses() > 0) {
         utils::Debug << "   IN BLOCK: " << block << "\n";
-        cfg.bbrs[block].bb->args.emplace_back(
-            *(instr->get_attrib("alloca::type").try_type()));
-        const auto key =
-            fir::ValueR{func.basic_blocks[block],
-                        (u32)(cfg.bbrs[block].bb->args.size() - 1)};
+        auto new_arg = ctx->storage.insert_bb_arg(
+            func.basic_blocks[block],
+            *instr->get_attrib("alloca::type").try_type());
+        cfg.bbrs[block].bb->args.emplace_back(new_arg);
+        const auto key = fir::ValueR{new_arg};
         ASSERT(!bb_arg_to_alloca.contains(key));
         bb_arg_to_alloca.insert({key, fir::ValueR(instr)});
       }

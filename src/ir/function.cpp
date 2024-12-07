@@ -35,10 +35,10 @@ bool Function::verify(utils::Printer printer) const {
     return false;
   }
   for (size_t i = 0; i < ty.arg_types.size(); i++) {
-    if (ty.arg_types[i] != entry->args[i].type) {
+    if (ty.arg_types[i] != entry->args[i]->get_type()) {
       printer << "Argument type at location " << i
               << " does not match the type of the function" << ty.arg_types[i]
-              << " != " << entry->args[i].type;
+              << " != " << entry->args[i]->get_type();
       return false;
     }
   }

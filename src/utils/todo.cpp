@@ -18,8 +18,8 @@ void ASSERT_HANDLE(bool cond, const char *filename,
   if (!cond) {
     std::cout << filename << ":" << lineNumber << " Failed assert! " << message
               << "\n\n";
-    exit(33);
-    // std::abort();
+    // exit(33);
+    std::abort();
   }
 }
 

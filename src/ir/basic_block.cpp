@@ -32,7 +32,7 @@ bool BasicBlockData::verify(const Function *exp_parent,
 
 void BasicBlockData::clear_args() {
   for (auto &arg : args) {
-    arg.replace_all_uses(ValueR());
+    arg->replace_all_uses(ValueR());
   }
   args.clear();
 }
@@ -42,7 +42,7 @@ void BasicBlockData::remove_from_parent(bool remove_references,
   if (remove_references) {
     // replace_all_uses(ValueR());
     for (auto &arg : args) {
-      arg.replace_all_uses(ValueR());
+      arg->replace_all_uses(ValueR());
     }
   }
   if (cleanup_instr) {
