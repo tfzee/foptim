@@ -34,4 +34,5 @@ BBArgument BasicBlock::add_arg(BBArgument arg) {
   self->args.push_back(arg);
   return arg;
 }
+
 } // namespace foptim::fir

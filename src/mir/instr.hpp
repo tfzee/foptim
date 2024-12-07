@@ -576,6 +576,10 @@ public:
       return true;
     }
   }
+
+  [[nodiscard]] constexpr bool is_fp() const {
+    return ty == Type::Float32 || ty == Type::Float64;
+  }
 };
 
 #define COND_JUMP_GEN(NAME, TYP)                                               \

@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/function_pass.hpp"
@@ -32,6 +33,7 @@ public:
         cfg.update(func, false);
         bb_id = 0;
       }
+      ASSERT(func.verify(utils::Debug));
       if (iter > 1000) {
         failure({"Didnt converge fixme\n", func.basic_blocks[bb_id]});
         return;
@@ -58,30 +60,18 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
   // if we got a bb arg that got no use remove it
   if (curr.bb->n_args() != 0 && !is_entry) {
     auto n_args = curr.bb->n_args();
+      // for (u32 i = 0; i < n_args; i++) {
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
-      u32 i = ip1 - 1;
+      auto i = ip1 - 1;
       if (curr.bb->args[i]->get_n_uses() == 0) {
-        if (i != n_args - 1) {
-          failure(
-              {"TODO: Implement it for non last ones needs some swapping or so",
-               {curr.bb}});
-          break;
-        }
-
-        // remove all cases where we jump into this bb
+        // remove from all uses where we jump into this bb
         for (auto use : curr.bb->get_uses()) {
-          switch (use.type) {
-          case fir::UseType::BB:
-            use.user->bbs[use.argId].args.pop_back();
-            break;
-          case fir::UseType::BBArg:
-          case fir::UseType::NormalArg:
-            TODO("unreach?");
-          }
+          ASSERT(use.type == fir::UseType::BB);
+          use.user.remove_bb_arg(use.argId, i);
         }
 
         // drop this arg we cant have any uses
-        curr.bb->args.pop_back();
+        curr.bb->args.erase(curr.bb->args.begin() + i);
         return true;
       }
     }
@@ -109,15 +99,16 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
   // with the value itself
   if (curr.bb->n_args() != 0 && !is_entry) {
     auto n_args = curr.bb->n_args();
-    for (u32 i = 0; i < n_args; i++) {
+    for (u32 ip1 = n_args; ip1 > 0; ip1--) {
+      auto i = ip1 - 1;
       fir::ValueR c_value{};
       bool is_c = true;
-      utils::Debug << "   BB_ARG: " << curr.bb->args[i] << "\n";
+      // utils::Debug << "   BB_ARG: " << curr.bb->args[i] << "\n";
       for (auto pred : curr.pred) {
         auto pred_term = cfg.bbrs[pred].bb->get_terminator();
         auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
         auto incoming_arg = pred_term->bbs[pred_term_bb_id].args[i];
-        utils::Debug << "   INCMONIG: " << incoming_arg << "\n";
+        // utils::Debug << "   INCMONIG: " << incoming_arg << "\n";
         if (!c_value.is_valid(false) || incoming_arg.eql(c_value)) {
           c_value = incoming_arg;
         } else if (incoming_arg.is_bb_arg() &&
@@ -129,15 +120,24 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
       }
       if (is_c) {
         utils::Debug << "FOUND DEAD BB ARG\n";
-        utils::Debug << "Value: " << c_value << "\n";
-        utils::Debug << "Arg: " << curr.bb->args[i] << "\n";
-        utils::Debug << "TODO IMPL IT\n";
+        utils::Debug << "  Value: " << c_value << "\n";
+        utils::Debug << "  Arg: " << curr.bb->args[i] << " in bb "
+                     << curr.bb.get_raw_ptr() << "\n";
+        // utils::Debug << "TODO IMPL IT\n";
         // TODO("FOUND ONE");
-        // curr.bb->args[i].replace_all_uses(
-        //     pred_term->bbs[pred_term_bb_id].args[i]);
-        // curr.bb->clear_args();
-        // pred_term.clear_bb_args(pred_term_bb_id);
-        // return true;
+        for (auto use : curr.bb->uses) {
+          utils::Debug << "      USE: " << use.user << "\n";
+          ASSERT(use.type == fir::UseType::BB);
+          auto user = use.user;
+          auto bb_id = user.get_bb_id(curr.bb);
+          user.remove_bb_arg(bb_id, i);
+          utils::Debug << "      AFTER USE: " << use.user << "\n";
+        }
+
+        curr.bb->args[i]->replace_all_uses(c_value);
+        curr.bb->args.erase(curr.bb->args.begin() + i);
+        // utils::Debug << "      END: " << "\n";
+        // return false;
       }
     }
   }

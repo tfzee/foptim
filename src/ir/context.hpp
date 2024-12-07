@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/value.hpp"
 #include "storage.hpp"
@@ -39,7 +40,8 @@ struct ContextData {
   }
 
   BBArgument copy(BBArgument bb_arg) {
-    auto res = storage.insert_bb_arg({bb_arg->_parent, copy(bb_arg->_type)});
+    auto res = storage.insert_bb_arg({BasicBlock{BasicBlock::invalid()}, copy(bb_arg->_type)});
+    res->uses.clear();
     return res;
   }
 

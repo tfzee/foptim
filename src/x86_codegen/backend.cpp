@@ -326,11 +326,13 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     return;
   }
   case fmir::Opcode::mov: {
+    // utils::Debug << "mov\n";
     ASSERT(instr.n_args == 2);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[1]);
 
     u32 o0_size = get_size(instr.args[0].ty);
+    // utils::Debug << instr << " " << o0_size << " " << o1.isReg() << "\n";
 
     if (instr.args[1].ty != fmir::Type::Float32 &&
         instr.args[0].ty == fmir::Type::Float32) {

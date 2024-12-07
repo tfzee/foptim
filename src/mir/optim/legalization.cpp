@@ -181,18 +181,72 @@ bool Legalizer::legalize_push(MBB &bb, u32 indx) {
   return false;
 }
 
-bool Legalizer::legalize_one_byte_load(MBB &bb, u32 indx) {
+bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   // we wanna transform every one/two byte load into a movzx;
   //  this awoids a false dependency and also clears the upper half with zero
   //  which then makes further usage easier
   MInstr &instr = bb.instrs[indx];
-  if (instr.args[0].isReg() &&
+  if (instr.op == Opcode::mov && instr.args[0].isReg() &&
       (instr.args[0].ty == Type::Int8 || instr.args[0].ty == Type::Int16) &&
       instr.args[1].isMem()) {
     // utils::Debug << "Fixing : " << instr << "\n";
     instr.op = Opcode::mov_zx;
     instr.args[0].ty = Type::Int32;
     instr.args[0].reg.info.reg_size = 4;
+    return true;
+  }
+  if (instr.op == Opcode::mov && instr.args[0].isReg() &&
+      instr.args[1].isReg() && !instr.args[0].is_fp() &&
+      instr.args[0].ty != instr.args[1].ty) {
+    // utils::Debug << "Fixing : " << instr << "\n";
+    auto t0 = instr.args[0].ty;
+    auto t1 = instr.args[1].ty;
+    utils::Debug << t0 << " " << t1 << "\n";
+    if (get_size(t0) > get_size(t1)) {
+      // utils::Debug << "REPLACED" << instr << "\n";
+      instr.op = Opcode::mov_zx;
+      return true;
+    } else {
+      instr.op = Opcode::itrunc;
+      return true;
+    }
+    // ASSERT(get_size(t0) > get_size(t1));
+    // instr.args[1].ty = t1;
+    // instr.args[1].reg.info.reg_size = 4;
+    // instr.args[1].reg.info.ty;
+  }
+  if (instr.op == Opcode::mov_zx && instr.args[1].isImm()) {
+    instr.op = Opcode::mov;
+    instr.args[1].ty = instr.args[0].ty;
+    return true;
+  }
+  if (instr.op == Opcode::mov_sx && instr.args[1].isImm()) {
+    instr.op = Opcode::mov;
+    i64 val_big;
+    switch (instr.args[1].ty) {
+    case Type::INVALID:
+    case Type::Int8: {
+      i8 val_smol = static_cast<i8>(static_cast<u8>(instr.args[1].imm));
+      val_big = static_cast<i64>(val_smol);
+      break;
+    }
+    case Type::Int16: {
+      i16 val_smol = static_cast<i16>(static_cast<u16>(instr.args[1].imm));
+      val_big = static_cast<i64>(val_smol);
+      break;
+    }
+    case Type::Int32: {
+      i32 val_smol = static_cast<i32>(static_cast<u32>(instr.args[1].imm));
+      val_big = static_cast<i64>(val_smol);
+      break;
+    }
+    case Type::Int64:
+    case Type::Float32:
+    case Type::Float64:
+      TODO("IMPL");
+    }
+    instr.args[1].imm = (u64)val_big;
+    instr.args[1].ty = instr.args[0].ty;
     return true;
   }
   return false;
@@ -348,7 +402,9 @@ void Legalizer::apply(MFunc &func) {
       auto i = ioff - 1;
       switch (bb.instrs[i].op) {
       case Opcode::mov:
-        if (legalize_one_byte_load(bb, i)) {
+      case Opcode::mov_zx:
+      case Opcode::mov_sx:
+        if (legalize_move(bb, i)) {
           ioff = 0;
         }
         break;

@@ -1,9 +1,9 @@
 #include "ir/instruction.hpp"
 #include "ir/basic_block.hpp"
-#include "ir/value.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
+#include "ir/value.hpp"
 #include "utils/logging.hpp"
 
 namespace foptim::fir {
@@ -33,8 +33,8 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
   }
 
   for (size_t bb_id = 0; bb_id < self->bbs.size(); bb_id++) {
-    auto& bb = self->bbs[bb_id];
-    if(repl.contains(ValueR{bb.bb})){
+    auto &bb = self->bbs[bb_id];
+    if (repl.contains(ValueR{bb.bb})) {
       t.replace_bb(bb_id, repl.at(ValueR{bb.bb}).as_bb(), true, false);
     }
     const auto n_args = bb.args.size();
@@ -93,7 +93,8 @@ void Instr::clear_bb_args(u16 indx) {
 
 TypeR Instr::get_type() const { return (this->operator->())->get_type(); }
 
-//@returns: the bb id in reference to which index it has in the targets of this instruction
+//@returns: the bb id in reference to which index it has in the targets of this
+//instruction
 u16 Instr::get_bb_id(BasicBlock target) const {
   const InstrData *self = operator->();
   u16 bb_indx = 0;
@@ -122,7 +123,8 @@ ValueR Instr::replace_arg(u16 indx, ValueR new_val, bool verify) {
   return old_val;
 }
 
-BasicBlock Instr::replace_bb(u16 indx, BasicBlock new_val, bool keepArgs ,bool verify) {
+BasicBlock Instr::replace_bb(u16 indx, BasicBlock new_val, bool keepArgs,
+                             bool verify) {
   InstrData *self = operator->();
   ASSERT(indx < self->bbs.size());
   BasicBlock old_val = self->bbs[indx].bb;
@@ -162,7 +164,41 @@ ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val, bool verify) {
 
   return old_val;
 }
+void Instr::remove_bb_arg(u16 bb_id, u16 indx1, bool verify) {
+  InstrData *self = operator->();
+  auto& bb_args = self->bbs[bb_id].args;
+  //fix all the args after
+  for (size_t i = indx1 + 1; i < self->bbs[bb_id].args.size(); i++) {
+    bb_args[i].remove_usage(Use::bb_arg(*this, bb_id, i),
+                                              verify);
+    bb_args[i].add_usage(Use::bb_arg(*this, bb_id, i - 1));
+  }
 
+  bb_args[indx1].remove_usage(Use::bb_arg(*this, bb_id, indx1),
+                                            verify);
+  bb_args.erase(self->bbs[bb_id].args.begin() + indx1);
+}
+
+// void Instr::swap_bb_args(u16 bb_id, u16 indx1, u16 indx2, bool verify) {
+//   InstrData *self = operator->();
+//   auto &bb_ref = self->bbs[bb_id];
+//   auto n_args = bb_ref.args.size();
+//   ASSERT(n_args > indx1);
+//   ASSERT(n_args > indx2);
+
+//   ValueR old_val1 = bb_ref.args[indx1];
+//   ValueR old_val2 = bb_ref.args[indx2];
+//   bb_ref.args[indx1] = old_val2;
+//   bb_ref.args[indx2] = old_val1;
+
+//   old_val1.remove_usage(Use::bb_arg(*this, bb_id, indx1), verify);
+//   old_val1.add_usage(Use::bb_arg(*this, bb_id, indx2));
+
+//   old_val2.remove_usage(Use::bb_arg(*this, bb_id, indx2), verify);
+//   old_val2.add_usage(Use::bb_arg(*this, bb_id, indx1));
+//   // if (!old_val.is_constant()) {
+//   // }
+// }
 u16 Instr::add_arg(ValueR v) {
   InstrData *self = operator->();
   self->args.push_back(v);
