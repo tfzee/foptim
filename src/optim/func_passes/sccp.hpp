@@ -234,10 +234,10 @@ public:
       switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
       case fir::FCmpInstrSubType::OGT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() > b.value->as_float(), ctx->get_int_type(8)));
+            static_cast<i32>(a.value->as_float() > b.value->as_float()), ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::OLT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() < b.value->as_float(), ctx->get_int_type(8)));
+            static_cast<i32>(a.value->as_float() < b.value->as_float()), ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::INVALID:
       case fir::FCmpInstrSubType::AlwFalse:
       case fir::FCmpInstrSubType::OEQ:

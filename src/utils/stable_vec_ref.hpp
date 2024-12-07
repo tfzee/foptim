@@ -2,6 +2,7 @@
 #include "stable_vec_slot.hpp"
 #include "types.hpp"
 #include "utils/todo.hpp"
+//needed for std::hash
 #include <unordered_map>
 
 namespace foptim::utils {

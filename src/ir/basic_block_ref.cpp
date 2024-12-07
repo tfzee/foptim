@@ -2,6 +2,7 @@
 #include "ir/basic_block.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/basic_block_arg.hpp"
 
 namespace foptim::fir {
 

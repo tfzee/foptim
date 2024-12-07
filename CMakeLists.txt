@@ -49,6 +49,7 @@ add_library (foptim
                 ./src/ir/function.cpp
                 ./src/ir/basic_block.cpp
                 ./src/ir/basic_block_ref.cpp
+                ./src/ir/basic_block_arg.cpp
                 ./src/ir/instruction_data.cpp
                 ./src/ir/instruction.cpp
                 ./src/ir/types.cpp
