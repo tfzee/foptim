@@ -1,7 +1,8 @@
 // RUN: clang++ -O0 %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.ss
 // RUN: nasm %t.ss -felf64 -g -F dwarf && ld %t.o -o %t.out
-// RUN: %t.out || echo Result:$? | FileCheck %s
+// RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
+// RUN: echo $result | FileCheck %s
 
 // CHECK: Result:1
 
@@ -14,10 +15,9 @@ extern "C" int main() {
       a[i * SIZE + j] = i;
     }
   }
-  // int sum = 0;
-  // for (int i : a) {
-  //   sum += i;
-  // }
-  // return static_cast<int>(sum == 15872);
-  return 0;
+  int sum = 0;
+  for (int i : a) {
+    sum += i;
+  }
+  return static_cast<int>(sum == 15872);
 }

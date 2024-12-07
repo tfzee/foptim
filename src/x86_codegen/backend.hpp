@@ -6,6 +6,7 @@
 
 namespace foptim::codegen {
 
-void run(std::span<const fmir::MFunc> funcs, std::span<const fmir::Global> globals);
+void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
+         std::span<const fmir::Global> globals);
 
 } // namespace foptim::codegen

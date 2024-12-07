@@ -28,6 +28,7 @@ enum class InstrType : u8 {
   ReturnInstr,
   BranchInstr,
   CondBranchInstr,
+  // Unreachable,
 
   //Memory
   LoadInstr,

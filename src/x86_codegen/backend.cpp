@@ -807,7 +807,7 @@ public:
   }
 };
 
-void run(std::span<const fmir::MFunc> funcs,
+void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
          std::span<const fmir::Global> globals) {
   JitRuntime rt; // Runtime specialized for JIT code execution.
   StringLogger logger;
@@ -896,19 +896,23 @@ void run(std::span<const fmir::MFunc> funcs,
 
     std::ofstream myfile;
     myfile.open(utils::out_file_path);
-    myfile << 
-      "global _start\n"
-      "global _exit\n"
-      "_start:\n"
-      "xor ebp, ebp\n"
-      "mov edi, [rsp]          ; get argc from the stack (implicitly zero-extended to 64-bit)\n"
-      "lea rsi, [rsp + 8]         ; take the address of argv from the stack\n"
-      "lea rdx, [rsp + rdi*8 + 16],  ; take the address of envp from the stack\n"
-      "xor eax, eax            ; per ABI and compatibility with icc\n"
-      "call main                 \n"
-      "mov ebx, eax\n"
-      "mov eax, 1\n"
-      "int 0x80\n";
+    for (const auto &decl : decls) {
+      myfile << "extern " << decl.c_str() << "\n";
+    }
+    myfile << "global _start\n"
+              "_start:\n"
+              "xor ebp, ebp\n"
+              "mov edi, [rsp]          ; get argc from the stack (implicitly "
+              "zero-extended to 64-bit)\n"
+              "lea rsi, [rsp + 8]         ; take the address of argv from the "
+              "stack\n"
+              "lea rdx, [rsp + rdi*8 + 16],  ; take the address of envp from "
+              "the stack\n"
+              "xor eax, eax            ; per ABI and compatibility with icc\n"
+              "call main                 \n"
+              "mov ebx, eax\n"
+              "mov eax, 1\n"
+              "int 0x80\n";
 
     // "_start:\n"
     // "  call main\n"

@@ -34,7 +34,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::Global> &globals);
 void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals);
-void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
+void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,foptim::FVec<std::string> &decls,
              foptim::FVec<foptim::fmir::Global> &globals);
 
 int main(int argc, char *argv[]) {
@@ -50,11 +50,15 @@ int main(int argc, char *argv[]) {
   // mir
   foptim::FVec<foptim::fmir::MFunc> funcs;
   foptim::FVec<foptim::fmir::Global> globals;
+  foptim::FVec<std::string> decls;
+  for(auto& [decl, _]: ctx.data->storage.declared_functions){
+    decls.push_back(decl);
+  }
   lower_to_mir(ctx, funcs, globals);
   optimize_mir(funcs, globals);
 
   // asm
-  codegen(funcs, globals);
+  codegen(funcs, decls, globals);
 
   // cleanup
   ctx.free();
@@ -67,10 +71,10 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::utils::Debug << "================INIT====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // foptim::utils::Debug << "================INIT====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   ASSERT(ctx->verify());
 }
 
@@ -79,10 +83,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   using namespace foptim::optim;
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
 
-  foptim::utils::Debug << "================OPTIMSTART====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // foptim::utils::Debug << "================OPTIMSTART====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
 
   ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
@@ -93,7 +97,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
 
-  foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
@@ -148,7 +152,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
     funcs.push_back(std::move(res));
-    foptim::utils::Debug << funcs.back();
+    // foptim::utils::Debug << funcs.back();
     foptim::utils::TempAlloc<void *>::reset();
   }
 }
@@ -170,13 +174,12 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
 }
 
-void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
+void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,foptim::FVec<std::string> &decls,
              foptim::FVec<foptim::fmir::Global> &globals) {
-
   foptim::utils::Debug << "================OPTIMEND2====================\n";
   for (const auto &func : funcs) {
     foptim::utils::Debug << func << "\n";
   }
   ZoneScopedN("Codegen");
-  foptim::codegen::run(funcs, globals);
+  foptim::codegen::run(funcs, decls, globals);
 }

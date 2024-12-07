@@ -41,6 +41,9 @@ bool inline_call(fir::Instr call) {
   BasicBlock call_bb = call->get_parent();
   FunctionR call_func = call_bb->get_parent();
   const auto *callee = call->get_attrib("callee").try_string();
+  if(!ctx->storage.functions.contains(*callee)){
+    return false;
+  }
   auto &called_func = ctx->storage.functions.at(*callee);
 
   auto end_bb = split_block(call);
@@ -106,11 +109,11 @@ bool inline_call(fir::Instr call) {
   call.clear_args();
   call.clear_bbs();
   call.remove_from_parent();
-  utils::Debug << "###################################\n";
-  utils::Debug << call_func << "\n";
-  utils::Debug << "###################################\n";
+  // utils::Debug << "###################################\n";
+  // utils::Debug << call_func << "\n";
+  // utils::Debug << "###################################\n";
 
-  ASSERT(ctx->verify());
+  // ASSERT(ctx->verify());
   // TODO("impl");
   return true;
 }

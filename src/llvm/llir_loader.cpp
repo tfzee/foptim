@@ -615,6 +615,10 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto new_arg = curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, ftype));
     valueToValue.insert({any_instr, foptim::fir::ValueR{new_arg}});
     return;
+  } else if (any_instr->getOpcode() == llvm::Instruction::Unreachable) {
+    // TODO: unraech instr?
+    builder.build_return();
+    return;
   }
   llvm::errs() << *any_instr << "\n" << "TODO\n";
   TODO("");
@@ -740,9 +744,11 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
 inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
   if (func.getName().starts_with("llvm.memset")) {
     generate_memset(fctx);
-  }
-  if (func.getName().starts_with("llvm.memcpy")) {
+  } else if (func.getName().starts_with("llvm.memcpy")) {
     generate_memcpy(fctx);
+  } else {
+    fctx.data->storage.declared_functions.insert(
+        {func.getName().str(), convert_type(func.getFunctionType(), fctx)});
   }
 }
 
