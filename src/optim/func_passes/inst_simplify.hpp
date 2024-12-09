@@ -68,10 +68,34 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
   bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
   {
-    // make sure the constant is always at the back if theres only one
-    if (first_constant && !second_constant) {
-      swap_args(instr, 0, 1);
-    }
+    // TODO: swap arguments but IFF also flipping the cmp instrsubtype
+     // make sure the constant is always at the back if theres only one
+     if (first_constant && !second_constant) {
+       swap_args(instr, 0, 1);
+        switch ((ICmpInstrSubType)instr->get_instr_subtype()) {
+          instr->subtype = (u32)fir::ICmpInstrSubType::INVALID;
+        case fir::ICmpInstrSubType::SLT:
+          instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
+        case fir::ICmpInstrSubType::ULT:
+          instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
+        case fir::ICmpInstrSubType::SGT:
+          instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
+        case fir::ICmpInstrSubType::UGT:
+          instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
+        case fir::ICmpInstrSubType::UGE:
+          instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
+        case fir::ICmpInstrSubType::ULE:
+          instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
+        case fir::ICmpInstrSubType::SGE:
+          instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
+        case fir::ICmpInstrSubType::SLE:
+          instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
+        case fir::ICmpInstrSubType::INVALID:
+        case fir::ICmpInstrSubType::NE:
+        case fir::ICmpInstrSubType::EQ:
+          break;
+        }
+     }
   }
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();

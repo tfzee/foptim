@@ -8,12 +8,12 @@
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "optim/func_passes/dce.hpp"
-#include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/inline.hpp"
-#include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
+#include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
+#include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
@@ -34,7 +34,8 @@ void lower_to_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::Global> &globals);
 void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals);
-void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,foptim::FVec<std::string> &decls,
+void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
+             foptim::FVec<std::string> &decls,
              foptim::FVec<foptim::fmir::Global> &globals);
 
 int main(int argc, char *argv[]) {
@@ -51,7 +52,7 @@ int main(int argc, char *argv[]) {
   foptim::FVec<foptim::fmir::MFunc> funcs;
   foptim::FVec<foptim::fmir::Global> globals;
   foptim::FVec<std::string> decls;
-  for(auto& [decl, _]: ctx.data->storage.declared_functions){
+  for (auto &[decl, _] : ctx.data->storage.declared_functions) {
     decls.push_back(decl);
   }
   lower_to_mir(ctx, funcs, globals);
@@ -101,9 +102,21 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
+  foptim::utils::Debug << "================AFTER====================\n";
+  foptim::utils::Debug << "================AFTER====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+
+  foptim::utils::Debug << "================AFTER====================\n";
+  foptim::utils::Debug << "================AFTER====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
+
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
@@ -142,6 +155,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
         auto name = "G_" + std::to_string((foptim::u64) & (v->data));
         foptim::fmir::Global glob = {.name = name, .data = {}};
         glob.data.resize(size, 0);
+        memcpy(glob.data.data(), v->data.init_value, size);
         globals.push_back(glob);
       }
     }
@@ -174,7 +188,8 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
 }
 
-void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,foptim::FVec<std::string> &decls,
+void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
+             foptim::FVec<std::string> &decls,
              foptim::FVec<foptim::fmir::Global> &globals) {
   foptim::utils::Debug << "================OPTIMEND2====================\n";
   for (const auto &func : funcs) {

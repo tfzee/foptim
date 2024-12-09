@@ -109,6 +109,7 @@ enum class BinaryInstrSubType : u32 {
 };
 
 class InstrData : public Used, public Attributable {
+public:
   InstrType instr_type;
   u32 subtype;
   TypeR value_type;
@@ -117,7 +118,6 @@ class InstrData : public Used, public Attributable {
   InstrData(InstrType ty, u32 subtype, TypeR vty, BasicBlock parent)
       : instr_type(ty), subtype(subtype), value_type(vty), parent(parent) {}
 
-public:
   using Used::add_usage;
   IRVec<ValueR> args;
   IRVec<BBRefWithArgs> bbs;

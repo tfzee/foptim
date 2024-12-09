@@ -5,8 +5,7 @@
 // RUN: echo $result | FileCheck %s
 
 // CHECK: aaaa
-// CHECK: Result:35
-
+// CHECK: Result:0
 // XFAIL: *
 
 void puts(const char*);

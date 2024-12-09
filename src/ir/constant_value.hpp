@@ -29,7 +29,7 @@ struct GlobalPointer {
 };
 
 struct VectorValue {
-  FVec<ConstantValue> members;
+  IRVec<ConstantValue> members;
   bool operator==(const VectorValue &other) const;
 };
 
@@ -39,6 +39,9 @@ struct ConstantValue {
 
   constexpr ConstantValue(u64 v, TypeR typee)
       : value(IntValue{v}), type(typee) {}
+
+  constexpr ConstantValue(VectorValue v, TypeR typee)
+      : value(v), type(typee) {}
 
   constexpr ConstantValue(f64 v, TypeR typee)
       : value(FloatValue{v}), type(typee) {}

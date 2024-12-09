@@ -8,7 +8,7 @@ namespace foptim::fir {
 struct GlobalData {
   // TypeR type;
   size_t n_bytes;
-  ConstantValueR init_value;
+  uint8_t* init_value = nullptr;
 };
 
 struct Global : public utils::SRef<GlobalData> {

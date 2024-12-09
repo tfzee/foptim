@@ -891,7 +891,7 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
       }
     }
 
-    // utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
     utils::Debug << "Done!\n";
 
     std::ofstream myfile;

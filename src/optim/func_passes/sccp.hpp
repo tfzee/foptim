@@ -234,10 +234,12 @@ public:
       switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
       case fir::FCmpInstrSubType::OGT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() > b.value->as_float()), ctx->get_int_type(8)));
+            static_cast<i32>(a.value->as_float() > b.value->as_float()),
+            ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::OLT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() < b.value->as_float()), ctx->get_int_type(8)));
+            static_cast<i32>(a.value->as_float() < b.value->as_float()),
+            ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::INVALID:
       case fir::FCmpInstrSubType::AlwFalse:
       case fir::FCmpInstrSubType::OEQ:
@@ -261,6 +263,20 @@ public:
     case fir::InstrType::ICmp: {
       auto a = eval(instr->get_arg(0));
       auto b = eval(instr->get_arg(1));
+      if (a.is_const() && (fir::ICmpInstrSubType)instr->get_instr_subtype() ==
+                              fir::ICmpInstrSubType::ULE) {
+        if (a.value->as_int() == 0) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<u64>(1), ctx->get_int_type(8)));
+        }
+      } else if (a.is_const() &&
+                 (fir::ICmpInstrSubType)instr->get_instr_subtype() ==
+                     fir::ICmpInstrSubType::UGT) {
+        if (a.value->as_int() == 0) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<u64>(0), ctx->get_int_type(8)));
+        }
+      }
 
       if (a.is_bottom() || b.is_bottom()) {
         return ConstantValue::Bottom();
@@ -289,8 +305,8 @@ public:
             static_cast<u64>(a.value->as_int() == b.value->as_int()),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SLT:
-        // utils::Debug << a.value->as_int() << " < " << b.value->as_int() << "\n";
-        // utils::Debug << (i64)a.value->as_int() << " < "
+        // utils::Debug << a.value->as_int() << " < " << b.value->as_int() <<
+        // "\n"; utils::Debug << (i64)a.value->as_int() << " < "
         //              << (i64)b.value->as_int() << "\n";
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>((i64)a.value->as_int() < (i64)b.value->as_int()),

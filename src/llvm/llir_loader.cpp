@@ -1,10 +1,13 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/constant_value.hpp"
 #include "ir/context.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
+#include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
+#include "utils/arena.hpp"
 #include "utils/set.hpp"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -878,21 +881,76 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   }
 }
 
+inline void convert_constant_init(const uint8_t *output,
+                                  const llvm::Constant *val,
+                                  foptim::fir::Context &fctx) {
+  if (llvm::dyn_cast_or_null<llvm::ConstantAggregateZero>(val) ||
+      llvm::dyn_cast_or_null<llvm::UndefValue>(val)) {
+    // Dont need to do anything here
+    return;
+  } else if (const auto *d =
+                 llvm::dyn_cast_or_null<llvm::ConstantDataSequential>(val)) {
+    size_t offset = 0;
+    for (size_t i = 0; i < d->getNumElements(); i++) {
+      auto *sub_value = d->getElementAsConstant(i);
+      convert_constant_init(&output[offset], sub_value, fctx);
+      offset += d->getElementByteSize();
+    }
+    return;
+  } else if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantInt>(val)) {
+    switch (d->getBitWidth()) {
+    case 8:
+      *((uint8_t *)output) = (uint8_t)d->getZExtValue();
+      break;
+    case 16:
+      *((uint16_t *)output) = (uint16_t)d->getZExtValue();
+      break;
+    case 32:
+      *((uint32_t *)output) = (uint32_t)d->getZExtValue();
+      break;
+    case 64:
+      *((uint64_t *)output) = (uint64_t)d->getZExtValue();
+      break;
+    default:
+      llvm::errs() << "constant int " << *d << " " << d->getBitWidth() << "\n";
+      TODO("IMPL");
+    }
+    return;
+  } else if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantFP>(val)) {
+    foptim::utils::Debug << "TODO: handle global init\n";
+    llvm::errs() << "constant fp " << *d << "\n";
+    TODO("IMPL");
+  } else if (const auto *d =
+                 llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(val)) {
+    foptim::utils::Debug << "TODO: handle global init\n";
+    llvm::errs() << "null " << *d << "\n";
+    TODO("IMPL");
+  }
+  foptim::utils::Debug << "TODO: handle global init\n";
+  llvm::errs() << "idk " << *val << "\n";
+  TODO("IMPL");
+}
+
 inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
                     foptim::fir::Context &fctx, V2VMap &valueToValue) {
   if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
     ZoneScopedN("Converting Global Variable");
-    // auto type = convert_type(val->getValueType(), fctx);
-    if (val->hasInitializer()) {
-      foptim::utils::Debug << "TODO: handle global init\n";
-    }
-
     auto data_layout = mod.getDataLayout();
-
     auto global_size = data_layout.getTypeAllocSize(gval.getValueType());
     ASSERT(!global_size.isScalable());
-    auto global = fctx->get_global(global_size.getFixedValue());
+
+    auto actual_size = global_size.getFixedValue();
+    auto global = fctx->get_global(actual_size);
     auto as_global = fctx->get_constant_value(global);
+
+    global->init_value =
+        foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
+    memset(global->init_value, 0, actual_size);
+
+    if (val->hasInitializer()) {
+      convert_constant_init(global->init_value, val->getInitializer(), fctx);
+    }
+
     valueToValue.insert({(llvm::Value *)&gval, foptim::fir::ValueR(as_global)});
   } else {
     // llvm::errs() << "Not handling global " << gval;
