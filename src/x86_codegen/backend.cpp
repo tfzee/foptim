@@ -900,6 +900,7 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
       myfile << "extern " << decl.c_str() << "\n";
     }
     myfile << "global _start\n"
+              // "extern __libc_start_main\n"
               "_start:\n"
               "xor ebp, ebp\n"
               "mov edi, [rsp]          ; get argc from the stack (implicitly "
@@ -909,6 +910,7 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
               "lea rdx, [rsp + rdi*8 + 16],  ; take the address of envp from "
               "the stack\n"
               "xor eax, eax            ; per ABI and compatibility with icc\n"
+              // "call __libc_start_main\n"
               "call main                 \n"
               "mov ebx, eax\n"
               "mov eax, 1\n"

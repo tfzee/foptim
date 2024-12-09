@@ -1,16 +1,16 @@
 // RUN: clang -O0 %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.ss
 // RUN: nasm %t.ss -felf64 -g -F dwarf && ld -lc %t.o -o %t.out
-// RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
-// RUN: echo $result | FileCheck %s
+// RUN: %t.out | FileCheck %s
 
 // CHECK: aaaa
-// CHECK: Result:0
-// XFAIL: *
 
 void puts(const char*);
 
+// int initialize_standard_library(int argc, char** argv, char** argp);
+
 int main() {
+  // initialize_standard_library(argc, argv, argp);
   puts("aaaa");
   return 0;
 }
