@@ -899,22 +899,23 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
     for (const auto &decl : decls) {
       myfile << "extern " << decl.c_str() << "\n";
     }
-    myfile << "global _start\n"
-              // "extern __libc_start_main\n"
-              "_start:\n"
-              "xor ebp, ebp\n"
-              "mov edi, [rsp]          ; get argc from the stack (implicitly "
-              "zero-extended to 64-bit)\n"
-              "lea rsi, [rsp + 8]         ; take the address of argv from the "
-              "stack\n"
-              "lea rdx, [rsp + rdi*8 + 16],  ; take the address of envp from "
-              "the stack\n"
-              "xor eax, eax            ; per ABI and compatibility with icc\n"
-              // "call __libc_start_main\n"
-              "call main                 \n"
-              "mov ebx, eax\n"
-              "mov eax, 1\n"
-              "int 0x80\n";
+    myfile << "global main\n";
+    // myfile << "global _start\n"
+    //           "extern __libc_init\n"
+    //           "_start:\n"
+    //           "xor ebp, ebp\n"
+    //           "mov edi, [rsp]          ; get argc from the stack (implicitly "
+    //           "zero-extended to 64-bit)\n"
+    //           "lea rsi, [rsp + 8]         ; take the address of argv from the "
+    //           "stack\n"
+    //           "lea rdx, [rsp + rdi*8 + 16],  ; take the address of envp from "
+    //           "the stack\n"
+    //           "xor eax, eax            ; per ABI and compatibility with icc\n"
+    //           "call __libc_init\n"
+    //           "call main                 \n"
+    //           "mov ebx, eax\n"
+    //           "mov eax, 1\n"
+    //           "int 0x80\n";
 
     // "_start:\n"
     // "  call main\n"

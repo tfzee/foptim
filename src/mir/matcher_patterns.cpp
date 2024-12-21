@@ -43,7 +43,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
           return false;
         }
-        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
+            !mul_instr->args[1].is_constant()) {
           return false;
         }
         auto consti = mul_instr->args[1].as_constant();
@@ -96,7 +97,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
           return false;
         }
-        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
+            !mul_instr->args[1].is_constant()) {
           return false;
         }
         auto consti = mul_instr->args[1].as_constant();
@@ -126,16 +128,14 @@ void memory_patterns(IRVec<Pattern> &pats) {
         // $1 = $0 * C
         // R = $2 + $1
         // where $0 and $2 must be regs and C in [1,2,4,8]
-        auto value =
-            valueToArg(store_instr->args[1], res.result, data.alloc);
+        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
         auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
         auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
         ASSERT(base.isReg());
         ASSERT(indx.isReg());
         res.result.emplace_back(
             Opcode::mov,
-            MArgument::Mem(base.reg, indx.reg, consti_val, store_ty),
-            value);
+            MArgument::Mem(base.reg, indx.reg, consti_val, store_ty), value);
         return true;
       }});
   pats.push_back(Pattern{
@@ -247,7 +247,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
           return false;
         }
-        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
+            !mul_instr->args[1].is_constant()) {
           return false;
         }
         auto consti = mul_instr->args[1].as_constant();
@@ -895,12 +896,15 @@ void base_patterns(IRVec<Pattern> &pats) {
       {DirectCallNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto call_instr = res.matched_instrs[0];
         {
+          TVec<MArgument> evaluated_args;
+          for (auto arg : call_instr->args) {
+            evaluated_args.push_back(valueToArg(arg, res.result, data.alloc));
+          }
           // auto helper_reg = data.alloc.get_new_register(
           //     optim::IRLocation{call_instr}, fmir::Type::Int64,
           //     data.lives);
           // auto helper_arg = MArgument(helper_reg, Type::Int64);
-          for (auto arg : call_instr->args) {
-            auto arg_value = valueToArg(arg, res.result, data.alloc);
+          for (auto arg_value : evaluated_args) {
             res.result.emplace_back(Opcode::arg_setup, arg_value);
           }
         }

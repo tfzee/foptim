@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/attributable.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "utils/stable_vec_ref.hpp"
@@ -6,7 +7,7 @@
 
 namespace foptim::fir {
 
-class BBArgumentData : public Used {
+class BBArgumentData : public Used, public Attributable {
 public:
   BasicBlock _parent;
   TypeR _type;

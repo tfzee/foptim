@@ -29,14 +29,13 @@ namespace foptim::utils {
 
 template <class T> class TempAlloc : public std::allocator<T> {
 public:
-  using pointer = T*;
+  using pointer = T *;
 
   T *allocate(size_t count) {
     return (T *)arena_alloc(&global_temp_arena, count * sizeof(T));
   }
 
-  constexpr void deallocate(T * /*unused*/,
-                                                     size_t /*unused*/) {}
+  constexpr void deallocate(T * /*unused*/, size_t /*unused*/) {}
 
   static void reset() {
     TracyMessageL("ResetingTempArena");
@@ -47,14 +46,13 @@ public:
 
 template <class T> class IRAlloc : public std::allocator<T> {
 public:
-  using pointer = T*;
+  using pointer = T *;
 
   T *allocate(size_t count) {
     return (T *)arena_alloc(&ir_arena, count * sizeof(T));
   }
 
-  constexpr void deallocate(T * /*unused*/,
-                                                     size_t /*unused*/) {}
+  constexpr void deallocate(T * /*unused*/, size_t /*unused*/) {}
 
   static void reset() { arena_reset(&ir_arena); }
   static void free() { arena_free(&ir_arena); }

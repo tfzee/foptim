@@ -16,8 +16,8 @@ struct InvalidValue {};
 
 class ValueR {
 public:
-  using Ty = std::variant<Instr, BasicBlock, BBArgument, ConstantValueR,
-                          InvalidValue>;
+  using Ty =
+      std::variant<Instr, BasicBlock, BBArgument, ConstantValueR, InvalidValue>;
   Ty origin;
 
   void add_usage(Use u);

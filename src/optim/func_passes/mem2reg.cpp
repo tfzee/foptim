@@ -3,6 +3,8 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/attributer/PtrAA.hpp"
+#include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/set.hpp"
@@ -287,7 +289,6 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   Dominators dom{cfg};
 
   // dom.dump();
-  // utils::Debug << "\n";
 
   // utils::Debug << func;
   // todo verify prior no basic block args maybe?
@@ -320,5 +321,14 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()),
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
+
+  // utils::Debug << "MEMREG JuST TESTING Attributor\n";
+  // AttributerManager manager;
+  // for (auto arg : func.get_entry()->args) {
+  //   if (arg->get_type()->is_ptr()) {
+  //     manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
+  //   }
+  // }
+  // manager.run();
 }
 } // namespace foptim::optim

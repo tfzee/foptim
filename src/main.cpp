@@ -102,18 +102,8 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
-  foptim::utils::Debug << "================AFTER====================\n";
-  foptim::utils::Debug << "================AFTER====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
-  foptim::utils::Debug << "================AFTER====================\n";
-  foptim::utils::Debug << "================AFTER====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
 
@@ -166,7 +156,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   for (auto [_, func] : ctx->storage.functions) {
     auto res = matcher.apply(func);
     funcs.push_back(std::move(res));
-    // foptim::utils::Debug << funcs.back();
+    foptim::utils::Debug << funcs.back();
     foptim::utils::TempAlloc<void *>::reset();
   }
 }

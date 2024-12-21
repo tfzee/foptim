@@ -1,11 +1,10 @@
 // RUN: clang -O0 %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.ss
-// RUN: nasm %t.ss -felf64  -g -F dwarf && ld %t.o -o %t.out
+// RUN: nasm %t.ss -felf64 -g -F dwarf && gcc %t.o -o %t.out -ecrt0
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Result:0
-// XF AIL: *
 
 static int ap(int i) { return 1; }
 

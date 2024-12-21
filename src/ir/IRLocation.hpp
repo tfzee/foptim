@@ -22,6 +22,21 @@ struct IRLocation {
   u32 instr;
   FunctionR func;
 
+  [[nodiscard]] fir::Instr as_instr() const {
+    ASSERT(type == LocationType::Instruction);
+    return func->basic_blocks[bb]->instructions[instr];
+  }
+
+  [[nodiscard]] fir::BasicBlock as_bb() const {
+    ASSERT(type == LocationType::BasicBlock);
+    return func->basic_blocks[bb];
+  }
+
+  [[nodiscard]] fir::FunctionR as_func() const {
+    ASSERT(type == LocationType::Function);
+    return func;
+  }
+
   constexpr bool operator==(const IRLocation &other) const {
     return type == other.type && (func.func == other.func.func) &&
            bb == other.bb;

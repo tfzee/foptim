@@ -569,9 +569,24 @@ Printer Printer::operator<<(foptim::fir::BasicBlock bb) const {
   auto &args = bb->args;
   if (args.size() > 0) {
     *this << args[0] << ": " << args[0]->get_type();
-    //*this << " uses:" << args[0].get_n_uses();
+    if (!args[0]->get_attribs().empty()) {
+      *this << "{";
+      const auto &attribs = args[0]->get_attribs();
+      for (auto [key, value] : attribs) {
+        *this << key.c_str() << value << ", ";
+      }
+      *this << "}";
+    }
     for (size_t i = 1; i < args.size(); i++) {
       *this << ", " << args[i] << ": " << args[i]->get_type();
+      if (!args[i]->get_attribs().empty()) {
+        *this << "{";
+        const auto &attribs = args[i]->get_attribs();
+        for (auto [key, value] : attribs) {
+          *this << key.c_str() << value << ", ";
+        }
+        *this << "}";
+      }
       //*this << " uses:" << args[i].get_n_uses();
     }
   }
