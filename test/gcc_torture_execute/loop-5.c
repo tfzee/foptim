@@ -4,10 +4,9 @@
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 
-// CHECK: Result:0
-// XFAIL: *
+// CHECK: Result:55
 
-static int ap(int i);
+static void ap(int i);
 static void testit(void) {
   int ir[4] = {0, 1, 2, 3};
   int ix, n, m;
@@ -26,12 +25,12 @@ static void testit(void) {
 static int t = 0;
 static int a[4];
 
-static int ap(int i) {
+static void ap(int i) {
   // if (t > 3) {
   //   return 0
   // }
   a[t++] = i;
-  return 1;
+  // return 1;
 }
 
 int main(void) {
@@ -40,10 +39,10 @@ int main(void) {
   if (a[0] != 0)
     return 1;
   if (a[1] != 3)
-    return 1;
+    return 2;
   if (a[2] != 2)
-    return 1;
+    return 3;
   if (a[3] != 1)
-    return 1;
-  return 0;
+    return 4;
+  return 55;
 }

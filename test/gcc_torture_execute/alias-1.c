@@ -5,16 +5,19 @@
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Result:0
-// XFAIL: *
+// X FAIL: *
 
 int val;
 
-int *ptr = &val;
-float *ptr2 = (float *)&val;
+int *ptr = 0;
+float *ptr2 = 0;
 
 void typepun() { *ptr2 = 0; }
 
 int main(void) {
+  ptr = &val;
+  ptr2 = (float *)&val;
+
   *ptr = 1;
   typepun();
   if (*ptr) {

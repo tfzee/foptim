@@ -52,7 +52,7 @@ public:
     if (!_attribs.at(typeid(AAna)).contains(loc)) {
       AAna *analysis = utils::TempAlloc<AAna>{}.allocate(1);
       std::construct_at(analysis);
-      analysis->update_impl(*this);
+      analysis->associatedValue = loc;
       _attribs.at(typeid(AAna)).insert({loc, analysis});
     }
     AAna *analysis = (AAna *)_attribs.at(typeid(AAna)).at(loc);

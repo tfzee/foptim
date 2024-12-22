@@ -182,10 +182,17 @@ bool Legalizer::legalize_push(MBB &bb, u32 indx) {
 }
 
 bool Legalizer::legalize_move(MBB &bb, u32 indx) {
+
+  MInstr &instr = bb.instrs[indx];
+  // cant move an immediate floating point value
+  if (instr.args[1].is_fp() && instr.args[1].isImm()) {
+    indx = move_fp_const_to_reg(bb, indx, 1, instr.args[1].ty);
+  }
+
+  instr = bb.instrs[indx];
   // we wanna transform every one/two byte load into a movzx;
   //  this awoids a false dependency and also clears the upper half with zero
   //  which then makes further usage easier
-  MInstr &instr = bb.instrs[indx];
   if (instr.op == Opcode::mov && instr.args[0].isReg() &&
       (instr.args[0].ty == Type::Int8 || instr.args[0].ty == Type::Int16) &&
       instr.args[1].isMem()) {

@@ -155,7 +155,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
 
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
 
-        if (add_instr->args[1].is_constant()) {
+        if (add_instr->args[1].is_constant() && a0.isImm()) {
           auto c1 = add_instr->args[1].as_constant();
           if (c1->is_global()) {
             auto a1 =

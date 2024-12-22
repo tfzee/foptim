@@ -13,6 +13,7 @@ public:
 
   ~PtrAA() override = default;
   void materialize_impl() override {
+    utils::Debug << "MATERIALIZED!! on " << associatedValue << "\n";
     if (associatedValue.is_instr()) {
       associatedValue.as_instr()->add_attrib("nonull", "");
     } else if (associatedValue.is_bb_arg()) {

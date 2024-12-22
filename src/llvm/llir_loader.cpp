@@ -922,9 +922,7 @@ inline void convert_constant_init(const uint8_t *output,
     TODO("IMPL");
   } else if (const auto *d =
                  llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(val)) {
-    foptim::utils::Debug << "TODO: handle global init\n";
-    llvm::errs() << "null " << *d << "\n";
-    TODO("IMPL");
+    return;
   }
   foptim::utils::Debug << "TODO: handle global init\n";
   llvm::errs() << "idk " << *val << "\n";

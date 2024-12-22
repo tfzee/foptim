@@ -323,7 +323,7 @@ static_assert((u8)VRegType::R15 == 16);
 static_assert((u8)VRegType::A == 1);
 
 utils::BitSet<> calculate_used_regs(const MFunc &f) {
-  utils::BitSet<> res{29, false};
+  utils::BitSet<> res{(u8)VRegType::N_REGS, false};
   for (const auto &bb : f.bbs) {
     for (const auto &instr : bb.instrs) {
       for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
