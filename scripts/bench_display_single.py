@@ -10,9 +10,10 @@ def show_plot_single(filename):
     names = list(data["command"])
     values = list(data["mean"])
 
-    for i in range(0, len(values), 3):
+    for i in range(0, len(values), 4):
         values[i+1] = values[i+1] / values[i+0]
         values[i+2] = values[i+2] / values[i+0]
+        values[i+3] = values[i+3] / values[i+0]
         values[i+0] = values[i+0] / values[i+0]
     
     colors = [("red" if x.endswith("baseline") else "green") for x in names]

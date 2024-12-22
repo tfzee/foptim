@@ -150,6 +150,7 @@ public:
       const auto func = instr->get_parent()->get_parent();
       // ASSERT(!arg.is_bottom());
       if (arg.is_bottom()) {
+        utils::Debug << "fixme: SCCP quick fix\n";
         if (!reachable_bb.contains(targets[0].bb)) {
           cfg_worklist.push_back(targets[0].bb);
         }
@@ -290,8 +291,6 @@ public:
         return ConstantValue::Bottom();
       }
 
-      // utils::Debug << (i64)a.value->as_int() << " cmp "
-      //              << (i64)b.value->as_int() << "\n";
       switch ((fir::ICmpInstrSubType)instr->get_instr_subtype()) {
       case fir::ICmpInstrSubType::INVALID:
         TODO("¿UNREACH?\n");
@@ -400,6 +399,9 @@ public:
     } else if (value.is_instr()) {
       // utils::Debug << "SCCP: "<< value << "\n";
       new_value = eval_instr(ctx, value.as_instr());
+      if (new_value.is_const() && value.get_n_uses() > 0) {
+        value.replace_all_uses(fir::ValueR{new_value.value});
+      }
     } else if (value.is_bb_arg()) {
       TODO("UNREACH\n");
     }

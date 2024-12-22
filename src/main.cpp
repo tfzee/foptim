@@ -88,7 +88,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   for (const auto &[_, func] : ctx.data->storage.functions) {
     foptim::utils::Debug << func << "\n";
   }
-  // TODO("STOP MAIN");
 
   ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
@@ -127,7 +126,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
   //     InstSimplify, Clean>{}
   //     .apply(ctx);
-  // TODO("OKAK");
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,

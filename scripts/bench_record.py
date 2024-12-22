@@ -27,6 +27,8 @@ if __name__ == "__main__":
 
             compile_command += f" -n {name}_clang_O3_compile_baseline"
             compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out\""
+            compile_command += f" -n {name}_gcc_O3_compile_baseline"
+            compile_command += f" \"g++ ../test/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out\""
         os.system(compile_command)  
     else:
         for benchy in benches:
@@ -35,6 +37,7 @@ if __name__ == "__main__":
             os.system(f"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.ss")
             os.system(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
             os.system(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
+            os.system(f"g++ ../test/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out")
             print(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
             
 
@@ -42,7 +45,7 @@ if __name__ == "__main__":
 
     hyperfine_run_command = f"hyperfine -i -N --export-csv={out_dir}/perf.csv"
     for benchy in benches:
-        nasm_command = f"nasm {out_dir}/{benchy}.tmp.ss -felf64 -g -F dwarf && ld {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
+        nasm_command = f"nasm {out_dir}/{benchy}.tmp.ss -felf64 -g -F dwarf && gcc {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
         print(nasm_command)
         os.system(nasm_command)
 
@@ -55,6 +58,9 @@ if __name__ == "__main__":
 
         hyperfine_run_command += f" -n {name}_clang_O3_run_baseline"
         hyperfine_run_command += f" \"./{out_dir}/{benchy}_clang_O3.tmp.out\""
+
+        hyperfine_run_command += f" -n {name}_gcc_O3_run_baseline"
+        hyperfine_run_command += f" \"./{out_dir}/{benchy}_gcc_O3.tmp.out\""
 
     os.system(hyperfine_run_command)  
 
