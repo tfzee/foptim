@@ -18,11 +18,13 @@ public:
   IRVec<FailureReason> failures;
 #endif
 
-  virtual void apply(fir::Context & /*unused*/, fir::Function & /*unused*/) { TODO("impl"); }
+  virtual void apply(fir::Context & /*unused*/, fir::Function & /*unused*/) {
+    TODO("impl");
+  }
 
   FunctionPass &apply_pass(fir::Context &ctx, fir::Function &f) {
     apply(ctx, f);
-    utils::TempAlloc<void*>::reset();
+    utils::TempAlloc<void *>::reset();
     return *this;
   }
 
@@ -49,6 +51,9 @@ template <class... Passes> class StaticFunctionPassManager {
 public:
   void apply(fir::Context &ctx) {
     for (auto &[name, func] : ctx->storage.functions) {
+      if (func.is_decl()) {
+        continue;
+      }
       if (utils::print_optimization_failure_reasons) {
         (Passes{}.apply_pass(ctx, func).print_failures(), ...);
       } else {
@@ -64,6 +69,9 @@ public:
 
   void apply(fir::Context &ctx) {
     for (auto &[name, func] : ctx->storage.functions) {
+      if (func.is_decl()) {
+        continue;
+      }
       for (auto pass : dyn_passes) {
         pass.apply(ctx, func);
       }

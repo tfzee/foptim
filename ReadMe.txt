@@ -17,7 +17,9 @@ valgrind --tool=callgrind --dump-instr=yes --branch-sim=yes --cache-sim=yes --si
 + convert codegen into library
 
 + More Passes
-	+ Inline
 	+ Fix epath pre
+	+ rework sccp
+	+ add Useable to Globals and Functions
+	+ improve second live variable analysis
 + More Tests
 	+ GCC Tests

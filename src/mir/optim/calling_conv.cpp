@@ -59,7 +59,7 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
        instr_id < n_regs_saved + func.args.size(); instr_id++) {
     auto &instr = first_bb.instrs[instr_id];
     ASSERT(instr.op == Opcode::mov);
-    ASSERT(instr.args[0] == instr.args[1] ||
+    ASSERT(instr.args[1].isReg() ||
            (instr.args[1].isMem() &&
             instr.args[1].type == MArgument::ArgumentType::MemImmVReg));
     // only update things given by stack
@@ -270,7 +270,8 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
       TODO("UNREACH");
     }
   }
-  out_instrs.insert(out_instrs.begin() + start, output_vec.begin(), output_vec.end());
+  out_instrs.insert(out_instrs.begin() + start, output_vec.begin(),
+                    output_vec.end());
 }
 
 static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
@@ -378,7 +379,7 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
 }
 
 void CallingConv::second_stage(FVec<MFunc> &funcs) {
-  ZoneScopedN("InvokeLower");
+  ZoneScopedN("CC 2nd Stage");
   for (auto &func : funcs) {
     CFG cfg(func);
     LiveVariables lives(cfg, func);
@@ -427,16 +428,14 @@ void gen_arg_mapping(MFunc &func) {
     MInstr instr{Opcode::mov};
     bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
     if (is_float && float_arg_id < n_float_arg_regs) {
-      instr = MInstr(Opcode::mov,
-                     MArgument{{float_arg_reg[float_arg_id], arg_ty}, arg_ty},
+      instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{float_arg_reg[float_arg_id], arg_ty}, arg_ty});
-      func.args[arg_i].info = VRegInfo{float_arg_reg[float_arg_id], arg_ty};
+      // func.args[arg_i].info = VRegInfo{float_arg_reg[float_arg_id], arg_ty};
       float_arg_id++;
     } else if (!is_float && int_arg_id < n_int_arg_regs) {
-      instr = MInstr(Opcode::mov,
-                     MArgument{{int_arg_reg[int_arg_id], arg_ty}, arg_ty},
+      instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{int_arg_reg[int_arg_id], arg_ty}, arg_ty});
-      func.args[arg_i].info = VRegInfo{int_arg_reg[int_arg_id], arg_ty};
+      // func.args[arg_i].info = VRegInfo{int_arg_reg[int_arg_id], arg_ty};
       int_arg_id++;
     } else {
       instr =
@@ -450,10 +449,73 @@ void gen_arg_mapping(MFunc &func) {
 
 static void function_argument_loading(MFunc &func) { gen_arg_mapping(func); }
 
+void mark_arguments_with_regs(IRVec<MInstr> &instrs, size_t instr_start_id,
+                              size_t instr_end_id) {
+  TVec<ArgPosition> pos;
+  size_t n_args = instr_end_id - instr_start_id;
+
+  TVec<MInstr> args;
+  args.reserve(n_args);
+
+  for (u32 i = 0; i < n_args; i++) {
+    args.push_back(instrs.at(instr_start_id + i));
+  }
+
+  calculate_arg_locations(args, pos);
+
+  // utils::Debug << "Call\n";
+  for (u32 i = 0; i < n_args; i++) {
+    // utils::Debug << "   Arg:" << i << " " << pos[i].ty << " " <<
+    // pos[i].position
+    //              << "\n";
+    auto arg_pos = pos[i];
+    auto arg_ty = instrs[instr_start_id + i].args[0].ty;
+    switch (arg_pos.ty) {
+    case ArgPosition::IntReg:
+      // utils::Debug << "     INT MARG:"
+      //              << MArgument({int_arg_reg[arg_pos.position], arg_ty},
+      //              arg_ty)
+      //              << "\n";
+      instrs[instr_start_id + i].n_args = 2;
+      instrs[instr_start_id + i].args[1] =
+          MArgument({int_arg_reg[arg_pos.position], arg_ty}, arg_ty);
+      // utils::Debug << "     INT MARG:" << instrs[instr_start_id + i] << "\n";
+      break;
+    case ArgPosition::FloatReg:
+      instrs[instr_start_id + i].n_args = 2;
+      instrs[instr_start_id + i].args[1] =
+          MArgument({float_arg_reg[arg_pos.position], arg_ty}, arg_ty);
+      break;
+    case ArgPosition::Stack:
+      break;
+    }
+  }
+}
+
 void CallingConv::first_stage(FVec<MFunc> &funcs) {
-  ZoneScopedN("ArgLower");
+  ZoneScopedN("CC 1st Stage");
   for (auto &func : funcs) {
     function_argument_loading(func);
+  }
+  for (auto &func : funcs) {
+    for (auto &bb : func.bbs) {
+      size_t n_instrs = bb.instrs.size();
+      for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
+        if (bb.instrs[instr_id].op != Opcode::arg_setup &&
+            bb.instrs[instr_id].op != Opcode::invoke) {
+          continue;
+        }
+        for (size_t instr_end_id = instr_id; instr_end_id < n_instrs;
+             instr_end_id++) {
+          if (bb.instrs[instr_end_id].op != Opcode::invoke) {
+            continue;
+          }
+          mark_arguments_with_regs(bb.instrs, instr_id, instr_end_id);
+          instr_id = instr_end_id;
+          break;
+        }
+      }
+    }
   }
 }
 

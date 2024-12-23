@@ -474,7 +474,7 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto BranchNode = Node{NodeType::Instr, InstrType::BranchInstr, 0};
   auto CondBranchNode = Node{NodeType::Instr, InstrType::CondBranchInstr, 0};
   auto ReturnNode = Node{NodeType::Instr, InstrType::ReturnInstr, 0};
-  auto DirectCallNode = Node{NodeType::Instr, InstrType::DirectCallInstr, 0};
+  auto CallNode = Node{NodeType::Instr, InstrType::CallInstr, 0};
   auto StoreNode = Node{NodeType::Instr, InstrType::StoreInstr, 0};
   auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
   auto AllocaNode = Node{NodeType::Instr, InstrType::AllocaInstr, 0};
@@ -893,41 +893,37 @@ void base_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      {DirectCallNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+      {CallNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto call_instr = res.matched_instrs[0];
         {
           TVec<MArgument> evaluated_args;
-          for (auto arg : call_instr->args) {
-            evaluated_args.push_back(valueToArg(arg, res.result, data.alloc));
+          for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
+            evaluated_args.push_back(
+                valueToArg(call_instr->args[arg_id], res.result, data.alloc));
           }
-          // auto helper_reg = data.alloc.get_new_register(
-          //     optim::IRLocation{call_instr}, fmir::Type::Int64,
-          //     data.lives);
-          // auto helper_arg = MArgument(helper_reg, Type::Int64);
           for (auto arg_value : evaluated_args) {
             res.result.emplace_back(Opcode::arg_setup, arg_value);
           }
         }
 
+        MArgument calee;
+        if (call_instr->args[0].is_constant()) {
+          calee = valueToArgPtr(call_instr->args[0], Type::Int64, data.alloc);
+        } else {
+          calee = valueToArg(call_instr->args[0], res.result, data.alloc);
+        }
+
         auto res_type = call_instr.get_type();
         if (res_type->is_void() || call_instr->get_n_uses() == 0) {
-          res.result.emplace_back(
-              Opcode::invoke,
-              MArgument(*call_instr->get_attrib("callee").try_string()));
-        } else if (res_type->is_int()) {
+          res.result.emplace_back(Opcode::invoke, calee);
+        } else if (res_type->is_int() || res_type->is_ptr()) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(
-              Opcode::invoke,
-              MArgument(*call_instr->get_attrib("callee").try_string()),
-              res_reg);
+          res.result.emplace_back(Opcode::invoke, calee, res_reg);
         } else if (res_type->is_float()) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(
-              Opcode::invoke,
-              MArgument(*call_instr->get_attrib("callee").try_string()),
-              res_reg);
+          res.result.emplace_back(Opcode::invoke, calee, res_reg);
         } else {
           ASSERT_M(false, "impl ret value");
         }

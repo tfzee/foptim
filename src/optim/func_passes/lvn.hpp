@@ -13,7 +13,7 @@ public:
   static bool applicable(fir::Instr instr) {
     return !instr->is(fir::InstrType::LoadInstr) &&
            !instr->is(fir::InstrType::AllocaInstr) &&
-           !instr->is(fir::InstrType::DirectCallInstr);
+           !instr->is(fir::InstrType::CallInstr);
   }
 
   void apply_lvn(fir::BasicBlock bb) {

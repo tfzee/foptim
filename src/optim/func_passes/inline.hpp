@@ -36,7 +36,7 @@ public:
     for (size_t bb_id = 0; bb_id < func.n_bbs(); bb_id++) {
       auto bb = func.basic_blocks[bb_id];
       for (size_t instr_id = 0; instr_id < bb->n_instrs(); instr_id++) {
-        if (bb->instructions[instr_id]->is(fir::InstrType::DirectCallInstr) &&
+        if (bb->instructions[instr_id]->is(fir::InstrType::CallInstr) &&
             adv.should_be_inlined(bb->instructions[instr_id])) {
           inline_call(bb->instructions[instr_id]);
           break;

@@ -88,7 +88,7 @@ bool InstrData::has_result() const {
   case InstrType::SExt:
   case InstrType::ZExt:
     return true;
-  case InstrType::DirectCallInstr:
+  case InstrType::CallInstr:
     return !this->get_type()->is_void();
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
@@ -100,7 +100,7 @@ bool InstrData::has_result() const {
 
 bool InstrData::is_critical() const {
   switch (instr_type) {
-  case InstrType::DirectCallInstr:
+  case InstrType::CallInstr:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
@@ -166,7 +166,7 @@ bool InstrData::is_commutative() const {
     default:
       return false;
     }
-  case InstrType::DirectCallInstr:
+  case InstrType::CallInstr:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
@@ -184,7 +184,7 @@ bool InstrData::is_commutative() const {
 
 bool InstrData::pot_modifies_mem() const {
   switch (instr_type) {
-  case InstrType::DirectCallInstr:
+  case InstrType::CallInstr:
   case InstrType::StoreInstr:
     return true;
   case InstrType::AllocaInstr:
@@ -204,7 +204,7 @@ bool InstrData::pot_modifies_mem() const {
 }
 bool InstrData::has_pot_sideeffects() const {
   switch (instr_type) {
-  case InstrType::DirectCallInstr:
+  case InstrType::CallInstr:
   case InstrType::StoreInstr:
   case InstrType::AllocaInstr:
     return true;
@@ -223,8 +223,8 @@ bool InstrData::has_pot_sideeffects() const {
   }
 }
 
-InstrData InstrData::get_direct_call(TypeR ty) {
-  auto res = InstrData{InstrType::DirectCallInstr, ty,
+InstrData InstrData::get_call(TypeR ty) {
+  auto res = InstrData{InstrType::CallInstr, ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }

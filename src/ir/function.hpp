@@ -33,6 +33,7 @@ public:
   Function(ContextData *ctx, std::string name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}
 
+  bool is_decl() const { return basic_blocks.empty(); }
   std::string &getName() { return name; }
   const std::string &getName() const { return name; }
 

@@ -213,6 +213,7 @@ Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
     }
     auto res = Mem(label, arg.imm);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   case fmir::MArgument::ArgumentType::MemLabel: {
@@ -222,22 +223,26 @@ Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
     }
     auto res = Mem(label, 0);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   case fmir::MArgument::ArgumentType::MemVReg: {
     auto res = Mem(convert_reg(cc, reg_to_op, arg.reg), 0);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   case fmir::MArgument::ArgumentType::MemImmVReg: {
     auto res = Mem(convert_reg(cc, reg_to_op, arg.reg), (int32_t)arg.imm);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   case fmir::MArgument::ArgumentType::MemVRegVReg: {
     auto res = Mem(convert_reg(cc, reg_to_op, arg.reg),
                    convert_reg(cc, reg_to_op, arg.indx), 0, 0);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   case fmir::MArgument::ArgumentType::MemImm:
@@ -245,12 +250,14 @@ Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
     auto res = Mem(convert_reg(cc, reg_to_op, arg.reg),
                    convert_reg(cc, reg_to_op, arg.indx), 0, (int32_t)arg.imm);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   case fmir::MArgument::ArgumentType::MemVRegVRegScale: {
     auto res = Mem(convert_reg(cc, reg_to_op, arg.reg),
                    convert_reg(cc, reg_to_op, arg.indx), (int32_t)arg.scale, 0);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
@@ -261,6 +268,7 @@ Operand convert_operand(Compiler &cc, Reg2OpMap &reg_to_op,
                    convert_reg(cc, reg_to_op, arg.indx), (int32_t)arg.scale,
                    (int32_t)arg.imm);
     res.setSize(get_size(arg.ty));
+    res.setRel();
     return res;
   }
   }
@@ -549,16 +557,18 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
   }
   case fmir::Opcode::call: {
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
-    ASSERT(target.isLabel());
-    auto label = target.as<Label>();
-    if (!label.isValid()) {
-      utils::Debug << instr.args[0].label.c_str() << "\n";
-      ASSERT(false);
-      std::abort();
+    if (target.isLabel()) {
+      ASSERT(target.isLabel());
+      auto label = target.as<Label>();
+      if (!label.isValid()) {
+        utils::Debug << instr.args[0].label.c_str() << "\n";
+        ASSERT(false);
+        std::abort();
+      }
+      cc.emit(Inst::kIdCall, target);
+    } else {
+      cc.emit(Inst::kIdCall, target);
     }
-    // InvokeNode *node;
-    // cc.invoke(&node, label, FuncSignatureBuilder{});
-    cc.emit(Inst::kIdCall, target);
     return;
   }
   case fmir::Opcode::jmp: {
@@ -904,18 +914,13 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
     //           "extern __libc_init\n"
     //           "_start:\n"
     //           "xor ebp, ebp\n"
-    //           "mov edi, [rsp]          ; get argc from the stack (implicitly "
-    //           "zero-extended to 64-bit)\n"
-    //           "lea rsi, [rsp + 8]         ; take the address of argv from the "
-    //           "stack\n"
-    //           "lea rdx, [rsp + rdi*8 + 16],  ; take the address of envp from "
-    //           "the stack\n"
-    //           "xor eax, eax            ; per ABI and compatibility with icc\n"
-    //           "call __libc_init\n"
-    //           "call main                 \n"
-    //           "mov ebx, eax\n"
-    //           "mov eax, 1\n"
-    //           "int 0x80\n";
+    //           "mov edi, [rsp]          ; get argc from the stack (implicitly
+    //           " "zero-extended to 64-bit)\n" "lea rsi, [rsp + 8]         ;
+    //           take the address of argv from the " "stack\n" "lea rdx, [rsp +
+    //           rdi*8 + 16],  ; take the address of envp from " "the stack\n"
+    //           "xor eax, eax            ; per ABI and compatibility with
+    //           icc\n" "call __libc_init\n" "call main                 \n" "mov
+    //           ebx, eax\n" "mov eax, 1\n" "int 0x80\n";
 
     // "_start:\n"
     // "  call main\n"

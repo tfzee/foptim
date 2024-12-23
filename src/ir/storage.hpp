@@ -19,7 +19,6 @@ namespace foptim::fir {
 class IRStorage {
 public:
   IRMap<std::string, Function> functions;
-  IRMap<std::string, TypeR> declared_functions;
   utils::FStableVec<GlobalData> storage_global;
   utils::FStableVec<InstrData> storage_instr;
   utils::FStableVec<BasicBlockData> basic_blocks;

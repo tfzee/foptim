@@ -6,13 +6,14 @@
 #include "ir/instruction_data.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
-#include "mir/reg_alloc.hpp"
 #include "mir/matcher_patterns.hpp"
+#include "mir/reg_alloc.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/live_variables.hpp"
 #include "utils/logging.hpp"
 #include <Tracy/tracy/Tracy.hpp>
 #include <algorithm>
+#include <asmjit/core/type.h>
 #include <asmjit/x86/x86operand.h>
 
 namespace foptim::fmir {
@@ -339,7 +340,6 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   return res_func;
 }
 
-
 MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     auto consti = val.as_constant();
@@ -376,6 +376,14 @@ MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
       res.emplace_back(Opcode::lea, helper, arg);
       return helper;
     }
+    if (consti->is_func()) {
+      auto funcy = consti->as_func();
+      auto arg = MArgument::Mem(funcy->getName(), Type::Int64);
+      auto helper =
+          MArgument(alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64);
+      res.emplace_back(Opcode::lea, helper, arg);
+      return helper;
+    }
   } else {
     // ASSERT(val.get_type()->is_int() || val.get_type()->is_ptr());
     Type type_id = convert_type(val.get_type());
@@ -394,6 +402,10 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
       // TODO: idk if i64 is right here
       return MArgument::Mem("G_" + std::to_string((u64)global.get_raw_ptr()),
                             type_id);
+    }
+    if (constant->is_func()) {
+      auto funcy = constant->as_func();
+      return {funcy->getName()};
     }
   } else {
     return MArgument::Mem(alloc.get_register(val), type_id);
@@ -420,7 +432,8 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
     if (args.bb->args[arg_id]->get_n_uses() == 0) {
       continue;
     }
-    auto to = valueToArg(fir::ValueR(args.bb->args[arg_id]), res.result, data.alloc);
+    auto to =
+        valueToArg(fir::ValueR(args.bb->args[arg_id]), res.result, data.alloc);
     auto from = valueToArg(args.args[arg_id], res.result, data.alloc);
     if (to == from) {
       continue;

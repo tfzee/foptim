@@ -98,6 +98,10 @@ struct ContextData {
     return storage.insert_type(FunctionType{ret_type, std::move(args)});
   }
 
+  ConstantValueR get_constant_value(FunctionR func) {
+    return storage.insert_constant(ConstantValue(func, get_ptr_type()));
+  }
+
   ConstantValueR get_constant_value(f32 val, FloatTypeR ty) {
     return storage.insert_constant(ConstantValue(val, ty));
   }
@@ -131,6 +135,13 @@ struct ContextData {
 
   Global get_global(size_t size_bytes) {
     return storage.insert_global({size_bytes, nullptr});
+  }
+  FunctionR get_function(std::string name) {
+    if (!storage.functions.contains(name)) {
+      utils::Debug << "Failed to find function " << name << " from storage\n";
+      ASSERT(false);
+    }
+    return &storage.functions.at(name);
   }
 
   FunctionR create_function(std::string name, FunctionTypeR type) {

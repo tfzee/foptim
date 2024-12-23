@@ -378,7 +378,7 @@ public:
       }
       return b;
     }
-    case fir::InstrType::DirectCallInstr:
+    case fir::InstrType::CallInstr:
     case fir::InstrType::AllocaInstr:
     case fir::InstrType::ReturnInstr:
     case fir::InstrType::LoadInstr:

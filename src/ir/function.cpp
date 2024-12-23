@@ -13,13 +13,16 @@ Builder FunctionR::builder() { return Builder{*this}; }
       return bb_indx;
     }
   }
-  utils::Debug << "==\nBLOCK:\n"<< b << "\nIN FUNCTION:\n"<< *this << "==\n";
+  utils::Debug << "==\nBLOCK:\n" << b << "\nIN FUNCTION:\n" << *this << "==\n";
   ASSERT_M(false, "Tried to get bb_id of block that is not in this function");
   std::abort();
 }
 
 bool Function::verify(utils::Printer printer) const {
-  if (basic_blocks.empty() || !get_entry().is_valid())  {
+  if (basic_blocks.empty()) {
+    return true;
+  }
+  if (!get_entry().is_valid()) {
     printer << "Function atleast needs an entry block";
     return false;
   }
@@ -29,7 +32,7 @@ bool Function::verify(utils::Printer printer) const {
   }
   const auto &ty = func_ty->as_func_ty();
 
-  auto entry = get_entry(); 
+  auto entry = get_entry();
   if (ty.arg_types.size() != entry->n_args()) {
     printer << "Entry basic block needs as many arguments as function";
     return false;

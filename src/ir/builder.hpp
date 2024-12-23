@@ -70,12 +70,12 @@ public:
                             "funtions like at_end for exmaple");
   }
 
-  ValueR build_direct_call(std::string name, TypeR func_type, TypeR ret_type,
+  ValueR build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
                            std::span<ValueR> args) {
     check_bb_set();
     Instr instr =
-        ctx->storage.insert_instr(InstrData::get_direct_call(ret_type));
-    instr->add_attrib("callee", name);
+        ctx->storage.insert_instr(InstrData::get_call(ret_type));
+    instr.add_arg(func_ptr);
     instr->add_attrib("callee_type", func_type);
     for (auto arg : args) {
       instr.add_arg(arg);

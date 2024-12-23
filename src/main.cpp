@@ -52,8 +52,10 @@ int main(int argc, char *argv[]) {
   foptim::FVec<foptim::fmir::MFunc> funcs;
   foptim::FVec<foptim::fmir::Global> globals;
   foptim::FVec<std::string> decls;
-  for (auto &[decl, _] : ctx.data->storage.declared_functions) {
-    decls.push_back(decl);
+  for (auto &[decl, f] : ctx.data->storage.functions) {
+    if (f.is_decl()) {
+      decls.push_back(decl);
+    }
   }
   lower_to_mir(ctx, funcs, globals);
   optimize_mir(funcs, globals);
@@ -100,7 +102,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
@@ -153,6 +155,9 @@ void lower_to_mir(foptim::fir::Context &ctx,
   auto matcher = foptim::fmir::GreedyMatcher{};
   foptim::utils::Debug << "================MATCHER====================\n";
   for (auto [_, func] : ctx->storage.functions) {
+    if (func.is_decl()) {
+      continue;
+    }
     auto res = matcher.apply(func);
     funcs.push_back(std::move(res));
     foptim::utils::Debug << funcs.back();
@@ -167,7 +172,16 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.first_stage(funcs);
+
+  foptim::utils::Debug << "================CC LOWERING 1====================\n";
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::fmir::RegAlloc{}.apply(funcs);
+  foptim::utils::Debug << "================REG ALLOC====================\n";
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();

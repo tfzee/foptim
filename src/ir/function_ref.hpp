@@ -7,11 +7,11 @@ class Function;
 class FunctionR {
 public:
   Function *func;
-  FunctionR(Function *func) : func(func) {}
+  constexpr FunctionR(Function *func) : func(func) {}
 
-  Function *operator->() const { return func; }
+  constexpr Function *operator->() const { return func; }
 
-  bool operator==(FunctionR other) const{
+  constexpr bool operator==(FunctionR other) const{
     return (void*)func == other.func;
   } 
   Builder builder();

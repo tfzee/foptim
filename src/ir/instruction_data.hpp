@@ -22,7 +22,7 @@ enum class InstrType : u8 {
 
   SelectInstr,
 
-  DirectCallInstr,
+  CallInstr,
 
   //Terminators
   ReturnInstr,
@@ -194,8 +194,8 @@ public:
       return "ZExt";
     case InstrType::CondBranchInstr:
       return "CondBranch";
-    case InstrType::DirectCallInstr:
-      return "DirectCall";
+    case InstrType::CallInstr:
+      return "Call";
     case InstrType::LoadInstr:
       return "Load";
     case InstrType::StoreInstr:
@@ -285,8 +285,7 @@ public:
     case InstrType::ICmp:
       ASSERT(args.size() == 2);
       break;
-    case InstrType::DirectCallInstr:
-      ASSERT(has_attrib("callee"));
+    case InstrType::CallInstr:
       ASSERT(args.size() >= 1);
       break;
     case InstrType::AllocaInstr:
@@ -323,7 +322,7 @@ public:
   static InstrData get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty);
   static InstrData get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty);
   static InstrData get_return(TypeR ty);
-  static InstrData get_direct_call(TypeR ty);
+  static InstrData get_call(TypeR ty);
   static InstrData get_alloca(TypeR ty);
   static InstrData get_load(TypeR ty);
   static InstrData get_select(TypeR ty);

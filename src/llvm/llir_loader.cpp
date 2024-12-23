@@ -82,6 +82,11 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
           value.convertToDouble(), fctx->get_float_type(64)));
     }
   }
+  if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(value)) {
+    // TODO: right now only handles actual functions not declarations
+    return foptim::fir::ValueR(
+        fctx->get_constant_value(fctx->get_function(value->getName().str())));
+  }
 
   llvm::errs() << value << " " << typeid(value).name() << "\n";
   llvm::errs() << *value << "\n";
@@ -236,9 +241,18 @@ inline void convert_call(const llvm::Instruction *any_instr,
   auto *ret_type = call_instr->getFunctionType()->getReturnType();
   auto func_type_foptim = convert_type(call_instr->getFunctionType(), fctx);
   auto ret_type_foptim = convert_type(ret_type, fctx);
-  auto res = builder.build_direct_call(
-      call_instr->getCalledFunction()->getName().str(), func_type_foptim,
-      ret_type_foptim, args);
+  foptim::fir::ValueR res;
+
+  auto function_ptr = convert_instr_arg(call_instr->getCalledOperand(), fctx,
+                                        ffunc, builder, valueToValue, mod, b2b);
+  res =
+      builder.build_call(function_ptr, func_type_foptim, ret_type_foptim, args);
+  // if (call_instr->isIndirectCall()) {
+  // } else {
+  //   res = builder.build_direct_call(
+  //       call_instr->getCalledFunction()->getName().str(), func_type_foptim,
+  //       ret_type_foptim, args);
+  // }
   valueToValue.insert({any_instr, res});
 }
 
@@ -749,22 +763,37 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
     generate_memset(fctx);
   } else if (func.getName().starts_with("llvm.memcpy")) {
     generate_memcpy(fctx);
-  } else {
-    fctx.data->storage.declared_functions.insert(
-        {func.getName().str(), convert_type(func.getFunctionType(), fctx)});
   }
+  fctx.data->storage.functions.insert(
+      {func.getName().str(),
+       foptim::fir::Function(fctx.operator->(), func.getName().str(),
+                             convert_type(func.getFunctionType(), fctx))});
 }
 
-inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
-                    V2VMap &valueToValue) {
-  ZoneScopedN("Convert Func");
+inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx) {
+  if (!func.hasName()) {
+    return;
+  }
   if (func.empty()) {
     return convert_decl(func, fctx);
   }
 
   auto name = func.getName();
-  auto ffunc = fctx->create_function(
-      name.str(), convert_type(func.getFunctionType(), fctx));
+  fctx->create_function(name.str(), convert_type(func.getFunctionType(), fctx));
+}
+
+inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
+                    V2VMap &valueToValue) {
+  ZoneScopedN("Convert Func");
+  if (!func.hasName() || func.empty()) {
+    return;
+  }
+  // if () {
+  //   return convert_decl(func, fctx);
+  // }
+
+  auto name = func.getName();
+  auto ffunc = fctx->get_function(name.str());
 
   switch (func.getLinkage()) {
   case llvm::GlobalValue::InternalLinkage:
@@ -965,6 +994,9 @@ inline void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
   }
   {
     ZoneScopedN("Convert Functions");
+    for (auto &func : mod.functions()) {
+      setup_function(func, fctx);
+    }
     for (auto &func : mod.functions()) {
       convert(func, fctx, valueToValue);
     }

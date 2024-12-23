@@ -33,18 +33,21 @@ fir::BasicBlock split_block(fir::Instr at_instr) {
 }
 
 bool inline_call(fir::Instr call) {
-  ASSERT(call->is(InstrType::DirectCallInstr));
+  ASSERT(call->is(InstrType::CallInstr));
+
+  if (!call->args[0].is_constant()) {
+    return false;
+  }
 
   bool has_ret_value = call->has_result();
 
   auto *ctx = call->get_parent()->get_parent()->ctx;
   BasicBlock call_bb = call->get_parent();
   FunctionR call_func = call_bb->get_parent();
-  const auto *callee = call->get_attrib("callee").try_string();
-  if(!ctx->storage.functions.contains(*callee)){
+  const auto called_func = call->args[0].as_constant()->as_func();
+  if (called_func->is_decl()) {
     return false;
   }
-  auto &called_func = ctx->storage.functions.at(*callee);
 
   auto end_bb = split_block(call);
 
@@ -56,9 +59,9 @@ bool inline_call(fir::Instr call) {
   ContextData::V2VMap subs;
   ContextData::V2VMap bb_subs;
   TVec<BasicBlock> new_bbs;
-  for (size_t bb_id = 0; bb_id < called_func.n_bbs(); bb_id++) {
-    //dont apply the subs here
-    auto new_bb = ctx->copy(called_func.basic_blocks.at(bb_id), subs, false);
+  for (size_t bb_id = 0; bb_id < called_func->n_bbs(); bb_id++) {
+    // dont apply the subs here
+    auto new_bb = ctx->copy(called_func->basic_blocks.at(bb_id), subs, false);
     new_bbs.push_back(new_bb);
     call_func->append_bbr(new_bb);
   }
@@ -69,14 +72,15 @@ bool inline_call(fir::Instr call) {
   // utils::Debug << called_func << "\n";
   // utils::Debug << "###################################\n";
 
-  //we need to run subs afterwards since vlaues can be referenced before they are defined
-  //  if their bb comes later
+  // we need to run subs afterwards since vlaues can be referenced before they
+  // are defined
+  //   if their bb comes later
   for (auto bb : new_bbs) {
     for (auto instr : bb->instructions) {
       instr.substitute(subs);
     }
   }
-  auto new_entry = subs.at(ValueR{called_func.basic_blocks[0]});
+  auto new_entry = subs.at(ValueR{called_func->basic_blocks[0]});
 
   Builder bb = call_bb.builder_at_end();
   auto entry_branch = bb.build_branch(new_entry.as_bb());

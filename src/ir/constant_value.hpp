@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/function_ref.hpp"
 #include "ir/global.hpp"
 #include "ir/types.hpp"
 #include "types_ref.hpp"
@@ -21,6 +22,11 @@ struct FloatValue {
   bool operator==(const FloatValue &other) const { return data == other.data; }
 };
 
+struct FunctionPtr {
+  FunctionR func;
+  bool operator==(const FunctionPtr &other) const { return func == other.func; }
+};
+
 struct GlobalPointer {
   Global glob;
   bool operator==(const GlobalPointer &other) const {
@@ -34,14 +40,14 @@ struct VectorValue {
 };
 
 struct ConstantValue {
-  std::variant<IntValue, FloatValue, GlobalPointer, VectorValue> value;
+  std::variant<IntValue, FloatValue, GlobalPointer, FunctionPtr, VectorValue>
+      value;
   TypeR type;
 
   constexpr ConstantValue(u64 v, TypeR typee)
       : value(IntValue{v}), type(typee) {}
 
-  constexpr ConstantValue(VectorValue v, TypeR typee)
-      : value(v), type(typee) {}
+  constexpr ConstantValue(VectorValue v, TypeR typee) : value(v), type(typee) {}
 
   constexpr ConstantValue(f64 v, TypeR typee)
       : value(FloatValue{v}), type(typee) {}
@@ -51,6 +57,9 @@ struct ConstantValue {
 
   constexpr ConstantValue(Global g, TypeR typee)
       : value(GlobalPointer{g}), type(typee) {}
+
+  constexpr ConstantValue(FunctionR f, TypeR typee)
+      : value(FunctionPtr{f}), type(typee) {}
 
   [[nodiscard]] bool is_global() const {
     return std::holds_alternative<GlobalPointer>(value);
@@ -63,9 +72,20 @@ struct ConstantValue {
     return std::holds_alternative<FloatValue>(value);
   }
 
+  [[nodiscard]] bool is_func() const {
+    return std::holds_alternative<FunctionPtr>(value);
+  }
+
+  [[nodiscard]] FunctionR as_func() const {
+    if (const auto *res = std::get_if<FunctionPtr>(&value)) {
+      return res->func;
+    }
+    TODO("UNREACH");
+  }
+
   [[nodiscard]] f64 as_float() const {
     if (const auto *res = std::get_if<FloatValue>(&value)) {
-      if(type->as_float() == 32){
+      if (type->as_float() == 32) {
         return (f32)res->data;
       }
       return res->data;
