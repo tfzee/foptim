@@ -18,6 +18,7 @@ def show_plot_single(filename):
     
     colors = [("red" if x.endswith("baseline") else "green") for x in names]
 
+    plt.xticks(rotation=30, ha='right')
     plt.bar(names, values, color = colors)
     plt.show()
 
