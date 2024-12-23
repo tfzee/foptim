@@ -134,9 +134,9 @@ public:
       // utils::Debug << " HIT BRANCH\n\n";
       ASSERT(target.size() == 1);
       const auto func = instr->get_parent()->get_parent();
-      if (!reachable_bb.contains(target[0].bb)) {
+      // if (!reachable_bb.contains(target[0].bb)) {
         cfg_worklist.push_back(target[0].bb);
-      }
+      // }
       {
         const size_t bb_id = func->bb_id(target[0].bb);
         eval_meets(target[0].bb, bb_id);
@@ -150,13 +150,13 @@ public:
       const auto func = instr->get_parent()->get_parent();
       // ASSERT(!arg.is_bottom());
       if (arg.is_bottom()) {
-        utils::Debug << "fixme: SCCP quick fix\n";
-        if (!reachable_bb.contains(targets[0].bb)) {
+        // utils::Debug << "fixme: SCCP quick fix\n";
+        // if (!reachable_bb.contains(targets[0].bb)) {
           cfg_worklist.push_back(targets[0].bb);
-        }
-        if (!reachable_bb.contains(targets[1].bb)) {
+        // }
+        // if (!reachable_bb.contains(targets[1].bb)) {
           cfg_worklist.push_back(targets[1].bb);
-        }
+        // }
 
         {
           const size_t bb_id = func->bb_id(targets[0].bb);
@@ -176,10 +176,10 @@ public:
       ASSERT(arg.value->is_int());
       bool cond = arg.value->as_int() != 0;
 
-      if (cond && !reachable_bb.contains(targets[0].bb)) {
+      if (cond) {
         cfg_worklist.push_back(targets[0].bb);
       }
-      if (!cond && !reachable_bb.contains(targets[1].bb)) {
+      if (!cond) {
         cfg_worklist.push_back(targets[1].bb);
       }
 

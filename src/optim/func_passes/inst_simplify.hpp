@@ -4,6 +4,7 @@
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/value.hpp"
 
 namespace foptim::optim {
 
@@ -13,6 +14,37 @@ static void swap_args(fir::Instr instr, u32 a1, u32 a2) {
   auto v2 = instr->args[a2];
   instr.replace_arg(a1, v2);
   instr.replace_arg(a2, v1);
+}
+
+template <class T>
+bool try_constant_eval_binary(fir::Instr instr,
+                              fir::BinaryInstrSubType sub_type, T a, T b,
+                              fir::TypeR type, fir::Context &ctx) {
+  switch (sub_type) {
+  case fir::BinaryInstrSubType::IntAdd:
+    instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(a + b, type)));
+    return true;
+  case fir::BinaryInstrSubType::IntMul:
+    instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(a * b, type)));
+    return true;
+  case fir::BinaryInstrSubType::IntSub:
+    instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(a - b, type)));
+    return true;
+  case fir::BinaryInstrSubType::INVALID:
+  case fir::BinaryInstrSubType::IntSRem:
+  case fir::BinaryInstrSubType::IntSDiv:
+  case fir::BinaryInstrSubType::IntUDiv:
+  case fir::BinaryInstrSubType::Shl:
+  case fir::BinaryInstrSubType::Shr:
+  case fir::BinaryInstrSubType::AShr:
+  case fir::BinaryInstrSubType::And:
+  case fir::BinaryInstrSubType::Or:
+  case fir::BinaryInstrSubType::Xor:
+  case fir::BinaryInstrSubType::FloatAdd:
+  case fir::BinaryInstrSubType::FloatSub:
+  case fir::BinaryInstrSubType::FloatMul:
+    return false;
+  }
 }
 
 //@returns true if it removes the isntrction
@@ -34,6 +66,24 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
   }
   ConstantValueR c_val = instr->args[1].as_constant();
 
+  if (instr->args[0].is_constant() && instr->args[1].is_constant()) {
+    ConstantValueR c0_val = instr->args[0].as_constant();
+    if (c_val->type->is_int() && c0_val->type->is_int()) {
+      if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
+                                   c_val->as_int(), c0_val->as_int(),
+                                   c_val->type, ctx)) {
+        bb->remove_instr(instr_id);
+        return true;
+      }
+    } else if (c_val->type->is_float() && c0_val->type->is_float()) {
+      if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
+                                   c_val->as_float(), c0_val->as_float(),
+                                   c_val->type, ctx)) {
+        bb->remove_instr(instr_id);
+        return true;
+      }
+    }
+  }
   if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
     if (c_val->as_int() == 0) {
@@ -69,33 +119,33 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
   bool second_constant = instr->args[1].is_constant();
   {
     // TODO: swap arguments but IFF also flipping the cmp instrsubtype
-     // make sure the constant is always at the back if theres only one
-     if (first_constant && !second_constant) {
-       swap_args(instr, 0, 1);
-        switch ((ICmpInstrSubType)instr->get_instr_subtype()) {
-          instr->subtype = (u32)fir::ICmpInstrSubType::INVALID;
-        case fir::ICmpInstrSubType::SLT:
-          instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
-        case fir::ICmpInstrSubType::ULT:
-          instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
-        case fir::ICmpInstrSubType::SGT:
-          instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
-        case fir::ICmpInstrSubType::UGT:
-          instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
-        case fir::ICmpInstrSubType::UGE:
-          instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
-        case fir::ICmpInstrSubType::ULE:
-          instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
-        case fir::ICmpInstrSubType::SGE:
-          instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
-        case fir::ICmpInstrSubType::SLE:
-          instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
-        case fir::ICmpInstrSubType::INVALID:
-        case fir::ICmpInstrSubType::NE:
-        case fir::ICmpInstrSubType::EQ:
-          break;
-        }
-     }
+    // make sure the constant is always at the back if theres only one
+    if (first_constant && !second_constant) {
+      swap_args(instr, 0, 1);
+      switch ((ICmpInstrSubType)instr->get_instr_subtype()) {
+        instr->subtype = (u32)fir::ICmpInstrSubType::INVALID;
+      case fir::ICmpInstrSubType::SLT:
+        instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
+      case fir::ICmpInstrSubType::ULT:
+        instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
+      case fir::ICmpInstrSubType::SGT:
+        instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
+      case fir::ICmpInstrSubType::UGT:
+        instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
+      case fir::ICmpInstrSubType::UGE:
+        instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
+      case fir::ICmpInstrSubType::ULE:
+        instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
+      case fir::ICmpInstrSubType::SGE:
+        instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
+      case fir::ICmpInstrSubType::SLE:
+        instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
+      case fir::ICmpInstrSubType::INVALID:
+      case fir::ICmpInstrSubType::NE:
+      case fir::ICmpInstrSubType::EQ:
+        break;
+      }
+    }
   }
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
