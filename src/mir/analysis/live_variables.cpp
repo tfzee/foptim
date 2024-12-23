@@ -65,6 +65,11 @@ void update_def(MInstr &instr, utils::BitSet<> &def) {
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:
+  case Opcode::fdiv:
+  case Opcode::SI2FL:
+  case Opcode::UI2FL:
+  case Opcode::FL2SI:
+  case Opcode::FL2UI:
   case Opcode::pop:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
@@ -215,7 +220,8 @@ void LiveVariables::update(fmir::MFunc &func) {
   // utils::Debug << "LIVEOUT\n" << liveOut << "\n";
   _live.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
   for (size_t i = 0; i < cfg.bbrs.size(); i++) {
-    //we also add defs to make sure we alos get variables taht live shorter then 1 block
+    // we also add defs to make sure we alos get variables taht live shorter
+    // then 1 block
     _live[i].assign(liveIn[i]).add(liveOut[i]).add(defs[i]);
   }
 }

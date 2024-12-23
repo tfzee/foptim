@@ -43,6 +43,7 @@ bool try_constant_eval_binary(fir::Instr instr,
   case fir::BinaryInstrSubType::FloatAdd:
   case fir::BinaryInstrSubType::FloatSub:
   case fir::BinaryInstrSubType::FloatMul:
+  case fir::BinaryInstrSubType::FloatDiv:
     return false;
   }
 }

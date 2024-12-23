@@ -383,6 +383,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                     V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
 
   ZoneScopedN("Convert Instr");
+  auto op_code = any_instr->getOpcode();
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::ReturnInst>(any_instr)) {
     if (auto *v = instr->getReturnValue()) {
       auto fv =
@@ -467,6 +468,29 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     valueToValue.insert({any_instr, res});
     return;
   }
+  if (op_code == llvm::Instruction::SIToFP ||
+      op_code == llvm::Instruction::UIToFP ||
+      op_code == llvm::Instruction::FPToSI ||
+      op_code == llvm::Instruction::FPToUI) {
+    auto arg = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc, builder,
+                                 valueToValue, mod, b2b);
+    auto dest_ty = convert_type(any_instr->getType(), fctx);
+    auto conversion = foptim::fir::ConversionSubType::SITOFP;
+    if (op_code == llvm::Instruction::SIToFP) {
+      conversion = foptim::fir::ConversionSubType::SITOFP;
+    } else if (op_code == llvm::Instruction::UIToFP) {
+      conversion = foptim::fir::ConversionSubType::UITOFP;
+    } else if (op_code == llvm::Instruction::FPToSI) {
+      conversion = foptim::fir::ConversionSubType::FPTOSI;
+    } else if (op_code == llvm::Instruction::FPToUI) {
+      conversion = foptim::fir::ConversionSubType::FPTOUI;
+    } else {
+      TODO("UNREACH");
+    }
+    auto res = builder.build_conversion_op(arg, dest_ty, conversion);
+    valueToValue.insert({any_instr, res});
+    return;
+  }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::ICmpInst>(any_instr)) {
     if (convert_icmp(any_instr, instr, fctx, ffunc, builder, valueToValue, mod,
                      b2b)) {
@@ -478,7 +502,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                      b2b)) {
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::SRem) {
+  } else if (op_code == llvm::Instruction::SRem) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -489,7 +513,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::Add) {
+  } else if (op_code == llvm::Instruction::Add) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -500,7 +524,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::SDiv) {
+  } else if (op_code == llvm::Instruction::SDiv) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -512,7 +536,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::UDiv) {
+  } else if (op_code == llvm::Instruction::UDiv) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -524,7 +548,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::Shl) {
+  } else if (op_code == llvm::Instruction::Shl) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -535,7 +559,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::AShr) {
+  } else if (op_code == llvm::Instruction::AShr) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -546,7 +570,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::LShr) {
+  } else if (op_code == llvm::Instruction::LShr) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -557,7 +581,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::Sub) {
+  } else if (op_code == llvm::Instruction::Sub) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -568,7 +592,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::Mul) {
+  } else if (op_code == llvm::Instruction::Mul) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -579,7 +603,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::And) {
+  } else if (op_code == llvm::Instruction::And) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -591,7 +615,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::Or) {
+  } else if (op_code == llvm::Instruction::Or) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -603,7 +627,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::Xor) {
+  } else if (op_code == llvm::Instruction::Xor) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -615,7 +639,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::FAdd) {
+  } else if (op_code == llvm::Instruction::FAdd) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
@@ -626,13 +650,46 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
-  } else if (any_instr->getOpcode() == llvm::Instruction::PHI) {
+  } else if (op_code == llvm::Instruction::FSub) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr->getType()->isFloatingPointTy()) {
+      auto add = builder.build_float_sub(left, right);
+      valueToValue.insert({any_instr, add});
+      return;
+    }
+  } else if (op_code == llvm::Instruction::FMul) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr->getType()->isFloatingPointTy()) {
+      auto add = builder.build_float_mul(left, right);
+      valueToValue.insert({any_instr, add});
+      return;
+    }
+  } else if (op_code == llvm::Instruction::FDiv) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr->getType()->isFloatingPointTy()) {
+      auto add = builder.build_float_mul(left, right);
+      valueToValue.insert({any_instr, add});
+      return;
+    }
+  } else if (op_code == llvm::Instruction::PHI) {
     auto ftype = convert_type(any_instr->getType(), fctx);
     auto curr_bb = builder.get_curr_bb();
     auto new_arg = curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, ftype));
     valueToValue.insert({any_instr, foptim::fir::ValueR{new_arg}});
     return;
-  } else if (any_instr->getOpcode() == llvm::Instruction::Unreachable) {
+  } else if (op_code == llvm::Instruction::Unreachable) {
     // TODO: unraech instr?
     builder.build_return();
     return;

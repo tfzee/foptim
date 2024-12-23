@@ -87,6 +87,7 @@ bool InstrData::has_result() const {
   case InstrType::ITrunc:
   case InstrType::SExt:
   case InstrType::ZExt:
+  case InstrType::Conversion:
     return true;
   case InstrType::CallInstr:
     return !this->get_type()->is_void();
@@ -115,6 +116,7 @@ bool InstrData::is_critical() const {
   case InstrType::FCmp:
   case InstrType::SExt:
   case InstrType::ZExt:
+  case InstrType::Conversion:
     return false;
   }
 }
@@ -137,6 +139,7 @@ bool InstrData::is_commutative() const {
     case BinaryInstrSubType::FloatAdd:
     case BinaryInstrSubType::FloatSub:
     case BinaryInstrSubType::FloatMul:
+    case BinaryInstrSubType::FloatDiv:
     case BinaryInstrSubType::Shl:
     case BinaryInstrSubType::Shr:
     case BinaryInstrSubType::AShr:
@@ -177,6 +180,7 @@ bool InstrData::is_commutative() const {
   case InstrType::SExt:
   case InstrType::ZExt:
   case InstrType::ITrunc:
+  case InstrType::Conversion:
     return false;
   }
   TODO("unreach");
@@ -199,6 +203,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::SExt:
   case InstrType::ZExt:
   case InstrType::ITrunc:
+  case InstrType::Conversion:
     return false;
   }
 }
@@ -219,13 +224,14 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::SExt:
   case InstrType::ZExt:
   case InstrType::ITrunc:
+  case InstrType::Conversion:
     return false;
   }
 }
 
 InstrData InstrData::get_call(TypeR ty) {
-  auto res = InstrData{InstrType::CallInstr, ty,
-                       BasicBlock(BasicBlock::invalid())};
+  auto res =
+      InstrData{InstrType::CallInstr, ty, BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
@@ -265,8 +271,14 @@ InstrData InstrData::get_smod(TypeR ty) {
 }
 
 InstrData InstrData::get_binary(TypeR ty, BinaryInstrSubType sub_type) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)sub_type,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr, (u32)sub_type, ty,
+                       BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_conversion(TypeR ty, ConversionSubType sub_type) {
+  auto res = InstrData{InstrType::Conversion, (u32)sub_type, ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
@@ -289,8 +301,8 @@ InstrData InstrData::get_ashr(TypeR ty) {
 }
 
 InstrData InstrData::get_lshr(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::Shr,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::Shr, ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 

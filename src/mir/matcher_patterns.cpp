@@ -464,6 +464,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                       (u32)fir::BinaryInstrSubType::Shr};
   auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::AShr};
+  auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
   // auto EQNode =
   //     Node{NodeType::Instr, InstrType::ICmp, (u32)fir::ICmpInstrSubType::EQ};
   // auto SLTNode =
@@ -881,6 +882,34 @@ void base_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(zext_instr), res.result, data.alloc);
 
         res.result.emplace_back(Opcode::mov_zx, res_reg, val);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      {ConversionNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto conversion_instr = res.matched_instrs[0];
+        auto val =
+            valueToArg(conversion_instr->args[0], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(conversion_instr), res.result, data.alloc);
+        auto res_opcode = Opcode::FL2SI;
+        switch ((fir::ConversionSubType)conversion_instr->subtype) {
+        case fir::ConversionSubType::INVALID:
+          TODO("UNREACH");
+        case fir::ConversionSubType::FPTOUI:
+          res_opcode = Opcode::FL2UI;
+          break;
+        case fir::ConversionSubType::FPTOSI:
+          res_opcode = Opcode::FL2SI;
+          break;
+        case fir::ConversionSubType::UITOFP:
+          res_opcode = Opcode::UI2FL;
+          break;
+        case fir::ConversionSubType::SITOFP:
+          res_opcode = Opcode::SI2FL;
+          break;
+        }
+
+        res.result.emplace_back(res_opcode, res_reg, val);
         return true;
       }});
   pats.push_back(Pattern{

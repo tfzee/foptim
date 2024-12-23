@@ -135,7 +135,7 @@ public:
       ASSERT(target.size() == 1);
       const auto func = instr->get_parent()->get_parent();
       // if (!reachable_bb.contains(target[0].bb)) {
-        cfg_worklist.push_back(target[0].bb);
+      cfg_worklist.push_back(target[0].bb);
       // }
       {
         const size_t bb_id = func->bb_id(target[0].bb);
@@ -152,10 +152,10 @@ public:
       if (arg.is_bottom()) {
         // utils::Debug << "fixme: SCCP quick fix\n";
         // if (!reachable_bb.contains(targets[0].bb)) {
-          cfg_worklist.push_back(targets[0].bb);
+        cfg_worklist.push_back(targets[0].bb);
         // }
         // if (!reachable_bb.contains(targets[1].bb)) {
-          cfg_worklist.push_back(targets[1].bb);
+        cfg_worklist.push_back(targets[1].bb);
         // }
 
         {
@@ -209,6 +209,10 @@ public:
       values.insert({fir::ValueR(replacement_term), ConstantValue::Top()});
       cfg.update(*replacement_term->get_parent()->get_parent().func, false);
       return ConstantValue::Top();
+    }
+    case fir::InstrType::Conversion: {
+      // TODO: impl
+      return ConstantValue::Bottom();
     }
     case fir::InstrType::ZExt:
     case fir::InstrType::SExt: {

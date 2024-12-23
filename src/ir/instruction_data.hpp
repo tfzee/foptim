@@ -19,18 +19,19 @@ enum class InstrType : u8 {
   ITrunc,
   ZExt,
   SExt,
+  Conversion,
 
   SelectInstr,
 
   CallInstr,
 
-  //Terminators
+  // Terminators
   ReturnInstr,
   BranchInstr,
   CondBranchInstr,
   // Unreachable,
 
-  //Memory
+  // Memory
   LoadInstr,
   StoreInstr,
 };
@@ -50,6 +51,14 @@ struct BBRefWithArgs {
     }
     return true;
   }
+};
+
+enum class ConversionSubType : u32 {
+  INVALID = 0,
+  FPTOUI,
+  FPTOSI,
+  UITOFP,
+  SITOFP
 };
 
 enum class ICmpInstrSubType : u32 {
@@ -105,7 +114,7 @@ enum class BinaryInstrSubType : u32 {
   FloatAdd,
   FloatSub,
   FloatMul,
-  // FloatDiv,
+  FloatDiv,
 };
 
 class InstrData : public Used, public Attributable {
@@ -171,6 +180,8 @@ public:
         return "FloatSub";
       case BinaryInstrSubType::FloatMul:
         return "FloatMul";
+      case BinaryInstrSubType::FloatDiv:
+        return "FloatDiv";
       case BinaryInstrSubType::Shl:
         return "Shl";
       case BinaryInstrSubType::Shr:
@@ -183,6 +194,19 @@ public:
         return "Xor";
       case BinaryInstrSubType::And:
         return "And";
+      }
+    case InstrType::Conversion:
+      switch ((ConversionSubType)subtype) {
+      case ConversionSubType::INVALID:
+        return "CONVERSIONOP_INVALID";
+      case ConversionSubType::FPTOUI:
+        return "FP_UI";
+      case ConversionSubType::FPTOSI:
+        return "FP_SI";
+      case ConversionSubType::UITOFP:
+        return "UI_FP";
+      case ConversionSubType::SITOFP:
+        return "SI_FP";
       }
     case InstrType::ITrunc:
       return "ITrunc";
@@ -312,7 +336,8 @@ public:
   static InstrData get_shl(TypeR ty);
   static InstrData get_ashr(TypeR ty);
   static InstrData get_lshr(TypeR ty);
-  static InstrData get_binary(TypeR ty,BinaryInstrSubType sub_type);
+  static InstrData get_binary(TypeR ty, BinaryInstrSubType sub_type);
+  static InstrData get_conversion(TypeR ty, ConversionSubType sub_type);
   static InstrData get_float_add(TypeR ty);
   static InstrData get_float_sub(TypeR ty);
   static InstrData get_float_mul(TypeR ty);

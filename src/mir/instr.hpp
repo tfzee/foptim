@@ -30,6 +30,12 @@ enum class Opcode : u32 {
   fadd,
   fsub,
   fmul,
+  fdiv,
+
+  SI2FL,
+  UI2FL,
+  FL2SI,
+  FL2UI,
 
   push,
   pop,
@@ -154,6 +160,11 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(land);
     ReturnString(lor);
     ReturnString(lxor);
+    ReturnString(fdiv);
+    ReturnString(SI2FL);
+    ReturnString(UI2FL);
+    ReturnString(FL2SI);
+    ReturnString(FL2UI);
   }
 }
 #undef ReturnString
@@ -313,8 +324,7 @@ struct VRegInfo {
   }
 
   constexpr bool operator==(const VRegInfo &other) const {
-    return ty == other.ty &&
-           reg_class == other.reg_class;
+    return ty == other.ty && reg_class == other.reg_class;
   }
 };
 
@@ -516,7 +526,7 @@ public:
     }
   }
   [[nodiscard]] constexpr bool uses_same_vreg(const VReg &other) const {
-    switch(type){
+    switch (type) {
     case ArgumentType::Imm:
     case ArgumentType::MemImm:
     case ArgumentType::Label:
@@ -537,7 +547,7 @@ public:
   }
 
   [[nodiscard]] constexpr bool uses_same_vreg(const MArgument &other) const {
-    switch(other.type){
+    switch (other.type) {
     case ArgumentType::Imm:
     case ArgumentType::MemImm:
     case ArgumentType::Label:

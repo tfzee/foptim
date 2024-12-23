@@ -470,8 +470,13 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    TODO("IMPL");
-    cc.emit(Inst::kIdSubss, target, o0, o1);
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(Inst::kIdSubss, target, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(Inst::kIdSubsd, target, o0, o1);
+    } else {
+      TODO("UNREACH");
+    }
     return;
   }
   case fmir::Opcode::fmul: {
@@ -480,7 +485,67 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
     TODO("IMPL");
-    cc.emit(Inst::kIdMulss, target, o0, o1);
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(Inst::kIdMulss, target, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(Inst::kIdMulsd, target, o0, o1);
+    } else {
+      TODO("UNREACH");
+    }
+    return;
+  }
+  case fmir::Opcode::fdiv: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(Inst::kIdDivss, target, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(Inst::kIdDivsd, target, o0, o1);
+    } else {
+      TODO("UNREACH");
+    }
+    return;
+  }
+  case fmir::Opcode::SI2FL:
+  case fmir::Opcode::UI2FL:
+  case fmir::Opcode::FL2SI:
+  case fmir::Opcode::FL2UI: {
+    ASSERT(instr.n_args == 2);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto res_op_ss = Inst::kIdCvtsi2ss;
+    auto res_op_sd = Inst::kIdCvtsi2sd;
+    switch (instr.op) {
+    case fmir::Opcode::SI2FL:
+      res_op_ss = Inst::kIdCvtsi2ss;
+      res_op_sd = Inst::kIdCvtsi2sd;
+      break;
+    case fmir::Opcode::UI2FL:
+      // TODO: this prob wrong
+      res_op_ss = Inst::kIdCvtsi2ss;
+      res_op_sd = Inst::kIdCvtsi2sd;
+      break;
+    case fmir::Opcode::FL2SI:
+      res_op_ss = Inst::kIdCvtss2si;
+      res_op_sd = Inst::kIdCvtsd2si;
+      break;
+    case fmir::Opcode::FL2UI:
+      // TODO: this maybe wrong
+      res_op_ss = Inst::kIdCvtss2si;
+      res_op_sd = Inst::kIdCvtsd2si;
+      break;
+    default:
+      TODO("UNREACH");
+    }
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(res_op_ss, target, o0);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(res_op_sd, target, o0);
+    } else {
+      TODO("UNREACH");
+    }
     return;
   }
   case fmir::Opcode::idiv: {
@@ -914,13 +979,13 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
     //           "extern __libc_init\n"
     //           "_start:\n"
     //           "xor ebp, ebp\n"
-    //           "mov edi, [rsp]          ; get argc from the stack (implicitly
-    //           " "zero-extended to 64-bit)\n" "lea rsi, [rsp + 8]         ;
-    //           take the address of argv from the " "stack\n" "lea rdx, [rsp +
-    //           rdi*8 + 16],  ; take the address of envp from " "the stack\n"
-    //           "xor eax, eax            ; per ABI and compatibility with
-    //           icc\n" "call __libc_init\n" "call main                 \n" "mov
-    //           ebx, eax\n" "mov eax, 1\n" "int 0x80\n";
+    //           "mov edi, [rsp]          ; get argc from the stack
+    //           (implicitly " "zero-extended to 64-bit)\n" "lea rsi, [rsp +
+    //           8]         ; take the address of argv from the " "stack\n"
+    //           "lea rdx, [rsp + rdi*8 + 16],  ; take the address of envp
+    //           from " "the stack\n" "xor eax, eax            ; per ABI and
+    //           compatibility with icc\n" "call __libc_init\n" "call main \n"
+    //           "mov ebx, eax\n" "mov eax, 1\n" "int 0x80\n";
 
     // "_start:\n"
     // "  call main\n"
