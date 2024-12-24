@@ -185,7 +185,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
 
   MInstr &instr = bb.instrs[indx];
   // cant move an immediate floating point value
-  if (instr.args[1].is_fp() && instr.args[1].isImm()) {
+  if (instr.args[0].isReg() && instr.args[0].reg.info.isVecReg() && instr.args[1].is_fp() && instr.args[1].isImm()) {
     indx = move_fp_const_to_reg(bb, indx, 1, instr.args[1].ty);
   }
 
@@ -286,6 +286,11 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
       if (!instr.args[0].isImm()) {
         continue;
       }
+      //we only need to do this if we use the stack
+      //since pushing some stuff will be problematic
+      if(!instr.args[0].is_fp() && instr.n_args > 1){
+        continue;
+      }
       if (instr.args[0].ty != Type::Float64 &&
           instr.args[0].ty != Type::Float32 &&
           instr.args[0].imm <= (u64)std::numeric_limits<i32>::max()) {
@@ -297,6 +302,7 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
                     : ty == Type::Float32 ? Type::Int32
                                           : ty;
       auto new_reg = get_reg(res_ty);
+      new_reg.ty = ty;
       auto old_arg = instr.args[0];
       instr.args[0] = new_reg;
       changes.emplace_back(Opcode::mov, new_reg, old_arg);
@@ -306,22 +312,6 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
       bb.instrs.insert(bb.instrs.begin() + insert_index, change);
       modified = true;
     }
-
-    // MInstr &instr = bb.instrs[indx];
-    // if (instr.args[0].isImm()) {
-    //   if (instr.args[0].ty == Type::Float64 ||
-    //       instr.args[0].ty == Type::Float32) {
-    //     indx = move_fp_const_to_grp(bb, indx, 0, instr.args[0].ty);
-    //     return;
-    //   }
-    //   if (instr.args[0].imm >= (u64)std::numeric_limits<i32>::max()) {
-    //     utils::Debug << "LEG" << bb.instrs[indx - 1] << " " <<
-    //     bb.instrs[indx]
-    //                  << "\n";
-    //     indx = move_arg_to_reg(bb, indx, 0, instr.args[0].ty);
-    //     return;
-    //   }
-    // }
   }
   return modified;
 }

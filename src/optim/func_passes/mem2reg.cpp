@@ -56,6 +56,10 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
       blocks_containing_store.push_back(func.bb_id(parent_bb));
     }
   }
+  // utils::Debug << "PHI\n";
+  // for (auto i : blocks_containing_store) {
+  //   utils::Debug << "   Considering block " << i << "\n";
+  // }
   // for (u32 bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
   //   bool contains_store = false;
   //   for (auto instruction_inner : func.basic_blocks[bb_id]->instructions) {
@@ -82,14 +86,17 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
       continue;
     }
     visited.insert(considering_block);
+    // utils::Debug << "   Looking at " << considering_block << " with frontier"
+    //              << dom.dom_bbs[considering_block].frontier << "\n";
 
     for (auto dommy : dom.dom_bbs[considering_block].frontier) {
+      // utils::Debug << "     dommy:" << dommy << "\n";
       res[alloca_instr].insert(dommy);
-      if (std::find(blocks_containing_store.cbegin(),
-                    blocks_containing_store.cend(),
-                    dommy) != blocks_containing_store.end()) {
-        blocks_to_consider.push_back(dommy);
-      }
+      // if (std::find(blocks_containing_store.cbegin(),
+      //               blocks_containing_store.cend(),
+      //               dommy) != blocks_containing_store.end()) {
+      blocks_to_consider.push_back(dommy);
+      // }
     }
   }
 }
@@ -246,12 +253,17 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
           {target_alloca, {block, bb_arguemnt_value}});
     }
   }
+  utils::Debug << "DecideValue at BB:\n";
+  for (size_t i = 0; i < current_variable_value.size(); i++) {
+    utils::Debug << " ";
+  }
+
+  utils::Debug << (void *)block.get_raw_ptr() << "\n";
+  // dump(current_variable_value);
+
   if (visited.contains(block)) {
     return;
   }
-  // utils::Debug << "\n\nDecideValue at BB: " << (void *)block.get_raw_ptr()
-  //              << "\n";
-  // dump(current_variable_value);
 
   visited.insert(block);
 
@@ -288,8 +300,9 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   CFG cfg{func};
   Dominators dom{cfg};
 
+  // cfg.dump_graph();
   // dom.dump();
-
+  // TODO("Fix em dominators");
   // utils::Debug << func;
   // todo verify prior no basic block args maybe?
 
@@ -313,7 +326,6 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
     }
   }
 
-  // utils::Debug << func << "\nokak";
 
   TSet<fir::BasicBlock> visited{};
   TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
@@ -322,14 +334,14 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
 
-  utils::Debug << "MEMREG JuST TESTING Attributor\n";
-  AttributerManager manager;
-  for (auto arg : func.get_entry()->args) {
-    if (arg->get_type()->is_ptr()) {
-      manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
-    }
-  }
-  manager.run();
-  manager.materialize();
+  // utils::Debug << "MEMREG JuST TESTING Attributor\n";
+  // AttributerManager manager;
+  // for (auto arg : func.get_entry()->args) {
+  //   if (arg->get_type()->is_ptr()) {
+  //     manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
+  //   }
+  // }
+  // manager.run();
+  // manager.materialize();
 }
 } // namespace foptim::optim

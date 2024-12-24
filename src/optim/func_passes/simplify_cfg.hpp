@@ -60,7 +60,7 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
   // if we got a bb arg that got no use remove it
   if (curr.bb->n_args() != 0 && !is_entry) {
     auto n_args = curr.bb->n_args();
-      // for (u32 i = 0; i < n_args; i++) {
+    // for (u32 i = 0; i < n_args; i++) {
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
       if (curr.bb->args[i]->get_n_uses() == 0) {
@@ -108,7 +108,10 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
         auto pred_term = cfg.bbrs[pred].bb->get_terminator();
         auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
         auto incoming_arg = pred_term->bbs[pred_term_bb_id].args[i];
-        // utils::Debug << "   INCMONIG: " << incoming_arg << "\n";
+        // utils::Debug << "   INCMONIG: " << incoming_arg << " == " << c_value
+        //              << "  " << !c_value.is_valid(false) << " "
+        //              << (!c_value.is_valid(false) || incoming_arg.eql(c_value))
+        //              << "\n";
         if (!c_value.is_valid(false) || incoming_arg.eql(c_value)) {
           c_value = incoming_arg;
         } else if (incoming_arg.is_bb_arg() &&
@@ -133,7 +136,6 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
           user.remove_bb_arg(bb_id, i);
           // utils::Debug << "      AFTER USE: " << use.user << "\n";
         }
-
         curr.bb->args[i]->replace_all_uses(c_value);
         curr.bb->args.erase(curr.bb->args.begin() + i);
         // utils::Debug << "      END: " << "\n";

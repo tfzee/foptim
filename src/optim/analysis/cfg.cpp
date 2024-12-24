@@ -21,6 +21,10 @@ void CFG::dump_graph() const {
 
   utils::Debug << "digraph {";
   for (size_t i = 0; i < bbrs.size(); i++) {
+    utils::Debug << i << "[label=\"" << bbrs[i].bb.get_raw_ptr() << "\"] ";
+  }
+  for (size_t i = 0; i < bbrs.size(); i++) {
+
     for (const auto &succ : bbrs[i].succ) {
       utils::Debug << i << " -> " << succ << " ";
     }

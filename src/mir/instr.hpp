@@ -326,6 +326,47 @@ struct VRegInfo {
   constexpr bool operator==(const VRegInfo &other) const {
     return ty == other.ty && reg_class == other.reg_class;
   }
+
+  [[nodiscard]] constexpr bool isVecReg() const {
+    switch (ty) {
+    case VRegType::Virtual:
+    case VRegType::A:
+    case VRegType::B:
+    case VRegType::C:
+    case VRegType::D:
+    case VRegType::SI:
+    case VRegType::DI:
+    case VRegType::SP:
+    case VRegType::BP:
+    case VRegType::R8:
+    case VRegType::R9:
+    case VRegType::R10:
+    case VRegType::R11:
+    case VRegType::R12:
+    case VRegType::R13:
+    case VRegType::R14:
+    case VRegType::R15:
+    case VRegType::N_REGS:
+      return false;
+    case VRegType::mm0:
+    case VRegType::mm1:
+    case VRegType::mm2:
+    case VRegType::mm3:
+    case VRegType::mm4:
+    case VRegType::mm5:
+    case VRegType::mm6:
+    case VRegType::mm7:
+    case VRegType::mm8:
+    case VRegType::mm9:
+    case VRegType::mm10:
+    case VRegType::mm11:
+    case VRegType::mm12:
+    case VRegType::mm13:
+    case VRegType::mm14:
+    case VRegType::mm15:
+      return true;
+    }
+  }
 };
 
 class VReg {

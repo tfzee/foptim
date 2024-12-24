@@ -31,7 +31,7 @@ public:
       utils::Debug << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
       utils::Debug << node.dominators << "\n";
       // utils::Debug << "  PostDom: " << node.postdominators << "\n";
-      // utils::Debug << "  Frontier: " << node.frontier << "\n";
+      utils::Debug << "  Frontier: " << node.frontier << "\n";
     }
   }
 
@@ -48,14 +48,9 @@ public:
 
     BitSet fullBitSet{n_bbs, true};
     BitSet emptyBitSet{n_bbs, false};
-    // utils::Debug << "TODO POST DOMINATORS\n";
 
     for (size_t i = 0; i < cfg.bbrs.size(); i++) {
-      if (i == 0) {
-        dom_bbs.push_back({cfg.bbrs[i].bb, -1, fullBitSet, emptyBitSet});
-      } else {
-        dom_bbs.push_back(Node{cfg.bbrs[i].bb, -1, emptyBitSet, emptyBitSet});
-      }
+      dom_bbs.push_back(Node{cfg.bbrs[i].bb, -1, fullBitSet, emptyBitSet});
     }
 
     std::deque<u32, utils::TempAlloc<u32>> worklist{cfg.entry};
@@ -71,10 +66,14 @@ public:
         newSet.assign(dom_bbs[pred[0]].dominators);
         for (size_t i = 1; i < pred.size(); i++) {
           auto &dom = dom_bbs[pred[i]];
+          // if (dom.dominators[cur]) {
+          //   continue;
+          // }
           newSet *= dom.dominators;
         }
       }
 
+      // utils::Debug << "newSet " << newSet << "\n";
       newSet[cur].set(true);
 
       if (newSet != dom_bbs[cur].dominators) {

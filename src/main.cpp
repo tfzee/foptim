@@ -84,17 +84,21 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
 void optimize_fir(foptim::fir::Context &ctx) {
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
+  // foptim::utils::Debug << "================BEFOPTIM====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-
-  foptim::utils::Debug << "================OPTIMSTART====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
-
+  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
+  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
+
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
@@ -169,19 +173,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
   ZoneScopedN("MIR Optim");
+  foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::CallingConv{}.first_stage(funcs);
-
-  foptim::utils::Debug << "================CC LOWERING 1====================\n";
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::fmir::RegAlloc{}.apply(funcs);
-  foptim::utils::Debug << "================REG ALLOC====================\n";
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();

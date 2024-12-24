@@ -6,17 +6,18 @@
 
 // CHECK: Result:0
 
-#define EPS 0.00001f
-float test(float a) { return a + 2.F; }
+int mandelbrot(bool x, bool y, bool bitNum) {
+  int sum = 0;
+  while (y) {
+    while (x) {
+      if (bitNum) {
+        sum = 1;
+      }
+    }
+  }
+  return sum;
+}
 
-int main() {
-  float x = 0.F;
-  float res = test(x);
-  if (res < 2 - EPS) {
-    return 1;
-  }
-  if(res > 2 + EPS){
-    return 2;
-  }
-  return 0;
+int main(){
+  return mandelbrot(false, false, false);
 }

@@ -340,17 +340,28 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto o1 = convert_operand(cc, reg_to_op, instr.args[1]);
 
     u32 o0_size = get_size(instr.args[0].ty);
-    // utils::Debug << instr << " " << o0_size << " " << o1.isReg() << "\n";
 
-    if (instr.args[1].ty != fmir::Type::Float32 &&
-        instr.args[0].ty == fmir::Type::Float32) {
+    // auto ty1 = instr.args[1].ty;
+    bool input_is_fp_reg =
+        instr.args[1].isReg() &&
+        instr.args[1].reg.info.reg_class == fmir::VRegClass::Float &&
+        instr.args[1].reg.info.isVecReg();
+    bool target_is_fp_reg =
+        instr.args[0].isReg() &&
+        instr.args[0].reg.info.reg_class == fmir::VRegClass::Float &&
+        instr.args[0].reg.info.isVecReg();
+    bool target_isfloat64 =
+        target_is_fp_reg && instr.args[0].reg.info.reg_size == 8;
+    bool target_isfloat32 =
+        target_is_fp_reg && instr.args[0].reg.info.reg_size == 4;
+
+    if (!input_is_fp_reg && target_isfloat32) {
       cc.emit(Inst::kIdMovd, o0, o1);
-    } else if (instr.args[1].ty != fmir::Type::Float64 &&
-               instr.args[0].ty == fmir::Type::Float64) {
+    } else if (!input_is_fp_reg && target_isfloat64) {
       cc.emit(Inst::kIdMovq, o0, o1);
-    } else if (instr.args[0].ty == fmir::Type::Float32) {
+    } else if (target_isfloat32) {
       cc.emit(Inst::kIdMovss, o0, o1);
-    } else if (instr.args[0].ty == fmir::Type::Float64) {
+    } else if (target_isfloat64) {
       cc.emit(Inst::kIdMovsd, o0, o1);
     } else if (o0_size == 8 && o1.isReg()) {
       cc.emit(Inst::kIdMov, o0, o1.as<Gp>().r64());
