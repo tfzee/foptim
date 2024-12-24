@@ -1,4 +1,6 @@
 #include "reg_alloc.hpp"
+#include "mir/analysis/cfg.hpp"
+#include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/todo.hpp"
 
@@ -48,6 +50,15 @@ struct LinearRange {
   Loc start = {};
   Loc end = {};
 
+  static LinearRange inBB(const MFunc &func, u32 bb_id) {
+    LinearRange range{};
+    range.start.bb_indx = bb_id;
+    range.start.instr_indx = 0;
+    range.end.bb_indx = bb_id;
+    range.end.instr_indx = func.bbs[bb_id].instrs.size();
+    return range;
+  }
+
   [[nodiscard]] constexpr bool collide(const LinearRange &o) const {
     bool overlap1 = o.start < end;
     bool overlap2 = start < o.end;
@@ -61,8 +72,40 @@ struct LinearRange {
   }
 };
 
-TMap<VReg, LinearRange> linear_lifetime(const MFunc &func) {
-  TMap<VReg, LinearRange> ranges;
+struct LinearRangeSet {
+  TVec<LinearRange> ranges;
+  constexpr LinearRangeSet() : ranges({}) {}
+  constexpr LinearRangeSet(LinearRange input) : ranges({input}) {}
+  [[nodiscard]] constexpr bool collide(const LinearRange &o) const {
+    for (const auto &range : ranges) {
+      if (range.collide(o)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  [[nodiscard]] constexpr bool collide(const LinearRangeSet &other) const {
+    for (const auto &range : ranges) {
+      for (const auto &other_range : other.ranges) {
+        if (range.collide(other_range)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  constexpr void update(LinearRange new_range) { ranges.push_back(new_range); }
+  constexpr void update(const LinearRangeSet &new_ranges) {
+    for (const auto &new_range : new_ranges.ranges) {
+      ranges.push_back(new_range);
+    }
+  }
+};
+
+TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
+  std::vector<VReg> all_used_regs;
 
   for (u32 bb_i = 0; bb_i < func.bbs.size(); bb_i++) {
     const auto &bb = func.bbs[bb_i];
@@ -80,13 +123,16 @@ TMap<VReg, LinearRange> linear_lifetime(const MFunc &func) {
         case MArgument::ArgumentType::VReg:
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
-          ranges[arg.reg].update({bb_i, in_i});
+          all_used_regs.push_back(arg.reg);
+          // ranges[arg.reg].update({bb_i, in_i});
           break;
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
-          ranges[arg.reg].update({bb_i, in_i});
-          ranges[arg.indx].update({bb_i, in_i});
+          all_used_regs.push_back(arg.reg);
+          // ranges[arg.reg].update({bb_i, in_i});
+          all_used_regs.push_back(arg.indx);
+          // ranges[arg.indx].update({bb_i, in_i});
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
@@ -95,7 +141,23 @@ TMap<VReg, LinearRange> linear_lifetime(const MFunc &func) {
       }
     }
   }
-
+  CFG cfg{func};
+  LiveVariables live{cfg, func};
+  TMap<VReg, LinearRangeSet> ranges;
+  for (const auto &reg : all_used_regs) {
+    auto reg_id = reg_to_uid(reg);
+    for (size_t i = 0; i < func.bbs.size(); i++) {
+      if (live._live[i][reg_id]) {
+        ranges[reg].update(LinearRange::inBB(func, i));
+      }
+    }
+  }
+  // for (auto reg : all_used_regs) {
+  // utils::Debug << "reg: " << reg << "\n";
+  //   for (auto active_block : live._live[reg_to_uid(reg)]) {
+  //     ranges[reg].update(LinearRange::inBB(func, active_block));
+  //   }
+  // }
   return ranges;
 }
 
@@ -212,24 +274,24 @@ constexpr void get_reg_order(MFunc &func, VRegType *regs) {
 
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
-  TMap<VRegType, LinearRange> lifeness;
+  TMap<VRegType, LinearRangeSet> lifeness;
   lifeness.reserve(32);
   VRegType regs[N_REGS_SELECTABLE];
   TMap<size_t, VRegType> reg_mapping;
-  {
-    ZoneScopedN("Args");
-    for (auto &reg : func.args) {
-      if (reg.info.is_pinned()) {
-        reg_mapping.insert({reg.id, reg.info.ty});
-      }
-    }
-    for (auto &bb : func.bbs) {
-      for (auto &instr : bb.instrs) {
-        replace_args(instr, reg_mapping);
-      }
-    }
-    reg_mapping.clear();
-  }
+  // {
+  //   ZoneScopedN("Args");
+  //   for (auto &reg : func.args) {
+  //     if (reg.info.is_pinned()) {
+  //       reg_mapping.insert({reg.id, reg.info.ty});
+  //     }
+  //   }
+  //   for (auto &bb : func.bbs) {
+  //     for (auto &instr : bb.instrs) {
+  //       replace_args(instr, reg_mapping);
+  //     }
+  //   }
+  //   reg_mapping.clear();
+  // }
 
   const auto lifetimes = linear_lifetime(func);
   get_reg_order(func, regs);
@@ -259,8 +321,7 @@ void apply_func(MFunc &func) {
             break;
           }
           if (!lifeness.at(avail_reg).collide(lifetime)) {
-            lifeness.at(avail_reg).update(lifetime.start);
-            lifeness.at(avail_reg).update(lifetime.end);
+            lifeness.at(avail_reg).update(lifetime);
             reg_mapping.insert({reg.id, avail_reg});
             found = true;
             break;

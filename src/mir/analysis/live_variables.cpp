@@ -4,10 +4,10 @@
 
 namespace foptim::fmir {
 
-static size_t max_vreg_id(MFunc &func) {
+static size_t max_vreg_id(const MFunc &func) {
   size_t unique_reg_id = 0;
-  for (auto &bb : func.bbs) {
-    for (auto &instr : bb.instrs) {
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
       for (u8 i = 0; i < instr.n_args; i++) {
         switch (instr.args[i].type) {
         case MArgument::ArgumentType::VReg:
@@ -42,10 +42,16 @@ size_t reg_to_uid(VReg r) {
   if (r.info.is_pinned()) {
     return (u8)r.info.ty - 1;
   }
-  return (u8)VRegType::N_REGS - 1 + r.id;
+  return (u8)VRegType::N_REGS + r.id;
 }
+// VReg uid_to_reg(size_t r) {
+//   if (r >= (u8)VRegType::N_REGS) {
+//     return VReg(r - (u8)VRegType::N_REGS, VRegInfo());
+//   }
+//   return VReg(0, VRegInfo{(VRegType)(r + 1), Type::Int8});
+// }
 
-void update_def(MInstr &instr, utils::BitSet<> &def) {
+void update_def(const MInstr &instr, utils::BitSet<> &def) {
   switch (instr.op) {
   case Opcode::mov:
   case Opcode::cmov:
@@ -128,14 +134,13 @@ void update_def(MInstr &instr, utils::BitSet<> &def) {
   }
 }
 
-void LiveVariables::update(fmir::MFunc &func) {
+void LiveVariables::update(const fmir::MFunc &func) {
 
   TVec<utils::BitSet<>> upwExp;
   TVec<utils::BitSet<>> defs;
 
   const auto max_id = max_vreg_id(func);
-  constexpr auto n_regs = (u8)VRegType::N_REGS - 1;
-  const auto n_unique_regs = n_regs + max_id;
+  const auto n_unique_regs = (u8)VRegType::N_REGS + max_id + 1;
 
   upwExp.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
   defs.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
@@ -143,14 +148,14 @@ void LiveVariables::update(fmir::MFunc &func) {
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
     worklist.push_front(bb_id);
-    auto &bb = func.bbs[bb_id];
-    for (auto &instr : bb.instrs) {
+    const auto &bb = func.bbs[bb_id];
+    for (const auto &instr : bb.instrs) {
       // update defs
       update_def(instr, defs[bb_id]);
 
       // update upwexp
       for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
-        auto &arg = instr.args[arg_id];
+        const auto &arg = instr.args[arg_id];
         switch (arg.type) {
         case MArgument::ArgumentType::VReg:
         case MArgument::ArgumentType::MemVReg:

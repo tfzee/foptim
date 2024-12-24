@@ -178,6 +178,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  foptim::utils::Debug << "================BEF LAST REG====================\n";
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);
