@@ -220,7 +220,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
         wants_reg = float_arg_reg[arg_pos[arg_id].position];
         break;
       case ArgPosition::Stack:
-        TODO("UNREACH");
+        UNREACH();
         break;
       }
       // utils::Debug << "Checking " << arg_id << " which wants" << wants_reg
@@ -267,7 +267,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
           MArgument{{float_arg_reg[arg_po.position], arg_ty}, arg_ty});
       break;
     case ArgPosition::Stack:
-      TODO("UNREACH");
+      UNREACH();
     }
   }
   out_instrs.insert(out_instrs.begin() + start, output_vec.begin(),

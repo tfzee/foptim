@@ -54,7 +54,7 @@ bool ValueR::eql(const ValueR &other) const {
   }
 
   utils::Debug << this << " and " << other << "\n";
-  TODO("UNREACH");
+  UNREACH();
 }
 
 TypeR ValueR::get_type() const {

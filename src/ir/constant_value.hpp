@@ -80,7 +80,7 @@ struct ConstantValue {
     if (const auto *res = std::get_if<FunctionPtr>(&value)) {
       return res->func;
     }
-    TODO("UNREACH");
+    UNREACH();
   }
 
   [[nodiscard]] f64 as_float() const {
@@ -90,7 +90,7 @@ struct ConstantValue {
       }
       return res->data;
     }
-    TODO("UNREACH");
+    UNREACH();
   }
 
   [[nodiscard]] u64 as_int() const {
@@ -99,7 +99,7 @@ struct ConstantValue {
       // const u64 mask = ((u64)1 << bitwidth) - 1;
       return res->data; // & mask;
     }
-    TODO("UNREACH");
+    UNREACH();
   }
 
   [[nodiscard]] Global as_global() const {

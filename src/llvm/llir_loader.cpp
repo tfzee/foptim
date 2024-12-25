@@ -485,7 +485,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     } else if (op_code == llvm::Instruction::FPToUI) {
       conversion = foptim::fir::ConversionSubType::FPTOUI;
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     auto res = builder.build_conversion_op(arg, dest_ty, conversion);
     valueToValue.insert({any_instr, res});
@@ -1071,7 +1071,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
   }
   if (module) {
     convert(*module, fctx);
-    module->dump();
+    // module->dump();
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
                  << error.getMessage() << "\n";

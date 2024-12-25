@@ -109,7 +109,7 @@ public:
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
       default:
       case fir::BinaryInstrSubType::INVALID:
-        TODO("¿UNREACH?\n");
+        UNREACH();
       case fir::BinaryInstrSubType::IntSub:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() - b.value->as_int(), a.value->get_type()));
@@ -127,7 +127,7 @@ public:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_float() + b.value->as_float(), a.value->get_type()));
       }
-      TODO("¿UNREACH?\n");
+      UNREACH();
     }
     case fir::InstrType::BranchInstr: {
       const auto &target = instr->get_bb_args();
@@ -297,7 +297,7 @@ public:
 
       switch ((fir::ICmpInstrSubType)instr->get_instr_subtype()) {
       case fir::ICmpInstrSubType::INVALID:
-        TODO("¿UNREACH?\n");
+        UNREACH();
         break;
       case fir::ICmpInstrSubType::NE:
         return ConstantValue::Constant(ctx->get_constant_value(
@@ -399,7 +399,7 @@ public:
     ConstantValue new_value = ConstantValue::Top();
 
     if (value.is_constant()) {
-      TODO("constant\n");
+      IMPL("constant\n");
     } else if (value.is_instr()) {
       // utils::Debug << "SCCP: "<< value << "\n";
       new_value = eval_instr(ctx, value.as_instr());
@@ -407,7 +407,7 @@ public:
         value.replace_all_uses(fir::ValueR{new_value.value});
       }
     } else if (value.is_bb_arg()) {
-      TODO("UNREACH\n");
+      UNREACH();
     }
 
     if (value.is_valid(true) && values.at(value) != new_value) {

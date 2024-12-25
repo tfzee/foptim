@@ -183,7 +183,7 @@ bool InstrData::is_commutative() const {
   case InstrType::Conversion:
     return false;
   }
-  TODO("unreach");
+  UNREACH();
 }
 
 bool InstrData::pot_modifies_mem() const {

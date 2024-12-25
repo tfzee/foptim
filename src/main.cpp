@@ -94,11 +94,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
-
+  // foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
@@ -121,10 +120,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   ASSERT(ctx->verify());
 
-  foptim::utils::Debug << "================OPTIMEND====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // foptim::utils::Debug << "================OPTIMEND====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
 
   // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
@@ -157,14 +156,14 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
 
   auto matcher = foptim::fmir::GreedyMatcher{};
-  foptim::utils::Debug << "================MATCHER====================\n";
+  // foptim::utils::Debug << "================MATCHER====================\n";
   for (auto [_, func] : ctx->storage.functions) {
     if (func.is_decl()) {
       continue;
     }
     auto res = matcher.apply(func);
     funcs.push_back(std::move(res));
-    foptim::utils::Debug << funcs.back();
+    // foptim::utils::Debug << funcs.back();
     foptim::utils::TempAlloc<void *>::reset();
   }
 }
@@ -178,10 +177,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::utils::Debug << "================BEF LAST REG====================\n";
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);
@@ -193,10 +188,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::IRString> &decls,
              foptim::FVec<foptim::fmir::Global> &globals) {
-  foptim::utils::Debug << "================OPTIMEND2====================\n";
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // foptim::utils::Debug << "================OPTIMEND2====================\n";
+  // for (const auto &func : funcs) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, decls, globals);
 }

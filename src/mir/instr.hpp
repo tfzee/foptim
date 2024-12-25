@@ -709,11 +709,11 @@ public:
 
     switch (compare_type) {
     case fir::FCmpInstrSubType::INVALID:
-      TODO("UNREACH");
+      UNREACH();
       break;
     case fir::FCmpInstrSubType::AlwFalse:
     case fir::FCmpInstrSubType::AlwTrue:
-      TODO("IMPL");
+      IMPL("IMPL");
       break;
     case fir::FCmpInstrSubType::OEQ:
       opcode_type = Opcode::cjmp_flt_oeq;

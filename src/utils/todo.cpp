@@ -13,6 +13,13 @@ namespace foptim {
   // std::abort();
 }
 
+[[noreturn]] void impl_impl(const char *text, const char *filename,
+                                   u64 line) {
+  printf("[IMPLEMENT] @ %s:%lu : %s\n", filename, line, text);
+  exit(33);
+  // std::abort();
+}
+
 void ASSERT_HANDLE(bool cond, const char *filename,
                                        size_t lineNumber, const char *message) {
   if (!cond) {

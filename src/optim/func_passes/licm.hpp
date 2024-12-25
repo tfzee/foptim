@@ -84,7 +84,7 @@ public:
         } else if (arg.is_constant()) {
           continue;
         } else {
-          TODO("UNREACH?");
+          UNREACH();
         }
         auto arg_bb_id = cfg.get_bb_id(arg_bb);
 

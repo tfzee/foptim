@@ -2,8 +2,8 @@
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "utils/logging.hpp"
-#include "utils/string.hpp"
 #include "utils/parameters.hpp"
+#include "utils/string.hpp"
 #include "utils/todo.hpp"
 #include <asmjit/core/emitter.h>
 #include <asmjit/core/func.h>
@@ -166,7 +166,7 @@ Reg convert_reg(Compiler & /*unused*/, Reg2OpMap & /*unused*/, fmir::VReg reg) {
   case fmir::VRegType::mm15:
     return xmm15;
   case fmir::VRegType::N_REGS:
-    TODO("UNREACH");
+    UNREACH();
   }
 }
 
@@ -448,7 +448,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       opcode = Inst::kIdXor;
       break;
     default:
-      TODO("UNREACH");
+      UNREACH();
     }
 
     if (target == o0) {
@@ -473,7 +473,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       cc.emit(Inst::kIdMovsd, target, o0);
       cc.emit(Inst::kIdAddsd, target, o1);
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     return;
   }
@@ -501,7 +501,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       operandsd = Inst::kIdVfmadd132sd;
       break;
     default:
-      TODO("UNREACH");
+      UNREACH();
     }
 
     ASSERT(target != o1);
@@ -510,7 +510,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       cc.emit(operandsd, target, o0, o1);
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     return;
   }
@@ -524,7 +524,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       cc.emit(Inst::kIdSubsd, target, o0, o1);
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     return;
   }
@@ -539,7 +539,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       cc.emit(Inst::kIdMulsd, target, o0, o1);
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     return;
   }
@@ -553,7 +553,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       cc.emit(Inst::kIdDivsd, target, o0, o1);
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     return;
   }
@@ -586,14 +586,14 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       res_op_sd = Inst::kIdCvtsd2si;
       break;
     default:
-      TODO("UNREACH");
+      UNREACH();
     }
     if (instr.args[0].ty == fmir::Type::Float32) {
       cc.emit(res_op_ss, target, o0);
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       cc.emit(res_op_sd, target, o0);
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     return;
   }
@@ -787,7 +787,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else if (instr.args[0].ty == fmir::Type::Float32) {
       cc.emit(is_ordered ? Inst::kIdComiss : Inst::kIdUcomiss, a, b);
     } else {
-      TODO("UNREACH");
+      UNREACH();
     }
     switch (instr.op) {
     case fmir::Opcode::cjmp_flt_oeq:
@@ -817,7 +817,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     case fmir::Opcode::cjmp_flt_ord:
     case fmir::Opcode::cjmp_flt_uno:
     default:
-      TODO("UNREACH");
+      UNREACH();
     }
     return;
   }
@@ -931,7 +931,8 @@ public:
   }
 };
 
-void run(std::span<const fmir::MFunc> funcs, std::span<const foptim::IRString> decls,
+void run(std::span<const fmir::MFunc> funcs,
+         std::span<const foptim::IRString> decls,
          std::span<const fmir::Global> globals) {
   JitRuntime rt; // Runtime specialized for JIT code execution.
   StringLogger logger;
@@ -1015,7 +1016,7 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const foptim::IRString> d
       }
     }
 
-    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    // utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
     utils::Debug << "Done!\n";
 
     std::ofstream myfile;

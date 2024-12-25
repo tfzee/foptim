@@ -156,10 +156,7 @@ public:
         }
 
         if (instr->is(fir::InstrType::CondBranchInstr)) {
-          // TODO: handle it
-          utils::Debug << "TODO fix DCE cond branch simplifcation\n";
-          // std::abort();
-          continue;
+          IMPL("handle dce cond branch simplification");
         }
 
         bb->remove_instr(instr_id_p1 - 1);

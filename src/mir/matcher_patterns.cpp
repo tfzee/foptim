@@ -385,7 +385,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
           res.result.push_back(
               MInstr::cJmp_ne(v1, v2, data.bbs[bb_with_args.bb]));
         } else {
-          TODO("UNREACH");
+          UNREACH();
         }
 
         {
@@ -879,7 +879,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           op = Opcode::icmp_sle;
           break;
         case fir::ICmpInstrSubType::INVALID:
-          TODO("UNREACH");
+          UNREACH();
         }
         res.result.emplace_back(op, res_arg, arg1, arg2);
         return true;
@@ -980,7 +980,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_opcode = Opcode::FL2SI;
         switch ((fir::ConversionSubType)conversion_instr->subtype) {
         case fir::ConversionSubType::INVALID:
-          TODO("UNREACH");
+          UNREACH();
         case fir::ConversionSubType::FPTOUI:
           res_opcode = Opcode::FL2UI;
           break;
