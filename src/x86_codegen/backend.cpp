@@ -2,6 +2,7 @@
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "utils/logging.hpp"
+#include "utils/string.hpp"
 #include "utils/parameters.hpp"
 #include "utils/todo.hpp"
 #include <asmjit/core/emitter.h>
@@ -930,7 +931,7 @@ public:
   }
 };
 
-void run(std::span<const fmir::MFunc> funcs, std::span<const std::string> decls,
+void run(std::span<const fmir::MFunc> funcs, std::span<const foptim::IRString> decls,
          std::span<const fmir::Global> globals) {
   JitRuntime rt; // Runtime specialized for JIT code execution.
   StringLogger logger;

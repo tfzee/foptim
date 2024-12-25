@@ -505,7 +505,7 @@ Printer Printer::operator<<(const foptim::fir::Attribute &attrib) const {
       [this](auto &&v) {
         if constexpr (typeid(v) == typeid(fir::VoidAttrib)) {
           return;
-        } else if constexpr (typeid(v) == typeid(std::string)) {
+        } else if constexpr (typeid(v) == typeid(IRString)) {
           *this << ": " << v.c_str();
         } else {
           *this << ": " << v;

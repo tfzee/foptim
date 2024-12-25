@@ -136,15 +136,15 @@ struct ContextData {
   Global get_global(size_t size_bytes) {
     return storage.insert_global({size_bytes, nullptr});
   }
-  FunctionR get_function(std::string name) {
+  FunctionR get_function(IRString name) {
     if (!storage.functions.contains(name)) {
-      utils::Debug << "Failed to find function " << name << " from storage\n";
+      utils::Debug << "Failed to find function '" << name.c_str() << "' from storage\n";
       ASSERT(false);
     }
     return &storage.functions.at(name);
   }
 
-  FunctionR create_function(std::string name, FunctionTypeR type) {
+  FunctionR create_function(IRString name, FunctionTypeR type) {
     storage.functions.insert({name, Function{this, name, type}});
 
     auto func = FunctionR(&storage.functions.at(name));

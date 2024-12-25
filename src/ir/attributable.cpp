@@ -3,16 +3,16 @@
 
 namespace foptim::fir {
 
-bool Attributable::has_attrib(const std::string &key) const {
+bool Attributable::has_attrib(const IRString &key) const {
   return attribs.contains(key);
 }
-const Attribute &Attributable::get_attrib(const std::string &key) const {
+const Attribute &Attributable::get_attrib(const IRString &key) const {
   return attribs.at(key);
 }
-Attribute &Attributable::get_attrib(const std::string &key) {
+Attribute &Attributable::get_attrib(const IRString &key) {
   return attribs.at(key);
 }
-Attributable *Attributable::add_attrib(std::string key, std::string value) {
+Attributable *Attributable::add_attrib(IRString key, IRString value) {
   if (attribs.contains(key)) {
     utils::Debug << "add_attrib Warning: Key '" << key
                  << "' was already a attrib with value '" << attribs[key]
@@ -22,7 +22,7 @@ Attributable *Attributable::add_attrib(std::string key, std::string value) {
   return this;
 }
 
-Attributable  *Attributable::add_attrib(std::string key, TypeR value) {
+Attributable  *Attributable::add_attrib(IRString key, TypeR value) {
   if (attribs.contains(key)) {
     utils::Debug << "add_attrib Warning: Key '" << key
                  << "' was already a attrib with value '" << attribs[key]
@@ -32,7 +32,7 @@ Attributable  *Attributable::add_attrib(std::string key, TypeR value) {
   return this;
 }
 
-Attributable *Attributable::add_attrib(std::string key, ConstantValue value) {
+Attributable *Attributable::add_attrib(IRString key, ConstantValue value) {
   attribs.insert({key, Attribute(value)});
   return this;
 }

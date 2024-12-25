@@ -1,12 +1,12 @@
 #pragma once
+#include "utils/string.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
-#include <string>
 
 namespace foptim::fmir {
 
 struct Global {
-  std::string name;
+  IRString name;
   FVec<u8> data;
 };
 

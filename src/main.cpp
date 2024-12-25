@@ -35,7 +35,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
 void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals);
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
-             foptim::FVec<std::string> &decls,
+             foptim::FVec<foptim::IRString> &decls,
              foptim::FVec<foptim::fmir::Global> &globals);
 
 int main(int argc, char *argv[]) {
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
   // mir
   foptim::FVec<foptim::fmir::MFunc> funcs;
   foptim::FVec<foptim::fmir::Global> globals;
-  foptim::FVec<std::string> decls;
+  foptim::FVec<foptim::IRString> decls;
   for (auto &[decl, f] : ctx.data->storage.functions) {
     if (f.is_decl()) {
       decls.push_back(decl);
@@ -148,7 +148,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
       if (v->used) {
         auto size = v->data.n_bytes;
         auto name = "G_" + std::to_string((foptim::u64) & (v->data));
-        foptim::fmir::Global glob = {.name = name, .data = {}};
+        foptim::fmir::Global glob = {.name = name.c_str(), .data = {}};
         glob.data.resize(size, 0);
         memcpy(glob.data.data(), v->data.init_value, size);
         globals.push_back(glob);
@@ -191,7 +191,7 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
-             foptim::FVec<std::string> &decls,
+             foptim::FVec<foptim::IRString> &decls,
              foptim::FVec<foptim::fmir::Global> &globals) {
   foptim::utils::Debug << "================OPTIMEND2====================\n";
   for (const auto &func : funcs) {

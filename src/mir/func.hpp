@@ -15,7 +15,7 @@ public:
   IRVec<MBB> bbs;
   IRVec<VReg> args;
 
-  std::string name = "UNKNOWN";
+  IRString name = "UNKNOWN";
   IRVec<Type> arg_tys;
 
   uint32_t curr_arg_stack_off;

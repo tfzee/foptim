@@ -372,7 +372,7 @@ MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
       auto helper =
           MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
       auto arg = MArgument::Mem(
-          "G_" + std::to_string((u64)global.get_raw_ptr()), type_id);
+          ("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(), type_id);
       res.emplace_back(Opcode::lea, helper, arg);
       return helper;
     }
@@ -400,7 +400,7 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
       auto global = constant->as_global();
       Type type_id = convert_type(val.get_type());
       // TODO: idk if i64 is right here
-      return MArgument::Mem("G_" + std::to_string((u64)global.get_raw_ptr()),
+      return MArgument::Mem(("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(),
                             type_id);
     }
     if (constant->is_func()) {

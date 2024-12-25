@@ -443,7 +443,7 @@ public:
   u64 scale;
   VReg reg;
   VReg indx;
-  std::string label;
+  IRString label;
 
   constexpr MArgument() : type(ArgumentType::Imm), imm(0) {}
   // TODO FIX TYPE CONVERSION HERE
@@ -457,12 +457,12 @@ public:
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
   MArgument(f64 imm) : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
   MArgument(f32 imm) : type(ArgumentType::Imm), ty(Type::Float32), immf(imm) {}
-  MArgument(std::string lab)
+  MArgument(IRString lab)
       : type(ArgumentType::Label), ty(Type::INVALID), label(std::move(lab)) {}
-  MArgument(std::string lab, Type ty)
+  MArgument(IRString lab, Type ty)
       : type(ArgumentType::Label), ty(ty), label(std::move(lab)) {}
 
-  [[nodiscard]] static constexpr MArgument Mem(std::string lab, Type ty) {
+  [[nodiscard]] static constexpr MArgument Mem(IRString lab, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemLabel;
     arg.ty = ty;
@@ -470,7 +470,7 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(std::string lab, u32 imm,
+  [[nodiscard]] static constexpr MArgument Mem(IRString lab, u32 imm,
                                                Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmLabel;

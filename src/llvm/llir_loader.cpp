@@ -85,7 +85,7 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
   if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(value)) {
     // TODO: right now only handles actual functions not declarations
     return foptim::fir::ValueR(
-        fctx->get_constant_value(fctx->get_function(value->getName().str())));
+        fctx->get_constant_value(fctx->get_function(value->getName().str().c_str())));
   }
 
   llvm::errs() << value << " " << typeid(value).name() << "\n";
@@ -821,9 +821,10 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
   } else if (func.getName().starts_with("llvm.memcpy")) {
     generate_memcpy(fctx);
   }
+  foptim::IRString func_name= func.getName().str().c_str();
   fctx.data->storage.functions.insert(
-      {func.getName().str(),
-       foptim::fir::Function(fctx.operator->(), func.getName().str(),
+      {func_name,
+       foptim::fir::Function(fctx.operator->(), func_name,
                              convert_type(func.getFunctionType(), fctx))});
 }
 
@@ -835,8 +836,8 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx) {
     return convert_decl(func, fctx);
   }
 
-  auto name = func.getName();
-  fctx->create_function(name.str(), convert_type(func.getFunctionType(), fctx));
+  foptim::IRString func_name= func.getName().str().c_str();
+  fctx->create_function(func_name, convert_type(func.getFunctionType(), fctx));
 }
 
 inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
@@ -850,7 +851,7 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   // }
 
   auto name = func.getName();
-  auto ffunc = fctx->get_function(name.str());
+  auto ffunc = fctx->get_function(name.str().c_str());
 
   switch (func.getLinkage()) {
   case llvm::GlobalValue::InternalLinkage:

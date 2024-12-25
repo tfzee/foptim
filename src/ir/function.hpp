@@ -4,8 +4,8 @@
 #include "ir/attributable.hpp"
 #include "types.hpp"
 #include "types_ref.hpp"
+#include "utils/string.hpp"
 #include "utils/todo.hpp"
-#include <string>
 #include <utility>
 
 namespace foptim::utils {
@@ -23,19 +23,19 @@ public:
   };
 
   ContextData *ctx;
-  std::string name;
+  IRString name;
   FunctionTypeR func_ty;
   IRVec<BasicBlock> basic_blocks;
   // metadata
   CallingConv cc = CallingConv::C;
   Linkage linkage = Linkage::Internal;
 
-  Function(ContextData *ctx, std::string name, FunctionTypeR type)
+  Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}
 
   bool is_decl() const { return basic_blocks.empty(); }
-  std::string &getName() { return name; }
-  const std::string &getName() const { return name; }
+  IRString &getName() { return name; }
+  const IRString &getName() const { return name; }
 
   [[nodiscard]] BasicBlock get_entry() const {
     ASSERT(!basic_blocks.empty());
