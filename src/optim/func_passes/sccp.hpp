@@ -103,7 +103,7 @@ public:
 
       if ((!a.value->is_int() && !a.value->is_float()) ||
           (!b.value->is_int() && !b.value->is_float())) {
-        failure({"Cannot do SCCP on binary expr using non integers", instr});
+        failure({"Cannot do SCCP on binary expr using non integers/floats", instr});
         return ConstantValue::Bottom();
       }
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
@@ -211,6 +211,32 @@ public:
       return ConstantValue::Top();
     }
     case fir::InstrType::Conversion: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (a.is_top()) {
+        return ConstantValue::Top();
+      }
+      switch ((fir::ConversionSubType)instr->get_instr_subtype()) {
+      case fir::ConversionSubType::INVALID:
+        UNREACH();
+      case fir::ConversionSubType::FPTOUI:
+        return ConstantValue::Constant(
+            ctx->get_constant_value(static_cast<u64>(a.value->as_float()),
+                                    ctx->copy(instr->get_type())));
+      case fir::ConversionSubType::FPTOSI:
+        return ConstantValue::Constant(
+            ctx->get_constant_value(static_cast<i64>(a.value->as_float()),
+                                    ctx->copy(instr->get_type())));
+      case fir::ConversionSubType::UITOFP:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<f64>(a.value->as_int()), ctx->copy(instr->get_type())));
+      case fir::ConversionSubType::SITOFP:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<f64>(a.value->as_int()), ctx->copy(instr->get_type())));
+        break;
+      }
       // TODO: impl
       return ConstantValue::Bottom();
     }
@@ -237,6 +263,7 @@ public:
       }
 
       switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
+        // TODO; how to handle
       case fir::FCmpInstrSubType::OGT:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<i32>(a.value->as_float() > b.value->as_float()),
@@ -245,12 +272,22 @@ public:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<i32>(a.value->as_float() < b.value->as_float()),
             ctx->get_int_type(8)));
-      case fir::FCmpInstrSubType::INVALID:
-      case fir::FCmpInstrSubType::AlwFalse:
       case fir::FCmpInstrSubType::OEQ:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i32>(a.value->as_float() == b.value->as_float()),
+            ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::OGE:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i32>(a.value->as_float() >= b.value->as_float()),
+            ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::OLE:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i32>(a.value->as_float() <= b.value->as_float()),
+            ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::ONE:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i32>(a.value->as_float() != b.value->as_float()),
+            ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::ORD:
       case fir::FCmpInstrSubType::UNO:
       case fir::FCmpInstrSubType::UEQ:
@@ -259,7 +296,13 @@ public:
       case fir::FCmpInstrSubType::ULT:
       case fir::FCmpInstrSubType::ULE:
       case fir::FCmpInstrSubType::UNE:
+      case fir::FCmpInstrSubType::AlwFalse:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i32>(false), ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::AlwTrue:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i32>(true), ctx->get_int_type(8)));
+      case fir::FCmpInstrSubType::INVALID:
         break;
       }
       failure({"Imply fcmp", instr});

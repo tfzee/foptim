@@ -19,7 +19,7 @@ class Legalizer {
   bool legalize_icmp(MBB &bb, u32 indx);
   bool legalize_fcmp(MBB &bb, u32 indx);
   bool legalize_idiv(MBB &bb, u32 indx);
-  bool legalize_fadd(MBB &bb, u32 indx);
+  bool legalize_floating_binary_ops(MBB &bb, u32 indx);
   bool legalize_push(MBB &bb, u32 indx);
   bool legalize_arg_setup(MBB &bb, u32 indx);
   bool legalize_move(MBB &bb, u32 indx);

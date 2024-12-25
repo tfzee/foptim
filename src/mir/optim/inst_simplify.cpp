@@ -20,6 +20,13 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       instrs.erase(instrs.begin() + instr_id);
       return true;
     }
+    // if both inputs are the same replace iwth basic move
+    if (instr.args[1] == instr.args[2]) {
+      auto instr = instrs[instr_id];
+      instr.op = Opcode::mov;
+      instr.n_args = 2;
+      return false;
+    }
   }
   default:
     break;

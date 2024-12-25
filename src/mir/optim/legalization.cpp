@@ -41,9 +41,11 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
 }
 
 u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
-  auto int_version = ty == Type::Float64   ? Type::Int64
-                     : ty == Type::Float32 ? Type::Int32
-                                           : Type::INVALID;
+  auto int_version = (ty == Type::Float64 || ty == Type::Int64) ? Type::Int64
+                     : (ty == Type::Float32 || ty == Type::Int32)
+                         ? Type::Int32
+                         : Type::INVALID;
+  ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
   auto old_arg = bb.instrs[indx].args[arg_id];
   ASSERT(old_arg.isImm());
@@ -191,7 +193,16 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   if (instr.args[0].isReg() &&
       instr.args[0].reg.info.reg_class == VRegClass::Float &&
       instr.args[1].isImm()) {
-    indx = move_fp_const_to_reg(bb, indx, 1, instr.args[1].ty);
+    if ((instr.args[1].is_fp() && instr.args[1].immf == 0) ||
+        instr.args[1].imm == 0) {
+      instr.op = Opcode::fxor;
+      instr.args[1] = instr.args[0];
+      instr.args[2] = instr.args[0];
+      instr.n_args = 3;
+    } else {
+      move_fp_const_to_grp(bb, indx, 1, instr.args[1].ty);
+    }
+    return true;
   }
 
   instr = bb.instrs[indx];
@@ -213,7 +224,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
     // utils::Debug << "Fixing : " << instr << "\n";
     auto t0 = instr.args[0].ty;
     auto t1 = instr.args[1].ty;
-    utils::Debug << t0 << " " << t1 << "\n";
+    // utils::Debug << t0 << " " << t1 << "\n";
     if (get_size(t0) > get_size(t1)) {
       // utils::Debug << "REPLACED" << instr << "\n";
       instr.op = Opcode::mov_zx;
@@ -321,12 +332,16 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
   return modified;
 }
 
-bool Legalizer::legalize_fadd(MBB &bb, u32 indx) {
+bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
   bool modified = false;
   {
     // 2nd arg cant be a constant
     // and loading floating constants is a pain
     MInstr &instr = bb.instrs[indx];
+    if (instr.args[1].isImm()) {
+      indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+      modified = true;
+    }
     if (instr.args[2].isImm()) {
       indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
       modified = true;
@@ -443,8 +458,11 @@ void Legalizer::apply(MFunc &func) {
           ioff = 0;
         }
         break;
+      case Opcode::fmul:
+      case Opcode::fsub:
+      case Opcode::fxor:
       case Opcode::fadd:
-        if (legalize_fadd(bb, i)) {
+        if (legalize_floating_binary_ops(bb, i)) {
           ioff = 0;
         }
         break;

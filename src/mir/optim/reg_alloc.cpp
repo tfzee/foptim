@@ -204,7 +204,7 @@ bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
 
   switch (reg.info.reg_class) {
   case VRegClass::INVALID:
-    TODO("UNREACh");
+    UNREACH();
   case VRegClass::GeneralPurpose:
     return avail_reg == VRegType::A || avail_reg == VRegType::B ||
            avail_reg == VRegType::C || avail_reg == VRegType::D ||

@@ -514,15 +514,31 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     }
     return;
   }
+  // TODO: prob should merge these fp ops since they all have the same setup
+  //  or use a macro
   case fmir::Opcode::fsub: {
     ASSERT(instr.n_args == 3);
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
     if (instr.args[0].ty == fmir::Type::Float32) {
-      cc.emit(Inst::kIdSubss, target, o0, o1);
+      cc.emit(Inst::kIdVsubss, target, o0, o1);
     } else if (instr.args[0].ty == fmir::Type::Float64) {
-      cc.emit(Inst::kIdSubsd, target, o0, o1);
+      cc.emit(Inst::kIdVsubsd, target, o0, o1);
+    } else {
+      UNREACH();
+    }
+    return;
+  }
+  case fmir::Opcode::fxor: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(Inst::kIdVxorps, target, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(Inst::kIdVxorpd, target, o0, o1);
     } else {
       UNREACH();
     }
@@ -533,11 +549,10 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    TODO("IMPL");
     if (instr.args[0].ty == fmir::Type::Float32) {
-      cc.emit(Inst::kIdMulss, target, o0, o1);
+      cc.emit(Inst::kIdVmulss, target, o0, o1);
     } else if (instr.args[0].ty == fmir::Type::Float64) {
-      cc.emit(Inst::kIdMulsd, target, o0, o1);
+      cc.emit(Inst::kIdVmulsd, target, o0, o1);
     } else {
       UNREACH();
     }
@@ -552,6 +567,8 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       cc.emit(Inst::kIdDivss, target, o0, o1);
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       cc.emit(Inst::kIdDivsd, target, o0, o1);
+      //TODO: prob should merge these fp ops since they all have the same setup
+      // or use a macro
     } else {
       UNREACH();
     }
@@ -755,7 +772,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       cc.emit(Inst::kIdJg, bb_labels[instr.bb_ref]);
       break;
     default:
-      TODO("UNREAC");
+      UNREACH();
     }
     return;
   }
@@ -789,6 +806,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else {
       UNREACH();
     }
+    // TODO. impl better ?
     switch (instr.op) {
     case fmir::Opcode::cjmp_flt_oeq:
     case fmir::Opcode::cjmp_flt_ueq:
@@ -867,7 +885,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       op = Inst::kIdSetg;
       break;
     default:
-      TODO("UNREAC");
+      UNREACH();
     }
     cc.emit(Inst::kIdCmp, a, b);
     cc.emit(op, targ);

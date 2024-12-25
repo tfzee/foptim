@@ -158,7 +158,7 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
     bool is_true = false;
     switch ((ICmpInstrSubType)instr->get_instr_subtype()) {
     case fir::ICmpInstrSubType::INVALID:
-      TODO("impl");
+      UNREACH();
     case fir::ICmpInstrSubType::SLT:
       is_true = (i64)v1 < (i64)v2;
       break;

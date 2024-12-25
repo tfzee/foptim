@@ -75,6 +75,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::ffmadd132:
   case Opcode::ffmadd231:
   case Opcode::ffmadd213:
+  case Opcode::fxor:
   case Opcode::SI2FL:
   case Opcode::UI2FL:
   case Opcode::FL2SI:

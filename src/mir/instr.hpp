@@ -34,6 +34,7 @@ enum class Opcode : u32 {
   ffmadd132,
   ffmadd213,
   ffmadd231,
+  fxor,
 
   SI2FL,
   UI2FL,
@@ -126,6 +127,7 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(ffmadd132);
     ReturnString(ffmadd231);
     ReturnString(ffmadd213);
+    ReturnString(fxor);
     ReturnString(icmp_slt);
     ReturnString(icmp_eq);
     ReturnString(jmp);

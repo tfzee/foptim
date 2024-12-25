@@ -94,8 +94,9 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-  // foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  // foptim::utils::Debug <<
+  // "================OPTIMMIDDLE====================\n"; for (const auto &[_,
+  // func] : ctx.data->storage.functions) {
   //   foptim::utils::Debug << func << "\n";
   // }
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
@@ -120,10 +121,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   ASSERT(ctx->verify());
 
-  // foptim::utils::Debug << "================OPTIMEND====================\n";
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  foptim::utils::Debug << "================OPTIMEND====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
 
   // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
 
@@ -173,8 +174,17 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   (void)globals;
   ZoneScopedN("MIR Optim");
   foptim::fmir::CallingConv{}.first_stage(funcs);
+  foptim::utils::Debug << "================BEF LEGALIZE====================\n";
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  foptim::utils::Debug << "================BEF REGALLOC====================\n";
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
+
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
@@ -188,10 +198,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::IRString> &decls,
              foptim::FVec<foptim::fmir::Global> &globals) {
-  // foptim::utils::Debug << "================OPTIMEND2====================\n";
-  // for (const auto &func : funcs) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  foptim::utils::Debug << "================OPTIMEND2====================\n";
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, decls, globals);
 }

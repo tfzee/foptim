@@ -83,7 +83,6 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     }
   }
   if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(value)) {
-    // TODO: right now only handles actual functions not declarations
     return foptim::fir::ValueR(
         fctx->get_constant_value(fctx->get_function(value->getName().str().c_str())));
   }
@@ -320,7 +319,7 @@ inline bool convert_fcmp(const llvm::Instruction *any_instr,
   case llvm::CmpInst::BAD_FCMP_PREDICATE: {
   }
   default:
-    TODO("unreach");
+    UNREACH();
   }
   auto res = builder.build_float_cmp(a, b, pred);
   valueToValue.insert({any_instr, res});
@@ -371,7 +370,7 @@ inline bool convert_icmp(const llvm::Instruction *any_instr,
     pred = foptim::fir::ICmpInstrSubType::SLT;
     break;
   default:
-    TODO("unreach");
+    UNREACH();
   }
   auto res = builder.build_int_cmp(a, b, pred);
   valueToValue.insert({any_instr, res});

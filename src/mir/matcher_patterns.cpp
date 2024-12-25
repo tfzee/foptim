@@ -326,8 +326,21 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
           return false;
         }
 
-        if (!branch_instr->bbs[0].args.empty() ||
-            !branch_instr->bbs[1].args.empty()) {
+        if (!branch_instr->bbs[0].args.empty()) {
+          // if we have bb args that collide with our conditional stuff we skip
+          // it cause it might be overriding values
+          // TOOD: IMPL checking if theres actually a collision
+          // current issue is that to know where we store the args to the
+          // comparison we need to generate the args
+          //   if we then fail the check we will have generated dead code
+          // for (auto arg : branch_instr->bbs[0].args) {
+          //   auto bb_arg_target = valueToArg(fir::ValueR(arg), res.result,
+          //                        data.alloc);
+          //   ASSERT(bb_arg_target.isReg());
+          //   if (bb_arg_target == ){
+
+          //   }
+          // }
           utils::Debug << "Failed to smartly match cmp "
                        << cmp_instr->get_instr_subtype()
                        << " + branch because non emtpy bb args\n";
@@ -352,7 +365,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
 
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
         ASSERT(bb_with_args.args.size() == 0);
-        // generate_bb_args(bb_with_args, res, data);
+        generate_bb_args(bb_with_args, res, data);
 
         if (sub_type == fir::ICmpInstrSubType::SLT) {
           res.result.push_back(
@@ -392,8 +405,8 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
           auto bb2_with_args = branch_instr->bbs[1];
           auto target_bb2 = branch_instr->bbs[1].bb;
           ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
-          ASSERT(bb2_with_args.args.size() == 0);
-          // generate_bb_args(bb2_with_args, res, data);
+          // ASSERT(bb2_with_args.args.size() == 0);
+          generate_bb_args(bb2_with_args, res, data);
           res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
         }
         return true;
@@ -466,8 +479,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
       {FloatMulNode, FloatAddNode},
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
-        // TODO: this should be done once for all allocas that only get
-        // executed once
+        return false;
         auto mul_instr = res.matched_instrs[0];
         auto add_instr = res.matched_instrs[1];
         auto res_reg =
@@ -475,6 +487,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto mul_arg1 = valueToArg(mul_instr->args[0], res.result, data.alloc);
         auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
         auto add_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
+        // utils::Debug << "MATHCING FMADD\n";
+        // utils::Debug << mul_instr << "\n";
+        // utils::Debug << add_instr << "\n";
+        // utils::Debug << mul_arg1 << " * " << mul_arg2 << " + " << add_arg2
+        //              << "\n";
 
         if (res_reg == add_arg2 && add_arg2.isReg() && mul_arg1.isReg() &&
             (mul_arg2.isReg() || mul_arg2.isMem())) {
@@ -498,21 +515,22 @@ void arith_patterns(IRVec<Pattern> &pats) {
                    add_arg2.isReg() && (mul_arg1.isReg() || mul_arg1.isMem())) {
           res.result.emplace_back(Opcode::ffmadd132, mul_arg2, add_arg2,
                                   mul_arg1);
-        } else if (add_arg2.isReg()) {
-          // TODO: could be expanded to handle another memory operand in the
-          // move explicitly flipping arround the mul
-          res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
-          res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
-                                  mul_arg2);
-        } else if (mul_arg2.isReg()) {
-          res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
-          res.result.emplace_back(Opcode::ffmadd213, res_reg, mul_arg2,
-                                  add_arg2);
+        // } else if (add_arg2.isReg()) {
+        //   // TODO: could be expanded to handle another memory operand in the
+        //   // move explicitly flipping arround the mul
+        //   res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
+        //   res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
+        //                           mul_arg2);
+        // } else if (mul_arg2.isReg()) {
+        //   res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
+        //   res.result.emplace_back(Opcode::ffmadd213, res_reg, mul_arg2,
+        //                           add_arg2);
         } else {
           // TODO: prob shouldnt do this and just let the legalizer handle it
           res.result.emplace_back(Opcode::fmul, res_reg, mul_arg1, mul_arg2);
           res.result.emplace_back(Opcode::fadd, res_reg, res_reg, add_arg2);
         }
+        utils::Debug << res.result.back() << "\n";
         return true;
       }});
 }
