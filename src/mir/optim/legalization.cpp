@@ -21,9 +21,11 @@ u32 Legalizer::move_arg_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
 }
 
 u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
-  auto int_version = ty == Type::Float64   ? Type::Int64
-                     : ty == Type::Float32 ? Type::Int32
-                                           : Type::INVALID;
+  auto int_version = (ty == Type::Float64 || ty == Type::Int64) ? Type::Int64
+                     : (ty == Type::Float32 || ty == Type::Int32)
+                         ? Type::Int32
+                         : Type::INVALID;
+  ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
   auto new_float_reg = get_reg(ty);
   auto old_arg = bb.instrs[indx].args[arg_id];
@@ -185,7 +187,10 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
 
   MInstr &instr = bb.instrs[indx];
   // cant move an immediate floating point value
-  if (instr.args[0].isReg() && instr.args[0].reg.info.isVecReg() && instr.args[1].is_fp() && instr.args[1].isImm()) {
+  // instr.args[0].reg.info.isVecReg()
+  if (instr.args[0].isReg() &&
+      instr.args[0].reg.info.reg_class == VRegClass::Float &&
+      instr.args[1].isImm()) {
     indx = move_fp_const_to_reg(bb, indx, 1, instr.args[1].ty);
   }
 
@@ -286,9 +291,9 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
       if (!instr.args[0].isImm()) {
         continue;
       }
-      //we only need to do this if we use the stack
-      //since pushing some stuff will be problematic
-      if(!instr.args[0].is_fp() && instr.n_args > 1){
+      // we only need to do this if we use the stack
+      // since pushing some stuff will be problematic
+      if (!instr.args[0].is_fp() && instr.n_args > 1) {
         continue;
       }
       if (instr.args[0].ty != Type::Float64 &&

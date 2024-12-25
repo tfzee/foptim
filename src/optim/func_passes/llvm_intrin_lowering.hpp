@@ -36,6 +36,19 @@ public:
     // }
   }
 
+  void handle_fmuladd(fir::Instr instr, fir::Function & /*func*/,
+                      fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto mul_1 = instr->args[1];
+    auto mul_2 = instr->args[2];
+    auto add = instr->args[3];
+
+    auto mul_res = bb.build_float_mul(mul_1, mul_2);
+    auto result = bb.build_float_add(mul_res, add);
+    instr->replace_all_uses(result);
+    instr.remove_from_parent();
+  }
+
   void handle_memcpy(fir::Instr instr, fir::Function &func,
                      fir::FunctionR /*callee*/) {
 
@@ -75,6 +88,8 @@ public:
           handle_memset(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.memcpy.")) {
           handle_memcpy(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.fmuladd.")) {
+          handle_fmuladd(instr, func, callee);
         }
       }
     }

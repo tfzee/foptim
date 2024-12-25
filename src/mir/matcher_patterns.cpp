@@ -430,6 +430,92 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
 }
+void arith_patterns(IRVec<Pattern> &pats) {
+  using Node = Pattern::Node;
+  using InstrType = fir::InstrType;
+  using NodeType = Pattern::NodeType;
+
+  // auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                        (u32)fir::BinaryInstrSubType::IntAdd};
+  // auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                        (u32)fir::BinaryInstrSubType::IntSub};
+  // auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                        (u32)fir::BinaryInstrSubType::IntMul};
+  // auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                      (u32)fir::BinaryInstrSubType::IntSRem};
+  // auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                      (u32)fir::BinaryInstrSubType::IntSDiv};
+  // auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                     (u32)fir::BinaryInstrSubType::And};
+  // auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                    (u32)fir::BinaryInstrSubType::Or};
+  // auto XorNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                     (u32)fir::BinaryInstrSubType::Xor};
+  auto FloatAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::FloatAdd};
+  auto FloatMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::FloatMul};
+  // auto ShlNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                     (u32)fir::BinaryInstrSubType::Shl};
+  // auto ShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                     (u32)fir::BinaryInstrSubType::Shr};
+  // auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                      (u32)fir::BinaryInstrSubType::AShr};
+  // auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
+  pats.push_back(Pattern{
+      {FloatMulNode, FloatAddNode},
+      {{0, 1, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        // TODO: this should be done once for all allocas that only get
+        // executed once
+        auto mul_instr = res.matched_instrs[0];
+        auto add_instr = res.matched_instrs[1];
+        auto res_reg =
+            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+        auto mul_arg1 = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
+        auto add_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
+
+        if (res_reg == add_arg2 && add_arg2.isReg() && mul_arg1.isReg() &&
+            (mul_arg2.isReg() || mul_arg2.isMem())) {
+          res.result.emplace_back(Opcode::ffmadd231, res_reg, mul_arg1,
+                                  mul_arg2);
+        } else if (res_reg == mul_arg1 && mul_arg1.isReg() &&
+                   mul_arg2.isReg() && (add_arg2.isReg() || add_arg2.isMem())) {
+          res.result.emplace_back(Opcode::ffmadd231, mul_arg1, mul_arg2,
+
+                                  add_arg2);
+        } else if (res_reg == mul_arg2 && mul_arg1.isReg() &&
+                   mul_arg2.isReg() && (add_arg2.isReg() || add_arg2.isMem())) {
+          res.result.emplace_back(Opcode::ffmadd231, mul_arg2, mul_arg1,
+
+                                  add_arg2);
+        } else if (res_reg == mul_arg1 && mul_arg1.isReg() &&
+                   add_arg2.isReg() && (mul_arg2.isReg() || mul_arg2.isMem())) {
+          res.result.emplace_back(Opcode::ffmadd132, mul_arg1, add_arg2,
+                                  mul_arg2);
+        } else if (res_reg == mul_arg2 && mul_arg2.isReg() &&
+                   add_arg2.isReg() && (mul_arg1.isReg() || mul_arg1.isMem())) {
+          res.result.emplace_back(Opcode::ffmadd132, mul_arg2, add_arg2,
+                                  mul_arg1);
+        } else if (add_arg2.isReg()) {
+          // TODO: could be expanded to handle another memory operand in the
+          // move explicitly flipping arround the mul
+          res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
+          res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
+                                  mul_arg2);
+        } else if (mul_arg2.isReg()) {
+          res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
+          res.result.emplace_back(Opcode::ffmadd213, res_reg, mul_arg2,
+                                  add_arg2);
+        } else {
+          // TODO: prob shouldnt do this and just let the legalizer handle it
+          res.result.emplace_back(Opcode::fmul, res_reg, mul_arg1, mul_arg2);
+          res.result.emplace_back(Opcode::fadd, res_reg, res_reg, add_arg2);
+        }
+        return true;
+      }});
+}
 
 void base_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;

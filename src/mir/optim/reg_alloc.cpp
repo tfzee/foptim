@@ -328,6 +328,9 @@ void apply_func(MFunc &func) {
           }
         }
         if (!found) {
+          utils::Debug << reg << " Size:" << reg.info.reg_size
+                       << " Is FP:" << (reg.info.reg_class == VRegClass::Float)
+                       << "\n";
           TODO("spill it ?");
           ASSERT(false);
         }

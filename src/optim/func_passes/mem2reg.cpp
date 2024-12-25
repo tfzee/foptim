@@ -253,12 +253,11 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
           {target_alloca, {block, bb_arguemnt_value}});
     }
   }
-  utils::Debug << "DecideValue at BB:\n";
-  for (size_t i = 0; i < current_variable_value.size(); i++) {
-    utils::Debug << " ";
-  }
-
-  utils::Debug << (void *)block.get_raw_ptr() << "\n";
+  // utils::Debug << "DecideValue at BB:\n";
+  // for (size_t i = 0; i < current_variable_value.size(); i++) {
+  //   utils::Debug << " ";
+  // }
+  // utils::Debug << (void *)block.get_raw_ptr() << "\n";
   // dump(current_variable_value);
 
   if (visited.contains(block)) {

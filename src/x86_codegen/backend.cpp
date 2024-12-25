@@ -476,6 +476,43 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     }
     return;
   }
+  case fmir::Opcode::ffmadd213:
+  case fmir::Opcode::ffmadd231:
+  case fmir::Opcode::ffmadd132: {
+    ASSERT(instr.n_args == 3);
+    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+
+    auto operandss = Inst::kIdVfmadd132ss;
+    auto operandsd = Inst::kIdVfmadd132sd;
+    switch (instr.op) {
+    case fmir::Opcode::ffmadd213:
+      operandss = Inst::kIdVfmadd213ss;
+      operandsd = Inst::kIdVfmadd213sd;
+      break;
+    case fmir::Opcode::ffmadd231:
+      operandss = Inst::kIdVfmadd231ss;
+      operandsd = Inst::kIdVfmadd231sd;
+      break;
+    case fmir::Opcode::ffmadd132:
+      operandss = Inst::kIdVfmadd132ss;
+      operandsd = Inst::kIdVfmadd132sd;
+      break;
+    default:
+      TODO("UNREACH");
+    }
+
+    ASSERT(target != o1);
+    if (instr.args[0].ty == fmir::Type::Float32) {
+      cc.emit(operandss, target, o0, o1);
+    } else if (instr.args[0].ty == fmir::Type::Float64) {
+      cc.emit(operandsd, target, o0, o1);
+    } else {
+      TODO("UNREACH");
+    }
+    return;
+  }
   case fmir::Opcode::fsub: {
     ASSERT(instr.n_args == 3);
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
