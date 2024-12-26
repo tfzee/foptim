@@ -339,58 +339,73 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
 
   return res_func;
 }
+MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
+                          DumbRegAlloc &alloc) {
+
+  ASSERT(val.is_constant());
+  auto consti = val.as_constant();
+  if (consti->is_int()) {
+    switch (val.get_type()->as_int()) {
+    case 8:
+      return {(u8)consti->as_int()};
+    case 16:
+      return {(u16)consti->as_int()};
+    case 32:
+      return {(u32)consti->as_int()};
+    case 64:
+    default:
+      return {consti->as_int()};
+    }
+  }
+
+  if (consti->is_float()) {
+    if (val.get_type()->as_float() == 32) {
+      return {(f32)consti->as_float()};
+    }
+    return {consti->as_float()};
+  }
+
+  if (consti->is_global()) {
+    auto global = consti->as_global();
+    // TODO: idk if i64 is right here
+
+    Type type_id = convert_type(val.get_type());
+    auto helper =
+        MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
+    auto arg = MArgument::Mem(
+        ("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(), type_id);
+    res.emplace_back(Opcode::lea, helper, arg);
+    return helper;
+  }
+  if (consti->is_func()) {
+    auto funcy = consti->as_func();
+    auto arg = MArgument::Mem(funcy->getName(), Type::Int64);
+    auto helper =
+        MArgument(alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64);
+    res.emplace_back(Opcode::lea, helper, arg);
+    return helper;
+  }
+  UNREACH();
+}
+
+MArgument valueToArgNewLife(fir::ValueR val, IRVec<MInstr> &res,
+                            DumbRegAlloc &alloc) {
+  if (val.is_constant()) {
+    return valueToArgConst(val, res, alloc);
+  }
+  Type type_id = convert_type(val.get_type());
+  auto old_data = alloc.get_register(val);
+  auto new_reg = alloc.get_new_register(old_data.info);
+  res.emplace_back(Opcode::mov, MArgument(new_reg, type_id), MArgument(old_data, type_id));
+  return {new_reg, type_id};
+}
 
 MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
-    auto consti = val.as_constant();
-    if (consti->is_int()) {
-      switch (val.get_type()->as_int()) {
-      case 8:
-        return {(u8)consti->as_int()};
-      case 16:
-        return {(u16)consti->as_int()};
-      case 32:
-        return {(u32)consti->as_int()};
-      case 64:
-      default:
-        return {consti->as_int()};
-      }
-    }
-
-    if (consti->is_float()) {
-      if (val.get_type()->as_float() == 32) {
-        return {(f32)consti->as_float()};
-      }
-      return {consti->as_float()};
-    }
-
-    if (consti->is_global()) {
-      auto global = consti->as_global();
-      // TODO: idk if i64 is right here
-
-      Type type_id = convert_type(val.get_type());
-      auto helper =
-          MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
-      auto arg = MArgument::Mem(
-          ("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(), type_id);
-      res.emplace_back(Opcode::lea, helper, arg);
-      return helper;
-    }
-    if (consti->is_func()) {
-      auto funcy = consti->as_func();
-      auto arg = MArgument::Mem(funcy->getName(), Type::Int64);
-      auto helper =
-          MArgument(alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64);
-      res.emplace_back(Opcode::lea, helper, arg);
-      return helper;
-    }
-  } else {
-    // ASSERT(val.get_type()->is_int() || val.get_type()->is_ptr());
-    Type type_id = convert_type(val.get_type());
-    return {alloc.get_register(val), type_id};
+    return valueToArgConst(val, res, alloc);
   }
-  ASSERT(false);
-  std::abort();
+  Type type_id = convert_type(val.get_type());
+  return {alloc.get_register(val), type_id};
 }
 
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
@@ -400,8 +415,8 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
       auto global = constant->as_global();
       Type type_id = convert_type(val.get_type());
       // TODO: idk if i64 is right here
-      return MArgument::Mem(("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(),
-                            type_id);
+      return MArgument::Mem(
+          ("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(), type_id);
     }
     if (constant->is_func()) {
       auto funcy = constant->as_func();

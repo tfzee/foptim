@@ -3,7 +3,6 @@
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
-#include <string>
 #include <utility>
 
 namespace foptim::fmir {
@@ -54,6 +53,21 @@ enum class Opcode : u32 {
   icmp_ule,
   icmp_sge,
   icmp_sle,
+
+  fcmp_oeq,
+  fcmp_ogt,
+  fcmp_oge,
+  fcmp_olt,
+  fcmp_ole,
+  fcmp_one,
+  fcmp_ord,
+  fcmp_uno,
+  fcmp_ueq,
+  fcmp_ugt,
+  fcmp_uge,
+  fcmp_ult,
+  fcmp_ule,
+  fcmp_une,
 
   cjmp_int_slt,
   cjmp_int_sge,
@@ -111,6 +125,20 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(icmp_ule);
     ReturnString(icmp_sge);
     ReturnString(icmp_sle);
+    ReturnString(fcmp_oeq);
+    ReturnString(fcmp_ogt);
+    ReturnString(fcmp_oge);
+    ReturnString(fcmp_olt);
+    ReturnString(fcmp_ole);
+    ReturnString(fcmp_one);
+    ReturnString(fcmp_ord);
+    ReturnString(fcmp_uno);
+    ReturnString(fcmp_ueq);
+    ReturnString(fcmp_ugt);
+    ReturnString(fcmp_uge);
+    ReturnString(fcmp_ult);
+    ReturnString(fcmp_ule);
+    ReturnString(fcmp_une);
     ReturnString(mov);
     ReturnString(cmov);
     ReturnString(lea);

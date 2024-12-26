@@ -60,6 +60,7 @@ public:
 
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc);
 MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc);
+MArgument valueToArgNewLife(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc);
 Type convert_type(fir::TypeR type);
 void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
                       ExtraMatchData &data);

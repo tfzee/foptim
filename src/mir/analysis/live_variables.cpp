@@ -91,6 +91,20 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::icmp_ule:
   case Opcode::icmp_sge:
   case Opcode::icmp_sle:
+  case Opcode::fcmp_oeq:
+  case Opcode::fcmp_ogt:
+  case Opcode::fcmp_oge:
+  case Opcode::fcmp_olt:
+  case Opcode::fcmp_ole:
+  case Opcode::fcmp_one:
+  case Opcode::fcmp_ord:
+  case Opcode::fcmp_uno:
+  case Opcode::fcmp_ueq:
+  case Opcode::fcmp_ugt:
+  case Opcode::fcmp_uge:
+  case Opcode::fcmp_ult:
+  case Opcode::fcmp_ule:
+  case Opcode::fcmp_une:
     if (instr.args[0].isReg()) {
       def[reg_to_uid(instr.args[0].reg)].set(true);
     }

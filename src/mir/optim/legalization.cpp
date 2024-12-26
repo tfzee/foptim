@@ -131,11 +131,30 @@ bool Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
       indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
+  case Opcode::fcmp_oeq:
+  case Opcode::fcmp_ogt:
+  case Opcode::fcmp_oge:
+  case Opcode::fcmp_olt:
+  case Opcode::fcmp_ole:
+  case Opcode::fcmp_one:
+  case Opcode::fcmp_ord:
+  case Opcode::fcmp_uno:
+  case Opcode::fcmp_ueq:
+  case Opcode::fcmp_ugt:
+  case Opcode::fcmp_uge:
+  case Opcode::fcmp_ult:
+  case Opcode::fcmp_ule:
+  case Opcode::fcmp_une:
+    if (instr.args[2].isImm()) {
+      indx = move_fp_const_to_reg(bb, indx, 2, instr.args[1].ty);
+      return true;
+    }
   default:
     break;
   }
   return false;
 }
+
 
 bool Legalizer::legalize_idiv(MBB &bb, u32 indx) {
   auto modified = false;
@@ -449,6 +468,20 @@ void Legalizer::apply(MFunc &func) {
       case Opcode::cjmp_flt_ult:
       case Opcode::cjmp_flt_ule:
       case Opcode::cjmp_flt_une:
+      case Opcode::fcmp_oeq:
+      case Opcode::fcmp_ogt:
+      case Opcode::fcmp_oge:
+      case Opcode::fcmp_olt:
+      case Opcode::fcmp_ole:
+      case Opcode::fcmp_one:
+      case Opcode::fcmp_ord:
+      case Opcode::fcmp_uno:
+      case Opcode::fcmp_ueq:
+      case Opcode::fcmp_ugt:
+      case Opcode::fcmp_uge:
+      case Opcode::fcmp_ult:
+      case Opcode::fcmp_ule:
+      case Opcode::fcmp_une:
         if (legalize_fcmp(bb, i)) {
           ioff = 0;
         }

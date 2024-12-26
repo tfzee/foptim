@@ -12,9 +12,9 @@ inline auto get_pats() {
   IRVec<Pattern> res;
   res.reserve(100);
 
-  memory_patterns(res);
-  cjmp_patterns(res);
-  arith_patterns(res);
+  // memory_patterns(res);
+  // cjmp_patterns(res);
+  // arith_patterns(res);
   base_patterns(res);
 
   return res;

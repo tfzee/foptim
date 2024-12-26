@@ -567,8 +567,8 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       cc.emit(Inst::kIdDivss, target, o0, o1);
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       cc.emit(Inst::kIdDivsd, target, o0, o1);
-      //TODO: prob should merge these fp ops since they all have the same setup
-      // or use a macro
+      // TODO: prob should merge these fp ops since they all have the same setup
+      //  or use a macro
     } else {
       UNREACH();
     }
@@ -852,7 +852,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto targ = convert_operand(cc, reg_to_op, instr.args[0]);
     auto a = convert_operand(cc, reg_to_op, instr.args[1]);
     auto b = convert_operand(cc, reg_to_op, instr.args[2]);
-    auto op = 0;
+    auto op = Inst::kIdSetne;
     switch (instr.op) {
     case fmir::Opcode::icmp_ne:
       op = Inst::kIdSetne;
@@ -888,6 +888,78 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       UNREACH();
     }
     cc.emit(Inst::kIdCmp, a, b);
+    cc.emit(op, targ);
+    return;
+  }
+  case fmir::Opcode::fcmp_oeq:
+  case fmir::Opcode::fcmp_ogt:
+  case fmir::Opcode::fcmp_oge:
+  case fmir::Opcode::fcmp_olt:
+  case fmir::Opcode::fcmp_ole:
+  case fmir::Opcode::fcmp_one:
+  case fmir::Opcode::fcmp_ord:
+  case fmir::Opcode::fcmp_uno:
+  case fmir::Opcode::fcmp_ueq:
+  case fmir::Opcode::fcmp_ugt:
+  case fmir::Opcode::fcmp_uge:
+  case fmir::Opcode::fcmp_ult:
+  case fmir::Opcode::fcmp_ule:
+  case fmir::Opcode::fcmp_une: {
+    auto targ = convert_operand(cc, reg_to_op, instr.args[0]);
+    auto a = convert_operand(cc, reg_to_op, instr.args[1]);
+    auto b = convert_operand(cc, reg_to_op, instr.args[2]);
+    auto op = Inst::kIdSete;
+    bool ordered = true;
+    switch (instr.op) {
+    case fmir::Opcode::fcmp_ueq:
+      ordered = false;
+    case fmir::Opcode::fcmp_oeq:
+      op = Inst::kIdSete;
+      break;
+    case fmir::Opcode::fcmp_ugt:
+      ordered = false;
+    case fmir::Opcode::fcmp_ogt:
+      op = Inst::kIdSeta;
+      break;
+    case fmir::Opcode::fcmp_uge:
+      ordered = false;
+    case fmir::Opcode::fcmp_oge:
+      op = Inst::kIdSetae;
+      break;
+    case fmir::Opcode::fcmp_ult:
+      ordered = false;
+    case fmir::Opcode::fcmp_olt:
+      op = Inst::kIdSetb;
+      break;
+    case fmir::Opcode::fcmp_ule:
+      ordered = false;
+    case fmir::Opcode::fcmp_ole:
+      op = Inst::kIdSetbe;
+      break;
+    case fmir::Opcode::fcmp_une:
+      ordered = false;
+    case fmir::Opcode::fcmp_one:
+      op = Inst::kIdSetne;
+      break;
+    case fmir::Opcode::fcmp_uno:
+    case fmir::Opcode::fcmp_ord:
+    default:
+      UNREACH();
+    }
+
+    if (ordered) {
+      if (instr.args[1].ty == fmir::Type::Float32) {
+        cc.emit(Inst::kIdVcomiss, a, b);
+      } else {
+        cc.emit(Inst::kIdVcomisd, a, b);
+      }
+    } else {
+      if (instr.args[1].ty == fmir::Type::Float32) {
+        cc.emit(Inst::kIdVucomiss, a, b);
+      } else {
+        cc.emit(Inst::kIdVucomisd, a, b);
+      }
+    }
     cc.emit(op, targ);
     return;
   }
