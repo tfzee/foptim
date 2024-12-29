@@ -190,7 +190,7 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
   while (!worklist.empty()) {
     fir::Instr cur_instr = worklist.front();
     worklist.pop_front();
-    utils::Debug << "Trying to match " << cur_instr << "\n";
+    // utils::Debug << "Trying to match " << cur_instr << "\n";
 
     // match it
     find_match(cur_instr, patterns, match_result, data);

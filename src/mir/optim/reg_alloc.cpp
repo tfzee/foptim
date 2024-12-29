@@ -215,22 +215,23 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
       }
     }
   }
-  for (const auto &[reg, ranges] : ranges) {
-    utils::Debug << "reg: " << reg << "\n";
-    for (const auto &range : ranges.ranges) {
-      ASSERT(range.start.bb_indx == range.end.bb_indx);
-      auto reg_id = reg_to_uid(reg);
-      utils::Debug << " ";
-      range.dump();
-      utils::Debug << "\n";
-      utils::Debug << " LIVEIN:" << live._liveIn[range.start.bb_indx][reg_id];
-      utils::Debug << " LIVEOUT:" << live._liveIn[range.start.bb_indx][reg_id];
-      utils::Debug << "\n";
-      // utils::Debug << "   " << range.start.bb_indx << ": "
-      //              << range.start.instr_indx << "-" << range.end.instr_indx
-      //              << "\n";
-    }
-  }
+  // for (const auto &[reg, ranges] : ranges) {
+  //   utils::Debug << "reg: " << reg << "\n";
+  //   for (const auto &range : ranges.ranges) {
+  //     ASSERT(range.start.bb_indx == range.end.bb_indx);
+  //     auto reg_id = reg_to_uid(reg);
+  //     utils::Debug << " ";
+  //     range.dump();
+  //     utils::Debug << "\n";
+  //     utils::Debug << " LIVEIN:" <<
+  //     live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << " LIVEOUT:"
+  //     << live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << "\n";
+  //     // utils::Debug << "   " << range.start.bb_indx << ": "
+  //     //              << range.start.instr_indx << "-" <<
+  //     range.end.instr_indx
+  //     //              << "\n";
+  //   }
+  // }
   return ranges;
 }
 
@@ -362,20 +363,20 @@ void apply_func(MFunc &func) {
         lifeness.insert({reg.info.ty, lifetime});
       }
     }
-    utils::Debug << "Allocating\n";
+    // utils::Debug << "Allocating\n";
 
     for (const auto &[reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
         continue;
       }
-      utils::Debug << " Trying to allocate " << reg
-                   << " UID:" << reg_to_uid(reg) << "\n";
-      utils::Debug << " WithLifetime: ";
-      for (auto life : lifetime.ranges) {
-        life.dump();
-        utils::Debug << " ";
-      }
-      utils::Debug << "\n";
+      // utils::Debug << " Trying to allocate " << reg
+      //              << " UID:" << reg_to_uid(reg) << "\n";
+      // utils::Debug << " WithLifetime: ";
+      // for (auto life : lifetime.ranges) {
+      //   life.dump();
+      //   utils::Debug << " ";
+      // }
+      // utils::Debug << "\n";
       bool found = false;
       for (auto avail_reg : regs) {
         if (!reg_is_legal(reg, avail_reg)) {
@@ -402,7 +403,7 @@ void apply_func(MFunc &func) {
         TODO("spill it ?");
         ASSERT(false);
       }
-      utils::Debug << "    Found reg:" << reg_mapping[reg.id] << "\n";
+      // utils::Debug << "    Found reg:" << reg_mapping[reg.id] << "\n";
     }
   }
 

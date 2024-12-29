@@ -1,7 +1,7 @@
 import os
 
 collect_compiletimes = False
-tests_to_record = ["mandelbrot.cpp", "matmul.cpp", "prime_sieve.c", "fib.c"]
+tests_to_record = ["matmul.cpp", "prime_sieve.c", "fib.c"]
 
 if __name__ == "__main__":
     out_dir = "../build/test/Output"
