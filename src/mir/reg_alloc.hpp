@@ -37,7 +37,7 @@ public:
   void reset();
 
   DumbRegAlloc();
-  void alloc_func(fir::Function &, optim::LiveVariables &lives);
+  // void alloc_func(fir::Function &, optim::LiveVariables &lives);
   void dump();
   VReg get_register(fir::ValueR valu);
 };

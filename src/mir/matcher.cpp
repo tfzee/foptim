@@ -144,58 +144,56 @@ void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
     res.matched_instrs.resize(patts[match_id].nodes.size(),
                               fir::Instr(fir::Instr::invalid()));
     if (try_match(instr, patts[match_id], res)) {
-      // utils::Debug << "     SUCC " << match_id << "\n";
-      // for (auto &matched : res.matched_instrs) {
-      //   ASSERT(matched.is_valid());
-      // }
-      res.match_id = match_id;
       if (patts[match_id].generator(res, data)) {
+        res.match_id = match_id;
         return;
       }
     }
   }
 
   utils::Debug << "Failed to match instr " << instr << "\n";
-  ASSERT(false);
+  UNREACH();
 }
 
-MBB apply_bb(fir::BasicBlock &bb, Edges &active_edges, IRVec<Pattern> &patterns,
+void dump_succ_edges(const Edges &active_edges, fir::BasicBlock &bb) {
+  (void)bb;
+  utils::Debug << "digraph {";
+  for (auto edge : active_edges) {
+    utils::Debug << "\"" << edge.from.get_raw_ptr() << "\" -> " << "\""
+                 << edge.to.get_raw_ptr() << "\"  ";
+  }
+  utils::Debug << "}\n";
+}
+
+MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
              ExtraMatchData &data) {
   ZoneScopedN("Apply BB");
   MBB result_bb;
 
   // all the instructions in this basic block
-  TVec<fir::Instr> instrs;
+  const IRVec<fir::Instr> &instrs = bb->instructions;
   // the edges still active in our DAG
-  const size_t n_instrs = bb->n_instrs();
+  std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist{};
   // setup
-  {
-    instrs.reserve(n_instrs);
-    for (auto instr : bb->get_instrs()) {
-      instrs.push_back(instr);
-      //   for (auto arg : instr->args) {
-      //     if (arg.is_instr()) {
-      //       active_edges.push_back({arg.as_instr(), instr});
-      //     }
-      //   }
-    }
+  for (const auto &instr : instrs) {
+    // if (instr->is_critical()) {
+    worklist.push_front(instr);
+    // }
   }
+
+  // dump_succ_edges(active_edges, bb);
 
   // to store results
   MatchResult match_result{};
 
   // generate each instruction
-  for (size_t instr_idp1 = n_instrs; instr_idp1 > 0; instr_idp1--) {
-    size_t instr_id = instr_idp1 - 1;
-
-    // skip instructions if the result wont be used anyway unless terminator
-    if (!has_active_succ_edges(instrs[instr_id], active_edges) &&
-        !instrs[instr_id]->is_critical()) {
-      continue;
-    }
+  while (!worklist.empty()) {
+    fir::Instr cur_instr = worklist.front();
+    worklist.pop_front();
+    utils::Debug << "Trying to match " << cur_instr << "\n";
 
     // match it
-    find_match(instrs[instr_id], patterns, match_result, data);
+    find_match(cur_instr, patterns, match_result, data);
 
     // insert instrs this generates
     {
@@ -207,39 +205,32 @@ MBB apply_bb(fir::BasicBlock &bb, Edges &active_edges, IRVec<Pattern> &patterns,
       }
     }
 
-    // discard all edges this clears
-    {
-      for (size_t ip1 = active_edges.size(); ip1 > 0; ip1--) {
-        const size_t i = ip1 - 1;
-        const auto &active_edge = active_edges[i];
-
-        for (const auto rem_edge : patterns[match_result.match_id].edges) {
-          if (active_edge.from ==
-                  match_result.matched_instrs[rem_edge.from_instr] &&
-              active_edge.to ==
-                  match_result.matched_instrs[rem_edge.to_instr]) {
-            active_edges.erase(active_edges.begin() + i);
-            break;
-          }
-        }
-      }
-
-      // auto rem = std::remove_if(
-      //     active_edges.begin(), active_edges.end(),
-      //     [&patterns, &match_result](const auto &active_edge) {
-      //       for (const auto rem_edge : patterns[match_result.match_id].edges)
-      //       {
-      //         if (active_edge.from ==
-      //                 match_result.matched_instrs[rem_edge.from_instr] &&
-      //             active_edge.to ==
-      //                 match_result.matched_instrs[rem_edge.to_instr]) {
-      //           return true;
-      //         }
-      //       }
-      //       return false;
-      //     });
-      // active_edges.erase(rem, active_edges.end());
-    }
+    // add all unmatched args into the worklist
+    // {
+    //   for (size_t instr_id = 0; instr_id <
+    //   match_result.matched_instrs.size();
+    //        instr_id++) {
+    //     auto &matched_instr = match_result.matched_instrs[instr_id];
+    //     auto &args = matched_instr->args;
+    //     for (size_t arg_id = 0; arg_id < args.size(); arg_id++) {
+    //       if (!args[arg_id].is_instr()) {
+    //         continue;
+    //       }
+    //       bool is_matched = false;
+    //       for (const auto rem_edge : patterns[match_result.match_id].edges) {
+    //         if (rem_edge.to_instr == instr_id && rem_edge.to_arg == arg_id) {
+    //           is_matched = true;
+    //           break;
+    //         }
+    //       }
+    //       auto new_instr = matched_instr->args[arg_id].as_instr();
+    //       if (!is_matched && new_instr->get_parent() ==
+    //       cur_instr->get_parent()) {
+    //         worklist.push_back(new_instr);
+    //       }
+    //     }
+    //   }
+    // }
   }
 
   std::reverse(result_bb.instrs.begin(), result_bb.instrs.end());
@@ -289,7 +280,7 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   optim::Dominators dom{cfg};
   optim::LiveVariables lives{func, cfg};
   DumbRegAlloc alloc{};
-  alloc.alloc_func(func, lives);
+  // alloc.alloc_func(func, lives);
 
   {
     auto entry_bb = func.get_entry();
@@ -309,29 +300,8 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
 
   ExtraMatchData extra_data = {alloc, bbs, lives, res_func};
 
-  Edges active_edges;
-  active_edges.reserve(func.n_instrs() * 2);
-
   for (auto bb : func.basic_blocks) {
-    for (auto instr : bb->get_instrs()) {
-      for (auto arg : instr->args) {
-        if (arg.is_instr()) {
-          active_edges.push_back({arg.as_instr(), instr});
-        }
-      }
-      for (auto &bb : instr->bbs) {
-        for (auto arg : bb.args) {
-          if (arg.is_instr()) {
-            active_edges.push_back({arg.as_instr(), instr});
-          }
-        }
-      }
-    }
-  }
-
-  for (auto bb : func.basic_blocks) {
-    res_func.bbs.push_back(
-        apply_bb(bb, active_edges, this->patterns, extra_data));
+    res_func.bbs.push_back(apply_bb(bb, this->patterns, extra_data));
   }
 
   res_func.name = func.name;
@@ -386,18 +356,6 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
     return helper;
   }
   UNREACH();
-}
-
-MArgument valueToArgNewLife(fir::ValueR val, IRVec<MInstr> &res,
-                            DumbRegAlloc &alloc) {
-  if (val.is_constant()) {
-    return valueToArgConst(val, res, alloc);
-  }
-  Type type_id = convert_type(val.get_type());
-  auto old_data = alloc.get_register(val);
-  auto new_reg = alloc.get_new_register(old_data.info);
-  res.emplace_back(Opcode::mov, MArgument(new_reg, type_id), MArgument(old_data, type_id));
-  return {new_reg, type_id};
 }
 
 MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
@@ -465,8 +423,8 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
   while (found_one) {
     found_one = false;
     for (size_t pair1_id = 0; pair1_id < pairs.size(); pair1_id++) {
-      // if there is noone writing to the same reg as the from is using then we
-      // can just generate it
+      // if there is noone writing to the same reg as the from is using then
+      // we can just generate it
       bool collision = false;
       for (size_t pair2_id = 0; pair2_id < pairs.size(); pair2_id++) {
         auto &p1 = pairs[pair1_id];
@@ -493,8 +451,8 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
     }
 
     if (!found_one && !pairs.empty()) {
-      // we just save from of the pair and then generate these moves these later
-      // with the saved from
+      // we just save from of the pair and then generate these moves these
+      // later with the saved from
       PhiPair pair = *pairs.begin();
       pairs.erase(pairs.begin() + 0);
       auto save_reg = data.alloc.get_new_register(VRegInfo{pair.from.ty});

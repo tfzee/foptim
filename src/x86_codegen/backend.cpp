@@ -398,26 +398,41 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     cc.emit(Inst::kIdLea, target, o0);
     return;
   }
+  // commutative ones
+  case fmir::Opcode::land:
+  case fmir::Opcode::lor:
   case fmir::Opcode::add: {
     ASSERT(instr.n_args == 3);
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
+    Inst::Id opcode;
+    switch (instr.op) {
+    case fmir::Opcode::add:
+      opcode = Inst::kIdAdd;
+      break;
+    case fmir::Opcode::land:
+      opcode = Inst::kIdAnd;
+      break;
+    case fmir::Opcode::lor:
+      opcode = Inst::kIdOr;
+      break;
+    default:
+      UNREACH();
+    }
     if (target == o0) {
-      cc.emit(Inst::kIdAdd, target, o1);
+      cc.emit(opcode, target, o1);
     } else if (target == o1) {
-      cc.emit(Inst::kIdAdd, target, o0);
+      cc.emit(opcode, target, o0);
     } else {
       cc.emit(Inst::kIdMov, target, o1);
-      cc.emit(Inst::kIdAdd, target, o0);
+      cc.emit(opcode, target, o0);
     }
     return;
   }
   case fmir::Opcode::shl:
   case fmir::Opcode::shr:
   case fmir::Opcode::sar:
-  case fmir::Opcode::land:
-  case fmir::Opcode::lor:
   case fmir::Opcode::lxor:
   case fmir::Opcode::sub: {
     ASSERT(instr.n_args == 3);
@@ -438,12 +453,6 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     case fmir::Opcode::sar:
       opcode = Inst::kIdSar;
       break;
-    case fmir::Opcode::land:
-      opcode = Inst::kIdAnd;
-      break;
-    case fmir::Opcode::lor:
-      opcode = Inst::kIdOr;
-      break;
     case fmir::Opcode::lxor:
       opcode = Inst::kIdXor;
       break;
@@ -453,6 +462,8 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
 
     if (target == o0) {
       cc.emit(opcode, target, o1);
+    } else if (target == o1) {
+      TODO("How to handle this");
     } else {
       cc.emit(Inst::kIdMov, target, o0);
       cc.emit(opcode, target, o1);
@@ -1106,7 +1117,7 @@ void run(std::span<const fmir::MFunc> funcs,
       }
     }
 
-    // utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
+    utils::Debug << "ASM:\n" << out_string.c_str() << "\n";
     utils::Debug << "Done!\n";
 
     std::ofstream myfile;

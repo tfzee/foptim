@@ -72,6 +72,7 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
 
         // drop this arg we cant have any uses
         curr.bb->args.erase(curr.bb->args.begin() + i);
+        // utils::Debug << 2 << "\n";
         return true;
       }
     }
@@ -89,7 +90,7 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
     }
     curr.bb->clear_args();
     pred_term.clear_bb_args(pred_term_bb_id);
-    // utils::Debug << 2 << "\n";
+    // utils::Debug << 3 << "\n";
     return true;
   }
 
@@ -99,18 +100,25 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
   // with the value itself
   if (curr.bb->n_args() != 0 && !is_entry) {
     auto n_args = curr.bb->n_args();
+    // utils::Debug << "===============RUNNING ON BB:===============\n"
+    //              << curr.bb << "\n";
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
       fir::ValueR c_value{};
       bool is_c = true;
       // utils::Debug << "   BB_ARG: " << curr.bb->args[i] << "\n";
-      for (auto pred : curr.pred) {
-        auto pred_term = cfg.bbrs[pred].bb->get_terminator();
-        auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
+
+      TVec<fir::Use> uses{curr.bb->uses.begin(), curr.bb->uses.end()};
+
+      for (auto use : uses) {
+        ASSERT(use.type == fir::UseType::BB);
+        auto pred_term = use.user;
+        auto pred_term_bb_id = use.argId;
         auto incoming_arg = pred_term->bbs[pred_term_bb_id].args[i];
         // utils::Debug << "   INCMONIG: " << incoming_arg << " == " << c_value
         //              << "  " << !c_value.is_valid(false) << " "
-        //              << (!c_value.is_valid(false) || incoming_arg.eql(c_value))
+        //              << (!c_value.is_valid(false) ||
+        //              incoming_arg.eql(c_value))
         //              << "\n";
         if (!c_value.is_valid(false) || incoming_arg.eql(c_value)) {
           c_value = incoming_arg;
@@ -126,9 +134,8 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
         // utils::Debug << "  Value: " << c_value << "\n";
         // utils::Debug << "  Arg: " << curr.bb->args[i] << " in bb "
         //              << curr.bb.get_raw_ptr() << "\n";
-        // utils::Debug << "TODO IMPL IT\n";
         // TODO("FOUND ONE");
-        for (auto use : curr.bb->uses) {
+        for (auto use : uses) {
           // utils::Debug << "      USE: " << use.user << "\n";
           ASSERT(use.type == fir::UseType::BB);
           auto user = use.user;
@@ -139,24 +146,50 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
         curr.bb->args[i]->replace_all_uses(c_value);
         curr.bb->args.erase(curr.bb->args.begin() + i);
         // utils::Debug << "      END: " << "\n";
-        // return false;
+        // utils::Debug << 32 << "\n";
+        return true;
       }
     }
   }
 
-  // if a block only contains a unconditional jump we can replace it
+  // if a block only contains a unconditional jump we can replace it depending
   // TODO: this implentation uses succ this wont work for the entry block
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) && !is_entry) {
     ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
-    if (curr.bb->n_args() != 0 || succ->n_args() != 0) {
-      return false;
+    // if no bb args involved just replace
+    if (curr.bb->n_args() == 0 && succ->n_args() == 0) {
+      curr.bb->replace_all_uses(fir::ValueR(succ));
+      func.basic_blocks[bb_id]->remove_from_parent(true);
+      // utils::Debug << 4 << "\n";
+      return true;
     }
-    curr.bb->replace_all_uses(fir::ValueR(succ));
-    func.basic_blocks[bb_id]->remove_from_parent(true);
-    // utils::Debug << 3 << "\n";
-    return true;
+    // if this block doesnt have bb_args we might be able to replace all
+    // incoming edges with the outgoig jump + args
+    if (curr.bb->n_args() == 0) {
+      const auto &terminator_args = curr.bb->get_terminator()->bbs[0].args;
+      TVec<fir::Use> uses(curr.bb->get_uses().begin(),
+                          curr.bb->get_uses().end());
+      for (const auto &use : uses) {
+        ASSERT(use.type == fir::UseType::BB);
+        auto bb_id = use.argId;
+        auto user = use.user;
+        ASSERT(user->bbs[bb_id].args.size() == 0);
+        user.replace_bb(bb_id, succ, false);
+
+        ASSERT(user->bbs[bb_id].args.size() == 0);
+        for (auto old_arg : terminator_args) {
+          user.add_bb_arg(bb_id, old_arg);
+        }
+        ASSERT(user->bbs[bb_id].args.size() == terminator_args.size());
+        utils::Debug << user << "\n";
+      }
+      ASSERT(curr.bb->get_n_uses() == 0);
+      func.basic_blocks[bb_id]->remove_from_parent(true);
+      // utils::Debug << 5 << "\n";
+      return true;
+    }
   }
 
   // if 1 to 1 relation between blocks we can merge them
@@ -209,9 +242,10 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
     func.basic_blocks[bb_id]->replace_all_uses(
         fir::ValueR{func.basic_blocks.at(succ_id)});
     func.basic_blocks[bb_id]->remove_from_parent(true);
-    // utils::Debug << 4 << "\n";
+    // utils::Debug << 6 << "\n";
     return true;
   }
+  // utils::Debug << "DEAD" << "\n";
   return false;
 }
 

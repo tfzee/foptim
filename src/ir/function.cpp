@@ -49,6 +49,7 @@ bool Function::verify(utils::Printer printer) const {
   for (const auto &bb : basic_blocks) {
 
     if (!bb.is_valid() || !bb->verify(this, printer)) {
+      printer << "In BB " << (void *)bb.get_raw_ptr() << "\n";
       return false;
     }
   }

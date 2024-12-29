@@ -5,6 +5,7 @@
 #include "mir/instr.hpp"
 // #include "optim/analysis/cfg.hpp"
 // #include "optim/analysis/dominators.hpp"
+#include "mir/matcher.hpp"
 #include "optim/analysis/live_variables.hpp"
 #include "utils/bitset.hpp"
 #include "utils/logging.hpp"
@@ -54,11 +55,12 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation loc, fir::TypeR ty,
       return reg;
     }
 
-    auto& addit = additional_alives[loc];
+    auto &addit = additional_alives[loc];
     bool is_already_localy_used = std::ranges::find(addit, reg) != addit.cend();
 
     if (lives.isLive(var, loc) ||
-        !type_can_share_register(var.get_type(), ty) || is_already_localy_used) {
+        !type_can_share_register(var.get_type(), ty) ||
+        is_already_localy_used) {
       free_regs[reg.id - 1].set(false);
     }
   }
@@ -98,7 +100,6 @@ VReg DumbRegAlloc::get_new_register(fir::IRLocation /*unused*/, Type t,
 VReg DumbRegAlloc::get_new_register(fir::ValueR v,
                                     optim::LiveVariables &lives) {
   utils::BitSet free_regs{vreg_num, true};
-  // utils::Debug << v << vreg_num << "\n";
 
   for (auto [var, reg] : mapping) {
     // utils::Debug << "    " << var << "   " << reg.id << "\n";
@@ -119,51 +120,12 @@ VReg DumbRegAlloc::get_new_register(fir::ValueR v,
               is_float ? VRegClass::Float : VRegClass::GeneralPurpose};
 }
 
-void DumbRegAlloc::alloc_func(fir::Function &func,
-                              optim::LiveVariables &lives) {
-  ZoneScopedN("Dumb Reg Alloc");
-  reset();
-
-  for (auto curr : func.get_bbs()) {
-    // utils::Debug << "ALLOCING BB: " << (void *)curr.get_raw_ptr() << "\n";
-    const u32 n_args = curr->get_args().size();
-    for (u32 arg_id = 0; arg_id < n_args; arg_id++) {
-      auto new_value = fir::ValueR(curr->args[arg_id]);
-      // entry block args we always need
-      if (new_value.get_n_uses() > 0 || func.get_bbs()[0] == curr) {
-        ASSERT(!mapping.contains(new_value));
-        auto new_reg = get_new_register(new_value, lives);
-        mapping.insert({new_value, new_reg});
-      }
-    }
-
-    for (auto instr : curr->get_instrs()) {
-      auto instr_valu = fir::ValueR(instr);
-      ASSERT(!mapping.contains(instr_valu));
-      if (instr->get_n_uses() > 0 && instr->has_result()) {
-        // utils::Debug << "ALLOCING instr: " << (void *)instr.get_raw_ptr()
-        //              << "\n";
-        // ASSERT(!mapping.contains(instr_valu));
-        auto new_reg = get_new_register(instr_valu, lives);
-        mapping.insert({instr_valu, new_reg});
-      }
-      // else {
-      //   utils::Debug << "NOT ALLOCING instr: " << (void *)instr.get_raw_ptr()
-      //                << " " << instr->get_n_uses() << " " <<
-      //                instr->has_result()
-      //                << "\n";
-      // }
-    }
-  }
-  // dump();
-  // std::abort();
-}
 
 VReg DumbRegAlloc::get_register(fir::ValueR value) {
   if (!mapping.contains(value)) {
-    utils::Warn << " Dumb reg alloc couldnt find " << value << "\n";
-    std::abort();
-    // return get_new_register({});
+    // if (value.get_n_uses() == 1 && value.is_instr() && value.as_instr().) {
+    auto new_reg = get_new_register(VRegInfo{convert_type(value.get_type())});
+    mapping.insert({value, new_reg});
   }
   return mapping.at(value);
 }

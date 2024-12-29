@@ -77,10 +77,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         // where $0 and $2 must be regs and C in [1,2,4,8]
         auto res_reg =
             valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
-        auto base =
-            valueToArgNewLife(add_instr->args[0], res.result, data.alloc);
-        auto indx =
-            valueToArgNewLife(mul_instr->args[0], res.result, data.alloc);
+        auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
+        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
         ASSERT(base.isReg());
         ASSERT(indx.isReg());
         res.result.emplace_back(
@@ -131,12 +129,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
         // $1 = $0 * C
         // R = $2 + $1
         // where $0 and $2 must be regs and C in [1,2,4,8]
-        auto value =
-            valueToArgNewLife(store_instr->args[1], res.result, data.alloc);
-        auto base =
-            valueToArgNewLife(add_instr->args[0], res.result, data.alloc);
-        auto indx =
-            valueToArgNewLife(mul_instr->args[0], res.result, data.alloc);
+        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
+        auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
+        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
         ASSERT(base.isReg());
         ASSERT(indx.isReg());
         res.result.emplace_back(
@@ -159,13 +154,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
         auto load_ty = convert_type(load_instr.get_type());
 
-        auto a0 = valueToArgNewLife(add_instr->args[0], res.result, data.alloc);
+        auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
 
         if (add_instr->args[1].is_constant() && a0.isImm()) {
           auto c1 = add_instr->args[1].as_constant();
           if (c1->is_global()) {
-            // TODO: impl life exntesion
-            return false;
             auto a1 =
                 valueToArgPtr(add_instr->args[1], Type::Int64, data.alloc);
             ASSERT(a1.type == MArgument::ArgumentType::MemLabel);
@@ -175,7 +168,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
           }
         }
 
-        auto a1 = valueToArgNewLife(add_instr->args[1], res.result, data.alloc);
+        auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(Opcode::mov, res_reg,
                                   MArgument::Mem(a0.reg, a1.imm, load_ty));
@@ -208,10 +201,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
 
         auto store_ty = convert_type(store_instr.get_type());
 
-        auto a0 = valueToArgNewLife(add_instr->args[0], res.result, data.alloc);
-        auto a1 = valueToArgNewLife(add_instr->args[1], res.result, data.alloc);
-        auto value =
-            valueToArgNewLife(store_instr->args[1], res.result, data.alloc);
+        auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
+        auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
+        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
 
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(
@@ -237,8 +229,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
 
-        // TODO: impl life exntesion
-        return false;
         auto a0 =
             valueToArgPtr(load_instr->args[0],
                           convert_type(load_instr.get_type()), data.alloc);
@@ -292,8 +282,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
         auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
-        auto indx =
-            valueToArgNewLife(mul_instr->args[0], res.result, data.alloc);
+        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
         ASSERT(base.isReg());
         ASSERT(indx.isReg());
         res.result.emplace_back(
@@ -338,32 +327,22 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
           return false;
         }
 
-        if (!branch_instr->bbs[0].args.empty()) {
-          // if we have bb args that collide with our conditional stuff we skip
-          // it cause it might be overriding values
-          // TOOD: IMPL checking if theres actually a collision
-          // TOOD: might be fixed because we extend lifetimes
-          // current issue is that to know where we store the args to the
-          // comparison we need to generate the args
-          //   if we then fail the check we will have generated dead code
-          // for (auto arg : branch_instr->bbs[0].args) {
-          //   auto bb_arg_target = valueToArg(fir::ValueR(arg), res.result,
-          //                        data.alloc);
-          //   ASSERT(bb_arg_target.isReg());
-          //   if (bb_arg_target == ){
-
-          //   }
-          // }
-          utils::Debug << "Failed to smartly match cmp "
-                       << cmp_instr->get_instr_subtype()
-                       << " + branch because non emtpy bb args\n";
-          return false;
-        }
+        // if (!branch_instr->bbs[0].args.empty()) {
+        //   // if we have bb args that collide with our conditional stuff we
+        //   skip
+        //   // it cause it might be overriding values
+        //   // TOOD: IMPL checking if theres actually a collision
+        //   // TOOD: might be fixed because we extend lifetimes
+        //   utils::Debug << "Failed to smartly match cmp "
+        //                << cmp_instr->get_instr_subtype()
+        //                << " + branch because non emtpy bb args\n";
+        //   return false;
+        // }
 
         auto bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
-        auto v1 = valueToArgNewLife(cmp_instr->args[0], res.result, data.alloc);
-        auto v2 = valueToArgNewLife(cmp_instr->args[1], res.result, data.alloc);
+        auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
         // auto comp_ty = v1_orig.ty;
 
@@ -377,7 +356,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         // res.result.emplace_back(Opcode::mov, v2, v2_orig);
 
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
-        ASSERT(bb_with_args.args.size() == 0);
+        // ASSERT(bb_with_args.args.size() == 0);
         generate_bb_args(bb_with_args, res, data);
 
         if (sub_type == fir::ICmpInstrSubType::SLT) {
@@ -437,8 +416,8 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
 
         auto bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
-        auto v1 = valueToArgNewLife(cmp_instr->args[0], res.result, data.alloc);
-        auto v2 = valueToArgNewLife(cmp_instr->args[1], res.result, data.alloc);
+        auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
         generate_bb_args(bb_with_args, res, data);
@@ -461,12 +440,12 @@ void arith_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
-  // auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-  //                        (u32)fir::BinaryInstrSubType::IntAdd};
+  auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         (u32)fir::BinaryInstrSubType::IntAdd};
   // auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                        (u32)fir::BinaryInstrSubType::IntSub};
-  // auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-  //                        (u32)fir::BinaryInstrSubType::IntMul};
+  auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         (u32)fir::BinaryInstrSubType::IntMul};
   // auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                      (u32)fir::BinaryInstrSubType::IntSRem};
   // auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -496,16 +475,9 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto add_instr = res.matched_instrs[1];
         auto res_reg =
             valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
-        auto mul_arg1 =
-            valueToArgNewLife(mul_instr->args[0], res.result, data.alloc);
-        auto mul_arg2 =
-            valueToArgNewLife(mul_instr->args[1], res.result, data.alloc);
+        auto mul_arg1 = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
         auto add_arg2 = valueToArg(add_instr->args[1], res.result, data.alloc);
-        // utils::Debug << "MATHCING FMADD\n";
-        // utils::Debug << mul_instr << "\n";
-        // utils::Debug << add_instr << "\n";
-        // utils::Debug << mul_arg1 << " * " << mul_arg2 << " + " << add_arg2
-        //              << "\n";
 
         if (res_reg == add_arg2 && add_arg2.isReg() && mul_arg1.isReg() &&
             (mul_arg2.isReg() || mul_arg2.isMem())) {
@@ -529,25 +501,57 @@ void arith_patterns(IRVec<Pattern> &pats) {
                    add_arg2.isReg() && (mul_arg1.isReg() || mul_arg1.isMem())) {
           res.result.emplace_back(Opcode::ffmadd132, mul_arg2, add_arg2,
                                   mul_arg1);
-          // } else if (add_arg2.isReg()) {
-          //   // TODO: could be expanded to handle another memory operand in
-          //   the
-          //   // move explicitly flipping arround the mul
-          //   res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
-          //   res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
-          //                           mul_arg2);
-          // } else if (mul_arg2.isReg()) {
-          //   res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
-          //   res.result.emplace_back(Opcode::ffmadd213, res_reg, mul_arg2,
-          //                           add_arg2);
         } else {
           // TODO: prob shouldnt do this and just let the legalizer handle it
           res.result.emplace_back(Opcode::fmul, res_reg, mul_arg1, mul_arg2);
           res.result.emplace_back(Opcode::fadd, res_reg, res_reg, add_arg2);
         }
-        utils::Debug << res.result.back() << "\n";
         return true;
       }});
+  pats.push_back(Pattern{
+      {IntMulNode, IntAddNode},
+      {{0, 1, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        auto mul_instr = res.matched_instrs[0];
+        auto add_instr = res.matched_instrs[1];
+        auto res_reg =
+            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+        auto add_arg2 = valueToArg(add_instr->args[1], res.result, data.alloc);
+        if (add_arg2 == res_reg) {
+          return false;
+        }
+        auto mul_arg1 = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
+
+        utils::Debug << "HIT MATCHER\n";
+        utils::Debug << mul_instr << "\n";
+        utils::Debug << add_instr << "\n";
+        res.result.emplace_back(Opcode::mul, res_reg, mul_arg1, mul_arg2);
+        res.result.emplace_back(Opcode::add, res_reg, res_reg, add_arg2);
+        utils::Debug << res.result[res.result.size() - 2] << "\n";
+        utils::Debug << res.result[res.result.size() - 1] << "\n";
+        return true;
+      }});
+  // pats.push_back(Pattern{
+  //     {IntMulNode, IntAddNode},
+  //     {{0, 1, 1}},
+  //     [](MatchResult &res, ExtraMatchData &data) {
+  //       auto mul_instr = res.matched_instrs[0];
+  //       auto add_instr = res.matched_instrs[1];
+  //       auto res_reg =
+  //           valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+  //       auto mul_arg1 = valueToArg(mul_instr->args[0], res.result,
+  //       data.alloc); auto mul_arg2 = valueToArg(mul_instr->args[1],
+  //       res.result, data.alloc); auto add_arg1 =
+  //       valueToArg(add_instr->args[0], res.result, data.alloc); if (add_arg1
+  //       == res_reg) {
+  //         return false;
+  //       }
+
+  //       res.result.emplace_back(Opcode::mul, res_reg, mul_arg1, mul_arg2);
+  //       res.result.emplace_back(Opcode::add, res_reg, res_reg, add_arg1);
+  //       return true;
+  //     }});
 }
 
 void base_patterns(IRVec<Pattern> &pats) {

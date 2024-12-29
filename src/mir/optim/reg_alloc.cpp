@@ -2,6 +2,7 @@
 #include "mir/analysis/cfg.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
+#include "utils/set.hpp"
 #include "utils/todo.hpp"
 
 namespace foptim::fmir {
@@ -23,26 +24,11 @@ struct Loc {
     return other;
   }
 
-  [[nodiscard]] constexpr Loc min(const Loc &other) const {
-    if (bb_indx < other.bb_indx) {
-      return *this;
+  [[nodiscard]] constexpr bool operator<=(const Loc &other) const {
+    if (bb_indx != other.bb_indx) {
+      return bb_indx <= other.bb_indx;
     }
-    if (bb_indx > other.bb_indx) {
-      return other;
-    }
-    if (instr_indx < other.instr_indx) {
-      return *this;
-    }
-    return other;
-  }
-  constexpr bool operator<(const Loc &other) const {
-    if (bb_indx < other.bb_indx) {
-      return true;
-    }
-    if (bb_indx > other.bb_indx) {
-      return false;
-    }
-    return instr_indx < other.instr_indx;
+    return instr_indx <= other.instr_indx;
   }
 };
 
@@ -50,26 +36,41 @@ struct LinearRange {
   Loc start = {};
   Loc end = {};
 
-  static LinearRange inBB(const MFunc &func, u32 bb_id) {
+  void dump() const {
+    ASSERT(start.bb_indx == end.bb_indx);
+    utils::Debug << start.bb_indx << "(" << start.instr_indx << ";"
+                 << end.instr_indx << ")";
+  }
+
+  static LinearRange inBB(u32 bb_id, u32 from, u32 to) {
     LinearRange range{};
     range.start.bb_indx = bb_id;
-    range.start.instr_indx = 0;
+    range.start.instr_indx = from;
     range.end.bb_indx = bb_id;
-    range.end.instr_indx = func.bbs[bb_id].instrs.size();
+    range.end.instr_indx = to;
     return range;
   }
 
+  // static LinearRange inBB(const MFunc &func, u32 bb_id) {
+  //   LinearRange range{};
+  //   range.start.bb_indx = bb_id;
+  //   range.start.instr_indx = 0;
+  //   range.end.bb_indx = bb_id;
+  //   range.end.instr_indx = func.bbs[bb_id].instrs.size();
+  //   return range;
+  // }
+
   [[nodiscard]] constexpr bool collide(const LinearRange &o) const {
-    bool overlap1 = o.start < end;
-    bool overlap2 = start < o.end;
+    bool overlap1 = o.start <= end;
+    bool overlap2 = start <= o.end;
 
     return overlap1 && overlap2;
   }
 
-  void update(Loc new_loc) {
-    start = start.min(new_loc);
-    end = end.max(new_loc);
-  }
+  // void update(Loc new_loc) {
+  //   start = start.min(new_loc);
+  //   end = end.max(new_loc);
+  // }
 };
 
 struct LinearRangeSet {
@@ -105,12 +106,10 @@ struct LinearRangeSet {
 };
 
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
-  std::vector<VReg> all_used_regs;
+  TSet<VReg> all_used_regs;
 
-  for (u32 bb_i = 0; bb_i < func.bbs.size(); bb_i++) {
-    const auto &bb = func.bbs[bb_i];
-    for (u32 in_i = 0; in_i < bb.instrs.size(); in_i++) {
-      const auto &instr = bb.instrs[in_i];
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
       for (u32 arg_i = 0; arg_i < instr.n_args; arg_i++) {
         const auto &arg = instr.args[arg_i];
         switch (arg.type) {
@@ -123,16 +122,13 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         case MArgument::ArgumentType::VReg:
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
-          all_used_regs.push_back(arg.reg);
-          // ranges[arg.reg].update({bb_i, in_i});
+          all_used_regs.insert(arg.reg);
           break;
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
-          all_used_regs.push_back(arg.reg);
-          // ranges[arg.reg].update({bb_i, in_i});
-          all_used_regs.push_back(arg.indx);
-          // ranges[arg.indx].update({bb_i, in_i});
+          all_used_regs.insert(arg.reg);
+          all_used_regs.insert(arg.indx);
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
@@ -144,20 +140,97 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   CFG cfg{func};
   LiveVariables live{cfg, func};
   TMap<VReg, LinearRangeSet> ranges;
-  for (const auto &reg : all_used_regs) {
-    auto reg_id = reg_to_uid(reg);
-    for (size_t i = 0; i < func.bbs.size(); i++) {
-      if (live._live[i][reg_id]) {
-        ranges[reg].update(LinearRange::inBB(func, i));
+
+  // this is used later one to find where the first def is
+  utils::BitSet<> defs{live._live[0].size(), false};
+
+  for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
+    const auto &alive = live._live[bb_id];
+    const auto &aliveIn = live._liveIn[bb_id];
+    const auto &aliveOut = live._liveOut[bb_id];
+    for (const auto &reg : all_used_regs) {
+      auto reg_id = reg_to_uid(reg);
+      if (alive[reg_id]) {
+        size_t start_instr = 0;
+        auto end_instr = func.bbs[bb_id].instrs.size() - 1;
+
+        // if its not alive in it needs to be defined somwhere in this block
+        if (!aliveIn[reg_id]) {
+          defs.reset(false);
+          for (const auto &instr : func.bbs[bb_id].instrs) {
+            update_def(instr, defs);
+            if (defs[reg_id]) {
+              break;
+            }
+            start_instr++;
+          }
+          ASSERT(defs[reg_id]);
+        }
+        if (!aliveOut[reg_id]) {
+          const auto &instrs = func.bbs[bb_id].instrs;
+          auto ip1 = instrs.size();
+          bool found_it = false;
+          for (; ip1 > 0; ip1--) {
+            const auto i = ip1 - 1;
+            found_it = false;
+            for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
+              const auto &arg = instrs[i].args[arg_id];
+              switch (arg.type) {
+              case MArgument::ArgumentType::Imm:
+              case MArgument::ArgumentType::MemImm:
+              case MArgument::ArgumentType::Label:
+              case MArgument::ArgumentType::MemLabel:
+              case MArgument::ArgumentType::MemImmLabel:
+                continue;
+              case MArgument::ArgumentType::VReg:
+              case MArgument::ArgumentType::MemVReg:
+              case MArgument::ArgumentType::MemImmVReg:
+                if (reg_id == reg_to_uid(arg.reg)) {
+                  found_it = true;
+                }
+                break;
+              case MArgument::ArgumentType::MemImmVRegScale:
+              case MArgument::ArgumentType::MemImmVRegVReg:
+              case MArgument::ArgumentType::MemVRegVRegScale:
+              case MArgument::ArgumentType::MemVRegVReg:
+              case MArgument::ArgumentType::MemImmVRegVRegScale:
+                if (reg_id == reg_to_uid(arg.reg) ||
+                    reg_id == reg_to_uid(arg.indx)) {
+                  found_it = true;
+                }
+              }
+              if (found_it) {
+                break;
+              }
+            }
+            if (found_it) {
+              break;
+            }
+          }
+          ASSERT(found_it);
+          end_instr = ip1 - 1;
+        }
+        ASSERT(start_instr <= end_instr);
+        ranges[reg].update(LinearRange::inBB(bb_id, start_instr, end_instr));
       }
     }
   }
-  // for (auto reg : all_used_regs) {
-  // utils::Debug << "reg: " << reg << "\n";
-  //   for (auto active_block : live._live[reg_to_uid(reg)]) {
-  //     ranges[reg].update(LinearRange::inBB(func, active_block));
-  //   }
-  // }
+  for (const auto &[reg, ranges] : ranges) {
+    utils::Debug << "reg: " << reg << "\n";
+    for (const auto &range : ranges.ranges) {
+      ASSERT(range.start.bb_indx == range.end.bb_indx);
+      auto reg_id = reg_to_uid(reg);
+      utils::Debug << " ";
+      range.dump();
+      utils::Debug << "\n";
+      utils::Debug << " LIVEIN:" << live._liveIn[range.start.bb_indx][reg_id];
+      utils::Debug << " LIVEOUT:" << live._liveIn[range.start.bb_indx][reg_id];
+      utils::Debug << "\n";
+      // utils::Debug << "   " << range.start.bb_indx << ": "
+      //              << range.start.instr_indx << "-" << range.end.instr_indx
+      //              << "\n";
+    }
+  }
   return ranges;
 }
 
@@ -278,63 +351,58 @@ void apply_func(MFunc &func) {
   lifeness.reserve(32);
   VRegType regs[N_REGS_SELECTABLE];
   TMap<size_t, VRegType> reg_mapping;
-  // {
-  //   ZoneScopedN("Args");
-  //   for (auto &reg : func.args) {
-  //     if (reg.info.is_pinned()) {
-  //       reg_mapping.insert({reg.id, reg.info.ty});
-  //     }
-  //   }
-  //   for (auto &bb : func.bbs) {
-  //     for (auto &instr : bb.instrs) {
-  //       replace_args(instr, reg_mapping);
-  //     }
-  //   }
-  //   reg_mapping.clear();
-  // }
 
   const auto lifetimes = linear_lifetime(func);
   get_reg_order(func, regs);
 
   {
     ZoneScopedN("Actual Alloc");
-    for (auto [reg, lifetime] : lifetimes) {
+    for (const auto &[reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
         lifeness.insert({reg.info.ty, lifetime});
-        // reg_mapping.insert({reg.id, reg.info.ty});
       }
     }
+    utils::Debug << "Allocating\n";
 
-    for (auto [reg, lifetime] : lifetimes) {
+    for (const auto &[reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
-      } else {
-        bool found = false;
-        for (auto avail_reg : regs) {
-          if (!reg_is_legal(reg, avail_reg)) {
-            continue;
-          }
-
-          if (!lifeness.contains(avail_reg)) {
-            lifeness.insert({avail_reg, lifetime});
-            reg_mapping.insert({reg.id, avail_reg});
-            found = true;
-            break;
-          }
-          if (!lifeness.at(avail_reg).collide(lifetime)) {
-            lifeness.at(avail_reg).update(lifetime);
-            reg_mapping.insert({reg.id, avail_reg});
-            found = true;
-            break;
-          }
+        continue;
+      }
+      utils::Debug << " Trying to allocate " << reg
+                   << " UID:" << reg_to_uid(reg) << "\n";
+      utils::Debug << " WithLifetime: ";
+      for (auto life : lifetime.ranges) {
+        life.dump();
+        utils::Debug << " ";
+      }
+      utils::Debug << "\n";
+      bool found = false;
+      for (auto avail_reg : regs) {
+        if (!reg_is_legal(reg, avail_reg)) {
+          continue;
         }
-        if (!found) {
-          utils::Debug << reg << " Size:" << reg.info.reg_size
-                       << " Is FP:" << (reg.info.reg_class == VRegClass::Float)
-                       << "\n";
-          TODO("spill it ?");
-          ASSERT(false);
+
+        if (!lifeness.contains(avail_reg)) {
+          lifeness.insert({avail_reg, lifetime});
+          reg_mapping.insert({reg.id, avail_reg});
+          found = true;
+          break;
+        }
+        if (!lifeness.at(avail_reg).collide(lifetime)) {
+          lifeness.at(avail_reg).update(lifetime);
+          reg_mapping.insert({reg.id, avail_reg});
+          found = true;
+          break;
         }
       }
+      if (!found) {
+        utils::Debug << reg << " Size:" << reg.info.reg_size
+                     << " Is FP:" << (reg.info.reg_class == VRegClass::Float)
+                     << "\n";
+        TODO("spill it ?");
+        ASSERT(false);
+      }
+      utils::Debug << "    Found reg:" << reg_mapping[reg.id] << "\n";
     }
   }
 

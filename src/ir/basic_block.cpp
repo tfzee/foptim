@@ -23,7 +23,7 @@ bool BasicBlockData::verify(const Function *exp_parent,
 
   for (const auto &instr : instructions) {
     if (!instr.is_valid() || !instr->verify(this, printer)) {
-      printer << "Instruction: " << instr;
+      printer << "Invalid Instruction " << instr.get_raw_ptr() << "\n";
       return false;
     }
   }

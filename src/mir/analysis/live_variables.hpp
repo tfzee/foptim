@@ -7,7 +7,10 @@ namespace foptim::fmir {
 class LiveVariables {
 public:
   const CFG &cfg;
+  // TODO: shouldnt these be TVecs?
   IRVec<utils::BitSet<>> _live;
+  IRVec<utils::BitSet<>> _liveIn;
+  IRVec<utils::BitSet<>> _liveOut;
 
   LiveVariables(const CFG &cfg, const fmir::MFunc &func) : cfg(cfg) {
     update(func);
