@@ -155,7 +155,6 @@ bool Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
   return false;
 }
 
-
 bool Legalizer::legalize_idiv(MBB &bb, u32 indx) {
   auto modified = false;
   {
@@ -369,19 +368,17 @@ bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
   return modified;
 }
 
-bool Legalizer::legalize_sub(MBB &bb, u32 indx) {
-  bool modified = false;
-  {
-    // 2nd arg cant be the same as result since
-    // this instruction will be split into a move + a sub
-    MInstr &instr = bb.instrs[indx];
-    if (instr.args[0] == instr.args[2]) {
-      indx = move_arg_to_reg(bb, indx, 2, instr.args[0].ty);
-      modified = true;
-    }
-  }
-  return modified;
-}
+// bool Legalizer::legalize_sub(MBB &bb, u32 indx) {
+//   bool modified = false;
+//   // {
+//   //   MInstr &instr = bb.instrs[indx];
+//   //   if (instr.args[0] == instr.args[2]) {
+//   //     indx = move_arg_to_reg(bb, indx, 2, instr.args[0].ty);
+//   //     modified = true;
+//   //   }
+//   // }
+//   return modified;
+// }
 
 bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
   {
@@ -504,11 +501,11 @@ void Legalizer::apply(MFunc &func) {
           ioff = 0;
         }
         break;
-      case Opcode::sub:
-        if (legalize_sub(bb, i)) {
-          ioff = 0;
-        }
-        break;
+      // case Opcode::sub2:
+      //   if (legalize_sub(bb, i)) {
+      //     ioff = 0;
+      //   }
+      //   break;
       case Opcode::arg_setup:
         if (legalize_arg_setup(bb, i)) {
           ioff = 0;

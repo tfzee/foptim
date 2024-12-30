@@ -399,75 +399,51 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     return;
   }
   // commutative ones
-  case fmir::Opcode::land:
-  case fmir::Opcode::lor:
-  case fmir::Opcode::add: {
-    ASSERT(instr.n_args == 3);
+  case fmir::Opcode::mul2:
+  case fmir::Opcode::land2:
+  case fmir::Opcode::lor2:
+  case fmir::Opcode::shl2:
+  case fmir::Opcode::shr2:
+  case fmir::Opcode::sar2:
+  case fmir::Opcode::lxor2:
+  case fmir::Opcode::sub2:
+  case fmir::Opcode::add2: {
+    ASSERT(instr.n_args == 2);
     auto target = convert_operand(cc, reg_to_op, instr.args[0]);
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
-    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
     Inst::Id opcode;
     switch (instr.op) {
-    case fmir::Opcode::add:
+    case fmir::Opcode::add2:
       opcode = Inst::kIdAdd;
       break;
-    case fmir::Opcode::land:
+    case fmir::Opcode::land2:
       opcode = Inst::kIdAnd;
       break;
-    case fmir::Opcode::lor:
+    case fmir::Opcode::lor2:
       opcode = Inst::kIdOr;
       break;
-    default:
-      UNREACH();
-    }
-    if (target == o0) {
-      cc.emit(opcode, target, o1);
-    } else if (target == o1) {
-      cc.emit(opcode, target, o0);
-    } else {
-      cc.emit(Inst::kIdMov, target, o1);
-      cc.emit(opcode, target, o0);
-    }
-    return;
-  }
-  case fmir::Opcode::shl:
-  case fmir::Opcode::shr:
-  case fmir::Opcode::sar:
-  case fmir::Opcode::lxor:
-  case fmir::Opcode::sub: {
-    ASSERT(instr.n_args == 3);
-    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
-    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
-    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    Inst::Id opcode;
-    switch (instr.op) {
-    case fmir::Opcode::sub:
+    case fmir::Opcode::mul2:
+      opcode = Inst::kIdImul;
+      break;
+    case fmir::Opcode::sub2:
       opcode = Inst::kIdSub;
       break;
-    case fmir::Opcode::shl:
+    case fmir::Opcode::shl2:
       opcode = Inst::kIdShl;
       break;
-    case fmir::Opcode::shr:
+    case fmir::Opcode::shr2:
       opcode = Inst::kIdShr;
       break;
-    case fmir::Opcode::sar:
+    case fmir::Opcode::sar2:
       opcode = Inst::kIdSar;
       break;
-    case fmir::Opcode::lxor:
+    case fmir::Opcode::lxor2:
       opcode = Inst::kIdXor;
       break;
     default:
       UNREACH();
     }
-
-    if (target == o0) {
-      cc.emit(opcode, target, o1);
-    } else if (target == o1) {
-      TODO("How to handle this");
-    } else {
-      cc.emit(Inst::kIdMov, target, o0);
-      cc.emit(opcode, target, o1);
-    }
+    cc.emit(opcode, target, o0);
     return;
   }
   case fmir::Opcode::fadd: {
@@ -637,7 +613,14 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto o1 = convert_operand(cc, reg_to_op, instr.args[3]);
     ASSERT(o0.isPhysReg());
     ASSERT(o0 == rax || o0 == eax || o0 == ax);
-    ASSERT(!o1.isPhysReg() || (o1 != rdx && o1 != edx));
+    bool collision_in_reg = o1.isPhysReg() && (o1 == rdx || o1 == edx);
+
+    // since edx needs to be free for expanding the eax value we will push it
+    // onto the stack and use a mem operand
+    if (collision_in_reg) {
+      cc.emit(Inst::kIdMov, Mem(rsp, -8), o1);
+    }
+
     if (o0 == rax) {
       // need to sign extend rax into rdx
       cc.emit(Inst::kIdCqo);
@@ -649,25 +632,10 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       cc.emit(Inst::kIdCwd);
     }
     // and then div by o1
-    cc.emit(Inst::kIdIdiv, o1);
-    return;
-  }
-  case fmir::Opcode::mul: {
-    ASSERT(instr.n_args == 3);
-    auto target = convert_operand(cc, reg_to_op, instr.args[0]);
-    auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
-    auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
-    if (!o0.isImm() && o1.isImm()) {
-      cc.emit(Inst::kIdImul, target, o0, o1);
+    if (collision_in_reg) {
+      cc.emit(Inst::kIdIdiv, Mem(rsp, -8, get_size(instr.args[2].ty)));
     } else {
-      if (target == o0) {
-        cc.emit(Inst::kIdImul, target, o1);
-      } else if (target == o1) {
-        cc.emit(Inst::kIdImul, target, o0);
-      } else {
-        cc.emit(Inst::kIdMov, target, o0);
-        cc.emit(Inst::kIdImul, target, o1);
-      }
+      cc.emit(Inst::kIdIdiv, o1);
     }
     return;
   }

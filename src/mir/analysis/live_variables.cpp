@@ -60,15 +60,15 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::mov_sx:
   case Opcode::itrunc:
   case Opcode::lea:
-  case Opcode::add:
-  case Opcode::shl:
-  case Opcode::shr:
-  case Opcode::lor:
-  case Opcode::land:
-  case Opcode::lxor:
-  case Opcode::sar:
-  case Opcode::sub:
-  case Opcode::mul:
+  case Opcode::add2:
+  case Opcode::shl2:
+  case Opcode::shr2:
+  case Opcode::lor2:
+  case Opcode::land2:
+  case Opcode::lxor2:
+  case Opcode::sar2:
+  case Opcode::sub2:
+  case Opcode::mul2:
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:
@@ -194,15 +194,19 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     }
     update_uses(instr.args[1], uses);
     break;
-  case Opcode::add:
-  case Opcode::shl:
-  case Opcode::shr:
-  case Opcode::lor:
-  case Opcode::land:
-  case Opcode::lxor:
-  case Opcode::sar:
-  case Opcode::sub:
-  case Opcode::mul:
+  case Opcode::add2:
+  case Opcode::shl2:
+  case Opcode::shr2:
+  case Opcode::lor2:
+  case Opcode::land2:
+  case Opcode::lxor2:
+  case Opcode::sar2:
+  case Opcode::sub2:
+  case Opcode::mul2:
+    // for these it doesnt matter if its a reg its always used
+    update_uses(instr.args[0], uses);
+    update_uses(instr.args[1], uses);
+    break;
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:

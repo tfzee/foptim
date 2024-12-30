@@ -24,11 +24,11 @@ struct Loc {
     return other;
   }
 
-  [[nodiscard]] constexpr bool operator<=(const Loc &other) const {
+  [[nodiscard]] constexpr bool operator<(const Loc &other) const {
     if (bb_indx != other.bb_indx) {
-      return bb_indx <= other.bb_indx;
+      return bb_indx < other.bb_indx;
     }
-    return instr_indx <= other.instr_indx;
+    return instr_indx < other.instr_indx;
   }
 };
 
@@ -61,8 +61,8 @@ struct LinearRange {
   // }
 
   [[nodiscard]] constexpr bool collide(const LinearRange &o) const {
-    bool overlap1 = o.start <= end;
-    bool overlap2 = start <= o.end;
+    bool overlap1 = o.start < end;
+    bool overlap2 = start < o.end;
 
     return overlap1 && overlap2;
   }
@@ -152,10 +152,11 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
       auto reg_id = reg_to_uid(reg);
       if (alive[reg_id]) {
         size_t start_instr = 0;
-        auto end_instr = func.bbs[bb_id].instrs.size() - 1;
+        auto end_instr = func.bbs[bb_id].instrs.size() + 1;
 
         // if its not alive in it needs to be defined somwhere in this block
         if (!aliveIn[reg_id]) {
+          start_instr++;
           defs.reset(false);
           for (const auto &instr : func.bbs[bb_id].instrs) {
             update_def(instr, defs);
@@ -208,8 +209,15 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
             }
           }
           ASSERT(found_it);
-          end_instr = ip1 - 1;
+          end_instr = ip1;
         }
+        // TODO: this is a fix
+        //  cause if we use < to compare ranges
+        //  we get an issue if our ranges are 0-0 for example  since then 0-10
+        //  range wont collide even though they should
+        // if (start_instr == end_instr) {
+        //   end_instr++;
+        // }
         ASSERT(start_instr <= end_instr);
         ranges[reg].update(LinearRange::inBB(bb_id, start_instr, end_instr));
       }
@@ -226,10 +234,9 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   //     utils::Debug << " LIVEIN:" <<
   //     live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << " LIVEOUT:"
   //     << live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << "\n";
-  //     // utils::Debug << "   " << range.start.bb_indx << ": "
-  //     //              << range.start.instr_indx << "-" <<
-  //     range.end.instr_indx
-  //     //              << "\n";
+  //     utils::Debug << "   " << range.start.bb_indx << ": "
+  //                  << range.start.instr_indx << "-" << range.end.instr_indx
+  //                  << "\n";
   //   }
   // }
   return ranges;

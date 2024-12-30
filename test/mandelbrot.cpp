@@ -82,10 +82,10 @@ static int verifyResult2(int result, int innerIterations) {
     return 5;
   }
   if (innerIterations == 2 && result != 192) {
-    return 5;
+    return 6;
   }
   if (innerIterations == 1 && result != 128 ) {
-    return 6;
+    return 7;
   }
   return 0;
 }

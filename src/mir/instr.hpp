@@ -15,16 +15,16 @@ enum class Opcode : u32 {
   itrunc,
   lea,
 
-  shl,
-  shr,
-  sar,
-  land,
-  lor,
-  lxor,
+  shl2,
+  shr2,
+  sar2,
+  land2,
+  lor2,
+  lxor2,
 
-  add,
-  sub,
-  mul,
+  add2,
+  sub2,
+  mul2,
   idiv,
   fadd,
   fsub,
@@ -146,9 +146,15 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(mov_zx);
     ReturnString(mov_sx);
     ReturnString(idiv);
-    ReturnString(add);
-    ReturnString(sub);
-    ReturnString(mul);
+    ReturnString(add2);
+    ReturnString(sub2);
+    ReturnString(mul2);
+    ReturnString(shl2);
+    ReturnString(shr2);
+    ReturnString(sar2);
+    ReturnString(land2);
+    ReturnString(lor2);
+    ReturnString(lxor2);
     ReturnString(fadd);
     ReturnString(fsub);
     ReturnString(fmul);
@@ -190,12 +196,6 @@ constexpr const char *getNameFromOpcode(Opcode code) {
     ReturnString(cjmp_flt_ult);
     ReturnString(cjmp_flt_ule);
     ReturnString(cjmp_flt_une);
-    ReturnString(shl);
-    ReturnString(shr);
-    ReturnString(sar);
-    ReturnString(land);
-    ReturnString(lor);
-    ReturnString(lxor);
     ReturnString(fdiv);
     ReturnString(SI2FL);
     ReturnString(UI2FL);

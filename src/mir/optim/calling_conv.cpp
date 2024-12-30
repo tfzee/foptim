@@ -302,7 +302,7 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
         MArgument{VReg{0, VRegInfo{VRegType::SP, Type::Int64}}, Type::Int64};
     if (n_stack_args > 0) {
       instrs.insert(instrs.begin() + (i64)start,
-                    MInstr{Opcode::add, sp, sp, 8 * n_stack_args});
+                    MInstr{Opcode::add2, sp, 8 * n_stack_args});
     }
   }
 

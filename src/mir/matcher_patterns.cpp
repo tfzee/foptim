@@ -234,7 +234,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
                           convert_type(load_instr.get_type()), data.alloc);
         a0.ty = convert_type(load_instr.get_type());
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(Opcode::add, res_reg, a0, a1);
+        res.result.emplace_back(Opcode::mov, res_reg, a0);
+        res.result.emplace_back(Opcode::add2, res_reg, a1);
         return true;
       }});
   pats.push_back(Pattern{
@@ -440,12 +441,12 @@ void arith_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
-  auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntAdd};
+  // auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                        (u32)fir::BinaryInstrSubType::IntAdd};
   // auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                        (u32)fir::BinaryInstrSubType::IntSub};
-  auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntMul};
+  // auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+  //                        (u32)fir::BinaryInstrSubType::IntMul};
   // auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                      (u32)fir::BinaryInstrSubType::IntSRem};
   // auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -508,30 +509,31 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-  pats.push_back(Pattern{
-      {IntMulNode, IntAddNode},
-      {{0, 1, 0}},
-      [](MatchResult &res, ExtraMatchData &data) {
-        auto mul_instr = res.matched_instrs[0];
-        auto add_instr = res.matched_instrs[1];
-        auto res_reg =
-            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
-        auto add_arg2 = valueToArg(add_instr->args[1], res.result, data.alloc);
-        if (add_arg2 == res_reg) {
-          return false;
-        }
-        auto mul_arg1 = valueToArg(mul_instr->args[0], res.result, data.alloc);
-        auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
+  // pats.push_back(Pattern{
+  //     {IntMulNode, IntAddNode},
+  //     {{0, 1, 0}},
+  //     [](MatchResult &res, ExtraMatchData &data) {
+  //       auto mul_instr = res.matched_instrs[0];
+  //       auto add_instr = res.matched_instrs[1];
+  //       auto res_reg =
+  //           valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+  //       auto add_arg2 = valueToArg(add_instr->args[1], res.result,
+  //       data.alloc); if (add_arg2 == res_reg) {
+  //         return false;
+  //       }
+  //       auto mul_arg1 = valueToArg(mul_instr->args[0], res.result,
+  //       data.alloc); auto mul_arg2 = valueToArg(mul_instr->args[1],
+  //       res.result, data.alloc);
 
-        utils::Debug << "HIT MATCHER\n";
-        utils::Debug << mul_instr << "\n";
-        utils::Debug << add_instr << "\n";
-        res.result.emplace_back(Opcode::mul, res_reg, mul_arg1, mul_arg2);
-        res.result.emplace_back(Opcode::add, res_reg, res_reg, add_arg2);
-        utils::Debug << res.result[res.result.size() - 2] << "\n";
-        utils::Debug << res.result[res.result.size() - 1] << "\n";
-        return true;
-      }});
+  //       utils::Debug << "HIT MATCHER\n";
+  //       utils::Debug << mul_instr << "\n";
+  //       utils::Debug << add_instr << "\n";
+  //       res.result.emplace_back(Opcode::mul, res_reg, mul_arg1, mul_arg2);
+  //       res.result.emplace_back(Opcode::add, res_reg, res_reg, add_arg2);
+  //       utils::Debug << res.result[res.result.size() - 2] << "\n";
+  //       utils::Debug << res.result[res.result.size() - 1] << "\n";
+  //       return true;
+  //     }});
   // pats.push_back(Pattern{
   //     {IntMulNode, IntAddNode},
   //     {{0, 1, 1}},
@@ -615,7 +617,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 auto size = alloca_instr->args[0].as_constant()->as_int();
 
-                res.result.emplace_back(Opcode::sub, rsp_arg, rsp_arg, size);
+                res.result.emplace_back(Opcode::sub2, rsp_arg, size);
                 res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);
                 return true;
               }});
@@ -671,7 +673,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           a1 = helper_reg1;
         }
 
-        res.result.emplace_back(Opcode::add, res_reg, a0, a1);
+        res.result.emplace_back(Opcode::mov, res_reg, a0);
+        res.result.emplace_back(Opcode::add2, res_reg, a1);
         return true;
       }});
   pats.push_back(Pattern{
@@ -694,8 +697,10 @@ void base_patterns(IRVec<Pattern> &pats) {
                     valueToArg(fir::ValueR(sub_instr), res.result, data.alloc);
 
                 res.result.emplace_back(
-                    Opcode::sub, res_reg,
-                    valueToArg(sub_instr->args[0], res.result, data.alloc),
+                    Opcode::mov, res_reg,
+                    valueToArg(sub_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(
+                    Opcode::sub2, res_reg,
                     valueToArg(sub_instr->args[1], res.result, data.alloc));
                 return true;
               }});
@@ -709,7 +714,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
         if (b.isImm()) {
-          res.result.emplace_back(Opcode::shl, res_reg, a, b);
+          res.result.emplace_back(Opcode::mov, res_reg, a);
+          res.result.emplace_back(Opcode::shl2, res_reg, b);
         } else {
           auto shift_reg =
               data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
@@ -719,7 +725,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           } else {
             res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
           }
-          res.result.emplace_back(Opcode::shl, res_reg, a, shift_reg_arg);
+          res.result.emplace_back(Opcode::mov, res_reg, a);
+          res.result.emplace_back(Opcode::shl2, res_reg, shift_reg_arg);
         }
         return true;
       }});
@@ -733,7 +740,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
         if (b.isImm()) {
-          res.result.emplace_back(Opcode::shr, res_reg, a, b);
+          res.result.emplace_back(Opcode::mov, res_reg, a);
+          res.result.emplace_back(Opcode::shr2, res_reg, b);
         } else {
           auto shift_reg =
               data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
@@ -743,7 +751,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           } else {
             res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
           }
-          res.result.emplace_back(Opcode::shr, res_reg, a, shift_reg_arg);
+          res.result.emplace_back(Opcode::mov, res_reg, a);
+          res.result.emplace_back(Opcode::shr2, res_reg, shift_reg_arg);
         }
         return true;
       }});
@@ -757,7 +766,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
         if (b.isImm()) {
-          res.result.emplace_back(Opcode::sar, res_reg, a, b);
+          res.result.emplace_back(Opcode::mov, res_reg, a);
+          res.result.emplace_back(Opcode::sar2, res_reg, b);
         } else {
           auto shift_reg =
               data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
@@ -767,7 +777,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           } else {
             res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
           }
-          res.result.emplace_back(Opcode::sar, res_reg, a, shift_reg_arg);
+          res.result.emplace_back(Opcode::mov, res_reg, a);
+          res.result.emplace_back(Opcode::sar2, res_reg, shift_reg_arg);
         }
         return true;
       }});
@@ -778,8 +789,10 @@ void base_patterns(IRVec<Pattern> &pats) {
                     valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
 
                 res.result.emplace_back(
-                    Opcode::mul, res_reg,
-                    valueToArg(add_instr->args[0], res.result, data.alloc),
+                    Opcode::mov, res_reg,
+                    valueToArg(add_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(
+                    Opcode::mul2, res_reg,
                     valueToArg(add_instr->args[1], res.result, data.alloc));
                 return true;
               }});
@@ -790,8 +803,10 @@ void base_patterns(IRVec<Pattern> &pats) {
                     valueToArg(fir::ValueR(or_instr), res.result, data.alloc);
 
                 res.result.emplace_back(
-                    Opcode::lor, res_reg,
-                    valueToArg(or_instr->args[0], res.result, data.alloc),
+                    Opcode::mov, res_reg,
+                    valueToArg(or_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(
+                    Opcode::lor2, res_reg,
                     valueToArg(or_instr->args[1], res.result, data.alloc));
                 return true;
               }});
@@ -802,8 +817,10 @@ void base_patterns(IRVec<Pattern> &pats) {
                     valueToArg(fir::ValueR(and_instr), res.result, data.alloc);
 
                 res.result.emplace_back(
-                    Opcode::land, res_reg,
-                    valueToArg(and_instr->args[0], res.result, data.alloc),
+                    Opcode::mov, res_reg,
+                    valueToArg(and_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(
+                    Opcode::land2, res_reg,
                     valueToArg(and_instr->args[1], res.result, data.alloc));
                 return true;
               }});
@@ -814,8 +831,10 @@ void base_patterns(IRVec<Pattern> &pats) {
                     valueToArg(fir::ValueR(xor_instr), res.result, data.alloc);
 
                 res.result.emplace_back(
-                    Opcode::lxor, res_reg,
-                    valueToArg(xor_instr->args[0], res.result, data.alloc),
+                    Opcode::mov, res_reg,
+                    valueToArg(xor_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(
+                    Opcode::lxor2, res_reg,
                     valueToArg(xor_instr->args[1], res.result, data.alloc));
                 return true;
               }});
