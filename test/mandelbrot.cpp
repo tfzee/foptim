@@ -4,8 +4,14 @@
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 
-// CHECK: Result:0
-
+// CHECK: Result:192
+//(innerIterations == 750   result == 50) {
+//(innerIterations == 500   result == 191) {
+//(innerIterations == 100   result == 239) {
+//(innerIterations == 50   result == 15) {
+//(innerIterations == 10   result == 127) {
+//(innerIterations == 2   result == 192) {
+//(innerIterations == 1   result == 128 ) {
 
 static int mandelbrot(int size) {
   int sum = 0;
@@ -65,32 +71,8 @@ static int mandelbrot(int size) {
   }
   return sum;
 }
-static int verifyResult2(int result, int innerIterations) {
-  if (innerIterations == 750 && result != 50) {
-    return 1;
-  }
-  if (innerIterations == 500 && result != 191) {
-    return 2;
-  }
-  if (innerIterations == 100 && result != 239) {
-    return 3;
-  }
-  if (innerIterations == 50 && result != 15) {
-    return 4;
-  }
-  if (innerIterations == 10 && result != 127) {
-    return 5;
-  }
-  if (innerIterations == 2 && result != 192) {
-    return 6;
-  }
-  if (innerIterations == 1 && result != 128 ) {
-    return 7;
-  }
-  return 0;
-}
 
 int main() {
   const int innerIterations = 2;
-  return verifyResult2(mandelbrot(innerIterations), innerIterations);
+  return mandelbrot(innerIterations);
 }

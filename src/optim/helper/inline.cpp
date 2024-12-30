@@ -86,8 +86,10 @@ bool inline_call(fir::Instr call) {
   auto entry_branch = bb.build_branch(new_entry.as_bb());
 
   // add the args
-  for (auto arg : call->args) {
-    entry_branch.add_bb_arg(0, arg);
+
+  // for (auto arg : call->args) {
+  for (size_t arg_id = 1; arg_id < call->args.size(); arg_id++) {
+    entry_branch.add_bb_arg(0, call->args[arg_id]);
   }
 
   // replace every return isntruction with a jump to the resulting bb
