@@ -111,99 +111,7 @@ enum class Opcode : u32 {
   invoke,
 };
 
-#define ReturnString(name)                                                     \
-  case Opcode::name:                                                           \
-    return #name;
-
-constexpr const char *getNameFromOpcode(Opcode code) {
-  switch (code) {
-    ReturnString(icmp_ult);
-    ReturnString(icmp_ne);
-    ReturnString(icmp_sgt);
-    ReturnString(icmp_ugt);
-    ReturnString(icmp_uge);
-    ReturnString(icmp_ule);
-    ReturnString(icmp_sge);
-    ReturnString(icmp_sle);
-    ReturnString(fcmp_oeq);
-    ReturnString(fcmp_ogt);
-    ReturnString(fcmp_oge);
-    ReturnString(fcmp_olt);
-    ReturnString(fcmp_ole);
-    ReturnString(fcmp_one);
-    ReturnString(fcmp_ord);
-    ReturnString(fcmp_uno);
-    ReturnString(fcmp_ueq);
-    ReturnString(fcmp_ugt);
-    ReturnString(fcmp_uge);
-    ReturnString(fcmp_ult);
-    ReturnString(fcmp_ule);
-    ReturnString(fcmp_une);
-    ReturnString(mov);
-    ReturnString(cmov);
-    ReturnString(lea);
-    ReturnString(itrunc);
-    ReturnString(mov_zx);
-    ReturnString(mov_sx);
-    ReturnString(idiv);
-    ReturnString(add2);
-    ReturnString(sub2);
-    ReturnString(mul2);
-    ReturnString(shl2);
-    ReturnString(shr2);
-    ReturnString(sar2);
-    ReturnString(land2);
-    ReturnString(lor2);
-    ReturnString(lxor2);
-    ReturnString(fadd);
-    ReturnString(fsub);
-    ReturnString(fmul);
-    ReturnString(ffmadd132);
-    ReturnString(ffmadd231);
-    ReturnString(ffmadd213);
-    ReturnString(fxor);
-    ReturnString(icmp_slt);
-    ReturnString(icmp_eq);
-    ReturnString(jmp);
-    ReturnString(call);
-    ReturnString(push);
-    ReturnString(pop);
-    ReturnString(cjmp);
-    ReturnString(ret);
-    ReturnString(arg_setup);
-    ReturnString(invoke);
-    ReturnString(cjmp_int_slt);
-    ReturnString(cjmp_int_sge);
-    ReturnString(cjmp_int_sle);
-    ReturnString(cjmp_int_sgt);
-    ReturnString(cjmp_int_ne);
-    ReturnString(cjmp_int_eq);
-    ReturnString(cjmp_int_ult);
-    ReturnString(cjmp_int_ule);
-    ReturnString(cjmp_int_uge);
-    ReturnString(cjmp_int_ugt);
-    ReturnString(cjmp_flt_oeq);
-    ReturnString(cjmp_flt_ogt);
-    ReturnString(cjmp_flt_oge);
-    ReturnString(cjmp_flt_olt);
-    ReturnString(cjmp_flt_ole);
-    ReturnString(cjmp_flt_one);
-    ReturnString(cjmp_flt_ord);
-    ReturnString(cjmp_flt_uno);
-    ReturnString(cjmp_flt_ueq);
-    ReturnString(cjmp_flt_ugt);
-    ReturnString(cjmp_flt_uge);
-    ReturnString(cjmp_flt_ult);
-    ReturnString(cjmp_flt_ule);
-    ReturnString(cjmp_flt_une);
-    ReturnString(fdiv);
-    ReturnString(SI2FL);
-    ReturnString(UI2FL);
-    ReturnString(FL2SI);
-    ReturnString(FL2UI);
-  }
-}
-#undef ReturnString
+const char *getNameFromOpcode(Opcode code);
 
 enum class Type : u16 {
   INVALID = 0,
@@ -500,8 +408,7 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(IRString lab, u32 imm,
-                                               Type ty) {
+  [[nodiscard]] static constexpr MArgument Mem(IRString lab, u32 imm, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmLabel;
     arg.ty = ty;
@@ -796,6 +703,8 @@ public:
   }
 };
 #undef COND_JUMP_GEN
+
+TVec<MArgument> written_args(MInstr &instr);
 
 } // namespace foptim::fmir
 

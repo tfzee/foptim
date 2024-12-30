@@ -4,6 +4,7 @@
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/calling_conv.hpp"
+#include "mir/optim/dce.hpp"
 #include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
@@ -170,8 +171,8 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
   ZoneScopedN("MIR Optim");
-  // foptim::fmir::DeadCodeElim{}.apply(funcs);
-  // foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::DeadCodeElim{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

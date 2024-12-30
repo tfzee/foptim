@@ -3,8 +3,6 @@ Simple optimizing backend
 
 
 
-valgrind --tool=callgrind --dump-instr=yes --branch-sim=yes --cache-sim=yes --simulate-wb=yes --simulate-hwpref=yes --cacheuse=yes  ./a.out
-
 
 
 ## TODO
@@ -23,3 +21,15 @@ valgrind --tool=callgrind --dump-instr=yes --branch-sim=yes --cache-sim=yes --si
 	+ improve second live variable analysis
 + More Tests
 	+ GCC Tests
+
+
+
+
+######
+
+
+valgrind --tool=callgrind --dump-instr=yes --branch-sim=yes --cache-sim=yes --simulate-wb=yes --simulate-hwpref=yes --cacheuse=yes  ./a.out
+cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+	-DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=mold" -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=mold" \
+	-DCMAKE_EXPORT_COMPILE_COMMANDS=ON -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++     
+

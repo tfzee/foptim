@@ -27,7 +27,6 @@
             ninja
             clang_18
 
-            
             #for codegen for now
             nasm
             asmjit
@@ -48,7 +47,6 @@
             (cutter.withPlugins (ps: with ps; [ rz-ghidra ]))
             valgrind
             kdePackages.kcachegrind
-
           ];
 
           buildInputs = [ ];

@@ -68,11 +68,13 @@ add_library (foptim
                 ./src/optim/helper/inline.cpp
 
                 #mir
+                ./src/mir/instr.cpp
                 ./src/mir/reg_alloc.cpp
                 ./src/mir/matcher.cpp
                 ./src/mir/matcher_patterns.cpp
                 ./src/mir/analysis/live_variables.cpp
                 ./src/mir/optim/reg_alloc.cpp
+                ./src/mir/optim/dce.cpp
                 ./src/mir/optim/calling_conv.cpp
                 ./src/mir/optim/bb_reordering.cpp
                 ./src/mir/optim/inst_simplify.cpp
