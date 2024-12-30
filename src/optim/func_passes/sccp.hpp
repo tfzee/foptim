@@ -74,6 +74,7 @@ class SCCP final : public FunctionPass {
   TMap<fir::ValueR, ConstantValue> values;
 
   TSet<fir::BasicBlock> reachable_bb;
+  TSet<fir::BasicBlock> bottom_bbs;
 
 public:
   ConstantValue eval(fir::ValueR value) {
@@ -103,7 +104,8 @@ public:
 
       if ((!a.value->is_int() && !a.value->is_float()) ||
           (!b.value->is_int() && !b.value->is_float())) {
-        failure({"Cannot do SCCP on binary expr using non integers/floats", instr});
+        failure(
+            {"Cannot do SCCP on binary expr using non integers/floats", instr});
         return ConstantValue::Bottom();
       }
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
@@ -134,8 +136,11 @@ public:
       // utils::Debug << " HIT BRANCH\n\n";
       ASSERT(target.size() == 1);
       const auto func = instr->get_parent()->get_parent();
-      // if (!reachable_bb.contains(target[0].bb)) {
-      cfg_worklist.push_back(target[0].bb);
+      if (!bottom_bbs.contains(target[0].bb)) {
+        cfg_worklist.push_back(target[0].bb);
+        bottom_bbs.insert(target[0].bb);
+      }
+      // if () {
       // }
       {
         const size_t bb_id = func->bb_id(target[0].bb);
@@ -151,12 +156,14 @@ public:
       // ASSERT(!arg.is_bottom());
       if (arg.is_bottom()) {
         // utils::Debug << "fixme: SCCP quick fix\n";
-        // if (!reachable_bb.contains(targets[0].bb)) {
-        cfg_worklist.push_back(targets[0].bb);
-        // }
-        // if (!reachable_bb.contains(targets[1].bb)) {
-        cfg_worklist.push_back(targets[1].bb);
-        // }
+        if (!bottom_bbs.contains(targets[0].bb)) {
+          cfg_worklist.push_back(targets[0].bb);
+          bottom_bbs.insert(targets[0].bb);
+        }
+        if (!bottom_bbs.contains(targets[1].bb)) {
+          cfg_worklist.push_back(targets[1].bb);
+          bottom_bbs.insert(targets[1].bb);
+        }
 
         {
           const size_t bb_id = func->bb_id(targets[0].bb);

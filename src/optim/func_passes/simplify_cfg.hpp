@@ -15,6 +15,7 @@ namespace foptim::optim {
 // + [x] eleminate bb args if only 1 pred
 // + [x] eliminate bb arg if only one unique incoming value
 // + [x] eliminate bb arg if no uses
+// + [x] convert conditional branch with the same target into cmove
 // + [ ] convert if else into cmove
 // + [ ]
 
@@ -152,8 +153,31 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
     }
   }
 
-  // if a block only contains a unconditional jump we can replace it depending
-  // TODO: this implentation uses succ this wont work for the entry block
+  // if a block only contains a unconditional jump we can replace it
+  // backwards(into pred) if there is no bb args or only 1 pred(secnd is handled
+  // by other if)
+  if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].bb->n_instrs() == 1 &&
+      cfg.bbrs[curr.succ[0]].bb->n_args() == 0) {
+    // utils::Debug << "PREV\n" << curr.bb->get_parent() << "\n";
+    auto succ = cfg.bbrs[curr.succ[0]].bb;
+  
+    auto old_term = func.basic_blocks[bb_id]->get_terminator();
+    
+    fir::Builder bb{curr.bb};
+    bb.at_end(curr.bb);
+
+    bb.insert_copy(succ->get_terminator());
+
+    old_term.remove_from_parent();
+    succ->remove_from_parent(true);
+    // utils::Debug << "AFTER\n"
+    //              << curr.bb->get_parent() << "\n===================";
+    return true;
+  }
+
+  // if a block only contains a unconditional
+  //  jump we can replace it forwards if were not the entry block
+  //  TODO: this implentation uses succ this wont work for the entry block
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) && !is_entry) {
     ASSERT(curr.succ.size() == 1);
@@ -193,41 +217,42 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
   }
 
   // if 1 to 1 relation between blocks we can merge them
-  // TODO: this implentation uses succ this wont work for the entry block
+  // TODO: this should in theory even work with multiple incmoing and then use a
+  // heuristic so it can do it for any short enough block
   if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1 &&
       !is_entry) {
     auto succ_id = curr.succ[0];
 
-    bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
+    // bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
     bool secon_has_args = func.basic_blocks.at(succ_id)->n_args() != 0;
+    auto old_first_term = func.basic_blocks[bb_id]->get_terminator();
 
     if (secon_has_args) {
-      auto term = func.basic_blocks[bb_id]->get_terminator();
       auto succ = func.basic_blocks[succ_id];
       // for (auto arg: succ->args) {
       //   arg->replace_all_uses(term->bbs[0].args[i]);
       // }
       for (u32 i = 0; i < succ->n_args(); i++) {
-        succ->args[i]->replace_all_uses(term->bbs[0].args[i]);
+        succ->args[i]->replace_all_uses(old_first_term->bbs[0].args[i]);
       }
       succ->clear_args();
     }
-    if (first_has_args) {
-      for (auto arg : func.basic_blocks[bb_id]->args) {
-        auto new_arg = func.basic_blocks[succ_id].add_arg(ctx->copy(arg));
-        arg->replace_all_uses(fir::ValueR{new_arg});
-      }
-    }
+    // if (first_has_args) {
+    //   for (auto arg : func.basic_blocks[bb_id]->args) {
+    //     auto new_arg = func.basic_blocks[succ_id].add_arg(ctx->copy(arg));
+    //     arg->replace_all_uses(fir::ValueR{new_arg});
+    //   }
+    // }
 
-    fir::Builder bb{func.basic_blocks[succ_id]};
-    bb.at_start(func.basic_blocks[succ_id]);
+    fir::Builder bb{curr.bb};
+    bb.at_end(curr.bb);
 
     TMap<fir::ValueR, fir::ValueR> subs;
 
     for (size_t instr_id = 0;
-         instr_id + 1 < func.basic_blocks[bb_id]->instructions.size();
+         instr_id < func.basic_blocks[succ_id]->instructions.size();
          instr_id++) {
-      auto &instr = func.basic_blocks[bb_id]->instructions[instr_id];
+      auto &instr = func.basic_blocks[succ_id]->instructions[instr_id];
       auto new_instr = bb.insert_copy(instr);
       // utils::Debug << "SUBBING \n"
       //              << new_instr << "  subs: " << subs << "\n";
@@ -239,12 +264,41 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
       f.replace_all_uses(to);
     }
 
-    func.basic_blocks[bb_id]->replace_all_uses(
-        fir::ValueR{func.basic_blocks.at(succ_id)});
-    func.basic_blocks[bb_id]->remove_from_parent(true);
+    // func.basic_blocks[bb_id]->replace_all_uses(
+    //     fir::ValueR{func.basic_blocks.at(succ_id)});
+    old_first_term.remove_from_parent();
+    func.basic_blocks[succ_id]->remove_from_parent(true);
     // utils::Debug << 6 << "\n";
     return true;
   }
+
+  // If we got a conditionalbrach with both taking the same target
+  // then we can cmove the bbargs and then do a simple branch
+  auto terminator = curr.bb->get_terminator();
+  if (curr.succ.size() == 2 && terminator->bbs[0].bb == terminator->bbs[1].bb) {
+    // auto *ctx = curr.bb->get_parent()->ctx;
+
+    auto &args1 = terminator->bbs[0].args;
+    auto &args2 = terminator->bbs[1].args;
+    auto condition = terminator->get_arg(0);
+    auto target = terminator->bbs[0].bb;
+
+    // TODO: prob needs some heursitics if its worth it
+    fir::Builder bb{curr.bb};
+    bb.at_penultimate(curr.bb);
+    TVec<fir::ValueR> new_inputs;
+    for (size_t i = 0; i < args1.size(); i++) {
+      new_inputs.push_back(bb.build_select(ctx->copy(args1[i].get_type()),
+                                           condition, args1[i], args2[i]));
+    }
+    auto new_branch = bb.build_branch(target);
+    for (auto &input : new_inputs) {
+      new_branch.add_bb_arg(0, input);
+    }
+    terminator.remove_from_parent();
+    return true;
+  }
+
   // utils::Debug << "DEAD" << "\n";
   return false;
 }

@@ -119,7 +119,6 @@ void DeadCodeElim::apply(MFunc &func) {
       if (!is_used) {
         bb.instrs.erase(bb.instrs.begin() + instr_id);
         continue;
-        // utils::Debug << "POT DEAD: " << bb.instrs[instr_id] << "\n";
       }
     }
   }

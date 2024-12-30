@@ -383,9 +383,9 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
       TODO("fcmove");
     } else if (instr.args[0].ty == fmir::Type::Float64) {
       TODO("fcmove");
-    } else if (o0_size == 8 && value.isReg()) {
+    } else if (o0_size == 1 && value.isReg()) {
       cc.emit(Inst::kIdTest, cond, cond);
-      cc.emit(Inst::kIdCmovz, target, value.as<Gp>().r64());
+      cc.emit(Inst::kIdCmovz, target.as<Gp>().r64(), value.as<Gp>().r64());
     } else {
       cc.emit(Inst::kIdTest, cond, cond);
       cc.emit(Inst::kIdCmovz, target, value);
