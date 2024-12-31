@@ -705,6 +705,7 @@ public:
 #undef COND_JUMP_GEN
 
 TVec<MArgument> written_args(MInstr &instr);
+TVec<MArgument> read_args(MInstr &instr);
 
 } // namespace foptim::fmir
 

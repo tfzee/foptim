@@ -192,4 +192,105 @@ TVec<MArgument> written_args(MInstr &instr) {
   }
 }
 
+TVec<MArgument> read_args(MInstr &instr) {
+  switch (instr.op) {
+  case Opcode::pop:
+  case Opcode::jmp:
+    return {};
+  case Opcode::ret:
+    if (instr.n_args > 0) {
+      return {instr.args[0]};
+    } else {
+      return {};
+    }
+  case Opcode::call:
+  case Opcode::invoke:
+  case Opcode::push:
+  case Opcode::cjmp:
+  case Opcode::arg_setup:
+    return {instr.args[0]};
+  case Opcode::mov_zx:
+  case Opcode::mov_sx:
+  case Opcode::mov:
+  case Opcode::itrunc:
+  case Opcode::lea:
+  case Opcode::SI2FL:
+  case Opcode::UI2FL:
+  case Opcode::FL2SI:
+  case Opcode::FL2UI:
+    return {instr.args[1]};
+  case Opcode::shl2:
+  case Opcode::shr2:
+  case Opcode::sar2:
+  case Opcode::land2:
+  case Opcode::lor2:
+  case Opcode::lxor2:
+  case Opcode::add2:
+  case Opcode::sub2:
+  case Opcode::mul2:
+  case Opcode::cjmp_int_slt:
+  case Opcode::cjmp_int_sge:
+  case Opcode::cjmp_int_sle:
+  case Opcode::cjmp_int_sgt:
+  case Opcode::cjmp_int_ult:
+  case Opcode::cjmp_int_ule:
+  case Opcode::cjmp_int_ugt:
+  case Opcode::cjmp_int_uge:
+  case Opcode::cjmp_int_ne:
+  case Opcode::cjmp_int_eq:
+  case Opcode::cjmp_flt_oeq:
+  case Opcode::cjmp_flt_ogt:
+  case Opcode::cjmp_flt_oge:
+  case Opcode::cjmp_flt_olt:
+  case Opcode::cjmp_flt_ole:
+  case Opcode::cjmp_flt_one:
+  case Opcode::cjmp_flt_ord:
+  case Opcode::cjmp_flt_uno:
+  case Opcode::cjmp_flt_ueq:
+  case Opcode::cjmp_flt_ugt:
+  case Opcode::cjmp_flt_uge:
+  case Opcode::cjmp_flt_ult:
+  case Opcode::cjmp_flt_ule:
+  case Opcode::cjmp_flt_une:
+    return {instr.args[0], instr.args[1]};
+  case Opcode::fadd:
+  case Opcode::fsub:
+  case Opcode::fmul:
+  case Opcode::fdiv:
+  case Opcode::fxor:
+  case Opcode::icmp_slt:
+  case Opcode::icmp_eq:
+  case Opcode::icmp_ult:
+  case Opcode::icmp_ne:
+  case Opcode::icmp_sgt:
+  case Opcode::icmp_ugt:
+  case Opcode::icmp_uge:
+  case Opcode::icmp_ule:
+  case Opcode::icmp_sge:
+  case Opcode::icmp_sle:
+  case Opcode::fcmp_oeq:
+  case Opcode::fcmp_ogt:
+  case Opcode::fcmp_oge:
+  case Opcode::fcmp_olt:
+  case Opcode::fcmp_ole:
+  case Opcode::fcmp_one:
+  case Opcode::fcmp_ord:
+  case Opcode::fcmp_uno:
+  case Opcode::fcmp_ueq:
+  case Opcode::fcmp_ugt:
+  case Opcode::fcmp_uge:
+  case Opcode::fcmp_ult:
+  case Opcode::fcmp_ule:
+  case Opcode::fcmp_une:
+    return {instr.args[1], instr.args[2]};
+  case Opcode::cmov:
+  case Opcode::ffmadd132:
+  case Opcode::ffmadd213:
+  case Opcode::ffmadd231:
+    return {instr.args[0], instr.args[1], instr.args[2]};
+  case Opcode::idiv:
+    return {instr.args[2], instr.args[3]};
+  }
+}
+
 } // namespace foptim::fmir

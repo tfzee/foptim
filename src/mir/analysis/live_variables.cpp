@@ -110,8 +110,9 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
       def[reg_to_uid(instr.args[0].reg)].set(true);
     }
     break;
+  case Opcode::arg_setup:
   case Opcode::invoke:
-    if (instr.args[1].isReg()) {
+    if (instr.n_args > 1 && instr.args[1].isReg()) {
       def[reg_to_uid(instr.args[1].reg)].set(true);
     }
     break;
@@ -119,10 +120,6 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     def[reg_to_uid(instr.args[0].reg)].set(true);
     def[reg_to_uid(instr.args[1].reg)].set(true);
     break;
-  case Opcode::arg_setup:
-    if (instr.args[1].isReg()) {
-      def[reg_to_uid(instr.args[1].reg)].set(true);
-    }
   case Opcode::cjmp_int_slt:
   case Opcode::cjmp_int_sge:
   case Opcode::cjmp_int_sle:
@@ -187,8 +184,11 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::itrunc:
   case Opcode::mov_zx:
   case Opcode::mov_sx:
-  case Opcode::cmov:
   case Opcode::lea:
+  case Opcode::SI2FL:
+  case Opcode::UI2FL:
+  case Opcode::FL2SI:
+  case Opcode::FL2UI:
     if (!instr.args[0].isReg()) {
       update_uses(instr.args[0], uses);
     }
@@ -207,15 +207,12 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     update_uses(instr.args[0], uses);
     update_uses(instr.args[1], uses);
     break;
+  case Opcode::cmov:
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::fxor:
-  case Opcode::SI2FL:
-  case Opcode::UI2FL:
-  case Opcode::FL2SI:
-  case Opcode::FL2UI:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
   case Opcode::icmp_ult:
@@ -257,16 +254,24 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     update_uses(instr.args[3], uses);
     break;
   case Opcode::idiv:
+    // 0 and 1 are fixed regs
     update_uses(instr.args[2], uses);
     update_uses(instr.args[3], uses);
     break;
   case Opcode::invoke:
+  case Opcode::call:
+    update_uses(instr.args[0], uses);
+    if (instr.n_args > 1) {
+      update_uses(instr.args[1], uses);
+    }
+    break;
   case Opcode::arg_setup:
   case Opcode::ret:
   case Opcode::push:
   case Opcode::cjmp:
-  case Opcode::call:
-    update_uses(instr.args[0], uses);
+    if (instr.n_args > 1) {
+      update_uses(instr.args[1], uses);
+    }
     break;
   case Opcode::jmp:
     break;
@@ -333,9 +338,9 @@ void LiveVariables::update(const fmir::MFunc &func) {
     }
   }
 
-  // utils::Debug << "FUNC\n" << func << "\n";
-  // utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
-  // utils::Debug << "defs\n" << defs << "\n";
+  utils::Debug << "FUNC\n" << func << "\n";
+  utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
+  utils::Debug << "defs\n" << defs << "\n";
   _liveIn.clear();
   _liveOut.clear();
   _liveIn.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});

@@ -105,6 +105,77 @@ struct LinearRangeSet {
   }
 };
 
+struct NextUseResult {
+  bool is_write;
+  bool is_read;
+  size_t index;
+};
+
+NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
+                            size_t start_instr) {
+  NextUseResult res{false, false, 0};
+  for (auto i = start_instr; i < instrs.size(); i++) {
+    if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
+      // TODO: this could be more specific since certain CCs can only read/write
+      // certain args legaly
+      res.is_write = (instrs[i].n_args > 1 &&
+                      (search_reg_id == reg_to_uid(instrs[i].args[1].reg) ||
+                       search_reg_id == reg_to_uid(VReg::EAX())));
+      res.index = i;
+    }
+    for (auto arg : written_args(instrs[i])) {
+      if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
+        res.is_write = true;
+        res.index = i;
+      }
+    }
+    for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
+      auto &argy = instrs[i].args[arg_id];
+      switch (argy.type) {
+      case MArgument::ArgumentType::Imm:
+      case MArgument::ArgumentType::MemImm:
+      case MArgument::ArgumentType::Label:
+      case MArgument::ArgumentType::MemLabel:
+      case MArgument::ArgumentType::MemImmLabel:
+        // here we need to skip vreg
+      case MArgument::ArgumentType::VReg:
+        break;
+      case MArgument::ArgumentType::MemVReg:
+      case MArgument::ArgumentType::MemImmVReg:
+        if (reg_to_uid(argy.reg) == search_reg_id) {
+          res.is_read = true;
+          res.index = i;
+        }
+      case MArgument::ArgumentType::MemVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVReg:
+      case MArgument::ArgumentType::MemVRegVRegScale:
+        if (reg_to_uid(argy.reg) == search_reg_id) {
+          res.is_read = true;
+          res.index = i;
+        }
+        if (reg_to_uid(argy.indx) == search_reg_id) {
+          res.is_read = true;
+          res.index = i;
+        }
+        break;
+      case MArgument::ArgumentType::MemImmVRegScale:
+      case MArgument::ArgumentType::MemImmVRegVRegScale:
+        IMPL("impl");
+      }
+    }
+    for (auto arg : read_args(instrs[i])) {
+      if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
+        res.is_read = true;
+        res.index = i;
+      }
+    }
+    if (res.is_read || res.is_write) {
+      break;
+    }
+  }
+  return res;
+}
+
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   TSet<VReg> all_used_regs;
 
@@ -132,7 +203,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
-          ASSERT(false);
+          IMPL("impl");
         }
       }
     }
@@ -152,93 +223,92 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
       auto reg_id = reg_to_uid(reg);
       if (alive[reg_id]) {
         size_t start_instr = 0;
-        auto end_instr = func.bbs[bb_id].instrs.size() + 1;
+        size_t search_instr = 0;
+        ranges[reg];
 
-        // if its not alive in it needs to be defined somwhere in this block
         if (!aliveIn[reg_id]) {
-          start_instr++;
-          defs.reset(false);
-          for (const auto &instr : func.bbs[bb_id].instrs) {
-            update_def(instr, defs);
-            if (defs[reg_id]) {
-              break;
-            }
-            start_instr++;
+          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0);
+          utils::Debug << bb_id << " " << reg << "\n";
+          ASSERT(res.is_write);
+          ASSERT(!res.is_read);
+          start_instr = res.index;
+          search_instr = res.index;
+        } else {
+          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0);
+          if (res.is_read) {
+            ranges[reg].update(
+                LinearRange::inBB(bb_id, start_instr, res.index + 1));
+            search_instr = res.index;
           }
-          ASSERT(defs[reg_id]);
-        }
-        if (!aliveOut[reg_id]) {
-          const auto &instrs = func.bbs[bb_id].instrs;
-          auto ip1 = instrs.size();
-          bool found_it = false;
-          for (; ip1 > 0; ip1--) {
-            const auto i = ip1 - 1;
-            found_it = false;
-            for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
-              const auto &arg = instrs[i].args[arg_id];
-              switch (arg.type) {
-              case MArgument::ArgumentType::Imm:
-              case MArgument::ArgumentType::MemImm:
-              case MArgument::ArgumentType::Label:
-              case MArgument::ArgumentType::MemLabel:
-              case MArgument::ArgumentType::MemImmLabel:
-                continue;
-              case MArgument::ArgumentType::VReg:
-              case MArgument::ArgumentType::MemVReg:
-              case MArgument::ArgumentType::MemImmVReg:
-                if (reg_id == reg_to_uid(arg.reg)) {
-                  found_it = true;
-                }
-                break;
-              case MArgument::ArgumentType::MemImmVRegScale:
-              case MArgument::ArgumentType::MemImmVRegVReg:
-              case MArgument::ArgumentType::MemVRegVRegScale:
-              case MArgument::ArgumentType::MemVRegVReg:
-              case MArgument::ArgumentType::MemImmVRegVRegScale:
-                if (reg_id == reg_to_uid(arg.reg) ||
-                    reg_id == reg_to_uid(arg.indx)) {
-                  found_it = true;
-                }
-              }
-              if (found_it) {
-                break;
-              }
-            }
-            if (found_it) {
-              break;
-            }
+          if (res.is_write) {
+            start_instr = res.index;
+            search_instr = res.index;
           }
-          ASSERT(found_it);
-          end_instr = ip1;
         }
-        // TODO: this is a fix
-        //  cause if we use < to compare ranges
-        //  we get an issue if our ranges are 0-0 for example  since then 0-10
-        //  range wont collide even though they should
-        // if (start_instr == end_instr) {
-        //   end_instr++;
+
+        while (true) {
+          auto res =
+              find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1);
+          utils::Debug << "Next found:" << res.index << " " << res.is_read
+                       << " " << res.is_write << "\n";
+          if (res.is_read) {
+            ranges[reg].update(
+                LinearRange::inBB(bb_id, start_instr + 1, res.index + 1));
+            search_instr = res.index;
+          }
+          if (res.is_write) {
+            // TODO: fix if we got 2 writes following each other otherwise it
+            // would be discarded teh first one
+            ranges[reg].update(
+                LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
+            start_instr = res.index;
+            search_instr = res.index;
+          }
+          if (!res.is_read && !res.is_write) {
+            if (aliveOut[reg_id]) {
+              ranges[reg].update(LinearRange::inBB(
+                  bb_id, start_instr + 1, func.bbs[bb_id].instrs.size() + 2));
+            }
+            break;
+          }
+        }
+
+        if (alive[reg_id] && ranges[reg].ranges.empty()) {
+          ranges[reg].update(
+              LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
+        }
+
+        // if (alive[reg_id] && ranges[reg].ranges.empty()) {
+        //   utils::Debug << aliveIn[reg_id] << " " << aliveOut[reg_id] << "\n";
+        //   utils::Debug << func.bbs[bb_id] << "\n";
+        //   utils::Debug << reg << "\n";
+        //   for (auto range : ranges[reg].ranges) {
+        //     range.dump();
+        //     utils::Debug << "\n";
+        //   }
+        //   utils::Debug << "Cant be alive and nothave any ranges?\n";
+        //   ASSERT(false);
         // }
-        ASSERT(start_instr <= end_instr);
-        ranges[reg].update(LinearRange::inBB(bb_id, start_instr, end_instr));
       }
     }
   }
-  // for (const auto &[reg, ranges] : ranges) {
-  //   utils::Debug << "reg: " << reg << "\n";
-  //   for (const auto &range : ranges.ranges) {
-  //     ASSERT(range.start.bb_indx == range.end.bb_indx);
-  //     auto reg_id = reg_to_uid(reg);
-  //     utils::Debug << " ";
-  //     range.dump();
-  //     utils::Debug << "\n";
-  //     utils::Debug << " LIVEIN:" <<
-  //     live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << " LIVEOUT:"
-  //     << live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << "\n";
-  //     utils::Debug << "   " << range.start.bb_indx << ": "
-  //                  << range.start.instr_indx << "-" << range.end.instr_indx
-  //                  << "\n";
-  //   }
-  // }
+  for (const auto &[reg, ranges] : ranges) {
+    utils::Debug << "reg: " << reg << "\n";
+    // ASSERT(!ranges.ranges.empty());
+    for (const auto &range : ranges.ranges) {
+      ASSERT(range.start.bb_indx == range.end.bb_indx);
+      auto reg_id = reg_to_uid(reg);
+      utils::Debug << " ";
+      range.dump();
+      utils::Debug << "\n";
+      utils::Debug << " LIVEIN:" << live._liveIn[range.start.bb_indx][reg_id];
+      utils::Debug << " LIVEOUT:" << live._liveIn[range.start.bb_indx][reg_id];
+      utils::Debug << "\n";
+      utils::Debug << "   " << range.start.bb_indx << ": "
+                   << range.start.instr_indx << "-" << range.end.instr_indx
+                   << "\n";
+    }
+  }
   return ranges;
 }
 
