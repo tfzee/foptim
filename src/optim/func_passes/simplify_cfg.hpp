@@ -160,9 +160,9 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
       cfg.bbrs[curr.succ[0]].bb->n_args() == 0) {
     // utils::Debug << "PREV\n" << curr.bb->get_parent() << "\n";
     auto succ = cfg.bbrs[curr.succ[0]].bb;
-  
+
     auto old_term = func.basic_blocks[bb_id]->get_terminator();
-    
+
     fir::Builder bb{curr.bb};
     bb.at_end(curr.bb);
 

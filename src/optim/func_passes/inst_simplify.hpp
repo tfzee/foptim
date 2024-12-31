@@ -55,7 +55,9 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
   // since both being constant would be handleded by constant folding we just
   // asume theres one and normalzie by putting it into the secodn arg
   {
-    if (instr->args[0].is_constant() && instr->is_commutative()) {
+    if (instr->is_commutative() && instr->args[0].is_constant() &&
+        (!instr->args[0].as_constant()->is_global() ||
+         !instr->args[0].as_constant()->is_func())) {
       swap_args(instr, 0, 1);
     }
   }
@@ -71,14 +73,14 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
     ConstantValueR c0_val = instr->args[0].as_constant();
     if (c_val->type->is_int() && c0_val->type->is_int()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
-                                   c_val->as_int(), c0_val->as_int(),
+                                   c0_val->as_int(), c_val->as_int(),
                                    c_val->type, ctx)) {
         bb->remove_instr(instr_id);
         return true;
       }
     } else if (c_val->type->is_float() && c0_val->type->is_float()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
-                                   c_val->as_float(), c0_val->as_float(),
+                                   c0_val->as_float(), c_val->as_float(),
                                    c_val->type, ctx)) {
         bb->remove_instr(instr_id);
         return true;

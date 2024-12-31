@@ -91,11 +91,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-  // foptim::utils::Debug <<
-  // "================OPTIMMIDDLE====================\n"; for (const auto &[_,
-  // func] : ctx.data->storage.functions) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
@@ -104,12 +99,18 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
+  // foptim::utils::Debug <<
+  // "================OPTIMMIDDLE====================\n"; for (const auto &[_,
+  // func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
+  // TODO("okak");
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
 
