@@ -333,14 +333,14 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
 
-  // utils::Debug << "MEMREG JuST TESTING Attributor\n";
-  // AttributerManager manager;
-  // for (auto arg : func.get_entry()->args) {
-  //   if (arg->get_type()->is_ptr()) {
-  //     manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
-  //   }
-  // }
-  // manager.run();
-  // manager.materialize();
+  utils::Debug << "MEMREG JuST TESTING Attributor\n";
+  AttributerManager manager;
+  for (auto arg : func.get_entry()->args) {
+    if (arg->get_type()->is_ptr()) {
+      manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
+    }
+  }
+  manager.run();
+  manager.materialize();
 }
 } // namespace foptim::optim

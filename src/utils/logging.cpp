@@ -15,6 +15,15 @@
 
 namespace foptim::utils {
 
+#define getColor(r, g, b) "\033[38;2;" #r ";" #g ";" #b "m"
+
+#define RESET "\033[39m\033[49m"
+#define BLUE getColor(66, 135, 245)
+#define ORANGE getColor(250, 185, 95)
+#define RED getColor(255, 100, 100)
+#define GREEN getColor(103, 230, 107)
+#define BLUEGREEN getColor(51, 255, 135)
+
 Printer Printer::operator<<(const i64 val) const {
   std::cout << val;
   return *this;
@@ -95,46 +104,61 @@ Printer Printer::operator<<(const foptim::optim::LiveRange &live) const {
 }
 
 Printer Printer::operator<<(const foptim::fmir::MArgument &value) const {
+  *this << BLUE;
   switch (value.type) {
   case fmir::MArgument::ArgumentType::MemLabel:
-    return *this << "[" << value.label.c_str() << "]: " << value.ty;
+    *this << "[" << value.label.c_str() << "]: " << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemImmLabel:
-    return *this << "[" << value.label.c_str() << " + " << value.imm << "]"
-                 << value.ty;
+    *this << "[" << value.label.c_str() << " + " << value.imm << "]"
+          << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::Label:
-    return *this << value.label.c_str();
+    *this << value.label.c_str();
+    break;
   case fmir::MArgument::ArgumentType::Imm: {
     if (value.ty == fmir::Type::Float32) {
-      return *this << value.immf << "f";
+      *this << value.immf << "f";
+    } else if (value.ty == fmir::Type::Float64) {
+      *this << value.immf;
+    } else {
+      *this << value.imm << ":" << value.ty;
     }
-    if (value.ty == fmir::Type::Float64) {
-      return *this << value.immf;
-    }
-    return *this << value.imm << ":" << value.ty;
+    break;
   }
   case fmir::MArgument::ArgumentType::VReg:
-    return *this << value.reg << ":" << value.ty;
+    *this << value.reg << ":" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemVReg:
-    return *this << "[" << value.reg << "]:" << value.ty;
+    *this << "[" << value.reg << "]:" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemVRegVReg:
-    return *this << "[" << value.reg << " + " << value.indx << "]:" << value.ty;
+    *this << "[" << value.reg << " + " << value.indx << "]:" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemImm:
-    return *this << "[" << value.imm << "]:" << value.ty;
+    *this << "[" << value.imm << "]:" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemImmVReg:
-    return *this << "[" << value.reg << " + " << value.imm << "]:" << value.ty;
+    *this << "[" << value.reg << " + " << value.imm << "]:" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemImmVRegVReg:
-    return *this << "[" << value.reg << " + " << value.indx << " + "
-                 << value.imm << "]:" << value.ty;
+    *this << "[" << value.reg << " + " << value.indx << " + " << value.imm
+          << "]:" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
-    return *this << "[" << value.indx << "*" << value.scale << " + "
-                 << value.imm << "]:" << value.ty;
+    *this << "[" << value.indx << "*" << value.scale << " + " << value.imm
+          << "]:" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemVRegVRegScale:
-    return *this << "[" << value.reg << " + " << value.indx << "*"
-                 << value.scale << "]:" << value.ty;
+    *this << "[" << value.reg << " + " << value.indx << "*" << value.scale
+          << "]:" << value.ty;
+    break;
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-    return *this << "[" << value.reg << " + " << value.indx << "*"
-                 << value.scale << " + " << value.imm << "]:" << value.ty;
+    *this << "[" << value.reg << " + " << value.indx << "*" << value.scale
+          << " + " << value.imm << "]:" << value.ty;
+    break;
   }
+  return *this << RESET;
 }
 Printer Printer::operator<<(const foptim::fmir::MBB &bb) const {
   for (const auto &instr : bb.instrs) {
@@ -190,22 +214,31 @@ Printer Printer::operator<<(const foptim::fmir::MInstr &value) const {
 }
 
 Printer Printer::operator<<(const foptim::fmir::Type &ty) const {
+  *this << RED;
   switch (ty) {
   case foptim::fmir::Type::INVALID:
-    return *this << "INVALID";
+    *this << "INVALID";
+    break;
   case foptim::fmir::Type::Float32:
-    return *this << "F32";
+    *this << "F32";
+    break;
   case foptim::fmir::Type::Float64:
-    return *this << "F64";
+    *this << "F64";
+    break;
   case foptim::fmir::Type::Int8:
-    return *this << "I8";
+    *this << "I8";
+    break;
   case foptim::fmir::Type::Int16:
-    return *this << "I16";
+    *this << "I16";
+    break;
   case foptim::fmir::Type::Int32:
-    return *this << "I32";
+    *this << "I32";
+    break;
   case foptim::fmir::Type::Int64:
-    return *this << "I64";
+    *this << "I64";
+    break;
   }
+  return *this << RESET;
 }
 
 Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
@@ -434,6 +467,7 @@ Printer Printer::operator<<(const void *v) const {
 Printer Printer::operator<<(foptim::fir::TypeR ty) const {
   std::visit(
       [this](auto &&v) {
+        *this << RED;
         if constexpr (typeid(v) == typeid(fir::IntegerType)) {
           *this << "i" << v.bitwidth;
         } else if constexpr (typeid(v) == typeid(fir::FloatType)) {
@@ -445,6 +479,7 @@ Printer Printer::operator<<(foptim::fir::TypeR ty) const {
         } else {
           *this << typeid(v).name();
         }
+        *this << RESET;
       },
       ty->get_raw());
   return *this;
@@ -454,6 +489,7 @@ Printer Printer::operator<<(const foptim::fir::ConstantValue &v) const {
   std::visit(
       [this](auto &&v) {
         (void)v;
+        *this << ORANGE;
         if constexpr (typeid(v) == typeid(fir::IntValue) ||
                       typeid(v) == typeid(fir::FloatValue)) {
           *this << v.data;
@@ -464,6 +500,7 @@ Printer Printer::operator<<(const foptim::fir::ConstantValue &v) const {
         } else {
           *this << "constant idk(" << typeid(v).name() << ")";
         }
+        *this << RESET;
       },
       v.value);
   return *this;
@@ -480,7 +517,7 @@ Printer Printer::operator<<(foptim::fir::ValueR v) const {
                       typeid(v) == typeid(fir::BBArgument)) {
           *this << v;
         } else if constexpr (typeid(v) == typeid(fir::BasicBlock)) {
-          *this << (void *)(v.get_raw_ptr());
+          *this << BLUE << (void *)(v.get_raw_ptr()) << RESET;
         } else if constexpr (typeid(v) == typeid(fir::InvalidValue)) {
           *this << "INVALID";
         } else {
@@ -492,9 +529,7 @@ Printer Printer::operator<<(foptim::fir::ValueR v) const {
 }
 
 Printer Printer::operator<<(foptim::fir::BBArgument v) const {
-  // *this << (void *)(v->get_parent().get_raw_ptr()) << "[" << v.get_raw_ptr()
-  // << "]";
-  return *this << "BB[" << v.get_raw_ptr() << "]";
+  return *this << GREEN << "BB[" << v.get_raw_ptr() << "]" << RESET;
 }
 
 Printer Printer::operator<<(const foptim::fir::Attribute &attrib) const {
@@ -513,7 +548,7 @@ Printer Printer::operator<<(const foptim::fir::Attribute &attrib) const {
 }
 Printer
 Printer::operator<<(const foptim::fir::BBRefWithArgs &bb_with_args) const {
-  *this << (void *)bb_with_args.bb.get_raw_ptr() << "(";
+  *this << BLUE << (void *)bb_with_args.bb.get_raw_ptr() << RESET << "(";
   if (!bb_with_args.args.empty()) {
     *this << bb_with_args.args[0];
     for (size_t i = 1; i < bb_with_args.args.size(); i++) {
@@ -563,7 +598,7 @@ Printer Printer::operator<<(const foptim::fir::InstrData *instr) const {
 }
 
 Printer Printer::operator<<(foptim::fir::BasicBlock bb) const {
-  *this << padding() << bb.get_raw_ptr() << "(";
+  *this << padding() << BLUE << bb.get_raw_ptr() << RESET << "(";
 
   auto &args = bb->args;
   if (args.size() > 0) {

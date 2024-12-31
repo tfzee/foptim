@@ -18,7 +18,6 @@ Simple optimizing backend
 	+ Fix epath pre
 	+ rework sccp
 	+ add Useable to Globals and Functions
-	+ improve second live variable analysis
 + More Tests
 	+ GCC Tests
 

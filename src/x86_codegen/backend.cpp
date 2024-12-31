@@ -452,15 +452,16 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     auto o0 = convert_operand(cc, reg_to_op, instr.args[1]);
     auto o1 = convert_operand(cc, reg_to_op, instr.args[2]);
 
-    ASSERT(target != o1);
-    if (instr.args[0].ty == fmir::Type::Float32) {
-      cc.emit(Inst::kIdMovss, target, o0);
-      cc.emit(Inst::kIdAddss, target, o1);
-    } else if (instr.args[0].ty == fmir::Type::Float64) {
-      cc.emit(Inst::kIdMovsd, target, o0);
-      cc.emit(Inst::kIdAddsd, target, o1);
+    bool is_float32 = instr.args[0].ty == fmir::Type::Float32;
+    bool is_float64 = instr.args[0].ty == fmir::Type::Float64;
+
+    ASSERT(is_float32 || is_float64);
+    if (target == o1) {
+      cc.emit(is_float32 ? Inst::kIdAddss : Inst::kIdAddsd, target, o0);
+    } else if (target == o0) {
+      cc.emit(is_float32 ? Inst::kIdAddss : Inst::kIdAddsd, target, o1);
     } else {
-      UNREACH();
+      cc.emit(is_float32 ? Inst::kIdAddss : Inst::kIdAddsd, target, o0, o1);
     }
     return;
   }

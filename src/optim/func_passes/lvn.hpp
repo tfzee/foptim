@@ -34,24 +34,26 @@ public:
         // if we store and afterwards load from teh same address
         //  and there is no other store that could interfere inbetween we can
         //  replace the load
-        // if (instr->is(fir::InstrType::StoreInstr) &&
-        //     instr2->is(fir::InstrType::LoadInstr) &&
-        //     instr->get_arg(0) == instr2->get_arg(0)) {
-        //   bool pot_store_between = false;
-        //   for (size_t between_i = i + 1; between_i < i2; between_i++) {
-        //     auto binstr = bb->instructions[between_i];
-        //     if (binstr->pot_modifies_mem()) {
-        //       pot_store_between = true;
-        //       break;
-        //     }
-        //   }
-        //   if (!pot_store_between) {
-        //     instr2->replace_all_uses(instr->get_arg(1));
-        //     continue;
-        //   } else {
-        //     failure({"StoreLoadElim Store inbetween ", {bb}});
-        //   }
-        // }
+        if (instr->is(fir::InstrType::StoreInstr) &&
+            instr2->is(fir::InstrType::LoadInstr) &&
+            instr->get_arg(0) == instr2->get_arg(0)) {
+          bool pot_store_between = false;
+          for (size_t between_i = i + 1; between_i < i2; between_i++) {
+            auto binstr = bb->instructions[between_i];
+            if (binstr->pot_modifies_mem()) {
+              pot_store_between = true;
+              break;
+            }
+          }
+          if (!pot_store_between) {
+            utils::Debug << "NoStoreBetween " << instr << "  " << instr2
+                         << "\n";
+            instr2->replace_all_uses(instr->get_arg(1));
+            continue;
+          } else {
+            failure({"StoreLoadElim Store inbetween ", {bb}});
+          }
+        }
       }
     }
   }
