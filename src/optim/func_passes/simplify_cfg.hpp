@@ -158,13 +158,14 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
     const auto n_args = curr.bb->n_args();
     const auto return_instr = curr.bb->get_terminator();
     TMap<fir::ValueR, fir::ValueR> subs{};
+    bool modified_any = false;
     for (auto pred_id : curr.pred) {
       auto &pred = cfg.bbrs[pred_id];
       auto prev_term = pred.bb->get_terminator();
       if (pred.succ.size() != 1) {
         continue;
       }
-
+      modified_any = true;
       subs.clear();
       for (size_t bb_arg_id = 0; bb_arg_id < n_args; bb_arg_id++) {
         subs.insert({fir::ValueR{curr.bb->args[bb_arg_id]},
@@ -174,14 +175,11 @@ inline bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func,
       fir::Builder bb{pred.bb};
       bb.at_end(pred.bb);
 
-      // bb.insert_copy(return_instr);
       auto new_return = bb.insert_copy(return_instr);
       new_return.substitute(subs);
       prev_term.remove_from_parent();
-      // utils::Debug << pred.bb << "\n";
-      // TODO("okak");
     }
-    return true;
+    return modified_any;
   }
 
   // if a block only contains a unconditional jump we can replace it
