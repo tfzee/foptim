@@ -8,7 +8,7 @@
 
 #define u64 unsigned long
 
-#define X 2
+#define X 64
 
 u64 bench() {
   u64 count = 0;

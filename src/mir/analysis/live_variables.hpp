@@ -23,4 +23,11 @@ size_t reg_to_uid(VReg r);
 // VReg uid_to_reg(size_t r);
 void update_def(const MInstr &instr, utils::BitSet<> &def);
 
+struct NextUseResult {
+  bool is_write;
+  bool is_read;
+  size_t index;
+};
+NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
+                            size_t start_instr);
 } // namespace foptim::fmir

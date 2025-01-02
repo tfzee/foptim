@@ -268,7 +268,6 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::arg_setup:
   case Opcode::ret:
   case Opcode::push:
-  case Opcode::cjmp:
     if (instr.n_args > 1) {
       update_uses(instr.args[1], uses);
     }
@@ -279,6 +278,9 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     if (!instr.args[0].isReg()) {
       update_uses(instr.args[0], uses);
     }
+    break;
+  case Opcode::cjmp:
+    update_uses(instr.args[0], uses);
     break;
   case Opcode::cjmp_int_slt:
   case Opcode::cjmp_int_sge:
@@ -338,9 +340,9 @@ void LiveVariables::update(const fmir::MFunc &func) {
     }
   }
 
-  utils::Debug << "FUNC\n" << func << "\n";
-  utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
-  utils::Debug << "defs\n" << defs << "\n";
+  // utils::Debug << "FUNC\n" << func << "\n";
+  // utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
+  // utils::Debug << "defs\n" << defs << "\n";
   _liveIn.clear();
   _liveOut.clear();
   _liveIn.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
@@ -394,6 +396,72 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
     ASSERT(false);
   }
   return _live.at(bb_id)[id];
+}
+
+NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
+                            size_t start_instr) {
+  NextUseResult res{false, false, 0};
+  for (auto i = start_instr; i < instrs.size(); i++) {
+    // utils::Debug << "       C:" << instrs[i] << "\n";
+    if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
+      // TODO: this could be more specific since certain CCs can only read/write
+      // certain args legaly
+      res.is_write = (instrs[i].n_args > 1 &&
+                      (search_reg_id == reg_to_uid(instrs[i].args[1].reg) ||
+                       search_reg_id == reg_to_uid(VReg::EAX())));
+      res.index = i;
+    }
+    for (auto arg : written_args(instrs[i])) {
+      if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
+        res.is_write = true;
+        res.index = i;
+      }
+    }
+    for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
+      auto &argy = instrs[i].args[arg_id];
+      switch (argy.type) {
+      case MArgument::ArgumentType::Imm:
+      case MArgument::ArgumentType::MemImm:
+      case MArgument::ArgumentType::Label:
+      case MArgument::ArgumentType::MemLabel:
+      case MArgument::ArgumentType::MemImmLabel:
+        // here we need to skip vreg
+      case MArgument::ArgumentType::VReg:
+        break;
+      case MArgument::ArgumentType::MemVReg:
+      case MArgument::ArgumentType::MemImmVReg:
+        if (reg_to_uid(argy.reg) == search_reg_id) {
+          res.is_read = true;
+          res.index = i;
+        }
+      case MArgument::ArgumentType::MemVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVReg:
+      case MArgument::ArgumentType::MemVRegVRegScale:
+        if (reg_to_uid(argy.reg) == search_reg_id) {
+          res.is_read = true;
+          res.index = i;
+        }
+        if (reg_to_uid(argy.indx) == search_reg_id) {
+          res.is_read = true;
+          res.index = i;
+        }
+        break;
+      case MArgument::ArgumentType::MemImmVRegScale:
+      case MArgument::ArgumentType::MemImmVRegVRegScale:
+        IMPL("impl");
+      }
+    }
+    for (auto arg : read_args(instrs[i])) {
+      if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
+        res.is_read = true;
+        res.index = i;
+      }
+    }
+    if (res.is_read || res.is_write) {
+      break;
+    }
+  }
+  return res;
 }
 
 } // namespace foptim::fmir

@@ -75,7 +75,7 @@ void DeadCodeElim::apply(MFunc &func) {
       const auto instr_id = instr_idp1 - 1;
       const auto w_args = written_args(bb.instrs[instr_id]);
 
-      if (is_applicable(bb.instrs[instr_id].op)) {
+      if (!is_applicable(bb.instrs[instr_id].op)) {
         continue;
       }
 
@@ -94,29 +94,21 @@ void DeadCodeElim::apply(MFunc &func) {
       if (!is_only_alive_in_this_bb) {
         continue;
       }
-      // FIXME: this might be wrong in a single bb loop and an induction
-      // variable?
-      auto start_indx = 0;
-      if (!live._liveIn[bb_id][target_uid]) {
-        assert(!live._liveOut[bb_id][target_uid]);
-        start_indx = instr_id + 1;
-      }
+      // FIXME: This is a bit too pesimistic
+      bool is_read =
+          live._liveIn[bb_id][target_uid] || live._liveOut[bb_id][target_uid];
 
-      bool is_used = false;
-      for (size_t i = start_indx; i < bb.instrs.size(); i++) {
-        // TODO: technicalcy only if it reads not if it writes
-        for (size_t arg_id = 0; arg_id < bb.instrs[i].n_args; arg_id++) {
-          if (bb.instrs[i].args[arg_id].uses_same_vreg(w_args[0].reg) &&
-              (instr_id != i)) {
-            is_used = true;
-            break;
-          }
-        }
-        if (is_used) {
-          break;
-        }
-      }
-      if (!is_used) {
+      auto next_use = find_next_use(bb.instrs, target_uid, instr_id + 1);
+      is_read |= next_use.is_read;
+
+      if ((next_use.is_write && !next_use.is_read) || !is_read) {
+        // utils::Debug << "LATE DCE? " << bb.instrs[instr_id] << "\n";
+        // utils::Debug << "   IsRead?" << is_read
+        //              << " next use: R:" << next_use.is_read
+        //              << " W:" << next_use.is_write << " ID:" <<
+        //              next_use.index
+        //              << "\n";
+        // utils::Debug << "    DELETED!\n";
         bb.instrs.erase(bb.instrs.begin() + instr_id);
         continue;
       }

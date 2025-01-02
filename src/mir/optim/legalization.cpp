@@ -360,6 +360,7 @@ bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
       indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
       modified = true;
     }
+    instr = bb.instrs[indx];
     if (instr.args[2].isImm()) {
       indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
       modified = true;
