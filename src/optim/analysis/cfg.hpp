@@ -45,8 +45,8 @@ public:
     std::abort();
   }
 
-  void dump() const; 
-  void dump_graph() const; 
+  void dump() const;
+  void dump_graph() const;
 
   void update(fir::Function &func, bool reverse) {
     ZoneScopedN("CFG UPDATE");

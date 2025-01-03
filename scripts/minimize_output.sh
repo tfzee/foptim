@@ -5,15 +5,22 @@ test_file="min.c"
 
 foptim="$build_dir/foptim_main"
 
-clang -O0 $test_file -o min.ll -S -emit-llvm || exit 1
-$foptim min.ll min.ss || exit 1
+clang++ -O0 $test_file -o min.ll -S -emit-llvm || exit 1
+clang++ -O1 $test_file -o clang_min.out || exit 1
+
+$foptim min.ll min.ss || exit 0
 nasm min.ss -felf64 -g -F dwarf || exit 1
-ld min.o -o min.out || exit 1
+gcc min.o -o min.out || exit 1
 
 ./min.out
-stats=$?
-echo $stats
-if [[ $stats != 0 ]]; then
+stats_got=$?
+./clang_min.out
+stats_exp=$?
+echo $stats_got
+echo $stats_exp
+
+if [[ $stats_got != $stats_exp ]] && [[ $stats_exp != 132 ]]; then
+  echo "Good Failed"
   exit 0
 else
   exit 1

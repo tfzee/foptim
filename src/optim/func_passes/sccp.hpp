@@ -110,6 +110,9 @@ public:
       }
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
       default:
+        utils::Debug << instr << "\n";
+        IMPL("implement instr");
+        UNREACH();
       case fir::BinaryInstrSubType::INVALID:
         UNREACH();
       case fir::BinaryInstrSubType::IntSub:
@@ -128,6 +131,12 @@ public:
       case fir::BinaryInstrSubType::FloatAdd:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_float() + b.value->as_float(), a.value->get_type()));
+      case fir::BinaryInstrSubType::FloatMul:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_float() * b.value->as_float(), a.value->get_type()));
+      case fir::BinaryInstrSubType::FloatSub:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_float() - b.value->as_float(), a.value->get_type()));
       }
       UNREACH();
     }

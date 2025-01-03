@@ -49,13 +49,6 @@ bool inline_call(fir::Instr call) {
     return false;
   }
 
-  auto end_bb = split_block(call);
-
-  if (has_ret_value) {
-    auto new_arg = ctx->storage.insert_bb_arg(end_bb, call->get_type());
-    end_bb.add_arg(new_arg);
-  }
-
   ContextData::V2VMap subs;
   ContextData::V2VMap bb_subs;
   TVec<BasicBlock> new_bbs;
@@ -63,9 +56,31 @@ bool inline_call(fir::Instr call) {
     // dont apply the subs here
     auto new_bb = ctx->copy(called_func->basic_blocks.at(bb_id), subs, false);
     new_bbs.push_back(new_bb);
-    call_func->append_bbr(new_bb);
   }
 
+  if (has_ret_value) {
+    for (auto bb : new_bbs) {
+      if (bb->instructions.back()->is(fir::InstrType::ReturnInstr)) {
+        if (!bb->instructions.back()->has_args()) {
+          // failure("Cant inline function with weird returns\n");
+          return false;
+        }
+      }
+    }
+  }
+
+  auto end_bb = split_block(call);
+
+  if (has_ret_value) {
+    auto new_arg = ctx->storage.insert_bb_arg(end_bb, call->get_type());
+    end_bb.add_arg(new_arg);
+  }
+
+  // make copy and then insert otherwise we get infinite loop when inlining
+  // recursive call
+  for (auto new_bb : new_bbs) {
+    call_func->append_bbr(new_bb);
+  }
   // utils::Debug << "###################################\n";
   // utils::Debug << call_func << "\n";
   // utils::Debug << "+++++++++++++++++++++++++++++++++++\n";
@@ -73,8 +88,7 @@ bool inline_call(fir::Instr call) {
   // utils::Debug << "###################################\n";
 
   // we need to run subs afterwards since vlaues can be referenced before they
-  // are defined
-  //   if their bb comes later
+  // are defined if their bb comes later
   for (auto bb : new_bbs) {
     for (auto instr : bb->instructions) {
       instr.substitute(subs);
@@ -87,7 +101,6 @@ bool inline_call(fir::Instr call) {
 
   // add the args
 
-  // for (auto arg : call->args) {
   for (size_t arg_id = 1; arg_id < call->args.size(); arg_id++) {
     entry_branch.add_bb_arg(0, call->args[arg_id]);
   }
@@ -103,6 +116,7 @@ bool inline_call(fir::Instr call) {
       if (bb->instructions[instr_id]->is(fir::InstrType::ReturnInstr)) {
         auto end_branch = ret_bb.build_branch(end_bb);
         if (has_ret_value) {
+          utils::Debug << bb->instructions[instr_id] << "\n";
           ASSERT(bb->instructions[instr_id]->has_args());
           end_branch.add_bb_arg(0, bb->instructions[instr_id]->get_arg(0));
         }

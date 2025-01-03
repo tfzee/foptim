@@ -83,8 +83,8 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     }
   }
   if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(value)) {
-    return foptim::fir::ValueR(
-        fctx->get_constant_value(fctx->get_function(value->getName().str().c_str())));
+    return foptim::fir::ValueR(fctx->get_constant_value(
+        fctx->get_function(value->getName().str().c_str())));
   }
 
   llvm::errs() << value << " " << typeid(value).name() << "\n";
@@ -814,13 +814,22 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
+inline void generate_trap(foptim::fir::Context &fctx) {
+  auto func_ty = fctx->get_func_ty(fctx->get_void_type(), {});
+  // fctx->create_function("abort", func_ty);
+  fctx.data->storage.functions.insert(
+      {"abort", foptim::fir::Function(fctx.operator->(), "abort", func_ty)});
+}
+
 inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
   if (func.getName().starts_with("llvm.memset")) {
     generate_memset(fctx);
   } else if (func.getName().starts_with("llvm.memcpy")) {
     generate_memcpy(fctx);
+  } else if (func.getName().starts_with("llvm.trap")) {
+    generate_trap(fctx);
   }
-  foptim::IRString func_name= func.getName().str().c_str();
+  foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(
       {func_name,
        foptim::fir::Function(fctx.operator->(), func_name,
@@ -835,7 +844,7 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx) {
     return convert_decl(func, fctx);
   }
 
-  foptim::IRString func_name= func.getName().str().c_str();
+  foptim::IRString func_name = func.getName().str().c_str();
   fctx->create_function(func_name, convert_type(func.getFunctionType(), fctx));
 }
 

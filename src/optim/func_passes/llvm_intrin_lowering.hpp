@@ -76,6 +76,18 @@ public:
     // }
   }
 
+  void handle_trap(fir::Instr instr, fir::Function &funcy,
+                   fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto *ctx = funcy.ctx;
+    auto abort_func = ctx->get_function("abort");
+    auto void_type = ctx->get_void_type();
+
+    bb.build_call(fir::ValueR{ctx->get_constant_value(abort_func)},
+                  ctx->copy(abort_func->func_ty), void_type, {});
+    instr.remove_from_parent();
+  }
+
   void apply(fir::BasicBlock bb, fir::Function &func) {
     for (auto instr : bb->instructions) {
       if (instr->is(fir::InstrType::CallInstr)) {
@@ -90,6 +102,8 @@ public:
           handle_memcpy(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.fmuladd.")) {
           handle_fmuladd(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.trap")) {
+          handle_trap(instr, func, callee);
         }
       }
     }

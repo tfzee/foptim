@@ -14,6 +14,15 @@ public:
         all_args_are_constant = false;
       }
     }
+    auto func = instr->get_parent()->get_parent();
+    auto called_func = instr->get_arg(0);
+    if (called_func.is_constant() && called_func.as_constant()->is_func()) {
+      auto v = called_func.as_constant()->as_func();
+      if (v.func == func.func) {
+        return true;
+      }
+    }
+
     return all_args_are_constant;
   }
 };
@@ -41,6 +50,7 @@ public:
       }
     }
     for (auto call : calls) {
+      utils::Debug << "INLINING " << call << "\n";
       inline_call(call);
     }
   }

@@ -461,7 +461,7 @@ void emit_instr(fmir::MInstr &instr, const std::span<Label> &bb_labels,
     } else if (target == o0) {
       cc.emit(is_float32 ? Inst::kIdAddss : Inst::kIdAddsd, target, o1);
     } else {
-      cc.emit(is_float32 ? Inst::kIdAddss : Inst::kIdAddsd, target, o0, o1);
+      cc.emit(is_float32 ? Inst::kIdVaddss : Inst::kIdVaddsd, target, o0, o1);
     }
     return;
   }

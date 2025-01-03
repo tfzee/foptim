@@ -5,13 +5,13 @@
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Result:192
-//(innerIterations == 750   result == 50) {
-//(innerIterations == 500   result == 191) {
-//(innerIterations == 100   result == 239) {
-//(innerIterations == 50   result == 15) {
-//(innerIterations == 10   result == 127) {
-//(innerIterations == 2   result == 192) {
-//(innerIterations == 1   result == 128 ) {
+//innerIterations == 750   result == 50
+//innerIterations == 500   result == 191
+//innerIterations == 100   result == 239
+//innerIterations == 50   result == 15
+//innerIterations == 10   result == 127
+//innerIterations == 2   result == 192
+//innerIterations == 1   result == 128 
 
 static int mandelbrot(int size) {
   int sum = 0;
@@ -52,9 +52,6 @@ static int mandelbrot(int size) {
       byteAcc = (byteAcc << 1) + escape;
       bitNum += 1;
 
-      // Code is very similar for these cases, but using separate blocks
-      // ensures we skip the shifting when it's unnecessary, which is most
-      // cases.
       if (bitNum == 8) {
         sum ^= byteAcc;
         byteAcc = 0;
