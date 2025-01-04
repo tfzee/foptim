@@ -31,6 +31,7 @@ void Used::remove_usage(const Use &u, bool verify) {
 
   if (verify) {
     utils::Debug << "USE: " << u << "\n";
+    utils::Debug << "USER: " << u.user << "\n";
     ASSERT_M(false, "Failed to find usage that was to be removed");
   }
 }

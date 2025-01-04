@@ -48,6 +48,50 @@ bool try_constant_eval_binary(fir::Instr instr,
   }
 }
 
+inline void swap_args_icmp(fir::Instr instr) {
+  ASSERT(instr->is(fir::InstrType::ICmp))
+  switch ((fir::ICmpInstrSubType)instr->subtype) {
+  case fir::ICmpInstrSubType::NE:
+  case fir::ICmpInstrSubType::EQ:
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SLT:
+    instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::ULT:
+    instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SGT:
+    instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::UGT:
+    instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::UGE:
+    instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::ULE:
+    instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SGE:
+    instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SLE:
+    instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::INVALID:
+    UNREACH();
+  }
+}
+
 //@returns true if it removes the isntrction
 static bool simplify_binary(fir::Instr instr, size_t instr_id,
                             fir::BasicBlock bb, fir::Context &ctx) {
@@ -113,43 +157,23 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
 }
 
 //@returns true if it removes the isntrction
-static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
-                          fir::Context &ctx) {
+static bool simplify_icmp(fir::Instr instr, size_t /* instr_id*/,
+                          fir::BasicBlock bb, fir::Context &ctx) {
   (void)bb;
   using namespace foptim::fir;
+  {
+    if (instr->args[0].is_constant() &&
+        (!instr->args[0].as_constant()->is_global() ||
+         !instr->args[0].as_constant()->is_func())) {
+      swap_args_icmp(instr);
+    }
+  }
 
   bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
-  {
-    // TODO: swap arguments but IFF also flipping the cmp instrsubtype
-    // make sure the constant is always at the back if theres only one
-    if (first_constant && !second_constant) {
-      swap_args(instr, 0, 1);
-      switch ((ICmpInstrSubType)instr->get_instr_subtype()) {
-        instr->subtype = (u32)fir::ICmpInstrSubType::INVALID;
-      case fir::ICmpInstrSubType::SLT:
-        instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
-      case fir::ICmpInstrSubType::ULT:
-        instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
-      case fir::ICmpInstrSubType::SGT:
-        instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
-      case fir::ICmpInstrSubType::UGT:
-        instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
-      case fir::ICmpInstrSubType::UGE:
-        instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
-      case fir::ICmpInstrSubType::ULE:
-        instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
-      case fir::ICmpInstrSubType::SGE:
-        instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
-      case fir::ICmpInstrSubType::SLE:
-        instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
-      case fir::ICmpInstrSubType::INVALID:
-      case fir::ICmpInstrSubType::NE:
-      case fir::ICmpInstrSubType::EQ:
-        break;
-      }
-    }
-  }
+  // utils::Debug << instr << " " << first_constant << " " << second_constant
+  //              << "\n";
+
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
@@ -192,19 +216,18 @@ static bool simplify_icmp(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
       is_true = (i64)v1 <= (i64)v2;
       break;
     }
-    if (is_true) {
-      auto new_const_value =
-          ctx->get_constant_value((u64)is_true, ctx->get_int_type(8));
-      instr->replace_all_uses(ValueR(new_const_value));
-      bb->remove_instr(instr_id);
-      return true;
-    }
+    auto new_const_value =
+        ctx->get_constant_value((u64)is_true, ctx->get_int_type(8));
+    instr->replace_all_uses(ValueR(new_const_value));
+    ASSERT(instr->bbs.size() == 0);
+    instr.remove_from_parent();
+    return true;
   }
   return false;
 }
 
 //@returns true if it removes the isntrction
-static bool simplify_cond_branch(fir::Instr instr, size_t instr_id,
+static bool simplify_cond_branch(fir::Instr instr, size_t /*instr_id*/,
                                  fir::BasicBlock bb, fir::Context &ctx) {
   (void)ctx;
   // replace conditional branch to simple branch
@@ -222,7 +245,8 @@ static bool simplify_cond_branch(fir::Instr instr, size_t instr_id,
     for (auto old_arg : target.args) {
       new_branch.add_bb_arg(0, old_arg);
     }
-    bb->remove_instr(instr_id);
+    instr.remove_from_parent();
+    // bb->remove_instr(instr_id);
     return true;
   }
   return false;

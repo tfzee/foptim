@@ -63,7 +63,6 @@ TypeR ValueR::get_type() const {
         if constexpr (typeid(v) == typeid(ConstantValue)) {
           return v.get_type();
         } else if constexpr (typeid(v) == typeid(InvalidValue)) {
-          std::abort();
           return TypeR(TypeR::invalid());
         } else {
           return v->get_type();

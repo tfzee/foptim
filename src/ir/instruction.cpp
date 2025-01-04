@@ -14,7 +14,7 @@ void Instr::remove_from_parent() {
   assert(parent.is_valid());
   for (size_t indx = 0; indx < parent->instructions.size(); indx++) {
     auto instr = parent->instructions[indx];
-    if (get_raw_ptr() == instr.get_raw_ptr()) {
+    if ((void*)get_raw_ptr() == (void*)instr.get_raw_ptr()) {
       parent->remove_instr(indx);
       return;
     }
