@@ -955,6 +955,9 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
     //  the phi arg
     foptim::fir::Builder build{ffunc.func->basic_blocks[0]};
     for (auto &bb : func) {
+      if (!b2b.contains(&bb)) {
+        continue;
+      }
       auto to_fbb = b2b.at(&bb);
       for (auto &phi : bb.phis()) {
         for (size_t phi_arg_id = 0; phi_arg_id < phi.getNumIncomingValues();
@@ -1078,8 +1081,8 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
     module = llvm::parseIRFile(filename, error, context);
   }
   if (module) {
+    module->dump();
     convert(*module, fctx);
-    // module->dump();
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
                  << error.getMessage() << "\n";
