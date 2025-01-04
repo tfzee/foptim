@@ -265,11 +265,9 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       update_uses(instr.args[1], uses);
     }
     break;
-  case Opcode::arg_setup:
   case Opcode::ret:
-  case Opcode::push:
-    if (instr.n_args > 1) {
-      update_uses(instr.args[1], uses);
+    if (instr.n_args > 0) {
+      update_uses(instr.args[0], uses);
     }
     break;
   case Opcode::jmp:
@@ -279,6 +277,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       update_uses(instr.args[0], uses);
     }
     break;
+  case Opcode::arg_setup:
+  case Opcode::push:
   case Opcode::cjmp:
     update_uses(instr.args[0], uses);
     break;
@@ -340,9 +340,9 @@ void LiveVariables::update(const fmir::MFunc &func) {
     }
   }
 
-  // utils::Debug << "FUNC\n" << func << "\n";
-  // utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
-  // utils::Debug << "defs\n" << defs << "\n";
+  utils::Debug << "FUNC\n" << func << "\n";
+  utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
+  utils::Debug << "defs\n" << defs << "\n";
   _liveIn.clear();
   _liveOut.clear();
   _liveIn.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
@@ -377,8 +377,8 @@ void LiveVariables::update(const fmir::MFunc &func) {
     }
   }
 
-  // utils::Debug << "\nLIVEIN\n" << _liveIn << "\n";
-  // utils::Debug << "LIVEOUT\n" << _liveOut << "\n";
+  utils::Debug << "\nLIVEIN\n" << _liveIn << "\n";
+  utils::Debug << "LIVEOUT\n" << _liveOut << "\n";
   _live.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
   for (size_t i = 0; i < cfg.bbrs.size(); i++) {
     // we also add defs to make sure we alos get variables taht live shorter

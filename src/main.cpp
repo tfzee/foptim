@@ -175,15 +175,15 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   ZoneScopedN("MIR Optim");
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  // foptim::utils::Debug << "================AFT_DEAD====================\n";
+  // for (const auto &func : funcs) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::utils::Debug << "================BEF_REG====================\n";
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   // foptim::fmir::DeadCodeElim{}.apply(funcs);

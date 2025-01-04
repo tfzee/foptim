@@ -102,13 +102,12 @@ void DeadCodeElim::apply(MFunc &func) {
       is_read |= next_use.is_read;
 
       if ((next_use.is_write && !next_use.is_read) || !is_read) {
-        // utils::Debug << "LATE DCE? " << bb.instrs[instr_id] << "\n";
-        // utils::Debug << "   IsRead?" << is_read
-        //              << " next use: R:" << next_use.is_read
-        //              << " W:" << next_use.is_write << " ID:" <<
-        //              next_use.index
-        //              << "\n";
-        // utils::Debug << "    DELETED!\n";
+        utils::Debug << "LATE DCE? " << bb.instrs[instr_id] << "\n";
+        utils::Debug << "   IsRead?" << is_read
+                     << " next use: R:" << next_use.is_read
+                     << " W:" << next_use.is_write << " ID:" << next_use.index
+                     << "\n";
+        utils::Debug << "    DELETED!\n";
         bb.instrs.erase(bb.instrs.begin() + instr_id);
         continue;
       }

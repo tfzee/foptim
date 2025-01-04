@@ -108,6 +108,9 @@ public:
             {"Cannot do SCCP on binary expr using non integers/floats", instr});
         return ConstantValue::Bottom();
       }
+
+      auto out_type = a.value->get_type();
+
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
       default:
         utils::Debug << instr << "\n";
@@ -115,28 +118,32 @@ public:
         UNREACH();
       case fir::BinaryInstrSubType::INVALID:
         UNREACH();
+      case fir::BinaryInstrSubType::Shl:
+        return ConstantValue::Constant(
+            ctx->get_constant_value((a.value->as_int() << b.value->as_int()) &
+                                        ((2 << out_type->as_int()) - 1),
+                                    out_type));
       case fir::BinaryInstrSubType::IntSub:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_int() - b.value->as_int(), a.value->get_type()));
+            a.value->as_int() - b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::IntAdd:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_int() + b.value->as_int(), a.value->get_type()));
+            a.value->as_int() + b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::IntSRem:
         return ConstantValue::Constant(ctx->get_constant_value(
-            ((i64)a.value->as_int()) % ((i64)b.value->as_int()),
-            a.value->get_type()));
+            ((i64)a.value->as_int()) % ((i64)b.value->as_int()), out_type));
       case fir::BinaryInstrSubType::IntMul:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_int() * b.value->as_int(), a.value->get_type()));
+            a.value->as_int() * b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::FloatAdd:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() + b.value->as_float(), a.value->get_type()));
+            a.value->as_float() + b.value->as_float(), out_type));
       case fir::BinaryInstrSubType::FloatMul:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() * b.value->as_float(), a.value->get_type()));
+            a.value->as_float() * b.value->as_float(), out_type));
       case fir::BinaryInstrSubType::FloatSub:
         return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() - b.value->as_float(), a.value->get_type()));
+            a.value->as_float() - b.value->as_float(), out_type));
       }
       UNREACH();
     }
