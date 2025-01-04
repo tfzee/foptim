@@ -93,7 +93,7 @@ inline void swap_args_icmp(fir::Instr instr) {
 }
 
 //@returns true if it removes the isntrction
-static bool simplify_binary(fir::Instr instr, size_t instr_id,
+inline bool simplify_binary(fir::Instr instr, size_t instr_id,
                             fir::BasicBlock bb, fir::Context &ctx) {
   using namespace foptim::fir;
   // since both being constant would be handleded by constant folding we just
@@ -157,7 +157,7 @@ static bool simplify_binary(fir::Instr instr, size_t instr_id,
 }
 
 //@returns true if it removes the isntrction
-static bool simplify_icmp(fir::Instr instr, size_t /* instr_id*/,
+inline bool simplify_icmp(fir::Instr instr, size_t /* instr_id*/,
                           fir::BasicBlock bb, fir::Context &ctx) {
   (void)bb;
   using namespace foptim::fir;
@@ -226,31 +226,33 @@ static bool simplify_icmp(fir::Instr instr, size_t /* instr_id*/,
   return false;
 }
 
+// FIXME: maybe fix this but simplify cfg also handles it
+//        but idk the issue might be bb args
 //@returns true if it removes the isntrction
-static bool simplify_cond_branch(fir::Instr instr, size_t /*instr_id*/,
-                                 fir::BasicBlock bb, fir::Context &ctx) {
-  (void)ctx;
-  // replace conditional branch to simple branch
-  if (instr->args[0].is_constant()) {
-    fir::Builder b(bb);
-    b.at_end(bb);
+//  inline bool simplify_cond_branch(fir::Instr instr, size_t /*instr_id*/,
+//                                   fir::BasicBlock bb, fir::Context &ctx) {
+//    (void)ctx;
+//    // replace conditional branch to simple branch
+//    if (instr->args[0].is_constant()) {
+//      fir::Builder b(bb);
+//      b.at_end(bb);
 
-    auto v1 = instr->args[0].as_constant()->as_int();
-    auto &target = instr->bbs[0];
-    if (v1 == 0) {
-      target = instr->bbs[1];
-    }
+//     auto v1 = instr->args[0].as_constant()->as_int();
+//     auto &target = instr->bbs[0];
+//     if (v1 == 0) {
+//       target = instr->bbs[1];
+//     }
 
-    auto new_branch = b.build_branch(target.bb);
-    for (auto old_arg : target.args) {
-      new_branch.add_bb_arg(0, old_arg);
-    }
-    instr.remove_from_parent();
-    // bb->remove_instr(instr_id);
-    return true;
-  }
-  return false;
-}
+//     auto new_branch = b.build_branch(target.bb);
+//     for (auto old_arg : target.args) {
+//       new_branch.add_bb_arg(0, old_arg);
+//     }
+//     instr.remove_from_parent();
+//     // bb->remove_instr(instr_id);
+//     return true;
+//   }
+//   return false;
+// }
 
 //@returns true if it removes the isntrction
 static bool simplify(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
@@ -262,9 +264,9 @@ static bool simplify(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
   if (instr->get_instr_type() == InstrType::ICmp) {
     return simplify_icmp(instr, instr_id, bb, ctx);
   }
-  if (instr->get_instr_type() == InstrType::CondBranchInstr) {
-    return simplify_cond_branch(instr, instr_id, bb, ctx);
-  }
+  // if (instr->get_instr_type() == InstrType::CondBranchInstr) {
+  //   return simplify_cond_branch(instr, instr_id, bb, ctx);
+  // }
   return false;
 }
 
