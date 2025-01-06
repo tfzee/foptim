@@ -982,12 +982,14 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
 inline void convert_constant_init(const uint8_t *output,
                                   const llvm::Constant *val,
                                   foptim::fir::Context &fctx) {
-  if (llvm::dyn_cast_or_null<llvm::ConstantAggregateZero>(val) ||
-      llvm::dyn_cast_or_null<llvm::UndefValue>(val)) {
+  if ((llvm::dyn_cast_or_null<llvm::ConstantAggregateZero>(val) != nullptr) ||
+      (llvm::dyn_cast_or_null<llvm::UndefValue>(val) != nullptr) ||
+      (llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(val) != nullptr)) {
     // Dont need to do anything here
     return;
-  } else if (const auto *d =
-                 llvm::dyn_cast_or_null<llvm::ConstantDataSequential>(val)) {
+  }
+  if (const auto *d =
+          llvm::dyn_cast_or_null<llvm::ConstantDataSequential>(val)) {
     size_t offset = 0;
     for (size_t i = 0; i < d->getNumElements(); i++) {
       auto *sub_value = d->getElementAsConstant(i);
@@ -995,7 +997,8 @@ inline void convert_constant_init(const uint8_t *output,
       offset += d->getElementByteSize();
     }
     return;
-  } else if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantInt>(val)) {
+  }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantInt>(val)) {
     switch (d->getBitWidth()) {
     case 8:
       *((uint8_t *)output) = (uint8_t)d->getZExtValue();
@@ -1014,13 +1017,11 @@ inline void convert_constant_init(const uint8_t *output,
       TODO("IMPL");
     }
     return;
-  } else if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantFP>(val)) {
+  }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantFP>(val)) {
     foptim::utils::Debug << "TODO: handle global init\n";
     llvm::errs() << "constant fp " << *d << "\n";
     TODO("IMPL");
-  } else if (const auto *d =
-                 llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(val)) {
-    return;
   }
   foptim::utils::Debug << "TODO: handle global init\n";
   llvm::errs() << "idk " << *val << "\n";

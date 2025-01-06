@@ -61,6 +61,14 @@ struct ConstantValue {
   constexpr ConstantValue(FunctionR f, TypeR typee)
       : value(FunctionPtr{f}), type(typee) {}
 
+  [[nodiscard]] bool is_valid() const {
+    if (!type.is_valid()) {
+      utils::Debug << "Invalid type\n";
+      return false;
+    }
+    return true;
+  }
+
   [[nodiscard]] bool is_global() const {
     return std::holds_alternative<GlobalPointer>(value);
   }

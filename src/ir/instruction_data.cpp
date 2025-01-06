@@ -43,6 +43,10 @@ bool InstrData::verify(const BasicBlockData *exp_parent,
   }
 
   for (const auto &arg : args) {
+    if (!arg.is_valid(true)) {
+      printer << "Got invalid argument\n";
+      return false;
+    }
     if (!arg.is_constant()) {
       if (arg.get_n_uses() == 0) {
         printer << "Arg does have 0 uses but its used here\n";

@@ -84,7 +84,7 @@ public:
     auto void_type = ctx->get_void_type();
 
     bb.build_call(fir::ValueR{ctx->get_constant_value(abort_func)},
-                  ctx->copy(abort_func->func_ty), void_type, {});
+                  abort_func->func_ty, void_type, {});
     instr.remove_from_parent();
   }
 

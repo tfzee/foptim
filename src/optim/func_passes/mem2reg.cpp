@@ -7,6 +7,7 @@
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "utils/logging.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
 #include <tuple>
@@ -188,6 +189,7 @@ static void decide_value_store(fir::Instr instr, size_t &i,
 static void decide_value_load(fir::Instr instr, size_t &i,
                               const AllocToPhiLoc &phi_insert_locs,
                               const VarValueStack &current_variable_value) {
+  // auto *ctx = instr->get_parent()->get_parent().func->ctx;
   fir::ValueR load_val = fir::ValueR();
 
   if (!instr->args[0].is_instr()) {
@@ -207,7 +209,8 @@ static void decide_value_load(fir::Instr instr, size_t &i,
   if (!decide_variable_value(instr->args[0], current_variable_value,
                              load_val)) {
     auto *ctx = instr->get_parent()->get_parent().func->ctx;
-    load_val = fir::ValueR(ctx->get_constant_value(0, load_val.get_type()));
+    load_val =
+        fir::ValueR(ctx->get_constant_value(0, instr.get_type()));
   }
 
   // utils::Debug << "Replacing all uses on " << instr << "\n";
@@ -241,8 +244,10 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
         // before the next store
         auto *ctx = func.ctx;
         // TODO: should habe a uninit/poision value for these cases?
+        auto *result_type =
+            target_alloca.as_instr()->get_attrib("alloca::type").try_type();
         var_val_res =
-            fir::ValueR(ctx->get_constant_value(0, target_alloca.get_type()));
+            fir::ValueR(ctx->get_constant_value(0, *result_type));
       }
       // then we update the arguemtns of the origin jump
       // utils::Debug << "Update origin for arg " << arg << "\n";
@@ -324,7 +329,6 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
       }
     }
   }
-
 
   TSet<fir::BasicBlock> visited{};
   TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>

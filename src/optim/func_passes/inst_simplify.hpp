@@ -1,7 +1,6 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
-#include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
@@ -115,6 +114,8 @@ inline bool simplify_binary(fir::Instr instr, size_t instr_id,
 
   if (instr->args[0].is_constant() && instr->args[1].is_constant()) {
     ConstantValueR c0_val = instr->args[0].as_constant();
+    // utils::Debug << "For instr: " << instr << "\n";
+    // utils::Debug << c_val << " " << c0_val << "\n";
     if (c_val->type->is_int() && c0_val->type->is_int()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_int(), c_val->as_int(),

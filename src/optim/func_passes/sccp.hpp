@@ -245,19 +245,17 @@ public:
       case fir::ConversionSubType::INVALID:
         UNREACH();
       case fir::ConversionSubType::FPTOUI:
-        return ConstantValue::Constant(
-            ctx->get_constant_value(static_cast<u64>(a.value->as_float()),
-                                    ctx->copy(instr->get_type())));
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_float()), instr->get_type()));
       case fir::ConversionSubType::FPTOSI:
-        return ConstantValue::Constant(
-            ctx->get_constant_value(static_cast<i64>(a.value->as_float()),
-                                    ctx->copy(instr->get_type())));
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i64>(a.value->as_float()), instr->get_type()));
       case fir::ConversionSubType::UITOFP:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<f64>(a.value->as_int()), ctx->copy(instr->get_type())));
+            static_cast<f64>(a.value->as_int()), instr->get_type()));
       case fir::ConversionSubType::SITOFP:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<f64>(a.value->as_int()), ctx->copy(instr->get_type())));
+            static_cast<f64>(a.value->as_int()), instr->get_type()));
         break;
       }
       // TODO: impl
@@ -272,7 +270,7 @@ public:
       if (a.is_top()) {
         return ConstantValue::Top();
       }
-      a.value->type = ctx->copy(instr->get_type());
+      a.value->type = instr->get_type();
       return a;
     }
     case fir::InstrType::FCmp: {

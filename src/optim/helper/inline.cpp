@@ -72,7 +72,8 @@ bool inline_call(fir::Instr call) {
   auto end_bb = split_block(call);
 
   if (has_ret_value) {
-    auto new_arg = ctx->storage.insert_bb_arg(end_bb, call->get_type());
+    auto new_arg =
+        ctx->storage.insert_bb_arg(end_bb, call->get_type());
     end_bb.add_arg(new_arg);
   }
 
@@ -102,6 +103,7 @@ bool inline_call(fir::Instr call) {
   // add the args
 
   for (size_t arg_id = 1; arg_id < call->args.size(); arg_id++) {
+    ASSERT(call->args[arg_id].is_valid(true));
     entry_branch.add_bb_arg(0, call->args[arg_id]);
   }
 

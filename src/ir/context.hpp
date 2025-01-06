@@ -22,7 +22,7 @@ struct ContextData {
     res->args.clear();
     for (u32 arg_id = 0; arg_id < bb->args.size(); arg_id++) {
       auto new_bb_arg =
-          storage.insert_bb_arg(res, copy(bb->args[arg_id]->get_type()));
+          storage.insert_bb_arg(res, bb->args[arg_id]->get_type());
       subs.insert({ValueR{bb->args[arg_id]}, ValueR{new_bb_arg}});
       res.add_arg(new_bb_arg);
     }
@@ -42,7 +42,7 @@ struct ContextData {
 
   BBArgument copy(BBArgument bb_arg) {
     auto res = storage.insert_bb_arg(
-        {BasicBlock{BasicBlock::invalid()}, copy(bb_arg->_type)});
+        {BasicBlock{BasicBlock::invalid()}, bb_arg->_type});
     res->uses.clear();
     return res;
   }
@@ -52,11 +52,16 @@ struct ContextData {
     return res;
   }
 
-  TypeR copy(TypeR typee) {
-    // FIXME: do this recusively to the subtypes
-    auto res = storage.insert_type(*typee.get_raw_ptr());
-    return res;
-  }
+  // ConstantValueR copy(ConstantValueR constant) {
+  //   auto res = storage.insert_constant(*constant.get_raw_ptr());
+  //   return res;
+  // }
+
+  // TypeR copy(TypeR typee) {
+  //   // FIXME: do this recusively to the subtypes
+  //   auto res = storage.insert_type(*typee.get_raw_ptr());
+  //   return res;
+  // }
 
   IntTypeR get_int_type(u16 bitwidth) {
     return storage.insert_type(IntegerType{bitwidth});
@@ -138,7 +143,8 @@ struct ContextData {
   }
   FunctionR get_function(IRString name) {
     if (!storage.functions.contains(name)) {
-      utils::Debug << "Failed to find function '" << name.c_str() << "' from storage\n";
+      utils::Debug << "Failed to find function '" << name.c_str()
+                   << "' from storage\n";
       ASSERT(false);
     }
     return &storage.functions.at(name);

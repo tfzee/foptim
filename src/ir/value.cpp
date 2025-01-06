@@ -1,6 +1,7 @@
 #include "value.hpp"
 #include "instruction_data.hpp"
 #include "ir/basic_block.hpp"
+#include "ir/basic_block_arg.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
@@ -11,16 +12,19 @@ namespace foptim::fir {
 
 bool ValueR::is_valid(bool check_refs) const {
   if (std::holds_alternative<InvalidValue>(origin)) {
+    utils::Debug << "Got invalidValue\n";
     return false;
   }
   if (check_refs) {
     return std::visit(
         [](auto &&v) {
-          if constexpr (typeid(v) == typeid(ConstantValueR) ||
+          if constexpr (typeid(v) == typeid(ConstantValueR)) {
+            return v.is_valid() && v->is_valid();
+          }
+          if constexpr (typeid(v) == typeid(BBArgument) ||
                         typeid(v) == typeid(Instr)) {
             return v.is_valid();
           }
-          // TOOD: could also check bb arg ref
           return true;
         },
         origin);

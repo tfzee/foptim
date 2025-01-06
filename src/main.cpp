@@ -87,30 +87,23 @@ void optimize_fir(foptim::fir::Context &ctx) {
   using namespace foptim::optim;
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
-  ASSERT(ctx->verify());
-  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
+  ASSERT(ctx->verify());
 
-
-  
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
+  ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-
-
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
   // TODO("okak");
@@ -124,20 +117,12 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  ASSERT(ctx->verify());
 
   foptim::utils::Debug << "================OPTIMEND====================\n";
   for (const auto &[_, func] : ctx.data->storage.functions) {
     foptim::utils::Debug << func << "\n";
   }
-
-  // foptim::optim::StaticFunctionPassManager<Clean>{}.apply(ctx);
-
-  // foptim::optim::StaticFunctionPassManager<
-  //     InstSimplify, LVN, EPathPRE, SCCP, DCE, InstSimplify,
-  //     InstSimplify, Clean>{}
-  //     .apply(ctx);
-  // TODO("OKAK");
+  ASSERT(ctx->verify());
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,
@@ -191,8 +176,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  // foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

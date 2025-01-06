@@ -197,7 +197,6 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
     if (curr.bb->n_args() == 0 && succ->n_args() == 0) {
       curr.bb->replace_all_uses(fir::ValueR(succ));
       func.basic_blocks[bb_id]->remove_from_parent(true);
-      // utils::Debug << 4 << "\n";
       return true;
     }
     // if this block doesnt have bb_args we might be able to replace all
@@ -218,11 +217,9 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
           user.add_bb_arg(bb_id, old_arg);
         }
         ASSERT(user->bbs[bb_id].args.size() == terminator_args.size());
-        utils::Debug << user << "\n";
       }
       ASSERT(curr.bb->get_n_uses() == 0);
       func.basic_blocks[bb_id]->remove_from_parent(true);
-      // utils::Debug << 5 << "\n";
       return true;
     }
   }
@@ -290,7 +287,6 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
                                        fir::Function & /*func*/,
                                        size_t /*bb_id*/, bool /*is_entry*/) {
-  auto *ctx = curr.bb->get_parent()->ctx;
   auto terminator = curr.bb->get_terminator();
   if (curr.succ.size() == 2 && terminator->bbs[0].bb == terminator->bbs[1].bb) {
     // auto *ctx = curr.bb->get_parent()->ctx;
@@ -305,7 +301,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
     bb.at_penultimate(curr.bb);
     TVec<fir::ValueR> new_inputs;
     for (size_t i = 0; i < args1.size(); i++) {
-      new_inputs.push_back(bb.build_select(ctx->copy(args1[i].get_type()),
+      new_inputs.push_back(bb.build_select(args1[i].get_type(),
                                            condition, args1[i], args2[i]));
     }
     auto new_branch = bb.build_branch(target);
@@ -323,41 +319,51 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   bool is_entry = bb_id == cfg.entry;
 
   if (remove_dead_bb(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 1\n";
     return true;
   }
 
   if (remove_dead_bb_arg(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 2\n";
     return true;
   }
 
   if (remove_useless_bb_args(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 3\n";
     return true;
   }
 
   if (remove_constant_bb_args(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 4\n";
     return true;
   }
 
   if (distribute_return(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 5\n";
     return true;
   }
 
   if (merge_empty_block_backwards(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 6\n";
     return true;
   }
 
   if (merge_empty_block_forwards(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 7\n";
     return true;
   }
 
   if (merge_linear_relation(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 8\n";
     return true;
   }
 
   if (conditional_to_cmove(cfg, curr, func, bb_id, is_entry)) {
+    utils::Debug << " 9\n";
     return true;
   }
 
+  utils::Debug << "Nothin\n";
   return false;
 }
 
@@ -375,8 +381,8 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
         cfg.update(func, false);
         modified = true;
       }
+      ASSERT(func.verify(utils::Debug));
     }
-    ASSERT(func.verify(utils::Debug));
     if (iter++ > 100) {
       failure({"Didnt converge fixme\n", func.basic_blocks[0]});
       break;

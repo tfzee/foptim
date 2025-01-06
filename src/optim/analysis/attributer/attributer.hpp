@@ -1,5 +1,5 @@
 #pragma once
-#include "ir/IRLocation.hpp"
+#include "ir/value.hpp"
 #include "utils/map.hpp"
 #include "utils/vec.hpp"
 #include <deque>
@@ -32,7 +32,7 @@ public:
   fir::ValueR associatedValue;
 
   virtual void materialize_impl() = 0;
-  virtual Result update_impl(AttributerManager &) { TODO("IMPL"); };
+  virtual Result update_impl(AttributerManager & /*unused*/) { TODO("IMPL"); };
   virtual ~AttributeAnalysis() = default;
   Result update(AttributerManager &m);
 };
