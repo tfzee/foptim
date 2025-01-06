@@ -118,7 +118,7 @@ bool inline_call(fir::Instr call) {
       if (bb->instructions[instr_id]->is(fir::InstrType::ReturnInstr)) {
         auto end_branch = ret_bb.build_branch(end_bb);
         if (has_ret_value) {
-          utils::Debug << bb->instructions[instr_id] << "\n";
+          // utils::Debug << bb->instructions[instr_id] << "\n";
           ASSERT(bb->instructions[instr_id]->has_args());
           end_branch.add_bb_arg(0, bb->instructions[instr_id]->get_arg(0));
         }

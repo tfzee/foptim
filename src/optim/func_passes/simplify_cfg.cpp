@@ -84,7 +84,7 @@ bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
         //              << (!c_value.is_valid(false) ||
         //              incoming_arg.eql(c_value))
         //              << "\n";
-        if (!c_value.is_valid(false) || incoming_arg.eql(c_value)) {
+        if (c_value.is_invalid() || incoming_arg.eql(c_value)) {
           c_value = incoming_arg;
         } else if (incoming_arg.is_bb_arg() &&
                    incoming_arg.as_bb_arg() == curr.bb->args[i]) {
@@ -212,7 +212,7 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
         ASSERT(user->bbs[bb_id].args.size() == 0);
         user.replace_bb(bb_id, succ, false);
 
-        ASSERT(user->bbs[bb_id].args.size() == 0);
+        // ASSERT(user->bbs[bb_id].args.size() == 0);
         for (auto old_arg : terminator_args) {
           user.add_bb_arg(bb_id, old_arg);
         }
@@ -301,8 +301,8 @@ bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
     bb.at_penultimate(curr.bb);
     TVec<fir::ValueR> new_inputs;
     for (size_t i = 0; i < args1.size(); i++) {
-      new_inputs.push_back(bb.build_select(args1[i].get_type(),
-                                           condition, args1[i], args2[i]));
+      new_inputs.push_back(
+          bb.build_select(args1[i].get_type(), condition, args1[i], args2[i]));
     }
     auto new_branch = bb.build_branch(target);
     for (auto &input : new_inputs) {
@@ -319,51 +319,51 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   bool is_entry = bb_id == cfg.entry;
 
   if (remove_dead_bb(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 1\n";
+    // utils::Debug << " 1\n";
     return true;
   }
 
   if (remove_dead_bb_arg(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 2\n";
+    // utils::Debug << " 2\n";
     return true;
   }
 
   if (remove_useless_bb_args(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 3\n";
+    // utils::Debug << " 3\n";
     return true;
   }
 
   if (remove_constant_bb_args(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 4\n";
+    // utils::Debug << " 4\n";
     return true;
   }
 
   if (distribute_return(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 5\n";
+    // utils::Debug << " 5\n";
     return true;
   }
 
   if (merge_empty_block_backwards(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 6\n";
+    // utils::Debug << " 6\n";
     return true;
   }
 
   if (merge_empty_block_forwards(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 7\n";
+    // utils::Debug << " 7\n";
     return true;
   }
 
   if (merge_linear_relation(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 8\n";
+    // utils::Debug << " 8\n";
     return true;
   }
 
   if (conditional_to_cmove(cfg, curr, func, bb_id, is_entry)) {
-    utils::Debug << " 9\n";
+    // utils::Debug << " 9\n";
     return true;
   }
 
-  utils::Debug << "Nothin\n";
+  // utils::Debug << "Nothin\n";
   return false;
 }
 

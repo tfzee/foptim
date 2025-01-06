@@ -50,6 +50,9 @@ public:
   [[nodiscard]] bool is_bb_arg() const {
     return std::holds_alternative<BBArgument>(origin);
   }
+  [[nodiscard]] bool is_invalid() const {
+    return std::holds_alternative<InvalidValue>(origin);
+  }
 
   [[nodiscard]] bool is_valid(bool check_refs) const;
 
