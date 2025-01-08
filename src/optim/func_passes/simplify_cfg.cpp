@@ -381,13 +381,13 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
         cfg.update(func, false);
         modified = true;
       }
-      ASSERT(func.verify(utils::Debug));
     }
     if (iter++ > 100) {
       failure({"Didnt converge fixme\n", func.basic_blocks[0]});
       break;
     }
   }
+  ASSERT(func.verify(utils::Debug));
 }
 
 } // namespace foptim::optim

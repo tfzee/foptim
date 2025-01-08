@@ -66,6 +66,7 @@ add_library (foptim
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/pre.cpp
                 ./src/optim/func_passes/simplify_cfg.cpp
+                ./src/optim/func_passes/inst_simplify.cpp
                 ./src/optim/helper/inline.cpp
 
                 #mir
