@@ -1,6 +1,7 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
@@ -55,35 +56,35 @@ inline void swap_args_icmp(fir::Instr instr) {
     swap_args(instr, 0, 1);
     return;
   case fir::ICmpInstrSubType::SLT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
+    instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
     swap_args(instr, 0, 1);
     return;
   case fir::ICmpInstrSubType::ULT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::SGT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::UGT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::UGE:
-    instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::ULE:
     instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
     swap_args(instr, 0, 1);
     return;
-  case fir::ICmpInstrSubType::SGE:
+  case fir::ICmpInstrSubType::SGT:
     instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
     swap_args(instr, 0, 1);
     return;
+  case fir::ICmpInstrSubType::UGT:
+    instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::UGE:
+    instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::ULE:
+    instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SGE:
+    instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
+    swap_args(instr, 0, 1);
+    return;
   case fir::ICmpInstrSubType::SLE:
-    instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
+    instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
     swap_args(instr, 0, 1);
     return;
   case fir::ICmpInstrSubType::INVALID:
@@ -163,10 +164,17 @@ inline bool simplify_icmp(fir::Instr instr, size_t /* instr_id*/,
   (void)bb;
   using namespace foptim::fir;
   {
-    if (instr->args[0].is_constant() &&
-        (!instr->args[0].as_constant()->is_global() ||
-         !instr->args[0].as_constant()->is_func())) {
+    if ((instr->args[0].is_constant() &&
+         (!instr->args[0].as_constant()->is_global() ||
+          !instr->args[0].as_constant()->is_func()))
+        //&&
+        // (!instr->args[1].is_constant() ||
+        //   (instr->args[1].as_constant()->is_global() &&
+        //    instr->args[1].as_constant()->is_func()))
+    ) {
+      // utils::Debug << "II: " << instr << "\n";
       swap_args_icmp(instr);
+      // utils::Debug << "AF: " << instr << "\n";
     }
   }
 
@@ -229,31 +237,29 @@ inline bool simplify_icmp(fir::Instr instr, size_t /* instr_id*/,
 
 // FIXME: maybe fix this but simplify cfg also handles it
 //        but idk the issue might be bb args
-//@returns true if it removes the isntrction
-//  inline bool simplify_cond_branch(fir::Instr instr, size_t /*instr_id*/,
-//                                   fir::BasicBlock bb, fir::Context &ctx) {
-//    (void)ctx;
-//    // replace conditional branch to simple branch
-//    if (instr->args[0].is_constant()) {
-//      fir::Builder b(bb);
-//      b.at_end(bb);
+// @returns true if it removes the isntrction
+inline bool simplify_cond_branch(fir::Instr instr, size_t /*instr_id*/,
+                                 fir::BasicBlock bb, fir::Context & /*ctx*/) {
+  if (instr->args[0].is_constant()) {
+    utils::Debug << bb;
+    fir::Builder b(bb);
+    b.at_end(bb);
 
-//     auto v1 = instr->args[0].as_constant()->as_int();
-//     auto &target = instr->bbs[0];
-//     if (v1 == 0) {
-//       target = instr->bbs[1];
-//     }
+    auto v1 = instr->args[0].as_constant()->as_int();
+    auto *target = &instr->bbs[0];
+    if (v1 == 0) {
+      target = &instr->bbs[1];
+    }
 
-//     auto new_branch = b.build_branch(target.bb);
-//     for (auto old_arg : target.args) {
-//       new_branch.add_bb_arg(0, old_arg);
-//     }
-//     instr.remove_from_parent();
-//     // bb->remove_instr(instr_id);
-//     return true;
-//   }
-//   return false;
-// }
+    auto new_branch = b.build_branch(target->bb);
+    for (auto old_arg : target->args) {
+      new_branch.add_bb_arg(0, old_arg);
+    }
+    instr.remove_from_parent();
+    return true;
+  }
+  return false;
+}
 
 //@returns true if it removes the isntrction
 static bool simplify(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
@@ -265,9 +271,9 @@ static bool simplify(fir::Instr instr, size_t instr_id, fir::BasicBlock bb,
   if (instr->get_instr_type() == InstrType::ICmp) {
     return simplify_icmp(instr, instr_id, bb, ctx);
   }
-  // if (instr->get_instr_type() == InstrType::CondBranchInstr) {
-  //   return simplify_cond_branch(instr, instr_id, bb, ctx);
-  // }
+  if (instr->get_instr_type() == InstrType::CondBranchInstr) {
+    return simplify_cond_branch(instr, instr_id, bb, ctx);
+  }
   return false;
 }
 

@@ -309,14 +309,15 @@ public:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<i32>(a.value->as_float() != b.value->as_float()),
             ctx->get_int_type(8)));
-      case fir::FCmpInstrSubType::ORD:
-      case fir::FCmpInstrSubType::UNO:
       case fir::FCmpInstrSubType::UEQ:
       case fir::FCmpInstrSubType::UGT:
       case fir::FCmpInstrSubType::UGE:
       case fir::FCmpInstrSubType::ULT:
       case fir::FCmpInstrSubType::ULE:
       case fir::FCmpInstrSubType::UNE:
+      case fir::FCmpInstrSubType::ORD:
+      case fir::FCmpInstrSubType::UNO:
+        return ConstantValue::Bottom();
       case fir::FCmpInstrSubType::AlwFalse:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<i32>(false), ctx->get_int_type(8)));
