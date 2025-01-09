@@ -303,6 +303,12 @@ inline void simplify_select(fir::Instr instr, fir::BasicBlock bb,
     instr.remove_from_parent();
     return;
   }
+  if (instr->args[1] == instr->args[2]) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(instr->args[1]);
+    instr.remove_from_parent();
+    return;
+  }
 }
 
 inline void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
