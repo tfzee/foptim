@@ -1,34 +1,7 @@
 #pragma once
 #include "types.hpp"
 
-namespace foptim::fmir {
-class VReg;
-class MArgument;
-class MInstr;
-class MBB;
-class MFunc;
-enum class Type : u16;
-} // namespace foptim::fmir
-namespace foptim::fir {
-class Function;
-class FunctionR;
-class ValueR;
-class BasicBlock;
-class BBArgument;
-class Instr;
-class InstrData;
-struct BBRefWithArgs;
-class TypeR;
-struct ConstantValue;
-class ConstantValueR;
-class Attribute;
-class Use;
-struct IRLocation;
-} // namespace foptim::fir
 
-namespace foptim::optim {
-struct LiveRange;
-} // namespace foptim::optim
 namespace foptim::utils {
 
 class Printer {

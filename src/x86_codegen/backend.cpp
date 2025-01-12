@@ -1,6 +1,7 @@
 #include "backend.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
+#include "mir/global.hpp"
 #include "utils/logging.hpp"
 #include "utils/parameters.hpp"
 #include "utils/string.hpp"

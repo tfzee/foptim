@@ -9,10 +9,8 @@
 #include <utility>
 
 namespace foptim::utils {
-class Printer;
 }
 namespace foptim::fir {
-struct ContextData;
 
 class Function : public Attributable {
 public:

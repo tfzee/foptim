@@ -9,8 +9,6 @@
 #include <variant>
 
 namespace foptim::fir {
-struct ConstantValue;
-class ValueR;
 
 struct IntValue {
   u64 data;
@@ -34,15 +32,25 @@ struct GlobalPointer {
   }
 };
 
+// just a invalid value similarly to llvms poisson value it is some undefined
+// but constant value
+struct PoissonValue {
+  constexpr bool operator==(const PoissonValue &) const { return true; }
+};
+
 struct VectorValue {
   IRVec<ConstantValue> members;
   bool operator==(const VectorValue &other) const;
 };
 
 struct ConstantValue {
-  std::variant<IntValue, FloatValue, GlobalPointer, FunctionPtr, VectorValue>
+  std::variant<IntValue, FloatValue, GlobalPointer, FunctionPtr, VectorValue,
+               PoissonValue>
       value;
   TypeR type;
+
+  // Poisson value
+  constexpr ConstantValue(TypeR typee) : value(PoissonValue{}), type(typee) {}
 
   constexpr ConstantValue(u64 v, TypeR typee)
       : value(IntValue{v}), type(typee) {}

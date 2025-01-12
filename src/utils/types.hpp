@@ -2,8 +2,53 @@
 #include <cstdint>
 #include <cstdlib>
 
-
 namespace foptim {
+namespace fmir {
+class VReg;
+enum class VRegType: uint8_t;
+class MArgument;
+class MInstr;
+class MBB;
+class MFunc;
+enum class Type : uint16_t;
+}
+
+namespace utils {
+class Printer;
+}
+
+namespace optim {
+struct LiveRange;
+}
+
+namespace fir {
+class Function;
+class FunctionR;
+class ValueR;
+class BasicBlock;
+class BBArgument;
+class Instr;
+class InstrData;
+struct BBRefWithArgs;
+class TypeR;
+struct ConstantValue;
+class ConstantValueR;
+class Attribute;
+class Use;
+struct IRLocation;
+struct ContextData;
+class InstrData;
+class Use;
+class ValueR;
+class BasicBlock;
+class TypeR;
+struct ConstantValue;
+class BasicBlockData;
+class BBArgument;
+class Instr;
+class Builder;
+} // namespace fir
+
 using u8 = uint8_t;
 using u16 = uint16_t;
 using u32 = uint32_t;

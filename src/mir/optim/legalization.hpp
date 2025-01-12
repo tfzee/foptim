@@ -1,5 +1,5 @@
 #pragma once
-#include "../func.hpp"
+#include "utils/types.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fmir {

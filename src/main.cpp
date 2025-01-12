@@ -95,7 +95,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);

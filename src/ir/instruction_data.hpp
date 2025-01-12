@@ -8,7 +8,6 @@
 #include "value.hpp"
 
 namespace foptim::fir {
-struct ContextData;
 
 enum class InstrType : u8 {
   ICmp,

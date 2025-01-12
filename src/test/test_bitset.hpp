@@ -1,4 +1,3 @@
-#include "utils/logging.hpp"
 #include <gtest/gtest.h>
 #include <utils/bitset.hpp>
 

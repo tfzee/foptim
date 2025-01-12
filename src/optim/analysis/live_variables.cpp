@@ -24,6 +24,10 @@ fir::Instr get_last_use_in_bb(fir::ValueR value, fir::BasicBlock target_bb) {
     }
   }
 
+  if (!found && value.is_bb_arg() &&
+      value.as_bb_arg()->get_parent() == target_bb) {
+    return target_bb->instructions[0];
+  }
   if (!found) {
     utils::Debug << value;
     utils::Debug << "Didnt find " << value << " in bb " << target_bb << "\n";

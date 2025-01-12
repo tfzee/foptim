@@ -37,4 +37,9 @@ void Used::remove_usage(const Use &u, bool verify) {
 }
 
 void Used::remove_all_usages() { replace_all_uses(ValueR()); }
+
+bool Use::operator==(const Use &other) const {
+  return user == other.user && type == other.type && argId == other.argId &&
+         bbArgId == other.bbArgId;
+}
 } // namespace foptim::fir

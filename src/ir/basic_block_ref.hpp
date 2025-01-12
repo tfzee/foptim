@@ -3,12 +3,6 @@
 #include "utils/types.hpp"
 
 namespace foptim::fir {
-class BasicBlockData;
-class BBArgument;
-class Instr;
-class Builder;
-class TypeR;
-class ValueR;
 
 class BasicBlock : public utils::SRef<BasicBlockData> {
 public:

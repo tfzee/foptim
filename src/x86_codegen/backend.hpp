@@ -1,8 +1,8 @@
 #pragma once
-#include "mir/func.hpp"
+#include "utils/types.hpp"
 #include "mir/global.hpp"
+#include "utils/string.hpp"
 #include <span>
-#include <vector>
 
 namespace foptim::codegen {
 

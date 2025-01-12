@@ -497,6 +497,8 @@ Printer Printer::operator<<(const foptim::fir::ConstantValue &v) const {
           *this << "G(" << (void *)(v.glob.get_raw_ptr()) << ")";
         } else if constexpr (typeid(v) == typeid(fir::FunctionPtr)) {
           *this << v.func->getName().c_str();
+        } else if constexpr (typeid(v) == typeid(fir::PoissonValue)) {
+          *this << "POISSON";
         } else {
           *this << "constant idk(" << typeid(v).name() << ")";
         }

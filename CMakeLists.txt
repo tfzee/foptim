@@ -25,7 +25,7 @@ llvm_map_components_to_libnames(llvm_libs support core irreader)
 #FOPTIM lib
 
 option(generation_check "check generations in references" ON)
-option(tracy_perf "tracy" ON)
+option(tracy_perf "tracy" OFF)
 option(optim_stats "optimization stats" ON)
 if(generation_check)
   add_definitions(-DSLOT_CHECK_GENERATION)

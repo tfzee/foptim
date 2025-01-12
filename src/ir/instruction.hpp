@@ -3,11 +3,6 @@
 #include "utils/map.hpp"
 
 namespace foptim::fir {
-class InstrData;
-class Use;
-class ValueR;
-class BasicBlock;
-class TypeR;
 
 class Instr : public utils::SRef<InstrData> {
 public:

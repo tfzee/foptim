@@ -63,6 +63,7 @@ struct ContextData {
   //   return res;
   // }
 
+
   IntTypeR get_int_type(u16 bitwidth) {
     return storage.insert_type(IntegerType{bitwidth});
   }
@@ -101,6 +102,10 @@ struct ContextData {
 
   FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
     return storage.insert_type(FunctionType{ret_type, std::move(args)});
+  }
+
+  ConstantValueR get_poisson_value(TypeR type) {
+    return storage.insert_constant(ConstantValue(type));
   }
 
   ConstantValueR get_constant_value(FunctionR func) {

@@ -1,10 +1,13 @@
 #include "simplify_cfg.hpp"
+#include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/constant_value.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
+#include "utils/set.hpp"
 
 namespace foptim::optim {
 
@@ -18,14 +21,47 @@ bool SimplifyCFG::remove_dead_bb(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
+// check for true uses (so a  bb arg  that is actually used in an instruction)
+//  we might have a loop of multiple bbs that just forward a bb so it will
+//  have uses but all are just forwarding to the next bb
+bool has_true_use(fir::BBArgument v) {
+  TVec<fir::Use> worklist;
+  TSet<fir::Use> seen;
+  for (auto use : v->get_uses()) {
+    worklist.push_back(use);
+  }
+  while (!worklist.empty()) {
+    auto item = worklist.back();
+    worklist.pop_back();
+
+    if (seen.contains(item)) {
+      continue;
+    }
+    seen.insert(item);
+
+    if (item.type == fir::UseType::NormalArg) {
+      return true;
+    } else if (item.type == fir::UseType::BB) {
+      UNREACH();
+    } else if (item.type == fir::UseType::BBArg) {
+      auto new_item = item.user->bbs[item.argId].bb->args[item.bbArgId];
+      for (auto use : new_item->get_uses()) {
+        worklist.push_back(use);
+      }
+    }
+  }
+  return false;
+}
+
 bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
-                                     fir::Function & /*func*/, size_t /*bb_id*/,
+                                     fir::Function &func, size_t /*bb_id*/,
                                      bool is_entry) {
   if (curr.bb->n_args() != 0 && !is_entry) {
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
-      if (curr.bb->args[i]->get_n_uses() == 0) {
+      auto &value = curr.bb->args[i];
+      if (value->get_n_uses() == 0) {
         // remove from all uses where we jump into this bb
         for (auto use : curr.bb->get_uses()) {
           ASSERT(use.type == fir::UseType::BB);
@@ -33,6 +69,17 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
         }
 
         // drop this arg we cant have any uses
+        curr.bb->args.erase(curr.bb->args.begin() + i);
+        return true;
+      } else if (!has_true_use(value)) {
+        for (auto use : curr.bb->get_uses()) {
+          ASSERT(use.type == fir::UseType::BB);
+          use.user.remove_bb_arg(use.argId, i);
+        }
+
+        value->replace_all_uses(
+            fir::ValueR{func.ctx->get_poisson_value(value->get_type())});
+
         curr.bb->args.erase(curr.bb->args.begin() + i);
         return true;
       }
