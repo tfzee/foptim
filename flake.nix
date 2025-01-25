@@ -31,7 +31,7 @@
             #for codegen for now
             nasm
             asmjit
-            # elfio
+            elfio
 
             #for testing stuff
             graphviz
@@ -60,6 +60,7 @@
                 # export CC=clang
                 # export CXX=clang++ 
                 export TRACY_NO_EXIT=1
+                export QT_QPA_PLATFORM=xcb
             '';
           };
         }

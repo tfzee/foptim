@@ -1,9 +1,9 @@
 #pragma once
 #include "stable_vec_ref.hpp"
 #include "stable_vec_slot.hpp"
+#include "helpers.hpp"
 #include "todo.hpp"
 #include "types.hpp"
-#include "utils/vec.hpp"
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -12,8 +12,7 @@
 
 namespace foptim::utils {
 
-template <class T, u32 slot_slab_len = 128,
-          class Alloc = std::allocator<Slot<T>>>
+template <class T, u32 slot_slab_len = 128, class Alloc = FAlloc<Slot<T>>>
 class StableVec {
   struct FreeInfo {
     Slot<T> *ptr;
@@ -55,7 +54,7 @@ public:
     s.data_ref->used = false;
 #ifdef SLOT_CHECK_GENERATION
     curr_gen++;
-    if(curr_gen == 0){
+    if (curr_gen == 0) {
       curr_gen++;
     }
     s.data_ref->generation = 0;
@@ -84,9 +83,12 @@ public:
 
   SRef<T> push_back(T value = {}) {
     if (free_list.size() == 0) {
-      _slot_slab_starts.push_back(
-          (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
-      TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
+      _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
+      std::memset((void *)_slot_slab_starts.back(), 0,
+                  slot_slab_len * sizeof(Slot<T>));
+      // _slot_slab_starts.push_back(
+      //     (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
+      // TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
       free_list.push_back({_slot_slab_starts.back(), slot_slab_len});
     }
 

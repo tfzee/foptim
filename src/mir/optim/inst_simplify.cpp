@@ -14,6 +14,12 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       instrs.erase(instrs.begin() + instr_id);
       return true;
     }
+    if (instr.args[0].isReg() && instr.args[1].isImm() && instr.args[1].imm == 0) {
+      instr.op = Opcode::lxor2;
+      instr.n_args = 2;
+      instr.args[1] = instr.args[0];
+      return false;
+    }
   }
   case Opcode::cmov: {
     if (instr.args[0] == instr.args[2]) {
@@ -22,7 +28,6 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
     }
     // if both inputs are the same replace iwth basic move
     if (instr.args[1] == instr.args[2]) {
-      auto instr = instrs[instr_id];
       instr.op = Opcode::mov;
       instr.n_args = 2;
       return false;

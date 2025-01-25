@@ -4,6 +4,7 @@ project(foptim
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
 set(CMAKE_CXX_STANDARD 23)
 
+include(FetchContent)
 # set(CMAKE_CXX_CLANG_TIDY
 #   clang-tidy;
 #   # -format-style='file';
@@ -11,10 +12,25 @@ set(CMAKE_CXX_STANDARD 23)
 #   -header-filter=${CMAKE_CURRENT_SOURCE_DIR};
 # )
 
+
+################################################
+# fadec instruction evncoding library
+FetchContent_Declare(
+  fadec
+  GIT_REPOSITORY https://github.com/aengelke/fadec.git
+  GIT_TAG "master"
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS ON
+  SYSTEM
+)
+# more `FetchContent_Declare`s (if any). They should all be declared
+# before any calls to FetchContent_Make_available (see docs for why).
+
+FetchContent_MakeAvailable(fadec)
+
 ################################################
 #llvm
 find_package(LLVM REQUIRED CONFIG)
-
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 include_directories(${LLVM_INCLUDE_DIRS})
@@ -83,7 +99,7 @@ add_library (foptim
                 ./src/mir/optim/legalization.cpp
 
                 #codegen
-                ./src/x86_codegen/backend.cpp
+                ./src/x86_codegen/backend2.cpp
 
                 #utils
                 ./src/utils/logging.cpp
@@ -95,7 +111,7 @@ add_library (foptim
 
 target_compile_options(foptim PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_include_directories(foptim PUBLIC ./src/ ${LLVM_INCLUDE_DIRS})
-target_link_libraries(foptim PRIVATE ${llvm_libs} asmjit)
+target_link_libraries(foptim PRIVATE ${llvm_libs} asmjit fadec)
 
 
 

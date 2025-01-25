@@ -44,25 +44,29 @@ int main(int argc, char *argv[]) {
 
   parse_args(argc, argv);
 
-  // fir
   foptim::fir::Context ctx;
-  parse_llvm_ir(ctx);
-  optimize_fir(ctx);
+  {
 
-  // mir
-  foptim::FVec<foptim::fmir::MFunc> funcs;
-  foptim::FVec<foptim::fmir::Global> globals;
-  foptim::FVec<foptim::IRString> decls;
-  for (auto &[decl, f] : ctx.data->storage.functions) {
-    if (f.is_decl()) {
-      decls.push_back(decl);
-    }
+    // fir
+    parse_llvm_ir(ctx);
+    optimize_fir(ctx);
   }
-  lower_to_mir(ctx, funcs, globals);
-  optimize_mir(funcs, globals);
+  {
+    // mir
+    foptim::FVec<foptim::fmir::MFunc> funcs;
+    foptim::FVec<foptim::fmir::Global> globals;
+    foptim::FVec<foptim::IRString> decls;
+    for (auto &[decl, f] : ctx.data->storage.functions) {
+      if (f.is_decl()) {
+        decls.push_back(decl);
+      }
+    }
+    lower_to_mir(ctx, funcs, globals);
+    optimize_mir(funcs, globals);
 
-  // asm
-  codegen(funcs, decls, globals);
+    // asm
+    codegen(funcs, decls, globals);
+  }
 
   // cleanup
   ctx.free();
@@ -95,7 +99,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
