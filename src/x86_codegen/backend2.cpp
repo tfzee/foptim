@@ -488,12 +488,12 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, uint8_t *start_txt,
   (void)globals;
 
   elfio writer;
-
-  writer.create(ELFCLASS64, ELFDATA2LSB);
-
-  writer.set_os_abi(ELFOSABI_LINUX);
-  writer.set_type(ET_REL);
-  writer.set_machine(EM_X86_64);
+  {
+    writer.create(ELFCLASS64, ELFDATA2LSB);
+    writer.set_os_abi(ELFOSABI_LINUX);
+    writer.set_type(ET_REL);
+    writer.set_machine(EM_X86_64);
+  }
 
   // code section
   section *text_sec = writer.sections.add(".text");
@@ -511,20 +511,33 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, uint8_t *start_txt,
   string_section_accessor stra(str_sec);
 
   section *sym_sec = writer.sections.add(".symtab");
-  sym_sec->set_type(SHT_SYMTAB);
-  sym_sec->set_info(1);
-  sym_sec->set_addr_align(0x4);
-  sym_sec->set_entry_size(writer.get_default_entry_size(SHT_SYMTAB));
-  sym_sec->set_link(str_sec->get_index());
+  {
+    sym_sec->set_type(SHT_SYMTAB);
+    sym_sec->set_info(1);
+    sym_sec->set_addr_align(0x4);
+    sym_sec->set_entry_size(writer.get_default_entry_size(SHT_SYMTAB));
+    sym_sec->set_link(str_sec->get_index());
+  }
   symbol_section_accessor syma(writer, sym_sec);
 
   section *rel_sec = writer.sections.add(".rel.text");
-  rel_sec->set_type(SHT_RELA);
-  rel_sec->set_info(text_sec->get_index());
-  rel_sec->set_addr_align(0x4);
-  rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
-  rel_sec->set_link(sym_sec->get_index());
+  {
+    rel_sec->set_type(SHT_RELA);
+    rel_sec->set_info(text_sec->get_index());
+    rel_sec->set_addr_align(0x4);
+    rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
+    rel_sec->set_link(sym_sec->get_index());
+  }
   relocation_section_accessor rela(writer, rel_sec);
+
+  section *data_sec = writer.sections.add(".data");
+  {
+    data_sec->set_type(SHT_PROGBITS);
+    data_sec->set_flags(SHF_ALLOC | SHF_WRITE);
+    data_sec->set_addr_align(0x4);
+    char data[] = {'\x00'};
+    data_sec->set_data(data, sizeof(data));
+  }
 
   for (auto [label_name, label_data] : label_usage_map.label_map) {
     auto symbol = syma.add_symbol(
@@ -536,15 +549,13 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, uint8_t *start_txt,
                      (unsigned char)R_X86_64_PLT32, -4);
     }
   }
-  utils::Debug << "NUM: " << rela.get_entries_num() << "\n";
 
-  section *data_sec = writer.sections.add(".data");
-  data_sec->set_type(SHT_PROGBITS);
-  data_sec->set_flags(SHF_ALLOC | SHF_WRITE);
-  data_sec->set_addr_align(0x4);
+  section *note_gnu_stack_sec = writer.sections.add(".note.GNU-stack");
+  {// section .note.GNU-stack noalloc noexec nowrite progbits
+    note_gnu_stack_sec->set_type(SHT_PROGBITS);
+    // note_section_accessor note_writer(writer, note_gnu_stack_sec);
+  } 
 
-  char data[] = {'\x00'};
-  data_sec->set_data(data, sizeof(data));
 
   section *note_sec = writer.sections.add(".note");
   {
