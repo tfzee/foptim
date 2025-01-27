@@ -10,32 +10,45 @@
 
 namespace foptim::codegen {
 
+enum class RelocSection : u8 {
+  INVALID,
+  Data,
+  Text,
+};
+
 struct LabelRelocData {
-  uint64_t def_loc = 0;
-  uint64_t size = 0;
-  TVec<uint64_t> usage_loc;
+  struct Usage {
+    // absolute location *inside* of the section
+    u64 usage_loc;
+    RelocSection usage_section = RelocSection::INVALID;
+  };
+
+  // absolute location *inside* of the section
+  u64 def_loc = 0;
+  RelocSection section = RelocSection::INVALID;
+  u64 size = 0;
+  TVec<Usage> usage_loc;
 };
 
 struct BBRelocData {
-  uint64_t def_loc = 0;
-  TVec<std::pair<uint64_t, uint64_t>> usage_loc;
+  u64 def_loc = 0;
+  TVec<std::pair<u64, u64>> usage_loc;
 };
 
 struct TLabelUsageMap {
   TMap<IRString, LabelRelocData> label_map;
   TMap<u32, BBRelocData> bb_map;
 
-  void insert_label_ref(const IRString &label, uint64_t loc) {
-    label_map[label].usage_loc.push_back(loc);
+  void insert_label_ref(const IRString &label, u64 loc, RelocSection section) {
+    label_map[label].usage_loc.push_back({loc, section});
   }
 
-  void insert_bb_ref(u32 bb_id, uint64_t memonic, uint64_t loc) {
+  void insert_bb_ref(u32 bb_id, u64 memonic, u64 loc) {
     bb_map[bb_id].usage_loc.emplace_back(memonic, loc);
   }
 };
 
-template <class OutType = int64_t>
-OutType convert_imm(fmir::MArgument const &arg) {
+template <class OutType = i64> OutType convert_imm(fmir::MArgument const &arg) {
   // utils::Debug << " imm arg:" << arg << "\n";
   assert(arg.isImm());
 
@@ -45,9 +58,31 @@ OutType convert_imm(fmir::MArgument const &arg) {
   return (OutType)arg.imm;
 }
 
-FeOp convert_mem(fmir::MArgument const &arg) {
-  // utils::Debug << " mem arg: " << arg << "\n";
+FeOp convert_mem(fmir::MArgument const &arg, TLabelUsageMap &label_usages,
+                 u64 curr_off) {
+  utils::Debug << " mem arg: " << arg << "\n";
   assert(arg.isMem());
+
+  switch (arg.type) {
+  case fmir::MArgument::ArgumentType::Imm:
+  case fmir::MArgument::ArgumentType::VReg:
+  case fmir::MArgument::ArgumentType::Label:
+    UNREACH();
+  case fmir::MArgument::ArgumentType::MemLabel:
+    // TODO: figure out which section its from
+    label_usages.insert_label_ref(arg.label, curr_off, RelocSection::Text);
+  case fmir::MArgument::ArgumentType::MemVReg:
+  case fmir::MArgument::ArgumentType::MemVRegVReg:
+  case fmir::MArgument::ArgumentType::MemImm:
+  case fmir::MArgument::ArgumentType::MemImmVReg:
+  case fmir::MArgument::ArgumentType::MemImmVRegVReg:
+  case fmir::MArgument::ArgumentType::MemVRegVRegScale:
+  case fmir::MArgument::ArgumentType::MemImmVRegScale:
+  case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
+  case fmir::MArgument::ArgumentType::MemImmLabel:
+    utils::Debug << " mem_arg: " << arg << "\n";
+    TODO("okak");
+  }
   (void)arg;
   UNREACH();
 }
@@ -113,7 +148,8 @@ FeReg convert_reg(fmir::MArgument const &arg) {
   }
 }
 
-FeOp convert_arg(fmir::MArgument const &arg) {
+FeOp convert_arg(fmir::MArgument const &arg, TLabelUsageMap &label_usages,
+                 u64 curr_off) {
   if (arg.isImm()) {
     return convert_imm(arg);
   }
@@ -121,14 +157,14 @@ FeOp convert_arg(fmir::MArgument const &arg) {
     return convert_reg(arg);
   }
   if (arg.isMem()) {
-    return convert_mem(arg);
+    return convert_mem(arg, label_usages, curr_off);
   }
   utils::Debug << " arg: " << arg << "\n";
   IMPL("dont think i need this");
 }
 
-[[noreturn]] uint64_t undef_instr2(fmir::MArgument a1, fmir::MArgument a2,
-                                   const char *filename, u64 line) {
+[[noreturn]] u64 undef_instr2(fmir::MArgument a1, fmir::MArgument a2,
+                              const char *filename, u64 line) {
   utils::Debug << "Args were: " << a1 << " and " << a2 << "\n";
   foptim::todo_impl("UNDEF INSTR\n", filename, line);
 }
@@ -150,7 +186,7 @@ FeOp convert_arg(fmir::MArgument const &arg) {
 #define FE_CMOVZ64mr UNDEF_INSTR
 
 #define genGetMem2(mem)                                                        \
-  uint64_t getMem2##mem(fmir::MArgument a1, fmir::MArgument a2) {              \
+  u64 getMem2##mem(fmir::MArgument a1, fmir::MArgument a2) {                   \
     switch ((a1).type) {                                                       \
     case fmir::MArgument::ArgumentType::Imm:                                   \
     case fmir::MArgument::ArgumentType::Label:                                 \
@@ -229,7 +265,7 @@ FeOp convert_arg(fmir::MArgument const &arg) {
   }
 
 // #define genGetMem1RM(mem)                                                      \
-//   uint64_t getMem1##mem(fmir::MArgument a1) {                                  \
+//   u64 getMem1##mem(fmir::MArgument a1) {                                  \
 //     switch ((a1).type) {                                                       \
 //     case fmir::MArgument::ArgumentType::Imm:                                   \
 //     case fmir::MArgument::ArgumentType::Label:                                 \
@@ -288,10 +324,36 @@ genGetMem2(XOR);
 genGetMem2(OR);
 genGetMem2(CMOVZ);
 
-uint32_t emit_instr(uint8_t **buffptr, fmir::MInstr const &instr,
-                    TLabelUsageMap &label_usages) {
-  (void)label_usages;
+// TODO: THIS IS INSANELY DUMB BUT UNLESS THE LiBRARY EXPOSES THIS I GUEsS THIS
+// WORKS
+u8 *get_arg_offset(u8 *buffer, u8 n_args, u8 arg_id) {
+  FdInstr instr;
+  int ret = fd_decode(buffer, 16, 64, 0, &instr);
+  ASSERT(ret > 0);
+  ASSERT(ret == FD_SIZE(&instr));
 
+  FD_TYPE(&instr);
+  FD_TYPE(&instr);
+  TODO("okak");
+  u8 instr_size = ret;
+  u8 opcode_size = instr_size;
+  u8 op_sizes[4] = {0, 0, 0, 0};
+  ASSERT(n_args <= 4);
+  for (auto i = 0; i < n_args; i++) {
+    auto op_size = FD_OP_SIZE(&instr, i);
+    opcode_size -= op_size;
+    op_sizes[i] = op_size;
+  }
+
+  u8 offset = opcode_size;
+  for (auto i = 0; i < arg_id; i++) {
+    offset += op_sizes[i];
+  }
+  return buffer + offset;
+}
+
+u32 emit_instr(u8 **buffptr, fmir::MInstr const &instr,
+               TLabelUsageMap &label_usages, const u8 *base_ptr) {
   switch (instr.op) {
   case fmir::Opcode::push:
     return fe_enc64(buffptr, FE_PUSHr, convert_reg(instr.args[0]));
@@ -299,60 +361,70 @@ uint32_t emit_instr(uint8_t **buffptr, fmir::MInstr const &instr,
     return fe_enc64(buffptr, FE_POPr, convert_reg(instr.args[0]));
   case fmir::Opcode::jmp:
     assert(instr.has_bb_ref);
-    label_usages.insert_bb_ref(instr.bb_ref, FE_JMP | FE_JMPL,
-                               (uint64_t)*buffptr);
+    label_usages.insert_bb_ref(instr.bb_ref, FE_JMP | FE_JMPL, (u64)*buffptr);
     return fe_enc64(buffptr, FE_JMP | FE_JMPL, (FeOp)*buffptr);
   case fmir::Opcode::call:
     if (instr.args[0].isLabel()) {
       label_usages.insert_label_ref(instr.args[0].label,
-                                    (uint64_t)*buffptr + 1);
+                                    (u64)*buffptr + 1 - (u64)base_ptr,
+                                    RelocSection::Text);
       return fe_enc64(buffptr, FE_CALL, (FeOp)*buffptr);
     } else {
-      return fe_enc64(buffptr, FE_CALLr, convert_arg(instr.args[0]));
+      return fe_enc64(buffptr, FE_CALLr, convert_reg(instr.args[0]));
     }
   case fmir::Opcode::ret:
     return fe_enc64(buffptr, FE_RET);
   case fmir::Opcode::mov:
-    return fe_enc64(buffptr, getMem2MOV(instr.args[0], instr.args[1]),
-                    convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+    return fe_enc64(
+        buffptr, getMem2MOV(instr.args[0], instr.args[1]),
+        convert_arg(instr.args[0], label_usages, get_arg_offset(, , )),
+        convert_arg(instr.args[1], label_usages));
   case fmir::Opcode::land2:
     return fe_enc64(buffptr, getMem2AND(instr.args[0], instr.args[1]),
-                    convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+                    convert_arg(instr.args[0], label_usages),
+                    convert_arg(instr.args[1], label_usages));
   case fmir::Opcode::add2:
     return fe_enc64(buffptr, getMem2ADD(instr.args[0], instr.args[1]),
-                    convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+                    convert_arg(instr.args[0], label_usages),
+                    convert_arg(instr.args[1], label_usages));
   case fmir::Opcode::sub2:
     return fe_enc64(buffptr, getMem2SUB(instr.args[0], instr.args[1]),
-                    convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+                    convert_arg(instr.args[0], label_usages),
+                    convert_arg(instr.args[1], label_usages));
   case fmir::Opcode::lor2:
     return fe_enc64(buffptr, getMem2OR(instr.args[0], instr.args[1]),
-                    convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+                    convert_arg(instr.args[0], label_usages),
+                    convert_arg(instr.args[1], label_usages));
   case fmir::Opcode::lxor2:
     return fe_enc64(buffptr, getMem2XOR(instr.args[0], instr.args[1]),
-                    convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+                    convert_arg(instr.args[0], label_usages),
+                    convert_arg(instr.args[1], label_usages));
   case fmir::Opcode::icmp_eq:
     fe_enc64(buffptr, getMem2CMP(instr.args[1], instr.args[2]),
-             convert_arg(instr.args[1]), convert_arg(instr.args[2]));
+             convert_arg(instr.args[1], label_usages),
+             convert_arg(instr.args[2], label_usages));
     return fe_enc64(buffptr, instr.args[0].isReg() ? FE_SETZ8r : FE_SETZ8m,
-                    convert_arg(instr.args[0]));
+                    convert_arg(instr.args[0], label_usages));
   case fmir::Opcode::cmov:
     fe_enc64(buffptr, getMem2CMP(instr.args[1], instr.args[1]),
-             convert_arg(instr.args[1]), convert_arg(instr.args[1]));
+             convert_arg(instr.args[1], label_usages),
+             convert_arg(instr.args[1], label_usages));
     return fe_enc64(buffptr, getMem2CMOVZ(instr.args[0], instr.args[2]),
-                    convert_arg(instr.args[0]), convert_arg(instr.args[2]));
+                    convert_arg(instr.args[0], label_usages),
+                    convert_arg(instr.args[2], label_usages));
   case fmir::Opcode::cjmp_int_ult:
     fe_enc64(buffptr, getMem2CMP(instr.args[0], instr.args[1]),
-             convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+             convert_arg(instr.args[0], label_usages),
+             convert_arg(instr.args[1], label_usages));
     assert(instr.has_bb_ref);
-    label_usages.insert_bb_ref(instr.bb_ref, FE_JC | FE_JMPL,
-                               (uint64_t)*buffptr);
+    label_usages.insert_bb_ref(instr.bb_ref, FE_JC | FE_JMPL, (u64)*buffptr);
     return fe_enc64(buffptr, FE_JC | FE_JMPL, (FeOp)*buffptr);
   case fmir::Opcode::cjmp_int_ule:
     fe_enc64(buffptr, getMem2CMP(instr.args[0], instr.args[1]),
-             convert_arg(instr.args[0]), convert_arg(instr.args[1]));
+             convert_arg(instr.args[0], label_usages),
+             convert_arg(instr.args[1], label_usages));
     assert(instr.has_bb_ref);
-    label_usages.insert_bb_ref(instr.bb_ref, FE_JBE | FE_JMPL,
-                               (uint64_t)*buffptr);
+    label_usages.insert_bb_ref(instr.bb_ref, FE_JBE | FE_JMPL, (u64)*buffptr);
     return fe_enc64(buffptr, FE_JBE | FE_JMPL, (FeOp)*buffptr);
   case fmir::Opcode::cjmp:
   case fmir::Opcode::mov_zx:
@@ -428,10 +500,17 @@ uint32_t emit_instr(uint8_t **buffptr, fmir::MInstr const &instr,
   }
 }
 
-uint8_t *assemble(std::span<const fmir::MFunc> funcs, uint8_t *output_buffer,
-                  TLabelUsageMap &label_usages) {
+u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *output_buffer,
+             TLabelUsageMap &label_usages) {
 
   auto *curr_buf_ptr = output_buffer;
+
+  // inserting all functions prior so we can check later one if a label is a
+  // function or is from a data segment
+  for (const auto &func : funcs) {
+    label_usages.label_map[func.name].section = RelocSection::Text;
+  }
+
   for (const auto &func : funcs) {
     // first we need to align it
     auto off = ((curr_buf_ptr - output_buffer) % 0x10);
@@ -444,14 +523,14 @@ uint8_t *assemble(std::span<const fmir::MFunc> funcs, uint8_t *output_buffer,
     }
 
     const auto *func_start_buf_ptr = curr_buf_ptr;
-    label_usages.label_map[func.name].def_loc = (uint64_t)curr_buf_ptr;
+    label_usages.label_map[func.name].def_loc = curr_buf_ptr - output_buffer;
     size_t bb_id = 0;
 
     for (const auto &bb : func.bbs) {
-      label_usages.bb_map[bb_id].def_loc = (uint64_t)curr_buf_ptr;
+      label_usages.bb_map[bb_id].def_loc = (u64)curr_buf_ptr;
       bb_id++;
       for (const auto &instr : bb.instrs) {
-        emit_instr(&curr_buf_ptr, instr, label_usages);
+        emit_instr(&curr_buf_ptr, instr, label_usages, output_buffer);
       }
     }
     const auto *func_end_buf_ptr = curr_buf_ptr;
@@ -462,11 +541,11 @@ uint8_t *assemble(std::span<const fmir::MFunc> funcs, uint8_t *output_buffer,
       assert(bb_usage.def_loc != 0);
       for (auto [instr_mem, usage_loc] : bb_usage.usage_loc) {
 
-        auto *usage_loc_ptr = (uint8_t *)usage_loc;
+        auto *usage_loc_ptr = (u8 *)usage_loc;
         assert(fe_enc64(&usage_loc_ptr, instr_mem, bb_usage.def_loc) == 0);
 
         // FdInstr instr;
-        // assert(fd_decode((uint8_t *)usage_loc, 16, 64, 0, &instr) > 0);
+        // assert(fd_decode((u8 *)usage_loc, 16, 64, 0, &instr) > 0);
         // char fmtbuf[64];
         // fd_format(&instr, fmtbuf, sizeof(fmtbuf));
         // utils::Debug << usageloc << " Usage of bb: " << fmtbuf << "\n";
@@ -477,8 +556,8 @@ uint8_t *assemble(std::span<const fmir::MFunc> funcs, uint8_t *output_buffer,
   return curr_buf_ptr;
 }
 
-void generate_obj_file(TLabelUsageMap &label_usage_map, uint8_t *start_txt,
-                       uint8_t *end_txt, std::span<const IRString> decls,
+void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
+                       u8 *end_txt, std::span<const IRString> decls,
                        std::span<const fmir::Global> globals) {
   using namespace ELFIO;
   (void)label_usage_map;
@@ -520,15 +599,15 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, uint8_t *start_txt,
   }
   symbol_section_accessor syma(writer, sym_sec);
 
-  section *rel_sec = writer.sections.add(".rel.text");
+  section *text_rel_sec = writer.sections.add(".rel.text");
   {
-    rel_sec->set_type(SHT_RELA);
-    rel_sec->set_info(text_sec->get_index());
-    rel_sec->set_addr_align(0x4);
-    rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
-    rel_sec->set_link(sym_sec->get_index());
+    text_rel_sec->set_type(SHT_RELA);
+    text_rel_sec->set_info(text_sec->get_index());
+    text_rel_sec->set_addr_align(0x4);
+    text_rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
+    text_rel_sec->set_link(sym_sec->get_index());
   }
-  relocation_section_accessor rela(writer, rel_sec);
+  relocation_section_accessor text_rela(writer, text_rel_sec);
 
   section *data_sec = writer.sections.add(".data");
   {
@@ -539,23 +618,61 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, uint8_t *start_txt,
     data_sec->set_data(data, sizeof(data));
   }
 
+  section *data_rel_sec = writer.sections.add(".rel.data");
+  {
+    data_rel_sec->set_type(SHT_RELA);
+    data_rel_sec->set_info(data_sec->get_index());
+    data_rel_sec->set_addr_align(0x4);
+    data_rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
+    data_rel_sec->set_link(sym_sec->get_index());
+  }
+  relocation_section_accessor data_rela(writer, data_rel_sec);
+
   for (auto [label_name, label_data] : label_usage_map.label_map) {
-    auto symbol = syma.add_symbol(
-        stra, label_name.c_str(), label_data.def_loc - (uint64_t)start_txt,
-        label_data.size, STB_GLOBAL, STT_FUNC, 0, text_sec->get_index());
+    ASSERT(label_data.section != RelocSection::INVALID);
+
+    Elf_Half sec_indx = 0;
+    Elf_Word symbol_type = STT_FUNC;
+    Elf_Word symbol_binding = STB_GLOBAL;
+    switch (label_data.section) {
+    case RelocSection::INVALID:
+      UNREACH();
+    case RelocSection::Data:
+      sec_indx = data_sec->get_index();
+      symbol_type = STT_OBJECT;
+      break;
+    case RelocSection::Text:
+      sec_indx = text_sec->get_index();
+      symbol_type = STT_FUNC;
+      break;
+    }
+
+    auto symbol = syma.add_symbol(stra, label_name.c_str(), label_data.def_loc,
+                                  label_data.size, symbol_binding, symbol_type,
+                                  0, sec_indx);
 
     for (auto loc : label_data.usage_loc) {
-      rela.add_entry(loc - (uint64_t)start_txt, symbol,
-                     (unsigned char)R_X86_64_PLT32, -4);
+      ASSERT(loc.usage_section != RelocSection::INVALID);
+      switch (loc.usage_section) {
+      case RelocSection::INVALID:
+        UNREACH();
+      case RelocSection::Data:
+        data_rela.add_entry(loc.usage_loc, symbol,
+                            (unsigned char)R_X86_64_PLT32, -4);
+        break;
+      case RelocSection::Text:
+        text_rela.add_entry(loc.usage_loc, symbol,
+                            (unsigned char)R_X86_64_PLT32, -4);
+        break;
+      }
     }
   }
 
   section *note_gnu_stack_sec = writer.sections.add(".note.GNU-stack");
-  {// section .note.GNU-stack noalloc noexec nowrite progbits
+  { // section .note.GNU-stack noalloc noexec nowrite progbits
     note_gnu_stack_sec->set_type(SHT_PROGBITS);
     // note_section_accessor note_writer(writer, note_gnu_stack_sec);
-  } 
-
+  }
 
   section *note_sec = writer.sections.add(".note");
   {
@@ -565,7 +682,15 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, uint8_t *start_txt,
   }
 
   syma.arrange_local_symbols([&](Elf_Xword first, Elf_Xword second) {
-    rela.swap_symbols(first, second);
+    Elf64_Addr off;
+    Elf_Word symbol;
+    unsigned char type;
+    Elf_Sxword addend;
+    if (!text_rela.get_entry(first, off, symbol, type, addend)) {
+      text_rela.swap_symbols(first, second);
+    } else if (!data_rela.get_entry(first, off, symbol, type, addend)) {
+      data_rela.swap_symbols(first, second);
+    }
   });
 
   writer.save("hello.o");
@@ -582,7 +707,7 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
     }
   }
 
-  auto *output_buffer = utils::TempAlloc<uint8_t>{}.allocate(n_instrs * 16);
+  auto *output_buffer = utils::TempAlloc<u8>{}.allocate(n_instrs * 16);
   TLabelUsageMap label_usages;
   auto *end_buff_ptr = assemble(funcs, output_buffer, label_usages);
 

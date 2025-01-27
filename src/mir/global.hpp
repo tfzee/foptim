@@ -7,6 +7,7 @@ namespace foptim::fmir {
 
 struct Global {
   IRString name;
+  //TODO: alignment
   FVec<u8> data;
 };
 

@@ -3,6 +3,10 @@
 
 
 namespace foptim::utils {
+template<class T>
+struct Hex{
+  T value;
+};
 
 class Printer {
 public:
@@ -17,7 +21,11 @@ public:
 
   u8 indent;
   LogLevel level;
-
+  template<class T>
+  Printer operator<<(Hex<T> v) const{
+    printf("%#010x", v.value);
+    return *this;
+  }
   Printer operator<<(foptim::fir::FunctionR func) const;
   Printer operator<<(const foptim::fir::Function &func) const;
 

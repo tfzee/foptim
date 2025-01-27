@@ -15,18 +15,18 @@ include(FetchContent)
 
 ################################################
 # fadec instruction evncoding library
-FetchContent_Declare(
-  fadec
-  GIT_REPOSITORY https://github.com/aengelke/fadec.git
-  GIT_TAG "master"
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS ON
-  SYSTEM
-)
-# more `FetchContent_Declare`s (if any). They should all be declared
-# before any calls to FetchContent_Make_available (see docs for why).
+# FetchContent_Declare(
+#   fadec
+#   GIT_REPOSITORY https://github.com/aengelke/fadec.git
+#   GIT_TAG "master"
+#   GIT_SHALLOW TRUE
+#   GIT_PROGRESS ON
+#   SYSTEM
+# )
+# # more `FetchContent_Declare`s (if any). They should all be declared
+# # before any calls to FetchContent_Make_available (see docs for why).
 
-FetchContent_MakeAvailable(fadec)
+# FetchContent_MakeAvailable(fadec)
 
 ################################################
 #llvm
@@ -99,7 +99,9 @@ add_library (foptim
                 ./src/mir/optim/legalization.cpp
 
                 #codegen
-                ./src/x86_codegen/backend2.cpp
+                ./src/x86_codegen/backend3.cpp
+                ./src/x86_codegen/backend3_print.cpp
+                ./src/third_party/Zydis.c
 
                 #utils
                 ./src/utils/logging.cpp
@@ -109,9 +111,9 @@ add_library (foptim
 
                )
 
-target_compile_options(foptim PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-private-field -Wno-implicit-fallthrough)
+target_compile_options(foptim PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_include_directories(foptim PUBLIC ./src/ ${LLVM_INCLUDE_DIRS})
-target_link_libraries(foptim PRIVATE ${llvm_libs} asmjit fadec)
+target_link_libraries(foptim PRIVATE ${llvm_libs} asmjit)
 
 
 
