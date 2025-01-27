@@ -3,9 +3,10 @@
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
 #include "utils/arena.hpp"
+#include "utils/logging.hpp"
+#include "utils/parameters.hpp"
 #include <elfio/elf_types.hpp>
 #include <elfio/elfio.hpp>
-#include <memory>
 
 namespace foptim::codegen {
 
@@ -221,12 +222,26 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     operand.mem.scale = 0;
     operand.mem.size = get_size(arg.ty);
     return;
-  case fmir::MArgument::ArgumentType::MemVReg:
   case fmir::MArgument::ArgumentType::MemVRegVReg:
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = convert_reg(arg.reg);
+    operand.mem.displacement = 0;
+    operand.mem.index = convert_reg(arg.indx);
+    operand.mem.scale = 1;
+    operand.mem.size = get_size(arg.ty);
+    return;
+  case fmir::MArgument::ArgumentType::MemVRegVRegScale:
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = convert_reg(arg.reg);
+    operand.mem.displacement = 0;
+    operand.mem.index = convert_reg(arg.indx);
+    operand.mem.scale = 1 << arg.scale;
+    operand.mem.size = get_size(arg.ty);
+    return;
+  case fmir::MArgument::ArgumentType::MemVReg:
   case fmir::MArgument::ArgumentType::MemImm:
   case fmir::MArgument::ArgumentType::MemImmVReg:
   case fmir::MArgument::ArgumentType::MemImmVRegVReg:
-  case fmir::MArgument::ArgumentType::MemVRegVRegScale:
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
   case fmir::MArgument::ArgumentType::MemImmLabel:
@@ -406,13 +421,35 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
     return length + len2;
   }
-  case fmir::Opcode::mov_zx:
-  case fmir::Opcode::mov_sx:
-  case fmir::Opcode::itrunc:
   case fmir::Opcode::lea:
+    req.mnemonic = ZYDIS_MNEMONIC_LEA;
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
+  case fmir::Opcode::sar2:
+    req.mnemonic = ZYDIS_MNEMONIC_SAR;
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
+  case fmir::Opcode::mov_sx:
+    if (instr.args[0].ty == instr.args[1].ty) {
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    } else if (4 == get_size(instr.args[1].ty)) {
+      req.mnemonic = ZYDIS_MNEMONIC_MOVSXD;
+    } else {
+      req.mnemonic = ZYDIS_MNEMONIC_MOVSX;
+    }
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
+  case fmir::Opcode::mov_zx:
+    if (instr.args[0].ty == instr.args[1].ty) {
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    } else {
+      req.mnemonic = ZYDIS_MNEMONIC_MOVZX;
+    }
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
+  case fmir::Opcode::itrunc:
   case fmir::Opcode::shl2:
   case fmir::Opcode::shr2:
-  case fmir::Opcode::sar2:
   case fmir::Opcode::mul2:
   case fmir::Opcode::idiv:
   case fmir::Opcode::fadd:
@@ -472,7 +509,19 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   }
 }
 
-u8 *get_op_addr(u8 *buff, u8 op_num) {
+void diss_print(u8 *buff) {
+  ZydisDisassembledInstruction instruction;
+  ZY_ASS(ZydisDisassembleIntel(
+      /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
+      /* runtime_address: */ 0,
+      /* buffer:          */ buff,
+      /* length:          */ 999,
+      /* instruction:     */ &instruction));
+  utils::Debug << " DEBUG: " << instruction.text << "\n";
+}
+
+// returns the address of the operand + the offset till end of instruction
+std::pair<u8 *, u8> get_op_addr(u8 *buff, u8 op_num) {
   ZydisDecoder decoder;
   // TOOD: maybe dont do this inside of here so it can be done only once
   ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
@@ -488,34 +537,25 @@ u8 *get_op_addr(u8 *buff, u8 op_num) {
   assert(operands[op_num].type == ZYDIS_OPERAND_TYPE_IMMEDIATE ||
          operands[op_num].type == ZYDIS_OPERAND_TYPE_MEMORY);
 
-  size_t full_size = instruction.length;
-  size_t opcode_size = full_size;
-  size_t operand_sizes[ZYDIS_MAX_OPERAND_COUNT];
-  // TODO: might need to use operand cound visible ?
-  for (u32 i = 0; i < instruction.operand_count_visible; i++) {
-    auto size = operands[i].size / 8;
-    // utils::Debug << " oper size: "<< size << "\n";
-    operand_sizes[i] = size;
-    opcode_size -= size;
-  }
-  assert(operand_sizes[op_num] == 4);
+  bool is_imm = operands[op_num].type == ZYDIS_OPERAND_TYPE_IMMEDIATE;
+  ZydisInstructionSegments segments;
+  ZY_ASS(ZydisGetInstructionSegments(&instruction, &segments));
 
-  auto offset = opcode_size;
-  for (u32 i = 1; i < op_num; i++) {
-    offset += operand_sizes[i - 1];
-  }
-  return buff + offset;
-}
+  size_t op_off = 0;
 
-void diss_print(u8 *buff) {
-  ZydisDisassembledInstruction instruction;
-  ZY_ASS(ZydisDisassembleIntel(
-      /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
-      /* runtime_address: */ 0,
-      /* buffer:          */ buff,
-      /* length:          */ 999,
-      /* instruction:     */ &instruction));
-  utils::Debug << " DEBUG: " << instruction.text << "\n";
+  for (auto i = 0; i < segments.count; i++) {
+    auto &segment = segments.segments[i];
+    if (!is_imm && segment.type == ZYDIS_INSTR_SEGMENT_DISPLACEMENT) {
+      op_off = segment.offset;
+    }
+    if (is_imm && segment.type == ZYDIS_INSTR_SEGMENT_IMMEDIATE) {
+      op_off = segment.offset;
+    }
+  }
+
+  // diss_print(buff);
+  // utils::Debug << " op off " << op_off << "\n";
+  return {buff + op_off, instruction.length - op_off};
 }
 
 void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
@@ -718,7 +758,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
 
     for (auto loc : label_data.usage_loc) {
       ASSERT(loc.usage_section != RelocSection::INVALID);
-      auto *op_addr = get_op_addr(loc.usage_instr, loc.operand_num);
+      auto [op_addr, op_off] = get_op_addr(loc.usage_instr, loc.operand_num);
       switch (loc.usage_section) {
       case RelocSection::INVALID:
         UNREACH();
@@ -733,11 +773,11 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           UNREACH();
         case RelocSection::Data:
           text_rela.add_entry(op_addr - start_txt, symbol,
-                              (unsigned char)R_X86_64_PC32, -8);
+                              (unsigned char)R_X86_64_PC32, -op_off);
           break;
         case RelocSection::Text:
           text_rela.add_entry(op_addr - start_txt, symbol,
-                              (unsigned char)R_X86_64_PLT32, -4);
+                              (unsigned char)R_X86_64_PLT32, -op_off);
           break;
         }
         break;
@@ -769,7 +809,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     }
   });
 
-  ASSERT(writer.save("hello.o"));
+  ASSERT(writer.save(utils::out_file_path));
 }
 
 void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
