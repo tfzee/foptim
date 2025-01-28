@@ -196,4 +196,5 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
   }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, decls, globals);
+  foptim::utils::Debug << "Done!";
 }

@@ -239,12 +239,47 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     operand.mem.size = get_size(arg.ty);
     return;
   case fmir::MArgument::ArgumentType::MemVReg:
-  case fmir::MArgument::ArgumentType::MemImm:
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = convert_reg(arg.reg);
+    operand.mem.displacement = 0;
+    operand.mem.index = ZYDIS_REGISTER_NONE;
+    operand.mem.scale = 0;
+    operand.mem.size = get_size(arg.ty);
+    return;
   case fmir::MArgument::ArgumentType::MemImmVReg:
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = convert_reg(arg.reg);
+    operand.mem.displacement = arg.imm;
+    operand.mem.index = ZYDIS_REGISTER_NONE;
+    operand.mem.scale = 0;
+    operand.mem.size = get_size(arg.ty);
+    return;
+  case fmir::MArgument::ArgumentType::MemImm:
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = ZYDIS_REGISTER_NONE;
+    operand.mem.displacement = arg.imm;
+    operand.mem.index = ZYDIS_REGISTER_NONE;
+    operand.mem.scale = 0;
+    operand.mem.size = get_size(arg.ty);
+    return;
   case fmir::MArgument::ArgumentType::MemImmVRegVReg:
-  case fmir::MArgument::ArgumentType::MemImmVRegScale:
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = convert_reg(arg.reg);
+    operand.mem.displacement = arg.imm;
+    operand.mem.index = convert_reg(arg.indx);
+    operand.mem.scale = 1;
+    operand.mem.size = get_size(arg.ty);
+    return;
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = convert_reg(arg.reg);
+    operand.mem.displacement = arg.imm;
+    operand.mem.index = convert_reg(arg.indx);
+    operand.mem.scale = 1 << arg.scale;
+    operand.mem.size = get_size(arg.ty);
+    return;
   case fmir::MArgument::ArgumentType::MemImmLabel:
+  case fmir::MArgument::ArgumentType::MemImmVRegScale:
     utils::Debug << "impl operand: " << arg << "\n";
     TODO("");
   }
@@ -283,11 +318,31 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.mnemonic = ZYDIS_MNEMONIC_CALL;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
-  case fmir::Opcode::ret:
+  case fmir::Opcode::ret: { // do the epilogue
+    size_t length2 = 999;
+    size_t length3 = 999;
+    ZydisEncoderRequest req;
+    memset(&req, 0, sizeof(req));
+    req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+    req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
+
+    req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    req.operand_count = 2;
+    req.operands[0].reg.value = ZYDIS_REGISTER_RSP;
+    req.operands[1].reg.value = ZYDIS_REGISTER_RBP;
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length3));
+
+    req.mnemonic = ZYDIS_MNEMONIC_POP;
+    req.operand_count = 1;
+    req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length3, &length2));
+
     req.mnemonic = ZYDIS_MNEMONIC_RET;
     req.operand_count = 0;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length2 + length3,
+                                         &length));
+    return length + length3 + length2;
+  }
   case fmir::Opcode::push:
     req.mnemonic = ZYDIS_MNEMONIC_PUSH;
     assert(req.operand_count == 1);
@@ -600,7 +655,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
 
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    {
+    { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;
       if (align_offset != 0) {
@@ -614,6 +669,29 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
     reloc_map.label_map[func.name].def_loc = curr_loc - out_buff;
     reloc_map.label_map[func.name].section = RelocSection::Text;
     reloc_map.label_map[func.name].kind = RelocKind::Func;
+
+    // prologue
+    {
+      size_t length = 999;
+      ZydisEncoderRequest req;
+      memset(&req, 0, sizeof(req));
+      req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
+
+      req.mnemonic = ZYDIS_MNEMONIC_PUSH;
+      req.operand_count = 1;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, curr_loc, &length));
+      curr_loc += length;
+      length = 999;
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+      req.operand_count = 2;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
+      req.operands[1].reg.value = ZYDIS_REGISTER_RSP;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, curr_loc, &length));
+      curr_loc += length;
+    }
 
     u64 bb_id = 0;
     for (const auto &bb : func.bbs) {
@@ -850,7 +928,6 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
       runtime_address += instruction.info.length;
     }
   }
-  utils::Debug << " yut\n";
 }
 
 } // namespace foptim::codegen
