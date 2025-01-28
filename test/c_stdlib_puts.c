@@ -1,6 +1,6 @@
 // RUN: clang -O0 %s -o %t.ll -S -emit-llvm
-// RUN: %foffcc %t.ll %t.ss
-// RUN: nasm %t.ss -felf64 -g -F dwarf && gcc %t.o -o %t.out
+// RUN: %foffcc %t.ll %t.o
+// RUN: clang %t.o -o %t.out
 // RUN: %t.out | FileCheck %s
 
 // CHECK: aaaa

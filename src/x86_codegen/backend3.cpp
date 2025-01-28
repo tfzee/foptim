@@ -365,6 +365,17 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     reloc_map.insert_bb_ref(instr.bb_ref, out_buff, 0, RelocSection::Text);
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
+  case fmir::Opcode::mul2:
+    req.mnemonic = ZYDIS_MNEMONIC_IMUL;
+    // TODO: need to check if its fits correclty
+    if (req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
+        instr.args[1].imm < 60000) {
+      req.operands[2] = req.operands[1];
+      req.operands[1] = req.operands[0];
+      req.operand_count = 3;
+    }
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
   case fmir::Opcode::add2:
     req.mnemonic = ZYDIS_MNEMONIC_ADD;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
@@ -505,7 +516,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::itrunc:
   case fmir::Opcode::shl2:
   case fmir::Opcode::shr2:
-  case fmir::Opcode::mul2:
   case fmir::Opcode::idiv:
   case fmir::Opcode::fadd:
   case fmir::Opcode::fsub:
