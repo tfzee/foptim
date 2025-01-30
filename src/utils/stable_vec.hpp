@@ -7,8 +7,9 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
-#include <Tracy/tracy/Tracy.hpp>
+#include <tracy/Tracy.hpp>
 
 namespace foptim::utils {
 

@@ -1,8 +1,5 @@
-
-
 #pragma once
 #include "mir/func.hpp"
-#include <Tracy/tracy/Tracy.hpp>
 
 namespace foptim::fmir {
 

@@ -6,7 +6,7 @@
 #include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/helpers.hpp"
-#include <Tracy/tracy/Tracy.hpp>
+#include <tracy/Tracy.hpp>
 #include <deque>
 
 namespace foptim::optim {

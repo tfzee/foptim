@@ -1,5 +1,5 @@
 #pragma once
-#include <Tracy/tracy/Tracy.hpp>
+#include <tracy/Tracy.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <memory>

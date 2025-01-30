@@ -17,6 +17,7 @@ enum class RelocSection : u8 {
   INVALID,
   Data,
   Text,
+  Extern,
 };
 enum class RelocKind : u8 {
   INVALID,
@@ -183,15 +184,39 @@ ZydisRegister convert_reg(const fmir::VReg &reg) {
   }
 }
 
+ZydisRegister reg_with_size(fmir::VReg reg, u8 new_size) {
+  reg.info.reg_size = new_size;
+  return convert_reg(reg);
+}
+
 void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
                   TLabelUsageMap &reloc_map, u8 *instr_ptr, u8 arg_id) {
   switch (arg.type) {
   case fmir::MArgument::ArgumentType::Imm:
     operand.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
     if (arg.is_fp()) {
-      operand.imm.u = (u64)arg.immf;
     } else {
-      operand.imm.u = arg.imm;
+      switch (arg.ty) {
+      case fmir::Type::INVALID:
+      case fmir::Type::Int8:
+        operand.imm.s = (i8)arg.imm;
+        break;
+      case fmir::Type::Int16:
+        operand.imm.s = (i16)arg.imm;
+        break;
+      case fmir::Type::Int32:
+        operand.imm.s = (i32)arg.imm;
+        break;
+      case fmir::Type::Int64:
+        operand.imm.s = (i64)arg.imm;
+        break;
+      case fmir::Type::Float32:
+        operand.imm.s = (u32)arg.immf;
+        break;
+      case fmir::Type::Float64:
+        operand.imm.u = (u64)arg.immf;
+        break;
+      }
     }
     return;
   case fmir::MArgument::ArgumentType::VReg:
@@ -301,12 +326,12 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   size_t length = 999;
   ZydisEncoderRequest req;
   memset(&req, 0, sizeof(req));
-  // utils::Debug << "Convert: " << instr << "\n";
+  utils::Debug << "Convert: " << instr << "\n";
   req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
   req.operand_count = instr.n_args;
   for (auto i = 0; i < req.operand_count; i++) {
     emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
-    // utils::Debug << "   With Op:" << req.operands[i] << "\n";
+    utils::Debug << "   With Op:" << req.operands[i] << "\n";
   }
 
   switch (instr.op) {
@@ -405,6 +430,15 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.mnemonic = ZYDIS_MNEMONIC_XOR;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
+  case fmir::Opcode::icmp_slt:
+  case fmir::Opcode::icmp_ult:
+  case fmir::Opcode::icmp_ne:
+  case fmir::Opcode::icmp_sgt:
+  case fmir::Opcode::icmp_uge:
+  case fmir::Opcode::icmp_ule:
+  case fmir::Opcode::icmp_sge:
+  case fmir::Opcode::icmp_sle:
+  case fmir::Opcode::icmp_ugt:
   case fmir::Opcode::icmp_eq: {
     auto targ = req.operands[0];
     auto a = req.operands[1];
@@ -415,7 +449,48 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.operand_count = 2;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     size_t len2 = 32;
-    req.mnemonic = ZYDIS_MNEMONIC_SETZ;
+    req.mnemonic = ZYDIS_MNEMONIC_INVALID;
+
+    switch (instr.op) {
+    case fmir::Opcode::icmp_slt:
+      TODO("");
+      req.mnemonic = ZYDIS_MNEMONIC_INVALID;
+      break;
+    case fmir::Opcode::icmp_ult:
+      req.mnemonic = ZYDIS_MNEMONIC_SETB;
+      break;
+    case fmir::Opcode::icmp_ne:
+      TODO("");
+      req.mnemonic = ZYDIS_MNEMONIC_INVALID;
+      break;
+    case fmir::Opcode::icmp_sgt:
+      TODO("");
+      req.mnemonic = ZYDIS_MNEMONIC_INVALID;
+      break;
+    case fmir::Opcode::icmp_uge:
+      TODO("");
+      req.mnemonic = ZYDIS_MNEMONIC_INVALID;
+      break;
+    case fmir::Opcode::icmp_ule:
+      TODO("");
+      req.mnemonic = ZYDIS_MNEMONIC_SETBE;
+      break;
+    case fmir::Opcode::icmp_sge:
+      TODO("");
+      req.mnemonic = ZYDIS_MNEMONIC_INVALID;
+      break;
+    case fmir::Opcode::icmp_sle:
+      req.mnemonic = ZYDIS_MNEMONIC_SETLE;
+      break;
+    case fmir::Opcode::icmp_ugt:
+      req.mnemonic = ZYDIS_MNEMONIC_SETNBE;
+      break;
+    case fmir::Opcode::icmp_eq:
+      req.mnemonic = ZYDIS_MNEMONIC_SETZ;
+      break;
+    default:
+      UNREACH();
+    }
     req.operands[0] = targ;
     req.operand_count = 1;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
@@ -478,6 +553,24 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
     return length + len2;
   }
+  case fmir::Opcode::cjmp: {
+    size_t len2 = 999;
+    req.mnemonic = ZYDIS_MNEMONIC_TEST;
+    req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+    req.operands[1].imm.s = 0;
+    req.operand_count = 2;
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ASSERT(instr.has_bb_ref);
+    req.mnemonic = ZYDIS_MNEMONIC_JNZ;
+    req.branch_type = ZYDIS_BRANCH_TYPE_NEAR;
+    req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+    req.operands[0].imm.s = 0;
+    req.operand_count = 1;
+    reloc_map.insert_bb_ref(instr.bb_ref, out_buff + length, 0,
+                            RelocSection::Text);
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
+    return length + len2;
+  }
 
   case fmir::Opcode::cmov: {
     auto targ = req.operands[0];
@@ -520,16 +613,29 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int64 &&
                instr.args[1].ty == fmir::Type::Int32) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
-      auto increased_reg = instr.args[1].reg;
-      increased_reg.info.reg_size = 8;
-      req.operands[1].reg.value = convert_reg(increased_reg);
+      req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 8);
+      // auto increased_reg = instr.args[1].reg;
+      // increased_reg.info.reg_size = 8;
+      // req.operands[1].reg.value = convert_reg(increased_reg);
     } else {
       req.mnemonic = ZYDIS_MNEMONIC_MOVZX;
     }
-    utils::Debug << instr << "\n";
+    // utils::Debug << instr << "\n";
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
   case fmir::Opcode::itrunc:
+    req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int64) {
+      req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 8);
+    } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int32) {
+      req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 4);
+    } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int16) {
+      req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 2);
+    } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int8) {
+      req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 1);
+    }
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
   case fmir::Opcode::shl2:
   case fmir::Opcode::shr2:
   case fmir::Opcode::fadd:
@@ -544,15 +650,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::UI2FL:
   case fmir::Opcode::FL2SI:
   case fmir::Opcode::FL2UI:
-  case fmir::Opcode::icmp_slt:
-  case fmir::Opcode::icmp_ult:
-  case fmir::Opcode::icmp_ne:
-  case fmir::Opcode::icmp_sgt:
-  case fmir::Opcode::icmp_ugt:
-  case fmir::Opcode::icmp_uge:
-  case fmir::Opcode::icmp_ule:
-  case fmir::Opcode::icmp_sge:
-  case fmir::Opcode::icmp_sle:
   case fmir::Opcode::fcmp_oeq:
   case fmir::Opcode::fcmp_ogt:
   case fmir::Opcode::fcmp_oge:
@@ -581,7 +678,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::cjmp_flt_ult:
   case fmir::Opcode::cjmp_flt_ule:
   case fmir::Opcode::cjmp_flt_une:
-  case fmir::Opcode::cjmp:
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
     utils::Debug << " impl: " << instr << "\n";
@@ -742,11 +838,6 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                        u8 *end_txt, std::span<const IRString> decls,
                        std::span<const fmir::Global> globals) {
   using namespace ELFIO;
-  (void)label_usage_map;
-  (void)start_txt;
-  (void)end_txt;
-  (void)decls;
-  (void)globals;
 
   elfio writer;
   {
@@ -764,6 +855,13 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     text_sec->set_addr_align(0x10);
     text_sec->set_data((const char *)start_txt,
                        (size_t)end_txt - (size_t)start_txt);
+  }
+
+  for (auto &decl : decls) {
+    label_usage_map.label_map[decl].def_loc = 0;
+    label_usage_map.label_map[decl].kind = RelocKind::Func;
+    label_usage_map.label_map[decl].section = RelocSection::Extern;
+    label_usage_map.label_map[decl].size = 0;
   }
 
   // Create string table section
@@ -828,6 +926,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   relocation_section_accessor data_rela(writer, data_rel_sec);
 
   for (auto [label_name, label_data] : label_usage_map.label_map) {
+    utils::Debug << label_name.c_str() << "\n";
     ASSERT(label_data.section != RelocSection::INVALID);
 
     Elf_Half sec_indx = 0;
@@ -841,6 +940,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       break;
     case RelocSection::Text:
       sec_indx = text_sec->get_index();
+      break;
+    case RelocSection::Extern:
+      sec_indx = 0;
       break;
     }
     switch (label_data.kind) {
@@ -864,6 +966,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       auto [op_addr, op_off] = get_op_addr(loc.usage_instr, loc.operand_num);
       switch (loc.usage_section) {
       case RelocSection::INVALID:
+      case RelocSection::Extern:
         UNREACH();
       case RelocSection::Data:
         TODO("impl");
@@ -878,6 +981,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           text_rela.add_entry(op_addr - start_txt, symbol,
                               (unsigned char)R_X86_64_PC32, -op_off);
           break;
+        case RelocSection::Extern:
         case RelocSection::Text:
           text_rela.add_entry(op_addr - start_txt, symbol,
                               (unsigned char)R_X86_64_PLT32, -op_off);

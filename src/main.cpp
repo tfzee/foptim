@@ -26,7 +26,7 @@
 #include "x86_codegen/backend.hpp"
 #include "llvm/llir_loader.hpp"
 
-#include <Tracy/tracy/Tracy.hpp>
+#include <tracy/Tracy.hpp>
 
 void parse_llvm_ir(foptim::fir::Context &ctx);
 void optimize_fir(foptim::fir::Context &ctx);

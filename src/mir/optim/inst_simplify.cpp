@@ -1,8 +1,6 @@
 #include "inst_simplify.hpp"
 #include "mir/instr.hpp"
 
-#include <Tracy/tracy/Tracy.hpp>
-
 namespace foptim::fmir {
 
 //@returns true if the instruction was deleted

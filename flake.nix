@@ -25,12 +25,11 @@
             cmakeCurses
             cmake
             ninja
-            include-what-you-use
             clang_18
 
             #for codegen for now
-            nasm
-            asmjit
+            # nasm
+            # asmjit
             elfio
 
             #for testing stuff

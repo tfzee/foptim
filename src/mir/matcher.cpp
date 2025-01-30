@@ -11,10 +11,8 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/live_variables.hpp"
 #include "utils/logging.hpp"
-#include <Tracy/tracy/Tracy.hpp>
+#include <tracy/Tracy.hpp>
 #include <algorithm>
-#include <asmjit/core/type.h>
-#include <asmjit/x86/x86operand.h>
 
 namespace foptim::fmir {
 

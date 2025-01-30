@@ -3,6 +3,7 @@
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include <tracy/Tracy.hpp>
 
 namespace foptim::optim {
 

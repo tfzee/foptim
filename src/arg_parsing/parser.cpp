@@ -1,5 +1,5 @@
 #include <argparse/argparse.hpp>
-#include <Tracy/tracy/Tracy.hpp>
+#include <tracy/Tracy.hpp>
 #include "utils/parameters.hpp"
 
 void parse_args(int argc, char *argv[]) {

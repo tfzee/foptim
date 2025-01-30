@@ -1,6 +1,5 @@
 #pragma once
 #include "ir/basic_block_ref.hpp"
-#include <Tracy/tracy/Tracy.hpp>
 
 namespace foptim::optim {
 
