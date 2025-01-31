@@ -92,6 +92,10 @@ struct ConstantValue {
     return std::holds_alternative<FunctionPtr>(value);
   }
 
+  [[nodiscard]] bool is_poisson() const {
+    return std::holds_alternative<PoissonValue>(value);
+  }
+
   [[nodiscard]] FunctionR as_func() const {
     if (const auto *res = std::get_if<FunctionPtr>(&value)) {
       return res->func;

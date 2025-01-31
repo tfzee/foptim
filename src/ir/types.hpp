@@ -77,11 +77,11 @@ public:
 };
 
 class AnyType {
+public:
   using Union = std::variant<VoidType, IntegerType, FloatType,
                              OpaquePointerType, VectorType, FunctionType>;
   Union type;
 
-public:
   AnyType(Union t) : type(std::move(t)) {}
   AnyType(IntegerType t) : type(t) {}
   AnyType(FloatType t) : type(t) {}

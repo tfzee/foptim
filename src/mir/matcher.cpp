@@ -4,6 +4,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_patterns.hpp"
@@ -11,8 +12,8 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/live_variables.hpp"
 #include "utils/logging.hpp"
-#include <tracy/Tracy.hpp>
 #include <algorithm>
+#include <tracy/Tracy.hpp>
 
 namespace foptim::fmir {
 
@@ -352,6 +353,28 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
         MArgument(alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64);
     res.emplace_back(Opcode::lea, helper, arg);
     return helper;
+  }
+  if (consti->is_poisson()) {
+    if (auto *v = std::get_if<fir::IntegerType>(&consti->type->type)) {
+      switch (v->bitwidth) {
+      case 8:
+        return MArgument((u8)0);
+      case 16:
+        return MArgument((u16)0);
+      case 32:
+        return MArgument((u32)0);
+      case 64:
+        return MArgument((u64)0);
+      default:
+        utils::Debug << v->bitwidth << "\n";
+        UNREACH();
+      }
+
+    } else if (auto *v = std::get_if<fir::FloatType>(&consti->type->type)) {
+      return MArgument(0.0f);
+    }
+    utils::Debug << consti << " with type " << consti->type << "\n";
+    UNREACH();
   }
   UNREACH();
 }
