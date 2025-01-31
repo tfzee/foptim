@@ -399,6 +399,15 @@ bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
   return false;
 }
 
+bool Legalizer::legalize_si2fl(MBB &bb, u32 indx) {
+  MInstr &instr = bb.instrs[indx];
+  if (instr.args[1].isImm()) {
+    indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    return true;
+  }
+  return false;
+}
+
 void Legalizer::apply(MFunc &func) {
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
@@ -487,6 +496,11 @@ void Legalizer::apply(MFunc &func) {
         break;
       case Opcode::idiv:
         if (legalize_idiv(bb, i)) {
+          ioff = 0;
+        }
+        break;
+      case Opcode::SI2FL:
+        if (legalize_si2fl(bb, i)) {
           ioff = 0;
         }
         break;

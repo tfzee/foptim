@@ -90,27 +90,26 @@ void optimize_fir(foptim::fir::Context &ctx) {
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-  ASSERT(ctx->verify());
+  // foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
+  // ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
-  // TODO("okak");
-  foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
   for (const auto &[_, func] : ctx.data->storage.functions) {
     foptim::utils::Debug << func << "\n";
@@ -170,10 +169,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   ZoneScopedN("MIR Optim");
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  // foptim::utils::Debug << "================AFT_DEAD====================\n";
-  // for (const auto &func : funcs) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
