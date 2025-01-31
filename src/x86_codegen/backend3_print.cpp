@@ -5,6 +5,15 @@ namespace foptim::codegen {
 
 utils::Printer operator<<(utils::Printer p, const ZydisEncoderOperand &data);
 utils::Printer operator<<(utils::Printer p, const ZydisRegister &data);
+utils::Printer operator<<(utils::Printer p, const ZydisEncoderRequest &data);
+
+utils::Printer operator<<(utils::Printer p, const ZydisEncoderRequest &data) {
+  p << ZydisMnemonicGetString(data.mnemonic) << "(";
+  for (auto i = 0; i < data.operand_count; i++) {
+    p << data.operands[i] << ", ";
+  }
+  return p << ")";
+}
 
 utils::Printer operator<<(utils::Printer p, const ZydisEncoderOperand &data) {
   switch (data.type) {
@@ -14,7 +23,7 @@ utils::Printer operator<<(utils::Printer p, const ZydisEncoderOperand &data) {
     return p << data.reg.value;
   case ZYDIS_OPERAND_TYPE_MEMORY:
     return p << "[" << data.mem.base << " + " << data.mem.displacement << " + "
-             << data.mem.index << " * " << (u64)data.mem.scale << "]";
+             << data.mem.index << " * " << (u64)data.mem.scale << "]@" << data.mem.size;
   case ZYDIS_OPERAND_TYPE_POINTER:
     return p << "[O:" << data.ptr.offset << " S:" << data.ptr.segment << "]";
     return p << "ptr";

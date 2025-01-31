@@ -5,12 +5,14 @@
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
 #include "utils/parameters.hpp"
+#include <cmath>
 #include <elfio/elf_types.hpp>
 #include <elfio/elfio.hpp>
 
 namespace foptim::codegen {
 
 utils::Printer operator<<(utils::Printer p, const ZydisEncoderOperand &data);
+utils::Printer operator<<(utils::Printer p, const ZydisEncoderRequest &data);
 utils::Printer operator<<(utils::Printer p, const ZydisRegister &data);
 
 enum class RelocSection : u8 {
@@ -423,17 +425,24 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     reloc_map.insert_bb_ref(instr.bb_ref, out_buff, 0, RelocSection::Text);
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
-  case fmir::Opcode::mul2:
+  case fmir::Opcode::mul2: {
     req.mnemonic = ZYDIS_MNEMONIC_IMUL;
     // TODO: need to check if its fits correclty
+    i32 val_casted = (i32)(i64)instr.args[1].imm;
     if (req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
-        instr.args[1].imm < 60000) {
+        val_casted >= std::numeric_limits<i32>::min() &&
+        val_casted <= std::numeric_limits<i32>::max()) {
       req.operands[2] = req.operands[1];
       req.operands[1] = req.operands[0];
       req.operand_count = 3;
+    } else if (req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+      TODO("cant do this big of a constant");
     }
+    // utils::Debug << "idk mul2  " << val_casted << " "
+    //              << std::numeric_limits<i32>::max() << "\n";
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
+  }
   case fmir::Opcode::idiv: {
     req.mnemonic = ZYDIS_MNEMONIC_IDIV;
     req.operand_count = 1;
@@ -456,7 +465,9 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.operands[0].type = ZYDIS_OPERAND_TYPE_MEMORY;
       req.operands[0].mem.base = ZYDIS_REGISTER_RSP;
       req.operands[0].mem.displacement = -8;
-      req.operands[0].mem.size = 8;
+      req.operands[0].mem.index = ZYDIS_REGISTER_NONE;
+      req.operands[0].mem.scale = 0;
+      req.operands[0].mem.size = get_size(instr.args[3].ty);
       req.operands[1] = req.operands[3];
       ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &len2));
       out_len += len2;
@@ -663,7 +674,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   }
   case fmir::Opcode::cjmp: {
     size_t len2 = 999;
-    req.mnemonic = ZYDIS_MNEMONIC_TEST;
+    req.mnemonic = ZYDIS_MNEMONIC_CMP;
     req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
     req.operands[1].imm.s = 0;
     req.operand_count = 2;

@@ -7,26 +7,10 @@ set(CMAKE_CXX_STANDARD 23)
 include(FetchContent)
 # set(CMAKE_CXX_CLANG_TIDY
 #   clang-tidy;
-#   # -format-style='file';
+#   -format-style='LLVM';
 #   -checks=;
 #   -header-filter=${CMAKE_CURRENT_SOURCE_DIR};
 # )
-
-
-################################################
-# fadec instruction evncoding library
-# FetchContent_Declare(
-#   fadec
-#   GIT_REPOSITORY https://github.com/aengelke/fadec.git
-#   GIT_TAG "master"
-#   GIT_SHALLOW TRUE
-#   GIT_PROGRESS ON
-#   SYSTEM
-# )
-# # more `FetchContent_Declare`s (if any). They should all be declared
-# # before any calls to FetchContent_Make_available (see docs for why).
-
-# FetchContent_MakeAvailable(fadec)
 
 ################################################
 #llvm
