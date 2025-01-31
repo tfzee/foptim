@@ -264,6 +264,8 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     operand.mem.base = convert_reg(arg.reg);
     operand.mem.displacement = 0;
     operand.mem.index = convert_reg(arg.indx);
+    utils::Debug << "Scale in " << arg.scale << " out " << (1 << arg.scale)
+                 << "\n";
     operand.mem.scale = 1 << arg.scale;
     operand.mem.size = get_size(arg.ty);
     return;
@@ -432,12 +434,72 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     }
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
-  case fmir::Opcode::idiv:
+  case fmir::Opcode::idiv: {
     req.mnemonic = ZYDIS_MNEMONIC_IDIV;
     req.operand_count = 1;
-    req.operands[0] = req.operands[3];
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+
+    bool collision_in_reg =
+        req.operands[3].type == ZYDIS_OPERAND_TYPE_REGISTER &&
+        (req.operands[3].reg.value == ZYDIS_REGISTER_DL ||
+         req.operands[3].reg.value == ZYDIS_REGISTER_DH ||
+         req.operands[3].reg.value == ZYDIS_REGISTER_DX ||
+         req.operands[3].reg.value == ZYDIS_REGISTER_EDX ||
+         req.operands[3].reg.value == ZYDIS_REGISTER_RDX);
+
+    size_t out_len = 0;
+    // since edx needs to be free for expanding the eax value we will push it
+    // onto the stack and use a mem operand
+    if (collision_in_reg) {
+      size_t len2 = 9999;
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+      req.operand_count = 2;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_MEMORY;
+      req.operands[0].mem.base = ZYDIS_REGISTER_RSP;
+      req.operands[0].mem.displacement = -8;
+      req.operands[0].mem.size = 8;
+      req.operands[1] = req.operands[3];
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &len2));
+      out_len += len2;
+    }
+    if (req.operands[2].reg.value == ZYDIS_REGISTER_RAX) {
+      // need to sign extend rax into rdx
+      size_t len2 = 9999;
+      req.mnemonic = ZYDIS_MNEMONIC_CQO;
+      req.operand_count = 0;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &len2));
+      out_len += len2;
+    } else if (req.operands[2].reg.value == ZYDIS_REGISTER_EAX) {
+      // need to sign extend eax into edx
+      size_t len2 = 9999;
+      req.mnemonic = ZYDIS_MNEMONIC_CDQ;
+      req.operand_count = 0;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &len2));
+      out_len += len2;
+    } else if (req.operands[2].reg.value == ZYDIS_REGISTER_AX) {
+      // need to sign extend ax into dx
+      size_t len2 = 9999;
+      req.mnemonic = ZYDIS_MNEMONIC_CWD;
+      req.operand_count = 0;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &len2));
+      out_len += len2;
+    } else {
+      TODO("");
+    }
+
+    if (collision_in_reg) {
+      // cc.emit(Inst::kIdIdiv, Mem(rsp, -8, get_size(instr.args[2].ty)));
+      req.mnemonic = ZYDIS_MNEMONIC_IDIV;
+      req.operand_count = 1;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &length));
+    } else {
+      // cc.emit(Inst::kIdIdiv, o1);
+      req.mnemonic = ZYDIS_MNEMONIC_IDIV;
+      req.operand_count = 1;
+      req.operands[0] = req.operands[3];
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &length));
+    }
+    return length + out_len;
+  }
   case fmir::Opcode::add2:
     req.mnemonic = ZYDIS_MNEMONIC_ADD;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
