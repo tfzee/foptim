@@ -150,12 +150,12 @@ Printer Printer::operator<<(const foptim::fmir::MArgument &value) const {
           << "]:" << value.ty;
     break;
   case fmir::MArgument::ArgumentType::MemVRegVRegScale:
-    *this << "[" << value.reg << " + " << value.indx << "*" << value.scale
-          << "]:" << value.ty;
+    *this << "[" << value.reg << " + " << value.indx << "*"
+          << (1 << value.scale) << "]:" << value.ty;
     break;
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-    *this << "[" << value.reg << " + " << value.indx << "*" << value.scale
-          << " + " << value.imm << "]:" << value.ty;
+    *this << "[" << value.reg << " + " << value.indx << "*"
+          << (1 << value.scale) << " + " << value.imm << "]:" << value.ty;
     break;
   }
   return *this << RESET;
