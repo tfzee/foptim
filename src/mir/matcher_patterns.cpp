@@ -583,6 +583,8 @@ void base_patterns(IRVec<Pattern> &pats) {
                            (u32)fir::BinaryInstrSubType::FloatSub};
   auto FloatMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                            (u32)fir::BinaryInstrSubType::FloatMul};
+  auto FloatDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                           (u32)fir::BinaryInstrSubType::FloatDiv};
   auto ShlNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                       (u32)fir::BinaryInstrSubType::Shl};
   auto ShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -1198,6 +1200,17 @@ void base_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
 
         res.result.emplace_back(Opcode::fmul, res_reg, a1, a2);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      {FloatDivNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto f_mul_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArg(f_mul_instr->args[1], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
+
+        res.result.emplace_back(Opcode::fdiv, res_reg, a1, a2);
         return true;
       }});
 }

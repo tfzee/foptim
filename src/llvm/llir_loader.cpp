@@ -678,7 +678,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     if (any_instr->getType()->isFloatingPointTy()) {
-      auto add = builder.build_float_mul(left, right);
+      auto add = builder.build_float_div(left, right);
       valueToValue.insert({any_instr, add});
       return;
     }

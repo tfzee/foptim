@@ -120,7 +120,7 @@ Printer Printer::operator<<(const foptim::fmir::MArgument &value) const {
     if (value.ty == fmir::Type::Float32) {
       *this << value.immf << "f";
     } else if (value.ty == fmir::Type::Float64) {
-      *this << value.immf;
+      *this << value.immf << "d";
     } else {
       *this << value.imm << ":" << value.ty;
     }
@@ -485,14 +485,14 @@ Printer Printer::operator<<(foptim::fir::TypeR ty) const {
   return *this;
 }
 
-Printer Printer::operator<<(const foptim::fir::ConstantValue &v) const {
+Printer Printer::operator<<(const foptim::fir::ConstantValue &val) const {
   std::visit(
-      [this](auto &&v) {
+      [this, val](auto &&v) {
         (void)v;
         *this << ORANGE;
         if constexpr (typeid(v) == typeid(fir::IntValue) ||
                       typeid(v) == typeid(fir::FloatValue)) {
-          *this << v.data;
+          *this << v.data << ":" << val.type;
         } else if constexpr (typeid(v) == typeid(fir::GlobalPointer)) {
           *this << "G(" << (void *)(v.glob.get_raw_ptr()) << ")";
         } else if constexpr (typeid(v) == typeid(fir::FunctionPtr)) {
@@ -504,7 +504,7 @@ Printer Printer::operator<<(const foptim::fir::ConstantValue &v) const {
         }
         *this << RESET;
       },
-      v.value);
+      val.value);
   return *this;
 }
 

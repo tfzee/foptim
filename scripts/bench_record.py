@@ -1,7 +1,7 @@
 import os
 
 collect_compiletimes = False
-tests_to_record = ["matmul.cpp", "prime_sieve.c", "fib.c"]
+tests_to_record = ["matmul.cpp", "prime_sieve.c", "fib.c", "mandelbrot.cpp"]
 
 if __name__ == "__main__":
     out_dir = "../build/test/Output"
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     
             name = ".".join(benchy.split(".")[:-1])
             compile_command += f" -n {name}_compile"
-            compile_command += f" \"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.ss\""
+            compile_command += f" \"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.o\""
 
             compile_command += f" -n {name}_clang_O1_compile_baseline"
             compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out\""
@@ -35,7 +35,7 @@ if __name__ == "__main__":
             clang_command = f"clang{'++' if benchy.endswith(".cpp") else ''} -O0 -Xclang -disable-O0-optnone {clang_options} ../test/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
             os.system(clang_command)
             print(clang_command)
-            os.system(f"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.ss")
+            os.system(f"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.o")
             os.system(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
             os.system(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
             os.system(f"g++ ../test/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out")
@@ -46,9 +46,8 @@ if __name__ == "__main__":
 
     hyperfine_run_command = f"hyperfine -i -N --export-csv={out_dir}/perf.csv"
     for benchy in benches:
-        nasm_command = f"nasm {out_dir}/{benchy}.tmp.ss -felf64 -g -F dwarf && gcc {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
-        print(nasm_command)
-        os.system(nasm_command)
+        link_command = f"clang {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
+        os.system(link_command)
 
         name = ".".join(benchy.split(".")[:-1])
         hyperfine_run_command += f" -n {name}_run"

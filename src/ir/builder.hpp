@@ -172,6 +172,17 @@ public:
     return ValueR(instr);
   }
 
+  ValueR build_float_div(ValueR a, ValueR b) {
+    check_bb_set();
+    Instr instr =
+        ctx->storage.insert_instr(InstrData::get_float_div(a.get_type()));
+    instr.add_arg(a);
+    instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_itrunc(ValueR a, TypeR ty) {
     check_bb_set();
     Instr instr = ctx->storage.insert_instr(InstrData::get_itrunc(ty));

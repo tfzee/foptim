@@ -88,11 +88,13 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
       indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
       return true;
     }
+    break;
   case Opcode::icmp_slt:
     if (big_signed_const2) {
       indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
       return true;
     }
+    break;
   case Opcode::cjmp_int_ne:
   case Opcode::cjmp_int_eq:
   case Opcode::cjmp_int_ult:
@@ -100,11 +102,13 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
       indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
+    break;
   case Opcode::cjmp_int_slt:
     if (big_signed_const) {
       indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
+    break;
   default:
   }
   return false;
@@ -129,9 +133,10 @@ bool Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
   case Opcode::cjmp_flt_ule:
   case Opcode::cjmp_flt_une:
     if (instr.args[1].isImm()) {
-      indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+      move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
+    break;
   case Opcode::fcmp_oeq:
   case Opcode::fcmp_ogt:
   case Opcode::fcmp_oge:
@@ -147,9 +152,10 @@ bool Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
   case Opcode::fcmp_ule:
   case Opcode::fcmp_une:
     if (instr.args[2].isImm()) {
-      indx = move_fp_const_to_reg(bb, indx, 2, instr.args[1].ty);
+      move_fp_const_to_reg(bb, indx, 2, instr.args[1].ty);
       return true;
     }
+    break;
   default:
     break;
   }
@@ -352,22 +358,16 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
 }
 
 bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
-  bool modified = false;
-  {
-    // 2nd arg cant be a constant
-    // and loading floating constants is a pain
-    MInstr &instr = bb.instrs[indx];
-    if (instr.args[1].isImm()) {
-      indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
-      modified = true;
-    }
-    instr = bb.instrs[indx];
-    if (instr.args[2].isImm()) {
-      indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
-      modified = true;
-    }
+  MInstr &instr = bb.instrs[indx];
+  if (instr.args[1].isImm()) {
+    indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+    return true;
   }
-  return modified;
+  if (instr.args[2].isImm()) {
+    indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
+    return true;
+  }
+  return false;
 }
 
 // bool Legalizer::legalize_sub(MBB &bb, u32 indx) {
@@ -442,8 +442,13 @@ void Legalizer::apply(MFunc &func) {
   unique_reg_id++;
 
   for (auto &bb : func.bbs) {
+    // utils::Debug << "#### LEGALIZING BB\n";
     for (size_t ioff = 1; ioff <= bb.instrs.size(); ioff++) {
       auto i = ioff - 1;
+      // if (i == 0) {
+      //   utils::Debug << "  LEGALIZED\n";
+      // }
+      // utils::Debug << "  LEGALIZING " << i << ": " << bb.instrs[i] << "\n";
       switch (bb.instrs[i].op) {
       case Opcode::mov:
       case Opcode::mov_zx:
@@ -505,6 +510,7 @@ void Legalizer::apply(MFunc &func) {
         }
         break;
       case Opcode::fmul:
+      case Opcode::fdiv:
       case Opcode::fsub:
       case Opcode::fxor:
       case Opcode::fadd:

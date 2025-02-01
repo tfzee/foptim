@@ -260,6 +260,13 @@ InstrData InstrData::get_float_mul(TypeR ty) {
   return res;
 }
 
+InstrData InstrData::get_float_div(TypeR ty) {
+  auto res =
+      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatDiv, ty,
+                BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
 InstrData InstrData::get_add(TypeR ty) {
   auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntAdd,
                        ty, BasicBlock(BasicBlock::invalid())};

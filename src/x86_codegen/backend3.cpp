@@ -196,29 +196,33 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
   switch (arg.type) {
   case fmir::MArgument::ArgumentType::Imm:
     operand.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
-    if (arg.is_fp()) {
-    } else {
-      switch (arg.ty) {
-      case fmir::Type::INVALID:
-      case fmir::Type::Int8:
-        operand.imm.s = (i8)arg.imm;
-        break;
-      case fmir::Type::Int16:
-        operand.imm.s = (i16)arg.imm;
-        break;
-      case fmir::Type::Int32:
-        operand.imm.s = (i32)arg.imm;
-        break;
-      case fmir::Type::Int64:
-        operand.imm.s = (i64)arg.imm;
-        break;
-      case fmir::Type::Float32:
-        operand.imm.s = (u32)arg.immf;
-        break;
-      case fmir::Type::Float64:
-        operand.imm.u = (u64)arg.immf;
-        break;
-      }
+    switch (arg.ty) {
+    case fmir::Type::INVALID:
+    case fmir::Type::Int8:
+      operand.imm.s = (i8)arg.imm;
+      break;
+    case fmir::Type::Int16:
+      operand.imm.s = (i16)arg.imm;
+      break;
+    case fmir::Type::Int32:
+      operand.imm.s = (i32)arg.imm;
+      break;
+    case fmir::Type::Int64:
+      operand.imm.s = (i64)arg.imm;
+      break;
+    case fmir::Type::Float32: {
+      f32 v = (f32)arg.immf;
+      int i;
+      memcpy(&i, &v, sizeof i);
+      operand.imm.s = i;
+      break;
+    }
+    case fmir::Type::Float64: {
+      long int i;
+      memcpy(&i, &arg.immf, sizeof i);
+      operand.imm.s = i;
+      break;
+    }
     }
     return;
   case fmir::MArgument::ArgumentType::VReg:
@@ -266,8 +270,6 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     operand.mem.base = convert_reg(arg.reg);
     operand.mem.displacement = 0;
     operand.mem.index = convert_reg(arg.indx);
-    utils::Debug << "Scale in " << arg.scale << " out " << (1 << arg.scale)
-                 << "\n";
     operand.mem.scale = 1 << arg.scale;
     operand.mem.size = get_size(arg.ty);
     return;
@@ -333,12 +335,12 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   size_t length = 999;
   ZydisEncoderRequest req;
   memset(&req, 0, sizeof(req));
-  utils::Debug << "Convert: " << instr << "\n";
+  // utils::Debug << "Convert: " << instr << "\n";
   req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
   req.operand_count = instr.n_args;
   for (auto i = 0; i < req.operand_count; i++) {
     emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
-    utils::Debug << "   With Op:" << req.operands[i] << "\n";
+    // utils::Debug << "   With Op:" << req.operands[i] << "\n";
   }
 
   switch (instr.op) {
@@ -363,9 +365,9 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     } else if (!input_is_fp_reg && target_isfloat64) {
       req.mnemonic = ZYDIS_MNEMONIC_MOVQ;
     } else if (target_isfloat32) {
-      req.mnemonic = ZYDIS_MNEMONIC_MOVSS;
+      req.mnemonic = ZYDIS_MNEMONIC_MOVAPS;
     } else if (target_isfloat64) {
-      req.mnemonic = ZYDIS_MNEMONIC_MOVSD;
+      req.mnemonic = ZYDIS_MNEMONIC_MOVAPD;
     } else if (instr.args[0].isReg() && instr.args[1].isReg() &&
                instr.args[0].reg.info.reg_size == 8 &&
                instr.args[1].reg.info.reg_size == 4) {
@@ -625,9 +627,22 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::cjmp_int_eq:
   case fmir::Opcode::cjmp_int_slt:
   case fmir::Opcode::cjmp_int_ule: {
-    req.mnemonic = ZYDIS_MNEMONIC_CMP;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    size_t len2 = 32;
+    if ((instr.op == fmir::Opcode::cjmp_int_eq ||
+         instr.op == fmir::Opcode::cjmp_int_ne) &&
+        (req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
+         req.operands[1].imm.s == 0)) {
+      // Assembly/Compiler Coding Rule 18. (M impact, ML generality) Software
+      // can enable macro fusion when it can be logically determined that a
+      // variable is non-negative at the time of comparison; use TEST
+      // appropriately to enable macrofusion when comparing a variable with 0.
+      req.mnemonic = ZYDIS_MNEMONIC_TEST;
+      req.operands[1] = req.operands[0];
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    } else {
+      req.mnemonic = ZYDIS_MNEMONIC_CMP;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    }
+    size_t len2 = 999;
     switch (instr.op) {
     case fmir::Opcode::cjmp_int_slt:
       req.mnemonic = ZYDIS_MNEMONIC_JL;
@@ -674,9 +689,8 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   }
   case fmir::Opcode::cjmp: {
     size_t len2 = 999;
-    req.mnemonic = ZYDIS_MNEMONIC_CMP;
-    req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
-    req.operands[1].imm.s = 0;
+    req.mnemonic = ZYDIS_MNEMONIC_TEST;
+    req.operands[1] = req.operands[0];
     req.operand_count = 2;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     ASSERT(instr.has_bb_ref);
@@ -696,18 +710,18 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     auto cond = req.operands[1];
     auto value = req.operands[2];
     req.mnemonic = ZYDIS_MNEMONIC_TEST;
+    req.operand_count = 2;
     req.operands[0] = cond;
     req.operands[1] = cond;
-    req.operand_count = 2;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    size_t len2 = 32;
+    size_t len2 = 9999;
     req.mnemonic = ZYDIS_MNEMONIC_CMOVZ;
     req.operand_count = 2;
     req.operands[0] = targ;
     req.operands[1] = value;
     if (get_size(instr.args[0].ty) == 1 &&
         value.type == ZYDIS_OPERAND_TYPE_REGISTER) {
-      req.operands[0].reg.value = reg_with_size(instr.args[1].reg, 8);
+      req.operands[0].reg.value = reg_with_size(instr.args[0].reg, 8);
       req.operands[1].reg.value = reg_with_size(instr.args[2].reg, 8);
     }
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
@@ -1024,7 +1038,7 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
 
 u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
              TLabelUsageMap &reloc_map) {
-
+  ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
     { // make sure were aligned
@@ -1088,6 +1102,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
 void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                        u8 *end_txt, std::span<const IRString> decls,
                        std::span<const fmir::Global> globals) {
+  ZoneScopedN("Generating obj");
   using namespace ELFIO;
 
   elfio writer;

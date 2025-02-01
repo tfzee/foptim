@@ -425,6 +425,7 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
     modified = false;
     for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
       if (simplify_cfg(cfg, func, bb_id - 1)) {
+        // utils::Debug << func << "\n";
         cfg.update(func, false);
         modified = true;
       }

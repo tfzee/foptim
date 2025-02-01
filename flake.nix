@@ -60,6 +60,7 @@
                 # export CXX=clang++ 
                 export TRACY_NO_EXIT=1
                 export QT_QPA_PLATFORM=xcb
+                export NIX_ENFORCE_NO_NATIVE=0
             '';
           };
         }

@@ -76,38 +76,71 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
-  const bool has_const = instr->args[1].is_constant();
+  const ConstantValue *c0_val = nullptr;
+  const ConstantValue *c1_val = nullptr;
+  if (instr->args[0].is_constant()) {
+    c0_val = instr->args[0].as_constant().get_raw_ptr();
+  }
+  if (instr->args[1].is_constant()) {
+    c1_val = instr->args[1].as_constant().get_raw_ptr();
+  }
+  const bool has_const = (c0_val != nullptr) || (c1_val != nullptr);
   // const bool both_const = has_const && instr->args[0].is_constant();
   if (!has_const) {
     return;
   }
-  ConstantValueR c_val = instr->args[1].as_constant();
 
-  if (instr->args[0].is_constant() && instr->args[1].is_constant()) {
-    ConstantValueR c0_val = instr->args[0].as_constant();
-    // utils::Debug << "For instr: " << instr << "\n";
-    // utils::Debug << c_val << " " << c0_val << "\n";
-    if (c_val->type->is_int() && c0_val->type->is_int()) {
+  if (c0_val && c1_val) {
+    if (c1_val->type->is_int() && c0_val->type->is_int()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
-                                   c0_val->as_int(), c_val->as_int(),
-                                   c_val->type, ctx)) {
+                                   c0_val->as_int(), c1_val->as_int(),
+                                   c1_val->type, ctx)) {
         instr.remove_from_parent();
         return;
       }
-    } else if (c_val->type->is_float() && c0_val->type->is_float()) {
+    } else if (c1_val->type->is_float() && c0_val->type->is_float()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
-                                   c0_val->as_float(), c_val->as_float(),
-                                   c_val->type, ctx)) {
+                                   c0_val->as_float(), c1_val->as_float(),
+                                   c1_val->type, ctx)) {
         instr.remove_from_parent();
         return;
       }
     }
   }
+
+  const auto *c_val = (c0_val != nullptr) ? c0_val : c1_val;
+  // const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
+  const u32 v_idx = (c0_val != nullptr) ? 1 : 0;
+
+  // at this point it cant have both as constant
+  if (c_val->is_float()) {
+    if (c_val->as_float() == 0 &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatAdd) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[v_idx]);
+      instr.remove_from_parent();
+      return;
+    }
+    if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul) {
+      if (c_val->as_float() == 1) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.remove_from_parent();
+      } else if (c_val->as_float() == 0) {
+        auto zero_const = ctx.data->get_constant_value(.0, c_val->get_type());
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR{zero_const});
+        instr.remove_from_parent();
+      }
+      return;
+    }
+  }
   if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
+    const auto *c_val = (c0_val != nullptr) ? c0_val : c1_val;
     if (c_val->as_int() == 0) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
+      instr->replace_all_uses(instr->args[v_idx]);
       instr.remove_from_parent();
       return;
     }
@@ -115,13 +148,14 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
     if (c_val->as_int() == 1) {
-      instr->replace_all_uses(instr->args[0]);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[v_idx]);
       instr.remove_from_parent();
       return;
     }
     if (c_val->as_int() == 0) {
       auto zero_const = ctx.data->get_constant_value(0, c_val->get_type());
-      instr->replace_all_uses(instr->args[0]);
+      push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR{zero_const});
       instr.remove_from_parent();
       return;

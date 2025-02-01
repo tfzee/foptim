@@ -141,6 +141,9 @@ public:
       case fir::BinaryInstrSubType::FloatMul:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_float() * b.value->as_float(), out_type));
+      case fir::BinaryInstrSubType::FloatDiv:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_float() / b.value->as_float(), out_type));
       case fir::BinaryInstrSubType::FloatSub:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_float() - b.value->as_float(), out_type));

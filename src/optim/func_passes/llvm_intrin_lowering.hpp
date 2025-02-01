@@ -4,7 +4,9 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value.hpp"
+#include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "utils/logging.hpp"
 
 namespace foptim::optim {
 
@@ -38,6 +40,7 @@ public:
 
   void handle_fmuladd(fir::Instr instr, fir::Function & /*func*/,
                       fir::FunctionR /*callee*/) {
+    utils::Debug << instr << "\n";
     fir::Builder bb{instr};
     auto mul_1 = instr->args[1];
     auto mul_2 = instr->args[2];
@@ -89,7 +92,9 @@ public:
   }
 
   void apply(fir::BasicBlock bb, fir::Function &func) {
-    for (auto instr : bb->instructions) {
+    TVec<fir::Instr> instrs = {bb->instructions.begin(),
+                               bb->instructions.end()};
+    for (auto instr : instrs) {
       if (instr->is(fir::InstrType::CallInstr)) {
         // const auto *callee = instr->get_attrib("callee").try_string();
         if (!instr->args[0].is_constant()) {

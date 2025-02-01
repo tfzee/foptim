@@ -4,14 +4,14 @@
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 
-// CHECK: Result:192
-//innerIterations == 750   result == 50
-//innerIterations == 500   result == 191
-//innerIterations == 100   result == 239
-//innerIterations == 50   result == 15
-//innerIterations == 10   result == 127
-//innerIterations == 2   result == 192
-//innerIterations == 1   result == 128 
+// CHECK: Result:191
+// innerIterations == 750   result == 50
+// innerIterations == 500   result == 191
+// innerIterations == 100   result == 239
+// innerIterations == 50   result == 15
+// innerIterations == 10   result == 127
+// innerIterations == 2   result == 192
+// innerIterations == 1   result == 128
 
 static int mandelbrot(int size) {
   int sum = 0;
@@ -70,6 +70,6 @@ static int mandelbrot(int size) {
 }
 
 int main() {
-  const int innerIterations = 2;
+  const int innerIterations = 500;
   return mandelbrot(innerIterations);
 }

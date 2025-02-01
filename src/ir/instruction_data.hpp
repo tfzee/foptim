@@ -340,6 +340,7 @@ public:
   static InstrData get_float_add(TypeR ty);
   static InstrData get_float_sub(TypeR ty);
   static InstrData get_float_mul(TypeR ty);
+  static InstrData get_float_div(TypeR ty);
   static InstrData get_sext(TypeR ty);
   static InstrData get_itrunc(TypeR ty);
   static InstrData get_zext(TypeR ty);
