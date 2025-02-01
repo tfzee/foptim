@@ -5,6 +5,7 @@ namespace foptim::fmir {
 
 void memory_patterns(IRVec<Pattern> &pats);
 void cjmp_patterns(IRVec<Pattern> &pats);
+void move_patterns(IRVec<Pattern> &pats);
 void base_patterns(IRVec<Pattern> &pats);
 void arith_patterns(IRVec<Pattern> &pats);
 
@@ -14,6 +15,7 @@ inline auto get_pats() {
 
   memory_patterns(res);
   cjmp_patterns(res);
+  move_patterns(res);
   arith_patterns(res);
   base_patterns(res);
 

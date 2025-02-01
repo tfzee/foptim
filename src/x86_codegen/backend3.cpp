@@ -895,8 +895,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     case fmir::Opcode::cjmp_flt_oge:
       TODO("impl");
     case fmir::Opcode::cjmp_flt_ult:
+      ordered = false;
     case fmir::Opcode::cjmp_flt_olt:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_JB;
+      break;
     case fmir::Opcode::cjmp_flt_ule:
     case fmir::Opcode::cjmp_flt_ole:
       TODO("impl");

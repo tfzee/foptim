@@ -90,15 +90,26 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
   }
 }
 
-static void save_locals(IRVec<MInstr> &instrs, LiveVariables &lives,
-                        size_t start, size_t bb_id,
+static bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives,
+                     size_t start, size_t end, size_t bb_id) {
+
+  if (!lives.contains(reg_ty)) {
+    return false;
+  }
+  return lives.at(reg_ty).collide(
+      LinearRange::inBB(bb_id, start, end));
+}
+
+static void save_locals(IRVec<MInstr> &instrs,
+                        TMap<VReg, LinearRangeSet> &lives, size_t start,
+                        size_t end, size_t bb_id,
                         bool return_value_overwrites_eax) {
   for (auto reg_ty : caller_saved | std::views::reverse) {
     if (reg_ty == VRegType::A && return_value_overwrites_eax) {
       continue;
     }
-    if (!lives.isAlive(VReg{reg_ty}, bb_id) || reg_ty == VRegType::SP ||
-        reg_ty == VRegType::BP) {
+    if (!is_alive(VReg{reg_ty}, lives, start, end, bb_id) ||
+        reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
@@ -106,10 +117,12 @@ static void save_locals(IRVec<MInstr> &instrs, LiveVariables &lives,
   }
 }
 
-static void restore_locals(IRVec<MInstr> &instrs, LiveVariables &lives,
-                           size_t start, size_t bb_id,
+static void restore_locals(IRVec<MInstr> &instrs,
+                           TMap<VReg, LinearRangeSet> &lives, size_t start,
+                           size_t end, size_t bb_id,
                            bool return_value_overwrites_eax, MInstr &call) {
-  if (lives.isAlive(VReg{VRegType::A}, bb_id) && !return_value_overwrites_eax) {
+  if (is_alive(VReg{VRegType::A}, lives, start, end, bb_id) &&
+      !return_value_overwrites_eax) {
     auto arg =
         MArgument{VReg{0, VRegInfo{(VRegType)(1), Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
@@ -129,8 +142,9 @@ static void restore_locals(IRVec<MInstr> &instrs, LiveVariables &lives,
   }
 
   for (auto reg_ty : caller_saved) {
-    if (!lives.isAlive(VReg{reg_ty}, bb_id) || reg_ty == VRegType::A ||
-        reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
+    if (!is_alive(VReg{reg_ty}, lives, start, end, bb_id) ||
+        reg_ty == VRegType::A || reg_ty == VRegType::SP ||
+        reg_ty == VRegType::BP) {
       continue;
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
@@ -275,7 +289,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
 }
 
 static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
-                           size_t bb_id, LiveVariables &lives) {
+                           size_t bb_id, TMap<VReg, LinearRangeSet> &lives) {
 
   size_t n_args = end - start;
 
@@ -291,7 +305,7 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   bool return_value_overwrites_eax =
       (call.args[1].isReg() && call.args[1].reg.info.ty == VRegType::A);
 
-  restore_locals(instrs, lives, start, bb_id, return_value_overwrites_eax,
+  restore_locals(instrs, lives, start, end, bb_id, return_value_overwrites_eax,
                  call);
 
   TVec<ArgPosition> arg_pos;
@@ -317,7 +331,7 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   // }
 
   // save locals
-  save_locals(instrs, lives, start, bb_id, return_value_overwrites_eax);
+  save_locals(instrs, lives, start, end, bb_id, return_value_overwrites_eax);
 }
 
 static_assert((u8)VRegType::R15 == 16);
@@ -382,7 +396,8 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
   ZoneScopedN("CC 2nd Stage");
   for (auto &func : funcs) {
     CFG cfg(func);
-    LiveVariables lives(cfg, func);
+    // LiveVariables lives(cfg, func);
+    TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
 
     save_regs_callee(func, cfg);
 

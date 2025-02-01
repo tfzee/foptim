@@ -12,7 +12,8 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       instrs.erase(instrs.begin() + instr_id);
       return true;
     }
-    if (instr.args[0].isReg() && instr.args[1].isImm() && instr.args[1].imm == 0) {
+    if (instr.args[0].isReg() && instr.args[1].isImm() &&
+        instr.args[1].imm == 0) {
       instr.op = Opcode::lxor2;
       instr.n_args = 2;
       instr.args[1] = instr.args[0];

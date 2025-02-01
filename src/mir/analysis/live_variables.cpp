@@ -1,5 +1,6 @@
 #include "live_variables.hpp"
 #include "utils/bitset.hpp"
+#include "utils/set.hpp"
 #include <deque>
 
 namespace foptim::fmir {
@@ -111,9 +112,14 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     }
     break;
   case Opcode::arg_setup:
+    if (instr.n_args > 1 && instr.args[1].isReg()) {
+      def[reg_to_uid(instr.args[1].reg)].set(true);
+    }
+    break;
   case Opcode::invoke:
     if (instr.n_args > 1 && instr.args[1].isReg()) {
       def[reg_to_uid(instr.args[1].reg)].set(true);
+      def[reg_to_uid(VReg::EAX())].set(true);
     }
     break;
   case Opcode::idiv:
@@ -278,6 +284,11 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     }
     break;
   case Opcode::arg_setup:
+    if (!instr.args[1].isReg()) {
+      update_uses(instr.args[1], uses);
+    }
+    update_uses(instr.args[0], uses);
+    break;
   case Opcode::push:
   case Opcode::cjmp:
     update_uses(instr.args[0], uses);
@@ -464,4 +475,141 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
   return res;
 }
 
+// LINEAR LIFETIMES AFTER
+
+TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
+  TSet<VReg> all_used_regs;
+
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      for (u32 arg_i = 0; arg_i < instr.n_args; arg_i++) {
+        const auto &arg = instr.args[arg_i];
+        switch (arg.type) {
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::MemImm:
+          break;
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+          all_used_regs.insert(arg.reg);
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+          all_used_regs.insert(arg.reg);
+          all_used_regs.insert(arg.indx);
+          break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          IMPL("impl");
+        }
+      }
+    }
+  }
+  CFG cfg{func};
+  LiveVariables live{cfg, func};
+  TMap<VReg, LinearRangeSet> ranges;
+
+  // this is used later one to find where the first def is
+  utils::BitSet<> defs{live._live[0].size(), false};
+
+  for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
+    const auto &alive = live._live[bb_id];
+    const auto &aliveIn = live._liveIn[bb_id];
+    const auto &aliveOut = live._liveOut[bb_id];
+    for (const auto &reg : all_used_regs) {
+      auto reg_id = reg_to_uid(reg);
+      if (alive[reg_id]) {
+        size_t start_instr = 0;
+        size_t search_instr = 0;
+        ranges[reg];
+
+        if (!aliveIn[reg_id]) {
+          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0);
+          // utils::Debug << bb_id << " " << reg << "\n";
+          ASSERT(res.is_write);
+          ASSERT(!res.is_read);
+          start_instr = res.index;
+          search_instr = res.index;
+        } else {
+          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0);
+          if (res.is_read) {
+            ranges[reg].update(
+                LinearRange::inBB(bb_id, start_instr, res.index + 1));
+            search_instr = res.index;
+          }
+          if (res.is_write) {
+            start_instr = res.index;
+            search_instr = res.index;
+          }
+        }
+
+        while (true) {
+          auto res =
+              find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1);
+          // utils::Debug << "Next found:" << res.index << " " << res.is_read
+          //              << " " << res.is_write << "\n";
+          if (res.is_read) {
+            ranges[reg].update(
+                LinearRange::inBB(bb_id, start_instr + 1, res.index + 1));
+            search_instr = res.index;
+          }
+          if (res.is_write) {
+            // TODO: fix if we got 2 writes following each other otherwise it
+            // would be discarded teh first one
+            ranges[reg].update(
+                LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
+            start_instr = res.index;
+            search_instr = res.index;
+          }
+          if (!res.is_read && !res.is_write) {
+            if (aliveOut[reg_id]) {
+              ranges[reg].update(LinearRange::inBB(
+                  bb_id, start_instr + 1, func.bbs[bb_id].instrs.size() + 2));
+            }
+            break;
+          }
+        }
+
+        if (alive[reg_id] && ranges[reg].ranges.empty()) {
+          ranges[reg].update(
+              LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
+        }
+
+        // if (alive[reg_id] && ranges[reg].ranges.empty()) {
+        //   utils::Debug << aliveIn[reg_id] << " " << aliveOut[reg_id] << "\n";
+        //   utils::Debug << func.bbs[bb_id] << "\n";
+        //   utils::Debug << reg << "\n";
+        //   for (auto range : ranges[reg].ranges) {
+        //     range.dump();
+        //     utils::Debug << "\n";
+        //   }
+        //   utils::Debug << "Cant be alive and nothave any ranges?\n";
+        //   ASSERT(false);
+        // }
+      }
+    }
+  }
+  // for (const auto &[reg, ranges] : ranges) {
+  //   utils::Debug << "reg: " << reg << "\n";
+  //   // ASSERT(!ranges.ranges.empty());
+  //   for (const auto &range : ranges.ranges) {
+  //     ASSERT(range.start.bb_indx == range.end.bb_indx);
+  //     auto reg_id = reg_to_uid(reg);
+  //     utils::Debug << " ";
+  //     range.dump();
+  //     utils::Debug << "\n";
+  //     utils::Debug << " LIVEIN:" <<
+  //     live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << " LIVEOUT:"
+  //     << live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << "\n";
+  //     utils::Debug << "   " << range.start.bb_indx << ": "
+  //                  << range.start.instr_indx << "-" << range.end.instr_indx
+  //                  << "\n";
+  //   }
+  // }
+  return ranges;
+}
 } // namespace foptim::fmir

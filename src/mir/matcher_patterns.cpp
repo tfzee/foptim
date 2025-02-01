@@ -19,8 +19,81 @@ bool is_reg(fir::ValueR val) {
   std::abort();
 }
 
-void memory_patterns(IRVec<Pattern> &pats) {
+void move_patterns(IRVec<Pattern> &pats) {
+  using Node = Pattern::Node;
+  using InstrType = fir::InstrType;
+  using NodeType = Pattern::NodeType;
 
+  auto IntCmpNode = Node{NodeType::Instr, InstrType::ICmp, (u32)0};
+  auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, (u32)0};
+
+  pats.push_back(Pattern{
+      {IntCmpNode, SelectNode},
+      {{0, 1, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        fir::Instr cmp_instr = res.matched_instrs[0];
+        fir::Instr slct_instr = res.matched_instrs[1];
+
+        if (!slct_instr->value_type->is_int() ||
+            !slct_instr->args[1].is_constant() ||
+            !slct_instr->args[2].is_constant()) {
+          return false;
+        }
+
+        auto c1 = slct_instr->args[1].as_constant()->as_int();
+        auto c2 = slct_instr->args[2].as_constant()->as_int();
+        auto dir1 = (c1 == 1 && c2 == 0);
+        auto dir2 = (c1 == 0 && c2 == 1);
+        if (dir1 || dir2) {
+          auto res_arg =
+              valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+          auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+          auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+          Opcode op = Opcode::icmp_eq;
+
+          switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+          case fir::ICmpInstrSubType::SLT:
+            op = dir1 ? Opcode::icmp_slt : Opcode::icmp_sge;
+            break;
+          case fir::ICmpInstrSubType::ULT:
+            op = dir1 ? Opcode::icmp_ult : Opcode::icmp_uge;
+            break;
+          case fir::ICmpInstrSubType::NE:
+            op = dir1 ? Opcode::icmp_ne : Opcode::icmp_eq;
+            break;
+          case fir::ICmpInstrSubType::EQ:
+            op = dir1 ? Opcode::icmp_eq : Opcode::icmp_ne;
+            break;
+          case fir::ICmpInstrSubType::SGT:
+            op = dir1 ? Opcode::icmp_sgt : Opcode::icmp_sle;
+            break;
+          case fir::ICmpInstrSubType::UGT:
+            op = dir1 ? Opcode::icmp_ugt : Opcode::icmp_ule;
+            break;
+          case fir::ICmpInstrSubType::UGE:
+            op = dir1 ? Opcode::icmp_uge : Opcode::icmp_ult;
+            break;
+          case fir::ICmpInstrSubType::ULE:
+            op = dir1 ? Opcode::icmp_ule : Opcode::icmp_ugt;
+            break;
+          case fir::ICmpInstrSubType::SGE:
+            op = dir1 ? Opcode::icmp_sge : Opcode::icmp_slt;
+            break;
+          case fir::ICmpInstrSubType::SLE:
+            op = dir1 ? Opcode::icmp_sle : Opcode::icmp_sgt;
+            break;
+          case fir::ICmpInstrSubType::INVALID:
+            UNREACH();
+          }
+          //Do a little cheating
+          res_arg.reg.info.reg_size = 1;
+          res.result.emplace_back(op, res_arg, arg1, arg2);
+        }
+
+        return true;
+      }});
+}
+void memory_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
@@ -545,7 +618,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
   //       auto mul_arg1 = valueToArg(mul_instr->args[0], res.result,
   //       data.alloc); auto mul_arg2 = valueToArg(mul_instr->args[1],
   //       res.result, data.alloc); auto add_arg1 =
-  //       valueToArg(add_instr->args[0], res.result, data.alloc); if (add_arg1
+  //       valueToArg(add_instr->args[0], res.result, data.alloc); if
+  //       (add_arg1
   //       == res_reg) {
   //         return false;
   //       }
@@ -608,8 +682,8 @@ void base_patterns(IRVec<Pattern> &pats) {
 
   pats.push_back(
       Pattern{{AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-                // TODO: this should be done once for all allocas that only get
-                // executed once
+                // TODO: this should be done once for all allocas that only
+                // get executed once
                 auto alloca_instr = res.matched_instrs[0];
                 auto rsp_reg = data.alloc.get_new_register(VRegInfo::RSP());
                 auto rsp_arg = MArgument{rsp_reg, Type::Int64};
@@ -955,6 +1029,7 @@ void base_patterns(IRVec<Pattern> &pats) {
   pats.push_back(Pattern{
       {ICMPNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto cmp_instr = res.matched_instrs[0];
+        // TODO: kinda sus
         auto res_reg = data.alloc.get_register(fir::ValueR(cmp_instr));
 
         auto res_arg = MArgument(res_reg, convert_type(cmp_instr.get_type()));

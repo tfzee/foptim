@@ -27,9 +27,7 @@
             ninja
             clang_18
 
-            #for codegen for now
-            # nasm
-            # asmjit
+            #for codegen
             elfio
 
             #for testing stuff

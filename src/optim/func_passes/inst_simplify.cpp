@@ -1,6 +1,7 @@
 #include "inst_simplify.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/instruction_data.hpp"
 
 namespace foptim::optim {
 
@@ -321,12 +322,9 @@ inline void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-inline void simplify_select(fir::Instr instr, fir::BasicBlock bb,
+inline void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                             fir::Context & /*ctx*/, WorkList &worklist) {
   if (instr->args[0].is_constant()) {
-    fir::Builder b(bb);
-    b.at_end(bb);
-
     auto v1 = instr->args[0].as_constant()->as_int();
     push_all_uses(worklist, instr);
     if (v1 == 0) {
