@@ -6,8 +6,15 @@
 #include "utils/todo.hpp"
 
 namespace foptim::fmir {
+void replace_vargs(IRVec<MBB> &bbs, const TMap<size_t, VRegType> &reg_mapping) {
+  for (auto &bb : bbs) {
+    for (auto &instr : bb.instrs) {
+      replace_vargs(instr,reg_mapping);
+    }
+  }
+}
 
-void replace_args(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
+void replace_vargs(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
     case MArgument::ArgumentType::Imm:
@@ -181,7 +188,7 @@ void apply_func(MFunc &func) {
 
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {
-      replace_args(instr, reg_mapping);
+      replace_vargs(instr, reg_mapping);
     }
   }
 }

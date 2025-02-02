@@ -8,6 +8,7 @@
 #include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
+#include "mir/optim/register_joining.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/inline.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
@@ -171,6 +172,11 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.first_stage(funcs);
+  foptim::fmir::RegisterJoining{}.apply(funcs);
+  foptim::utils::Debug << "================OPTIMEND2====================\n";
+  for (const auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);

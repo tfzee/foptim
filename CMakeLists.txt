@@ -81,6 +81,7 @@ add_library (foptim
                 ./src/mir/optim/bb_reordering.cpp
                 ./src/mir/optim/inst_simplify.cpp
                 ./src/mir/optim/legalization.cpp
+                ./src/mir/optim/register_joining.cpp
 
                 #codegen
                 ./src/x86_codegen/backend3.cpp
