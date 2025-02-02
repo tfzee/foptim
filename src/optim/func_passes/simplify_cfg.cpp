@@ -237,18 +237,21 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
                                              fir::Function &func, size_t bb_id,
                                              bool is_entry) {
   if (curr.bb->n_instrs() == 1 &&
-      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr) && !is_entry) {
+      curr.bb->get_terminator()->is(fir::InstrType::BranchInstr)) {
     ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     // if no bb args involved just replace
-    if (curr.bb->n_args() == 0 && succ->n_args() == 0) {
+    if (curr.bb->n_args() == 0 && succ->n_args() == 0 &&
+        (!is_entry ||
+         (cfg.bbrs[curr.succ[0]].pred.size() == 1 && curr.succ[0] == 1))) {
       curr.bb->replace_all_uses(fir::ValueR(succ));
-      func.basic_blocks[bb_id]->remove_from_parent(true);
+      curr.bb->remove_from_parent(true);
       return true;
     }
     // if this block doesnt have bb_args we might be able to replace all
     // incoming edges with the outgoig jump + args
-    if (curr.bb->n_args() == 0) {
+    // TODO: handle entry
+    if (curr.bb->n_args() == 0 && !is_entry) {
       const auto &terminator_args = curr.bb->get_terminator()->bbs[0].args;
       TVec<fir::Use> uses(curr.bb->get_uses().begin(),
                           curr.bb->get_uses().end());

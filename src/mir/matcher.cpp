@@ -204,32 +204,6 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
       }
     }
 
-    // add all unmatched args into the worklist
-    // {
-    //   for (size_t instr_id = 0; instr_id <
-    //   match_result.matched_instrs.size();
-    //        instr_id++) {
-    //     auto &matched_instr = match_result.matched_instrs[instr_id];
-    //     auto &args = matched_instr->args;
-    //     for (size_t arg_id = 0; arg_id < args.size(); arg_id++) {
-    //       if (!args[arg_id].is_instr()) {
-    //         continue;
-    //       }
-    //       bool is_matched = false;
-    //       for (const auto rem_edge : patterns[match_result.match_id].edges) {
-    //         if (rem_edge.to_instr == instr_id && rem_edge.to_arg == arg_id) {
-    //           is_matched = true;
-    //           break;
-    //         }
-    //       }
-    //       auto new_instr = matched_instr->args[arg_id].as_instr();
-    //       if (!is_matched && new_instr->get_parent() ==
-    //       cur_instr->get_parent()) {
-    //         worklist.push_back(new_instr);
-    //       }
-    //     }
-    //   }
-    // }
   }
 
   std::reverse(result_bb.instrs.begin(), result_bb.instrs.end());
@@ -307,105 +281,6 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   res_func.clone_attribs(func);
 
   return res_func;
-}
-MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
-                          DumbRegAlloc &alloc) {
-
-  ASSERT(val.is_constant());
-  auto consti = val.as_constant();
-  if (consti->is_int()) {
-    switch (val.get_type()->as_int()) {
-    case 8:
-      return {(u8)consti->as_int()};
-    case 16:
-      return {(u16)consti->as_int()};
-    case 32:
-      return {(u32)consti->as_int()};
-    case 64:
-    default:
-      return {consti->as_int()};
-    }
-  }
-
-  if (consti->is_float()) {
-    if (val.get_type()->as_float() == 32) {
-      return {(f32)consti->as_float()};
-    }
-    return {consti->as_float()};
-  }
-
-  if (consti->is_global()) {
-    auto global = consti->as_global();
-    // TODO: idk if i64 is right here
-
-    Type type_id = convert_type(val.get_type());
-    auto helper =
-        MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
-    auto arg = MArgument::Mem(
-        ("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(), type_id);
-    res.emplace_back(Opcode::lea, helper, arg);
-    return helper;
-  }
-  if (consti->is_func()) {
-    auto funcy = consti->as_func();
-    auto arg = MArgument::Mem(funcy->getName(), Type::Int64);
-    auto helper =
-        MArgument(alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64);
-    res.emplace_back(Opcode::lea, helper, arg);
-    return helper;
-  }
-  if (consti->is_poisson()) {
-    if (auto *v = std::get_if<fir::IntegerType>(&consti->type->type)) {
-      switch (v->bitwidth) {
-      case 8:
-        return MArgument((u8)0);
-      case 16:
-        return MArgument((u16)0);
-      case 32:
-        return MArgument((u32)0);
-      case 64:
-        return MArgument((u64)0);
-      default:
-        utils::Debug << v->bitwidth << "\n";
-        UNREACH();
-      }
-
-    } else if (auto *v = std::get_if<fir::FloatType>(&consti->type->type)) {
-      return MArgument(0.0f);
-    }
-    utils::Debug << consti << " with type " << consti->type << "\n";
-    UNREACH();
-  }
-  UNREACH();
-}
-
-MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
-  if (val.is_constant()) {
-    return valueToArgConst(val, res, alloc);
-  }
-  Type type_id = convert_type(val.get_type());
-  return {alloc.get_register(val), type_id};
-}
-
-MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
-  if (val.is_constant()) {
-    auto constant = val.as_constant();
-    if (constant->is_global()) {
-      auto global = constant->as_global();
-      Type type_id = convert_type(val.get_type());
-      // TODO: idk if i64 is right here
-      return MArgument::Mem(
-          ("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(), type_id);
-    }
-    if (constant->is_func()) {
-      auto funcy = constant->as_func();
-      return {funcy->getName()};
-    }
-  } else {
-    return MArgument::Mem(alloc.get_register(val), type_id);
-  }
-  ASSERT(false);
-  std::abort();
 }
 
 struct PhiPair {

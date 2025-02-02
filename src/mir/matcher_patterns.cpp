@@ -1,5 +1,6 @@
 #include "matcher_patterns.hpp"
 #include "ir/instruction_data.hpp"
+#include "mir/matcher_helpers.hpp"
 
 namespace foptim::fmir {
 
@@ -85,7 +86,7 @@ void move_patterns(IRVec<Pattern> &pats) {
           case fir::ICmpInstrSubType::INVALID:
             UNREACH();
           }
-          //Do a little cheating
+          // Do a little cheating
           res_arg.reg.info.reg_size = 1;
           res.result.emplace_back(op, res_arg, arg1, arg2);
         }
@@ -1202,16 +1203,7 @@ void base_patterns(IRVec<Pattern> &pats) {
   pats.push_back(Pattern{
       {CallNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto call_instr = res.matched_instrs[0];
-        {
-          TVec<MArgument> evaluated_args;
-          for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
-            evaluated_args.push_back(
-                valueToArg(call_instr->args[arg_id], res.result, data.alloc));
-          }
-          for (auto arg_value : evaluated_args) {
-            res.result.emplace_back(Opcode::arg_setup, arg_value);
-          }
-        }
+        setup_callargs(call_instr, res, data);
 
         MArgument calee;
         if (call_instr->args[0].is_constant()) {
@@ -1234,14 +1226,6 @@ void base_patterns(IRVec<Pattern> &pats) {
         } else {
           ASSERT_M(false, "impl ret value");
         }
-        // {
-        //   auto rsp_reg = data.alloc.get_new_register(VRegInfo::ESP());
-        //   res.result.push_back(MInstr{Opcode::add,
-        //                               MArgument{rsp_reg, Type::Int64},
-        //                               MArgument{rsp_reg, Type::Int64},
-        //                               MArgument{call_instr->args.size() *
-        //                               8}});
-        // }
         return true;
       }});
   pats.push_back(Pattern{
