@@ -6,7 +6,6 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
-#include "utils/logging.hpp"
 #include "utils/vec.hpp"
 #include <algorithm>
 #include <span>

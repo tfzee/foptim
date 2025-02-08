@@ -1,15 +1,33 @@
 #include <assert.h>
-#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef GENANN_RANDOM
-/* We use the following for uniform random numbers between 0 and 1.
- * If you have a better function, redefine this macro. */
-#define GENANN_RANDOM() (((double)rand()) / RAND_MAX)
+#ifndef genann_act
+#define genann_act_hidden genann_act_hidden_indirect
+#define genann_act_output genann_act_output_indirect
+#else
+#define genann_act_hidden genann_act
+#define genann_act_output genann_act
 #endif
+#ifdef __GNUC__
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#define unused __attribute__((unused))
+#else
+#define likely(x) x
+#define unlikely(x) x
+#define unused
+#pragma warning(disable : 4996) /* For fscanf */
+#endif
+
+#define LOOKUP_SIZE 4096
+
+const double sigmoid_dom_min = -15.0;
+const double sigmoid_dom_max = 15.0;
+double interval;
+double lookup[LOOKUP_SIZE];
 
 struct genann;
 
@@ -76,17 +94,6 @@ double genann_act_sigmoid_cached(const genann *ann, double a);
 double genann_act_threshold(const genann *ann, double a);
 double genann_act_linear(const genann *ann, double a);
 
-
-#ifndef genann_act
-#define genann_act_hidden genann_act_hidden_indirect
-#define genann_act_output genann_act_output_indirect
-#else
-#define genann_act_hidden genann_act
-#define genann_act_output genann_act
-#endif
-
-#define LOOKUP_SIZE 4096
-
 double genann_act_hidden_indirect(const struct genann *ann, double a) {
   return ann->activation_hidden(ann, a);
 }
@@ -94,22 +101,6 @@ double genann_act_hidden_indirect(const struct genann *ann, double a) {
 double genann_act_output_indirect(const struct genann *ann, double a) {
   return ann->activation_output(ann, a);
 }
-
-const double sigmoid_dom_min = -15.0;
-const double sigmoid_dom_max = 15.0;
-double interval;
-double lookup[LOOKUP_SIZE];
-
-#ifdef __GNUC__
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
-#define unused __attribute__((unused))
-#else
-#define likely(x) x
-#define unlikely(x) x
-#define unused
-#pragma warning(disable : 4996) /* For fscanf */
-#endif
 
 double genann_act_sigmoid(const genann *ann unused, double a) {
   if (a < -45.0)
@@ -178,7 +169,7 @@ genann *genann_init(int inputs, int hidden_layers, int hidden, int outputs) {
   const int size =
       sizeof(genann) + sizeof(double) * (total_weights + total_neurons +
                                          (total_neurons - inputs));
-  genann *ret = malloc(size);
+  genann *ret = (genann *)malloc(size);
   if (!ret)
     return 0;
 
@@ -205,30 +196,31 @@ genann *genann_init(int inputs, int hidden_layers, int hidden, int outputs) {
   return ret;
 }
 
-genann *genann_copy(genann const *ann) {
-  const int size = sizeof(genann) +
-                   sizeof(double) * (ann->total_weights + ann->total_neurons +
-                                     (ann->total_neurons - ann->inputs));
-  genann *ret = malloc(size);
-  if (!ret)
-    return 0;
+// genann *genann_copy(genann const *ann) {
+//   const int size = sizeof(genann) +
+//                    sizeof(double) * (ann->total_weights + ann->total_neurons
+//                    +
+//                                      (ann->total_neurons - ann->inputs));
+//   genann *ret = malloc(size);
+//   if (!ret)
+//     return 0;
 
-  memcpy(ret, ann, size);
+//   memcpy(ret, ann, size);
 
-  /* Set pointers. */
-  ret->weight = (double *)((char *)ret + sizeof(genann));
-  ret->output = ret->weight + ret->total_weights;
-  ret->delta = ret->output + ret->total_neurons;
+//   /* Set pointers. */
+//   ret->weight = (double *)((char *)ret + sizeof(genann));
+//   ret->output = ret->weight + ret->total_weights;
+//   ret->delta = ret->output + ret->total_neurons;
 
-  return ret;
-}
+//   return ret;
+// }
 
 void genann_randomize(genann *ann) {
   int i;
   for (i = 0; i < ann->total_weights; ++i) {
-    double r = GENANN_RANDOM();
-    /* Sets weights from -0.5 to 0.5. */
-    ann->weight[i] = r - 0.5;
+    double r = (((double)rand()) / RAND_MAX);
+    //   /* Sets weights from -0.5 to 0.5. */
+      ann->weight[i] = r - 0.5;
   }
 }
 
@@ -427,8 +419,6 @@ void genann_train(genann const *ann, double const *inputs,
 }
 
 int main() {
-  puts("GENANN example 1.\n");
-  puts("Train a small ANN to the XOR function using backpropagation.\n");
 
   const double input[4][2] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
   const double output[4] = {0, 1, 1, 0};
@@ -436,12 +426,12 @@ int main() {
 
   genann *ann = genann_init(2, 1, 2, 1);
 
-  for (i = 0; i < 500; ++i) {
-    genann_train(ann, input[0], output + 0, 3);
-    genann_train(ann, input[1], output + 1, 3);
-    genann_train(ann, input[2], output + 2, 3);
-    genann_train(ann, input[3], output + 3, 3);
-  }
+  // for (i = 0; i < 500; ++i) {
+  //   genann_train(ann, input[0], output + 0, 3);
+  //   genann_train(ann, input[1], output + 1, 3);
+  //   genann_train(ann, input[2], output + 2, 3);
+  //   genann_train(ann, input[3], output + 3, 3);
+  // }
 
   // printf("Output for [%1.f, %1.f] is %1.f.\n", input[0][0], input[0][1],
   // *genann_run(ann, input[0])); printf("Output for [%1.f, %1.f] is %1.f.\n",
@@ -450,6 +440,6 @@ int main() {
   // input[2])); printf("Output for [%1.f, %1.f] is %1.f.\n", input[3][0],
   // input[3][1], *genann_run(ann, input[3]));
 
-  genann_free(ann);
+  // genann_free(ann);
   return 0;
 }

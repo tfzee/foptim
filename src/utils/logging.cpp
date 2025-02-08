@@ -197,6 +197,23 @@ Printer Printer::operator<<(const foptim::fmir::MInstr &value) const {
     return *this << value.args[0] << " -= " << value.args[1];
   case fmir::Opcode::mul2:
     return *this << value.args[0] << " *= " << value.args[1];
+  case fmir::Opcode::lxor2:
+    if (value.args[0] == value.args[1]) {
+      return *this << "clear " << value.args[0];
+    }
+    return *this << value.args[0] << " ^= " << value.args[1];
+  case fmir::Opcode::fsub:
+    return *this << value.args[0] << " = " << value.args[1] << " - "
+                 << value.args[2];
+  case fmir::Opcode::fadd:
+    return *this << value.args[0] << " = " << value.args[1] << " + "
+                 << value.args[2];
+  case fmir::Opcode::fmul:
+    return *this << value.args[0] << " = " << value.args[1] << " * "
+                 << value.args[2];
+  case fmir::Opcode::fdiv:
+    return *this << value.args[0] << " = " << value.args[1] << " / "
+                 << value.args[2];
   default:
     *this << getNameFromOpcode(value.op) << "(";
     for (size_t arg_indx = 0; arg_indx < value.n_args; arg_indx++) {

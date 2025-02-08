@@ -91,7 +91,7 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     return;
   }
 
-  if (c0_val && c1_val) {
+  if ((c0_val != nullptr) && (c1_val != nullptr)) {
     if (c1_val->type->is_int() && c0_val->type->is_int()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_int(), c1_val->as_int(),

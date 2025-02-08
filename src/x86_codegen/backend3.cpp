@@ -986,7 +986,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(get_size(instr.args[1].ty) == 4 || get_size(instr.args[1].ty) == 8);
-    //Weird instruction just gonna do this
+    // Weird instruction just gonna do this
     req.operand_count = 3;
     req.operands[2] = req.operands[1];
     req.operands[1] = req.operands[0];
@@ -1184,7 +1184,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                        (size_t)end_txt - (size_t)start_txt);
   }
 
-  for (auto &decl : decls) {
+  for (const auto &decl : decls) {
     label_usage_map.label_map[decl].def_loc = 0;
     label_usage_map.label_map[decl].kind = RelocKind::Func;
     label_usage_map.label_map[decl].section = RelocSection::Extern;

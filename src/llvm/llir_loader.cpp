@@ -1,6 +1,5 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
-#include "ir/constant_value.hpp"
 #include "ir/context.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
