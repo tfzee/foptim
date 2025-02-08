@@ -83,6 +83,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent,
 bool InstrData::has_result() const {
   switch (instr_type) {
   case InstrType::BinaryInstr:
+  case InstrType::UnaryInstr:
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
   case InstrType::SelectInstr:
@@ -114,6 +115,7 @@ bool InstrData::is_critical() const {
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
+  case InstrType::UnaryInstr:
   case InstrType::SelectInstr:
   case InstrType::ITrunc:
   case InstrType::ICmp:
@@ -173,6 +175,7 @@ bool InstrData::is_commutative() const {
     default:
       return false;
     }
+  case InstrType::UnaryInstr:
   case InstrType::CallInstr:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
@@ -202,6 +205,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::ReturnInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
+  case InstrType::UnaryInstr:
   case InstrType::ICmp:
   case InstrType::FCmp:
   case InstrType::SExt:
@@ -223,6 +227,7 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::SelectInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
+  case InstrType::UnaryInstr:
   case InstrType::ICmp:
   case InstrType::FCmp:
   case InstrType::SExt:
@@ -283,6 +288,12 @@ InstrData InstrData::get_smod(TypeR ty) {
 
 InstrData InstrData::get_binary(TypeR ty, BinaryInstrSubType sub_type) {
   auto res = InstrData{InstrType::BinaryInstr, (u32)sub_type, ty,
+                       BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_unary(TypeR ty, UnaryInstrSubType sub_type) {
+  auto res = InstrData{InstrType::UnaryInstr, (u32)sub_type, ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }

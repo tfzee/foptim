@@ -119,6 +119,16 @@ public:
     return ValueR(instr);
   }
 
+  ValueR build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(
+        InstrData::get_unary(a.get_type(), sub_type));
+    instr.add_arg(a);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
   ValueR build_conversion_op(ValueR a, TypeR res_type, ConversionSubType sub_type) {
     check_bb_set();
     Instr instr = ctx->storage.insert_instr(

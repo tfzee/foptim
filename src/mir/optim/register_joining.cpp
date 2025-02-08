@@ -42,7 +42,9 @@ void RegisterJoining::apply(MFunc &func) {
         hit = true;
       }
       if (pinned_target_reg.info.ty == VRegType::SP ||
-          pinned_target_reg.info.ty == VRegType::BP) {
+          pinned_target_reg.info.ty == VRegType::BP ||
+          pinned_target_reg.info.reg_class !=
+              virtual_value_reg.info.reg_class) {
         hit = false;
       }
 

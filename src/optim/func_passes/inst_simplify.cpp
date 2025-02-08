@@ -256,6 +256,12 @@ inline void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
     switch ((FCmpInstrSubType)instr->get_instr_subtype()) {
+    case fir::FCmpInstrSubType::IsNaN:
+      __asm__("vcomisd %2, %1\n\t"
+              "setp %0"
+              : "=r"(is_true)
+              : "x"(v1), "x"(v2));
+      break;
     case fir::FCmpInstrSubType::OEQ:
       __asm__("vcomisd %2, %1\n\t"
               "sete %0"

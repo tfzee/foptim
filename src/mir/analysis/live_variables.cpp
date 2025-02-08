@@ -78,6 +78,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::ffmadd231:
   case Opcode::ffmadd213:
   case Opcode::fxor:
+  case Opcode::fAnd:
+  case Opcode::fOr:
   case Opcode::SI2FL:
   case Opcode::UI2FL:
   case Opcode::FL2SI:
@@ -93,6 +95,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::icmp_ule:
   case Opcode::icmp_sge:
   case Opcode::icmp_sle:
+  case Opcode::fcmp_isNaN:
   case Opcode::fcmp_oeq:
   case Opcode::fcmp_ogt:
   case Opcode::fcmp_oge:
@@ -219,6 +222,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::fxor:
+  case Opcode::fOr:
+  case Opcode::fAnd:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
   case Opcode::icmp_ult:
@@ -229,6 +234,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::icmp_ule:
   case Opcode::icmp_sge:
   case Opcode::icmp_sle:
+  case Opcode::fcmp_isNaN:
   case Opcode::fcmp_oeq:
   case Opcode::fcmp_ogt:
   case Opcode::fcmp_oge:

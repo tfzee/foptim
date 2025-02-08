@@ -38,9 +38,28 @@ public:
     // }
   }
 
+  void handle_is_fpclass(fir::Instr instr, fir::Function & /*func*/,
+                         fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto val = instr->args[1];
+    auto mode_a = instr->args[2];
+    ASSERT(mode_a.is_constant());
+    auto mode_c = mode_a.as_constant();
+    ASSERT(mode_c->is_int());
+    auto mode = mode_c->as_int();
+
+    if (mode == 3) {
+      auto result = bb.build_float_cmp(val, val, fir::FCmpInstrSubType::IsNaN);
+      instr->replace_all_uses(result);
+      instr.remove_from_parent();
+    } else {
+      utils::Debug << instr << "\n";
+      TODO("impl");
+    }
+  }
+
   void handle_fmuladd(fir::Instr instr, fir::Function & /*func*/,
                       fir::FunctionR /*callee*/) {
-    utils::Debug << instr << "\n";
     fir::Builder bb{instr};
     auto mul_1 = instr->args[1];
     auto mul_2 = instr->args[2];
@@ -109,6 +128,8 @@ public:
           handle_fmuladd(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.trap")) {
           handle_trap(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.is.fpclass")) {
+          handle_is_fpclass(instr, func, callee);
         }
       }
     }

@@ -46,6 +46,7 @@ add_library (foptim
                 ./src/llvm/llir_loader.cpp
 
                 #ir
+                ./src/ir/context.cpp
                 ./src/ir/function.cpp
                 ./src/ir/basic_block.cpp
                 ./src/ir/basic_block_ref.cpp

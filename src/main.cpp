@@ -160,7 +160,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
     }
     auto res = matcher.apply(func);
     funcs.push_back(std::move(res));
-    foptim::utils::Debug << funcs.back();
+    // foptim::utils::Debug << funcs.back();
     foptim::utils::TempAlloc<void *>::reset();
   }
 }
@@ -168,6 +168,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
 void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
+
   ZoneScopedN("MIR Optim");
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
@@ -176,10 +177,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegisterJoining{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::utils::Debug << "================OPTIMEND2====================\n";
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
@@ -193,10 +190,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::IRString> &decls,
              foptim::FVec<foptim::fmir::Global> &globals) {
-  foptim::utils::Debug << "================OPTIMEND2====================\n";
-  for (const auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, decls, globals);
   foptim::utils::Debug << "Done!";

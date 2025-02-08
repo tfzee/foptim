@@ -52,28 +52,11 @@ struct ContextData {
     return res;
   }
 
-  // ConstantValueR copy(ConstantValueR constant) {
-  //   auto res = storage.insert_constant(*constant.get_raw_ptr());
-  //   return res;
-  // }
+  IntTypeR get_int_type(u16 bitwidth);
+  FloatTypeR get_float_type(u16 bitwidth);
 
-  // TypeR copy(TypeR typee) {
-  //   // FIXME: do this recusively to the subtypes
-  //   auto res = storage.insert_type(*typee.get_raw_ptr());
-  //   return res;
-  // }
-
-
-  IntTypeR get_int_type(u16 bitwidth) {
-    return storage.insert_type(IntegerType{bitwidth});
-  }
-
-  IntTypeR get_float_type(u16 bitwidth) {
-    return storage.insert_type(FloatType{bitwidth});
-  }
-
-  VoidTypeR get_void_type() { return storage.insert_type(VoidType{}); }
-  VoidTypeR get_ptr_type() { return storage.insert_type(OpaquePointerType{}); }
+  VoidTypeR get_void_type();
+  VoidTypeR get_ptr_type();
 
   template <class T>
   static void print_stats_vec(const utils::FStableVec<T> &vec) {
@@ -100,52 +83,22 @@ struct ContextData {
     print_stats_vec(storage.storage_global);
   }
 
-  FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
-    return storage.insert_type(FunctionType{ret_type, std::move(args)});
-  }
-
-  ConstantValueR get_poisson_value(TypeR type) {
-    return storage.insert_constant(ConstantValue(type));
-  }
-
-  ConstantValueR get_constant_value(FunctionR func) {
-    return storage.insert_constant(ConstantValue(func, get_ptr_type()));
-  }
-
-  ConstantValueR get_constant_value(f32 val, FloatTypeR ty) {
-    return storage.insert_constant(ConstantValue(val, ty));
-  }
-
-  ConstantValueR get_constant_value(f64 val, FloatTypeR ty) {
-    return storage.insert_constant(ConstantValue(val, ty));
-  }
-
-  ConstantValueR get_constant_value(u64 val, IntTypeR ty) {
-    return storage.insert_constant(ConstantValue(val, ty));
-  }
-
-  ConstantValueR get_constant_value(i64 val, IntTypeR ty) {
-    return storage.insert_constant(ConstantValue((u64)val, ty));
-  }
-
-  ConstantValueR get_constant_value(i32 val, IntTypeR ty) {
-    return storage.insert_constant(ConstantValue((u64)(i64)val, ty));
-  }
-
-  ConstantValueR get_constant_value(u32 val, IntTypeR ty) {
-    return storage.insert_constant(ConstantValue((u64)val, ty));
-  }
-
-  ConstantValueR get_constant_value(Global glob) {
-    // NOTE: Idk if this should be static if we add some ptr attribs idk?
-    static auto global_ptr_typee =
-        storage.insert_type(AnyType{OpaquePointerType()});
-    return storage.insert_constant(ConstantValue(glob, global_ptr_typee));
-  }
+  FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args);
+  ConstantValueR get_poisson_value(TypeR type);
+  ConstantValueR get_constant_value(FunctionR func);
+  ConstantValueR get_constant_value(f32 val, FloatTypeR ty);
+  ConstantValueR get_constant_value(f64 val, FloatTypeR ty);
+  ConstantValueR get_constant_value(u64 val, IntTypeR ty);
+  ConstantValueR get_constant_value(i64 val, IntTypeR ty);
+  ConstantValueR get_constant_value(i32 val, IntTypeR ty);
+  ConstantValueR get_constant_value(u32 val, IntTypeR ty);
+  ConstantValueR try_reuse_constant(const ConstantValue& val);
+  ConstantValueR get_constant_value(Global glob);
 
   Global get_global(size_t size_bytes) {
     return storage.insert_global({size_bytes, nullptr});
   }
+
   FunctionR get_function(IRString name) {
     if (!storage.functions.contains(name)) {
       utils::Debug << "Failed to find function '" << name.c_str()

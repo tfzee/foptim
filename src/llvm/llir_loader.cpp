@@ -20,6 +20,7 @@
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
 #include <memory>
@@ -67,8 +68,12 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
         fctx->get_constant_value(constant, fctx->get_int_type(bitwidth)));
   }
   if (const auto *float_constant =
+          llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
+    return foptim::fir::ValueR(
+        fctx->get_constant_value(0, fctx->get_float_type(64)));
+  }
+  if (const auto *float_constant =
           llvm::dyn_cast_or_null<llvm::ConstantFP>(value)) {
-
     auto value = float_constant->getValue();
     auto is_float = float_constant->getType()->isFloatTy();
     auto is_double = float_constant->getType()->isDoubleTy();
@@ -666,27 +671,48 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isFloatingPointTy()) {
-      auto add = builder.build_float_mul(left, right);
-      valueToValue.insert({any_instr, add});
-      return;
-    }
+    ASSERT(any_instr->getType()->isFloatingPointTy());
+    auto add = builder.build_float_mul(left, right);
+    valueToValue.insert({any_instr, add});
+    return;
   } else if (op_code == llvm::Instruction::FDiv) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isFloatingPointTy()) {
-      auto add = builder.build_float_div(left, right);
-      valueToValue.insert({any_instr, add});
-      return;
-    }
+    ASSERT(any_instr->getType()->isFloatingPointTy());
+    auto add = builder.build_float_div(left, right);
+    valueToValue.insert({any_instr, add});
+    return;
+  } else if (op_code == llvm::Instruction::FNeg) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    ASSERT(any_instr->getType()->isFloatingPointTy());
+    auto add =
+        builder.build_unary_op(left, foptim::fir::UnaryInstrSubType::FloatNeg);
+    valueToValue.insert({any_instr, add});
+    return;
   } else if (op_code == llvm::Instruction::PHI) {
     auto ftype = convert_type(any_instr->getType(), fctx);
     auto curr_bb = builder.get_curr_bb();
     auto new_arg = curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, ftype));
     valueToValue.insert({any_instr, foptim::fir::ValueR{new_arg}});
+    return;
+    return;
+  } else if (op_code == llvm::Instruction::PtrToInt) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto add =
+        builder.build_conversion_op(left, fctx->get_int_type(64), foptim::fir::ConversionSubType::PtrToInt);
+    valueToValue.insert({any_instr, add});
+    return;
+  } else if (op_code == llvm::Instruction::IntToPtr) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto add =
+        builder.build_conversion_op(left, fctx->get_ptr_type(), foptim::fir::ConversionSubType::IntToPtr);
+    valueToValue.insert({any_instr, add});
     return;
   } else if (op_code == llvm::Instruction::Unreachable) {
     // TODO: unraech instr?
@@ -1019,9 +1045,19 @@ inline void convert_constant_init(const uint8_t *output,
     return;
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantFP>(val)) {
-    foptim::utils::Debug << "TODO: handle global init\n";
-    llvm::errs() << "constant fp " << *d << "\n";
-    TODO("IMPL");
+    auto ty_id = d->getType()->getTypeID();
+    if (ty_id == llvm::Type::FloatTyID) {
+      auto val = (u32)d->getValue().bitcastToAPInt().getZExtValue();
+      *((uint32_t *)output) = (uint32_t)val;
+    } else if (ty_id == llvm::Type::DoubleTyID) {
+      auto val = (u64)d->getValue().bitcastToAPInt().getZExtValue();
+      *((u64 *)output) = val;
+    } else {
+      foptim::utils::Debug << "TODO: handle global init\n";
+      llvm::errs() << "constant fp " << *d << "\n";
+      TODO("IMPL");
+    }
+    return;
   }
   foptim::utils::Debug << "TODO: handle global init\n";
   llvm::errs() << "idk " << *val << "\n";

@@ -15,6 +15,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(icmp_ule);
     ReturnString(icmp_sge);
     ReturnString(icmp_sle);
+    ReturnString(fcmp_isNaN);
     ReturnString(fcmp_oeq);
     ReturnString(fcmp_ogt);
     ReturnString(fcmp_oge);
@@ -52,6 +53,8 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(ffmadd231);
     ReturnString(ffmadd213);
     ReturnString(fxor);
+    ReturnString(fAnd);
+    ReturnString(fOr);
     ReturnString(icmp_slt);
     ReturnString(icmp_eq);
     ReturnString(jmp);
@@ -120,6 +123,8 @@ TVec<MArgument> written_args(MInstr &instr) {
   case Opcode::ffmadd213:
   case Opcode::ffmadd231:
   case Opcode::fxor:
+  case Opcode::fOr:
+  case Opcode::fAnd:
   case Opcode::SI2FL:
   case Opcode::UI2FL:
   case Opcode::FL2SI:
@@ -135,6 +140,7 @@ TVec<MArgument> written_args(MInstr &instr) {
   case Opcode::icmp_ule:
   case Opcode::icmp_sge:
   case Opcode::icmp_sle:
+  case Opcode::fcmp_isNaN:
   case Opcode::fcmp_oeq:
   case Opcode::fcmp_ogt:
   case Opcode::fcmp_oge:
@@ -258,6 +264,8 @@ TVec<MArgument> read_args(MInstr &instr) {
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::fxor:
+  case Opcode::fAnd:
+  case Opcode::fOr:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
   case Opcode::icmp_ult:
@@ -268,6 +276,7 @@ TVec<MArgument> read_args(MInstr &instr) {
   case Opcode::icmp_ule:
   case Opcode::icmp_sge:
   case Opcode::icmp_sle:
+  case Opcode::fcmp_isNaN:
   case Opcode::fcmp_oeq:
   case Opcode::fcmp_ogt:
   case Opcode::fcmp_oge:

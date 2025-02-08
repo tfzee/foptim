@@ -22,8 +22,14 @@ utils::Printer operator<<(utils::Printer p, const ZydisEncoderOperand &data) {
   case ZYDIS_OPERAND_TYPE_REGISTER:
     return p << data.reg.value;
   case ZYDIS_OPERAND_TYPE_MEMORY:
-    return p << "[" << data.mem.base << " + " << data.mem.displacement << " + "
-             << data.mem.index << " * " << (u64)data.mem.scale << "]@" << data.mem.size;
+    if (data.mem.scale == 0) {
+      return p << "[" << data.mem.base << " + " << data.mem.displacement << "]@"
+               << data.mem.size;
+    } else {
+      return p << "[" << data.mem.base << " + " << data.mem.displacement
+               << " + " << data.mem.index << " * " << (u64)data.mem.scale
+               << "]@" << data.mem.size;
+    }
   case ZYDIS_OPERAND_TYPE_POINTER:
     return p << "[O:" << data.ptr.offset << " S:" << data.ptr.segment << "]";
     return p << "ptr";

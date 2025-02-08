@@ -11,6 +11,7 @@
 #include "utils/logging.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
+#include <cmath>
 
 namespace foptim::optim {
 
@@ -91,6 +92,39 @@ public:
   ConstantValue eval_instr(fir::Context &ctx, fir::Instr instr) {
 
     switch (instr->get_instr_type()) {
+    case fir::InstrType::UnaryInstr: {
+      auto a = eval(instr->get_arg(0));
+
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const()) {
+        return ConstantValue::Top();
+      }
+
+      if ((!a.value->is_int() && !a.value->is_float())) {
+        failure(
+            {"Cannot do SCCP on binary expr using non integers/floats", instr});
+        return ConstantValue::Bottom();
+      }
+
+      auto out_type = a.value->get_type();
+
+      switch ((fir::UnaryInstrSubType)instr->get_instr_subtype()) {
+      case fir::UnaryInstrSubType::INVALID:
+        UNREACH();
+      case fir::UnaryInstrSubType::FloatNeg:
+        return ConstantValue::Constant(
+            ctx->get_constant_value(-a.value->as_float(), out_type));
+      case fir::UnaryInstrSubType::IntNeg:
+        return ConstantValue::Constant(
+            ctx->get_constant_value(-a.value->as_int(), out_type));
+      default:
+        utils::Debug << instr << "\n";
+        IMPL("implement instr");
+        UNREACH();
+      }
+    }
     case fir::InstrType::BinaryInstr: {
       auto a = eval(instr->get_arg(0));
       auto b = eval(instr->get_arg(1));
@@ -259,7 +293,10 @@ public:
       case fir::ConversionSubType::SITOFP:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<f64>(a.value->as_int()), instr->get_type()));
-        break;
+      case fir::ConversionSubType::PtrToInt:
+      case fir::ConversionSubType::IntToPtr:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u64>(a.value->as_int()), instr->get_type()));
       }
       // TODO: impl
       return ConstantValue::Bottom();
@@ -288,6 +325,10 @@ public:
 
       switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
         // TODO; how to handle
+      case fir::FCmpInstrSubType::IsNaN:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            (i32)std::isnan(a.value->as_float()),
+            ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::OGT:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<i32>(a.value->as_float() > b.value->as_float()),

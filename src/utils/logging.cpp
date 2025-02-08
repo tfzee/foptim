@@ -191,9 +191,6 @@ Printer Printer::operator<<(const foptim::fmir::MInstr &value) const {
   switch (value.op) {
   case fmir::Opcode::mov:
     return *this << value.args[0] << " = " << value.args[1];
-  // case fmir::Opcode::cmov:
-  //   return *this << " if " <<value.args[1] << " " << value.args[0] << " = "
-  //                 << value.args[2];
   case fmir::Opcode::add2:
     return *this << value.args[0] << " += " << value.args[1];
   case fmir::Opcode::sub2:
@@ -243,6 +240,7 @@ Printer Printer::operator<<(const foptim::fmir::Type &ty) const {
 
 Printer Printer::operator<<(const foptim::fmir::VReg &value) const {
   using foptim::fmir::VRegType;
+  // *this << (u32)value.info.reg_class << " ";
 
   if (value.info.reg_size == 0) {
     switch (value.info.ty) {
