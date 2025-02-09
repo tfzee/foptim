@@ -85,6 +85,7 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
     foptim::utils::Debug << func << "\n";
   }
   ASSERT(ctx->verify());
+
 }
 
 void optimize_fir(foptim::fir::Context &ctx) {
@@ -123,11 +124,11 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
-  foptim::utils::Debug << "================OPTIMEND====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
-  ASSERT(ctx->verify());
+  // foptim::utils::Debug << "================OPTIMEND====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
+  // ASSERT(ctx->verify());
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,
@@ -179,6 +180,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  foptim::utils::Debug << "================MIROPTIM====================\n";
+  for (auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);

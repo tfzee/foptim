@@ -529,6 +529,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
     for (const auto &reg : all_used_regs) {
       auto reg_id = reg_to_uid(reg);
       if (alive[reg_id]) {
+        // utils::Debug << "Reg: " << reg_id << "\n";
         size_t start_instr = 0;
         size_t search_instr = 0;
         ranges[reg];
@@ -556,8 +557,18 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         while (true) {
           auto res =
               find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1);
-          // utils::Debug << "Next found:" << res.index << " " << res.is_read
-          //              << " " << res.is_write << "\n";
+          // utils::Debug << "  Next found:" << bb_id << " : " << res.index << " "
+          //              << res.is_read << " " << res.is_write << "\n";
+          // utils::Debug << "  oldRange:";
+          // ranges[reg].dump();
+          // utils::Debug << "\n";
+          if (!res.is_read && !res.is_write) {
+            if (aliveOut[reg_id]) {
+              ranges[reg].update(LinearRange::inBB(
+                  bb_id, start_instr + 1, func.bbs[bb_id].instrs.size() + 2));
+            }
+            break;
+          }
           if (res.is_read) {
             ranges[reg].update(
                 LinearRange::inBB(bb_id, start_instr + 1, res.index + 1));
@@ -571,13 +582,9 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
             start_instr = res.index;
             search_instr = res.index;
           }
-          if (!res.is_read && !res.is_write) {
-            if (aliveOut[reg_id]) {
-              ranges[reg].update(LinearRange::inBB(
-                  bb_id, start_instr + 1, func.bbs[bb_id].instrs.size() + 2));
-            }
-            break;
-          }
+          // utils::Debug << "  new_range:";
+          // ranges[reg].dump();
+          // utils::Debug << "\n";
         }
 
         if (alive[reg_id] && ranges[reg].ranges.empty()) {
