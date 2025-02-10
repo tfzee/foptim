@@ -302,7 +302,8 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
                    << r.end.instr_indx << "; ";
     }
     utils::Debug << "COLLIDS: "
-                 << ran.collide(LinearRange::inBB(bb_id, start, end)) << "\n";
+                 << ran.collide(LinearRange::inBB(bb_id, start, end + 1))
+                 << "\n";
     utils::Debug << "\n";
   }
 
@@ -431,7 +432,7 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
         }
         // utils::Debug << bb.instrs[instr_start_id] << ".."
         //              << bb.instrs[instr_end_id] << "\n";
-        // utils::Debug << instr_start_id << ".." << instr_end_id << "\n";
+        // utils::Debug << instr_start_id << ".." << instr_end_id + 1 << "\n";
         transform_call(bb.instrs, instr_start_id, instr_end_id, bb_id, lives);
         // update the n of instrs since the might have changed it
         n_instrs = bb.instrs.size();

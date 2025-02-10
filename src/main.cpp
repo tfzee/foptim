@@ -178,6 +178,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegisterJoining{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  foptim::utils::Debug << "================MIROPTIM====================\n";
+  for (auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::utils::Debug << "================MIROPTIM====================\n";

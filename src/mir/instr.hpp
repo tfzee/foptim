@@ -337,6 +337,14 @@ public:
     return res;
   }
 
+  static constexpr VReg MM0SS() {
+    VRegInfo res_info{};
+    res_info.ty = VRegType::mm0;
+    res_info.reg_size = 4;
+    VReg res{0, res_info};
+    return res;
+  }
+
   static constexpr VReg RSP() {
     VRegInfo res_info{};
     res_info.ty = VRegType::SP;

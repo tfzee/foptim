@@ -122,7 +122,11 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::invoke:
     if (instr.n_args > 1 && instr.args[1].isReg()) {
       def[reg_to_uid(instr.args[1].reg)].set(true);
-      def[reg_to_uid(VReg::EAX())].set(true);
+      if (instr.args[1].is_fp()) {
+        def[reg_to_uid(VReg::MM0SS())].set(true);
+      } else {
+        def[reg_to_uid(VReg::EAX())].set(true);
+      }
     }
     break;
   case Opcode::idiv:
@@ -423,9 +427,13 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
       // TODO: this could be more specific since certain CCs can only read/write
       // certain args legaly
-      res.is_write = (instrs[i].n_args > 1 &&
-                      (search_reg_id == reg_to_uid(instrs[i].args[1].reg) ||
-                       search_reg_id == reg_to_uid(VReg::EAX())));
+      res.is_write = false;
+      if (instrs[i].n_args > 1) {
+        res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
+        res.is_write |= instrs[i].args[1].is_fp()
+                            ? search_reg_id == reg_to_uid(VReg::MM0SS())
+                            : search_reg_id == reg_to_uid(VReg::EAX());
+      }
       res.index = i;
     }
     for (auto arg : written_args(instrs[i])) {
@@ -557,7 +565,8 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         while (true) {
           auto res =
               find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1);
-          // utils::Debug << "  Next found:" << bb_id << " : " << res.index << " "
+          // utils::Debug << "  Next found:" << bb_id << " : " << res.index << "
+          // "
           //              << res.is_read << " " << res.is_write << "\n";
           // utils::Debug << "  oldRange:";
           // ranges[reg].dump();
