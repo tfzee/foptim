@@ -7,7 +7,10 @@
 
 namespace foptim::optim {
 
+class AttributeAnalysis;
 class AttributerManager;
+using Worklist =
+    std::deque<AttributeAnalysis *, utils::TempAlloc<AttributeAnalysis *>>;
 
 template <class Int, Int best, Int worst> struct IntegerLattice {
   Int value;
@@ -23,6 +26,21 @@ template <class Int, Int best, Int worst> struct IntegerLattice {
   constexpr operator Int() const { return value; }
 };
 
+template <class T, std::pair<T, T> best, std::pair<T, T> worst>
+struct PairLattice {
+  std::pair<T, T> value;
+
+  constexpr PairLattice() : value(worst) {}
+  // constexpr PairLattice(T i) : value({i, i}) {}
+
+  [[nodiscard]] constexpr std::pair<T, T> getBest() const { return best; }
+  [[nodiscard]] constexpr bool isBest() const { return best == value; }
+  [[nodiscard]] constexpr std::pair<T, T> getWorst() const { return worst; }
+  [[nodiscard]] constexpr bool isWorst() const { return worst == value; }
+
+  constexpr operator T() const { return value; }
+};
+
 class AttributeAnalysis {
 public:
   enum class Result {
@@ -31,8 +49,12 @@ public:
   };
   fir::ValueR associatedValue;
 
+  AttributeAnalysis() = default;
   virtual void materialize_impl() = 0;
-  virtual Result update_impl(AttributerManager & /*unused*/) { TODO("IMPL"); };
+  virtual Result update_impl(AttributerManager & /*unused*/,
+                             Worklist & /*worklist*/) {
+    TODO("IMPL");
+  };
   virtual ~AttributeAnalysis() = default;
   Result update(AttributerManager &m);
 };
@@ -43,7 +65,8 @@ public:
   TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
   AttributeAnalysis *_currently_updating = nullptr;
 
-  template <class AAna> AAna *get_or_create_analysis(fir::ValueR loc) {
+  template <class AAna>
+  AAna *get_or_create_analysis(fir::ValueR loc, Worklist *worklist = nullptr) {
     static_assert(std::is_base_of<AttributeAnalysis, AAna>::value,
                   "AAna must inherit AttributeAnalysis");
     if (!_attribs.contains(typeid(AAna))) {
@@ -51,9 +74,14 @@ public:
     }
     if (!_attribs.at(typeid(AAna)).contains(loc)) {
       AAna *analysis = utils::TempAlloc<AAna>{}.allocate(1);
-      std::construct_at(analysis);
+      ASSERT(analysis);
+      // std::construct_at(analysis);
+      new (analysis) AAna();
       analysis->associatedValue = loc;
       _attribs.at(typeid(AAna)).insert({loc, analysis});
+      if (worklist) {
+        worklist->push_back(analysis);
+      }
     }
     AAna *analysis = (AAna *)_attribs.at(typeid(AAna)).at(loc);
     if (_currently_updating) {
@@ -72,8 +100,7 @@ public:
   }
 
   void run() {
-    std::deque<AttributeAnalysis *, utils::TempAlloc<AttributeAnalysis *>>
-        worklist;
+    Worklist worklist;
     for (auto &[_, loc] : _attribs) {
       for (auto &[_, att] : loc) {
         worklist.push_back(att);
@@ -82,8 +109,9 @@ public:
     while (!worklist.empty()) {
       auto *curr_ptr = worklist.front();
       worklist.pop_front();
-
-      if (curr_ptr->update_impl(*this) == AttributeAnalysis::Result::Changed) {
+      _currently_updating = curr_ptr;
+      if (curr_ptr->update_impl(*this, worklist) ==
+          AttributeAnalysis::Result::Changed) {
         if (_inverse_dependencies.contains(curr_ptr)) {
           for (auto *dependencie : _inverse_dependencies.at(curr_ptr)) {
             worklist.push_back(dependencie);

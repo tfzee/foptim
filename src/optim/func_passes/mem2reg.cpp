@@ -3,6 +3,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/attributer/IntRange.hpp"
 #include "optim/analysis/attributer/PtrAA.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/cfg.hpp"
@@ -344,6 +345,13 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
       manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
     }
   }
+  // for (auto bb : func.get_bbs()) {
+  //   for (auto instr : bb->instructions) {
+  //     if (instr.get_type()->is_int()) {
+  //       manager.get_or_create_analysis<IntRange>(fir::ValueR{instr});
+  //     }
+  //   }
+  // }
   manager.run();
   manager.materialize();
 }

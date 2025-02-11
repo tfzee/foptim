@@ -21,7 +21,7 @@ public:
     }
   }
 
-  Result update_impl(AttributerManager & /*m*/) override {
+  Result update_impl(AttributerManager & /*m*/, Worklist &) override {
     if (known_non_null.isBest()) {
       return Result::Fixed;
     }
