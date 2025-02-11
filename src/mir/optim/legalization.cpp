@@ -214,12 +214,10 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
 
   MInstr &instr = bb.instrs[indx];
   // cant move an immediate floating point value
-  // instr.args[0].reg.info.isVecReg()
   if (instr.args[0].isReg() &&
       instr.args[0].reg.info.reg_class == VRegClass::Float &&
       instr.args[1].isImm()) {
-    if ((instr.args[1].is_fp() && instr.args[1].immf == 0) ||
-        instr.args[1].imm == 0) {
+    if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
       instr.op = Opcode::fxor;
       instr.args[1] = instr.args[0];
       instr.args[2] = instr.args[0];
@@ -230,7 +228,17 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
     return true;
   }
 
-  instr = bb.instrs[indx];
+  // cannot move a 64bit constant into a mem
+  if (instr.args[0].isMem() && instr.args[1].isImm() &&
+      get_size(instr.args[1].ty) == 8) {
+    if (instr.args[1].is_fp()) {
+      move_fp_const_to_grp(bb, indx, 1, instr.args[1].ty);
+    } else {
+      move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    }
+    return true;
+  }
+
   // we wanna transform every one/two byte load into a movzx;
   //  this awoids a false dependency and also clears the upper half with zero
   //  which then makes further usage easier
@@ -399,10 +407,23 @@ bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
   return false;
 }
 
-bool Legalizer::legalize_si2fl(MBB &bb, u32 indx) {
+bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
-  if (instr.args[1].isImm()) {
+  if (instr.op == Opcode::SI2FL && instr.args[1].isImm()) {
     indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    return true;
+  }
+  if (instr.op == Opcode::UI2FL && instr.args[1].isImm()) {
+    indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    return true;
+  }
+  if (instr.op == Opcode::UI2FL && instr.args[1].isReg() &&
+      get_size(instr.args[1].ty) < 4) {
+    auto new_reg = get_reg(Type::Int32);
+    auto old_arg = bb.instrs[indx].args[1];
+    bb.instrs[indx].args[1] = new_reg;
+    bb.instrs.insert(bb.instrs.begin() + indx,
+                     MInstr{Opcode::mov_zx, new_reg, old_arg});
     return true;
   }
   return false;
@@ -504,8 +525,11 @@ void Legalizer::apply(MFunc &func) {
           ioff = 0;
         }
         break;
+      case Opcode::UI2FL:
+      case Opcode::FL2UI:
+      case Opcode::FL2SI:
       case Opcode::SI2FL:
-        if (legalize_si2fl(bb, i)) {
+        if (legalize_conversion(bb, i)) {
           ioff = 0;
         }
         break;
@@ -514,6 +538,8 @@ void Legalizer::apply(MFunc &func) {
       case Opcode::fsub:
       case Opcode::fxor:
       case Opcode::fadd:
+      case Opcode::fAnd:
+      case Opcode::fOr:
         if (legalize_floating_binary_ops(bb, i)) {
           ioff = 0;
         }
@@ -523,11 +549,6 @@ void Legalizer::apply(MFunc &func) {
           ioff = 0;
         }
         break;
-      // case Opcode::sub2:
-      //   if (legalize_sub(bb, i)) {
-      //     ioff = 0;
-      //   }
-      //   break;
       case Opcode::arg_setup:
         if (legalize_arg_setup(bb, i)) {
           ioff = 0;

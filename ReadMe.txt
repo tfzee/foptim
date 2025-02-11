@@ -15,6 +15,7 @@ Simple optimizing backend
 + convert codegen into library
 
 + More Passes
+	+ Change lifetime check in reg alloc to better handle arguments(only check if they alive after?)
 	+ Fix epath pre
 	+ rework sccp
 	+ add Useable to Globals and Functions

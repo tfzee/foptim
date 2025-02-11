@@ -13,13 +13,15 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       return true;
     }
     if (instr.args[0].isReg() && instr.args[1].isImm()) {
-      if (!instr.args[1].is_fp() && instr.args[1].imm == 0) {
+      bool is_zero = instr.args[1].is_fp() ? instr.args[1].immf == .0
+                                           : instr.args[1].imm == 0;
+      if (is_zero && !instr.args[0].reg.info.isVecReg()) {
         instr.op = Opcode::lxor2;
         instr.n_args = 2;
         instr.args[1] = instr.args[0];
         return false;
       }
-      if (instr.args[1].is_fp() && instr.args[1].immf == .0) {
+      if (is_zero && instr.args[0].reg.info.isVecReg()) {
         instr.op = Opcode::fxor;
         instr.n_args = 3;
         instr.args[1] = instr.args[0];

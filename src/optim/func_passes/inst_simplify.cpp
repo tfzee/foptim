@@ -91,7 +91,7 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     return;
   }
 
-  if (c0_val && c1_val) {
+  if ((c0_val != nullptr) && (c1_val != nullptr)) {
     if (c1_val->type->is_int() && c0_val->type->is_int()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_int(), c1_val->as_int(),
@@ -186,7 +186,21 @@ inline void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
+    // TODO: poisson should just return a poisson value
+    if (c1->is_poisson() || c2->is_poisson()) {
+      auto new_const_value = ctx->get_poisson_value(ctx->get_int_type(8));
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(ValueR(new_const_value));
+      ASSERT(instr->bbs.size() == 0);
+      instr.remove_from_parent();
+      return;
+    }
+
+    if (c1->is_global() || c1->is_func() || c2->is_global() || c2->is_func()) {
+      return;
+    }
     ASSERT(c1->is_int());
+    ASSERT(c2->is_int());
     const auto v1 = c1->as_int();
     const auto v2 = c2->as_int();
 
@@ -256,6 +270,12 @@ inline void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
     switch ((FCmpInstrSubType)instr->get_instr_subtype()) {
+    case fir::FCmpInstrSubType::IsNaN:
+      __asm__("vcomisd %2, %1\n\t"
+              "setp %0"
+              : "=r"(is_true)
+              : "x"(v1), "x"(v2));
+      break;
     case fir::FCmpInstrSubType::OEQ:
       __asm__("vcomisd %2, %1\n\t"
               "sete %0"

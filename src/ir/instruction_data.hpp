@@ -13,6 +13,7 @@ enum class InstrType : u8 {
   ICmp,
   FCmp,
   BinaryInstr,
+  UnaryInstr,
   AllocaInstr,
 
   ITrunc,
@@ -57,7 +58,9 @@ enum class ConversionSubType : u32 {
   FPTOUI,
   FPTOSI,
   UITOFP,
-  SITOFP
+  SITOFP,
+  PtrToInt,
+  IntToPtr,
 };
 
 enum class ICmpInstrSubType : u32 {
@@ -92,6 +95,14 @@ enum class FCmpInstrSubType : u32 {
   ULE,
   UNE,
   AlwTrue,
+
+  IsNaN,
+};
+
+enum class UnaryInstrSubType : u32 {
+  INVALID = 0,
+  FloatNeg,
+  IntNeg,
 };
 
 enum class BinaryInstrSubType : u32 {
@@ -157,6 +168,15 @@ public:
 
   [[nodiscard]] constexpr const char *get_name() const {
     switch (instr_type) {
+    case InstrType::UnaryInstr:
+      switch ((UnaryInstrSubType)subtype) {
+      case UnaryInstrSubType::INVALID:
+        return "UNARYYOP_INVALID";
+      case UnaryInstrSubType::FloatNeg:
+        return "FloatNeg";
+      case UnaryInstrSubType::IntNeg:
+        return "IntNeg";
+      }
     case InstrType::BinaryInstr:
       switch ((BinaryInstrSubType)subtype) {
       case BinaryInstrSubType::INVALID:
@@ -206,6 +226,10 @@ public:
         return "UI_FP";
       case ConversionSubType::SITOFP:
         return "SI_FP";
+      case ConversionSubType::IntToPtr:
+        return "INT_PTR";
+      case ConversionSubType::PtrToInt:
+        return "PTR_INT";
       }
     case InstrType::ITrunc:
       return "ITrunc";
@@ -258,6 +282,8 @@ public:
       switch ((FCmpInstrSubType)subtype) {
       case FCmpInstrSubType::INVALID:
         return "FloatINVALID";
+      case FCmpInstrSubType::IsNaN:
+        return "FloatIsNaN";
       case FCmpInstrSubType::AlwFalse:
         return "FloatAlwFalse";
       case FCmpInstrSubType::OEQ:
@@ -336,6 +362,7 @@ public:
   static InstrData get_ashr(TypeR ty);
   static InstrData get_lshr(TypeR ty);
   static InstrData get_binary(TypeR ty, BinaryInstrSubType sub_type);
+  static InstrData get_unary(TypeR ty, UnaryInstrSubType sub_type);
   static InstrData get_conversion(TypeR ty, ConversionSubType sub_type);
   static InstrData get_float_add(TypeR ty);
   static InstrData get_float_sub(TypeR ty);

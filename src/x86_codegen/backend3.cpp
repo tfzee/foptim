@@ -330,6 +330,18 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     }                                                                          \
   } while (0)
 
+#define ZY_ASS_REQ(status, req)                                                \
+  do {                                                                         \
+    const ZyanStatus status_047620348 = (status);                              \
+    if (!ZYAN_SUCCESS(status_047620348)) {                                     \
+      utils::Debug << "With req:" << req << "\n";                              \
+      utils::Debug << "Zyan op failed: " << ZYAN_STATUS_CODE(status_047620348) \
+                   << " in module:" << ZYAN_STATUS_MODULE(status_047620348)    \
+                   << "\n";                                                    \
+      TODO("");                                                                \
+    }                                                                          \
+  } while (0)
+
 size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                   TLabelUsageMap &reloc_map) {
   size_t length = 999;
@@ -357,12 +369,18 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
         target_is_fp_reg && instr.args[0].reg.info.reg_size == 8;
     bool target_isfloat32 =
         target_is_fp_reg && instr.args[0].reg.info.reg_size == 4;
+    bool input_isfloat64 =
+        input_is_fp_reg && instr.args[1].reg.info.reg_size == 8;
+    bool input_isfloat32 =
+        input_is_fp_reg && instr.args[1].reg.info.reg_size == 4;
 
     req.mnemonic = ZYDIS_MNEMONIC_MOV;
 
-    if (!input_is_fp_reg && target_isfloat32) {
+    if ((!input_is_fp_reg && target_isfloat32) ||
+        (!target_is_fp_reg && input_isfloat32)) {
       req.mnemonic = ZYDIS_MNEMONIC_MOVD;
-    } else if (!input_is_fp_reg && target_isfloat64) {
+    } else if ((!input_is_fp_reg && target_isfloat64) ||
+               (!target_is_fp_reg && input_isfloat64)) {
       req.mnemonic = ZYDIS_MNEMONIC_MOVQ;
     } else if (target_isfloat32) {
       req.mnemonic = ZYDIS_MNEMONIC_MOVAPS;
@@ -373,7 +391,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                instr.args[1].reg.info.reg_size == 4) {
       req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 8);
     }
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   }
   case fmir::Opcode::call:
@@ -523,7 +541,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     return length;
   case fmir::Opcode::land2:
     req.mnemonic = ZYDIS_MNEMONIC_AND;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::lor2:
     req.mnemonic = ZYDIS_MNEMONIC_OR;
@@ -772,7 +790,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int8) {
       req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 1);
     }
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::shl2:
     req.mnemonic = ZYDIS_MNEMONIC_SHL;
@@ -786,15 +804,27 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VXORPS
                        : ZYDIS_MNEMONIC_VXORPD;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  case fmir::Opcode::fOr:
+    req.mnemonic = instr.args[0].ty == fmir::Type::Float32
+                       ? ZYDIS_MNEMONIC_VORPS
+                       : ZYDIS_MNEMONIC_VORPD;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  case fmir::Opcode::fAnd:
+    req.mnemonic = instr.args[0].ty == fmir::Type::Float32
+                       ? ZYDIS_MNEMONIC_VANDPS
+                       : ZYDIS_MNEMONIC_VANDPD;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::SI2FL:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_CVTSI2SS
                        : ZYDIS_MNEMONIC_CVTSI2SD;
-    utils::Debug << "Si2fl req " << req << "\n";
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
+  case fmir::Opcode::fcmp_isNaN:
   case fmir::Opcode::fcmp_ogt:
   case fmir::Opcode::fcmp_oeq:
   case fmir::Opcode::fcmp_oge:
@@ -816,6 +846,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZydisMnemonic mem = ZYDIS_MNEMONIC_INVALID;
 
     switch (instr.op) {
+    case fmir::Opcode::fcmp_isNaN:
+      ordered = false;
+      mem = ZYDIS_MNEMONIC_SETP;
+      break;
     case fmir::Opcode::fcmp_ueq:
       ordered = false;
     case fmir::Opcode::fcmp_oeq:
@@ -892,8 +926,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       mem = ZYDIS_MNEMONIC_JNBE;
       break;
     case fmir::Opcode::cjmp_flt_uge:
+      ordered = false;
     case fmir::Opcode::cjmp_flt_oge:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_JNB;
+      break;
     case fmir::Opcode::cjmp_flt_ult:
       ordered = false;
     case fmir::Opcode::cjmp_flt_olt:
@@ -933,12 +969,34 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
     return length + len2;
   }
+  case fmir::Opcode::FL2UI: {
+    bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+    req.mnemonic =
+        is_f32 ? ZYDIS_MNEMONIC_VCVTSS2USI : ZYDIS_MNEMONIC_VCVTSD2USI;
+    ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    ASSERT(get_size(instr.args[0].ty) == 4 || get_size(instr.args[0].ty) == 8);
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
+  }
+  case fmir::Opcode::UI2FL: {
+    bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+    req.mnemonic =
+        is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS : ZYDIS_MNEMONIC_VCVTUSI2SD;
+    ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    ASSERT(get_size(instr.args[1].ty) == 4 || get_size(instr.args[1].ty) == 8);
+    // Weird instruction just gonna do this
+    req.operand_count = 3;
+    req.operands[2] = req.operands[1];
+    req.operands[1] = req.operands[0];
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  }
   case fmir::Opcode::ffmadd132:
   case fmir::Opcode::ffmadd213:
   case fmir::Opcode::ffmadd231:
-  case fmir::Opcode::UI2FL:
   case fmir::Opcode::FL2SI:
-  case fmir::Opcode::FL2UI:
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
     utils::Debug << " impl: " << instr << "\n";
@@ -1043,6 +1101,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
+    utils::Debug << func << "\n";
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;
@@ -1125,7 +1184,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                        (size_t)end_txt - (size_t)start_txt);
   }
 
-  for (auto &decl : decls) {
+  for (const auto &decl : decls) {
     label_usage_map.label_map[decl].def_loc = 0;
     label_usage_map.label_map[decl].kind = RelocKind::Func;
     label_usage_map.label_map[decl].section = RelocSection::Extern;

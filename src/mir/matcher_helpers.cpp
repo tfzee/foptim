@@ -108,9 +108,11 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
       auto funcy = constant->as_func();
       return {funcy->getName()};
     }
+    return {(u64)0, type_id};
   } else {
     return MArgument::Mem(alloc.get_register(val), type_id);
   }
+  utils::Debug << val << "\n";
   ASSERT(false);
   std::abort();
 }

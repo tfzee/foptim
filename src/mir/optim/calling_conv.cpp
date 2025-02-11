@@ -92,12 +92,10 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
 
 static bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives,
                      size_t start, size_t end, size_t bb_id) {
-
   if (!lives.contains(reg_ty)) {
     return false;
   }
-  return lives.at(reg_ty).collide(
-      LinearRange::inBB(bb_id, start, end));
+  return lives.at(reg_ty).collide(LinearRange::inBB(bb_id, start, end + 1));
 }
 
 static void save_locals(IRVec<MInstr> &instrs,
@@ -296,6 +294,18 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   TVec<MInstr> args;
   MInstr call = instrs[end];
   args.reserve(n_args);
+  utils::Debug << "\n";
+  for (auto &[reg, ran] : lives) {
+    utils::Debug << reg << "  ";
+    for (auto &r : ran.ranges) {
+      utils::Debug << r.start.bb_indx << "@" << r.start.instr_indx << ".."
+                   << r.end.instr_indx << "; ";
+    }
+    utils::Debug << "COLLIDS: "
+                 << ran.collide(LinearRange::inBB(bb_id, start, end + 1))
+                 << "\n";
+    utils::Debug << "\n";
+  }
 
   for (u32 i = 0; i < n_args; i++) {
     args.push_back(instrs.at(start + i));
@@ -404,25 +414,48 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
     size_t bb_id = 0;
     for (auto &bb : func.bbs) {
       size_t n_instrs = bb.instrs.size();
-      for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
-        if (bb.instrs[instr_id].op != Opcode::arg_setup &&
-            bb.instrs[instr_id].op != Opcode::invoke) {
+      for (size_t instr_idp1 = n_instrs; instr_idp1 > 0; instr_idp1--) {
+        size_t instr_end_id = instr_idp1 - 1;
+        if (bb.instrs[instr_end_id].op != Opcode::invoke) {
           continue;
         }
-        for (size_t instr_end_id = instr_id; instr_end_id < n_instrs;
-             instr_end_id++) {
-          if (bb.instrs[instr_end_id].op != Opcode::invoke) {
-            continue;
+        size_t instr_start_idp1 = instr_end_id + 1;
+        size_t instr_start_id = instr_end_id;
+        for (instr_start_idp1 = instr_end_id; instr_start_idp1 > 0;
+             instr_start_idp1--) {
+          instr_start_id = instr_start_idp1 - 1;
+          // utils::Debug << "B" << bb.instrs[instr_start_id] << "\n";
+          if (bb.instrs[instr_start_id].op != Opcode::arg_setup) {
+            instr_start_id++;
+            break;
           }
-          // FIXME: needs proper liveness analysis
-          transform_call(bb.instrs, instr_id, instr_end_id, bb_id, lives);
-          // update the n of instrs since the might have changed it
-          n_instrs = bb.instrs.size();
-          // number of elements
-          // instr_id = 0;
-          break;
         }
+        // utils::Debug << bb.instrs[instr_start_id] << ".."
+        //              << bb.instrs[instr_end_id] << "\n";
+        // utils::Debug << instr_start_id << ".." << instr_end_id + 1 << "\n";
+        transform_call(bb.instrs, instr_start_id, instr_end_id, bb_id, lives);
+        // update the n of instrs since the might have changed it
+        n_instrs = bb.instrs.size();
       }
+      // for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
+      //   if (bb.instrs[instr_id].op != Opcode::arg_setup &&
+      //       bb.instrs[instr_id].op != Opcode::invoke) {
+      //     continue;
+      //   }
+      //   for (size_t instr_end_id = instr_id; instr_end_id < n_instrs;
+      //        instr_end_id++) {
+      //     if (bb.instrs[instr_end_id].op != Opcode::invoke) {
+      //       continue;
+      //     }
+      //     // FIXME: needs proper liveness analysis
+      //     transform_call(bb.instrs, instr_id, instr_end_id, bb_id, lives);
+      //     // update the n of instrs since the might have changed it
+      //     n_instrs = bb.instrs.size();
+      //     // number of elements
+      //     // instr_id = 0;
+      //     break;
+      //   }
+      // }
       bb_id++;
     }
   }

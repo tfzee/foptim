@@ -9,7 +9,7 @@ clang++ -O0 $test_file -o min.ll -S -emit-llvm || exit 1
 clang++ -O1 $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o clang_min.out || exit 1
 
 $foptim min.ll min.o || exit 0
-clang min.o -o min.out || exit 1
+clang++ min.o -o min.out -lm || exit 1
 
 ./min.out
 stats_got=$?

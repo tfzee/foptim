@@ -109,10 +109,36 @@ struct LinearRangeSet {
     return false;
   }
 
-  constexpr void update(LinearRange new_range) { ranges.push_back(new_range); }
+  void dump() const {
+    for (const auto &r : ranges) {
+      r.dump();
+      utils::Debug << "; ";
+    }
+  }
+
+  constexpr void update(LinearRange new_range) {
+    for (auto &range : ranges) {
+      if (new_range.start.bb_indx == range.end.bb_indx &&
+          new_range.start.instr_indx <= range.end.instr_indx &&
+          new_range.start.instr_indx >= range.start.instr_indx) {
+        ASSERT(new_range.end.bb_indx == range.end.bb_indx);
+        // range.end.instr_indx = new_range.end.instr_indx;
+        range.end.instr_indx = std::max(new_range.end.instr_indx, range.end.instr_indx);
+        return;
+      }
+      if (new_range.end.bb_indx == range.start.bb_indx &&
+          new_range.end.instr_indx >= range.start.instr_indx &&
+          new_range.end.instr_indx <= range.end.instr_indx) {
+        ASSERT(new_range.start.bb_indx == range.start.bb_indx);
+        range.start.instr_indx = std::min(new_range.start.instr_indx, range.start.instr_indx);
+        return;
+      }
+    }
+    ranges.push_back(new_range);
+  }
   constexpr void update(const LinearRangeSet &new_ranges) {
     for (const auto &new_range : new_ranges.ranges) {
-      ranges.push_back(new_range);
+      update(new_range);
     }
   }
 };

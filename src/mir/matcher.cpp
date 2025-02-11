@@ -1,6 +1,5 @@
 #include "matcher.hpp"
 #include "ir/basic_block_ref.hpp"
-#include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"

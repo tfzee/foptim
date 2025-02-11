@@ -1,6 +1,4 @@
 #include "constant_value.hpp"
-#include "value.hpp"
-#include <typeinfo>
 
 namespace foptim::fir {
 

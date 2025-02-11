@@ -1,6 +1,5 @@
 #pragma once
 #include "ir/instruction_data.hpp"
-#include "utils/logging.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
 #include <utility>
@@ -34,6 +33,8 @@ enum class Opcode : u32 {
   ffmadd213,
   ffmadd231,
   fxor,
+  fAnd,
+  fOr,
 
   SI2FL,
   UI2FL,
@@ -54,6 +55,7 @@ enum class Opcode : u32 {
   icmp_sge,
   icmp_sle,
 
+  fcmp_isNaN,
   fcmp_oeq,
   fcmp_ogt,
   fcmp_oge,
@@ -332,6 +334,14 @@ public:
   static constexpr VReg EAX() {
     VRegInfo res_info{};
     res_info.ty = VRegType::A;
+    res_info.reg_size = 4;
+    VReg res{0, res_info};
+    return res;
+  }
+
+  static constexpr VReg MM0SS() {
+    VRegInfo res_info{};
+    res_info.ty = VRegType::mm0;
     res_info.reg_size = 4;
     VReg res{0, res_info};
     return res;
@@ -652,6 +662,7 @@ public:
       break;
     case fir::FCmpInstrSubType::AlwFalse:
     case fir::FCmpInstrSubType::AlwTrue:
+    case fir::FCmpInstrSubType::IsNaN:
       IMPL("IMPL");
       break;
     case fir::FCmpInstrSubType::OEQ:

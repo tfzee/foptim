@@ -6,7 +6,6 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
-#include "utils/logging.hpp"
 #include "utils/vec.hpp"
 #include <algorithm>
 #include <span>
@@ -114,6 +113,16 @@ public:
         InstrData::get_binary(a.get_type(), sub_type));
     instr.add_arg(a);
     instr.add_arg(b);
+    bb.insert_instr(indx, instr);
+    indx++;
+    return ValueR(instr);
+  }
+
+  ValueR build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
+    check_bb_set();
+    Instr instr = ctx->storage.insert_instr(
+        InstrData::get_unary(a.get_type(), sub_type));
+    instr.add_arg(a);
     bb.insert_instr(indx, instr);
     indx++;
     return ValueR(instr);

@@ -1,6 +1,5 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
-#include "ir/constant_value.hpp"
 #include "ir/context.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
@@ -20,6 +19,7 @@
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Type.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Support/SourceMgr.h>
 #include <memory>
@@ -67,8 +67,12 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
         fctx->get_constant_value(constant, fctx->get_int_type(bitwidth)));
   }
   if (const auto *float_constant =
+          llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
+    return foptim::fir::ValueR(
+        fctx->get_constant_value(0, fctx->get_float_type(64)));
+  }
+  if (const auto *float_constant =
           llvm::dyn_cast_or_null<llvm::ConstantFP>(value)) {
-
     auto value = float_constant->getValue();
     auto is_float = float_constant->getType()->isFloatTy();
     auto is_double = float_constant->getType()->isDoubleTy();
@@ -85,6 +89,20 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
   if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(value)) {
     return foptim::fir::ValueR(fctx->get_constant_value(
         fctx->get_function(value->getName().str().c_str())));
+  }
+  if (const auto *undef_constant =
+          llvm::dyn_cast_or_null<llvm::UndefValue>(value)) {
+    if (undef_constant->getType()->isFloatTy()) {
+      return foptim::fir::ValueR(
+          fctx->get_poisson_value(fctx->get_float_type(32)));
+    } else if (undef_constant->getType()->isDoubleTy()) {
+      return foptim::fir::ValueR(
+          fctx->get_poisson_value(fctx->get_float_type(64)));
+    } else if (auto *v = dyn_cast_or_null<llvm::IntegerType>(
+                   undef_constant->getType())) {
+      return foptim::fir::ValueR(
+          fctx->get_poisson_value(fctx->get_int_type(v->getBitWidth())));
+    }
   }
 
   llvm::errs() << value << " " << typeid(value).name() << "\n";
@@ -165,39 +183,75 @@ inline void convert_gep(const llvm::Instruction *any_instr,
   foptim::TVec<llvm::Value *> args = {};
   auto datalayout = mod.getDataLayout();
   auto result_value = ptr;
+  auto *indexed_type = llvm::GetElementPtrInst::getIndexedType(
+      gep_instr->getSourceElementType(), args);
 
-  for (const auto &indx : gep_instr->indices()) {
-    auto arg_foptim = convert_instr_arg(indx.get(), fctx, ffunc, builder,
-                                        valueToValue, mod, b2b);
-    args.push_back(indx.get());
+  llvm::errs() << "geppy " << *gep_instr << "\n";
+  if (indexed_type->isStructTy() || indexed_type->isArrayTy()) {
+    ASSERT(gep_instr->getNumIndices() >= 2);
+    { // first the index into the struct*
+      auto offset_struct_ptr_foptim =
+          convert_instr_arg(gep_instr->indices().begin()->get(), fctx, ffunc,
+                            builder, valueToValue, mod, b2b);
 
-    u64 arg_mul = datalayout
-                      .getTypeAllocSize(llvm::GetElementPtrInst::getIndexedType(
-                          gep_instr->getSourceElementType(), args))
-                      .getFixedValue();
-    auto arg_mul_value =
-        fctx->get_constant_value(arg_mul, fctx->get_int_type(32));
+      auto arg_mul_ptr = datalayout.getTypeAllocSize(indexed_type);
 
+      ASSERT(arg_mul_ptr.isFixed())
+      auto arg_mul_ptr_value = fctx->get_constant_value(
+          arg_mul_ptr.getFixedValue(), fctx->get_int_type(32));
+      auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
+                                       foptim::fir::ValueR(arg_mul_ptr_value));
+      result_value = builder.build_int_add(result_value, mul);
+    }
+    for (const auto *index_it = gep_instr->indices().begin() + 1;
+         index_it != gep_instr->indices().end(); index_it++) {
+      if (indexed_type->isStructTy()) { // index into strut
+        auto *struct_type =
+            llvm::dyn_cast_or_null<llvm::StructType>(indexed_type);
+        ASSERT(struct_type);
+
+        auto offset_struct =
+            llvm::dyn_cast_or_null<llvm::ConstantInt>(index_it->get())
+                ->getZExtValue();
+        auto arg_offset = datalayout.getStructLayout(struct_type)
+                              ->getElementOffset(offset_struct);
+        auto arg_offset_foptim = fctx->get_constant_value(
+            arg_offset.getFixedValue(), fctx->get_int_type(32));
+        result_value = builder.build_int_add(
+            result_value, foptim::fir::ValueR{arg_offset_foptim});
+        indexed_type = struct_type->getElementType(offset_struct);
+      } else if (indexed_type->isArrayTy()) { // index into array
+        auto *array_type =
+            llvm::dyn_cast_or_null<llvm::ArrayType>(indexed_type);
+        ASSERT(array_type);
+        auto offset_struct_ptr_foptim = convert_instr_arg(
+            index_it->get(), fctx, ffunc, builder, valueToValue, mod, b2b);
+        auto arg_mul_ptr =
+            datalayout.getTypeAllocSize(array_type->getElementType());
+        ASSERT(arg_mul_ptr.isFixed())
+        auto arg_mul_ptr_value = fctx->get_constant_value(
+            arg_mul_ptr.getFixedValue(), fctx->get_int_type(32));
+        auto mul = builder.build_int_mul(
+            offset_struct_ptr_foptim, foptim::fir::ValueR(arg_mul_ptr_value));
+        result_value = builder.build_int_add(result_value, mul);
+        indexed_type = array_type->getElementType();
+      }
+    }
+  } else {
+    ASSERT(gep_instr->getNumIndices() == 1);
+    auto arg_foptim =
+        convert_instr_arg(gep_instr->indices().begin()->get(), fctx, ffunc,
+                          builder, valueToValue, mod, b2b);
+    auto arg_mul = datalayout.getTypeAllocSize(indexed_type);
+    ASSERT(arg_mul.isFixed())
+    auto arg_mul_value = fctx->get_constant_value(arg_mul.getFixedValue(),
+                                                  fctx->get_int_type(32));
     auto mul =
         builder.build_int_mul(arg_foptim, foptim::fir::ValueR(arg_mul_value));
     result_value = builder.build_int_add(result_value, mul);
   }
+
   valueToValue.insert({any_instr, result_value});
-
-  // FVec<foptim::fir::ValueR> args = {};
-  // instr->getTypeAtIndex();
-  // instr->getIndexedType()
-  // for (auto &indx : instr->indices()) {
-  //   auto arg_foptim =
-  //       convert_instr_arg(indx.get(), fctx, ffunc, builder, valueToValue);
-  //   args.push_back(arg_foptim);
-  // }
-
-  // auto instr_type = convert_type(instr->getType(), fctx);
-
-  // auto ptr = convert_instr_arg(instr->getPointerOperand(), fctx, ffunc,
-  // builder, valueToValue); auto res = builder.build_gep(ptr, instr_type,
-  // args); valueToValue.insert({&any_instr, res});
 }
 
 inline void convert_branch(const llvm::BranchInst *branch_instr,
@@ -666,27 +720,48 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isFloatingPointTy()) {
-      auto add = builder.build_float_mul(left, right);
-      valueToValue.insert({any_instr, add});
-      return;
-    }
+    ASSERT(any_instr->getType()->isFloatingPointTy());
+    auto add = builder.build_float_mul(left, right);
+    valueToValue.insert({any_instr, add});
+    return;
   } else if (op_code == llvm::Instruction::FDiv) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
     auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
                                    builder, valueToValue, mod, b2b);
 
-    if (any_instr->getType()->isFloatingPointTy()) {
-      auto add = builder.build_float_div(left, right);
-      valueToValue.insert({any_instr, add});
-      return;
-    }
+    ASSERT(any_instr->getType()->isFloatingPointTy());
+    auto add = builder.build_float_div(left, right);
+    valueToValue.insert({any_instr, add});
+    return;
+  } else if (op_code == llvm::Instruction::FNeg) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    ASSERT(any_instr->getType()->isFloatingPointTy());
+    auto add =
+        builder.build_unary_op(left, foptim::fir::UnaryInstrSubType::FloatNeg);
+    valueToValue.insert({any_instr, add});
+    return;
   } else if (op_code == llvm::Instruction::PHI) {
     auto ftype = convert_type(any_instr->getType(), fctx);
     auto curr_bb = builder.get_curr_bb();
     auto new_arg = curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, ftype));
     valueToValue.insert({any_instr, foptim::fir::ValueR{new_arg}});
+    return;
+    return;
+  } else if (op_code == llvm::Instruction::PtrToInt) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto add = builder.build_conversion_op(
+        left, fctx->get_int_type(64), foptim::fir::ConversionSubType::PtrToInt);
+    valueToValue.insert({any_instr, add});
+    return;
+  } else if (op_code == llvm::Instruction::IntToPtr) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto add = builder.build_conversion_op(
+        left, fctx->get_ptr_type(), foptim::fir::ConversionSubType::IntToPtr);
+    valueToValue.insert({any_instr, add});
     return;
   } else if (op_code == llvm::Instruction::Unreachable) {
     // TODO: unraech instr?
@@ -1020,9 +1095,19 @@ inline void convert_constant_init(const uint8_t *output,
     return;
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantFP>(val)) {
-    foptim::utils::Debug << "TODO: handle global init\n";
-    llvm::errs() << "constant fp " << *d << "\n";
-    TODO("IMPL");
+    auto ty_id = d->getType()->getTypeID();
+    if (ty_id == llvm::Type::FloatTyID) {
+      auto val = (u32)d->getValue().bitcastToAPInt().getZExtValue();
+      *((uint32_t *)output) = (uint32_t)val;
+    } else if (ty_id == llvm::Type::DoubleTyID) {
+      auto val = (u64)d->getValue().bitcastToAPInt().getZExtValue();
+      *((u64 *)output) = val;
+    } else {
+      foptim::utils::Debug << "TODO: handle global init\n";
+      llvm::errs() << "constant fp " << *d << "\n";
+      TODO("IMPL");
+    }
+    return;
   }
   foptim::utils::Debug << "TODO: handle global init\n";
   llvm::errs() << "idk " << *val << "\n";

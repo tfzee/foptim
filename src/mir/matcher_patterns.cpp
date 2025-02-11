@@ -1,6 +1,7 @@
 #include "matcher_patterns.hpp"
 #include "ir/instruction_data.hpp"
 #include "mir/matcher_helpers.hpp"
+#include <cstring>
 
 namespace foptim::fmir {
 
@@ -660,6 +661,8 @@ void base_patterns(IRVec<Pattern> &pats) {
                            (u32)fir::BinaryInstrSubType::FloatMul};
   auto FloatDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                            (u32)fir::BinaryInstrSubType::FloatDiv};
+  auto FloatNegNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                           (u32)fir::UnaryInstrSubType::FloatNeg};
   auto ShlNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                       (u32)fir::BinaryInstrSubType::Shl};
   auto ShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -879,12 +882,19 @@ void base_patterns(IRVec<Pattern> &pats) {
                 auto res_reg =
                     valueToArg(fir::ValueR(or_instr), res.result, data.alloc);
 
-                res.result.emplace_back(
-                    Opcode::mov, res_reg,
-                    valueToArg(or_instr->args[0], res.result, data.alloc));
-                res.result.emplace_back(
-                    Opcode::lor2, res_reg,
-                    valueToArg(or_instr->args[1], res.result, data.alloc));
+                if (res_reg.is_fp()) {
+                  res.result.emplace_back(
+                      Opcode::fOr, res_reg,
+                      valueToArg(or_instr->args[0], res.result, data.alloc),
+                      valueToArg(or_instr->args[1], res.result, data.alloc));
+                } else {
+                  res.result.emplace_back(
+                      Opcode::mov, res_reg,
+                      valueToArg(or_instr->args[0], res.result, data.alloc));
+                  res.result.emplace_back(
+                      Opcode::lor2, res_reg,
+                      valueToArg(or_instr->args[1], res.result, data.alloc));
+                }
                 return true;
               }});
   pats.push_back(
@@ -893,12 +903,20 @@ void base_patterns(IRVec<Pattern> &pats) {
                 auto res_reg =
                     valueToArg(fir::ValueR(and_instr), res.result, data.alloc);
 
-                res.result.emplace_back(
-                    Opcode::mov, res_reg,
-                    valueToArg(and_instr->args[0], res.result, data.alloc));
-                res.result.emplace_back(
-                    Opcode::land2, res_reg,
-                    valueToArg(and_instr->args[1], res.result, data.alloc));
+                if (res_reg.is_fp()) {
+                  res.result.emplace_back(
+                      Opcode::fAnd, res_reg,
+                      valueToArg(and_instr->args[0], res.result, data.alloc),
+                      valueToArg(and_instr->args[1], res.result, data.alloc));
+                } else {
+                  res.result.emplace_back(
+                      Opcode::mov, res_reg,
+                      valueToArg(and_instr->args[0], res.result, data.alloc));
+                  res.result.emplace_back(
+                      Opcode::land2, res_reg,
+
+                      valueToArg(and_instr->args[1], res.result, data.alloc));
+                }
                 return true;
               }});
   pats.push_back(
@@ -907,12 +925,19 @@ void base_patterns(IRVec<Pattern> &pats) {
                 auto res_reg =
                     valueToArg(fir::ValueR(xor_instr), res.result, data.alloc);
 
-                res.result.emplace_back(
-                    Opcode::mov, res_reg,
-                    valueToArg(xor_instr->args[0], res.result, data.alloc));
-                res.result.emplace_back(
-                    Opcode::lxor2, res_reg,
-                    valueToArg(xor_instr->args[1], res.result, data.alloc));
+                if (res_reg.is_fp()) {
+                  res.result.emplace_back(
+                      Opcode::fxor, res_reg,
+                      valueToArg(xor_instr->args[0], res.result, data.alloc),
+                      valueToArg(xor_instr->args[1], res.result, data.alloc));
+                } else {
+                  res.result.emplace_back(
+                      Opcode::mov, res_reg,
+                      valueToArg(xor_instr->args[0], res.result, data.alloc));
+                  res.result.emplace_back(
+                      Opcode::lxor2, res_reg,
+                      valueToArg(xor_instr->args[1], res.result, data.alloc));
+                }
                 return true;
               }});
   pats.push_back(Pattern{
@@ -976,6 +1001,9 @@ void base_patterns(IRVec<Pattern> &pats) {
         Opcode op = Opcode::fcmp_oeq;
 
         switch ((fir::FCmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        case fir::FCmpInstrSubType::IsNaN:
+          op = Opcode::fcmp_isNaN;
+          break;
         case fir::FCmpInstrSubType::OEQ:
           op = Opcode::fcmp_oeq;
           break;
@@ -1132,7 +1160,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 fir::IRLocation{ret_instr}, ret_instr.get_type(),
                 VRegInfo{VRegType::mm0, converted_type}, data.lives);
             auto res_arg = MArgument(res_reg, converted_type);
-            utils::Debug << "RETTY\n";
+            // utils::Debug << "RETTY\n";
             res.result.emplace_back(Opcode::mov, res_arg, ret_val);
             res.result.emplace_back(Opcode::ret, res_arg);
           } else {
@@ -1186,6 +1214,10 @@ void base_patterns(IRVec<Pattern> &pats) {
         case fir::ConversionSubType::SITOFP:
           res_opcode = Opcode::SI2FL;
           break;
+        case fir::ConversionSubType::PtrToInt:
+        case fir::ConversionSubType::IntToPtr:
+          res_opcode = Opcode::mov;
+          break;
         }
 
         res.result.emplace_back(res_opcode, res_reg, val);
@@ -1237,6 +1269,30 @@ void base_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
 
         res.result.emplace_back(Opcode::fadd, res_reg, a1, a2);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      {FloatNegNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto f_neg_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_neg_instr->args[0], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(f_neg_instr), res.result, data.alloc);
+
+        MArgument a2;
+        if (res_reg.ty == Type::Float64) {
+          u64 val = 0x8000000000000000UL;
+          f64 v;
+          std::memcpy(&v, &val, sizeof(f64));
+          a2 = MArgument{v};
+        } else {
+          u32 val = 0x80000000ULL;
+          f32 v;
+          std::memcpy(&v, &val, sizeof(f32));
+          a2 = MArgument{v};
+        }
+        // utils::Debug << f_neg_instr << "\n";
+        res.result.emplace_back(Opcode::fxor, res_reg, a1, a2);
+        // utils::Debug << res.result.back() << "\n";
         return true;
       }});
   pats.push_back(Pattern{
