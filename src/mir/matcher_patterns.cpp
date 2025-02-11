@@ -46,51 +46,52 @@ void move_patterns(IRVec<Pattern> &pats) {
         auto c2 = slct_instr->args[2].as_constant()->as_int();
         auto dir1 = (c1 == 1 && c2 == 0);
         auto dir2 = (c1 == 0 && c2 == 1);
-        if (dir1 || dir2) {
-          auto res_arg =
-              valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
-          auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-          auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
-          Opcode op = Opcode::icmp_eq;
-
-          switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
-          case fir::ICmpInstrSubType::SLT:
-            op = dir1 ? Opcode::icmp_slt : Opcode::icmp_sge;
-            break;
-          case fir::ICmpInstrSubType::ULT:
-            op = dir1 ? Opcode::icmp_ult : Opcode::icmp_uge;
-            break;
-          case fir::ICmpInstrSubType::NE:
-            op = dir1 ? Opcode::icmp_ne : Opcode::icmp_eq;
-            break;
-          case fir::ICmpInstrSubType::EQ:
-            op = dir1 ? Opcode::icmp_eq : Opcode::icmp_ne;
-            break;
-          case fir::ICmpInstrSubType::SGT:
-            op = dir1 ? Opcode::icmp_sgt : Opcode::icmp_sle;
-            break;
-          case fir::ICmpInstrSubType::UGT:
-            op = dir1 ? Opcode::icmp_ugt : Opcode::icmp_ule;
-            break;
-          case fir::ICmpInstrSubType::UGE:
-            op = dir1 ? Opcode::icmp_uge : Opcode::icmp_ult;
-            break;
-          case fir::ICmpInstrSubType::ULE:
-            op = dir1 ? Opcode::icmp_ule : Opcode::icmp_ugt;
-            break;
-          case fir::ICmpInstrSubType::SGE:
-            op = dir1 ? Opcode::icmp_sge : Opcode::icmp_slt;
-            break;
-          case fir::ICmpInstrSubType::SLE:
-            op = dir1 ? Opcode::icmp_sle : Opcode::icmp_sgt;
-            break;
-          case fir::ICmpInstrSubType::INVALID:
-            UNREACH();
-          }
-          // Do a little cheating
-          res_arg.reg.info.reg_size = 1;
-          res.result.emplace_back(op, res_arg, arg1, arg2);
+        if (!dir1 && !dir2) {
+          return false;
         }
+        auto res_arg =
+            valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+        auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+        Opcode op = Opcode::icmp_eq;
+
+        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        case fir::ICmpInstrSubType::SLT:
+          op = dir1 ? Opcode::icmp_slt : Opcode::icmp_sge;
+          break;
+        case fir::ICmpInstrSubType::ULT:
+          op = dir1 ? Opcode::icmp_ult : Opcode::icmp_uge;
+          break;
+        case fir::ICmpInstrSubType::NE:
+          op = dir1 ? Opcode::icmp_ne : Opcode::icmp_eq;
+          break;
+        case fir::ICmpInstrSubType::EQ:
+          op = dir1 ? Opcode::icmp_eq : Opcode::icmp_ne;
+          break;
+        case fir::ICmpInstrSubType::SGT:
+          op = dir1 ? Opcode::icmp_sgt : Opcode::icmp_sle;
+          break;
+        case fir::ICmpInstrSubType::UGT:
+          op = dir1 ? Opcode::icmp_ugt : Opcode::icmp_ule;
+          break;
+        case fir::ICmpInstrSubType::UGE:
+          op = dir1 ? Opcode::icmp_uge : Opcode::icmp_ult;
+          break;
+        case fir::ICmpInstrSubType::ULE:
+          op = dir1 ? Opcode::icmp_ule : Opcode::icmp_ugt;
+          break;
+        case fir::ICmpInstrSubType::SGE:
+          op = dir1 ? Opcode::icmp_sge : Opcode::icmp_slt;
+          break;
+        case fir::ICmpInstrSubType::SLE:
+          op = dir1 ? Opcode::icmp_sle : Opcode::icmp_sgt;
+          break;
+        case fir::ICmpInstrSubType::INVALID:
+          UNREACH();
+        }
+        // Do a little cheating
+        res_arg.reg.info.reg_size = 1;
+        res.result.emplace_back(op, res_arg, arg1, arg2);
 
         return true;
       }});

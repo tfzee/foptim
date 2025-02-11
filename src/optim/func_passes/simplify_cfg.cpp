@@ -90,11 +90,18 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
 
 bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
                                  size_t bb_id, bool is_entry) {
-  (void)func;
+  auto ctx = func.ctx;
   (void)bb_id;
   (void)is_entry;
   bool found = false;
-  TVec<std::tuple<fir::ValueR, fir::ValueR>> difference_values;
+  struct DiffConst {
+    fir::Instr instr;
+    u32 arg_id;
+    fir::ValueR old_val;
+    fir::Instr instr2;
+    u32 arg_id2;
+  };
+  TVec<DiffConst> difference_values;
   fir::BasicBlock res_bb1 = fir::BasicBlock(fir::BasicBlock::invalid());
   fir::BasicBlock res_bb2 = fir::BasicBlock(fir::BasicBlock::invalid());
 
@@ -108,12 +115,14 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
       auto i1 = bb1.bb->instructions[i];
       auto i2 = bb2.bb->instructions[i];
+      // TODO: shouldnt this be any constant differences between 2 same
+      // instructions??
       if (i1->is(fir::InstrType::ReturnInstr) &&
           i2->is(fir::InstrType::ReturnInstr)) {
         if (i1->args.size() == 0 || i1->args[0] == i2->args[0]) {
           continue;
         } else if (i1->args[0].is_constant() && i2->args[0].is_constant()) {
-          difference_values.push_back({i1->args[0], i2->args[0]});
+          difference_values.push_back({i1, 0, i1->args[0], i2, 0});
           continue;
         }
       }
@@ -130,9 +139,42 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
   }
 
   if (found && difference_values.size() <= res_bb1->instructions.size()) {
-    utils::Debug << "GOT IT at " << res_bb1 << " " << res_bb2 << "\n";
-    utils::Debug << difference_values.size() << "\n";
-    TODO("impl");
+    // utils::Debug << "GOT IT at " << res_bb1->get_parent() << "\n";
+    // utils::Debug << "GOT IT at " << res_bb1 << " " << res_bb2 << "\n";
+    // utils::Debug << "GOT IT at ==========\n";
+
+    TVec<fir::BBArgument> new_bb_args;
+
+    for (auto &diff : difference_values) {
+      auto new_arg = ctx->storage.insert_bb_arg(
+          {res_bb1, diff.instr->args[diff.arg_id].get_type()});
+      res_bb1.add_arg(new_arg);
+      diff.instr.replace_arg(diff.arg_id, fir::ValueR{new_arg});
+    }
+
+    for (auto u1 : res_bb1->uses) {
+      ASSERT(u1.type == fir::UseType::BB);
+      auto &bb_ref = u1.user->bbs[u1.argId];
+      for (auto &diff : difference_values) {
+        bb_ref.args.push_back(diff.old_val);
+      }
+    }
+    for (auto u2 : res_bb2->uses) {
+      ASSERT(u2.type == fir::UseType::BB);
+      auto &bb_ref = u2.user->bbs[u2.argId];
+      for (auto &diff : difference_values) {
+        bb_ref.args.push_back(diff.instr2->args[diff.arg_id2]);
+      }
+    }
+    res_bb2->replace_all_uses(fir::ValueR(res_bb1));
+    ASSERT(res_bb2->get_n_uses() == 0);
+    res_bb2->remove_from_parent(true, true);
+    // utils::Debug << "GOT IT at " << res_bb1->get_parent() << "\n";
+    // utils::Debug << "GOT IT at " << res_bb1 << " " << res_bb2 << "\n";
+    // utils::Debug << "FAILED IMPL IT LAZY BASTARD\n";
+    // utils::Debug << difference_values.size() << "\n";
+    // TODO("impl");
+    return true;
   }
 
   return false;
