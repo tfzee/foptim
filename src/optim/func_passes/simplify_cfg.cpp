@@ -88,6 +88,56 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
+bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
+                                 size_t bb_id, bool is_entry) {
+  (void)func;
+  (void)bb_id;
+  (void)is_entry;
+  bool found = false;
+  TVec<std::tuple<fir::ValueR, fir::ValueR>> difference_values;
+  fir::BasicBlock res_bb1 = fir::BasicBlock(fir::BasicBlock::invalid());
+  fir::BasicBlock res_bb2 = fir::BasicBlock(fir::BasicBlock::invalid());
+
+  for (auto bb2 : cfg.bbrs) {
+    if (bb1.bb == bb2.bb ||
+        bb1.bb->instructions.size() != bb2.bb->instructions.size()) {
+      continue;
+    }
+
+    found = true;
+    for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
+      auto i1 = bb1.bb->instructions[i];
+      auto i2 = bb2.bb->instructions[i];
+      if (i1->is(fir::InstrType::ReturnInstr) &&
+          i2->is(fir::InstrType::ReturnInstr)) {
+        if (i1->args.size() == 0 || i1->args[0] == i2->args[0]) {
+          continue;
+        } else if (i1->args[0].is_constant() && i2->args[0].is_constant()) {
+          difference_values.push_back({i1->args[0], i2->args[0]});
+          continue;
+        }
+      }
+      if (bb1.bb->instructions[i] != bb2.bb->instructions[i]) {
+        found = false;
+        break;
+      }
+    }
+    if (found) {
+      res_bb1 = bb1.bb;
+      res_bb2 = bb2.bb;
+      break;
+    }
+  }
+
+  if (found && difference_values.size() <= res_bb1->instructions.size()) {
+    utils::Debug << "GOT IT at " << res_bb1 << " " << res_bb2 << "\n";
+    utils::Debug << difference_values.size() << "\n";
+    TODO("impl");
+  }
+
+  return false;
+}
+
 bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr,
                                          fir::Function & /*func*/,
                                          size_t /*bb_id*/, bool /*is_entry*/) {
@@ -410,6 +460,11 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
 
   if (conditional_to_cmove(cfg, curr, func, bb_id, is_entry)) {
     // utils::Debug << " 9\n";
+    return true;
+  }
+
+  if (dup_bb_to_args(cfg, curr, func, bb_id, is_entry)) {
+    // utils::Debug << " 10\n";
     return true;
   }
 

@@ -15,6 +15,7 @@ namespace foptim::optim {
 // + [x] eliminate bb arg if only one unique incoming value
 // + [x] eliminate bb arg if no uses
 // + [x] convert conditional branch with the same target into cmove
+// + [ ] convert nearly duplicate bbs into single with args
 // + [ ] convert if else into cmove
 // + [ ]
 
@@ -60,6 +61,11 @@ public:
   // If we got a conditionalbrach with both taking the same target
   // then we can cmove the bbargs and then do a simple branch
   bool conditional_to_cmove(CFG &cfg, CFG::Node &curr,
+                                  fir::Function &func, size_t bb_id,
+                                  bool is_entry);
+  // If we got 2 blocks that are identical but some constants/vars
+  // we could merge them into 1 and replace differences by bb args
+  bool dup_bb_to_args(CFG &cfg, CFG::Node &curr,
                                   fir::Function &func, size_t bb_id,
                                   bool is_entry);
   bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id);

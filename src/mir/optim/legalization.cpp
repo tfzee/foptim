@@ -339,11 +339,11 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
       }
 
       auto ty = instr.args[0].ty;
-      auto res_ty = ty == Type::Float64   ? Type::Int64
-                    : ty == Type::Float32 ? Type::Int32
-                                          : ty;
-      auto new_reg = get_reg(res_ty);
-      new_reg.ty = ty;
+      // auto res_ty = ty == Type::Float64   ? Type::Int64
+      //               : ty == Type::Float32 ? Type::Int32
+      //                                     : ty;
+      auto new_reg = get_reg(ty);
+      // new_reg.ty = ty;
       auto old_arg = instr.args[0];
       instr.args[0] = new_reg;
       changes.emplace_back(Opcode::mov, new_reg, old_arg);

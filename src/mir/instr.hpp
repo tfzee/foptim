@@ -209,11 +209,13 @@ struct VRegInfo {
 
   explicit constexpr VRegInfo(Type type)
       : ty(VRegType::Virtual), reg_size(get_size(type)),
-        reg_class(VRegClass::GeneralPurpose) {
+        reg_class(VRegClass::INVALID) {
     if (type == Type::Float32 || type == Type::Float64) {
       reg_class = VRegClass::Float;
     } else if (type == Type::INVALID) {
       reg_class = VRegClass::INVALID;
+    } else {
+      reg_class = VRegClass::GeneralPurpose;
     }
   }
   // explicit constexpr VRegInfo(VRegType ty, u8 size)
