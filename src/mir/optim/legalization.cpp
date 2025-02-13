@@ -417,6 +417,10 @@ bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
     indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
     return true;
   }
+  if (instr.op == Opcode::FL2UI && instr.args[1].isImm()) {
+    indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    return true;
+  }
   if (instr.op == Opcode::UI2FL && instr.args[1].isReg() &&
       get_size(instr.args[1].ty) < 4) {
     auto new_reg = get_reg(Type::Int32);

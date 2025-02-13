@@ -345,14 +345,14 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
       manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
     }
   }
-  // for (auto bb : func.get_bbs()) {
-  //   for (auto instr : bb->instructions) {
-  //     if (instr.get_type()->is_int()) {
-  //       manager.get_or_create_analysis<IntRange>(fir::ValueR{instr});
-  //     }
-  //   }
-  // }
+  for (auto bb : func.get_bbs()) {
+    for (auto instr : bb->instructions) {
+      if (instr.get_type()->is_int()) {
+        manager.get_or_create_analysis<IntRange>(fir::ValueR{instr});
+      }
+    }
+  }
   manager.run();
-  manager.materialize();
+  manager.materialize(ctx);
 }
 } // namespace foptim::optim

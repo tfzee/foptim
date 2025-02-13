@@ -742,7 +742,8 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.operands[0].reg.value = reg_with_size(instr.args[0].reg, 8);
       req.operands[1].reg.value = reg_with_size(instr.args[2].reg, 8);
     }
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2),
+               req);
     return length + len2;
   }
   case fmir::Opcode::lea:
@@ -972,27 +973,30 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::FL2UI: {
     bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
     req.mnemonic =
-        is_f32 ? ZYDIS_MNEMONIC_VCVTSS2USI : ZYDIS_MNEMONIC_VCVTSD2USI;
+        is_f32 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTTSD2SI;
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(get_size(instr.args[0].ty) == 4 || get_size(instr.args[0].ty) == 8);
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
-  }
-  case fmir::Opcode::UI2FL: {
-    bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
-    req.mnemonic =
-        is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS : ZYDIS_MNEMONIC_VCVTUSI2SD;
-    ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
-    ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
-    ASSERT(get_size(instr.args[1].ty) == 4 || get_size(instr.args[1].ty) == 8);
-    // Weird instruction just gonna do this
-    req.operand_count = 3;
-    req.operands[2] = req.operands[1];
-    req.operands[1] = req.operands[0];
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   }
+  case fmir::Opcode::UI2FL:
+    //{
+    // bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+    // req.mnemonic =
+    //     is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS :
+    //     ZYDIS_MNEMONIC_VCVTUSI2SD;
+    // ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    // ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    // ASSERT(get_size(instr.args[1].ty) == 4 ||
+    // get_size(instr.args[1].ty) == 8);
+    // // Weird instruction just gonna do this
+    // req.operand_count = 3;
+    // req.operands[2] = req.operands[1];
+    // req.operands[1] = req.operands[0];
+    // ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff,
+    // &length), req); return length;
+  // }
   case fmir::Opcode::ffmadd132:
   case fmir::Opcode::ffmadd213:
   case fmir::Opcode::ffmadd231:

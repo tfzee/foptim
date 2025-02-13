@@ -10,13 +10,13 @@ struct VoidAttrib {};
 
 class Attribute {
   using AttribType =
-      std::variant<ConstantValue, TypeR, IRString, VoidAttrib>;
+      std::variant<ConstantValueR, TypeR, IRString, VoidAttrib>;
   AttribType data;
 
 public:
   Attribute() : data(VoidAttrib{}) {}
   Attribute(IRString v) : data(v) {}
-  Attribute(ConstantValue v) : data(v) {}
+  Attribute(ConstantValueR v) : data(v) {}
   Attribute(TypeR v) : data(v) {}
 
   [[nodiscard]] const auto *try_string() const { return std::get_if<IRString>(&data); }

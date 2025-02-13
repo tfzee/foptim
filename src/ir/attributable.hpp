@@ -25,6 +25,6 @@ public:
 
   Attributable *add_attrib(IRString key, IRString value);
   Attributable *add_attrib(IRString key, TypeR value);
-  Attributable *add_attrib(IRString key, ConstantValue value);
+  Attributable *add_attrib(IRString key, ConstantValueR value);
 };
 } // namespace foptim::fir

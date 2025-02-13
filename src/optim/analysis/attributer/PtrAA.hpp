@@ -12,8 +12,7 @@ public:
   IntegerLattice<bool, true, false> known_non_null;
 
   ~PtrAA() override = default;
-  void materialize_impl() override {
-    utils::Debug << "MATERIALIZED!! on " << associatedValue << "\n";
+  void materialize_impl(fir::Context&) override {
     if (associatedValue.is_instr()) {
       associatedValue.as_instr()->add_attrib("nonull", "");
     } else if (associatedValue.is_bb_arg()) {

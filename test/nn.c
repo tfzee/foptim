@@ -220,7 +220,7 @@ void genann_randomize(genann *ann) {
   for (i = 0; i < ann->total_weights; ++i) {
     double r = (((double)rand()) / RAND_MAX);
     //   /* Sets weights from -0.5 to 0.5. */
-      ann->weight[i] = r - 0.5;
+    ann->weight[i] = r - 0.5;
   }
 }
 

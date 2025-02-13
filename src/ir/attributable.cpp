@@ -32,7 +32,7 @@ Attributable  *Attributable::add_attrib(IRString key, TypeR value) {
   return this;
 }
 
-Attributable *Attributable::add_attrib(IRString key, ConstantValue value) {
+Attributable *Attributable::add_attrib(IRString key, ConstantValueR value) {
   attribs.insert({key, Attribute(value)});
   return this;
 }

@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/context.hpp"
 #include "ir/value.hpp"
 #include "utils/map.hpp"
 #include "utils/vec.hpp"
@@ -50,7 +51,7 @@ public:
   fir::ValueR associatedValue;
 
   AttributeAnalysis() = default;
-  virtual void materialize_impl() = 0;
+  virtual void materialize_impl(fir::Context&) = 0;
   virtual Result update_impl(AttributerManager & /*unused*/,
                              Worklist & /*worklist*/) {
     TODO("IMPL");
@@ -75,6 +76,7 @@ public:
     if (!_attribs.at(typeid(AAna)).contains(loc)) {
       AAna *analysis = utils::TempAlloc<AAna>{}.allocate(1);
       ASSERT(analysis);
+      utils::Debug << analysis << "\n";
       // std::construct_at(analysis);
       new (analysis) AAna();
       analysis->associatedValue = loc;
@@ -91,10 +93,10 @@ public:
     return (AAna *)(analysis);
   }
 
-  void materialize() {
+  void materialize(fir::Context& ctx) {
     for (auto [_, loc] : _attribs) {
       for (auto [_, att] : loc) {
-        att->materialize_impl();
+        att->materialize_impl(ctx);
       }
     }
   }
