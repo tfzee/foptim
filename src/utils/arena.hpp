@@ -4,11 +4,13 @@
 #include <cstdint>
 #include <memory>
 
+constexpr unsigned int MIN_CHUNK_SIZE = alignof(std::max_align_t);
+
 struct Region {
   Region *next;
   size_t count;
   size_t capacity;
-  uintptr_t data[];
+  alignas(MIN_CHUNK_SIZE) uintptr_t data[];
 };
 
 struct Arena {
@@ -16,9 +18,9 @@ struct Arena {
 };
 
 void *arena_alloc(Arena *a, size_t size_bytes);
-void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);
-char *arena_strdup(Arena *a, const char *cstr);
-void *arena_memdup(Arena *a, void *data, size_t size);
+// void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);
+// char *arena_strdup(Arena *a, const char *cstr);
+// void *arena_memdup(Arena *a, void *data, size_t size);
 void arena_reset(Arena *a);
 void arena_free(Arena *a);
 

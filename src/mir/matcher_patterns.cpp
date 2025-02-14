@@ -696,7 +696,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
                                           data.alloc);
 
-                auto size = alloca_instr->args[0].as_constant()->as_int();
+                auto size = (u64)alloca_instr->args[0].as_constant()->as_int();
 
                 res.result.emplace_back(Opcode::sub2, rsp_arg, size);
                 res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);

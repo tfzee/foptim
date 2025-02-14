@@ -29,6 +29,7 @@ public:
   Printer operator<<(foptim::fir::FunctionR func) const;
   Printer operator<<(const foptim::fir::Function &func) const;
 
+  Printer operator<<(i128 val) const;
   Printer operator<<(i64 val) const;
   Printer operator<<(i32 val) const;
   Printer operator<<(i16 val) const;

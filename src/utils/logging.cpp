@@ -24,6 +24,29 @@ namespace foptim::utils {
 #define GREEN getColor(103, 230, 107)
 #define BLUEGREEN getColor(51, 255, 135)
 
+Printer Printer::operator<<(const i128 val) const {
+  auto &dest = std::cout;
+  std::ostream::sentry s(dest);
+  if (s) {
+    __uint128_t tmp = val < 0 ? -val : val;
+    char buffer[128];
+    char *d = std::end(buffer);
+    do {
+      --d;
+      *d = "0123456789"[tmp % 10];
+      tmp /= 10;
+    } while (tmp != 0);
+    if (val < 0) {
+      --d;
+      *d = '-';
+    }
+    int len = std::end(buffer) - d;
+    if (dest.rdbuf()->sputn(d, len) != len) {
+      dest.setstate(std::ios_base::badbit);
+    }
+  }
+  return *this;
+}
 Printer Printer::operator<<(const i64 val) const {
   std::cout << val;
   return *this;

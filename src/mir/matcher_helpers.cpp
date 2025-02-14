@@ -3,7 +3,7 @@
 #include "mir/matcher.hpp"
 
 namespace foptim::fmir {
-void setup_callargs(fir::Instr& call_instr, MatchResult &res,
+void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                     ExtraMatchData &data) {
   TVec<MArgument> evaluated_args;
   for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
@@ -22,15 +22,19 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
   auto consti = val.as_constant();
   if (consti->is_int()) {
     switch (val.get_type()->as_int()) {
+    case 1:
+      return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
     case 8:
-      return {(u8)consti->as_int()};
+      return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
     case 16:
-      return {(u16)consti->as_int()};
+      return {(u16)std::bit_cast<u64>((i64)consti->as_int())};
     case 32:
-      return {(u32)consti->as_int()};
+      return {(u32)std::bit_cast<u64>((i64)consti->as_int())};
     case 64:
+      return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
     default:
-      return {consti->as_int()};
+      utils::Debug << (i64)consti->as_int() << "\n";
+      TODO("impl");
     }
   }
 

@@ -14,43 +14,9 @@ struct ContextData {
   IRStorage storage = {};
   using V2VMap = TMap<ValueR, ValueR>;
 
-  BasicBlock copy(BasicBlock bb, V2VMap &subs, bool apply_subs = true) {
-    auto res = storage.insert_bb(*bb.get_raw_ptr());
-    subs.insert({ValueR{bb}, ValueR{res}});
-    res->uses.clear();
-
-    res->args.clear();
-    for (u32 arg_id = 0; arg_id < bb->args.size(); arg_id++) {
-      auto new_bb_arg =
-          storage.insert_bb_arg(res, bb->args[arg_id]->get_type());
-      subs.insert({ValueR{bb->args[arg_id]}, ValueR{new_bb_arg}});
-      res.add_arg(new_bb_arg);
-    }
-
-    res->instructions.clear();
-    for (auto &instr : bb->instructions) {
-      auto new_instr = copy(instr);
-      new_instr->uses.clear();
-      if (apply_subs) {
-        new_instr.substitute(subs);
-      }
-      subs.insert({ValueR{instr}, ValueR{new_instr}});
-      res.push_instr(new_instr);
-    }
-    return res;
-  }
-
-  BBArgument copy(BBArgument bb_arg) {
-    auto res = storage.insert_bb_arg(
-        {BasicBlock{BasicBlock::invalid()}, bb_arg->_type});
-    res->uses.clear();
-    return res;
-  }
-
-  Instr copy(Instr instr) {
-    auto res = storage.insert_instr(*instr.get_raw_ptr());
-    return res;
-  }
+  BasicBlock copy(BasicBlock bb, V2VMap &subs, bool apply_subs = true);
+  BBArgument copy(BBArgument bb_arg);
+  Instr copy(Instr instr);
 
   IntTypeR get_int_type(u16 bitwidth);
   FloatTypeR get_float_type(u16 bitwidth);
@@ -69,19 +35,7 @@ struct ContextData {
                  << " Used: " << vec.n_used() << "\n";
   }
 
-  void print_stats() const {
-    utils::Debug << "Funcs " << storage.functions.size() << "\n";
-    utils::Debug << "Instr ";
-    print_stats_vec(storage.storage_instr);
-    utils::Debug << "BBs ";
-    print_stats_vec(storage.basic_blocks);
-    utils::Debug << "Constant ";
-    print_stats_vec(storage.storage_constant);
-    utils::Debug << "Type ";
-    print_stats_vec(storage.storage_type);
-    utils::Debug << "Global ";
-    print_stats_vec(storage.storage_global);
-  }
+  void print_stats() const;
 
   FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args);
   ConstantValueR get_poisson_value(TypeR type);
@@ -91,49 +45,15 @@ struct ContextData {
   ConstantValueR get_constant_value(u64 val, IntTypeR ty);
   ConstantValueR get_constant_value(i64 val, IntTypeR ty);
   ConstantValueR get_constant_value(i32 val, IntTypeR ty);
+  ConstantValueR get_constant_value(i128 val, IntTypeR ty);
   ConstantValueR get_constant_value(u32 val, IntTypeR ty);
-  ConstantValueR try_reuse_constant(const ConstantValue& val);
+  ConstantValueR try_reuse_constant(const ConstantValue &val);
   ConstantValueR get_constant_value(Global glob);
 
-  Global get_global(size_t size_bytes) {
-    return storage.insert_global({size_bytes, nullptr});
-  }
-
-  FunctionR get_function(IRString name) {
-    if (!storage.functions.contains(name)) {
-      utils::Debug << "Failed to find function '" << name.c_str()
-                   << "' from storage\n";
-      ASSERT(false);
-    }
-    return &storage.functions.at(name);
-  }
-
-  FunctionR create_function(IRString name, FunctionTypeR type) {
-    storage.functions.insert({name, Function{this, name, type}});
-
-    auto func = FunctionR(&storage.functions.at(name));
-    auto init_bb = BasicBlock(storage.basic_blocks.push_back({func}));
-    init_bb.verify_validness();
-    func->append_bbr(init_bb);
-    // func->set_entry_bbr(init_bb);
-    const auto &arg_tys = type->as_func_ty().arg_types;
-    init_bb->args.reserve(arg_tys.size());
-    for (auto arg_ty : arg_tys) {
-      init_bb->args.push_back(storage.insert_bb_arg(init_bb, arg_ty));
-    }
-    return func;
-  }
-
-  bool verify() const {
-    auto printer = utils::Debug;
-    for (const auto &[name, func] : storage.functions) {
-      if (!func.verify(printer.pad(1))) {
-        printer << "In Function: " << name.c_str() << "\n";
-        return false;
-      }
-    }
-    return true;
-  }
+  Global get_global(size_t size_bytes);
+  FunctionR get_function(IRString name);
+  FunctionR create_function(IRString name, FunctionTypeR type);
+  bool verify() const;
 };
 
 class Context {

@@ -3,6 +3,7 @@
 #include "ir/global.hpp"
 #include "ir/types.hpp"
 #include "types_ref.hpp"
+#include "utils/APInt.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
 #include <cstdlib>
@@ -11,23 +12,29 @@
 namespace foptim::fir {
 
 struct IntValue {
-  u64 data;
-  bool operator==(const IntValue &other) const { return data == other.data; }
+  i128 data;
+  constexpr bool operator==(const IntValue &other) const {
+    return data == other.data;
+  }
 };
 
 struct FloatValue {
   f64 data;
-  bool operator==(const FloatValue &other) const { return data == other.data; }
+  constexpr bool operator==(const FloatValue &other) const {
+    return data == other.data;
+  }
 };
 
 struct FunctionPtr {
   FunctionR func;
-  bool operator==(const FunctionPtr &other) const { return func == other.func; }
+  constexpr bool operator==(const FunctionPtr &other) const {
+    return func == other.func;
+  }
 };
 
 struct GlobalPointer {
   Global glob;
-  bool operator==(const GlobalPointer &other) const {
+  constexpr bool operator==(const GlobalPointer &other) const {
     return glob == other.glob;
   }
 };
@@ -51,6 +58,12 @@ struct ConstantValue {
 
   // Poisson value
   constexpr ConstantValue(TypeR typee) : value(PoissonValue{}), type(typee) {}
+
+  constexpr ConstantValue(i128 v, TypeR typee)
+      : value(IntValue{v}), type(typee) {}
+
+  constexpr ConstantValue(i64 v, TypeR typee)
+      : value(IntValue{v}), type(typee) {}
 
   constexpr ConstantValue(u64 v, TypeR typee)
       : value(IntValue{v}), type(typee) {}
@@ -113,11 +126,9 @@ struct ConstantValue {
     UNREACH();
   }
 
-  [[nodiscard]] u64 as_int() const {
+  [[nodiscard]] i128 as_int() const {
     if (const auto *res = std::get_if<IntValue>(&value)) {
-      // u32 bitwidth = type->as_int();
-      // const u64 mask = ((u64)1 << bitwidth) - 1;
-      return res->data; // & mask;
+      return res->data;
     }
     UNREACH();
   }

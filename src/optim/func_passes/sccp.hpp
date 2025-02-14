@@ -11,6 +11,7 @@
 #include "utils/logging.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
+#include <bit>
 #include <cmath>
 
 namespace foptim::optim {
@@ -327,8 +328,7 @@ public:
         // TODO; how to handle
       case fir::FCmpInstrSubType::IsNaN:
         return ConstantValue::Constant(ctx->get_constant_value(
-            (i32)std::isnan(a.value->as_float()),
-            ctx->get_int_type(8)));
+            (i32)std::isnan(a.value->as_float()), ctx->get_int_type(8)));
       case fir::FCmpInstrSubType::OGT:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<i32>(a.value->as_float() > b.value->as_float()),
@@ -425,7 +425,8 @@ public:
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::ULT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(a.value->as_int() < b.value->as_int()),
+            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) <
+                             std::bit_cast<u64>((i64)b.value->as_int())),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SGT:
         return ConstantValue::Constant(ctx->get_constant_value(
@@ -433,15 +434,18 @@ public:
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::UGT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(a.value->as_int() > b.value->as_int()),
+            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) >
+                             std::bit_cast<u64>((i64)b.value->as_int())),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::UGE:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(a.value->as_int() >= b.value->as_int()),
+            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) >=
+                             std::bit_cast<u64>((i64)b.value->as_int())),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::ULE:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(a.value->as_int() <= b.value->as_int()),
+            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) <=
+                             std::bit_cast<u64>((i64)b.value->as_int())),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SGE:
         return ConstantValue::Constant(ctx->get_constant_value(
