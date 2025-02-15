@@ -1105,7 +1105,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    utils::Debug << func << "\n";
+    // utils::Debug << func << "\n";
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;
@@ -1257,7 +1257,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   relocation_section_accessor data_rela(writer, data_rel_sec);
 
   for (auto [label_name, label_data] : label_usage_map.label_map) {
-    utils::Debug << label_name.c_str() << "\n";
+    // utils::Debug << label_name.c_str() << "\n";
     ASSERT(label_data.section != RelocSection::INVALID);
 
     Elf_Half sec_indx = 0;
@@ -1384,8 +1384,8 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
         /* buffer:          */ output_buffer + offset,
         /* length:          */ (end_buff_ptr - output_buffer) - offset,
         /* instruction:     */ &instruction))) {
-      utils::Debug << utils::Hex(runtime_address) << ": " << instruction.text
-                   << "\n";
+      // utils::Debug << utils::Hex(runtime_address) << ": " << instruction.text
+      //              << "\n";
       offset += instruction.info.length;
       runtime_address += instruction.info.length;
     }

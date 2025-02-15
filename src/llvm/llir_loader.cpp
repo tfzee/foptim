@@ -1052,9 +1052,10 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   }
 }
 
-inline void convert_constant_init(const uint8_t *output,
-                                  const llvm::Constant *val,
-                                  foptim::fir::Context &fctx) {
+inline void
+convert_constant_init(const uint8_t *output, const llvm::Constant *val,
+                      foptim::fir::Context &fctx, foptim::fir::Global glob,
+                      llvm::DataLayout &layout, V2VMap &valueToValue) {
   if ((llvm::dyn_cast_or_null<llvm::ConstantAggregateZero>(val) != nullptr) ||
       (llvm::dyn_cast_or_null<llvm::UndefValue>(val) != nullptr) ||
       (llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(val) != nullptr)) {
@@ -1066,7 +1067,9 @@ inline void convert_constant_init(const uint8_t *output,
     size_t offset = 0;
     for (size_t i = 0; i < d->getNumElements(); i++) {
       auto *sub_value = d->getElementAsConstant(i);
-      convert_constant_init(&output[offset], sub_value, fctx);
+      convert_constant_init(&output[offset], sub_value, fctx, glob, layout,
+                            valueToValue);
+      // TODO: this offset might be wrong?
       offset += d->getElementByteSize();
     }
     return;
@@ -1106,15 +1109,63 @@ inline void convert_constant_init(const uint8_t *output,
     }
     return;
   }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantStruct>(val)) {
+    auto *struct_ty = d->getType();
+    const auto *str_layout = layout.getStructLayout(struct_ty);
+
+    for (size_t m = 0; m < d->getNumOperands(); m++) {
+      auto *sub_value = d->getOperand(m);
+      auto offset = str_layout->getElementOffset(m);
+      convert_constant_init(&output[offset], sub_value, fctx, glob, layout,
+                            valueToValue);
+    }
+    return;
+  }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantArray>(val)) {
+    auto member_size = layout.getTypeAllocSize(d->getType()->getElementType());
+
+    size_t offset = 0;
+    for (size_t m = 0; m < d->getNumOperands(); m++) {
+      auto *sub_value = d->getOperand(m);
+      convert_constant_init(&output[offset], sub_value, fctx, glob, layout,
+                            valueToValue);
+      offset += member_size;
+    }
+    return;
+  }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::GlobalVariable>(val)) {
+    size_t reloc_off = output - glob->init_value;
+    foptim::fir::ConstantValueR reloc_ref = valueToValue.at(d).as_constant();
+    glob->reloc_info.push_back({reloc_off, reloc_ref});
+    return;
+  }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::GlobalAlias>(val)) {
+    foptim::utils::Debug << "TODO: handle global init\n";
+    llvm::errs() << "idk " << *val << "\n";
+    llvm::errs() << "idk " << *d->getAliasee() << "\n";
+    llvm::errs() << "idk " << *d->getAliaseeObject() << "\n";
+    TODO("im");
+  }
   foptim::utils::Debug << "TODO: handle global init\n";
   llvm::errs() << "idk " << *val << "\n";
+  llvm::errs() << "isConstantData: "
+               << (llvm::dyn_cast_or_null<llvm::ConstantData>(val) != nullptr)
+               << "\n";
+  llvm::errs() << "isConstantExpr: "
+               << (llvm::dyn_cast_or_null<llvm::ConstantExpr>(val) != nullptr)
+               << "\n";
+  llvm::errs() << "isGlobalValue: "
+               << (llvm::dyn_cast_or_null<llvm::GlobalValue>(val) != nullptr)
+               << "\n";
+  llvm::errs() << "isConstantAggregate: "
+               << (llvm::dyn_cast_or_null<llvm::ConstantAggregate>(val) !=
+                   nullptr)
+               << "\n";
   TODO("IMPL");
 }
-
-inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
-                    foptim::fir::Context &fctx, V2VMap &valueToValue) {
+inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
+                         foptim::fir::Context &fctx, V2VMap &valueToValue) {
   if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
-    ZoneScopedN("Converting Global Variable");
     auto data_layout = mod.getDataLayout();
     auto global_size = data_layout.getTypeAllocSize(gval.getValueType());
     ASSERT(!global_size.isScalable());
@@ -1122,16 +1173,23 @@ inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
     auto actual_size = global_size.getFixedValue();
     auto global = fctx->get_global(actual_size);
     auto as_global = fctx->get_constant_value(global);
-
     global->init_value =
         foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
     memset(global->init_value, 0, actual_size);
-
-    if (val->hasInitializer()) {
-      convert_constant_init(global->init_value, val->getInitializer(), fctx);
-    }
-
     valueToValue.insert({(llvm::Value *)&gval, foptim::fir::ValueR(as_global)});
+  }
+}
+
+inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
+                    foptim::fir::Context &fctx, V2VMap &valueToValue) {
+  if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
+    ZoneScopedN("Initializing Global Variable");
+    auto layout = mod.getDataLayout();
+    if (val->hasInitializer()) {
+      auto global = valueToValue.at(val).as_constant()->as_global();
+      convert_constant_init(global->init_value, val->getInitializer(), fctx,
+                            global, layout, valueToValue);
+    }
   } else {
     // llvm::errs() << "Not handling global " << gval;
   }
@@ -1140,15 +1198,18 @@ inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
 inline void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
   V2VMap valueToValue;
   {
-    ZoneScopedN("Convert Globals");
+    ZoneScopedN("Initializing Globals + Functions");
     for (auto &globals : mod.global_values()) {
-      convert(mod, globals, fctx, valueToValue);
+      setup_global(mod, globals, fctx, valueToValue);
+    }
+    for (auto &func : mod.functions()) {
+      setup_function(func, fctx);
     }
   }
   {
-    ZoneScopedN("Convert Functions");
-    for (auto &func : mod.functions()) {
-      setup_function(func, fctx);
+    ZoneScopedN("Populating Globals + Functions");
+    for (auto &globals : mod.global_values()) {
+      convert(mod, globals, fctx, valueToValue);
     }
     for (auto &func : mod.functions()) {
       convert(func, fctx, valueToValue);
@@ -1165,7 +1226,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
     module = llvm::parseIRFile(filename, error, context);
   }
   if (module) {
-    module->dump();
+    // module->dump();
     convert(*module, fctx);
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "

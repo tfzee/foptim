@@ -80,10 +80,10 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::utils::Debug << "================INIT====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // foptim::utils::Debug << "================INIT====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   ASSERT(ctx->verify());
 
 }
@@ -99,11 +99,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   ASSERT(ctx->verify());
-  ASSERT(ctx->verify());
-  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
@@ -112,10 +107,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   ASSERT(ctx->verify());
-  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
 
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
@@ -123,21 +114,16 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   ASSERT(ctx->verify());
-  ASSERT(ctx->verify());
-  foptim::utils::Debug << "================OPTIMMIDDLE====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
 
   // ensure no constants math left
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
-  foptim::utils::Debug << "================OPTIMEND====================\n";
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
-  }
+  // foptim::utils::Debug << "================OPTIMEND====================\n";
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   foptim::utils::Debug << func << "\n";
+  // }
   ASSERT(ctx->verify());
 }
 
@@ -156,6 +142,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
         auto size = v->data.n_bytes;
         auto name = "G_" + std::to_string((foptim::u64) & (v->data));
         foptim::fmir::Global glob = {.name = name.c_str(), .data = {}};
+        ASSERT(v->data.reloc_info.empty());
         glob.data.resize(size, 0);
         memcpy(glob.data.data(), v->data.init_value, size);
         globals.push_back(glob);
