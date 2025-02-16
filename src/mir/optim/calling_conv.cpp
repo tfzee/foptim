@@ -50,14 +50,6 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
     n_regs_saved++;
   }
 
-  // align the stack
-  if (n_regs_saved % 2 != 0) {
-    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                           MInstr{Opcode::sub2,
-                                  MArgument{VReg::RSP(), Type::Int64},
-                                  MArgument{8U}});
-  }
-
   // after we saved all regs now our argument loading is potentially fucked
   // since the argument loading is also handled by the cc we can just clean it
   // up here
@@ -76,6 +68,14 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
     }
   }
 
+  // align the stack
+  if (n_regs_saved % 2 != 0) {
+    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
+                           MInstr{Opcode::sub2,
+                                  MArgument{VReg::RSP(), Type::Int64},
+                                  MArgument{8U}});
+  }
+
   // restore in *every* exiting basic block we first need to find these
   // should be all cfg blocks without any successors??
 
@@ -84,13 +84,6 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
       continue;
     }
 
-    // align the stack
-    if (n_regs_saved % 2 != 0) {
-      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
-                                    MInstr{Opcode::add2,
-                                           MArgument{VReg::RSP(), Type::Int64},
-                                           MArgument{8U}});
-    }
     size_t n_regs_restored = 0;
     for (auto reg_ty : callee_saved) {
       if (!used_regs[(u8)reg_ty - 1] || reg_ty == VRegType::SP ||
@@ -103,6 +96,13 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
       n_regs_restored++;
     }
     ASSERT(n_regs_saved == n_regs_restored);
+    // align the stack
+    if (n_regs_restored % 2 != 0) {
+      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
+                                    MInstr{Opcode::add2,
+                                           MArgument{VReg::RSP(), Type::Int64},
+                                           MArgument{8U}});
+    }
   }
 }
 
@@ -131,15 +131,17 @@ static void save_locals(IRVec<MInstr> &instrs,
   }
 }
 
-static void restore_locals(IRVec<MInstr> &instrs,
-                           TMap<VReg, LinearRangeSet> &lives, size_t start,
-                           size_t end, size_t bb_id,
-                           bool return_value_overwrites_eax, MInstr &call) {
+static uint32_t restore_locals(IRVec<MInstr> &instrs,
+                               TMap<VReg, LinearRangeSet> &lives, size_t start,
+                               size_t end, size_t bb_id,
+                               bool return_value_overwrites_eax, MInstr &call) {
+  uint32_t n_locals_restored = 0;
   if (is_alive(VReg{VRegType::A}, lives, start, end, bb_id) &&
       !return_value_overwrites_eax) {
     auto arg =
         MArgument{VReg{0, VRegInfo{(VRegType)(1), Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
+    n_locals_restored++;
   }
 
   // ret value
@@ -163,7 +165,9 @@ static void restore_locals(IRVec<MInstr> &instrs,
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
+    n_locals_restored++;
   }
+  return n_locals_restored;
 }
 
 struct ArgPosition {
@@ -331,15 +335,22 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   bool return_value_overwrites_eax =
       (call.args[1].isReg() && call.args[1].reg.info.ty == VRegType::A);
 
-  restore_locals(instrs, lives, start, end, bb_id, return_value_overwrites_eax,
-                 call);
+  const uint32_t n_locals_need_saving = restore_locals(
+      instrs, lives, start, end, bb_id, return_value_overwrites_eax, call);
 
   TVec<ArgPosition> arg_pos;
   auto n_stack_args = calculate_arg_locations(args, arg_pos);
+
+  if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
+    instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_need_saving,
+                  MInstr{Opcode::add2, MArgument{VReg::RSP(), Type::Int64},
+                         MArgument{8U}});
+  }
+
   // cleanup args
   {
     auto sp =
-        MArgument{VReg{0, VRegInfo{VRegType::SP, Type::Int64}}, Type::Int64};
+        MArgument{VReg::RSP(), Type::Int64};
     if (n_stack_args > 0) {
       instrs.insert(instrs.begin() + (i64)start,
                     MInstr{Opcode::add2, sp, 8 * n_stack_args});
@@ -355,9 +366,14 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   //   instrs.insert(instrs.begin() + (i64)start,
   //                 MInstr{Opcode::push, arg.args[0]});
   // }
-
   // save locals
   save_locals(instrs, lives, start, end, bb_id, return_value_overwrites_eax);
+
+  if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
+    instrs.insert(instrs.begin() + (i64)start,
+                  MInstr{Opcode::sub2, MArgument{VReg::RSP(), Type::Int64},
+                         MArgument{8U}});
+  }
 }
 
 static_assert((u8)VRegType::R15 == 16);
