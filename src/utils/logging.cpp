@@ -532,7 +532,7 @@ Printer Printer::operator<<(const foptim::fir::ConstantValue &val) const {
                       typeid(v) == typeid(fir::FloatValue)) {
           *this << v.data << ":" << val.type;
         } else if constexpr (typeid(v) == typeid(fir::GlobalPointer)) {
-          *this << "G(" << (void *)(v.glob.get_raw_ptr()) << ")";
+          *this << "G(" << v.glob->name.c_str() << ")";
         } else if constexpr (typeid(v) == typeid(fir::FunctionPtr)) {
           *this << v.func->getName().c_str();
         } else if constexpr (typeid(v) == typeid(fir::PoissonValue)) {

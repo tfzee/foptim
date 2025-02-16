@@ -1105,7 +1105,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    // utils::Debug << func << "\n";
+    utils::Debug << func << "\n";
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;
@@ -1194,6 +1194,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     label_usage_map.label_map[decl].section = RelocSection::Extern;
     label_usage_map.label_map[decl].size = 0;
   }
+  for (auto global : globals) {
+    label_usage_map.label_map[global.name];
+  }
 
   // Create string table section
   section *str_sec = writer.sections.add(".strtab");
@@ -1241,6 +1244,18 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       label_usage_map.label_map[global.name].section = RelocSection::Data;
       label_usage_map.label_map[global.name].size = global.data.size();
       memcpy(curr_data_ptr, global.data.data(), global.data.size());
+
+      { // handle reloccs
+        for (auto &reloc_info : global.reloc_info) {
+          ASSERT(label_usage_map.label_map.contains(reloc_info.name));
+          label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
+              LabelRelocData::Usage{.usage_instr =
+                                        curr_data_ptr + reloc_info.offset,
+                                    .operand_num = 0,
+                                    .usage_section = RelocSection::Data});
+        }
+      }
+
       curr_data_ptr += global.data.size();
     }
     data_sec->set_data((char *)start_data, global_data_size);
@@ -1257,7 +1272,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   relocation_section_accessor data_rela(writer, data_rel_sec);
 
   for (auto [label_name, label_data] : label_usage_map.label_map) {
-    // utils::Debug << label_name.c_str() << "\n";
+    utils::Debug << label_name.c_str() << "\n";
     ASSERT(label_data.section != RelocSection::INVALID);
 
     Elf_Half sec_indx = 0;
@@ -1294,17 +1309,16 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
 
     for (auto loc : label_data.usage_loc) {
       ASSERT(loc.usage_section != RelocSection::INVALID);
-      auto data = get_op_addr(loc.usage_instr, loc.operand_num);
       switch (loc.usage_section) {
       case RelocSection::INVALID:
       case RelocSection::Extern:
         UNREACH();
       case RelocSection::Data:
-        TODO("impl");
-        // data_rela.add_entry(op_addr - start_data, symbol,
-        //                     (unsigned char)R_X86_64_PLT32, -4);
-        // break;
+        data_rela.add_entry(loc.usage_instr - start_data, symbol,
+                            (unsigned char)R_X86_64_64, 0);
+        break;
       case RelocSection::Text:
+        auto data = get_op_addr(loc.usage_instr, loc.operand_num);
         switch (label_data.section) {
         case RelocSection::INVALID:
           UNREACH();
@@ -1384,8 +1398,8 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
         /* buffer:          */ output_buffer + offset,
         /* length:          */ (end_buff_ptr - output_buffer) - offset,
         /* instruction:     */ &instruction))) {
-      // utils::Debug << utils::Hex(runtime_address) << ": " << instruction.text
-      //              << "\n";
+      utils::Debug << utils::Hex(runtime_address) << ": " << instruction.text
+                   << "\n";
       offset += instruction.info.length;
       runtime_address += instruction.info.length;
     }

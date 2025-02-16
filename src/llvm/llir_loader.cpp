@@ -185,7 +185,7 @@ inline void convert_gep(const llvm::Instruction *any_instr,
 
   llvm::errs() << "geppy " << *gep_instr << "\n";
   if (indexed_type->isStructTy() || indexed_type->isArrayTy()) {
-    ASSERT(gep_instr->getNumIndices() >= 2);
+    ASSERT(gep_instr->getNumIndices() >= 1);
     { // first the index into the struct*
       auto offset_struct_ptr_foptim =
           convert_instr_arg(gep_instr->indices().begin()->get(), fctx, ffunc,
@@ -894,7 +894,8 @@ inline void generate_trap(foptim::fir::Context &fctx) {
       {"abort", foptim::fir::Function(fctx.operator->(), "abort", func_ty)});
 }
 
-inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
+inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
+                         V2VMap &valueToValue) {
   if (func.getName().starts_with("llvm.memset")) {
     generate_memset(fctx);
   } else if (func.getName().starts_with("llvm.memcpy")) {
@@ -907,18 +908,27 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx) {
       {func_name,
        foptim::fir::Function(fctx.operator->(), func_name,
                              convert_type(func.getFunctionType(), fctx))});
+
+  auto foff_func = fctx->get_function(func_name);
+  auto func_ptr = fctx->get_constant_value(foff_func);
+  valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
 }
 
-inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx) {
+inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
+                           V2VMap &valueToValue) {
   if (!func.hasName()) {
     return;
   }
   if (func.empty()) {
-    return convert_decl(func, fctx);
+    return convert_decl(func, fctx, valueToValue);
   }
 
   foptim::IRString func_name = func.getName().str().c_str();
-  fctx->create_function(func_name, convert_type(func.getFunctionType(), fctx));
+  auto foff_ftype = convert_type(func.getFunctionType(), fctx);
+  auto foff_func = fctx->create_function(func_name, foff_ftype);
+  auto func_ptr = fctx->get_constant_value(foff_func);
+
+  valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
 }
 
 inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
@@ -1139,6 +1149,14 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     glob->reloc_info.push_back({reloc_off, reloc_ref});
     return;
   }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::Function>(val)) {
+    size_t reloc_off = output - glob->init_value;
+    llvm::errs() << "getting func" << valueToValue.contains(d) << " "
+                 << d->getName() << "\n";
+    foptim::fir::ConstantValueR reloc_ref = valueToValue.at(d).as_constant();
+    glob->reloc_info.push_back({reloc_off, reloc_ref});
+    return;
+  }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::GlobalAlias>(val)) {
     foptim::utils::Debug << "TODO: handle global init\n";
     llvm::errs() << "idk " << *val << "\n";
@@ -1171,7 +1189,16 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
     ASSERT(!global_size.isScalable());
 
     auto actual_size = global_size.getFixedValue();
-    auto global = fctx->get_global(actual_size);
+
+    foptim::IRString name;
+    if (gval.hasName()) {
+      name = gval.getName().str().c_str();
+    } else {
+      name = "it didnt have a name??";
+    }
+
+    auto global =
+        fctx->get_global(name, actual_size);
     auto as_global = fctx->get_constant_value(global);
     global->init_value =
         foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
@@ -1203,7 +1230,7 @@ inline void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
       setup_global(mod, globals, fctx, valueToValue);
     }
     for (auto &func : mod.functions()) {
-      setup_function(func, fctx);
+      setup_function(func, fctx, valueToValue);
     }
   }
   {

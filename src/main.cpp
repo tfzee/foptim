@@ -47,7 +47,6 @@ int main(int argc, char *argv[]) {
 
   foptim::fir::Context ctx;
   {
-
     // fir
     parse_llvm_ir(ctx);
     optimize_fir(ctx);
@@ -80,12 +79,7 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
   foptim::utils::TempAlloc<void *>::reset();
-  // foptim::utils::Debug << "================INIT====================\n";
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
   ASSERT(ctx->verify());
-
 }
 
 void optimize_fir(foptim::fir::Context &ctx) {
@@ -99,6 +93,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   ASSERT(ctx->verify());
+  foptim::utils::Debug << "================INIT====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
@@ -120,10 +118,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
 
-  // foptim::utils::Debug << "================OPTIMEND====================\n";
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
+  foptim::utils::Debug << "================OPTIMEND====================\n";
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    foptim::utils::Debug << func << "\n";
+  }
   ASSERT(ctx->verify());
 }
 
@@ -140,9 +138,15 @@ void lower_to_mir(foptim::fir::Context &ctx,
       const auto *v = &slab_g[i];
       if (v->used) {
         auto size = v->data.n_bytes;
-        auto name = "G_" + std::to_string((foptim::u64) & (v->data));
-        foptim::fmir::Global glob = {.name = name.c_str(), .data = {}};
-        ASSERT(v->data.reloc_info.empty());
+        foptim::fmir::Global glob = {
+            .name = v->data.name, .data = {}, .reloc_info = {}};
+        for (const auto &rel_inf : v->data.reloc_info) {
+          foptim::utils::Debug << "handling ref " << rel_inf.ref << "\n";
+          ASSERT(rel_inf.ref->is_global());
+          glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
+              .offset = rel_inf.offset,
+              .name = rel_inf.ref->as_global()->name});
+        }
         glob.data.resize(size, 0);
         memcpy(glob.data.data(), v->data.init_value, size);
         globals.push_back(glob);

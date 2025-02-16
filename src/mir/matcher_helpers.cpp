@@ -52,8 +52,7 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
     Type type_id = convert_type(val.get_type());
     auto helper =
         MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
-    auto arg = MArgument::Mem(
-        ("G_" + std::to_string((u64)global.get_raw_ptr())).c_str(), type_id);
+    auto arg = MArgument::Mem(global->name, type_id);
     res.emplace_back(Opcode::lea, helper, arg);
     return helper;
   }

@@ -176,6 +176,7 @@ void apply_func(MFunc &func) {
         }
       }
       if (!found) {
+        utils::Debug << reg << " IN FUNC:" << func.name.c_str() << "\n";
         utils::Debug << reg << " Size:" << reg.info.reg_size
                      << " Is FP:" << (reg.info.reg_class == VRegClass::Float)
                      << "\n";

@@ -1,7 +1,10 @@
 #pragma once
+#include <utility>
+
 #include "ir/constant_value_ref.hpp"
 // #include "types_ref.hpp"
 #include "utils/stable_vec_ref.hpp"
+#include "utils/string.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fir {
@@ -22,7 +25,16 @@ struct GlobalData {
     size_t offset;
     ConstantValueR ref;
   };
+
+  constexpr GlobalData(IRString name, size_t n_bytes)
+      : name(std::move(name)), n_bytes(n_bytes), reloc_info({}) {}
+
+  constexpr GlobalData(IRString name, size_t n_bytes, uint8_t *init_value)
+      : name(std::move(name)), n_bytes(n_bytes), init_value(init_value),
+        reloc_info({}) {}
+
   // TypeR type;
+  IRString name;
   size_t n_bytes;
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;

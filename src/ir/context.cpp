@@ -54,8 +54,8 @@ void ContextData::print_stats() const {
   print_stats_vec(storage.storage_global);
 }
 
-Global ContextData::get_global(size_t size_bytes) {
-  return storage.insert_global({size_bytes, nullptr, {}});
+Global ContextData::get_global(IRString name, size_t size_bytes) {
+  return storage.insert_global({name, size_bytes});
 }
 
 FunctionR ContextData::get_function(IRString name) {
