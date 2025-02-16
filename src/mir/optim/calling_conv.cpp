@@ -50,6 +50,14 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
     n_regs_saved++;
   }
 
+  // align the stack
+  if (n_regs_saved % 2 != 0) {
+    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
+                           MInstr{Opcode::sub2,
+                                  MArgument{VReg::RSP(), Type::Int64},
+                                  MArgument{8U}});
+  }
+
   // after we saved all regs now our argument loading is potentially fucked
   // since the argument loading is also handled by the cc we can just clean it
   // up here
@@ -74,6 +82,14 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
   for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
     if (cfg.bbrs[bb_id].succ.size() != 0) {
       continue;
+    }
+
+    // align the stack
+    if (n_regs_saved % 2 != 0) {
+      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
+                                    MInstr{Opcode::add2,
+                                           MArgument{VReg::RSP(), Type::Int64},
+                                           MArgument{8U}});
     }
     size_t n_regs_restored = 0;
     for (auto reg_ty : callee_saved) {

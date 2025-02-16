@@ -155,7 +155,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
 
   auto matcher = foptim::fmir::GreedyMatcher{};
-  foptim::utils::Debug << "================MATCHER====================\n";
+  foptim::utils::Debug << "================MATCHING====================\n";
   for (auto [_, func] : ctx->storage.functions) {
     if (func.is_decl()) {
       continue;
@@ -177,12 +177,12 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  // foptim::utils::Debug << "================MIROPTIM====================\n";
-  // for (auto &func : funcs) {
-  //   foptim::utils::Debug << func << "\n";
-  // }
   foptim::fmir::RegisterJoining{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  foptim::utils::Debug << "================MIROPTIM====================\n";
+  for (auto &func : funcs) {
+    foptim::utils::Debug << func << "\n";
+  }
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   // foptim::utils::Debug << "================MIROPTIM====================\n";
