@@ -277,7 +277,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::invoke:
   case Opcode::call:
     update_uses(instr.args[0], uses);
-    if (instr.n_args > 1) {
+    if (instr.n_args > 1 && !instr.args[0].isReg()) {
       update_uses(instr.args[1], uses);
     }
     break;
@@ -427,7 +427,6 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
       // TODO: this could be more specific since certain CCs can only read/write
       // certain args legaly
-      res.is_write = false;
       if (instrs[i].n_args > 1) {
         res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
         res.is_write |= instrs[i].args[1].is_fp()
@@ -575,6 +574,9 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
             if (aliveOut[reg_id]) {
               ranges[reg].update(LinearRange::inBB(
                   bb_id, start_instr + 1, func.bbs[bb_id].instrs.size() + 2));
+            } else {
+              ranges[reg].update(
+                  LinearRange::inBB(bb_id, start_instr + 1, start_instr + 1));
             }
             break;
           }
@@ -626,7 +628,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   //     utils::Debug << "\n";
   //     utils::Debug << " LIVEIN:" <<
   //     live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << " LIVEOUT:"
-  //     << live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << "\n";
+  //     << live._liveOut[range.start.bb_indx][reg_id]; utils::Debug << "\n";
   //     utils::Debug << "   " << range.start.bb_indx << ": "
   //                  << range.start.instr_indx << "-" << range.end.instr_indx
   //                  << "\n";

@@ -322,7 +322,7 @@ public:
   size_t id;
   VRegInfo info;
 
-  constexpr VReg() : id(0) {}
+  consteval VReg() : id(0) {}
   constexpr VReg(u64 id) : id(id) {}
   constexpr VReg(u64 id, VRegInfo info) : id(id), info(info) {}
   constexpr VReg(u64 id, u8 size, VRegClass reg_class)
@@ -331,7 +331,7 @@ public:
   constexpr VReg(VRegType ty, Type typ = Type::Int8)
       : id(0), info(VRegInfo{ty, typ}) {}
 
-  static constexpr VReg EAX() {
+  static consteval VReg EAX() {
     VRegInfo res_info{};
     res_info.ty = VRegType::A;
     res_info.reg_size = 4;
@@ -339,7 +339,7 @@ public:
     return res;
   }
 
-  static constexpr VReg MM0SS() {
+  static consteval VReg MM0SS() {
     VRegInfo res_info{};
     res_info.ty = VRegType::mm0;
     res_info.reg_size = 4;
@@ -347,7 +347,7 @@ public:
     return res;
   }
 
-  static constexpr VReg RSP() {
+  static consteval VReg RSP() {
     VRegInfo res_info{};
     res_info.ty = VRegType::SP;
     res_info.reg_size = 8;

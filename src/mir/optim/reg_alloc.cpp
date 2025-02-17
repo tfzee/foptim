@@ -9,7 +9,7 @@ namespace foptim::fmir {
 void replace_vargs(IRVec<MBB> &bbs, const TMap<size_t, VRegType> &reg_mapping) {
   for (auto &bb : bbs) {
     for (auto &instr : bb.instrs) {
-      replace_vargs(instr,reg_mapping);
+      replace_vargs(instr, reg_mapping);
     }
   }
 }
@@ -137,13 +137,22 @@ void apply_func(MFunc &func) {
 
   {
     ZoneScopedN("Actual Alloc");
+    // utils::Debug << "Setting uP pinned\n";
     for (const auto &[reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
+        // utils::Debug << " Pinned reg " << reg << " UID:" << reg_to_uid(reg)
+        //              << "\n";
+        // utils::Debug << " WithLifetime: ";
+        // for (auto life : lifetime.ranges) {
+        //   life.dump();
+        //   utils::Debug << " ";
+        // }
+        // utils::Debug << "\n";
         lifeness.insert({reg.info.ty, lifetime});
       }
     }
-    // utils::Debug << "Allocating\n";
 
+    utils::Debug << "Allocating\n";
     for (const auto &[reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
         continue;
@@ -163,12 +172,16 @@ void apply_func(MFunc &func) {
         }
 
         if (!lifeness.contains(avail_reg)) {
+          // utils::Debug << "  Using Reg cause its considered dead\n";
+          // utils::Debug << "  " << avail_reg << "\n";
           lifeness.insert({avail_reg, lifetime});
           reg_mapping.insert({reg.id, avail_reg});
           found = true;
           break;
         }
         if (!lifeness.at(avail_reg).collide(lifetime)) {
+          // utils::Debug << "  Using Reg cause it doesnt collide\n";
+          // utils::Debug << "  " << avail_reg << "\n";
           lifeness.at(avail_reg).update(lifetime);
           reg_mapping.insert({reg.id, avail_reg});
           found = true;
