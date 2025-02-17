@@ -685,23 +685,33 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto ITruncNode = Node{NodeType::Instr, InstrType::ITrunc, 0};
   auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, 0};
 
-  pats.push_back(
-      Pattern{{AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-                // TODO: this should be done once for all allocas that only
-                // get executed once
-                auto alloca_instr = res.matched_instrs[0];
-                auto rsp_reg = data.alloc.get_new_register(VRegInfo::RSP());
-                auto rsp_arg = MArgument{rsp_reg, Type::Int64};
+  pats.push_back(Pattern{
+      {AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        // TODO: this should be done once for all allocas that only
+        // get executed once
+        auto alloca_instr = res.matched_instrs[0];
+        auto rsp_reg = data.alloc.get_new_register(VRegInfo::RSP());
+        auto rsp_arg = MArgument{rsp_reg, Type::Int64};
 
-                auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
-                                          data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(alloca_instr), res.result, data.alloc);
 
-                auto size = (u64)alloca_instr->args[0].as_constant()->as_int();
+        auto size = (u64)alloca_instr->args[0].as_constant()->as_int();
+        // FIXME: aligning the allocas so teh stack will be 16byte
+        // aligned this is a cc thing and shouldnt be handled here
+        // TODO: this is inefficient for many stack allocations
+        // TODO: this also depends on the calling conv
+        // utils::Debug << "ConcvvAlloc" << size << " " << size % 16 << " "
+        //              << (16 - (size % 16)) << "\n";
+        if (size % 16 != 0) {
+          size = size + (16 - (size % 16));
+        }
+        // utils::Debug << "ConcvvAlloc" << size << " " << size % 16 << "\n";
 
-                res.result.emplace_back(Opcode::sub2, rsp_arg, size);
-                res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);
-                return true;
-              }});
+        res.result.emplace_back(Opcode::sub2, rsp_arg, size);
+        res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);
+        return true;
+      }});
   pats.push_back(
       Pattern{{LoadNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 auto load_instr = res.matched_instrs[0];
