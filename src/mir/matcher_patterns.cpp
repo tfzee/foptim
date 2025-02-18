@@ -501,6 +501,11 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
         generate_bb_args(bb_with_args, res, data);
 
+        //TODO: we can ofcourse support this
+        if (sub_type == fir::FCmpInstrSubType::IsNaN) {
+          return false;
+        }
+
         res.result.push_back(
             MInstr::cJmp_flt(v1, v2, data.bbs[bb_with_args.bb], sub_type));
 

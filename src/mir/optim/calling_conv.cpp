@@ -314,20 +314,20 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   TVec<MInstr> args;
   MInstr call = instrs[end];
   args.reserve(n_args);
-  utils::Debug << "Handling call transform call " << call << "\n";
-  utils::Debug << "it is at " << start << ".." << end << "\n";
-  utils::Debug << "\n";
-  for (auto &[reg, ran] : lives) {
-    utils::Debug << reg << "  ";
-    for (auto &r : ran.ranges) {
-      utils::Debug << r.start.bb_indx << "@" << r.start.instr_indx << ".."
-                   << r.end.instr_indx << "; ";
-    }
-    utils::Debug << "COLLIDS: "
-                 << ran.collide(LinearRange::inBB(bb_id, start, end + 1))
-                 << "\n";
-    utils::Debug << "\n";
-  }
+  // utils::Debug << "Handling call transform call " << call << "\n";
+  // utils::Debug << "it is at " << start << ".." << end << "\n";
+  // utils::Debug << "\n";
+  // for (auto &[reg, ran] : lives) {
+  //   utils::Debug << reg << "  ";
+  //   for (auto &r : ran.ranges) {
+  //     utils::Debug << r.start.bb_indx << "@" << r.start.instr_indx << ".."
+  //                  << r.end.instr_indx << "; ";
+  //   }
+  //   utils::Debug << "COLLIDS: "
+  //                << ran.collide(LinearRange::inBB(bb_id, start, end + 1))
+  //                << "\n";
+  //   utils::Debug << "\n";
+  // }
 
   for (u32 i = 0; i < n_args; i++) {
     args.push_back(instrs.at(start + i));

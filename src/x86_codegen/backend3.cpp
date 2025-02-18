@@ -992,23 +992,20 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ASSERT(get_size(instr.args[0].ty) == 4 || get_size(instr.args[0].ty) == 8);
     return emit(out_buff, 0, &req);
   }
-  case fmir::Opcode::UI2FL:
-    //{
-    // bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
-    // req.mnemonic =
-    //     is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS :
-    //     ZYDIS_MNEMONIC_VCVTUSI2SD;
-    // ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
-    // ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
-    // ASSERT(get_size(instr.args[1].ty) == 4 ||
-    // get_size(instr.args[1].ty) == 8);
-    // // Weird instruction just gonna do this
-    // req.operand_count = 3;
-    // req.operands[2] = req.operands[1];
-    // req.operands[1] = req.operands[0];
-    // ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff,
-    // &length), req); return length;
-  // }
+  case fmir::Opcode::UI2FL: {
+    bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+    req.mnemonic =
+        is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS : ZYDIS_MNEMONIC_VCVTUSI2SD;
+    ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
+    ASSERT(get_size(instr.args[1].ty) == 4 || get_size(instr.args[1].ty) == 8);
+    // Weird instruction just gonna do this
+    req.operand_count = 3;
+    req.operands[2] = req.operands[1];
+    req.operands[1] = req.operands[0];
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  }
   case fmir::Opcode::ffmadd132:
   case fmir::Opcode::ffmadd213:
   case fmir::Opcode::ffmadd231:
@@ -1090,7 +1087,7 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
       ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
       memset(operands, 0, sizeof(ZydisDecodedOperand));
 
-      diss_print(buff_instr);
+      // diss_print(buff_instr);
       ZY_ASS(ZydisDecoderDecodeFull(&decoder, buff_instr, 999, &instruction,
                                     operands));
 

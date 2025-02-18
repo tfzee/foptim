@@ -101,7 +101,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   ASSERT(ctx->verify());
@@ -179,10 +179,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegisterJoining{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::utils::Debug << "================MIROPTIM====================\n";
-  for (auto &func : funcs) {
-    foptim::utils::Debug << func << "\n";
-  }
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
