@@ -15,17 +15,14 @@ clang++ min.o -o min.out -lm || exit 1
 echo "Running Mine"
 ./min.out
 stats_got=$?
-echo "Rnning Clang"
+echo "Running Other"
 ./clang_min.out
 stats_exp=$?
-echo "Rnning GCC"
 ./gcc_min.out
 stats_exp2=$?
-echo "Exit Mine"
+echo "Exit MCG"
 echo $stats_got
-echo "Exit Clang"
 echo $stats_exp
-echo "Exit Gcc"
 echo $stats_exp2
 
 if [[ $stats_got != $stats_exp ]]; then

@@ -1,7 +1,7 @@
 import os
 
 collect_compiletimes = False
-tests_to_record = ["matmul.cpp", "prime_sieve.c", "fib.c", "mandelbrot.cpp"]
+tests_to_record = ["matmul.cpp", "prime_sieve.c", "fib.c", "mandelbrot.cpp", "lu_decomp.cpp"]
 
 if __name__ == "__main__":
     out_dir = "../build/test/Output"
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     hyperfine_run_command = f"hyperfine -i -N --export-csv={out_dir}/perf.csv"
     for benchy in benches:
-        link_command = f"clang {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
+        link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
         os.system(link_command)
 
         name = ".".join(benchy.split(".")[:-1])
