@@ -342,6 +342,12 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     }                                                                          \
   } while (0)
 
+u64 emit(u8 *buff, u32 curr_off, ZydisEncoderRequest *req) {
+  u64 len = 9999;
+  ZY_ASS_REQ(ZydisEncoderEncodeInstruction(req, buff + curr_off, &len), req);
+  return curr_off + len;
+}
+
 size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                   TLabelUsageMap &reloc_map) {
   size_t length = 999;
@@ -391,16 +397,12 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                instr.args[1].reg.info.reg_size == 4) {
       req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 8);
     }
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-    return length;
+    return emit(out_buff, 0, &req);
   }
   case fmir::Opcode::call:
     req.mnemonic = ZYDIS_MNEMONIC_CALL;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::ret: { // do the epilogue
-    size_t length2 = 999;
-    size_t length3 = 999;
     ZydisEncoderRequest req;
     memset(&req, 0, sizeof(req));
     req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
@@ -410,28 +412,25 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.operand_count = 2;
     req.operands[0].reg.value = ZYDIS_REGISTER_RSP;
     req.operands[1].reg.value = ZYDIS_REGISTER_RBP;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length3));
+    u64 off = 0;
+    off = emit(out_buff, off, &req);
 
     req.mnemonic = ZYDIS_MNEMONIC_POP;
     req.operand_count = 1;
     req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length3, &length2));
+    off = emit(out_buff, off, &req);
 
     req.mnemonic = ZYDIS_MNEMONIC_RET;
     req.operand_count = 0;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length2 + length3,
-                                         &length));
-    return length + length3 + length2;
+    return emit(out_buff, off, &req);
   }
   case fmir::Opcode::push:
     req.mnemonic = ZYDIS_MNEMONIC_PUSH;
     assert(req.operand_count == 1);
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::pop:
     req.mnemonic = ZYDIS_MNEMONIC_POP;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::jmp:
     req.mnemonic = ZYDIS_MNEMONIC_JMP;
     req.branch_type = ZYDIS_BRANCH_TYPE_NEAR;
@@ -443,8 +442,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       return 0;
     }
     reloc_map.insert_bb_ref(instr.bb_ref, out_buff, 0, RelocSection::Text);
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::mul2: {
     req.mnemonic = ZYDIS_MNEMONIC_IMUL;
     // TODO: need to check if its fits correclty
@@ -458,10 +456,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     } else if (req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
       TODO("cant do this big of a constant");
     }
-    // utils::Debug << "idk mul2  " << val_casted << " "
-    //              << std::numeric_limits<i32>::max() << "\n";
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   }
   case fmir::Opcode::idiv: {
     req.mnemonic = ZYDIS_MNEMONIC_IDIV;
@@ -706,54 +701,83 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     return length + len2;
   }
   case fmir::Opcode::cjmp: {
-    size_t len2 = 999;
     req.mnemonic = ZYDIS_MNEMONIC_TEST;
     req.operands[1] = req.operands[0];
     req.operand_count = 2;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    u64 off = 0;
+    off = emit(out_buff, off, &req);
+
     ASSERT(instr.has_bb_ref);
     req.mnemonic = ZYDIS_MNEMONIC_JNZ;
     req.branch_type = ZYDIS_BRANCH_TYPE_NEAR;
     req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
     req.operands[0].imm.s = 0;
     req.operand_count = 1;
-    reloc_map.insert_bb_ref(instr.bb_ref, out_buff + length, 0,
+    reloc_map.insert_bb_ref(instr.bb_ref, out_buff + off, 0,
                             RelocSection::Text);
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
-    return length + len2;
+    return emit(out_buff, off, &req);
   }
-
   case fmir::Opcode::cmov: {
     auto targ = req.operands[0];
     auto cond = req.operands[1];
     auto value = req.operands[2];
-    req.mnemonic = ZYDIS_MNEMONIC_TEST;
-    req.operand_count = 2;
-    req.operands[0] = cond;
-    req.operands[1] = cond;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    size_t len2 = 9999;
-    req.mnemonic = ZYDIS_MNEMONIC_CMOVZ;
-    req.operand_count = 2;
-    req.operands[0] = targ;
-    req.operands[1] = value;
-    if (get_size(instr.args[0].ty) == 1 &&
-        value.type == ZYDIS_OPERAND_TYPE_REGISTER) {
-      req.operands[0].reg.value = reg_with_size(instr.args[0].reg, 8);
-      req.operands[1].reg.value = reg_with_size(instr.args[2].reg, 8);
+    if (instr.args[0].ty == fmir::Type::Float32 ||
+        instr.args[0].ty == fmir::Type::Float64) {
+      bool isf32 = instr.args[0].ty == fmir::Type::Float32;
+      req.mnemonic = ZYDIS_MNEMONIC_TEST;
+      req.operand_count = 2;
+      req.operands[0] = cond;
+      req.operands[1] = cond;
+      u64 off = 0;
+      off = emit(out_buff, off, &req);
+      auto off_start_jmp = off;
+      req.mnemonic = ZYDIS_MNEMONIC_JNZ;
+      req.operand_count = 1;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[0].imm.s = 16;
+      off = emit(out_buff, off, &req);
+      auto old_jmp_end = off;
+      req.mnemonic = isf32 ? ZYDIS_MNEMONIC_MOVSS : ZYDIS_MNEMONIC_MOVSD;
+      req.operand_count = 2;
+      req.operands[0] = targ;
+      req.operands[1] = value;
+      auto last_instr_off = emit(out_buff, off, &req);
+      auto last_instr_size = last_instr_off - off;
+      ASSERT(last_instr_size <= 16);
+
+      req.mnemonic = ZYDIS_MNEMONIC_JNZ;
+      req.operand_count = 1;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[0].imm.s = (i64)last_instr_size;
+      u64 new_jmp_end = emit(out_buff, off_start_jmp, &req);
+      ASSERT(new_jmp_end == old_jmp_end);
+
+      return last_instr_off;
+    } else {
+      req.mnemonic = ZYDIS_MNEMONIC_TEST;
+      req.operand_count = 2;
+      req.operands[0] = cond;
+      req.operands[1] = cond;
+      u64 off = 0;
+      off = emit(out_buff, off, &req);
+      req.mnemonic = ZYDIS_MNEMONIC_CMOVZ;
+      req.operand_count = 2;
+      req.operands[0] = targ;
+      req.operands[1] = value;
+      if (get_size(instr.args[0].ty) == 1 &&
+          value.type == ZYDIS_OPERAND_TYPE_REGISTER) {
+        req.operands[0].reg.value = reg_with_size(instr.args[0].reg, 8);
+        req.operands[1].reg.value = reg_with_size(instr.args[2].reg, 8);
+      }
+      return emit(out_buff, off, &req);
     }
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2),
-               req);
-    return length + len2;
   }
   case fmir::Opcode::lea:
     req.mnemonic = ZYDIS_MNEMONIC_LEA;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::sar2:
     req.mnemonic = ZYDIS_MNEMONIC_SAR;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::mov_sx:
     if (instr.args[0].ty == instr.args[1].ty) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
@@ -762,8 +786,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     } else {
       req.mnemonic = ZYDIS_MNEMONIC_MOVSX;
     }
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::mov_zx:
     if (instr.args[0].ty == instr.args[1].ty) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
@@ -778,8 +801,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.mnemonic = ZYDIS_MNEMONIC_MOVZX;
     }
     // utils::Debug << instr << "\n";
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::itrunc:
     req.mnemonic = ZYDIS_MNEMONIC_MOV;
     if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int64) {
@@ -791,40 +813,33 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int8) {
       req.operands[1].reg.value = reg_with_size(instr.args[1].reg, 1);
     }
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::shl2:
     req.mnemonic = ZYDIS_MNEMONIC_SHL;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::shr2:
     req.mnemonic = ZYDIS_MNEMONIC_SHR;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::fxor:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VXORPS
                        : ZYDIS_MNEMONIC_VXORPD;
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::fOr:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VORPS
                        : ZYDIS_MNEMONIC_VORPD;
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::fAnd:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VANDPS
                        : ZYDIS_MNEMONIC_VANDPD;
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::SI2FL:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_CVTSI2SS
                        : ZYDIS_MNEMONIC_CVTSI2SD;
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-    return length;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::fcmp_isNaN:
   case fmir::Opcode::fcmp_ogt:
   case fmir::Opcode::fcmp_oeq:
@@ -890,13 +905,12 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.operands[0] = a;
     req.operands[1] = b;
     req.operand_count = 2;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    size_t len2 = 32;
+    u64 off = 0;
+    off = emit(out_buff, off, &req);
     req.mnemonic = mem;
     req.operands[0] = targ;
     req.operand_count = 1;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
-    return length + len2;
+    return emit(out_buff, off, &req);
   }
   case fmir::Opcode::cjmp_flt_oeq:
   case fmir::Opcode::cjmp_flt_ogt:
@@ -957,18 +971,17 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.mnemonic = is_f32 ? ZYDIS_MNEMONIC_VUCOMISS : ZYDIS_MNEMONIC_VUCOMISD;
     }
     req.operand_count = 2;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
-    size_t len2 = 32;
+    u64 off = 0;
+    off = emit(out_buff, off, &req);
     req.mnemonic = mem;
     req.branch_type = ZYDIS_BRANCH_TYPE_NEAR;
     req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
     req.operands[0].imm.s = 0;
     req.operand_count = 1;
     ASSERT(instr.has_bb_ref);
-    reloc_map.insert_bb_ref(instr.bb_ref, out_buff + length, 0,
+    reloc_map.insert_bb_ref(instr.bb_ref, out_buff + off, 0,
                             RelocSection::Text);
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
-    return length + len2;
+    return emit(out_buff, off, &req);
   }
   case fmir::Opcode::FL2UI: {
     bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
@@ -977,8 +990,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(get_size(instr.args[0].ty) == 4 || get_size(instr.args[0].ty) == 8);
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-    return length;
+    return emit(out_buff, 0, &req);
   }
   case fmir::Opcode::UI2FL:
     //{
@@ -1078,7 +1090,7 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
       ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
       memset(operands, 0, sizeof(ZydisDecodedOperand));
 
-      // diss_print(buff_instr);
+      diss_print(buff_instr);
       ZY_ASS(ZydisDecoderDecodeFull(&decoder, buff_instr, 999, &instruction,
                                     operands));
 
@@ -1123,7 +1135,6 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
 
     // prologue
     {
-      size_t length = 999;
       ZydisEncoderRequest req;
       memset(&req, 0, sizeof(req));
       req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
@@ -1133,15 +1144,12 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
       req.mnemonic = ZYDIS_MNEMONIC_PUSH;
       req.operand_count = 1;
       req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
-      ZY_ASS(ZydisEncoderEncodeInstruction(&req, curr_loc, &length));
-      curr_loc += length;
-      length = 999;
+      curr_loc += emit(curr_loc, 0, &req);
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
       req.operand_count = 2;
       req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
       req.operands[1].reg.value = ZYDIS_REGISTER_RSP;
-      ZY_ASS(ZydisEncoderEncodeInstruction(&req, curr_loc, &length));
-      curr_loc += length;
+      curr_loc += emit(curr_loc, 0, &req);
     }
 
     u64 bb_id = 0;
