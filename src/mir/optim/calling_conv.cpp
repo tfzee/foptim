@@ -116,11 +116,18 @@ static bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives,
 
 static void save_locals(IRVec<MInstr> &instrs,
                         TMap<VReg, LinearRangeSet> &lives, size_t start,
-                        size_t end, size_t bb_id,
-                        bool return_value_overwrites_eax) {
+                        size_t end, size_t bb_id, MInstr &call,
+                        bool return_value_overwrites_ret_reg) {
   for (auto reg_ty : caller_saved | std::views::reverse) {
-    if (reg_ty == VRegType::A && return_value_overwrites_eax) {
-      continue;
+    if (call.n_args == 2 && return_value_overwrites_ret_reg) {
+      bool is_float =
+          call.args[1].ty == Type::Float32 || call.args[1].ty == Type::Float64;
+      if (!is_float && reg_ty == VRegType::A) {
+        continue;
+      }
+      if (is_float && reg_ty == VRegType::mm0) {
+        continue;
+      }
     }
     if (!is_alive(VReg{reg_ty}, lives, start, end, bb_id) ||
         reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
@@ -134,33 +141,47 @@ static void save_locals(IRVec<MInstr> &instrs,
 static uint32_t restore_locals(IRVec<MInstr> &instrs,
                                TMap<VReg, LinearRangeSet> &lives, size_t start,
                                size_t end, size_t bb_id,
-                               bool return_value_overwrites_eax, MInstr &call) {
+                               bool return_value_overwrites_ret_reg,
+                               MInstr &call) {
   uint32_t n_locals_restored = 0;
-  if (is_alive(VReg{VRegType::A}, lives, start, end, bb_id) &&
-      !return_value_overwrites_eax) {
-    auto arg =
-        MArgument{VReg{0, VRegInfo{(VRegType)(1), Type::Int64}}, Type::Int64};
-    instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
-    n_locals_restored++;
-  }
 
+  bool can_skip_a = false;
+  bool can_skip_mm0 = false;
   // ret value
   if (call.n_args == 2) {
-    // TODO: different sizes
     auto ret_type = call.args[1].ty;
-
     bool is_float = ret_type == Type::Float32 || ret_type == Type::Float64;
-    auto reg_type = is_float ? VRegType::mm0 : VRegType::A;
+    auto ret_reg_type = is_float ? VRegType::mm0 : VRegType::A;
+    if (is_float) {
+      can_skip_mm0 = true;
+    } else {
+      can_skip_a = true;
+    }
+
+    if (!return_value_overwrites_ret_reg) {
+      bool a_gets_overwritten =
+          (!is_float && is_alive(VReg{VRegType::A}, lives, start, end, bb_id));
+      bool mm0_gets_overwritten =
+          (is_float && is_alive(VReg{VRegType::mm0}, lives, start, end, bb_id));
+      if (a_gets_overwritten || mm0_gets_overwritten) {
+        auto arg = MArgument{VReg{0, VRegInfo{ret_reg_type, Type::Int64}},
+                             Type::Int64};
+        instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
+        n_locals_restored++;
+      }
+    }
+
     instrs.insert(
         instrs.begin() + (i64)start,
         MInstr{Opcode::mov, call.args[1],
-               MArgument{VReg{0, VRegInfo{reg_type, ret_type}}, ret_type}});
+               MArgument{VReg{0, VRegInfo{ret_reg_type, ret_type}}, ret_type}});
   }
 
   for (auto reg_ty : caller_saved) {
-    if (!is_alive(VReg{reg_ty}, lives, start, end, bb_id) ||
-        reg_ty == VRegType::A || reg_ty == VRegType::SP ||
-        reg_ty == VRegType::BP) {
+    bool skip_a = reg_ty == VRegType::A && can_skip_a;
+    bool skip_mm0 = reg_ty == VRegType::mm0 && can_skip_mm0;
+    if (!is_alive(VReg{reg_ty}, lives, start, end, bb_id) || skip_a ||
+        skip_mm0 || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
@@ -334,11 +355,12 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   }
   instrs.erase(instrs.begin() + (i64)start, instrs.begin() + (i64)end + 1);
 
-  bool return_value_overwrites_eax =
-      (call.args[1].isReg() && call.args[1].reg.info.ty == VRegType::A);
+  bool return_value_overwrites_ret_reg =
+      (call.args[1].isReg() && (call.args[1].reg.info.ty == VRegType::A ||
+                                call.args[1].reg.info.ty == VRegType::mm0));
 
   const uint32_t n_locals_need_saving = restore_locals(
-      instrs, lives, start, end, bb_id, return_value_overwrites_eax, call);
+      instrs, lives, start, end, bb_id, return_value_overwrites_ret_reg, call);
 
   TVec<ArgPosition> arg_pos;
   auto n_stack_args = calculate_arg_locations(args, arg_pos);
@@ -368,7 +390,8 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   //                 MInstr{Opcode::push, arg.args[0]});
   // }
   // save locals
-  save_locals(instrs, lives, start, end, bb_id, return_value_overwrites_eax);
+  save_locals(instrs, lives, start, end, bb_id, call,
+              return_value_overwrites_ret_reg);
 
   if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
     instrs.insert(instrs.begin() + (i64)start,
@@ -453,7 +476,6 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
     //   utils::Debug << "\n";
     // }
     // utils::Debug << "\n";
-
 
     size_t bb_id = 0;
     for (auto &bb : func.bbs) {
