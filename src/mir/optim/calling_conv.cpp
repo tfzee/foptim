@@ -439,10 +439,21 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
   ZoneScopedN("CC 2nd Stage");
   for (auto &func : funcs) {
     CFG cfg(func);
-    // LiveVariables lives(cfg, func);
-    TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
 
     save_regs_callee(func, cfg);
+
+    TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
+    // utils::Debug << "ALLL LIVES ??\n";
+    // for (auto &[reg, ran] : lives) {
+    //   utils::Debug << "  " << reg << "  ";
+    //   for (auto &r : ran.ranges) {
+    //     utils::Debug << r.start.bb_indx << "@" << r.start.instr_indx << ".."
+    //                  << r.end.instr_indx << " ";
+    //   }
+    //   utils::Debug << "\n";
+    // }
+    // utils::Debug << "\n";
+
 
     size_t bb_id = 0;
     for (auto &bb : func.bbs) {

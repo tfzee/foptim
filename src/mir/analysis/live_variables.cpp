@@ -423,7 +423,9 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
                             size_t start_instr) {
   NextUseResult res{false, false, 0};
   for (auto i = start_instr; i < instrs.size(); i++) {
-    // utils::Debug << "       C:" << instrs[i] << "\n";
+    // if(search_reg_id == 2){
+    //   utils::Debug << "       " << i << ":" << instrs[i] << "\n";
+    // }
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
       // TODO: this could be more specific since certain CCs can only read/write
       // certain args legaly
@@ -458,14 +460,11 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
           res.is_read = true;
           res.index = i;
         }
+        break;
       case MArgument::ArgumentType::MemVRegVReg:
       case MArgument::ArgumentType::MemImmVRegVReg:
       case MArgument::ArgumentType::MemVRegVRegScale:
-        if (reg_to_uid(argy.reg) == search_reg_id) {
-          res.is_read = true;
-          res.index = i;
-        }
-        if (reg_to_uid(argy.indx) == search_reg_id) {
+        if (reg_to_uid(argy.reg) == search_reg_id || reg_to_uid(argy.indx) == search_reg_id) {
           res.is_read = true;
           res.index = i;
         }
@@ -564,9 +563,8 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         while (true) {
           auto res =
               find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1);
-          // utils::Debug << "  Next found:" << bb_id << " : " << res.index << "
-          // "
-          //              << res.is_read << " " << res.is_write << "\n";
+          // utils::Debug << "  Next found:" << bb_id << " : " << res.index << " R:"
+          //              << res.is_read << " W:" << res.is_write << "\n";
           // utils::Debug << "  oldRange:";
           // ranges[reg].dump();
           // utils::Debug << "\n";
