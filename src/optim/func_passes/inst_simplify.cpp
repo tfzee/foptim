@@ -71,8 +71,8 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
   // asume theres one and normalzie by putting it into the secodn arg
   {
     if (instr->is_commutative() && instr->args[0].is_constant() &&
-        (!instr->args[0].as_constant()->is_global() ||
-         !instr->args[0].as_constant()->is_func())) {
+        !instr->args[0].as_constant()->is_global() &&
+        !instr->args[0].as_constant()->is_func()) {
       swap_args(instr, 0, 1);
     }
   }
@@ -136,10 +136,48 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
   }
+
   if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
-    const auto *c_val = (c0_val != nullptr) ? c0_val : c1_val;
-    if (c_val->as_int() == 0) {
+    ASSERT(c0_val == nullptr);
+    if (instr->args[0].is_instr()) {
+      auto a0 = instr->args[0].as_instr();
+      if (a0->is(InstrType::BinaryInstr) && a0->args[1].is_constant() &&
+          a0->args[1].as_constant()->is_int()) {
+        auto sec_constant = a0->args[1].as_constant()->as_int();
+        auto biggest_bitwidth = std::max(a0->args[1].get_type()->as_int(), c1_val->get_type()->as_int());
+
+        switch ((BinaryInstrSubType)a0->subtype) {
+        case fir::BinaryInstrSubType::IntAdd: {
+          auto new_val = ctx->get_constant_value(
+              c1_val->as_int() + sec_constant, ctx->get_int_type(biggest_bitwidth));
+          instr.replace_arg(0, a0->args[0]);
+          instr.replace_arg(1, ValueR(new_val));
+          push_all_uses(worklist, instr);
+          break;
+        }
+        case fir::BinaryInstrSubType::INVALID:
+        case fir::BinaryInstrSubType::IntSub:
+        case fir::BinaryInstrSubType::IntMul:
+        case fir::BinaryInstrSubType::IntSRem:
+        case fir::BinaryInstrSubType::IntSDiv:
+        case fir::BinaryInstrSubType::IntUDiv:
+        case fir::BinaryInstrSubType::Shl:
+        case fir::BinaryInstrSubType::Shr:
+        case fir::BinaryInstrSubType::AShr:
+        case fir::BinaryInstrSubType::And:
+        case fir::BinaryInstrSubType::Or:
+        case fir::BinaryInstrSubType::Xor:
+        case fir::BinaryInstrSubType::FloatAdd:
+        case fir::BinaryInstrSubType::FloatSub:
+        case fir::BinaryInstrSubType::FloatMul:
+        case fir::BinaryInstrSubType::FloatDiv:
+          break;
+        }
+      }
+    }
+    // const auto *c_val = (c0_val != nullptr) ? c0_val : c1_val;
+    if (c1_val->as_int() == 0) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(instr->args[v_idx]);
       instr.remove_from_parent();

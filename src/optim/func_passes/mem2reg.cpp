@@ -338,21 +338,5 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
 
-  utils::Debug << "MEMREG JuST TESTING Attributor\n";
-  AttributerManager manager;
-  for (auto arg : func.get_entry()->args) {
-    if (arg->get_type()->is_ptr()) {
-      manager.get_or_create_analysis<PtrAA>(fir::ValueR{arg});
-    }
-  }
-  for (auto bb : func.get_bbs()) {
-    for (auto instr : bb->instructions) {
-      if (instr.get_type()->is_int()) {
-        manager.get_or_create_analysis<IntRange>(fir::ValueR{instr});
-      }
-    }
-  }
-  manager.run();
-  manager.materialize(ctx);
 }
 } // namespace foptim::optim

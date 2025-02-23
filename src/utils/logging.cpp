@@ -707,11 +707,15 @@ Printer Printer::operator<<(const foptim::fir::Function &func) const {
       *this << key.c_str() << value << ", ";
     }
 
-    std::cout << ">\n{\n";
-    for (fir::BasicBlock bb : func.get_bbs()) {
-      pad(2) << bb;
+    if (!func.get_bbs().empty()) {
+      std::cout << ">\n{\n";
+      for (fir::BasicBlock bb : func.get_bbs()) {
+        pad(2) << bb;
+      }
+      std::cout << "}";
+    } else {
+      std::cout << ">{}";
     }
-    std::cout << "}";
   }
   return *this;
 }

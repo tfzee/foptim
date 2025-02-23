@@ -1,5 +1,6 @@
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
+#include "ir/instruction_data.hpp"
 #include "mir/func.hpp"
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
@@ -9,6 +10,8 @@
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
+#include "optim/analysis/attributer/KnownStackBits.hpp"
+#include "optim/analysis/attributer/attributer.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/inline.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
@@ -123,6 +126,22 @@ void optimize_fir(foptim::fir::Context &ctx) {
     foptim::utils::Debug << func << "\n";
   }
   ASSERT(ctx->verify());
+  // {
+  //   foptim::utils::Debug << "MEMREG JuST TESTING Attributor\n";
+  //   AttributerManager manager;
+  //   for (const auto &[_, func] : ctx.data->storage.functions) {
+  //     for (auto bb : func.get_bbs()) {
+  //       for (auto instr : bb->instructions) {
+  //         if (instr->is(foptim::fir::InstrType::LoadInstr)) {
+  //           manager.get_or_create_analysis<KnownStackBits>(
+  //               foptim::fir::ValueR{instr});
+  //         }
+  //       }
+  //     }
+  //     manager.run();
+  //     manager.materialize(ctx);
+  //   }
+  // }
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,

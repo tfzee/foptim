@@ -366,7 +366,8 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   auto n_stack_args = calculate_arg_locations(args, arg_pos);
 
   if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
-    instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_need_saving + (call.n_args == 2 ? 1 : 0),
+    instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_need_saving +
+                      (call.n_args == 2 ? 1 : 0),
                   MInstr{Opcode::add2, MArgument{VReg::RSP(), Type::Int64},
                          MArgument{8U}});
   }
