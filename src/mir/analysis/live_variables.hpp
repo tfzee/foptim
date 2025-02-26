@@ -28,7 +28,7 @@ struct NextUseResult {
   bool is_read;
   size_t index;
 };
-NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
+NextUseResult find_next_use(const IRVec<MInstr>& instrs, size_t search_reg_id,
                             size_t start_instr);
 
 // LINEAR LIFETIMES AFTER
@@ -115,7 +115,7 @@ struct LinearRangeSet {
     }
   }
 
-  constexpr void update(LinearRange new_range) {
+  void update(LinearRange new_range) {
     for (auto &range : ranges) {
       if (new_range.start.bb_indx == range.end.bb_indx &&
           new_range.start.instr_indx <= range.end.instr_indx &&
@@ -137,7 +137,8 @@ struct LinearRangeSet {
     }
     ranges.push_back(new_range);
   }
-  constexpr void update(const LinearRangeSet &new_ranges) {
+
+  void update(const LinearRangeSet &new_ranges) {
     for (const auto &new_range : new_ranges.ranges) {
       update(new_range);
     }

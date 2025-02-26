@@ -393,7 +393,7 @@ public:
   u64 scale;
   VReg reg;
   VReg indx;
-  IRString label;
+  IRStringRef label;
 
   constexpr MArgument() : type(ArgumentType::Imm), imm(0) {}
   // TODO FIX TYPE CONVERSION HERE
@@ -407,12 +407,12 @@ public:
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
   MArgument(f64 imm) : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
   MArgument(f32 imm) : type(ArgumentType::Imm), ty(Type::Float32), immf(imm) {}
-  MArgument(IRString lab)
-      : type(ArgumentType::Label), ty(Type::INVALID), label(std::move(lab)) {}
-  MArgument(IRString lab, Type ty)
-      : type(ArgumentType::Label), ty(ty), label(std::move(lab)) {}
+  MArgument(IRStringRef lab)
+      : type(ArgumentType::Label), ty(Type::INVALID), label(lab) {}
+  MArgument(IRStringRef lab, Type ty)
+      : type(ArgumentType::Label), ty(ty), label(lab) {}
 
-  [[nodiscard]] static constexpr MArgument Mem(IRString lab, Type ty) {
+  [[nodiscard]] static constexpr MArgument Mem(IRStringRef lab, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemLabel;
     arg.ty = ty;
@@ -420,7 +420,7 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(IRString lab, u32 imm, Type ty) {
+  [[nodiscard]] static constexpr MArgument Mem(IRStringRef lab, u32 imm, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmLabel;
     arg.ty = ty;
@@ -717,8 +717,8 @@ public:
 };
 #undef COND_JUMP_GEN
 
-TVec<MArgument> written_args(MInstr &instr);
-TVec<MArgument> read_args(MInstr &instr);
+TVec<MArgument> written_args(const MInstr &instr);
+TVec<MArgument> read_args(const MInstr &instr);
 
 } // namespace foptim::fmir
 

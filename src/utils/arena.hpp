@@ -66,6 +66,7 @@ public:
     temp_ir_size += count * sizeof(T);
     TracyPlot("IRAlloc", (foptim::i64)temp_ir_size);
     TracyAllocNS(ptr, sizeof(T) * count, 10, "IRAlloc");
+    TracyMessage(typeid(T).name(), strlen(typeid(T).name()));
     return ptr;
   }
 

@@ -52,13 +52,13 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
     Type type_id = convert_type(val.get_type());
     auto helper =
         MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
-    auto arg = MArgument::Mem(global->name, type_id);
+    auto arg = MArgument::Mem(global->name.c_str(), type_id);
     res.emplace_back(Opcode::lea, helper, arg);
     return helper;
   }
   if (consti->is_func()) {
     auto funcy = consti->as_func();
-    auto arg = MArgument::Mem(funcy->getName(), Type::Int64);
+    auto arg = MArgument::Mem(funcy->getName().c_str(), Type::Int64);
     auto helper =
         MArgument(alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64);
     res.emplace_back(Opcode::lea, helper, arg);
@@ -104,11 +104,11 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
       auto global = constant->as_global();
       Type type_id = convert_type(val.get_type());
       // TODO: idk if i64 is right here
-      return MArgument::Mem(global->name, type_id);
+      return MArgument::Mem(global->name.c_str(), type_id);
     }
     if (constant->is_func()) {
       auto funcy = constant->as_func();
-      return {funcy->getName()};
+      return {funcy->getName().c_str()};
     }
     return {(u64)0, type_id};
   } else {

@@ -99,7 +99,7 @@ const char *getNameFromOpcode(Opcode code) {
 }
 #undef ReturnString
 
-TVec<MArgument> written_args(MInstr &instr) {
+TVec<MArgument> written_args(const MInstr &instr) {
   switch (instr.op) {
   case Opcode::cmov:
   case Opcode::mov_zx:
@@ -199,7 +199,7 @@ TVec<MArgument> written_args(MInstr &instr) {
   }
 }
 
-TVec<MArgument> read_args(MInstr &instr) {
+TVec<MArgument> read_args(const MInstr &instr) {
   switch (instr.op) {
   case Opcode::pop:
   case Opcode::jmp:
@@ -380,11 +380,11 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
   auto app = ctx.out();
   switch (value.type) {
   case foptim::fmir::MArgument::ArgumentType::MemLabel:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{}]: {}", value.label.c_str(), value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{}]: {}", value.label, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]: {}", value.label.c_str(), value.imm, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]: {}", value.label, value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::Label:
-    return fmt::format_to(app, fg(fmt::color::blue), "{}", value.label.c_str());
+    return fmt::format_to(app, fg(fmt::color::blue), "{}", value.label);
   case foptim::fmir::MArgument::ArgumentType::Imm: {
     if (value.ty == foptim::fmir::Type::Float32) {
       return fmt::format_to(app, fg(fmt::color::blue), "{}f", value.immf);

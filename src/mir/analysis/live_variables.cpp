@@ -411,9 +411,8 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
   return _live.at(bb_id)[id];
 }
 
-NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
+NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
                             size_t start_instr) {
-  ZoneScopedN("FindNextUse");
   NextUseResult res{false, false, 0};
   for (auto i = start_instr; i < instrs.size(); i++) {
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
@@ -437,7 +436,7 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
     }
     if (!res.is_read) {
       for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
-        auto &argy = instrs[i].args[arg_id];
+        const auto &argy = instrs[i].args[arg_id];
         switch (argy.type) {
         case MArgument::ArgumentType::Imm:
         case MArgument::ArgumentType::MemImm:
