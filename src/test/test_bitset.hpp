@@ -107,17 +107,6 @@ TEST(BitSetTest, BasicSetGet) {
     for (size_t i = 0; i < N_BITS; i++) {
       bb[i].set(true);
     }
-    // utils::Debug << bb << "\n" << bb2 << "\n";
-
-    // u16 n_dead_bits = (n_elems * sizeof(u64) * 8) - N_BITS;
-    // u16 n_alive_bits = sizeof(u64) * 8 - n_dead_bits;
-
-    // auto mask = (((u64)1 << n_alive_bits) - 1);
-
-    // for (size_t i = 0; i < 64; i++) {
-    //   utils::Debug << ((mask >> i) & 1);
-    // }
-    // utils::Debug << "\n";
     EXPECT_EQ(bb == bb2, true);
   }
 }

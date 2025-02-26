@@ -11,10 +11,6 @@
 
 namespace foptim::codegen {
 
-utils::Printer operator<<(utils::Printer p, const ZydisEncoderOperand &data);
-utils::Printer operator<<(utils::Printer p, const ZydisEncoderRequest &data);
-utils::Printer operator<<(utils::Printer p, const ZydisRegister &data);
-
 enum class RelocSection : u8 {
   INVALID,
   Data,
@@ -70,7 +66,7 @@ ZydisRegister get_reg_sized(const ZydisRegister *regs, u32 size) {
     return regs[3];
   default:
   }
-  utils::Debug << "Got size: " << size << " but only 1,2,4,8 is valid\n";
+  fmt::println("Got size: {} but only 1,2,4,8 is valid\n", size);
   ASSERT_M(false, "Tried to get invalid reg size");
   std::abort();
 }
@@ -314,7 +310,8 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     operand.mem.size = get_size(arg.ty);
     return;
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
-    utils::Debug << "impl operand: " << arg << "\n";
+    TODO("REIMPL");
+    // fmt::println("impl operand: {}", arg);
     TODO("");
   }
 }
@@ -323,9 +320,9 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
   do {                                                                         \
     const ZyanStatus status_047620348 = (status);                              \
     if (!ZYAN_SUCCESS(status_047620348)) {                                     \
-      utils::Debug << "Zyan op failed: " << ZYAN_STATUS_CODE(status_047620348) \
-                   << " in module:" << ZYAN_STATUS_MODULE(status_047620348)    \
-                   << "\n";                                                    \
+      fmt::println("Zyan op failed: {} in module: {}",                         \
+                   ZYAN_STATUS_CODE(status_047620348),                         \
+                   ZYAN_STATUS_MODULE(status_047620348));                      \
       TODO("");                                                                \
     }                                                                          \
   } while (0)
@@ -334,13 +331,14 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
   do {                                                                         \
     const ZyanStatus status_047620348 = (status);                              \
     if (!ZYAN_SUCCESS(status_047620348)) {                                     \
-      utils::Debug << "With req:" << req << "\n";                              \
-      utils::Debug << "Zyan op failed: " << ZYAN_STATUS_CODE(status_047620348) \
-                   << " in module:" << ZYAN_STATUS_MODULE(status_047620348)    \
-                   << "\n";                                                    \
+      TODO("REIMPL");                                                          \
+      fmt::println("Zyan op failed: {} in module: {}",                         \
+                   ZYAN_STATUS_CODE(status_047620348),                         \
+                   ZYAN_STATUS_MODULE(status_047620348));                      \
       TODO("");                                                                \
     }                                                                          \
   } while (0)
+// fmt::println("With req: {}", req);
 
 u64 emit(u8 *buff, u32 curr_off, ZydisEncoderRequest *req) {
   u64 len = 9999;
@@ -353,12 +351,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   size_t length = 999;
   ZydisEncoderRequest req;
   memset(&req, 0, sizeof(req));
-  // utils::Debug << "Convert: " << instr << "\n";
   req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
   req.operand_count = instr.n_args;
   for (auto i = 0; i < req.operand_count; i++) {
     emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
-    // utils::Debug << "   With Op:" << req.operands[i] << "\n";
   }
 
   switch (instr.op) {
@@ -800,7 +796,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     } else {
       req.mnemonic = ZYDIS_MNEMONIC_MOVZX;
     }
-    // utils::Debug << instr << "\n";
     return emit(out_buff, 0, &req);
   case fmir::Opcode::itrunc:
     req.mnemonic = ZYDIS_MNEMONIC_MOV;
@@ -1012,7 +1007,8 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::FL2SI:
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
-    utils::Debug << " impl: " << instr << "\n";
+    TODO("REIMPL");
+    // fmt::println("IMPL: {}", instr);
     UNREACH();
   }
 }
@@ -1025,7 +1021,7 @@ void diss_print(u8 *buff) {
       /* buffer:          */ buff,
       /* length:          */ 999,
       /* instruction:     */ &instruction));
-  utils::Debug << " DEBUG: " << instruction.text << "\n";
+  fmt::println("DEBUG: {}", instruction.text);
 }
 
 struct OpData {
@@ -1078,7 +1074,6 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
 
   for (auto &[bb_id, bb_data] : reloc_map.bb_map) {
     auto bb_loc = bb_data.def_loc;
-    // utils::Debug << "\nbb_loc: " << bb_loc << "\n";
 
     for (auto &usage : bb_data.usage_loc) {
       auto *buff_instr = usage.usage_instr;
@@ -1114,7 +1109,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    utils::Debug << func << "\n";
+    fmt::println("{}", func);
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;
@@ -1277,7 +1272,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   relocation_section_accessor data_rela(writer, data_rel_sec);
 
   for (auto [label_name, label_data] : label_usage_map.label_map) {
-    utils::Debug << label_name.c_str() << "\n";
+    fmt::println("{}", label_name.c_str());
     ASSERT(label_data.section != RelocSection::INVALID);
 
     Elf_Half sec_indx = 0;
@@ -1387,9 +1382,8 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   TLabelUsageMap label_usages;
   auto *end_buff_ptr = assemble(funcs, output_buffer, label_usages);
 
-  utils::Debug << " Needs " << label_usages.label_map.size()
-               << " Relocations\n";
-  utils::Debug << " Generated " << end_buff_ptr - output_buffer << " Bytes\n";
+  fmt::println(" Needs {} Relocations\n Generated {} Bytes\n",
+               label_usages.label_map.size(), end_buff_ptr - output_buffer);
 
   generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals);
 
@@ -1403,8 +1397,7 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
         /* buffer:          */ output_buffer + offset,
         /* length:          */ (end_buff_ptr - output_buffer) - offset,
         /* instruction:     */ &instruction))) {
-      utils::Debug << utils::Hex(runtime_address) << ": " << instruction.text
-                   << "\n";
+      fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
       offset += instruction.info.length;
       runtime_address += instruction.info.length;
     }

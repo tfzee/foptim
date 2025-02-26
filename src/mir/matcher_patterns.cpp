@@ -257,7 +257,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::mov, res_reg,
                                   MArgument::Mem(a0.reg, a1.reg, load_ty));
         } else {
-          // utils::Debug << "FAILED TO MATCH IT " << add_instr << "\n";
           return false;
         }
         return true;
@@ -267,9 +266,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
         ASSERT(res.matched_instrs.size() == 2);
-        // utils::Debug << "MATCHED\n"
-        //              << res.matched_instrs[0] << "\n"
-        //              << res.matched_instrs[1] << "\n";
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
 
@@ -293,7 +289,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(
               Opcode::mov, MArgument::Mem(a0.reg, a1.reg, store_ty), value);
         } else {
-          // utils::Debug << "FAILED TO MATCH IT " << add_instr << "\n";
           return false;
         }
         return true;
@@ -383,8 +378,6 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
       {ICMPNode, CondBranchNode},
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
-        // utils::Debug << "WE REACHED HERE"
-        //              << " +  branch\n";
         auto cmp_instr = res.matched_instrs[0];
         auto branch_instr = res.matched_instrs[1];
 
@@ -401,22 +394,11 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
             sub_type != fir::ICmpInstrSubType::ULE &&
             sub_type != fir::ICmpInstrSubType::UGT &&
             sub_type != fir::ICmpInstrSubType::UGE) {
-          utils::Debug << "Failed to smartly match cmp "
-                       << cmp_instr->get_instr_subtype() << " +  branch\n";
+          fmt::println("Failed to smartly match cmp {} + branch\n",
+                       cmp_instr->get_instr_subtype());
           return false;
         }
 
-        // if (!branch_instr->bbs[0].args.empty()) {
-        //   // if we have bb args that collide with our conditional stuff we
-        //   skip
-        //   // it cause it might be overriding values
-        //   // TOOD: IMPL checking if theres actually a collision
-        //   // TOOD: might be fixed because we extend lifetimes
-        //   utils::Debug << "Failed to smartly match cmp "
-        //                << cmp_instr->get_instr_subtype()
-        //                << " + branch because non emtpy bb args\n";
-        //   return false;
-        // }
 
         auto bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
@@ -486,8 +468,6 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
       {FCMPNode, CondBranchNode},
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
-        // utils::Debug << "WE REACHED HERE"
-        //              << " +  branch\n";
         auto cmp_instr = res.matched_instrs[0];
         auto branch_instr = res.matched_instrs[1];
 
@@ -501,7 +481,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
         generate_bb_args(bb_with_args, res, data);
 
-        //TODO: we can ofcourse support this
+        // TODO: we can ofcourse support this
         if (sub_type == fir::FCmpInstrSubType::IsNaN) {
           return false;
         }
@@ -592,52 +572,6 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-  // pats.push_back(Pattern{
-  //     {IntMulNode, IntAddNode},
-  //     {{0, 1, 0}},
-  //     [](MatchResult &res, ExtraMatchData &data) {
-  //       auto mul_instr = res.matched_instrs[0];
-  //       auto add_instr = res.matched_instrs[1];
-  //       auto res_reg =
-  //           valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
-  //       auto add_arg2 = valueToArg(add_instr->args[1], res.result,
-  //       data.alloc); if (add_arg2 == res_reg) {
-  //         return false;
-  //       }
-  //       auto mul_arg1 = valueToArg(mul_instr->args[0], res.result,
-  //       data.alloc); auto mul_arg2 = valueToArg(mul_instr->args[1],
-  //       res.result, data.alloc);
-
-  //       utils::Debug << "HIT MATCHER\n";
-  //       utils::Debug << mul_instr << "\n";
-  //       utils::Debug << add_instr << "\n";
-  //       res.result.emplace_back(Opcode::mul, res_reg, mul_arg1, mul_arg2);
-  //       res.result.emplace_back(Opcode::add, res_reg, res_reg, add_arg2);
-  //       utils::Debug << res.result[res.result.size() - 2] << "\n";
-  //       utils::Debug << res.result[res.result.size() - 1] << "\n";
-  //       return true;
-  //     }});
-  // pats.push_back(Pattern{
-  //     {IntMulNode, IntAddNode},
-  //     {{0, 1, 1}},
-  //     [](MatchResult &res, ExtraMatchData &data) {
-  //       auto mul_instr = res.matched_instrs[0];
-  //       auto add_instr = res.matched_instrs[1];
-  //       auto res_reg =
-  //           valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
-  //       auto mul_arg1 = valueToArg(mul_instr->args[0], res.result,
-  //       data.alloc); auto mul_arg2 = valueToArg(mul_instr->args[1],
-  //       res.result, data.alloc); auto add_arg1 =
-  //       valueToArg(add_instr->args[0], res.result, data.alloc); if
-  //       (add_arg1
-  //       == res_reg) {
-  //         return false;
-  //       }
-
-  //       res.result.emplace_back(Opcode::mul, res_reg, mul_arg1, mul_arg2);
-  //       res.result.emplace_back(Opcode::add, res_reg, res_reg, add_arg1);
-  //       return true;
-  //     }});
 }
 
 void base_patterns(IRVec<Pattern> &pats) {
@@ -708,14 +642,9 @@ void base_patterns(IRVec<Pattern> &pats) {
                 // aligned this is a cc thing and shouldnt be handled here
                 // TODO: this is inefficient for many stack allocations
                 // TODO: this also depends on the calling conv
-                // utils::Debug << "ConcvvAlloc" << size << " " << size % 16 <<
-                // " "
-                //              << (16 - (size % 16)) << "\n";
                 if (size % 16 != 0) {
                   size = size + (16 - (size % 16));
                 }
-                // utils::Debug << "ConcvvAlloc" << size << " " << size % 16 <<
-                // "\n";
 
                 res.result.emplace_back(Opcode::sub2, rsp_arg, size);
                 res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);
@@ -1180,7 +1109,6 @@ void base_patterns(IRVec<Pattern> &pats) {
                 fir::IRLocation{ret_instr}, ret_instr.get_type(),
                 VRegInfo{VRegType::mm0, converted_type}, data.lives);
             auto res_arg = MArgument(res_reg, converted_type);
-            // utils::Debug << "RETTY\n";
             res.result.emplace_back(Opcode::mov, res_arg, ret_val);
             res.result.emplace_back(Opcode::ret, res_arg);
           } else {
@@ -1310,9 +1238,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           std::memcpy(&v, &val, sizeof(f32));
           a2 = MArgument{v};
         }
-        // utils::Debug << f_neg_instr << "\n";
         res.result.emplace_back(Opcode::fxor, res_reg, a1, a2);
-        // utils::Debug << res.result.back() << "\n";
         return true;
       }});
   pats.push_back(Pattern{

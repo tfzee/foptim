@@ -31,8 +31,8 @@ public:
   FunctionPass &print_failures() {
 #ifdef OPTIM_STATS
     for (auto &reason : failures) {
-
-      utils::Debug << reason.loc << ": " << reason.reason << "\n";
+      (void)reason.loc;
+      fmt::println("IMPL LOCATION PRINTING: {}", reason.reason);
     }
 #endif
     return *this;

@@ -1,86 +1,138 @@
 #pragma once
 #include "types.hpp"
+#include <fmt/color.h>
+#include <fmt/format.h>
 
-
-namespace foptim::utils {
-template<class T>
-struct Hex{
-  T value;
-};
-
-class Printer {
+template <class T> class BaseIRFormatter {
 public:
-  struct PaddingT {};
-
-  enum class LogLevel : u8 {
-    Debug,
-    Info,
-    Warn,
-    Err,
-  };
-
-  u8 indent;
-  LogLevel level;
-  template<class T>
-  Printer operator<<(Hex<T> v) const{
-    printf("%#010x", v.value);
-    return *this;
+  bool debug = false;
+  constexpr auto parse(auto &ctx) {
+    auto i = ctx.begin();
+    auto end = ctx.end();
+    if (i != end) {
+      if (*i == 'd') {
+        debug = true;
+      }
+      if (*i == 'p') {
+        debug = false;
+      }
+    }
+    i += 1;
+    return i;
   }
-  Printer operator<<(foptim::fir::FunctionR func) const;
-  Printer operator<<(const foptim::fir::Function &func) const;
-
-  Printer operator<<(i128 val) const;
-  Printer operator<<(i64 val) const;
-  Printer operator<<(i32 val) const;
-  Printer operator<<(i16 val) const;
-  Printer operator<<(i8 val) const;
-  Printer operator<<(u64 val) const;
-  Printer operator<<(u32 val) const;
-  Printer operator<<(u16 val) const;
-  Printer operator<<(u8 val) const;
-  Printer operator<<(bool val) const;
-  Printer operator<<(f32 val) const;
-  Printer operator<<(f64 val) const;
-  // Printer operator<<(const foptim::utils::BitSet &func) const;
-  Printer operator<<(const foptim::optim::LiveRange &live) const;
-  Printer operator<<(const foptim::fir::IRLocation &loc) const;
-  Printer operator<<(const char *str) const;
-  Printer operator<<(const foptim::fir::ConstantValue &v) const;
-  Printer operator<<(foptim::fir::ConstantValueR v) const;
-  Printer operator<<(const foptim::fir::BBRefWithArgs &bb_with_args) const;
-  Printer operator<<(foptim::fir::TypeR ty) const;
-  Printer operator<<(const foptim::fir::Attribute &attrib) const;
-  Printer operator<<(foptim::fir::ValueR val) const;
-  Printer operator<<(const foptim::fir::Use &use) const;
-  Printer operator<<(const foptim::fmir::MArgument &) const;
-  Printer operator<<(const foptim::fmir::Type &) const;
-  Printer operator<<(const foptim::fmir::MInstr &) const;
-  Printer operator<<(const foptim::fmir::MBB &) const;
-  Printer operator<<(const foptim::fmir::MFunc &) const;
-  Printer operator<<(const foptim::fmir::VReg &) const;
-  Printer operator<<(foptim::fir::Instr instr) const;
-  Printer operator<<(const foptim::fir::InstrData *instr) const;
-  Printer operator<<(foptim::fir::BasicBlock bb) const;
-  Printer operator<<(foptim::fir::BBArgument v) const;
-  Printer operator<<(PaddingT pad) const;
-  Printer operator<<(const void *v) const;
-
-  void nl() const;
-  [[nodiscard]] constexpr Printer pad(i8 delta) const {
-    return Printer{
-        level,
-        (u8)(indent + delta),
-    };
-  }
-
-  constexpr Printer(LogLevel ty, u8 indent = 0) : indent(indent), level(ty) {}
 };
 
-constexpr Printer::PaddingT padding() { return Printer::PaddingT{}; }
+template <>
+class fmt::formatter<foptim::fir::ValueR>
+    : public BaseIRFormatter<foptim::fir::ValueR> {
+public:
+  appender format(foptim::fir::ValueR const &k, format_context &ctx) const; 
+};
 
-constexpr auto Debug = Printer(Printer::LogLevel::Debug, 0);
-constexpr auto Warn = Printer(Printer::LogLevel::Warn, 0);
 
-inline Printer::LogLevel g_log_level = Printer::LogLevel::Debug;
+template <>
+class fmt::formatter<foptim::fir::Attribute>
+    : public BaseIRFormatter<foptim::fir::Attribute> {
+public:
+  appender format(foptim::fir::Attribute const &attrib,
+                  format_context &ctx) const;
+};
 
-} // namespace foptim::utils
+template <>
+class fmt::formatter<foptim::fir::Function>
+    : public BaseIRFormatter<foptim::fir::Function> {
+public:
+  appender format(foptim::fir::Function const &func,
+                            format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::BasicBlock>
+    : public BaseIRFormatter<foptim::fir::BasicBlock> {
+public:
+  appender format(foptim::fir::BasicBlock const &bb, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::BBArgument>
+    : public BaseIRFormatter<foptim::fir::BBArgument> {
+public:
+  appender format(foptim::fir::BBArgument const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::Instr>
+    : public BaseIRFormatter<foptim::fir::Instr> {
+public:
+  appender format(foptim::fir::Instr const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::Use>
+    : public BaseIRFormatter<foptim::fir::Use> {
+public:
+  appender format(foptim::fir::Use const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::ConstantValueR>
+    : public BaseIRFormatter<foptim::fir::ConstantValueR> {
+public:
+  appender format(foptim::fir::ConstantValueR const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::TypeR>
+    : public BaseIRFormatter<foptim::fir::TypeR> {
+public:
+  appender format(foptim::fir::TypeR const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fmir::MFunc>
+    : public BaseIRFormatter<foptim::fmir::MFunc> {
+public:
+  appender format(foptim::fmir::MFunc const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fmir::MInstr>
+    : public BaseIRFormatter<foptim::fmir::MInstr> {
+public:
+  appender format(foptim::fmir::MInstr const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fmir::VReg>
+    : public BaseIRFormatter<foptim::fmir::VReg> {
+public:
+  appender format(foptim::fmir::VReg const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fmir::MBB>
+  : public BaseIRFormatter<foptim::fmir::MBB> {
+public:
+appender format(foptim::fmir::MBB const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fmir::MArgument>
+  : public BaseIRFormatter<foptim::fmir::MArgument> {
+public:
+appender format(foptim::fmir::MArgument const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fmir::Type>
+  : public BaseIRFormatter<foptim::fmir::Type> {
+public:
+appender format(foptim::fmir::Type const &v, format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::BBRefWithArgs>
+  : public BaseIRFormatter<foptim::fir::BBRefWithArgs> {
+public:
+appender format(foptim::fir::BBRefWithArgs const &v, format_context &ctx) const;
+};

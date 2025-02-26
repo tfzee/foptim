@@ -22,6 +22,7 @@
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
+#include "optim/func_passes/stack_known_bits.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
@@ -96,9 +97,9 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   ASSERT(ctx->verify());
-  foptim::utils::Debug << "================INIT====================\n";
+  fmt::print("================INIT====================\n");
   for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
+    fmt::print("{}\n", func);
   }
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
@@ -120,14 +121,16 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-
-  foptim::utils::Debug << "================OPTIMEND====================\n";
+  fmt::println("================OPTIMEND====================");
   for (const auto &[_, func] : ctx.data->storage.functions) {
-    foptim::utils::Debug << func << "\n";
+    fmt::println("{}", func);
   }
   ASSERT(ctx->verify());
+
+  foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
+
   // {
-  //   foptim::utils::Debug << "MEMREG JuST TESTING Attributor\n";
+  //   foptim::utils::print << "MEMREG JuST TESTING Attributor\n";
   //   AttributerManager manager;
   //   for (const auto &[_, func] : ctx.data->storage.functions) {
   //     for (auto bb : func.get_bbs()) {
@@ -160,7 +163,6 @@ void lower_to_mir(foptim::fir::Context &ctx,
         foptim::fmir::Global glob = {
             .name = v->data.name, .data = {}, .reloc_info = {}};
         for (const auto &rel_inf : v->data.reloc_info) {
-          foptim::utils::Debug << "handling ref " << rel_inf.ref << "\n";
           ASSERT(rel_inf.ref->is_global());
           glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
               .offset = rel_inf.offset,
@@ -174,14 +176,13 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
 
   auto matcher = foptim::fmir::GreedyMatcher{};
-  foptim::utils::Debug << "================MATCHING====================\n";
+  fmt::print("================MATCHING====================\n");
   for (auto [_, func] : ctx->storage.functions) {
     if (func.is_decl()) {
       continue;
     }
     auto res = matcher.apply(func);
     funcs.push_back(std::move(res));
-    // foptim::utils::Debug << funcs.back();
     foptim::utils::TempAlloc<void *>::reset();
   }
 }
@@ -213,5 +214,5 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals) {
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, decls, globals);
-  foptim::utils::Debug << "Done!";
+  fmt::println("Done!");
 }

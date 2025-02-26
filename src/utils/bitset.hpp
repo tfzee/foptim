@@ -181,6 +181,17 @@ struct BitSet {
     return (_data[n_elems - 1] & mask) == (other._data[n_elems - 1] & mask);
   }
 
+  constexpr BitSet &set(size_t indx, u8 width, u64 value) {
+    ASSERT(width <= 64);
+    for (u32 i = 0; i < width; i++) {
+      BitRef<> loc = {(u16)((indx + i) % StrgTySizeBit),
+                      &_data[(indx + i) / StrgTySizeBit]};
+      bool bitset = ((value >> i) & 0b1) == 1;
+      loc.set(bitset);
+    }
+    return *this;
+  }
+
   constexpr BitSet &assign(const BitSet &other) {
     assert(_size_bits == other._size_bits);
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
@@ -278,19 +289,19 @@ struct BitSet {
   }
 };
 
-template <class Ty, class Alloc>
-Printer operator<<(const Printer &self, const BitSet<Ty, Alloc> &sett) {
-  for (size_t i = 0; i < sett._size_bits; i++) {
-    self << (sett[i] ? "1" : "0");
-  }
-  // auto n_elems = (sett._size_bits + StrgTySizeBit) / StrgTySizeBit;
-  // for (size_t elem = 0; elem < n_elems; elem++) {
-  //   Ty val = sett._data[elem];
-  //   for (size_t bit = 0; bit < StrgTySizeBit; bit++) {
-  //     self << ((val >> bit) & 1 ? "1" : "0");
-  //   }
-  // }
-  return self;
-}
-
 } // namespace foptim::utils
+
+template <class T, class Alloc>
+class fmt::formatter<foptim::utils::BitSet<T, Alloc>>
+    : public BaseIRFormatter<foptim::utils::BitSet<T, Alloc>> {
+public:
+  appender format(foptim::utils::BitSet<T, Alloc> const &sett,
+                  format_context &ctx) const {
+
+    auto app = ctx.out();
+    for (size_t i = 0; i < sett._size_bits; i++) {
+      app = fmt::format_to(app, "{}", (sett[i] ? '1' : '0'));
+    }
+    return app;
+  }
+};

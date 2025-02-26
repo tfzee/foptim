@@ -81,23 +81,15 @@ public:
             succ.bb->args[arg_id].uses.clear();
 
             n.bb->args[arg_id].replace_all_uses(fir::ValueR{succ.bb, arg_id});
-            // utils::Debug << "=========" << old_uses
-            //              << "  == " <<
-            //              succ.bb->args[arg_id].get_n_uses()
-            //              << "\n";
-            // utils::Debug << "=========" << fir::ValueR(succ.bb, arg_id)
-            // <<
-            // "\n"; ASSERT(succ.bb->args[arg_id].get_n_uses() ==
-            // old_uses);
           }
         }
-        if (n.bb->get_n_uses() != 0) {
-          utils::Debug << n.bb->get_parent();
-          utils::Debug << n.bb;
-          for (auto use : n.bb->get_uses()) {
-            utils::Debug << "USE " << use << "\n";
-          }
-        }
+        // if (n.bb->get_n_uses() != 0) {
+        //   print << n.bb->get_parent();
+        //   print << n.bb;
+        //   for (auto use : n.bb->get_uses()) {
+        //     print << "USE " << use << "\n";
+        //   }
+        // }
         ASSERT(n.bb->get_n_uses() == 0);
         n.bb->remove_from_parent(true);
         return Changed;

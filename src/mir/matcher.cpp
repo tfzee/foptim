@@ -104,8 +104,6 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
           return false;
         }
         auto as_instr = child_arg.as_instr();
-        // utils::Debug << "  Setting at " << node_id << "\n";
-        // ASSERT(as_instr.is_valid());
         res.matched_instrs[node_id] = as_instr;
         n_nodes_matched++;
         for (auto edge : patt.edges) {
@@ -135,7 +133,6 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
 
 void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
                 ExtraMatchData &data) {
-  // utils::Debug << "Trying to match instr" << instr << "\n";
   ZoneScopedN("Find Match");
   for (size_t match_id = 0; match_id < patts.size(); match_id++) {
     res.result.clear();
@@ -149,18 +146,18 @@ void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
     }
   }
 
-  utils::Debug << "Failed to match instr " << instr << "\n";
+  fmt::println("Failed to match instr {}", instr);
   UNREACH();
 }
 
 void dump_succ_edges(const Edges &active_edges, fir::BasicBlock &bb) {
   (void)bb;
-  utils::Debug << "digraph {";
+  fmt::println("digraph {{");
   for (auto edge : active_edges) {
-    utils::Debug << "\"" << edge.from.get_raw_ptr() << "\" -> " << "\""
-                 << edge.to.get_raw_ptr() << "\"  ";
+    fmt::println(R"("{:p}" -> "{:p}")", (void *)edge.from.get_raw_ptr(),
+                 (void *)edge.to.get_raw_ptr());
   }
-  utils::Debug << "}\n";
+  fmt::println("}}");
 }
 
 MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
@@ -188,7 +185,6 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
   while (!worklist.empty()) {
     fir::Instr cur_instr = worklist.front();
     worklist.pop_front();
-    // utils::Debug << "Trying to match " << cur_instr << "\n";
 
     // match it
     find_match(cur_instr, patterns, match_result, data);
@@ -202,7 +198,6 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
         result_bb.instrs.push_back(minstr);
       }
     }
-
   }
 
   std::reverse(result_bb.instrs.begin(), result_bb.instrs.end());
@@ -237,7 +232,7 @@ Type convert_type(fir::TypeR type) {
     }
     TODO("IMPL");
   } else {
-    utils::Debug << type << "\n";
+    fmt::println("{}", type);
     ASSERT(false);
   }
   std::abort();
@@ -306,7 +301,6 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
     if (to == from) {
       continue;
     }
-    // utils::Debug << to << " = " << from << "\n";
     pairs.push_back({to, from});
   }
 
@@ -333,9 +327,6 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
         const auto to = pairs[pair1_id].to;
         const auto from = pairs[pair1_id].from;
 
-        // utils::Debug << "SIZE: " << res.result.size()
-        //              << " CAP: " << res.result.capacity()
-        //              << " PTR: " << res.result.data() << "\n";
         res.result.emplace_back(Opcode::mov, to, from);
         pairs.erase(pairs.begin() + (int64_t)pair1_id);
         if (pair1_id > 0) {

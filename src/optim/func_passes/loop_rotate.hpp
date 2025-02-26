@@ -34,7 +34,6 @@ public:
                                   uint8_t non_exiting_target,
                                   fir::BasicBlock header_bb,
                                   fir::BasicBlock head_pred) {
-    // utils::Debug << header_bb->get_parent() << "\n";
     repl_map.clear();
     fir::Instr old_terminator = head_pred->get_terminator();
     auto &old_terminator_args = old_terminator->bbs[0].args;
@@ -57,18 +56,12 @@ public:
     // since they are just inserted at the end we could just use the length
     //  FVec<fir::Instr> new_instrs;
 
-    // utils::Debug << "doing subs\n";
-    // utils::Debug << old_terminator_args << "\n";
-    // utils::Debug << repl_map << "\n";
     for (auto instr : header_bb->instructions) {
       fir::Instr new_instr = bb.insert_copy(instr);
       new_instr.substitute(repl_map);
       repl_map.insert({fir::ValueR(instr), fir::ValueR(new_instr)});
     }
 
-    // utils::Debug << header_bb->get_parent() << "\n";
-    // utils::Debug << head_pred << "\n";
-    // utils::Debug << header_bb << "\n";
     // clean up the arguments going into the loop based on the args of the old
     // terminator
     {
@@ -205,7 +198,6 @@ public:
       }
     }
 
-    // utils::Debug << cfg.bbrs[0].bb->get_parent() << "\n";
     // linfo.dump();
     // std::abort();
     return true;

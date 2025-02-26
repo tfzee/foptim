@@ -4,12 +4,12 @@
 #include "ir/attributable.hpp"
 #include "types.hpp"
 #include "types_ref.hpp"
+#include "utils/logging.hpp"
 #include "utils/string.hpp"
 #include "utils/todo.hpp"
 #include <utility>
 
-namespace foptim::utils {
-}
+namespace foptim::utils {}
 namespace foptim::fir {
 
 class Function : public Attributable {
@@ -59,7 +59,8 @@ public:
     bb->func = FunctionR{this};
     basic_blocks.push_back(bb);
   }
-  bool verify(utils::Printer) const;
+  bool verify() const;
 };
 
 } // namespace foptim::fir
+

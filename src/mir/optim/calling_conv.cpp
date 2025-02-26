@@ -256,7 +256,6 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
     }
   }
 
-  // utils::Debug << "HANDLING CALL\n";
   // queue for saving regs into push and then restoring them at the end
   TVec<u32> push_pop_queue{};
   while (!worklist.empty()) {
@@ -276,8 +275,6 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
         UNREACH();
         break;
       }
-      // utils::Debug << "Checking " << arg_id << " which wants" << wants_reg
-      //              << "\n";
 
       bool collision = false;
       for (size_t other_id = 0; other_id < worklist.size(); other_id++) {
@@ -287,7 +284,6 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
           break;
         }
       }
-      // utils::Debug << "   has_coll: " << collision << "\n";
       if (!collision) {
         generate_arg(output_vec, args[arg_id], arg_pos[arg_id]);
         worklist.erase(worklist.begin() + curr_work_item);
@@ -335,20 +331,6 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   TVec<MInstr> args;
   MInstr call = instrs[end];
   args.reserve(n_args);
-  // utils::Debug << "Handling call transform call " << call << "\n";
-  // utils::Debug << "it is at " << start << ".." << end << "\n";
-  // utils::Debug << "\n";
-  // for (auto &[reg, ran] : lives) {
-  //   utils::Debug << reg << "  ";
-  //   for (auto &r : ran.ranges) {
-  //     utils::Debug << r.start.bb_indx << "@" << r.start.instr_indx << ".."
-  //                  << r.end.instr_indx << "; ";
-  //   }
-  //   utils::Debug << "COLLIDS: "
-  //                << ran.collide(LinearRange::inBB(bb_id, start, end + 1))
-  //                << "\n";
-  //   utils::Debug << "\n";
-  // }
 
   for (u32 i = 0; i < n_args; i++) {
     args.push_back(instrs.at(start + i));
@@ -467,16 +449,6 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
     save_regs_callee(func, cfg);
 
     TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
-    // utils::Debug << "ALLL LIVES ??\n";
-    // for (auto &[reg, ran] : lives) {
-    //   utils::Debug << "  " << reg << "  ";
-    //   for (auto &r : ran.ranges) {
-    //     utils::Debug << r.start.bb_indx << "@" << r.start.instr_indx << ".."
-    //                  << r.end.instr_indx << " ";
-    //   }
-    //   utils::Debug << "\n";
-    // }
-    // utils::Debug << "\n";
 
     size_t bb_id = 0;
     for (auto &bb : func.bbs) {
@@ -491,15 +463,11 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
         for (instr_start_idp1 = instr_end_id; instr_start_idp1 > 0;
              instr_start_idp1--) {
           instr_start_id = instr_start_idp1 - 1;
-          // utils::Debug << "B" << bb.instrs[instr_start_id] << "\n";
           if (bb.instrs[instr_start_id].op != Opcode::arg_setup) {
             instr_start_id++;
             break;
           }
         }
-        // utils::Debug << bb.instrs[instr_start_id] << ".."
-        //              << bb.instrs[instr_end_id] << "\n";
-        // utils::Debug << instr_start_id << ".." << instr_end_id + 1 << "\n";
         transform_call(bb.instrs, instr_start_id, instr_end_id, bb_id, lives);
         // update the n of instrs since the might have changed it
         n_instrs = bb.instrs.size();
@@ -578,23 +546,14 @@ void mark_arguments_with_regs(IRVec<MInstr> &instrs, size_t instr_start_id,
 
   calculate_arg_locations(args, pos);
 
-  // utils::Debug << "Call\n";
   for (u32 i = 0; i < n_args; i++) {
-    // utils::Debug << "   Arg:" << i << " " << pos[i].ty << " " <<
-    // pos[i].position
-    //              << "\n";
     auto arg_pos = pos[i];
     auto arg_ty = instrs[instr_start_id + i].args[0].ty;
     switch (arg_pos.ty) {
     case ArgPosition::IntReg:
-      // utils::Debug << "     INT MARG:"
-      //              << MArgument({int_arg_reg[arg_pos.position], arg_ty},
-      //              arg_ty)
-      //              << "\n";
       instrs[instr_start_id + i].n_args = 2;
       instrs[instr_start_id + i].args[1] =
           MArgument({int_arg_reg[arg_pos.position], arg_ty}, arg_ty);
-      // utils::Debug << "     INT MARG:" << instrs[instr_start_id + i] << "\n";
       break;
     case ArgPosition::FloatReg:
       instrs[instr_start_id + i].n_args = 2;

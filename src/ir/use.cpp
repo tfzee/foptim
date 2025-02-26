@@ -30,8 +30,8 @@ void Used::remove_usage(const Use &u, bool verify) {
   }
 
   if (verify) {
-    utils::Debug << "USE: " << u << "\n";
-    utils::Debug << "USER: " << u.user << "\n";
+    fmt::println("USE: {}", u);
+    fmt::println("USER: {}", u.user);
     ASSERT_M(false, "Failed to find usage that was to be removed");
   }
 }
@@ -43,3 +43,10 @@ bool Use::operator==(const Use &other) const {
          bbArgId == other.bbArgId;
 }
 } // namespace foptim::fir
+
+fmt::appender
+fmt::formatter<foptim::fir::Use>::format(foptim::fir::Use const &v,
+                                         format_context &ctx) const {
+  (void)v;
+  return fmt::format_to(ctx.out(), "IMPLE USE STUFF");
+}

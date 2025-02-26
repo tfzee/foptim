@@ -137,34 +137,16 @@ void apply_func(MFunc &func) {
 
   {
     ZoneScopedN("Actual Alloc");
-    // utils::Debug << "Setting uP pinned\n";
     for (const auto &[reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
-        // utils::Debug << " Pinned reg " << reg << " UID:" << reg_to_uid(reg)
-        //              << "\n";
-        // utils::Debug << " WithLifetime: ";
-        // for (auto life : lifetime.ranges) {
-        //   life.dump();
-        //   utils::Debug << " ";
-        // }
-        // utils::Debug << "\n";
         lifeness.insert({reg.info.ty, lifetime});
       }
     }
 
-    utils::Debug << "Allocating\n";
     for (const auto &[reg, lifetime] : lifetimes) {
       if (reg.info.is_pinned()) {
         continue;
       }
-      // utils::Debug << " Trying to allocate " << reg
-      //              << " UID:" << reg_to_uid(reg) << "\n";
-      // utils::Debug << " WithLifetime: ";
-      // for (auto life : lifetime.ranges) {
-      //   life.dump();
-      //   utils::Debug << " ";
-      // }
-      // utils::Debug << "\n";
       bool found = false;
       for (auto avail_reg : regs) {
         if (!reg_is_legal(reg, avail_reg)) {
@@ -172,16 +154,12 @@ void apply_func(MFunc &func) {
         }
 
         if (!lifeness.contains(avail_reg)) {
-          // utils::Debug << "  Using Reg cause its considered dead\n";
-          // utils::Debug << "  " << avail_reg << "\n";
           lifeness.insert({avail_reg, lifetime});
           reg_mapping.insert({reg.id, avail_reg});
           found = true;
           break;
         }
         if (!lifeness.at(avail_reg).collide(lifetime)) {
-          // utils::Debug << "  Using Reg cause it doesnt collide\n";
-          // utils::Debug << "  " << avail_reg << "\n";
           lifeness.at(avail_reg).update(lifetime);
           reg_mapping.insert({reg.id, avail_reg});
           found = true;
@@ -189,14 +167,13 @@ void apply_func(MFunc &func) {
         }
       }
       if (!found) {
-        utils::Debug << reg << " IN FUNC:" << func.name.c_str() << "\n";
-        utils::Debug << reg << " Size:" << reg.info.reg_size
-                     << " Is FP:" << (reg.info.reg_class == VRegClass::Float)
-                     << "\n";
+        TODO("REIMPL");
+        // fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
+        // fmt::println("{} Size:: {} IS fp: {}", reg, reg.info.reg_size,
+        //              reg.info.reg_class == VRegClass::Float);
         TODO("spill it ?");
         ASSERT(false);
       }
-      // utils::Debug << "    Found reg:" << reg_mapping[reg.id] << "\n";
     }
   }
 

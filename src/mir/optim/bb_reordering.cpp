@@ -18,7 +18,6 @@ void BBReordering::apply(MFunc &func) {
     }
 
     if (t1.op != Opcode::jmp) {
-      utils::Debug << func << "\n" << bb1_i;
       ASSERT(false);
     }
     u32 target_bb = t1.bb_ref;
@@ -38,9 +37,6 @@ void BBReordering::apply(MFunc &func) {
     }
 
     if (!is_fallthrough_elsewhere) {
-      // utils::Debug << "Copied " << target_bb << " into " << bb1_i << "\n";
-      // func.bbs.insert(func.bbs.begin() + bb1_i + 1,
-      //                 MBB{func.bbs[target_bb].instrs});
       func.bbs.insert(func.bbs.begin() + bb1_i + 1,
                       MBB{std::move(func.bbs[target_bb].instrs)});
 
@@ -73,14 +69,12 @@ void BBReordering::apply(MFunc &func) {
           }
         }
       }
-
-      // utils::Debug << new_bb_vals << "\n";
-      // break;
     }
   }
 }
 
 void BBReordering::apply(FVec<MFunc> &funcs) {
+  ZoneScopedN("BB Reordering");
   // (void)funcs;
   for (auto &func : funcs) {
     apply(func);

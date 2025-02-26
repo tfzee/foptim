@@ -64,8 +64,7 @@ struct LinearRange {
 
   void dump() const {
     ASSERT(start.bb_indx == end.bb_indx);
-    utils::Debug << start.bb_indx << "(" << start.instr_indx << ";"
-                 << end.instr_indx << ")";
+    fmt::println("{}({}..{})", start.bb_indx, start.instr_indx, end.instr_indx);
   }
 
   static LinearRange inBB(u32 bb_id, u32 from, u32 to) {
@@ -112,7 +111,7 @@ struct LinearRangeSet {
   void dump() const {
     for (const auto &r : ranges) {
       r.dump();
-      utils::Debug << "; ";
+      fmt::println("; ");
     }
   }
 
@@ -123,14 +122,16 @@ struct LinearRangeSet {
           new_range.start.instr_indx >= range.start.instr_indx) {
         ASSERT(new_range.end.bb_indx == range.end.bb_indx);
         // range.end.instr_indx = new_range.end.instr_indx;
-        range.end.instr_indx = std::max(new_range.end.instr_indx, range.end.instr_indx);
+        range.end.instr_indx =
+            std::max(new_range.end.instr_indx, range.end.instr_indx);
         return;
       }
       if (new_range.end.bb_indx == range.start.bb_indx &&
           new_range.end.instr_indx >= range.start.instr_indx &&
           new_range.end.instr_indx <= range.end.instr_indx) {
         ASSERT(new_range.start.bb_indx == range.start.bb_indx);
-        range.start.instr_indx = std::min(new_range.start.instr_indx, range.start.instr_indx);
+        range.start.instr_indx =
+            std::min(new_range.start.instr_indx, range.start.instr_indx);
         return;
       }
     }

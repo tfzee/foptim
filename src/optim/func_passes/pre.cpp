@@ -51,10 +51,6 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
   for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
     const auto &cbb = bbs[bb_id];
 
-    // utils::Debug << "Redund: " << redund[bb_id] << "\n";
-    // utils::Debug << "Save:   " << save[bb_id] << "\n";
-    // utils::Debug << "Insert: " << insert_sin[bb_id] << "\n###\n";
-
     for (auto save_id : save[bb_id]) {
       // for ssa form saving is kinda useless so we just store the first into
       // our map
@@ -64,18 +60,12 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
                          return v->eql_expr(*exprs[save_id].operator->());
                        });
       if (res_instr == cbb->instructions.end()) {
-        // for (auto instr : cbb->instructions) {
-        //   utils::Debug << "   : " << instr << "\n";
-        // }
-        // utils::Debug << cbb->instructions[0]->eql_expr(
-        //                     *exprs[save_id].operator->())
-        //              << "\n";
 
-        utils::Debug << bbs[0]->get_parent() << "\n";
+        // print << bbs[0]->get_parent() << "\n";
 
-        utils::Debug << "INBB: " << bb_id << "\n";
-        utils::Debug << "SAVE EXPR: " << exprs[save_id] << "\n";
-        utils::Debug << "EXPR NOT FOUND IN BB\n";
+        // print << "INBB: " << bb_id << "\n";
+        // print << "SAVE EXPR: " << exprs[save_id] << "\n";
+        // print << "EXPR NOT FOUND IN BB\n";
 
         assert(false);
       }
@@ -87,27 +77,11 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
       bb.at_penultimate(bbs[bb_id]);
       fir::Instr copy = bb.insert_copy(exprs[insert_id]);
 
-      // utils::Debug << insert_id << " / " << insert_sin.size() << " "
-      //              << insert_sin[bb_id].size() << "\n";
-
       repl_map.at(insert_id) = fir::ValueR(copy);
     }
 
     {
       for (size_t bb2_id = 0; bb2_id < n_bbs; bb2_id++) {
-        // if (!insert_doub[bb_id][bb2_id].any()) {
-        //   continue;
-        // }
-        utils::Debug << "PRE: Trying to insert doub at " << bb_id << " and "
-                     << bb2_id << "\n";
-        // utils::Debug << bbs[bb_id]->get_parent() << "\n";
-        // auto new_bb = fir::insert_bb_between(bbs[bb_id], bbs[bb2_id]);
-        // fir::Builder bb{new_bb};
-        // bb.at_penultimate(new_bb);
-
-        // for (auto insert_loc : insert_doub[bb_id][bb2_id]) {
-        //   bb.insert_copy(exprs[insert_loc]);
-        // }
       }
     }
 
@@ -177,12 +151,12 @@ void EPathPRE::apply(fir::Context & /*ctx*/, fir::Function &func) {
 
   init_transp_antloc(transp, antloc, comp, func, exprs, expr_to_instrs);
 
-  for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
-    utils::Debug << bb_id << "\n";
-    utils::Debug << "Comp  : " << comp[bb_id] << "\n";
-    utils::Debug << "Antloc: " << antloc[bb_id] << "\n";
-    utils::Debug << "Transp: " << transp[bb_id] << "\n";
-  }
+  // for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
+  // fmt::println("{}", bb_id);
+  // fmt::println("Comp  : {}", comp[bb_id]);
+  // fmt::println("Antloc: {}", antloc[bb_id]);
+  // fmt::println("Transp: {}", transp[bb_id]);
+  // }
 
   // dynamic
   BBData av_in{};
@@ -205,8 +179,8 @@ void EPathPRE::apply(fir::Context & /*ctx*/, fir::Function &func) {
   insert_doub.resize(n_bbs);
   for (size_t i = 0; i < insert_doub.size(); i++) {
     insert_doub[i].resize(n_bbs, empty_bitset);
-    // insert_doub[i].resize(n_bbs, i == cfg.entry ? empty_bitset : full_bitset);
-    // insert_doub[i][0].assign(empty_bitset);
+    // insert_doub[i].resize(n_bbs, i == cfg.entry ? empty_bitset :
+    // full_bitset); insert_doub[i][0].assign(empty_bitset);
   }
   BBData sa_out{};
   sa_out.resize(n_bbs, full_bitset);

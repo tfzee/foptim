@@ -29,8 +29,7 @@ fir::Instr get_last_use_in_bb(fir::ValueR value, fir::BasicBlock target_bb) {
     return target_bb->instructions[0];
   }
   if (!found) {
-    utils::Debug << value;
-    utils::Debug << "Didnt find " << value << " in bb " << target_bb << "\n";
+    fmt::println("{} Didnt find {} in bb {}", value, value, target_bb);
     ASSERT(found);
   }
   ASSERT(final_use_instr.is_valid());
@@ -38,12 +37,13 @@ fir::Instr get_last_use_in_bb(fir::ValueR value, fir::BasicBlock target_bb) {
 }
 
 void LiveVariables::dump() {
-  for (auto [var, ranges] : live_variables) {
-    utils::Debug << "Var " << var << "\n";
-    for (auto range : ranges) {
-      utils::Debug << "  " << range << "\n";
-    }
-  }
+  TODO("REIMPL");
+  // for (auto [var, ranges] : live_variables) {
+  //   fmt::println("Var {}", var);
+  //   for (auto range : ranges) {
+  //     fmt::println(" {}", range);
+  //   }
+  // }
 }
 
 void LiveVariables::update(fir::Function &func, CFG &cfg) {
@@ -78,7 +78,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
           continue;
         }
         if (!all_values.contains(arg)) {
-          utils::Debug << "Didnt find value for " << arg << "\n";
+          fmt::println("Didnt find value for {}", arg);
           ASSERT(false);
         }
         const size_t arg_id = all_values.at(arg);
@@ -92,7 +92,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
             continue;
           }
           if (!all_values.contains(arg)) {
-            utils::Debug << "Didnt find value for " << arg << "\n";
+            fmt::println("Didnt find value for {}", arg);
             ASSERT(false);
           }
           const size_t arg_id = all_values.at(arg);
@@ -104,14 +104,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     }
   }
 
-  // utils::Debug << "defs\n";
-  // for (auto def : defs) {
-  //   utils::Debug << def << "\n";
-  // }
-  // utils::Debug << "upwExp\n";
-  // for (auto upwExp : upwExp) {
-  //   utils::Debug << upwExp << "\n";
-  // }
 
   // data flow
   IRVec<utils::BitSet<>> liveIn;
@@ -130,11 +122,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
       new_liveOut += liveIn[succ];
     }
     new_liveIn.assign(new_liveOut).mul_not(defs[curr_id]).add(upwExp[curr_id]);
-    // utils::Debug << "Updating " << curr_id << " " << new_liveOut << "  " <<
-    // new_liveIn
-    //              << "\n";
-    // auto test = upwExp[curr_id] + (new_liveOut - defs[curr_id]);
-    // assert(test == liveIn[curr_id]);
 
     if (new_liveOut != liveOut[curr_id]) {
       liveOut[curr_id].assign(new_liveOut);
@@ -148,16 +135,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     }
   }
 
-  // utils::Debug << "LIVEIN\n";
-  // for (auto live_in : liveIn) {
-  //   utils::Debug << live_in << "\n";
-  // }
-  // utils::Debug << "LIVEOUT\n";
-  // for (auto live_out : liveOut) {
-  //   utils::Debug << live_out << "\n";
-  // }
-
-  // utils::Debug << "ACT LIVE\n";
 
   utils::BitSet bb_live{n_values, false};
 
@@ -168,8 +145,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     bb_live.assign(bb_liveOut).add(bb_defs).add(bb_liveIn);
     // assert(bb_live == bb_liveOut + bb_defs + bb_liveIn);
 
-    // utils::Debug << "For BB:" << bb_id << "\n";
-    // utils::Debug << "--Live: " << bb_live << "\n";
 
     for (size_t value_id = 0; value_id < n_values; value_id++) {
       bool val_liveIn = bb_liveIn[value_id];
@@ -181,14 +156,10 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
           std::ranges::find_if(all_values, [value_id](const auto &v) {
             return v.second == value_id;
           });
-      // utils::Debug << "  For: " << value_ref->first << "\n";
       // is it live at all
       if (!val_live) {
         continue;
       }
-      // utils::Debug << "   LiveIn: " << val_liveIn << "\n";
-      // utils::Debug << "   LiveOut: " << val_liveOut << "\n";
-      // utils::Debug << "   LiveDef: " << val_defined << "\n";
 
       auto &live_ranges = live_variables[value_ref->first];
       ASSERT(value_ref != all_values.end());
@@ -196,7 +167,7 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
 
       if (val_defined && value_ref->first.is_instr()) {
         if (value_ref->first.as_instr()->get_parent() != bbs[bb_id]) {
-          utils::Debug << value_ref->first << "\n";
+          fmt::println("{}", value_ref->first);
         }
         ASSERT(value_ref->first.as_instr()->get_parent() == bbs[bb_id]);
       }

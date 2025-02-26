@@ -15,13 +15,18 @@ using TVec = std::vector<Val, Alloc>;
 template <class Val, class Alloc = utils::IRAlloc<Val>>
 using IRVec = std::vector<Val, Alloc>;
 
-template <class T, class Alloc>
-utils::Printer operator<<(utils::Printer p, const std::vector<T, Alloc> data) {
-  p << "[";
-  for (const T &elem : data) {
-    p << elem << ", ";
-  }
-  return p << "]";
-}
-
 } // namespace foptim
+
+
+template <class T>
+class fmt::formatter<foptim::TVec<T>>
+    : public BaseIRFormatter<foptim::TVec<T>> {
+public:
+  appender format(foptim::TVec<T> const &k, format_context &ctx) const{
+    auto app = ctx.out();
+    for(const auto& elem: k){
+      app = fmt::format_to(app, "{}", elem);
+    }
+    return app;
+  }
+};

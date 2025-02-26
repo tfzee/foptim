@@ -111,11 +111,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
 }
 
 void LoopInfo::dump() const {
-  utils::Debug << "Loop:\n";
-  utils::Debug << "  Header:  " << head << "\n";
-  utils::Debug << "  Body: " << body_nodes << "\n";
-  utils::Debug << "  Tails: " << tails << "\n";
-  utils::Debug << "  Leaving: " << leaving_nodes << "\n";
+  fmt::println("Loop\n  Header: {}\n  Body: {}\n  Tails: {}\n  Leaving: {}\n", head, body_nodes, tails, leaving_nodes);
 }
 void LoopInfoAnalysis::dump() const {
   for (const auto &loop : info) {

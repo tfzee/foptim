@@ -71,7 +71,6 @@ TEST(LivenessTest, AcrossBB) {
   optim::Dominators dom{cfg};
   optim::LiveVariables lives{*func.func, cfg};
 
-  // utils::Debug << func << "\n";
   // lives.dump();
 
   EXPECT_EQ(lives.live_variables.size(), 5);

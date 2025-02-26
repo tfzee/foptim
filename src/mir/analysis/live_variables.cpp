@@ -334,6 +334,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
 }
 
 void LiveVariables::update(const fmir::MFunc &func) {
+  ZoneScopedN("LiveVariables::update");
 
   TVec<utils::BitSet<>> upwExp;
   TVec<utils::BitSet<>> defs;
@@ -361,9 +362,6 @@ void LiveVariables::update(const fmir::MFunc &func) {
     }
   }
 
-  // utils::Debug << "FUNC\n" << func << "\n";
-  // utils::Debug << "\nUPWEXP\n" << upwExp << "\n";
-  // utils::Debug << "defs\n" << defs << "\n";
   _liveIn.clear();
   _liveOut.clear();
   _liveIn.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
@@ -380,11 +378,6 @@ void LiveVariables::update(const fmir::MFunc &func) {
       new_liveOut += _liveIn[succ];
     }
     new_liveIn.assign(new_liveOut).mul_not(defs[curr_id]).add(upwExp[curr_id]);
-    // utils::Debug << "Updating " << curr_id << " " << new_liveOut << "  " <<
-    // new_liveIn
-    //              << "\n";
-    // auto test = upwExp[curr_id] + (new_liveOut - defs[curr_id]);
-    // assert(test == liveIn[curr_id]);
 
     if (new_liveOut != _liveOut[curr_id]) {
       _liveOut[curr_id].assign(new_liveOut);
@@ -398,22 +391,21 @@ void LiveVariables::update(const fmir::MFunc &func) {
     }
   }
 
-  // utils::Debug << "\nLIVEIN\n" << _liveIn << "\n";
-  // utils::Debug << "LIVEOUT\n" << _liveOut << "\n";
   _live.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
   for (size_t i = 0; i < cfg.bbrs.size(); i++) {
     // we also add defs to make sure we alos get variables taht live shorter
     // then 1 block
     _live[i].assign(_liveIn[i]).add(_liveOut[i]).add(defs[i]);
   }
-  // utils::Debug << "LIVE\n" << _live << "\n";
 }
 
 bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
   auto id = reg_to_uid(reg);
   if (id >= _live.at(bb_id).size()) {
-    utils::Debug << "Faled to index into live variables with reg " << reg
-                 << " which gets id " << id << "\n";
+    TODO("REIMPL");
+    // fmt::println(
+    //     "Faled to index into live variables with reg {} which gets id {}",
+    //     req, id);
     ASSERT(false);
   }
   return _live.at(bb_id)[id];
@@ -421,11 +413,9 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
 
 NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
                             size_t start_instr) {
+  ZoneScopedN("FindNextUse");
   NextUseResult res{false, false, 0};
   for (auto i = start_instr; i < instrs.size(); i++) {
-    // if(search_reg_id == 2){
-    //   utils::Debug << "       " << i << ":" << instrs[i] << "\n";
-    // }
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
       // TODO: this could be more specific since certain CCs can only read/write
       // certain args legaly
@@ -437,47 +427,54 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
       }
       res.index = i;
     }
-    for (auto arg : written_args(instrs[i])) {
-      if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
-        res.is_write = true;
-        res.index = i;
+    if (!res.is_write) {
+      for (auto arg : written_args(instrs[i])) {
+        if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
+          res.is_write = true;
+          res.index = i;
+        }
       }
     }
-    for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
-      auto &argy = instrs[i].args[arg_id];
-      switch (argy.type) {
-      case MArgument::ArgumentType::Imm:
-      case MArgument::ArgumentType::MemImm:
-      case MArgument::ArgumentType::Label:
-      case MArgument::ArgumentType::MemLabel:
-      case MArgument::ArgumentType::MemImmLabel:
-        // here we need to skip vreg
-      case MArgument::ArgumentType::VReg:
-        break;
-      case MArgument::ArgumentType::MemVReg:
-      case MArgument::ArgumentType::MemImmVReg:
-        if (reg_to_uid(argy.reg) == search_reg_id) {
+    if (!res.is_read) {
+      for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
+        auto &argy = instrs[i].args[arg_id];
+        switch (argy.type) {
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::MemImm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+          // here we need to skip vreg
+        case MArgument::ArgumentType::VReg:
+          break;
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+          if (reg_to_uid(argy.reg) == search_reg_id) {
+            res.is_read = true;
+            res.index = i;
+          }
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+          if (reg_to_uid(argy.reg) == search_reg_id ||
+              reg_to_uid(argy.indx) == search_reg_id) {
+            res.is_read = true;
+            res.index = i;
+          }
+          break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          IMPL("impl");
+        }
+      }
+    }
+    if (!res.is_read) {
+      for (auto arg : read_args(instrs[i])) {
+        if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
           res.is_read = true;
           res.index = i;
         }
-        break;
-      case MArgument::ArgumentType::MemVRegVReg:
-      case MArgument::ArgumentType::MemImmVRegVReg:
-      case MArgument::ArgumentType::MemVRegVRegScale:
-        if (reg_to_uid(argy.reg) == search_reg_id || reg_to_uid(argy.indx) == search_reg_id) {
-          res.is_read = true;
-          res.index = i;
-        }
-        break;
-      case MArgument::ArgumentType::MemImmVRegScale:
-      case MArgument::ArgumentType::MemImmVRegVRegScale:
-        IMPL("impl");
-      }
-    }
-    for (auto arg : read_args(instrs[i])) {
-      if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
-        res.is_read = true;
-        res.index = i;
       }
     }
     if (res.is_read || res.is_write) {
@@ -490,6 +487,7 @@ NextUseResult find_next_use(IRVec<MInstr> instrs, size_t search_reg_id,
 // LINEAR LIFETIMES AFTER
 
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
+  ZoneScopedN("LinearLifetimes");
   TSet<VReg> all_used_regs;
 
   for (const auto &bb : func.bbs) {
@@ -526,7 +524,6 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   TMap<VReg, LinearRangeSet> ranges;
 
   // this is used later one to find where the first def is
-  utils::BitSet<> defs{live._live[0].size(), false};
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
     const auto &alive = live._live[bb_id];
@@ -535,14 +532,12 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
     for (const auto &reg : all_used_regs) {
       auto reg_id = reg_to_uid(reg);
       if (alive[reg_id]) {
-        // utils::Debug << "Reg: " << reg_id << "\n";
         size_t start_instr = 0;
         size_t search_instr = 0;
         ranges[reg];
 
         if (!aliveIn[reg_id]) {
           auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0);
-          // utils::Debug << bb_id << " " << reg << "\n";
           ASSERT(res.is_write);
           ASSERT(!res.is_read);
           start_instr = res.index;
@@ -563,11 +558,6 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         while (true) {
           auto res =
               find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1);
-          // utils::Debug << "  Next found:" << bb_id << " : " << res.index << " R:"
-          //              << res.is_read << " W:" << res.is_write << "\n";
-          // utils::Debug << "  oldRange:";
-          // ranges[reg].dump();
-          // utils::Debug << "\n";
           if (!res.is_read && !res.is_write) {
             if (aliveOut[reg_id]) {
               ranges[reg].update(LinearRange::inBB(
@@ -591,47 +581,15 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
             start_instr = res.index;
             search_instr = res.index;
           }
-          // utils::Debug << "  new_range:";
-          // ranges[reg].dump();
-          // utils::Debug << "\n";
         }
 
         if (alive[reg_id] && ranges[reg].ranges.empty()) {
           ranges[reg].update(
               LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
         }
-
-        // if (alive[reg_id] && ranges[reg].ranges.empty()) {
-        //   utils::Debug << aliveIn[reg_id] << " " << aliveOut[reg_id] << "\n";
-        //   utils::Debug << func.bbs[bb_id] << "\n";
-        //   utils::Debug << reg << "\n";
-        //   for (auto range : ranges[reg].ranges) {
-        //     range.dump();
-        //     utils::Debug << "\n";
-        //   }
-        //   utils::Debug << "Cant be alive and nothave any ranges?\n";
-        //   ASSERT(false);
-        // }
       }
     }
   }
-  // for (const auto &[reg, ranges] : ranges) {
-  //   utils::Debug << "reg: " << reg << "\n";
-  //   // ASSERT(!ranges.ranges.empty());
-  //   for (const auto &range : ranges.ranges) {
-  //     ASSERT(range.start.bb_indx == range.end.bb_indx);
-  //     auto reg_id = reg_to_uid(reg);
-  //     utils::Debug << " ";
-  //     range.dump();
-  //     utils::Debug << "\n";
-  //     utils::Debug << " LIVEIN:" <<
-  //     live._liveIn[range.start.bb_indx][reg_id]; utils::Debug << " LIVEOUT:"
-  //     << live._liveOut[range.start.bb_indx][reg_id]; utils::Debug << "\n";
-  //     utils::Debug << "   " << range.start.bb_indx << ": "
-  //                  << range.start.instr_indx << "-" << range.end.instr_indx
-  //                  << "\n";
-  //   }
-  // }
   return ranges;
 }
 } // namespace foptim::fmir

@@ -1,6 +1,8 @@
 #pragma once
+#include "utils/logging.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/types.hpp"
+#include <fmt/core.h>
 
 namespace foptim::fir {
 

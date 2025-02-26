@@ -15,20 +15,21 @@
             inherit system overlays;
           };
           nativeBuildInputs = with pkgs; [
-            #depend
             # IMPORTANT CLANG TOOLS AT START
             clang-tools_18
+
+            #depend
             libllvm
             argparse
+            fmt
+            #for codegen
+            elfio
 
             #build tools
             cmakeCurses
             cmake
             ninja
             clang_18
-
-            #for codegen
-            elfio
 
             #for testing stuff
             graphviz

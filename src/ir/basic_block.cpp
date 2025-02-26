@@ -13,17 +13,16 @@ void BasicBlockData::remove_instr(size_t indx) {
   instructions.erase(instructions.begin() + (i64)indx);
 }
 
-bool BasicBlockData::verify(const Function *exp_parent,
-                            utils::Printer printer) const {
+bool BasicBlockData::verify(const Function *exp_parent) const {
   if ((func.func == nullptr) || func.func != exp_parent) {
-    printer << " BasicBlocks parent does not match the function it is in\n";
+    fmt::println(" BasicBlocks parent does not match the function it is in");
     return false;
   }
   // TODO args
 
   for (const auto &instr : instructions) {
-    if (!instr.is_valid() || !instr->verify(this, printer)) {
-      printer << "Invalid Instruction " << instr.get_raw_ptr() << "\n";
+    if (!instr.is_valid() || !instr->verify(this)) {
+      fmt::println("Invalid Instruction {:p}", (void*)instr.get_raw_ptr());
       return false;
     }
   }

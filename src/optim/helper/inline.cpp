@@ -28,7 +28,7 @@ fir::BasicBlock split_block(fir::Instr at_instr) {
   for (; instr_id < t_bb->instructions.size(); instr_id++) {
     new_bb.push_instr(t_bb->instructions[instr_id]);
   }
-  t_bb->instructions.erase(t_bb->instructions.begin() + start_id,
+  t_bb->instructions.erase(t_bb->instructions.begin() + (i64)start_id,
                            t_bb->instructions.end());
   return new_bb;
 }
@@ -83,11 +83,6 @@ bool inline_call(fir::Instr call) {
   for (auto new_bb : new_bbs) {
     call_func->append_bbr(new_bb);
   }
-  // utils::Debug << "###################################\n";
-  // utils::Debug << call_func << "\n";
-  // utils::Debug << "+++++++++++++++++++++++++++++++++++\n";
-  // utils::Debug << called_func << "\n";
-  // utils::Debug << "###################################\n";
 
   // we need to run subs afterwards since vlaues can be referenced before they
   // are defined if their bb comes later
@@ -119,7 +114,6 @@ bool inline_call(fir::Instr call) {
       if (bb->instructions[instr_id]->is(fir::InstrType::ReturnInstr)) {
         auto end_branch = ret_bb.build_branch(end_bb);
         if (has_ret_value) {
-          // utils::Debug << bb->instructions[instr_id] << "\n";
           ASSERT(bb->instructions[instr_id]->has_args());
           end_branch.add_bb_arg(0, bb->instructions[instr_id]->get_arg(0));
         }
@@ -132,9 +126,6 @@ bool inline_call(fir::Instr call) {
   call.clear_args();
   call.clear_bbs();
   call.remove_from_parent();
-  // utils::Debug << "###################################\n";
-  // utils::Debug << call_func << "\n";
-  // utils::Debug << "###################################\n";
 
   // ASSERT(ctx->verify());
   // TODO("impl");

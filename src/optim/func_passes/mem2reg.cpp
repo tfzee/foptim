@@ -58,23 +58,6 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
       blocks_containing_store.push_back(func.bb_id(parent_bb));
     }
   }
-  // utils::Debug << "PHI\n";
-  // for (auto i : blocks_containing_store) {
-  //   utils::Debug << "   Considering block " << i << "\n";
-  // }
-  // for (u32 bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
-  //   bool contains_store = false;
-  //   for (auto instruction_inner : func.basic_blocks[bb_id]->instructions) {
-  //     if (instruction_inner->is(fir::InstrType::StoreInstr) &&
-  //         instruction_inner->args[0].eql(fir::ValueR(alloca_instr))) {
-  //       contains_store = true;
-  //       break;
-  //     }
-  //   }
-  //   if (contains_store) {
-  //     blocks_containing_store.push_back(bb_id);
-  //   }
-  // }
 
   TVec<u32> blocks_to_consider = blocks_containing_store;
   TSet<u32> visited;
@@ -88,11 +71,8 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
       continue;
     }
     visited.insert(considering_block);
-    // utils::Debug << "   Looking at " << considering_block << " with frontier"
-    //              << dom.dom_bbs[considering_block].frontier << "\n";
 
     for (auto dommy : dom.dom_bbs[considering_block].frontier) {
-      // utils::Debug << "     dommy:" << dommy << "\n";
       res[alloca_instr].insert(dommy);
       // if (std::find(blocks_containing_store.cbegin(),
       //               blocks_containing_store.cend(),
@@ -121,17 +101,19 @@ static AllocToPhiLoc phi_insert_locations(fir::Function &func,
 static void
 dump(const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
          &current_variable_value) {
-  utils::Debug << "DUMP CURR VAR VALUE\n";
+  (void)current_variable_value;
+  TODO("Reimpl");
+  // pritn << "DUMP CURR VAR VALUE\n";
 
-  for (size_t depthp1 = current_variable_value.size(); depthp1 > 0; depthp1--) {
-    size_t depth = depthp1 - 1;
-    utils::Debug << depth << "DEPTH\n";
-    for (auto [key, val] : current_variable_value[depth]) {
-      utils::Debug << "key: " << key << "  val: ("
-                   << (void *)std::get<0>(val).get_raw_ptr() << ", "
-                   << std::get<1>(val) << ") \n";
-    }
-  }
+  // for (size_t depthp1 = current_variable_value.size(); depthp1 > 0; depthp1--) {
+  //   size_t depth = depthp1 - 1;
+  //   pritn << depth << "DEPTH\n";
+  //   for (auto [key, val] : current_variable_value[depth]) {
+  //     pritn << "key: " << key << "  val: ("
+  //                  << (void *)std::get<0>(val).get_raw_ptr() << ", "
+  //                  << std::get<1>(val) << ") \n";
+  //   }
+  // }
 }
 
 static bool decide_variable_value(
@@ -143,21 +125,10 @@ static bool decide_variable_value(
     size_t i = ip1 - 1;
     if (current_variable_value[i].contains(variable)) {
       res = std::get<1>(current_variable_value[i].at(variable));
-      // utils::Debug << "Decided value " << variable << " = " << std::get(res)
-      // << "\n";
       return true;
     }
   }
   return false;
-  // utils::Debug << "Failed to find variable " << variable << "\n";
-  // utils::Debug << "dump current var value storage:\n";
-  // for (i64 i = current_variable_value.size() - 1; i >= 0; i--) {
-  //   utils::Debug << i << " depth";
-  //   for (auto [key, val] : current_variable_value[i]) {
-  //     utils::Debug << "   key:" << key;
-  //   }
-  // }
-  // std::abort();
 }
 
 using VarValueStack =
@@ -215,8 +186,6 @@ static void decide_value_load(fir::Instr instr, size_t &i,
     //     fir::ValueR(ctx->get_constant_value(0, instr.get_type()));
   }
 
-  // utils::Debug << "Replacing all uses on " << instr << "\n";
-  // utils::Debug << "Got " << instr->get_n_uses() << " Uses\n";
   instr->replace_all_uses(load_val);
   // block->remove_instr(i);
   i++;
@@ -237,8 +206,6 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
     if (bb_arg_to_alloca.contains(fir::ValueR(block->args[arg]))) {
       auto bb_arguemnt_value = fir::ValueR(block->args[arg]);
       auto target_alloca = bb_arg_to_alloca.at(bb_arguemnt_value);
-      // utils::Debug << "BBARG " << fir::ValueR(block, arg) << "   "
-      //              << target_alloca << "\n";
 
       if (!decide_variable_value(target_alloca, current_variable_value,
                                  var_val_res)) {
@@ -251,7 +218,6 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
         var_val_res = fir::ValueR(ctx->get_constant_value(0, *result_type));
       }
       // then we update the arguemtns of the origin jump
-      // utils::Debug << "Update origin for arg " << arg << "\n";
       auto term = last_bb->get_terminator();
 
       term.replace_bb_arg(block, arg, var_val_res);
@@ -259,11 +225,6 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
           {target_alloca, {block, bb_arguemnt_value}});
     }
   }
-  // utils::Debug << "DecideValue at BB:\n";
-  // for (size_t i = 0; i < current_variable_value.size(); i++) {
-  //   utils::Debug << " ";
-  // }
-  // utils::Debug << (void *)block.get_raw_ptr() << "\n";
   // dump(current_variable_value);
 
   if (visited.contains(block)) {
@@ -308,7 +269,6 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   // cfg.dump_graph();
   // dom.dump();
   // TODO("Fix em dominators");
-  // utils::Debug << func;
   // todo verify prior no basic block args maybe?
 
   TMap<fir::ValueR, fir::ValueR> bb_arg_to_alloca{};
@@ -316,10 +276,8 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   auto insert_locations = phi_insert_locations(func, dom);
 
   for (auto &[instr, blocks] : insert_locations) {
-    // utils::Debug << " INSERT:" << instr << "\n";
     for (const auto &block : blocks) {
       if (instr->has_attrib("alloca::type") && instr->get_n_uses() > 0) {
-        // utils::Debug << "   IN BLOCK: " << block << "\n";
         auto new_arg = ctx->storage.insert_bb_arg(
             func.basic_blocks[block],
             *instr->get_attrib("alloca::type").try_type());

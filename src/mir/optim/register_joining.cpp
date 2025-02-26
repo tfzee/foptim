@@ -63,6 +63,7 @@ void RegisterJoining::apply(MFunc &func) {
 }
 
 void RegisterJoining::apply(foptim::FVec<MFunc> &funcs) {
+  ZoneScopedN("Register Joining");
   for (auto &f : funcs) {
     apply(f);
   }

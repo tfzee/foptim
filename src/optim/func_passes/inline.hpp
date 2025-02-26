@@ -50,7 +50,7 @@ public:
       }
     }
     for (auto call : calls) {
-      utils::Debug << "INLINING " << call << "\n";
+      fmt::println("INLINING {}", call);
       inline_call(call);
     }
   }

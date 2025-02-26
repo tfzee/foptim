@@ -5,17 +5,15 @@
 namespace foptim {
 namespace fmir {
 class VReg;
-enum class VRegType: uint8_t;
+enum class VRegType : uint8_t;
 class MArgument;
 class MInstr;
 class MBB;
 class MFunc;
 enum class Type : uint16_t;
-}
+} // namespace fmir
 
-namespace utils {
-class Printer;
-}
+namespace utils {}
 
 namespace optim {
 struct LiveRange;

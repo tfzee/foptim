@@ -781,7 +781,6 @@ inline void generate_memset(foptim::fir::Context &fctx) {
   auto entry_bb = ffunc->get_entry();
   auto loop_body = bb.append_bb();
   auto exit = bb.append_bb();
-  // foptim::utils::Debug << ffunc << "\n";
 
   // the arguments
   auto ptr_arg = foptim::fir::ValueR{entry_bb->args[0]};
@@ -838,7 +837,6 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
   auto entry_bb = ffunc->get_entry();
   auto loop_body = bb.append_bb();
   auto exit = bb.append_bb();
-  // foptim::utils::Debug << ffunc << "\n";
 
   // the arguments
   auto dst_ptr_arg = foptim::fir::ValueR{entry_bb->args[0]};
@@ -967,7 +965,7 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
     ffunc->cc = foptim::fir::Function::CallingConv::C;
     break;
   default:
-    foptim::utils::Debug << "Not supporting calling convention:"
+    llvm::errs() << "Not supporting calling convention:"
                          << func.getCallingConv() << "\n";
     TODO("");
   }
@@ -1113,7 +1111,7 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
       auto val = (u64)d->getValue().bitcastToAPInt().getZExtValue();
       *((u64 *)output) = val;
     } else {
-      foptim::utils::Debug << "TODO: handle global init\n";
+      llvm::errs() << "TODO: handle global init\n";
       llvm::errs() << "constant fp " << *d << "\n";
       TODO("IMPL");
     }
@@ -1158,13 +1156,13 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     return;
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::GlobalAlias>(val)) {
-    foptim::utils::Debug << "TODO: handle global init\n";
+    llvm::errs() << "TODO: handle global init\n";
     llvm::errs() << "idk " << *val << "\n";
     llvm::errs() << "idk " << *d->getAliasee() << "\n";
     llvm::errs() << "idk " << *d->getAliaseeObject() << "\n";
     TODO("im");
   }
-  foptim::utils::Debug << "TODO: handle global init\n";
+  llvm::errs() << "TODO: handle global init\n";
   llvm::errs() << "idk " << *val << "\n";
   llvm::errs() << "isConstantData: "
                << (llvm::dyn_cast_or_null<llvm::ConstantData>(val) != nullptr)
@@ -1197,8 +1195,7 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
       name = "it didnt have a name??";
     }
 
-    auto global =
-        fctx->get_global(name, actual_size);
+    auto global = fctx->get_global(name, actual_size);
     auto as_global = fctx->get_constant_value(global);
     global->init_value =
         foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);

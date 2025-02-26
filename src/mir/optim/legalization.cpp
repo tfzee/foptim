@@ -170,7 +170,6 @@ bool Legalizer::legalize_idiv(MBB &bb, u32 indx) {
     ASSERT(instr.args[1].isReg());
     ASSERT(instr.args[0].reg.info.ty == VRegType::A);
     ASSERT(instr.args[1].reg.info.ty == VRegType::D);
-    // utils::Debug << "INSTR: " << bb.instrs[indx] << "\n";
     // dividend needs to be in eax to be extended into edx or rax for be
     // extended into rdx
     if (!instr.args[2].isReg() || instr.args[2].reg.info.ty != VRegType::A) {
@@ -245,7 +244,6 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   if (instr.op == Opcode::mov && instr.args[0].isReg() &&
       (instr.args[0].ty == Type::Int8 || instr.args[0].ty == Type::Int16) &&
       instr.args[1].isMem()) {
-    // utils::Debug << "Fixing : " << instr << "\n";
     instr.op = Opcode::mov_zx;
     instr.args[0].ty = Type::Int32;
     instr.args[0].reg.info.reg_size = 4;
@@ -254,12 +252,9 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   if (instr.op == Opcode::mov && instr.args[0].isReg() &&
       instr.args[1].isReg() && !instr.args[0].is_fp() &&
       instr.args[0].ty != instr.args[1].ty) {
-    // utils::Debug << "Fixing : " << instr << "\n";
     auto t0 = instr.args[0].ty;
     auto t1 = instr.args[1].ty;
-    // utils::Debug << t0 << " " << t1 << "\n";
     if (get_size(t0) > get_size(t1)) {
-      // utils::Debug << "REPLACED" << instr << "\n";
       instr.op = Opcode::mov_zx;
       return true;
     } else {
@@ -467,13 +462,8 @@ void Legalizer::apply(MFunc &func) {
   unique_reg_id++;
 
   for (auto &bb : func.bbs) {
-    // utils::Debug << "#### LEGALIZING BB\n";
     for (size_t ioff = 1; ioff <= bb.instrs.size(); ioff++) {
       auto i = ioff - 1;
-      // if (i == 0) {
-      //   utils::Debug << "  LEGALIZED\n";
-      // }
-      // utils::Debug << "  LEGALIZING " << i << ": " << bb.instrs[i] << "\n";
       switch (bb.instrs[i].op) {
       case Opcode::mov:
       case Opcode::mov_zx:

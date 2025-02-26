@@ -11,3 +11,8 @@ BBArgumentData::BBArgumentData(BasicBlock parent, TypeR type)
 [[nodiscard]] TypeR BBArgumentData::get_type() const { return _type; }
 
 } // namespace foptim::fir
+
+fmt::appender fmt::formatter<foptim::fir::BBArgument>::format(
+    foptim::fir::BBArgument const &v, format_context &ctx) const {
+  return fmt::format_to(ctx.out(), "{:p}", (void *)v.get_raw_ptr());
+}

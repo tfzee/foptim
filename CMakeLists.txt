@@ -38,6 +38,7 @@ if(tracy_perf)
   link_libraries(TracyClient)
 endif()
 
+link_libraries(fmt)
 # add_compile_options(-fsanitize=undefined,address -fno-omit-frame-pointer)
 # add_link_options(-fsanitize=undefined,address -fPIE -pie)
 

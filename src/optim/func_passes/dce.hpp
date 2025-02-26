@@ -158,13 +158,16 @@ public:
   }
 
   void dump(fir::Function &func, TSet<fir::Instr> &marked) {
-    for (auto &bb : func.get_bbs()) {
-      utils::Debug << "BB;\n";
-      for (auto &instr : bb->get_instrs()) {
-        utils::Debug << (marked.contains(instr) ? " " : "X") << "    " << instr
-                     << "\n";
-      }
-    }
+    (void)func;
+    (void)marked;
+    TODO("REIMPL");
+    // for (auto &bb : func.get_bbs()) {
+    //   print << "BB;\n";
+    //   for (auto &instr : bb->get_instrs()) {
+    //     print << (marked.contains(instr) ? " " : "X") << "    " << instr
+    //                  << "\n";
+    //   }
+    // }
   }
 };
 } // namespace foptim::optim

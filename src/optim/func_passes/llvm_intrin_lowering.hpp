@@ -53,7 +53,7 @@ public:
       instr->replace_all_uses(result);
       instr.remove_from_parent();
     } else {
-      utils::Debug << instr << "\n";
+      // print << instr << "\n";
       TODO("impl");
     }
   }

@@ -76,7 +76,6 @@ public:
     if (!_attribs.at(typeid(AAna)).contains(loc)) {
       AAna *analysis = utils::TempAlloc<AAna>{}.allocate(1);
       ASSERT(analysis);
-      // utils::Debug << analysis << " " << alignof(AAna) << "\n";
       // ASSERT(((size_t)analysis) % alignof(AAna) == 0);
       // std::construct_at(analysis);
       new (analysis) AAna();

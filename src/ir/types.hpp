@@ -89,6 +89,7 @@ public:
   AnyType(VoidType t) : type(t) {}
   AnyType(OpaquePointerType t) : type(t) {}
 
+  //@returns the size of this type in bytes
   [[nodiscard]] u32 get_size() const {
     return std::visit([](auto &&v) { return v.get_size(); }, type);
   }

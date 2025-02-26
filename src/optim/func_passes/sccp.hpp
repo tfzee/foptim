@@ -121,7 +121,7 @@ public:
         return ConstantValue::Constant(
             ctx->get_constant_value(-a.value->as_int(), out_type));
       default:
-        utils::Debug << instr << "\n";
+        fmt::println("{}", instr);
         IMPL("implement instr");
         UNREACH();
       }
@@ -148,7 +148,7 @@ public:
 
       switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
       default:
-        utils::Debug << instr << "\n";
+        fmt::println("{}", instr);
         IMPL("implement instr");
         UNREACH();
       case fir::BinaryInstrSubType::INVALID:
@@ -187,7 +187,6 @@ public:
     }
     case fir::InstrType::BranchInstr: {
       const auto &target = instr->get_bb_args();
-      // utils::Debug << " HIT BRANCH\n\n";
       ASSERT(target.size() == 1);
       const auto func = instr->get_parent()->get_parent();
       if (!bottom_bbs.contains(target[0].bb)) {
@@ -209,7 +208,6 @@ public:
       const auto func = instr->get_parent()->get_parent();
       // ASSERT(!arg.is_bottom());
       if (arg.is_bottom()) {
-        // utils::Debug << "fixme: SCCP quick fix\n";
         if (!bottom_bbs.contains(targets[0].bb)) {
           cfg_worklist.push_back(targets[0].bb);
           bottom_bbs.insert(targets[0].bb);
@@ -417,9 +415,6 @@ public:
             static_cast<u64>(a.value->as_int() == b.value->as_int()),
             ctx->get_int_type(8)));
       case fir::ICmpInstrSubType::SLT:
-        // utils::Debug << a.value->as_int() << " < " << b.value->as_int() <<
-        // "\n"; utils::Debug << (i64)a.value->as_int() << " < "
-        //              << (i64)b.value->as_int() << "\n";
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>((i64)a.value->as_int() < (i64)b.value->as_int()),
             ctx->get_int_type(8)));
@@ -514,7 +509,6 @@ public:
     if (value.is_constant()) {
       IMPL("constant\n");
     } else if (value.is_instr()) {
-      // utils::Debug << "SCCP: "<< value << "\n";
       new_value = eval_instr(ctx, value.as_instr());
       if (new_value.is_const() && value.get_n_uses() > 0) {
         value.replace_all_uses(fir::ValueR{new_value.value});
@@ -534,21 +528,22 @@ public:
   }
 
   void dump() {
-    utils::Debug << "DUMP SCCP: ";
-    for (auto &[val, consta] : values) {
-      utils::Debug << val << ": ";
-      switch (consta.type) {
-      case ConstantValue::ValueType::Top:
-        utils::Debug << "TOP\n";
-        break;
-      case ConstantValue::ValueType::Constant:
-        utils::Debug << consta.value << "\n";
-        break;
-      case ConstantValue::ValueType::Bottom:
-        utils::Debug << "BOT\n";
-        break;
-      }
-    }
+    TODO("REIMPL");
+    // print << "DUMP SCCP: ";
+    // for (auto &[val, consta] : values) {
+    //   print << val << ": ";
+    //   switch (consta.type) {
+    //   case ConstantValue::ValueType::Top:
+    //     print << "TOP\n";
+    //     break;
+    //   case ConstantValue::ValueType::Constant:
+    //     print << consta.value << "\n";
+    //     break;
+    //   case ConstantValue::ValueType::Bottom:
+    //     print << "BOT\n";
+    //     break;
+    //   }
+    // }
   }
 
   void eval_meets(fir::BasicBlock bb, size_t bb_id) {
@@ -604,10 +599,6 @@ public:
     for (auto &[val, consta] : values) {
       if (consta.is_const()) {
         fir::ValueR val_non_const = val;
-        // utils::Debug << "SCCP replace: " << val_non_const.as_instr();
-        // for (auto &use : *val_non_const.get_uses()) {
-        //   utils::Debug << use << "\n";
-        // }
         val_non_const.replace_all_uses(fir::ValueR(consta.value));
       }
     }

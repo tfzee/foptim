@@ -157,7 +157,7 @@ public:
   [[nodiscard]] constexpr bool has_args() const { return !args.empty(); }
   [[nodiscard]] constexpr const auto &get_bb_args() const { return bbs; }
   [[nodiscard]] constexpr TypeR get_type() const { return value_type; }
-  [[nodiscard]] bool verify(const BasicBlockData *, utils::Printer) const;
+  [[nodiscard]] bool verify(const BasicBlockData *) const;
   [[nodiscard]] bool has_result() const;
   [[nodiscard]] bool is_critical() const;
   /*true if the instructions arguments can be swapped without changing the

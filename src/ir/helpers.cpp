@@ -6,15 +6,16 @@
 namespace foptim::fir {
 BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {
   bool found = false;
-  for(const auto& f: from->get_terminator()->bbs){
-    if(f.bb == to){
+  for (const auto &f : from->get_terminator()->bbs) {
+    if (f.bb == to) {
       found = true;
       break;
     }
   }
-  if(!found){
-    utils::Debug << from << " " << to << "\n";
-    ASSERT_M(false, "Tried to insert bb between 2 blocks but they arent neighbours");
+  if (!found) {
+    fmt::println("{} {}", from, to);
+    ASSERT_M(false,
+             "Tried to insert bb between 2 blocks but they arent neighbours");
   }
   auto bb_term = from->get_terminator();
   auto bb_indx = bb_term.get_bb_id(to);

@@ -25,8 +25,6 @@ public:
              LoopInfo &info) {
     (void)func;
 
-    // utils::Debug << cfg.bbrs[info.head].pred.size() << "  "
-    //              << info.tails.size() + 1 << "\n";
     if (cfg.bbrs[info.head].pred.size() != info.tails.size() + 1) {
       failure({"TODO: Cant apply licm without a preheader\n",
                cfg.bbrs[info.head].bb});
@@ -44,9 +42,9 @@ public:
     }
     if (!pre_header.is_valid()) {
       info.dump();
-      utils::Debug << cfg.bbrs[info.head].pred.size() << "\n";
-      // utils::Debug << cfg.bbrs[info.head].bb->get_parent() << "\n";
-      utils::Debug << cfg.bbrs[info.head].pred << "\n";
+      // print << cfg.bbrs[info.head].pred.size() << "\n";
+      // print << cfg.bbrs[info.head].bb->get_parent() << "\n";
+      // print << cfg.bbrs[info.head].pred << "\n";
       ASSERT(false);
       failure({"TODO: Cant apply licm without a preheader\n",
                cfg.bbrs[info.head].bb});
@@ -105,16 +103,10 @@ public:
       return;
     }
 
-    // utils::Debug << "BEF====\n";
-    // utils::Debug << pre_header->get_parent() << "\n";
-    // utils::Debug << "APPLYING LICM\n";
-    // info.dump();
-    // utils::Debug << cfg.bbrs[info.head].pred << "\n";
     
     fir::Builder bb{pre_header};
     bb.at_penultimate(pre_header);
     for (auto inv : invariant) {
-      // utils::Debug << " inv" << inv << "\n";
       auto old = inv.as_instr();
       auto copy = bb.insert_copy(old);
       old->replace_all_uses(fir::ValueR{copy});
@@ -123,8 +115,6 @@ public:
     for (auto inv : invariant) {
       inv.as_instr().remove_from_parent();
     }
-    // utils::Debug << "AFTER====\n";
-    // utils::Debug << pre_header->get_parent() << "\n";
     // TODO("");
   }
 };

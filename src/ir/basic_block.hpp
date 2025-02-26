@@ -29,7 +29,7 @@ public:
 
   [[nodiscard]] size_t n_instrs() const { return instructions.size(); }
   [[nodiscard]] size_t n_args() const { return args.size(); }
-  bool verify(const Function *, utils::Printer) const;
+  bool verify(const Function *) const;
 
   [[nodiscard]] FunctionR get_parent() const { return func; }
   [[nodiscard]] Instr get_terminator() const {

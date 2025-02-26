@@ -14,19 +14,19 @@ Attribute &Attributable::get_attrib(const IRString &key) {
 }
 Attributable *Attributable::add_attrib(IRString key, IRString value) {
   if (attribs.contains(key)) {
-    utils::Debug << "add_attrib Warning: Key '" << key
-                 << "' was already a attrib with value '" << attribs[key]
-                 << "'\n";
+    fmt::println(
+        "add_attrib Warning: Key '{}' was already a attrib with value '{}''",
+        key, attribs[key]);
   }
   attribs.insert({key, Attribute(value)});
   return this;
 }
 
-Attributable  *Attributable::add_attrib(IRString key, TypeR value) {
+Attributable *Attributable::add_attrib(IRString key, TypeR value) {
   if (attribs.contains(key)) {
-    utils::Debug << "add_attrib Warning: Key '" << key
-                 << "' was already a attrib with value '" << attribs[key]
-                 << "'\n";
+    fmt::println(
+        "add_attrib Warning: Key '{}' was already a attrib with value '{}''",
+        key, attribs[key]);
   }
   attribs.insert({key, Attribute(value)});
   return this;

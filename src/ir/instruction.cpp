@@ -14,7 +14,7 @@ void Instr::remove_from_parent() {
   assert(parent.is_valid());
   for (size_t indx = 0; indx < parent->instructions.size(); indx++) {
     auto instr = parent->instructions[indx];
-    if ((void*)get_raw_ptr() == (void*)instr.get_raw_ptr()) {
+    if ((void *)get_raw_ptr() == (void *)instr.get_raw_ptr()) {
       parent->remove_instr(indx);
       return;
     }
@@ -94,7 +94,7 @@ void Instr::clear_bb_args(u16 indx) {
 TypeR Instr::get_type() const { return (this->operator->())->get_type(); }
 
 //@returns: the bb id in reference to which index it has in the targets of this
-//instruction
+// instruction
 u16 Instr::get_bb_id(BasicBlock target) const {
   const InstrData *self = operator->();
   u16 bb_indx = 0;
@@ -104,9 +104,9 @@ u16 Instr::get_bb_id(BasicBlock target) const {
     }
     bb_indx++;
   }
-  utils::Debug << "In instruction " << *this << "\n";
-  utils::Debug << "Tried to get bb arg" << (void *)target.get_raw_ptr() << "\n";
-  utils::Debug << "BUT it does not reference this basic block\n";
+  fmt::println("In instruction: {}", *this);
+  fmt::println("Tried to get bb arg: {}", (void *)target.get_raw_ptr());
+  fmt::println("BUT it does not reference this basic block");
 
   std::abort();
 }
@@ -166,16 +166,14 @@ ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val, bool verify) {
 }
 void Instr::remove_bb_arg(u16 bb_id, u16 indx1, bool verify) {
   InstrData *self = operator->();
-  auto& bb_args = self->bbs[bb_id].args;
-  //fix all the args after
+  auto &bb_args = self->bbs[bb_id].args;
+  // fix all the args after
   for (size_t i = indx1 + 1; i < self->bbs[bb_id].args.size(); i++) {
-    bb_args[i].remove_usage(Use::bb_arg(*this, bb_id, i),
-                                              verify);
+    bb_args[i].remove_usage(Use::bb_arg(*this, bb_id, i), verify);
     bb_args[i].add_usage(Use::bb_arg(*this, bb_id, i - 1));
   }
 
-  bb_args[indx1].remove_usage(Use::bb_arg(*this, bb_id, indx1),
-                                            verify);
+  bb_args[indx1].remove_usage(Use::bb_arg(*this, bb_id, indx1), verify);
   bb_args.erase(self->bbs[bb_id].args.begin() + indx1);
 }
 
@@ -226,3 +224,55 @@ u16 Instr::add_bb(BasicBlock val) {
 }
 
 } // namespace foptim::fir
+
+fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const{
+  auto app = ctx.out();
+  app = fmt::format_to(app, fg(fmt::color::light_blue), "{:p}", (void *)bb_with_args.bb.get_raw_ptr());
+  app = fmt::format_to(app, "(");
+  if (!bb_with_args.args.empty()) {
+    app = fmt::format_to(app, "{}", bb_with_args.args[0]);
+    for (size_t i = 1; i < bb_with_args.args.size(); i++) {
+      app = fmt::format_to(app, ", {}", bb_with_args.args[i]);
+    }
+  }
+  app = fmt::format_to(app, ")");
+  return app;
+}
+
+
+fmt::appender fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr, format_context &ctx) const{
+  auto app = ctx.out();
+
+  app = fmt::format_to(app, "{:p}: {} = {}", (void*)instr.get_raw_ptr(), instr->get_type(), instr->get_name());
+  // app = fmt::format_to(app, "{p} ", (void*)instr.get_raw_ptr());
+  // app = fmt::format_to(app, " {} =", instr->get_type());
+  // app = fmt::format_to(app, " {}", instr->get_name());
+
+  const auto &bb_args = instr->get_bb_args();
+  if (bb_args.size() > 0) {
+    app = fmt::format_to(app, "<{}", bb_args[0]);
+    for (size_t i = 1; i < bb_args.size(); i++) {
+      app = fmt::format_to(app, ", {}", bb_args[i]);
+    }
+    app = fmt::format_to(app, ">");
+  }
+
+  app = fmt::format_to(app, "(");
+  const auto &args = instr->get_args();
+  if (args.size() > 0) {
+    app = fmt::format_to(app, "{}", args[0]);
+    for (size_t i = 1; i < args.size(); i++) {
+    app = fmt::format_to(app, ", {}", args[i]);
+    }
+  }
+  app = fmt::format_to(app, "){{");
+
+  const auto &attribs = instr->get_attribs();
+  for (auto [key, value] : attribs) {
+    app = fmt::format_to(app, "{}{}, ", key.c_str(), value);
+  }
+  app = fmt::format_to(app, "}}\n");
+  return app;
+
+}
+

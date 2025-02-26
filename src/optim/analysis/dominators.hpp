@@ -25,14 +25,15 @@ public:
   Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
 
   void dump() const {
-    utils::Debug << "DUMP DOM\n";
+    TODO("REIMPL");
+    // print << "DUMP DOM\n";
 
-    for (const auto &node : dom_bbs) {
-      utils::Debug << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
-      utils::Debug << node.dominators << "\n";
-      // utils::Debug << "  PostDom: " << node.postdominators << "\n";
-      utils::Debug << "  Frontier: " << node.frontier << "\n";
-    }
+    // for (const auto &node : dom_bbs) {
+    //   print << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
+    //   print << node.dominators << "\n";
+    //   print << "  PostDom: " << node.postdominators << "\n";
+    //   print << "  Frontier: " << node.frontier << "\n";
+    // }
   }
 
   void update(const CFG &cfg) {
@@ -73,7 +74,6 @@ public:
         }
       }
 
-      // utils::Debug << "newSet " << newSet << "\n";
       newSet[cur].set(true);
 
       if (newSet != dom_bbs[cur].dominators) {

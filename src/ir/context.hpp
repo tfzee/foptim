@@ -29,10 +29,9 @@ struct ContextData {
     const auto n_slabs = vec.n_slabs();
     const auto slab_size = vec.slab_size();
     const auto size = vec.size_bytes();
-    utils::Debug << "Vec NSlabs " << n_slabs << " @ " << slab_size << " * "
-                 << sizeof(utils::Slot<T>) << " = " << size / 1000 << "KB\n";
-    utils::Debug << "    Space: " << n_slabs * slab_size
-                 << " Used: " << vec.n_used() << "\n";
+    fmt::println("Vec NSlabs {} @ {} * {} = {} KB", n_slabs, slab_size,
+                 sizeof(utils::Slot<T>), size / 1000);
+    fmt::println("Space: {} Used: {}", n_slabs * slab_size, vec.n_used());
   }
 
   void print_stats() const;

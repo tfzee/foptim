@@ -1,4 +1,5 @@
 #include "constant_value.hpp"
+#include "function.hpp"
 
 namespace foptim::fir {
 
@@ -33,3 +34,25 @@ bool ConstantValue::eql(const ConstantValue &other) const {
 }
 
 } // namespace foptim::fir
+
+fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
+    foptim::fir::ConstantValueR const &val, format_context &ctx) const {
+
+  if(const auto* v = std::get_if<foptim::fir::IntValue>(&val->value)){
+        return fmt::format_to(ctx.out(), fg(fmt::color::orange), "{}:{}", v->data, val->type);
+  }
+  if(const auto* v = std::get_if<foptim::fir::FloatValue>(&val->value)){
+        return fmt::format_to(ctx.out(), fg(fmt::color::orange), "{}:{}", v->data, val->type);
+  }
+  if(const auto* v = std::get_if<foptim::fir::GlobalPointer>(&val->value)){
+        return fmt::format_to(ctx.out(), fg(fmt::color::orange), "G({})", v->glob->name.c_str());
+  }
+  if(const auto* v = std::get_if<foptim::fir::FunctionPtr>(&val->value)){
+        return fmt::format_to(ctx.out(), fg(fmt::color::orange), "{}", v->func->getName().c_str());
+  }
+  if(const auto* v = std::get_if<foptim::fir::PoisonValue>(&val->value)){
+        return fmt::format_to(ctx.out(), fg(fmt::color::orange), "POISON");
+  }
+
+  return fmt::format_to(ctx.out(), "constant idk");
+}

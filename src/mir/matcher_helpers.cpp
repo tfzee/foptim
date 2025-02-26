@@ -33,7 +33,7 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
     case 64:
       return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
     default:
-      utils::Debug << (i64)consti->as_int() << "\n";
+      fmt::println("{}", (i64)consti->as_int());
       TODO("impl");
     }
   }
@@ -64,7 +64,7 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
     res.emplace_back(Opcode::lea, helper, arg);
     return helper;
   }
-  if (consti->is_poisson()) {
+  if (consti->is_poison()) {
     if (auto *v = std::get_if<fir::IntegerType>(&consti->type->type)) {
       switch (v->bitwidth) {
       case 8:
@@ -76,14 +76,14 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
       case 64:
         return MArgument((u64)0);
       default:
-        utils::Debug << v->bitwidth << "\n";
+        fmt::println("{}", v->bitwidth);
         UNREACH();
       }
 
     } else if (auto *v = std::get_if<fir::FloatType>(&consti->type->type)) {
       return MArgument(0.0f);
     }
-    utils::Debug << consti << " with type " << consti->type << "\n";
+    fmt::println("{} with type {}", consti, consti->type);
     UNREACH();
   }
   UNREACH();
@@ -114,7 +114,7 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
   } else {
     return MArgument::Mem(alloc.get_register(val), type_id);
   }
-  utils::Debug << val << "\n";
+  fmt::println("{}", val);
   ASSERT(false);
   std::abort();
 }

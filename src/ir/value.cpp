@@ -2,9 +2,11 @@
 #include "instruction_data.hpp"
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
+#include <fmt/format.h>
 #include <typeinfo>
 #include <variant>
 
@@ -12,7 +14,7 @@ namespace foptim::fir {
 
 bool ValueR::is_valid(bool check_refs) const {
   if (std::holds_alternative<InvalidValue>(origin)) {
-    utils::Debug << "Got invalidValue\n";
+    fmt::println("Got invalidValue");
     return false;
   }
   if (check_refs) {
@@ -57,7 +59,7 @@ bool ValueR::eql(const ValueR &other) const {
     return true;
   }
 
-  utils::Debug << this << " and " << other << "\n";
+  fmt::println("{} and {}", *this, other);
   UNREACH();
 }
 
@@ -145,3 +147,22 @@ void ValueR::replace_all_uses(ValueR new_value) {
 }
 
 } // namespace foptim::fir
+
+fmt::appender
+fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
+                                            format_context &ctx) const {
+  if (const auto *v = std::get_if<foptim::fir::ConstantValueR>(&k.get_raw())) {
+    return fmt::format_to(ctx.out(), "{}", *v);
+  }
+  if (const auto *v = std::get_if<foptim::fir::BBArgument>(&k.get_raw())) {
+    return fmt::format_to(ctx.out(), "{}", *v);
+  }
+  if (const auto *v = std::get_if<foptim::fir::BasicBlock>(&k.get_raw())) {
+    return fmt::format_to(
+        ctx.out(), fg(fmt::color::light_blue), "{:p}", (void *)v->get_raw_ptr());
+  }
+  if (const auto *v = std::get_if<foptim::fir::InvalidValue>(&k.get_raw())) {
+    return fmt::format_to(ctx.out(), "INVALID");
+  }
+  return ctx.out();
+}

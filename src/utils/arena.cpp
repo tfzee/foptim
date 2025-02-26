@@ -39,13 +39,14 @@ void free_region(Region *r);
 
 Arena global_temp_arena = {nullptr, nullptr};
 Arena ir_arena = {nullptr, nullptr};
+unsigned long temp_arena_size = 0;
+unsigned long temp_ir_size = 0;
 
 #define cast_ptr(ptr) (decltype(ptr))
 #include <cstdlib>
 
 Region *new_region(size_t capacity) {
   size_t size_bytes = sizeof(Region) + sizeof(uintptr_t) * capacity;
-  TracyMessageL("TempArenaRegionAlloc");
   Region *r = (Region *)malloc(size_bytes);
   // assert((size_t)r % alignof(std::max_align_t) == 0);
   // assert((size_t)r % sizeof(uintptr_t) == 0);

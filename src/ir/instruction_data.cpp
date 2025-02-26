@@ -6,8 +6,7 @@
 
 namespace foptim::fir {
 
-bool InstrData::verify(const BasicBlockData *exp_parent,
-                       utils::Printer printer) const {
+bool InstrData::verify(const BasicBlockData *exp_parent) const {
   for (const auto &use : uses) {
     if (!use.user.is_valid()) {
       return false;
@@ -15,28 +14,27 @@ bool InstrData::verify(const BasicBlockData *exp_parent,
   }
   for (const auto &[bb, bb_args] : bbs) {
     if (!bb.is_valid()) {
-      printer << "Instr references a invalid bb\n";
+      fmt::print("Instr references a invalid bb\n");
       return false;
     }
     if (bb->get_parent() != exp_parent->get_parent()) {
-      printer << "Instr references a bb thats not part of this function\n";
+      fmt::print("Instr references a bb thats not part of this function\n");
       return false;
     }
     if (bb_args.size() != bb->n_args()) {
-      printer << "Instr has invalid number of basicblock arguments\n";
-      printer << "Expected: " << bb->n_args() << " Got:" << bb_args.size()
-              << "\n";
+      fmt::print("Instr has invalid number of basicblock arguments\n");
+      fmt::println("Expected: {} Got: {}", bb->n_args(), bb_args.size());
       return false;
     }
     for (const auto &bb_arg : bb_args) {
       if (!bb_arg.is_valid(true)) {
-        printer << "Instr references a value that is not valid\n";
-        printer << "Value: " << bb_arg << "\n";
+        fmt::print("Instr references a value that is not valid\n");
+        fmt::print("Value: {}\n", bb_arg);
         return false;
       }
       if (!bb_arg.is_constant() && bb_arg.get_n_uses() == 0) {
-        printer << "BB Arg does have 0 uses but its used here\n";
-        printer << "In BBArg: " << bb_arg << "\n";
+        fmt::print("BB Arg does have 0 uses but its used here\n");
+        fmt::print("In BBArg: {}\n", bb_arg);
         return false;
       }
     }
@@ -44,13 +42,13 @@ bool InstrData::verify(const BasicBlockData *exp_parent,
 
   for (const auto &arg : args) {
     if (!arg.is_valid(true)) {
-      printer << "Got invalid argument\n";
+      fmt::print("Got invalid argument\n");
       return false;
     }
     if (!arg.is_constant()) {
       if (arg.get_n_uses() == 0) {
-        printer << "Arg does have 0 uses but its used here\n";
-        printer << "In Arg: " << arg << "\n";
+        fmt::print("Arg does have 0 uses but its used here\n");
+        fmt::print("In Arg: {}\n", arg);
         return false;
       }
 
@@ -61,20 +59,21 @@ bool InstrData::verify(const BasicBlockData *exp_parent,
         }
       }
       if (!found) {
-        printer << "Arg does not have this instruction as user\n";
-        printer << "In Arg: " << arg << "\n";
+        fmt::print("Arg does not have this instruction as user\n");
+        fmt::print("In Arg: {}\n", arg);
         return false;
       }
     }
 
     if (arg.is_instr() &&
         (!arg.as_instr().is_valid() || !arg.as_instr()->parent.is_valid())) {
-      printer << "Got invalid instruction as argument\n";
+      fmt::print("Got invalid instruction as argument\n");
       return false;
     }
   }
   if (!parent.is_valid() || parent.get_raw_ptr() != exp_parent) {
-    printer << "Instructions parent does not match with basic block it is in\n";
+    fmt::print(
+        "Instructions parent does not match with basic block it is in\n");
     return false;
   }
   return true;

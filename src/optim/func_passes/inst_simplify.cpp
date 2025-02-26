@@ -145,33 +145,36 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       if (a0->is(InstrType::BinaryInstr) && a0->args[1].is_constant() &&
           a0->args[1].as_constant()->is_int()) {
         auto sec_constant = a0->args[1].as_constant()->as_int();
-        auto biggest_bitwidth = std::max(a0->args[1].get_type()->as_int(), c1_val->get_type()->as_int());
+        // FIXME: fix potential issue with overflow
+        auto biggest_bitwidth = std::max(a0->args[1].get_type()->as_int(),
+                                         c1_val->get_type()->as_int());
 
         switch ((BinaryInstrSubType)a0->subtype) {
+        case fir::BinaryInstrSubType::INVALID:
+        case fir::BinaryInstrSubType::FloatAdd:
+        case fir::BinaryInstrSubType::FloatSub:
+        case fir::BinaryInstrSubType::FloatMul:
+        case fir::BinaryInstrSubType::FloatDiv:
+          UNREACH();
         case fir::BinaryInstrSubType::IntAdd: {
-          auto new_val = ctx->get_constant_value(
-              c1_val->as_int() + sec_constant, ctx->get_int_type(biggest_bitwidth));
+          auto new_val =
+              ctx->get_constant_value(c1_val->as_int() + sec_constant,
+                                      ctx->get_int_type(biggest_bitwidth));
           instr.replace_arg(0, a0->args[0]);
           instr.replace_arg(1, ValueR(new_val));
           push_all_uses(worklist, instr);
           break;
         }
-        case fir::BinaryInstrSubType::INVALID:
-        case fir::BinaryInstrSubType::IntSub:
-        case fir::BinaryInstrSubType::IntMul:
-        case fir::BinaryInstrSubType::IntSRem:
-        case fir::BinaryInstrSubType::IntSDiv:
-        case fir::BinaryInstrSubType::IntUDiv:
-        case fir::BinaryInstrSubType::Shl:
-        case fir::BinaryInstrSubType::Shr:
-        case fir::BinaryInstrSubType::AShr:
-        case fir::BinaryInstrSubType::And:
-        case fir::BinaryInstrSubType::Or:
-        case fir::BinaryInstrSubType::Xor:
-        case fir::BinaryInstrSubType::FloatAdd:
-        case fir::BinaryInstrSubType::FloatSub:
-        case fir::BinaryInstrSubType::FloatMul:
-        case fir::BinaryInstrSubType::FloatDiv:
+        case fir::BinaryInstrSubType::IntSub: {
+          auto new_val =
+              ctx->get_constant_value(c1_val->as_int() - sec_constant,
+                                      ctx->get_int_type(biggest_bitwidth));
+          instr.replace_arg(0, a0->args[0]);
+          instr.replace_arg(1, ValueR(new_val));
+          push_all_uses(worklist, instr);
+          break;
+        }
+        default:
           break;
         }
       }
@@ -218,14 +221,12 @@ inline void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
 
   bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
-  // utils::Debug << instr << " " << first_constant << " " << second_constant
-  //              << "\n";
 
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
     // TODO: poisson should just return a poisson value
-    if (c1->is_poisson() || c2->is_poisson()) {
+    if (c1->is_poison() || c2->is_poison()) {
       auto new_const_value = ctx->get_poisson_value(ctx->get_int_type(8));
       push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR(new_const_value));
@@ -325,7 +326,6 @@ inline void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
               "seta %0"
               : "=r"(is_true)
               : "x"(v1), "x"(v2));
-      utils::Debug << "`??????`" << is_true << " " << v1 << " > " << v2 << "\n";
       break;
     case fir::FCmpInstrSubType::OGE:
       __asm__("vcomisd %2, %1\n\t"

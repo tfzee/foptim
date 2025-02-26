@@ -41,8 +41,8 @@ struct GlobalPointer {
 
 // just a invalid value similarly to llvms poisson value it is some undefined
 // but constant value
-struct PoissonValue {
-  constexpr bool operator==(const PoissonValue &) const { return true; }
+struct PoisonValue {
+  constexpr bool operator==(const PoisonValue & /*_*/) const { return true; }
 };
 
 struct VectorValue {
@@ -52,12 +52,12 @@ struct VectorValue {
 
 struct ConstantValue {
   std::variant<IntValue, FloatValue, GlobalPointer, FunctionPtr, VectorValue,
-               PoissonValue>
+               PoisonValue>
       value;
   TypeR type;
 
   // Poisson value
-  constexpr ConstantValue(TypeR typee) : value(PoissonValue{}), type(typee) {}
+  constexpr ConstantValue(TypeR typee) : value(PoisonValue{}), type(typee) {}
 
   constexpr ConstantValue(i128 v, TypeR typee)
       : value(IntValue{v}), type(typee) {}
@@ -84,7 +84,7 @@ struct ConstantValue {
 
   [[nodiscard]] bool is_valid() const {
     if (!type.is_valid()) {
-      utils::Debug << "Invalid type\n";
+      fmt::println("Invalid type\n");
       return false;
     }
     return true;
@@ -105,8 +105,8 @@ struct ConstantValue {
     return std::holds_alternative<FunctionPtr>(value);
   }
 
-  [[nodiscard]] bool is_poisson() const {
-    return std::holds_alternative<PoissonValue>(value);
+  [[nodiscard]] bool is_poison() const {
+    return std::holds_alternative<PoisonValue>(value);
   }
 
   [[nodiscard]] FunctionR as_func() const {

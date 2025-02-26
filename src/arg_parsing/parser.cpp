@@ -1,6 +1,7 @@
-#include <argparse/argparse.hpp>
-#include <tracy/Tracy.hpp>
 #include "utils/parameters.hpp"
+#include <argparse/argparse.hpp>
+#include <fmt/core.h>
+#include <tracy/Tracy.hpp>
 
 void parse_args(int argc, char *argv[]) {
 
@@ -13,8 +14,7 @@ void parse_args(int argc, char *argv[]) {
   try {
     program.parse_args(argc, argv);
   } catch (const std::exception &err) {
-    std::cerr << err.what() << std::endl;
-    std::cerr << program;
+    fmt::println("{}", err.what());
     std::exit(1);
   }
 

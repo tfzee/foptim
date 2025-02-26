@@ -102,8 +102,6 @@ VReg DumbRegAlloc::get_new_register(fir::ValueR v,
   utils::BitSet free_regs{vreg_num, true};
 
   for (auto [var, reg] : mapping) {
-    // utils::Debug << "    " << var << "   " << reg.id << "\n";
-
     if (lives.collide(var, v) ||
         !var.get_type()->eql(v.get_type()->get_raw())) {
       free_regs[reg.id - 1].set(false);
@@ -131,9 +129,10 @@ VReg DumbRegAlloc::get_register(fir::ValueR value) {
 }
 
 void DumbRegAlloc::dump() {
-  utils::Debug << "Unused regs: " << free_regs.size() << "\n";
+  fmt::println("Unused regs: {}", free_regs.size());
   for (auto [v, a] : mapping) {
-    utils::Debug << v << ": " << a << "\n";
+    TODO("reimpl");
+    // fmt::println("{}: {}", v, a);
   }
 }
 } // namespace foptim::fmir

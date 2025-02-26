@@ -41,16 +41,16 @@ Instr ContextData::copy(Instr instr) {
 }
 
 void ContextData::print_stats() const {
-  utils::Debug << "Funcs " << storage.functions.size() << "\n";
-  utils::Debug << "Instr ";
+  fmt::println("Funcs {}", storage.functions.size());
+  fmt::println("Instr ");
   print_stats_vec(storage.storage_instr);
-  utils::Debug << "BBs ";
+  fmt::println("BBs ");
   print_stats_vec(storage.basic_blocks);
-  utils::Debug << "Constant ";
+  fmt::println("Constant ");
   print_stats_vec(storage.storage_constant);
-  utils::Debug << "Type ";
+  fmt::println("Type ");
   print_stats_vec(storage.storage_type);
-  utils::Debug << "Global ";
+  fmt::println("Global ");
   print_stats_vec(storage.storage_global);
 }
 
@@ -60,8 +60,7 @@ Global ContextData::get_global(IRString name, size_t size_bytes) {
 
 FunctionR ContextData::get_function(IRString name) {
   if (!storage.functions.contains(name)) {
-    utils::Debug << "Failed to find function '" << name.c_str()
-                 << "' from storage\n";
+    fmt::println("Failed to find function '{}' from storage", name.c_str());
     ASSERT(false);
   }
   return &storage.functions.at(name);
@@ -84,10 +83,9 @@ FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
 }
 
 bool ContextData::verify() const {
-  auto printer = utils::Debug;
   for (const auto &[name, func] : storage.functions) {
-    if (!func.verify(printer.pad(1))) {
-      printer << "In Function: " << name.c_str() << "\n";
+    if (!func.verify()) {
+      fmt::println("In Function: {}\n", name.c_str());
       return false;
     }
   }
