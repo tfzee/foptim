@@ -408,6 +408,7 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
         }
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
         case MArgument::ArgumentType::MemVRegVRegScale: {
           ASSERT(arg.reg.info.ty != VRegType::Virtual);
           ASSERT(arg.indx.info.ty != VRegType::Virtual);
@@ -415,9 +416,11 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
           res[(u8)arg.indx.info.ty - 1].set(true);
           break;
         }
-        case MArgument::ArgumentType::MemImmVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          ASSERT(false);
+        case MArgument::ArgumentType::MemImmVRegScale: {
+          ASSERT(arg.indx.info.ty != VRegType::Virtual);
+          res[(u8)arg.indx.info.ty - 1].set(true);
+          break;
+        }
         }
       }
     }

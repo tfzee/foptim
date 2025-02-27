@@ -34,7 +34,8 @@ void replace_vargs(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
     }
     case MArgument::ArgumentType::MemVRegVRegScale:
     case MArgument::ArgumentType::MemImmVRegVReg:
-    case MArgument::ArgumentType::MemVRegVReg: {
+    case MArgument::ArgumentType::MemVRegVReg:
+    case MArgument::ArgumentType::MemImmVRegVRegScale: {
       auto reg = instr.args[i].reg;
       auto indx = instr.args[i].indx;
       if (!reg.info.is_pinned() && reg_mapping.contains(reg.id)) {
@@ -45,9 +46,13 @@ void replace_vargs(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
       }
       break;
     }
-    case MArgument::ArgumentType::MemImmVRegScale:
-    case MArgument::ArgumentType::MemImmVRegVRegScale:
-      TODO("");
+    case MArgument::ArgumentType::MemImmVRegScale: {
+      auto indx = instr.args[i].indx;
+      if (!indx.info.is_pinned() && reg_mapping.contains(indx.id)) {
+        instr.args[i].indx.info.ty = reg_mapping.at(indx.id);
+      }
+      break;
+    }
     }
   }
 }

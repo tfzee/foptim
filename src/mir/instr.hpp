@@ -420,7 +420,8 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(IRStringRef lab, u32 imm, Type ty) {
+  [[nodiscard]] static constexpr MArgument Mem(IRStringRef lab, u32 imm,
+                                               Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmLabel;
     arg.ty = ty;
@@ -461,6 +462,17 @@ public:
     arg.type = ArgumentType::MemVRegVRegScale;
     arg.ty = ty;
     arg.reg = reg;
+    arg.indx = indx;
+    arg.scale = scale;
+    return arg;
+  }
+
+  [[nodiscard]] static constexpr MArgument Mem(u32 off, VReg indx, u32 scale,
+                                               Type ty) {
+    MArgument arg;
+    arg.type = ArgumentType::MemImmVRegScale;
+    arg.ty = ty;
+    arg.imm = off;
     arg.indx = indx;
     arg.scale = scale;
     return arg;
@@ -717,8 +729,8 @@ public:
 };
 #undef COND_JUMP_GEN
 
-void written_args(const MInstr &instr,TVec<MArgument>& out);
-void read_args(const MInstr &instr, TVec<MArgument>& out);
+void written_args(const MInstr &instr, TVec<MArgument> &out);
+void read_args(const MInstr &instr, TVec<MArgument> &out);
 
 } // namespace foptim::fmir
 

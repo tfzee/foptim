@@ -310,9 +310,13 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
     operand.mem.size = get_size(arg.ty);
     return;
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
-    TODO("REIMPL");
-    // fmt::println("impl operand: {}", arg);
-    TODO("");
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = ZYDIS_REGISTER_NONE;
+    operand.mem.displacement = arg.imm;
+    operand.mem.index = convert_reg(arg.indx);
+    operand.mem.scale = 1 << arg.scale;
+    operand.mem.size = get_size(arg.ty);
+    return;
   }
 }
 

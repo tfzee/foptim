@@ -460,6 +460,7 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
           if (reg_to_uid(argy.reg) == search_reg_id ||
               reg_to_uid(argy.indx) == search_reg_id) {
             res.is_read = true;
@@ -467,8 +468,11 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
           }
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          IMPL("impl");
+          if (reg_to_uid(argy.indx) == search_reg_id) {
+            res.is_read = true;
+            res.index = i;
+          }
+          break;
         }
       }
     }
@@ -514,12 +518,13 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
           all_used_regs.insert(arg.reg);
           all_used_regs.insert(arg.indx);
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          IMPL("impl");
+          all_used_regs.insert(arg.indx);
+          break;
         }
       }
     }
