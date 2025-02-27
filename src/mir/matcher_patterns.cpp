@@ -311,59 +311,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
         res.result.emplace_back(Opcode::add2, res_reg, a1);
         return true;
       }});
-  pats.push_back(Pattern{
-      {IntMulNode, IntAddNode},
-      {{0, 1, 1}},
-      [](MatchResult &res, ExtraMatchData &data) {
-        auto mul_instr = res.matched_instrs[0];
-        auto add_instr = res.matched_instrs[1];
-        auto res_ty = convert_type(add_instr.get_type());
-        auto res_ty_size = get_size(res_ty);
-        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
-          return false;
-        }
-        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
-            !mul_instr->args[1].is_constant()) {
-          return false;
-        }
-        auto consti = mul_instr->args[1].as_constant();
-        if (!consti->is_int()) {
-          return false;
-        }
-        auto consti_val = consti->as_int();
-
-        switch (consti_val) {
-        default: {
-          return false;
-        }
-        case 1:
-          consti_val = 0;
-          break;
-        case 2:
-          consti_val = 1;
-          break;
-        case 4:
-          consti_val = 2;
-          break;
-        case 8:
-          consti_val = 3;
-          break;
-        }
-
-        // $1 = $0 * C
-        // R = $2 + $1
-        // where $0 and $2 must be regs and C in [1,2,4,8]
-        auto res_reg =
-            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
-        auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
-        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
-        ASSERT(base.isReg());
-        ASSERT(indx.isReg());
-        res.result.emplace_back(
-            Opcode::lea, res_reg,
-            MArgument::Mem(base.reg, indx.reg, consti_val, res_ty));
-        return true;
-      }});
 }
 
 void cjmp_patterns(IRVec<Pattern> &pats) {
@@ -398,7 +345,6 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
                        cmp_instr->get_instr_subtype());
           return false;
         }
-
 
         auto bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
@@ -504,12 +450,12 @@ void arith_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
-  // auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-  //                        (u32)fir::BinaryInstrSubType::IntAdd};
+  auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         (u32)fir::BinaryInstrSubType::IntAdd};
   // auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                        (u32)fir::BinaryInstrSubType::IntSub};
-  // auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-  //                        (u32)fir::BinaryInstrSubType::IntMul};
+  auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         (u32)fir::BinaryInstrSubType::IntMul};
   // auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                      (u32)fir::BinaryInstrSubType::IntSRem};
   // auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -531,6 +477,128 @@ void arith_patterns(IRVec<Pattern> &pats) {
   // auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                      (u32)fir::BinaryInstrSubType::AShr};
   // auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
+
+  pats.push_back(Pattern{
+      {IntMulNode, IntAddNode},
+      {{0, 1, 1}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        // x + y * 1|2|4|8
+        auto mul_instr = res.matched_instrs[0];
+        auto add_instr = res.matched_instrs[1];
+        auto res_ty = convert_type(add_instr.get_type());
+        auto res_ty_size = get_size(res_ty);
+        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+          return false;
+        }
+        if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
+            !mul_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = mul_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+
+        switch (consti_val) {
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
+        }
+
+        // $1 = $0 * C
+        // R = $2 + $1
+        // where $0 and $2 must be regs and C in [1,2,4,8]
+        auto res_reg =
+            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+        auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
+        auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        ASSERT(base.isReg());
+        ASSERT(indx.isReg());
+        res.result.emplace_back(
+            Opcode::lea, res_reg,
+            MArgument::Mem(base.reg, indx.reg, consti_val, res_ty));
+        return true;
+      }});
+  pats.push_back(Pattern{
+      {IntMulNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        // x*c where c is either 2 4 8  or 3 5 9
+        auto mul_instr = res.matched_instrs[0];
+        auto res_ty = convert_type(mul_instr.get_type());
+        auto res_ty_size = get_size(res_ty);
+        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+          return false;
+        }
+        if (!is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = mul_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+        bool mul1More = false;
+
+        switch (consti_val) {
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 3:
+          consti_val = 1;
+          mul1More = true;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 5:
+          consti_val = 2;
+          mul1More = true;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
+        case 9:
+          consti_val = 3;
+          mul1More = true;
+          break;
+        }
+
+        // $1 = $0 * c
+        // where $0 must be reg and C in [1,2,3,4,5,8,9]
+        auto res_reg =
+            valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+        auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        ASSERT(base.isReg());
+        if (mul1More) {
+          res.result.emplace_back(
+              Opcode::lea, res_reg,
+              MArgument::Mem(base.reg, base.reg, consti_val, res_ty));
+        } else {
+          res.result.emplace_back(
+              Opcode::lea, res_reg,
+              MArgument::Mem(0, base.reg, consti_val, res_ty));
+        }
+        return true;
+      }});
+
   pats.push_back(Pattern{
       {FloatMulNode, FloatAddNode},
       {{0, 1, 0}},

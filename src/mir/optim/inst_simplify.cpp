@@ -51,21 +51,38 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
 }
 
 static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
-  if (instr_id + 3 < instrs.size() && instrs[instr_id + 0].op == Opcode::mov &&
+  fmt::println("{}", instrs[instr_id]);
+  if (instr_id + 2 < instrs.size() && instrs[instr_id + 0].op == Opcode::mov &&
       (instrs[instr_id + 1].op == Opcode::add2 ||
        instrs[instr_id + 1].op == Opcode::sub2) &&
       instrs[instr_id + 2].op == Opcode::mov) {
     auto &i1 = instrs[instr_id + 0];
     auto &i2 = instrs[instr_id + 1];
     auto &i3 = instrs[instr_id + 2];
+    fmt::println("   Matching? {} {} {}", i1, i2, i3);
     // x = y
-    // x +=
+    // x += _
     // y = x
     if (i1.args[0] == i2.args[0] && i1.args[0] == i3.args[1] &&
         i1.args[1] == i3.args[0] && i1.args[0] != i1.args[1] &&
         i2.args[1].isImm()) {
       i3.op = i2.op;
       i3.args[1] = i2.args[1];
+
+      // cjmp x _
+      if (instr_id + 3 < instrs.size()) {
+        auto &i4 = instrs[instr_id + 3];
+        // TODO: expand
+        if ((i4.op == Opcode::cjmp_int_eq || i4.op == Opcode::cjmp_int_slt ||
+             i4.op == Opcode::cjmp_int_ult || i4.op == Opcode::cjmp_int_sgt ||
+             i4.op == Opcode::cjmp_int_ugt || i4.op == Opcode::cjmp_int_ne ||
+             i4.op == Opcode::cjmp_int_sle || i4.op == Opcode::cjmp_int_ule ||
+             i4.op == Opcode::cjmp_int_sge || i4.op == Opcode::cjmp_int_uge) &&
+            i4.args[0] == i1.args[0]) {
+          i4.args[0] = i1.args[1];
+        }
+      }
+
       return false;
     }
   }

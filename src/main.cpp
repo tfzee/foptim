@@ -189,8 +189,11 @@ void lower_to_mir(foptim::fir::Context &ctx,
 void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
-
   ZoneScopedN("MIR Optim");
+  fmt::print("================MIR OPTIM====================\n");
+  //running dead to make inst simplify work better
+  foptim::fmir::DeadCodeElim{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::DeadCodeElim{}.apply(funcs);
@@ -198,6 +201,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  for (auto &f : funcs) {
+    fmt::println("{}", f);
+  }
+  // TODO("okak");
   foptim::fmir::RegisterJoining{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
@@ -206,9 +213,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
 }
