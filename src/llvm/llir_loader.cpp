@@ -966,7 +966,7 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
     break;
   default:
     llvm::errs() << "Not supporting calling convention:"
-                         << func.getCallingConv() << "\n";
+                 << func.getCallingConv() << "\n";
     TODO("");
   }
   // func.getMemoryEffects()
@@ -1006,6 +1006,7 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
     // }
 
     fbuilder.at_end(bb_foptim);
+    bb_foptim->instructions.reserve(bb_llvm->size());
 
     for (auto &instr : *bb_llvm) {
       // if its the terminator we need to first create the new bbs
@@ -1250,7 +1251,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
     module = llvm::parseIRFile(filename, error, context);
   }
   if (module) {
-    module->dump();
+    // module->dump();
     convert(*module, fctx);
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "

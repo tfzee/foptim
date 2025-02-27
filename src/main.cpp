@@ -96,11 +96,11 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-  ASSERT(ctx->verify());
-  fmt::print("================INIT====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{}\n", func);
-  }
+  // ASSERT(ctx->verify());
+  // fmt::print("================INIT====================\n");
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   fmt::print("{}\n", func);
+  // }
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
@@ -108,6 +108,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
   ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
@@ -121,13 +122,12 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  fmt::println("================OPTIMEND====================");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::println("{}", func);
-  }
-  ASSERT(ctx->verify());
+  // fmt::println("================OPTIMEND====================");
 
-  foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   fmt::println("{}", func);
+  // }
+  ASSERT(ctx->verify());
 
   // {
   //   foptim::utils::print << "MEMREG JuST TESTING Attributor\n";
@@ -161,12 +161,12 @@ void lower_to_mir(foptim::fir::Context &ctx,
       if (v->used) {
         auto size = v->data.n_bytes;
         foptim::fmir::Global glob = {
-            .name = v->data.name, .data = {}, .reloc_info = {}};
+            .name = v->data.name.c_str(), .data = {}, .reloc_info = {}};
         for (const auto &rel_inf : v->data.reloc_info) {
           ASSERT(rel_inf.ref->is_global());
           glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
               .offset = rel_inf.offset,
-              .name = rel_inf.ref->as_global()->name});
+              .name = rel_inf.ref->as_global()->name.c_str()});
         }
         glob.data.resize(size, 0);
         memcpy(glob.data.data(), v->data.init_value, size);

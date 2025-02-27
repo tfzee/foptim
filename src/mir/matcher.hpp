@@ -17,8 +17,8 @@ struct ExtraMatchData {
 
 struct MatchResult {
   // has the same order as the pattern the match originates from
-  IRVec<fir::Instr> matched_instrs;
-  IRVec<fmir::MInstr> result;
+  TVec<fir::Instr> matched_instrs;
+  TVec<fmir::MInstr> result;
   size_t match_id;
 };
 
@@ -59,7 +59,7 @@ public:
 };
 
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc);
-MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc);
+MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
 Type convert_type(fir::TypeR type);
 void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
                       ExtraMatchData &data);

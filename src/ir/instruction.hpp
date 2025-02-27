@@ -55,8 +55,3 @@ template <> struct std::hash<foptim::fir::Instr> {
     return hash<foptim::utils::SRef<foptim::fir::InstrData>>()(k);
   }
 };
-// template <> struct std::hash<foptim::fir::Instr> {
-//   std::size_t operator()(const foptim::fir::Instr &k) const {
-//     return
-//   }
-// };

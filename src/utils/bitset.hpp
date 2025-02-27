@@ -192,6 +192,18 @@ struct BitSet {
     return *this;
   }
 
+  [[nodiscard]] constexpr u64 get(size_t indx, u8 width) const {
+    ASSERT(width <= 64);
+    u64 out_val = 0;
+    for (u32 ip1 = width; ip1 > 0; ip1--) {
+      u32 i = ip1 - 1;
+      BitRef<> loc = {(u16)((indx + i) % StrgTySizeBit),
+                      &_data[(indx + i) / StrgTySizeBit]};
+      out_val = (out_val << 1) | (u64)(bool)loc;
+    }
+    return out_val;
+  }
+
   constexpr BitSet &assign(const BitSet &other) {
     assert(_size_bits == other._size_bits);
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;

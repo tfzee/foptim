@@ -69,6 +69,7 @@ add_library (foptim
                 ./src/optim/func_passes/pre.cpp
                 ./src/optim/func_passes/simplify_cfg.cpp
                 ./src/optim/func_passes/inst_simplify.cpp
+                ./src/optim/func_passes/stack_known_bits.cpp
                 ./src/optim/helper/inline.cpp
 
                 #mir
@@ -92,7 +93,6 @@ add_library (foptim
                 ./src/third_party/Zydis.c
 
                 #utils
-                ./src/utils/logging.cpp
                 ./src/utils/parameters.cpp
                 ./src/utils/todo.cpp
                 ./src/utils/arena.cpp

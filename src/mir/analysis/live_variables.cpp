@@ -414,6 +414,8 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
                             size_t start_instr) {
   NextUseResult res{false, false, 0};
+  TVec<MArgument> args_temp;
+  args_temp.reserve(4);
   for (auto i = start_instr; i < instrs.size(); i++) {
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
       // TODO: this could be more specific since certain CCs can only read/write
@@ -427,7 +429,9 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
       res.index = i;
     }
     if (!res.is_write) {
-      for (auto arg : written_args(instrs[i])) {
+      args_temp.clear();
+      written_args(instrs[i], args_temp);
+      for (auto arg : args_temp) {
         if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
           res.is_write = true;
           res.index = i;
@@ -469,7 +473,9 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
       }
     }
     if (!res.is_read) {
-      for (auto arg : read_args(instrs[i])) {
+      args_temp.clear();
+      read_args(instrs[i], args_temp);
+      for (auto arg : args_temp) {
         if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
           res.is_read = true;
           res.index = i;

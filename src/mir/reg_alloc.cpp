@@ -90,13 +90,6 @@ VReg DumbRegAlloc::get_new_register(VRegInfo info) {
   return VReg{vreg_num, info};
 }
 
-VReg DumbRegAlloc::get_new_register(fir::IRLocation /*unused*/, Type t,
-                                    optim::LiveVariables & /*unused*/) {
-  // TODO: imrpvoe
-  vreg_num++;
-  return VReg{vreg_num, VRegInfo{t}};
-}
-
 VReg DumbRegAlloc::get_new_register(fir::ValueR v,
                                     optim::LiveVariables &lives) {
   utils::BitSet free_regs{vreg_num, true};

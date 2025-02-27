@@ -243,8 +243,8 @@ void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
   }
 }
 
-void setup_call_arguments(IRVec<MInstr> &out_instrs, TVec<MInstr> args,
-                          TVec<ArgPosition> arg_pos, size_t start) {
+void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
+                          const TVec<ArgPosition> &arg_pos, size_t start) {
 
   TVec<MInstr> output_vec;
   TVec<u32> worklist;

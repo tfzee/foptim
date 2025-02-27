@@ -17,7 +17,8 @@ struct LiveRange {
   u32 start;
   u32 end;
 
-  constexpr LiveRange(u32 bb, u32 start, u32 end) : bb(bb), start(start), end(end) {}
+  constexpr LiveRange(u32 bb, u32 start, u32 end)
+      : bb(bb), start(start), end(end) {}
 
   LiveRange(fir::IRLocation a) {
     if (a.type == fir::IRLocation::LocationType::Instruction) {
@@ -80,7 +81,7 @@ class LiveVariables {
 public:
   LiveVariables(fir::Function &func, CFG &cfg) { update(func, cfg); }
 
-  IRMap<fir::ValueR, IRVec<LiveRange>> live_variables;
+  TMap<fir::ValueR, TVec<LiveRange>> live_variables;
 
   void dump();
 
@@ -123,13 +124,14 @@ public:
     return false;
   }
 
-  static IRMap<fir::ValueR, size_t> setup_values(fir::Function &func) {
-    IRMap<fir::ValueR, size_t> values;
+  static TMap<fir::ValueR, size_t> setup_values(fir::Function &func) {
+    TMap<fir::ValueR, size_t> values;
     // values.reserve(func.n_instrs() * 2);
     size_t value_id = 0;
     for (const auto &bb : func.get_bbs()) {
       for (u32 arg_id = 0; arg_id < bb->n_args(); arg_id++) {
-        auto [_, ins] = values.insert({fir::ValueR{bb->args[arg_id]}, value_id});
+        auto [_, ins] =
+            values.insert({fir::ValueR{bb->args[arg_id]}, value_id});
         ASSERT(ins);
         value_id++;
       }

@@ -49,8 +49,8 @@ void LiveVariables::dump() {
 void LiveVariables::update(fir::Function &func, CFG &cfg) {
   ZoneScopedN("LIVEVAR UPDATE");
 
-  IRVec<utils::BitSet<>> upwExp;
-  IRVec<utils::BitSet<>> defs;
+  TVec<utils::BitSet<>> upwExp;
+  TVec<utils::BitSet<>> defs;
 
   const auto all_values = setup_values(func);
   const size_t n_values = all_values.size();
@@ -104,10 +104,9 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     }
   }
 
-
   // data flow
-  IRVec<utils::BitSet<>> liveIn;
-  IRVec<utils::BitSet<>> liveOut;
+  TVec<utils::BitSet<>> liveIn;
+  TVec<utils::BitSet<>> liveOut;
   liveIn.resize(func.n_bbs(), utils::BitSet{n_values, false});
   liveOut.resize(func.n_bbs(), utils::BitSet{n_values, true});
   utils::BitSet new_liveOut{n_values, false};
@@ -135,7 +134,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     }
   }
 
-
   utils::BitSet bb_live{n_values, false};
 
   for (u32 bb_id = 0; bb_id < bbs.size(); bb_id++) {
@@ -144,7 +142,6 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
     const auto &bb_defs = defs[bb_id];
     bb_live.assign(bb_liveOut).add(bb_defs).add(bb_liveIn);
     // assert(bb_live == bb_liveOut + bb_defs + bb_liveIn);
-
 
     for (size_t value_id = 0; value_id < n_values; value_id++) {
       bool val_liveIn = bb_liveIn[value_id];

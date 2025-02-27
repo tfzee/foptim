@@ -154,12 +154,16 @@ fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
   if (const auto *v = std::get_if<foptim::fir::ConstantValueR>(&k.get_raw())) {
     return fmt::format_to(ctx.out(), "{}", *v);
   }
+  if (const auto *v = std::get_if<foptim::fir::Instr>(&k.get_raw())) {
+    return fmt::format_to(ctx.out(), fg(fmt::color::light_green), "{:p}",
+                          (void*)v->get_raw_ptr());
+  }
   if (const auto *v = std::get_if<foptim::fir::BBArgument>(&k.get_raw())) {
     return fmt::format_to(ctx.out(), "{}", *v);
   }
   if (const auto *v = std::get_if<foptim::fir::BasicBlock>(&k.get_raw())) {
-    return fmt::format_to(
-        ctx.out(), fg(fmt::color::light_blue), "{:p}", (void *)v->get_raw_ptr());
+    return fmt::format_to(ctx.out(), fg(fmt::color::light_blue), "{:p}",
+                          (void *)v->get_raw_ptr());
   }
   if (const auto *v = std::get_if<foptim::fir::InvalidValue>(&k.get_raw())) {
     return fmt::format_to(ctx.out(), "INVALID");

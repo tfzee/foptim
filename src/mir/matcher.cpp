@@ -12,6 +12,7 @@
 #include "optim/analysis/live_variables.hpp"
 #include "utils/logging.hpp"
 #include <algorithm>
+#include <ranges>
 #include <tracy/Tracy.hpp>
 
 namespace foptim::fmir {
@@ -62,6 +63,7 @@ struct MatchTodos {
 
 bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
   TVec<MatchTodos> match_todos;
+  match_todos.reserve(5);
 
   // for now TREE only matching
   //  for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
@@ -79,7 +81,6 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
     }
     n_nodes_matched++;
     match_todos.clear();
-    match_todos.reserve(patt.edges.size());
     // if it matches setup the children inthe worklist if there is any
     {
       res.matched_instrs[start_node_id] = instr;
@@ -161,40 +162,25 @@ void dump_succ_edges(const Edges &active_edges, fir::BasicBlock &bb) {
 }
 
 MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
-             ExtraMatchData &data) {
+             MatchResult &match_result, ExtraMatchData &data) {
   ZoneScopedN("Apply BB");
   MBB result_bb;
-
-  // all the instructions in this basic block
-  const IRVec<fir::Instr> &instrs = bb->instructions;
-  // the edges still active in our DAG
-  std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist{};
-  // setup
-  for (const auto &instr : instrs) {
-    // if (instr->is_critical()) {
-    worklist.push_front(instr);
-    // }
-  }
-
-  // dump_succ_edges(active_edges, bb);
+  result_bb.instrs.reserve(bb->n_instrs());
 
   // to store results
-  MatchResult match_result{};
 
   // generate each instruction
-  while (!worklist.empty()) {
-    fir::Instr cur_instr = worklist.front();
-    worklist.pop_front();
+  for (auto cur_instr : bb->instructions | std::views::reverse) {
+    // fir::Instr cur_instr = worklist.front();
+    // worklist.pop_front();
 
     // match it
     find_match(cur_instr, patterns, match_result, data);
 
     // insert instrs this generates
     {
-      std::reverse(match_result.result.begin(), match_result.result.end());
-      result_bb.instrs.reserve(result_bb.instrs.size() +
-                               match_result.result.size());
-      for (auto minstr : match_result.result) {
+      // std::reverse(match_result.result.begin(), match_result.result.end());
+      for (auto minstr : match_result.result | std::views::reverse) {
         result_bb.instrs.push_back(minstr);
       }
     }
@@ -267,8 +253,14 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
 
   ExtraMatchData extra_data = {alloc, bbs, lives, res_func};
 
+  // so we dont need to realloc
+  MatchResult match_result{};
+  match_result.matched_instrs.reserve(5);
+  match_result.result.reserve(5);
+
   for (auto bb : func.basic_blocks) {
-    res_func.bbs.push_back(apply_bb(bb, this->patterns, extra_data));
+    res_func.bbs.push_back(
+        apply_bb(bb, this->patterns, match_result, extra_data));
   }
 
   res_func.name = func.name;

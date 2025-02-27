@@ -15,7 +15,7 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
   }
 }
 
-MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
+MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
                           DumbRegAlloc &alloc) {
 
   ASSERT(val.is_constant());
@@ -89,7 +89,7 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
   UNREACH();
 }
 
-MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc) {
+MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     return valueToArgConst(val, res, alloc);
   }

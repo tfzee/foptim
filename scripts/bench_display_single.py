@@ -38,6 +38,6 @@ def show_plot_comp(filename, filename2):
 
 if __name__ == "__main__":
     show_plot_single("../build/test/Output/perf.csv")
-    show_plot_comp("../build/test/Output/perf.csv", "../build/test/Output/perf_old.csv")
+    show_plot_single("../build/test/Output/compile.csv")
+    # show_plot_comp("../build/test/Output/perf.csv", "../build/test/Output/perf_old.csv")
 
-    # show_plot_single("../build/test/Output/compile.csv")

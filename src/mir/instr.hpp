@@ -717,8 +717,8 @@ public:
 };
 #undef COND_JUMP_GEN
 
-TVec<MArgument> written_args(const MInstr &instr);
-TVec<MArgument> read_args(const MInstr &instr);
+void written_args(const MInstr &instr,TVec<MArgument>& out);
+void read_args(const MInstr &instr, TVec<MArgument>& out);
 
 } // namespace foptim::fmir
 

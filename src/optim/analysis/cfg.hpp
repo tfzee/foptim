@@ -71,7 +71,7 @@ public:
       }
       bbrs[from].succ.reserve(terminator->is(fir::InstrType::BranchInstr) ? 1
                                                                           : 2);
-      for (auto target : terminator->get_bb_args()) {
+      for (const auto& target : terminator->get_bb_args()) {
         for (u32 j = 0; j < bbrs.size(); j++) {
           if (bbrs[j].bb == target.bb) {
             bbrs[from].succ.push_back(j);

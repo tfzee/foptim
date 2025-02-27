@@ -225,9 +225,11 @@ u16 Instr::add_bb(BasicBlock val) {
 
 } // namespace foptim::fir
 
-fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const{
+fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
+    foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, fg(fmt::color::light_blue), "{:p}", (void *)bb_with_args.bb.get_raw_ptr());
+  app = fmt::format_to(app, fg(fmt::color::light_blue), "{:p}",
+                       (void *)bb_with_args.bb.get_raw_ptr());
   app = fmt::format_to(app, "(");
   if (!bb_with_args.args.empty()) {
     app = fmt::format_to(app, "{}", bb_with_args.args[0]);
@@ -239,14 +241,15 @@ fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(foptim::fir::BB
   return app;
 }
 
-
-fmt::appender fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr, format_context &ctx) const{
+fmt::appender
+fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
+                                           format_context &ctx) const {
   auto app = ctx.out();
 
-  app = fmt::format_to(app, "{:p}: {} = {}", (void*)instr.get_raw_ptr(), instr->get_type(), instr->get_name());
-  // app = fmt::format_to(app, "{p} ", (void*)instr.get_raw_ptr());
-  // app = fmt::format_to(app, " {} =", instr->get_type());
-  // app = fmt::format_to(app, " {}", instr->get_name());
+  app = fmt::format_to(
+      app, "{:p}: {} = {}",
+      fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
+      instr->get_type(), instr->get_name());
 
   const auto &bb_args = instr->get_bb_args();
   if (bb_args.size() > 0) {
@@ -262,7 +265,7 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr cons
   if (args.size() > 0) {
     app = fmt::format_to(app, "{}", args[0]);
     for (size_t i = 1; i < args.size(); i++) {
-    app = fmt::format_to(app, ", {}", args[i]);
+      app = fmt::format_to(app, ", {}", args[i]);
     }
   }
   app = fmt::format_to(app, "){{");
@@ -273,6 +276,4 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr cons
   }
   app = fmt::format_to(app, "}}\n");
   return app;
-
 }
-

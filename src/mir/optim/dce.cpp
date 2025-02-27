@@ -66,6 +66,8 @@ bool is_applicable(Opcode op) {
 void DeadCodeElim::apply(MFunc &func) {
   CFG cfg{func};
   LiveVariables live{cfg, func};
+  TVec<MArgument> w_args;
+  w_args.reserve(4);
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
     auto &bb = func.bbs[bb_id];
@@ -73,7 +75,8 @@ void DeadCodeElim::apply(MFunc &func) {
 
     for (size_t instr_idp1 = bb.instrs.size(); instr_idp1 > 0; instr_idp1--) {
       const auto instr_id = instr_idp1 - 1;
-      const auto w_args = written_args(bb.instrs[instr_id]);
+      w_args.clear();
+      written_args(bb.instrs[instr_id], w_args);
 
       if (!is_applicable(bb.instrs[instr_id].op)) {
         continue;

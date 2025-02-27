@@ -1109,7 +1109,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    fmt::println("{}", func);
+    // fmt::println("{}", func);
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;
@@ -1387,21 +1387,21 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
 
   generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals);
 
-  {
-    ZyanU64 runtime_address = 0;
-    ZyanUSize offset = 0;
-    ZydisDisassembledInstruction instruction;
-    while (ZYAN_SUCCESS(ZydisDisassembleIntel(
-        /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
-        /* runtime_address: */ runtime_address,
-        /* buffer:          */ output_buffer + offset,
-        /* length:          */ (end_buff_ptr - output_buffer) - offset,
-        /* instruction:     */ &instruction))) {
-      fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
-      offset += instruction.info.length;
-      runtime_address += instruction.info.length;
-    }
-  }
+  // {
+  //   ZyanU64 runtime_address = 0;
+  //   ZyanUSize offset = 0;
+  //   ZydisDisassembledInstruction instruction;
+  //   while (ZYAN_SUCCESS(ZydisDisassembleIntel(
+  //       /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
+  //       /* runtime_address: */ runtime_address,
+  //       /* buffer:          */ output_buffer + offset,
+  //       /* length:          */ (end_buff_ptr - output_buffer) - offset,
+  //       /* instruction:     */ &instruction))) {
+  //     fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
+  //     offset += instruction.info.length;
+  //     runtime_address += instruction.info.length;
+  //   }
+  // }
 }
 
 } // namespace foptim::codegen

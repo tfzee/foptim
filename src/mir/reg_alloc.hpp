@@ -20,9 +20,9 @@ class FunctionRegAlloatorParent {
 
 class DumbRegAlloc : public FunctionRegAlloatorParent {
   u64 vreg_num = 1;
-  IRSet<VReg> free_regs;
-  IRMap<fir::ValueR, VReg> mapping;
-  IRMap<fir::IRLocation, IRVec<VReg>> additional_alives;
+  TSet<VReg> free_regs;
+  TMap<fir::ValueR, VReg> mapping;
+  TMap<fir::IRLocation, TVec<VReg>> additional_alives;
 
 public:
   VReg get_new_register(fir::ValueR, optim::LiveVariables &);

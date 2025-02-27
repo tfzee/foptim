@@ -64,9 +64,9 @@ public:
   T *allocate(size_t count) {
     auto ptr = (T *)arena_alloc(&ir_arena, count * sizeof(T));
     temp_ir_size += count * sizeof(T);
-    TracyPlot("IRAlloc", (foptim::i64)temp_ir_size);
+    // TracyPlot("IRAlloc", (foptim::i64)temp_ir_size);
     TracyAllocNS(ptr, sizeof(T) * count, 10, "IRAlloc");
-    TracyMessage(typeid(T).name(), strlen(typeid(T).name()));
+    // TracyMessage(typeid(T).name(), strlen(typeid(T).name()));
     return ptr;
   }
 

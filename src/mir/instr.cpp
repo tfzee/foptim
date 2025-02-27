@@ -99,7 +99,7 @@ const char *getNameFromOpcode(Opcode code) {
 }
 #undef ReturnString
 
-TVec<MArgument> written_args(const MInstr &instr) {
+void written_args(const MInstr &instr, TVec<MArgument> &out) {
   switch (instr.op) {
   case Opcode::cmov:
   case Opcode::mov_zx:
@@ -156,9 +156,12 @@ TVec<MArgument> written_args(const MInstr &instr) {
   case Opcode::fcmp_ult:
   case Opcode::fcmp_ule:
   case Opcode::fcmp_une:
-    return {instr.args[0]};
+    out.push_back(instr.args[0]);
+    return;
   case Opcode::idiv:
-    return {instr.args[0], instr.args[1]};
+    out.push_back(instr.args[0]);
+    out.push_back(instr.args[1]);
+    return;
   case Opcode::call:
   case Opcode::push:
   case Opcode::cjmp_int_slt:
@@ -188,34 +191,34 @@ TVec<MArgument> written_args(const MInstr &instr) {
   case Opcode::cjmp:
   case Opcode::jmp:
   case Opcode::ret:
-    return {};
+    return;
   case Opcode::arg_setup:
   case Opcode::invoke:
     if (instr.n_args > 1) {
-      return {instr.args[1]};
-    } else {
-      return {};
+      out.push_back(instr.args[1]);
     }
+    return;
   }
 }
 
-TVec<MArgument> read_args(const MInstr &instr) {
+// TODO: could also return len and take a Margument[4] as arg
+void read_args(const MInstr &instr, TVec<MArgument> &out) {
   switch (instr.op) {
   case Opcode::pop:
   case Opcode::jmp:
-    return {};
+    return;
   case Opcode::ret:
     if (instr.n_args > 0) {
-      return {instr.args[0]};
-    } else {
-      return {};
+      out.push_back(instr.args[0]);
     }
+    return;
   case Opcode::call:
   case Opcode::invoke:
   case Opcode::push:
   case Opcode::cjmp:
   case Opcode::arg_setup:
-    return {instr.args[0]};
+    out.push_back(instr.args[0]);
+    return;
   case Opcode::mov_zx:
   case Opcode::mov_sx:
   case Opcode::mov:
@@ -225,7 +228,8 @@ TVec<MArgument> read_args(const MInstr &instr) {
   case Opcode::UI2FL:
   case Opcode::FL2SI:
   case Opcode::FL2UI:
-    return {instr.args[1]};
+    out.push_back(instr.args[1]);
+    return;
   case Opcode::shl2:
   case Opcode::shr2:
   case Opcode::sar2:
@@ -259,7 +263,9 @@ TVec<MArgument> read_args(const MInstr &instr) {
   case Opcode::cjmp_flt_ult:
   case Opcode::cjmp_flt_ule:
   case Opcode::cjmp_flt_une:
-    return {instr.args[0], instr.args[1]};
+    out.push_back(instr.args[0]);
+    out.push_back(instr.args[1]);
+    return;
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:
@@ -292,14 +298,21 @@ TVec<MArgument> read_args(const MInstr &instr) {
   case Opcode::fcmp_ult:
   case Opcode::fcmp_ule:
   case Opcode::fcmp_une:
-    return {instr.args[1], instr.args[2]};
+    out.push_back(instr.args[1]);
+    out.push_back(instr.args[2]);
+    return;
   case Opcode::cmov:
   case Opcode::ffmadd132:
   case Opcode::ffmadd213:
   case Opcode::ffmadd231:
-    return {instr.args[0], instr.args[1], instr.args[2]};
+    out.push_back(instr.args[0]);
+    out.push_back(instr.args[1]);
+    out.push_back(instr.args[2]);
+    return;
   case Opcode::idiv:
-    return {instr.args[2], instr.args[3]};
+    out.push_back(instr.args[2]);
+    out.push_back(instr.args[3]);
+    return;
   }
 }
 
@@ -309,7 +322,7 @@ fmt::appender
 fmt::formatter<foptim::fmir::MFunc>::format(foptim::fmir::MFunc const &func,
                                             format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, "func {}<", func.name.c_str());
+  app = fmt::format_to(app, "func {}<", func.name);
   const auto &attribs = func.get_attribs();
   for (auto [key, value] : attribs) {
     app = fmt::format_to(app, "{}{}, ", key.c_str(), value);
@@ -376,13 +389,15 @@ fmt::formatter<foptim::fmir::MInstr>::format(foptim::fmir::MInstr const &v,
 }
 fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
     foptim::fmir::MArgument const &value, format_context &ctx) const {
-  
+
   auto app = ctx.out();
   switch (value.type) {
   case foptim::fmir::MArgument::ArgumentType::MemLabel:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{}]: {}", value.label, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{}]: {}", value.label,
+                          value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]: {}", value.label, value.imm, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]: {}",
+                          value.label, value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::Label:
     return fmt::format_to(app, fg(fmt::color::blue), "{}", value.label);
   case foptim::fmir::MArgument::ArgumentType::Imm: {
@@ -391,33 +406,46 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
     } else if (value.ty == foptim::fmir::Type::Float64) {
       return fmt::format_to(app, fg(fmt::color::blue), "{}d", value.immf);
     } else {
-      return fmt::format_to(app, fg(fmt::color::blue), "{}:{}", value.imm, value.ty);
+      return fmt::format_to(app, fg(fmt::color::blue), "{}:{}", value.imm,
+                            value.ty);
     }
   }
   case foptim::fmir::MArgument::ArgumentType::VReg:
-    return fmt::format_to(app, fg(fmt::color::blue), "{}:{}", value.reg, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "{}:{}", value.reg,
+                          value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemVReg:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{}]:{}", value.reg, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{}]:{}", value.reg,
+                          value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]:{}", value.reg, value.indx, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]:{}", value.reg,
+                          value.indx, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImm:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{}]:{}", value.imm, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{}]:{}", value.imm,
+                          value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]:{}", value.reg, value.imm, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}]:{}", value.reg,
+                          value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {} + {}]:{}", value.reg, value.indx, value.imm, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {} + {}]:{}",
+                          value.reg, value.indx, value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{}*{} + {}]:{}", value.indx, value.scale, value.imm, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{}*{} + {}]:{}",
+                          value.indx, value.scale, value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}*{}]:{}", value.reg, value.indx, value.scale, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}*{}]:{}",
+                          value.reg, value.indx, value.scale, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}*{} + {}]:{}", value.reg, value.indx, value.scale, value.imm, value.ty);
+    return fmt::format_to(app, fg(fmt::color::blue), "[{} + {}*{} + {}]:{}",
+                          value.reg, value.indx, value.scale, value.imm,
+                          value.ty);
   }
 }
 
-fmt::appender fmt::formatter<foptim::fmir::Type>::format(foptim::fmir::Type const &v, format_context &ctx) const{
+fmt::appender
+fmt::formatter<foptim::fmir::Type>::format(foptim::fmir::Type const &v,
+                                           format_context &ctx) const {
   auto app = ctx.out();
-  switch(v){
+  switch (v) {
   case foptim::fmir::Type::INVALID:
     return fmt::format_to(app, "INVALID");
   case foptim::fmir::Type::Int8:
@@ -432,14 +460,13 @@ fmt::appender fmt::formatter<foptim::fmir::Type>::format(foptim::fmir::Type cons
     return fmt::format_to(app, "f32");
   case foptim::fmir::Type::Float64:
     return fmt::format_to(app, "f64");
-  }  
+  }
 }
-
 
 fmt::appender
 fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
                                            format_context &ctx) const {
-  
+
   using foptim::fmir::VRegType;
   auto app = ctx.out();
 
@@ -588,43 +615,45 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
     case VRegType::mm13:
     case VRegType::mm14:
     case VRegType::mm15:
-      return fmt::format_to(app, "$mm{}", ((foptim::u8)value.info.ty - (foptim::u8)VRegType::mm0));
+      return fmt::format_to(
+          app, "$mm{}",
+          ((foptim::u8)value.info.ty - (foptim::u8)VRegType::mm0));
     default:
     }
   } else if (value.info.reg_size == 8) {
     switch (value.info.ty) {
     case VRegType::A:
-      return fmt::format_to(app,  "$rax");
+      return fmt::format_to(app, "$rax");
     case VRegType::SP:
-      return fmt::format_to(app,  "$rsp");
+      return fmt::format_to(app, "$rsp");
     case VRegType::B:
-      return fmt::format_to(app,  "$rbx");
+      return fmt::format_to(app, "$rbx");
     case VRegType::C:
-      return fmt::format_to(app,  "$rcx");
+      return fmt::format_to(app, "$rcx");
     case VRegType::D:
-      return fmt::format_to(app,  "$rdx");
+      return fmt::format_to(app, "$rdx");
     case VRegType::DI:
-      return fmt::format_to(app,  "$rdi");
+      return fmt::format_to(app, "$rdi");
     case VRegType::SI:
-      return fmt::format_to(app,  "$rsi");
+      return fmt::format_to(app, "$rsi");
     case VRegType::BP:
-      return fmt::format_to(app,  "$rbp");
+      return fmt::format_to(app, "$rbp");
     case VRegType::R8:
-      return fmt::format_to(app,  "$r8");
+      return fmt::format_to(app, "$r8");
     case VRegType::R9:
-      return fmt::format_to(app,  "$r9");
+      return fmt::format_to(app, "$r9");
     case VRegType::R10:
-      return fmt::format_to(app,  "$r10");
+      return fmt::format_to(app, "$r10");
     case VRegType::R11:
-      return fmt::format_to(app,  "$r11");
+      return fmt::format_to(app, "$r11");
     case VRegType::R12:
-      return fmt::format_to(app,  "$r12");
+      return fmt::format_to(app, "$r12");
     case VRegType::R13:
-      return fmt::format_to(app,  "$r13");
+      return fmt::format_to(app, "$r13");
     case VRegType::R14:
-      return fmt::format_to(app,  "$r14");
+      return fmt::format_to(app, "$r14");
     case VRegType::R15:
-      return fmt::format_to(app,  "$r15");
+      return fmt::format_to(app, "$r15");
     case VRegType::mm0:
     case VRegType::mm1:
     case VRegType::mm2:
@@ -641,7 +670,9 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
     case VRegType::mm13:
     case VRegType::mm14:
     case VRegType::mm15:
-      return fmt::format_to(app, "$mm{}", ((foptim::u8)value.info.ty - (foptim::u8)VRegType::mm0));
+      return fmt::format_to(
+          app, "$mm{}",
+          ((foptim::u8)value.info.ty - (foptim::u8)VRegType::mm0));
     default:
     }
   }
