@@ -1,51 +1,75 @@
-#include <iostream>
-#define N 400
+// RUN: clang++ -O0 %s -o %t.ll -S -emit-llvm
+// RUN: %foffcc %t.ll %t.o
+// RUN: clang %t.o -o %t.out
+// RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
+// RUN: echo $result | FileCheck %s
 
-void LUdecomposition(float a[N][N], float l[N][N], float u[N][N], int n) {
-  for (int i = 0; i < n; i++) {
-    for (int j = 0; j < n; j++) {
-      if (j < i)
-        l[j][i] = 0;
-      else {
-        l[j][i] = a[j][i];
-        for (int k = 0; k < i; k++) {
-          l[j][i] = l[j][i] - l[j][k] * u[k][i];
+// CHECK: Result:191
+// innerIterations == 750   result == 50
+// innerIterations == 500   result == 191
+// innerIterations == 100   result == 239
+// innerIterations == 50   result == 15
+// innerIterations == 10   result == 127
+// innerIterations == 2   result == 192
+// innerIterations == 1   result == 128
+
+static int mandelbrot(int size) {
+  int sum = 0;
+  int byteAcc = 0;
+  int bitNum = 0;
+
+  int y = 0;
+
+  while (y < size) {
+    double ci = (2.0 * y / size) - 1.0;
+    int x = 0;
+
+    while (x < size) {
+      double zr = 0.0;
+      double zrzr = 0.0;
+      double zi = 0.0;
+      double zizi = 0.0;
+      double cr = (2.0 * x / size) - 1.5;
+
+      int z = 0;
+      bool notDone = true;
+      int escape = 0;
+      while (notDone && z < 50) {
+        zr = zrzr - zizi + cr;
+        zi = 2.0 * zr * zi + ci;
+
+        // preserve recalculation
+        zrzr = zr * zr;
+        zizi = zi * zi;
+
+        if (zrzr + zizi > 4.0) {
+          notDone = false;
+          escape = 1;
         }
+        z += 1;
       }
-    }
-    for (int j = 0; j < n; j++) {
-      if (j < i)
-        u[i][j] = 0;
-      else if (j == i)
-        u[i][j] = 1;
-      else {
-        u[i][j] = a[i][j] / l[i][i];
-        for (int k = 0; k < i; k++) {
-          u[i][j] = u[i][j] - ((l[i][k] * u[k][j]) / l[i][i]);
-        }
+
+      byteAcc = (byteAcc << 1) + escape;
+      bitNum += 1;
+
+      if (bitNum == 8) {
+        sum ^= byteAcc;
+        byteAcc = 0;
+        bitNum = 0;
+      } else if (x == size - 1) {
+        byteAcc <<= (8 - bitNum);
+        sum ^= byteAcc;
+        byteAcc = 0;
+        bitNum = 0;
       }
+      x += 1;
     }
+    y += 1;
   }
+  return sum;
 }
 
 int main() {
-  float a[N][N];
-  float l[N][N];
-  float u[N][N];
-
-  for (int i = 0; i < N; i++) {
-    for (int j = 0; j < N; j++) {
-      a[i][j] = (i % 5 + j % 7) / 6.F - 1.F;
-    }
-  }
-  LUdecomposition(a, l, u, N);
-
-  for (int i = 0; i < 10; i++) {
-    for (int j = 0; j < 10; j++) {
-      std::cout << l[i][j] << " ";
-      std::cout << u[j][N - 1 - i] << " ";
-    }
-  }
-  std::cout << std::endl;
-  return 0;
+  const int innerIterations = 1000;
+  return mandelbrot(innerIterations);
 }

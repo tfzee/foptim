@@ -167,10 +167,9 @@ void apply_func(MFunc &func) {
         }
       }
       if (!found) {
-        TODO("REIMPL");
-        // fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
-        // fmt::println("{} Size:: {} IS fp: {}", reg, reg.info.reg_size,
-        //              reg.info.reg_class == VRegClass::Float);
+        fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
+        fmt::println("{} Size:: {} IS fp: {}", reg, reg.info.reg_size,
+                     reg.info.reg_class == VRegClass::Float);
         TODO("spill it ?");
         ASSERT(false);
       }

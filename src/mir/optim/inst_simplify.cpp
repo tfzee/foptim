@@ -50,6 +50,28 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   return false;
 }
 
+static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
+  if (instr_id + 3 < instrs.size() && instrs[instr_id + 0].op == Opcode::mov &&
+      (instrs[instr_id + 1].op == Opcode::add2 ||
+       instrs[instr_id + 1].op == Opcode::sub2) &&
+      instrs[instr_id + 2].op == Opcode::mov) {
+    auto &i1 = instrs[instr_id + 0];
+    auto &i2 = instrs[instr_id + 1];
+    auto &i3 = instrs[instr_id + 2];
+    // x = y
+    // x +=
+    // y = x
+    if (i1.args[0] == i2.args[0] && i1.args[0] == i3.args[1] &&
+        i1.args[1] == i3.args[0] && i1.args[0] != i1.args[1] &&
+        i2.args[1].isImm()) {
+      i3.op = i2.op;
+      i3.args[1] = i2.args[1];
+      return false;
+    }
+  }
+  return false;
+}
+
 void InstSimplify::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("InstSimplify");
   for (auto &func : funcs) {
@@ -57,6 +79,29 @@ void InstSimplify::apply(FVec<MFunc> &funcs) {
       for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
         if (simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
           instr_id--;
+          continue;
+        }
+        // if (multi_simplify(bb.instrs, instr_id)) {
+        //   instr_id--;
+        //   continue;
+        // }
+      }
+    }
+  }
+}
+
+void InstSimplify::early_apply(FVec<MFunc> &funcs) {
+  ZoneScopedN("InstSimplifyEarly");
+  for (auto &func : funcs) {
+    for (auto &bb : func.bbs) {
+      for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
+        // if (early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
+        //   instr_id--;
+        //   continue;
+        // }
+        if (early_multi_simplify(bb.instrs, instr_id)) {
+          instr_id--;
+          continue;
         }
       }
     }

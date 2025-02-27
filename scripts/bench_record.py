@@ -1,11 +1,12 @@
 import os
 
-collect_compiletimes = True
+collect_compiletimes = False
 tests_to_record = []
 # tests_to_record = ["matmul.cpp", "prime_sieve.c", "fib.c", "mandelbrot.cpp", "lu_decomp.cpp"]
 
 if __name__ == "__main__":
-    out_dir = "../build/test/Output"
+    out_dir = "../build"
+    res_dir = "../bench/Output"
 
     benches = [benchy for benchy in os.listdir("../bench/") if(benchy.endswith(".c") or benchy.endswith(".cpp"))]
     if(len(tests_to_record) != 0):
@@ -15,7 +16,7 @@ if __name__ == "__main__":
     
    
     if collect_compiletimes:
-        compile_command = f"hyperfine -N --export-csv={out_dir}/compile.csv"
+        compile_command = f"hyperfine -N --export-csv={res_dir}/compile.csv"
         for benchy in benches:
             clang_command = f"clang{'++' if benchy.endswith(".cpp") else ''} -O0 -Xclang -disable-O0-optnone {clang_options} ../bench/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
             os.system(clang_command)
@@ -46,7 +47,7 @@ if __name__ == "__main__":
 
     # print(hyperfine_compile_command)
 
-    hyperfine_run_command = f"hyperfine -i -N --export-csv={out_dir}/perf.csv"
+    hyperfine_run_command = f"hyperfine -i -N --export-csv={res_dir}/perf.csv"
     for benchy in benches:
         link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
         os.system(link_command)

@@ -1109,7 +1109,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    // fmt::println("{}", func);
+    fmt::println("{}", func);
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;

@@ -183,7 +183,6 @@ inline void convert_gep(const llvm::Instruction *any_instr,
   auto *indexed_type = llvm::GetElementPtrInst::getIndexedType(
       gep_instr->getSourceElementType(), args);
 
-  llvm::errs() << "geppy " << *gep_instr << "\n";
   if (indexed_type->isStructTy() || indexed_type->isArrayTy()) {
     ASSERT(gep_instr->getNumIndices() >= 1);
     { // first the index into the struct*

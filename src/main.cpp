@@ -122,11 +122,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  // fmt::println("================OPTIMEND====================");
-
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   fmt::println("{}", func);
-  // }
+  fmt::println("================OPTIMEND====================");
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    fmt::println("{}", func);
+  }
   ASSERT(ctx->verify());
 
   // {
@@ -192,6 +191,8 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   (void)globals;
 
   ZoneScopedN("MIR Optim");
+  foptim::fmir::InstSimplify{}.early_apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.first_stage(funcs);
@@ -205,6 +206,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  for (auto &f : funcs) {
+    fmt::println("{}", f);
+  }
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
 }
