@@ -129,7 +129,7 @@ static void save_locals(IRVec<MInstr> &instrs,
         continue;
       }
     }
-    if (!is_alive(VReg{reg_ty}, lives, start, end, bb_id) ||
+    if (!is_alive(VReg{reg_ty}, lives, end, end, bb_id) ||
         reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }
@@ -180,7 +180,7 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
   for (auto reg_ty : caller_saved) {
     bool skip_a = reg_ty == VRegType::A && can_skip_a;
     bool skip_mm0 = reg_ty == VRegType::mm0 && can_skip_mm0;
-    if (!is_alive(VReg{reg_ty}, lives, start, end, bb_id) || skip_a ||
+    if (!is_alive(VReg{reg_ty}, lives, end, end, bb_id) || skip_a ||
         skip_mm0 || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }

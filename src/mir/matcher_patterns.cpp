@@ -1263,18 +1263,33 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_type = call_instr.get_type();
         if (res_type->is_void() || call_instr->get_n_uses() == 0) {
           res.result.emplace_back(Opcode::invoke, calee);
-        } else if (res_type->is_int() || res_type->is_ptr()) {
-          auto res_reg =
-              valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(Opcode::invoke, calee, res_reg);
-        } else if (res_type->is_float()) {
-          auto res_reg =
-              valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(Opcode::invoke, calee, res_reg);
-        } else {
-          ASSERT_M(false, "impl ret value");
+          return true;
         }
-        return true;
+        if (res_type->is_int() || res_type->is_ptr()) {
+          auto res_reg =
+              valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
+          if (get_size(res_reg.ty) == 8) {
+            auto ax_reg = data.alloc.get_new_register(VRegInfo::RAX());
+            auto ax_arg = MArgument{ax_reg, res_reg.ty};
+            res.result.emplace_back(Opcode::invoke, calee, ax_arg);
+            res.result.emplace_back(Opcode::mov, res_reg, ax_arg);
+          } else if (get_size(res_reg.ty) <= 4) {
+            auto ax_reg = data.alloc.get_new_register(VRegInfo::EAX());
+            auto ax_arg = MArgument{ax_reg, res_reg.ty};
+            res.result.emplace_back(Opcode::invoke, calee, ax_arg);
+            res.result.emplace_back(Opcode::mov, res_reg, ax_arg);
+          } else {
+            res.result.emplace_back(Opcode::invoke, calee, res_reg);
+          }
+          return true;
+        }
+        if (res_type->is_float()) {
+          auto res_reg =
+              valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
+          res.result.emplace_back(Opcode::invoke, calee, res_reg);
+          return true;
+        }
+        TODO("impl ret value");
       }});
   pats.push_back(Pattern{
       {FloatAddNode}, {}, [](MatchResult &res, ExtraMatchData &data) {

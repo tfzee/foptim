@@ -51,7 +51,6 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
 }
 
 static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
-  fmt::println("{}", instrs[instr_id]);
   if (instr_id + 2 < instrs.size() && instrs[instr_id + 0].op == Opcode::mov &&
       (instrs[instr_id + 1].op == Opcode::add2 ||
        instrs[instr_id + 1].op == Opcode::sub2) &&
