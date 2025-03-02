@@ -5,6 +5,7 @@
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/calling_conv.hpp"
+#include "mir/optim/copy_prop.hpp"
 #include "mir/optim/dce.hpp"
 #include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/legalization.hpp"
@@ -96,11 +97,18 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-  // ASSERT(ctx->verify());
-  // fmt::print("================INIT====================\n");
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   fmt::print("{}\n", func);
-  // }
+  fmt::print("================INIT====================\n");
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    fmt::print("{}\n", func);
+  }
+
+  foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
+  fmt::print("================KNOWNBITS====================\n");
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    fmt::print("{}\n", func);
+  }
+  ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
@@ -108,7 +116,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
   ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
@@ -191,21 +198,23 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   (void)globals;
   ZoneScopedN("MIR Optim");
   fmt::print("================MIR OPTIM====================\n");
-  //running dead to make inst simplify work better
+  // running dead to make inst simplify work better
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::LocalCopyPropagation{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
-  // TODO("okak");
   foptim::fmir::RegisterJoining{}.apply(funcs);
+  // fmt::print("================REGJOIN====================\n");
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
@@ -215,6 +224,8 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  fmt::print("================MIR END====================\n");
+  // TODO("okak");
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

@@ -58,7 +58,7 @@ static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
     auto &i1 = instrs[instr_id + 0];
     auto &i2 = instrs[instr_id + 1];
     auto &i3 = instrs[instr_id + 2];
-    fmt::println("   Matching? {} {} {}", i1, i2, i3);
+    // fmt::println("   Matching? {} {} {}", i1, i2, i3);
     // x = y
     // x += _
     // y = x
