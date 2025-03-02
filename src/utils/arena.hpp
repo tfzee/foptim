@@ -32,9 +32,12 @@ extern unsigned long temp_ir_size;
 
 namespace foptim::utils {
 
-template <class T> class TempAlloc : public std::allocator<T> {
+template <class T> class TempAlloc {
 public:
+  using value_type = T;
   using pointer = T *;
+  consteval TempAlloc() noexcept = default;
+  template <class U> constexpr TempAlloc(const TempAlloc<U> &) noexcept {}
 
   T *allocate(size_t count) {
     auto ptr = (T *)arena_alloc(&global_temp_arena, count * sizeof(T));
@@ -55,11 +58,17 @@ public:
     arena_free(&global_temp_arena);
     // TODO: tracy free pool
   }
+  template <typename U> struct rebind {
+    using other = TempAlloc<U>;
+  };
 };
 
-template <class T> class IRAlloc : public std::allocator<T> {
+template <class T> class IRAlloc {
 public:
+  using value_type = T;
   using pointer = T *;
+  consteval IRAlloc() noexcept = default;
+  template <class U> constexpr IRAlloc(const IRAlloc<U> &) noexcept {}
 
   T *allocate(size_t count) {
     auto ptr = (T *)arena_alloc(&ir_arena, count * sizeof(T));
@@ -79,6 +88,28 @@ public:
     // TODO: tracy free pool
   }
   static void free() { arena_free(&ir_arena); }
+
+  template <typename U> struct rebind {
+    using other = IRAlloc<U>;
+  };
 };
 
+template <class T, class U>
+constexpr bool operator==(const IRAlloc<T> &, const IRAlloc<U> &) noexcept {
+  return true;
+}
+template <class T, class U>
+constexpr bool operator!=(const IRAlloc<T> &, const IRAlloc<U> &) noexcept {
+  return false;
+}
+
+template <class T, class U>
+constexpr bool operator==(const TempAlloc<T> &, const TempAlloc<U> &) noexcept {
+  return true;
+}
+
+template <class T, class U>
+constexpr bool operator!=(const TempAlloc<T> &, const TempAlloc<U> &) noexcept {
+  return false;
+}
 } // namespace foptim::utils

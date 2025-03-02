@@ -37,7 +37,7 @@ BBArgument BasicBlock::add_arg(BBArgument arg) {
 
 fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
     foptim::fir::BasicBlock const &bb, format_context &ctx) const {
-  fmt::format_to(ctx.out(), "  {:p}(", (void *)bb.get_raw_ptr());
+  fmt::format_to(ctx.out(), "{:p}(", (void *)bb.get_raw_ptr());
   const auto &args = bb->args;
   if (args.size() > 0) {
     fmt::format_to(ctx.out(), "{}: {}", args[0], args[0]->get_type());
@@ -64,7 +64,7 @@ fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
 
   fmt::format_to(ctx.out(), "):\n");
   for (foptim::fir::Instr instr : bb->get_instrs()) {
-    fmt::format_to(ctx.out(), "{}", instr);
+    fmt::format_to(ctx.out(), "    {}", instr);
   }
   return ctx.out();
 }

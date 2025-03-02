@@ -2,20 +2,24 @@
 #include "value.hpp"
 
 namespace foptim::fir {
+void Use::replace_use(ValueR new_value) {
+  switch (type) {
+  case UseType::NormalArg:
+    user.replace_arg(argId, new_value);
+    break;
+  case UseType::BBArg:
+    user.replace_bb_arg(argId, bbArgId, new_value);
+    break;
+  case UseType::BB:
+    user.replace_bb(argId, new_value.as_bb());
+    break;
+  }
+}
+
 void Used::replace_all_uses(ValueR new_value) {
   auto uses_copy = uses;
   for (Use &u : uses_copy) {
-    switch (u.type) {
-    case UseType::NormalArg:
-      u.user.replace_arg(u.argId, new_value);
-      break;
-    case UseType::BBArg:
-      u.user.replace_bb_arg(u.argId, u.bbArgId, new_value);
-      break;
-    case UseType::BB:
-      u.user.replace_bb(u.argId, new_value.as_bb());
-      break;
-    }
+    u.replace_use(new_value);
   }
   uses.clear();
 }

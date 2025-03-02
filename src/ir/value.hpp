@@ -28,7 +28,7 @@ public:
   [[nodiscard]] const IRVec<Use> *get_uses() const;
   [[nodiscard]] TypeR get_type() const;
 
-  ValueR() : origin(InvalidValue{}) {}
+  consteval ValueR() : origin(InvalidValue{}) {}
   explicit ValueR(ConstantValueR v) : origin(v) {}
   explicit ValueR(Instr v) : origin(v) {}
   explicit ValueR(BasicBlock v) : origin(v) {}
@@ -36,62 +36,62 @@ public:
 
   [[nodiscard]] bool eql(const ValueR &other) const;
 
-  bool operator==(const ValueR &other) const { return this->eql(other); }
+  [[nodiscard]] bool operator==(const ValueR &other) const;
 
-  [[nodiscard]] bool is_constant() const {
+  [[nodiscard]] constexpr bool is_constant() const {
     return std::holds_alternative<ConstantValueR>(origin);
   }
-  [[nodiscard]] bool is_instr() const {
+  [[nodiscard]] constexpr bool is_instr() const {
     return std::holds_alternative<Instr>(origin);
   }
-  [[nodiscard]] bool is_bb() const {
+  [[nodiscard]] constexpr bool is_bb() const {
     return std::holds_alternative<BasicBlock>(origin);
   }
-  [[nodiscard]] bool is_bb_arg() const {
+  [[nodiscard]] constexpr bool is_bb_arg() const {
     return std::holds_alternative<BBArgument>(origin);
   }
-  [[nodiscard]] bool is_invalid() const {
+  [[nodiscard]] constexpr bool is_invalid() const {
     return std::holds_alternative<InvalidValue>(origin);
   }
 
   [[nodiscard]] bool is_valid(bool check_refs) const;
 
-  [[nodiscard]] Instr as_instr() const {
+  [[nodiscard]] constexpr Instr as_instr() const {
     if (const auto *res = std::get_if<Instr>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  [[nodiscard]] BasicBlock as_bb() const {
+  [[nodiscard]] constexpr BasicBlock as_bb() const {
     if (const auto *res = std::get_if<BasicBlock>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  [[nodiscard]] ConstantValueR as_constant() const {
+  [[nodiscard]] constexpr ConstantValueR as_constant() const {
     if (const auto *res = std::get_if<ConstantValueR>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  [[nodiscard]] BBArgument as_bb_arg() const {
+  [[nodiscard]] constexpr BBArgument as_bb_arg() const {
     if (const auto *res = std::get_if<BBArgument>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  Instr as_instr() {
+  [[nodiscard]] Instr constexpr as_instr() {
     if (auto *res = std::get_if<Instr>(&origin)) {
       return *res;
     }
     std::abort();
   }
 
-  [[nodiscard]] const Ty &get_raw() const { return origin; }
+  [[nodiscard]] constexpr const Ty &get_raw() const { return origin; }
 };
 
 } // namespace foptim::fir

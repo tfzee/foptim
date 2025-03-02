@@ -34,6 +34,8 @@ bool ValueR::is_valid(bool check_refs) const {
   return true;
 }
 
+bool ValueR::operator==(const ValueR &other) const { return this->eql(other); }
+
 bool ValueR::eql(const ValueR &other) const {
   if (origin.index() != other.origin.index()) {
     return false;
@@ -156,7 +158,7 @@ fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
   }
   if (const auto *v = std::get_if<foptim::fir::Instr>(&k.get_raw())) {
     return fmt::format_to(ctx.out(), fg(fmt::color::light_green), "{:p}",
-                          (void*)v->get_raw_ptr());
+                          (void *)v->get_raw_ptr());
   }
   if (const auto *v = std::get_if<foptim::fir::BBArgument>(&k.get_raw())) {
     return fmt::format_to(ctx.out(), "{}", *v);

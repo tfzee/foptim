@@ -4,13 +4,12 @@ project(foptim
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
 set(CMAKE_CXX_STANDARD 23)
 
+
+set(CMAKE_CXX_COMPILER "clang++")
+set(CMAKE_C_COMPILER "clang")
+
+
 include(FetchContent)
-# set(CMAKE_CXX_CLANG_TIDY
-#   clang-tidy;
-#   -format-style='LLVM';
-#   -checks=;
-#   -header-filter=${CMAKE_CURRENT_SOURCE_DIR};
-# )
 
 ################################################
 #llvm
