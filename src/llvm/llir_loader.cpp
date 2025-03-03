@@ -1250,7 +1250,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
     module = llvm::parseIRFile(filename, error, context);
   }
   if (module) {
-    // module->dump();
+    module->dump();
     convert(*module, fctx);
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "

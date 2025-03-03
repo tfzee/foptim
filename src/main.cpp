@@ -91,11 +91,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<InstSimplify, SimplifyCFG, DCE>{}
+      .apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
+      .apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   fmt::print("================INIT====================\n");
   for (const auto &[_, func] : ctx.data->storage.functions) {
@@ -114,15 +113,13 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   // foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<SimplifyCFG, InstSimplify>{}.apply(
+      ctx);
   ASSERT(ctx->verify());
 
-  foptim::optim::StaticFunctionPassManager<LVN>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LVN, SCCP, DCE>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<SimplifyCFG, InstSimplify>{}.apply(
+      ctx);
   ASSERT(ctx->verify());
 
   // ensure no constants math left

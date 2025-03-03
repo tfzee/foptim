@@ -39,13 +39,14 @@ public:
     return instructions.back();
   }
 
-  void set_terminator(Instr newTerm) {
-    if (instructions.empty()) {
-      instructions.push_back(newTerm);
-    } else {
-      instructions.back() = newTerm;
-    }
-  }
+  // // NOTE: prob shouldnt use this since it doesnt update shit
+  // void set_terminator(Instr newTerm) {
+  //   if (instructions.empty()) {
+  //     instructions.push_back(newTerm);
+  //   } else {
+  //     instructions.back() = newTerm;
+  //   }
+  // }
 
   auto &get_args() { return args; }
 };

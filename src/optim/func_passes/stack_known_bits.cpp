@@ -2,8 +2,9 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
-#include "mir/instr.hpp"
+#include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
+#include <deque>
 #include <llvm/ADT/STLExtras.h>
 #include <map>
 #include <unistd.h>
@@ -258,7 +259,8 @@ void StackKnownBits::execute_sroa(TVec<fir::Instr> &load_stores,
   for (auto &[off, res] : acceses) {
     // now insert new alloca for each var
     // and then replace all uses to this new alloca
-    // fmt::println("{} N:{} T:{}@{}", off, res.associated_values.size(), res.type,
+    // fmt::println("{} N:{} T:{}@{}", off, res.associated_values.size(),
+    // res.type,
     //              res.size);
     if (!res.type.is_valid()) {
       continue;
@@ -316,7 +318,8 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
           if (!cache.contains(arg)) {
             cache.insert({arg, {sub_result, sub_offset}});
           }
-          if (sub_result == UnknownLocal || sub_result == KnownLocal) {
+          if (sub_result == StackOffsetResult::UnknownLocal ||
+              sub_result == StackOffsetResult::KnownLocal) {
             return StackOffsetResult::UnknownLocal;
           }
         }
@@ -343,10 +346,10 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
         }
         offset_index = 0;
       }
-      if (sub_result == UnknownLocal) {
+      if (sub_result == StackOffsetResult::UnknownLocal) {
         return StackOffsetResult::UnknownLocal;
       }
-      if (sub_result == KnownLocal) {
+      if (sub_result == StackOffsetResult::KnownLocal) {
         if (ptr_instr->args[offset_index].is_constant() &&
             ptr_instr->args[offset_index].as_constant()->is_int()) {
           auto value = ptr_instr->args[offset_index].as_constant()->as_int();
@@ -365,7 +368,32 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
     }
     if (ptr_instr->is(fir::InstrType::Conversion) &&
         (ConversionSubType)ptr_instr->subtype == ConversionSubType::IntToPtr) {
-      return UnknownLocal;
+      return StackOffsetResult::UnknownLocal;
+    }
+    if (ptr_instr->is(fir::InstrType::SelectInstr)) {
+      u64 sub0_offset = 0;
+      auto sub0_result =
+          get_stack_offset(sub0_offset, ptr_instr->args[1], cache);
+      if (!cache.contains(ptr_instr->args[1])) {
+        cache.insert({ptr_instr->args[1], {sub0_result, sub0_offset}});
+      }
+      u64 sub1_offset = 0;
+      auto sub1_result =
+          get_stack_offset(sub1_offset, ptr_instr->args[2], cache);
+      if (!cache.contains(ptr_instr->args[2])) {
+        cache.insert({ptr_instr->args[2], {sub1_result, sub1_offset}});
+      }
+      if (sub0_result == StackOffsetResult::KnownNonLocal &&
+          sub1_result == StackOffsetResult::KnownNonLocal) {
+        return StackOffsetResult::KnownNonLocal;
+      }
+      if (sub0_result == StackOffsetResult::KnownLocal &&
+          sub1_result == StackOffsetResult::KnownLocal &&
+          sub0_offset == sub1_offset) {
+        offset += sub0_offset;
+        return StackOffsetResult::KnownLocal;
+      }
+      return StackOffsetResult::UnknownLocal;
     }
     fmt::println("{}", ptr_instr);
   }
@@ -388,7 +416,8 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
         failure({"Failed cause of dynamic alloca", instr});
         return;
       }
-      cache.insert({fir::ValueR{instr}, {KnownLocal, stack_size}});
+      cache.insert(
+          {fir::ValueR{instr}, {StackOffsetResult::KnownLocal, stack_size}});
       stack_size += a1.as_constant()->as_int() * 8;
     }
   }

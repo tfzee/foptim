@@ -21,11 +21,12 @@ public:
     Dominators dom{cfg};
     LoopInfoAnalysis linfo{dom};
 
-    for (LoopInfo &loop : linfo.info) {
-      if (apply(ctx, cfg, loop) && linfo.info.size() > 1) {
+    for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
+      if (apply(ctx, cfg, *loop) && linfo.info.size() > 1) {
         cfg.update(func, false);
         dom.update(cfg);
         linfo.update(dom);
+        loop = linfo.info.begin();
       }
     }
   }
@@ -138,7 +139,27 @@ public:
         if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
                       user_bb_id) == linfo.body_nodes.end()) {
 
-          failure({"Cannot handle loop rotate on loop whose header arguments "
+          // insert an empty forwarding bb from the header to the first body
+          // element without bb_args
+          // auto old_header = cfg.bbrs[linfo.head].bb;
+          // auto bb = fir::Builder(old_header);
+          // auto old_terminator = old_header->get_terminator();
+
+          // ASSERT(old_terminator->is(fir::InstrType::CondBranchInstr));
+
+          // auto new_header = bb.append_bb();
+          // bb.at_end(new_header);
+          // bb.insert_copy(old_terminator);
+
+          // bb.at_end(old_header);
+          // bb.build_branch(new_header);
+          // old_terminator.remove_from_parent();
+          // fmt::println("{}", *old_header->get_parent().func);
+          // TODO("okak");
+
+          // return true;
+
+          failure({"Cannot handle loop rotate on loop whose header arguments"
                    "are used after the loop",
                    {use.user}});
           return false;

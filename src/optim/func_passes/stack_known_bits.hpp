@@ -1,15 +1,11 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
-#include "ir/instruction_data.hpp"
-#include "optim/analysis/cfg.hpp"
 #include "utils/bitset.hpp"
-#include "utils/logging.hpp"
-#include <deque>
 
 namespace foptim::optim {
 
-enum StackOffsetResult {
+enum class StackOffsetResult {
   // could write anywhere on stack
   UnknownLocal,
   // we know where it writes
