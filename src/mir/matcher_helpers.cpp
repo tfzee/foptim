@@ -65,26 +65,31 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     return helper;
   }
   if (consti->is_poison()) {
-    if (auto *v = std::get_if<fir::IntegerType>(&consti->type->type)) {
-      switch (v->bitwidth) {
+    switch (consti->type->ty) {
+    case fir::AnyTypeType::Integer:
+      switch (consti->type->as_int()) {
       case 8:
-        return MArgument((u8)0);
+        return {(u8)0};
       case 16:
-        return MArgument((u16)0);
+        return {(u16)0};
       case 32:
-        return MArgument((u32)0);
+        return {(u32)0};
       case 64:
-        return MArgument((u64)0);
+        return {(u64)0};
       default:
-        fmt::println("{}", v->bitwidth);
+        fmt::println("{}", consti->type->as_int());
         UNREACH();
       }
-
-    } else if (auto *v = std::get_if<fir::FloatType>(&consti->type->type)) {
-      return MArgument(0.0f);
+    case fir::AnyTypeType::Float:
+      return {0.0F};
+    case fir::AnyTypeType::Vector:
+    case fir::AnyTypeType::Ptr:
+    case fir::AnyTypeType::Function:
+    case fir::AnyTypeType::Void:
+      fmt::println("{} with type {}", consti, consti->type);
+      UNREACH();
+      break;
     }
-    fmt::println("{} with type {}", consti, consti->type);
-    UNREACH();
   }
   UNREACH();
 }

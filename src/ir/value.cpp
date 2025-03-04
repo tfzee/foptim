@@ -7,8 +7,6 @@
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
 #include <fmt/format.h>
-#include <typeinfo>
-#include <variant>
 
 namespace foptim::fir {
 

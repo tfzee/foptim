@@ -96,7 +96,7 @@ VReg DumbRegAlloc::get_new_register(fir::ValueR v,
 
   for (auto [var, reg] : mapping) {
     if (lives.collide(var, v) ||
-        !var.get_type()->eql(v.get_type()->get_raw())) {
+        !var.get_type()->eql(*v.get_type().operator->())) {
       free_regs[reg.id - 1].set(false);
     }
   }
@@ -110,7 +110,6 @@ VReg DumbRegAlloc::get_new_register(fir::ValueR v,
   return VReg{vreg_num, (u8)v.get_type()->get_size(),
               is_float ? VRegClass::Float : VRegClass::GeneralPurpose};
 }
-
 
 VReg DumbRegAlloc::get_register(fir::ValueR value) {
   if (!mapping.contains(value)) {

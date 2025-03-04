@@ -99,7 +99,7 @@ add_library (foptim
 
                )
 
-target_compile_options(foptim PRIVATE -Wall -Wextra -Werror -ggdb -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
+target_compile_options(foptim PRIVATE -fno-exceptions -Wall -Wextra -Werror -ggdb -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_include_directories(foptim PUBLIC ./src/)
 target_include_directories(foptim SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 target_link_libraries(foptim PRIVATE ${llvm_libs})

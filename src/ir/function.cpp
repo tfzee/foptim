@@ -30,7 +30,7 @@ bool Function::verify() const {
     fmt::println("Function type invalid");
     return false;
   }
-  const auto &ty = func_ty->as_func_ty();
+  const auto &ty = func_ty->as_func();
 
   auto entry = get_entry();
   if (ty.arg_types.size() != entry->n_args()) {

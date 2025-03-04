@@ -74,7 +74,7 @@ FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
   init_bb.verify_validness();
   func->append_bbr(init_bb);
   // func->set_entry_bbr(init_bb);
-  const auto &arg_tys = type->as_func_ty().arg_types;
+  const auto &arg_tys = type->as_func().arg_types;
   init_bb->args.reserve(arg_tys.size());
   for (auto arg_ty : arg_tys) {
     init_bb->args.push_back(storage.insert_bb_arg(init_bb, arg_ty));
@@ -93,11 +93,11 @@ bool ContextData::verify() const {
 }
 
 VoidTypeR ContextData::get_void_type() {
-  static auto void_type = storage.insert_type(VoidType{});
+  static auto void_type = storage.insert_type(AnyType{});
   return void_type;
 }
 VoidTypeR ContextData::get_ptr_type() {
-  static auto ptr_type = storage.insert_type(OpaquePointerType{});
+  static auto ptr_type = storage.insert_type(AnyType::Ptr());
   return ptr_type;
 }
 
@@ -231,8 +231,7 @@ ConstantValueR ContextData::get_constant_value(u32 val, IntTypeR ty) {
 }
 
 ConstantValueR ContextData::get_constant_value(Global glob) {
-  static auto global_ptr_typee =
-      storage.insert_type(AnyType{OpaquePointerType()});
+  static auto global_ptr_typee = storage.insert_type(AnyType::Ptr());
 
   const auto constant = ConstantValue(glob, global_ptr_typee);
   auto maybeR = try_reuse_constant(constant);
