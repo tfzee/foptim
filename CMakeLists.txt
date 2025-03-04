@@ -59,6 +59,7 @@ add_library (foptim
                 ./src/ir/attributable.cpp
                 ./src/ir/constant_value.cpp
                 ./src/ir/helpers.cpp
+                ./src/ir/builder.cpp
 
                 #optim
                 ./src/optim/analysis/live_variables.cpp

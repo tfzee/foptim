@@ -1,11 +1,9 @@
 #pragma once
 #include "function_ref.hpp"
 #include "instruction.hpp"
-#include "ir/basic_block_ref.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
-#include "utils/logging.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fir {

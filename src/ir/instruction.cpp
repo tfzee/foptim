@@ -113,7 +113,12 @@ u16 Instr::get_bb_id(BasicBlock target) const {
 
 ValueR Instr::replace_arg(u16 indx, ValueR new_val, bool verify) {
   InstrData *self = operator->();
-  ASSERT(indx < self->args.size());
+  if (indx >= self->args.size()) {
+    fmt::println("Tried replacing arg {} but theres only {} Args", indx,
+                 self->args.size());
+    fmt::println("Instr: {}", *this);
+    std::abort();
+  }
   ValueR old_val = self->args[indx];
   self->args[indx] = new_val;
 

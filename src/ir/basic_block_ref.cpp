@@ -3,6 +3,7 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include <fmt/core.h>
 
 namespace foptim::fir {
 

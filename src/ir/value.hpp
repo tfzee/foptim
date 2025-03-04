@@ -6,19 +6,27 @@
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
 #include "types_ref.hpp"
-#include "utils/logging.hpp"
 #include <cassert>
-#include <variant>
 
 namespace foptim::fir {
 
-struct InvalidValue {};
+enum class ValueType {
+  InvalidValue = 0,
+  Instr,
+  BasicBlock,
+  BBArg,
+  ConstantValueR,
+};
 
 class ValueR {
 public:
-  using Ty =
-      std::variant<Instr, BasicBlock, BBArgument, ConstantValueR, InvalidValue>;
-  Ty origin;
+  ValueType ty;
+  union {
+    Instr instr;
+    BasicBlock bb;
+    BBArgument bb_arg;
+    ConstantValueR const_val;
+  };
 
   void add_usage(Use u);
   [[nodiscard]] size_t get_n_uses() const;
@@ -28,88 +36,74 @@ public:
   [[nodiscard]] const IRVec<Use> *get_uses() const;
   [[nodiscard]] TypeR get_type() const;
 
-  consteval ValueR() : origin(InvalidValue{}) {}
-  explicit ValueR(ConstantValueR v) : origin(v) {}
-  explicit ValueR(Instr v) : origin(v) {}
-  explicit ValueR(BasicBlock v) : origin(v) {}
-  explicit ValueR(BBArgument v) : origin(v) {}
+  consteval ValueR() : ty(ValueType::InvalidValue) {}
+  explicit constexpr ValueR(ConstantValueR v)
+      : ty(ValueType::ConstantValueR), const_val(v) {}
+  explicit constexpr ValueR(Instr v) : ty(ValueType::Instr), instr(v) {}
+  explicit constexpr ValueR(BasicBlock v) : ty(ValueType::BasicBlock), bb(v) {}
+  explicit constexpr ValueR(BBArgument v) : ty(ValueType::BBArg), bb_arg(v) {}
 
   [[nodiscard]] bool eql(const ValueR &other) const;
 
   [[nodiscard]] bool operator==(const ValueR &other) const;
 
   [[nodiscard]] constexpr bool is_constant() const {
-    return std::holds_alternative<ConstantValueR>(origin);
+    return ty == ValueType::ConstantValueR;
   }
   [[nodiscard]] constexpr bool is_instr() const {
-    return std::holds_alternative<Instr>(origin);
+    return ty == ValueType::Instr;
   }
   [[nodiscard]] constexpr bool is_bb() const {
-    return std::holds_alternative<BasicBlock>(origin);
+    return ty == ValueType::BasicBlock;
   }
   [[nodiscard]] constexpr bool is_bb_arg() const {
-    return std::holds_alternative<BBArgument>(origin);
+    return ty == ValueType::BBArg;
   }
   [[nodiscard]] constexpr bool is_invalid() const {
-    return std::holds_alternative<InvalidValue>(origin);
+    return ty == ValueType::InvalidValue;
   }
 
   [[nodiscard]] bool is_valid(bool check_refs) const;
 
   [[nodiscard]] constexpr Instr as_instr() const {
-    if (const auto *res = std::get_if<Instr>(&origin)) {
-      return *res;
-    }
-    std::abort();
+    ASSERT(is_instr());
+    return instr;
   }
 
   [[nodiscard]] constexpr BasicBlock as_bb() const {
-    if (const auto *res = std::get_if<BasicBlock>(&origin)) {
-      return *res;
-    }
-    std::abort();
+    ASSERT(is_bb());
+    return bb;
   }
 
   [[nodiscard]] constexpr ConstantValueR as_constant() const {
-    if (const auto *res = std::get_if<ConstantValueR>(&origin)) {
-      return *res;
-    }
-    std::abort();
+    ASSERT(is_constant());
+    return const_val;
   }
 
   [[nodiscard]] constexpr BBArgument as_bb_arg() const {
-    if (const auto *res = std::get_if<BBArgument>(&origin)) {
-      return *res;
-    }
-    std::abort();
+    ASSERT(is_bb_arg());
+    return bb_arg;
   }
-
-  [[nodiscard]] Instr constexpr as_instr() {
-    if (auto *res = std::get_if<Instr>(&origin)) {
-      return *res;
-    }
-    std::abort();
-  }
-
-  [[nodiscard]] constexpr const Ty &get_raw() const { return origin; }
 };
 
 } // namespace foptim::fir
 
-template <> struct std::hash<foptim::fir::InvalidValue> {
-  std::size_t operator()(const foptim::fir::InvalidValue & /*unused*/) const {
-    return 0;
-  }
-};
-
 template <> struct std::hash<foptim::fir::ValueR> {
   std::size_t operator()(const foptim::fir::ValueR &k) const {
     using foptim::u32;
+    using namespace foptim::fir;
     using std::hash;
-    return std::visit(
-        [](auto &&v) {
-          return std::hash<typename std::remove_const<typeof(v)>::type>()(v);
-        },
-        k.origin);
+    switch (k.ty) {
+    case foptim::fir::ValueType::InvalidValue:
+      return 0;
+    case foptim::fir::ValueType::Instr:
+      return std::hash<Instr>()(k.instr);
+    case foptim::fir::ValueType::BasicBlock:
+      return std::hash<BasicBlock>()(k.bb);
+    case foptim::fir::ValueType::BBArg:
+      return std::hash<BBArgument>()(k.bb_arg);
+    case foptim::fir::ValueType::ConstantValueR:
+      return std::hash<ConstantValueR>()(k.const_val);
+    }
   }
 };

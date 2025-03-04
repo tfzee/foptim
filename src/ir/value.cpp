@@ -13,139 +13,146 @@
 namespace foptim::fir {
 
 bool ValueR::is_valid(bool check_refs) const {
-  if (std::holds_alternative<InvalidValue>(origin)) {
+  switch (ty) {
+  case ValueType::InvalidValue:
     fmt::println("Got invalidValue");
     return false;
+  case ValueType::Instr:
+    return check_refs && instr.is_valid();
+  case ValueType::BBArg:
+    return check_refs && bb_arg.is_valid();
+  case ValueType::ConstantValueR:
+    return check_refs && const_val.is_valid() && const_val->is_valid();
+  case ValueType::BasicBlock:
+    return true;
   }
-  if (check_refs) {
-    return std::visit(
-        [](auto &&v) {
-          if constexpr (typeid(v) == typeid(ConstantValueR)) {
-            return v.is_valid() && v->is_valid();
-          }
-          if constexpr (typeid(v) == typeid(BBArgument) ||
-                        typeid(v) == typeid(Instr)) {
-            return v.is_valid();
-          }
-          return true;
-        },
-        origin);
-  }
-  return true;
 }
 
 bool ValueR::operator==(const ValueR &other) const { return this->eql(other); }
 
 bool ValueR::eql(const ValueR &other) const {
-  if (origin.index() != other.origin.index()) {
+  if (ty != other.ty) {
     return false;
   }
-
-  if (const Instr *s = std::get_if<Instr>(&origin)) {
-    const Instr *o = std::get_if<Instr>(&other.origin);
-    return (void *)s->get_raw_ptr() == (void *)o->get_raw_ptr();
-  }
-  if (const auto *s = std::get_if<BasicBlock>(&origin)) {
-    const auto *o = std::get_if<BasicBlock>(&other.origin);
-    return (void *)s->get_raw_ptr() == (void *)o->get_raw_ptr();
-  }
-  if (const BBArgument *s = std::get_if<BBArgument>(&origin)) {
-    const BBArgument *o = std::get_if<BBArgument>(&other.origin);
-    return (void *)s->get_raw_ptr() == (void *)o->get_raw_ptr();
-  }
-  if (const ConstantValueR *s = std::get_if<ConstantValueR>(&origin)) {
-    const ConstantValueR *o = std::get_if<ConstantValueR>(&other.origin);
-    return (*s)->eql(*o->operator->());
-  }
-  if (std::get_if<InvalidValue>(&origin) != nullptr) {
+  switch (ty) {
+  case ValueType::InvalidValue:
     return true;
+  case ValueType::Instr:
+    return (void *)instr.get_raw_ptr() == (void *)other.instr.get_raw_ptr();
+  case ValueType::BasicBlock:
+    return (void *)bb.get_raw_ptr() == (void *)other.bb.get_raw_ptr();
+  case ValueType::BBArg:
+    return (void *)bb_arg.get_raw_ptr() == (void *)other.bb_arg.get_raw_ptr();
+  case ValueType::ConstantValueR:
+    return const_val->eql(*other.const_val.operator->());
   }
-
-  fmt::println("{} and {}", *this, other);
-  UNREACH();
+  // fmt::println("{} and {}", *this, other);
+  // UNREACH();
 }
 
 TypeR ValueR::get_type() const {
-  return std::visit(
-      [](auto &&v) {
-        if constexpr (typeid(v) == typeid(ConstantValue)) {
-          return v.get_type();
-        } else if constexpr (typeid(v) == typeid(InvalidValue)) {
-          return TypeR(TypeR::invalid());
-        } else {
-          return v->get_type();
-        }
-      },
-      origin);
+  switch (ty) {
+  case ValueType::InvalidValue:
+    return TypeR(TypeR::invalid());
+  case ValueType::Instr:
+    return instr.get_type();
+  case ValueType::BasicBlock:
+    return bb->get_type();
+  case ValueType::BBArg:
+    return bb_arg->get_type();
+  case ValueType::ConstantValueR:
+    return const_val->get_type();
+  }
 }
 
 void ValueR::add_usage(Use u) {
-  if (auto *i = std::get_if<Instr>(&origin)) {
-    (*i)->add_usage(u);
-  } else if (auto *i = std::get_if<BBArgument>(&origin)) {
-    (*i)->add_usage(u);
+  switch (ty) {
+  case ValueType::Instr:
+    return instr->add_usage(u);
+  case ValueType::BBArg:
+    return bb_arg->add_usage(u);
+  case ValueType::BasicBlock:
+    return bb->add_usage(u);
+  case ValueType::ConstantValueR:
+    // return const_val->add_usage(u);
+  case ValueType::InvalidValue:
+    return;
   }
-  // else if (std::get_if<ConstantValueR>(&origin) != nullptr) {
-  // } else if (std::get_if<InvalidValue>(&origin) != nullptr) {
-  //   // ASSERT(false);
-  // }
 }
 
 IRVec<Use> *ValueR::get_uses() {
-  if (auto *i = std::get_if<Instr>(&origin)) {
-    return &(*i)->uses;
+  switch (ty) {
+  case ValueType::Instr:
+    return &instr->uses;
+  case ValueType::BBArg:
+    return &bb_arg->uses;
+  case ValueType::BasicBlock:
+    return &bb->uses;
+  case ValueType::ConstantValueR:
+    // return &const_val->uses;
+  case ValueType::InvalidValue:
+    return nullptr;
   }
-  if (auto *i = std::get_if<BBArgument>(&origin)) {
-    return &(*i)->uses;
-  }
-  return nullptr;
 }
 
 const IRVec<Use> *ValueR::get_uses() const {
-  if (const auto *i = std::get_if<Instr>(&origin)) {
-    return &(*i)->uses;
+  switch (ty) {
+  case ValueType::Instr:
+    return &instr->uses;
+  case ValueType::BBArg:
+    return &bb_arg->uses;
+  case ValueType::BasicBlock:
+    return &bb->uses;
+  case ValueType::ConstantValueR:
+    // return &const_val->uses;
+  case ValueType::InvalidValue:
+    return nullptr;
   }
-  if (const auto *i = std::get_if<BBArgument>(&origin)) {
-    return &(*i)->uses;
-  }
-  return nullptr;
 }
 
 size_t ValueR::get_n_uses() const {
-  if (const auto *i = std::get_if<Instr>(&origin)) {
-    return (*i)->get_n_uses();
+  switch (ty) {
+  case ValueType::Instr:
+    return instr->get_n_uses();
+  case ValueType::BBArg:
+    return bb_arg->get_n_uses();
+  case ValueType::BasicBlock:
+    return bb->get_n_uses();
+  case ValueType::ConstantValueR:
+    // return const_val->get_n_uses();
+  case ValueType::InvalidValue:
+    return 0;
   }
-  if (const auto *i = std::get_if<BBArgument>(&origin)) {
-    return (*i)->get_n_uses();
-  }
-  return 0;
 }
 
 void ValueR::remove_usage(Use u, bool verify) {
-  if (auto *i = std::get_if<Instr>(&origin)) {
-    (*i)->remove_usage(u, verify);
+  switch (ty) {
+  case ValueType::Instr:
+    return instr->remove_usage(u, verify);
+  case ValueType::BBArg:
+    return bb_arg->remove_usage(u, verify);
+  case ValueType::BasicBlock:
+    return bb->remove_usage(u, verify);
+  case ValueType::ConstantValueR:
+    // return const_val->remove_usage(u, verify);
+  case ValueType::InvalidValue:
     return;
   }
-  if (auto *i = std::get_if<BBArgument>(&origin)) {
-    (*i)->remove_usage(u, verify);
-    return;
-  }
-  if (std::get_if<ConstantValueR>(&origin) != nullptr) {
-    return;
-  }
-  // ASSERT(false);
 }
 
 void ValueR::replace_all_uses(ValueR new_value) {
-  if (auto *i = std::get_if<Instr>(&origin)) {
-    (*i)->replace_all_uses(new_value);
+  switch (ty) {
+  case ValueType::Instr:
+    return instr->replace_all_uses(new_value);
+  case ValueType::BBArg:
+    return bb_arg->replace_all_uses(new_value);
+  case ValueType::BasicBlock:
+    return bb->replace_all_uses(new_value);
+  case ValueType::ConstantValueR:
+    // return const_val->replace_all_uses(new_value);
+  case ValueType::InvalidValue:
     return;
   }
-  if (auto *i = std::get_if<BBArgument>(&origin)) {
-    (*i)->replace_all_uses(new_value);
-    return;
-  }
-  ASSERT(false);
 }
 
 } // namespace foptim::fir
@@ -153,22 +160,18 @@ void ValueR::replace_all_uses(ValueR new_value) {
 fmt::appender
 fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
                                             format_context &ctx) const {
-  if (const auto *v = std::get_if<foptim::fir::ConstantValueR>(&k.get_raw())) {
-    return fmt::format_to(ctx.out(), "{}", *v);
-  }
-  if (const auto *v = std::get_if<foptim::fir::Instr>(&k.get_raw())) {
-    return fmt::format_to(ctx.out(), fg(fmt::color::light_green), "{:p}",
-                          (void *)v->get_raw_ptr());
-  }
-  if (const auto *v = std::get_if<foptim::fir::BBArgument>(&k.get_raw())) {
-    return fmt::format_to(ctx.out(), "{}", *v);
-  }
-  if (const auto *v = std::get_if<foptim::fir::BasicBlock>(&k.get_raw())) {
-    return fmt::format_to(ctx.out(), fg(fmt::color::light_blue), "{:p}",
-                          (void *)v->get_raw_ptr());
-  }
-  if (const auto *v = std::get_if<foptim::fir::InvalidValue>(&k.get_raw())) {
+  switch (k.ty) {
+  case foptim::fir::ValueType::InvalidValue:
     return fmt::format_to(ctx.out(), "INVALID");
+  case foptim::fir::ValueType::Instr:
+    return fmt::format_to(ctx.out(), fg(fmt::color::light_green), "{:p}",
+                          (void *)k.instr.get_raw_ptr());
+  case foptim::fir::ValueType::BasicBlock:
+    return fmt::format_to(ctx.out(), fg(fmt::color::light_blue), "{:p}",
+                          (void *)k.bb.get_raw_ptr());
+  case foptim::fir::ValueType::BBArg:
+    return fmt::format_to(ctx.out(), "{}", k.bb_arg);
+  case foptim::fir::ValueType::ConstantValueR:
+    return fmt::format_to(ctx.out(), "{}", k.const_val);
   }
-  return ctx.out();
 }

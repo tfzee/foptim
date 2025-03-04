@@ -3,46 +3,41 @@
 #include "ir/global.hpp"
 #include "ir/types.hpp"
 #include "types_ref.hpp"
-#include "utils/APInt.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
-#include <cstdlib>
-#include <variant>
 
 namespace foptim::fir {
 
 struct IntValue {
   i128 data;
-  constexpr bool operator==(const IntValue &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const IntValue &other) const {
     return data == other.data;
   }
 };
 
 struct FloatValue {
   f64 data;
-  constexpr bool operator==(const FloatValue &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const FloatValue &other) const {
     return data == other.data;
   }
 };
 
 struct FunctionPtr {
   FunctionR func;
-  constexpr bool operator==(const FunctionPtr &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const FunctionPtr &other) const {
     return func == other.func;
   }
 };
 
 struct GlobalPointer {
   Global glob;
-  constexpr bool operator==(const GlobalPointer &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const GlobalPointer &other) const {
     return glob == other.glob;
   }
-};
-
-// just a invalid value similarly to llvms poisson value it is some undefined
-// but constant value
-struct PoisonValue {
-  constexpr bool operator==(const PoisonValue & /*_*/) const { return true; }
 };
 
 struct VectorValue {
@@ -50,94 +45,114 @@ struct VectorValue {
   bool operator==(const VectorValue &other) const;
 };
 
-struct ConstantValue {
-  std::variant<IntValue, FloatValue, GlobalPointer, FunctionPtr, VectorValue,
-               PoisonValue>
-      value;
-  TypeR type;
+enum class ConstantType : u8 {
+  // just a invalid value similarly to llvms poisson value it is some undefined
+  // but constant value
+  PoisonValue = 0,
+  IntValue,
+  FloatValue,
+  VectorValue,
+  GlobalPtr,
+  FuncPtr,
+};
 
-  // Poisson value
-  constexpr ConstantValue(TypeR typee) : value(PoisonValue{}), type(typee) {}
+struct ConstantValue {
+  TypeR type;
+  union {
+    struct {
+      ConstantType ty;
+    };
+    struct {
+      ConstantType _ty;
+      VectorValue v;
+    } vec_u;
+    struct {
+      ConstantType _ty;
+      IntValue v;
+    } int_u;
+    struct {
+      ConstantType _ty;
+      FloatValue v;
+    } float_u;
+    struct {
+      ConstantType _ty;
+      GlobalPointer v;
+    } gp_u;
+    struct {
+      ConstantType _ty;
+      FunctionPtr v;
+    } fup_u;
+  };
+
+  constexpr ConstantValue(TypeR typee)
+      : type(typee), ty(ConstantType::PoisonValue) {}
+  ~ConstantValue();
+  ConstantValue(const ConstantValue &);
+  ConstantValue &operator=(const ConstantValue &);
 
   constexpr ConstantValue(i128 v, TypeR typee)
-      : value(IntValue{v}), type(typee) {}
+      : type(typee), int_u({ConstantType::IntValue, IntValue{v}}) {}
 
   constexpr ConstantValue(i64 v, TypeR typee)
-      : value(IntValue{v}), type(typee) {}
+      : type(typee), int_u({ConstantType::IntValue, IntValue{v}}) {}
 
   constexpr ConstantValue(u64 v, TypeR typee)
-      : value(IntValue{v}), type(typee) {}
-
-  constexpr ConstantValue(VectorValue v, TypeR typee) : value(v), type(typee) {}
+      : type(typee), int_u({ConstantType::IntValue, IntValue{v}}) {}
 
   constexpr ConstantValue(f64 v, TypeR typee)
-      : value(FloatValue{v}), type(typee) {}
+      : type(typee), float_u({ConstantType::FloatValue, FloatValue{v}}) {}
 
   constexpr ConstantValue(f32 v, TypeR typee)
-      : value(FloatValue{v}), type(typee) {}
+      : type(typee), float_u({ConstantType::FloatValue, FloatValue{v}}) {}
 
   constexpr ConstantValue(Global g, TypeR typee)
-      : value(GlobalPointer{g}), type(typee) {}
+      : type(typee), gp_u({ConstantType::GlobalPtr, GlobalPointer{g}}) {}
 
   constexpr ConstantValue(FunctionR f, TypeR typee)
-      : value(FunctionPtr{f}), type(typee) {}
+      : type(typee), fup_u({ConstantType::FuncPtr, FunctionPtr{f}}) {}
 
-  [[nodiscard]] bool is_valid() const {
-    if (!type.is_valid()) {
-      fmt::println("Invalid type\n");
-      return false;
+  [[nodiscard]] bool is_valid() const;
+
+  [[nodiscard]] constexpr bool is_global() const {
+    return ty == ConstantType::GlobalPtr;
+  }
+  [[nodiscard]] constexpr bool is_int() const {
+    return ty == ConstantType::IntValue;
+  }
+
+  [[nodiscard]] constexpr bool is_float() const {
+    return ty == ConstantType::FloatValue;
+  }
+
+  [[nodiscard]] constexpr bool is_func() const {
+    return ty == ConstantType::FuncPtr;
+  }
+
+  [[nodiscard]] constexpr bool is_poison() const {
+    return ty == ConstantType::PoisonValue;
+  }
+
+  [[nodiscard]] constexpr FunctionR as_func() const {
+    ASSERT(is_func());
+    return fup_u.v.func;
+  }
+
+  [[nodiscard]] constexpr f64 as_float() const {
+    ASSERT(is_float());
+    if (type->as_float() == 32) {
+      return (f32)float_u.v.data;
     }
-    return true;
+    return float_u.v.data;
   }
 
-  [[nodiscard]] bool is_global() const {
-    return std::holds_alternative<GlobalPointer>(value);
-  }
-  [[nodiscard]] bool is_int() const {
-    return std::holds_alternative<IntValue>(value);
+  [[nodiscard]] constexpr i128 as_int() const {
+    ASSERT(is_int());
+    return int_u.v.data;
   }
 
-  [[nodiscard]] bool is_float() const {
-    return std::holds_alternative<FloatValue>(value);
-  }
-
-  [[nodiscard]] bool is_func() const {
-    return std::holds_alternative<FunctionPtr>(value);
-  }
-
-  [[nodiscard]] bool is_poison() const {
-    return std::holds_alternative<PoisonValue>(value);
-  }
-
-  [[nodiscard]] FunctionR as_func() const {
-    if (const auto *res = std::get_if<FunctionPtr>(&value)) {
-      return res->func;
-    }
-    UNREACH();
-  }
-
-  [[nodiscard]] f64 as_float() const {
-    if (const auto *res = std::get_if<FloatValue>(&value)) {
-      if (type->as_float() == 32) {
-        return (f32)res->data;
-      }
-      return res->data;
-    }
-    UNREACH();
-  }
-
-  [[nodiscard]] i128 as_int() const {
-    if (const auto *res = std::get_if<IntValue>(&value)) {
-      return res->data;
-    }
-    UNREACH();
-  }
-
-  [[nodiscard]] Global as_global() const {
-    if (const auto *res = std::get_if<GlobalPointer>(&value)) {
-      return res->glob;
-    }
-    std::abort();
+  [[nodiscard]] constexpr Global as_global() const {
+    ASSERT(is_global());
+    return gp_u.v.glob;
   }
   [[nodiscard]] TypeR get_type() const;
   [[nodiscard]] bool eql(const ConstantValue &) const;
