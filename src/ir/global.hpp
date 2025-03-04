@@ -3,6 +3,7 @@
 
 #include "ir/constant_value_ref.hpp"
 // #include "types_ref.hpp"
+#include "ir/use.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/string.hpp"
 #include "utils/vec.hpp"
@@ -20,7 +21,7 @@ public:
   }
 };
 
-struct GlobalData {
+struct GlobalData: public Used {
   struct RelocationInfo {
     size_t offset;
     ConstantValueR ref;

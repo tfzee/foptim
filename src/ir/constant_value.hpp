@@ -111,6 +111,13 @@ struct ConstantValue {
   constexpr ConstantValue(FunctionR f, TypeR typee)
       : type(typee), fup_u({ConstantType::FuncPtr, FunctionPtr{f}}) {}
 
+  void add_usage(Use u);
+  [[nodiscard]] size_t get_n_uses() const;
+  void remove_usage(Use u, bool verify = true);
+  void replace_all_uses(ValueR);
+  [[nodiscard]] IRVec<Use> *get_uses();
+  [[nodiscard]] const IRVec<Use> *get_uses() const;
+
   [[nodiscard]] bool is_valid() const;
 
   [[nodiscard]] constexpr bool is_global() const {

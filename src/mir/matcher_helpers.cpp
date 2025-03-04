@@ -21,6 +21,8 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
   ASSERT(val.is_constant());
   auto consti = val.as_constant();
   if (consti->is_int()) {
+    fmt::println("{} {}=?={} {}", val, consti->is_int(),
+                 val.get_type()->is_int(), val.get_type());
     switch (val.get_type()->as_int()) {
     case 1:
       return {(u8)std::bit_cast<u64>((i64)consti->as_int())};

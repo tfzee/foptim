@@ -72,7 +72,7 @@ void ValueR::add_usage(Use u) {
   case ValueType::BasicBlock:
     return bb->add_usage(u);
   case ValueType::ConstantValueR:
-    // return const_val->add_usage(u);
+    return const_val->add_usage(u);
   case ValueType::InvalidValue:
     return;
   }
@@ -87,7 +87,7 @@ IRVec<Use> *ValueR::get_uses() {
   case ValueType::BasicBlock:
     return &bb->uses;
   case ValueType::ConstantValueR:
-    // return &const_val->uses;
+    return const_val->get_uses();
   case ValueType::InvalidValue:
     return nullptr;
   }
@@ -102,7 +102,7 @@ const IRVec<Use> *ValueR::get_uses() const {
   case ValueType::BasicBlock:
     return &bb->uses;
   case ValueType::ConstantValueR:
-    // return &const_val->uses;
+    return const_val->get_uses();
   case ValueType::InvalidValue:
     return nullptr;
   }
@@ -117,7 +117,7 @@ size_t ValueR::get_n_uses() const {
   case ValueType::BasicBlock:
     return bb->get_n_uses();
   case ValueType::ConstantValueR:
-    // return const_val->get_n_uses();
+    return const_val->get_n_uses();
   case ValueType::InvalidValue:
     return 0;
   }
@@ -132,7 +132,7 @@ void ValueR::remove_usage(Use u, bool verify) {
   case ValueType::BasicBlock:
     return bb->remove_usage(u, verify);
   case ValueType::ConstantValueR:
-    // return const_val->remove_usage(u, verify);
+    return const_val->remove_usage(u, verify);
   case ValueType::InvalidValue:
     return;
   }
@@ -147,7 +147,7 @@ void ValueR::replace_all_uses(ValueR new_value) {
   case ValueType::BasicBlock:
     return bb->replace_all_uses(new_value);
   case ValueType::ConstantValueR:
-    // return const_val->replace_all_uses(new_value);
+    return const_val->replace_all_uses(new_value);
   case ValueType::InvalidValue:
     return;
   }

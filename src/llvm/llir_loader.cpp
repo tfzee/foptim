@@ -66,7 +66,7 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
   if (const auto *float_constant =
           llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
     return foptim::fir::ValueR(
-        fctx->get_constant_value(0, fctx->get_float_type(64)));
+        fctx->get_constant_value(0.0, fctx->get_float_type(64)));
   }
   if (const auto *float_constant =
           llvm::dyn_cast_or_null<llvm::ConstantFP>(value)) {

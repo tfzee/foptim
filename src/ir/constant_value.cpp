@@ -1,5 +1,6 @@
 #include "constant_value.hpp"
 #include "function.hpp"
+#include "ir/value.hpp"
 
 namespace foptim::fir {
 
@@ -14,6 +15,86 @@ bool VectorValue::operator==(const VectorValue &other) const {
   }
   return true;
 }
+
+void ConstantValue::add_usage(Use u) {
+  switch (ty) {
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+    return;
+  case ConstantType::GlobalPtr:
+    return gp_u.v.glob->add_usage(u);
+  case ConstantType::FuncPtr:
+    return fup_u.v.func->add_usage(u);
+  }
+}
+[[nodiscard]] size_t ConstantValue::get_n_uses() const {
+  switch (ty) {
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+    return 0;
+  case ConstantType::GlobalPtr:
+    return gp_u.v.glob->get_n_uses();
+  case ConstantType::FuncPtr:
+    return fup_u.v.func->get_n_uses();
+  }
+}
+void ConstantValue::remove_usage(Use u, bool verify) {
+  switch (ty) {
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+    return;
+  case ConstantType::GlobalPtr:
+    return gp_u.v.glob->remove_usage(u, verify);
+  case ConstantType::FuncPtr:
+    return fup_u.v.func->remove_usage(u, verify);
+  }
+}
+void ConstantValue::replace_all_uses(ValueR v) {
+  switch (ty) {
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+    return;
+  case ConstantType::GlobalPtr:
+    return gp_u.v.glob->replace_all_uses(v);
+  case ConstantType::FuncPtr:
+    return fup_u.v.func->replace_all_uses(v);
+  }
+}
+[[nodiscard]] IRVec<Use> *ConstantValue::get_uses() {
+  switch (ty) {
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+    return nullptr;
+  case ConstantType::GlobalPtr:
+    return &gp_u.v.glob->uses;
+  case ConstantType::FuncPtr:
+    return &fup_u.v.func->uses;
+  }
+}
+[[nodiscard]] const IRVec<Use> *ConstantValue::get_uses() const {
+  switch (ty) {
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+    return nullptr;
+  case ConstantType::GlobalPtr:
+    return &gp_u.v.glob->get_uses();
+  case ConstantType::FuncPtr:
+    return &fup_u.v.func->get_uses();
+  }
+}
+
 TypeR ConstantValue::get_type() const { return type; }
 
 bool ConstantValue::eql(const ConstantValue &other) const {

@@ -105,7 +105,8 @@ dump(const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
   TODO("Reimpl");
   // pritn << "DUMP CURR VAR VALUE\n";
 
-  // for (size_t depthp1 = current_variable_value.size(); depthp1 > 0; depthp1--) {
+  // for (size_t depthp1 = current_variable_value.size(); depthp1 > 0;
+  // depthp1--) {
   //   size_t depth = depthp1 - 1;
   //   pritn << depth << "DEPTH\n";
   //   for (auto [key, val] : current_variable_value[depth]) {
@@ -215,7 +216,11 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
         // TODO: should habe a uninit/poision value for these cases?
         auto *result_type =
             target_alloca.as_instr()->get_attrib("alloca::type").try_type();
-        var_val_res = fir::ValueR(ctx->get_constant_value(0, *result_type));
+        if ((*result_type)->is_float()) {
+          var_val_res = fir::ValueR(ctx->get_constant_value(0.0, *result_type));
+        } else {
+          var_val_res = fir::ValueR(ctx->get_constant_value(0, *result_type));
+        }
       }
       // then we update the arguemtns of the origin jump
       auto term = last_bb->get_terminator();
@@ -295,6 +300,5 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()),
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
-
 }
 } // namespace foptim::optim
