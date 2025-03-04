@@ -12,7 +12,7 @@ const Attribute &Attributable::get_attrib(const IRString &key) const {
 Attribute &Attributable::get_attrib(const IRString &key) {
   return attribs.at(key);
 }
-Attributable *Attributable::add_attrib(IRString key, IRString value) {
+Attributable *Attributable::add_attrib(IRString key, IRStringRef value) {
   if (attribs.contains(key)) {
     fmt::println(
         "add_attrib Warning: Key '{}' was already a attrib with value '{}''",

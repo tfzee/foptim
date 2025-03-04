@@ -6,49 +6,107 @@
 
 namespace foptim::fir {
 
-struct VoidAttrib {};
+enum class AttributeType : u8 {
+  Void = 0,
+  Constant,
+  Type,
+  String,
+};
 
 class Attribute {
-  using AttribType = std::variant<ConstantValueR, TypeR, IRString, VoidAttrib>;
-  AttribType data;
-
 public:
-  Attribute() : data(VoidAttrib{}) {}
-  Attribute(IRString v) : data(v) {}
-  Attribute(ConstantValueR v) : data(v) {}
-  Attribute(TypeR v) : data(v) {}
+  union {
+    AttributeType ty;
+    struct {
+      AttributeType ty;
+      ConstantValueR v;
+    } const_u;
+    struct {
+      AttributeType ty;
+      TypeR v;
+    } type_u;
+    struct {
+      AttributeType ty;
+      IRStringRef v;
+    } str_u;
+  };
 
-  [[nodiscard]] const auto *try_void() const {
-    return std::get_if<VoidAttrib>(&data);
+  Attribute() : ty(AttributeType::Void) {}
+  Attribute(IRStringRef v) : str_u({AttributeType::String, v}) {}
+  Attribute(ConstantValueR v) : const_u({AttributeType::Constant, v}) {}
+  Attribute(TypeR v) : type_u({AttributeType::Type, v}) {}
+
+  // ~Attribute() {
+  //   switch (ty) {
+  //   case AttributeType::Void:
+  //   case AttributeType::Constant:
+  //   case AttributeType::Type:
+  //   case AttributeType::String:
+  //     return;
+  //   }
+  // }
+
+  // Attribute(const Attribute &other) {
+  //   switch (other.ty) {
+  //   case AttributeType::Void:
+  //     ty = other.ty;
+  //     return;
+  //   case AttributeType::Constant:
+  //     const_u = other.const_u;
+  //     return;
+  //   case AttributeType::Type:
+  //     type_u = other.type_u;
+  //     return;
+  //   case AttributeType::String:
+  //     str_u = other.str_u;
+  //     return;
+  //   }
+  // }
+
+  [[nodiscard]] const void *try_void() const {
+    if (ty == AttributeType::Void) {
+      return (void *)this;
+    }
+    return nullptr;
   }
-  [[nodiscard]] const auto *try_constant() const {
-    return std::get_if<ConstantValueR>(&data);
+  [[nodiscard]] const ConstantValueR *try_constant() const {
+    if (ty == AttributeType::Constant) {
+      return &const_u.v;
+    }
+    return nullptr;
   }
-  [[nodiscard]] const auto *try_string() const {
-    return std::get_if<IRString>(&data);
+  [[nodiscard]] IRStringRef try_string() const {
+    if (ty == AttributeType::Constant) {
+      return str_u.v;
+    }
+    return nullptr;
   }
   [[nodiscard]] const TypeR *try_type() const {
-    return std::get_if<TypeR>(&data);
+    if (ty == AttributeType::Type) {
+      return &type_u.v;
+    }
+    return nullptr;
   }
-  [[nodiscard]] TypeR *try_type() { return std::get_if<TypeR>(&data); }
-  [[nodiscard]] const AttribType &get_raw() const { return data; }
+  [[nodiscard]] TypeR *try_type() {
+    if (ty == AttributeType::Type) {
+      return &type_u.v;
+    }
+    return nullptr;
+  }
 };
 
 } // namespace foptim::fir
 
 inline fmt::appender fmt::formatter<foptim::fir::Attribute>::format(
     foptim::fir::Attribute const &attrib, format_context &ctx) const {
-  if (const auto *v = attrib.try_constant()) {
-    return fmt::format_to(ctx.out(), ": TODO CONSTANT PRINTING");
-  }
-  if (const auto *v = attrib.try_void()) {
+  switch (attrib.ty) {
+  case foptim::fir::AttributeType::Void:
     return fmt::format_to(ctx.out(), ": Void");
+  case foptim::fir::AttributeType::Constant:
+    return fmt::format_to(ctx.out(), ": TODO CONSTANT PRINTING");
+  case foptim::fir::AttributeType::Type:
+    return fmt::format_to(ctx.out(), ": {}", attrib.type_u.v);
+  case foptim::fir::AttributeType::String:
+    return fmt::format_to(ctx.out(), ": {}", attrib.str_u.v);
   }
-  if (const auto *v = attrib.try_string()) {
-    return fmt::format_to(ctx.out(), ": {}", v->c_str());
-  }
-  if (const auto *v = attrib.try_type()) {
-    return fmt::format_to(ctx.out(), ": {}", *v);
-  }
-  return ctx.out();
 };

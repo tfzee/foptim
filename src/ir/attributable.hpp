@@ -23,7 +23,7 @@ public:
     attribs.insert(other.attribs.begin(), other.attribs.end());
   }
 
-  Attributable *add_attrib(IRString key, IRString value);
+  Attributable *add_attrib(IRString key, IRStringRef value);
   Attributable *add_attrib(IRString key, TypeR value);
   Attributable *add_attrib(IRString key, ConstantValueR value);
 };
