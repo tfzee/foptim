@@ -1,4 +1,6 @@
 #include "loop_analysis.hpp"
+#include "ir/basic_block_ref.hpp"
+#include "ir/instruction_data.hpp"
 #include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/logging.hpp"
@@ -111,11 +113,165 @@ void LoopInfoAnalysis::update(Dominators &dom) {
 }
 
 void LoopInfo::dump() const {
-  fmt::println("Loop\n  Header: {}\n  Body: {}\n  Tails: {}\n  Leaving: {}\n", head, body_nodes, tails, leaving_nodes);
+  fmt::println("Loop\n  Header: {}\n  Body: {}\n  Tails: {}\n  Leaving: {}\n",
+               head, body_nodes, tails, leaving_nodes);
 }
 void LoopInfoAnalysis::dump() const {
   for (const auto &loop : info) {
     loop.dump();
   }
 }
+
+void LoopRangeAnalysis::dump() const {
+  fmt::print("{}  ", induction_var);
+  if (known_lower) {
+    fmt::print("{}", lower_bound_var);
+    fmt::print("@{}", lower_bound);
+  }
+  fmt::print("..");
+  if (known_upper) {
+    fmt::print("{}", upper_bound_var);
+    fmt::print("@{}", upper_bound);
+  }
+  fmt::println(" step: {}", a);
+}
+
+bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
+  fir::BasicBlock head = cfg.bbrs[info.head].bb;
+  // exactly 1 induction var
+  if (head->args.size() != 1) {
+    fmt::println("0");
+    return false;
+  }
+  // only 1 incoming edge into the loop
+  if (cfg.bbrs[info.head].pred.size() != 1 + info.tails.size()) {
+    fmt::println("1");
+    return false;
+  }
+  for (u32 p : cfg.bbrs[info.head].pred) {
+    if (std::find(info.body_nodes.begin(), info.body_nodes.end(), p) ==
+        info.body_nodes.end()) {
+      auto incoming_bb_term = cfg.bbrs[p].bb->get_terminator();
+      auto outgoing_id = incoming_bb_term.get_bb_id(head);
+      auto arg = incoming_bb_term->bbs[outgoing_id].args[0];
+      if (arg.is_constant() && arg.as_constant()->is_int()) {
+        known_lower = true;
+        lower_bound = arg.as_constant()->as_int();
+        lower_bound_var = fir::Use::bb_arg(incoming_bb_term, outgoing_id, 0);
+      }
+      break;
+    }
+  }
+
+  auto induct_incoming = head->args[0];
+  induction_var = induct_incoming;
+
+  bool set = false;
+  i128 constant_off = 0;
+  fir::ValueR induct_outgoing = fir::ValueR();
+
+  for (auto tail : info.tails) {
+    auto tail_bb = cfg.bbrs[tail].bb;
+    auto term = tail_bb->get_terminator();
+    ASSERT(tail_bb == head || term->is(fir::InstrType::BranchInstr));
+    // there can only be 1 arg
+    ASSERT(term->bbs[0].bb == head);
+    auto induction_arg = term->bbs[0].args[0];
+    // TODO: improve
+    if (!induction_arg.is_instr()) {
+      fmt::println("2");
+      return false;
+    }
+    auto induct_oper = induction_arg.as_instr();
+    if (!induct_oper->is(fir::InstrType::BinaryInstr) ||
+        (fir::BinaryInstrSubType)induct_oper->subtype !=
+            fir::BinaryInstrSubType::IntAdd) {
+      fmt::println("3");
+      return false;
+    }
+
+    u8 var_index = 0;
+    u8 constant_index = 0;
+    if (induct_oper->args[0].is_constant()) {
+      var_index = 1;
+      constant_index = 0;
+    } else if (induct_oper->args[1].is_constant()) {
+      var_index = 0;
+      constant_index = 1;
+    } else {
+      fmt::println("4a");
+      return false;
+    }
+    auto con = induct_oper->args[constant_index].as_constant();
+    auto var = induct_oper->args[var_index];
+    if (!con->is_int()) {
+      fmt::println("4");
+      return false;
+    }
+    if (!var.is_bb_arg() || var.as_bb_arg() != induct_incoming) {
+      fmt::println("5");
+      return false;
+    }
+
+    auto new_off = con->as_int();
+    if (set && constant_off != new_off) {
+      fmt::println("6");
+      return false;
+    }
+
+    constant_off = new_off;
+    induct_outgoing = induction_arg;
+    set = true;
+  }
+  a = constant_off;
+
+  // find the upper bound
+  {
+    auto term = head->get_terminator();
+    ASSERT(term->is(fir::InstrType::CondBranchInstr));
+    auto cond = term->args[0];
+    if (!cond.is_instr() || !cond.as_instr()->is(fir::InstrType::ICmp)) {
+      fmt::println("7");
+      return false;
+    }
+    auto cond_instr = cond.as_instr();
+    auto condi = (fir::ICmpInstrSubType)cond_instr->subtype;
+    if (condi != fir::ICmpInstrSubType::ULT &&
+        condi != fir::ICmpInstrSubType::SLT) {
+      fmt::println("8");
+      return false;
+    }
+
+    u8 var_index = 0;
+    u8 constant_index = 0;
+    if (cond_instr->args[0].is_constant()) {
+      var_index = 1;
+      constant_index = 0;
+    } else if (cond_instr->args[1].is_constant()) {
+      var_index = 0;
+      constant_index = 1;
+    } else {
+      fmt::println("9a");
+      return false;
+    }
+    auto con = cond_instr->args[constant_index].as_constant();
+    auto var = cond_instr->args[var_index];
+    if (!con->is_int()) {
+      fmt::println("9");
+      return false;
+    }
+    if (var != induct_outgoing) {
+      fmt::println("10");
+      return false;
+    }
+
+    auto new_off = con->as_int();
+    known_upper = true;
+    upper_bound = new_off;
+    upper_bound_var = fir::Use::norm(cond_instr, constant_index);
+  }
+
+  return true;
+}
+
 } // namespace foptim::optim

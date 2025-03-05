@@ -70,6 +70,7 @@ add_library (foptim
                 ./src/optim/func_passes/simplify_cfg.cpp
                 ./src/optim/func_passes/inst_simplify.cpp
                 ./src/optim/func_passes/stack_known_bits.cpp
+                ./src/optim/func_passes/simple_vectorize.cpp
                 ./src/optim/helper/inline.cpp
 
                 #mir

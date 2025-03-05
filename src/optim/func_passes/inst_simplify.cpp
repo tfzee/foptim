@@ -15,7 +15,7 @@ static void swap_args(fir::Instr instr, u32 a1, u32 a2) {
   instr.replace_arg(a2, v1);
 }
 
-inline void swap_args_icmp(fir::Instr instr) {
+static void swap_args_icmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::ICmp))
   switch ((fir::ICmpInstrSubType)instr->subtype) {
   case fir::ICmpInstrSubType::NE:
@@ -58,13 +58,13 @@ inline void swap_args_icmp(fir::Instr instr) {
     UNREACH();
   }
 }
-inline void push_all_uses(WorkList &worklist, fir::Instr instr) {
+static void push_all_uses(WorkList &worklist, fir::Instr instr) {
   for (auto &use : instr->uses) {
     worklist.emplace_back(use.user, use.user->parent);
   }
 }
 
-inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
+static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
                             fir::Context &ctx, WorkList &worklist) {
   using namespace foptim::fir;
   // since both being constant would be handleded by constant folding we just
@@ -205,7 +205,7 @@ inline void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-inline void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
+static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
                           fir::Context &ctx, WorkList &worklist) {
   using namespace foptim::fir;
   {
@@ -288,7 +288,7 @@ inline void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-inline void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
+static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
                           fir::Context &ctx, WorkList &worklist) {
   using namespace foptim::fir;
   {
@@ -380,7 +380,7 @@ inline void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-inline void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
+static void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                             fir::Context & /*ctx*/, WorkList &worklist) {
   if (instr->args[0].is_constant()) {
     auto v1 = instr->args[0].as_constant()->as_int();
@@ -401,7 +401,7 @@ inline void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-inline void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
+static void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
                                  fir::Context & /*ctx*/,
                                  WorkList & /*worklist*/) {
   if (instr->args[0].is_constant()) {
@@ -422,6 +422,16 @@ inline void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
     return;
   }
 }
+static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
+                            fir::Context & /*ctx*/, WorkList &worklist) {
+  // TODO: could also maybe figure out cases where we can convert everything
+  // into higher bitwidth
+  if (instr->args[0].is_constant()) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(instr->args[0]);
+    instr.remove_from_parent();
+  }
+}
 
 static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist) {
@@ -440,6 +450,10 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr->get_instr_type() == InstrType::CondBranchInstr) {
     return simplify_cond_branch(instr, bb, ctx, worklist);
+  }
+  if (instr->get_instr_type() == InstrType::SExt ||
+      instr->get_instr_type() == InstrType::ZExt) {
+    return simplify_extend(instr, bb, ctx, worklist);
   }
 }
 

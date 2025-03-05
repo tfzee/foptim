@@ -1,4 +1,6 @@
 #include "pre.hpp"
+#include "ir/builder.hpp"
+#include "optim/analysis/cfg.hpp"
 
 namespace foptim::optim {
 static void

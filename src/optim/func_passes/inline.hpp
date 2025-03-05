@@ -18,6 +18,10 @@ public:
     auto called_func = instr->get_arg(0);
     if (called_func.is_constant() && called_func.as_constant()->is_func()) {
       auto v = called_func.as_constant()->as_func();
+      if (v.func->get_n_uses() == 1 &&
+          v.func->linkage == fir::Function::Function::Linkage::Internal) {
+        return true;
+      }
       if (v.func == func.func) {
         return true;
       }
