@@ -161,7 +161,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         ASSERT(indx.isReg());
         res.result.emplace_back(
             Opcode::mov, res_reg,
-            MArgument::Mem(base.reg, indx.reg, consti_val, load_ty));
+            MArgument::MemBIS(base.reg, indx.reg, consti_val, load_ty));
         return true;
       }});
   pats.push_back(Pattern{
@@ -214,7 +214,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         ASSERT(indx.isReg());
         res.result.emplace_back(
             Opcode::mov,
-            MArgument::Mem(base.reg, indx.reg, consti_val, store_ty), value);
+            MArgument::MemBIS(base.reg, indx.reg, consti_val, store_ty), value);
         return true;
       }});
   pats.push_back(Pattern{
@@ -240,8 +240,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
             auto a1 =
                 valueToArgPtr(add_instr->args[1], Type::Int64, data.alloc);
             ASSERT(a1.type == MArgument::ArgumentType::MemLabel);
-            res.result.emplace_back(Opcode::mov, res_reg,
-                                    MArgument::Mem(a1.label, a0.imm, load_ty));
+            res.result.emplace_back(
+                Opcode::mov, res_reg,
+                MArgument::MemLO(a1.label, a0.imm, load_ty));
             return true;
           }
         }
@@ -249,18 +250,55 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(Opcode::mov, res_reg,
-                                  MArgument::Mem(a0.reg, a1.imm, load_ty));
+                                  MArgument::MemOB(a1.imm, a0.reg, load_ty));
         } else if (a0.isImm() && a1.isReg()) {
           res.result.emplace_back(Opcode::mov, res_reg,
-                                  MArgument::Mem(a1.reg, a0.imm, load_ty));
+                                  MArgument::MemOB(a0.imm, a1.reg, load_ty));
         } else if (a0.isReg() && a1.isReg()) {
           res.result.emplace_back(Opcode::mov, res_reg,
-                                  MArgument::Mem(a0.reg, a1.reg, load_ty));
+                                  MArgument::MemBI(a0.reg, a1.reg, load_ty));
         } else {
           return false;
         }
         return true;
       }});
+  pats.push_back(Pattern{
+      {IntAddNode, IntAddNode, StoreNode},
+      {{0, 1, 1}, {1, 2, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        ASSERT(res.matched_instrs.size() == 3);
+        ASSERT(res.matched_instrs[0].is_valid());
+        ASSERT(res.matched_instrs[1].is_valid());
+        ASSERT(res.matched_instrs[2].is_valid());
+
+        auto add0_instr = res.matched_instrs[0];
+        auto add1_instr = res.matched_instrs[1];
+        auto store_instr = res.matched_instrs[2];
+
+        auto store_ty = convert_type(store_instr.get_type());
+        auto a00 = valueToArg(add0_instr->args[0], res.result, data.alloc);
+        auto a01 = valueToArg(add0_instr->args[1], res.result, data.alloc);
+        if (!a01.isImm()) {
+          return false;
+        }
+
+        auto a10 = valueToArg(add1_instr->args[0], res.result, data.alloc);
+        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
+
+        if (a00.isReg() && a01.isImm() && a10.isReg()) {
+          res.result.emplace_back(
+              Opcode::mov,
+              MArgument::MemOBI(a01.imm, a00.reg, a10.reg, store_ty), value);
+        } else if (a00.isImm() && a01.isReg() && a10.isReg()) {
+          res.result.emplace_back(
+              Opcode::mov,
+              MArgument::MemOBI(a00.imm, a01.reg, a10.reg, store_ty), value);
+        } else {
+          return false;
+        }
+        return true;
+      }});
+
   pats.push_back(Pattern{
       {IntAddNode, StoreNode},
       {{0, 1, 0}},
@@ -281,13 +319,13 @@ void memory_patterns(IRVec<Pattern> &pats) {
 
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(
-              Opcode::mov, MArgument::Mem(a0.reg, a1.imm, store_ty), value);
+              Opcode::mov, MArgument::MemOB(a1.imm, a0.reg, store_ty), value);
         } else if (a0.isImm() && a1.isReg()) {
           res.result.emplace_back(
-              Opcode::mov, MArgument::Mem(a1.reg, a0.imm, store_ty), value);
+              Opcode::mov, MArgument::MemOB(a0.imm, a1.reg, store_ty), value);
         } else if (a0.isReg() && a1.isReg()) {
           res.result.emplace_back(
-              Opcode::mov, MArgument::Mem(a0.reg, a1.reg, store_ty), value);
+              Opcode::mov, MArgument::MemBI(a0.reg, a1.reg, store_ty), value);
         } else {
           return false;
         }
@@ -529,7 +567,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         ASSERT(indx.isReg());
         res.result.emplace_back(
             Opcode::lea, res_reg,
-            MArgument::Mem(base.reg, indx.reg, consti_val, res_ty));
+            MArgument::MemBIS(base.reg, indx.reg, consti_val, res_ty));
         return true;
       }});
   pats.push_back(Pattern{
@@ -590,11 +628,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
         if (mul1More) {
           res.result.emplace_back(
               Opcode::lea, res_reg,
-              MArgument::Mem(base.reg, base.reg, consti_val, res_ty));
+              MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
         } else {
           res.result.emplace_back(
               Opcode::lea, res_reg,
-              MArgument::Mem(0, base.reg, consti_val, res_ty));
+              MArgument::MemOIS(0, base.reg, consti_val, res_ty));
         }
         return true;
       }});

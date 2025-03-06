@@ -52,6 +52,9 @@ struct ContextData {
   Global get_global(IRString name, size_t size_bytes);
   FunctionR get_function(IRString name);
   FunctionR create_function(IRString name, FunctionTypeR type);
+  // deletes funtion out of module returns true if function was found and
+  // deleted
+  bool delete_function(IRStringRef func);
   bool verify() const;
 };
 

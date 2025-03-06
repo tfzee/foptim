@@ -138,6 +138,7 @@ void LoopRangeAnalysis::dump() const {
 
 bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   fir::BasicBlock head = cfg.bbrs[info.head].bb;
+  info.dump();
   // exactly 1 induction var
   if (head->args.size() != 1) {
     fmt::println("0");
@@ -173,7 +174,9 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   for (auto tail : info.tails) {
     auto tail_bb = cfg.bbrs[tail].bb;
     auto term = tail_bb->get_terminator();
-    ASSERT(tail_bb == head || term->is(fir::InstrType::BranchInstr));
+    if (tail_bb != head || !term->is(fir::InstrType::BranchInstr)) {
+      return false;
+    }
     // there can only be 1 arg
     ASSERT(term->bbs[0].bb == head);
     auto induction_arg = term->bbs[0].args[0];

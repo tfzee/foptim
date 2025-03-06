@@ -65,7 +65,11 @@ fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
 
   fmt::format_to(ctx.out(), "):\n");
   for (foptim::fir::Instr instr : bb->get_instrs()) {
-    fmt::format_to(ctx.out(), "    {}", instr);
+    if (debug) {
+      fmt::format_to(ctx.out(), "    {:d}", instr);
+    } else {
+      fmt::format_to(ctx.out(), "    {}", instr);
+    }
   }
   return ctx.out();
 }

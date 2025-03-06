@@ -19,6 +19,7 @@
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
+#include "optim/func_passes/loop_unroll.hpp"
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/sccp.hpp"
@@ -94,10 +95,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
   ASSERT(ctx->verify());
 
-  fmt::print("================MEM====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{}\n", func);
-  }
   foptim::optim::StaticFunctionPassManager<InstSimplify, SimplifyCFG, DCE>{}
       .apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
@@ -106,13 +103,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-  fmt::print("================KNOWNBITS====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{}\n", func);
-  }
-  ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
@@ -120,14 +114,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
       .apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG, InstSimplify>{}.apply(
       ctx);
-  foptim::optim::StaticFunctionPassManager<SimpleVectorizer>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<Unroll>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<SimpleVectorizer>{}.apply(ctx);
   ASSERT(ctx->verify());
-  fmt::println("================Vecto====================");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::println("{:d}", func);
-  }
-  TODO("oak");
-
+  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG, InstSimplify>{}.apply(
       ctx);
@@ -137,6 +127,11 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
+  ASSERT(ctx->verify());
+  fmt::print("================FIR END====================\n");
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    fmt::print("{:d}\n", func);
+  }
 
   // {
   //   foptim::utils::print << "MEMREG JuST TESTING Attributor\n";

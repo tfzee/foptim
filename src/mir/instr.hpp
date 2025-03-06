@@ -412,7 +412,7 @@ public:
   MArgument(IRStringRef lab, Type ty)
       : type(ArgumentType::Label), ty(ty), label(lab) {}
 
-  [[nodiscard]] static constexpr MArgument Mem(IRStringRef lab, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemL(IRStringRef lab, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemLabel;
     arg.ty = ty;
@@ -420,8 +420,8 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(IRStringRef lab, u32 imm,
-                                               Type ty) {
+  [[nodiscard]] static constexpr MArgument MemLO(IRStringRef lab, u32 imm,
+                                                 Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmLabel;
     arg.ty = ty;
@@ -430,7 +430,7 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(VReg reg, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemB(VReg reg, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemVReg;
     arg.ty = ty;
@@ -438,7 +438,7 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(VReg reg, u32 off, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemOB(u32 off, VReg reg, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmVReg;
     arg.ty = ty;
@@ -447,7 +447,7 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(VReg reg, VReg indx, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemBI(VReg reg, VReg indx, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemVRegVReg;
     arg.ty = ty;
@@ -456,8 +456,9 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(VReg reg, VReg indx, u32 scale,
-                                               Type ty) {
+  // reg + indx * scale
+  [[nodiscard]] static constexpr MArgument MemBIS(VReg reg, VReg indx,
+                                                  u32 scale, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemVRegVRegScale;
     arg.ty = ty;
@@ -467,8 +468,20 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument Mem(u32 off, VReg indx, u32 scale,
-                                               Type ty) {
+  // reg + indx + off
+  [[nodiscard]] static constexpr MArgument MemOBI(u32 off, VReg reg, VReg indx,
+                                                  Type ty) {
+    MArgument arg;
+    arg.type = ArgumentType::MemImmVRegVReg;
+    arg.ty = ty;
+    arg.reg = reg;
+    arg.indx = indx;
+    arg.imm = off;
+    return arg;
+  }
+
+  [[nodiscard]] static constexpr MArgument MemOIS(u32 off, VReg indx, u32 scale,
+                                                  Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmVRegScale;
     arg.ty = ty;

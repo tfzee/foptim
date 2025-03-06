@@ -37,6 +37,10 @@ u32 AnyType::get_size() const {
   }
 }
 AnyType &AnyType::operator=(const AnyType &old) {
+  if (this == &old) {
+    return *this;
+  }
+
   switch (old.ty) {
   case AnyTypeType::Ptr:
   case AnyTypeType::Void:
@@ -50,6 +54,7 @@ AnyType &AnyType::operator=(const AnyType &old) {
     return *this;
   case AnyTypeType::Function:
     func_u = {old.ty, old.func_u.v};
+    func_u.v.arg_types = old.func_u.v.arg_types;
     return *this;
   case AnyTypeType::Vector:
     vec_u = old.vec_u;
@@ -71,6 +76,7 @@ AnyType::AnyType(const AnyType &old) {
     return;
   case AnyTypeType::Function:
     func_u = {old.ty, old.func_u.v};
+    func_u.v.arg_types = old.func_u.v.arg_types;
     return;
   case AnyTypeType::Vector:
     vec_u = old.vec_u;

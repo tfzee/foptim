@@ -58,9 +58,7 @@ void Instr::clear_args() {
   auto *self = operator->();
   auto &args = self->args;
   for (size_t i = 0; i < args.size(); i++) {
-    if (!args[i].is_constant()) {
-      args[i].remove_usage(Use::norm(*this, i));
-    }
+    args[i].remove_usage(Use::norm(*this, i));
   }
   args.clear();
 }
@@ -84,9 +82,7 @@ void Instr::clear_bb_args(u16 indx) {
   auto *self = operator->();
   auto &bbs = self->bbs;
   for (size_t arg_id = 0; arg_id < bbs[indx].args.size(); arg_id++) {
-    if (!bbs[indx].args[arg_id].is_constant()) {
-      bbs[indx].args[arg_id].remove_usage(Use::bb_arg(*this, indx, arg_id));
-    }
+    bbs[indx].args[arg_id].remove_usage(Use::bb_arg(*this, indx, arg_id));
   }
   bbs[indx].args.clear();
 }
@@ -169,6 +165,19 @@ ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val, bool verify) {
 
   return old_val;
 }
+
+void Instr::remove_arg(u16 indx, bool verify) {
+  InstrData *self = operator->();
+  auto &args = self->args;
+  for (size_t i = indx + 1; i < args.size(); i++) {
+    args[i].remove_usage(Use::norm(*this, i), verify);
+    args[i].add_usage(Use::norm(*this, i - 1));
+  }
+
+  args[indx].remove_usage(Use::norm(*this, indx), verify);
+  args.erase(args.begin() + indx);
+}
+
 void Instr::remove_bb_arg(u16 bb_id, u16 indx1, bool verify) {
   InstrData *self = operator->();
   auto &bb_args = self->bbs[bb_id].args;
@@ -254,10 +263,18 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
     return fmt::format_to(app, "INVALID");
   }
 
-  app = fmt::format_to(
-      app, "{:p}: {} = {}",
-      fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
-      instr->get_type(), instr->get_name());
+  if (debug) {
+    app = fmt::format_to(
+        app, "{:p}: {} NUses:{} = {}",
+        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
+        instr->get_type(), instr->get_n_uses(), instr->get_name());
+
+  } else {
+    app = fmt::format_to(
+        app, "{:p}: {} = {}",
+        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
+        instr->get_type(), instr->get_name());
+  }
 
   const auto &bb_args = instr->get_bb_args();
   if (bb_args.size() > 0) {

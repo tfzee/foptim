@@ -180,8 +180,8 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
   for (auto reg_ty : caller_saved) {
     bool skip_a = reg_ty == VRegType::A && can_skip_a;
     bool skip_mm0 = reg_ty == VRegType::mm0 && can_skip_mm0;
-    if (!is_alive(VReg{reg_ty}, lives, end, end, bb_id) || skip_a ||
-        skip_mm0 || reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
+    if (!is_alive(VReg{reg_ty}, lives, end, end, bb_id) || skip_a || skip_mm0 ||
+        reg_ty == VRegType::SP || reg_ty == VRegType::BP) {
       continue;
     }
     auto arg = MArgument{VReg{0, VRegInfo{reg_ty, Type::Int64}}, Type::Int64};
@@ -526,7 +526,7 @@ void gen_arg_mapping(MFunc &func) {
     } else {
       instr =
           MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
-                 MArgument::Mem(VReg::RSP(), 8 * (n_stack_args + 2), arg_ty));
+                 MArgument::MemOB(8 * (n_stack_args + 2), VReg::RSP(), arg_ty));
       n_stack_args++;
     }
     func.bbs[0].instrs.insert(func.bbs[0].instrs.begin(), instr);

@@ -42,10 +42,16 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 
 class DCE final : public FunctionPass {
 public:
-  void apply(fir::Context & /*unused*/, fir::Function &func) override {
+  void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("DCE");
     CFG rev_cfg{func, true};
     Dominators rev_dom{rev_cfg};
+    (void)ctx;
+    // if (func.linkage == fir::Function::Linkage::Internal &&
+    //     func.get_n_uses() == 0) {
+    //   ASSERT(ctx->delete_function(func.name.c_str()));
+    //   return;
+    // }
 
     TSet<fir::Instr> marked{};
     std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
@@ -150,7 +156,7 @@ public:
         dead_blocks.push_back(bb_id);
       }
     }
-    //reverse so we run high ones first
+    // reverse so we run high ones first
     std::reverse(dead_blocks.begin(), dead_blocks.end());
     for (auto dead_bb_id : dead_blocks) {
       func.basic_blocks[dead_bb_id]->remove_from_parent(true, true);

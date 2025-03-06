@@ -93,7 +93,11 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   if (!func.get_bbs().empty()) {
     app = fmt::format_to(app, "\n{{\n");
     for (foptim::fir::BasicBlock bb : func.get_bbs()) {
-      app = fmt::format_to(app, "  {}", bb);
+      if (debug) {
+        app = fmt::format_to(app, "  {:d}", bb);
+      } else {
+        app = fmt::format_to(app, "  {}", bb);
+      }
     }
     app = fmt::format_to(app, "}}");
   } else {

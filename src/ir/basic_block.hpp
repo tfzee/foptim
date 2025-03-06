@@ -20,6 +20,7 @@ public:
   [[nodiscard]] const auto &get_instrs() const { return instructions; }
 
   void clear_args();
+  void remove_arg(size_t indx);
   void remove_from_parent(bool remove_references, bool cleanup_instr = true);
 
   void remove_instr(size_t indx);

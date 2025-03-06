@@ -1,6 +1,7 @@
 #include "basic_block.hpp"
 #include "function.hpp"
 #include "instruction_data.hpp"
+#include "ir/basic_block_ref.hpp"
 
 namespace foptim::fir {
 
@@ -22,11 +23,17 @@ bool BasicBlockData::verify(const Function *exp_parent) const {
 
   for (const auto &instr : instructions) {
     if (!instr.is_valid() || !instr->verify(this)) {
-      fmt::println("Invalid Instruction {:p}", (void*)instr.get_raw_ptr());
+      fmt::println("Invalid Instruction {:p}", (void *)instr.get_raw_ptr());
       return false;
     }
   }
   return true;
+}
+
+void BasicBlockData::remove_arg(size_t i) {
+  args[i]->replace_all_uses(ValueR());
+  args[i]->_parent = fir::BasicBlock(fir::BasicBlock::invalid());
+  args.erase(args.begin() + i);
 }
 
 void BasicBlockData::clear_args() {

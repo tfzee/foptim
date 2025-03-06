@@ -37,10 +37,10 @@ public:
   bool known_upper = false;
   i128 upper_bound = 0;
 
-  // enum IterationType {
-  //   PlusA,
-  // };
-  // IterationType type;
+  enum IterationType {
+    PlusA,
+  };
+  IterationType type = IterationType::PlusA;
   i128 a = 0;
   LoopRangeAnalysis()
       : induction_var(fir::BBArgument::invalid()),

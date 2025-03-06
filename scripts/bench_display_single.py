@@ -29,6 +29,7 @@ def show_plot_comp(filename, filename2):
 
     colors = [("red" if x.endswith("baseline") else "green") for x in data["command"]]
     
+    plt.xticks(rotation=30, ha='right')
     plt.bar(data["command"], np.array(data["mean"])/np.array(data2["mean"]), color = colors)
     plt.show()
 
@@ -39,5 +40,5 @@ def show_plot_comp(filename, filename2):
 if __name__ == "__main__":
     show_plot_single("../bench/Output/perf.csv")
     # show_plot_single("../bench/Output/compile.csv")
-    show_plot_comp("../bench/Output/perf.csv", "../bench/Output/perf_25_02_27.csv")
+    show_plot_comp("../bench/Output/perf.csv", "../bench/Output/perf_25_03_06.csv")
 

@@ -31,6 +31,7 @@ public:
   ValueR replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val, bool verify = true);
   // void swap_bb_args(u16 bb_id, u16 indx1, u16 indx2, bool verify = true);
   void remove_bb_arg(u16 bb_id, u16 indx1, bool verify = true);
+  void remove_arg(u16 indx, bool verify = true);
 
   /*
   Substitutes args, bbs and bbargs if they are in the map

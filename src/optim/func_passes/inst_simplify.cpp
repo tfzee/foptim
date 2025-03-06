@@ -1,7 +1,9 @@
 #include "inst_simplify.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/use.hpp"
 
 namespace foptim::optim {
 
@@ -251,7 +253,7 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
       is_true = (i64)v1 < (i64)v2;
       break;
     case fir::ICmpInstrSubType::ULT:
-      is_true = v1 < v2;
+      is_true = (u64)v1 < (u64)v2;
       break;
     case fir::ICmpInstrSubType::NE:
       is_true = v1 != v2;
@@ -263,13 +265,13 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
       is_true = (i64)v1 > (i64)v2;
       break;
     case fir::ICmpInstrSubType::UGT:
-      is_true = v1 > v2;
+      is_true = (u64)v1 > (u64)v2;
       break;
     case fir::ICmpInstrSubType::UGE:
-      is_true = v1 >= v2;
+      is_true = (u64)v1 >= (u64)v2;
       break;
     case fir::ICmpInstrSubType::ULE:
-      is_true = v1 <= v2;
+      is_true = (u64)v1 <= (u64)v2;
       break;
     case fir::ICmpInstrSubType::SGE:
       is_true = (i64)v1 >= (i64)v2;
@@ -286,6 +288,27 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.remove_from_parent();
     return;
   }
+
+  // if first is not a constant we could get still a
+  //  y = add x 5
+  //  icmp y 100 -> which then can be simplified
+  // if (!first_constant && second_constant && instr->args[0].is_instr()) {
+  //   auto arg_instr = instr->args[0].as_instr();
+  //   auto constant = instr->args[1].as_constant()->as_int();
+
+  //   if (arg_instr->is(InstrType::BinaryInstr) &&
+  //       arg_instr->args[1].is_constant() &&
+  //       arg_instr->args[1].as_constant()->is_int() &&
+  //       (BinaryInstrSubType)arg_instr->subtype == BinaryInstrSubType::IntAdd)
+  //       {
+  //     auto constant2 = arg_instr->args[1].as_constant()->as_int();
+  //     instr.replace_arg(0, arg_instr->args[0]);
+  //     instr.replace_arg(1, ValueR(ctx->get_constant_value(
+  //                              constant - constant2,
+  //                              arg_instr->get_type())));
+  //     return;
+  //   }
+  // }
 }
 
 static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
@@ -433,6 +456,79 @@ static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
+static void simplify_call(fir::Instr instr, fir::BasicBlock /*bb*/,
+                          fir::Context &ctx, WorkList & /*worklist*/) {
+  if (!instr->args[0].is_constant()) {
+    return;
+  }
+  auto func_const = instr->args[0].as_constant();
+  if (!func_const->is_func()) {
+    return;
+  }
+  auto func = func_const->as_func();
+  if (func.func->linkage != fir::Function::Linkage::Internal) {
+    return;
+  }
+  if (func->is_decl()) {
+    return;
+  }
+
+  // constant propagate arguments
+  // TODO: should check every use if they are all direct calls and all have the
+  // same constant
+  //  we also can do it
+
+  auto entry_block = func->get_entry();
+  auto func_ty = func.func->func_ty->as_func();
+  auto arg_tys = func_ty.arg_types;
+  fmt::println("=====");
+  for (auto t : arg_tys) {
+    fmt::print("{}, ", t);
+  }
+  fmt::println("");
+  for (auto use : func.func->get_uses()) {
+    if (!use.user->is(fir::InstrType::CallInstr) ||
+        use.type != fir::UseType::NormalArg || use.argId != 0) {
+      return;
+    }
+    fmt::println("  {}", use.user);
+  }
+
+  for (u64 i = instr->args.size() - 1; i > 0; i--) {
+    bool can_convert = true;
+    fir::ConstantValueR consti =
+        fir::ConstantValueR(fir::ConstantValueR::invalid());
+
+    for (auto use : func.func->get_uses()) {
+      if (!use.user->args[i].is_constant()) {
+        can_convert = false;
+        break;
+      }
+      auto new_const = use.user->args[i].as_constant();
+      if (consti.is_valid() && !consti->eql(*new_const.get_raw_ptr())) {
+        can_convert = false;
+        break;
+      }
+      consti = new_const;
+    }
+    if (can_convert) {
+      entry_block->args[i - 1]->replace_all_uses(fir::ValueR(consti));
+      entry_block->remove_arg(i - 1);
+      for (auto use : func.func->get_uses()) {
+        use.user.remove_arg(i, true);
+        // use.user->args.erase(use.user->args.begin() + i);
+      }
+      arg_tys.erase(arg_tys.begin() + i);
+    }
+  }
+  fmt::println("===== {}", arg_tys.size());
+  // for (auto t : arg_tys) {
+  //   fmt::println("{}", t);
+  // }
+  func.func->func_ty =
+      ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+}
+
 static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist) {
   using namespace foptim::fir;
@@ -450,6 +546,9 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr->get_instr_type() == InstrType::CondBranchInstr) {
     return simplify_cond_branch(instr, bb, ctx, worklist);
+  }
+  if (instr->get_instr_type() == InstrType::CallInstr) {
+    return simplify_call(instr, bb, ctx, worklist);
   }
   if (instr->get_instr_type() == InstrType::SExt ||
       instr->get_instr_type() == InstrType::ZExt) {
@@ -473,6 +572,9 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   while (!worklist.empty()) {
     auto [instr, bb] = worklist.back();
     worklist.pop_back();
+    if (!instr->parent.is_valid()) {
+      continue;
+    }
     simplify(instr, bb, ctx, worklist);
   }
 }

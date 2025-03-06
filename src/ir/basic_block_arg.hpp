@@ -15,6 +15,7 @@ public:
   BBArgumentData(BasicBlock parent, TypeR type);
   [[nodiscard]] BasicBlock get_parent() const;
   [[nodiscard]] TypeR get_type() const;
+  // void remove_from_parent();
 };
 
 class BBArgument : public utils::SRef<BBArgumentData> {

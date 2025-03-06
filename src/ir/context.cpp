@@ -1,5 +1,6 @@
 #include "context.hpp"
 #include "utils/stable_vec_ref.hpp"
+#include "utils/string.hpp"
 
 namespace foptim::fir {
 
@@ -7,7 +8,6 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
   auto res = storage.insert_bb(*bb.get_raw_ptr());
   subs.insert({ValueR{bb}, ValueR{res}});
   res->uses.clear();
-
   res->args.clear();
   for (u32 arg_id = 0; arg_id < bb->args.size(); arg_id++) {
     auto new_bb_arg = storage.insert_bb_arg(res, bb->args[arg_id]->get_type());
@@ -24,6 +24,19 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
     }
     subs.insert({ValueR{instr}, ValueR{new_instr}});
     res.push_instr(new_instr);
+
+    new_instr->uses.clear();
+    new_instr->args.clear();
+    for (size_t i = 0; i < instr->args.size(); i++) {
+      new_instr.add_arg(instr->args[i]);
+    }
+    new_instr->bbs.clear();
+    for (auto &bb : instr->bbs) {
+      new_instr.add_bb(bb.bb);
+      for (auto &arg : bb.args) {
+        new_instr.add_bb_arg(new_instr->bbs.size() - 1, arg);
+      }
+    }
   }
   return res;
 }
@@ -80,6 +93,15 @@ FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
     init_bb->args.push_back(storage.insert_bb_arg(init_bb, arg_ty));
   }
   return func;
+}
+
+bool ContextData::delete_function(IRStringRef delete_func){
+  if(storage.functions.contains(delete_func)){
+    storage.functions.erase(delete_func);
+    return true;
+  }
+    
+  return false;
 }
 
 bool ContextData::verify() const {
