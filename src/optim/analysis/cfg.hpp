@@ -6,8 +6,8 @@
 #include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/helpers.hpp"
-#include <tracy/Tracy.hpp>
 #include <deque>
+#include <tracy/Tracy.hpp>
 
 namespace foptim::optim {
 
@@ -16,6 +16,7 @@ public:
   struct Node {
     fir::BasicBlock bb;
     TVec<u32> pred;
+    // there can only be two max
     TVec<u32> succ;
   };
   enum class IterRes {
@@ -71,7 +72,7 @@ public:
       }
       bbrs[from].succ.reserve(terminator->is(fir::InstrType::BranchInstr) ? 1
                                                                           : 2);
-      for (const auto& target : terminator->get_bb_args()) {
+      for (const auto &target : terminator->get_bb_args()) {
         for (u32 j = 0; j < bbrs.size(); j++) {
           if (bbrs[j].bb == target.bb) {
             bbrs[from].succ.push_back(j);

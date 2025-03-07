@@ -481,17 +481,17 @@ static void simplify_call(fir::Instr instr, fir::BasicBlock /*bb*/,
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
   auto arg_tys = func_ty.arg_types;
-  fmt::println("=====");
-  for (auto t : arg_tys) {
-    fmt::print("{}, ", t);
-  }
-  fmt::println("");
+  // fmt::println("=====");
+  // for (auto t : arg_tys) {
+  //   fmt::print("{}, ", t);
+  // }
+  // fmt::println("");
   for (auto use : func.func->get_uses()) {
     if (!use.user->is(fir::InstrType::CallInstr) ||
         use.type != fir::UseType::NormalArg || use.argId != 0) {
       return;
     }
-    fmt::println("  {}", use.user);
+    // fmt::println("  {}", use.user);
   }
 
   for (u64 i = instr->args.size() - 1; i > 0; i--) {
@@ -521,7 +521,7 @@ static void simplify_call(fir::Instr instr, fir::BasicBlock /*bb*/,
       arg_tys.erase(arg_tys.begin() + i);
     }
   }
-  fmt::println("===== {}", arg_tys.size());
+  // fmt::println("===== {}", arg_tys.size());
   // for (auto t : arg_tys) {
   //   fmt::println("{}", t);
   // }
