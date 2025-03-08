@@ -119,7 +119,12 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
       auto funcy = constant->as_func();
       return {funcy->getName().c_str()};
     }
-    return {(u64)0, type_id};
+    if (constant->is_int()) {
+      auto constant_ptr = constant->as_int();
+      return MArgument::MemO((u64)constant_ptr, type_id);
+    }
+    TODO("unreach?");
+    // return {(u64)0, :wype_id};
   } else {
     return MArgument::MemB(alloc.get_register(val), type_id);
   }

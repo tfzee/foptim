@@ -18,41 +18,131 @@
 // LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#include <cstddef>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
-#include "arena.hpp"
-#include <cstdint>
+#include <assert.h>
 #include <tracy/Tracy.hpp>
-
-#include <cstring>
-
-#ifndef ARENA_ASSERT
-#include <cassert>
 #define ARENA_ASSERT assert
-#endif
+#define ARENA_REGION_DEFAULT_CAPACITY (16 * 1024)
+#define MIN_ALIGN (alignof(std::max_align_t))
 
-#define REGION_DEFAULT_CAPACITY (size_t)(8 * 1024)
+typedef struct Region Region;
+
+struct Region {
+  Region *next;
+  size_t count;
+  size_t capacity;
+  alignas(MIN_ALIGN) uintptr_t data[];
+};
+
+typedef struct {
+  Region *begin, *end;
+} Arena;
+
+typedef struct {
+  Region *region;
+  size_t count;
+} Arena_Mark;
+
+Arena global_temp_arena = {};
+Arena ir_arena = {};
+unsigned long temp_arena_size{};
+unsigned long temp_ir_size = {};
 
 Region *new_region(size_t capacity);
 void free_region(Region *r);
 
+void *arena_alloc(Arena *a, size_t size_bytes);
+void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);
+char *arena_strdup(Arena *a, const char *cstr);
+void *arena_memdup(Arena *a, void *data, size_t size);
+#ifndef ARENA_NOSTDIO
+char *arena_sprintf(Arena *a, const char *format, ...);
+#endif // ARENA_NOSTDIO
+
+Arena_Mark arena_snapshot(Arena *a);
+void arena_reset(Arena *a);
+void arena_rewind(Arena *a, Arena_Mark m);
+void arena_free(Arena *a);
+void arena_trim(Arena *a);
+
+#ifndef ARENA_DA_INIT_CAP
 #define ARENA_DA_INIT_CAP 256
+#endif // ARENA_DA_INIT_CAP
 
-Arena global_temp_arena = {nullptr, nullptr};
-Arena ir_arena = {nullptr, nullptr};
-unsigned long temp_arena_size = 0;
-unsigned long temp_ir_size = 0;
-
+#ifdef __cplusplus
 #define cast_ptr(ptr) (decltype(ptr))
-#include <cstdlib>
+#else
+#define cast_ptr(...)
+#endif
 
+#define arena_da_append(a, da, item)                                           \
+  do {                                                                         \
+    if ((da)->count >= (da)->capacity) {                                       \
+      size_t new_capacity =                                                    \
+          (da)->capacity == 0 ? ARENA_DA_INIT_CAP : (da)->capacity * 2;        \
+      (da)->items = cast_ptr((da)->items) arena_realloc(                       \
+          (a), (da)->items, (da)->capacity * sizeof(*(da)->items),             \
+          new_capacity * sizeof(*(da)->items));                                \
+      (da)->capacity = new_capacity;                                           \
+    }                                                                          \
+                                                                               \
+    (da)->items[(da)->count++] = (item);                                       \
+  } while (0)
+
+// Append several items to a dynamic array
+#define arena_da_append_many(a, da, new_items, new_items_count)                \
+  do {                                                                         \
+    if ((da)->count + (new_items_count) > (da)->capacity) {                    \
+      size_t new_capacity = (da)->capacity;                                    \
+      if (new_capacity == 0)                                                   \
+        new_capacity = ARENA_DA_INIT_CAP;                                      \
+      while ((da)->count + (new_items_count) > new_capacity)                   \
+        new_capacity *= 2;                                                     \
+      (da)->items = cast_ptr((da)->items) arena_realloc(                       \
+          (a), (da)->items, (da)->capacity * sizeof(*(da)->items),             \
+          new_capacity * sizeof(*(da)->items));                                \
+      (da)->capacity = new_capacity;                                           \
+    }                                                                          \
+    arena_memcpy((da)->items + (da)->count, (new_items),                       \
+                 (new_items_count) * sizeof(*(da)->items));                    \
+    (da)->count += (new_items_count);                                          \
+  } while (0)
+
+// Append a sized buffer to a string builder
+#define arena_sb_append_buf arena_da_append_many
+
+// Append a NULL-terminated string to a string builder
+#define arena_sb_append_cstr(a, sb, cstr)                                      \
+  do {                                                                         \
+    const char *s = (cstr);                                                    \
+    size_t n = arena_strlen(s);                                                \
+    arena_da_append_many(a, sb, s, n);                                         \
+  } while (0)
+
+// Append a single NULL character at the end of a string builder. So then you
+// can use it a NULL-terminated C string
+#define arena_sb_append_null(a, sb) arena_da_append(a, sb, 0)
+
+#include <stdlib.h>
+
+// TODO: instead of accepting specific capacity new_region() should accept the
+// size of the object we want to fit into the region It should be up to
+// new_region() to decide the actual capacity to allocate
 Region *new_region(size_t capacity) {
   size_t size_bytes = sizeof(Region) + sizeof(uintptr_t) * capacity;
+  // TODO: it would be nice if we could guarantee that the regions are allocated
+  // by ARENA_BACKEND_LIBC_MALLOC are page aligned
   Region *r = (Region *)malloc(size_bytes);
-  // assert((size_t)r % alignof(std::max_align_t) == 0);
-  // assert((size_t)r % sizeof(uintptr_t) == 0);
   TracyAlloc(r, size_bytes);
-  ARENA_ASSERT(r);
-  r->next = nullptr;
+  ARENA_ASSERT(r); // TODO: since ARENA_ASSERT is disableable go through all the
+                   // places where we use it to check for failed memory
+                   // allocation and return with NULL there.
+  r->next = NULL;
   r->count = 0;
   r->capacity = capacity;
   return r;
@@ -63,57 +153,137 @@ void free_region(Region *r) {
   free(r);
 }
 
+void *align_pointer(void *ptr, size_t alignment) {
+  uintptr_t p = (uintptr_t)ptr;
+  uintptr_t aligned_p =
+      (p + alignment - 1) & ~(alignment - 1); // Align the pointer
+  return (void *)aligned_p;
+}
+
 void *arena_alloc(Arena *a, size_t size_bytes) {
-  size_t aligned_size = ((size_bytes + (MIN_CHUNK_SIZE - 1)) & -MIN_CHUNK_SIZE);
-  // assert(aligned_size % alignof(std::max_align_t) == 0);
-  // assert(aligned_size % sizeof(uintptr_t) == 0);
+  size_t size =
+      (size_bytes + MIN_ALIGN + sizeof(uintptr_t) - 1) / sizeof(uintptr_t);
 
-  size_t size = (aligned_size) / sizeof(uintptr_t);
-  // printf("%zu Aligned size %zu %zu\n", size_bytes, aligned_size, size);
-
-  if (a->end == nullptr) {
-    ARENA_ASSERT(a->begin == nullptr);
-    size_t capacity = REGION_DEFAULT_CAPACITY;
-    if (capacity < size) {
+  if (a->end == NULL) {
+    ARENA_ASSERT(a->begin == NULL);
+    size_t capacity = ARENA_REGION_DEFAULT_CAPACITY;
+    if (capacity < size)
       capacity = size;
-    }
     a->end = new_region(capacity);
     a->begin = a->end;
   }
 
-  while (a->end->count + size > a->end->capacity && a->end->next != nullptr) {
+  while (a->end->count + size > a->end->capacity && a->end->next != NULL) {
     a->end = a->end->next;
   }
 
   if (a->end->count + size > a->end->capacity) {
-    ARENA_ASSERT(a->end->next == nullptr);
-    size_t capacity = REGION_DEFAULT_CAPACITY;
-    if (capacity < size) {
+    ARENA_ASSERT(a->end->next == NULL);
+    size_t capacity = ARENA_REGION_DEFAULT_CAPACITY;
+    if (capacity < size)
       capacity = size;
-    }
     a->end->next = new_region(capacity);
     a->end = a->end->next;
   }
 
   void *result = &a->end->data[a->end->count];
   a->end->count += size;
-  return result;
+  // ALIGN IT to real good align
+  return align_pointer(result, MIN_ALIGN);
+}
+
+void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz) {
+  if (newsz <= oldsz)
+    return oldptr;
+  void *newptr = arena_alloc(a, newsz);
+  char *newptr_char = (char *)newptr;
+  char *oldptr_char = (char *)oldptr;
+  for (size_t i = 0; i < oldsz; ++i) {
+    newptr_char[i] = oldptr_char[i];
+  }
+  return newptr;
+}
+
+size_t arena_strlen(const char *s) {
+  size_t n = 0;
+  while (*s++)
+    n++;
+  return n;
+}
+
+void *arena_memcpy(void *dest, const void *src, size_t n) {
+  char *d = (char *)dest;
+  const char *s = (char *)src;
+  for (; n; n--)
+    *d++ = *s++;
+  return dest;
+}
+
+char *arena_strdup(Arena *a, const char *cstr) {
+  size_t n = arena_strlen(cstr);
+  char *dup = (char *)arena_alloc(a, n + 1);
+  arena_memcpy(dup, cstr, n);
+  dup[n] = '\0';
+  return dup;
+}
+
+void *arena_memdup(Arena *a, void *data, size_t size) {
+  return arena_memcpy(arena_alloc(a, size), data, size);
+}
+
+Arena_Mark arena_snapshot(Arena *a) {
+  Arena_Mark m;
+  if (a->end == NULL) { // snapshot of uninitialized arena
+    ARENA_ASSERT(a->begin == NULL);
+    m.region = a->end;
+    m.count = 0;
+  } else {
+    m.region = a->end;
+    m.count = a->end->count;
+  }
+
+  return m;
 }
 
 void arena_reset(Arena *a) {
-  for (Region *r = a->begin; r != nullptr; r = r->next) {
+  for (Region *r = a->begin; r != NULL; r = r->next) {
     r->count = 0;
   }
+
   a->end = a->begin;
+}
+
+void arena_rewind(Arena *a, Arena_Mark m) {
+  if (m.region == NULL) { // snapshot of uninitialized arena
+    arena_reset(a);       // leave allocation
+    return;
+  }
+
+  m.region->count = m.count;
+  for (Region *r = m.region->next; r != NULL; r = r->next) {
+    r->count = 0;
+  }
+
+  a->end = m.region;
 }
 
 void arena_free(Arena *a) {
   Region *r = a->begin;
-  while (r != nullptr) {
+  while (r) {
     Region *r0 = r;
     r = r->next;
     free_region(r0);
   }
-  a->begin = nullptr;
-  a->end = nullptr;
+  a->begin = NULL;
+  a->end = NULL;
+}
+
+void arena_trim(Arena *a) {
+  Region *r = a->end->next;
+  while (r) {
+    Region *r0 = r;
+    r = r->next;
+    free_region(r0);
+  }
+  a->end->next = NULL;
 }

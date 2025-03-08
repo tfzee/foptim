@@ -443,6 +443,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
 
   auto new_in_one = utils::BitSet<>::empty(stack_size);
   auto new_in_zero = utils::BitSet<>::empty(stack_size);
+  // auto test = utils::BitSet<>::empty(stack_size);
 
   TMap<ValueR, i128> known_load_values;
   TVec<fir::Instr> load_stores;
@@ -451,12 +452,24 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
     auto curr = worklist.front();
     worklist.pop_front();
 
-    new_in_one.reset(true);
-    new_in_zero.reset(true);
-    for (auto p : cfg.bbrs[curr].pred) {
-      new_in_one.mul(exit_known_one[p]);
-      new_in_zero.mul(exit_known_zero[p]);
+    if (cfg.bbrs[curr].pred.empty()) {
+      // maybe could just decide on a static value
+      // sicne is poison?
+      new_in_one.reset(false);
+      new_in_zero.reset(false);
+    } else {
+      new_in_one.reset(true);
+      new_in_zero.reset(true);
+      for (auto p : cfg.bbrs[curr].pred) {
+        fmt::println("ONE: {}", exit_known_one[p]);
+        fmt::println("ZER: {}", exit_known_zero[p]);
+        new_in_one.mul(exit_known_one[p]);
+        new_in_zero.mul(exit_known_zero[p]);
+      }
     }
+    // test.assign(new_in_one);
+    // test.mul(new_in_zero);
+    // ASSERT(!test.any());
 
     for (auto instr : cfg.bbrs[curr].bb->instructions) {
 
@@ -514,7 +527,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
         load.replace_all_uses(fir::ValueR(val));
         cache.erase(load);
       } else if (widht == 64) {
-        //TODO: this might lead to issues with teh cast?
+        // TODO: this might lead to issues with teh cast?
         auto val =
             ctx->get_constant_value(std::bit_cast<f64>((u64)v), l.get_type());
         load.replace_all_uses(fir::ValueR(val));

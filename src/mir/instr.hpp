@@ -430,6 +430,14 @@ public:
     return arg;
   }
 
+  [[nodiscard]] static constexpr MArgument MemO(u64 imm, Type ty) {
+    MArgument arg;
+    arg.type = ArgumentType::MemImm;
+    arg.ty = ty;
+    arg.imm = imm;
+    return arg;
+  }
+
   [[nodiscard]] static constexpr MArgument MemB(VReg reg, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemVReg;

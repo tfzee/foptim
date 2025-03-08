@@ -205,6 +205,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   (void)globals;
   ZoneScopedN("MIR Optim");
   fmt::print("================MIR OPTIM====================\n");
+  for (auto &f : funcs) {
+    fmt::println("{}", f);
+  }
   // running dead to make inst simplify work better
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
@@ -218,10 +221,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegisterJoining{}.apply(funcs);
-  // fmt::print("================REGJOIN====================\n");
-  // for (auto &f : funcs) {
-  //   fmt::println("{}", f);
-  // }
+  fmt::print("================REGJOIN====================\n");
+  for (auto &f : funcs) {
+    fmt::println("{}", f);
+  }
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

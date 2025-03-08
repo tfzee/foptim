@@ -2,21 +2,10 @@
 #include "utils/types.hpp"
 #include <cstddef>
 #include <cstdint>
-#include <memory>
+// #include <memory>
 #include <tracy/Tracy.hpp>
 
-constexpr unsigned int MIN_CHUNK_SIZE = alignof(std::max_align_t);
-
-struct Region {
-  Region *next;
-  size_t count;
-  size_t capacity;
-  alignas(MIN_CHUNK_SIZE) uintptr_t data[];
-};
-
-struct Arena {
-  Region *begin, *end;
-};
+struct Arena;
 
 void *arena_alloc(Arena *a, size_t size_bytes);
 // void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);

@@ -7,14 +7,12 @@ namespace foptim {
 
 [[noreturn]] void todo_impl(const char *text, const char *filename, u64 line) {
   printf("[TODO] @ %s:%lu : %s\n", filename, line, text);
-  exit(33);
-  // std::abort();
+  std::abort();
 }
 
 [[noreturn]] void impl_impl(const char *text, const char *filename, u64 line) {
   printf("[IMPLEMENT] @ %s:%lu : %s\n", filename, line, text);
-  exit(33);
-  // std::abort();
+  std::abort();
 }
 
 void ASSERT_HANDLE(bool cond, const char *filename, size_t lineNumber,
