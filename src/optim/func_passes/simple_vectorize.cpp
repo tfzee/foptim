@@ -10,10 +10,23 @@ bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   (void)ctx;
   (void)func;
   LoopRangeAnalysis range;
-  if (range.update(cfg, loop)) {
-    range.dump();
+  if (!range.update(cfg, loop)) {
+    return false;
   }
-  return false;
+  if (!range.known_upper || !range.known_lower) {
+    return false;
+  }
+  auto iteration_count = (range.upper_bound - range.lower_bound) / range.a;
+  if (iteration_count <= 10 || iteration_count % 4 != 0) {
+    return false;
+  }
+  ASSERT(range.type == LoopRangeAnalysis::IterationType::PlusA);
+
+  //figure out which instructions would be part of the vectorization
+  //that is all instructions that 
+
+  range.dump();
+  TODO("okak");
 }
 
 void SimpleVectorizer::apply(fir::Context &ctx, fir::Function &func) {

@@ -162,6 +162,7 @@ public:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() - b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::IntAdd:
+        fmt::println("{}", instr);
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() + b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::IntSRem:

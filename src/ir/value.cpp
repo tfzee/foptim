@@ -20,7 +20,10 @@ bool ValueR::is_valid(bool check_refs) const {
   case ValueType::BBArg:
     return check_refs && bb_arg.is_valid();
   case ValueType::ConstantValueR:
-    return check_refs && const_val.is_valid() && const_val->is_valid();
+    if (!(check_refs && const_val.is_valid() && const_val->is_valid())) {
+      fmt::println("{}", const_val);
+      return false;
+    }
   case ValueType::BasicBlock:
     return true;
   }

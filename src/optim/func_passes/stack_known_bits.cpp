@@ -505,9 +505,26 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
   // (void)ctx;
   for (auto &[l, v] : known_load_values) {
     auto load = l;
-    auto val = ctx->get_constant_value(v, l.get_type());
-    load.replace_all_uses(fir::ValueR(val));
-    cache.erase(load);
+
+    if (l.get_type()->is_float()) {
+      auto widht = l.get_type()->as_float();
+      if (widht == 32) {
+        auto val =
+            ctx->get_constant_value(std::bit_cast<f32>((u32)v), l.get_type());
+        load.replace_all_uses(fir::ValueR(val));
+        cache.erase(load);
+      } else if (widht == 64) {
+        //TODO: this might lead to issues with teh cast?
+        auto val =
+            ctx->get_constant_value(std::bit_cast<f64>((u64)v), l.get_type());
+        load.replace_all_uses(fir::ValueR(val));
+        cache.erase(load);
+      }
+    } else {
+      auto val = ctx->get_constant_value(v, l.get_type());
+      load.replace_all_uses(fir::ValueR(val));
+      cache.erase(load);
+    }
   }
 
   // SROA

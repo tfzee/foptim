@@ -5,6 +5,7 @@
 namespace foptim::fmir {
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                     ExtraMatchData &data) {
+  // fmt::println("Instr: {}", call_instr);
   TVec<MArgument> evaluated_args;
   for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
     evaluated_args.push_back(
@@ -21,6 +22,9 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
   ASSERT(val.is_constant());
   auto consti = val.as_constant();
   if (consti->is_int()) {
+    if (val.get_type()->is_ptr()) {
+      return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
+    }
     switch (val.get_type()->as_int()) {
     case 1:
       return {(u8)std::bit_cast<u64>((i64)consti->as_int())};

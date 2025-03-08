@@ -1,5 +1,6 @@
 #include "constant_value.hpp"
 #include "function.hpp"
+#include "ir/constant_value_ref.hpp"
 #include "ir/value.hpp"
 
 namespace foptim::fir {
@@ -181,6 +182,28 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
 [[nodiscard]] bool ConstantValue::is_valid() const {
   if (!type.is_valid()) {
     fmt::println("Invalid type\n");
+    return false;
+  }
+  if (type->is_int() &&
+      (ty != ConstantType::PoisonValue && ty != ConstantType::IntValue)) {
+    fmt::println("Type is int but constant is not\n");
+    return false;
+  }
+  if (type->is_float() &&
+      (ty != ConstantType::PoisonValue && ty != ConstantType::FloatValue)) {
+    fmt::println("Type is float but constant is not\n");
+    return false;
+  }
+  if (type->is_func() &&
+      (ty != ConstantType::PoisonValue && ty != ConstantType::GlobalPtr &&
+       ty != ConstantType::FuncPtr)) {
+    fmt::println("Type is func but constant is not\n");
+    return false;
+  }
+  if (type->is_ptr() &&
+      (ty != ConstantType::PoisonValue && ty != ConstantType::GlobalPtr &&
+       ty != ConstantType::FuncPtr && ty != ConstantType::IntValue)) {
+    fmt::println("Type is ptr but constant is not\n");
     return false;
   }
   return true;

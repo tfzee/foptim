@@ -152,8 +152,12 @@ static void decide_value_store(fir::Instr instr, size_t &i,
 
   auto &back_ref = current_variable_value.back();
   if (back_ref.contains(instr->args[0])) {
+    // fmt::print("{}", instr);
+    // fmt::println("STORE {} {}", instr->args[0], instr->args[1]);
     back_ref.at(instr->args[0]) = {block, instr->args[1]};
   } else {
+    // fmt::print("{}", instr);
+    // fmt::println("STORE {} {}", instr->args[0], instr->args[1]);
     back_ref.insert({instr->args[0], {block, instr->args[1]}});
   }
   block->remove_instr(i);
@@ -183,8 +187,10 @@ static void decide_value_load(fir::Instr instr, size_t &i,
                              load_val)) {
     auto *ctx = instr->get_parent()->get_parent().func->ctx;
     load_val = fir::ValueR(ctx->get_poisson_value(instr.get_type()));
-    // load_val =
-    //     fir::ValueR(ctx->get_constant_value(0, instr.get_type()));
+  }
+  if (load_val.get_type() != instr.get_type()) {
+    fmt::println("{} != {}", instr, load_val);
+    TODO("wrong typein alloca?");
   }
 
   instr->replace_all_uses(load_val);
