@@ -56,17 +56,22 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     u32 bitwidth = int_constant->getBitWidth();
     auto value = int_constant->getValue();
 
-    if (value.isNegative()) {
+    if (value.isNegative() && bitwidth != 1) {
       return foptim::fir::ValueR(fctx->get_constant_value(
           value.getSExtValue(), fctx->get_int_type(bitwidth)));
     }
     return foptim::fir::ValueR(fctx->get_constant_value(
         value.getZExtValue(), fctx->get_int_type(bitwidth)));
   }
-  if (const auto *float_constant =
+  if (const auto *ptr_null_constant =
           llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
-    return foptim::fir::ValueR(
-        fctx->get_constant_value(0.0, fctx->get_float_type(64)));
+    auto res = builder.build_conversion_op(
+        foptim::fir::ValueR(
+            fctx->get_constant_value(0, fctx->get_int_type(64))),
+        fctx->get_ptr_type(), foptim::fir::ConversionSubType::IntToPtr);
+    return res;
+    // return foptim::fir::ValueR(
+    // );
   }
   if (const auto *float_constant =
           llvm::dyn_cast_or_null<llvm::ConstantFP>(value)) {
@@ -1179,6 +1184,7 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
                << "\n";
   TODO("IMPL");
 }
+
 inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
                          foptim::fir::Context &fctx, V2VMap &valueToValue) {
   if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
