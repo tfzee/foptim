@@ -131,9 +131,7 @@ static void save_locals(IRVec<MInstr> &instrs,
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
   }
   if (call.n_args == 2 && !return_value_overwrites_ret_reg) {
-    bool is_float =
-        call.args[1].ty == Type::Float32 || call.args[1].ty == Type::Float64;
-    const auto reg_ty = is_float ? CReg::mm0 : CReg::A;
+    const auto reg_ty = call.args[1].is_fp() ? CReg::mm0 : CReg::A;
     if (is_alive(VReg{reg_ty}, lives, end, end, bb_id)) {
       auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
       instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
@@ -152,8 +150,7 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
   bool can_skip_mm0 = false;
   // ret value
   if (call.n_args == 2) {
-    auto ret_type = call.args[1].ty;
-    bool is_float = ret_type == Type::Float32 || ret_type == Type::Float64;
+    bool is_float = call.args[1].is_fp();
     auto ret_reg_type = is_float ? CReg::mm0 : CReg::A;
     if (is_float) {
       can_skip_mm0 = true;
@@ -163,9 +160,9 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
 
     if (!return_value_overwrites_ret_reg) {
       bool a_gets_overwritten =
-          (!is_float && is_alive(VReg{CReg::A}, lives, start, end, bb_id));
+          (!is_float && is_alive(VReg{CReg::A}, lives, end, end, bb_id));
       bool mm0_gets_overwritten =
-          (is_float && is_alive(VReg{CReg::mm0}, lives, start, end, bb_id));
+          (is_float && is_alive(VReg{CReg::mm0}, lives, end, end, bb_id));
       if (a_gets_overwritten || mm0_gets_overwritten) {
         auto arg = MArgument{VReg{ret_reg_type, Type::Int64}, Type::Int64};
         instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
@@ -173,6 +170,7 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
       }
     }
 
+    auto ret_type = call.args[1].ty;
     instrs.insert(instrs.begin() + (i64)start,
                   MInstr{Opcode::mov, call.args[1],
                          MArgument{VReg{ret_reg_type, ret_type}, ret_type}});

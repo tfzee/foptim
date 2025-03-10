@@ -590,7 +590,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
             // TODO: fix if we got 2 writes following each other otherwise it
             // would be discarded teh first one
             ranges[reg].update(
-                LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
+                LinearRange::inBB(bb_id, start_instr + 1, start_instr + 1));
             start_instr = res.index;
             search_instr = res.index;
           }

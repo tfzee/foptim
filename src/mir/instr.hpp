@@ -214,7 +214,7 @@ public:
   consteval VReg() : virt(RegType::Virtual, Type::INVALID, 0) {}
   constexpr VReg(u64 id) : virt(RegType::Virtual, Type::INVALID, id) {}
   constexpr VReg(u64 id, Type ty) : virt(RegType::Virtual, ty, id) {}
-  constexpr VReg(CReg reg_ty, Type ty = Type::Int8)
+  constexpr VReg(CReg reg_ty, Type ty = Type::Int64)
       : conc(RegType::Concrete, ty, reg_ty) {}
 
   [[nodiscard]] constexpr bool is_concrete() const {
