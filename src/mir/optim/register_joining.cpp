@@ -8,7 +8,8 @@ namespace foptim::fmir {
 
 void RegisterJoining::apply(MFunc &func) {
   auto lives = linear_lifetime(func);
-  TMap<size_t, VRegType> reg_mapping;
+  TMap<u64, CReg> reg_mapping;
+  fmt::println("{}", func.name);
 
   for (size_t ip1 = func.bbs.size(); ip1 > 0; ip1--) {
     size_t i = ip1 - 1;
@@ -23,38 +24,45 @@ void RegisterJoining::apply(MFunc &func) {
       VReg virtual_value_reg;
 
       if (instr.op == Opcode::mov && instr.args[0].isReg() &&
-          instr.args[1].isReg() && instr.args[0].reg.info.is_pinned() &&
-          !instr.args[1].reg.info.is_pinned()) {
+          instr.args[1].isReg() && instr.args[0].reg.is_concrete() &&
+          !instr.args[1].reg.is_concrete()) {
         pinned_target_reg = instr.args[0].reg;
         virtual_value_reg = instr.args[1].reg;
         hit = true;
       } else if (instr.op == Opcode::mov && instr.args[0].isReg() &&
-                 instr.args[1].isReg() && instr.args[1].reg.info.is_pinned() &&
-                 !instr.args[0].reg.info.is_pinned()) {
+                 instr.args[1].isReg() && instr.args[1].reg.is_concrete() &&
+                 !instr.args[0].reg.is_concrete()) {
         pinned_target_reg = instr.args[1].reg;
         virtual_value_reg = instr.args[0].reg;
         hit = true;
       } else if (instr.op == Opcode::arg_setup && instr.args[0].isReg() &&
-                 instr.args[1].isReg() && !instr.args[0].reg.info.is_pinned() &&
-                 instr.args[1].reg.info.is_pinned()) {
+                 instr.args[1].isReg() && !instr.args[0].reg.is_concrete() &&
+                 instr.args[1].reg.is_concrete()) {
         virtual_value_reg = instr.args[0].reg;
         pinned_target_reg = instr.args[1].reg;
         hit = true;
       }
-      if (pinned_target_reg.info.ty == VRegType::SP ||
-          pinned_target_reg.info.ty == VRegType::BP ||
-          pinned_target_reg.info.reg_class !=
-              virtual_value_reg.info.reg_class) {
+      if (hit &&
+          (pinned_target_reg.c_reg() == CReg::SP ||
+           pinned_target_reg.c_reg() == CReg::BP ||
+           pinned_target_reg.is_vec_reg() != virtual_value_reg.is_vec_reg())) {
         hit = false;
       }
 
       if (hit) {
         ASSERT(lives.contains(virtual_value_reg));
         ASSERT(lives.contains(pinned_target_reg));
+        fmt::println("TRYING JOIN {}", virtual_value_reg);
+        lives.at(virtual_value_reg).dump();
+        fmt::println("TRYING JOIN {}", pinned_target_reg);
+        lives.at(pinned_target_reg).dump();
 
         if (!lives.at(pinned_target_reg).collide(lives.at(virtual_value_reg))) {
-          reg_mapping[virtual_value_reg.id] = pinned_target_reg.info.ty;
+          fmt::println(" WORKED");
+          reg_mapping[virtual_value_reg.virt_id()] = pinned_target_reg.c_reg();
           lives.at(pinned_target_reg).update(lives.at(virtual_value_reg));
+        } else {
+          fmt::println(" FAILED");
         }
       }
     }

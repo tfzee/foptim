@@ -461,216 +461,220 @@ fmt::appender
 fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
                                            format_context &ctx) const {
 
-  using foptim::fmir::VRegType;
+  using foptim::fmir::CReg;
   auto app = ctx.out();
   auto col = fg(fmt::color::light_sky_blue);
   auto col_vec = fg(fmt::color::steel_blue);
+  if (!value.is_concrete()) {
+    return fmt::format_to(app, col, "${}", value.virt_id());
+  }
 
-  if (value.info.reg_size == 0) {
-    switch (value.info.ty) {
-    case VRegType::A:
+  if (get_size(value.ty) == 0) {
+    switch (value.c_reg()) {
+    case CReg::A:
       return fmt::format_to(app, col, "$a");
-    case VRegType::SP:
+    case CReg::SP:
       return fmt::format_to(app, col, "$sp");
-    case VRegType::B:
+    case CReg::B:
       return fmt::format_to(app, col, "$b");
-    case VRegType::C:
+    case CReg::C:
       return fmt::format_to(app, col, "$c");
-    case VRegType::D:
+    case CReg::D:
       return fmt::format_to(app, col, "$d");
-    case VRegType::DI:
+    case CReg::DI:
       return fmt::format_to(app, col, "$di");
-    case VRegType::SI:
+    case CReg::SI:
       return fmt::format_to(app, col, "$si");
-    case VRegType::BP:
+    case CReg::BP:
       return fmt::format_to(app, col, "$bp");
-    case VRegType::R8:
+    case CReg::R8:
       return fmt::format_to(app, col, "$8");
-    case VRegType::R9:
+    case CReg::R9:
       return fmt::format_to(app, col, "$9");
-    case VRegType::R10:
+    case CReg::R10:
       return fmt::format_to(app, col, "$10");
-    case VRegType::R11:
+    case CReg::R11:
       return fmt::format_to(app, col, "$11");
-    case VRegType::R12:
+    case CReg::R12:
       return fmt::format_to(app, col, "$12");
-    case VRegType::R13:
+    case CReg::R13:
       return fmt::format_to(app, col, "$13");
-    case VRegType::R14:
+    case CReg::R14:
       return fmt::format_to(app, col, "$14");
-    case VRegType::R15:
+    case CReg::R15:
       return fmt::format_to(app, col, "$15");
     default:
     }
-  } else if (value.info.reg_size == 1) {
-    switch (value.info.ty) {
-    case VRegType::A:
+  } else if (get_size(value.ty) == 1) {
+    switch (value.c_reg()) {
+    case CReg::A:
       return fmt::format_to(app, col, "$al");
-    case VRegType::SP:
+    case CReg::SP:
       return fmt::format_to(app, col, "$spl");
-    case VRegType::B:
+    case CReg::B:
       return fmt::format_to(app, col, "$bl");
-    case VRegType::C:
+    case CReg::C:
       return fmt::format_to(app, col, "$cl");
-    case VRegType::D:
+    case CReg::D:
       return fmt::format_to(app, col, "$dl");
-    case VRegType::DI:
+    case CReg::DI:
       return fmt::format_to(app, col, "$ldi");
-    case VRegType::SI:
+    case CReg::SI:
       return fmt::format_to(app, col, "$lsi");
-    case VRegType::BP:
+    case CReg::BP:
       return fmt::format_to(app, col, "$lbp");
-    case VRegType::R8:
+    case CReg::R8:
       return fmt::format_to(app, col, "$r8l");
-    case VRegType::R9:
+    case CReg::R9:
       return fmt::format_to(app, col, "$r9l");
-    case VRegType::R10:
+    case CReg::R10:
       return fmt::format_to(app, col, "$r10l");
-    case VRegType::R11:
+    case CReg::R11:
       return fmt::format_to(app, col, "$r11l");
-    case VRegType::R12:
+    case CReg::R12:
       return fmt::format_to(app, col, "$r12l");
-    case VRegType::R13:
+    case CReg::R13:
       return fmt::format_to(app, col, "$r13l");
-    case VRegType::R14:
+    case CReg::R14:
       return fmt::format_to(app, col, "$r14l");
-    case VRegType::R15:
+    case CReg::R15:
       return fmt::format_to(app, col, "$r15l");
     default:
     }
-  } else if (value.info.reg_size == 2) {
-    switch (value.info.ty) {
-    case VRegType::A:
+  } else if (get_size(value.ty) == 2) {
+    switch (value.c_reg()) {
+    case CReg::A:
       return fmt::format_to(app, col, "$ax");
-    case VRegType::SP:
+    case CReg::SP:
       return fmt::format_to(app, col, "$sp");
-    case VRegType::B:
-    case VRegType::C:
-    case VRegType::D:
-    case VRegType::DI:
-    case VRegType::SI:
-    case VRegType::BP:
-    case VRegType::R8:
-    case VRegType::R9:
-    case VRegType::R10:
-    case VRegType::R11:
-    case VRegType::R12:
-    case VRegType::R13:
-    case VRegType::R14:
-    case VRegType::R15:
+    case CReg::B:
+    case CReg::C:
+    case CReg::D:
+    case CReg::DI:
+    case CReg::SI:
+    case CReg::BP:
+    case CReg::R8:
+    case CReg::R9:
+    case CReg::R10:
+    case CReg::R11:
+    case CReg::R12:
+    case CReg::R13:
+    case CReg::R14:
+    case CReg::R15:
       return fmt::format_to(app, col_vec, "$$2$$");
     default:
     }
-  } else if (value.info.reg_size == 4) {
-    switch (value.info.ty) {
-    case VRegType::A:
+  } else if (get_size(value.ty) == 4) {
+    switch (value.c_reg()) {
+    case CReg::A:
       return fmt::format_to(app, col, "$eax");
-    case VRegType::SP:
+    case CReg::SP:
       return fmt::format_to(app, col, "$esp");
-    case VRegType::B:
+    case CReg::B:
       return fmt::format_to(app, col, "$ebx");
-    case VRegType::C:
+    case CReg::C:
       return fmt::format_to(app, col, "$ecx");
-    case VRegType::D:
+    case CReg::D:
       return fmt::format_to(app, col, "$edx");
-    case VRegType::DI:
+    case CReg::DI:
       return fmt::format_to(app, col, "$edi");
-    case VRegType::SI:
+    case CReg::SI:
       return fmt::format_to(app, col, "$esi");
-    case VRegType::BP:
+    case CReg::BP:
       return fmt::format_to(app, col, "$ebp");
-    case VRegType::R8:
+    case CReg::R8:
       return fmt::format_to(app, col, "$r8d");
-    case VRegType::R9:
+    case CReg::R9:
       return fmt::format_to(app, col, "$r9d");
-    case VRegType::R10:
+    case CReg::R10:
       return fmt::format_to(app, col, "$r10d");
-    case VRegType::R11:
+    case CReg::R11:
       return fmt::format_to(app, col, "$r11d");
-    case VRegType::R12:
+    case CReg::R12:
       return fmt::format_to(app, col, "$r12d");
-    case VRegType::R13:
+    case CReg::R13:
       return fmt::format_to(app, col, "$r13d");
-    case VRegType::R14:
+    case CReg::R14:
       return fmt::format_to(app, col, "$r14d");
-    case VRegType::R15:
+    case CReg::R15:
       return fmt::format_to(app, col, "$r15d");
-    case VRegType::mm0:
-    case VRegType::mm1:
-    case VRegType::mm2:
-    case VRegType::mm3:
-    case VRegType::mm4:
-    case VRegType::mm5:
-    case VRegType::mm6:
-    case VRegType::mm7:
-    case VRegType::mm8:
-    case VRegType::mm9:
-    case VRegType::mm10:
-    case VRegType::mm11:
-    case VRegType::mm12:
-    case VRegType::mm13:
-    case VRegType::mm14:
-    case VRegType::mm15:
+    case CReg::mm0:
+    case CReg::mm1:
+    case CReg::mm2:
+    case CReg::mm3:
+    case CReg::mm4:
+    case CReg::mm5:
+    case CReg::mm6:
+    case CReg::mm7:
+    case CReg::mm8:
+    case CReg::mm9:
+    case CReg::mm10:
+    case CReg::mm11:
+    case CReg::mm12:
+    case CReg::mm13:
+    case CReg::mm14:
+    case CReg::mm15:
       return fmt::format_to(
           app, col_vec, "$mm{}",
-          ((foptim::u8)value.info.ty - (foptim::u8)VRegType::mm0));
+          ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
     default:
     }
-  } else if (value.info.reg_size == 8) {
-    switch (value.info.ty) {
-    case VRegType::A:
+  } else if (get_size(value.ty) == 8) {
+    switch (value.c_reg()) {
+    case CReg::A:
       return fmt::format_to(app, col, "$rax");
-    case VRegType::SP:
+    case CReg::SP:
       return fmt::format_to(app, col, "$rsp");
-    case VRegType::B:
+    case CReg::B:
       return fmt::format_to(app, col, "$rbx");
-    case VRegType::C:
+    case CReg::C:
       return fmt::format_to(app, col, "$rcx");
-    case VRegType::D:
+    case CReg::D:
       return fmt::format_to(app, col, "$rdx");
-    case VRegType::DI:
+    case CReg::DI:
       return fmt::format_to(app, col, "$rdi");
-    case VRegType::SI:
+    case CReg::SI:
       return fmt::format_to(app, col, "$rsi");
-    case VRegType::BP:
+    case CReg::BP:
       return fmt::format_to(app, col, "$rbp");
-    case VRegType::R8:
+    case CReg::R8:
       return fmt::format_to(app, col, "$r8");
-    case VRegType::R9:
+    case CReg::R9:
       return fmt::format_to(app, col, "$r9");
-    case VRegType::R10:
+    case CReg::R10:
       return fmt::format_to(app, col, "$r10");
-    case VRegType::R11:
+    case CReg::R11:
       return fmt::format_to(app, col, "$r11");
-    case VRegType::R12:
+    case CReg::R12:
       return fmt::format_to(app, col, "$r12");
-    case VRegType::R13:
+    case CReg::R13:
       return fmt::format_to(app, col, "$r13");
-    case VRegType::R14:
+    case CReg::R14:
       return fmt::format_to(app, col, "$r14");
-    case VRegType::R15:
+    case CReg::R15:
       return fmt::format_to(app, col, "$r15");
-    case VRegType::mm0:
-    case VRegType::mm1:
-    case VRegType::mm2:
-    case VRegType::mm3:
-    case VRegType::mm4:
-    case VRegType::mm5:
-    case VRegType::mm6:
-    case VRegType::mm7:
-    case VRegType::mm8:
-    case VRegType::mm9:
-    case VRegType::mm10:
-    case VRegType::mm11:
-    case VRegType::mm12:
-    case VRegType::mm13:
-    case VRegType::mm14:
-    case VRegType::mm15:
-      return fmt::format_to(
-          app, col_vec, "$mm{}",
-          ((foptim::u8)value.info.ty - (foptim::u8)VRegType::mm0));
+    case CReg::mm0:
+    case CReg::mm1:
+    case CReg::mm2:
+    case CReg::mm3:
+    case CReg::mm4:
+    case CReg::mm5:
+    case CReg::mm6:
+    case CReg::mm7:
+    case CReg::mm8:
+    case CReg::mm9:
+    case CReg::mm10:
+    case CReg::mm11:
+    case CReg::mm12:
+    case CReg::mm13:
+    case CReg::mm14:
+    case CReg::mm15:
+      return fmt::format_to(app, col_vec, "$mm{}",
+                            ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
     default:
     }
+  } else {
+    TODO("unrach?");
   }
-  return fmt::format_to(app, col, "${}", value.id);
+  return fmt::format_to(app, "REG PRINT FAIL TYPE:{} OFF:{}", value.ty, (foptim::u8)value.c_reg());
 }

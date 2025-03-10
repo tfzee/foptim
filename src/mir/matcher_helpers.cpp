@@ -54,8 +54,7 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     // TODO: idk if i64 is right here
 
     Type type_id = convert_type(val.get_type());
-    auto helper =
-        MArgument{alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64};
+    auto helper = MArgument{alloc.get_new_register(Type::Int64), Type::Int64};
     auto arg = MArgument::MemL(global->name.c_str(), type_id);
     res.emplace_back(Opcode::lea, helper, arg);
     return helper;
@@ -63,8 +62,7 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
   if (consti->is_func()) {
     auto funcy = consti->as_func();
     auto arg = MArgument::MemL(funcy->getName().c_str(), Type::Int64);
-    auto helper =
-        MArgument(alloc.get_new_register(VRegInfo{Type::Int64}), Type::Int64);
+    auto helper = MArgument(alloc.get_new_register(Type::Int64), Type::Int64);
     res.emplace_back(Opcode::lea, helper, arg);
     return helper;
   }

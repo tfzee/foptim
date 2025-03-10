@@ -11,7 +11,7 @@ class Legalizer {
   [[nodiscard]] MArgument get_reg(Type type);
   u32 move_arg_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty);
   u32 move_arg_to_pinned_reg(MBB &bb, u32 indx, u8 arg_id, Type ty,
-                              VRegType vreg_ty);
+                             CReg vreg_ty);
   u32 move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty);
   u32 move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty);
 

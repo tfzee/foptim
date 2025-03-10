@@ -149,7 +149,7 @@ static constexpr u32 get_size(fmir::Type type) {
   std::abort();
 }
 
-enum class VRegType : u8 {
+enum class CReg : u8 {
   Virtual = 0,
   A = 1,
   B,
@@ -187,180 +187,84 @@ enum class VRegType : u8 {
   N_REGS,
 };
 
-enum class VRegClass {
-  INVALID = 0,
-  GeneralPurpose,
-  Float,
-  // Vector,
-};
-
-struct VRegInfo {
-  VRegType ty;
-  u8 reg_size;
-  VRegClass reg_class;
-
-  constexpr VRegInfo()
-      : ty(VRegType::Virtual), reg_size(0), reg_class(VRegClass::INVALID) {}
-  constexpr VRegInfo(VRegClass reg_class)
-      : ty(VRegType::Virtual), reg_size(0), reg_class(reg_class) {}
-  // explicit constexpr VRegInfo(u8 size)
-  //     : ty(VRegType::Virtual), reg_size(size),
-  //       reg_class(VRegClass::GeneralPurpose) {}
-  explicit constexpr VRegInfo(u8 size, VRegClass reg_class)
-      : ty(VRegType::Virtual), reg_size(size), reg_class(reg_class) {}
-
-  explicit constexpr VRegInfo(Type type)
-      : ty(VRegType::Virtual), reg_size(get_size(type)),
-        reg_class(VRegClass::INVALID) {
-    if (type == Type::Float32 || type == Type::Float64) {
-      reg_class = VRegClass::Float;
-    } else if (type == Type::INVALID) {
-      reg_class = VRegClass::INVALID;
-    } else {
-      reg_class = VRegClass::GeneralPurpose;
-    }
-  }
-  // explicit constexpr VRegInfo(VRegType ty, u8 size)
-  //     : ty(ty), reg_size(size), reg_class(VRegClass::GeneralPurpose) {}
-  explicit constexpr VRegInfo(VRegType ty, Type type)
-      : ty(ty), reg_size(get_size(type)), reg_class(VRegClass::GeneralPurpose) {
-    if (type == Type::Float32 || type == Type::Float64) {
-      reg_class = VRegClass::Float;
-    } else if (type == Type::INVALID) {
-      reg_class = VRegClass::INVALID;
-    }
-  }
-
-  static constexpr VRegInfo RSP() {
-    VRegInfo res{Type::Int64};
-    res.ty = VRegType::SP;
-    return res;
-  }
-
-  static constexpr VRegInfo ESP() {
-    VRegInfo res{Type::Int32};
-    res.ty = VRegType::SP;
-    return res;
-  }
-
-  static constexpr VRegInfo RAX() {
-    VRegInfo res{Type::Int64};
-    res.ty = VRegType::A;
-    return res;
-  }
-
-  static constexpr VRegInfo EAX() {
-    VRegInfo res{Type::Int32};
-    res.ty = VRegType::A;
-    return res;
-  }
-
-  static constexpr VRegInfo CL() {
-    VRegInfo res{Type::Int8};
-    res.ty = VRegType::C;
-    return res;
-  }
-
-  static constexpr VRegInfo EDX() {
-    VRegInfo res{Type::Int32};
-    res.ty = VRegType::D;
-    return res;
-  }
-
-  [[nodiscard]] constexpr bool is_pinned() const {
-    return ty != VRegType::Virtual;
-  }
-
-  constexpr bool operator==(const VRegInfo &other) const {
-    return ty == other.ty && reg_class == other.reg_class;
-  }
-
-  [[nodiscard]] constexpr bool isVecReg() const {
-    switch (ty) {
-    case VRegType::Virtual:
-    case VRegType::A:
-    case VRegType::B:
-    case VRegType::C:
-    case VRegType::D:
-    case VRegType::SI:
-    case VRegType::DI:
-    case VRegType::SP:
-    case VRegType::BP:
-    case VRegType::R8:
-    case VRegType::R9:
-    case VRegType::R10:
-    case VRegType::R11:
-    case VRegType::R12:
-    case VRegType::R13:
-    case VRegType::R14:
-    case VRegType::R15:
-    case VRegType::N_REGS:
-      return false;
-    case VRegType::mm0:
-    case VRegType::mm1:
-    case VRegType::mm2:
-    case VRegType::mm3:
-    case VRegType::mm4:
-    case VRegType::mm5:
-    case VRegType::mm6:
-    case VRegType::mm7:
-    case VRegType::mm8:
-    case VRegType::mm9:
-    case VRegType::mm10:
-    case VRegType::mm11:
-    case VRegType::mm12:
-    case VRegType::mm13:
-    case VRegType::mm14:
-    case VRegType::mm15:
-      return true;
-    }
-  }
-};
-
 class VReg {
 public:
-  size_t id;
-  VRegInfo info;
+  enum class RegType : u8 {
+    Virtual,
+    Concrete,
+  };
 
-  consteval VReg() : id(0) {}
-  constexpr VReg(u64 id) : id(id) {}
-  constexpr VReg(u64 id, VRegInfo info) : id(id), info(info) {}
-  constexpr VReg(u64 id, u8 size, VRegClass reg_class)
-      : id(id), info(VRegInfo{size, reg_class}) {}
-  constexpr VReg(u64 id, Type ty) : id(id), info(ty) {}
-  constexpr VReg(VRegType ty, Type typ = Type::Int8)
-      : id(0), info(VRegInfo{ty, typ}) {}
+  union {
+    struct {
+      RegType rty;
+      Type ty;
+    };
+    struct {
+      RegType rty;
+      Type ty;
+      u64 id;
+    } virt;
+    struct {
+      RegType rty;
+      Type ty;
+      CReg creg;
+    } conc;
+  };
 
-  static consteval VReg EAX() {
-    VRegInfo res_info{};
-    res_info.ty = VRegType::A;
-    res_info.reg_size = 4;
-    VReg res{0, res_info};
-    return res;
+  consteval VReg() : virt(RegType::Virtual, Type::INVALID, 0) {}
+  constexpr VReg(u64 id) : virt(RegType::Virtual, Type::INVALID, id) {}
+  constexpr VReg(u64 id, Type ty) : virt(RegType::Virtual, ty, id) {}
+  constexpr VReg(CReg reg_ty, Type ty = Type::Int8)
+      : conc(RegType::Concrete, ty, reg_ty) {}
+
+  [[nodiscard]] constexpr bool is_concrete() const {
+    return rty == RegType::Concrete;
   }
 
-  static consteval VReg MM0SS() {
-    VRegInfo res_info{};
-    res_info.ty = VRegType::mm0;
-    res_info.reg_size = 4;
-    VReg res{0, res_info};
-    return res;
+  [[nodiscard]] constexpr u64 virt_id() const {
+    ASSERT(!is_concrete());
+    return virt.id;
   }
 
-  static consteval VReg RSP() {
-    VRegInfo res_info{};
-    res_info.ty = VRegType::SP;
-    res_info.reg_size = 8;
-    VReg res{0, res_info};
-    return res;
+  [[nodiscard]] constexpr CReg c_reg() const {
+    ASSERT(is_concrete());
+    return conc.creg;
   }
 
-  constexpr bool operator==(const VReg &other) const {
-    const bool info_matches = info == other.info;
-    if (info.ty == VRegType::Virtual) {
-      return id == other.id && info_matches;
+  [[nodiscard]] constexpr u64 size() const { return get_size(ty); }
+
+  [[nodiscard]] constexpr bool is_vec_reg() const {
+    switch (rty) {
+    case RegType::Virtual:
+      return ty == Type::Float32 || ty == Type::Float64;
+    case RegType::Concrete:
+      return ty == Type::Float32 || ty == Type::Float64 ||
+             conc.creg >= CReg::mm0;
     }
-    return info_matches;
+  }
+
+  [[nodiscard]] static consteval VReg RAX() { return {CReg::A, Type::Int64}; }
+  [[nodiscard]] static consteval VReg EAX() { return {CReg::A, Type::Int32}; }
+  [[nodiscard]] static consteval VReg EDX() { return {CReg::D, Type::Int32}; }
+
+  [[nodiscard]] static consteval VReg MM0SS() {
+    return {CReg::mm0, Type::Float32};
+  }
+
+  [[nodiscard]] static consteval VReg RSP() { return {CReg::SP, Type::Int64}; }
+  [[nodiscard]] static consteval VReg CL() { return {CReg::C, Type::Int8}; }
+
+  [[nodiscard]] constexpr bool operator==(const VReg &other) const {
+    if (rty != other.rty) {
+      return false;
+    }
+    switch (rty) {
+    case RegType::Virtual:
+      return virt.id == other.virt.id;
+    case RegType::Concrete:
+      return conc.creg == other.conc.creg;
+      break;
+    }
   }
 };
 
@@ -399,7 +303,7 @@ public:
   // TODO FIX TYPE CONVERSION HERE
   constexpr MArgument(VReg reg, Type ty)
       : type(ArgumentType::VReg), ty(ty), reg(reg) {
-    reg.info.reg_size = get_size(ty);
+    reg.ty = ty;
   }
   MArgument(u8 imm) : type(ArgumentType::Imm), ty(Type::Int8), imm(imm) {}
   MArgument(u16 imm) : type(ArgumentType::Imm), ty(Type::Int16), imm(imm) {}
@@ -759,9 +663,9 @@ template <> struct std::hash<foptim::fmir::VReg> {
   std::size_t operator()(const foptim::fmir::VReg &k) const {
     using foptim::u64;
     using foptim::u8;
-    if (k.info.is_pinned()) {
-      return hash<u8>()((u8)k.info.ty);
+    if (k.is_concrete()) {
+      return hash<u8>()((u8)k.c_reg());
     }
-    return hash<u64>()(k.id);
+    return hash<u64>()(k.virt_id());
   }
 };

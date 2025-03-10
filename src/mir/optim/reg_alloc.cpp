@@ -6,7 +6,7 @@
 #include "utils/todo.hpp"
 
 namespace foptim::fmir {
-void replace_vargs(IRVec<MBB> &bbs, const TMap<size_t, VRegType> &reg_mapping) {
+void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
   for (auto &bb : bbs) {
     for (auto &instr : bb.instrs) {
       replace_vargs(instr, reg_mapping);
@@ -14,7 +14,7 @@ void replace_vargs(IRVec<MBB> &bbs, const TMap<size_t, VRegType> &reg_mapping) {
   }
 }
 
-void replace_vargs(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
+void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
     case MArgument::ArgumentType::Imm:
@@ -27,8 +27,9 @@ void replace_vargs(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
     case MArgument::ArgumentType::MemImmVReg:
     case MArgument::ArgumentType::MemVReg: {
       auto reg = instr.args[i].reg;
-      if (!reg.info.is_pinned() && reg_mapping.contains(reg.id)) {
-        instr.args[i].reg.info.ty = reg_mapping.at(reg.id);
+      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+        instr.args[i].reg.rty = VReg::RegType::Concrete;
+        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
       }
       break;
     }
@@ -38,18 +39,21 @@ void replace_vargs(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
     case MArgument::ArgumentType::MemImmVRegVRegScale: {
       auto reg = instr.args[i].reg;
       auto indx = instr.args[i].indx;
-      if (!reg.info.is_pinned() && reg_mapping.contains(reg.id)) {
-        instr.args[i].reg.info.ty = reg_mapping.at(reg.id);
+      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+        instr.args[i].reg.rty = VReg::RegType::Concrete;
+        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
       }
-      if (!indx.info.is_pinned() && reg_mapping.contains(indx.id)) {
-        instr.args[i].indx.info.ty = reg_mapping.at(indx.id);
+      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+        instr.args[i].indx.rty = VReg::RegType::Concrete;
+        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
       }
       break;
     }
     case MArgument::ArgumentType::MemImmVRegScale: {
       auto indx = instr.args[i].indx;
-      if (!indx.info.is_pinned() && reg_mapping.contains(indx.id)) {
-        instr.args[i].indx.info.ty = reg_mapping.at(indx.id);
+      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+        instr.args[i].indx.rty = VReg::RegType::Concrete;
+        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
       }
       break;
     }
@@ -57,55 +61,45 @@ void replace_vargs(MInstr &instr, const TMap<size_t, VRegType> &reg_mapping) {
   }
 }
 
-bool reg_is_legal(const VReg &reg, VRegType avail_reg) {
-  ASSERT(!reg.info.is_pinned());
+bool reg_is_legal(const VReg &reg, CReg avail_reg) {
+  ASSERT(!reg.is_concrete());
 
-  switch (reg.info.reg_class) {
-  case VRegClass::INVALID:
-    UNREACH();
-  case VRegClass::GeneralPurpose:
-    return avail_reg == VRegType::A || avail_reg == VRegType::B ||
-           avail_reg == VRegType::C || avail_reg == VRegType::D ||
-           avail_reg == VRegType::DI || avail_reg == VRegType::SI ||
-           avail_reg == VRegType::SP || avail_reg == VRegType::BP ||
-           avail_reg == VRegType::R8 || avail_reg == VRegType::R9 ||
-           avail_reg == VRegType::R10 || avail_reg == VRegType::R11 ||
-           avail_reg == VRegType::R12 || avail_reg == VRegType::R13 ||
-           avail_reg == VRegType::R14 || avail_reg == VRegType::R15;
-  case VRegClass::Float:
-    return avail_reg == VRegType::mm0 || avail_reg == VRegType::mm1 ||
-           avail_reg == VRegType::mm2 || avail_reg == VRegType::mm3 ||
-           avail_reg == VRegType::mm4 || avail_reg == VRegType::mm5 ||
-           avail_reg == VRegType::mm6 || avail_reg == VRegType::mm7 ||
-           avail_reg == VRegType::mm8 || avail_reg == VRegType::mm9 ||
-           avail_reg == VRegType::mm10 || avail_reg == VRegType::mm11 ||
-           avail_reg == VRegType::mm12 || avail_reg == VRegType::mm13 ||
-           avail_reg == VRegType::mm14 || avail_reg == VRegType::mm15;
+  if (reg.is_vec_reg()) {
+    return avail_reg == CReg::mm0 || avail_reg == CReg::mm1 ||
+           avail_reg == CReg::mm2 || avail_reg == CReg::mm3 ||
+           avail_reg == CReg::mm4 || avail_reg == CReg::mm5 ||
+           avail_reg == CReg::mm6 || avail_reg == CReg::mm7 ||
+           avail_reg == CReg::mm8 || avail_reg == CReg::mm9 ||
+           avail_reg == CReg::mm10 || avail_reg == CReg::mm11 ||
+           avail_reg == CReg::mm12 || avail_reg == CReg::mm13 ||
+           avail_reg == CReg::mm14 || avail_reg == CReg::mm15;
   }
+  return avail_reg == CReg::A || avail_reg == CReg::B || avail_reg == CReg::C ||
+         avail_reg == CReg::D || avail_reg == CReg::DI ||
+         avail_reg == CReg::SI || avail_reg == CReg::SP ||
+         avail_reg == CReg::BP || avail_reg == CReg::R8 ||
+         avail_reg == CReg::R9 || avail_reg == CReg::R10 ||
+         avail_reg == CReg::R11 || avail_reg == CReg::R12 ||
+         avail_reg == CReg::R13 || avail_reg == CReg::R14 ||
+         avail_reg == CReg::R15;
 }
 
 constexpr size_t N_REGS_SELECTABLE = 30;
-static_assert((size_t)VRegType::N_REGS - 3 == N_REGS_SELECTABLE);
+static_assert((size_t)CReg::N_REGS - 3 == N_REGS_SELECTABLE);
 
-constexpr void get_reg_order(MFunc &func, VRegType *regs) {
-  static constexpr VRegType leaf_optimized_regs[N_REGS_SELECTABLE] = {
-      VRegType::A,    VRegType::D,    VRegType::C,    VRegType::DI,
-      VRegType::SI,   VRegType::R8,   VRegType::R9,   VRegType::R10,
-      VRegType::R11,  VRegType::mm0,  VRegType::mm1,  VRegType::mm2,
-      VRegType::mm3,  VRegType::mm4,  VRegType::mm5,  VRegType::mm6,
-      VRegType::mm7,  VRegType::R12,  VRegType::R13,  VRegType::R14,
-      VRegType::R15,  VRegType::B,    VRegType::mm8,  VRegType::mm9,
-      VRegType::mm10, VRegType::mm11, VRegType::mm12, VRegType::mm13,
-      VRegType::mm14, VRegType::mm15};
-  static constexpr VRegType basic_regs[N_REGS_SELECTABLE] = {
-      VRegType::B,    VRegType::R12,  VRegType::R13,  VRegType::R14,
-      VRegType::R15,  VRegType::mm8,  VRegType::mm9,  VRegType::mm10,
-      VRegType::mm11, VRegType::mm12, VRegType::mm13, VRegType::mm14,
-      VRegType::mm15, VRegType::A,    VRegType::D,    VRegType::C,
-      VRegType::DI,   VRegType::SI,   VRegType::R8,   VRegType::R9,
-      VRegType::R10,  VRegType::R11,  VRegType::mm0,  VRegType::mm1,
-      VRegType::mm2,  VRegType::mm3,  VRegType::mm4,  VRegType::mm5,
-      VRegType::mm6,  VRegType::mm7};
+constexpr void get_reg_order(MFunc &func, CReg *regs) {
+  static constexpr CReg leaf_optimized_regs[N_REGS_SELECTABLE] = {
+      CReg::A,    CReg::D,    CReg::C,    CReg::DI,   CReg::SI,   CReg::R8,
+      CReg::R9,   CReg::R10,  CReg::R11,  CReg::mm0,  CReg::mm1,  CReg::mm2,
+      CReg::mm3,  CReg::mm4,  CReg::mm5,  CReg::mm6,  CReg::mm7,  CReg::R12,
+      CReg::R13,  CReg::R14,  CReg::R15,  CReg::B,    CReg::mm8,  CReg::mm9,
+      CReg::mm10, CReg::mm11, CReg::mm12, CReg::mm13, CReg::mm14, CReg::mm15};
+  static constexpr CReg basic_regs[N_REGS_SELECTABLE] = {
+      CReg::B,    CReg::R12,  CReg::R13,  CReg::R14,  CReg::R15,  CReg::mm8,
+      CReg::mm9,  CReg::mm10, CReg::mm11, CReg::mm12, CReg::mm13, CReg::mm14,
+      CReg::mm15, CReg::A,    CReg::D,    CReg::C,    CReg::DI,   CReg::SI,
+      CReg::R8,   CReg::R9,   CReg::R10,  CReg::R11,  CReg::mm0,  CReg::mm1,
+      CReg::mm2,  CReg::mm3,  CReg::mm4,  CReg::mm5,  CReg::mm6,  CReg::mm7};
 
   bool is_leaf = true;
   for (auto &bb : func.bbs) {
@@ -120,7 +114,7 @@ constexpr void get_reg_order(MFunc &func, VRegType *regs) {
     }
   }
 
-  const VRegType *selected = basic_regs;
+  const CReg *selected = basic_regs;
   if (is_leaf) {
     selected = leaf_optimized_regs;
   }
@@ -132,10 +126,10 @@ constexpr void get_reg_order(MFunc &func, VRegType *regs) {
 
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
-  TMap<VRegType, LinearRangeSet> lifeness;
+  TMap<CReg, LinearRangeSet> lifeness;
   lifeness.reserve(32);
-  VRegType regs[N_REGS_SELECTABLE];
-  TMap<size_t, VRegType> reg_mapping;
+  CReg regs[N_REGS_SELECTABLE];
+  TMap<size_t, CReg> reg_mapping;
 
   const auto lifetimes = linear_lifetime(func);
   get_reg_order(func, regs);
@@ -143,13 +137,13 @@ void apply_func(MFunc &func) {
   {
     ZoneScopedN("Actual Alloc");
     for (const auto &[reg, lifetime] : lifetimes) {
-      if (reg.info.is_pinned()) {
-        lifeness.insert({reg.info.ty, lifetime});
+      if (reg.is_concrete()) {
+        lifeness.insert({reg.c_reg(), lifetime});
       }
     }
 
     for (const auto &[reg, lifetime] : lifetimes) {
-      if (reg.info.is_pinned()) {
+      if (reg.is_concrete()) {
         continue;
       }
       bool found = false;
@@ -160,21 +154,20 @@ void apply_func(MFunc &func) {
 
         if (!lifeness.contains(avail_reg)) {
           lifeness.insert({avail_reg, lifetime});
-          reg_mapping.insert({reg.id, avail_reg});
+          reg_mapping.insert({reg.virt_id(), avail_reg});
           found = true;
           break;
         }
         if (!lifeness.at(avail_reg).collide(lifetime)) {
           lifeness.at(avail_reg).update(lifetime);
-          reg_mapping.insert({reg.id, avail_reg});
+          reg_mapping.insert({reg.virt_id(), avail_reg});
           found = true;
           break;
         }
       }
       if (!found) {
         fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
-        fmt::println("{} Size:: {} IS fp: {}", reg, reg.info.reg_size,
-                     reg.info.reg_class == VRegClass::Float);
+        fmt::println("{} Size:: {} IS vec: {}", reg, reg.ty, reg.is_vec_reg());
         TODO("spill it ?");
         ASSERT(false);
       }

@@ -57,8 +57,8 @@ u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
 }
 
 u32 Legalizer::move_arg_to_pinned_reg(MBB &bb, u32 indx, u8 arg_id, Type ty,
-                                      VRegType vreg_ty) {
-  auto new_reg = MArgument{VReg{0, VRegInfo{vreg_ty, ty}}, ty};
+                                      CReg vreg_ty) {
+  auto new_reg = MArgument{VReg{vreg_ty, ty}, ty};
   auto old_arg = bb.instrs[indx].args[arg_id];
   bb.instrs[indx].args[arg_id] = new_reg;
   bb.instrs.insert(bb.instrs.begin() + indx,
@@ -166,14 +166,18 @@ bool Legalizer::legalize_idiv(MBB &bb, u32 indx) {
   auto modified = false;
   {
     MInstr &instr = bb.instrs[indx];
+    fmt::println("{}", instr);
     ASSERT(instr.args[0].isReg());
     ASSERT(instr.args[1].isReg());
-    ASSERT(instr.args[0].reg.info.ty == VRegType::A);
-    ASSERT(instr.args[1].reg.info.ty == VRegType::D);
+    ASSERT(instr.args[0].reg.is_concrete());
+    ASSERT(instr.args[1].reg.is_concrete());
+    ASSERT(instr.args[0].reg.c_reg() == CReg::A);
+    ASSERT(instr.args[1].reg.c_reg() == CReg::D);
     // dividend needs to be in eax to be extended into edx or rax for be
     // extended into rdx
-    if (!instr.args[2].isReg() || instr.args[2].reg.info.ty != VRegType::A) {
-      indx = move_arg_to_pinned_reg(bb, indx, 2, instr.args[2].ty, VRegType::A);
+    if (!instr.args[2].isReg() || !instr.args[2].reg.is_concrete() ||
+        instr.args[2].reg.c_reg() != CReg::A) {
+      indx = move_arg_to_pinned_reg(bb, indx, 2, instr.args[2].ty, CReg::A);
       modified = true;
     }
   }
@@ -213,8 +217,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
 
   MInstr &instr = bb.instrs[indx];
   // cant move an immediate floating point value
-  if (instr.args[0].isReg() &&
-      instr.args[0].reg.info.reg_class == VRegClass::Float &&
+  if (instr.args[0].isReg() && instr.args[0].reg.is_vec_reg() &&
       instr.args[1].isImm()) {
     if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
       instr.op = Opcode::fxor;
@@ -246,7 +249,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
       instr.args[1].isMem()) {
     instr.op = Opcode::mov_zx;
     instr.args[0].ty = Type::Int32;
-    instr.args[0].reg.info.reg_size = 4;
+    instr.args[0].reg.ty = Type::Int32;
     return true;
   }
   if (instr.op == Opcode::mov && instr.args[0].isReg() &&
@@ -264,7 +267,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
     // ASSERT(get_size(t0) > get_size(t1));
     // instr.args[1].ty = t1;
     // instr.args[1].reg.info.reg_size = 4;
-    // instr.args[1].reg.info.ty;
+    // instr.args[1].reg.c_reg();
   }
   if (instr.op == Opcode::mov_zx && instr.args[1].isImm()) {
     instr.op = Opcode::mov;
@@ -437,8 +440,9 @@ void Legalizer::apply(MFunc &func) {
         case MArgument::ArgumentType::VReg:
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
-          if (!instr.args[i].reg.info.is_pinned()) {
-            unique_reg_id = std::max(unique_reg_id, instr.args[i].reg.id);
+          if (!instr.args[i].reg.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].reg.virt_id());
           }
           break;
         case MArgument::ArgumentType::MemVRegVReg:
@@ -446,11 +450,13 @@ void Legalizer::apply(MFunc &func) {
         case MArgument::ArgumentType::MemVRegVRegScale:
         case MArgument::ArgumentType::MemImmVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
-          if (!instr.args[i].reg.info.is_pinned()) {
-            unique_reg_id = std::max(unique_reg_id, instr.args[i].reg.id);
+          if (!instr.args[i].reg.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].reg.virt_id());
           }
-          if (!instr.args[i].indx.info.is_pinned()) {
-            unique_reg_id = std::max(unique_reg_id, instr.args[i].indx.id);
+          if (!instr.args[i].indx.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].indx.virt_id());
           }
           break;
         default:

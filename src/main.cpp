@@ -220,8 +220,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::InstSimplify{}.early_apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegisterJoining{}.apply(funcs);
-  fmt::print("================REGJOIN====================\n");
+  fmt::print("================MIR MID====================\n");
   for (auto &f : funcs) {
     fmt::println("{}", f);
   }
@@ -235,7 +237,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   fmt::print("================MIR END====================\n");
-  // TODO("okak");
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

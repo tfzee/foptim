@@ -14,8 +14,9 @@ static size_t max_vreg_id(const MFunc &func) {
         case MArgument::ArgumentType::VReg:
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
-          if (!instr.args[i].reg.info.is_pinned()) {
-            unique_reg_id = std::max(unique_reg_id, instr.args[i].reg.id);
+          if (!instr.args[i].reg.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].reg.virt_id());
           }
           break;
         case MArgument::ArgumentType::MemVRegVReg:
@@ -23,11 +24,13 @@ static size_t max_vreg_id(const MFunc &func) {
         case MArgument::ArgumentType::MemVRegVRegScale:
         case MArgument::ArgumentType::MemImmVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
-          if (!instr.args[i].reg.info.is_pinned()) {
-            unique_reg_id = std::max(unique_reg_id, instr.args[i].reg.id);
+          if (!instr.args[i].reg.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].reg.virt_id());
           }
-          if (!instr.args[i].indx.info.is_pinned()) {
-            unique_reg_id = std::max(unique_reg_id, instr.args[i].indx.id);
+          if (!instr.args[i].indx.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].indx.virt_id());
           }
           break;
         default:
@@ -40,10 +43,10 @@ static size_t max_vreg_id(const MFunc &func) {
 }
 
 size_t reg_to_uid(VReg r) {
-  if (r.info.is_pinned()) {
-    return (u8)r.info.ty - 1;
+  if (r.is_concrete()) {
+    return (u8)r.c_reg() - 1;
   }
-  return (u8)VRegType::N_REGS + r.id;
+  return (u8)CReg::N_REGS + r.virt_id();
 }
 // VReg uid_to_reg(size_t r) {
 //   if (r >= (u8)VRegType::N_REGS) {
@@ -340,7 +343,7 @@ void LiveVariables::update(const fmir::MFunc &func) {
   TVec<utils::BitSet<>> defs;
 
   const auto max_id = max_vreg_id(func);
-  const auto n_unique_regs = (u8)VRegType::N_REGS + max_id + 1;
+  const auto n_unique_regs = (u8)CReg::N_REGS + max_id + 1;
 
   upwExp.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
   defs.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});

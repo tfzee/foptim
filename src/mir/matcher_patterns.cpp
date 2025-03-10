@@ -14,11 +14,15 @@ bool is_reg(fir::ValueR val) {
     if (consti->is_global()) {
       return true;
     }
+    if (consti->is_func()) {
+      return true;
+    }
+    fmt::println("{}", val);
+    ASSERT(false);
+    std::abort();
   } else {
     return true;
   }
-  ASSERT(false);
-  std::abort();
 }
 
 void move_patterns(IRVec<Pattern> &pats) {
@@ -92,7 +96,7 @@ void move_patterns(IRVec<Pattern> &pats) {
           UNREACH();
         }
         // Do a little cheating
-        res_arg.reg.info.reg_size = 1;
+        res_arg.reg.ty = Type::Int8;
         res.result.emplace_back(op, res_arg, arg1, arg2);
 
         return true;
@@ -737,7 +741,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 // TODO: this should be done once for all allocas that only
                 // get executed once
                 auto alloca_instr = res.matched_instrs[0];
-                auto rsp_reg = data.alloc.get_new_register(VRegInfo::RSP());
+                auto rsp_reg = VReg::RSP();
                 auto rsp_arg = MArgument{rsp_reg, Type::Int64};
 
                 auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
@@ -790,7 +794,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_ty = convert_type(add_instr.get_type());
 
         if (res_reg.ty != a0.ty) {
-          auto res_reg = data.alloc.get_new_register(VRegInfo{res_ty});
+          auto res_reg = data.alloc.get_new_register(res_ty);
           auto helper_reg0 = MArgument(res_reg, res_ty);
 
           res.result.emplace_back(Opcode::mov, helper_reg0, a0);
@@ -801,7 +805,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (a1.isImm()) {
           // then we gucci
         } else if (res_reg.ty != a1.ty) {
-          auto res_reg = data.alloc.get_new_register(VRegInfo{res_ty});
+          auto res_reg = data.alloc.get_new_register(res_ty);
           auto helper_reg1 = MArgument(res_reg, res_ty);
 
           res.result.emplace_back(Opcode::mov, helper_reg1, a1);
@@ -852,8 +856,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::mov, res_reg, a);
           res.result.emplace_back(Opcode::shl2, res_reg, b);
         } else {
-          auto shift_reg =
-              data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
+          auto shift_reg = VReg::CL();
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -878,8 +881,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::mov, res_reg, a);
           res.result.emplace_back(Opcode::shr2, res_reg, b);
         } else {
-          auto shift_reg =
-              data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
+          auto shift_reg = VReg::CL();
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -904,8 +906,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::mov, res_reg, a);
           res.result.emplace_back(Opcode::sar2, res_reg, b);
         } else {
-          auto shift_reg =
-              data.alloc.get_new_pinned_register({shift_instr}, VRegInfo::CL());
+          auto shift_reg = VReg::CL();
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
             res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
@@ -995,54 +996,46 @@ void base_patterns(IRVec<Pattern> &pats) {
                 }
                 return true;
               }});
-  pats.push_back(Pattern{
-      {SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-        auto srem_instr = res.matched_instrs[0];
-        // FIXME: variable size
-        auto res_div = data.alloc.get_new_register(fir::IRLocation{srem_instr},
-                                                   srem_instr.get_type(),
-                                                   VRegInfo::EAX(), data.lives);
-        auto res_rem = data.alloc.get_new_register(fir::IRLocation{srem_instr},
-                                                   srem_instr.get_type(),
-                                                   VRegInfo::EDX(), data.lives);
-        auto res_reg =
-            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
-        auto res_div_arg =
-            MArgument(res_div, convert_type(srem_instr.get_type()));
-        auto res_rem_arg =
-            MArgument(res_rem, convert_type(srem_instr.get_type()));
+  pats.push_back(
+      Pattern{{SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto srem_instr = res.matched_instrs[0];
+                // FIXME: variable size
+                auto res_div = VReg::EAX();
+                auto res_rem = VReg::EDX();
+                auto res_reg =
+                    valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
+                auto res_div_arg =
+                    MArgument(res_div, convert_type(srem_instr.get_type()));
+                auto res_rem_arg =
+                    MArgument(res_rem, convert_type(srem_instr.get_type()));
 
-        res.result.emplace_back(
-            Opcode::idiv, res_div_arg, res_rem_arg,
-            valueToArg(srem_instr->args[0], res.result, data.alloc),
-            valueToArg(srem_instr->args[1], res.result, data.alloc));
-        res.result.emplace_back(Opcode::mov, res_reg, res_rem_arg);
-        return true;
-      }});
-  pats.push_back(Pattern{
-      {SDivNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-        auto sdiv_instr = res.matched_instrs[0];
-        // FIXME: variable size
-        auto res_div = data.alloc.get_new_register(fir::IRLocation{sdiv_instr},
-                                                   sdiv_instr.get_type(),
-                                                   VRegInfo::EAX(), data.lives);
-        auto res_rem = data.alloc.get_new_register(fir::IRLocation{sdiv_instr},
-                                                   sdiv_instr.get_type(),
-                                                   VRegInfo::EDX(), data.lives);
-        auto res_reg =
-            valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
-        auto res_div_arg =
-            MArgument(res_div, convert_type(sdiv_instr.get_type()));
-        auto res_rem_arg =
-            MArgument(res_rem, convert_type(sdiv_instr.get_type()));
+                res.result.emplace_back(
+                    Opcode::idiv, res_div_arg, res_rem_arg,
+                    valueToArg(srem_instr->args[0], res.result, data.alloc),
+                    valueToArg(srem_instr->args[1], res.result, data.alloc));
+                res.result.emplace_back(Opcode::mov, res_reg, res_rem_arg);
+                return true;
+              }});
+  pats.push_back(
+      Pattern{{SDivNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto sdiv_instr = res.matched_instrs[0];
+                // FIXME: variable size
+                auto res_div = VReg::EAX();
+                auto res_rem = VReg::EDX();
+                auto res_reg =
+                    valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
+                auto res_div_arg =
+                    MArgument(res_div, convert_type(sdiv_instr.get_type()));
+                auto res_rem_arg =
+                    MArgument(res_rem, convert_type(sdiv_instr.get_type()));
 
-        res.result.emplace_back(
-            Opcode::idiv, res_div_arg, res_rem_arg,
-            valueToArg(sdiv_instr->args[0], res.result, data.alloc),
-            valueToArg(sdiv_instr->args[1], res.result, data.alloc));
-        res.result.emplace_back(Opcode::mov, res_reg, res_div_arg);
-        return true;
-      }});
+                res.result.emplace_back(
+                    Opcode::idiv, res_div_arg, res_rem_arg,
+                    valueToArg(sdiv_instr->args[0], res.result, data.alloc),
+                    valueToArg(sdiv_instr->args[1], res.result, data.alloc));
+                res.result.emplace_back(Opcode::mov, res_reg, res_div_arg);
+                return true;
+              }});
   pats.push_back(Pattern{
       {FCMPNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto cmp_instr = res.matched_instrs[0];
@@ -1196,24 +1189,22 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto ret_instr = res.matched_instrs[0];
         if (ret_instr->has_args()) {
           auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
-          auto is_float_val = ret_val.ty == fmir::Type::Float64 ||
-                              ret_val.ty == fmir::Type::Float32;
+          auto is_float_val = ret_val.is_fp();
 
           if (!is_float_val &&
-              (!ret_val.isReg() || ret_val.reg.info.ty != VRegType::A)) {
+              (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
+               ret_val.reg.c_reg() != CReg::A)) {
             auto converted_type = convert_type(ret_instr.get_type());
-            auto res_reg = data.alloc.get_new_register(
-                fir::IRLocation{ret_instr}, ret_instr.get_type(),
-                VRegInfo{VRegType::A, converted_type}, data.lives);
+            auto res_reg = VReg{CReg::A, converted_type};
             auto res_arg = MArgument(res_reg, converted_type);
             res.result.emplace_back(Opcode::mov, res_arg, ret_val);
             res.result.emplace_back(Opcode::ret, res_arg);
-          } else if (is_float_val && (!ret_val.isReg() ||
-                                      ret_val.reg.info.ty != VRegType::mm0)) {
+          } else if (is_float_val &&
+                     (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
+                      ret_val.reg.c_reg() != CReg::mm0)) {
             auto converted_type = convert_type(ret_instr.get_type());
-            auto res_reg = data.alloc.get_new_register(
-                fir::IRLocation{ret_instr}, ret_instr.get_type(),
-                VRegInfo{VRegType::mm0, converted_type}, data.lives);
+            auto res_reg = 
+                VReg{CReg::mm0, converted_type};
             auto res_arg = MArgument(res_reg, converted_type);
             res.result.emplace_back(Opcode::mov, res_arg, ret_val);
             res.result.emplace_back(Opcode::ret, res_arg);
@@ -1307,12 +1298,12 @@ void base_patterns(IRVec<Pattern> &pats) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
           if (get_size(res_reg.ty) == 8) {
-            auto ax_reg = data.alloc.get_new_register(VRegInfo::RAX());
+            auto ax_reg = VReg::RAX();
             auto ax_arg = MArgument{ax_reg, res_reg.ty};
             res.result.emplace_back(Opcode::invoke, calee, ax_arg);
             res.result.emplace_back(Opcode::mov, res_reg, ax_arg);
           } else if (get_size(res_reg.ty) <= 4) {
-            auto ax_reg = data.alloc.get_new_register(VRegInfo::EAX());
+            auto ax_reg = VReg::EAX();
             auto ax_arg = MArgument{ax_reg, res_reg.ty};
             res.result.emplace_back(Opcode::invoke, calee, ax_arg);
             res.result.emplace_back(Opcode::mov, res_reg, ax_arg);

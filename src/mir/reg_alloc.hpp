@@ -17,23 +17,13 @@ class FunctionRegAlloatorParent {
   // Register get_register(ValueR value);
 };
 
-
 class DumbRegAlloc : public FunctionRegAlloatorParent {
   u64 vreg_num = 1;
   TSet<VReg> free_regs;
   TMap<fir::ValueR, VReg> mapping;
-  TMap<fir::IRLocation, TVec<VReg>> additional_alives;
 
 public:
-  VReg get_new_register(fir::ValueR, optim::LiveVariables &);
-  VReg get_new_register(fir::IRLocation, fir::TypeR ty,
-                        optim::LiveVariables &);
-  VReg get_new_register(fir::IRLocation, fir::TypeR ty, VRegInfo info,
-                        optim::LiveVariables &);
-  VReg get_new_pinned_register(fir::IRLocation loc, VRegInfo info);
-  VReg get_new_register(fir::IRLocation, Type ty,
-                        optim::LiveVariables &);
-  VReg get_new_register(VRegInfo info);
+  VReg get_new_register(Type type);
   void reset();
 
   DumbRegAlloc();

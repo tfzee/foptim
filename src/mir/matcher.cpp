@@ -21,7 +21,7 @@ MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
                      ExtraMatchData &data) {
   // ASSERT(get_size(reg_type) <= 255);
 
-  VReg helper = data.alloc.get_new_register(VRegInfo{reg_type});
+  VReg helper = data.alloc.get_new_register(reg_type);
   auto helper_arg = MArgument(helper, reg_type);
   res.result.emplace_back(Opcode::mov, helper_arg, val);
   return helper_arg;
@@ -333,7 +333,7 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
       // later with the saved from
       PhiPair pair = *pairs.begin();
       pairs.erase(pairs.begin() + 0);
-      auto save_reg = data.alloc.get_new_register(VRegInfo{pair.from.ty});
+      auto save_reg = data.alloc.get_new_register(pair.from.ty);
       auto save_arg = MArgument{save_reg, pair.from.ty};
       res.result.emplace_back(Opcode::mov, save_arg, pair.from);
       pairs.push_back(PhiPair{.to = pair.to, .from = save_arg});

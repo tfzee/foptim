@@ -5,7 +5,7 @@
 namespace foptim {
 namespace fmir {
 class VReg;
-enum class VRegType : uint8_t;
+enum class CReg : uint8_t;
 class MArgument;
 class MInstr;
 class MBB;

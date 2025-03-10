@@ -7,7 +7,6 @@ namespace foptim::fmir {
 class LiveVariables {
 public:
   const CFG &cfg;
-  // TODO: shouldnt these be TVecs?
   TVec<utils::BitSet<>> _live;
   TVec<utils::BitSet<>> _liveIn;
   TVec<utils::BitSet<>> _liveOut;
@@ -64,7 +63,7 @@ struct LinearRange {
 
   void dump() const {
     ASSERT(start.bb_indx == end.bb_indx);
-    fmt::println("{}({}..{})", start.bb_indx, start.instr_indx, end.instr_indx);
+    fmt::print("{}({}..{})", start.bb_indx, start.instr_indx, end.instr_indx);
   }
 
   static LinearRange inBB(u32 bb_id, u32 from, u32 to) {
