@@ -148,6 +148,7 @@ bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
 }
 
 void Unroll::apply(fir::Context &ctx, fir::Function &func) {
+  ZoneScopedN("unroll");
   CFG cfg{func};
   Dominators dom{cfg};
   LoopInfoAnalysis linfo{dom};

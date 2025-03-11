@@ -69,10 +69,6 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
       arg_tys.erase(arg_tys.begin() + (i - 1));
     }
   }
-  fmt::println("===== {}", arg_tys.size());
-  for (auto t : arg_tys) {
-    fmt::println("{}", t);
-  }
   func.func->func_ty =
       ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
 }

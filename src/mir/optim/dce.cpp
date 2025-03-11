@@ -67,6 +67,7 @@ void DeadCodeElim::apply(MFunc &func) {
   CFG cfg{func};
   LiveVariables live{cfg, func};
   TVec<MArgument> w_args;
+  TVec<MArgument> helper;
   w_args.reserve(4);
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
@@ -101,7 +102,8 @@ void DeadCodeElim::apply(MFunc &func) {
       bool is_read =
           live._liveIn[bb_id][target_uid] || live._liveOut[bb_id][target_uid];
 
-      auto next_use = find_next_use(bb.instrs, target_uid, instr_id + 1);
+      auto next_use =
+          find_next_use(bb.instrs, target_uid, instr_id + 1, helper);
       is_read |= next_use.is_read;
 
       if ((next_use.is_write && !next_use.is_read) || !is_read) {

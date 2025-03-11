@@ -1,4 +1,5 @@
 #include "live_variables.hpp"
+#include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
 #include <deque>
@@ -44,16 +45,21 @@ static size_t max_vreg_id(const MFunc &func) {
 
 size_t reg_to_uid(VReg r) {
   if (r.is_concrete()) {
-    return (u8)r.c_reg() - 1;
+    return (size_t)r.c_reg() - 1;
   }
-  return (u8)CReg::N_REGS + r.virt_id();
+  return (size_t)CReg::N_REGS + r.virt_id();
 }
-// VReg uid_to_reg(size_t r) {
-//   if (r >= (u8)VRegType::N_REGS) {
-//     return VReg(r - (u8)VRegType::N_REGS, VRegInfo());
-//   }
-//   return VReg(0, VRegInfo{(VRegType)(r + 1), Type::Int8});
-// }
+
+VReg uid_to_reg(size_t r) {
+  if (r + 1 < (size_t)CReg::N_REGS) {
+    return VReg{(CReg)(r + 1)};
+  }
+  return VReg{r - (size_t)CReg::N_REGS};
+  // if (r.is_concrete()) {
+  //   return (u8)r.c_reg() - 1;
+  // }
+  // return (u8)CReg::N_REGS + r.virt_id();
+}
 
 void update_def(const MInstr &instr, utils::BitSet<> &def) {
   switch (instr.op) {
@@ -415,10 +421,9 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
 }
 
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
-                            size_t start_instr) {
+                            size_t start_instr, TVec<MArgument> &args_temp) {
   NextUseResult res{false, false, 0};
-  TVec<MArgument> args_temp;
-  args_temp.reserve(4);
+
   for (auto i = start_instr; i < instrs.size(); i++) {
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
       // TODO: this could be more specific since certain CCs can only read/write
@@ -548,6 +553,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   CFG cfg{func};
   LiveVariables live{cfg, func};
   TMap<VReg, LinearRangeSet> ranges;
+  TVec<MArgument> helper;
 
   // this is used later one to find where the first def is
 
@@ -555,6 +561,8 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
     const auto &alive = live._live[bb_id];
     const auto &aliveIn = live._liveIn[bb_id];
     const auto &aliveOut = live._liveOut[bb_id];
+    // for (auto reg_id : alive) {
+    // auto reg = uid_to_reg(reg_id);
     for (const auto &reg : all_used_regs) {
       auto reg_id = reg_to_uid(reg);
       if (alive[reg_id]) {
@@ -563,13 +571,13 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         ranges[reg];
 
         if (!aliveIn[reg_id]) {
-          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0);
+          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0, helper);
           ASSERT(res.is_write);
           ASSERT(!res.is_read);
           start_instr = res.index;
           search_instr = res.index;
         } else {
-          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0);
+          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0, helper);
           if (res.is_read) {
             ranges[reg].update(
                 LinearRange::inBB(bb_id, start_instr, res.index + 1));
@@ -583,7 +591,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
 
         while (true) {
           auto res =
-              find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1);
+              find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1, helper);
           if (!res.is_read && !res.is_write) {
             if (aliveOut[reg_id]) {
               ranges[reg].update(LinearRange::inBB(

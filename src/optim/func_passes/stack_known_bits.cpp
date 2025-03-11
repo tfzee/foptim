@@ -198,7 +198,7 @@ bool handle_arg(fir::ValueR arg, fir::Use use, fir::TypeR type,
   if (r.result == StackOffsetResult::UnknownLocal) {
     return false;
   }
-  fmt::println("{}", arg);
+  // fmt::println("{}", arg);
   if (r.result == StackOffsetResult::KnownLocal) {
     auto lower_bound = acceses.lower_bound(r.offset);
     auto v_size = arg.get_type()->get_size();
@@ -422,12 +422,12 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
     }
   }
 
-  fmt::println("Got {} bits\n", stack_size);
   if (stack_size == 0 || stack_size > 4096) {
     failure(
         {"Failed cause either none or too much stack space", func.get_entry()});
     return;
   }
+  // fmt::println("Got {} bits\n", stack_size);
 
   TVec<utils::BitSet<>> exit_known_one;
   TVec<utils::BitSet<>> exit_known_zero;
@@ -461,8 +461,8 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
       new_in_one.reset(true);
       new_in_zero.reset(true);
       for (auto p : cfg.bbrs[curr].pred) {
-        fmt::println("ONE: {}", exit_known_one[p]);
-        fmt::println("ZER: {}", exit_known_zero[p]);
+        // fmt::println("ONE: {}", exit_known_one[p]);
+        // fmt::println("ZER: {}", exit_known_zero[p]);
         new_in_one.mul(exit_known_one[p]);
         new_in_zero.mul(exit_known_zero[p]);
       }

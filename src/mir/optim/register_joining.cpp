@@ -52,9 +52,9 @@ void RegisterJoining::apply(MFunc &func) {
         ASSERT(lives.contains(virtual_value_reg));
         ASSERT(lives.contains(pinned_target_reg));
         // fmt::println("TRYING JOIN {}", virtual_value_reg);
-        lives.at(virtual_value_reg).dump();
+        // lives.at(virtual_value_reg).dump();
         // fmt::println("TRYING JOIN {}", pinned_target_reg);
-        lives.at(pinned_target_reg).dump();
+        // lives.at(pinned_target_reg).dump();
 
         if (!lives.at(pinned_target_reg).collide(lives.at(virtual_value_reg))) {
           // fmt::println(" WORKED");

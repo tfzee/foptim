@@ -98,10 +98,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<InstSimplify, SimplifyCFG, DCE>{}
       .apply(ctx);
-  fmt::print("================MID====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{:d}\n", func);
-  }
+  // fmt::print("================MID====================\n");
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   fmt::print("{:d}\n", func);
+  // }
   ctx->verify();
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
       .apply(ctx);
@@ -136,10 +136,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  fmt::print("================FIR END====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{:d}\n", func);
-  }
+  // fmt::print("================FIR END====================\n");
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   fmt::print("{:d}\n", func);
+  // }
   ASSERT(ctx->verify());
 
   // {
@@ -205,9 +205,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   (void)globals;
   ZoneScopedN("MIR Optim");
   fmt::print("================MIR OPTIM====================\n");
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
   // running dead to make inst simplify work better
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
@@ -221,10 +221,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
-  fmt::print("================MIR MID====================\n");
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
+  // fmt::print("================MIR MID====================\n");
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegisterJoining{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

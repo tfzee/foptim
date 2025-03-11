@@ -166,7 +166,6 @@ bool Legalizer::legalize_idiv(MBB &bb, u32 indx) {
   auto modified = false;
   {
     MInstr &instr = bb.instrs[indx];
-    fmt::println("{}", instr);
     ASSERT(instr.args[0].isReg());
     ASSERT(instr.args[1].isReg());
     ASSERT(instr.args[0].reg.is_concrete());

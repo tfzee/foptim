@@ -138,15 +138,13 @@ void LoopRangeAnalysis::dump() const {
 
 bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   fir::BasicBlock head = cfg.bbrs[info.head].bb;
-  info.dump();
+  // info.dump();
   // exactly 1 induction var
   if (head->args.size() != 1) {
-    fmt::println("0");
     return false;
   }
   // only 1 incoming edge into the loop
   if (cfg.bbrs[info.head].pred.size() != 1 + info.tails.size()) {
-    fmt::println("1");
     return false;
   }
   for (u32 p : cfg.bbrs[info.head].pred) {

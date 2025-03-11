@@ -18,6 +18,7 @@ public:
   void update(const fmir::MFunc &func);
 };
 
+VReg uid_to_reg(size_t id);
 size_t reg_to_uid(VReg r);
 // VReg uid_to_reg(size_t r);
 void update_def(const MInstr &instr, utils::BitSet<> &def);
@@ -27,8 +28,11 @@ struct NextUseResult {
   bool is_read;
   size_t index;
 };
-NextUseResult find_next_use(const IRVec<MInstr>& instrs, size_t search_reg_id,
-                            size_t start_instr);
+
+// args_temp is just a helper to reduce number of number of allocations when repeated
+// calls to this function
+NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
+                            size_t start_inst, TVec<MArgument> &args_tempr);
 
 // LINEAR LIFETIMES AFTER
 

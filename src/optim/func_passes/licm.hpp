@@ -4,14 +4,13 @@
 #include "ir/builder.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
-#include "utils/logging.hpp"
-#include "utils/set.hpp"
 
 namespace foptim::optim {
 
 class LICM final : public FunctionPass {
 public:
   void apply(fir::Context &ctx, fir::Function &func) override {
+    ZoneScopedN("LICM");
     CFG cfg{func};
     Dominators dom{cfg};
     LoopInfoAnalysis linfo{dom};

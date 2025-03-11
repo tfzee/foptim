@@ -54,7 +54,7 @@ public:
       }
     }
     for (auto call : calls) {
-      fmt::println("INLINING {}", call);
+      // fmt::println("INLINING {}", call);
       inline_call(call);
     }
   }

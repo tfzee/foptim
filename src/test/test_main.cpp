@@ -3,6 +3,7 @@
 #include "test_stable_vec.hpp"
 #include "test_int128.hpp"
 #include "test_ir_liveness.hpp"
+#include "test_general.hpp"
 
 
 
