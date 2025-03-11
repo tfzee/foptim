@@ -68,6 +68,7 @@ void DeadCodeElim::apply(MFunc &func) {
   LiveVariables live{cfg, func};
   TVec<MArgument> w_args;
   TVec<MArgument> helper;
+  helper.reserve(4);
   w_args.reserve(4);
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {

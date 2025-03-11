@@ -423,6 +423,7 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
                             size_t start_instr, TVec<MArgument> &args_temp) {
   NextUseResult res{false, false, 0};
+  args_temp.clear();
 
   for (auto i = start_instr; i < instrs.size(); i++) {
     if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
@@ -554,6 +555,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   LiveVariables live{cfg, func};
   TMap<VReg, LinearRangeSet> ranges;
   TVec<MArgument> helper;
+  helper.reserve(4);
 
   // this is used later one to find where the first def is
 
@@ -590,8 +592,8 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         }
 
         while (true) {
-          auto res =
-              find_next_use(func.bbs[bb_id].instrs, reg_id, search_instr + 1, helper);
+          auto res = find_next_use(func.bbs[bb_id].instrs, reg_id,
+                                   search_instr + 1, helper);
           if (!res.is_read && !res.is_write) {
             if (aliveOut[reg_id]) {
               ranges[reg].update(LinearRange::inBB(

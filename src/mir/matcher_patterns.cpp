@@ -225,7 +225,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
       {IntAddNode, LoadNode},
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
-        ASSERT(res.matched_instrs.size() == 2);
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
 
@@ -270,7 +269,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
       {IntAddNode, IntAddNode, StoreNode},
       {{0, 1, 1}, {1, 2, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
-        ASSERT(res.matched_instrs.size() == 3);
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
         ASSERT(res.matched_instrs[2].is_valid());
@@ -307,7 +305,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
       {IntAddNode, StoreNode},
       {{0, 1, 0}},
       [](MatchResult &res, ExtraMatchData &data) {
-        ASSERT(res.matched_instrs.size() == 2);
         ASSERT(res.matched_instrs[0].is_valid());
         ASSERT(res.matched_instrs[1].is_valid());
 

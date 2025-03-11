@@ -61,9 +61,8 @@ struct MatchTodos {
   u32 node_id;
 };
 
-bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
-  TVec<MatchTodos> match_todos;
-  match_todos.reserve(5);
+bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res,
+               TVec<MatchTodos> &match_todos) {
 
   // for now TREE only matching
   //  for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
@@ -135,11 +134,15 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res) {
 void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
                 ExtraMatchData &data) {
   ZoneScopedN("Find Match");
+  TVec<MatchTodos> match_todos;
+  match_todos.reserve(5);
   for (size_t match_id = 0; match_id < patts.size(); match_id++) {
     res.result.clear();
-    res.matched_instrs.resize(patts[match_id].nodes.size(),
-                              fir::Instr(fir::Instr::invalid()));
-    if (try_match(instr, patts[match_id], res)) {
+    if (res.matched_instrs.size() > patts[match_id].nodes.size()) {
+      res.matched_instrs.resize(patts[match_id].nodes.size(),
+                                fir::Instr(fir::Instr::invalid()));
+    }
+    if (try_match(instr, patts[match_id], res, match_todos)) {
       if (patts[match_id].generator(res, data)) {
         res.match_id = match_id;
         return;

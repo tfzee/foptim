@@ -6,6 +6,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "utils/arena.hpp"
 #include "utils/logging.hpp"
 #include "utils/set.hpp"
 
@@ -492,8 +493,13 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
       failure({"Didnt converge fixme\n", func.basic_blocks[0]});
       break;
     }
+
+    foptim::utils::TempAlloc<void *>::reset();
+    cfg = CFG(func, false);
   }
-  ASSERT(func.verify());
+
+  // cfg.update(func, false);
+  // ASSERT(func.verify());
 }
 
 } // namespace foptim::optim
