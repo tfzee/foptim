@@ -116,8 +116,8 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
       .apply(ctx);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
@@ -213,20 +213,20 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::LocalCopyPropagation{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
+  // foptim::fmir::LocalCopyPropagation{}.apply(funcs);
+  // foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::RegisterJoining{}.apply(funcs);
   fmt::print("================MIR MID====================\n");
   for (auto &f : funcs) {
     fmt::println("{}", f);
   }
+  foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::RegisterJoining{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

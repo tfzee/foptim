@@ -99,11 +99,10 @@ public:
         // TODO: push uses into worklist but only if they are still in teh loop
       }
     }
-    if(invariant.empty()){
+    if (invariant.empty()) {
       return;
     }
 
-    
     fir::Builder bb{pre_header};
     bb.at_penultimate(pre_header);
     for (auto inv : invariant) {
@@ -115,7 +114,6 @@ public:
     for (auto inv : invariant) {
       inv.as_instr().remove_from_parent();
     }
-    // TODO("");
   }
 };
 

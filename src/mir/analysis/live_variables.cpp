@@ -489,6 +489,19 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
         }
       }
     }
+    if (res.is_read) {
+      auto instr = instrs[i];
+      if (instrs[i].op == Opcode::fxor && instr.args[1].isReg() &&
+          reg_to_uid(instr.args[1].reg) == search_reg_id &&
+          instr.args[1] == instr.args[2]) {
+        res.is_read = false;
+      }
+      if (instrs[i].op == Opcode::lxor2 && instr.args[0].isReg() &&
+          reg_to_uid(instr.args[0].reg) == search_reg_id &&
+          instr.args[1] == instr.args[2]) {
+        res.is_read = false;
+      }
+    }
     if (res.is_read || res.is_write) {
       break;
     }
