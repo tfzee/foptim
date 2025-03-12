@@ -440,7 +440,7 @@ int main() {
 
   genann *ann = genann_init(2, 1, 2, 1);
 
-  for (i = 0; i < 700; ++i) {
+  for (i = 0; i < 1000; ++i) {
     genann_train(ann, input[0], output + 0, 2);
     genann_train(ann, input[1], output + 1, 2);
     genann_train(ann, input[2], output + 2, 2);
