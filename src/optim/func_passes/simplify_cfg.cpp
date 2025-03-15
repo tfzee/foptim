@@ -346,8 +346,7 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
                                         fir::Function &func, size_t bb_id,
                                         bool is_entry) {
-  if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1 &&
-      !is_entry) {
+  if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1) {
     auto succ_id = curr.succ[0];
 
     // bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
@@ -355,6 +354,10 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
     auto old_first_term = func.basic_blocks[bb_id]->get_terminator();
 
     if (secon_has_args) {
+      (void)is_entry;
+      // if (is_entry) {
+      //   return false;
+      // }
       auto succ = func.basic_blocks[succ_id];
       // for (auto arg: succ->args) {
       //   arg->replace_all_uses(term->bbs[0].args[i]);
