@@ -231,11 +231,11 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
 
   // cannot move a 64bit constant into a mem
   if (instr.args[0].isMem() && instr.args[1].isImm() &&
-      get_size(instr.args[1].ty) == 8) {
+      get_size(instr.args[0].ty) == 8) {
     if (instr.args[1].is_fp()) {
-      move_fp_const_to_grp(bb, indx, 1, instr.args[1].ty);
+      move_fp_const_to_grp(bb, indx, 1, instr.args[0].ty);
     } else {
-      move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+      move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
     }
     return true;
   }

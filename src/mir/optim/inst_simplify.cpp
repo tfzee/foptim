@@ -49,8 +49,32 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   }
   return false;
 }
+//@returns true if the instruction was deleted
+static bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs,
+                           size_t instr_id) {
+  switch (instr.op) {
+  case Opcode::mov:
+  case Opcode::mov_zx: {
+    if (instr.args[0] == instr.args[1] && instr.args[0].isReg() &&
+        !instr.args[0].reg.is_concrete()) {
+      instrs.erase(instrs.begin() + instr_id);
+      return true;
+    }
+  }
+  default:
+    break;
+  }
+  return false;
+}
 
 static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
+  // if (instr_id + 1 < instrs.size() && instrs[instr_id + 0].op == Opcode::lea &&
+  //     instrs[instr_id + 1].op == Opcode::mov) {
+  //   auto &i1 = instrs[instr_id + 0];
+  //   auto &i2 = instrs[instr_id + 1];
+  //   // x = lea(global)
+  //   // z = [x]
+  // }
   if (instr_id + 2 < instrs.size() && instrs[instr_id + 0].op == Opcode::mov &&
       (instrs[instr_id + 1].op == Opcode::add2 ||
        instrs[instr_id + 1].op == Opcode::sub2) &&
@@ -111,10 +135,10 @@ void InstSimplify::early_apply(FVec<MFunc> &funcs) {
   for (auto &func : funcs) {
     for (auto &bb : func.bbs) {
       for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
-        // if (early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
-        //   instr_id--;
-        //   continue;
-        // }
+        if (early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
+          instr_id--;
+          continue;
+        }
         if (early_multi_simplify(bb.instrs, instr_id)) {
           instr_id--;
           continue;

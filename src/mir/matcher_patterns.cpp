@@ -1,5 +1,6 @@
 #include "matcher_patterns.hpp"
 #include "ir/instruction_data.hpp"
+#include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include <cstring>
 
@@ -214,8 +215,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
         auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
         auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
-        ASSERT(base.isReg());
-        ASSERT(indx.isReg());
+        if (!base.isReg() || !indx.isReg()) {
+          return false;
+        }
+        // ASSERT(base.isReg());
+        // ASSERT(indx.isReg());
         res.result.emplace_back(
             Opcode::mov,
             MArgument::MemBIS(base.reg, indx.reg, consti_val, store_ty), value);
@@ -240,17 +244,29 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_instr->args[1].is_constant() && a0.isImm()) {
           auto c1 = add_instr->args[1].as_constant();
           if (c1->is_global()) {
-            auto a1 =
+            auto repl =
                 valueToArgPtr(add_instr->args[1], Type::Int64, data.alloc);
-            ASSERT(a1.type == MArgument::ArgumentType::MemLabel);
+            ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
                 Opcode::mov, res_reg,
-                MArgument::MemLO(a1.label, a0.imm, load_ty));
+                MArgument::MemLO(repl.label, a0.imm, load_ty));
+            return true;
+          }
+        }
+        auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
+        if (add_instr->args[0].is_constant() && a1.isImm()) {
+          auto c1 = add_instr->args[0].as_constant();
+          if (c1->is_global()) {
+            auto repl =
+                valueToArgPtr(add_instr->args[0], Type::Int64, data.alloc);
+            ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
+            res.result.emplace_back(
+                Opcode::mov, res_reg,
+                MArgument::MemLO(repl.label, a1.imm, load_ty));
             return true;
           }
         }
 
-        auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(Opcode::mov, res_reg,
                                   MArgument::MemOB(a1.imm, a0.reg, load_ty));
@@ -313,10 +329,35 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto store_instr = res.matched_instrs[1];
 
         auto store_ty = convert_type(store_instr.get_type());
+        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
 
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
+        if (add_instr->args[1].is_constant() && a0.isImm()) {
+          auto c1 = add_instr->args[1].as_constant();
+          if (c1->is_global()) {
+            auto repl =
+                valueToArgPtr(add_instr->args[1], Type::Int64, data.alloc);
+            ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
+            res.result.emplace_back(
+                Opcode::mov, MArgument::MemLO(repl.label, a0.imm, store_ty),
+                value);
+            return true;
+          }
+        }
+
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
-        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
+        if (add_instr->args[0].is_constant() && a1.isImm()) {
+          auto c1 = add_instr->args[0].as_constant();
+          if (c1->is_global()) {
+            auto repl =
+                valueToArgPtr(add_instr->args[0], Type::Int64, data.alloc);
+            ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
+            res.result.emplace_back(
+                Opcode::mov, MArgument::MemLO(repl.label, a1.imm, store_ty),
+                value);
+            return true;
+          }
+        }
 
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(
@@ -564,8 +605,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
         auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
         auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
-        ASSERT(base.isReg());
-        ASSERT(indx.isReg());
+        if (!base.isReg() || !indx.isReg()) {
+          return false;
+        }
+        // ASSERT(base.isReg());
+        // ASSERT(indx.isReg());
         res.result.emplace_back(
             Opcode::lea, res_reg,
             MArgument::MemBIS(base.reg, indx.reg, consti_val, res_ty));
@@ -1200,8 +1244,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                      (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
                       ret_val.reg.c_reg() != CReg::mm0)) {
             auto converted_type = convert_type(ret_instr.get_type());
-            auto res_reg = 
-                VReg{CReg::mm0, converted_type};
+            auto res_reg = VReg{CReg::mm0, converted_type};
             auto res_arg = MArgument(res_reg, converted_type);
             res.result.emplace_back(Opcode::mov, res_arg, ret_val);
             res.result.emplace_back(Opcode::ret, res_arg);

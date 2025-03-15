@@ -11,10 +11,13 @@ namespace foptim::optim {
 class Unroll final : public FunctionPass {
 public:
   void apply(fir::Context &ctx, fir::Function &func) override;
+  bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
+                fir::Function &func);
 };
 
 inline void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor,
-                      fir::Context &ctx, fir::Function &func) {
+                      fir::Context &ctx, fir::Function &func,
+                      bool is_full_unroll) {
   // since the original alraedy exists we substract one of the unroll factor
   unroll_factor -= 1;
 
@@ -29,8 +32,8 @@ inline void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor,
   }
   ASSERT(head_id >= 0);
 
-  ASSERT(unroll_factor <= 8);
-  TVec<fir::BasicBlock> new_bbs[8];
+  ASSERT(unroll_factor <= 32);
+  TVec<fir::BasicBlock> new_bbs[32];
   fir::ContextData::V2VMap subs;
 
   // generate new bbs
@@ -86,6 +89,7 @@ inline void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor,
       }
       func.append_bbr(bb);
     }
+
     auto old_term = first_bb->get_terminator();
     auto bb = fir::Builder(first_bb);
     bb.at_end(first_bb);
@@ -105,43 +109,77 @@ inline void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor,
         instr.substitute(subs);
       }
     }
+
+    if (is_full_unroll) {
+      auto orig_bb = cfg.bbrs[loop.body_nodes[head_id]].bb;
+      auto term = orig_bb->get_terminator();
+      ASSERT(term->is(fir::InstrType::CondBranchInstr));
+      // fmt::println("======================");
+      // fmt::println("{}", orig_bb);
+
+      auto bb = fir::Builder(orig_bb);
+      bb.at_end(orig_bb);
+      auto id = 1 - term.get_bb_id(new_bbs[0][head_id]);
+      auto new_branch = bb.build_branch(term->bbs[id].bb);
+      for (auto arg : term->bbs[id].args) {
+        new_branch.add_bb_arg(0, arg);
+      }
+      term.remove_from_parent();
+      // fmt::println("======================");
+      // fmt::println("{}", orig_bb);
+    }
   }
   // fmt::println("{}", func);
   // TODO("okka");
 }
 
-bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
-              fir::Function &func) {
+bool Unroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
+                      fir::Function &func) {
   (void)loop;
   (void)ctx;
   (void)func;
   LoopRangeAnalysis range;
   if (!range.update(cfg, loop)) {
+    failure({"Didnt find loop range", {cfg.bbrs[loop.head].bb}});
     return false;
   }
   if (!range.known_upper || !range.known_lower) {
+    failure({"Didnt find loop upper/lower bound", {cfg.bbrs[loop.head].bb}});
     return false;
   }
-  auto iteration_count = (range.upper_bound - range.lower_bound) / range.a;
-  if (iteration_count <= 10 || iteration_count % 2 != 0) {
-    return false;
-  }
-  ASSERT(range.type == LoopRangeAnalysis::IterationType::PlusA);
 
+  ASSERT(range.type == LoopRangeAnalysis::IterationType::PlusA);
+  auto iteration_count = (range.upper_bound - range.lower_bound) / range.a;
   u8 unroll_factor = 2;
+  bool is_full_unroll = false;
   if (iteration_count % 8 == 0) {
     unroll_factor = 8;
   }
   if (iteration_count % 4 == 0) {
     unroll_factor = 4;
   }
+  if (iteration_count <= 10) {
+    is_full_unroll = true;
+    unroll_factor = iteration_count;
+  }
 
-  // ensure loop is do while loop
-  if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
+  size_t n_instrs = 0;
+  for(auto i: loop.body_nodes){
+    n_instrs += cfg.bbrs[i].bb->n_instrs();
+  }
+  
+  if(unroll_factor * n_instrs > 50){
     return false;
   }
 
-  unroll_it(cfg, loop, unroll_factor, ctx, func);
+
+  // ensure loop is do while loop
+  if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
+    failure({"Need a do while loop", {cfg.bbrs[loop.head].bb}});
+    return false;
+  }
+
+  unroll_it(cfg, loop, unroll_factor, ctx, func, is_full_unroll);
 
   // fmt::println("===UNROLLED\n{}", func);
   return true;

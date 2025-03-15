@@ -25,15 +25,17 @@ public:
   Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
 
   void dump() const {
-    TODO("REIMPL");
-    // print << "DUMP DOM\n";
+    fmt::println("DUMP DOM");
 
-    // for (const auto &node : dom_bbs) {
-    //   print << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
-    //   print << node.dominators << "\n";
-    //   print << "  PostDom: " << node.postdominators << "\n";
-    //   print << "  Frontier: " << node.frontier << "\n";
-    // }
+    for (const auto &node : dom_bbs) {
+      fmt::println("BB: {:p}", (void *)node.bb.get_raw_ptr());
+      fmt::println(" Dominators {}", node.dominators);
+      fmt::println(" Frontier {}", node.frontier);
+      // print << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
+      // print << node.dominators << "\n";
+      // print << "  PostDom: " << node.postdominators << "\n";
+      // print << "  Frontier: " << node.frontier << "\n";
+    }
   }
 
   void update(const CFG &cfg) {

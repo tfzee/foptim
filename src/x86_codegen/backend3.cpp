@@ -1248,7 +1248,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
       reloc_map.bb_map[bb_id].kind = RelocKind::BB;
 
       for (auto instr : bb.instrs) {
-        // fmt::println("{}", instr);
+        fmt::println("{}", instr);
         curr_loc += emit_instr(instr, curr_loc, bb_id, reloc_map);
       }
       bb_id++;

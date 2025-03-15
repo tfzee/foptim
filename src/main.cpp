@@ -115,7 +115,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LoopRotate>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LoopRotate, SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
@@ -124,10 +124,14 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SimplifyCFG, InstSimplify>{}.apply(
       ctx);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<Unroll>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<Unroll, SimplifyCFG>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<Unroll, SimplifyCFG>{}.apply(ctx);
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   fmt::print("{:d}\n", func);
+  // }
+  // ASSERT(ctx->verify());
   // foptim::optim::StaticFunctionPassManager<SimpleVectorizer>{}.apply(ctx);
   ASSERT(ctx->verify());
-  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG, InstSimplify>{}.apply(
       ctx);
@@ -221,13 +225,15 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::RegisterJoining{}.apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
+  foptim::fmir::InstSimplify{}.early_apply(funcs);
+  foptim::utils::TempAlloc<void *>::reset();
   fmt::print("================MIR MID====================\n");
   for (auto &f : funcs) {
     fmt::println("{}", f);
   }
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::RegisterJoining{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);

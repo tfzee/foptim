@@ -111,9 +111,9 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
-  const auto *c_val = (c0_val != nullptr) ? c0_val : c1_val;
+  const auto *c_val = (c1_val != nullptr) ? c1_val : c0_val;
   // const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
-  const u32 v_idx = (c0_val != nullptr) ? 1 : 0;
+  const u32 v_idx = (c1_val != nullptr) ? 0 : 1;
 
   // at this point it cant have both as constant
   if (c_val->is_float()) {
