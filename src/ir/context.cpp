@@ -96,12 +96,12 @@ FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
   return func;
 }
 
-bool ContextData::delete_function(IRStringRef delete_func){
-  if(storage.functions.contains(delete_func)){
+bool ContextData::delete_function(IRStringRef delete_func) {
+  if (storage.functions.contains(delete_func)) {
     storage.functions.erase(delete_func);
     return true;
   }
-    
+
   return false;
 }
 
@@ -174,7 +174,11 @@ ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
     if (constant->used == utils::SlotState::Used) {
       if (constant->data.eql(val) &&
           constant->data.get_type() == val.get_type()) {
+#ifdef SLOT_CHECK_GENERATION
         return ConstantValueR{utils::SRef{constant, constant->generation}};
+#else
+        return ConstantValueR{utils::SRef{constant, 0}};
+#endif
       }
     }
   }

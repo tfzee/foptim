@@ -61,10 +61,12 @@ public:
 
   void collect_garbage() {
     ZoneScopedN("Collect Garbage");
+#ifdef SLOT_CHECK_GENERATION
     curr_gen++;
     if (curr_gen == 0) {
       curr_gen++;
     }
+#endif
     for (auto slot_alloc : _slot_slab_starts) {
       for (u32 i = 0; i < slot_slab_len; i++) {
         if (slot_alloc[i].used == SlotState::Free) {
