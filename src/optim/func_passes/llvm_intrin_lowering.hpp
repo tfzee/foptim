@@ -1,4 +1,3 @@
-
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -30,7 +29,7 @@ public:
                       ctx->get_function("foptim.memset"))),
                   *func_ty, void_ty, args);
 
-    instr.remove_from_parent();
+    instr.destroy();
     // if (name == "llvm.memset.p0.i64") {
 
     // } else {
@@ -51,7 +50,7 @@ public:
     if (mode == 3) {
       auto result = bb.build_float_cmp(val, val, fir::FCmpInstrSubType::IsNaN);
       instr->replace_all_uses(result);
-      instr.remove_from_parent();
+      instr.destroy();
     } else {
       // print << instr << "\n";
       TODO("impl");
@@ -68,7 +67,7 @@ public:
     auto mul_res = bb.build_float_mul(mul_1, mul_2);
     auto result = bb.build_float_add(mul_res, add);
     instr->replace_all_uses(result);
-    instr.remove_from_parent();
+    instr.destroy();
   }
 
   void handle_memcpy(fir::Instr instr, fir::Function &func,
@@ -90,7 +89,7 @@ public:
                       ctx->get_function("foptim.memcpy"))),
                   *func_ty, void_ty, args);
 
-    instr.remove_from_parent();
+    instr.destroy();
     // if (name == "llvm.memset.p0.i64") {
 
     // } else {
@@ -107,7 +106,7 @@ public:
 
     bb.build_call(fir::ValueR{ctx->get_constant_value(abort_func)},
                   abort_func->func_ty, void_type, {});
-    instr.remove_from_parent();
+    instr.destroy();
   }
 
   void apply(fir::BasicBlock bb, fir::Function &func) {

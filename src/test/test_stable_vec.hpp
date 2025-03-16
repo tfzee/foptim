@@ -1,4 +1,5 @@
 #include "utils/logging.hpp"
+#include "utils/stable_vec_slot.hpp"
 #include <gtest/gtest.h>
 #include <utils/stable_vec.hpp>
 
@@ -24,7 +25,7 @@ TEST(StableVecTest, BasicInsertDelete) {
   const auto *r1_ptr = r1.get_raw_ptr();
   vec.remove(r1);
 
-  EXPECT_EQ(r1.data_ref->used, false);
+  EXPECT_EQ(r1.data_ref->used, SlotState::FreeList);
   EXPECT_EQ(r1.is_valid(), false);
   EXPECT_EQ(r2.is_valid(), true);
   EXPECT_EQ(r3.is_valid(), true);

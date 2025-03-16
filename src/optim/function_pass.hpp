@@ -60,6 +60,7 @@ public:
         (Passes{}.apply_pass(ctx, func), ...);
       }
     }
+    ctx.data->storage.storage_instr.collect_garbage();
   }
 };
 

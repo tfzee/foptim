@@ -73,8 +73,7 @@ bool inline_call(fir::Instr call) {
   auto end_bb = split_block(call);
 
   if (has_ret_value) {
-    auto new_arg =
-        ctx->storage.insert_bb_arg(end_bb, call->get_type());
+    auto new_arg = ctx->storage.insert_bb_arg(end_bb, call->get_type());
     end_bb.add_arg(new_arg);
   }
 
@@ -117,7 +116,7 @@ bool inline_call(fir::Instr call) {
           ASSERT(bb->instructions[instr_id]->has_args());
           end_branch.add_bb_arg(0, bb->instructions[instr_id]->get_arg(0));
         }
-        bb->remove_instr(instr_id);
+        bb->remove_instr(instr_id, true);
       }
     }
   }
@@ -125,7 +124,7 @@ bool inline_call(fir::Instr call) {
   call->remove_all_usages();
   call.clear_args();
   call.clear_bbs();
-  call.remove_from_parent();
+  call.destroy();
 
   // ASSERT(ctx->verify());
   // TODO("impl");

@@ -38,7 +38,7 @@ public:
     ASSERT(generation != 0);
     ASSERT(data_ref->generation == generation);
 #endif
-    data_ref->used = false;
+    data_ref->used = SlotState::Free;
   }
 
   [[nodiscard]] constexpr bool is_valid() const {
@@ -53,7 +53,7 @@ public:
       return false;
     }
 #endif
-    if (!data_ref->used) {
+    if (data_ref->used != SlotState::Used) {
       return false;
     }
     return true;
@@ -65,7 +65,7 @@ public:
     ASSERT(generation != 0);
     ASSERT(data_ref->generation == generation);
 #endif
-    ASSERT(data_ref->used);
+    ASSERT(data_ref->used == SlotState::Used);
   }
 
   constexpr const T *get_raw_ptr() const {

@@ -1,7 +1,7 @@
 #pragma once
+#include "helpers.hpp"
 #include "stable_vec_ref.hpp"
 #include "stable_vec_slot.hpp"
-#include "helpers.hpp"
 #include "todo.hpp"
 #include "types.hpp"
 #include <cassert>
@@ -33,9 +33,6 @@ public:
     _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
     std::memset((void *)_slot_slab_starts.back(), 0,
                 slot_slab_len * sizeof(Slot<T>));
-    // _slot_slab_starts.push_back(
-    //     (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
-    // TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
     free_list.push_back({_slot_slab_starts.back(), slot_slab_len});
   }
 
@@ -52,7 +49,7 @@ public:
 
   constexpr void remove(SRef<T> s) {
     free_list.emplace_back(s.data_ref, 1);
-    s.data_ref->used = false;
+    s.data_ref->used = SlotState::FreeList;
 #ifdef SLOT_CHECK_GENERATION
     curr_gen++;
     if (curr_gen == 0) {
@@ -60,6 +57,25 @@ public:
     }
     s.data_ref->generation = 0;
 #endif
+  }
+
+  void collect_garbage() {
+    ZoneScopedN("Collect Garbage");
+    curr_gen++;
+    if (curr_gen == 0) {
+      curr_gen++;
+    }
+    for (auto slot_alloc : _slot_slab_starts) {
+      for (u32 i = 0; i < slot_slab_len; i++) {
+        if (slot_alloc[i].used == SlotState::Free) {
+          free_list.emplace_back(&slot_alloc[i], 1);
+#ifdef SLOT_CHECK_GENERATION
+          slot_alloc[i].generation = 0;
+#endif
+          slot_alloc[i].used = SlotState::FreeList;
+        }
+      }
+    }
   }
 
   [[nodiscard]] constexpr size_t size_bytes() const {
@@ -102,7 +118,7 @@ public:
       free_list.pop_back();
       // TODO("delete last from free list");
     }
-    res_ptr->used = true;
+    res_ptr->used = SlotState::Used;
 #ifdef SLOT_CHECK_GENERATION
     res_ptr->generation = curr_gen;
     return SRef{res_ptr, curr_gen};

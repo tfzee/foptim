@@ -16,7 +16,7 @@ bool SimplifyCFG::remove_dead_bb(CFG & /*cfg*/, CFG::Node &curr,
                                  fir::Function &func, size_t bb_id,
                                  bool is_entry) {
   if (curr.pred.empty() && !is_entry) {
-    func.basic_blocks[bb_id]->remove_from_parent(true);
+    func.basic_blocks[bb_id]->remove_from_parent(true, true, true);
     return true;
   }
   return false;
@@ -166,7 +166,7 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     }
     res_bb2->replace_all_uses(fir::ValueR(res_bb1));
     ASSERT(res_bb2->get_n_uses() == 0);
-    res_bb2->remove_from_parent(true, true);
+    res_bb2->remove_from_parent(true, true, true);
     return true;
   }
 
@@ -293,7 +293,7 @@ bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
 
     old_term.remove_from_parent();
     if (succ.pred.size() == 1) {
-      succ.bb->remove_from_parent(true);
+      succ.bb->remove_from_parent(true, true, true);
     }
     return true;
   }
@@ -312,7 +312,7 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
         (!is_entry ||
          (cfg.bbrs[curr.succ[0]].pred.size() == 1 && curr.succ[0] == 1))) {
       curr.bb->replace_all_uses(fir::ValueR(succ));
-      curr.bb->remove_from_parent(true);
+      curr.bb->remove_from_parent(true, true, true);
       return true;
     }
     // if this block doesnt have bb_args we might be able to replace all
@@ -336,7 +336,7 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
         ASSERT(user->bbs[bb_id].args.size() == terminator_args.size());
       }
       ASSERT(curr.bb->get_n_uses() == 0);
-      func.basic_blocks[bb_id]->remove_from_parent(true);
+      func.basic_blocks[bb_id]->remove_from_parent(true, true, true);
       return true;
     }
   }
@@ -395,7 +395,7 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
     // func.basic_blocks[bb_id]->replace_all_uses(
     //     fir::ValueR{func.basic_blocks.at(succ_id)});
     old_first_term.remove_from_parent();
-    func.basic_blocks[succ_id]->remove_from_parent(true);
+    func.basic_blocks[succ_id]->remove_from_parent(true, true, true);
     return true;
   }
   return false;
@@ -488,8 +488,9 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
     modified = false;
     for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
       if (simplify_cfg(cfg, func, bb_id - 1)) {
-        cfg.update(func, false);
+        // cfg.update(func, false);
         modified = true;
+        break;
       }
     }
     if (iter++ > 100) {

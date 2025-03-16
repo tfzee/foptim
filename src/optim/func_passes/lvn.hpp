@@ -26,7 +26,7 @@ public:
         if (applicable(instr2) && instr->eql_expr(*instr2.get_raw_ptr())) {
           instr2->replace_all_uses(fir::ValueR{instr});
           ASSERT(instr2->get_n_uses() == 0);
-          instr2.remove_from_parent();
+          instr2.destroy();
           i2--;
           continue;
         }

@@ -1,5 +1,6 @@
 #include "context.hpp"
 #include "utils/stable_vec_ref.hpp"
+#include "utils/stable_vec_slot.hpp"
 #include "utils/string.hpp"
 
 namespace foptim::fir {
@@ -170,7 +171,7 @@ ConstantValueR ContextData::get_poisson_value(TypeR type) {
 
 ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
   for (auto *constant : storage.storage_constant._slot_slab_starts) {
-    if (constant->used) {
+    if (constant->used == utils::SlotState::Used) {
       if (constant->data.eql(val) &&
           constant->data.get_type() == val.get_type()) {
         return ConstantValueR{utils::SRef{constant, constant->generation}};

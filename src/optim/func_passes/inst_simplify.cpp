@@ -98,14 +98,14 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_int(), c1_val->as_int(),
                                    c1_val->type, ctx)) {
-        instr.remove_from_parent();
+        instr.destroy();
         return;
       }
     } else if (c1_val->type->is_float() && c0_val->type->is_float()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_float(), c1_val->as_float(),
                                    c1_val->type, ctx)) {
-        instr.remove_from_parent();
+        instr.destroy();
         return;
       }
     }
@@ -121,19 +121,19 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatAdd) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(instr->args[v_idx]);
-      instr.remove_from_parent();
+      instr.destroy();
       return;
     }
     if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul) {
       if (c_val->as_float() == 1) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[v_idx]);
-        instr.remove_from_parent();
+        instr.destroy();
       } else if (c_val->as_float() == 0) {
         auto zero_const = ctx.data->get_constant_value(.0, c_val->get_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR{zero_const});
-        instr.remove_from_parent();
+        instr.destroy();
       }
       return;
     }
@@ -186,7 +186,7 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (c1_val->as_int() == 0) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(instr->args[v_idx]);
-      instr.remove_from_parent();
+      instr.destroy();
       return;
     }
   }
@@ -195,14 +195,14 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (c_val->as_int() == 1) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(instr->args[v_idx]);
-      instr.remove_from_parent();
+      instr.destroy();
       return;
     }
     if (c_val->as_int() == 0) {
       auto zero_const = ctx.data->get_constant_value(0, c_val->get_type());
       push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR{zero_const});
-      instr.remove_from_parent();
+      instr.destroy();
       return;
     }
   }
@@ -234,7 +234,7 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR(new_const_value));
       ASSERT(instr->bbs.size() == 0);
-      instr.remove_from_parent();
+      instr.destroy();
       return;
     }
 
@@ -286,7 +286,7 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
     ASSERT(instr->bbs.size() == 0);
-    instr.remove_from_parent();
+    instr.destroy();
     return;
   }
 
@@ -399,7 +399,7 @@ static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
     ASSERT(instr->bbs.size() == 0);
-    instr.remove_from_parent();
+    instr.destroy();
     return;
   }
 }
@@ -414,13 +414,13 @@ static void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     } else {
       instr->replace_all_uses(instr->args[1]);
     }
-    instr.remove_from_parent();
+    instr.destroy();
     return;
   }
   if (instr->args[1] == instr->args[2]) {
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[1]);
-    instr.remove_from_parent();
+    instr.destroy();
     return;
   }
 }
@@ -453,7 +453,7 @@ static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (instr->args[0].is_constant()) {
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[0]);
-    instr.remove_from_parent();
+    instr.destroy();
   }
 }
 

@@ -6,11 +6,19 @@
 namespace foptim::fir {
 
 // Also handles a bunch of cleanup stuff
-void BasicBlockData::remove_instr(size_t indx) {
-  instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
-  instructions[indx]->remove_all_usages();
-  instructions[indx].clear_args();
-  instructions[indx].clear_bbs();
+void BasicBlockData::remove_instr(size_t indx, bool delete_instr) {
+  if (delete_instr) {
+    instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
+    instructions[indx]->remove_all_usages();
+    instructions[indx].clear_args();
+    instructions[indx].clear_bbs();
+    instructions[indx]._invalidate();
+  } else {
+    instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
+    instructions[indx]->remove_all_usages();
+    instructions[indx].clear_args();
+    instructions[indx].clear_bbs();
+  }
   instructions.erase(instructions.begin() + (i64)indx);
 }
 
@@ -44,7 +52,7 @@ void BasicBlockData::clear_args() {
 }
 
 void BasicBlockData::remove_from_parent(bool remove_references,
-                                        bool cleanup_instr) {
+                                        bool cleanup_instr, bool delete_instr) {
   if (remove_references) {
     // replace_all_uses(ValueR());
     for (auto &arg : args) {
@@ -53,7 +61,7 @@ void BasicBlockData::remove_from_parent(bool remove_references,
   }
   if (cleanup_instr) {
     while (!instructions.empty()) {
-      remove_instr(instructions.size() - 1);
+      remove_instr(instructions.size() - 1, delete_instr);
     }
   }
   for (size_t t = 0; t < func->basic_blocks.size(); t++) {
@@ -62,8 +70,7 @@ void BasicBlockData::remove_from_parent(bool remove_references,
       return;
     }
   }
-  foptim ::todo_impl("unreach?",
-                     "/home/tim/programming/foptim/src/ir/basic_block.cpp", 23);
+  TODO("unreach?");
 }
 
 // FVec<Instr> &BasicBlockData::get_instrs() { return instructions; }

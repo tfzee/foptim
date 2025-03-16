@@ -24,11 +24,13 @@ public:
   u16 add_bb_arg(BasicBlock target, ValueR val);
   [[nodiscard]] u16 get_bb_id(BasicBlock target) const;
   ValueR replace_arg(u16 indx, ValueR new_val, bool verify = true);
-  BasicBlock replace_bb(u16 indx, BasicBlock new_val, bool keepArgs = true, bool verify = true);
+  BasicBlock replace_bb(u16 indx, BasicBlock new_val, bool keepArgs = true,
+                        bool verify = true);
   BasicBlock replace_bb(BasicBlock target, BasicBlock new_val,
                         bool keepArgs = true);
   ValueR replace_bb_arg(BasicBlock target, u16 indx, ValueR new_val);
-  ValueR replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val, bool verify = true);
+  ValueR replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val,
+                        bool verify = true);
   // void swap_bb_args(u16 bb_id, u16 indx1, u16 indx2, bool verify = true);
   void remove_bb_arg(u16 bb_id, u16 indx1, bool verify = true);
   void remove_arg(u16 indx, bool verify = true);
@@ -45,6 +47,7 @@ public:
   aswell as uses of its arguments. Does not delete the instruction.
   */
   void remove_from_parent();
+  void destroy();
 };
 
 } // namespace foptim::fir

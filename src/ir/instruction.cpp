@@ -8,6 +8,12 @@
 
 namespace foptim::fir {
 
+void Instr::destroy() {
+  ASSERT(is_valid());
+  remove_from_parent();
+  _invalidate();
+}
+
 void Instr::remove_from_parent() {
   auto *self = operator->();
   BasicBlock parent = self->get_parent();
@@ -15,7 +21,7 @@ void Instr::remove_from_parent() {
   for (size_t indx = 0; indx < parent->instructions.size(); indx++) {
     auto instr = parent->instructions[indx];
     if ((void *)get_raw_ptr() == (void *)instr.get_raw_ptr()) {
-      parent->remove_instr(indx);
+      parent->remove_instr(indx, false);
       return;
     }
   }

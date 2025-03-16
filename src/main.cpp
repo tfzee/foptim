@@ -31,6 +31,7 @@
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
 #include "utils/parameters.hpp"
+#include "utils/stable_vec_slot.hpp"
 #include "utils/todo.hpp"
 #include "x86_codegen/backend.hpp"
 #include "llvm/llir_loader.hpp"
@@ -42,7 +43,8 @@ void optimize_fir(foptim::fir::Context &ctx);
 void lower_to_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals);
-void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
+void optimize_mir(foptim::fir::Context &ctx,
+                  foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals);
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::IRString> &decls,
@@ -70,7 +72,7 @@ int main(int argc, char *argv[]) {
       }
     }
     lower_to_mir(ctx, funcs, globals);
-    optimize_mir(funcs, globals);
+    optimize_mir(ctx, funcs, globals);
 
     // asm
     codegen(funcs, decls, globals);
@@ -108,14 +110,14 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
-  ASSERT(ctx->verify());
   foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   ASSERT(ctx->verify());
 
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  foptim::optim::StaticFunctionPassManager<LoopRotate, SimplifyCFG>{}.apply(ctx);
+  foptim::optim::StaticFunctionPassManager<LoopRotate, SimplifyCFG>{}.apply(
+      ctx);
   foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
@@ -140,12 +142,15 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<SCCP>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  fmt::print("================FIR END====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{:d}\n", func);
-  }
+  foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
+  // fmt::print("================FIR END====================\n");
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   fmt::print("{:d}\n", func);
+  // }
+  // TODO("okak");
   ASSERT(ctx->verify());
 
+  ctx.data->print_stats();
   // {
   //   foptim::utils::print << "MEMREG JuST TESTING Attributor\n";
   //   AttributerManager manager;
@@ -175,7 +180,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
     for (size_t i = 0;
          i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
       const auto *v = &slab_g[i];
-      if (v->used) {
+      if (v->used == foptim::utils::SlotState::Used) {
         auto size = v->data.n_bytes;
         foptim::fmir::Global glob = {
             .name = v->data.name.c_str(), .data = {}, .reloc_info = {}};
@@ -204,23 +209,26 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
 }
 
-void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
+void optimize_mir(foptim::fir::Context &ctx,
+                  foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
   ZoneScopedN("MIR Optim");
-  fmt::print("================MIR OPTIM====================\n");
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
+  // fmt::print("================MIR OPTIM====================\n");
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
   // running dead to make inst simplify work better
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  ctx.data->storage.storage_instr.collect_garbage();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   // foptim::fmir::LocalCopyPropagation{}.apply(funcs);
   // foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  ctx.data->storage.storage_instr.collect_garbage();
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
@@ -230,10 +238,10 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  fmt::print("================MIR MID====================\n");
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
+  // fmt::print("================MIR MID====================\n");
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);

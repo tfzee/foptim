@@ -111,7 +111,7 @@ public:
     }
 
     for (auto inv : invariant) {
-      inv.as_instr().remove_from_parent();
+      inv.as_instr().destroy();
     }
   }
 };

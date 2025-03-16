@@ -261,9 +261,7 @@ public:
 
       instr.clear_bbs();
       instr.clear_args();
-      instr.remove_from_parent();
-      // FIXME: properly delete
-      instr._invalidate();
+      instr.destroy();
       // TODO("handle cond branch being constant or skip top\n");
       values.insert({fir::ValueR(replacement_term), ConstantValue::Top()});
       cfg.update(*replacement_term->get_parent()->get_parent().func, false);

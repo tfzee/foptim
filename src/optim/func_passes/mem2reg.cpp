@@ -160,7 +160,7 @@ static void decide_value_store(fir::Instr instr, size_t &i,
     // fmt::println("STORE {} {}", instr->args[0], instr->args[1]);
     back_ref.insert({instr->args[0], {block, instr->args[1]}});
   }
-  block->remove_instr(i);
+  block->remove_instr(i, true);
 }
 
 static void decide_value_load(fir::Instr instr, size_t &i,

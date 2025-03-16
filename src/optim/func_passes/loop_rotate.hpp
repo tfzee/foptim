@@ -215,7 +215,7 @@ public:
         new_header_term.add_bb_arg(0, arg);
       }
       while (header->instructions.size() > 1) {
-        header->remove_instr(header->instructions.size() - 1);
+        header->remove_instr(header->instructions.size() - 1, true);
       }
     }
     // linfo.dump();

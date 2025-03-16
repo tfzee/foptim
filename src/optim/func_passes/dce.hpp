@@ -144,7 +144,7 @@ public:
           IMPL("handle dce cond branch simplification");
         }
 
-        bb->remove_instr(instr_id_p1 - 1);
+        bb->remove_instr(instr_id_p1 - 1, true);
       }
     }
 
@@ -159,7 +159,7 @@ public:
     // reverse so we run high ones first
     std::reverse(dead_blocks.begin(), dead_blocks.end());
     for (auto dead_bb_id : dead_blocks) {
-      func.basic_blocks[dead_bb_id]->remove_from_parent(true, true);
+      func.basic_blocks[dead_bb_id]->remove_from_parent(true, true, true);
     }
   }
 
