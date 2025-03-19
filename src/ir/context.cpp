@@ -166,7 +166,8 @@ FunctionTypeR ContextData::get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
 }
 
 ConstantValueR ContextData::get_poisson_value(TypeR type) {
-  return storage.insert_constant(ConstantValue(type));
+  static auto poison = storage.insert_constant(ConstantValue(type));
+  return poison;
 }
 
 ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
