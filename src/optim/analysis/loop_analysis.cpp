@@ -138,10 +138,9 @@ void LoopRangeAnalysis::dump() const {
 
 bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   fir::BasicBlock head = cfg.bbrs[info.head].bb;
-  info.dump();
+  // info.dump();
   // exactly 1 induction var
   if (head->args.size() != 1) {
-    fmt::println("INDUCt");
     return false;
   }
   // only 1 incoming edge into the loop
