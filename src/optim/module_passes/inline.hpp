@@ -1,5 +1,6 @@
 #pragma once
-#include "../function_pass.hpp"
+#include "../module_pass.hpp"
+#include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/helper/inline.hpp"
 
@@ -37,9 +38,15 @@ concept InlineAdvisor = requires(T v, fir::Instr instr) {
 };
 
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
-class Inline final : public FunctionPass {
+class Inline final : public ModulePass {
 public:
-  void apply(fir::Context & /*unused*/, fir::Function &func) override {
+  void apply(fir::Context &ctx) override {
+    for (auto &f : ctx.data->storage.functions) {
+      apply(ctx, f.second);
+    }
+  }
+
+  void apply(fir::Context & /*unused*/, fir::Function &func) {
     Advisor adv;
     TVec<fir::Instr> calls;
 

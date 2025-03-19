@@ -14,7 +14,7 @@
 #include "optim/analysis/attributer/KnownStackBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/func_passes/dce.hpp"
-#include "optim/func_passes/inline.hpp"
+#include "optim/module_passes/inline.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
@@ -88,8 +88,12 @@ int main(int argc, char *argv[]) {
 void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
-  foptim::utils::TempAlloc<void *>::reset();
+  fmt::print("================MID====================\n");
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    fmt::print("{:d}\n", func);
+  }
   ASSERT(ctx->verify());
+  foptim::utils::TempAlloc<void *>::reset();
 }
 
 void optimize_fir(foptim::fir::Context &ctx) {
@@ -100,11 +104,6 @@ void optimize_fir(foptim::fir::Context &ctx) {
 
   foptim::optim::StaticFunctionPassManager<InstSimplify, SimplifyCFG, DCE>{}
       .apply(ctx);
-  fmt::print("================MID====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{:d}\n", func);
-  }
-  ctx->verify();
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
       .apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
@@ -118,7 +117,7 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LoopRotate, SimplifyCFG>{}.apply(
       ctx);
-  foptim::optim::StaticFunctionPassManager<Inline<>>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<Inline<>>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
       .apply(ctx);
@@ -143,10 +142,10 @@ void optimize_fir(foptim::fir::Context &ctx) {
   foptim::optim::StaticFunctionPassManager<DCE>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
   foptim::optim::StaticFunctionPassManager<SimplifyCFG>{}.apply(ctx);
-  // fmt::print("================FIR END====================\n");
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   fmt::print("{:d}\n", func);
-  // }
+  fmt::print("================FIR END====================\n");
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    fmt::print("{:d}\n", func);
+  }
   // TODO("okak");
   ASSERT(ctx->verify());
 
