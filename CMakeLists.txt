@@ -96,6 +96,7 @@ add_library (foptim
                 #utils
                 ./src/utils/parameters.cpp
                 ./src/utils/todo.cpp
+                ./src/utils/job_system.cpp
                 ./src/utils/arena.cpp
 
                )

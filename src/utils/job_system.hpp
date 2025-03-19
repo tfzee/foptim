@@ -1,6 +1,7 @@
 #pragma once
 #include "utils/todo.hpp"
 #include "utils/vec.hpp"
+#include <functional>
 #include <thread>
 
 namespace foptim {
@@ -12,15 +13,19 @@ enum class WorkerState : u8 {
 };
 
 struct Job {
-  void* arg;
-  void (*func)(void *) = nullptr;
+  std::function<void()> func = nullptr;
 };
 
 struct Worker {
   WorkerState state = WorkerState::Waiting;
   std::jthread thread;
 
-  void work_func(JobSheduler &shed);
+  Worker(JobSheduler *shed) {
+    thread = std::jthread(
+        [this, shed](std::stop_token stoken) { work_func(shed, stoken); });
+  }
+
+  void work_func(JobSheduler *shed, std::stop_token stoken);
 };
 
 class JobSheduler {
@@ -33,14 +38,20 @@ public:
 
   JobSheduler(u8 n_threads) {
     jobs.reserve(10);
-    threads.resize(n_threads);
+    threads.reserve(n_threads);
+    for (u32 i = 0; i < n_threads; i++) {
+      threads.emplace_back(this);
+    }
   }
 
   ~JobSheduler() {
+    // wait_till_done();
     for (auto &worker : threads) {
-      ASSERT(worker.thread.request_stop());
+      worker.thread.request_stop();
     }
   }
+
+  void push(std::function<void()> j) { push(Job{j}); }
 
   void push(Job j) {
     std::lock_guard<std::mutex> queue(job_queue);
@@ -48,8 +59,8 @@ public:
   }
 
   void wait_till_done() {
-    while (!jobs.empty()) {
-    }
+    // while (!jobs.empty()) {
+    // }
 
     bool done = false;
     while (!done) {
