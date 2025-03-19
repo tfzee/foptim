@@ -40,7 +40,6 @@ VReg DumbRegAlloc::get_new_register(Type type) {
 }
 VReg DumbRegAlloc::get_register(fir::ValueR value) {
   if (!mapping.contains(value)) {
-    // if (value.get_n_uses() == 1 && value.is_instr() && value.as_instr().) {
     auto new_reg = get_new_register(convert_type(value.get_type()));
     mapping.insert({value, new_reg});
   }

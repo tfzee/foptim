@@ -11,7 +11,6 @@ namespace foptim::fmir {
 struct ExtraMatchData {
   DumbRegAlloc &alloc;
   TMap<fir::BasicBlock, u32> &bbs;
-  optim::LiveVariables &lives;
   MFunc &func;
 };
 

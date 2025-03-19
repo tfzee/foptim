@@ -231,10 +231,6 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   ZoneScopedN("Greedy Matcher");
   MFunc res_func;
   res_func.bbs.reserve(func.n_bbs());
-
-  optim::CFG cfg{func};
-  optim::Dominators dom{cfg};
-  optim::LiveVariables lives{func, cfg};
   DumbRegAlloc alloc{};
   // alloc.alloc_func(func, lives);
 
@@ -254,7 +250,7 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
     bbs[func.basic_blocks[bb_id]] = bb_id;
   }
 
-  ExtraMatchData extra_data = {alloc, bbs, lives, res_func};
+  ExtraMatchData extra_data = {alloc, bbs, res_func};
 
   // so we dont need to realloc
   MatchResult match_result{};
