@@ -4,6 +4,7 @@
 #include "stable_vec_slot.hpp"
 #include "todo.hpp"
 #include "types.hpp"
+#include "utils/mutex.hpp"
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -23,7 +24,7 @@ class StableVec {
 #ifdef SLOT_CHECK_GENERATION
   u32 curr_gen = 1;
 #endif
-  std::vector<FreeInfo> free_list;
+  foptim::Mutex<std::vector<FreeInfo>> _free_list;
 
 public:
   static constexpr u32 _slot_slab_len = slot_slab_len;
@@ -33,7 +34,10 @@ public:
     _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
     std::memset((void *)_slot_slab_starts.back(), 0,
                 slot_slab_len * sizeof(Slot<T>));
-    free_list.push_back({_slot_slab_starts.back(), slot_slab_len});
+    {
+      auto free_list = _free_list.scoped_lock();
+      free_list->push_back({_slot_slab_starts.back(), slot_slab_len});
+    }
   }
 
   ~StableVec() {
@@ -48,33 +52,40 @@ public:
   }
 
   constexpr void remove(SRef<T> s) {
-    free_list.emplace_back(s.data_ref, 1);
     s.data_ref->used = SlotState::FreeList;
+    {
+      auto free_list = _free_list.scoped_lock();
 #ifdef SLOT_CHECK_GENERATION
-    curr_gen++;
-    if (curr_gen == 0) {
+      s.data_ref->generation = 0;
       curr_gen++;
-    }
-    s.data_ref->generation = 0;
+      if (curr_gen == 0) {
+        curr_gen++;
+      }
 #endif
+      free_list->emplace_back(s.data_ref, 1);
+    }
   }
 
   void collect_garbage() {
     ZoneScopedN("Collect Garbage");
+    {
+      auto free_list = _free_list.scoped_lock();
 #ifdef SLOT_CHECK_GENERATION
-    curr_gen++;
-    if (curr_gen == 0) {
       curr_gen++;
-    }
+      if (curr_gen == 0) {
+        curr_gen++;
+      }
 #endif
-    for (auto slot_alloc : _slot_slab_starts) {
-      for (u32 i = 0; i < slot_slab_len; i++) {
-        if (slot_alloc[i].used == SlotState::Free) {
-          free_list.emplace_back(&slot_alloc[i], 1);
+
+      for (auto slot_alloc : _slot_slab_starts) {
+        for (u32 i = 0; i < slot_slab_len; i++) {
+          if (slot_alloc[i].used == SlotState::Free) {
+            free_list->emplace_back(&slot_alloc[i], 1);
 #ifdef SLOT_CHECK_GENERATION
-          slot_alloc[i].generation = 0;
+            slot_alloc[i].generation = 0;
 #endif
-          slot_alloc[i].used = SlotState::FreeList;
+            slot_alloc[i].used = SlotState::FreeList;
+          }
         }
       }
     }
@@ -82,7 +93,7 @@ public:
 
   [[nodiscard]] constexpr size_t size_bytes() const {
     return (_slot_slab_starts.size() * slot_slab_len * sizeof(Slot<T>)) +
-           (free_list.size() * sizeof(FreeInfo));
+           (_free_list.scoped_lock()->size() * sizeof(FreeInfo));
   }
 
   [[nodiscard]] constexpr size_t n_slabs() const {
@@ -92,8 +103,11 @@ public:
   [[nodiscard]] constexpr size_t n_used() const {
     const auto n_slots = _slot_slab_starts.size() * slot_slab_len;
     size_t free_size = 0;
-    for (const auto &free : free_list) {
-      free_size += free.len;
+    {
+      auto free_list = _free_list.scoped_lock();
+      for (const auto &free : *free_list.operator->()) {
+        free_size += free.len;
+      }
     }
     return n_slots - free_size;
   }
@@ -101,24 +115,21 @@ public:
   [[nodiscard]] constexpr size_t slab_size() const { return slot_slab_len; }
 
   SRef<T> push_back(T value = {}) {
-    if (free_list.size() == 0) {
+    auto free_list = _free_list.scoped_lock();
+    if (free_list->size() == 0) {
       _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
       std::memset((void *)_slot_slab_starts.back(), 0,
                   slot_slab_len * sizeof(Slot<T>));
-      // _slot_slab_starts.push_back(
-      //     (Slot<T> *)calloc(slot_slab_len, sizeof(Slot<T>)));
-      // TracyAlloc(_slot_slab_starts.back(), slot_slab_len * sizeof(Slot<T>));
-      free_list.push_back({_slot_slab_starts.back(), slot_slab_len});
+      free_list->push_back({_slot_slab_starts.back(), slot_slab_len});
     }
 
-    FreeInfo &target = free_list.back();
+    FreeInfo &target = free_list->back();
     Slot<T> *res_ptr = target.ptr;
     res_ptr->data = value;
     target.ptr++;
     target.len--;
     if (target.len == 0) {
-      free_list.pop_back();
-      // TODO("delete last from free list");
+      free_list->pop_back();
     }
     res_ptr->used = SlotState::Used;
 #ifdef SLOT_CHECK_GENERATION
