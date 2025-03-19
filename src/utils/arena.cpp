@@ -48,8 +48,9 @@ typedef struct {
   size_t count;
 } Arena_Mark;
 
-Arena global_temp_arena = {};
+thread_local Arena temp_arena = {};
 Arena ir_arena = {};
+TracyLockable ( std :: mutex , ir_arena_mutex ) ;
 unsigned long temp_arena_size{};
 unsigned long temp_ir_size = {};
 

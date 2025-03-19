@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 // #include <memory>
+#include <mutex>
 #include <tracy/Tracy.hpp>
 
 struct Arena;
@@ -14,8 +15,9 @@ void *arena_alloc(Arena *a, size_t size_bytes);
 void arena_reset(Arena *a);
 void arena_free(Arena *a);
 
-extern Arena global_temp_arena;
+extern thread_local Arena temp_arena;
 extern Arena ir_arena;
+extern tracy::Lockable<std ::mutex> ir_arena_mutex;
 extern unsigned long temp_arena_size;
 extern unsigned long temp_ir_size;
 
@@ -29,7 +31,7 @@ public:
   template <class U> constexpr TempAlloc(const TempAlloc<U> &) noexcept {}
 
   T *allocate(size_t count) {
-    auto ptr = (T *)arena_alloc(&global_temp_arena, count * sizeof(T));
+    auto ptr = (T *)arena_alloc(&temp_arena, count * sizeof(T));
     temp_arena_size += count * sizeof(T);
     TracyPlot("TempAlloc", (foptim::i64)temp_arena_size);
     // TracyAllocN(ptr, sizeof(T) * count, "TAlloc");
@@ -41,10 +43,10 @@ public:
   static void reset() {
     temp_arena_size = 0;
     TracyPlot("TempAlloc", (foptim::i64)temp_arena_size);
-    arena_reset(&global_temp_arena);
+    arena_reset(&temp_arena);
   }
   static void free() {
-    arena_free(&global_temp_arena);
+    arena_free(&temp_arena);
     // TODO: tracy free pool
   }
   template <typename U> struct rebind {
@@ -60,23 +62,26 @@ public:
   template <class U> constexpr IRAlloc(const IRAlloc<U> &) noexcept {}
 
   T *allocate(size_t count) {
+    std::lock_guard<LockableBase(std::mutex)> arena_guard{ir_arena_mutex};
+
     auto ptr = (T *)arena_alloc(&ir_arena, count * sizeof(T));
     temp_ir_size += count * sizeof(T);
-    // TracyPlot("IRAlloc", (foptim::i64)temp_ir_size);
     TracyAllocNS(ptr, sizeof(T) * count, 10, "IRAlloc");
-    // TracyMessage(typeid(T).name(), strlen(typeid(T).name()));
     return ptr;
   }
 
   constexpr void deallocate(T * /*unused*/, size_t /*unused*/) {}
 
   static void reset() {
+    std::lock_guard<LockableBase(std::mutex)> arena_guard{ir_arena_mutex};
     arena_reset(&ir_arena);
     temp_ir_size = 0;
-    TracyPlot("IRAlloc", (foptim::i64)temp_ir_size);
     // TODO: tracy free pool
   }
-  static void free() { arena_free(&ir_arena); }
+  static void free() {
+    std::lock_guard<LockableBase(std::mutex)> arena_guard{ir_arena_mutex};
+    arena_free(&ir_arena);
+  }
 
   template <typename U> struct rebind {
     using other = IRAlloc<U>;
