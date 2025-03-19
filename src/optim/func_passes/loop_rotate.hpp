@@ -1,5 +1,6 @@
 #pragma once
 #include "../function_pass.hpp"
+#include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
@@ -79,7 +80,7 @@ public:
     old_terminator.remove_from_parent();
   }
 
-  bool apply(fir::Context & /*unused*/, const CFG &cfg, LoopInfo &linfo) {
+  bool apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     // only if the header is the only exiting node
     if (linfo.leaving_nodes.size() == 0) {
       linfo.dump();
@@ -128,47 +129,7 @@ public:
       TODO("TODO preheader insertion");
     }
 
-    // if the header gets bbargs and these bb args are used *after* the loop
-    //   we cant do a simple rotate since that might skip the loop leaving them
-    //   undefined
-    // Or in other terms the issue is a later bb needs to be dominated by the
-    //   header but it wont after the rotate
-    for (auto &arg : header_bb->args) {
-      for (auto &use : arg->uses) {
-        auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
-        if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
-                      user_bb_id) == linfo.body_nodes.end()) {
-
-          // insert an empty forwarding bb from the header to the first body
-          // element without bb_args
-          // auto old_header = cfg.bbrs[linfo.head].bb;
-          // auto bb = fir::Builder(old_header);
-          // auto old_terminator = old_header->get_terminator();
-
-          // ASSERT(old_terminator->is(fir::InstrType::CondBranchInstr));
-
-          // auto new_header = bb.append_bb();
-          // bb.at_end(new_header);
-          // bb.insert_copy(old_terminator);
-
-          // bb.at_end(old_header);
-          // bb.build_branch(new_header);
-          // old_terminator.remove_from_parent();
-          // fmt::println("{}", *old_header->get_parent().func);
-          // TODO("okak");
-
-          // return true;
-
-          failure({"Cannot handle loop rotate on loop whose header arguments"
-                   "are used after the loop",
-                   {use.user}});
-          return false;
-        }
-      }
-    }
-
     // now the header only got predecessors that use a simple jump to it
-
     // we need to figure out the headers_terminator which of the two targets is
     // the non exiting one
     uint8_t non_exiting_target = 1;
@@ -182,6 +143,80 @@ public:
           break;
         }
       }
+    }
+    uint8_t exiting_target = 1 - non_exiting_target;
+
+    // if the header gets bbargs and these bb args are used *after* the loop
+    //   we cant do a simple rotate since that might skip the loop leaving them
+    //   undefined
+
+    TVec<fir::BBArgument> used_after_args;
+    for (auto &arg : header_bb->args) {
+      for (auto &use : arg->uses) {
+        auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
+        if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
+                      user_bb_id) == linfo.body_nodes.end()) {
+          used_after_args.push_back(arg);
+          break;
+        }
+      }
+    }
+
+    if (!used_after_args.empty()) {
+      // inserting en empty bb at the end which takes as bb args the header bb
+      // args which need to be available later on
+      //  and then replace all later uses of the bbargs with these new bbargs
+      auto old_header = cfg.bbrs[linfo.head].bb;
+      auto bb = fir::Builder(old_header);
+      auto old_terminator = old_header->get_terminator();
+
+      ASSERT(old_terminator->is(fir::InstrType::CondBranchInstr));
+
+      auto &exit_target = old_terminator->bbs[exiting_target];
+
+      auto new_exit = bb.append_bb();
+      bb.at_end(new_exit);
+      // contsruct our bb
+      //  BB(old_exit_args..., used_after_args...)
+      for (auto argy : exit_target.args) {
+        new_exit.add_arg(ctx->storage.insert_bb_arg(new_exit, argy.get_type()));
+      }
+      TVec<fir::BBArgument> new_args;
+      for (auto used_after : used_after_args) {
+        auto new_arg = new_exit.add_arg(
+            ctx->storage.insert_bb_arg(new_exit, used_after->get_type()));
+        new_args.push_back(new_arg);
+      }
+      // add the terminator that forwards the old_exit_args
+      auto new_exit_term = bb.build_branch(exit_target.bb);
+      for (auto argy : exit_target.args) {
+        new_exit_term.add_bb_arg(0, argy);
+      }
+
+      // update the header terminator to point to new exit + add the
+      // used_after_args as bbargs
+      old_terminator.replace_bb(exit_target.bb, new_exit, true);
+      for (auto used_after : used_after_args) {
+        old_terminator.add_bb_arg(exiting_target, fir::ValueR(used_after));
+      }
+
+      for (u32 arg_id = 0; arg_id < used_after_args.size(); arg_id++) {
+        auto arg = used_after_args[arg_id];
+        for (auto &use : arg->uses) {
+          auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
+          if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
+                        user_bb_id) == linfo.body_nodes.end()) {
+            use.replace_use(fir::ValueR(new_args[arg_id]));
+            break;
+          }
+        }
+      }
+
+      // now replace the uses after with the new_exits bb_args
+      // failure({"Cannot handle loop rotate on loop whose header arguments"
+      //          "are used after the loop",
+      //          {(*used_after_args.begin().base())->get_parent()}});
+      // return false;
     }
 
     // TODO: prob want to replace this map since its never gonna be more then a
