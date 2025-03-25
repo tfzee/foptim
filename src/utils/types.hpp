@@ -13,6 +13,7 @@ class MFunc;
 enum class Type : uint16_t;
 } // namespace fmir
 
+extern thread_local char thread_name[11];
 namespace utils {}
 
 namespace optim {

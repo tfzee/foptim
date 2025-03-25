@@ -15,6 +15,7 @@ namespace foptim::optim {
 bool SimplifyCFG::remove_dead_bb(CFG & /*cfg*/, CFG::Node &curr,
                                  fir::Function &func, size_t bb_id,
                                  bool is_entry) {
+  ZoneScopedN("rem dead bb");
   if (curr.pred.empty() && !is_entry) {
     func.basic_blocks[bb_id]->remove_from_parent(true, true, true);
     return true;
@@ -41,7 +42,14 @@ bool has_true_use(fir::BBArgument v) {
     seen.insert(item);
 
     if (item.type == fir::UseType::NormalArg) {
-      return true;
+      if (!item.user->is_critical() && !item.user->pot_modifies_mem() &&
+          !item.user->has_pot_sideeffects()) {
+        for (auto use : item.user->get_uses()) {
+          worklist.push_back(use);
+        }
+      } else {
+        return true;
+      }
     } else if (item.type == fir::UseType::BB) {
       UNREACH();
     } else if (item.type == fir::UseType::BBArg) {
@@ -57,6 +65,7 @@ bool has_true_use(fir::BBArgument v) {
 bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
                                      fir::Function &func, size_t /*bb_id*/,
                                      bool is_entry) {
+  ZoneScopedN("rem dead bb arg");
   if (curr.bb->n_args() != 0 && !is_entry) {
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
@@ -72,7 +81,8 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
         // drop this arg we cant have any uses
         curr.bb->args.erase(curr.bb->args.begin() + i);
         return true;
-      } else if (!has_true_use(value)) {
+      }
+      if (!has_true_use(value)) {
         for (auto use : curr.bb->get_uses()) {
           ASSERT(use.type == fir::UseType::BB);
           use.user.remove_bb_arg(use.argId, i);
@@ -91,9 +101,12 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
 
 bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
                                  size_t bb_id, bool is_entry) {
-  auto ctx = func.ctx;
-  (void)bb_id;
-  (void)is_entry;
+  ZoneScopedN("dup bb to arg");
+  if (is_entry) {
+    return false;
+  }
+
+  auto *ctx = func.ctx;
   bool found = false;
   struct DiffConst {
     fir::Instr instr;
@@ -106,8 +119,12 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
   fir::BasicBlock res_bb1 = fir::BasicBlock(fir::BasicBlock::invalid());
   fir::BasicBlock res_bb2 = fir::BasicBlock(fir::BasicBlock::invalid());
 
-  for (auto bb2 : cfg.bbrs) {
-    if (bb1.bb == bb2.bb ||
+  if (bb1.bb->n_args() != 0 || bb1.bb->n_instrs() > 5) {
+    return false;
+  }
+  for (size_t bb2_id = 0; bb2_id < bb_id; bb2_id++) {
+    auto bb2 = cfg.bbrs[bb2_id];
+    if (bb2.bb->n_args() != 0 ||
         bb1.bb->instructions.size() != bb2.bb->instructions.size()) {
       continue;
     }
@@ -140,7 +157,6 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
   }
 
   if (found && difference_values.size() <= res_bb1->instructions.size()) {
-
     TVec<fir::BBArgument> new_bb_args;
 
     for (auto &diff : difference_values) {
@@ -176,6 +192,7 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
 bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr,
                                          fir::Function & /*func*/,
                                          size_t /*bb_id*/, bool /*is_entry*/) {
+  ZoneScopedN("Rem useless bb arg");
   if (curr.pred.size() == 1 && curr.bb->n_args() != 0) {
     auto n_args = curr.bb->n_args();
     auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
@@ -194,6 +211,7 @@ bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
                                           fir::Function & /*func*/,
                                           size_t /*bb_id*/, bool is_entry) {
+  ZoneScopedN("Rem Constant bb");
   if (curr.bb->n_args() != 0 && !is_entry) {
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
@@ -236,6 +254,7 @@ bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
 bool SimplifyCFG::distribute_return(CFG &cfg, CFG::Node &curr,
                                     fir::Function & /*func*/, size_t /*bb_id*/,
                                     bool /*is_entry*/) {
+  ZoneScopedN("Distr return");
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::ReturnInstr)) {
     const auto n_args = curr.bb->n_args();
@@ -270,6 +289,7 @@ bool SimplifyCFG::distribute_return(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
                                               fir::Function &func, size_t bb_id,
                                               bool /*is_entry*/) {
+  ZoneScopedN("BACKWARDS MERGE");
   if (curr.succ.size() != 1) {
     return false;
   }
@@ -303,6 +323,7 @@ bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
                                              fir::Function &func, size_t bb_id,
                                              bool is_entry) {
+  ZoneScopedN("FORWARD MERGE");
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::BranchInstr)) {
     ASSERT(curr.succ.size() == 1);
@@ -347,6 +368,7 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
                                         fir::Function &func, size_t bb_id,
                                         bool is_entry) {
   if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1) {
+    ZoneScopedN("MERGE LINEAR");
     auto succ_id = curr.succ[0];
 
     // bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
@@ -404,6 +426,7 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
                                        fir::Function & /*func*/,
                                        size_t /*bb_id*/, bool /*is_entry*/) {
+  ZoneScopedN("COND TO CMOVE");
   auto terminator = curr.bb->get_terminator();
   if (curr.succ.size() == 2 && terminator->bbs[0].bb == terminator->bbs[1].bb) {
     // auto *ctx = curr.bb->get_parent()->ctx;
@@ -471,9 +494,9 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     return true;
   }
 
-  if (dup_bb_to_args(cfg, curr, func, bb_id, is_entry)) {
-    return true;
-  }
+  // if (dup_bb_to_args(cfg, curr, func, bb_id, is_entry)) {
+  //   return true;
+  // }
 
   return false;
 }
@@ -500,10 +523,10 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
 
     foptim::utils::TempAlloc<void *>::reset();
     cfg = CFG(func, false);
+    // ASSERT(func.verify());
   }
 
   // cfg.update(func, false);
-  // ASSERT(func.verify());
 }
 
 } // namespace foptim::optim

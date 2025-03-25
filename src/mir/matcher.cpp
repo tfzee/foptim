@@ -170,8 +170,6 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
   MBB result_bb;
   result_bb.instrs.reserve(bb->n_instrs());
 
-  // to store results
-
   // generate each instruction
   for (auto cur_instr : bb->instructions | std::views::reverse) {
     // fir::Instr cur_instr = worklist.front();
@@ -186,6 +184,23 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
       for (auto minstr : match_result.result | std::views::reverse) {
         result_bb.instrs.push_back(minstr);
       }
+    }
+  }
+
+  if (bb->get_parent()->get_entry() != bb) {
+    for (auto &bb_arg : bb->args) {
+      if (!data.bb_arg_mapping.contains(bb_arg)) {
+        auto arg_ty = convert_type(bb_arg->get_type());
+        auto to = data.alloc.get_new_register(arg_ty);
+        data.bb_arg_mapping.insert({bb_arg, MArgument{to, arg_ty}});
+      }
+      auto transfer_reg = data.bb_arg_mapping.at(bb_arg);
+      TVec<MInstr> res;
+      auto real_reg = valueToArg(fir::ValueR(bb_arg), res, data.alloc);
+      for (auto minstr : res | std::views::reverse) {
+        result_bb.instrs.push_back(minstr);
+      }
+      result_bb.instrs.emplace_back(Opcode::mov, real_reg, transfer_reg);
     }
   }
 
@@ -250,7 +265,8 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
     bbs[func.basic_blocks[bb_id]] = bb_id;
   }
 
-  ExtraMatchData extra_data = {alloc, bbs, res_func};
+  TMap<fir::BBArgument, MArgument> bb_arg_mapping;
+  ExtraMatchData extra_data = {alloc, bbs, bb_arg_mapping, res_func};
 
   // so we dont need to realloc
   MatchResult match_result{};
@@ -286,12 +302,20 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
     if (args.bb->args[arg_id]->get_n_uses() == 0) {
       continue;
     }
-    auto to =
-        valueToArg(fir::ValueR(args.bb->args[arg_id]), res.result, data.alloc);
-    auto from = valueToArg(args.args[arg_id], res.result, data.alloc);
-    if (to == from) {
-      continue;
+
+    if (!data.bb_arg_mapping.contains(args.bb->args[arg_id])) {
+      auto arg_ty = convert_type(args.args[arg_id].get_type());
+      auto to = data.alloc.get_new_register(arg_ty);
+      data.bb_arg_mapping.insert(
+          {args.bb->args[arg_id], MArgument{to, arg_ty}});
     }
+    auto to = data.bb_arg_mapping.at(args.bb->args[arg_id]);
+    //     valueToArg(fir::ValueR(args.bb->args[arg_id]), res.result,
+    //     data.alloc);
+    auto from = valueToArg(args.args[arg_id], res.result, data.alloc);
+    // if (to == from) {
+    //   continue;
+    // }
     pairs.push_back({to, from});
   }
 

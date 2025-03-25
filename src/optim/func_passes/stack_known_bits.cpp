@@ -16,7 +16,8 @@ void StackKnownBits::update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
                                  StackKnowCache &cache) {
 
   if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_func() &&
-      (instr->args[0].as_constant()->as_func()->name == "foptim.memset")) {
+      (instr->args[0].as_constant()->as_func()->name == "foptim.memset") &&
+      instr->args.size() == 4) {
     auto ptr = instr->args[1];
     auto val = instr->args[2];
     auto size = instr->args[3];

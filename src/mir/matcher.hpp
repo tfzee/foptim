@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/basic_block_arg.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "mir/reg_alloc.hpp"
@@ -11,7 +12,9 @@ namespace foptim::fmir {
 struct ExtraMatchData {
   DumbRegAlloc &alloc;
   TMap<fir::BasicBlock, u32> &bbs;
+  TMap<fir::BBArgument, MArgument> &bb_arg_mapping;
   MFunc &func;
+
 };
 
 struct MatchResult {

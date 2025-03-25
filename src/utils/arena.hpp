@@ -1,8 +1,9 @@
 #pragma once
 #include "utils/types.hpp"
+#include <client/TracyLock.hpp>
+#include <common/TracySystem.hpp>
 #include <cstddef>
-#include <cstdint>
-// #include <memory>
+#include <fmt/core.h>
 #include <mutex>
 #include <tracy/Tracy.hpp>
 
@@ -16,10 +17,12 @@ void arena_reset(Arena *a);
 void arena_free(Arena *a);
 
 extern thread_local Arena temp_arena;
+extern thread_local unsigned long temp_arena_size;
+
 extern Arena ir_arena;
-extern tracy::Lockable<std ::mutex> ir_arena_mutex;
-extern unsigned long temp_arena_size;
-extern unsigned long temp_ir_size;
+extern tracy::Lockable<std::mutex> ir_arena_mutex;
+extern std::atomic<unsigned long> temp_ir_size;
+// static thread_local const char* alloc_name = "TempAlloc";
 
 namespace foptim::utils {
 
@@ -33,8 +36,9 @@ public:
   T *allocate(size_t count) {
     auto ptr = (T *)arena_alloc(&temp_arena, count * sizeof(T));
     temp_arena_size += count * sizeof(T);
-    TracyPlot("TempAlloc", (foptim::i64)temp_arena_size);
-    // TracyAllocN(ptr, sizeof(T) * count, "TAlloc");
+    // static thread_local const auto alloc_name =
+    //     std::string("TempAlloc:") + thread_name;
+    TracyPlot(thread_name, (foptim::i64)temp_arena_size);
     return ptr;
   }
 
@@ -42,7 +46,9 @@ public:
 
   static void reset() {
     temp_arena_size = 0;
-    TracyPlot("TempAlloc", (foptim::i64)temp_arena_size);
+    // static thread_local const auto alloc_name =
+    //     std::string("TempAlloc:") + thread_name;
+    TracyPlot(thread_name, (foptim::i64)temp_arena_size);
     arena_reset(&temp_arena);
   }
   static void free() {
@@ -62,9 +68,11 @@ public:
   template <class U> constexpr IRAlloc(const IRAlloc<U> &) noexcept {}
 
   T *allocate(size_t count) {
-    std::lock_guard<LockableBase(std::mutex)> arena_guard{ir_arena_mutex};
-
-    auto ptr = (T *)arena_alloc(&ir_arena, count * sizeof(T));
+    T *ptr = nullptr;
+    {
+      std::lock_guard<tracy::Lockable<std::mutex>> arena_guard{ir_arena_mutex};
+      ptr = (T *)arena_alloc(&ir_arena, count * sizeof(T));
+    }
     temp_ir_size += count * sizeof(T);
     TracyAllocNS(ptr, sizeof(T) * count, 10, "IRAlloc");
     return ptr;
@@ -73,13 +81,13 @@ public:
   constexpr void deallocate(T * /*unused*/, size_t /*unused*/) {}
 
   static void reset() {
-    std::lock_guard<LockableBase(std::mutex)> arena_guard{ir_arena_mutex};
+    std::lock_guard<tracy::Lockable<std::mutex>> arena_guard{ir_arena_mutex};
     arena_reset(&ir_arena);
     temp_ir_size = 0;
     // TODO: tracy free pool
   }
   static void free() {
-    std::lock_guard<LockableBase(std::mutex)> arena_guard{ir_arena_mutex};
+    std::lock_guard<tracy::Lockable<std::mutex>> arena_guard{ir_arena_mutex};
     arena_free(&ir_arena);
   }
 

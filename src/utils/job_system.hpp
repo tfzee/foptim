@@ -1,10 +1,13 @@
 #pragma once
 #include "utils/todo.hpp"
 #include "utils/vec.hpp"
+#include <common/TracySystem.hpp>
 #include <functional>
 #include <thread>
 
 namespace foptim {
+
+
 class JobSheduler;
 
 enum class WorkerState : u8 {
@@ -17,13 +20,14 @@ struct Job {
 };
 
 struct Worker {
+  u8 worker_id;
   WorkerState state = WorkerState::Waiting;
   std::jthread thread;
 
-  Worker(JobSheduler *shed) {
-    thread = std::jthread(
-        [this, shed](std::stop_token stoken) { work_func(shed, stoken); });
-  }
+  Worker(JobSheduler *shed, u8 id)
+      : worker_id(id), thread([this, shed](std::stop_token stoken) {
+          work_func(shed, stoken);
+        }) {}
 
   void work_func(JobSheduler *shed, std::stop_token stoken);
 };
@@ -36,20 +40,25 @@ public:
 
   foptim::IRVec<Worker> threads;
 
-  JobSheduler(u8 n_threads) {
+  void init(u8 n_threads) {
     jobs.reserve(10);
     threads.reserve(n_threads);
     for (u32 i = 0; i < n_threads; i++) {
-      threads.emplace_back(this);
+      threads.emplace_back(this, i + 1);
     }
+  }
+  void deinit() {
+    for (auto &t : threads) {
+      t.thread.request_stop();
+    }
+    for (auto &t : threads) {
+      t.thread.join();
+    }
+    jobs.clear();
+    threads.clear();
   }
 
-  ~JobSheduler() {
-    // wait_till_done();
-    for (auto &worker : threads) {
-      worker.thread.request_stop();
-    }
-  }
+  ~JobSheduler() {}
 
   void push(std::function<void()> j) { push(Job{j}); }
 
@@ -59,10 +68,10 @@ public:
   }
 
   void wait_till_done() {
-    // while (!jobs.empty()) {
-    // }
-
     bool done = false;
+    while (!jobs.empty()) {
+      std::this_thread::yield();
+    }
     while (!done) {
       done = true;
       for (auto &thread : threads) {

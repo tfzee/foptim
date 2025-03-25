@@ -47,6 +47,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(land2);
     ReturnString(lor2);
     ReturnString(lxor2);
+    ReturnString(not1);
     ReturnString(fadd);
     ReturnString(fsub);
     ReturnString(fmul);
@@ -99,7 +100,7 @@ const char *getNameFromOpcode(Opcode code) {
 }
 #undef ReturnString
 
-void written_args(const MInstr &instr, TVec<MArgument> &out) {
+void written_args(const MInstr &instr, TVec<ArgData> &out) {
   switch (instr.op) {
   case Opcode::cmov:
   case Opcode::mov_zx:
@@ -113,6 +114,7 @@ void written_args(const MInstr &instr, TVec<MArgument> &out) {
   case Opcode::land2:
   case Opcode::lor2:
   case Opcode::lxor2:
+  case Opcode::not1:
   case Opcode::add2:
   case Opcode::sub2:
   case Opcode::mul2:
@@ -156,11 +158,11 @@ void written_args(const MInstr &instr, TVec<MArgument> &out) {
   case Opcode::fcmp_ult:
   case Opcode::fcmp_ule:
   case Opcode::fcmp_une:
-    out.push_back(instr.args[0]);
+    out.push_back({0, instr.args[0]});
     return;
   case Opcode::idiv:
-    out.push_back(instr.args[0]);
-    out.push_back(instr.args[1]);
+    out.push_back({0, instr.args[0]});
+    out.push_back({1, instr.args[1]});
     return;
   case Opcode::call:
   case Opcode::push:
@@ -195,21 +197,21 @@ void written_args(const MInstr &instr, TVec<MArgument> &out) {
   case Opcode::arg_setup:
   case Opcode::invoke:
     if (instr.n_args > 1) {
-      out.push_back(instr.args[1]);
+      out.push_back({1, instr.args[1]});
     }
     return;
   }
 }
 
 // TODO: could also return len and take a Margument[4] as arg
-void read_args(const MInstr &instr, TVec<MArgument> &out) {
+void read_args(const MInstr &instr, TVec<ArgData> &out) {
   switch (instr.op) {
   case Opcode::pop:
   case Opcode::jmp:
     return;
   case Opcode::ret:
     if (instr.n_args > 0) {
-      out.push_back(instr.args[0]);
+      out.push_back({0, instr.args[0]});
     }
     return;
   case Opcode::call:
@@ -217,7 +219,8 @@ void read_args(const MInstr &instr, TVec<MArgument> &out) {
   case Opcode::push:
   case Opcode::cjmp:
   case Opcode::arg_setup:
-    out.push_back(instr.args[0]);
+  case Opcode::not1:
+    out.push_back({0, instr.args[0]});
     return;
   case Opcode::mov_zx:
   case Opcode::mov_sx:
@@ -228,7 +231,7 @@ void read_args(const MInstr &instr, TVec<MArgument> &out) {
   case Opcode::UI2FL:
   case Opcode::FL2SI:
   case Opcode::FL2UI:
-    out.push_back(instr.args[1]);
+    out.push_back({1, instr.args[1]});
     return;
   case Opcode::shl2:
   case Opcode::shr2:
@@ -263,8 +266,8 @@ void read_args(const MInstr &instr, TVec<MArgument> &out) {
   case Opcode::cjmp_flt_ult:
   case Opcode::cjmp_flt_ule:
   case Opcode::cjmp_flt_une:
-    out.push_back(instr.args[0]);
-    out.push_back(instr.args[1]);
+    out.push_back({0, instr.args[0]});
+    out.push_back({1, instr.args[1]});
     return;
   case Opcode::fadd:
   case Opcode::fsub:
@@ -298,20 +301,20 @@ void read_args(const MInstr &instr, TVec<MArgument> &out) {
   case Opcode::fcmp_ult:
   case Opcode::fcmp_ule:
   case Opcode::fcmp_une:
-    out.push_back(instr.args[1]);
-    out.push_back(instr.args[2]);
+    out.push_back({1, instr.args[1]});
+    out.push_back({2, instr.args[2]});
     return;
   case Opcode::cmov:
   case Opcode::ffmadd132:
   case Opcode::ffmadd213:
   case Opcode::ffmadd231:
-    out.push_back(instr.args[0]);
-    out.push_back(instr.args[1]);
-    out.push_back(instr.args[2]);
+    out.push_back({0, instr.args[0]});
+    out.push_back({1, instr.args[1]});
+    out.push_back({2, instr.args[2]});
     return;
   case Opcode::idiv:
-    out.push_back(instr.args[2]);
-    out.push_back(instr.args[3]);
+    out.push_back({2, instr.args[2]});
+    out.push_back({3, instr.args[3]});
     return;
   }
 }
@@ -402,12 +405,12 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
   case foptim::fmir::MArgument::ArgumentType::Imm: {
     if (value.ty == foptim::fmir::Type::Float32) {
       return fmt::format_to(app, fg(fmt::color::cadet_blue), "{}f", value.immf);
-    } else if (value.ty == foptim::fmir::Type::Float64) {
-      return fmt::format_to(app, fg(fmt::color::cadet_blue), "{}d", value.immf);
-    } else {
-      return fmt::format_to(app, fg(fmt::color::cadet_blue), "{}:{}", value.imm,
-                            value.ty);
     }
+    if (value.ty == foptim::fmir::Type::Float64) {
+      return fmt::format_to(app, fg(fmt::color::cadet_blue), "{}d", value.immf);
+    }
+    return fmt::format_to(app, fg(fmt::color::cadet_blue), "{}:{}", value.imm,
+                          value.ty);
   }
   case foptim::fmir::MArgument::ArgumentType::VReg:
     return fmt::format_to(app, "{}:{}", value.reg, value.ty);
@@ -669,12 +672,14 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
     case CReg::mm13:
     case CReg::mm14:
     case CReg::mm15:
-      return fmt::format_to(app, col_vec, "$mm{}",
-                            ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
+      return fmt::format_to(
+          app, col_vec, "$mm{}",
+          ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
     default:
     }
   } else {
     TODO("unrach?");
   }
-  return fmt::format_to(app, "REG PRINT FAIL TYPE:{} OFF:{}", value.ty, (foptim::u8)value.c_reg());
+  return fmt::format_to(app, "REG PRINT FAIL TYPE:{} OFF:{}", value.ty,
+                        (foptim::u8)value.c_reg());
 }

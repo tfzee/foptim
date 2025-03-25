@@ -2,7 +2,6 @@
 #include "ir/attributable.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "use.hpp"
-#include "utils/logging.hpp"
 #include "utils/todo.hpp"
 #include "utils/vec.hpp"
 #include "value.hpp"
@@ -103,6 +102,7 @@ enum class UnaryInstrSubType : u32 {
   INVALID = 0,
   FloatNeg,
   IntNeg,
+  Not,
 };
 
 enum class BinaryInstrSubType : u32 {
@@ -176,6 +176,8 @@ public:
         return "FloatNeg";
       case UnaryInstrSubType::IntNeg:
         return "IntNeg";
+      case UnaryInstrSubType::Not:
+        return "Not";
       }
     case InstrType::BinaryInstr:
       switch ((BinaryInstrSubType)subtype) {

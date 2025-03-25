@@ -25,6 +25,8 @@
 #include <stdio.h>
 
 #include <assert.h>
+#include <client/TracyLock.hpp>
+#include <mutex>
 #include <tracy/Tracy.hpp>
 #define ARENA_ASSERT assert
 #define ARENA_REGION_DEFAULT_CAPACITY (16 * 1024)
@@ -49,10 +51,11 @@ typedef struct {
 } Arena_Mark;
 
 thread_local Arena temp_arena = {};
+thread_local unsigned long temp_arena_size{};
+
 Arena ir_arena = {};
-TracyLockable ( std :: mutex , ir_arena_mutex ) ;
-unsigned long temp_arena_size{};
-unsigned long temp_ir_size = {};
+TracyLockable(std ::mutex, ir_arena_mutex);
+std::atomic<unsigned long> temp_ir_size = {};
 
 Region *new_region(size_t capacity);
 void free_region(Region *r);

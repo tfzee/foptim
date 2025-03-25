@@ -31,6 +31,14 @@ BasicBlock Builder::append_bb() {
   return res;
 }
 
+// void Builder::before(Instr instr) {
+//   ctx = instr->get_parent()->get_parent()->ctx;
+//   func = instr->get_parent()->get_parent()), bb(instr->get_parent();
+//   indx = 0;
+//   indx = std::find(bb->instructions.begin(), bb->instructions.end(), instr) -
+//          bb->instructions.begin();
+// }
+
 void Builder::at_end(BasicBlock bbr) {
   bb = bbr;
   func = bbr->func;
@@ -246,7 +254,7 @@ ValueR Builder::build_lshr(ValueR a, ValueR b) {
 ValueR Builder::build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(
-      InstrData::get_int_cmp(ctx->get_int_type(8), ty));
+      InstrData::get_int_cmp(ctx->get_int_type(1), ty));
   instr.add_arg(a);
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
@@ -257,7 +265,7 @@ ValueR Builder::build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty) {
 ValueR Builder::build_float_cmp(ValueR a, ValueR b, FCmpInstrSubType ty) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(
-      InstrData::get_float_cmp(ctx->get_int_type(8), ty));
+      InstrData::get_float_cmp(ctx->get_int_type(1), ty));
   instr.add_arg(a);
   instr.add_arg(b);
   bb.insert_instr(indx, instr);

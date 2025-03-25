@@ -2,7 +2,6 @@
 #include "ir/instruction_data.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
-#include <utility>
 
 namespace foptim::fmir {
 
@@ -24,6 +23,7 @@ enum class Opcode : u32 {
   add2,
   sub2,
   mul2,
+  not1,
   idiv,
   fadd,
   fsub,
@@ -654,8 +654,13 @@ public:
 };
 #undef COND_JUMP_GEN
 
-void written_args(const MInstr &instr, TVec<MArgument> &out);
-void read_args(const MInstr &instr, TVec<MArgument> &out);
+struct ArgData {
+  u8 indx;
+  MArgument arg;
+};
+
+void written_args(const MInstr &instr, TVec<ArgData> &out);
+void read_args(const MInstr &instr, TVec<ArgData> &out);
 
 } // namespace foptim::fmir
 

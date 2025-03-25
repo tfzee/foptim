@@ -32,7 +32,7 @@ struct NextUseResult {
 // args_temp is just a helper to reduce number of number of allocations when repeated
 // calls to this function
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
-                            size_t start_inst, TVec<MArgument> &args_tempr);
+                            size_t start_inst, TVec<ArgData> &args_tempr);
 
 // LINEAR LIFETIMES AFTER
 

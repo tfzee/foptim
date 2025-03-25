@@ -115,23 +115,26 @@ public:
   [[nodiscard]] constexpr size_t slab_size() const { return slot_slab_len; }
 
   SRef<T> push_back(T value = {}) {
-    auto free_list = _free_list.scoped_lock();
-    if (free_list->size() == 0) {
-      _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
-      std::memset((void *)_slot_slab_starts.back(), 0,
-                  slot_slab_len * sizeof(Slot<T>));
-      free_list->push_back({_slot_slab_starts.back(), slot_slab_len});
-    }
+    Slot<T>* res_ptr = nullptr;
+    {
+      auto free_list = _free_list.scoped_lock();
+      if (free_list->size() == 0) {
+        _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
+        std::memset((void *)_slot_slab_starts.back(), 0,
+                    slot_slab_len * sizeof(Slot<T>));
+        free_list->push_back({_slot_slab_starts.back(), slot_slab_len});
+      }
 
-    FreeInfo &target = free_list->back();
-    Slot<T> *res_ptr = target.ptr;
-    res_ptr->data = value;
-    target.ptr++;
-    target.len--;
-    if (target.len == 0) {
-      free_list->pop_back();
+      FreeInfo &target = free_list->back();
+      res_ptr = target.ptr;
+      res_ptr->data = value;
+      target.ptr++;
+      target.len--;
+      if (target.len == 0) {
+        free_list->pop_back();
+      }
+      res_ptr->used = SlotState::Used;
     }
-    res_ptr->used = SlotState::Used;
 #ifdef SLOT_CHECK_GENERATION
     res_ptr->generation = curr_gen;
     return SRef{res_ptr, curr_gen};

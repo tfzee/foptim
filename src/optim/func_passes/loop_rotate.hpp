@@ -8,7 +8,7 @@
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
-#include "utils/logging.hpp"
+#include "optim/helper/helper.hpp"
 #include "utils/vec.hpp"
 #include <algorithm>
 
@@ -68,13 +68,12 @@ public:
     // terminator
     {
       fir::Instr new_term = head_pred->get_terminator();
-      // new_term.clear_bb_args(non_exiting_target);
-      // assert(new_term->bbs[non_exiting_target].args.size() == 0);
 
       new_term.replace_bb(non_exiting_target, header_bb, false);
       for (auto arg : old_terminator_args) {
         new_term.add_bb_arg(non_exiting_target, arg);
       }
+      flip_cond_branch(new_term);
     }
 
     old_terminator.remove_from_parent();

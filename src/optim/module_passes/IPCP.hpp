@@ -11,6 +11,7 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx);
 class IPCP final : public ModulePass {
 public:
   void apply(fir::Context &ctx) override {
+    ZoneScopedN("IPCP");
     for (auto &f : ctx.data->storage.functions) {
       constant_prop_args(fir::FunctionR(&f.second), ctx);
     }

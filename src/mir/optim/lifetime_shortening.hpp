@@ -5,17 +5,18 @@
 
 namespace foptim::fmir {
 
-class LocalCopyPropagation {
+class LifetimeShortening {
   void apply(MBB &bb) {
     TMap<VReg, VReg> mappings;
-    TVec<MArgument> temp;
+    TVec<ArgData> temp;
 
     for (auto &instr : bb.instrs) {
       switch (instr.op) {
       case Opcode::mov:
         if (instr.args[0].isReg() && instr.args[1].isReg() &&
-            instr.args[0] != instr.args[1]) {
-          mappings[instr.args[0].reg] = instr.args[1].reg;
+            instr.args[0] != instr.args[1] &&
+            instr.args[0].ty == instr.args[1].ty) {
+          mappings[instr.args[1].reg] = instr.args[0].reg;
         }
         break;
       case Opcode::call:
@@ -25,7 +26,7 @@ class LocalCopyPropagation {
       default: {
         temp.clear();
         written_args(instr, temp);
-        for (auto written : temp) {
+        for (auto [_, written] : temp) {
           switch (written.type) {
           case MArgument::ArgumentType::Imm:
           case MArgument::ArgumentType::MemImm:
@@ -33,25 +34,46 @@ class LocalCopyPropagation {
           case MArgument::ArgumentType::MemLabel:
           case MArgument::ArgumentType::MemImmLabel:
             break;
-          case MArgument::ArgumentType::VReg:
-          case MArgument::ArgumentType::MemVReg:
-          case MArgument::ArgumentType::MemImmVReg:
-            mappings.erase(written.reg);
-            break;
           case MArgument::ArgumentType::MemVRegVReg:
           case MArgument::ArgumentType::MemImmVRegVReg:
           case MArgument::ArgumentType::MemVRegVRegScale:
           case MArgument::ArgumentType::MemImmVRegScale:
           case MArgument::ArgumentType::MemImmVRegVRegScale:
-            mappings.erase(written.reg);
             mappings.erase(written.indx);
+            for (auto it = mappings.begin(); it != mappings.end();) {
+              if (it->second == written.indx) {
+                it = mappings.erase(it);
+                break;
+              }
+              ++it;
+            }
+            mappings.erase(written.reg);
+            for (auto it = mappings.begin(); it != mappings.end();) {
+              if (it->second == written.reg) {
+                it = mappings.erase(it);
+                break;
+              }
+              ++it;
+            }
+            break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            mappings.erase(written.reg);
+            for (auto it = mappings.begin(); it != mappings.end();) {
+              if (it->second == written.reg) {
+                it = mappings.erase(it);
+                break;
+              }
+              ++it;
+            }
             break;
           }
         }
         temp.clear();
         read_args(instr, temp);
-        for (auto written : temp) {
-          switch (written.type) {
+        for (auto [id, read] : temp) {
+          switch (read.type) {
           case MArgument::ArgumentType::Imm:
           case MArgument::ArgumentType::MemImm:
           case MArgument::ArgumentType::Label:
@@ -61,8 +83,10 @@ class LocalCopyPropagation {
           case MArgument::ArgumentType::VReg:
           case MArgument::ArgumentType::MemVReg:
           case MArgument::ArgumentType::MemImmVReg:
-            if (mappings.contains(written.reg)) {
-              fmt::println("Mathc1! {}", instr);
+            if (mappings.contains(read.reg)) {
+              instr.args[id] =
+                  MArgument{mappings.at(read.reg), instr.args[id].ty};
+              // fmt::println("Mathc1! {}", instr);
             }
             break;
           case MArgument::ArgumentType::MemVRegVReg:
@@ -70,11 +94,15 @@ class LocalCopyPropagation {
           case MArgument::ArgumentType::MemVRegVRegScale:
           case MArgument::ArgumentType::MemImmVRegScale:
           case MArgument::ArgumentType::MemImmVRegVRegScale:
-            if (mappings.contains(written.reg)) {
-              fmt::println("Mathc2! {}", instr);
+            if (mappings.contains(read.reg)) {
+              instr.args[id] =
+                  MArgument{mappings.at(read.reg), instr.args[id].ty};
+              // fmt::println("Mathc2! {}", instr);
             }
-            if (mappings.contains(written.indx)) {
-              fmt::println("Mathc3! {}", instr);
+            if (mappings.contains(read.indx)) {
+              instr.args[id] =
+                  MArgument{mappings.at(read.reg), instr.args[id].ty};
+              // fmt::println("Mathc3! {}", instr);
             }
             break;
           }

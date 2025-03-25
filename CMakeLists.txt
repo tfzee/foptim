@@ -12,6 +12,11 @@ set(CMAKE_C_COMPILER "clang")
 include(FetchContent)
 
 ################################################
+#threads
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
+################################################
 #llvm
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
@@ -37,11 +42,13 @@ if(tracy_perf)
   link_libraries(TracyClient)
 endif()
 
-link_libraries(fmt)
-# add_compile_options(-fsanitize=undefined,address -fno-omit-frame-pointer)
-# add_link_options(-fsanitize=undefined,address -fPIE -pie)
 
-add_library (foptim
+
+link_libraries(fmt)
+# add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+# add_link_options(-fsanitize=thread -fPIE -pie)
+
+add_library (foptim OBJECT
                 #loading
                 ./src/llvm/llir_loader.cpp
 
@@ -72,6 +79,7 @@ add_library (foptim
                 ./src/optim/func_passes/stack_known_bits.cpp
                 ./src/optim/func_passes/simple_vectorize.cpp
                 ./src/optim/helper/inline.cpp
+                ./src/optim/helper/helper.cpp
 
                 #mir
                 ./src/mir/instr.cpp
@@ -104,7 +112,7 @@ add_library (foptim
 target_compile_options(foptim PRIVATE -fno-exceptions -Wall -Wextra -Werror -ggdb -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_include_directories(foptim PUBLIC ./src/)
 target_include_directories(foptim SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
-target_link_libraries(foptim PRIVATE ${llvm_libs})
+target_link_libraries(foptim PRIVATE ${llvm_libs} Threads::Threads)
 
 
 

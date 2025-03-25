@@ -631,6 +631,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.mnemonic = ZYDIS_MNEMONIC_XOR;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
+  case fmir::Opcode::not1:
+    req.mnemonic = ZYDIS_MNEMONIC_NOT;
+    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    return length;
   case fmir::Opcode::fadd:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VADDSS

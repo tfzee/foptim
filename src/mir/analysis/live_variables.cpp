@@ -50,11 +50,11 @@ size_t reg_to_uid(VReg r) {
   return (size_t)CReg::N_REGS + r.virt_id();
 }
 
-VReg uid_to_reg(size_t r) {
-  if (r + 1 < (size_t)CReg::N_REGS) {
-    return VReg{(CReg)(r + 1)};
+VReg uid_to_reg(size_t id) {
+  if (id + 1 < (size_t)CReg::N_REGS) {
+    return VReg{(CReg)(id + 1)};
   }
-  return VReg{r - (size_t)CReg::N_REGS};
+  return VReg{id - (size_t)CReg::N_REGS};
   // if (r.is_concrete()) {
   //   return (u8)r.c_reg() - 1;
   // }
@@ -89,6 +89,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::fxor:
   case Opcode::fAnd:
   case Opcode::fOr:
+  case Opcode::not1:
   case Opcode::SI2FL:
   case Opcode::UI2FL:
   case Opcode::FL2SI:
@@ -215,6 +216,9 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       update_uses(instr.args[0], uses);
     }
     update_uses(instr.args[1], uses);
+    break;
+  case Opcode::not1:
+    update_uses(instr.args[0], uses);
     break;
   case Opcode::add2:
   case Opcode::shl2:
@@ -421,7 +425,7 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
 }
 
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
-                            size_t start_instr, TVec<MArgument> &args_temp) {
+                            size_t start_instr, TVec<ArgData> &args_temp) {
   NextUseResult res{false, false, 0};
   args_temp.clear();
 
@@ -441,7 +445,7 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
       args_temp.clear();
       written_args(instrs[i], args_temp);
       for (auto arg : args_temp) {
-        if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
+        if (arg.arg.isReg() && reg_to_uid(arg.arg.reg) == search_reg_id) {
           res.is_write = true;
           res.index = i;
         }
@@ -489,7 +493,7 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
       args_temp.clear();
       read_args(instrs[i], args_temp);
       for (auto arg : args_temp) {
-        if (arg.isReg() && reg_to_uid(arg.reg) == search_reg_id) {
+        if (arg.arg.isReg() && reg_to_uid(arg.arg.reg) == search_reg_id) {
           res.is_read = true;
           res.index = i;
         }
@@ -554,7 +558,7 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   CFG cfg{func};
   LiveVariables live{cfg, func};
   TMap<VReg, LinearRangeSet> ranges;
-  TVec<MArgument> helper;
+  TVec<ArgData> helper;
   helper.reserve(4);
 
   // this is used later one to find where the first def is

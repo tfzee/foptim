@@ -2,6 +2,7 @@
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
 #include "utils/arena.hpp"
+#include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
 
 namespace foptim::optim {
@@ -60,6 +61,26 @@ public:
         (Passes{}.apply_pass(ctx, func), ...);
       }
     }
+    ctx.data->storage.storage_instr.collect_garbage();
+  }
+};
+
+template <class... Passes> class StaticParallelFunctionPassManager {
+public:
+  void apply(fir::Context &ctx, JobSheduler &shed) {
+    for (auto &[name, func] : ctx->storage.functions) {
+      if (func.is_decl()) {
+        continue;
+      }
+      shed.push([&ctx, &func]() {
+        if (utils::print_optimization_failure_reasons) {
+          (Passes{}.apply_pass(ctx, func).print_failures(), ...);
+        } else {
+          (Passes{}.apply_pass(ctx, func), ...);
+        }
+      });
+    }
+    shed.wait_till_done();
     ctx.data->storage.storage_instr.collect_garbage();
   }
 };

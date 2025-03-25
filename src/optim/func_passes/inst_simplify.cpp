@@ -62,6 +62,12 @@ static void swap_args_icmp(fir::Instr instr) {
 }
 static void push_all_uses(WorkList &worklist, fir::Instr instr) {
   for (auto &use : instr->uses) {
+    // if (use.type == fir::UseType::BBArg) {
+    // for (auto sub_use :
+    //      use.user->bbs[use.argId].bb->args[use.bbArgId]->get_uses()) {
+    //   worklist.emplace_back(sub_use.user, sub_use.user->parent);
+    // }
+    // }
     worklist.emplace_back(use.user, use.user->parent);
   }
 }
@@ -159,7 +165,12 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
         case fir::BinaryInstrSubType::FloatMul:
         case fir::BinaryInstrSubType::FloatDiv:
           UNREACH();
+        case fir::BinaryInstrSubType::IntSDiv:
+        case fir::BinaryInstrSubType::IntUDiv:
+        case fir::BinaryInstrSubType::IntMul:
+          break;
         case fir::BinaryInstrSubType::IntAdd: {
+
           auto new_val =
               ctx->get_constant_value(c1_val->as_int() + sec_constant,
                                       ctx->get_int_type(biggest_bitwidth));
@@ -179,6 +190,8 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
         }
         default:
           break;
+          // fmt::println("Previous op {}", a0);
+          // UNREACH();
         }
       }
     }
@@ -454,6 +467,73 @@ static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[0]);
     instr.destroy();
+    return;
+  }
+}
+
+static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
+                           fir::Context &ctx, WorkList &worklist) {
+  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
+      instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::ICmp)) {
+    push_all_uses(worklist, instr);
+    auto old_icmp = instr->args[0].as_instr();
+    auto new_subtype = fir::ICmpInstrSubType::INVALID;
+    switch ((fir::ICmpInstrSubType)old_icmp->subtype) {
+    case fir::ICmpInstrSubType::INVALID:
+      break;
+    case fir::ICmpInstrSubType::ULT:
+      new_subtype = fir::ICmpInstrSubType::UGE;
+      break;
+    case fir::ICmpInstrSubType::SLT:
+      new_subtype = fir::ICmpInstrSubType::SGE;
+      break;
+    case fir::ICmpInstrSubType::NE:
+      new_subtype = fir::ICmpInstrSubType::EQ;
+      break;
+    case fir::ICmpInstrSubType::EQ:
+      new_subtype = fir::ICmpInstrSubType::NE;
+      break;
+    case fir::ICmpInstrSubType::SGT:
+      new_subtype = fir::ICmpInstrSubType::SLE;
+      break;
+    case fir::ICmpInstrSubType::UGT:
+      new_subtype = fir::ICmpInstrSubType::ULE;
+      break;
+    case fir::ICmpInstrSubType::UGE:
+      new_subtype = fir::ICmpInstrSubType::ULT;
+      break;
+    case fir::ICmpInstrSubType::ULE:
+      new_subtype = fir::ICmpInstrSubType::UGT;
+      break;
+    case fir::ICmpInstrSubType::SGE:
+      new_subtype = fir::ICmpInstrSubType::SLT;
+      break;
+    case fir::ICmpInstrSubType::SLE:
+      new_subtype = fir::ICmpInstrSubType::SGT;
+      break;
+    }
+    ASSERT(new_subtype != fir::ICmpInstrSubType::INVALID);
+
+    auto bb = fir::Builder{instr};
+    auto new_comp =
+        bb.build_int_cmp(old_icmp->args[0], old_icmp->args[1], new_subtype);
+    instr->replace_all_uses(new_comp);
+    instr.destroy();
+    return;
+  }
+  if (!instr->args[0].is_constant()) {
+    return;
+  }
+  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not) {
+    push_all_uses(worklist, instr);
+    auto out_type = instr.get_type();
+    ASSERT(out_type->is_int());
+    auto mask = (1 << out_type->as_int()) - 1;
+    instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+        (~instr->args[0].as_constant()->as_int()) & mask, out_type)});
+    instr.destroy();
+    return;
   }
 }
 
@@ -462,6 +542,9 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   using namespace foptim::fir;
   if (instr->get_instr_type() == InstrType::BinaryInstr) {
     return simplify_binary(instr, bb, ctx, worklist);
+  }
+  if (instr->get_instr_type() == InstrType::UnaryInstr) {
+    return simplify_unary(instr, bb, ctx, worklist);
   }
   if (instr->get_instr_type() == InstrType::ICmp) {
     return simplify_icmp(instr, bb, ctx, worklist);

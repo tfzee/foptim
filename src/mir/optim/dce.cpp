@@ -66,14 +66,15 @@ bool is_applicable(Opcode op) {
 void DeadCodeElim::apply(MFunc &func) {
   CFG cfg{func};
   LiveVariables live{cfg, func};
-  TVec<MArgument> w_args;
-  TVec<MArgument> helper;
+  TVec<ArgData> w_args;
+  TVec<ArgData> helper;
   helper.reserve(4);
   w_args.reserve(4);
+  TVec<size_t> dead_instrs;
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
     auto &bb = func.bbs[bb_id];
-    TVec<size_t> dead_instrs;
+    dead_instrs.clear();
 
     for (size_t instr_idp1 = bb.instrs.size(); instr_idp1 > 0; instr_idp1--) {
       const auto instr_id = instr_idp1 - 1;
@@ -84,11 +85,11 @@ void DeadCodeElim::apply(MFunc &func) {
         continue;
       }
 
-      if (w_args.size() != 1 || !w_args[0].isReg()) {
+      if (w_args.size() != 1 || !w_args[0].arg.isReg()) {
         continue;
       }
 
-      const auto target_uid = reg_to_uid(w_args[0].reg);
+      const auto target_uid = reg_to_uid(w_args[0].arg.reg);
 
       bool is_only_alive_in_this_bb = true;
       for (size_t i = 0; i < func.bbs.size(); i++) {

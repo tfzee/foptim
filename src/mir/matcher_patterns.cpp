@@ -730,6 +730,8 @@ void base_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
+  auto NotNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                      (u32)fir::UnaryInstrSubType::Not};
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          (u32)fir::BinaryInstrSubType::IntAdd};
   auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -870,6 +872,22 @@ void base_patterns(IRVec<Pattern> &pats) {
         res.result.emplace_back(Opcode::cmov, res_reg, cond, b);
         return true;
       }});
+  pats.push_back(
+      Pattern{{NotNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto not_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
+
+                if (res_reg.is_fp()) {
+                  TODO("impl");
+                } else {
+                  res.result.emplace_back(
+                      Opcode::mov, res_reg,
+                      valueToArg(not_instr->args[0], res.result, data.alloc));
+                  res.result.emplace_back(Opcode::not1, res_reg);
+                }
+                return true;
+              }});
   pats.push_back(
       Pattern{{IntSubNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 auto sub_instr = res.matched_instrs[0];

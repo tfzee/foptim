@@ -92,7 +92,7 @@ template <>
 class fmt::formatter<foptim::fmir::MFunc>
     : public BaseIRFormatter<foptim::fmir::MFunc> {
 public:
-  appender format(foptim::fmir::MFunc const &v, format_context &ctx) const;
+  appender format(foptim::fmir::MFunc const &func, format_context &ctx) const;
 };
 
 template <>
@@ -113,7 +113,7 @@ template <>
 class fmt::formatter<foptim::fmir::MBB>
   : public BaseIRFormatter<foptim::fmir::MBB> {
 public:
-appender format(foptim::fmir::MBB const &v, format_context &ctx) const;
+appender format(foptim::fmir::MBB const &bb, format_context &ctx) const;
 };
 
 template <>
