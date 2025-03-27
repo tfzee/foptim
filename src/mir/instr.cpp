@@ -325,15 +325,10 @@ fmt::appender
 fmt::formatter<foptim::fmir::MFunc>::format(foptim::fmir::MFunc const &func,
                                             format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, "func {}<", func.name);
-  const auto &attribs = func.get_attribs();
-  for (auto [key, value] : attribs) {
-    app = fmt::format_to(app, "{}{}, ", key.c_str(), value);
-  }
-  app = fmt::format_to(app, ">(");
+  app = fmt::format_to(app, "func {}", func.name);
   auto n_args = func.args.size();
   for (foptim::u32 i = 0; i < n_args; i++) {
-    app = fmt::format_to(app, "{}: {}, ", func.args[i], func.arg_tys[i]);
+    app = fmt::format_to(app, "{}: {}, ", func.args[i], func.args[i].ty);
   }
   app = fmt::format_to(app, ")\n");
 

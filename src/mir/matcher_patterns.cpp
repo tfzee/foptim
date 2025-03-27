@@ -426,7 +426,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
           return false;
         }
 
-        auto bb_with_args = branch_instr->bbs[0];
+        auto& bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
         auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
@@ -499,7 +499,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
 
         auto sub_type = (fir::FCmpInstrSubType)cmp_instr->get_instr_subtype();
 
-        auto bb_with_args = branch_instr->bbs[0];
+        auto& bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
         auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
@@ -1227,7 +1227,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto branch_instr = res.matched_instrs[0];
         auto cond = valueToArg(branch_instr->args[0], res.result, data.alloc);
         {
-          auto bb_with_args = branch_instr->bbs[0];
+          auto& bb_with_args = branch_instr->bbs[0];
           auto target_bb = branch_instr->bbs[0].bb;
           ASSERT(bb_with_args.args.size() == target_bb->args.size());
           generate_bb_args(bb_with_args, res, data);
@@ -1235,7 +1235,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
 
         {
-          auto bb2_with_args = branch_instr->bbs[1];
+          auto& bb2_with_args = branch_instr->bbs[1];
           auto target_bb2 = branch_instr->bbs[1].bb;
           ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
           generate_bb_args(bb2_with_args, res, data);

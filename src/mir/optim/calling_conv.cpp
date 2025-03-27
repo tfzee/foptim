@@ -424,7 +424,7 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
   u32 int_arg_id = 0;
   u32 float_arg_id = 0;
   for (u32 arg_i = 0; arg_i < f.args.size(); arg_i++) {
-    auto arg_ty = f.arg_tys[arg_i];
+    auto arg_ty = f.args[arg_i].ty;
     // register saving in this cc
     bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
     if (is_float && float_arg_id < n_float_arg_regs) {
@@ -508,7 +508,7 @@ void gen_arg_mapping(MFunc &func) {
   (void)int_arg_reg;
   for (u32 arg_i = 0; arg_i < func.args.size(); arg_i++) {
     ASSERT(!func.args[arg_i].is_concrete());
-    auto arg_ty = func.arg_tys[arg_i];
+    auto arg_ty = func.args[arg_i].ty;
     // this needs to stay this way or needs to be synched with the callee
     // register saving in this cc
     MInstr instr{Opcode::mov};

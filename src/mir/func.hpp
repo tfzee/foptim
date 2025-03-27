@@ -1,5 +1,4 @@
 #pragma once
-#include "ir/attributable.hpp"
 #include "mir/instr.hpp"
 #include "utils/vec.hpp"
 
@@ -10,13 +9,13 @@ public:
   IRVec<MInstr> instrs;
 };
 
-class MFunc : public fir::Attributable {
+class MFunc {
 public:
   IRVec<MBB> bbs;
   IRVec<VReg> args;
 
   IRString name;
-  IRVec<Type> arg_tys;
+  // IRVec<Type> arg_tys;
 
   uint32_t curr_arg_stack_off;
   

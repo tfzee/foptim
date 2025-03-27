@@ -180,9 +180,8 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
 
     // insert instrs this generates
     {
-      // std::reverse(match_result.result.begin(), match_result.result.end());
-      for (auto minstr : match_result.result | std::views::reverse) {
-        result_bb.instrs.push_back(minstr);
+      for (auto a : match_result.result | std::views::reverse) {
+        result_bb.instrs.push_back(a);
       }
     }
   }
@@ -251,12 +250,14 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
 
   {
     auto entry_bb = func.get_entry();
+    res_func.args.reserve(entry_bb->n_args());
+    // res_func.arg_tys.reserve(entry_bb->n_args());
     for (u32 i = 0; i < entry_bb->args.size(); i++) {
       auto arg_reg = alloc.get_register(fir::ValueR{entry_bb->args[i]});
-      auto arg_type = entry_bb->args[i]->get_type();
+      // auto arg_type = entry_bb->args[i]->get_type();
 
       res_func.args.push_back(arg_reg);
-      res_func.arg_tys.push_back(convert_type(arg_type));
+      // res_func.arg_tys.push_back(convert_type(arg_type));
     }
   }
 
@@ -279,7 +280,7 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   }
 
   res_func.name = func.name;
-  res_func.clone_attribs(func);
+  // res_func.clone_attribs(func);
 
   return res_func;
 }
