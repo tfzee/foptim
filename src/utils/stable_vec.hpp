@@ -115,23 +115,32 @@ public:
   [[nodiscard]] constexpr size_t slab_size() const { return slot_slab_len; }
 
   SRef<T> push_back(T value = {}) {
-    Slot<T>* res_ptr = nullptr;
+    Slot<T> *res_ptr = nullptr;
     {
-      auto free_list = _free_list.scoped_lock();
-      if (free_list->size() == 0) {
-        _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
-        std::memset((void *)_slot_slab_starts.back(), 0,
-                    slot_slab_len * sizeof(Slot<T>));
-        free_list->push_back({_slot_slab_starts.back(), slot_slab_len});
+      FreeInfo target{nullptr, 0};
+      bool is_new = false;
+      {
+        auto free_list = _free_list.scoped_lock();
+        if (free_list->size() != 0) {
+          target = free_list->back();
+          free_list->pop_back();
+        } else {
+          _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
+          target.ptr = _slot_slab_starts.back();
+          target.len = slot_slab_len;
+          is_new = true;
+        }
       }
-
-      FreeInfo &target = free_list->back();
+      if (is_new) {
+        std::memset((void *)target.ptr, 0, target.len * sizeof(Slot<T>));
+      }
       res_ptr = target.ptr;
       res_ptr->data = value;
       target.ptr++;
       target.len--;
-      if (target.len == 0) {
-        free_list->pop_back();
+      if (target.len != 0) {
+        auto free_list = _free_list.scoped_lock();
+        free_list->push_back(target);
       }
       res_ptr->used = SlotState::Used;
     }
