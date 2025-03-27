@@ -127,60 +127,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
       SimplifyCFG, DCE, StackKnownBits, Mem2Reg, LLVMInstrinsicLowering>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-
-  // foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LoopRotate, SimplifyCFG>{}.apply(
-  //     ctx);
-  // foptim::optim::StaticModulePassManager<Inline<>>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
-  //     .apply(ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<SimplifyCFG,
-  // InstSimplify>{}.apply(
-  //     ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<Unroll, SimplifyCFG>{}.apply(ctx);
-
-  // foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-  // ASSERT(ctx->verify());
-
-  // foptim::optim::StaticParallelFunctionPassManager<InstSimplify, SimplifyCFG,
-  //                                                  DCE>{}
-  //     .apply(ctx, shed);
-  // foptim::optim::StaticParallelFunctionPassManager<LVN, SCCP, InstSimplify,
-  //                                                  DCE>{}
-  //     .apply(ctx, shed);
-  // foptim::optim::StaticParallelFunctionPassManager<SimplifyCFG>{}.apply(ctx,
-  //                                                                       shed);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<StackKnownBits>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<Mem2Reg>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LLVMInstrinsicLowering>{}.apply(ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // ASSERT(ctx->verify());
-
-  // foptim::optim::StaticFunctionPassManager<InstSimplify>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LoopRotate, SimplifyCFG>{}.apply(
-  //     ctx);
-  // foptim::optim::StaticModulePassManager<Inline<>>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LICM>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<LVN, SCCP, InstSimplify, DCE>{}
-  //     .apply(ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<SimplifyCFG,
-  // InstSimplify>{}.apply(
-  //     ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<Unroll, SimplifyCFG>{}.apply(ctx);
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   fmt::print("{:d}\n", func);
-  // }
-  // ASSERT(ctx->verify());
-  // foptim::optim::StaticFunctionPassManager<SimpleVectorizer>{}.apply(ctx);
-
-  // ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, SimplifyCFG, InstSimplify, SCCP, DCE, InstSimplify,
       InstSimplify, SimplifyCFG, InstSimplify>{}
