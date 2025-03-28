@@ -114,6 +114,7 @@ struct BitSet {
     _data = old._data;
     _size_bits = old._size_bits;
     old._data = nullptr;
+    old._size_bits = 0;
     return *this;
   }
 
@@ -123,6 +124,7 @@ struct BitSet {
     _data = old._data;
     _size_bits = old._size_bits;
     old._data = nullptr;
+    old._size_bits = 0;
   }
 
   constexpr static BitSet empty(size_t size) { return BitSet{size, false}; }

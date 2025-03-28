@@ -14,6 +14,7 @@
 #include "optim/analysis/attributer/KnownStackBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/func_passes/dce.hpp"
+#include "optim/func_passes/garbage_collector.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
@@ -110,33 +111,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   for (const auto &[_, func] : ctx.data->storage.functions) {
     fmt::print("{:d}\n", func);
   }
-  // foptim::optim::StaticFunctionPassManager<
-  //     Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE, LVN,
-  //     SCCP, InstSimplify, DCE, SimplifyCFG>{} .apply(ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<
-  //     SimplifyCFG, DCE, StackKnownBits, Mem2Reg, InstSimplify, SimplifyCFG,
-  //     LLVMInstrinsicLowering>{}
-  //     .apply(ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // ASSERT(ctx->verify());
-  // foptim::optim::StaticFunctionPassManager<
-  //     Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE, LVN,
-  //     SCCP, InstSimplify, DCE, SimplifyCFG>{} .apply(ctx);
-  // foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<
-  //     SimplifyCFG, DCE, StackKnownBits, Mem2Reg, LLVMInstrinsicLowering>{}
-  //     .apply(ctx);
-  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  // foptim::optim::StaticFunctionPassManager<
-  //     LVN, SCCP, DCE, SimplifyCFG, InstSimplify, SCCP, DCE, InstSimplify,
-  //     InstSimplify, SimplifyCFG, InstSimplify>{}
-  //     .apply(ctx);
-  foptim::optim::StaticParallelFunctionPassManager<Mem2Reg, InstSimplify, DCE>{}
-      .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
-      LoopRotate, SimplifyCFG, LICM, DCE, LVN, SCCP, InstSimplify, DCE,
-      SimplifyCFG>{}
+      Mem2Reg, InstSimplify, DCE, GarbageCollect, LoopRotate, SimplifyCFG, LICM,
+      DCE, LVN, SCCP, InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
@@ -146,10 +123,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
-      Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<LVN, SCCP, InstSimplify, DCE,
-                                                   SimplifyCFG>{}
+      Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE,
+      GarbageCollect, LVN, SCCP, InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
@@ -157,8 +132,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
-      LVN, SCCP, DCE, SimplifyCFG, InstSimplify, SCCP, DCE, InstSimplify,
-      InstSimplify, SimplifyCFG, InstSimplify>{}
+      LVN, SCCP, DCE, GarbageCollect, SimplifyCFG, InstSimplify, SCCP, DCE,
+      InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
   fmt::print("================END FIR====================\n");
   for (const auto &[_, func] : ctx.data->storage.functions) {
@@ -235,7 +210,6 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  exit(1);
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
