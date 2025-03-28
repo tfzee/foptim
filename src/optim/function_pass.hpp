@@ -67,12 +67,12 @@ public:
 
 template <class... Passes> class StaticParallelFunctionPassManager {
 public:
-  void apply(fir::Context &ctx, JobSheduler &shed) {
+  void apply(fir::Context &ctx, JobSheduler *shed) {
     for (auto &[name, func] : ctx->storage.functions) {
       if (func.is_decl()) {
         continue;
       }
-      shed.push([&ctx, &func]() {
+      shed->push([&ctx, &func]() {
         if (utils::print_optimization_failure_reasons) {
           (Passes{}.apply_pass(ctx, func).print_failures(), ...);
         } else {
@@ -80,7 +80,7 @@ public:
         }
       });
     }
-    shed.wait_till_done();
+    shed->wait_till_done();
     ctx.data->storage.storage_instr.collect_garbage();
   }
 };

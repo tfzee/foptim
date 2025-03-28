@@ -39,9 +39,10 @@
 #include "llvm/llir_loader.hpp"
 
 #include <tracy/Tracy.hpp>
+#include <unistd.h>
 
 void parse_llvm_ir(foptim::fir::Context &ctx);
-void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler &shed);
+void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed);
 void lower_to_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals);
@@ -63,10 +64,10 @@ int main(int argc, char *argv[]) {
     foptim::fir::Context ctx;
     {
       foptim::JobSheduler shed;
-      shed.init(2);
+      shed.init(3);
       // fir
       parse_llvm_ir(ctx);
-      optimize_fir(ctx, shed);
+      optimize_fir(ctx, &shed);
       // cleanup
       shed.deinit();
     }
@@ -100,27 +101,55 @@ void parse_llvm_ir(foptim::fir::Context &ctx) {
   foptim::utils::TempAlloc<void *>::reset();
 }
 
-void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
+void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
+  (void)shed;
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
   ASSERT(ctx->verify());
-  fmt::print("================MID FIR====================\n");
+  fmt::print("================FIR====================\n");
   for (const auto &[_, func] : ctx.data->storage.functions) {
     fmt::print("{:d}\n", func);
   }
+  // foptim::optim::StaticFunctionPassManager<
+  //     Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE, LVN,
+  //     SCCP, InstSimplify, DCE, SimplifyCFG>{} .apply(ctx);
+  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<
+  //     SimplifyCFG, DCE, StackKnownBits, Mem2Reg, InstSimplify, SimplifyCFG,
+  //     LLVMInstrinsicLowering>{}
+  //     .apply(ctx);
+  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
+  // ASSERT(ctx->verify());
+  // foptim::optim::StaticFunctionPassManager<
+  //     Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE, LVN,
+  //     SCCP, InstSimplify, DCE, SimplifyCFG>{} .apply(ctx);
+  // foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<
+  //     SimplifyCFG, DCE, StackKnownBits, Mem2Reg, LLVMInstrinsicLowering>{}
+  //     .apply(ctx);
+  // foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
+  // foptim::optim::StaticFunctionPassManager<
+  //     LVN, SCCP, DCE, SimplifyCFG, InstSimplify, SCCP, DCE, InstSimplify,
+  //     InstSimplify, SimplifyCFG, InstSimplify>{}
+  //     .apply(ctx);
+  foptim::optim::StaticParallelFunctionPassManager<Mem2Reg, InstSimplify, DCE>{}
+      .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
-      Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE, LVN, SCCP,
-      InstSimplify, DCE, SimplifyCFG>{}
+      LoopRotate, SimplifyCFG, LICM, DCE, LVN, SCCP, InstSimplify, DCE,
+      SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
-      SimplifyCFG, DCE, StackKnownBits, Mem2Reg, LLVMInstrinsicLowering>{}
+      SimplifyCFG, DCE, StackKnownBits, Mem2Reg, InstSimplify, SimplifyCFG,
+      LLVMInstrinsicLowering>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
-      Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE, LVN, SCCP,
-      InstSimplify, DCE, SimplifyCFG>{}
+      Mem2Reg, InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE>{}
+      .apply(ctx, shed);
+  foptim::optim::StaticParallelFunctionPassManager<LVN, SCCP, InstSimplify, DCE,
+                                                   SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
@@ -206,6 +235,7 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::InstSimplify{}.early_apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  exit(1);
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
