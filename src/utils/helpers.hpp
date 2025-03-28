@@ -1,13 +1,13 @@
 #pragma once
-#include <tracy/Tracy.hpp>
 #include <memory>
+#include <tracy/Tracy.hpp>
 
 namespace foptim::utils {
 
 template <class T> class TrackingAlloc : public std::allocator<T> {
 public:
-  using pointer = T*;
-  
+  using pointer = T *;
+
   constexpr T *allocate(size_t count) {
     auto ptr = std::allocator<T>::allocate(count);
     TracyAllocS(ptr, count * sizeof(T), 16);

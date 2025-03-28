@@ -6,7 +6,6 @@ namespace foptim::optim {
 
 void flip_cond_branch(fir::Instr cond_term) {
   ASSERT(cond_term->is(fir::InstrType::CondBranchInstr));
-  fmt::println("COND TERM {}", cond_term);
 
   auto builder = cond_term->parent.builder();
   builder.at_penultimate(cond_term->parent);

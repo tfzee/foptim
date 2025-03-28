@@ -1,7 +1,5 @@
 #pragma once
-#include "utils/todo.hpp"
 #include "utils/vec.hpp"
-#include <common/TracySystem.hpp>
 #include <functional>
 #include <thread>
 
@@ -41,6 +39,7 @@ public:
   foptim::IRVec<Worker> threads;
 
   void init(u8 n_threads) {
+    ZoneScopedN("InitThreads");
     jobs.reserve(10);
     threads.reserve(n_threads);
     for (u32 i = 0; i < n_threads; i++) {
@@ -48,6 +47,7 @@ public:
     }
   }
   void deinit() {
+    ZoneScopedN("DeinitThreads");
     for (auto &t : threads) {
       t.thread.request_stop();
     }
