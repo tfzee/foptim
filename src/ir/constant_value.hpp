@@ -54,6 +54,7 @@ enum class ConstantType : u8 {
   VectorValue,
   GlobalPtr,
   FuncPtr,
+  NullPtr,
 };
 
 struct ConstantValue {
@@ -111,6 +112,12 @@ struct ConstantValue {
   constexpr ConstantValue(FunctionR f, TypeR typee)
       : type(typee), fup_u({ConstantType::FuncPtr, FunctionPtr{f}}) {}
 
+  static ConstantValue null_ptr(TypeR typee) {
+    auto c = ConstantValue(typee);
+    c.ty = ConstantType::NullPtr;
+    return c;
+  }
+
   void add_usage(Use u);
   [[nodiscard]] size_t get_n_uses() const;
   void remove_usage(Use u, bool verify = true);
@@ -129,6 +136,10 @@ struct ConstantValue {
 
   [[nodiscard]] constexpr bool is_float() const {
     return ty == ConstantType::FloatValue;
+  }
+
+  [[nodiscard]] constexpr bool is_null() const {
+    return ty == ConstantType::NullPtr;
   }
 
   [[nodiscard]] constexpr bool is_func() const {

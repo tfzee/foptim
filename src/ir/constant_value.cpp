@@ -19,6 +19,7 @@ bool VectorValue::operator==(const VectorValue &other) const {
 
 void ConstantValue::add_usage(Use u) {
   switch (ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
@@ -32,6 +33,7 @@ void ConstantValue::add_usage(Use u) {
 }
 [[nodiscard]] size_t ConstantValue::get_n_uses() const {
   switch (ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
@@ -45,6 +47,7 @@ void ConstantValue::add_usage(Use u) {
 }
 void ConstantValue::remove_usage(Use u, bool verify) {
   switch (ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
@@ -58,6 +61,7 @@ void ConstantValue::remove_usage(Use u, bool verify) {
 }
 void ConstantValue::replace_all_uses(ValueR v) {
   switch (ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
@@ -71,6 +75,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
 }
 [[nodiscard]] IRVec<Use> *ConstantValue::get_uses() {
   switch (ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
@@ -84,6 +89,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
 }
 [[nodiscard]] const IRVec<Use> *ConstantValue::get_uses() const {
   switch (ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
@@ -103,6 +109,7 @@ bool ConstantValue::eql(const ConstantValue &other) const {
     return false;
   }
   switch (ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
     return true;
   case ConstantType::IntValue:
@@ -125,6 +132,7 @@ ConstantValue::~ConstantValue() {
   case ConstantType::FloatValue:
   case ConstantType::GlobalPtr:
   case ConstantType::FuncPtr:
+  case ConstantType::NullPtr:
     return;
   case ConstantType::VectorValue:
     vec_u.v.members.~vector();
@@ -135,6 +143,7 @@ ConstantValue::~ConstantValue() {
 ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
   type = old.type;
   switch (old.ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
     ty = old.ty;
     return *this;
@@ -158,6 +167,7 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
 
 ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
   switch (old.ty) {
+  case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
     ty = old.ty;
     return;
@@ -202,7 +212,8 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
   }
   if (type->is_ptr() &&
       (ty != ConstantType::PoisonValue && ty != ConstantType::GlobalPtr &&
-       ty != ConstantType::FuncPtr && ty != ConstantType::IntValue)) {
+       ty != ConstantType::FuncPtr && ty != ConstantType::IntValue &&
+       ty != ConstantType::NullPtr)) {
     fmt::println("Type is ptr but constant is not\n");
     return false;
   }
@@ -214,6 +225,8 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
 fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
     foptim::fir::ConstantValueR const &v, format_context &ctx) const {
   switch (v->ty) {
+  case foptim::fir::ConstantType::NullPtr:
+    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "NULL");
   case foptim::fir::ConstantType::PoisonValue:
     return fmt::format_to(ctx.out(), fg(fmt::color::orange), "POISON");
   case foptim::fir::ConstantType::IntValue:

@@ -240,6 +240,15 @@ ConstantValueR ContextData::get_constant_value(i32 val, IntTypeR ty) {
   return storage.insert_constant(constant);
 }
 
+ConstantValueR ContextData::get_constant_null() {
+  const auto constant = ConstantValue(ConstantValue::null_ptr(get_ptr_type()));
+  auto maybeR = try_reuse_constant(constant);
+  if (maybeR.is_valid()) {
+    return maybeR;
+  }
+  return storage.insert_constant(constant);
+}
+
 ConstantValueR ContextData::get_constant_value(i128 val, IntTypeR ty) {
   const auto constant = ConstantValue(val, ty);
   auto maybeR = try_reuse_constant(constant);
