@@ -23,7 +23,13 @@ public:
     LoopInfoAnalysis linfo{dom};
 
     for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
-      if (apply(ctx, cfg, *loop) && linfo.info.size() > 1) {
+      fmt::println("======\n{}", func);
+      loop->dump();
+      ASSERT(func.verify());
+      bool apply_res = apply(ctx, cfg, *loop);
+      fmt::println("=\n{}", func);
+      ASSERT(func.verify());
+      if (apply_res && linfo.info.size() > 1) {
         cfg.update(func, false);
         dom.update(cfg);
         linfo.update(dom);
@@ -101,6 +107,17 @@ public:
     }
     // only if all of the operations in the header dont have sideeffects
     for (auto instr : header_bb->instructions) {
+      bool has_uses_outside = false;
+      for (auto use : instr->uses) {
+        if (use.user->parent != header_bb) {
+          has_uses_outside = true;
+          break;
+        }
+      }
+      if (has_uses_outside) {
+        failure({"Header values are used later", {cfg.bbrs[linfo.head].bb}});
+        return false;
+      }
       if (instr->has_pot_sideeffects()) {
         failure({"Header has side effects ", {cfg.bbrs[linfo.head].bb}});
         return false;
@@ -201,13 +218,16 @@ public:
 
       for (u32 arg_id = 0; arg_id < used_after_args.size(); arg_id++) {
         auto arg = used_after_args[arg_id];
+        TVec<fir::Use> replaced_uses;
         for (auto &use : arg->uses) {
           auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
           if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
                         user_bb_id) == linfo.body_nodes.end()) {
-            use.replace_use(fir::ValueR(new_args[arg_id]));
-            break;
+            replaced_uses.push_back(use);
           }
+        }
+        for (auto use : replaced_uses) {
+          use.replace_use(fir::ValueR(new_args[arg_id]));
         }
       }
 

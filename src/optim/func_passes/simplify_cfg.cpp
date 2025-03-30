@@ -186,8 +186,6 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
 
   if (found && difference_values.size() <= res_bb1->instructions.size()) {
     TVec<fir::BBArgument> new_bb_args;
-    fmt::println("==================================\n{}\n{}", res_bb1,
-                 res_bb2);
 
     for (auto &diff : difference_values) {
       auto new_arg = ctx->storage.insert_bb_arg(
@@ -215,7 +213,6 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     res_bb2->replace_all_uses(fir::ValueR(res_bb1));
     ASSERT(res_bb2->get_n_uses() == 0);
     res_bb2->remove_from_parent(true, true, true);
-    fmt::println("\n{}\n", res_bb1);
     return true;
   }
 

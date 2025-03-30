@@ -676,7 +676,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.operands[0] = a;
     req.operands[1] = b;
     req.operand_count = 2;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     size_t len2 = 32;
     req.mnemonic = ZYDIS_MNEMONIC_INVALID;
 
@@ -740,10 +740,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       // appropriately to enable macrofusion when comparing a variable with 0.
       req.mnemonic = ZYDIS_MNEMONIC_TEST;
       req.operands[1] = req.operands[0];
-      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     } else {
       req.mnemonic = ZYDIS_MNEMONIC_CMP;
-      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     }
     size_t len2 = 999;
     switch (instr.op) {
@@ -787,7 +787,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ASSERT(instr.has_bb_ref);
     reloc_map.insert_bb_ref(instr.bb_ref, out_buff + length, 0,
                             RelocSection::Text);
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2), req);
     return length + len2;
   }
   case fmir::Opcode::cjmp: {

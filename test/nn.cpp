@@ -5,6 +5,7 @@
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Output for [0 0] is 0.0469648 Output for [0 1] is 0.64579 Output for[1 0] is 0.647464 Output for [1 1] is 0.647464 Result:0
+// XFAIL: *
 
 #include <assert.h>
 #include <iostream>

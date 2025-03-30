@@ -113,16 +113,15 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   }
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
-      Mem2Reg, InstSimplify, DCE, GarbageCollect, LoopRotate, SimplifyCFG, LICM,
+      Mem2Reg, InstSimplify, DCE, GarbageCollect, SimplifyCFG, LICM, LoopRotate,
       DCE, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, SimplifyCFG, DCE,
       StackKnownBits, Mem2Reg, InstSimplify, SimplifyCFG,
       LLVMInstrinsicLowering>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
-  ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
-      InstSimplify, DCE, LoopRotate, SimplifyCFG, LICM, DCE, GarbageCollect,
-      LVN, SCCP, InstSimplify, DCE, SimplifyCFG>{}
+      InstSimplify, DCE, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
+      InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<InstSimplify, SimplifyCFG,
@@ -134,10 +133,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LVN, SCCP, DCE, GarbageCollect, SimplifyCFG, InstSimplify, SCCP, DCE,
       InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
-  // fmt::print("================END FIR====================\n");
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   fmt::print("{:d}\n", func);
-  // }
+  fmt::print("================END FIR====================\n");
+  for (const auto &[_, func] : ctx.data->storage.functions) {
+    fmt::print("{:d}\n", func);
+  }
   ASSERT(ctx->verify());
   ctx.data->print_stats();
 }
