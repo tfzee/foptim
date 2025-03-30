@@ -12,6 +12,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       return false;
     }
   }
+  size_t arg_id = 0;
   for (const auto &[bb, bb_args] : bbs) {
     if (!bb.is_valid()) {
       fmt::print("Instr references a invalid bb\n");
@@ -26,20 +27,39 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       fmt::println("Expected: {} Got: {}", bb->n_args(), bb_args.size());
       return false;
     }
+
+    size_t bb_arg_id = 0;
     for (const auto &bb_arg : bb_args) {
       if (!bb_arg.is_valid(true)) {
         fmt::print("Instr references a value that is not valid\n");
         fmt::print("Value: {}\n", bb_arg);
         return false;
       }
-      if (!bb_arg.is_constant() && bb_arg.get_n_uses() == 0) {
-        fmt::print("BB Arg does have 0 uses but its used here\n");
-        fmt::print("In BBArg: {}\n", bb_arg);
-        return false;
+      if (!bb_arg.is_constant()) {
+        if (bb_arg.get_n_uses() == 0) {
+          fmt::print("BB Arg does have 0 uses but its used here\n");
+          fmt::print("In BBArg: {}\n", bb_arg);
+          return false;
+        }
+        bool found = false;
+        for (const auto &arg_use : *bb_arg.get_uses()) {
+          if (arg_use.user.get_raw_ptr() == this && arg_use.argId == arg_id &&
+              arg_use.bbArgId == bb_arg_id) {
+            found = true;
+          }
+        }
+        if (!found) {
+          fmt::print("Arg does not have this instruction as user\n");
+          fmt::print("In Arg: {}\n", bb_arg);
+          return false;
+        }
       }
+      bb_arg_id++;
     }
+    arg_id++;
   }
 
+  arg_id = 0;
   for (const auto &arg : args) {
     if (!arg.is_valid(true)) {
       fmt::print("Got invalid argument\n");
@@ -54,7 +74,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
 
       bool found = false;
       for (const auto &arg_use : *arg.get_uses()) {
-        if (arg_use.user.get_raw_ptr() == this) {
+        if (arg_use.user.get_raw_ptr() == this && arg_use.argId == arg_id) {
           found = true;
         }
       }
@@ -70,6 +90,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       fmt::print("Got invalid instruction as argument\n");
       return false;
     }
+    arg_id++;
   }
   if (is(InstrType::CallInstr) && args[0].is_constant() &&
       args[0].as_constant()->is_func()) {

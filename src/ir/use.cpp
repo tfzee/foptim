@@ -1,4 +1,5 @@
 #include "use.hpp"
+#include "ir/instruction_data.hpp"
 #include "value.hpp"
 
 namespace foptim::fir {
@@ -51,6 +52,15 @@ bool Use::operator==(const Use &other) const {
 fmt::appender
 fmt::formatter<foptim::fir::Use>::format(foptim::fir::Use const &v,
                                          format_context &ctx) const {
-  (void)v;
-  return fmt::format_to(ctx.out(), "IMPLE USE STUFF");
+  auto out = ctx.out();
+
+  out = fmt::format_to(out, "{:p}", (void *)v.user.get_raw_ptr());
+  switch (v.type) {
+  case foptim::fir::UseType::NormalArg:
+    return fmt::format_to(out, "({})", v.argId);
+  case foptim::fir::UseType::BB:
+    return fmt::format_to(out, "<{}>", v.argId);
+  case foptim::fir::UseType::BBArg:
+    return fmt::format_to(out, "<{}>({})", v.argId, v.bbArgId);
+  }
 }
