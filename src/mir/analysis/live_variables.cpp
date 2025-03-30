@@ -6,7 +6,7 @@
 
 namespace foptim::fmir {
 
-static size_t max_vreg_id(const MFunc &func) {
+size_t max_vreg_id(const MFunc &func) {
   size_t unique_reg_id = 0;
   for (const auto &bb : func.bbs) {
     for (const auto &instr : bb.instrs) {
@@ -55,10 +55,6 @@ VReg uid_to_reg(size_t id) {
     return VReg{(CReg)(id + 1)};
   }
   return VReg{id - (size_t)CReg::N_REGS};
-  // if (r.is_concrete()) {
-  //   return (u8)r.c_reg() - 1;
-  // }
-  // return (u8)CReg::N_REGS + r.virt_id();
 }
 
 void update_def(const MInstr &instr, utils::BitSet<> &def) {

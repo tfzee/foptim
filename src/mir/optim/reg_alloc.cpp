@@ -63,6 +63,7 @@ void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
 
 bool reg_is_legal(const VReg &reg, CReg avail_reg) {
   ASSERT(!reg.is_concrete());
+  ASSERT((u8)CReg::N_REGS == 33);
 
   if (reg.is_vec_reg()) {
     return avail_reg == CReg::mm0 || avail_reg == CReg::mm1 ||

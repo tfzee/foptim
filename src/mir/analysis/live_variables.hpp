@@ -18,8 +18,10 @@ public:
   void update(const fmir::MFunc &func);
 };
 
+size_t max_vreg_id(const MFunc &func);
 VReg uid_to_reg(size_t id);
 size_t reg_to_uid(VReg r);
+inline bool uid_is_concrete(size_t id) { return id + 1 < (size_t)CReg::N_REGS; }
 // VReg uid_to_reg(size_t r);
 void update_def(const MInstr &instr, utils::BitSet<> &def);
 
@@ -29,8 +31,8 @@ struct NextUseResult {
   size_t index;
 };
 
-// args_temp is just a helper to reduce number of number of allocations when repeated
-// calls to this function
+// args_temp is just a helper to reduce number of number of allocations when
+// repeated calls to this function
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
                             size_t start_inst, TVec<ArgData> &args_tempr);
 
