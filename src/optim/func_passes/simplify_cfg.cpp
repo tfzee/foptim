@@ -101,10 +101,14 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
 
 bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
                                  size_t bb_id, bool is_entry) {
-  ZoneScopedN("dup bb to arg");
   if (is_entry) {
     return false;
   }
+
+  if (bb1.bb->n_args() != 0 || bb1.bb->n_instrs() > 5) {
+    return false;
+  }
+  ZoneScopedN("dup bb to arg");
 
   auto *ctx = func.ctx;
   bool found = false;
@@ -118,10 +122,8 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
   TVec<DiffConst> difference_values;
   fir::BasicBlock res_bb1 = fir::BasicBlock(fir::BasicBlock::invalid());
   fir::BasicBlock res_bb2 = fir::BasicBlock(fir::BasicBlock::invalid());
+  TMap<fir::ValueR, fir::ValueR> local_value_map;
 
-  if (bb1.bb->n_args() != 0 || bb1.bb->n_instrs() > 5) {
-    return false;
-  }
   for (size_t bb2_id = 0; bb2_id < bb_id; bb2_id++) {
     auto bb2 = cfg.bbrs[bb2_id];
     if (bb2.bb->n_args() != 0 ||
@@ -130,9 +132,11 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     }
 
     found = true;
+    local_value_map.clear();
     for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
       auto i1 = bb1.bb->instructions[i];
       auto i2 = bb2.bb->instructions[i];
+      local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
       // TODO: shouldnt this be any constant differences between 2 same
       // instructions??
       if (i1->is(fir::InstrType::ReturnInstr) &&
@@ -143,8 +147,32 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
           difference_values.push_back({i1, 0, i1->args[0], i2, 0});
           continue;
         }
+        // TODO: skip these for now for simpicity
+      } else if (i1->is(fir::InstrType::BranchInstr) ||
+                 i1->is(fir::InstrType::CondBranchInstr)) {
+        found = false;
+        break;
       }
-      if (bb1.bb->instructions[i] != bb2.bb->instructions[i]) {
+      if (i1 == i2) {
+        continue;
+      }
+      if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
+          i1->args.size() != i2->args.size()) {
+        found = false;
+        break;
+      }
+
+      for (u32 i = 0; i < i1->args.size(); i++) {
+        auto &arg1 = i1->args[i];
+        auto &arg2 = i2->args[i];
+        if (arg1 == arg2) {
+          continue;
+        }
+        if (local_value_map.contains(arg1) &&
+            local_value_map.at(arg1) == arg2) {
+          continue;
+        }
+        // difference_values.push_back({i1, i, i1->args[i], i2, i});
         found = false;
         break;
       }
@@ -158,6 +186,8 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
 
   if (found && difference_values.size() <= res_bb1->instructions.size()) {
     TVec<fir::BBArgument> new_bb_args;
+    fmt::println("==================================\n{}\n{}", res_bb1,
+                 res_bb2);
 
     for (auto &diff : difference_values) {
       auto new_arg = ctx->storage.insert_bb_arg(
@@ -168,21 +198,24 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
 
     for (auto u1 : res_bb1->uses) {
       ASSERT(u1.type == fir::UseType::BB);
-      auto &bb_ref = u1.user->bbs[u1.argId];
+      // auto &bb_ref = u1.user->bbs[u1.argId];
       for (auto &diff : difference_values) {
-        bb_ref.args.push_back(diff.old_val);
+        u1.user.add_bb_arg(u1.argId, diff.old_val);
+        // bb_ref.args.push_back(diff.old_val);
       }
     }
     for (auto u2 : res_bb2->uses) {
       ASSERT(u2.type == fir::UseType::BB);
-      auto &bb_ref = u2.user->bbs[u2.argId];
+      // auto &bb_ref = u2.user->bbs[u2.argId];
       for (auto &diff : difference_values) {
-        bb_ref.args.push_back(diff.instr2->args[diff.arg_id2]);
+        u2.user.add_bb_arg(u2.argId, diff.instr2->args[diff.arg_id2]);
+        // bb_ref.args.push_back(diff.instr2->args[diff.arg_id2]);
       }
     }
     res_bb2->replace_all_uses(fir::ValueR(res_bb1));
     ASSERT(res_bb2->get_n_uses() == 0);
     res_bb2->remove_from_parent(true, true, true);
+    fmt::println("\n{}\n", res_bb1);
     return true;
   }
 
@@ -192,8 +225,8 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
 bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr,
                                          fir::Function & /*func*/,
                                          size_t /*bb_id*/, bool /*is_entry*/) {
-  ZoneScopedN("Rem useless bb arg");
   if (curr.pred.size() == 1 && curr.bb->n_args() != 0) {
+    ZoneScopedN("Rem useless bb arg");
     auto n_args = curr.bb->n_args();
     auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
     auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
@@ -211,8 +244,8 @@ bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
                                           fir::Function & /*func*/,
                                           size_t /*bb_id*/, bool is_entry) {
-  ZoneScopedN("Rem Constant bb");
   if (curr.bb->n_args() != 0 && !is_entry) {
+    ZoneScopedN("Rem Constant bb");
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
@@ -254,9 +287,9 @@ bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
 bool SimplifyCFG::distribute_return(CFG &cfg, CFG::Node &curr,
                                     fir::Function & /*func*/, size_t /*bb_id*/,
                                     bool /*is_entry*/) {
-  ZoneScopedN("Distr return");
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::ReturnInstr)) {
+    ZoneScopedN("Distr return");
     const auto n_args = curr.bb->n_args();
     const auto return_instr = curr.bb->get_terminator();
     TMap<fir::ValueR, fir::ValueR> subs{};
@@ -289,7 +322,6 @@ bool SimplifyCFG::distribute_return(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
                                               fir::Function &func, size_t bb_id,
                                               bool /*is_entry*/) {
-  ZoneScopedN("BACKWARDS MERGE");
   if (curr.succ.size() != 1) {
     return false;
   }
@@ -304,6 +336,7 @@ bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
   //    0x5591b4d32998 : () = Branch<0x5591b4d37968()>(){}
 
   if (succ.bb->n_instrs() == 1 && succ.bb->n_args() == 0) {
+    ZoneScopedN("BACKWARDS MERGE");
     auto old_term = func.basic_blocks[bb_id]->get_terminator();
 
     fir::Builder bb{curr.bb};
@@ -323,9 +356,9 @@ bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
                                              fir::Function &func, size_t bb_id,
                                              bool is_entry) {
-  ZoneScopedN("FORWARD MERGE");
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::BranchInstr)) {
+    ZoneScopedN("FORWARD MERGE");
     ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     // if no bb args involved just replace
@@ -366,56 +399,32 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
 
 bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
                                         fir::Function &func, size_t bb_id,
-                                        bool is_entry) {
-  if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1) {
+                                        bool /*is_entry*/) {
+  if (curr.succ.size() == 1 && cfg.bbrs[curr.succ[0]].pred.size() == 1 &&
+      bb_id != curr.succ[0]) {
     ZoneScopedN("MERGE LINEAR");
     auto succ_id = curr.succ[0];
 
-    // bool first_has_args = func.basic_blocks.at(bb_id)->n_args() != 0;
     bool secon_has_args = func.basic_blocks.at(succ_id)->n_args() != 0;
     auto old_first_term = func.basic_blocks[bb_id]->get_terminator();
 
     if (secon_has_args) {
-      (void)is_entry;
-      // if (is_entry) {
-      //   return false;
-      // }
       auto succ = func.basic_blocks[succ_id];
-      // for (auto arg: succ->args) {
-      //   arg->replace_all_uses(term->bbs[0].args[i]);
-      // }
       for (u32 i = 0; i < succ->n_args(); i++) {
         succ->args[i]->replace_all_uses(old_first_term->bbs[0].args[i]);
       }
       succ->clear_args();
     }
-    // if (first_has_args) {
-    //   for (auto arg : func.basic_blocks[bb_id]->args) {
-    //     auto new_arg = func.basic_blocks[succ_id].add_arg(ctx->copy(arg));
-    //     arg->replace_all_uses(fir::ValueR{new_arg});
-    //   }
-    // }
 
     fir::Builder bb{curr.bb};
     bb.at_end(curr.bb);
 
-    TMap<fir::ValueR, fir::ValueR> subs;
-
     for (size_t instr_id = 0;
-         instr_id < func.basic_blocks[succ_id]->instructions.size();
-         instr_id++) {
+         !func.basic_blocks[succ_id]->instructions.empty();) {
       auto &instr = func.basic_blocks[succ_id]->instructions[instr_id];
-      auto new_instr = bb.insert_copy(instr);
-      new_instr.substitute(subs);
-      subs.insert({fir::ValueR{instr}, fir::ValueR{new_instr}});
-    }
-    for (auto [from, to] : subs) {
-      fir::ValueR f = from;
-      f.replace_all_uses(to);
+      bb.move_instr(instr);
     }
 
-    // func.basic_blocks[bb_id]->replace_all_uses(
-    //     fir::ValueR{func.basic_blocks.at(succ_id)});
     old_first_term.remove_from_parent();
     func.basic_blocks[succ_id]->remove_from_parent(true, true, true);
     return true;
@@ -426,9 +435,9 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
 bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
                                        fir::Function & /*func*/,
                                        size_t /*bb_id*/, bool /*is_entry*/) {
-  ZoneScopedN("COND TO CMOVE");
   auto terminator = curr.bb->get_terminator();
   if (curr.succ.size() == 2 && terminator->bbs[0].bb == terminator->bbs[1].bb) {
+    ZoneScopedN("COND TO CMOVE");
     // auto *ctx = curr.bb->get_parent()->ctx;
 
     auto &args1 = terminator->bbs[0].args;
@@ -466,7 +475,7 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     return true;
   }
 
-  if (remove_useless_bb_args(cfg, curr, func, bb_id, is_entry)) {
+  if (merge_linear_relation(cfg, curr, func, bb_id, is_entry)) {
     return true;
   }
 
@@ -474,7 +483,7 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     return true;
   }
 
-  if (distribute_return(cfg, curr, func, bb_id, is_entry)) {
+  if (remove_useless_bb_args(cfg, curr, func, bb_id, is_entry)) {
     return true;
   }
 
@@ -486,7 +495,7 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     return true;
   }
 
-  if (merge_linear_relation(cfg, curr, func, bb_id, is_entry)) {
+  if (distribute_return(cfg, curr, func, bb_id, is_entry)) {
     return true;
   }
 
@@ -494,9 +503,9 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     return true;
   }
 
-  // if (dup_bb_to_args(cfg, curr, func, bb_id, is_entry)) {
-  //   return true;
-  // }
+  if (dup_bb_to_args(cfg, curr, func, bb_id, is_entry)) {
+    return true;
+  }
 
   return false;
 }

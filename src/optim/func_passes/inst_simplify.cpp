@@ -118,7 +118,7 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   const auto *c_val = (c1_val != nullptr) ? c1_val : c0_val;
-  // const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
+  const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
   const u32 v_idx = (c1_val != nullptr) ? 0 : 1;
 
   // at this point it cant have both as constant
@@ -145,6 +145,19 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
+  if (c_val->is_int() &&
+      instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
+    auto val = c_val->as_int();
+    auto bit_width = instr->get_type()->as_int();
+    if (val == ((1 << bit_width) - 1)) {
+      instr->args.erase(instr->args.begin() + c_idx);
+      instr->instr_type = InstrType::UnaryInstr;
+      instr->subtype = (u32)UnaryInstrSubType::Not;
+      worklist.emplace_back(instr, instr->parent);
+      push_all_uses(worklist, instr);
+      return;
+    }
+  }
   if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
     if (instr->args[0].is_instr() && c1_val->get_type()->is_int()) {
@@ -219,6 +232,23 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
   }
+  //handle 0*constant
+  // if (c1_val && c1_val->is_int() &&
+  //     instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
+  //   if (c1_val->as_int() == 1) {
+  //     push_all_uses(worklist, instr);
+  //     instr->replace_all_uses(instr->args[0]);
+  //     instr.destroy();
+  //     return;
+  //   }
+  //   if (c1_val->as_int() == 0) {
+  //     auto zero_const = ctx.data->get_constant_value(0, c1_val->get_type());
+  //     push_all_uses(worklist, instr);
+  //     instr->replace_all_uses(ValueR{zero_const});
+  //     instr.destroy();
+  //     return;
+  //   }
+  // }
 }
 
 static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
@@ -313,7 +343,8 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   //   if (arg_instr->is(InstrType::BinaryInstr) &&
   //       arg_instr->args[1].is_constant() &&
   //       arg_instr->args[1].as_constant()->is_int() &&
-  //       (BinaryInstrSubType)arg_instr->subtype == BinaryInstrSubType::IntAdd)
+  //       (BinaryInstrSubType)arg_instr->subtype ==
+  //       BinaryInstrSubType::IntAdd)
   //       {
   //     auto constant2 = arg_instr->args[1].as_constant()->as_int();
   //     instr.replace_arg(0, arg_instr->args[0]);
@@ -473,6 +504,18 @@ static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
 
 static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
                            fir::Context &ctx, WorkList &worklist) {
+  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
+      instr->args[0].is_instr()) {
+    auto input_instr = instr->args[0].as_instr();
+    if (input_instr->is(fir::InstrType::UnaryInstr) &&
+        (fir::UnaryInstrSubType)input_instr->subtype ==
+            fir::UnaryInstrSubType::Not) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(input_instr->args[0]);
+      instr.destroy();
+      return;
+    }
+  }
   if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
       instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::ICmp)) {
