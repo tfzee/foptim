@@ -5,7 +5,6 @@
 
 namespace foptim {
 
-
 class JobSheduler;
 
 enum class WorkerState : u8 {
@@ -70,7 +69,17 @@ public:
   void wait_till_done() {
     bool done = false;
     while (!jobs.empty()) {
-      std::this_thread::yield();
+      Job job;
+      {
+        std::lock_guard<std::mutex> queue_gard{job_queue};
+        if (jobs.empty()) {
+          std::this_thread::yield();
+          continue;
+        }
+        job = jobs.back();
+        jobs.pop_back();
+      }
+      job.func();
     }
     while (!done) {
       done = true;

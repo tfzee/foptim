@@ -26,6 +26,7 @@ void Worker::work_func(JobSheduler *shed, std::stop_token stoken) {
       std::lock_guard<std::mutex> queue_gard{shed->job_queue};
       if (shed->jobs.empty()) {
         state = WorkerState::Waiting;
+        std::this_thread::yield();
         continue;
       }
       job = shed->jobs.back();
