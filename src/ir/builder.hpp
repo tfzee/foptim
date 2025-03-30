@@ -67,6 +67,7 @@ public:
 
   BasicBlock insert_copy(BasicBlock bb, ContextData::V2VMap &subs);
   Instr insert_copy(Instr instr);
+  Instr move_instr(Instr instr);
 };
 
 } // namespace foptim::fir

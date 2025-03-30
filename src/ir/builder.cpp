@@ -359,6 +359,23 @@ BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap &subs) {
   func->append_bbr(new_bb);
   return new_bb;
 }
+
+Instr Builder::move_instr(Instr instr) {
+  check_bb_set();
+
+  size_t instr_id = 0;
+  auto parent = instr->parent;
+  while (parent->instructions[instr_id] != instr) {
+    instr_id++;
+    ASSERT(instr_id < parent->instructions.size());
+  }
+  parent->instructions.erase(parent->instructions.begin() + (i64)instr_id);
+
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr;
+}
+
 Instr Builder::insert_copy(Instr instr) {
   check_bb_set();
   Instr res = ctx->copy(instr);
