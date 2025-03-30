@@ -613,11 +613,11 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   }
   case fmir::Opcode::add2:
     req.mnemonic = ZYDIS_MNEMONIC_ADD;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::sub2:
     req.mnemonic = ZYDIS_MNEMONIC_SUB;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::land2:
     req.mnemonic = ZYDIS_MNEMONIC_AND;
@@ -625,33 +625,33 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     return length;
   case fmir::Opcode::lor2:
     req.mnemonic = ZYDIS_MNEMONIC_OR;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::lxor2:
     req.mnemonic = ZYDIS_MNEMONIC_XOR;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::not1:
     req.mnemonic = ZYDIS_MNEMONIC_NOT;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::fadd:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VADDSS
                        : ZYDIS_MNEMONIC_VADDSD;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::fsub:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VSUBSS
                        : ZYDIS_MNEMONIC_VSUBSD;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::fmul:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VMULSS
                        : ZYDIS_MNEMONIC_VMULSD;
-    ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::fdiv:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
