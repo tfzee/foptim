@@ -65,13 +65,7 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
   }
   if (const auto *ptr_null_constant =
           llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
-    auto res = builder.build_conversion_op(
-        foptim::fir::ValueR(
-            fctx->get_constant_value(0, fctx->get_int_type(64))),
-        fctx->get_ptr_type(), foptim::fir::ConversionSubType::IntToPtr);
-    return res;
-    // return foptim::fir::ValueR(
-    // );
+    return foptim::fir::ValueR(fctx->get_constant_null());
   }
   if (const auto *float_constant =
           llvm::dyn_cast_or_null<llvm::ConstantFP>(value)) {
@@ -435,8 +429,6 @@ inline bool convert_icmp(const llvm::Instruction *any_instr,
 inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                     foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
                     V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
-
-  ZoneScopedN("Convert Instr");
   auto op_code = any_instr->getOpcode();
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::ReturnInst>(any_instr)) {
     if (auto *v = instr->getReturnValue()) {
