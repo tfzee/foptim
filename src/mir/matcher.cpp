@@ -6,6 +6,7 @@
 #include "ir/types.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
+#include "mir/matcher_helpers.hpp"
 #include "mir/matcher_patterns.hpp"
 #include "mir/reg_alloc.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -188,14 +189,13 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
 
   if (bb->get_parent()->get_entry() != bb) {
     for (auto &bb_arg : bb->args) {
-      if (!data.bb_arg_mapping.contains(bb_arg)) {
-        auto arg_ty = convert_type(bb_arg->get_type());
-        auto to = data.alloc.get_new_register(arg_ty);
-        data.bb_arg_mapping.insert({bb_arg, MArgument{to, arg_ty}});
-      }
-      auto transfer_reg = data.bb_arg_mapping.at(bb_arg);
+      auto transfer_reg =
+          get_or_insert_bbarg_mapping(bb_arg, match_result, data);
       TVec<MInstr> res;
       auto real_reg = valueToArg(fir::ValueR(bb_arg), res, data.alloc);
+      if (transfer_reg == real_reg) {
+        continue;
+      }
       for (auto minstr : res | std::views::reverse) {
         result_bb.instrs.push_back(minstr);
       }
@@ -304,19 +304,11 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
       continue;
     }
 
-    if (!data.bb_arg_mapping.contains(args.bb->args[arg_id])) {
-      auto arg_ty = convert_type(args.args[arg_id].get_type());
-      auto to = data.alloc.get_new_register(arg_ty);
-      data.bb_arg_mapping.insert(
-          {args.bb->args[arg_id], MArgument{to, arg_ty}});
-    }
-    auto to = data.bb_arg_mapping.at(args.bb->args[arg_id]);
-    //     valueToArg(fir::ValueR(args.bb->args[arg_id]), res.result,
-    //     data.alloc);
+    auto to = get_or_insert_bbarg_mapping(args.bb->args[arg_id], res, data);
     auto from = valueToArg(args.args[arg_id], res.result, data.alloc);
-    // if (to == from) {
-    //   continue;
-    // }
+    if (to == from) {
+      continue;
+    }
     pairs.push_back({to, from});
   }
 

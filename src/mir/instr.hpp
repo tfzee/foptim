@@ -238,8 +238,7 @@ public:
     case RegType::Virtual:
       return ty == Type::Float32 || ty == Type::Float64;
     case RegType::Concrete:
-      return ty == Type::Float32 || ty == Type::Float64 ||
-             conc.creg >= CReg::mm0;
+      return conc.creg >= CReg::mm0;
     }
   }
 
