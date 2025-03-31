@@ -75,6 +75,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::sar2:
   case Opcode::sub2:
   case Opcode::mul2:
+  case Opcode::smul3:
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:
@@ -230,6 +231,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     update_uses(instr.args[1], uses);
     break;
   case Opcode::cmov:
+  case Opcode::smul3:
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:

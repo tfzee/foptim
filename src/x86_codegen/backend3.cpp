@@ -543,6 +543,17 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     }
     return emit(out_buff, 0, &req);
   }
+  case fmir::Opcode::smul3: {
+    req.mnemonic = ZYDIS_MNEMONIC_IMUL;
+    // TODO: need to check if its fits correclty
+    i64 val_casted = (i64)instr.args[1].imm;
+    if (req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
+        (val_casted <= std::numeric_limits<i32>::min() ||
+         val_casted >= std::numeric_limits<i32>::max())) {
+      TODO("cant do this big of a constant");
+    }
+    return emit(out_buff, 0, &req);
+  }
   case fmir::Opcode::idiv: {
     req.mnemonic = ZYDIS_MNEMONIC_IDIV;
     req.operand_count = 1;
@@ -787,7 +798,8 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ASSERT(instr.has_bb_ref);
     reloc_map.insert_bb_ref(instr.bb_ref, out_buff + length, 0,
                             RelocSection::Text);
-    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2), req);
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2),
+               req);
     return length + len2;
   }
   case fmir::Opcode::cjmp: {
@@ -1102,9 +1114,21 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   }
-  case fmir::Opcode::ffmadd132:
+  case fmir::Opcode::ffmadd231: {
+    bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+    req.mnemonic =
+        is_f32 ? ZYDIS_MNEMONIC_VFMADD231SS : ZYDIS_MNEMONIC_VFMADD231SD;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  }
+  case fmir::Opcode::ffmadd132: {
+    bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+    req.mnemonic =
+        is_f32 ? ZYDIS_MNEMONIC_VFMADD132SS : ZYDIS_MNEMONIC_VFMADD132SD;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  }
   case fmir::Opcode::ffmadd213:
-  case fmir::Opcode::ffmadd231:
   case fmir::Opcode::FL2SI:
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:

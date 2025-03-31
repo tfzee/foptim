@@ -23,12 +23,12 @@ public:
     LoopInfoAnalysis linfo{dom};
 
     for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
-      fmt::println("======\n{}", func);
-      loop->dump();
-      ASSERT(func.verify());
+      // fmt::println("======\n{}", func);
+      // loop->dump();
+      // ASSERT(func.verify());
       bool apply_res = apply(ctx, cfg, *loop);
-      fmt::println("=\n{}", func);
-      ASSERT(func.verify());
+      // fmt::println("=\n{}", func);
+      // ASSERT(func.verify());
       if (apply_res && linfo.info.size() > 1) {
         cfg.update(func, false);
         dom.update(cfg);

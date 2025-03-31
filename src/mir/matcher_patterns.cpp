@@ -426,7 +426,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
           return false;
         }
 
-        auto& bb_with_args = branch_instr->bbs[0];
+        auto &bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
         auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
@@ -499,7 +499,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
 
         auto sub_type = (fir::FCmpInstrSubType)cmp_instr->get_instr_subtype();
 
-        auto& bb_with_args = branch_instr->bbs[0];
+        auto &bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
         auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto v2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
@@ -536,8 +536,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
   //                        (u32)fir::BinaryInstrSubType::IntSub};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          (u32)fir::BinaryInstrSubType::IntMul};
-  // auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-  //                      (u32)fir::BinaryInstrSubType::IntSRem};
+  auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::IntSRem};
   // auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                      (u32)fir::BinaryInstrSubType::IntSDiv};
   // auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -717,11 +717,107 @@ void arith_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::ffmadd132, mul_arg2, add_arg2,
                                   mul_arg1);
         } else {
-          // TODO: prob shouldnt do this and just let the legalizer handle it
+          // res.result.emplace_back(Opcode::mov, res_reg, add_arg2);
+          // res.result.emplace_back(Opcode::ffmadd231, res_reg, mul_arg1,
+          //                         mul_arg2);
+          // res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
+          // res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
+          //                         mul_arg2);
           res.result.emplace_back(Opcode::fmul, res_reg, mul_arg1, mul_arg2);
           res.result.emplace_back(Opcode::fadd, res_reg, res_reg, add_arg2);
         }
         return true;
+      }});
+  pats.push_back(Pattern{
+      {SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto srem_instr = res.matched_instrs[0];
+        if (!srem_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto res_reg =
+            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
+        auto arg = valueToArg(srem_instr->args[0], res.result, data.alloc);
+        auto const_arg =
+            valueToArg(srem_instr->args[1], res.result, data.alloc);
+
+        if (!const_arg.isImm()) {
+          return false;
+        }
+
+        if (const_arg.imm == 5) {
+          // movsxd  r1:64, edi
+          // imul    r3:64, r1:64, 1717986919
+          // mov     r2:64, r3:64
+          // shr     r2:64, 63
+          // sar     r3:64, 33
+          // add     r4:32, r2:32
+          // lea     r4:32, [r3 + 4*r3]
+          // sub     r1:32, r4:32
+
+          auto r1 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto r2 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto r3 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto r4 =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          auto r2s =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          res.result.emplace_back(Opcode::mov_sx, r1, arg);
+          res.result.emplace_back(Opcode::smul3, r3, r1,
+                                  MArgument((u64)1717986919));
+          res.result.emplace_back(Opcode::mov, r2, r3);
+          res.result.emplace_back(Opcode::shr2, r2, MArgument((u64)63));
+          res.result.emplace_back(Opcode::sar2, r3, MArgument((u64)33));
+          res.result.emplace_back(Opcode::itrunc, r2s, r2);
+          res.result.emplace_back(Opcode::add2, r4, r2s);
+          res.result.emplace_back(
+              Opcode::lea, r4,
+              MArgument::MemBIS(r3.reg, r3.reg, 2, Type::Int64));
+          res.result.emplace_back(Opcode::itrunc, res_reg, r1);
+          res.result.emplace_back(Opcode::sub2, res_reg, r4);
+          return true;
+        } else if (const_arg.imm == 7) {
+          // movsxd  r1, edi
+          // imul    r2, r1, -1840700269
+          // shr     r2, 32
+          // add     r2s, r1s
+          // mov     r3, r2s
+          // shr     r3, 31
+          // sar     r2s, 2
+          // add     r2s, r3
+          // lea     r3, [8*r2]
+          // sub     r2s, r3
+          // add     r2s, r1s
+
+          auto r1 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto r3 =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          auto r1s =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          auto r2 = MArgument(VReg::RAX(), Type::Int64);
+          auto r2s = MArgument(VReg::EAX(), Type::Int32);
+          res.result.emplace_back(Opcode::mov_sx, r1, arg);
+          res.result.emplace_back(Opcode::smul3, r2, r1,
+                                  MArgument((u64)(i64)-1840700269));
+          res.result.emplace_back(Opcode::shr2, r2, MArgument((u64)32));
+          res.result.emplace_back(Opcode::itrunc, r1s, r1);
+          res.result.emplace_back(Opcode::add2, r2s, r1s);
+          res.result.emplace_back(Opcode::mov, r3, r2s);
+          res.result.emplace_back(Opcode::shr2, r3, MArgument((u8)31));
+          res.result.emplace_back(Opcode::sar2, r2s, MArgument((u8)2));
+          res.result.emplace_back(Opcode::add2, r2s, r3);
+          res.result.emplace_back(Opcode::lea, r3,
+                                  MArgument::MemOIS(0, r2.reg, 3, Type::Int64));
+          res.result.emplace_back(Opcode::sub2, r2s, r3);
+          res.result.emplace_back(Opcode::add2, r2s, r1s);
+          res.result.emplace_back(Opcode::mov, res_reg, r2s);
+          return true;
+        }
+
+        return false;
       }});
 }
 
@@ -1227,7 +1323,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto branch_instr = res.matched_instrs[0];
         auto cond = valueToArg(branch_instr->args[0], res.result, data.alloc);
         {
-          auto& bb_with_args = branch_instr->bbs[0];
+          auto &bb_with_args = branch_instr->bbs[0];
           auto target_bb = branch_instr->bbs[0].bb;
           ASSERT(bb_with_args.args.size() == target_bb->args.size());
           generate_bb_args(bb_with_args, res, data);
@@ -1235,7 +1331,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
 
         {
-          auto& bb2_with_args = branch_instr->bbs[1];
+          auto &bb2_with_args = branch_instr->bbs[1];
           auto target_bb2 = branch_instr->bbs[1].bb;
           ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
           generate_bb_args(bb2_with_args, res, data);

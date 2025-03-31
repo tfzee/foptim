@@ -41,6 +41,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(add2);
     ReturnString(sub2);
     ReturnString(mul2);
+    ReturnString(smul3);
     ReturnString(shl2);
     ReturnString(shr2);
     ReturnString(sar2);
@@ -118,6 +119,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::add2:
   case Opcode::sub2:
   case Opcode::mul2:
+  case Opcode::smul3:
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:
@@ -269,6 +271,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     out.push_back({0, instr.args[0]});
     out.push_back({1, instr.args[1]});
     return;
+  case Opcode::smul3:
   case Opcode::fadd:
   case Opcode::fsub:
   case Opcode::fmul:

@@ -25,6 +25,7 @@ enum class Opcode : u32 {
   mul2,
   not1,
   idiv,
+  smul3,
   fadd,
   fsub,
   fmul,
