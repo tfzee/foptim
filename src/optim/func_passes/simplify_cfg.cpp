@@ -123,6 +123,7 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
   fir::BasicBlock res_bb1 = fir::BasicBlock(fir::BasicBlock::invalid());
   fir::BasicBlock res_bb2 = fir::BasicBlock(fir::BasicBlock::invalid());
   TMap<fir::ValueR, fir::ValueR> local_value_map;
+  size_t cost = 0;
 
   for (size_t bb2_id = 0; bb2_id < bb_id; bb2_id++) {
     auto bb2 = cfg.bbrs[bb2_id];
@@ -133,10 +134,13 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
 
     found = true;
     local_value_map.clear();
+    difference_values.clear();
+    cost = 0;
     for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
       auto i1 = bb1.bb->instructions[i];
       auto i2 = bb2.bb->instructions[i];
       local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
+      local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
       // TODO: shouldnt this be any constant differences between 2 same
       // instructions??
       if (i1->is(fir::InstrType::ReturnInstr) &&
@@ -145,6 +149,7 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
           continue;
         } else if (i1->args[0].is_constant() && i2->args[0].is_constant()) {
           difference_values.push_back({i1, 0, i1->args[0], i2, 0});
+          cost += 1;
           continue;
         }
         // TODO: skip these for now for simpicity
@@ -168,13 +173,22 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
         if (arg1 == arg2) {
           continue;
         }
-        if (local_value_map.contains(arg1) &&
-            local_value_map.at(arg1) == arg2) {
-          continue;
+        // if either is a local arg
+        //  then both need to be and both need topoint to the same
+        if (local_value_map.contains(arg1)) {
+          if (local_value_map.at(arg1) == arg2) {
+            continue;
+          }
+          found = false;
+          break;
         }
-        // difference_values.push_back({i1, i, i1->args[i], i2, i});
-        found = false;
-        break;
+        if (local_value_map.contains(arg2)) {
+          found = false;
+          break;
+        }
+
+        difference_values.push_back({i1, i, i1->args[i], i2, i});
+        cost += 3;
       }
     }
     if (found) {
@@ -184,7 +198,7 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     }
   }
 
-  if (found && difference_values.size() <= res_bb1->instructions.size()) {
+  if (found && cost * 2 <= res_bb1->instructions.size()) {
     TVec<fir::BBArgument> new_bb_args;
 
     for (auto &diff : difference_values) {
