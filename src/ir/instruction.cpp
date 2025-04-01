@@ -269,18 +269,14 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
     return fmt::format_to(app, "INVALID");
   }
 
+  app = fmt::format_to(
+      app, "{:p}: {}",
+      fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
+      instr->get_type());
   if (debug) {
-    app = fmt::format_to(
-        app, "{:p}: {} NUses:{} = {}",
-        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
-        instr->get_type(), instr->get_n_uses(), instr->get_name());
-
-  } else {
-    app = fmt::format_to(
-        app, "{:p}: {} = {}",
-        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
-        instr->get_type(), instr->get_name());
+    app = fmt::format_to(app, color_debug, " NUses:{}", instr->get_n_uses());
   }
+  app = fmt::format_to(app, " = {}", instr->get_name());
 
   const auto &bb_args = instr->get_bb_args();
   if (bb_args.size() > 0) {

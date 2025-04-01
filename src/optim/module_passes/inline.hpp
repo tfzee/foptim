@@ -17,15 +17,24 @@ public:
     }
     auto func = instr->get_parent()->get_parent();
     auto called_func = instr->get_arg(0);
-    if (called_func.is_constant() && called_func.as_constant()->is_func()) {
-      auto v = called_func.as_constant()->as_func();
-      if (v.func->get_n_uses() == 1 &&
-          v.func->linkage == fir::Function::Function::Linkage::Internal) {
-        return true;
-      }
-      if (v.func == func.func) {
-        return true;
-      }
+    if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
+      return false;
+    }
+
+    auto v = called_func.as_constant()->as_func();
+    if (v->is_decl() || v->variadic) {
+      return false;
+    }
+    if (v.func->get_n_uses() == 1 &&
+        v.func->linkage == fir::Function::Function::Linkage::Internal) {
+      return true;
+    }
+    if (v.func == func.func) {
+      return true;
+    }
+
+    if (v.func->n_instrs() < 5) {
+      return true;
     }
 
     return all_args_are_constant;
@@ -62,8 +71,17 @@ public:
       }
     }
     for (auto call : calls) {
-      // fmt::println("INLINING {}", call);
+      // fmt::println("INLINING IN FUNC {}\n   CALL {}",
+      //              call->parent->get_parent().func->name, call);
+      // fmt::println("===================================================");
+      // auto parent_func = call->parent->get_parent();
+      // fmt::println("{}", *parent_func.func);
+      // fmt::println("+++++++++++++++++++++++++++++++++++++++++++++++++++");
+      // fmt::println("{}", *call->args[0].as_constant()->as_func().func);
       inline_call(call);
+      // fmt::println("===================================================");
+      // fmt::println("{}", *parent_func.func);
+      // fmt::println("===================================================");
     }
   }
 };

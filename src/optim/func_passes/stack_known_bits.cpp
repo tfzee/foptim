@@ -126,12 +126,16 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
 
   if (instr->args[1].is_constant() &&
       (instr->args[1].as_constant()->is_int() ||
-       instr->args[1].as_constant()->is_float())) {
+       instr->args[1].as_constant()->is_float() ||
+       instr->args[1].as_constant()->is_null())) {
     u64 value = 0;
     bool is_int = instr->args[1].as_constant()->is_int();
     bool is_float = instr->args[1].as_constant()->is_float();
+    bool is_null = instr->args[1].as_constant()->is_null();
     if (is_int) {
       value = instr->args[1].as_constant()->as_int();
+    } else if (is_null) {
+      value = 0;
     } else if (is_float) {
       value = std::bit_cast<u64>(instr->args[1].as_constant()->as_float());
     } else {

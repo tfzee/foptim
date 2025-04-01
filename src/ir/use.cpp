@@ -3,6 +3,29 @@
 #include "value.hpp"
 
 namespace foptim::fir {
+
+TypeR Use::get_type() {
+  switch (type) {
+  case UseType::NormalArg:
+    return user->args[argId].get_type();
+  case UseType::BB:
+    ASSERT(false);
+  case UseType::BBArg:
+    return user->bbs[argId].args[bbArgId].get_type();
+  }
+}
+
+ValueR Use::get_value() {
+  switch (type) {
+  case UseType::NormalArg:
+    return user->args[argId];
+  case UseType::BB:
+    ASSERT(false);
+  case UseType::BBArg:
+    return user->bbs[argId].args[bbArgId];
+  }
+}
+
 void Use::replace_use(ValueR new_value) {
   switch (type) {
   case UseType::NormalArg:

@@ -224,24 +224,29 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
 
 fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
     foptim::fir::ConstantValueR const &v, format_context &ctx) const {
-  switch (v->ty) {
+  return fmt::format_to(ctx.out(), "{}", *v.get_raw_ptr());
+}
+
+fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
+    foptim::fir::ConstantValue const &v, format_context &ctx) const {
+  switch (v.ty) {
   case foptim::fir::ConstantType::NullPtr:
-    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "NULL");
+    return fmt::format_to(ctx.out(), color_constant, "NULL");
   case foptim::fir::ConstantType::PoisonValue:
-    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "POISON");
+    return fmt::format_to(ctx.out(), color_constant, "POISON");
   case foptim::fir::ConstantType::IntValue:
-    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "{}:{}",
-                          v->int_u.v.data, v->type);
+    return fmt::format_to(ctx.out(), color_number, "{}:{}",
+                          v.int_u.v.data, v.type);
   case foptim::fir::ConstantType::FloatValue:
-    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "{}:{}",
-                          v->float_u.v.data, v->type);
+    return fmt::format_to(ctx.out(), color_number, "{}:{}",
+                          v.float_u.v.data, v.type);
   case foptim::fir::ConstantType::GlobalPtr:
-    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "G({})",
-                          v->gp_u.v.glob->name.c_str());
+    return fmt::format_to(ctx.out(), color_constant, "G({})",
+                          v.gp_u.v.glob->name.c_str());
   case foptim::fir::ConstantType::FuncPtr:
-    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "{}",
-                          v->fup_u.v.func->getName().c_str());
+    return fmt::format_to(ctx.out(), color_func, "{}",
+                          v.fup_u.v.func->getName().c_str());
   case foptim::fir::ConstantType::VectorValue:
-    return fmt::format_to(ctx.out(), fg(fmt::color::orange), "VECTOR");
+    return fmt::format_to(ctx.out(), color_constant, "VECTOR");
   }
 }

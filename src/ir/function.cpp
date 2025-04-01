@@ -1,6 +1,7 @@
 #include "builder.hpp"
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
+#include <fmt/color.h>
 
 namespace foptim::fir {
 
@@ -60,7 +61,7 @@ fmt::appender
 fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
                                               format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, "\nfunc {}", func.getName().c_str());
+  app = fmt::format_to(app, "\nfunc {}", fmt::styled(func.getName().c_str(), color_func));
 
   app = fmt::format_to(app, "<CC: ");
   switch (func.cc) {
@@ -70,6 +71,9 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   case foptim::fir::Function::CallingConv::Dynamic:
     app = fmt::format_to(app, "dyn");
     break;
+  }
+  if (func.variadic) {
+    app = fmt::format_to(app, ", VARIADIC");
   }
   app = fmt::format_to(app, ", LINK: ");
   switch (func.linkage) {
@@ -88,7 +92,7 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
 
   app = fmt::format_to(app, ">");
   if (debug) {
-    app = fmt::format_to(app, "Uses: {}", func.get_n_uses());
+    app = fmt::format_to(app, color_debug, " Uses: {}", func.get_n_uses());
   }
   if (!func.get_bbs().empty()) {
     app = fmt::format_to(app, "\n{{\n");
@@ -101,7 +105,7 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
     }
     app = fmt::format_to(app, "}}");
   } else {
-    app = fmt::format_to(app, "\n{{}}");
+    app = fmt::format_to(app, " {{}}");
   }
   return app;
 }

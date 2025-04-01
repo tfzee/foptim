@@ -95,7 +95,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   if (is(InstrType::CallInstr) && args[0].is_constant() &&
       args[0].as_constant()->is_func()) {
     auto funcy = args[0].as_constant()->as_func();
-    if (funcy.func->func_ty->as_func().arg_types.size() + 1 != args.size()) {
+    if (!funcy.func->variadic && funcy.func->func_ty->as_func().arg_types.size() + 1 != args.size()) {
       fmt::print("Call instr has wrong number of arguments\n");
       return false;
     }

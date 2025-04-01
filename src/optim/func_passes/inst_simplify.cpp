@@ -232,23 +232,23 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
   }
-  //handle 0*constant
-  // if (c1_val && c1_val->is_int() &&
-  //     instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
-  //   if (c1_val->as_int() == 1) {
-  //     push_all_uses(worklist, instr);
-  //     instr->replace_all_uses(instr->args[0]);
-  //     instr.destroy();
-  //     return;
-  //   }
-  //   if (c1_val->as_int() == 0) {
-  //     auto zero_const = ctx.data->get_constant_value(0, c1_val->get_type());
-  //     push_all_uses(worklist, instr);
-  //     instr->replace_all_uses(ValueR{zero_const});
-  //     instr.destroy();
-  //     return;
-  //   }
-  // }
+  // handle 0*constant
+  //  if (c1_val && c1_val->is_int() &&
+  //      instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
+  //    if (c1_val->as_int() == 1) {
+  //      push_all_uses(worklist, instr);
+  //      instr->replace_all_uses(instr->args[0]);
+  //      instr.destroy();
+  //      return;
+  //    }
+  //    if (c1_val->as_int() == 0) {
+  //      auto zero_const = ctx.data->get_constant_value(0, c1_val->get_type());
+  //      push_all_uses(worklist, instr);
+  //      instr->replace_all_uses(ValueR{zero_const});
+  //      instr.destroy();
+  //      return;
+  //    }
+  //  }
 }
 
 static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
@@ -281,6 +281,46 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
 
+    {
+      bool is_eq =
+          (ICmpInstrSubType)instr->get_instr_subtype() == ICmpInstrSubType::EQ;
+      bool is_neq =
+          (ICmpInstrSubType)instr->get_instr_subtype() == ICmpInstrSubType::NE;
+      if ((is_eq || is_neq)) {
+        bool first_known_non_null =
+            (c1->is_global() || (c1->is_func() && !c1->as_func()->is_decl()));
+        bool second_known_non_null =
+            (c2->is_global() || (c2->is_func() && !c1->as_func()->is_decl()));
+        bool first_known_null = c1->is_null() || c1->is_poison();
+        bool second_known_null = c2->is_null() || c2->is_poison();
+        bool is_true = false;
+        bool is_known = false;
+        if (first_known_non_null && second_known_null) {
+          is_true = is_neq;
+          is_known = true;
+        }
+        if (first_known_null && second_known_non_null) {
+          is_true = is_neq;
+          is_known = true;
+        }
+        if (first_known_non_null && second_known_non_null) {
+          is_true = is_eq;
+          is_known = true;
+        }
+        if (first_known_null && second_known_null) {
+          is_true = is_eq;
+          is_known = true;
+        }
+
+        if (is_known) {
+          auto new_const_value =
+              ctx->get_constant_value((u32)is_true, ctx->get_int_type(8));
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(ValueR(new_const_value));
+          return;
+        }
+      }
+    }
     if (c1->is_global() || c1->is_func() || c2->is_global() || c2->is_func()) {
       return;
     }
@@ -615,8 +655,7 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   for (BasicBlock bb : func.basic_blocks) {
     auto &instrs = bb->get_instrs();
     for (size_t instr_id = 0; instr_id < instrs.size(); instr_id++) {
-      auto instr = instrs.at(instr_id);
-      worklist.emplace_back(instr, bb);
+      worklist.emplace_back(instrs[instr_id], bb);
     }
   }
 

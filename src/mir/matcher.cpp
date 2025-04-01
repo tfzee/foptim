@@ -246,7 +246,8 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   MFunc res_func;
   res_func.bbs.reserve(func.n_bbs());
   DumbRegAlloc alloc{};
-  // alloc.alloc_func(func, lives);
+
+  ASSERT(!func.variadic);
 
   {
     auto entry_bb = func.get_entry();

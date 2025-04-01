@@ -164,7 +164,10 @@ struct ConstantValue {
   }
 
   [[nodiscard]] constexpr i128 as_int() const {
-    ASSERT(is_int());
+    if(!is_int()){
+      fmt::println("{}", *this);
+      TODO("");
+    }
     return int_u.v.data;
   }
 

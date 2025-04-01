@@ -281,6 +281,9 @@ public:
       if (a.is_top()) {
         return ConstantValue::Top();
       }
+      if(a.is_const() && a.value->is_global()){
+        return ConstantValue::Bottom();
+      }
       switch ((fir::ConversionSubType)instr->get_instr_subtype()) {
       case fir::ConversionSubType::INVALID:
         UNREACH();

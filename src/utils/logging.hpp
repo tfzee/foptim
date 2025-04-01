@@ -22,13 +22,17 @@ public:
   }
 };
 
+constexpr auto color_debug = fg(fmt::color::brown);
+constexpr auto color_func = fg(fmt::color::orange);
+constexpr auto color_constant = fg(fmt::color::dark_orange);
+constexpr auto color_number = fg(fmt::color::medium_orchid);
+
 template <>
 class fmt::formatter<foptim::fir::ValueR>
     : public BaseIRFormatter<foptim::fir::ValueR> {
 public:
-  appender format(foptim::fir::ValueR const &k, format_context &ctx) const; 
+  appender format(foptim::fir::ValueR const &k, format_context &ctx) const;
 };
-
 
 template <>
 class fmt::formatter<foptim::fir::Attribute>
@@ -42,8 +46,7 @@ template <>
 class fmt::formatter<foptim::fir::Function>
     : public BaseIRFormatter<foptim::fir::Function> {
 public:
-  appender format(foptim::fir::Function const &func,
-                            format_context &ctx) const;
+  appender format(foptim::fir::Function const &func, format_context &ctx) const;
 };
 
 template <>
@@ -78,7 +81,16 @@ template <>
 class fmt::formatter<foptim::fir::ConstantValueR>
     : public BaseIRFormatter<foptim::fir::ConstantValueR> {
 public:
-  appender format(foptim::fir::ConstantValueR const &v, format_context &ctx) const;
+  appender format(foptim::fir::ConstantValueR const &v,
+                  format_context &ctx) const;
+};
+
+template <>
+class fmt::formatter<foptim::fir::ConstantValue>
+    : public BaseIRFormatter<foptim::fir::ConstantValue> {
+public:
+  appender format(foptim::fir::ConstantValue const &v,
+                  format_context &ctx) const;
 };
 
 template <>
@@ -111,28 +123,29 @@ public:
 
 template <>
 class fmt::formatter<foptim::fmir::MBB>
-  : public BaseIRFormatter<foptim::fmir::MBB> {
+    : public BaseIRFormatter<foptim::fmir::MBB> {
 public:
-appender format(foptim::fmir::MBB const &bb, format_context &ctx) const;
+  appender format(foptim::fmir::MBB const &bb, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::MArgument>
-  : public BaseIRFormatter<foptim::fmir::MArgument> {
+    : public BaseIRFormatter<foptim::fmir::MArgument> {
 public:
-appender format(foptim::fmir::MArgument const &v, format_context &ctx) const;
+  appender format(foptim::fmir::MArgument const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::Type>
-  : public BaseIRFormatter<foptim::fmir::Type> {
+    : public BaseIRFormatter<foptim::fmir::Type> {
 public:
-appender format(foptim::fmir::Type const &v, format_context &ctx) const;
+  appender format(foptim::fmir::Type const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::BBRefWithArgs>
-  : public BaseIRFormatter<foptim::fir::BBRefWithArgs> {
+    : public BaseIRFormatter<foptim::fir::BBRefWithArgs> {
 public:
-appender format(foptim::fir::BBRefWithArgs const &v, format_context &ctx) const;
+  appender format(foptim::fir::BBRefWithArgs const &v,
+                  format_context &ctx) const;
 };

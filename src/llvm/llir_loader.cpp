@@ -906,6 +906,36 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
   auto foff_func = fctx->get_function(func_name);
   auto func_ptr = fctx->get_constant_value(foff_func);
   valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
+
+  foff_func->variadic = func.isVarArg();
+
+  switch (func.getCallingConv()) {
+  case llvm::CallingConv::C:
+    foff_func->cc = foptim::fir::Function::CallingConv::C;
+    break;
+  default:
+    llvm::errs() << "Not supporting calling convention:"
+                 << func.getCallingConv() << "\n";
+    TODO("");
+  }
+
+  switch (func.getLinkage()) {
+  case llvm::GlobalValue::InternalLinkage:
+  case llvm::GlobalValue::PrivateLinkage:
+    foff_func->linkage = foptim::fir::Function::Linkage::Internal;
+    break;
+  case llvm::GlobalValue::ExternalLinkage:
+  case llvm::GlobalValue::AvailableExternallyLinkage:
+  case llvm::GlobalValue::LinkOnceAnyLinkage:
+  case llvm::GlobalValue::LinkOnceODRLinkage:
+  case llvm::GlobalValue::WeakAnyLinkage:
+  case llvm::GlobalValue::WeakODRLinkage:
+  case llvm::GlobalValue::AppendingLinkage:
+  case llvm::GlobalValue::ExternalWeakLinkage:
+  case llvm::GlobalValue::CommonLinkage:
+    foff_func->linkage = foptim::fir::Function::Linkage::External;
+    break;
+  }
 }
 
 inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
@@ -938,33 +968,6 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   auto name = func.getName();
   auto ffunc = fctx->get_function(name.str().c_str());
 
-  switch (func.getLinkage()) {
-  case llvm::GlobalValue::InternalLinkage:
-  case llvm::GlobalValue::PrivateLinkage:
-    ffunc->linkage = foptim::fir::Function::Linkage::Internal;
-    break;
-  case llvm::GlobalValue::ExternalLinkage:
-  case llvm::GlobalValue::AvailableExternallyLinkage:
-  case llvm::GlobalValue::LinkOnceAnyLinkage:
-  case llvm::GlobalValue::LinkOnceODRLinkage:
-  case llvm::GlobalValue::WeakAnyLinkage:
-  case llvm::GlobalValue::WeakODRLinkage:
-  case llvm::GlobalValue::AppendingLinkage:
-  case llvm::GlobalValue::ExternalWeakLinkage:
-  case llvm::GlobalValue::CommonLinkage:
-    ffunc->linkage = foptim::fir::Function::Linkage::External;
-    break;
-  }
-
-  switch (func.getCallingConv()) {
-  case llvm::CallingConv::C:
-    ffunc->cc = foptim::fir::Function::CallingConv::C;
-    break;
-  default:
-    llvm::errs() << "Not supporting calling convention:"
-                 << func.getCallingConv() << "\n";
-    TODO("");
-  }
   // func.getMemoryEffects()
   // func.isConvergent()
 

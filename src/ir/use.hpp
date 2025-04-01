@@ -32,6 +32,8 @@ public:
     return {r, UseType::BBArg, bb_id, bb_argid};
   }
 
+  TypeR get_type();
+  ValueR get_value();
   void replace_use(ValueR new_value);
 
   [[nodiscard]] bool operator==(const Use &other) const;

@@ -27,6 +27,7 @@ public:
   // metadata
   CallingConv cc = CallingConv::C;
   Linkage linkage = Linkage::Internal;
+  bool variadic = false;
 
   Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}
