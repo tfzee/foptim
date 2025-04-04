@@ -7,6 +7,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "utils/arena.hpp"
+#include "utils/parameters.hpp"
 #include "utils/set.hpp"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -903,10 +904,29 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
        foptim::fir::Function(fctx.operator->(), func_name,
                              convert_type(func.getFunctionType(), fctx))});
 
-  auto foff_func = fctx->get_function(func_name);
-  auto func_ptr = fctx->get_constant_value(foff_func);
+  const auto foff_func = fctx->get_function(func_name);
+  const auto func_ptr = fctx->get_constant_value(foff_func);
   valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
+}
 
+inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
+                           V2VMap &valueToValue) {
+  if (!func.hasName()) {
+    return;
+  }
+
+  foptim::IRString func_name = func.getName().str().c_str();
+
+  if (func.empty()) {
+    convert_decl(func, fctx, valueToValue);
+  } else {
+    auto foff_ftype = convert_type(func.getFunctionType(), fctx);
+    auto foff_func = fctx->create_function(func_name, foff_ftype);
+    auto func_ptr = fctx->get_constant_value(foff_func);
+    valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
+  }
+
+  const auto foff_func = fctx->get_function(func_name);
   foff_func->variadic = func.isVarArg();
 
   switch (func.getCallingConv()) {
@@ -936,23 +956,6 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     foff_func->linkage = foptim::fir::Function::Linkage::External;
     break;
   }
-}
-
-inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
-                           V2VMap &valueToValue) {
-  if (!func.hasName()) {
-    return;
-  }
-  if (func.empty()) {
-    return convert_decl(func, fctx, valueToValue);
-  }
-
-  foptim::IRString func_name = func.getName().str().c_str();
-  auto foff_ftype = convert_type(func.getFunctionType(), fctx);
-  auto foff_func = fctx->create_function(func_name, foff_ftype);
-  auto func_ptr = fctx->get_constant_value(foff_func);
-
-  valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
 }
 
 inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
