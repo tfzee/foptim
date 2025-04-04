@@ -391,9 +391,21 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
   } while (0)
 // fmt::println("With req: {}", req);
 
-u64 emit(u8 *buff, u32 curr_off, ZydisEncoderRequest *req) {
+#define emit(buff, off, req) emit_impl(buff, off, req, __LINE__)
+
+u64 emit_impl(u8 *buff, u32 curr_off, ZydisEncoderRequest *req, int line) {
   u64 len = 9999;
-  ZY_ASS_REQ(ZydisEncoderEncodeInstruction(req, buff + curr_off, &len), *req);
+  (void)line;
+  // fmt::println("Backend3 line: {}", line);
+  const ZyanStatus status =
+      (ZydisEncoderEncodeInstruction(req, buff + curr_off, &len));
+  if (!ZYAN_SUCCESS(status)) {
+    fmt::println("{}", *req);
+    fmt::println("Zyan op failed: {} in module: {}", ZYAN_STATUS_CODE(status),
+                 ZYAN_STATUS_MODULE(status));
+    foptim ::todo_impl(
+        "", "/home/tim/programming/foptim/src/x86_codegen/backend3.cpp", line);
+  }
   return curr_off + len;
 }
 
@@ -435,6 +447,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                instr.args[0].reg.size() == 8 && instr.args[1].reg.size() == 4) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int64);
+    } else if (instr.args[0].isReg() && instr.args[1].isReg() &&
+               instr.args[0].reg.size() == 1 && instr.args[1].reg.size() > 1) {
+      req.operands[1].reg.value =
+          reg_with_type(instr.args[1].reg, fmir::Type::Int8);
     }
     return emit(out_buff, 0, &req);
   }
@@ -892,6 +908,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     }
     return emit(out_buff, 0, &req);
   case fmir::Opcode::mov_zx:
+    fmt::println("{} {}=={}", instr, instr.args[0], instr.args[1]);
     if (instr.args[0].ty == instr.args[1].ty) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int64 &&
@@ -1512,21 +1529,21 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
 
   generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals);
 
-  // {
-  //   ZyanU64 runtime_address = 0;
-  //   ZyanUSize offset = 0;
-  //   ZydisDisassembledInstruction instruction;
-  //   while (ZYAN_SUCCESS(ZydisDisassembleIntel(
-  //       /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
-  //       /* runtime_address: */ runtime_address,
-  //       /* buffer:          */ output_buffer + offset,
-  //       /* length:          */ (end_buff_ptr - output_buffer) - offset,
-  //       /* instruction:     */ &instruction))) {
-  //     fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
-  //     offset += instruction.info.length;
-  //     runtime_address += instruction.info.length;
-  //   }
-  // }
+  {
+    ZyanU64 runtime_address = 0;
+    ZyanUSize offset = 0;
+    ZydisDisassembledInstruction instruction;
+    while (ZYAN_SUCCESS(ZydisDisassembleIntel(
+        /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
+        /* runtime_address: */ runtime_address,
+        /* buffer:          */ output_buffer + offset,
+        /* length:          */ (end_buff_ptr - output_buffer) - offset,
+        /* instruction:     */ &instruction))) {
+      fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
+      offset += instruction.info.length;
+      runtime_address += instruction.info.length;
+    }
+  }
 }
 
 } // namespace foptim::codegen

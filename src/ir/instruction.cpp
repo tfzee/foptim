@@ -269,14 +269,16 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
     return fmt::format_to(app, "INVALID");
   }
 
-  app = fmt::format_to(
-      app, "{:p}: {}",
-      fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
-      instr->get_type());
-  if (debug) {
-    app = fmt::format_to(app, color_debug, " NUses:{}", instr->get_n_uses());
+  if (instr->has_result()) {
+    app = fmt::format_to(
+        app, "{:p}: {} = ",
+        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
+        instr->get_type());
   }
-  app = fmt::format_to(app, " = {}", instr->get_name());
+  // else if (!instr->get_type()->is_void()) {
+  //   app = fmt::format_to(app, "{} ", instr->get_type());
+  // }
+  app = fmt::format_to(app, "{}", instr->get_name());
 
   const auto &bb_args = instr->get_bb_args();
   if (bb_args.size() > 0) {
@@ -301,6 +303,10 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
   for (auto [key, value] : attribs) {
     app = fmt::format_to(app, "{}{}, ", key.c_str(), value);
   }
-  app = fmt::format_to(app, "}}\n");
+  app = fmt::format_to(app, "}}");
+  if (debug) {
+    app = fmt::format_to(app, color_debug, " NUses:{}", instr->get_n_uses());
+  }
+  app = fmt::format_to(app, "\n");
   return app;
 }

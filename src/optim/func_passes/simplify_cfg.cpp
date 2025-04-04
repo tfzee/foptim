@@ -160,20 +160,18 @@ struct DiffConst {
       if (a1 == a2) {
         continue;
       }
-      if (local_value_map.contains(a1) && local_value_map.at(a1) == a2) {
-        if (local_value_map.contains(a1)) {
-          if (local_value_map.at(a1) == a2) {
-            continue;
-          }
-          return false;
+      if (local_value_map.contains(a1)) {
+        if (local_value_map.at(a1) == a2) {
+          continue;
         }
-        if (local_value_map.contains(a2)) {
-          return false;
-        }
-        difference_values.push_back({fir::Use::bb_arg(i1, bb_id, arg_id), a1,
-                                     fir::Use::bb_arg(i2, bb_id, arg_id)});
-        cost += 1;
+        return false;
       }
+      if (local_value_map.contains(a2)) {
+        return false;
+      }
+      difference_values.push_back({fir::Use::bb_arg(i1, bb_id, arg_id), a1,
+                                   fir::Use::bb_arg(i2, bb_id, arg_id)});
+      cost += 1;
     }
   }
   auto res = check_args(i1, i2, local_value_map, cost, difference_values);
@@ -283,7 +281,8 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
   //   fmt::println("======================FOUND======================");
   //   fmt::println("{}", res_bb1);
   //   fmt::println("{}", res_bb2);
-  //   fmt::println("{} {} | {}", cost, res_bb1->instructions.size(),
+  //   fmt::println("{} {} | {}", difference_values.size(),
+  //                res_bb1->instructions.size(),
   //                cost <= res_bb1->instructions.size());
   //   fmt::println("======================STATS======================");
   // }
@@ -633,8 +632,6 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
     cfg = CFG(func, false);
     ASSERT(func.verify());
   }
-
-  // cfg.update(func, false);
 }
 
 } // namespace foptim::optim

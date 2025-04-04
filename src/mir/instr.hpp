@@ -245,6 +245,8 @@ public:
 
   [[nodiscard]] static consteval VReg RAX() { return {CReg::A, Type::Int64}; }
   [[nodiscard]] static consteval VReg EAX() { return {CReg::A, Type::Int32}; }
+  [[nodiscard]] static consteval VReg RCX() { return {CReg::C, Type::Int64}; }
+  [[nodiscard]] static consteval VReg ECX() { return {CReg::C, Type::Int32}; }
   [[nodiscard]] static consteval VReg EDX() { return {CReg::D, Type::Int32}; }
 
   [[nodiscard]] static consteval VReg MM0SS() {

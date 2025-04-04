@@ -730,6 +730,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
       }});
   pats.push_back(Pattern{
       {SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        return false;
         auto srem_instr = res.matched_instrs[0];
         if (!srem_instr->args[1].is_constant()) {
           return false;
@@ -743,7 +744,9 @@ void arith_patterns(IRVec<Pattern> &pats) {
         if (!const_arg.isImm()) {
           return false;
         }
-
+        if (srem_instr.get_type()->as_int() != 32) {
+          return false;
+        }
         if (const_arg.imm == 5) {
           // movsxd  r1:64, edi
           // imul    r3:64, r1:64, 1717986919
@@ -799,6 +802,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
               MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
           auto r2 = MArgument(VReg::RAX(), Type::Int64);
           auto r2s = MArgument(VReg::EAX(), Type::Int32);
+
           res.result.emplace_back(Opcode::mov_sx, r1, arg);
           res.result.emplace_back(Opcode::smul3, r2, r1,
                                   MArgument((u64)(i64)-1840700269));
