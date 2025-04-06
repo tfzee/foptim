@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
     foptim::fir::Context ctx;
     {
       foptim::JobSheduler shed;
-      shed.init(0);
+      shed.init(foptim::utils::number_worker_threads);
       // fir
       parse_llvm_ir(ctx);
       optimize_fir(ctx, &shed);
@@ -113,13 +113,13 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
       Mem2Reg, InstSimplify, DCE, GarbageCollect, SimplifyCFG, LICM, LoopRotate,
-      DCE, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, SimplifyCFG, DCE,
-      InstSimplify, SimplifyCFG, LLVMInstrinsicLowering>{}
+      DCE, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg,
+      SimplifyCFG, DCE, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
-      StackKnownBits, Mem2Reg, InstSimplify, DCE, SimplifyCFG, LICM, DCE,
-      GarbageCollect, LVN, SCCP, InstSimplify, DCE, SimplifyCFG>{}
+      InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
+      InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
