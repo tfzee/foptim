@@ -186,8 +186,9 @@ struct BitSet {
   constexpr BitSet &set(size_t indx, u8 width, u64 value) {
     ASSERT(width <= 64);
     for (u32 i = 0; i < width; i++) {
-      BitRef<> loc = {(u16)((indx + i) % StrgTySizeBit),
-                      &_data[(indx + i) / StrgTySizeBit]};
+      auto loc = operator[](indx + i);
+      // BitRef<> loc = {(u16)((indx + i) % StrgTySizeBit),
+      //                 &_data[(indx + i) / StrgTySizeBit]};
       bool bitset = ((value >> i) & 0b1) == 1;
       loc.set(bitset);
     }
@@ -199,8 +200,9 @@ struct BitSet {
     u64 out_val = 0;
     for (u32 ip1 = width; ip1 > 0; ip1--) {
       u32 i = ip1 - 1;
-      BitRef<> loc = {(u16)((indx + i) % StrgTySizeBit),
-                      &_data[(indx + i) / StrgTySizeBit]};
+      auto loc = operator[](indx + i);
+      // BitRef<> loc = {(u16)((indx + i) % StrgTySizeBit),
+      //                 &_data[(indx + i) / StrgTySizeBit]};
       out_val = (out_val << 1) | (u64)(bool)loc;
     }
     return out_val;

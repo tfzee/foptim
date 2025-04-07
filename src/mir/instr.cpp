@@ -33,6 +33,8 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(fcmp_une);
     ReturnString(mov);
     ReturnString(cmov);
+    ReturnString(F64_ext);
+    ReturnString(F32_trunc);
     ReturnString(lea);
     ReturnString(itrunc);
     ReturnString(mov_zx);
@@ -134,6 +136,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::UI2FL:
   case Opcode::FL2SI:
   case Opcode::FL2UI:
+  case Opcode::F64_ext:
+  case Opcode::F32_trunc:
   case Opcode::pop:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
@@ -233,6 +237,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::UI2FL:
   case Opcode::FL2SI:
   case Opcode::FL2UI:
+  case Opcode::F64_ext:
+  case Opcode::F32_trunc:
     out.push_back({1, instr.args[1]});
     return;
   case Opcode::shl2:

@@ -91,6 +91,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::UI2FL:
   case Opcode::FL2SI:
   case Opcode::FL2UI:
+  case Opcode::F64_ext:
+  case Opcode::F32_trunc:
   case Opcode::pop:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
@@ -208,6 +210,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::SI2FL:
   case Opcode::UI2FL:
   case Opcode::FL2SI:
+  case Opcode::F64_ext:
+  case Opcode::F32_trunc:
   case Opcode::FL2UI:
     if (!instr.args[0].isReg()) {
       update_uses(instr.args[0], uses);

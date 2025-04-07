@@ -25,6 +25,10 @@ public:
     if (v->is_decl() || v->variadic) {
       return false;
     }
+    // NOTE: this aint perfect it would also try to inlnie namespace std { namespace min { void someFunc(); }}
+    if(v->name.starts_with("_ZSt3min")){
+      return true;
+    }
     if (v.func->get_n_uses() == 1 &&
         v.func->linkage == fir::Function::Function::Linkage::Internal) {
       return true;

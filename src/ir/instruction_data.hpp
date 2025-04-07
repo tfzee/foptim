@@ -54,6 +54,8 @@ struct BBRefWithArgs {
 
 enum class ConversionSubType : u32 {
   INVALID = 0,
+  FPEXT,
+  FPTRUNC,
   FPTOUI,
   FPTOSI,
   UITOFP,
@@ -232,6 +234,10 @@ public:
         return "INT_PTR";
       case ConversionSubType::PtrToInt:
         return "PTR_INT";
+      case ConversionSubType::FPEXT:
+        return "FP_EXT";
+      case ConversionSubType::FPTRUNC:
+        return "FP_TRUNC";
       }
     case InstrType::ITrunc:
       return "ITrunc";

@@ -274,6 +274,10 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
         app, "{:p}: {} = ",
         fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
         instr->get_type());
+  } else {
+    app = fmt::format_to(
+        app, "{:p} = ",
+        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)));
   }
   // else if (!instr->get_type()->is_void()) {
   //   app = fmt::format_to(app, "{} ", instr->get_type());

@@ -1,8 +1,6 @@
 #include "instruction_data.hpp"
 #include "context.hpp"
 #include "ir/basic_block_ref.hpp"
-#include "utils/logging.hpp"
-// #include <algorithm>
 
 namespace foptim::fir {
 

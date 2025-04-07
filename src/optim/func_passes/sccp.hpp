@@ -281,7 +281,7 @@ public:
       if (a.is_top()) {
         return ConstantValue::Top();
       }
-      if(a.is_const() && a.value->is_global()){
+      if (a.is_const() && a.value->is_global()) {
         return ConstantValue::Bottom();
       }
       switch ((fir::ConversionSubType)instr->get_instr_subtype()) {
@@ -303,6 +303,12 @@ public:
       case fir::ConversionSubType::IntToPtr:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>(a.value->as_int()), instr->get_type()));
+      case fir::ConversionSubType::FPEXT:
+        return ConstantValue::Constant(
+            ctx->get_constant_value(a.value->as_float(), instr->get_type()));
+      case fir::ConversionSubType::FPTRUNC:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            (f32)a.value->as_float(), instr->get_type()));
       }
       // TODO: impl
       return ConstantValue::Bottom();

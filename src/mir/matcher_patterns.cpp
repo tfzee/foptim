@@ -1421,6 +1421,12 @@ void base_patterns(IRVec<Pattern> &pats) {
         case fir::ConversionSubType::IntToPtr:
           res_opcode = Opcode::mov;
           break;
+        case fir::ConversionSubType::FPEXT:
+          res_opcode = Opcode::F64_ext;
+          break;
+        case fir::ConversionSubType::FPTRUNC:
+          res_opcode = Opcode::F32_trunc;
+          break;
         }
 
         res.result.emplace_back(res_opcode, res_reg, val);

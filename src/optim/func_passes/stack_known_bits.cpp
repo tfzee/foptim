@@ -149,9 +149,7 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
       } else {
         mask = ((1ULL << size) - 1);
       }
-      // fmt::println("{}", size);
-      // fmt::println("Got constant store at {} with size {} and mask {}",
-      // offset, size, mask);
+      fmt::println("At offset {} size {} value {}", offset, size, value);
       new_in_one.set(offset * 8, size, value & mask);
       new_in_zero.set(offset * 8, size, (~value) & mask);
     } else if (result == StackOffsetResult::UnknownLocal && value == 0 &&
@@ -422,7 +420,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
         return;
       }
       cache.insert(
-          {fir::ValueR{instr}, {StackOffsetResult::KnownLocal, stack_size}});
+          {fir::ValueR{instr}, {StackOffsetResult::KnownLocal, stack_size / 8}});
       stack_size += a1.as_constant()->as_int() * 8;
     }
   }
@@ -500,7 +498,6 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
       } else if (instr->is(fir::InstrType::LoadInstr)) {
         update_load(instr, new_in_one, new_in_zero, cache, known_load_values);
         load_stores.push_back(instr);
-        // fmt::println("LOAD\n{}\n{}", new_in_zero, new_in_one);
       }
     }
 
@@ -548,7 +545,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
   // SROA
   // at this point we know local pointers dont escape
   // other then potentially through func calls
-  execute_sroa(load_stores, cache, func.get_entry());
+  // execute_sroa(load_stores, cache, func.get_entry());
 }
 
 } // namespace foptim::optim

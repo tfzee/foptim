@@ -965,6 +965,14 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                        ? ZYDIS_MNEMONIC_CVTSI2SS
                        : ZYDIS_MNEMONIC_CVTSI2SD;
     return emit(out_buff, 0, &req);
+  case fmir::Opcode::F64_ext:
+    ASSERT(instr.args[0].ty == fmir::Type::Float32);
+    req.mnemonic = ZYDIS_MNEMONIC_CVTSS2SD;
+    return emit(out_buff, 0, &req);
+  case fmir::Opcode::F32_trunc:
+    ASSERT(instr.args[0].ty == fmir::Type::Float64);
+    req.mnemonic = ZYDIS_MNEMONIC_CVTSD2SS;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::fcmp_isNaN:
   case fmir::Opcode::fcmp_ogt:
   case fmir::Opcode::fcmp_oeq:
@@ -1002,15 +1010,22 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       mem = ZYDIS_MNEMONIC_SETNBE;
       break;
     case fmir::Opcode::fcmp_uge:
+      ordered = false;
     case fmir::Opcode::fcmp_oge:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_SETNB;
+      break;
     case fmir::Opcode::fcmp_ult:
+      ordered = false;
     case fmir::Opcode::fcmp_olt:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_SETB;
+      break;
     case fmir::Opcode::fcmp_ule:
+      ordered = false;
     case fmir::Opcode::fcmp_ole:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_SETBE;
+      break;
     case fmir::Opcode::fcmp_une:
+      ordered = false;
     case fmir::Opcode::fcmp_one:
       TODO("impl");
     case fmir::Opcode::fcmp_ord:
@@ -1108,13 +1123,21 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                             RelocSection::Text);
     return emit(out_buff, off, &req);
   }
-  case fmir::Opcode::FL2UI: {
+  case fmir::Opcode::FL2UI:
+  case fmir::Opcode::FL2SI: {
     bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
-    req.mnemonic =
-        is_f32 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTTSD2SI;
+    bool out_64 = instr.args[0].ty == fmir::Type::Int64;
+    bool out_32 = instr.args[0].ty == fmir::Type::Int32;
+    ASSERT(out_64 || out_32);
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(get_size(instr.args[0].ty) == 4 || get_size(instr.args[0].ty) == 8);
+
+    req.mnemonic =
+        is_f32
+            ? (out_32 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTSS2SI)
+            : (out_32 ? ZYDIS_MNEMONIC_VCVTTSD2SI : ZYDIS_MNEMONIC_VCVTSD2SI);
+
     return emit(out_buff, 0, &req);
   }
   case fmir::Opcode::UI2FL: {
@@ -1145,8 +1168,13 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   }
-  case fmir::Opcode::ffmadd213:
-  case fmir::Opcode::FL2SI:
+  case fmir::Opcode::ffmadd213: {
+    bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+    req.mnemonic =
+        is_f32 ? ZYDIS_MNEMONIC_VFMADD213SS : ZYDIS_MNEMONIC_VFMADD213SD;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  }
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
     TODO("REIMPL");

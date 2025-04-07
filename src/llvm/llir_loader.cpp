@@ -451,6 +451,26 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     valueToValue.insert({any_instr, store});
     return;
   }
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::FPExtInst>(any_instr)) {
+    assert(instr->getNumOperands() == 1);
+    auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
+                                   valueToValue, mod, b2b);
+    auto *dest_type = instr->getDestTy();
+    auto conver = builder.build_conversion_op(
+        value, convert_type(dest_type, fctx), foptim::fir::ConversionSubType::FPEXT);
+    valueToValue.insert({any_instr, conver});
+    return;
+  }
+  if (const auto *instr = llvm::dyn_cast_or_null<llvm::FPTruncInst>(any_instr)) {
+    assert(instr->getNumOperands() == 1);
+    auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
+                                   valueToValue, mod, b2b);
+    auto *dest_type = instr->getDestTy();
+    auto conver = builder.build_conversion_op(
+        value, convert_type(dest_type, fctx), foptim::fir::ConversionSubType::FPTRUNC);
+    valueToValue.insert({any_instr, conver});
+    return;
+  }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::LoadInst>(any_instr)) {
     assert(instr->getNumOperands() == 1);
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,

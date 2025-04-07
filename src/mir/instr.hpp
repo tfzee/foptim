@@ -41,6 +41,8 @@ enum class Opcode : u32 {
   UI2FL,
   FL2SI,
   FL2UI,
+  F64_ext,
+  F32_trunc,
 
   push,
   pop,
