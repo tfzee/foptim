@@ -249,6 +249,7 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
 
   ASSERT(!func.variadic);
 
+  u32 static_alloca_size = 0;
   {
     auto entry_bb = func.get_entry();
     res_func.args.reserve(entry_bb->n_args());
@@ -260,6 +261,17 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
       res_func.args.push_back(arg_reg);
       // res_func.arg_tys.push_back(convert_type(arg_type));
     }
+    for (auto &instr : entry_bb->instructions) {
+      if (instr->is(fir::InstrType::AllocaInstr)) {
+        if (instr->args[0].is_constant()) {
+          auto size = instr->args[0].as_constant()->as_int();
+          if (size % 16 != 0) {
+            size = size + (16 - (size % 16));
+          }
+          static_alloca_size += size;
+        }
+      }
+    }
   }
 
   TMap<fir::BasicBlock, u32> bbs;
@@ -268,7 +280,8 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   }
 
   TMap<fir::BBArgument, MArgument> bb_arg_mapping;
-  ExtraMatchData extra_data = {alloc, bbs, bb_arg_mapping, res_func};
+  ExtraMatchData extra_data = {alloc, bbs, bb_arg_mapping, res_func,
+                               static_alloca_size};
 
   // so we dont need to realloc
   MatchResult match_result{};

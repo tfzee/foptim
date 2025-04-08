@@ -3,6 +3,7 @@
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include <cstring>
+#include <limits>
 
 namespace foptim::fmir {
 
@@ -1346,6 +1347,17 @@ void base_patterns(IRVec<Pattern> &pats) {
   pats.push_back(Pattern{
       {ReturnNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto ret_instr = res.matched_instrs[0];
+        if (data.static_alloca_size > 0) {
+          if (data.static_alloca_size < 255) {
+            res.result.emplace_back(Opcode::add2,
+                                    MArgument(VReg::RSP(), Type::Int64),
+                                    MArgument((u8)data.static_alloca_size));
+          } else {
+            res.result.emplace_back(Opcode::add2,
+                                    MArgument(VReg::RSP(), Type::Int64),
+                                    MArgument(data.static_alloca_size));
+          }
+        }
         if (ret_instr->has_args()) {
           auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
           auto is_float_val = ret_val.is_fp();

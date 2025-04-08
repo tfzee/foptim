@@ -8,13 +8,12 @@
 
 namespace foptim::fmir {
 
-
 struct ExtraMatchData {
   DumbRegAlloc &alloc;
   TMap<fir::BasicBlock, u32> &bbs;
   TMap<fir::BBArgument, MArgument> &bb_arg_mapping;
   MFunc &func;
-
+  u32 static_alloca_size;
 };
 
 struct MatchResult {
