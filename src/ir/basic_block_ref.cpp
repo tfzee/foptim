@@ -3,6 +3,7 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "utils/logging.hpp"
 #include <fmt/core.h>
 
 namespace foptim::fir {
@@ -39,14 +40,11 @@ BBArgument BasicBlock::add_arg(BBArgument arg) {
 fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
     foptim::fir::BasicBlock const &bb, format_context &ctx) const {
 
-  auto col_bb = fg(fmt::color::light_blue);
-  auto col_bb_arg = fg(fmt::color::cornflower_blue);
-
-  fmt::format_to(ctx.out(), col_bb, "{:p}", (void *)bb.get_raw_ptr());
+  fmt::format_to(ctx.out(), color_bb, "{:p}", (void *)bb.get_raw_ptr());
   fmt::format_to(ctx.out(), "(");
   const auto &args = bb->args;
   if (args.size() > 0) {
-    fmt::format_to(ctx.out(), col_bb_arg, "{}", args[0]);
+    fmt::format_to(ctx.out(), color_value2, "{}", args[0]);
     fmt::format_to(ctx.out(), ": {}", args[0]->get_type());
     if (!args[0]->get_attribs().empty()) {
       fmt::format_to(ctx.out(), "{{");
@@ -57,7 +55,7 @@ fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
       fmt::format_to(ctx.out(), "}}");
     }
     for (size_t i = 1; i < args.size(); i++) {
-      fmt::format_to(ctx.out(), col_bb_arg, ", {}", args[i]);
+      fmt::format_to(ctx.out(), color_value2, ", {}", args[i]);
       fmt::format_to(ctx.out(), ": {}", args[i]->get_type());
       if (!args[i]->get_attribs().empty()) {
         fmt::format_to(ctx.out(), "{{");

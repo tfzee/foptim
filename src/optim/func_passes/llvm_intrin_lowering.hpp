@@ -109,6 +109,26 @@ public:
     instr.destroy();
   }
 
+  void handle_fabs(fir::Instr instr, fir::Function &funcy,
+                   fir::FunctionR /*callee*/) {
+    auto width = instr.get_type()->as_float();
+    if (width == 64) {
+      fir::Builder bb{instr};
+      auto *ctx = funcy.ctx;
+      auto func = ctx->get_function("foptim.abs.f64");
+      auto ret_type = instr.get_type();
+
+      foptim::fir::ValueR args[1] = {instr->args[1]};
+
+      auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)}, func->func_ty,
+                    ret_type, args);
+      instr->replace_all_uses(res);
+      instr.destroy();
+    } else {
+      TODO("IMPL");
+    }
+  }
+
   void apply(fir::BasicBlock bb, fir::Function &func) {
     TVec<fir::Instr> instrs = {bb->instructions.begin(),
                                bb->instructions.end()};
@@ -127,6 +147,8 @@ public:
           handle_fmuladd(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.trap")) {
           handle_trap(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.fabs")) {
+          handle_fabs(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.is.fpclass")) {
           handle_is_fpclass(instr, func, callee);
         }

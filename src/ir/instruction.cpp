@@ -248,7 +248,7 @@ u16 Instr::add_bb(BasicBlock val) {
 fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
     foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, fg(fmt::color::light_blue), "{:p}",
+  app = fmt::format_to(app, color_bb, "{:p}",
                        (void *)bb_with_args.bb.get_raw_ptr());
   app = fmt::format_to(app, "(");
   if (!bb_with_args.args.empty()) {
@@ -270,14 +270,12 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
   }
 
   if (instr->has_result()) {
-    app = fmt::format_to(
-        app, "{:p}: {} = ",
-        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)),
-        instr->get_type());
+    app = fmt::format_to(app, "{:p}: {} = ",
+                         fmt::styled((void *)instr.get_raw_ptr(), color_value),
+                         instr->get_type());
   } else {
     app = fmt::format_to(
-        app, "{:p} = ",
-        fmt::styled((void *)instr.get_raw_ptr(), fg(fmt::color::light_green)));
+        app, "{:p} = ", fmt::styled((void *)instr.get_raw_ptr(), color_value));
   }
   // else if (!instr->get_type()->is_void()) {
   //   app = fmt::format_to(app, "{} ", instr->get_type());

@@ -51,7 +51,8 @@ struct ContextData {
   ConstantValueR get_constant_value(Global glob);
 
   Global get_global(IRString name, size_t size_bytes);
-  FunctionR get_function(IRString name);
+  FunctionR get_function(IRStringRef name);
+  bool has_function(IRStringRef name) const;
   FunctionR create_function(IRString name, FunctionTypeR type);
   // deletes funtion out of module returns true if function was found and
   // deleted

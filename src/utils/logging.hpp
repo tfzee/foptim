@@ -22,6 +22,9 @@ public:
   }
 };
 
+constexpr auto color_value = fg(fmt::color::light_green);
+constexpr auto color_value2 = fg(fmt::color::cornflower_blue);
+constexpr auto color_bb = fg(fmt::color::light_blue);
 constexpr auto color_debug = fg(fmt::color::brown);
 constexpr auto color_func = fg(fmt::color::orange);
 constexpr auto color_constant = fg(fmt::color::dark_orange);

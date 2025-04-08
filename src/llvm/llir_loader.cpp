@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <deque>
 #include <llvm/IR/InstrTypes.h>
+#include <llvm/IR/Instruction.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
@@ -456,18 +457,21 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto *dest_type = instr->getDestTy();
-    auto conver = builder.build_conversion_op(
-        value, convert_type(dest_type, fctx), foptim::fir::ConversionSubType::FPEXT);
+    auto conver =
+        builder.build_conversion_op(value, convert_type(dest_type, fctx),
+                                    foptim::fir::ConversionSubType::FPEXT);
     valueToValue.insert({any_instr, conver});
     return;
   }
-  if (const auto *instr = llvm::dyn_cast_or_null<llvm::FPTruncInst>(any_instr)) {
+  if (const auto *instr =
+          llvm::dyn_cast_or_null<llvm::FPTruncInst>(any_instr)) {
     assert(instr->getNumOperands() == 1);
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto *dest_type = instr->getDestTy();
-    auto conver = builder.build_conversion_op(
-        value, convert_type(dest_type, fctx), foptim::fir::ConversionSubType::FPTRUNC);
+    auto conver =
+        builder.build_conversion_op(value, convert_type(dest_type, fctx),
+                                    foptim::fir::ConversionSubType::FPTRUNC);
     valueToValue.insert({any_instr, conver});
     return;
   }
@@ -789,6 +793,9 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
 
 inline void generate_memset(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memset";
+  if (fctx->has_function(name)) {
+    return;
+  }
   auto func_ty = fctx->get_func_ty(
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_int_type(8), fctx->get_int_type(64)});
@@ -843,8 +850,32 @@ inline void generate_memset(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
+inline void generate_fabs(foptim::fir::Context &fctx) {
+  const auto *name = "foptim.abs.f64";
+  if (fctx->has_function(name)) {
+    return;
+  }
+  auto func_ty =
+      fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
+  auto ffunc = fctx->create_function(name, func_ty);
+
+  auto bb = ffunc.builder();
+  auto entry_bb = ffunc->get_entry();
+  bb.at_end(entry_bb);
+
+  auto constant = foptim::fir::ValueR(
+      fctx->get_constant_value(std::bit_cast<foptim::f64>(0x7fffffffffffffff),
+                               fctx->get_float_type(64)));
+  auto res = bb.build_binary_op(foptim::fir::ValueR{entry_bb->args[0]},
+                                constant, foptim::fir::BinaryInstrSubType::And);
+  bb.build_return(res);
+}
+
 inline void generate_memcpy(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memcpy";
+  if (fctx->has_function(name)) {
+    return;
+  }
   auto func_ty = fctx->get_func_ty(
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
@@ -904,6 +935,9 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
 
 inline void generate_trap(foptim::fir::Context &fctx) {
   auto func_ty = fctx->get_func_ty(fctx->get_void_type(), {});
+  if (fctx->has_function("abort")) {
+    return;
+  }
   // fctx->create_function("abort", func_ty);
   fctx.data->storage.functions.insert(
       {"abort", foptim::fir::Function(fctx.operator->(), "abort", func_ty)});
@@ -917,6 +951,8 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_memcpy(fctx);
   } else if (func.getName().starts_with("llvm.trap")) {
     generate_trap(fctx);
+  } else if (func.getName().starts_with("llvm.fabs")) {
+    generate_fabs(fctx);
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(
@@ -924,7 +960,7 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
        foptim::fir::Function(fctx.operator->(), func_name,
                              convert_type(func.getFunctionType(), fctx))});
 
-  const auto foff_func = fctx->get_function(func_name);
+  const auto foff_func = fctx->get_function(func_name.c_str());
   const auto func_ptr = fctx->get_constant_value(foff_func);
   valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
 }
@@ -946,7 +982,7 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
   }
 
-  const auto foff_func = fctx->get_function(func_name);
+  const auto foff_func = fctx->get_function(func.getName().str().c_str());
   foff_func->variadic = func.isVarArg();
 
   switch (func.getCallingConv()) {

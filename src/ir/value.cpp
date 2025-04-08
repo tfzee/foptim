@@ -165,13 +165,13 @@ fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
   case foptim::fir::ValueType::InvalidValue:
     return fmt::format_to(ctx.out(), "INVALID");
   case foptim::fir::ValueType::Instr:
-    return fmt::format_to(ctx.out(), fg(fmt::color::light_green), "{:p}",
+    return fmt::format_to(ctx.out(), color_value, "{:p}",
                           (void *)k.instr.get_raw_ptr());
   case foptim::fir::ValueType::BasicBlock:
-    return fmt::format_to(ctx.out(), fg(fmt::color::light_blue), "{:p}",
+    return fmt::format_to(ctx.out(), color_bb, "{:p}",
                           (void *)k.bb.get_raw_ptr());
   case foptim::fir::ValueType::BBArg:
-    return fmt::format_to(ctx.out(), fg(fmt::color::cornflower_blue), "{}", k.bb_arg);
+    return fmt::format_to(ctx.out(), color_value2, "{}", k.bb_arg);
   case foptim::fir::ValueType::ConstantValueR:
     return fmt::format_to(ctx.out(), "{}", k.const_val);
   }

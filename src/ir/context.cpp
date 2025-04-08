@@ -72,12 +72,16 @@ Global ContextData::get_global(IRString name, size_t size_bytes) {
   return storage.insert_global({name, size_bytes});
 }
 
-FunctionR ContextData::get_function(IRString name) {
+FunctionR ContextData::get_function(IRStringRef name) {
   if (!storage.functions.contains(name)) {
-    fmt::println("Failed to find function '{}' from storage", name.c_str());
+    fmt::println("Failed to find function '{}' from storage", name);
     ASSERT(false);
   }
   return &storage.functions.at(name);
+}
+
+bool ContextData::has_function(IRStringRef name) const {
+  return storage.functions.contains(name);
 }
 
 FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
