@@ -296,7 +296,11 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
   if (args.size() > 0) {
     app = fmt::format_to(app, "{}", args[0]);
     for (size_t i = 1; i < args.size(); i++) {
-      app = fmt::format_to(app, ", {}", args[i]);
+      if (debug) {
+        app = fmt::format_to(app, ", {:d}", args[i]);
+      } else {
+        app = fmt::format_to(app, ", {}", args[i]);
+      }
     }
   }
   app = fmt::format_to(app, "){{");

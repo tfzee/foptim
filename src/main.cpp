@@ -106,18 +106,15 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   fmt::print("================FIR START====================\n");
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
-      Mem2Reg, InstSimplify, DCE, GarbageCollect, SimplifyCFG, LICM, LoopRotate,
-      DCE, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg,
-      SimplifyCFG, DCE, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering>{}
+      Mem2Reg, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering, DCE,
+      GarbageCollect, SimplifyCFG, LICM, LoopRotate, DCE, LVN, SCCP,
+      InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE,
+      InstSimplify, SimplifyCFG, LLVMInstrinsicLowering>{}
       .apply(ctx, shed);
-  fmt::print("================FIR MID====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{:d}\n", func);
-  }
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
-      InstSimplify, DCE, SimplifyCFG, LLVMInstrinsicLowering>{}
+      InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<InstSimplify, SimplifyCFG,
@@ -158,10 +155,17 @@ void lower_to_mir(foptim::fir::Context &ctx,
         foptim::fmir::Global glob = {
             .name = v->data.name.c_str(), .data = {}, .reloc_info = {}};
         for (const auto &rel_inf : v->data.reloc_info) {
-          ASSERT(rel_inf.ref->is_global());
-          glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
-              .offset = rel_inf.offset,
-              .name = rel_inf.ref->as_global()->name.c_str()});
+          if (rel_inf.ref->is_global()) {
+            glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
+                .offset = rel_inf.offset,
+                .name = rel_inf.ref->as_global()->name.c_str()});
+          } else if (rel_inf.ref->is_func()) {
+            glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
+                .offset = rel_inf.offset,
+                .name = rel_inf.ref->as_func()->name.c_str()});
+          } else {
+            TODO("dont think theeres any others");
+          }
         }
         glob.data.resize(size, 0);
         memcpy(glob.data.data(), v->data.init_value, size);
@@ -187,6 +191,10 @@ void optimize_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
   ZoneScopedN("MIR Optim");
+  fmt::print("================MIR START====================\n");
+  for (auto &f : funcs) {
+    fmt::println("{}", f);
+  }
   // running dead to make inst simplify work better
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

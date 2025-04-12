@@ -15,6 +15,9 @@ enum class InstrType : u8 {
   UnaryInstr,
   AllocaInstr,
 
+  ExtractValue,
+  InsertValue,
+
   ITrunc,
   ZExt,
   SExt,
@@ -75,7 +78,10 @@ enum class ICmpInstrSubType : u32 {
   UGE,
   ULE,
   SGE,
-  SLE
+  SLE,
+
+  MulOverflow,
+  AddOverflow,
 };
 
 enum class FCmpInstrSubType : u32 {
@@ -239,6 +245,10 @@ public:
       case ConversionSubType::FPTRUNC:
         return "FP_TRUNC";
       }
+    case InstrType::InsertValue:
+      return "InsertValue";
+    case InstrType::ExtractValue:
+      return "ExtractValue";
     case InstrType::ITrunc:
       return "ITrunc";
     case InstrType::SExt:
@@ -285,6 +295,10 @@ public:
         return "IntSGE";
       case ICmpInstrSubType::SLE:
         return "IntSLE";
+      case ICmpInstrSubType::MulOverflow:
+        return "IntMulOverflow";
+      case ICmpInstrSubType::AddOverflow:
+        return "IntAddOverflow";
       }
     case InstrType::FCmp:
       switch ((FCmpInstrSubType)subtype) {
@@ -362,6 +376,8 @@ public:
     }
   }
 
+  static InstrData get_extract_value(TypeR ty);
+  static InstrData get_insert_value(TypeR ty);
   static InstrData get_smod(TypeR ty);
   static InstrData get_add(TypeR ty);
   static InstrData get_sub(TypeR ty);

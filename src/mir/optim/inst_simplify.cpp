@@ -14,9 +14,13 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       return true;
     }
     if (instr.args[0].isReg() && instr.args[1].isImm()) {
-      bool is_zero = instr.args[1].is_fp() ? (instr.args[1].immf == .0 &&
-                                              !std::signbit(instr.args[1].immf))
-                                           : instr.args[1].imm == 0;
+      bool is_fp64 = instr.args[1].ty == Type::Float32;
+      bool is_fp = instr.args[1].is_fp();
+      bool is_zero = false;
+      is_zero |= is_fp64 && instr.args[1].immf == 0. &&
+                 !std::signbit(instr.args[1].immf);
+      is_zero |= !is_fp && instr.args[1].imm == 0;
+
       if (is_zero && !instr.args[0].reg.is_vec_reg()) {
         instr.op = Opcode::lxor2;
         instr.n_args = 2;
@@ -68,7 +72,8 @@ static bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs,
 }
 
 static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
-  // if (instr_id + 1 < instrs.size() && instrs[instr_id + 0].op == Opcode::lea &&
+  // if (instr_id + 1 < instrs.size() && instrs[instr_id + 0].op == Opcode::lea
+  // &&
   //     instrs[instr_id + 1].op == Opcode::mov) {
   //   auto &i1 = instrs[instr_id + 0];
   //   auto &i2 = instrs[instr_id + 1];

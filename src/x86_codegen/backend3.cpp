@@ -254,7 +254,7 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
       operand.imm.s = (i64)arg.imm;
       break;
     case fmir::Type::Float32: {
-      f32 v = (f32)arg.immf;
+      f32 v = std::bit_cast<f32>((u32)std::bit_cast<u64>(arg.immf));
       int i;
       memcpy(&i, &v, sizeof i);
       operand.imm.s = i;
@@ -396,7 +396,6 @@ void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
 u64 emit_impl(u8 *buff, u32 curr_off, ZydisEncoderRequest *req, int line) {
   u64 len = 9999;
   (void)line;
-  // fmt::println("Backend3 line: {}", line);
   const ZyanStatus status =
       (ZydisEncoderEncodeInstruction(req, buff + curr_off, &len));
   if (!ZYAN_SUCCESS(status)) {
@@ -447,6 +446,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                instr.args[0].reg.size() == 8 && instr.args[1].reg.size() == 4) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int64);
+    } else if (instr.args[0].isReg() && instr.args[1].isReg() &&
+               instr.args[0].reg.size() == 2 && instr.args[1].reg.size() > 2) {
+      req.operands[1].reg.value =
+          reg_with_type(instr.args[1].reg, fmir::Type::Int16);
     } else if (instr.args[0].isReg() && instr.args[1].isReg() &&
                instr.args[0].reg.size() == 1 && instr.args[1].reg.size() > 1) {
       req.operands[1].reg.value =
@@ -570,6 +573,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     }
     return emit(out_buff, 0, &req);
   }
+  case fmir::Opcode::udiv:
   case fmir::Opcode::idiv: {
     req.mnemonic = ZYDIS_MNEMONIC_IDIV;
     req.operand_count = 1;
@@ -599,7 +603,18 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &len2));
       out_len += len2;
     }
-    if (req.operands[2].reg.value == ZYDIS_REGISTER_RAX) {
+    bool is_udiv = instr.op == fmir::Opcode::udiv;
+    if (is_udiv) {
+      size_t len2 = 9999;
+      req.mnemonic = ZYDIS_MNEMONIC_XOR;
+      req.operand_count = 2;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RDX;
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
+      req.operands[1].reg.value = ZYDIS_REGISTER_RDX;
+      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &len2));
+      out_len += len2;
+    } else if (req.operands[2].reg.value == ZYDIS_REGISTER_RAX) {
       // need to sign extend rax into rdx
       size_t len2 = 9999;
       req.mnemonic = ZYDIS_MNEMONIC_CQO;
@@ -625,16 +640,24 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     }
 
     if (collision_in_reg) {
-      // cc.emit(Inst::kIdIdiv, Mem(rsp, -8, get_size(instr.args[2].ty)));
-      req.mnemonic = ZYDIS_MNEMONIC_IDIV;
+      req.mnemonic = is_udiv ? ZYDIS_MNEMONIC_DIV : ZYDIS_MNEMONIC_IDIV;
       req.operand_count = 1;
-      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &length));
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_MEMORY;
+      req.operands[0].mem.base = ZYDIS_REGISTER_RSP;
+      req.operands[0].mem.displacement = -8;
+      req.operands[0].mem.index = ZYDIS_REGISTER_NONE;
+      req.operands[0].mem.scale = 0;
+      req.operands[0].mem.size = get_size(instr.args[3].ty);
+      ZY_ASS_REQ(
+          ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &length),
+          req);
     } else {
-      // cc.emit(Inst::kIdIdiv, o1);
-      req.mnemonic = ZYDIS_MNEMONIC_IDIV;
+      req.mnemonic = is_udiv ? ZYDIS_MNEMONIC_DIV : ZYDIS_MNEMONIC_IDIV;
       req.operand_count = 1;
       req.operands[0] = req.operands[3];
-      ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &length));
+      ZY_ASS_REQ(
+          ZydisEncoderEncodeInstruction(&req, out_buff + out_len, &length),
+          req);
     }
     return length + out_len;
   }
@@ -660,6 +683,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     return length;
   case fmir::Opcode::not1:
     req.mnemonic = ZYDIS_MNEMONIC_NOT;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  case fmir::Opcode::neg1:
+    req.mnemonic = ZYDIS_MNEMONIC_NEG;
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::fadd:
@@ -908,7 +935,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     }
     return emit(out_buff, 0, &req);
   case fmir::Opcode::mov_zx:
-    fmt::println("{} {}=={}", instr, instr.args[0], instr.args[1]);
     if (instr.args[0].ty == instr.args[1].ty) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int64 &&
@@ -966,11 +992,11 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                        : ZYDIS_MNEMONIC_CVTSI2SD;
     return emit(out_buff, 0, &req);
   case fmir::Opcode::F64_ext:
-    ASSERT(instr.args[0].ty == fmir::Type::Float32);
+    ASSERT(instr.args[1].ty == fmir::Type::Float32);
     req.mnemonic = ZYDIS_MNEMONIC_CVTSS2SD;
     return emit(out_buff, 0, &req);
   case fmir::Opcode::F32_trunc:
-    ASSERT(instr.args[0].ty == fmir::Type::Float64);
+    ASSERT(instr.args[1].ty == fmir::Type::Float64);
     req.mnemonic = ZYDIS_MNEMONIC_CVTSD2SS;
     return emit(out_buff, 0, &req);
   case fmir::Opcode::fcmp_isNaN:
@@ -1128,16 +1154,21 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
     bool out_64 = instr.args[0].ty == fmir::Type::Int64;
     bool out_32 = instr.args[0].ty == fmir::Type::Int32;
-    ASSERT(out_64 || out_32);
+    bool is_unsigned = instr.op == fmir::Opcode::FL2UI;
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
-    ASSERT(get_size(instr.args[0].ty) == 4 || get_size(instr.args[0].ty) == 8);
 
     req.mnemonic =
         is_f32
-            ? (out_32 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTSS2SI)
-            : (out_32 ? ZYDIS_MNEMONIC_VCVTTSD2SI : ZYDIS_MNEMONIC_VCVTSD2SI);
-
+            ? (!out_64 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTSS2SI)
+            : (!out_64 ? ZYDIS_MNEMONIC_VCVTTSD2SI : ZYDIS_MNEMONIC_VCVTSD2SI);
+    if (out_32 && is_unsigned) {
+      req.operands[0].reg.value =
+          reg_with_type(instr.args[0].reg, fmir::Type::Int64);
+    } else if (!out_64) {
+      req.operands[0].reg.value =
+          reg_with_type(instr.args[0].reg, fmir::Type::Int32);
+    }
     return emit(out_buff, 0, &req);
   }
   case fmir::Opcode::UI2FL: {
@@ -1175,6 +1206,8 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   }
+  case fmir::Opcode::icmp_mul_overflow:
+  case fmir::Opcode::icmp_add_overflow:
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
     TODO("REIMPL");
@@ -1407,16 +1440,16 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     auto *curr_data_ptr = start_data;
     // TODO: alignment
     data_sec->set_address(0x1000);
-    for (auto global : globals) {
+    for (const auto &global : globals) {
       label_usage_map.label_map[global.name].def_loc =
           curr_data_ptr - start_data;
       label_usage_map.label_map[global.name].kind = RelocKind::Data;
       label_usage_map.label_map[global.name].section = RelocSection::Data;
       label_usage_map.label_map[global.name].size = global.data.size();
       memcpy(curr_data_ptr, global.data.data(), global.data.size());
-
       { // handle reloccs
-        for (auto &reloc_info : global.reloc_info) {
+        for (const auto &reloc_info : global.reloc_info) {
+          fmt::println("RELOC INFO {}", reloc_info.name);
           ASSERT(label_usage_map.label_map.contains(reloc_info.name));
           label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
               LabelRelocData::Usage{.usage_instr =

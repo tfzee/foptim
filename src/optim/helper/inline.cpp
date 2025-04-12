@@ -50,6 +50,13 @@ bool inline_call(fir::Instr call) {
     return false;
   }
 
+  // TODO: impl to hndle this correctly
+  for (auto instr : called_func->basic_blocks[0]->instructions) {
+    if (instr->is(fir::InstrType::AllocaInstr)) {
+      return false;
+    }
+  }
+
   ContextData::V2VMap subs;
   ContextData::V2VMap bb_subs;
   TVec<BasicBlock> new_bbs;

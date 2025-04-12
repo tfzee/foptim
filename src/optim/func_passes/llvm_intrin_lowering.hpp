@@ -112,17 +112,81 @@ public:
   void handle_fabs(fir::Instr instr, fir::Function &funcy,
                    fir::FunctionR /*callee*/) {
     auto width = instr.get_type()->as_float();
+    fir::Builder bb{instr};
+    auto *ctx = funcy.ctx;
+    const auto *func_name = "INVALID_FUNC_NAME";
+
+    if (width == 64) {
+      func_name = "foptim.abs.f64";
+    } else if (width == 32) {
+      func_name = "foptim.abs.f32";
+    } else {
+      fmt::println("{}", instr);
+      TODO("IMPL");
+    }
+
+    auto func = ctx->get_function(func_name);
+    auto ret_type = instr.get_type();
+    foptim::fir::ValueR args[1] = {instr->args[1]};
+    auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
+                             func->func_ty, ret_type, args);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_abs(fir::Instr instr, fir::Function &funcy,
+                  fir::FunctionR /*callee*/) {
+    auto width = instr.get_type()->as_int();
+    fir::Builder bb{instr};
+    auto *ctx = funcy.ctx;
+    const auto *func_name = "INVALID_FUNC_NAME";
+
+    if (width == 64) {
+      func_name = "foptim.abs.i64";
+    } else if (width == 32) {
+      func_name = "foptim.abs.i32";
+    } else {
+      fmt::println("{}", instr);
+      TODO("IMPL");
+    }
+
+    auto func = ctx->get_function(func_name);
+    auto ret_type = instr.get_type();
+    foptim::fir::ValueR args[1] = {instr->args[1]};
+    auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
+                             func->func_ty, ret_type, args);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_umul_with_overflow(fir::Instr instr, fir::Function & /*funcy*/,
+                                 fir::FunctionR /*callee*/) {
+
+    auto width = instr.get_type()->as_struct().elems[0].ty->as_int();
     if (width == 64) {
       fir::Builder bb{instr};
-      auto *ctx = funcy.ctx;
-      auto func = ctx->get_function("foptim.abs.f64");
-      auto ret_type = instr.get_type();
 
-      foptim::fir::ValueR args[1] = {instr->args[1]};
+      auto mul_result = bb.build_int_mul(instr->args[1], instr->args[2]);
+      auto overflow_result = bb.build_int_cmp(
+          instr->args[1], instr->args[2], fir::ICmpInstrSubType::MulOverflow);
 
-      auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)}, func->func_ty,
-                    ret_type, args);
-      instr->replace_all_uses(res);
+      // annoying copy
+      auto uses = instr->uses;
+      for (auto use : uses) {
+        ASSERT(use.user->is(fir::InstrType::ExtractValue));
+        ASSERT(use.user->args.size() == 2);
+        ASSERT(use.argId == 0);
+        auto index = use.user->args[1].as_constant()->as_int();
+        if (index == 0) {
+          use.user->replace_all_uses(mul_result);
+          use.user.destroy();
+        } else if (index == 1) {
+          use.user->replace_all_uses(overflow_result);
+          use.user.destroy();
+        } else {
+          UNREACH();
+        }
+      }
       instr.destroy();
     } else {
       TODO("IMPL");
@@ -130,9 +194,14 @@ public:
   }
 
   void apply(fir::BasicBlock bb, fir::Function &func) {
+    // annoying copy
     TVec<fir::Instr> instrs = {bb->instructions.begin(),
                                bb->instructions.end()};
     for (auto instr : instrs) {
+      if (!instr.is_valid()) {
+        // instruction might have been deleted in a prior iteration
+        continue;
+      }
       if (instr->is(fir::InstrType::CallInstr)) {
         // const auto *callee = instr->get_attrib("callee").try_string();
         if (!instr->args[0].is_constant()) {
@@ -149,8 +218,12 @@ public:
           handle_trap(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.fabs")) {
           handle_fabs(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.abs")) {
+          handle_abs(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.is.fpclass")) {
           handle_is_fpclass(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.umul.with.overflow")) {
+          handle_umul_with_overflow(instr, func, callee);
         }
       }
     }

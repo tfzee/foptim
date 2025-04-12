@@ -1,4 +1,5 @@
 #include "context.hpp"
+#include "ir/types.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/stable_vec_slot.hpp"
 #include "utils/string.hpp"
@@ -126,6 +127,12 @@ VoidTypeR ContextData::get_void_type() {
 VoidTypeR ContextData::get_ptr_type() {
   static auto ptr_type = storage.insert_type(AnyType::Ptr());
   return ptr_type;
+}
+
+StructTypeR ContextData::get_struct_type(IRVec<StructType::StructElem> elems) {
+  static auto stru_type =
+      storage.insert_type(AnyType(StructType{std::move(elems)}));
+  return stru_type;
 }
 
 IntTypeR ContextData::get_float_type(u16 bitwidth) {

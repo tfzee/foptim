@@ -218,14 +218,15 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   // cant move an immediate floating point value
   if (instr.args[0].isReg() && instr.args[0].reg.is_vec_reg() &&
       instr.args[1].isImm()) {
-    if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
-      instr.op = Opcode::fxor;
-      instr.args[1] = instr.args[0];
-      instr.args[2] = instr.args[0];
-      instr.n_args = 3;
-    } else {
-      move_fp_const_to_grp(bb, indx, 1, instr.args[1].ty);
-    }
+    // cant jsut check on == 0 on a floating point
+    //  if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
+    //    instr.op = Opcode::fxor;
+    //    instr.args[1] = instr.args[0];
+    //    instr.args[2] = instr.args[0];
+    //    instr.n_args = 3;
+    //  } else {
+    move_fp_const_to_grp(bb, indx, 1, instr.args[1].ty);
+    // }
     return true;
   }
 
@@ -519,6 +520,7 @@ void Legalizer::apply(MFunc &func) {
           ioff = 0;
         }
         break;
+      case Opcode::udiv:
       case Opcode::idiv:
         if (legalize_idiv(bb, i)) {
           ioff = 0;

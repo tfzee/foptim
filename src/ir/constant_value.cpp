@@ -17,6 +17,18 @@ bool VectorValue::operator==(const VectorValue &other) const {
   return true;
 }
 
+bool ConstantStruct::operator==(const ConstantStruct &other) const {
+  if (v.size() != other.v.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < v.size(); i++) {
+    if (v[i].eql(other.v[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void ConstantValue::add_usage(Use u) {
   switch (ty) {
   case ConstantType::NullPtr:
@@ -24,6 +36,7 @@ void ConstantValue::add_usage(Use u) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
     return;
   case ConstantType::GlobalPtr:
     return gp_u.v.glob->add_usage(u);
@@ -38,6 +51,7 @@ void ConstantValue::add_usage(Use u) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
     return 0;
   case ConstantType::GlobalPtr:
     return gp_u.v.glob->get_n_uses();
@@ -52,6 +66,7 @@ void ConstantValue::remove_usage(Use u, bool verify) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
     return;
   case ConstantType::GlobalPtr:
     return gp_u.v.glob->remove_usage(u, verify);
@@ -66,6 +81,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
     return;
   case ConstantType::GlobalPtr:
     return gp_u.v.glob->replace_all_uses(v);
@@ -80,6 +96,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
     return nullptr;
   case ConstantType::GlobalPtr:
     return &gp_u.v.glob->uses;
@@ -94,6 +111,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
     return nullptr;
   case ConstantType::GlobalPtr:
     return &gp_u.v.glob->get_uses();
@@ -112,6 +130,8 @@ bool ConstantValue::eql(const ConstantValue &other) const {
   case ConstantType::NullPtr:
   case ConstantType::PoisonValue:
     return true;
+  case ConstantType::ConstantStruct:
+    return stru_u.v == other.stru_u.v;
   case ConstantType::IntValue:
     return int_u.v == other.int_u.v;
   case ConstantType::FloatValue:
@@ -134,6 +154,8 @@ ConstantValue::~ConstantValue() {
   case ConstantType::FuncPtr:
   case ConstantType::NullPtr:
     return;
+  case ConstantType::ConstantStruct:
+    stru_u.v.v.~vector();
   case ConstantType::VectorValue:
     vec_u.v.members.~vector();
     return;
@@ -162,6 +184,9 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
   case ConstantType::VectorValue:
     vec_u = {old.ty, old.vec_u.v};
     return *this;
+  case ConstantType::ConstantStruct:
+    stru_u = {old.ty, old.stru_u.v};
+    return *this;
   }
 }
 
@@ -185,6 +210,9 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
     return;
   case ConstantType::VectorValue:
     vec_u = {old.ty, old.vec_u.v};
+    return;
+  case ConstantType::ConstantStruct:
+    stru_u = {old.ty, old.stru_u.v};
     return;
   }
 }
@@ -217,6 +245,10 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
     fmt::println("Type is ptr but constant is not\n");
     return false;
   }
+  if (type->is_struct() && ty != ConstantType::ConstantStruct) {
+    fmt::println("Type is struct but constant is not\n");
+    return false;
+  }
   return true;
 }
 
@@ -224,7 +256,11 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
 
 fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
     foptim::fir::ConstantValueR const &v, format_context &ctx) const {
-  return fmt::format_to(ctx.out(), "{}", *v.get_raw_ptr());
+  if (debug) {
+    return fmt::format_to(ctx.out(), "{:d}", *v.get_raw_ptr());
+  } else {
+    return fmt::format_to(ctx.out(), "{}", *v.get_raw_ptr());
+  }
 }
 
 fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
@@ -235,11 +271,28 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
   case foptim::fir::ConstantType::PoisonValue:
     return fmt::format_to(ctx.out(), color_constant, "POISON");
   case foptim::fir::ConstantType::IntValue:
-    return fmt::format_to(ctx.out(), color_number, "{}:{}",
-                          v.int_u.v.data, v.type);
+    return fmt::format_to(ctx.out(), color_number, "{}:{}", v.int_u.v.data,
+                          v.type);
   case foptim::fir::ConstantType::FloatValue:
-    return fmt::format_to(ctx.out(), color_number, "{}:{}",
-                          v.float_u.v.data, v.type);
+    if (debug) {
+      if (v.type->as_float() == 32) {
+        return fmt::format_to(
+            ctx.out(), color_number, "{:X}:{}",
+            (foptim::u32)std::bit_cast<foptim::u64>(v.float_u.v.data), v.type);
+      } else {
+        return fmt::format_to(ctx.out(), color_number, "{:X}:{}",
+                              std::bit_cast<foptim::u64>(v.float_u.v.data),
+                              v.type);
+      }
+    } else {
+      if (v.type->as_float() == 32) {
+        return fmt::format_to(ctx.out(), color_number, "{}:{}", v.as_f32(),
+                              v.type);
+      } else {
+        return fmt::format_to(ctx.out(), color_number, "{}:{}", v.as_f64(),
+                              v.type);
+      }
+    }
   case foptim::fir::ConstantType::GlobalPtr:
     return fmt::format_to(ctx.out(), color_constant, "G({})",
                           v.gp_u.v.glob->name.c_str());
@@ -248,5 +301,7 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
                           v.fup_u.v.func->getName().c_str());
   case foptim::fir::ConstantType::VectorValue:
     return fmt::format_to(ctx.out(), color_constant, "VECTOR");
+  case foptim::fir::ConstantType::ConstantStruct:
+    return fmt::format_to(ctx.out(), color_constant, "STRUCT");
   }
 }

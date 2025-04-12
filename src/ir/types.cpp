@@ -13,8 +13,29 @@ u32 AnyType::get_size() const {
     return float_u.v.get_size();
   case AnyTypeType::Function:
     return func_u.v.get_size();
+  case AnyTypeType::Struct:
+    return struct_u.v.get_size();
   case AnyTypeType::Vector:
     return vec_u.v.get_size();
+  }
+}
+
+u32 AnyType::get_align() const {
+  switch (ty) {
+  case AnyTypeType::Void:
+    return 0;
+  case AnyTypeType::Ptr:
+    return 8;
+  case AnyTypeType::Integer:
+    return int_u.v.get_align();
+  case AnyTypeType::Float:
+    return float_u.v.get_align();
+  case AnyTypeType::Function:
+    return func_u.v.get_align();
+  case AnyTypeType::Struct:
+    return struct_u.v.get_align();
+  case AnyTypeType::Vector:
+    return vec_u.v.get_align();
   }
 }
 
@@ -32,10 +53,13 @@ u32 AnyType::get_size() const {
     return float_u.v.eql(other.float_u.v);
   case AnyTypeType::Function:
     return func_u.v.eql(other.func_u.v);
+  case AnyTypeType::Struct:
+    return struct_u.v.eql(other.struct_u.v);
   case AnyTypeType::Vector:
     return vec_u.v.eql(other.vec_u.v);
   }
 }
+
 AnyType &AnyType::operator=(const AnyType &old) {
   if (this == &old) {
     return *this;
@@ -54,7 +78,10 @@ AnyType &AnyType::operator=(const AnyType &old) {
     return *this;
   case AnyTypeType::Function:
     func_u = {old.ty, old.func_u.v};
-    func_u.v.arg_types = old.func_u.v.arg_types;
+    // func_u.v.arg_types = old.func_u.v.arg_types;
+    return *this;
+  case AnyTypeType::Struct:
+    struct_u = {old.ty, old.struct_u.v};
     return *this;
   case AnyTypeType::Vector:
     vec_u = old.vec_u;
@@ -76,7 +103,11 @@ AnyType::AnyType(const AnyType &old) {
     return;
   case AnyTypeType::Function:
     func_u = {old.ty, old.func_u.v};
-    func_u.v.arg_types = old.func_u.v.arg_types;
+    // func_u.v.arg_types = old.func_u.v.arg_types;
+    return;
+  case AnyTypeType::Struct:
+    struct_u = {old.ty, old.struct_u.v};
+    // struct_u.v.elems = old.struct_u.v.elems;
     return;
   case AnyTypeType::Vector:
     vec_u = old.vec_u;
@@ -95,7 +126,28 @@ AnyType::~AnyType() {
   case AnyTypeType::Function:
     func_u.v.arg_types.~vector();
     return;
+  case AnyTypeType::Struct:
+    struct_u.v.elems.~vector();
+    return;
   }
+}
+
+u32 StructType::get_align() const {
+  u32 align = 0;
+  for (auto [_, elem] : elems) {
+    align = std::max(elem->get_align(), align);
+  }
+  return align;
+}
+
+u32 StructType::get_size() const {
+  if (elems.size() > 0) {
+    auto [off, ty] = elems.back();
+    auto size = off + ty->get_size();
+    auto align_off = size % get_align();
+    return size + align_off;
+  }
+  return 0;
 }
 
 } // namespace foptim::fir
@@ -107,18 +159,25 @@ fmt::formatter<foptim::fir::TypeR>::format(foptim::fir::TypeR const &v,
   if (!v.is_valid()) {
     return fmt::format_to(ctx.out(), col, "INVALID");
   }
+  auto app = ctx.out();
   switch (v->ty) {
   case foptim::fir::AnyTypeType::Void:
-    return fmt::format_to(ctx.out(), col, "()");
+    return fmt::format_to(app, col, "()");
   case foptim::fir::AnyTypeType::Integer:
-    return fmt::format_to(ctx.out(), col, "i{}", v->as_int());
+    return fmt::format_to(app, col, "i{}", v->as_int());
   case foptim::fir::AnyTypeType::Float:
-    return fmt::format_to(ctx.out(), col, "f{}", v->as_float());
+    return fmt::format_to(app, col, "f{}", v->as_float());
   case foptim::fir::AnyTypeType::Ptr:
-    return fmt::format_to(ctx.out(), col, "ptr");
+    return fmt::format_to(app, col, "ptr");
   case foptim::fir::AnyTypeType::Function:
-    return fmt::format_to(ctx.out(), col, "FUNC");
+    return fmt::format_to(app, col, "FUNC");
   case foptim::fir::AnyTypeType::Vector:
-    return fmt::format_to(ctx.out(), col, "VEC");
+    return fmt::format_to(app, col, "VEC");
+  case foptim::fir::AnyTypeType::Struct:
+    app = fmt::format_to(app, col, "{{");
+    for (auto member : v->as_struct().elems) {
+      app = fmt::format_to(app, col, "{} ", member.ty);
+    }
+    return fmt::format_to(app, col, "}}");
   }
 }

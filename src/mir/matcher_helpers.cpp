@@ -95,9 +95,9 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
 
   if (consti->is_float()) {
     if (val.get_type()->as_float() == 32) {
-      return {(f32)consti->as_float()};
+      return {consti->as_f32()};
     }
-    return {consti->as_float()};
+    return {consti->as_f64()};
   }
 
   if (consti->is_global()) {
@@ -138,6 +138,7 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     case fir::AnyTypeType::Ptr:
     case fir::AnyTypeType::Function:
     case fir::AnyTypeType::Void:
+    case fir::AnyTypeType::Struct:
       fmt::println("{} with type {}", consti, consti->type);
       UNREACH();
       break;

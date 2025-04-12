@@ -18,6 +18,7 @@ public:
 
 using FunctionTypeR = TypeR;
 using IntTypeR = TypeR;
+using StructTypeR = TypeR;
 using FloatTypeR = TypeR;
 using VoidTypeR = TypeR;
 

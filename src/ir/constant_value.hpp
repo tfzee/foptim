@@ -18,6 +18,10 @@ struct IntValue {
 
 struct FloatValue {
   f64 data;
+
+  constexpr FloatValue(f64 d) : data(d) {}
+  constexpr FloatValue(f32 d)
+      : data(std::bit_cast<f64>((u64)std::bit_cast<u32>(d))) {}
   [[gnu::always_inline]] constexpr bool
   operator==(const FloatValue &other) const {
     return data == other.data;
@@ -30,6 +34,11 @@ struct FunctionPtr {
   operator==(const FunctionPtr &other) const {
     return func == other.func;
   }
+};
+
+struct ConstantStruct {
+  IRVec<ConstantValue> v;
+  bool operator==(const ConstantStruct &other) const;
 };
 
 struct GlobalPointer {
@@ -55,6 +64,7 @@ enum class ConstantType : u8 {
   GlobalPtr,
   FuncPtr,
   NullPtr,
+  ConstantStruct,
 };
 
 struct ConstantValue {
@@ -83,6 +93,10 @@ struct ConstantValue {
       ConstantType _ty;
       FunctionPtr v;
     } fup_u;
+    struct {
+      ConstantType _ty;
+      ConstantStruct v;
+    } stru_u;
   };
 
   constexpr ConstantValue(TypeR typee)
@@ -111,6 +125,9 @@ struct ConstantValue {
 
   constexpr ConstantValue(FunctionR f, TypeR typee)
       : type(typee), fup_u({ConstantType::FuncPtr, FunctionPtr{f}}) {}
+
+  constexpr ConstantValue(ConstantStruct stru, TypeR typee)
+      : type(typee), stru_u({ConstantType::ConstantStruct, stru}) {}
 
   static ConstantValue null_ptr(TypeR typee) {
     auto c = ConstantValue(typee);
@@ -155,16 +172,24 @@ struct ConstantValue {
     return fup_u.v.func;
   }
 
+  [[nodiscard]] constexpr f32 as_f32() const {
+    ASSERT(is_float());
+    return std::bit_cast<f32>((u32)std::bit_cast<u64>(float_u.v.data));
+  }
+
+  [[nodiscard]] constexpr f64 as_f64() const {
+    ASSERT(is_float());
+    return float_u.v.data;
+  }
+
+  // OUTDATED USE as_f32 and as_f64
   [[nodiscard]] constexpr f64 as_float() const {
     ASSERT(is_float());
-    if (type->as_float() == 32) {
-      return (f32)float_u.v.data;
-    }
     return float_u.v.data;
   }
 
   [[nodiscard]] constexpr i128 as_int() const {
-    if(!is_int()){
+    if (!is_int()) {
       fmt::println("{}", *this);
       TODO("");
     }

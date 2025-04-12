@@ -42,16 +42,15 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 
 class DCE final : public FunctionPass {
 public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  void apply(fir::Context & /*ctx*/, fir::Function &func) override {
     ZoneScopedN("DCE");
     {
       CFG rev_cfg{func, true};
       Dominators rev_dom{rev_cfg};
-      (void)ctx;
       // if (func.linkage == fir::Function::Linkage::Internal &&
       //     func.get_n_uses() == 0) {
-      //   fmt::println("Delete ? {}", func.name.c_str());
-      //   ASSERT(ctx->delete_function(func.name.c_str()));
+      //   // fmt::println("{}", func.name.c_str());
+      //   ctx->delete_function(func.name.c_str());
       //   return;
       // }
 

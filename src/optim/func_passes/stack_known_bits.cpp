@@ -305,6 +305,7 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
   if (ptr.is_instr()) {
     auto ptr_instr = ptr.as_instr();
     if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
+      fmt::println("{}", *ptr_instr->parent->get_parent().func);
       fmt::println("Cache should have handled this\n");
       UNREACH();
     }

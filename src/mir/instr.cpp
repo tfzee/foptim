@@ -16,6 +16,8 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(icmp_ule);
     ReturnString(icmp_sge);
     ReturnString(icmp_sle);
+    ReturnString(icmp_mul_overflow);
+    ReturnString(icmp_add_overflow);
     ReturnString(fcmp_isNaN);
     ReturnString(fcmp_oeq);
     ReturnString(fcmp_ogt);
@@ -40,6 +42,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(mov_zx);
     ReturnString(mov_sx);
     ReturnString(idiv);
+    ReturnString(udiv);
     ReturnString(add2);
     ReturnString(sub2);
     ReturnString(mul2);
@@ -51,6 +54,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(lor2);
     ReturnString(lxor2);
     ReturnString(not1);
+    ReturnString(neg1);
     ReturnString(fadd);
     ReturnString(fsub);
     ReturnString(fmul);
@@ -118,6 +122,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::lor2:
   case Opcode::lxor2:
   case Opcode::not1:
+  case Opcode::neg1:
   case Opcode::add2:
   case Opcode::sub2:
   case Opcode::mul2:
@@ -149,6 +154,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::icmp_ule:
   case Opcode::icmp_sge:
   case Opcode::icmp_sle:
+  case Opcode::icmp_add_overflow:
+  case Opcode::icmp_mul_overflow:
   case Opcode::fcmp_isNaN:
   case Opcode::fcmp_oeq:
   case Opcode::fcmp_ogt:
@@ -167,6 +174,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
     out.push_back({0, instr.args[0]});
     return;
   case Opcode::idiv:
+  case Opcode::udiv:
     out.push_back({0, instr.args[0]});
     out.push_back({1, instr.args[1]});
     return;
@@ -226,6 +234,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::cjmp:
   case Opcode::arg_setup:
   case Opcode::not1:
+  case Opcode::neg1:
     out.push_back({0, instr.args[0]});
     return;
   case Opcode::mov_zx:
@@ -295,6 +304,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::icmp_ule:
   case Opcode::icmp_sge:
   case Opcode::icmp_sle:
+  case Opcode::icmp_add_overflow:
+  case Opcode::icmp_mul_overflow:
   case Opcode::fcmp_isNaN:
   case Opcode::fcmp_oeq:
   case Opcode::fcmp_ogt:
@@ -321,6 +332,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     out.push_back({1, instr.args[1]});
     out.push_back({2, instr.args[2]});
     return;
+  case Opcode::udiv:
   case Opcode::idiv:
     out.push_back({2, instr.args[2]});
     out.push_back({3, instr.args[3]});
@@ -413,7 +425,10 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
     return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
   case foptim::fmir::MArgument::ArgumentType::Imm: {
     if (value.ty == foptim::fmir::Type::Float32) {
-      return fmt::format_to(app, color_number, "{}f", value.immf);
+      return fmt::format_to(
+          app, color_number, "{}f",
+          std::bit_cast<foptim::f32>(
+              (foptim::u32)std::bit_cast<foptim::u64>(value.immf)));
     }
     if (value.ty == foptim::fmir::Type::Float64) {
       return fmt::format_to(app, color_number, "{}d", value.immf);
@@ -558,20 +573,33 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
     case CReg::SP:
       return fmt::format_to(app, color_value2, "$sp");
     case CReg::B:
+      return fmt::format_to(app, color_value2, "$bx");
     case CReg::C:
+      return fmt::format_to(app, color_value2, "$cx");
     case CReg::D:
+      return fmt::format_to(app, color_value2, "$dx");
     case CReg::DI:
+      return fmt::format_to(app, color_value2, "$di");
     case CReg::SI:
+      return fmt::format_to(app, color_value2, "$si");
     case CReg::BP:
+      return fmt::format_to(app, color_value2, "$bp");
     case CReg::R8:
+      return fmt::format_to(app, color_value2, "$r8");
     case CReg::R9:
+      return fmt::format_to(app, color_value2, "$r9");
     case CReg::R10:
+      return fmt::format_to(app, color_value2, "$r10");
     case CReg::R11:
+      return fmt::format_to(app, color_value2, "$r11");
     case CReg::R12:
+      return fmt::format_to(app, color_value2, "$r12");
     case CReg::R13:
+      return fmt::format_to(app, color_value2, "$r13");
     case CReg::R14:
+      return fmt::format_to(app, color_value2, "$r14");
     case CReg::R15:
-      return fmt::format_to(app, col_vec, "$$2$$");
+      return fmt::format_to(app, color_value2, "$r15");
     default:
     }
   } else if (get_size(value.ty) == 4) {

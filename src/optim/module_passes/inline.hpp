@@ -25,9 +25,16 @@ public:
     if (v->is_decl() || v->variadic) {
       return false;
     }
-    // NOTE: this aint perfect it would also try to inlnie namespace std { namespace min { void someFunc(); }}
-    if(v->name.starts_with("_ZSt3min")){
+    // NOTE: this aint perfect it would also try to inlnie namespace std {
+    // namespace min { void someFunc(); }}
+    if (v->name.starts_with("_ZSt3min")) {
       return true;
+    }
+    //TODO: impl to hndle this correctly
+    for (auto instr : v->basic_blocks[0]->instructions) {
+      if (instr->is(fir::InstrType::AllocaInstr)) {
+        return false;
+      }
     }
     if (v.func->get_n_uses() == 1 &&
         v.func->linkage == fir::Function::Function::Linkage::Internal) {

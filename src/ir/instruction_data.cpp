@@ -93,7 +93,8 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   if (is(InstrType::CallInstr) && args[0].is_constant() &&
       args[0].as_constant()->is_func()) {
     auto funcy = args[0].as_constant()->as_func();
-    if (!funcy.func->variadic && funcy.func->func_ty->as_func().arg_types.size() + 1 != args.size()) {
+    if (!funcy.func->variadic &&
+        funcy.func->func_ty->as_func().arg_types.size() + 1 != args.size()) {
       fmt::print("Call instr has wrong number of arguments\n");
       return false;
     }
@@ -109,6 +110,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
 bool InstrData::has_result() const {
   switch (instr_type) {
   case InstrType::BinaryInstr:
+  case InstrType::ExtractValue:
   case InstrType::UnaryInstr:
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
@@ -122,6 +124,7 @@ bool InstrData::has_result() const {
     return true;
   case InstrType::CallInstr:
     return !this->get_type()->is_void();
+  case InstrType::InsertValue:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
@@ -138,6 +141,8 @@ bool InstrData::is_critical() const {
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
     return true;
+  case InstrType::InsertValue:
+  case InstrType::ExtractValue:
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
@@ -214,6 +219,8 @@ bool InstrData::is_commutative() const {
   case InstrType::ZExt:
   case InstrType::ITrunc:
   case InstrType::Conversion:
+  case InstrType::InsertValue:
+  case InstrType::ExtractValue:
     return false;
   }
   UNREACH();
@@ -224,6 +231,8 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::CallInstr:
   case InstrType::StoreInstr:
     return true;
+  case InstrType::InsertValue:
+  case InstrType::ExtractValue:
   case InstrType::AllocaInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
@@ -247,6 +256,8 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::StoreInstr:
   case InstrType::AllocaInstr:
     return true;
+  case InstrType::InsertValue:
+  case InstrType::ExtractValue:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
@@ -392,7 +403,18 @@ InstrData InstrData::get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty) {
 InstrData InstrData::get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty) {
   auto res = InstrData{InstrType::FCmp, (u32)cmp_ty, ty,
                        BasicBlock(BasicBlock::invalid())};
-  // res.args.reserve(2);
+  return res;
+}
+
+InstrData InstrData::get_extract_value(TypeR ty) {
+  auto res = InstrData{InstrType::ExtractValue, 0, ty,
+                       BasicBlock(BasicBlock::invalid())};
+  return res;
+}
+
+InstrData InstrData::get_insert_value(TypeR ty) {
+  auto res = InstrData{InstrType::InsertValue, 0, ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 

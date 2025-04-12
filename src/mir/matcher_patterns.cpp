@@ -96,6 +96,18 @@ void move_patterns(IRVec<Pattern> &pats) {
           break;
         case fir::ICmpInstrSubType::INVALID:
           UNREACH();
+        case fir::ICmpInstrSubType::MulOverflow:
+          if (!dir1) {
+            return false;
+          }
+          op = Opcode::icmp_mul_overflow;
+          break;
+        case fir::ICmpInstrSubType::AddOverflow:
+          if (!dir1) {
+            return false;
+          }
+          op = Opcode::icmp_add_overflow;
+          break;
         }
         // Do a little cheating
         res_arg.reg.ty = Type::Int8;
@@ -267,6 +279,14 @@ void memory_patterns(IRVec<Pattern> &pats) {
             return true;
           }
         }
+        if (a0.isImm() && add_instr->args[0].is_constant() &&
+            add_instr->args[0].as_constant()->as_int() < 0) {
+          return false;
+        }
+        if (a1.isImm() && add_instr->args[1].is_constant() &&
+            add_instr->args[1].as_constant()->as_int() < 0) {
+          return false;
+        }
 
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(Opcode::mov, res_reg,
@@ -297,9 +317,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto store_ty = convert_type(store_instr.get_type());
         auto a00 = valueToArg(add0_instr->args[0], res.result, data.alloc);
         auto a01 = valueToArg(add0_instr->args[1], res.result, data.alloc);
-        if (!a01.isImm()) {
-          return false;
-        }
 
         auto a10 = valueToArg(add1_instr->args[0], res.result, data.alloc);
         auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
@@ -344,6 +361,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
                 value);
             return true;
           }
+          if (c1->is_int() && c1->as_int() < 0) {
+            return false;
+          }
         }
 
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
@@ -358,6 +378,14 @@ void memory_patterns(IRVec<Pattern> &pats) {
                 value);
             return true;
           }
+        }
+        if (a0.isImm() && add_instr->args[0].is_constant() &&
+            add_instr->args[0].as_constant()->as_int() < 0) {
+          return false;
+        }
+        if (a1.isImm() && add_instr->args[1].is_constant() &&
+            add_instr->args[1].as_constant()->as_int() < 0) {
+          return false;
         }
 
         if (a0.isReg() && a1.isImm()) {
@@ -833,6 +861,8 @@ void base_patterns(IRVec<Pattern> &pats) {
 
   auto NotNode = Node{NodeType::Instr, InstrType::UnaryInstr,
                       (u32)fir::UnaryInstrSubType::Not};
+  auto NegateNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                      (u32)fir::UnaryInstrSubType::IntNeg};
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          (u32)fir::BinaryInstrSubType::IntAdd};
   auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -843,6 +873,8 @@ void base_patterns(IRVec<Pattern> &pats) {
                        (u32)fir::BinaryInstrSubType::IntSRem};
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSDiv};
+  auto UDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::IntUDiv};
   auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                       (u32)fir::BinaryInstrSubType::And};
   auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -987,6 +1019,16 @@ void base_patterns(IRVec<Pattern> &pats) {
                       valueToArg(not_instr->args[0], res.result, data.alloc));
                   res.result.emplace_back(Opcode::not1, res_reg);
                 }
+                return true;
+              }});
+  pats.push_back(
+      Pattern{{NegateNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto negate_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(negate_instr), res.result, data.alloc);
+
+                res.result.emplace_back(Opcode::mov, res_reg, valueToArg(negate_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(Opcode::neg1, res_reg);
                 return true;
               }});
   pats.push_back(
@@ -1196,6 +1238,26 @@ void base_patterns(IRVec<Pattern> &pats) {
                 res.result.emplace_back(Opcode::mov, res_reg, res_div_arg);
                 return true;
               }});
+  pats.push_back(
+      Pattern{{UDivNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto sdiv_instr = res.matched_instrs[0];
+                // FIXME: variable size
+                auto res_div = VReg::EAX();
+                auto res_rem = VReg::EDX();
+                auto res_reg =
+                    valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
+                auto res_div_arg =
+                    MArgument(res_div, convert_type(sdiv_instr.get_type()));
+                auto res_rem_arg =
+                    MArgument(res_rem, convert_type(sdiv_instr.get_type()));
+
+                res.result.emplace_back(
+                    Opcode::udiv, res_div_arg, res_rem_arg,
+                    valueToArg(sdiv_instr->args[0], res.result, data.alloc),
+                    valueToArg(sdiv_instr->args[1], res.result, data.alloc));
+                res.result.emplace_back(Opcode::mov, res_reg, res_div_arg);
+                return true;
+              }});
   pats.push_back(Pattern{
       {FCMPNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto cmp_instr = res.matched_instrs[0];
@@ -1306,6 +1368,12 @@ void base_patterns(IRVec<Pattern> &pats) {
           break;
         case fir::ICmpInstrSubType::SLE:
           op = Opcode::icmp_sle;
+          break;
+        case fir::ICmpInstrSubType::MulOverflow:
+          op = Opcode::icmp_mul_overflow;
+          break;
+        case fir::ICmpInstrSubType::AddOverflow:
+          op = Opcode::icmp_add_overflow;
           break;
         case fir::ICmpInstrSubType::INVALID:
           UNREACH();

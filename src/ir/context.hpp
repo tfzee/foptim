@@ -23,6 +23,7 @@ struct ContextData {
 
   VoidTypeR get_void_type();
   VoidTypeR get_ptr_type();
+  VoidTypeR get_struct_type(IRVec<StructType::StructElem> elems);
 
   template <class T>
   static void print_stats_vec(const utils::FStableVec<T> &vec) {

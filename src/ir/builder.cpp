@@ -109,6 +109,36 @@ ValueR Builder::build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
   return ValueR(instr);
 }
 
+ValueR Builder::build_extract_value(ValueR stru, std::span<ValueR> indicies,
+                                    TypeR out_ty) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_extract_value(out_ty));
+  instr.add_arg(stru);
+  for(auto ar: indicies){
+    instr.add_arg(ar);
+  }
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_insert_value(ValueR stru, ValueR v,
+                                   std::span<ValueR> indicies, TypeR out_ty) {
+  
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_insert_value(out_ty));
+  instr.add_arg(stru);
+  instr.add_arg(v);
+  for(auto ar: indicies){
+    instr.add_arg(ar);
+  }
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 ValueR Builder::build_conversion_op(ValueR a, TypeR res_type,
                                     ConversionSubType sub_type) {
   check_bb_set();

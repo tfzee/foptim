@@ -12,7 +12,7 @@ if __name__ == "__main__":
     if(len(tests_to_record) != 0):
         benches = [bench for bench in benches if bench in tests_to_record];
 
-    clang_options = "-fno-exceptions -fno-stack-protector"
+    clang_options = "-fno-exceptions -fno-stack-protector -I../test/llvm_benchmark_adobe_cpp/"
     
    
     if collect_compiletimes:

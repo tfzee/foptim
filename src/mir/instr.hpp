@@ -24,7 +24,9 @@ enum class Opcode : u32 {
   sub2,
   mul2,
   not1,
+  neg1,
   idiv,
+  udiv,
   smul3,
   fadd,
   fsub,
@@ -57,6 +59,8 @@ enum class Opcode : u32 {
   icmp_ule,
   icmp_sge,
   icmp_sle,
+  icmp_mul_overflow,
+  icmp_add_overflow,
 
   fcmp_isNaN,
   fcmp_oeq,
@@ -297,6 +301,7 @@ public:
   union {
     u64 imm;
     f64 immf;
+    // f64 imm_d;
   };
   u64 scale;
   VReg reg;
@@ -314,7 +319,9 @@ public:
   MArgument(u32 imm) : type(ArgumentType::Imm), ty(Type::Int32), imm(imm) {}
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
   MArgument(f64 imm) : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
-  MArgument(f32 imm) : type(ArgumentType::Imm), ty(Type::Float32), immf(imm) {}
+  MArgument(f32 imm)
+      : type(ArgumentType::Imm), ty(Type::Float32),
+        immf(std::bit_cast<f64>((u64)std::bit_cast<u32>(imm))) {}
   MArgument(IRStringRef lab)
       : type(ArgumentType::Label), ty(Type::INVALID), label(lab) {}
   MArgument(IRStringRef lab, Type ty)

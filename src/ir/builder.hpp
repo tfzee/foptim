@@ -47,6 +47,8 @@ public:
   ValueR build_float_mul(ValueR a, ValueR b);
   ValueR build_float_div(ValueR a, ValueR b);
   ValueR build_itrunc(ValueR a, TypeR ty);
+  ValueR build_extract_value(ValueR stru, std::span<ValueR> indicies, TypeR out_ty);
+  ValueR build_insert_value(ValueR stru, ValueR v, std::span<ValueR> indicies, TypeR out_ty);
   ValueR build_sext(ValueR a, TypeR ty);
   ValueR build_zext(ValueR a, TypeR ty);
   ValueR build_int_mul(ValueR a, ValueR b);

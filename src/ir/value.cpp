@@ -171,8 +171,16 @@ fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
     return fmt::format_to(ctx.out(), color_bb, "{:p}",
                           (void *)k.bb.get_raw_ptr());
   case foptim::fir::ValueType::BBArg:
-    return fmt::format_to(ctx.out(), color_value2, "{}", k.bb_arg);
+    if (debug) {
+      return fmt::format_to(ctx.out(), color_value2, "{:d}", k.bb_arg);
+    } else {
+      return fmt::format_to(ctx.out(), color_value2, "{}", k.bb_arg);
+    }
   case foptim::fir::ValueType::ConstantValueR:
-    return fmt::format_to(ctx.out(), "{}", k.const_val);
+    if (debug) {
+      return fmt::format_to(ctx.out(), "{:d}", k.const_val);
+    } else {
+      return fmt::format_to(ctx.out(), "{}", k.const_val);
+    }
   }
 }

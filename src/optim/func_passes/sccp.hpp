@@ -115,8 +115,13 @@ public:
       case fir::UnaryInstrSubType::INVALID:
         UNREACH();
       case fir::UnaryInstrSubType::FloatNeg:
-        return ConstantValue::Constant(
-            ctx->get_constant_value(-a.value->as_float(), out_type));
+        if (out_type->as_float() == 32) {
+          return ConstantValue::Constant(
+              ctx->get_constant_value(-a.value->as_f32(), out_type));
+        } else {
+          return ConstantValue::Constant(
+              ctx->get_constant_value(-a.value->as_f64(), out_type));
+        }
       case fir::UnaryInstrSubType::IntNeg:
         return ConstantValue::Constant(
             ctx->get_constant_value(-a.value->as_int(), out_type));
@@ -177,17 +182,37 @@ public:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() * b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::FloatAdd:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() + b.value->as_float(), out_type));
+        if (out_type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f32() + b.value->as_f32(), out_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f64() + b.value->as_f64(), out_type));
+        }
       case fir::BinaryInstrSubType::FloatMul:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() * b.value->as_float(), out_type));
+        if (out_type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f32() * b.value->as_f32(), out_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f64() * b.value->as_f64(), out_type));
+        }
       case fir::BinaryInstrSubType::FloatDiv:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() / b.value->as_float(), out_type));
+        if (out_type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f32() / b.value->as_f32(), out_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f64() / b.value->as_f64(), out_type));
+        }
       case fir::BinaryInstrSubType::FloatSub:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_float() - b.value->as_float(), out_type));
+        if (out_type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f32() - b.value->as_f32(), out_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              a.value->as_f64() - b.value->as_f64(), out_type));
+        }
       }
       UNREACH();
     }
@@ -289,10 +314,10 @@ public:
         UNREACH();
       case fir::ConversionSubType::FPTOUI:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(a.value->as_float()), instr->get_type()));
+            static_cast<u64>(a.value->as_f64()), instr->get_type()));
       case fir::ConversionSubType::FPTOSI:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i64>(a.value->as_float()), instr->get_type()));
+            static_cast<i64>(a.value->as_f64()), instr->get_type()));
       case fir::ConversionSubType::UITOFP:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<f64>(a.value->as_int()), instr->get_type()));
@@ -305,14 +330,17 @@ public:
             static_cast<u64>(a.value->as_int()), instr->get_type()));
       case fir::ConversionSubType::FPEXT:
         return ConstantValue::Constant(
-            ctx->get_constant_value(a.value->as_float(), instr->get_type()));
+            ctx->get_constant_value(a.value->as_f64(), instr->get_type()));
       case fir::ConversionSubType::FPTRUNC:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            (f32)a.value->as_float(), instr->get_type()));
+        return ConstantValue::Constant(
+            ctx->get_constant_value((f32)a.value->as_f64(), instr->get_type()));
       }
       // TODO: impl
       return ConstantValue::Bottom();
     }
+    case fir::InstrType::ExtractValue:
+    case fir::InstrType::InsertValue:
+      return ConstantValue::Bottom();
     case fir::InstrType::ZExt:
     case fir::InstrType::SExt: {
       auto a = eval(instr->get_arg(0));
@@ -338,32 +366,73 @@ public:
 
       switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
       case fir::FCmpInstrSubType::IsNaN:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            (i32)std::isnan(a.value->as_float()), res_type));
+        if (a.value->type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              (i32)std::isnan(a.value->as_f32()), res_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              (i32)std::isnan(a.value->as_f64()), res_type));
+        }
       case fir::FCmpInstrSubType::OGT:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() > b.value->as_float()),
-            res_type));
+        if (a.value->type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f32() > b.value->as_f32()),
+              res_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f64() > b.value->as_f64()),
+              res_type));
+        }
       case fir::FCmpInstrSubType::OLT:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() < b.value->as_float()),
-            res_type));
+        if (a.value->type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f32() < b.value->as_f32()),
+              res_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f64() < b.value->as_f64()),
+              res_type));
+        }
       case fir::FCmpInstrSubType::OEQ:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() == b.value->as_float()),
-            res_type));
+        if (a.value->type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f32() == b.value->as_f32()),
+              res_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f64() == b.value->as_f64()),
+              res_type));
+        }
       case fir::FCmpInstrSubType::OGE:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() >= b.value->as_float()),
-            res_type));
+        if (a.value->type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f32() >= b.value->as_f32()),
+              res_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f64() >= b.value->as_f64()),
+              res_type));
+        }
       case fir::FCmpInstrSubType::OLE:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() <= b.value->as_float()),
-            res_type));
+        if (a.value->type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f32() <= b.value->as_f32()),
+              res_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f64() <= b.value->as_f64()),
+              res_type));
+        }
       case fir::FCmpInstrSubType::ONE:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<i32>(a.value->as_float() != b.value->as_float()),
-            res_type));
+        if (a.value->type->as_float() == 32) {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f32() != b.value->as_f32()),
+              res_type));
+        } else {
+          return ConstantValue::Constant(ctx->get_constant_value(
+              static_cast<i32>(a.value->as_f64() != b.value->as_f64()),
+              res_type));
+        }
       case fir::FCmpInstrSubType::UEQ:
       case fir::FCmpInstrSubType::UGT:
       case fir::FCmpInstrSubType::UGE:
@@ -465,8 +534,23 @@ public:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>((i64)a.value->as_int() <= (i64)b.value->as_int()),
             res_type));
+      case fir::ICmpInstrSubType::MulOverflow: {
+        i128 output = a.value->as_int() * b.value->as_int();
+        auto bitwidth =
+            std::max(a.value->type->as_int(), b.value->type->as_int());
+        i128 mask = ~(((i128)1 << bitwidth) - 1);
+        return ConstantValue::Constant(
+            ctx->get_constant_value((u64)((output & mask) != 0), res_type));
       }
-      break;
+      case fir::ICmpInstrSubType::AddOverflow: {
+        i128 output = a.value->as_int() + b.value->as_int();
+        auto bitwidth =
+            std::max(a.value->type->as_int(), b.value->type->as_int());
+        i128 mask = ~(((i128)1 << bitwidth) - 1);
+        return ConstantValue::Constant(
+            ctx->get_constant_value((u64)((output & mask) != 0), res_type));
+      }
+      }
     }
     case fir::InstrType::ITrunc: {
       auto a = eval(instr->get_arg(0));
