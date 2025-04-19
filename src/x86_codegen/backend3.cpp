@@ -77,6 +77,7 @@ struct LabelRelocData {
     u8 *usage_instr;
     u8 operand_num;
     RelocSection usage_section = RelocSection::INVALID;
+    size_t addent;
   };
 
   // absolute location *inside* of the section
@@ -93,11 +94,11 @@ struct TLabelUsageMap {
 
   void insert_label_ref(const IRString &label, u8 *instr_loc, u8 op_num,
                         RelocSection section) {
-    label_map[label].usage_loc.push_back({instr_loc, op_num, section});
+    label_map[label].usage_loc.push_back({instr_loc, op_num, section, 0});
   }
   void insert_bb_ref(const u32 bb, u8 *instr_loc, u8 op_num,
                      RelocSection section) {
-    bb_map[bb].usage_loc.push_back({instr_loc, op_num, section});
+    bb_map[bb].usage_loc.push_back({instr_loc, op_num, section, 0});
   }
 };
 
@@ -1120,8 +1121,10 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     case fmir::Opcode::cjmp_flt_ole:
       TODO("impl");
     case fmir::Opcode::cjmp_flt_une:
+      ordered = false;
     case fmir::Opcode::cjmp_flt_one:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_JNZ;
+      break;
     case fmir::Opcode::cjmp_flt_ord:
       TODO("impl");
     case fmir::Opcode::cjmp_flt_uno:
@@ -1452,10 +1455,12 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           fmt::println("RELOC INFO {}", reloc_info.name);
           ASSERT(label_usage_map.label_map.contains(reloc_info.name));
           label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
-              LabelRelocData::Usage{.usage_instr =
-                                        curr_data_ptr + reloc_info.offset,
-                                    .operand_num = 0,
-                                    .usage_section = RelocSection::Data});
+              LabelRelocData::Usage{
+                  .usage_instr = curr_data_ptr + reloc_info.insert_offset,
+                  .operand_num = 0,
+                  .usage_section = RelocSection::Data,
+                  .addent = reloc_info.reloc_offset,
+              });
         }
       }
 
@@ -1518,7 +1523,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         UNREACH();
       case RelocSection::Data:
         data_rela.add_entry(loc.usage_instr - start_data, symbol,
-                            (unsigned char)R_X86_64_64, 0);
+                            (unsigned char)R_X86_64_64, loc.addent);
         break;
       case RelocSection::Text:
         auto data = get_op_addr(loc.usage_instr, loc.operand_num);
@@ -1528,13 +1533,13 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         case RelocSection::Data:
           text_rela.add_entry(data.op_addr - start_txt, symbol,
                               (unsigned char)R_X86_64_PC32,
-                              -data.op_off + data.op_val);
+                              -data.op_off + data.op_val + loc.addent);
           break;
         case RelocSection::Extern:
         case RelocSection::Text:
           text_rela.add_entry(data.op_addr - start_txt, symbol,
                               (unsigned char)R_X86_64_PLT32,
-                              -data.op_off + data.op_val);
+                              -data.op_off + data.op_val + loc.addent);
           break;
         }
         break;
@@ -1590,21 +1595,21 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
 
   generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals);
 
-  // {
-  //   ZyanU64 runtime_address = 0;
-  //   ZyanUSize offset = 0;
-  //   ZydisDisassembledInstruction instruction;
-  //   while (ZYAN_SUCCESS(ZydisDisassembleIntel(
-  //       /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
-  //       /* runtime_address: */ runtime_address,
-  //       /* buffer:          */ output_buffer + offset,
-  //       /* length:          */ (end_buff_ptr - output_buffer) - offset,
-  //       /* instruction:     */ &instruction))) {
-  //     fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
-  //     offset += instruction.info.length;
-  //     runtime_address += instruction.info.length;
-  //   }
-  // }
+  {
+    ZyanU64 runtime_address = 0;
+    ZyanUSize offset = 0;
+    ZydisDisassembledInstruction instruction;
+    while (ZYAN_SUCCESS(ZydisDisassembleIntel(
+        /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
+        /* runtime_address: */ runtime_address,
+        /* buffer:          */ output_buffer + offset,
+        /* length:          */ (end_buff_ptr - output_buffer) - offset,
+        /* instruction:     */ &instruction))) {
+      fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
+      offset += instruction.info.length;
+      runtime_address += instruction.info.length;
+    }
+  }
 }
 
 } // namespace foptim::codegen

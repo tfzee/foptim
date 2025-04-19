@@ -23,8 +23,9 @@ public:
 
 struct GlobalData: public Used {
   struct RelocationInfo {
-    size_t offset;
+    size_t insert_offset;
     ConstantValueR ref;
+    size_t reloc_offset = 0;
   };
 
   constexpr GlobalData(IRString name, size_t n_bytes)

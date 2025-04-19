@@ -51,13 +51,59 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
   return data.bb_arg_mapping.at(arg);
 }
 
+MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
+                        ExtraMatchData &data) {
+  if (!arg.is_instr()) {
+    return valueToArg(arg, res.result, data.alloc);
+  }
+  auto arg_instr = arg.as_instr();
+  if (arg_instr->is(fir::InstrType::BinaryInstr) &&
+      arg_instr->subtype == (u32)fir::BinaryInstrSubType::IntAdd) {
+    auto res_type = convert_type(arg_instr->get_type());
+    auto v0 = valueToArg(arg_instr->args[0], res.result, data.alloc);
+    auto end_reg = data.alloc.get_new_register(res_type);
+    auto end_argument = MArgument{end_reg, res_type};
+
+    if (arg_instr->args[1].is_constant()) {
+      auto int_const = arg_instr->args[1].as_constant()->as_int();
+      if (v0.isLabel()) {
+        res.result.emplace_back(
+            Opcode::lea, end_argument,
+            MArgument::MemLO(v0.label, int_const, res_type));
+      } else if (v0.isReg()) {
+        res.result.emplace_back(Opcode::lea, end_argument,
+                                MArgument::MemOB(int_const, v0.reg, res_type));
+      } else {
+
+        return valueToArg(arg, res.result, data.alloc);
+      }
+      return end_argument;
+    }
+
+    auto v1 = valueToArg(arg_instr->args[1], res.result, data.alloc);
+    if ((v0.isReg() && v0.reg.is_concrete()) ||
+        (v1.isReg() && v1.reg.is_concrete())) {
+      return valueToArg(arg, res.result, data.alloc);
+    }
+    if (v0.isReg() && v1.isReg()) {
+      res.result.emplace_back(Opcode::lea, end_argument,
+                              MArgument::MemBI(v0.reg, v1.reg, res_type));
+    } else {
+      return valueToArg(arg, res.result, data.alloc);
+    }
+    return end_argument;
+  }
+
+  return valueToArg(arg, res.result, data.alloc);
+}
+
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                     ExtraMatchData &data) {
   // fmt::println("Instr: {}", call_instr);
   TVec<MArgument> evaluated_args;
   for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
     evaluated_args.push_back(
-        valueToArg(call_instr->args[arg_id], res.result, data.alloc));
+        setup_callarg(call_instr->args[arg_id], res, data));
   }
   for (auto arg_value : evaluated_args) {
     res.result.emplace_back(Opcode::arg_setup, arg_value);
@@ -180,6 +226,39 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
   fmt::println("{}", val);
   ASSERT(false);
   std::abort();
+}
+
+void setup_va_start(fir::Instr &call_instr, MatchResult &res,
+                    ExtraMatchData &data) {
+  auto ptr_arg = valueToArg(call_instr->args[1], res.result, data.alloc);
+  // TODO: handle other cases aswell
+  ASSERT(ptr_arg.isReg());
+
+  res.result.emplace_back(Opcode::mov,
+                          MArgument::MemOB(0, ptr_arg.reg, Type::Int32),
+                          MArgument((u32)48));
+  res.result.emplace_back(Opcode::mov,
+                          MArgument::MemOB(4, ptr_arg.reg, Type::Int32),
+                          MArgument((u32)8));
+  res.result.emplace_back(Opcode::mov,
+                          MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
+                          MArgument(VReg::RBP(), Type::Int64));
+  res.result.emplace_back(Opcode::add2,
+                          MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
+                          MArgument((u16)16));
+  res.result.emplace_back(Opcode::mov,
+                          MArgument::MemOB(16, ptr_arg.reg, Type::Int64),
+                          MArgument(VReg::RBP(), Type::Int64));
+  res.result.emplace_back(Opcode::sub2,
+                          MArgument::MemOB(16, ptr_arg.reg, Type::Int64),
+                          MArgument((u16)176));
+}
+
+void setup_va_end(fir::Instr &call_instr, MatchResult &res,
+                  ExtraMatchData &data) {
+  (void)call_instr;
+  (void)res;
+  (void)data;
 }
 
 } // namespace foptim::fmir

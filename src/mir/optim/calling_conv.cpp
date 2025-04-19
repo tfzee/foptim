@@ -30,6 +30,7 @@ constexpr u32 n_float_arg_regs = sizeof(int_arg_reg) / sizeof(int_arg_reg[0]);
 
 static void save_regs_callee(MFunc &func, CFG &cfg) {
   auto &first_bb = func.bbs[0];
+
   auto used_regs = calculate_used_regs(func);
   // store all the regs in the initial bb
   size_t n_regs_saved = 0;
@@ -50,18 +51,18 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
   // up here
   //  and assume this always works.
 
-  for (size_t instr_id = n_regs_saved;
-       instr_id < n_regs_saved + func.args.size(); instr_id++) {
-    auto &instr = first_bb.instrs[instr_id];
-    ASSERT(instr.op == Opcode::mov);
-    ASSERT(instr.args[1].isReg() ||
-           (instr.args[1].isMem() &&
-            instr.args[1].type == MArgument::ArgumentType::MemImmVReg));
-    // only update things given by stack
-    if (instr.args[1].isMem()) {
-      instr.args[1].imm += n_regs_saved * 8;
-    }
-  }
+  // for (size_t instr_id = n_regs_saved;
+  //      instr_id < n_regs_saved + func.args.size(); instr_id++) {
+  //   auto &instr = first_bb.instrs[instr_id];
+  //   ASSERT(instr.op == Opcode::mov);
+  //   ASSERT(instr.args[1].isReg() ||
+  //          (instr.args[1].isMem() &&
+  //           instr.args[1].type == MArgument::ArgumentType::MemImmVReg));
+  //   // only update things given by stack
+  //   if (instr.args[1].isMem()) {
+  //     instr.args[1].imm += n_regs_saved * 8;
+  //   }
+  // }
 
   // align the stack
   if (n_regs_saved % 2 != 0) {
@@ -69,6 +70,56 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
                            MInstr{Opcode::sub2,
                                   MArgument{VReg::RSP(), Type::Int64},
                                   MArgument{8U}});
+  }
+
+  // save all potential va args from registers into the register_save_area
+  if (func.needs_register_save_area) {
+    std::pair<VReg, u32> arg_int_regs[6] = {
+        {VReg::RDI(), 0},  {VReg::RSI(), 8}, {VReg::RDX(), 16},
+        {VReg::RCX(), 24}, {VReg::R8(), 32}, {VReg::R9(), 40},
+    };
+    std::pair<VReg, u32> arg_xmm_regs[8] = {
+        {VReg{CReg::mm0, Type::Float64}, 48},
+        {VReg{CReg::mm1, Type::Float64}, 64},
+        {VReg{CReg::mm2, Type::Float64}, 80},
+        {VReg{CReg::mm3, Type::Float64}, 96},
+        {VReg{CReg::mm4, Type::Float64}, 112},
+        {VReg{CReg::mm5, Type::Float64}, 128},
+        {VReg{CReg::mm6, Type::Float64}, 144},
+        {VReg{CReg::mm7, Type::Float64}, 160},
+        // {VReg{CReg::mm8, Type::Float64}, 176},
+        // {VReg{CReg::mm9, Type::Float64}, 192},
+        // {VReg{CReg::mm10, Type::Float64}, 208},
+        // {VReg{CReg::mm11, Type::Float64}, 224},
+        // {VReg{CReg::mm12, Type::Float64}, 240},
+        // {VReg{CReg::mm13, Type::Float64}, 256},
+        // {VReg{CReg::mm14, Type::Float64}, 272},
+        // {VReg{CReg::mm15, Type::Float64}, 288},
+    };
+
+    for (auto [reg, offset] : arg_int_regs) {
+      first_bb.instrs.insert(
+          first_bb.instrs.begin() + 0,
+          MInstr{Opcode::mov,
+                 MArgument::MemOB((i32)offset, VReg::RSP(), Type::Int64),
+                 MArgument{reg, reg.ty}});
+    }
+
+    // TODO: make this conitional based if there are xmm args read out of al
+    // (see clang/godbolt)
+    //  https://godbolt.org/#g:!((g:!((g:!((h:codeEditor,i:(filename:'1',fontScale:15,fontUsePx:'0',j:1,lang:llvm,selection:(endColumn:34,endLineNumber:19,positionColumn:1,positionLineNumber:19,selectionStartColumn:34,selectionStartLineNumber:19,startColumn:1,startLineNumber:19),source:'%3B+For+Unix+x86_64+platforms,+va_list+is+the+following+struct:%0A%25struct.va_list+%3D+type+%7B+i32,+i32,+ptr,+ptr+%7D%0A%0Adefine+i32+@test(i32+%25x,+...)+%7B%0A++%3B+Initialize+variable+argument+processing%0A++%25ap+%3D+alloca+%25struct.va_list%0A++call+void+@llvm.va_start.p0(ptr+%25ap)%0A%0A++%3B+Read+a+single+integer+argument%0A++%3B%25tmp+%3D+va_arg+ptr+%25ap,+i32%0A%0A++%3B+Stop+processing+of+arguments.%0A++%3Bcall+void+@llvm.va_end.p0(ptr+%25ap)%0A++ret+i32+0%0A%7D%0A%0Adeclare+void+@llvm.va_start.p0(ptr)%0Adeclare+void+@llvm.va_copy.p0(ptr,+ptr)%0Adeclare+void+@llvm.va_end.p0(ptr)'),l:'5',n:'0',o:'LLVM+IR+source+%231',t:'0')),k:44.60580912863071,l:'4',n:'0',o:'',s:0,t:'0'),(g:!((h:compiler,i:(compiler:llctrunk,filters:(b:'0',binary:'1',binaryObject:'1',commentOnly:'0',debugCalls:'0',demangle:'0',directives:'0',execute:'1',intel:'0',libraryCode:'0',trim:'0',verboseDemangling:'0'),flagsViewOpen:'1',fontScale:18,fontUsePx:'0',j:1,lang:llvm,libs:!(),options:'',overrides:!(),selection:(endColumn:13,endLineNumber:4,positionColumn:1,positionLineNumber:3,selectionStartColumn:13,selectionStartLineNumber:4,startColumn:1,startLineNumber:3),source:1),l:'5',n:'0',o:'+llc+(trunk)+(Editor+%231)',t:'0')),k:55.39419087136929,l:'4',n:'0',o:'',s:0,t:'0')),l:'2',n:'0',o:'',t:'0')),version:4
+    // TODO: should also investigate why it doesnt save xmm8-xmm15 and not RDI
+    for (auto [reg, offset] : arg_xmm_regs) {
+      first_bb.instrs.insert(
+          first_bb.instrs.begin() + 0,
+          MInstr{Opcode::mov,
+                 MArgument::MemOB((i32)offset, VReg::RSP(), Type::Int64),
+                 MArgument{reg, reg.ty}});
+    }
+    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
+                           MInstr{Opcode::sub2,
+                                  MArgument{VReg::RSP(), Type::Int64},
+                                  MArgument{176U}});
   }
 
   // restore in *every* exiting basic block we first need to find these
@@ -97,6 +148,13 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
                                     MInstr{Opcode::add2,
                                            MArgument{VReg::RSP(), Type::Int64},
                                            MArgument{8U}});
+    }
+    if (func.needs_register_save_area) {
+      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
+                                    MInstr{Opcode::add2,
+                                           MArgument{VReg::RSP(), Type::Int64},
+                                           MArgument{176U}});
+      fmt::println("====VA====\n{}", func);
     }
   }
 }

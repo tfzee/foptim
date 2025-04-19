@@ -20,4 +20,8 @@ MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
                           DumbRegAlloc &alloc);
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                     ExtraMatchData &data);
+void setup_va_start(fir::Instr &call_instr, MatchResult &res,
+                    ExtraMatchData &data);
+void setup_va_end(fir::Instr &call_instr, MatchResult &res,
+                    ExtraMatchData &data);
 } // namespace foptim::fmir

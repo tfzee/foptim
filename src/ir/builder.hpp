@@ -1,15 +1,16 @@
 #pragma once
 #include "context.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/constant_value_ref.hpp"
 #include <span>
 
 namespace foptim::fir {
 struct ContextData;
 class TypeR;
 class ValueR;
-enum class BinaryInstrSubType: u32;
-enum class ICmpInstrSubType: u32;
-enum class UnaryInstrSubType: u32;
+enum class BinaryInstrSubType : u32;
+enum class ICmpInstrSubType : u32;
+enum class UnaryInstrSubType : u32;
 
 class Builder {
   ContextData *ctx;
@@ -47,8 +48,10 @@ public:
   ValueR build_float_mul(ValueR a, ValueR b);
   ValueR build_float_div(ValueR a, ValueR b);
   ValueR build_itrunc(ValueR a, TypeR ty);
-  ValueR build_extract_value(ValueR stru, std::span<ValueR> indicies, TypeR out_ty);
-  ValueR build_insert_value(ValueR stru, ValueR v, std::span<ValueR> indicies, TypeR out_ty);
+  ValueR build_extract_value(ValueR stru, std::span<ValueR> indicies,
+                             TypeR out_ty);
+  ValueR build_insert_value(ValueR stru, ValueR v, std::span<ValueR> indicies,
+                            TypeR out_ty);
   ValueR build_sext(ValueR a, TypeR ty);
   ValueR build_zext(ValueR a, TypeR ty);
   ValueR build_int_mul(ValueR a, ValueR b);
@@ -61,6 +64,9 @@ public:
   ValueR build_alloca(ValueR size);
   Instr build_branch(BasicBlock target_bb);
   Instr build_cond_branch(ValueR cond, BasicBlock true_bb, BasicBlock false_bb);
+  Instr build_switch(ValueR value,
+                     std::span<std::pair<fir::ConstantValueR, fir::BasicBlock>> targets,
+                     BasicBlock default_bb);
   ValueR build_load(TypeR type, ValueR ptr);
   ValueR build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2);
   ValueR build_store(ValueR ptr, ValueR value);

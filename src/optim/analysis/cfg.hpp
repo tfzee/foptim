@@ -16,7 +16,6 @@ public:
   struct Node {
     fir::BasicBlock bb;
     TVec<u32> pred;
-    // there can only be two max
     TVec<u32> succ;
   };
   enum class IterRes {

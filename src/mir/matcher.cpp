@@ -28,21 +28,21 @@ MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
   return helper_arg;
 }
 
-struct Edge {
-  fir::Instr from;
-  fir::Instr to;
-};
+// struct Edge {
+//   fir::Instr from;
+//   fir::Instr to;
+// };
 
-using Edges = IRVec<Edge>;
+// using Edges = IRVec<Edge>;
 
-bool has_active_succ_edges(fir::Instr instr, Edges &edges) {
-  for (const auto &edge : edges) {
-    if (edge.from == instr) {
-      return true;
-    }
-  }
-  return false;
-}
+// bool has_active_succ_edges(fir::Instr instr, Edges &edges) {
+//   for (const auto &edge : edges) {
+//     if (edge.from == instr) {
+//       return true;
+//     }
+//   }
+//   return false;
+// }
 
 bool try_match(fir::ValueR value, const Pattern::Node &patt) {
   if (value.is_instr() && patt.type == Pattern::NodeType::Instr) {
@@ -89,7 +89,8 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res,
           if (instr->args.size() > edge.to_arg) {
             match_todos.push_back({instr->args[edge.to_arg], edge.from_instr});
           } else {
-            return false;
+            ASSERT(false);
+            // return false;
           }
         }
       }
@@ -111,9 +112,7 @@ bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res,
           if (edge.to_instr != node_id) {
             continue;
           }
-          if (as_instr->args.size() <= edge.to_arg) {
-            return false;
-          }
+          ASSERT(as_instr->args.size() > edge.to_arg);
           if (!as_instr->args[edge.to_arg].is_instr()) {
             return false;
           }
@@ -139,10 +138,10 @@ void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
   match_todos.reserve(5);
   for (size_t match_id = 0; match_id < patts.size(); match_id++) {
     res.result.clear();
-    if (res.matched_instrs.size() > patts[match_id].nodes.size()) {
-      res.matched_instrs.resize(patts[match_id].nodes.size(),
-                                fir::Instr(fir::Instr::invalid()));
-    }
+    // if (res.matched_instrs.size() > patts[match_id].nodes.size()) {
+    res.matched_instrs.resize(patts[match_id].nodes.size(),
+                              fir::Instr(fir::Instr::invalid()));
+    // }
     if (try_match(instr, patts[match_id], res, match_todos)) {
       if (patts[match_id].generator(res, data)) {
         res.match_id = match_id;
@@ -155,15 +154,15 @@ void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
   UNREACH();
 }
 
-void dump_succ_edges(const Edges &active_edges, fir::BasicBlock &bb) {
-  (void)bb;
-  fmt::println("digraph {{");
-  for (auto edge : active_edges) {
-    fmt::println(R"("{:p}" -> "{:p}")", (void *)edge.from.get_raw_ptr(),
-                 (void *)edge.to.get_raw_ptr());
-  }
-  fmt::println("}}");
-}
+// void dump_succ_edges(const Edges &active_edges, fir::BasicBlock &bb) {
+//   (void)bb;
+//   fmt::println("digraph {{");
+//   for (auto edge : active_edges) {
+//     fmt::println(R"("{:p}" -> "{:p}")", (void *)edge.from.get_raw_ptr(),
+//                  (void *)edge.to.get_raw_ptr());
+//   }
+//   fmt::println("}}");
+// }
 
 MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
              MatchResult &match_result, ExtraMatchData &data) {
@@ -244,10 +243,33 @@ Type convert_type(fir::TypeR type) {
 MFunc GreedyMatcher::apply(fir::Function &func) {
   ZoneScopedN("Greedy Matcher");
   MFunc res_func;
+  res_func.name = func.name;
   res_func.bbs.reserve(func.n_bbs());
   DumbRegAlloc alloc{};
 
-  ASSERT(!func.variadic);
+  if (func.variadic) {
+    res_func.variadic = true;
+    bool found = false;
+    for (auto bb : func.get_bbs()) {
+      for (auto instr : bb->instructions) {
+        if (instr->is(fir::InstrType::CallInstr) &&
+            instr->args[0].is_constant() &&
+            instr->args[0].as_constant()->is_func()) {
+          auto fun = instr->args[0].as_constant()->as_func();
+          if (fun->name == "foptim.va_start") {
+            found = true;
+            break;
+          }
+        }
+        if (found) {
+          break;
+        }
+      }
+    }
+    if (found) {
+      res_func.needs_register_save_area = true;
+    }
+  }
 
   u32 static_alloca_size = 0;
   {
@@ -293,7 +315,6 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
         apply_bb(bb, this->patterns, match_result, extra_data));
   }
 
-  res_func.name = func.name;
   // res_func.clone_attribs(func);
 
   return res_func;

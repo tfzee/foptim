@@ -1,6 +1,20 @@
 #include "ir/types.hpp"
 
 namespace foptim::fir {
+
+[[nodiscard]] bool FunctionType::eql(const FunctionType &other) const {
+  if (!return_type->eql(*other.return_type.get_raw_ptr()) ||
+      arg_types.size() != other.arg_types.size()) {
+    return false;
+  }
+  fori(arg_types) {
+    if (!arg_types[i]->eql(*other.arg_types[i].get_raw_ptr())) {
+      return false;
+    }
+  }
+  return true;
+}
+
 u32 AnyType::get_size() const {
   switch (ty) {
   case AnyTypeType::Void:
@@ -153,29 +167,32 @@ u32 StructType::get_size() const {
 } // namespace foptim::fir
 
 fmt::appender
-fmt::formatter<foptim::fir::TypeR>::format(foptim::fir::TypeR const &v,
-                                           format_context &ctx) const {
+fmt::formatter<foptim::fir::AnyType>::format(foptim::fir::AnyType const &v,
+                                             format_context &ctx) const {
   constexpr auto col = fg(fmt::color::light_coral);
-  if (!v.is_valid()) {
-    return fmt::format_to(ctx.out(), col, "INVALID");
-  }
   auto app = ctx.out();
-  switch (v->ty) {
+  switch (v.ty) {
   case foptim::fir::AnyTypeType::Void:
     return fmt::format_to(app, col, "()");
   case foptim::fir::AnyTypeType::Integer:
-    return fmt::format_to(app, col, "i{}", v->as_int());
+    return fmt::format_to(app, col, "i{}", v.as_int());
   case foptim::fir::AnyTypeType::Float:
-    return fmt::format_to(app, col, "f{}", v->as_float());
+    return fmt::format_to(app, col, "f{}", v.as_float());
   case foptim::fir::AnyTypeType::Ptr:
     return fmt::format_to(app, col, "ptr");
-  case foptim::fir::AnyTypeType::Function:
-    return fmt::format_to(app, col, "FUNC");
+  case foptim::fir::AnyTypeType::Function: {
+    auto func = v.as_func();
+    app = fmt::format_to(app, col, "{}(", func.return_type);
+    for (auto arg : func.arg_types) {
+      app = fmt::format_to(app, col, "{} ", arg);
+    }
+    return fmt::format_to(app, col, ")");
+  }
   case foptim::fir::AnyTypeType::Vector:
     return fmt::format_to(app, col, "VEC");
   case foptim::fir::AnyTypeType::Struct:
     app = fmt::format_to(app, col, "{{");
-    for (auto member : v->as_struct().elems) {
+    for (auto member : v.as_struct().elems) {
       app = fmt::format_to(app, col, "{} ", member.ty);
     }
     return fmt::format_to(app, col, "}}");

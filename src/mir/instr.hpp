@@ -248,7 +248,11 @@ public:
       return conc.creg >= CReg::mm0;
     }
   }
-
+  [[nodiscard]] static consteval VReg RDI() { return {CReg::DI, Type::Int64}; }
+  [[nodiscard]] static consteval VReg RSI() { return {CReg::SI, Type::Int64}; }
+  [[nodiscard]] static consteval VReg RDX() { return {CReg::D, Type::Int64}; }
+  [[nodiscard]] static consteval VReg R8() { return {CReg::R8, Type::Int64}; }
+  [[nodiscard]] static consteval VReg R9() { return {CReg::R9, Type::Int64}; }
   [[nodiscard]] static consteval VReg RAX() { return {CReg::A, Type::Int64}; }
   [[nodiscard]] static consteval VReg EAX() { return {CReg::A, Type::Int32}; }
   [[nodiscard]] static consteval VReg RCX() { return {CReg::C, Type::Int64}; }
@@ -260,6 +264,7 @@ public:
   }
 
   [[nodiscard]] static consteval VReg RSP() { return {CReg::SP, Type::Int64}; }
+  [[nodiscard]] static consteval VReg RBP() { return {CReg::BP, Type::Int64}; }
   [[nodiscard]] static consteval VReg CL() { return {CReg::C, Type::Int8}; }
 
   [[nodiscard]] constexpr bool operator==(const VReg &other) const {
@@ -335,21 +340,21 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemLO(IRStringRef lab, u32 imm,
+  [[nodiscard]] static constexpr MArgument MemLO(IRStringRef lab, i32 imm,
                                                  Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmLabel;
     arg.ty = ty;
     arg.label = lab;
-    arg.imm = imm;
+    arg.imm = std::bit_cast<u64>((i64)imm);
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemO(u64 imm, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemO(i32 imm, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImm;
     arg.ty = ty;
-    arg.imm = imm;
+    arg.imm = std::bit_cast<u64>((i64)imm);
     return arg;
   }
 
@@ -361,11 +366,11 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemOB(u32 off, VReg reg, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemOB(i32 off, VReg reg, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmVReg;
     arg.ty = ty;
-    arg.imm = off;
+    arg.imm = std::bit_cast<u64>((i64)off);
     arg.reg = reg;
     return arg;
   }
@@ -392,23 +397,23 @@ public:
   }
 
   // reg + indx + off
-  [[nodiscard]] static constexpr MArgument MemOBI(u32 off, VReg reg, VReg indx,
+  [[nodiscard]] static constexpr MArgument MemOBI(i32 off, VReg reg, VReg indx,
                                                   Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmVRegVReg;
     arg.ty = ty;
     arg.reg = reg;
     arg.indx = indx;
-    arg.imm = off;
+    arg.imm = std::bit_cast<u64>((i64)off);
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemOIS(u32 off, VReg indx, u32 scale,
+  [[nodiscard]] static constexpr MArgument MemOIS(i32 off, VReg indx, u32 scale,
                                                   Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmVRegScale;
     arg.ty = ty;
-    arg.imm = off;
+    arg.imm = std::bit_cast<u64>((i64)off);
     arg.indx = indx;
     arg.scale = scale;
     return arg;
@@ -457,15 +462,15 @@ public:
     case ArgumentType::VReg:
     case ArgumentType::MemVReg:
       return reg == other.reg;
-    case ArgumentType::MemVRegVReg:
     case ArgumentType::MemImmVReg:
+      return reg == other.reg && imm == other.imm;
+    case ArgumentType::MemVRegVReg:
     case ArgumentType::MemImmVRegVReg:
     case ArgumentType::MemVRegVRegScale:
     case ArgumentType::MemImmVRegScale:
     case ArgumentType::MemImmVRegVRegScale:
     case ArgumentType::MemImmLabel:
       TODO("impl");
-      break;
       break;
     }
   }
@@ -482,6 +487,7 @@ public:
     case ArgumentType::MemImmVReg:
       return reg == other;
     case ArgumentType::MemImmVRegScale:
+      return indx == other;
     case ArgumentType::MemImmVRegVReg:
     case ArgumentType::MemVRegVRegScale:
     case ArgumentType::MemVRegVReg:
@@ -503,6 +509,7 @@ public:
     case ArgumentType::MemImmVReg:
       return uses_same_vreg(other.reg);
     case ArgumentType::MemImmVRegScale:
+      return uses_same_vreg(other.indx);
     case ArgumentType::MemImmVRegVReg:
     case ArgumentType::MemVRegVRegScale:
     case ArgumentType::MemVRegVReg:

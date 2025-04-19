@@ -149,7 +149,7 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
       } else {
         mask = ((1ULL << size) - 1);
       }
-      fmt::println("At offset {} size {} value {}", offset, size, value);
+      // fmt::println("At offset {} size {} value {}", offset, size, value);
       new_in_one.set(offset * 8, size, value & mask);
       new_in_zero.set(offset * 8, size, (~value) & mask);
     } else if (result == StackOffsetResult::UnknownLocal && value == 0 &&

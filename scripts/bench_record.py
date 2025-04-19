@@ -18,7 +18,8 @@ if __name__ == "__main__":
     if collect_compiletimes:
         compile_command = f"hyperfine -N --export-csv={res_dir}/compile.csv"
         for benchy in benches:
-            clang_command = f"clang{'++' if benchy.endswith(".cpp") else ''} -O0 -Xclang -disable-O0-optnone {clang_options} ../bench/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
+            clang_name = f"clang{'++' if benchy.endswith(".cpp") else ''}"
+            clang_command = f"{clang_name} -mllvm -disable-llvm-optzns -03 {clang_options} ../bench/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
             os.system(clang_command)
     
             name = ".".join(benchy.split(".")[:-1])
@@ -26,21 +27,22 @@ if __name__ == "__main__":
             compile_command += f" \"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.o\""
 
             compile_command += f" -n {name}_clang_O1_compile_baseline"
-            compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out\""
+            compile_command += f" \"{clang_name} ../bench/{benchy} -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out\""
 
             compile_command += f" -n {name}_clang_O3_compile_baseline"
-            compile_command += f" \"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out\""
+            compile_command += f" \"{clang_name} ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out\""
             compile_command += f" -n {name}_gcc_O3_compile_baseline"
             compile_command += f" \"g++ ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out\""
         os.system(compile_command)  
     else:
         for benchy in benches:
-            clang_command = f"clang{'++' if benchy.endswith(".cpp") else ''} -O0 -Xclang -disable-O0-optnone {clang_options} ../bench/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
+            clang_name = f"clang{'++' if benchy.endswith(".cpp") else ''}"
+            clang_command = f"{clang_name} -mllvm -disable-llvm-optzns -O3 {clang_options} ../bench/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
             os.system(clang_command)
             print(clang_command)
             os.system(f"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.o")
-            os.system(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
-            os.system(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
+            os.system(f"{clang_name} ../bench/{benchy} -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
+            os.system(f"{clang_name} ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
             os.system(f"g++ ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out")
             print(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
             

@@ -2,7 +2,7 @@
 #include "stable_vec_slot.hpp"
 #include "types.hpp"
 #include "utils/todo.hpp"
-//needed for std::hash
+// needed for std::hash
 #include <unordered_map>
 
 namespace foptim::utils {
@@ -107,6 +107,7 @@ constexpr inline bool operator==(const SRef<T> &self, const SRef<T> &other) {
 }
 
 } // namespace foptim::utils
+
 
 template <class T> struct std::hash<foptim::utils::SRef<T>> {
   std::size_t operator()(const foptim::utils::SRef<T> &k) const {

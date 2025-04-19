@@ -232,6 +232,22 @@ public:
       }
       return ConstantValue::Top();
     }
+    case fir::InstrType::SwitchInstr: {
+      const auto &targets = instr->get_bb_args();
+      const auto func = instr->get_parent()->get_parent();
+      // TODO: IMPROVE IT
+      for (const auto &arg : targets) {
+        if (!bottom_bbs.contains(arg.bb)) {
+          cfg_worklist.push_back(arg.bb);
+          bottom_bbs.insert(arg.bb);
+        }
+        {
+          const size_t bb_id = func->bb_id(arg.bb);
+          eval_meets(arg.bb, bb_id);
+        }
+      }
+      return ConstantValue::Top();
+    }
     case fir::InstrType::CondBranchInstr: {
       const auto &targets = instr->get_bb_args();
       ASSERT(targets.size() == 2);

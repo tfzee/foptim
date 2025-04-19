@@ -15,6 +15,8 @@ public:
   IRVec<VReg> args;
 
   IRString name;
+  bool variadic = false;
+  bool needs_register_save_area = false;
   // IRVec<Type> arg_tys;
 
   uint32_t curr_arg_stack_off;

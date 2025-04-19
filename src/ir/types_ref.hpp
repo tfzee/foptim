@@ -1,5 +1,4 @@
 #pragma once
-#include "../utils/logging.hpp"
 #include "../utils/stable_vec_ref.hpp"
 
 namespace foptim::fir {

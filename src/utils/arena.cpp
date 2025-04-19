@@ -27,6 +27,7 @@
 
 #include <assert.h>
 #include <mutex>
+#include "arena.hpp"
 #include <tracy/Tracy.hpp>
 #define ARENA_ASSERT assert
 #define ARENA_REGION_DEFAULT_CAPACITY (16 * 1024)
@@ -41,14 +42,6 @@ struct Region {
   alignas(MIN_ALIGN) uintptr_t data[];
 };
 
-typedef struct {
-  Region *begin, *end;
-} Arena;
-
-typedef struct {
-  Region *region;
-  size_t count;
-} Arena_Mark;
 
 thread_local Arena temp_arena = {};
 thread_local unsigned long temp_arena_size{};

@@ -7,7 +7,7 @@ foptim="$build_dir/foptim_main"
 flags="-fno-exceptions -fno-stack-protector"
 test_linkdir="-I/home/tim/programming/foptim/test/llvm_benchmark_adobe_cpp/"
 
-clang++ -O0 $flags $test_linkdir $test_file -o min.ll -S -emit-llvm || exit 1
+clang++ -O3 -mllvm -disable-llvm-optzns $flags $test_linkdir $test_file -o min.ll -S -emit-llvm || exit 1
 clang++ -O1 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o clang_min.out || exit 1
 g++ -O1 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o gcc_min.out || exit 1
 

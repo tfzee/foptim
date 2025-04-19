@@ -49,6 +49,7 @@ struct ContextData {
   ConstantValueR get_constant_value(i128 val, IntTypeR ty);
   ConstantValueR get_constant_value(u32 val, IntTypeR ty);
   ConstantValueR try_reuse_constant(const ConstantValue &val);
+  TypeR try_reuse_type(const AnyType &val);
   ConstantValueR get_constant_value(Global glob);
 
   Global get_global(IRString name, size_t size_bytes);

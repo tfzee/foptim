@@ -2,53 +2,101 @@
 #include "../module_pass.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "optim/helper/inline.hpp"
 
 namespace foptim::optim {
 
 class BaseInlineAdvisor {
+  u32 n_inlined_instructions = 0;
+  u32 n_inlined_calls = 0;
+
 public:
   bool should_be_inlined(const fir::Instr instr) {
+    if (_should_be_inlined(instr)) {
+      auto v = instr->get_arg(0).as_constant()->as_func();
+      n_inlined_calls += 1;
+      n_inlined_instructions += v->n_instrs();
+      return true;
+    }
+    return false;
+  }
+  bool _should_be_inlined(const fir::Instr instr) {
+    auto func = instr->get_parent()->get_parent();
+    auto called_func = instr->get_arg(0);
+    if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
+      return false;
+    }
+    auto v = called_func.as_constant()->as_func();
+    if (v->is_decl() || v->variadic) {
+      return false;
+    }
+    // TODO: impl to hndle this correctly
+    for (auto instr : v->basic_blocks[0]->instructions) {
+      if (instr->is(fir::InstrType::AllocaInstr)) {
+        return false;
+      }
+    }
+
     bool all_args_are_constant = true;
     for (auto arg : instr->args) {
       if (!arg.is_constant()) {
         all_args_are_constant = false;
       }
     }
-    auto func = instr->get_parent()->get_parent();
-    auto called_func = instr->get_arg(0);
-    if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
-      return false;
-    }
-
-    auto v = called_func.as_constant()->as_func();
-    if (v->is_decl() || v->variadic) {
-      return false;
+    if (all_args_are_constant) {
+      return true;
     }
     // NOTE: this aint perfect it would also try to inlnie namespace std {
     // namespace min { void someFunc(); }}
-    if (v->name.starts_with("_ZSt3min")) {
+    if (v->name.starts_with("_ZSt3min") || v->name.starts_with("_ZSt3max")) {
       return true;
-    }
-    //TODO: impl to hndle this correctly
-    for (auto instr : v->basic_blocks[0]->instructions) {
-      if (instr->is(fir::InstrType::AllocaInstr)) {
-        return false;
-      }
     }
     if (v.func->get_n_uses() == 1 &&
         v.func->linkage == fir::Function::Function::Linkage::Internal) {
       return true;
     }
+
+    if (v.func->n_instrs() <= (2 + v.func->get_entry()->n_args())) {
+      return true;
+    }
+
+    if (n_inlined_instructions < 50 && n_inlined_calls < 10) {
+      return false;
+    }
     if (v.func == func.func) {
       return true;
     }
 
+    bool is_in_straightline_section = true;
+    {
+      auto par_bb = instr->get_parent();
+      auto par_func = par_bb->get_parent();
+      CFG cfg{*par_func.func};
+      Dominators dom{cfg};
+      auto par_bb_id = par_func->bb_id(par_bb);
+      if (dom.dom_bbs[par_bb_id].dominators[par_bb_id]) {
+        is_in_straightline_section = false;
+      }
+      for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
+        if (!cfg.bbrs[bb_id].succ.empty()) {
+          continue;
+        }
+        if (!dom.dom_bbs[bb_id].dominators[par_bb_id]) {
+          is_in_straightline_section = false;
+          break;
+        }
+      }
+    }
+
+    if (is_in_straightline_section &&
+        ((v.func->n_bbs() == 1 && v.func->n_instrs() < 50))) {
+      return true;
+    }
     if (v.func->n_instrs() < 5) {
       return true;
     }
-
-    return all_args_are_constant;
+    return false;
   }
 };
 

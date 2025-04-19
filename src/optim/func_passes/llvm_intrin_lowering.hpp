@@ -109,6 +109,11 @@ public:
     instr.destroy();
   }
 
+  void handle_lifetime(fir::Instr instr, fir::Function & /*func*/,
+                       fir::FunctionR /*callee*/) {
+    instr.destroy();
+  }
+
   void handle_fabs(fir::Instr instr, fir::Function &funcy,
                    fir::FunctionR /*callee*/) {
     auto width = instr.get_type()->as_float();
@@ -192,12 +197,42 @@ public:
       TODO("IMPL");
     }
   }
+  void handle_expect(fir::Instr instr, fir::Function & /*funcy*/,
+                     fir::FunctionR /*callee*/) {
+    instr->replace_all_uses(instr->args[1]);
+    instr.destroy();
+  }
+
+  void handle_obj_size(fir::Instr instr, fir::Function &funcy,
+                       fir::FunctionR /*callee*/) {
+    auto *ctx = funcy.ctx;
+    auto ret_type = instr->args[2].as_constant()->as_int();
+    instr->replace_all_uses(fir::ValueR{
+        ctx->get_constant_value(ret_type == 0 ? -1 : 0, instr->get_type())});
+    instr.destroy();
+  }
+
+  void handle_va(fir::Instr instr, fir::Function &funcy,
+                 fir::FunctionR /*callee*/, bool is_start) {
+    auto *ctx = funcy.ctx;
+    auto func =
+        ctx->get_function(is_start ? "foptim.va_start" : "foptim.va_end");
+    foptim::fir::ValueR args[1] = {instr->args[1]};
+    fir::Builder bb{instr};
+    auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
+                             func->func_ty, ctx->get_void_type(), args);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
 
   void apply(fir::BasicBlock bb, fir::Function &func) {
     // annoying copy
-    TVec<fir::Instr> instrs = {bb->instructions.begin(),
-                               bb->instructions.end()};
-    for (auto instr : instrs) {
+    //
+    // TVec<fir::Instr> instrs = {bb->instructions.begin(),
+    //                            bb->instructions.end()};
+    for (size_t ip1 = bb->instructions.size(); ip1 > 0; ip1--) {
+      auto i = ip1 - 1;
+      auto instr = bb->instructions[i];
       if (!instr.is_valid()) {
         // instruction might have been deleted in a prior iteration
         continue;
@@ -222,8 +257,19 @@ public:
           handle_abs(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.is.fpclass")) {
           handle_is_fpclass(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.expect")) {
+          handle_expect(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.objectsize")) {
+          handle_obj_size(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.va_start")) {
+          handle_va(instr, func, callee, true);
+        } else if (callee.func->name.starts_with("llvm.va_end")) {
+          handle_va(instr, func, callee, false);
         } else if (callee.func->name.starts_with("llvm.umul.with.overflow")) {
           handle_umul_with_overflow(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.lifetime.start") ||
+                   callee.func->name.starts_with("llvm.lifetime.end")) {
+          handle_lifetime(instr, func, callee);
         }
       }
     }

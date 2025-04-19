@@ -1,5 +1,6 @@
 #pragma once
 #include "types.hpp"
+#include "utils/stable_vec_ref.hpp"
 #include <fmt/color.h>
 #include <fmt/format.h>
 
@@ -19,6 +20,26 @@ public:
     }
     i += 1;
     return i;
+  }
+};
+
+template <class T>
+concept IsSRef = requires(T t) {
+  t.is_valid();
+  t.get_raw_ptr();
+};
+
+template <IsSRef T> class fmt::formatter<T> : public BaseIRFormatter<T> {
+public:
+  template <class CTX> appender format(const T &k, CTX &ctx) const {
+    auto app = ctx.out();
+    if (!k.is_valid()) {
+      return fmt::format_to(ctx.out(), "INVALID");
+    }
+    // if (this->debug) {
+    //   return fmt::format_to(app, "{:d}", *k.get_raw_ptr());
+    // }
+    return fmt::format_to(app, "{}", *k.get_raw_ptr());
   }
 };
 
@@ -97,10 +118,10 @@ public:
 };
 
 template <>
-class fmt::formatter<foptim::fir::TypeR>
-    : public BaseIRFormatter<foptim::fir::TypeR> {
+class fmt::formatter<foptim::fir::AnyType>
+    : public BaseIRFormatter<foptim::fir::AnyType> {
 public:
-  appender format(foptim::fir::TypeR const &v, format_context &ctx) const;
+  appender format(foptim::fir::AnyType const &v, format_context &ctx) const;
 };
 
 template <>

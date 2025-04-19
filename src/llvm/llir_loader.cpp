@@ -1,10 +1,12 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/constant_value_ref.hpp"
 #include "ir/context.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/arena.hpp"
 #include "utils/parameters.hpp"
@@ -17,6 +19,7 @@
 #include "llvm/Support/Casting.h"
 #include <cstdlib>
 #include <deque>
+#include <limits>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/LLVMContext.h>
@@ -285,6 +288,49 @@ inline void convert_branch(const llvm::BranchInst *branch_instr,
   // UNREACH
 }
 
+inline void convert_switch(llvm::SwitchInst *switch_instr,
+                           foptim::fir::Context &fctx,
+                           foptim::fir::FunctionR ffunc,
+                           foptim::fir::Builder &builder, V2VMap &valueToValue,
+                           llvm::Module &mod, B2BMap &b2b) {
+  (void)switch_instr;
+  (void)fctx;
+  (void)ffunc;
+  (void)builder;
+  (void)valueToValue;
+  (void)mod;
+  (void)b2b;
+
+  auto defaultDest =
+      foptim::fir::BasicBlock{foptim::fir::BasicBlock::invalid()};
+  if (!switch_instr->defaultDestUndefined()) {
+    defaultDest = b2b.at(switch_instr->getDefaultDest());
+  }
+  // auto *defaultDest = switch_instr->getDefaultDest();
+
+  foptim::TVec<std::pair<foptim::fir::ConstantValueR, foptim::fir::BasicBlock>>
+      cases;
+  for (auto cass : switch_instr->cases()) {
+    const auto *case_llvm_value = cass.getCaseValue();
+    foptim::i128 val = 0;
+    if (case_llvm_value->isNegative() && case_llvm_value->getBitWidth() != 1) {
+      val = case_llvm_value->getSExtValue();
+    } else {
+      val = case_llvm_value->getZExtValue();
+    }
+    auto target_bb = b2b.at(cass.getCaseSuccessor());
+    cases.emplace_back(
+        fctx->get_constant_value(
+            val, fctx->get_int_type(case_llvm_value->getBitWidth())),
+        target_bb);
+  }
+
+  auto value = convert_instr_arg(switch_instr->getCondition(), fctx, ffunc,
+                                 builder, valueToValue, mod, b2b);
+
+  builder.build_switch(value, cases, defaultDest);
+}
+
 inline void convert_call(const llvm::Instruction *any_instr,
                          const llvm::CallInst *call_instr,
                          foptim::fir::Context &fctx,
@@ -516,6 +562,10 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::BranchInst>(any_instr)) {
     convert_branch(instr, fctx, ffunc, builder, valueToValue, mod, b2b);
+    return;
+  }
+  if (auto *instr = llvm::dyn_cast_or_null<llvm::SwitchInst>(any_instr)) {
+    convert_switch(instr, fctx, ffunc, builder, valueToValue, mod, b2b);
     return;
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::CallInst>(any_instr)) {
@@ -1041,6 +1091,24 @@ inline void generate_trap(foptim::fir::Context &fctx) {
       {"abort", foptim::fir::Function(fctx.operator->(), "abort", func_ty)});
 }
 
+inline void generate_va(foptim::fir::Context &fctx) {
+  auto func_ty =
+      fctx->get_func_ty(fctx->get_void_type(), {fctx->get_ptr_type()});
+  if (fctx->has_function("foptim.va_start")) {
+    return;
+  }
+  // fctx->create_function("abort", func_ty);
+  fctx.data->storage.functions.insert(
+      {"foptim.va_start",
+       foptim::fir::Function(fctx.operator->(), "foptim.va_start", func_ty)});
+  fctx.data->storage.functions.insert(
+      {"foptim.va_end",
+       foptim::fir::Function(fctx.operator->(), "foptim.va_end", func_ty)});
+  // fctx.data->storage.functions.insert(
+  //     {"foptim.va_arg",
+  //      foptim::fir::Function(fctx.operator->(), "foptim.va_arg", func_ty)});
+}
+
 inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
                          V2VMap &valueToValue, llvm::Module &mod) {
   if (func.getName().starts_with("llvm.memset")) {
@@ -1053,6 +1121,8 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_fabs(fctx, func.getName());
   } else if (func.getName().starts_with("llvm.abs")) {
     generate_abs(fctx, func.getName());
+  } else if (func.getName().starts_with("llvm.va_start")) {
+    generate_va(fctx);
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(
@@ -1304,6 +1374,54 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     size_t reloc_off = output - glob->init_value;
     foptim::fir::ConstantValueR reloc_ref = valueToValue.at(d).as_constant();
     glob->reloc_info.push_back({reloc_off, reloc_ref});
+    return;
+  }
+  if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantExpr>(val)) {
+    if (const auto *gep = llvm::dyn_cast_or_null<llvm::GetElementPtrInst>(
+            d->getAsInstruction())) {
+      ASSERT(gep->getNumIndices() == 1);
+      ASSERT(gep->getSourceElementType()->isIntegerTy() &&
+             gep->getSourceElementType()->getIntegerBitWidth() == 8);
+
+      auto *const index = gep->indices().begin()->get();
+      if (const auto *int_constant =
+              llvm::dyn_cast_or_null<llvm::ConstantInt>(index)) {
+        u32 bitwidth = int_constant->getBitWidth();
+        auto value = int_constant->getValue();
+        foptim::i128 val = 0;
+
+        if (value.isNegative() && bitwidth != 1) {
+          val = value.getSExtValue();
+        } else {
+          val = value.getZExtValue();
+        }
+        ASSERT(val > 0 && val < std::numeric_limits<u64>::max());
+
+        llvm::errs() << (u64)val << "\n";
+        size_t reloc_off = output - glob->init_value;
+        foptim::fir::ConstantValueR reloc_ref =
+            foptim::fir::ConstantValueR{foptim::fir::ConstantValueR::invalid()};
+        if (valueToValue.contains(gep->getPointerOperand())) {
+          reloc_ref = valueToValue.at(gep->getPointerOperand()).as_constant();
+        } else if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(
+                       gep->getPointerOperand())) {
+          reloc_ref = fctx->get_constant_value(
+              fctx->get_function(func->getName().str().c_str()));
+        } else {
+          TODO("impl");
+        }
+        glob->reloc_info.push_back({reloc_off, reloc_ref, (u64)val});
+        return;
+      }
+
+      llvm::errs() << *d << "\n";
+      TODO("OKAK");
+    }
+    llvm::errs() << *d << "\n";
+    TODO("IMPL CONSTANT EXPR");
+    // size_t reloc_off = output - glob->init_value;
+    // foptim::fir::ConstantValueR reloc_ref = valueToValue.at(d).as_constant();
+    // glob->reloc_info.push_back({reloc_off, reloc_ref});
     return;
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::Function>(val)) {

@@ -34,10 +34,19 @@ class LifetimeShortening {
           case MArgument::ArgumentType::MemLabel:
           case MArgument::ArgumentType::MemImmLabel:
             break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            mappings.erase(written.indx);
+            for (auto it = mappings.begin(); it != mappings.end();) {
+              if (it->second == written.indx) {
+                it = mappings.erase(it);
+                break;
+              }
+              ++it;
+            }
+            break;
           case MArgument::ArgumentType::MemVRegVReg:
           case MArgument::ArgumentType::MemImmVRegVReg:
           case MArgument::ArgumentType::MemVRegVRegScale:
-          case MArgument::ArgumentType::MemImmVRegScale:
           case MArgument::ArgumentType::MemImmVRegVRegScale:
             mappings.erase(written.indx);
             for (auto it = mappings.begin(); it != mappings.end();) {
@@ -86,23 +95,25 @@ class LifetimeShortening {
             if (mappings.contains(read.reg)) {
               instr.args[id] =
                   MArgument{mappings.at(read.reg), instr.args[id].ty};
-              // fmt::println("Mathc1! {}", instr);
+            }
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            if (mappings.contains(read.indx)) {
+              instr.args[id] =
+                  MArgument{mappings.at(read.indx), instr.args[id].ty};
             }
             break;
           case MArgument::ArgumentType::MemVRegVReg:
           case MArgument::ArgumentType::MemImmVRegVReg:
           case MArgument::ArgumentType::MemVRegVRegScale:
-          case MArgument::ArgumentType::MemImmVRegScale:
           case MArgument::ArgumentType::MemImmVRegVRegScale:
             if (mappings.contains(read.reg)) {
               instr.args[id] =
                   MArgument{mappings.at(read.reg), instr.args[id].ty};
-              // fmt::println("Mathc2! {}", instr);
             }
             if (mappings.contains(read.indx)) {
               instr.args[id] =
                   MArgument{mappings.at(read.reg), instr.args[id].ty};
-              // fmt::println("Mathc3! {}", instr);
             }
             break;
           }

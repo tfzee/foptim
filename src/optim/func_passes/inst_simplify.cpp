@@ -552,6 +552,73 @@ static void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
     return;
   }
 }
+
+static void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
+                                   fir::Context & /*ctx*/,
+                                   WorkList & /*worklist*/) {
+  if (!instr->args.empty() && instr->args.back().is_constant()) {
+    fir::Builder b(bb);
+    b.at_end(bb);
+
+    bool might_be_found = false;
+    fir::BBRefWithArgs *target = nullptr;
+    auto v1 = instr->args.back().as_constant();
+    for (size_t arg_id = 0; arg_id < instr->args.size() - 1; arg_id++) {
+      if (!instr->args[arg_id].is_constant()) {
+        might_be_found = true;
+        continue;
+      }
+      auto argC = instr->args[arg_id].as_constant();
+      if (argC->eql(*v1.operator->())) {
+        target = &instr->bbs[arg_id];
+        break;
+      }
+    }
+
+    if (!might_be_found && nullptr == target &&
+        instr->bbs.size() == instr->args.size()) {
+      // use default case then;
+      target = &instr->bbs.back();
+    }
+
+    if (target != nullptr) {
+      auto new_branch = b.build_branch(target->bb);
+      for (auto old_arg : target->args) {
+        new_branch.add_bb_arg(0, old_arg);
+      }
+      instr.remove_from_parent();
+      return;
+    }
+  }
+
+  // if theres any bb+arg that is the same as default forward it to it
+  if (instr->bbs.size() == instr->args.size()) {
+    fir::Builder b(bb);
+    b.at_end(bb);
+
+    for (size_t ip1 = instr->args.size() - 1; ip1 > 0; ip1--) {
+      auto &default_target = instr->bbs.back();
+      size_t arg_idx = ip1 - 1;
+      auto &curr_bb = instr->bbs[arg_idx];
+      if (default_target.bb != curr_bb.bb) {
+        continue;
+      }
+      bool found = true;
+      ASSERT(curr_bb.args.size() == default_target.args.size());
+      for (size_t i = 0; i < curr_bb.args.size(); i++) {
+        if (curr_bb.args[i] != default_target.args[i]) {
+          found = false;
+          break;
+        }
+      }
+      if (found) {
+        instr.remove_arg(arg_idx);
+        instr.remove_bb(arg_idx);
+      }
+    }
+  }
+}
+
 static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
                             fir::Context & /*ctx*/, WorkList &worklist) {
   // TODO: could also maybe figure out cases where we can convert everything
@@ -666,6 +733,9 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr->get_instr_type() == InstrType::CondBranchInstr) {
     return simplify_cond_branch(instr, bb, ctx, worklist);
+  }
+  if (instr->get_instr_type() == InstrType::SwitchInstr) {
+    return simplify_switch_branch(instr, bb, ctx, worklist);
   }
   if (instr->get_instr_type() == InstrType::SExt ||
       instr->get_instr_type() == InstrType::ZExt) {

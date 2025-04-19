@@ -84,6 +84,7 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
 
   switch (instr.op) {
   case Opcode::icmp_eq:
+  case Opcode::icmp_ugt:
     if (big_unsigned_const2) {
       indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
       return true;
@@ -445,10 +446,15 @@ void Legalizer::apply(MFunc &func) {
                 std::max(unique_reg_id, instr.args[i].reg.virt_id());
           }
           break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+          if (!instr.args[i].indx.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].indx.virt_id());
+          }
+          break;
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
           if (!instr.args[i].reg.is_concrete()) {
             unique_reg_id =
@@ -478,6 +484,7 @@ void Legalizer::apply(MFunc &func) {
           ioff = 0;
         }
         break;
+      case Opcode::icmp_ugt:
       case Opcode::icmp_slt:
       case Opcode::icmp_eq:
       case Opcode::cjmp_int_slt:

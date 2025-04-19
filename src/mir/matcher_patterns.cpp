@@ -1,5 +1,6 @@
 #include "matcher_patterns.hpp"
 #include "ir/instruction_data.hpp"
+#include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include <cstring>
@@ -402,24 +403,24 @@ void memory_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-  pats.push_back(Pattern{
-      {LoadNode, IntAddNode},
-      {{0, 1, 0}},
-      [](MatchResult &res, ExtraMatchData &data) {
-        auto load_instr = res.matched_instrs[0];
-        auto add_instr = res.matched_instrs[1];
-        auto res_reg =
-            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+  // pats.push_back(Pattern{
+  //     {LoadNode, IntAddNode},
+  //     {{0, 1, 0}},
+  //     [](MatchResult &res, ExtraMatchData &data) {
+  //       auto load_instr = res.matched_instrs[0];
+  //       auto add_instr = res.matched_instrs[1];
+  //       auto res_reg =
+  //           valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
 
-        auto a0 =
-            valueToArgPtr(load_instr->args[0],
-                          convert_type(load_instr.get_type()), data.alloc);
-        a0.ty = convert_type(load_instr.get_type());
-        auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(Opcode::mov, res_reg, a0);
-        res.result.emplace_back(Opcode::add2, res_reg, a1);
-        return true;
-      }});
+  //       auto a0 =
+  //           valueToArgPtr(load_instr->args[0],
+  //                         convert_type(load_instr.get_type()), data.alloc);
+  //       a0.ty = convert_type(load_instr.get_type());
+  //       auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
+  //       res.result.emplace_back(Opcode::mov, res_reg, a0);
+  //       res.result.emplace_back(Opcode::add2, res_reg, a1);
+  //       return true;
+  //     }});
 }
 
 void cjmp_patterns(IRVec<Pattern> &pats) {
@@ -862,7 +863,7 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto NotNode = Node{NodeType::Instr, InstrType::UnaryInstr,
                       (u32)fir::UnaryInstrSubType::Not};
   auto NegateNode = Node{NodeType::Instr, InstrType::UnaryInstr,
-                      (u32)fir::UnaryInstrSubType::IntNeg};
+                         (u32)fir::UnaryInstrSubType::IntNeg};
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          (u32)fir::BinaryInstrSubType::IntAdd};
   auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -902,6 +903,7 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
   auto BranchNode = Node{NodeType::Instr, InstrType::BranchInstr, 0};
   auto CondBranchNode = Node{NodeType::Instr, InstrType::CondBranchInstr, 0};
+  auto SwitchNode = Node{NodeType::Instr, InstrType::SwitchInstr, 0};
   auto ReturnNode = Node{NodeType::Instr, InstrType::ReturnInstr, 0};
   auto CallNode = Node{NodeType::Instr, InstrType::CallInstr, 0};
   auto StoreNode = Node{NodeType::Instr, InstrType::StoreInstr, 0};
@@ -1024,10 +1026,12 @@ void base_patterns(IRVec<Pattern> &pats) {
   pats.push_back(
       Pattern{{NegateNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 auto negate_instr = res.matched_instrs[0];
-                auto res_reg =
-                    valueToArg(fir::ValueR(negate_instr), res.result, data.alloc);
+                auto res_reg = valueToArg(fir::ValueR(negate_instr), res.result,
+                                          data.alloc);
 
-                res.result.emplace_back(Opcode::mov, res_reg, valueToArg(negate_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(
+                    Opcode::mov, res_reg,
+                    valueToArg(negate_instr->args[0], res.result, data.alloc));
                 res.result.emplace_back(Opcode::neg1, res_reg);
                 return true;
               }});
@@ -1413,6 +1417,37 @@ void base_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
+      {SwitchNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto branch_instr = res.matched_instrs[0];
+        auto value =
+            valueToArg(branch_instr->args.back(), res.result, data.alloc);
+        for (size_t instr_id = 0; instr_id < branch_instr->args.size() - 1;
+             instr_id++) {
+          auto &bb_with_args = branch_instr->bbs[instr_id];
+          auto target_bb = branch_instr->bbs[instr_id].bb;
+          ASSERT(bb_with_args.args.size() == target_bb->args.size());
+          generate_bb_args(bb_with_args, res, data);
+          auto cond_val =
+              valueToArg(branch_instr->args[instr_id], res.result, data.alloc);
+          res.result.push_back(
+              MInstr::cJmp_eq(value, cond_val, data.bbs[bb_with_args.bb]));
+        }
+        {
+          size_t instr_id = branch_instr->args.size() - 1;
+          auto &bb_with_args = branch_instr->bbs[instr_id];
+          auto target_bb = branch_instr->bbs[instr_id].bb;
+          ASSERT(bb_with_args.args.size() == target_bb->args.size());
+          generate_bb_args(bb_with_args, res, data);
+          // auto cond_val =
+          //     valueToArg(branch_instr->args[instr_id], res.result,
+          //     data.alloc);
+          // res.result.push_back(
+          //     MInstr::cJmp_eq(value, cond_val, data.bbs[bb_with_args.bb]));
+          res.result.push_back(MInstr::jmp(data.bbs[bb_with_args.bb]));
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
       {ReturnNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto ret_instr = res.matched_instrs[0];
         if (data.static_alloca_size > 0) {
@@ -1524,6 +1559,19 @@ void base_patterns(IRVec<Pattern> &pats) {
   pats.push_back(Pattern{
       {CallNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto call_instr = res.matched_instrs[0];
+        if (call_instr->args[0].is_constant()) {
+          auto call_const = call_instr->args[0].as_constant();
+          if (call_const->is_func() &&
+              call_const->as_func()->name == "foptim.va_start") {
+            setup_va_start(call_instr, res, data);
+            return true;
+          }
+          if (call_const->is_func() &&
+              call_const->as_func()->name == "foptim.va_end") {
+            setup_va_end(call_instr, res, data);
+            return true;
+          }
+        }
         setup_callargs(call_instr, res, data);
 
         MArgument calee;

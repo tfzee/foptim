@@ -167,6 +167,7 @@ void apply_func(MFunc &func) {
         }
       }
       if (!found) {
+        fmt::println("========================\n{}", func);
         fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
         fmt::println("{} Size:: {} IS vec: {}", reg, reg.ty, reg.is_vec_reg());
         TODO("spill it ?");

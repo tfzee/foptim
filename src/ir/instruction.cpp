@@ -2,6 +2,7 @@
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "utils/stable_vec_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
@@ -182,6 +183,25 @@ void Instr::remove_arg(u16 indx, bool verify) {
 
   args[indx].remove_usage(Use::norm(*this, indx), verify);
   args.erase(args.begin() + indx);
+}
+
+void Instr::remove_bb(u16 indx, bool verify) {
+  InstrData *self = operator->();
+  auto &bbs = self->bbs;
+  for (size_t i = indx + 1; i < bbs.size(); i++) {
+    bbs[i].bb->remove_usage(Use::bb(*this, i), verify);
+    bbs[i].bb->add_usage(Use::bb(*this, i - 1));
+    for (size_t a = 0; a < bbs[i].args.size(); a++) {
+      bbs[i].args[a].remove_usage(Use::bb_arg(*this, i, a), verify);
+      bbs[i].args[a].add_usage(Use::bb_arg(*this, i - 1, a));
+    }
+  }
+
+  bbs[indx].bb->remove_usage(Use::bb(*this, indx), verify);
+  for (size_t a = 0; a < bbs[indx].args.size(); a++) {
+    bbs[indx].args[a].remove_usage(Use::bb_arg(*this, indx, a), verify);
+  }
+  bbs.erase(bbs.begin() + indx);
 }
 
 void Instr::remove_bb_arg(u16 bb_id, u16 indx1, bool verify) {

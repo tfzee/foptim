@@ -184,8 +184,10 @@ void update_uses(const MArgument &arg, utils::BitSet<> &uses) {
   case MArgument::ArgumentType::VReg:
   case MArgument::ArgumentType::MemVReg:
   case MArgument::ArgumentType::MemImmVReg:
-  case MArgument::ArgumentType::MemImmVRegScale:
     uses[reg_to_uid(arg.reg)].set(true);
+    break;
+  case MArgument::ArgumentType::MemImmVRegScale:
+    uses[reg_to_uid(arg.indx)].set(true);
     break;
   case MArgument::ArgumentType::MemVRegVReg:
   case MArgument::ArgumentType::MemImmVRegVReg:

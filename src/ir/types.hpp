@@ -56,10 +56,7 @@ public:
   IRVec<TypeR> arg_types;
   [[nodiscard]] constexpr u32 get_size() const { return 8; }
   [[nodiscard]] constexpr u32 get_align() const { return 8; }
-  [[nodiscard]] bool eql(const FunctionType & /*unused*/) const {
-    ASSERT(false);
-    std::abort();
-  }
+  [[nodiscard]] bool eql(const FunctionType &other) const;
 };
 
 class VectorType {

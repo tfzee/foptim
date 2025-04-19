@@ -1,6 +1,7 @@
 #include "builder.hpp"
 #include "basic_block.hpp"
 #include "function.hpp"
+#include "ir/constant_value_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/vec.hpp"
@@ -112,10 +113,9 @@ ValueR Builder::build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
 ValueR Builder::build_extract_value(ValueR stru, std::span<ValueR> indicies,
                                     TypeR out_ty) {
   check_bb_set();
-  Instr instr =
-      ctx->storage.insert_instr(InstrData::get_extract_value(out_ty));
+  Instr instr = ctx->storage.insert_instr(InstrData::get_extract_value(out_ty));
   instr.add_arg(stru);
-  for(auto ar: indicies){
+  for (auto ar : indicies) {
     instr.add_arg(ar);
   }
   bb.insert_instr(indx, instr);
@@ -125,13 +125,12 @@ ValueR Builder::build_extract_value(ValueR stru, std::span<ValueR> indicies,
 
 ValueR Builder::build_insert_value(ValueR stru, ValueR v,
                                    std::span<ValueR> indicies, TypeR out_ty) {
-  
+
   check_bb_set();
-  Instr instr =
-      ctx->storage.insert_instr(InstrData::get_insert_value(out_ty));
+  Instr instr = ctx->storage.insert_instr(InstrData::get_insert_value(out_ty));
   instr.add_arg(stru);
   instr.add_arg(v);
-  for(auto ar: indicies){
+  for (auto ar : indicies) {
     instr.add_arg(ar);
   }
   bb.insert_instr(indx, instr);
@@ -329,6 +328,26 @@ Instr Builder::build_cond_branch(ValueR cond, BasicBlock true_bb,
   instr.add_bb(true_bb);
   instr.add_bb(false_bb);
   instr.add_arg(cond);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr;
+}
+
+Instr Builder::build_switch(
+    ValueR value,
+    std::span<std::pair<fir::ConstantValueR, fir::BasicBlock>> targets,
+    BasicBlock default_bb) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(InstrData::get_switch(ctx));
+  for (auto [v, b] : targets) {
+    ASSERT(v->is_int());
+    instr.add_bb(b);
+    instr.add_arg(fir::ValueR{v});
+  }
+  if (default_bb.is_valid()) {
+    instr.add_bb(default_bb);
+  }
+  instr.add_arg(value);
   bb.insert_instr(indx, instr);
   indx++;
   return instr;

@@ -1,5 +1,7 @@
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
+#include "ir/function_ref.hpp"
+#include "ir/types.hpp"
 #include "mir/func.hpp"
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
@@ -18,6 +20,7 @@
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/mem2reg.hpp"
+#include "optim/func_passes/merge_alloca.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
 #include "optim/func_passes/stack_known_bits.hpp"
@@ -25,13 +28,17 @@
 #include "optim/module_passes/IPCP.hpp"
 #include "optim/module_passes/inline.hpp"
 #include "utils/arena.hpp"
+#include "utils/helpers.hpp"
 #include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
+#include "utils/stable_vec_ref.hpp"
 #include "utils/stable_vec_slot.hpp"
 #include "utils/todo.hpp"
 #include "x86_codegen/backend.hpp"
 #include "llvm/llir_loader.hpp"
 
+#include <algorithm>
+#include <memory>
 #include <tracy/Tracy.hpp>
 #include <unistd.h>
 
@@ -100,18 +107,18 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
   fmt::print("================FIR====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{:d}\n", func);
-  }
+  // for (const auto &[_, func] : ctx.data->storage.functions) {
+  //   fmt::print("{:d}\n", func);
+  // }
   fmt::print("================FIR START====================\n");
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
       Mem2Reg, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering, DCE,
       GarbageCollect, SimplifyCFG, LICM, LoopRotate, DCE, LVN, SCCP,
       InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE,
-      InstSimplify, SimplifyCFG, LLVMInstrinsicLowering>{}
+      InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
       InstSimplify, DCE, SimplifyCFG>{}
@@ -120,23 +127,29 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<InstSimplify, SimplifyCFG,
                                                    DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg>{}
+  foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg,
+                                                   MergeAllocaPass, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, SimplifyCFG, InstSimplify, SCCP, DCE,
       InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      LVN, SCCP, DCE, GarbageCollect, SimplifyCFG, InstSimplify, SCCP, DCE,
-      InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
-      .apply(ctx, shed);
   fmt::print("================FIR END====================\n");
   for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{}\n", func);
+    fmt::print("{:d}\n", func);
   }
   ASSERT(ctx->verify());
   ctx.data->print_stats();
+}
+
+void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
+  fmt::println(" Got {} functions", reordered_funcs.size());
+  (void)reordered_funcs;
+  std::sort(reordered_funcs.begin(), reordered_funcs.end(),
+            [](foptim::fir::Function *a, foptim::fir::Function *b) {
+              return a->get_n_uses() < b->get_n_uses();
+            });
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,
@@ -157,12 +170,16 @@ void lower_to_mir(foptim::fir::Context &ctx,
         for (const auto &rel_inf : v->data.reloc_info) {
           if (rel_inf.ref->is_global()) {
             glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
-                .offset = rel_inf.offset,
-                .name = rel_inf.ref->as_global()->name.c_str()});
+                .insert_offset = rel_inf.insert_offset,
+                .name = rel_inf.ref->as_global()->name.c_str(),
+                .reloc_offset = rel_inf.reloc_offset,
+            });
           } else if (rel_inf.ref->is_func()) {
             glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
-                .offset = rel_inf.offset,
-                .name = rel_inf.ref->as_func()->name.c_str()});
+                .insert_offset = rel_inf.insert_offset,
+                .name = rel_inf.ref->as_func()->name.c_str(),
+                .reloc_offset = rel_inf.reloc_offset,
+            });
           } else {
             TODO("dont think theeres any others");
           }
@@ -176,13 +193,21 @@ void lower_to_mir(foptim::fir::Context &ctx,
 
   auto matcher = foptim::fmir::GreedyMatcher{};
   fmt::print("================MATCHING====================\n");
-  for (auto [_, func] : ctx->storage.functions) {
-    if (func.is_decl()) {
+  foptim::TVec<foptim::fir::Function *> reordered_funcs;
+  reordered_funcs.reserve(ctx->storage.functions.size());
+  for (auto &[_, func] : ctx->storage.functions) {
+    reordered_funcs.emplace_back(&func);
+  }
+  reorder_funcs(reordered_funcs);
+  for (auto *func : reordered_funcs) {
+    auto mark = foptim::utils::TempAlloc<void *>::save();
+
+    if (func->is_decl()) {
       continue;
     }
-    auto res = matcher.apply(func);
+    auto res = matcher.apply(*func);
     funcs.push_back(std::move(res));
-    foptim::utils::TempAlloc<void *>::reset();
+    foptim::utils::TempAlloc<void *>::restore(mark);
   }
 }
 
@@ -191,10 +216,10 @@ void optimize_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
   ZoneScopedN("MIR Optim");
-  fmt::print("================MIR START====================\n");
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
+  // fmt::print("================MIR START====================\n");
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
   // running dead to make inst simplify work better
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

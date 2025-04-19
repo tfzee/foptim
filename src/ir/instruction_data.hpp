@@ -31,6 +31,7 @@ enum class InstrType : u8 {
   ReturnInstr,
   BranchInstr,
   CondBranchInstr,
+  SwitchInstr,
   // Unreachable,
 
   // Memory
@@ -259,6 +260,8 @@ public:
       return "ZExt";
     case InstrType::CondBranchInstr:
       return "CondBranch";
+    case InstrType::SwitchInstr:
+      return "Switch";
     case InstrType::CallInstr:
       return "Call";
     case InstrType::LoadInstr:
@@ -404,6 +407,7 @@ public:
   static InstrData get_select(TypeR ty);
   static InstrData get_store(TypeR ty);
   static InstrData get_branch(ContextData *ctx);
+  static InstrData get_switch(ContextData *ctx);
   static InstrData get_cond_branch(ContextData *ctx);
 
   [[nodiscard]] bool eql_expr(const InstrData &other) const {

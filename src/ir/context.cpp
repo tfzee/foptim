@@ -124,15 +124,19 @@ VoidTypeR ContextData::get_void_type() {
   static auto void_type = storage.insert_type(AnyType{});
   return void_type;
 }
+
 VoidTypeR ContextData::get_ptr_type() {
   static auto ptr_type = storage.insert_type(AnyType::Ptr());
   return ptr_type;
 }
 
 StructTypeR ContextData::get_struct_type(IRVec<StructType::StructElem> elems) {
-  static auto stru_type =
-      storage.insert_type(AnyType(StructType{std::move(elems)}));
-  return stru_type;
+  auto ty = StructType(std::move(elems));
+  auto maybeT = try_reuse_type(ty);
+  if (maybeT.is_valid()) {
+    return maybeT;
+  }
+  return storage.insert_type(AnyType(ty));
 }
 
 IntTypeR ContextData::get_float_type(u16 bitwidth) {
@@ -143,6 +147,10 @@ IntTypeR ContextData::get_float_type(u16 bitwidth) {
   }
   if (bitwidth == 64) {
     return f64_type;
+  }
+  auto maybeT = try_reuse_type(FloatType(bitwidth));
+  if (maybeT.is_valid()) {
+    return maybeT;
   }
   return storage.insert_type(FloatType{bitwidth});
 }
@@ -168,12 +176,20 @@ IntTypeR ContextData::get_int_type(u16 bitwidth) {
   if (bitwidth == 64) {
     return u64_type;
   }
-
+  auto maybeT = try_reuse_type(IntegerType(bitwidth));
+  if (maybeT.is_valid()) {
+    return maybeT;
+  }
   return storage.insert_type(IntegerType{bitwidth});
 }
 
 FunctionTypeR ContextData::get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
-  return storage.insert_type(FunctionType{ret_type, std::move(args)});
+  auto func_ty = FunctionType{ret_type, std::move(args)};
+  auto maybeT = try_reuse_type(func_ty);
+  if (maybeT.is_valid()) {
+    return maybeT;
+  }
+  return storage.insert_type(func_ty);
 }
 
 ConstantValueR ContextData::get_poisson_value(TypeR type) {
@@ -182,19 +198,42 @@ ConstantValueR ContextData::get_poisson_value(TypeR type) {
 }
 
 ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
-  for (auto *constant : storage.storage_constant._slot_slab_starts) {
-    if (constant->used == utils::SlotState::Used) {
-      if (constant->data.eql(val) &&
-          constant->data.get_type() == val.get_type()) {
+  for (auto *constant_slab : storage.storage_constant._slot_slab_starts) {
+    for (size_t i = 0; i < decltype(storage.storage_constant)::_slot_slab_len;
+         i++) {
+      auto *constant = &constant_slab[i];
+      if (constant->used == utils::SlotState::Used) {
+        if (constant->data.eql(val) &&
+            constant->data.get_type() == val.get_type()) {
 #ifdef SLOT_CHECK_GENERATION
-        return ConstantValueR{utils::SRef{constant, constant->generation}};
+          return ConstantValueR{utils::SRef{constant, constant->generation}};
 #else
-        return ConstantValueR{utils::SRef{constant, 0}};
+          return ConstantValueR{utils::SRef{constant, 0}};
 #endif
+        }
       }
     }
   }
   return ConstantValueR{ConstantValueR::invalid()};
+}
+
+TypeR ContextData::try_reuse_type(const AnyType &val) {
+  for (auto *typee_slab : storage.storage_type._slot_slab_starts) {
+    for (size_t i = 0; i < decltype(storage.storage_type)::_slot_slab_len;
+         i++) {
+      auto *typee = &typee_slab[i];
+      if (typee->used == utils::SlotState::Used) {
+        if (typee->data.eql(val)) {
+#ifdef SLOT_CHECK_GENERATION
+          return TypeR{utils::SRef{typee, typee->generation}};
+#else
+          return TypeR{utils::SRef{typee, 0}};
+#endif
+        }
+      }
+    }
+  }
+  return TypeR{TypeR::invalid()};
 }
 
 ConstantValueR ContextData::get_constant_value(FunctionR func) {

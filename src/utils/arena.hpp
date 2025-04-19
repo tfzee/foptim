@@ -1,16 +1,27 @@
 #pragma once
 #include "utils/types.hpp"
-#include <cstddef>
 #include <atomic>
+#include <cstddef>
 #include <fmt/core.h>
 #include <tracy/Tracy.hpp>
 
-struct Arena;
+struct Region;
+
+typedef struct {
+  Region *begin, *end;
+} Arena;
+
+typedef struct {
+  Region *region;
+  size_t count;
+} Arena_Mark;
 
 void *arena_alloc(Arena *a, size_t size_bytes);
 // void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);
 // char *arena_strdup(Arena *a, const char *cstr);
 // void *arena_memdup(Arena *a, void *data, size_t size);
+Arena_Mark arena_snapshot(Arena *a);
+void arena_rewind(Arena *a, Arena_Mark m);
 void arena_reset(Arena *a);
 void arena_free(Arena *a);
 
@@ -45,6 +56,10 @@ public:
   }
 
   constexpr void deallocate(T * /*unused*/, size_t /*unused*/) {}
+
+  static Arena_Mark save() { return arena_snapshot(&temp_arena); }
+
+  static void restore(Arena_Mark mark) { arena_rewind(&temp_arena, mark); }
 
   static void reset() {
     temp_arena_size = 0;

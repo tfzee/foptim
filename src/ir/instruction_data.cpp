@@ -127,6 +127,7 @@ bool InstrData::has_result() const {
   case InstrType::InsertValue:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
+  case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
     return false;
@@ -138,6 +139,7 @@ bool InstrData::is_critical() const {
   case InstrType::CallInstr:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
+  case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
     return true;
@@ -210,6 +212,7 @@ bool InstrData::is_commutative() const {
   case InstrType::CallInstr:
   case InstrType::ReturnInstr:
   case InstrType::BranchInstr:
+  case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
   case InstrType::SelectInstr:
   case InstrType::StoreInstr:
@@ -235,6 +238,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::ExtractValue:
   case InstrType::AllocaInstr:
   case InstrType::BranchInstr:
+  case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
   case InstrType::SelectInstr:
   case InstrType::ReturnInstr:
@@ -259,6 +263,7 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::InsertValue:
   case InstrType::ExtractValue:
   case InstrType::ReturnInstr:
+  case InstrType::SwitchInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
   case InstrType::SelectInstr:
@@ -453,6 +458,13 @@ InstrData InstrData::get_store(TypeR ty) {
 
 InstrData InstrData::get_branch(ContextData *ctx) {
   auto res = InstrData{InstrType::BranchInstr, ctx->get_void_type(),
+                       BasicBlock(BasicBlock::invalid())};
+  // res.bbs.reserve(1);
+  return res;
+}
+
+InstrData InstrData::get_switch(ContextData *ctx) {
+  auto res = InstrData{InstrType::SwitchInstr, ctx->get_void_type(),
                        BasicBlock(BasicBlock::invalid())};
   // res.bbs.reserve(1);
   return res;

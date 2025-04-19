@@ -30,6 +30,7 @@ class Instr;
 class InstrData;
 struct BBRefWithArgs;
 class TypeR;
+class AnyType;
 struct ConstantValue;
 class ConstantValueR;
 class Attribute;
@@ -63,5 +64,8 @@ using f32 = float;
 using f64 = double;
 
 using size_t = std::size_t;
+
+#define fori(input) for(size_t i = 0; i < (input).size(); i++)
+  
 
 }; // namespace foptim
