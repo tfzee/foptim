@@ -1182,6 +1182,10 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     foff_func->linkage = foptim::fir::Function::Linkage::External;
     break;
   }
+  if (foptim::utils::all_linkage_internal && func_name != "main" &&
+      !func.empty()) {
+    foff_func->linkage = foptim::fir::Function::Linkage::Internal;
+  }
 }
 
 inline void convert(llvm::Function &func, foptim::fir::Context &fctx,

@@ -21,10 +21,11 @@ public:
   }
 };
 
-struct GlobalData: public Used {
+struct GlobalData : public Used {
   struct RelocationInfo {
     size_t insert_offset;
     ConstantValueR ref;
+    //used as addent in relocation
     size_t reloc_offset = 0;
   };
 
@@ -43,3 +44,19 @@ struct GlobalData: public Used {
 };
 
 }; // namespace foptim::fir
+
+template <>
+class fmt::formatter<foptim::fir::GlobalData>
+    : public BaseIRFormatter<foptim::fir::GlobalData> {
+public:
+  appender format(foptim::fir::GlobalData const &v, format_context &ctx) const {
+    auto app = ctx.out();
+    app = fmt::format_to(app, "GLOBAL {} @ {} Bytes ", v.name, v.n_bytes);
+    if (debug) {
+      for (auto r: v.reloc_info) {
+        app = fmt::format_to(app, " REF: {} {}", r.insert_offset, r.reloc_offset);
+      }
+    }
+    return app;
+  }
+};

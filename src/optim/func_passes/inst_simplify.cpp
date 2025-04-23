@@ -694,6 +694,7 @@ static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto bb = fir::Builder{instr};
     auto new_comp =
         bb.build_int_cmp(old_icmp->args[0], old_icmp->args[1], new_subtype);
+    push_all_uses(worklist, instr);
     instr->replace_all_uses(new_comp);
     instr.destroy();
     return;
@@ -706,9 +707,47 @@ static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto out_type = instr.get_type();
     ASSERT(out_type->is_int());
     auto mask = (1 << out_type->as_int()) - 1;
+    push_all_uses(worklist, instr);
     instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
         (~instr->args[0].as_constant()->as_int()) & mask, out_type)});
     instr.destroy();
+    return;
+  }
+}
+
+static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
+                                fir::Context &ctx, WorkList &worklist) {
+  switch ((fir::ConversionSubType)instr->subtype) {
+  case fir::ConversionSubType::INVALID:
+    TODO("unreach");
+  case fir::ConversionSubType::FPTOSI:
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_float()) {
+      auto val = instr->args[0].as_constant()->as_float();
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+      instr.destroy();
+      TODO("OKAK IMPL");
+      return;
+    }
+  case fir::ConversionSubType::FPTOUI:
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_float()) {
+      auto val = instr->args[0].as_constant()->as_float();
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+      instr.destroy();
+      TODO("OKAK IMPL");
+      return;
+    }
+  case fir::ConversionSubType::FPEXT:
+  case fir::ConversionSubType::FPTRUNC:
+  case fir::ConversionSubType::UITOFP:
+  case fir::ConversionSubType::SITOFP:
+  case fir::ConversionSubType::PtrToInt:
+  case fir::ConversionSubType::IntToPtr:
     return;
   }
 }
@@ -740,6 +779,9 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   if (instr->get_instr_type() == InstrType::SExt ||
       instr->get_instr_type() == InstrType::ZExt) {
     return simplify_extend(instr, bb, ctx, worklist);
+  }
+  if (instr->get_instr_type() == InstrType::Conversion) {
+    return simplify_conversion(instr, bb, ctx, worklist);
   }
 }
 

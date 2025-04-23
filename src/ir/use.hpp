@@ -1,6 +1,7 @@
 #pragma once
 #include "../utils/types.hpp"
 #include "instruction.hpp"
+#include "utils/mutex.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fir {
@@ -46,6 +47,29 @@ public:
   void add_usage(Use u) { uses.push_back(u); }
   [[nodiscard]] size_t get_n_uses() const { return uses.size(); }
   [[nodiscard]] const IRVec<Use> &get_uses() const { return uses; }
+
+  void replace_all_uses(ValueR new_value);
+  void remove_usage(const Use &use, bool verify);
+  void remove_all_usages();
+};
+
+class FuncLockedUsed {
+public:
+  static Mutex<void *> lock;
+  Used _uses = {};
+
+  void add_usage(Use u) {
+    auto l = lock.scoped_lock();
+    _uses.uses.push_back(u);
+  }
+  [[nodiscard]] size_t get_n_uses() const {
+    auto l = lock.scoped_lock();
+    return _uses.uses.size();
+  }
+  [[nodiscard]] const IRVec<Use> &get_uses() const {
+    auto l = lock.scoped_lock();
+    return _uses.uses;
+  }
 
   void replace_all_uses(ValueR new_value);
   void remove_usage(const Use &use, bool verify);

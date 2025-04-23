@@ -66,6 +66,20 @@ void Used::remove_usage(const Use &u, bool verify) {
 
 void Used::remove_all_usages() { replace_all_uses(ValueR()); }
 
+Mutex<void *> FuncLockedUsed::lock = {};
+void FuncLockedUsed::replace_all_uses(ValueR new_value) {
+  auto l = lock.scoped_lock();
+  return _uses.replace_all_uses(new_value);
+}
+void FuncLockedUsed::remove_usage(const Use &use, bool verify) {
+  auto l = lock.scoped_lock();
+  return _uses.remove_usage(use, verify);
+}
+void FuncLockedUsed::remove_all_usages() {
+  auto l = lock.scoped_lock();
+  return _uses.remove_all_usages();
+}
+
 bool Use::operator==(const Use &other) const {
   return user == other.user && type == other.type && argId == other.argId &&
          bbArgId == other.bbArgId;

@@ -8,6 +8,7 @@
 #include <cmath>
 #include <elfio/elf_types.hpp>
 #include <elfio/elfio.hpp>
+#include <fmt/core.h>
 
 const char *get_reg_name(const ZydisRegister &data);
 
@@ -62,6 +63,7 @@ enum class RelocSection : u8 {
   INVALID,
   Data,
   Text,
+  InitArray,
   Extern,
 };
 enum class RelocKind : u8 {
@@ -1158,6 +1160,7 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     bool out_64 = instr.args[0].ty == fmir::Type::Int64;
     bool out_32 = instr.args[0].ty == fmir::Type::Int32;
     bool is_unsigned = instr.op == fmir::Opcode::FL2UI;
+    fmt::println("{} {}", req, instr);
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
 
@@ -1419,6 +1422,24 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   }
   symbol_section_accessor syma(writer, sym_sec);
 
+  section *init_array_sec = writer.sections.add(".init_array");
+  {
+    init_array_sec->set_type(SHT_INIT_ARRAY);
+    init_array_sec->set_flags(SHF_ALLOC | SHF_WRITE);
+    init_array_sec->set_addr_align(0x8);
+    init_array_sec->set_entry_size(8);
+    // init_array_sec->set_link(sym_sec->get_index());
+  }
+  section *init_array_rel_sec = writer.sections.add(".rela.init_array");
+  {
+    init_array_rel_sec->set_type(SHT_RELA);
+    init_array_rel_sec->set_info(init_array_sec->get_index());
+    init_array_rel_sec->set_addr_align(0x8);
+    init_array_rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
+    init_array_rel_sec->set_link(sym_sec->get_index());
+  }
+  relocation_section_accessor init_array_rela(writer, init_array_rel_sec);
+
   section *text_rel_sec = writer.sections.add(".rela.text");
   {
     text_rel_sec->set_type(SHT_RELA);
@@ -1444,6 +1465,40 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     // TODO: alignment
     data_sec->set_address(0x1000);
     for (const auto &global : globals) {
+      if (strcmp(global.name, "llvm.global_ctors") == 0) {
+        label_usage_map.label_map[global.name].def_loc = 0;
+        label_usage_map.label_map[global.name].kind = RelocKind::Data;
+        label_usage_map.label_map[global.name].section =
+            RelocSection::InitArray;
+        label_usage_map.label_map[global.name].size = global.data.size();
+        fmt::println("CTOR {}", global.name);
+        { // handle reloccs
+          int i = 0;
+          for (const auto &reloc_info : global.reloc_info) {
+            ASSERT(8 + i * 24ULL == (uint64_t)reloc_info.insert_offset);
+            label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
+                LabelRelocData::Usage{
+                    .usage_instr = (u8 *)(8ULL * i),
+                    .operand_num = 0,
+                    .usage_section = RelocSection::InitArray,
+                    .addent = 0,
+                });
+            i++;
+          }
+          init_array_sec->set_size(8*i);
+          void* buff_data = malloc(8*i);
+          memset(buff_data, 0, 8*i);
+          data_sec->set_data((const char*)buff_data, 8*i);
+          //IDK if i assume it copies it ??
+          free(buff_data);
+
+        }
+        continue;
+      }
+      if (strcmp(global.name, "llvm.global_dtors") == 0) {
+        // https://llvm.org/docs/Passes.html#lower-global-dtors-lower-global-destructors
+        TODO("impl");
+      }
       label_usage_map.label_map[global.name].def_loc =
           curr_data_ptr - start_data;
       label_usage_map.label_map[global.name].kind = RelocKind::Data;
@@ -1489,6 +1544,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     switch (label_data.section) {
     case RelocSection::INVALID:
       UNREACH();
+    case RelocSection::InitArray:
+      sec_indx = init_array_sec->get_index();
+      break;
     case RelocSection::Data:
       sec_indx = data_sec->get_index();
       break;
@@ -1521,6 +1579,10 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       case RelocSection::INVALID:
       case RelocSection::Extern:
         UNREACH();
+      case RelocSection::InitArray:
+        init_array_rela.add_entry((Elf64_Addr)loc.usage_instr, symbol,
+                                  (unsigned char)R_X86_64_64, loc.addent);
+        break;
       case RelocSection::Data:
         data_rela.add_entry(loc.usage_instr - start_data, symbol,
                             (unsigned char)R_X86_64_64, loc.addent);
@@ -1529,6 +1591,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         auto data = get_op_addr(loc.usage_instr, loc.operand_num);
         switch (label_data.section) {
         case RelocSection::INVALID:
+        case RelocSection::InitArray:
           UNREACH();
         case RelocSection::Data:
           text_rela.add_entry(data.op_addr - start_txt, symbol,
@@ -1595,21 +1658,21 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
 
   generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals);
 
-  {
-    ZyanU64 runtime_address = 0;
-    ZyanUSize offset = 0;
-    ZydisDisassembledInstruction instruction;
-    while (ZYAN_SUCCESS(ZydisDisassembleIntel(
-        /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
-        /* runtime_address: */ runtime_address,
-        /* buffer:          */ output_buffer + offset,
-        /* length:          */ (end_buff_ptr - output_buffer) - offset,
-        /* instruction:     */ &instruction))) {
-      fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
-      offset += instruction.info.length;
-      runtime_address += instruction.info.length;
-    }
-  }
+  // {
+  //   ZyanU64 runtime_address = 0;
+  //   ZyanUSize offset = 0;
+  //   ZydisDisassembledInstruction instruction;
+  //   while (ZYAN_SUCCESS(ZydisDisassembleIntel(
+  //       /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
+  //       /* runtime_address: */ runtime_address,
+  //       /* buffer:          */ output_buffer + offset,
+  //       /* length:          */ (end_buff_ptr - output_buffer) - offset,
+  //       /* instruction:     */ &instruction))) {
+  //     fmt::println("{:0>4x}: {}", runtime_address, instruction.text);
+  //     offset += instruction.info.length;
+  //     runtime_address += instruction.info.length;
+  //   }
+  // }
 }
 
 } // namespace foptim::codegen

@@ -1,15 +1,14 @@
-// RUN: clang -O0 %s -o %t.ll -S -emit-llvm 
+// RUN: clang -O0 %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.o
 // RUN: clang %t.o -o %t.out
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 
-// CHECK: hi 5Result:0
+// CHECK: Hello 55 okak 22.500000Result:0
 
 #include <stdio.h>
 
-int main(){
-  printf("hi %i", 5);
+int main() {
+  printf("Hello %i %s %f", 55, "okak", 22.5);
   return 0;
 }
-

@@ -38,6 +38,10 @@ public:
       }
     }
 
+    if (func->n_instrs() <= (5 + v.func->get_entry()->n_args())) {
+      return true;
+    }
+
     bool all_args_are_constant = true;
     for (auto arg : instr->args) {
       if (!arg.is_constant()) {

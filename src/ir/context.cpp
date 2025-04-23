@@ -1,4 +1,5 @@
 #include "context.hpp"
+#include "global.hpp"
 #include "ir/types.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/stable_vec_slot.hpp"
@@ -329,3 +330,22 @@ ConstantValueR ContextData::get_constant_value(Global glob) {
 }
 
 } // namespace foptim::fir
+
+fmt::appender
+fmt::formatter<foptim::fir::Context>::format(foptim::fir::Context const &v,
+                                             format_context &ctx) const {
+  auto app = ctx.out();
+  for (const auto *slab_g : v->storage.storage_global._slot_slab_starts) {
+    for (size_t i = 0; i < decltype(v->storage.storage_global)::_slot_slab_len;
+         i++) {
+      const auto *glob = &slab_g[i];
+      if (glob->used == foptim::utils::SlotState::Used) {
+        app = fmt::format_to(app, "{:d}\n", glob->data);
+      }
+    }
+  }
+  for (const auto &[_, func] : v.data->storage.functions) {
+    app = fmt::format_to(app, "{:d}\n", func);
+  }
+  return app;
+}

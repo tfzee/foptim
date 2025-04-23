@@ -1,3 +1,10 @@
+// RUN: clang++ -O0 %s -o %t.ll -S -emit-llvm
+// RUN: %foffcc %t.ll %t.o
+// RUN: clang++ %t.o -o %t.out
+// RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
+// RUN: echo $result | FileCheck %s
+
+// CHECK: Result:0
 /*
     Copyright 2007-2008 Adobe Systems Incorporated
     Distributed under the MIT License (see accompanying file LICENSE_1_0_0.txt
@@ -165,11 +172,11 @@ typedef PointerWrapper<DoubleValueWrapper10> doubleValueWrapper10_pointer;
 
 // this constant may need to be adjusted to give reasonable minimum times
 // For best results, times should be about 1.0 seconds for the minimum test run
-#ifdef SMALL_PROBLEM_SIZE
+// #ifdef SMALL_PROBLEM_SIZE
 int iterations = 100;
-#else
-int iterations = 200000;
-#endif
+// #else
+// int iterations = 200000;
+// #endif
 
 // 2000 items, or about 16k of data
 // this is intended to remain within the L2 cache of most common CPUs

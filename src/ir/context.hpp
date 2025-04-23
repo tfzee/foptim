@@ -7,6 +7,7 @@
 #include "types_ref.hpp"
 #include "utils/logging.hpp"
 #include "utils/stable_vec.hpp"
+#include <fmt/format.h>
 
 namespace foptim::fir {
 
@@ -75,4 +76,13 @@ public:
     data = nullptr;
   }
 };
+
 } // namespace foptim::fir
+
+template <>
+class fmt::formatter<foptim::fir::Context>
+    : public BaseIRFormatter<foptim::fir::Context> {
+public:
+  appender format(foptim::fir::Context const &v,
+                  format_context &ctx) const;
+};

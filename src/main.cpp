@@ -26,6 +26,7 @@
 #include "optim/func_passes/stack_known_bits.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_passes/IPCP.hpp"
+#include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/inline.hpp"
 #include "utils/arena.hpp"
 #include "utils/helpers.hpp"
@@ -118,27 +119,27 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE,
       InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
       InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<InstSimplify, SimplifyCFG,
                                                    DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg,
                                                    MergeAllocaPass, DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, SimplifyCFG, InstSimplify, SCCP, DCE,
       InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
+  foptim::optim::StaticModulePassManager<GDCE>{}.apply(ctx);
   fmt::print("================FIR END====================\n");
-  for (const auto &[_, func] : ctx.data->storage.functions) {
-    fmt::print("{:d}\n", func);
-  }
+
+  fmt::print("{:d}\n", ctx);
   ASSERT(ctx->verify());
   ctx.data->print_stats();
 }
@@ -252,10 +253,10 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  fmt::print("================MIR END====================\n");
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
+  // fmt::print("================MIR END====================\n");
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

@@ -234,12 +234,23 @@ void setup_va_start(fir::Instr &call_instr, MatchResult &res,
   // TODO: handle other cases aswell
   ASSERT(ptr_arg.isReg());
 
+  auto n_int_args = 0;
+  auto n_vec_args = 0;
+  //TODO: idk about this
+  for (auto arg: data.func.args) {
+    if(arg.is_vec_reg()){
+      n_vec_args += 1;
+    }else{
+      n_int_args += 1;
+    }
+  }
+
   res.result.emplace_back(Opcode::mov,
                           MArgument::MemOB(0, ptr_arg.reg, Type::Int32),
-                          MArgument((u32)48));
+                          MArgument((u32)8 * n_int_args));
   res.result.emplace_back(Opcode::mov,
                           MArgument::MemOB(4, ptr_arg.reg, Type::Int32),
-                          MArgument((u32)8));
+                          MArgument((u32)48 + 16 * n_vec_args));
   res.result.emplace_back(Opcode::mov,
                           MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
                           MArgument(VReg::RBP(), Type::Int64));

@@ -101,7 +101,8 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::GlobalPtr:
     return &gp_u.v.glob->uses;
   case ConstantType::FuncPtr:
-    return &fup_u.v.func->uses;
+    TODO("idk if this is legal");
+    // return &fup_u.v.func->get_uses();
   }
 }
 [[nodiscard]] const IRVec<Use> *ConstantValue::get_uses() const {
