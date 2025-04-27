@@ -154,7 +154,6 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
                                     MInstr{Opcode::add2,
                                            MArgument{VReg::RSP(), Type::Int64},
                                            MArgument{176U}});
-      fmt::println("====VA====\n{}", func);
     }
   }
 }

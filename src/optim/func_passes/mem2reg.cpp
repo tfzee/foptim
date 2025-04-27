@@ -189,13 +189,8 @@ static void decide_value_load(fir::Instr instr, size_t &i,
     load_val = fir::ValueR(ctx->get_poisson_value(instr.get_type()));
   }
   if (load_val.get_type() != instr.get_type()) {
-    // bool isptri64 = load_val.get_type()->is_ptr() &&
-    //                 instr->get_type()->is_int() &&
-    //                 instr->get_type()->as_int() == 64;
-    // bool isi64ptr = instr->get_type()->is_ptr() &&
-    //                 load_val.get_type()->is_int() &&
-    //                 load_val.get_type()->as_int() == 64;
-    if (load_val.get_type()->get_size() != instr.get_type()->get_size() || load_val.get_type()->get_align() != instr.get_type()->get_align()) {
+    if (load_val.get_type()->get_size() != instr.get_type()->get_size() ||
+        load_val.get_type()->get_align() != instr.get_type()->get_align()) {
       fmt::println("{} != {}", instr, load_val);
       fmt::println("{} != {}", instr.get_type(), load_val.get_type());
       TODO("wrong typein alloca?");
