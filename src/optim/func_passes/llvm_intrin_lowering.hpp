@@ -25,16 +25,25 @@ public:
     assert(func_ty);
 
     fir::ValueR args[3] = {target_ptr, value, size};
+    // TODO: impl optimizations
+    //  if (size.is_constant() && value.is_constant() &&
+    //      value.as_constant()->is_int() && size.as_constant()->as_int() < 8) {
+    //    auto out_size = size.as_constant()->as_int();
+    //    u8 constant = value.as_constant()->as_int();
+    //    u64 value = 0;
+    //    for (u8 i = 0; i < out_size; i++) {
+    //      value = (value << 8) | constant;
+    //    }
+    //    bb.build_store(target_ptr, fir::ValueR{ctx->get_constant_value(
+    //                                   value, ctx->get_int_type(8 *
+    //                                   out_size))});
+    //    instr.destroy();
+    //    return;
+    //  }
     bb.build_call(fir::ValueR(ctx->get_constant_value(
                       ctx->get_function("foptim.memset"))),
                   *func_ty, void_ty, args);
-
     instr.destroy();
-    // if (name == "llvm.memset.p0.i64") {
-
-    // } else {
-    //   TODO("impl more memset intrinsics");
-    // }
   }
 
   void handle_is_fpclass(fir::Instr instr, fir::Function & /*func*/,
@@ -85,16 +94,26 @@ public:
 
     fir::ValueR args[3] = {dst_ptr, src_ptr, size};
 
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_func() && size.is_constant() &&
+        instr->args.size() == 5) {
+      auto *called_func = instr->args[0].as_constant()->as_func().func;
+      auto csize = size.as_constant()->as_int();
+      if (((called_func->name == "llvm.memcpy.p0.p0.i64" && csize <= 8) ||
+           (called_func->name == "llvm.memcpy.p0.p0.i32" && csize <= 4)) &&
+          (csize == 8 || csize == 4 || csize == 1)) {
+        auto input = bb.build_load(ctx->get_int_type(csize * 8), src_ptr);
+        bb.build_store(dst_ptr, input);
+        instr.destroy();
+        return;
+      }
+    }
+
     bb.build_call(fir::ValueR(ctx->get_constant_value(
                       ctx->get_function("foptim.memcpy"))),
                   *func_ty, void_ty, args);
 
     instr.destroy();
-    // if (name == "llvm.memset.p0.i64") {
-
-    // } else {
-    //   TODO("impl more memset intrinsics");
-    // }
   }
 
   void handle_trap(fir::Instr instr, fir::Function &funcy,

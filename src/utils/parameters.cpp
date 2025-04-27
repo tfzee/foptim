@@ -8,6 +8,6 @@ bool print_optimization_failure_reasons = true;
 u8 number_worker_threads = 1;
 
 //make 
-bool all_linkage_internal = true;
+bool all_linkage_internal = false;
 
 } // namespace foptim::utils

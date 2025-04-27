@@ -1007,22 +1007,32 @@ void base_patterns(IRVec<Pattern> &pats) {
         res.result.emplace_back(Opcode::cmov, res_reg, cond, b);
         return true;
       }});
-  pats.push_back(
-      Pattern{{NotNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-                auto not_instr = res.matched_instrs[0];
-                auto res_reg =
-                    valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
+  pats.push_back(Pattern{
+      {NotNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto not_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
 
-                if (res_reg.is_fp()) {
-                  TODO("impl");
-                } else {
-                  res.result.emplace_back(
-                      Opcode::mov, res_reg,
-                      valueToArg(not_instr->args[0], res.result, data.alloc));
-                  res.result.emplace_back(Opcode::not1, res_reg);
-                }
-                return true;
-              }});
+        if (res_reg.is_fp()) {
+          TODO("impl");
+        } else {
+          auto bitwidth = not_instr.get_type()->as_int();
+          if (bitwidth == 1) {
+            res.result.emplace_back(
+                Opcode::mov, res_reg,
+                valueToArg(not_instr->args[0], res.result, data.alloc));
+            res.result.emplace_back(Opcode::lxor2, res_reg, MArgument((u8)0x1));
+            return true;
+          }
+
+          ASSERT(bitwidth == 4 || bitwidth == 8);
+          res.result.emplace_back(
+              Opcode::mov, res_reg,
+              valueToArg(not_instr->args[0], res.result, data.alloc));
+          res.result.emplace_back(Opcode::not1, res_reg);
+        }
+        return true;
+      }});
   pats.push_back(
       Pattern{{NegateNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
                 auto negate_instr = res.matched_instrs[0];

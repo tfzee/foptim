@@ -30,7 +30,8 @@ public:
         continue;
       }
 
-      ctx.data->storage.functions.erase(name);
+      // TODO: need to figure out if its reffed by a global object
+      //  ctx.data->storage.functions.erase(name);
     }
   }
 };

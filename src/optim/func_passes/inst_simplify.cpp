@@ -717,31 +717,33 @@ static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
 
 static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
                                 fir::Context &ctx, WorkList &worklist) {
+  (void)ctx;
+  (void)worklist;
   switch ((fir::ConversionSubType)instr->subtype) {
   case fir::ConversionSubType::INVALID:
     TODO("unreach");
   case fir::ConversionSubType::FPTOSI:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      auto val = instr->args[0].as_constant()->as_float();
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
-      instr.destroy();
-      TODO("OKAK IMPL");
-      return;
-    }
+    // if (instr->args[0].is_constant() &&
+    //     instr->args[0].as_constant()->is_float()) {
+    //   auto val = instr->args[0].as_constant()->as_float();
+    //   push_all_uses(worklist, instr);
+    //   instr->replace_all_uses(
+    //       fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+    //   instr.destroy();
+    //   TODO("OKAK IMPL");
+    //   return;
+    // }
   case fir::ConversionSubType::FPTOUI:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      auto val = instr->args[0].as_constant()->as_float();
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
-      instr.destroy();
-      TODO("OKAK IMPL");
-      return;
-    }
+    // if (instr->args[0].is_constant() &&
+    //     instr->args[0].as_constant()->is_float()) {
+    //   auto val = instr->args[0].as_constant()->as_float();
+    //   push_all_uses(worklist, instr);
+    //   instr->replace_all_uses(
+    //       fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+    //   instr.destroy();
+    //   TODO("OKAK IMPL");
+    //   return;
+    // }
   case fir::ConversionSubType::FPEXT:
   case fir::ConversionSubType::FPTRUNC:
   case fir::ConversionSubType::UITOFP:

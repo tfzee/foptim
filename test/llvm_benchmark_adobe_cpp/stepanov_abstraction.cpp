@@ -1,4 +1,4 @@
-// RUN: clang++ -O0 %s -o %t.ll -S -emit-llvm
+// RUN: clang++ -O3 -mllvm -disable-llvm-optzns %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.o
 // RUN: clang++ %t.o -o %t.out
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)

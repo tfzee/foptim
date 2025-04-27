@@ -44,9 +44,9 @@ HIstory:
 // this constant may need to be adjusted to give reasonable minimum times
 // For best results, times should be about 1.0 seconds for the minimum test run
 // #ifdef SMALL_PROBLEM_SIZE
-int iterations = 600;
+// int iterations = 600;
 // #else
-// int iterations = 60000;
+int iterations = 6000;
 // #endif
 
 // 2000 items, or about 16k of data

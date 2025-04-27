@@ -7,6 +7,7 @@ Simple optimizing backend
 
 ## TODO
 
++ optimize llvm intrin lowering like memset/memcopy
 + verification
 + serialize
 + deserialize
