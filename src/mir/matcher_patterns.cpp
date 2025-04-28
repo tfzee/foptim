@@ -296,8 +296,13 @@ void memory_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::mov, res_reg,
                                   MArgument::MemOB(a0.imm, a1.reg, load_ty));
         } else if (a0.isReg() && a1.isReg()) {
+          auto max_type = std::max(a0.reg.ty, a1.reg.ty);
+          auto a0_ext = a0.reg;
+          auto a1_ext = a1.reg;
+          a0_ext.ty = max_type;
+          a1_ext.ty = max_type;
           res.result.emplace_back(Opcode::mov, res_reg,
-                                  MArgument::MemBI(a0.reg, a1.reg, load_ty));
+                                  MArgument::MemBI(a0_ext, a1_ext, load_ty));
         } else {
           return false;
         }

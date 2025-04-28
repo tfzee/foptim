@@ -124,6 +124,7 @@ const char *getNameFromOpcode(Opcode code);
 
 enum class Type : u16 {
   INVALID = 0,
+  //NOTE: ORDER matters from smallest to biggest!
   Int8 = 1,
   Int16 = 2,
   Int32 = 3,

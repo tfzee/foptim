@@ -5,6 +5,7 @@
 #include "ir/constant_value.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types_ref.hpp"
 #include "utils/logging.hpp"
 
 namespace foptim::optim {
@@ -102,10 +103,15 @@ public:
       if (((called_func->name == "llvm.memcpy.p0.p0.i64" && csize <= 8) ||
            (called_func->name == "llvm.memcpy.p0.p0.i32" && csize <= 4)) &&
           (csize == 8 || csize == 4 || csize == 1)) {
-        auto input = bb.build_load(ctx->get_int_type(csize * 8), src_ptr);
-        bb.build_store(dst_ptr, input);
-        instr.destroy();
-        return;
+        auto input_ty = guessType(src_ptr);
+        auto output_ty = guessType(dst_ptr);
+        if (input_ty && output_ty &&
+            (*input_ty)->eql(*output_ty->get_raw_ptr())) {
+          auto input = bb.build_load(*input_ty, src_ptr);
+          bb.build_store(dst_ptr, input);
+          instr.destroy();
+          return;
+        }
       }
     }
 
@@ -299,6 +305,25 @@ public:
     for (auto bb : func.basic_blocks) {
       apply(bb, func);
     }
+  }
+
+private:
+  fir::TypeR *guessType(fir::ValueR ptr) {
+    if (ptr.is_instr()) {
+      auto ptr_instr = ptr.as_instr();
+      if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
+        if (ptr_instr->has_attrib("alloca::type")) {
+          return ptr_instr->get_attrib("alloca::type").try_type();
+        }
+      }
+      if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
+          (fir::BinaryInstrSubType)ptr_instr->subtype ==
+              fir::BinaryInstrSubType::IntAdd &&
+          ptr_instr->args[0].is_instr()) {
+        return guessType(ptr);
+      }
+    }
+    return nullptr;
   }
 };
 } // namespace foptim::optim
