@@ -1091,6 +1091,15 @@ inline void generate_trap(foptim::fir::Context &fctx) {
       {"abort", foptim::fir::Function(fctx.operator->(), "abort", func_ty)});
 }
 
+inline void generate_fexp(foptim::fir::Context &fctx) {
+  auto func_ty = fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
+  if (fctx->has_function("exp")) {
+    return;
+  }
+  fctx.data->storage.functions.insert(
+      {"exp", foptim::fir::Function(fctx.operator->(), "exp", func_ty)});
+}
+
 inline void generate_va(foptim::fir::Context &fctx) {
   auto func_ty =
       fctx->get_func_ty(fctx->get_void_type(), {fctx->get_ptr_type()});
@@ -1123,6 +1132,8 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_abs(fctx, func.getName());
   } else if (func.getName().starts_with("llvm.va_start")) {
     generate_va(fctx);
+  } else if (func.getName().starts_with("llvm.exp.f")) {
+    generate_fexp(fctx);
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(

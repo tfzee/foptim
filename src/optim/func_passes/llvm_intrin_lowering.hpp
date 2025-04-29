@@ -237,6 +237,13 @@ public:
     instr.destroy();
   }
 
+  void handle_fexp(fir::Instr instr, fir::Function &funcy,
+                    fir::FunctionR /*callee*/) {
+    auto *ctx = funcy.ctx;
+    instr.replace_arg(
+        0, fir::ValueR{ctx->get_constant_value(ctx->get_function("exp"))});
+  }
+
   void handle_va(fir::Instr instr, fir::Function &funcy,
                  fir::FunctionR /*callee*/, bool is_start) {
     auto *ctx = funcy.ctx;
@@ -295,6 +302,8 @@ public:
         } else if (callee.func->name.starts_with("llvm.lifetime.start") ||
                    callee.func->name.starts_with("llvm.lifetime.end")) {
           handle_lifetime(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.exp.f")) {
+          handle_fexp(instr, func, callee);
         }
       }
     }
