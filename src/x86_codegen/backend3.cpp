@@ -747,14 +747,14 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     case fmir::Opcode::icmp_ne:
       req.mnemonic = ZYDIS_MNEMONIC_SETNZ;
       break;
-    case fmir::Opcode::icmp_sgt:
-      req.mnemonic = ZYDIS_MNEMONIC_SETNBE;
-      break;
     case fmir::Opcode::icmp_uge:
       req.mnemonic = ZYDIS_MNEMONIC_SETNB;
       break;
     case fmir::Opcode::icmp_ule:
       req.mnemonic = ZYDIS_MNEMONIC_SETBE;
+      break;
+    case fmir::Opcode::icmp_sgt:
+      req.mnemonic = ZYDIS_MNEMONIC_SETNLE;
       break;
     case fmir::Opcode::icmp_sge:
       req.mnemonic = ZYDIS_MNEMONIC_SETNL;
