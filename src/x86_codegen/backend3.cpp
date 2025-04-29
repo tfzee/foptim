@@ -716,6 +716,60 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                        : ZYDIS_MNEMONIC_VDIVSD;
     ZY_ASS(ZydisEncoderEncodeInstruction(&req, out_buff, &length));
     return length;
+  case fmir::Opcode::icmp_mul_overflow: {
+    auto targ = req.operands[0];
+    auto a = req.operands[1];
+    auto b = req.operands[2];
+    auto targ_expanded = reg_with_type(instr.args[0].reg, instr.args[1].ty);
+
+    req.mnemonic = ZYDIS_MNEMONIC_IMUL;
+    req.operands[0].reg.value = targ_expanded;
+    req.operands[1] = a;
+    req.operands[2] = b;
+    req.operand_count = 3;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    size_t len2 = 32;
+    req.mnemonic = ZYDIS_MNEMONIC_SETO;
+    req.operands[0] = targ;
+    req.operand_count = 1;
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2),
+               req);
+    return length + len2;
+  }
+  case fmir::Opcode::icmp_add_overflow: {
+    TODO("reimpl add overfow");
+    // auto targ = req.operands[0];
+    // auto a = req.operands[1];
+    // auto b = req.operands[2];
+    // req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    // ASSERT(instr.args[0].isReg());
+    // ASSERT(!instr.args[2].isReg() ||
+    //        instr.args[0].reg.c_reg() != instr.args[2].reg.c_reg());
+    // auto targ_expanded = reg_with_type(instr.args[0].reg, instr.args[1].ty);
+
+    // req.operands[0].reg.value = targ_expanded;
+    // req.operands[1] = a;
+    // req.operand_count = 2;
+    // ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    // req.mnemonic = instr.op == fmir::Opcode::icmp_add_overflow
+    //                    ? ZYDIS_MNEMONIC_ADD
+    //                    : ZYDIS_MNEMONIC_IMUL;
+    // req.operands[0].reg.value = targ_expanded;
+    // req.operands[1] = b;
+    // req.operand_count = 2;
+    // fmt::println("{}", instr, req);
+    // ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    // size_t len2 = 32;
+    // req.mnemonic = ZYDIS_MNEMONIC_INVALID;
+
+    // req.mnemonic = ZYDIS_MNEMONIC_SETO;
+    // req.operands[0] = targ;
+    // req.operand_count = 1;
+    // ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2),
+    //            req);
+    // return length + len2;
+  }
+
   case fmir::Opcode::icmp_slt:
   case fmir::Opcode::icmp_ult:
   case fmir::Opcode::icmp_ne:
@@ -1212,8 +1266,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   }
-  case fmir::Opcode::icmp_mul_overflow:
-  case fmir::Opcode::icmp_add_overflow:
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
     TODO("REIMPL");
@@ -1485,13 +1537,12 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                 });
             i++;
           }
-          init_array_sec->set_size(8*i);
-          void* buff_data = malloc(8*i);
-          memset(buff_data, 0, 8*i);
-          data_sec->set_data((const char*)buff_data, 8*i);
-          //IDK if i assume it copies it ??
+          init_array_sec->set_size(8 * i);
+          void *buff_data = malloc(8 * i);
+          memset(buff_data, 0, 8 * i);
+          data_sec->set_data((const char *)buff_data, 8 * i);
+          // IDK if i assume it copies it ??
           free(buff_data);
-
         }
         continue;
       }
