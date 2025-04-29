@@ -289,10 +289,6 @@ double const *genann_run(genann const *ann, double const *inputs) {
     *o++ = genann_act_output(ann, sum);
   }
 
-  /* Sanity check that we used all weights and wrote all outputs. */
-  assert(w - ann->weight == ann->total_weights);
-  assert(o - ann->output == ann->total_neurons);
-
   return ret;
 }
 

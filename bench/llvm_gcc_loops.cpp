@@ -347,11 +347,7 @@ int main(int argc,char* argv[]){
 
   std::vector<unsigned> results;
   unsigned dummy = 0;
-// #ifdef SMALL_PROBLEM_SIZE
-  const int Mi = 1<<10;
-// #else
-//   const int Mi = 1<<18;
-// #endif
+  const int Mi = 1<<18;
   init_memory(&ia[0], &ia[N]);
   init_memory(&ib[0], &ib[N]);
   init_memory(&ic[0], &ic[N]);

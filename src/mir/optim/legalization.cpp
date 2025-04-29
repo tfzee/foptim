@@ -99,12 +99,18 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
   case Opcode::cjmp_int_ne:
   case Opcode::cjmp_int_eq:
   case Opcode::cjmp_int_ult:
+  case Opcode::cjmp_int_ugt:
+  case Opcode::cjmp_int_ule:
+  case Opcode::cjmp_int_uge:
     if (big_unsigned_const) {
       indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
     break;
   case Opcode::cjmp_int_slt:
+  case Opcode::cjmp_int_sgt:
+  case Opcode::cjmp_int_sge:
+  case Opcode::cjmp_int_sle:
     if (big_signed_const) {
       indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
