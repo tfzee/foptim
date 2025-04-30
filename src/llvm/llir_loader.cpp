@@ -1082,30 +1082,53 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
 }
 
 inline void generate_trap(foptim::fir::Context &fctx) {
-  auto func_ty = fctx->get_func_ty(fctx->get_void_type(), {});
   if (fctx->has_function("abort")) {
     return;
   }
-  // fctx->create_function("abort", func_ty);
+  auto func_ty = fctx->get_func_ty(fctx->get_void_type(), {});
   fctx.data->storage.functions.insert(
       {"abort", foptim::fir::Function(fctx.operator->(), "abort", func_ty)});
 }
 
+inline void generate_memmove(foptim::fir::Context &fctx) {
+  if (fctx->has_function("memmove")) {
+    return;
+  }
+  auto func_ty = fctx->get_func_ty(
+      fctx->get_ptr_type(),
+      {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
+  fctx.data->storage.functions.insert(
+      {"memmove",
+       foptim::fir::Function(fctx.operator->(), "memmove", func_ty)});
+}
+
+inline void generate_ctlz(foptim::fir::Context &fctx) {
+  if (fctx->has_function("foptim.ctlz.i64")) {
+    return;
+  }
+  auto func_ty = fctx->get_func_ty(
+      fctx->get_int_type(64), {fctx->get_int_type(64), fctx->get_int_type(1)});
+  fctx.data->storage.functions.insert(
+      {"foptim.ctlz.i64",
+       foptim::fir::Function(fctx.operator->(), "foptim.ctlz.i64", func_ty)});
+}
+
 inline void generate_fexp(foptim::fir::Context &fctx) {
-  auto func_ty = fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
   if (fctx->has_function("exp")) {
     return;
   }
+  auto func_ty =
+      fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
   fctx.data->storage.functions.insert(
       {"exp", foptim::fir::Function(fctx.operator->(), "exp", func_ty)});
 }
 
 inline void generate_va(foptim::fir::Context &fctx) {
-  auto func_ty =
-      fctx->get_func_ty(fctx->get_void_type(), {fctx->get_ptr_type()});
   if (fctx->has_function("foptim.va_start")) {
     return;
   }
+  auto func_ty =
+      fctx->get_func_ty(fctx->get_void_type(), {fctx->get_ptr_type()});
   // fctx->create_function("abort", func_ty);
   fctx.data->storage.functions.insert(
       {"foptim.va_start",
@@ -1134,6 +1157,10 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_va(fctx);
   } else if (func.getName().starts_with("llvm.exp.f")) {
     generate_fexp(fctx);
+  } else if (func.getName().starts_with("llvm.memmove")) {
+    generate_memmove(fctx);
+  } else if (func.getName().starts_with("llvm.ctlz")) {
+    generate_ctlz(fctx);
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(

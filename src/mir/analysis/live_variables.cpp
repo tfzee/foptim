@@ -61,6 +61,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   switch (instr.op) {
   // for moves this is correct only if its not pointers
   case Opcode::mov:
+  case Opcode::lzcnt:
   case Opcode::cmov:
   case Opcode::mov_zx:
   case Opcode::mov_sx:
@@ -209,6 +210,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   switch (instr.op) {
   // for moves this is only correct if the target is a reg
   case Opcode::mov:
+  case Opcode::lzcnt:
   case Opcode::itrunc:
   case Opcode::mov_zx:
   case Opcode::mov_sx:

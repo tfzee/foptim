@@ -216,11 +216,8 @@ void optimize_mir(foptim::fir::Context &ctx,
                   foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> &globals) {
   (void)globals;
+  fmt::print("================MIR START====================\n");
   ZoneScopedN("MIR Optim");
-  // fmt::print("================MIR START====================\n");
-  // for (auto &f : funcs) {
-  //   fmt::println("{}", f);
-  // }
   // running dead to make inst simplify work better
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();

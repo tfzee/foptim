@@ -39,6 +39,9 @@ enum class Opcode : u32 {
   fAnd,
   fOr,
 
+  // bit manipulation
+  lzcnt,
+
   SI2FL,
   UI2FL,
   FL2SI,
@@ -124,7 +127,7 @@ const char *getNameFromOpcode(Opcode code);
 
 enum class Type : u16 {
   INVALID = 0,
-  //NOTE: ORDER matters from smallest to biggest!
+  // NOTE: ORDER matters from smallest to biggest!
   Int8 = 1,
   Int16 = 2,
   Int32 = 3,

@@ -1576,15 +1576,23 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto call_instr = res.matched_instrs[0];
         if (call_instr->args[0].is_constant()) {
           auto call_const = call_instr->args[0].as_constant();
-          if (call_const->is_func() &&
-              call_const->as_func()->name == "foptim.va_start") {
-            setup_va_start(call_instr, res, data);
-            return true;
-          }
-          if (call_const->is_func() &&
-              call_const->as_func()->name == "foptim.va_end") {
-            setup_va_end(call_instr, res, data);
-            return true;
+          if (call_const->is_func()) {
+            if (call_const->as_func()->name == "foptim.va_start") {
+              setup_va_start(call_instr, res, data);
+              return true;
+            }
+            if (call_const->as_func()->name == "foptim.va_end") {
+              setup_va_end(call_instr, res, data);
+              return true;
+            }
+            if (call_const->as_func()->name == "foptim.ctlz.i64") {
+              auto res_reg =
+                  valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
+              auto arg =
+                  valueToArg(call_instr->args[1], res.result, data.alloc);
+              res.result.emplace_back(Opcode::lzcnt, res_reg, arg);
+              return true;
+            }
           }
         }
         setup_callargs(call_instr, res, data);

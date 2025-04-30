@@ -90,31 +90,19 @@ class LifetimeShortening {
           case MArgument::ArgumentType::MemImmLabel:
             break;
           case MArgument::ArgumentType::VReg:
-          case MArgument::ArgumentType::MemVReg:
-          case MArgument::ArgumentType::MemImmVReg:
             if (mappings.contains(read.reg)) {
               instr.args[id] =
                   MArgument{mappings.at(read.reg), instr.args[id].ty};
             }
             break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
           case MArgument::ArgumentType::MemImmVRegScale:
-            if (mappings.contains(read.indx)) {
-              instr.args[id] =
-                  MArgument{mappings.at(read.indx), instr.args[id].ty};
-            }
-            break;
           case MArgument::ArgumentType::MemVRegVReg:
           case MArgument::ArgumentType::MemImmVRegVReg:
           case MArgument::ArgumentType::MemVRegVRegScale:
           case MArgument::ArgumentType::MemImmVRegVRegScale:
-            if (mappings.contains(read.reg)) {
-              instr.args[id] =
-                  MArgument{mappings.at(read.reg), instr.args[id].ty};
-            }
-            if (mappings.contains(read.indx)) {
-              instr.args[id] =
-                  MArgument{mappings.at(read.reg), instr.args[id].ty};
-            }
+            //TODO: some of these might be able to be fixed
             break;
           }
         }

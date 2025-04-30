@@ -5,7 +5,6 @@
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Result:0
-// XFAIL: *
 /*
     Copyright 2007-2008 Adobe Systems Incorporated
     Distributed under the MIT License (see accompanying file LICENSE_1_0_0.txt
@@ -255,11 +254,11 @@ void quicksort_function(double* begin, double* end, comparator_function compare)
 int main(int argc, char* argv[])
 {
 	int i;
-#ifdef SMALL_PROBLEM_SIZE
+// #ifdef SMALL_PROBLEM_SIZE
 	int iterations = (1 < argc) ? atoi(argv[1]) : 30; // number of iterations
-#else
-	int iterations = (1 < argc) ? atoi(argv[1]) : 300; // number of iterations
-#endif
+// #else
+// 	int iterations = (1 < argc) ? atoi(argv[1]) : 300; // number of iterations
+// #endif
 	int tablesize = (2 < argc) ? atoi(argv[2]) : 10000; // size of array
 	
 	

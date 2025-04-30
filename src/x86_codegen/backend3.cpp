@@ -460,6 +460,9 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     }
     return emit(out_buff, 0, &req);
   }
+  case fmir::Opcode::lzcnt:
+    req.mnemonic = ZYDIS_MNEMONIC_LZCNT;
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::call:
     req.mnemonic = ZYDIS_MNEMONIC_CALL;
     return emit(out_buff, 0, &req);
@@ -1214,7 +1217,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     bool out_64 = instr.args[0].ty == fmir::Type::Int64;
     bool out_32 = instr.args[0].ty == fmir::Type::Int32;
     bool is_unsigned = instr.op == fmir::Opcode::FL2UI;
-    fmt::println("{} {}", req, instr);
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
 
@@ -1269,7 +1271,6 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
     TODO("REIMPL");
-    // fmt::println("IMPL: {}", instr);
     UNREACH();
   }
 }
@@ -1523,7 +1524,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         label_usage_map.label_map[global.name].section =
             RelocSection::InitArray;
         label_usage_map.label_map[global.name].size = global.data.size();
-        fmt::println("CTOR {}", global.name);
+        // fmt::println("CTOR {}", global.name);
         { // handle reloccs
           int i = 0;
           for (const auto &reloc_info : global.reloc_info) {

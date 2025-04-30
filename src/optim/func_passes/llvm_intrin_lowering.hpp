@@ -105,9 +105,13 @@ public:
           (csize == 8 || csize == 4 || csize == 1)) {
         auto input_ty = guessType(src_ptr);
         auto output_ty = guessType(dst_ptr);
-        if (input_ty && output_ty &&
-            (*input_ty)->eql(*output_ty->get_raw_ptr())) {
-          auto input = bb.build_load(*input_ty, src_ptr);
+        if ((input_ty.typeless && output_ty.typeless) ||
+            (input_ty.type.is_valid() && output_ty.type.is_valid() &&
+             input_ty.type->eql(*output_ty.type.get_raw_ptr()))) {
+          auto input = bb.build_load(input_ty.type.is_valid()
+                                         ? input_ty.type
+                                         : ctx->get_int_type(csize * 8),
+                                     src_ptr);
           bb.build_store(dst_ptr, input);
           instr.destroy();
           return;
@@ -122,6 +126,21 @@ public:
     instr.destroy();
   }
 
+  void handle_memmove(fir::Instr instr, fir::Function &funcy,
+                      fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto *ctx = funcy.ctx;
+    auto memmove_func = ctx->get_function("memmove");
+    auto ptr_type = ctx->get_ptr_type();
+    auto dst_ptr = instr->args[1];
+    auto src_ptr = instr->args[2];
+    auto len = instr->args[3];
+    fir::ValueR args[3] = {dst_ptr, src_ptr, len};
+
+    bb.build_call(fir::ValueR{ctx->get_constant_value(memmove_func)},
+                  memmove_func->func_ty, ptr_type, args);
+    instr.destroy();
+  }
   void handle_trap(fir::Instr instr, fir::Function &funcy,
                    fir::FunctionR /*callee*/) {
     fir::Builder bb{instr};
@@ -238,10 +257,17 @@ public:
   }
 
   void handle_fexp(fir::Instr instr, fir::Function &funcy,
-                    fir::FunctionR /*callee*/) {
+                   fir::FunctionR /*callee*/) {
     auto *ctx = funcy.ctx;
     instr.replace_arg(
         0, fir::ValueR{ctx->get_constant_value(ctx->get_function("exp"))});
+  }
+
+  void handle_ctlz(fir::Instr instr, fir::Function &funcy,
+                   fir::FunctionR /*callee*/) {
+    auto *ctx = funcy.ctx;
+    instr.replace_arg(0, fir::ValueR{ctx->get_constant_value(
+                             ctx->get_function("foptim.ctlz.i64"))});
   }
 
   void handle_va(fir::Instr instr, fir::Function &funcy,
@@ -304,6 +330,10 @@ public:
           handle_lifetime(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.exp.f")) {
           handle_fexp(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.memmove")) {
+          handle_memmove(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.ctlz")) {
+          handle_ctlz(instr, func, callee);
         }
       }
     }
@@ -317,12 +347,18 @@ public:
   }
 
 private:
-  fir::TypeR *guessType(fir::ValueR ptr) {
+  struct GuessTypeResult {
+    bool typeless;
+    fir::TypeR type;
+  };
+  GuessTypeResult guessType(fir::ValueR ptr) {
     if (ptr.is_instr()) {
       auto ptr_instr = ptr.as_instr();
       if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
         if (ptr_instr->has_attrib("alloca::type")) {
-          return ptr_instr->get_attrib("alloca::type").try_type();
+          return {false, *ptr_instr->get_attrib("alloca::type").try_type()};
+        } else {
+          return {true, fir::TypeR{fir::TypeR::invalid()}};
         }
       }
       if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
@@ -332,7 +368,7 @@ private:
         return guessType(ptr);
       }
     }
-    return nullptr;
+    return {false, fir::TypeR{fir::TypeR::invalid()}};
   }
 };
 } // namespace foptim::optim
