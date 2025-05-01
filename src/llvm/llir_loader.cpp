@@ -878,7 +878,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     return;
   } else if (op_code == llvm::Instruction::Unreachable) {
     // TODO: unraech instr?
-    builder.build_return();
+    builder.build_unreach();
     return;
   }
   llvm::errs() << *any_instr << "\n" << "TODO\n";
@@ -895,6 +895,7 @@ inline void generate_memset(foptim::fir::Context &fctx) {
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_int_type(8), fctx->get_int_type(64)});
   auto ffunc = fctx->create_function(name, func_ty);
+  ffunc.func->linkage = foptim::fir::Function::Linkage::LinkOnceODR;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -969,6 +970,7 @@ inline void generate_fabs(foptim::fir::Context &fctx,
   auto func_ty = fctx->get_func_ty(fctx->get_float_type(width),
                                    {fctx->get_float_type(width)});
   auto ffunc = fctx->create_function(name, func_ty);
+  ffunc.func->linkage = foptim::fir::Function::Linkage::LinkOnceODR;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -1003,6 +1005,7 @@ inline void generate_abs(foptim::fir::Context &fctx,
   auto width_type = fctx->get_int_type(width);
   auto func_ty = fctx->get_func_ty(width_type, {width_type});
   auto ffunc = fctx->create_function(name, func_ty);
+  ffunc.func->linkage = foptim::fir::Function::Linkage::Internal;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -1027,6 +1030,7 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
   auto ffunc = fctx->create_function(name, func_ty);
+  ffunc.func->linkage = foptim::fir::Function::Linkage::Internal;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -1208,12 +1212,20 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   case llvm::GlobalValue::PrivateLinkage:
     foff_func->linkage = foptim::fir::Function::Linkage::Internal;
     break;
+  case llvm::GlobalValue::LinkOnceAnyLinkage:
+    foff_func->linkage = foptim::fir::Function::Linkage::LinkOnce;
+    break;
+  case llvm::GlobalValue::LinkOnceODRLinkage:
+    foff_func->linkage = foptim::fir::Function::Linkage::LinkOnceODR;
+    break;
+  case llvm::GlobalValue::WeakAnyLinkage:
+    foff_func->linkage = foptim::fir::Function::Linkage::Weak;
+    break;
+  case llvm::GlobalValue::WeakODRLinkage:
+    foff_func->linkage = foptim::fir::Function::Linkage::WeakODR;
+    break;
   case llvm::GlobalValue::ExternalLinkage:
   case llvm::GlobalValue::AvailableExternallyLinkage:
-  case llvm::GlobalValue::LinkOnceAnyLinkage:
-  case llvm::GlobalValue::LinkOnceODRLinkage:
-  case llvm::GlobalValue::WeakAnyLinkage:
-  case llvm::GlobalValue::WeakODRLinkage:
   case llvm::GlobalValue::AppendingLinkage:
   case llvm::GlobalValue::ExternalWeakLinkage:
   case llvm::GlobalValue::CommonLinkage:

@@ -32,7 +32,7 @@ enum class InstrType : u8 {
   BranchInstr,
   CondBranchInstr,
   SwitchInstr,
-  // Unreachable,
+  Unreachable,
 
   // Memory
   LoadInstr,
@@ -177,6 +177,8 @@ public:
 
   [[nodiscard]] constexpr const char *get_name() const {
     switch (instr_type) {
+    case InstrType::Unreachable:
+      return "unreachable";
     case InstrType::UnaryInstr:
       switch ((UnaryInstrSubType)subtype) {
       case UnaryInstrSubType::INVALID:
@@ -400,6 +402,8 @@ public:
   static InstrData get_zext(TypeR ty);
   static InstrData get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty);
   static InstrData get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty);
+  //only give void  type
+  static InstrData get_unreach(TypeR ty);
   static InstrData get_return(TypeR ty);
   static InstrData get_call(TypeR ty);
   static InstrData get_alloca(TypeR ty);

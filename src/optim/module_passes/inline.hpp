@@ -21,8 +21,9 @@ public:
     }
     return false;
   }
+
   bool _should_be_inlined(const fir::Instr instr) {
-    auto func = instr->get_parent()->get_parent();
+    // auto func = instr->get_parent()->get_parent();
     auto called_func = instr->get_arg(0);
     if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
       return false;
@@ -38,7 +39,18 @@ public:
       }
     }
 
-    if (func->n_instrs() <= (5 + v.func->get_entry()->n_args())) {
+    switch (v->linkage) {
+    case fir::Function::Linkage::Weak:
+    case fir::Function::Linkage::LinkOnce:
+      return false;
+    case fir::Function::Linkage::Internal:
+    case fir::Function::Linkage::External:
+    case fir::Function::Linkage::WeakODR:
+    case fir::Function::Linkage::LinkOnceODR:
+      break;
+    }
+
+    if (v->n_instrs() <= (5 + v.func->get_entry()->n_args())) {
       return true;
     }
 
@@ -56,19 +68,19 @@ public:
     if (v->name.starts_with("_ZSt3min") || v->name.starts_with("_ZSt3max")) {
       return true;
     }
-    if (v.func->get_n_uses() == 1 &&
-        v.func->linkage == fir::Function::Function::Linkage::Internal) {
-      return true;
-    }
 
-    if (v.func->n_instrs() <= (2 + v.func->get_entry()->n_args())) {
-      return true;
-    }
-
-    if (n_inlined_instructions < 50 && n_inlined_calls < 10) {
+    if (n_inlined_instructions < 100 && n_inlined_calls < 50) {
       return false;
     }
-    if (v.func == func.func) {
+
+    if (v.func->get_n_uses() == 1 &&
+        (v.func->linkage == fir::Function::Function::Linkage::Internal ||
+         v.func->linkage == fir::Function::Function::Linkage::LinkOnceODR)) {
+      return true;
+    }
+
+    if (v.func->n_instrs() <=
+        (2 + v.func->get_entry()->n_args() + (instr->has_result() ? 1 : 0))) {
       return true;
     }
 
@@ -141,7 +153,8 @@ public:
       // fmt::println("{}", *parent_func.func);
       // fmt::println("+++++++++++++++++++++++++++++++++++++++++++++++++++");
       // fmt::println("{}", *call->args[0].as_constant()->as_func().func);
-      inline_call(call);
+      auto success = inline_call(call);
+      ASSERT(success);
       // fmt::println("===================================================");
       // fmt::println("{}", *parent_func.func);
       // fmt::println("===================================================");

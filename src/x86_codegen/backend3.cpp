@@ -1270,7 +1270,8 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   }
   case fmir::Opcode::arg_setup:
   case fmir::Opcode::invoke:
-    TODO("REIMPL");
+    fmt::println("{}", instr);
+    TODO("SHOULD NOT BE LEGAL TO BE GENERATED???");
     UNREACH();
   }
 }

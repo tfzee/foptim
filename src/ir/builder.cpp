@@ -384,6 +384,15 @@ ValueR Builder::build_store(ValueR ptr, ValueR value) {
   return ValueR(instr);
 }
 
+Instr Builder::build_unreach() {
+  check_bb_set();
+  auto instr =
+      ctx->storage.insert_instr(InstrData::get_unreach(ctx->get_void_type()));
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr;
+}
+
 Instr Builder::build_return() {
   check_bb_set();
   auto instr =

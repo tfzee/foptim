@@ -83,6 +83,18 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   case foptim::fir::Function::Linkage::External:
     app = fmt::format_to(app, "external");
     break;
+  case foptim::fir::Function::Linkage::Weak:
+    app = fmt::format_to(app, "weak");
+    break;
+  case foptim::fir::Function::Linkage::WeakODR:
+    app = fmt::format_to(app, "weakODR");
+    break;
+  case foptim::fir::Function::Linkage::LinkOnce:
+    app = fmt::format_to(app, "linkonce");
+    break;
+  case foptim::fir::Function::Linkage::LinkOnceODR:
+    app = fmt::format_to(app, "linkonceODR");
+    break;
   }
   app = fmt::format_to(app, ", ");
   const auto &attribs = func.get_attribs();

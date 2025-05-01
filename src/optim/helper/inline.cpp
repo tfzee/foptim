@@ -65,7 +65,6 @@ bool inline_call(fir::Instr call) {
     auto new_bb = ctx->copy(called_func->basic_blocks.at(bb_id), subs, false);
     new_bbs.push_back(new_bb);
   }
-
   if (has_ret_value) {
     for (auto bb : new_bbs) {
       if (bb->instructions.back()->is(fir::InstrType::ReturnInstr)) {

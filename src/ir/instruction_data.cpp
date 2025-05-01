@@ -126,6 +126,7 @@ bool InstrData::has_result() const {
     return !this->get_type()->is_void();
   case InstrType::InsertValue:
   case InstrType::ReturnInstr:
+  case InstrType::Unreachable:
   case InstrType::BranchInstr:
   case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
@@ -138,6 +139,7 @@ bool InstrData::is_critical() const {
   switch (instr_type) {
   case InstrType::CallInstr:
   case InstrType::ReturnInstr:
+  case InstrType::Unreachable:
   case InstrType::BranchInstr:
   case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
@@ -211,6 +213,7 @@ bool InstrData::is_commutative() const {
   case InstrType::UnaryInstr:
   case InstrType::CallInstr:
   case InstrType::ReturnInstr:
+  case InstrType::Unreachable:
   case InstrType::BranchInstr:
   case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
@@ -242,6 +245,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::CondBranchInstr:
   case InstrType::SelectInstr:
   case InstrType::ReturnInstr:
+  case InstrType::Unreachable:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
   case InstrType::UnaryInstr:
@@ -263,6 +267,7 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::InsertValue:
   case InstrType::ExtractValue:
   case InstrType::ReturnInstr:
+  case InstrType::Unreachable:
   case InstrType::SwitchInstr:
   case InstrType::BranchInstr:
   case InstrType::CondBranchInstr:
@@ -423,6 +428,11 @@ InstrData InstrData::get_insert_value(TypeR ty) {
   return res;
 }
 
+InstrData InstrData::get_unreach(TypeR ty) {
+  auto res =
+      InstrData{InstrType::Unreachable, ty, BasicBlock(BasicBlock::invalid())};
+  return res;
+}
 InstrData InstrData::get_return(TypeR ty) {
   auto res =
       InstrData{InstrType::ReturnInstr, ty, BasicBlock(BasicBlock::invalid())};

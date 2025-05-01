@@ -865,6 +865,7 @@ void base_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
+  auto UnreachNode = Node{NodeType::Instr, InstrType::Unreachable, 0};
   auto NotNode = Node{NodeType::Instr, InstrType::UnaryInstr,
                       (u32)fir::UnaryInstrSubType::Not};
   auto NegateNode = Node{NodeType::Instr, InstrType::UnaryInstr,
@@ -1701,5 +1702,13 @@ void base_patterns(IRVec<Pattern> &pats) {
         res.result.emplace_back(Opcode::fdiv, res_reg, a1, a2);
         return true;
       }});
+  pats.push_back(
+      Pattern{{UnreachNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                (void)data;
+                (void)res;
+                // TODO: prob nicer way to handle this
+                res.result.emplace_back(Opcode::ret);
+                return true;
+              }});
 }
 } // namespace foptim::fmir

@@ -19,8 +19,17 @@ public:
 };
 
 static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
-  if (func.func->linkage != fir::Function::Linkage::Internal) {
+  switch (func.func->linkage) {
+  case fir::Function::Linkage::External:
+  case fir::Function::Linkage::Weak:
+  case fir::Function::Linkage::LinkOnce:
+  case fir::Function::Linkage::WeakODR:
+  case fir::Function::Linkage::LinkOnceODR:
+    // not sure if this could work for link once since we then get the same
+    // symbol but with different args?? could rename it maybe
     return;
+  case fir::Function::Linkage::Internal:
+    break;
   }
   if (func->is_decl()) {
     return;

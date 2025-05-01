@@ -119,19 +119,19 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE,
       InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
       InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<InstSimplify, SimplifyCFG,
                                                    DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg,
                                                    MergeAllocaPass, DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, GDCE>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, SimplifyCFG, InstSimplify, SCCP, DCE,
       InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}

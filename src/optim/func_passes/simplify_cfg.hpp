@@ -37,9 +37,14 @@ public:
   // with the value itself
   bool remove_constant_bb_args(CFG &cfg, CFG::Node &curr, fir::Function &func,
                                size_t bb_id, bool is_entry);
-  // if a block only has a single return we can move the return into all
-  // previous blocks that have a single jump
-  bool distribute_return(CFG &cfg, CFG::Node &curr, fir::Function &func,
+  // if a block only has a single return/unreachable we can move the
+  // return/unreachable into all previous blocks that have a single jump
+  bool distribute_return_unreach(CFG &cfg, CFG::Node &curr, fir::Function &func,
+                                 size_t bb_id, bool is_entry);
+
+  // eliminate bbs that have a unreach terminator and no way to diverge
+  // prior(like for example a call)
+  bool remove_unreach(CFG &cfg, CFG::Node &curr, fir::Function &func,
                          size_t bb_id, bool is_entry);
   // if a block only contains a unconditional jump we can replace it
   // backwards(into pred) if there is no bb args or only 1 pred(secnd is handled
@@ -55,19 +60,16 @@ public:
   // if 1 to 1 relation between blocks we can merge them
   // TODO: this should in theory even work with multiple incmoing and then use a
   // heuristic so it can do it for any short enough block
-  bool merge_linear_relation(CFG &cfg, CFG::Node &curr,
-                                  fir::Function &func, size_t bb_id,
-                                  bool is_entry);
+  bool merge_linear_relation(CFG &cfg, CFG::Node &curr, fir::Function &func,
+                             size_t bb_id, bool is_entry);
   // If we got a conditionalbrach with both taking the same target
   // then we can cmove the bbargs and then do a simple branch
-  bool conditional_to_cmove(CFG &cfg, CFG::Node &curr,
-                                  fir::Function &func, size_t bb_id,
-                                  bool is_entry);
+  bool conditional_to_cmove(CFG &cfg, CFG::Node &curr, fir::Function &func,
+                            size_t bb_id, bool is_entry);
   // If we got 2 blocks that are identical but some constants/vars
   // we could merge them into 1 and replace differences by bb args
-  bool dup_bb_to_args(CFG &cfg, CFG::Node &curr,
-                                  fir::Function &func, size_t bb_id,
-                                  bool is_entry);
+  bool dup_bb_to_args(CFG &cfg, CFG::Node &curr, fir::Function &func,
+                      size_t bb_id, bool is_entry);
   bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id);
   void apply(fir::Context & /*unused*/, fir::Function &func) override;
 };

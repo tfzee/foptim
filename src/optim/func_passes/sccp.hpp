@@ -164,6 +164,9 @@ public:
         UNREACH();
       case fir::BinaryInstrSubType::INVALID:
         UNREACH();
+      case fir::BinaryInstrSubType::And:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_int() & b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::Xor:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() ^ b.value->as_int(), out_type));
@@ -611,6 +614,7 @@ public:
     case fir::InstrType::CallInstr:
     case fir::InstrType::AllocaInstr:
     case fir::InstrType::ReturnInstr:
+    case fir::InstrType::Unreachable:
     case fir::InstrType::LoadInstr:
     case fir::InstrType::StoreInstr:
       return ConstantValue::Top();

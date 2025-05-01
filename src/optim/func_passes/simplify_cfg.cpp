@@ -382,12 +382,84 @@ bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
-bool SimplifyCFG::distribute_return(CFG &cfg, CFG::Node &curr,
-                                    fir::Function & /*func*/, size_t /*bb_id*/,
-                                    bool /*is_entry*/) {
+bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
+                                 fir::Function & /*func*/, size_t /*bb_id*/,
+                                 bool is_entry) {
+  if (is_entry) {
+    return false;
+  }
+  if (!curr.bb->get_terminator()->is(fir::InstrType::Unreachable)) {
+    return false;
+  }
+  for (auto instr : curr.bb->instructions) {
+    // just switching to make sure to update this
+    switch (instr->instr_type) {
+    case fir::InstrType::CallInstr:
+      return false;
+    case fir::InstrType::ICmp:
+    case fir::InstrType::FCmp:
+    case fir::InstrType::BinaryInstr:
+    case fir::InstrType::UnaryInstr:
+    case fir::InstrType::AllocaInstr:
+    case fir::InstrType::ExtractValue:
+    case fir::InstrType::InsertValue:
+    case fir::InstrType::ITrunc:
+    case fir::InstrType::ZExt:
+    case fir::InstrType::SExt:
+    case fir::InstrType::Conversion:
+    case fir::InstrType::SelectInstr:
+    case fir::InstrType::ReturnInstr:
+    case fir::InstrType::BranchInstr:
+    case fir::InstrType::CondBranchInstr:
+    case fir::InstrType::SwitchInstr:
+    case fir::InstrType::Unreachable:
+    case fir::InstrType::LoadInstr:
+    case fir::InstrType::StoreInstr:
+      break;
+    }
+  }
+
+  bool applied = false;
+  for (auto pred : curr.pred) {
+    auto pred_bb = cfg.bbrs[pred].bb;
+    auto pred_term = pred_bb->get_terminator();
+    if (pred_term->is(fir::InstrType::SwitchInstr)) {
+      // TODO: impl
+      continue;
+    } else if (pred_term->is(fir::InstrType::CondBranchInstr)) {
+      fir::Builder bb(pred_bb);
+      bb.at_end(pred_bb);
+
+      u32 target_bb_arg_id = pred_term.get_bb_id(curr.bb);
+      ASSERT(target_bb_arg_id == 0 || target_bb_arg_id == 1);
+      u32 other_bb_arg_id = 1 - target_bb_arg_id;
+
+      auto new_term = bb.build_branch(pred_term->bbs[other_bb_arg_id].bb);
+      for (auto bb_arg : pred_term->bbs[other_bb_arg_id].args) {
+        new_term.add_bb_arg(0, bb_arg);
+      }
+      pred_term.destroy();
+      applied = true;
+    } else if (pred_term->is(fir::InstrType::BranchInstr)) {
+      fir::Builder bb(pred_bb);
+      bb.at_end(pred_bb);
+      bb.build_unreach();
+      pred_term.destroy();
+      applied = true;
+    }
+  }
+
+  return applied;
+}
+
+bool SimplifyCFG::distribute_return_unreach(CFG &cfg, CFG::Node &curr,
+                                            fir::Function & /*func*/,
+                                            size_t /*bb_id*/,
+                                            bool /*is_entry*/) {
   if (curr.bb->n_instrs() == 1 &&
-      curr.bb->get_terminator()->is(fir::InstrType::ReturnInstr)) {
-    ZoneScopedN("Distr return");
+      (curr.bb->get_terminator()->is(fir::InstrType::ReturnInstr) ||
+       curr.bb->get_terminator()->is(fir::InstrType::Unreachable))) {
+    ZoneScopedN("Distr return/unreach");
     const auto n_args = curr.bb->n_args();
     const auto return_instr = curr.bb->get_terminator();
     TMap<fir::ValueR, fir::ValueR> subs{};
@@ -410,7 +482,7 @@ bool SimplifyCFG::distribute_return(CFG &cfg, CFG::Node &curr,
 
       auto new_return = bb.insert_copy(return_instr);
       new_return.substitute(subs);
-      prev_term.remove_from_parent();
+      prev_term.destroy();
     }
     return modified_any;
   }
@@ -593,7 +665,11 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
     return true;
   }
 
-  if (distribute_return(cfg, curr, func, bb_id, is_entry)) {
+  if (distribute_return_unreach(cfg, curr, func, bb_id, is_entry)) {
+    return true;
+  }
+
+  if (remove_unreach(cfg, curr, func, bb_id, is_entry)) {
     return true;
   }
 

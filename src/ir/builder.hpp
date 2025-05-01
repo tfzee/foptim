@@ -70,6 +70,7 @@ public:
   ValueR build_load(TypeR type, ValueR ptr);
   ValueR build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2);
   ValueR build_store(ValueR ptr, ValueR value);
+  Instr build_unreach();
   Instr build_return();
   Instr build_return(ValueR v);
 
