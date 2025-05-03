@@ -16,6 +16,9 @@
 namespace foptim::optim {
 
 static bool can_be_converted_into_phi(fir::Instr instr) {
+  if (!instr->has_attrib("alloca::type")) {
+    return false;
+  }
   for (auto usage : instr->uses) {
     if (usage.user->is(fir::InstrType::LoadInstr)) {
       continue;
@@ -36,6 +39,37 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
                                  AllocToPhiLoc &res, Dominators &dom) {
   if (!alloca_instr->is(fir::InstrType::AllocaInstr)) {
     return;
+  }
+
+  // if we dont have alloca::type we can try to guess it
+  if (!alloca_instr->has_attrib("alloca::type")) {
+    fir::TypeR guessed_type{fir::TypeR::invalid()};
+    for (auto usage : alloca_instr->uses) {
+      if (usage.user->is(fir::InstrType::LoadInstr)) {
+        if (!guessed_type.is_valid() ||
+            guessed_type->eql(*usage.user.get_type().get_raw_ptr())) {
+          guessed_type = usage.user.get_type();
+        } else {
+          guessed_type = fir::TypeR{fir::TypeR::invalid()};
+          break;
+        }
+      } else if (usage.user->is(fir::InstrType::StoreInstr) &&
+                 usage.argId == 0) {
+        if (!guessed_type.is_valid() ||
+            guessed_type->eql(*usage.user.get_type().get_raw_ptr())) {
+          guessed_type = usage.user.get_type();
+        } else {
+          guessed_type = fir::TypeR{fir::TypeR::invalid()};
+          break;
+        }
+      } else {
+        guessed_type = fir::TypeR{fir::TypeR::invalid()};
+        break;
+      }
+    }
+    if (guessed_type.is_valid()) {
+      alloca_instr->add_attrib("alloca::type", guessed_type);
+    }
   }
 
   if (!can_be_converted_into_phi(alloca_instr)) {
@@ -291,8 +325,8 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   auto insert_locations = phi_insert_locations(func, dom);
 
   for (auto &[instr, blocks] : insert_locations) {
-    for (const auto &block : blocks) {
-      if (instr->has_attrib("alloca::type") && instr->get_n_uses() > 0) {
+    if (instr->has_attrib("alloca::type") && instr->get_n_uses() > 0) {
+      for (const auto &block : blocks) {
         auto new_arg = ctx->storage.insert_bb_arg(
             func.basic_blocks[block],
             *instr->get_attrib("alloca::type").try_type());

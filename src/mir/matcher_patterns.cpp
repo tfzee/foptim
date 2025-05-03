@@ -1707,6 +1707,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 (void)data;
                 (void)res;
                 // TODO: prob nicer way to handle this
+                res.result.emplace_back(Opcode::push, MArgument((u8)0));
                 res.result.emplace_back(Opcode::ret);
                 return true;
               }});
