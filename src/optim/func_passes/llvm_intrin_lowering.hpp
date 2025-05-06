@@ -90,8 +90,14 @@ public:
     auto size = instr->args[3];
 
     auto void_ty = ctx->get_void_type();
-    auto *func_ty = instr->get_attrib("callee_type").try_type();
-    assert(func_ty);
+    auto *old_func_ty = instr->get_attrib("callee_type").try_type();
+    assert(old_func_ty);
+    auto old_func_ty_f = (*old_func_ty)->as_func();
+
+    IRVec<fir::TypeR> arg_types = {old_func_ty_f.arg_types[0],
+                                   old_func_ty_f.arg_types[1],
+                                   old_func_ty_f.arg_types[2]};
+    fir::TypeR func_ty = ctx->get_func_ty(void_ty, std::move(arg_types));
 
     fir::ValueR args[3] = {dst_ptr, src_ptr, size};
 
@@ -121,7 +127,7 @@ public:
 
     bb.build_call(fir::ValueR(ctx->get_constant_value(
                       ctx->get_function("foptim.memcpy"))),
-                  *func_ty, void_ty, args);
+                  func_ty, void_ty, args);
 
     instr.destroy();
   }
@@ -352,14 +358,19 @@ private:
     fir::TypeR type;
   };
   GuessTypeResult guessType(fir::ValueR ptr) {
+    if (ptr.is_bb_arg()) {
+      auto bb_arg = ptr.as_bb_arg();
+      if (bb_arg->_parent == bb_arg->_parent->get_parent()->get_entry()) {
+        return {true, fir::TypeR{fir::TypeR::invalid()}};
+      }
+    }
     if (ptr.is_instr()) {
       auto ptr_instr = ptr.as_instr();
       if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
         if (ptr_instr->has_attrib("alloca::type")) {
           return {false, *ptr_instr->get_attrib("alloca::type").try_type()};
-        } else {
-          return {true, fir::TypeR{fir::TypeR::invalid()}};
         }
+        return {true, fir::TypeR{fir::TypeR::invalid()}};
       }
       if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
           (fir::BinaryInstrSubType)ptr_instr->subtype ==
