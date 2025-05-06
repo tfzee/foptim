@@ -15,6 +15,7 @@
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/garbage_collector.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
+#include "optim/func_passes/intrin_simplify.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
@@ -119,22 +120,24 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE,
       InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
+      .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
-      InstSimplify, DCE, SimplifyCFG>{}
+      IntrinSimplify, InstSimplify, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}.apply(ctx);
-  foptim::optim::StaticParallelFunctionPassManager<InstSimplify, SimplifyCFG,
-                                                   DCE>{}
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
+      .apply(ctx);
+  foptim::optim::StaticParallelFunctionPassManager<
+      InstSimplify, SimplifyCFG, DCE, IntrinSimplify, InstSimplify, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg,
                                                    MergeAllocaPass, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
-      LVN, SCCP, DCE, GarbageCollect, SimplifyCFG, InstSimplify, SCCP, DCE,
-      InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
+      LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
+      SCCP, DCE, InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<GDCE>{}.apply(ctx);
   fmt::print("================FIR END====================\n");
