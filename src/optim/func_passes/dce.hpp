@@ -42,7 +42,7 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 
 class DCE final : public FunctionPass {
 public:
-  void apply(fir::Context & /*ctx*/, fir::Function &func) override {
+  void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("DCE");
     {
       CFG rev_cfg{func, true};
@@ -135,6 +135,30 @@ public:
         const auto n_instrs = bb->get_instrs().size();
         for (size_t instr_id_p1 = n_instrs; instr_id_p1 > 0; instr_id_p1--) {
           auto instr = bb->get_instrs()[instr_id_p1 - 1];
+          // killing alloca that only get written to but never read or never used
+          if (instr->is(fir::InstrType::AllocaInstr)) {
+            bool kill = true;
+            for (auto &use : instr->uses) {
+              // TODO: could handle stuff like add and stuff here aswell to be
+              // more precise read lower note for issue tho
+              if (use.user->is(fir::InstrType::StoreInstr)) {
+                continue;
+              }
+              kill = false;
+              break;
+            }
+            if (kill) {
+              // NOTE: since we know all uses are store instructions we can just
+              // delete them aswell
+              (void)ctx;
+              auto uses = instr->uses;
+              for (auto &use : uses) {
+                use.user.destroy();
+              }
+              instr.destroy();
+              continue;
+            }
+          }
           if (marked.contains(instr) ||
               instr->is(fir::InstrType::BranchInstr)) {
             continue;

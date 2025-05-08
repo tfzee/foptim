@@ -103,6 +103,12 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     return;
   }
 
+  if ((c0_val && c0_val->is_poison()) || (c1_val && c1_val->is_poison())) {
+    instr->replace_all_uses(ValueR{ctx->get_poisson_value(instr.get_type())});
+    instr.destroy();
+    return;
+  }
+
   if ((c0_val != nullptr) && (c1_val != nullptr)) {
     if (c1_val->type->is_int() && c0_val->type->is_int()) {
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
@@ -633,6 +639,13 @@ static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
 
 static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
                            fir::Context &ctx, WorkList &worklist) {
+  if (instr->args[0].is_constant() &&
+      instr->args[0].as_constant()->is_poison()) {
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_poisson_value(instr.get_type())});
+    instr.destroy();
+    return;
+  }
   if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
       instr->args[0].is_instr()) {
     auto input_instr = instr->args[0].as_instr();
@@ -754,6 +767,17 @@ static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
+static void simplify_store(fir::Instr instr, fir::BasicBlock bb,
+                           fir::Context &ctx, WorkList &worklist) {
+  (void)bb;
+  (void)ctx;
+  (void)worklist;
+  if (instr->args[0].is_constant() &&
+      instr->args[0].as_constant()->is_poison()) {
+    instr.destroy();
+  }
+}
+
 static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist) {
   using namespace foptim::fir;
@@ -784,6 +808,9 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr->get_instr_type() == InstrType::Conversion) {
     return simplify_conversion(instr, bb, ctx, worklist);
+  }
+  if (instr->get_instr_type() == InstrType::StoreInstr) {
+    return simplify_store(instr, bb, ctx, worklist);
   }
 }
 
