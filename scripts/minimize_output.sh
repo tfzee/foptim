@@ -1,7 +1,7 @@
 #!/usr/bin/env bash 
 
 build_dir="/home/tim/programming/foptim/build"
-test_file="min.c"
+test_file="min.cpp"
 
 foptim="$build_dir/foptim_main"
 flags="-fno-exceptions -fno-stack-protector"

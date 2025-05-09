@@ -253,10 +253,6 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  // fmt::print("================MIR END====================\n");
-  // for (auto &f : funcs) {
-  //   fmt::println("{}", f);
-  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

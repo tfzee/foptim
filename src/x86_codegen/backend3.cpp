@@ -10,7 +10,14 @@
 #include <elfio/elfio.hpp>
 #include <fmt/core.h>
 
-const char *get_reg_name(const ZydisRegister &data);
+enum class ProEpilogueType {
+  Full = 0,  // full epilogue for setting up bp and sp
+  Align = 1, // just aligning the stack for calls not setting up sp/bp
+  None = 2,  // doing nothing
+};
+
+const char *
+get_reg_name(const ZydisRegister &data);
 
 template <>
 class fmt::formatter<ZydisEncoderOperand>
@@ -237,7 +244,7 @@ ZydisRegister reg_with_type(fmir::VReg reg, fmir::Type new_type) {
   return convert_reg(reg);
 }
 
-void emit_operand(fmir::MArgument &arg, ZydisEncoderOperand &operand,
+void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
                   TLabelUsageMap &reloc_map, u8 *instr_ptr, u8 arg_id) {
   switch (arg.type) {
   case fmir::MArgument::ArgumentType::Imm:
@@ -411,8 +418,8 @@ u64 emit_impl(u8 *buff, u32 curr_off, ZydisEncoderRequest *req, int line) {
   return curr_off + len;
 }
 
-size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
-                  TLabelUsageMap &reloc_map) {
+size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
+                  TLabelUsageMap &reloc_map, ProEpilogueType proepiloguetype) {
   size_t length = 999;
   ZydisEncoderRequest req;
   memset(&req, 0, sizeof(req));
@@ -466,24 +473,32 @@ size_t emit_instr(fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   case fmir::Opcode::call:
     req.mnemonic = ZYDIS_MNEMONIC_CALL;
     return emit(out_buff, 0, &req);
-  case fmir::Opcode::ret: { // do the epilogue
+  case fmir::Opcode::ret: {
+    u64 off = 0;
+    // TODO: kinda sus
     ZydisEncoderRequest req;
     memset(&req, 0, sizeof(req));
-    req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
-    req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
+    if (proepiloguetype == ProEpilogueType::Full) {
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
 
-    req.mnemonic = ZYDIS_MNEMONIC_MOV;
-    req.operand_count = 2;
-    req.operands[0].reg.value = ZYDIS_REGISTER_RSP;
-    req.operands[1].reg.value = ZYDIS_REGISTER_RBP;
-    u64 off = 0;
-    off = emit(out_buff, off, &req);
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+      req.operand_count = 2;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RSP;
+      req.operands[1].reg.value = ZYDIS_REGISTER_RBP;
+      off = emit(out_buff, off, &req);
 
-    req.mnemonic = ZYDIS_MNEMONIC_POP;
-    req.operand_count = 1;
-    req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
-    off = emit(out_buff, off, &req);
-
+      req.mnemonic = ZYDIS_MNEMONIC_POP;
+      req.operand_count = 1;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
+      off = emit(out_buff, off, &req);
+    } else if (proepiloguetype == ProEpilogueType::Align) {
+      req.mnemonic = ZYDIS_MNEMONIC_POP;
+      req.operand_count = 1;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
+      off = emit(out_buff, off, &req);
+    }
     req.mnemonic = ZYDIS_MNEMONIC_RET;
     req.operand_count = 0;
     return emit(out_buff, off, &req);
@@ -1388,8 +1403,29 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
     reloc_map.label_map[func.name].section = RelocSection::Text;
     reloc_map.label_map[func.name].kind = RelocKind::Func;
 
-    // prologue
+    ProEpilogueType proepilogue = ProEpilogueType::None;
+    // can only remove epi/pro logue if it doesnt touch any local stack stuff
+    // and no cals(cause of alignment could fix that some other way by just
+    // dummy pushing?)
     {
+      for (const auto &bb : func.bbs) {
+        for (const auto &instr : bb.instrs) {
+          if (instr.op == fmir::Opcode::call ||
+              instr.op == fmir::Opcode::invoke) {
+            proepilogue = std::min(proepilogue, ProEpilogueType::Align);
+          }
+          for (u8 i = 0; i < instr.n_args; i++) {
+            if (instr.args[i].uses_same_vreg(fmir::VReg::RBP()) ||
+                instr.args[i].uses_same_vreg(fmir::VReg::RSP())) {
+              proepilogue = std::min(proepilogue, ProEpilogueType::Full);
+            }
+          }
+        }
+      }
+    }
+
+    // prologue
+    if (proepilogue == ProEpilogueType::Full) {
       ZydisEncoderRequest req;
       memset(&req, 0, sizeof(req));
       req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
@@ -1405,6 +1441,18 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
       req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
       req.operands[1].reg.value = ZYDIS_REGISTER_RSP;
       curr_loc += emit(curr_loc, 0, &req);
+    } else if (proepilogue == ProEpilogueType::Align) {
+      ZydisEncoderRequest req;
+      memset(&req, 0, sizeof(req));
+      req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
+
+      // TOOD: idk maybe push smth else
+      req.mnemonic = ZYDIS_MNEMONIC_PUSH;
+      req.operand_count = 1;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RBP;
+      curr_loc += emit(curr_loc, 0, &req);
     }
 
     u64 bb_id = 0;
@@ -1413,8 +1461,8 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
       reloc_map.bb_map[bb_id].section = RelocSection::Text;
       reloc_map.bb_map[bb_id].kind = RelocKind::BB;
 
-      for (auto instr : bb.instrs) {
-        curr_loc += emit_instr(instr, curr_loc, bb_id, reloc_map);
+      for (const auto &instr : bb.instrs) {
+        curr_loc += emit_instr(instr, curr_loc, bb_id, reloc_map, proepilogue);
       }
       bb_id++;
     }
