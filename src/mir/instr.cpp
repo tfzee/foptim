@@ -445,21 +445,22 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
   case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
     return fmt::format_to(app, "[{} + {}]:{}", value.reg, value.indx, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImm:
-    return fmt::format_to(app, "[{}]:{}", value.imm, value.ty);
+    return fmt::format_to(app, "[{}]:{}", (foptim::i64)value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
-    return fmt::format_to(app, "[{} + {}]:{}", value.reg, value.imm, value.ty);
+    return fmt::format_to(app, "[{} + {}]:{}", value.reg,
+                          (foptim::i64)value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
     return fmt::format_to(app, "[{} + {} + {}]:{}", value.reg, value.indx,
-                          value.imm, value.ty);
+                          (foptim::i64)value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
     return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx, value.scale,
-                          value.imm, value.ty);
+                          (foptim::i64)value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
     return fmt::format_to(app, "[{} + {}*{}]:{}", value.reg, value.indx,
                           value.scale, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
     return fmt::format_to(app, "[{} + {}*{} + {}]:{}", value.reg, value.indx,
-                          value.scale, value.imm, value.ty);
+                          value.scale, (foptim::i64)value.imm, value.ty);
   }
 }
 

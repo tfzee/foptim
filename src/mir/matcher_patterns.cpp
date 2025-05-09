@@ -280,14 +280,14 @@ void memory_patterns(IRVec<Pattern> &pats) {
             return true;
           }
         }
-        if (a0.isImm() && add_instr->args[0].is_constant() &&
-            add_instr->args[0].as_constant()->as_int() < 0) {
-          return false;
-        }
-        if (a1.isImm() && add_instr->args[1].is_constant() &&
-            add_instr->args[1].as_constant()->as_int() < 0) {
-          return false;
-        }
+        // if (a0.isImm() && add_instr->args[0].is_constant() &&
+        //     add_instr->args[0].as_constant()->as_int() < 0) {
+        //   return false;
+        // }
+        // if (a1.isImm() && add_instr->args[1].is_constant() &&
+        //     add_instr->args[1].as_constant()->as_int() < 0) {
+        //   return false;
+        // }
 
         if (a0.isReg() && a1.isImm()) {
           res.result.emplace_back(Opcode::mov, res_reg,
