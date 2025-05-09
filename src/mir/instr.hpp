@@ -468,14 +468,19 @@ public:
       return reg == other.reg;
     case ArgumentType::MemImmVReg:
       return reg == other.reg && imm == other.imm;
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
     case ArgumentType::MemImmVRegScale:
+      return indx == other.indx && scale == other.scale && imm == other.imm;
+    case ArgumentType::MemVRegVReg:
+      return reg == other.reg && indx == other.indx;
+    case ArgumentType::MemImmVRegVReg:
+      return reg == other.reg && indx == other.indx && imm == other.imm;
+    case ArgumentType::MemVRegVRegScale:
+      return reg == other.reg && indx == other.indx && scale == other.scale;
     case ArgumentType::MemImmVRegVRegScale:
+      return reg == other.reg && indx == other.indx && imm == other.imm &&
+             scale == other.scale;
     case ArgumentType::MemImmLabel:
-      TODO("impl");
-      break;
+      return label == other.label && imm == other.imm;
     }
   }
   [[nodiscard]] constexpr bool uses_same_vreg(const VReg &other) const {
