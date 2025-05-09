@@ -15,6 +15,10 @@ namespace foptim::optim {
 
 class GDCE final : public ModulePass {
 public:
+  bool is_intrinsic(const IRString &name) {
+    return name.starts_with("llvm.") || name.starts_with("foptim.");
+  }
+
   void apply(fir::Context &ctx) override {
     ZoneScopedN("GDCE");
 
@@ -38,6 +42,10 @@ public:
     // TODO: dead global variable deletion
     for (auto &[name, f] : ctx.data->storage.functions) {
       if (f.get_n_uses() > 0) {
+        continue;
+      }
+      if (is_intrinsic(name)) {
+        ctx.data->storage.functions.erase(name);
         continue;
       }
       switch (f.linkage) {
