@@ -89,6 +89,84 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
+  // (x +- constant1) +- constant2
+  // x +- (constant1 +- constant2)
+  {
+    if ((instr->subtype == (u32)BinaryInstrSubType::IntAdd ||
+         instr->subtype == (u32)BinaryInstrSubType::IntSub) &&
+        instr->args[1].is_constant() && instr->args[0].is_instr()) {
+      auto inner_add_sub = instr->args[0].as_instr();
+      if (inner_add_sub->is(InstrType::BinaryInstr) &&
+          (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd ||
+           inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub) &&
+          inner_add_sub->args[1].is_constant()) {
+        fir::Builder b(instr);
+        auto const2 = instr->args[1];
+        auto x = inner_add_sub->args[0];
+        auto const1 = inner_add_sub->args[1];
+        if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
+            instr->subtype == (u32)BinaryInstrSubType::IntAdd) {
+          auto a1 = b.build_int_add(const1, const2);
+          auto res = b.build_int_add(x, a1);
+          instr->replace_all_uses(res);
+        } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub &&
+                    instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
+          auto a1 = b.build_int_add(const1, const2);
+          auto res = b.build_int_sub(x, a1);
+          instr->replace_all_uses(res);
+        } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
+                    instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
+          auto a1 = b.build_int_sub(const1, const2);
+          auto res = b.build_int_add(x, a1);
+          instr->replace_all_uses(res);
+        } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub &&
+                    instr->subtype == (u32)BinaryInstrSubType::IntAdd)) {
+          auto a1 = b.build_int_sub(const2, const1);
+          auto res = b.build_int_add(x, a1);
+          instr->replace_all_uses(res);
+
+        } else {
+          UNREACH();
+        }
+        return;
+      }
+    }
+  }
+  // (x +- constant1) * constant2
+  // (x*constant2 +- constant1*constant2)
+  {
+    if (instr->subtype == (u32)BinaryInstrSubType::IntMul &&
+        instr->args[1].is_constant() && instr->args[0].is_instr()) {
+      auto inner_add_sub = instr->args[0].as_instr();
+      if (inner_add_sub->is(InstrType::BinaryInstr) &&
+          (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd ||
+           inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub ||
+           inner_add_sub->subtype == (u32)BinaryInstrSubType::IntMul) &&
+          inner_add_sub->args[1].is_constant()) {
+        fir::Builder b(instr);
+        auto const2 = instr->args[1];
+        auto x = inner_add_sub->args[0];
+        auto const1 = inner_add_sub->args[1];
+        if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntMul) {
+          auto a1 = b.build_int_mul(const1, const2);
+          auto a2 = b.build_int_mul(x, a1);
+          instr->replace_all_uses(a2);
+        } else {
+          auto a1 = b.build_int_mul(x, const2);
+          auto a2 = b.build_int_mul(const1, const2);
+          if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd) {
+            auto res = b.build_int_add(a1, a2);
+            instr->replace_all_uses(res);
+          } else {
+            auto res = b.build_int_sub(a1, a2);
+            instr->replace_all_uses(res);
+          }
+        }
+        return;
+      }
+    }
+  }
+
   const ConstantValue *c0_val = nullptr;
   const ConstantValue *c1_val = nullptr;
   if (instr->args[0].is_constant()) {

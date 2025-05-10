@@ -135,29 +135,25 @@ public:
     Advisor adv;
     TVec<fir::Instr> calls;
 
-    for (size_t bb_id = 0; bb_id < func.n_bbs(); bb_id++) {
-      auto bb = func.basic_blocks[bb_id];
-      for (size_t instr_id = 0; instr_id < bb->n_instrs(); instr_id++) {
-        if (bb->instructions[instr_id]->is(fir::InstrType::CallInstr) &&
-            adv.should_be_inlined(bb->instructions[instr_id])) {
-          calls.push_back(bb->instructions[instr_id]);
-          break;
+    for (u8 trys = 0; trys < 4; trys++) {
+      calls.clear();
+      for (size_t bb_id = 0; bb_id < func.n_bbs(); bb_id++) {
+        auto bb = func.basic_blocks[bb_id];
+        for (size_t instr_id = 0; instr_id < bb->n_instrs(); instr_id++) {
+          if (bb->instructions[instr_id]->is(fir::InstrType::CallInstr) &&
+              adv.should_be_inlined(bb->instructions[instr_id])) {
+            calls.push_back(bb->instructions[instr_id]);
+            break;
+          }
         }
       }
-    }
-    for (auto call : calls) {
-      // fmt::println("INLINING IN FUNC {}\n   CALL {}",
-      //              call->parent->get_parent().func->name, call);
-      // fmt::println("===================================================");
-      // auto parent_func = call->parent->get_parent();
-      // fmt::println("{}", *parent_func.func);
-      // fmt::println("+++++++++++++++++++++++++++++++++++++++++++++++++++");
-      // fmt::println("{}", *call->args[0].as_constant()->as_func().func);
-      auto success = inline_call(call);
-      ASSERT(success);
-      // fmt::println("===================================================");
-      // fmt::println("{}", *parent_func.func);
-      // fmt::println("===================================================");
+      if (calls.empty()) {
+        break;
+      }
+      for (auto call : calls) {
+        auto success = inline_call(call);
+        ASSERT(success);
+      }
     }
   }
 };
