@@ -89,6 +89,71 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
+  // (x &|^<<>> constant1) &|^<<>> constant2
+  // x &|^<<>> (constant1 &|^<<>> constant2)
+  // ONLY if the operator matches
+  if ((instr->subtype == (u32)BinaryInstrSubType::And ||
+       instr->subtype == (u32)BinaryInstrSubType::Or ||
+       instr->subtype == (u32)BinaryInstrSubType::Xor ||
+       instr->subtype == (u32)BinaryInstrSubType::Shl ||
+       instr->subtype == (u32)BinaryInstrSubType::Shr ||
+       instr->subtype == (u32)BinaryInstrSubType::IntMul ||
+       instr->subtype == (u32)BinaryInstrSubType::IntSDiv ||
+       instr->subtype == (u32)BinaryInstrSubType::IntUDiv) &&
+      instr->args[1].is_constant() && instr->args[0].is_instr()) {
+    auto inner_add_sub = instr->args[0].as_instr();
+    if (inner_add_sub->is(InstrType::BinaryInstr) &&
+        inner_add_sub->subtype == instr->subtype &&
+        inner_add_sub->args[1].is_constant()) {
+      fir::Builder b(instr);
+      auto x = inner_add_sub->args[0];
+      auto const1 = inner_add_sub->args[1];
+      auto const2 = instr->args[1];
+      if (instr->subtype == (u32)BinaryInstrSubType::IntMul) {
+        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntMul);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      } else if (instr->subtype == (u32)BinaryInstrSubType::IntSDiv) {
+        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntSDiv);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      } else if (instr->subtype == (u32)BinaryInstrSubType::IntUDiv) {
+        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntUDiv);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      } else if (instr->subtype == (u32)BinaryInstrSubType::And) {
+        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::And);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::And);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      } else if (instr->subtype == (u32)BinaryInstrSubType::Or) {
+        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Or);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Or);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      } else if (instr->subtype == (u32)BinaryInstrSubType::Xor) {
+        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Xor);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Xor);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      } else if (instr->subtype == (u32)BinaryInstrSubType::Shl) {
+        auto a1 = b.build_int_add(const1, const2);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shl);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      } else if (instr->subtype == (u32)BinaryInstrSubType::Shr) {
+        auto a1 = b.build_int_add(const1, const2);
+        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shr);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+      }
+      instr.destroy();
+      return;
+    }
+  }
   // (x +- constant1) +- constant2
   // x +- (constant1 +- constant2)
   {
@@ -108,26 +173,31 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
             instr->subtype == (u32)BinaryInstrSubType::IntAdd) {
           auto a1 = b.build_int_add(const1, const2);
           auto res = b.build_int_add(x, a1);
+          push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
         } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub &&
                     instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
           auto a1 = b.build_int_add(const1, const2);
           auto res = b.build_int_sub(x, a1);
+          push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
         } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
                     instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
           auto a1 = b.build_int_sub(const1, const2);
           auto res = b.build_int_add(x, a1);
+          push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
         } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub &&
                     instr->subtype == (u32)BinaryInstrSubType::IntAdd)) {
           auto a1 = b.build_int_sub(const2, const1);
           auto res = b.build_int_add(x, a1);
+          push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
 
         } else {
           UNREACH();
         }
+        instr.destroy();
         return;
       }
     }
@@ -150,18 +220,22 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
         if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntMul) {
           auto a1 = b.build_int_mul(const1, const2);
           auto a2 = b.build_int_mul(x, a1);
+          push_all_uses(worklist, instr);
           instr->replace_all_uses(a2);
         } else {
           auto a1 = b.build_int_mul(x, const2);
           auto a2 = b.build_int_mul(const1, const2);
           if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd) {
             auto res = b.build_int_add(a1, a2);
+            push_all_uses(worklist, instr);
             instr->replace_all_uses(res);
           } else {
             auto res = b.build_int_sub(a1, a2);
+            push_all_uses(worklist, instr);
             instr->replace_all_uses(res);
           }
         }
+        instr.destroy();
         return;
       }
     }
@@ -715,6 +789,58 @@ static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
+static void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
+                            fir::Context &ctx, WorkList &worklist) {
+  (void)instr;
+  (void)worklist;
+  // ext
+  // +-*
+  // itrunc
+  // = +-* on smaller bitwidth
+  // since lea doesnt like 1byte value we skip those for now
+  if (instr->args[0].is_instr() && instr.get_type()->get_size() > 1) {
+    auto inner_math = instr->args[0].as_instr();
+    if (!inner_math->is(fir::InstrType::BinaryInstr)) {
+      return;
+    }
+    bool b0 = inner_math->args[0].is_constant();
+    bool b0I = (inner_math->args[0].is_instr() &&
+                (inner_math->args[0].as_instr()->is(fir::InstrType::SExt) ||
+                 inner_math->args[0].as_instr()->is(fir::InstrType::ZExt)));
+    bool b1 = inner_math->args[1].is_constant();
+    bool b1I = (inner_math->args[1].is_instr() &&
+                (inner_math->args[1].as_instr()->is(fir::InstrType::SExt) ||
+                 inner_math->args[1].as_instr()->is(fir::InstrType::ZExt)));
+    auto new_type = instr.get_type();
+
+    if ((b0 || b0I) && (b1 || b1I)) {
+      fir::Builder b(instr);
+      fir::ValueR a0 = inner_math->args[0];
+      fir::ValueR a1 = inner_math->args[1];
+      if (b0I) {
+        a0 = inner_math->args[0].as_instr()->args[0];
+      } else {
+        auto v = inner_math->args[0].as_constant()->as_int();
+        a0 = fir::ValueR{ctx->get_constant_value(v, new_type)};
+      }
+      if (b1I) {
+        a1 = inner_math->args[1].as_instr()->args[0];
+      } else {
+        auto v = inner_math->args[1].as_constant()->as_int();
+        a1 = fir::ValueR{ctx->get_constant_value(v, new_type)};
+      }
+      // fmt::println("{} {}", inner_math, instr);
+      // fmt::println("{} {}", a0.get_type(), a1.get_type());
+
+      auto res = b.build_binary_op(
+          a0, a1, (fir::BinaryInstrSubType)inner_math->subtype);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+    }
+  }
+}
+
 static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
                            fir::Context &ctx, WorkList &worklist) {
   if (instr->args[0].is_constant() &&
@@ -819,7 +945,8 @@ static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     //   auto val = instr->args[0].as_constant()->as_float();
     //   push_all_uses(worklist, instr);
     //   instr->replace_all_uses(
-    //       fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+    //       fir::ValueR{ctx->get_constant_value((u64)val,
+    //       instr->get_type())});
     //   instr.destroy();
     //   TODO("OKAK IMPL");
     //   return;
@@ -830,7 +957,8 @@ static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     //   auto val = instr->args[0].as_constant()->as_float();
     //   push_all_uses(worklist, instr);
     //   instr->replace_all_uses(
-    //       fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+    //       fir::ValueR{ctx->get_constant_value((u64)val,
+    //       instr->get_type())});
     //   instr.destroy();
     //   TODO("OKAK IMPL");
     //   return;
@@ -859,35 +987,38 @@ static void simplify_store(fir::Instr instr, fir::BasicBlock bb,
 static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist) {
   using namespace foptim::fir;
-  if (instr->get_instr_type() == InstrType::BinaryInstr) {
+  auto instr_ty = instr->get_instr_type();
+  if (instr_ty == InstrType::BinaryInstr) {
     return simplify_binary(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::UnaryInstr) {
+  if (instr_ty == InstrType::UnaryInstr) {
     return simplify_unary(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::ICmp) {
+  if (instr_ty == InstrType::ICmp) {
     return simplify_icmp(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::FCmp) {
+  if (instr_ty == InstrType::FCmp) {
     return simplify_fcmp(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::SelectInstr) {
+  if (instr_ty == InstrType::SelectInstr) {
     return simplify_select(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::CondBranchInstr) {
+  if (instr_ty == InstrType::CondBranchInstr) {
     return simplify_cond_branch(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::SwitchInstr) {
+  if (instr_ty == InstrType::SwitchInstr) {
     return simplify_switch_branch(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::SExt ||
-      instr->get_instr_type() == InstrType::ZExt) {
+  if (instr_ty == InstrType::SExt || instr_ty == InstrType::ZExt) {
     return simplify_extend(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::Conversion) {
+  if (instr_ty == InstrType::ITrunc) {
+    return simplify_itrunc(instr, bb, ctx, worklist);
+  }
+  if (instr_ty == InstrType::Conversion) {
     return simplify_conversion(instr, bb, ctx, worklist);
   }
-  if (instr->get_instr_type() == InstrType::StoreInstr) {
+  if (instr_ty == InstrType::StoreInstr) {
     return simplify_store(instr, bb, ctx, worklist);
   }
 }

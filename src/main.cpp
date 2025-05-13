@@ -142,7 +142,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticModulePassManager<GDCE>{}.apply(ctx);
   fmt::print("================FIR END====================\n");
 
-  fmt::print("{:d}\n", ctx);
   ASSERT(ctx->verify());
   ctx.data->print_stats();
 }
@@ -204,6 +203,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
   reorder_funcs(reordered_funcs);
   for (auto *func : reordered_funcs) {
+    fmt::print("{:d}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
