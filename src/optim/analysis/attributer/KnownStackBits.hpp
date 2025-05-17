@@ -163,6 +163,16 @@ public:
           new_known_zero =
               std::bit_cast<u64>(std::bit_cast<i64>(a->known_zero) >> log2);
         }
+      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::Xor) {
+        new_known_one = a->known_zero & b->known_one;
+        new_known_zero =
+            (a->known_zero & b->known_zero) | (a->known_one & b->known_one);
+      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::And) {
+        new_known_one = a->known_one & b->known_one;
+        new_known_zero = a->known_zero | b->known_zero;
+      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::Or) {
+        new_known_one = a->known_one | b->known_one;
+        new_known_zero = a->known_zero & b->known_zero;
       } else {
         fmt::println("TODO: ATTRIB KNOWN BITS BIINARY OP {}",
                      associatedValue.as_instr());

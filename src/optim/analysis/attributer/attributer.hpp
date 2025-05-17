@@ -106,11 +106,25 @@ public:
   }
 
   void run() {
+    ZoneScopedN("Attributer::run");
     Worklist worklist;
     for (auto &[_, loc] : _attribs) {
       for (auto &[_, att] : loc) {
         if (att->force_update) {
           worklist.push_back(att);
+          att->force_update = false;
+        }
+      }
+    }
+    // cleanup invalid stuff
+    for (auto &[a, deps] : _inverse_dependencies) {
+      if (!a->associatedValue.is_valid(true)) {
+        _inverse_dependencies.erase(a);
+        continue;
+      }
+      for (size_t ip1 = deps.size(); ip1 > 0; ip1--) {
+        if (!deps[ip1 - 1]->associatedValue.is_valid(true)) {
+          deps.erase(deps.begin() + ip1);
         }
       }
     }
@@ -118,6 +132,7 @@ public:
       auto *curr_ptr = worklist.front();
       worklist.pop_front();
       _currently_updating = curr_ptr;
+      ASSERT(curr_ptr->associatedValue.is_valid(true));
       if (curr_ptr->update_impl(*this, worklist) ==
           AttributeAnalysis::Result::Changed) {
         if (_inverse_dependencies.contains(curr_ptr)) {

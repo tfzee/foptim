@@ -664,6 +664,32 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
+  if (sub_type == ICmpInstrSubType::EQ || sub_type == ICmpInstrSubType::NE) {
+    const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
+    const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
+    man.run();
+    bool evals_to_true = false;
+    bool evals_to_false = false;
+    if (sub_type == ICmpInstrSubType::EQ) {
+      evals_to_false = (bits1->known_one & bits2->known_zero) != 0 ||
+                       (bits1->known_zero & bits2->known_one) != 0;
+    } else if (sub_type == ICmpInstrSubType::NE) {
+      evals_to_true = (bits1->known_one & bits2->known_zero) != 0 ||
+                      (bits1->known_zero & bits2->known_one) != 0;
+    }
+    (void)evals_to_false;
+    (void)evals_to_true;
+
+    // ASSERT(!evals_to_false || !evals_to_true);
+    // if (evals_to_true || evals_to_false) {
+    //   push_all_uses(worklist, instr);
+    //   instr->replace_all_uses(ValueR(ctx->get_constant_value(
+    //       evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+    //   instr.destroy();
+    //   return;
+    // }
+  }
+
   // if first is not a constant we could get still a
   //  y = add x 5
   //  icmp y 100 -> which then can be simplified

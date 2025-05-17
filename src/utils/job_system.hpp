@@ -57,8 +57,6 @@ public:
     threads.clear();
   }
 
-  ~JobSheduler() {}
-
   void push(std::function<void()> j) { push(Job{j}); }
 
   void push(Job j) {
@@ -73,6 +71,9 @@ public:
       {
         std::lock_guard<std::mutex> queue_gard{job_queue};
         if (jobs.empty()) {
+          // kinda problematic we yield while holding the lock
+          //  but since jobs was empty here its unlikely to be full later
+          //  atleast in my usecase
           std::this_thread::yield();
           continue;
         }
