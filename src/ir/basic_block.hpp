@@ -19,9 +19,19 @@ public:
   auto &get_instrs() { return instructions; }
   [[nodiscard]] const auto &get_instrs() const { return instructions; }
 
+  size_t get_arg_id(BBArgument searching_arg) {
+    for (size_t arg_id = 0; arg_id < args.size(); arg_id++) {
+      if (args[arg_id] == searching_arg) {
+        return arg_id;
+      }
+    }
+    TODO("Tried to get argid of bbargument thats not an argument of this bb");
+  }
+
   void clear_args();
   void remove_arg(size_t indx);
-  void remove_from_parent(bool remove_references, bool cleanup_instr = true, bool delete_instr = false);
+  void remove_from_parent(bool remove_references, bool cleanup_instr = true,
+                          bool delete_instr = false);
 
   void remove_instr(size_t indx, bool delete_instr);
   static TypeR get_type() { return TypeR(TypeR::invalid()); }

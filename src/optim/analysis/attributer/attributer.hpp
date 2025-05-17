@@ -49,6 +49,7 @@ public:
     Fixed,
   };
   fir::ValueR associatedValue;
+  bool force_update = false;
 
   AttributeAnalysis() = default;
   virtual void materialize_impl(fir::Context &) = 0;
@@ -70,6 +71,7 @@ public:
   AAna *get_or_create_analysis(fir::ValueR loc, Worklist *worklist = nullptr) {
     static_assert(std::is_base_of<AttributeAnalysis, AAna>::value,
                   "AAna must inherit AttributeAnalysis");
+    ASSERT(loc.is_valid(true) && "must be valid");
     if (!_attribs.contains(typeid(AAna))) {
       _attribs.insert({typeid(AAna), {}});
     }
@@ -78,16 +80,18 @@ public:
       ASSERT(analysis);
       // ASSERT(((size_t)analysis) % alignof(AAna) == 0);
       // std::construct_at(analysis);
-      new (analysis) AAna();
-      analysis->associatedValue = loc;
-      _attribs.at(typeid(AAna)).insert({loc, analysis});
       if (worklist) {
         worklist->push_back(analysis);
       }
+      new (analysis) AAna();
+      analysis->associatedValue = loc;
+      _attribs.at(typeid(AAna)).insert({loc, analysis});
     }
     AAna *analysis = (AAna *)_attribs.at(typeid(AAna)).at(loc);
     if (_currently_updating) {
       _inverse_dependencies[analysis].push_back(_currently_updating);
+    } else {
+      analysis->force_update = true;
     }
     ASSERT(analysis);
     return (AAna *)(analysis);
@@ -105,7 +109,9 @@ public:
     Worklist worklist;
     for (auto &[_, loc] : _attribs) {
       for (auto &[_, att] : loc) {
-        worklist.push_back(att);
+        if (att->force_update) {
+          worklist.push_back(att);
+        }
       }
     }
     while (!worklist.empty()) {

@@ -4,6 +4,8 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
+#include "optim/analysis/attributer/KnownStackBits.hpp"
+#include "optim/analysis/attributer/attributer.hpp"
 
 namespace foptim::optim {
 
@@ -427,7 +429,8 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
 }
 
 static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
-                          fir::Context &ctx, WorkList &worklist) {
+                          fir::Context &ctx, WorkList &worklist,
+                          AttributerManager &man) {
   using namespace foptim::fir;
   {
     if ((instr->args[0].is_constant() &&
@@ -548,9 +551,117 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
         ctx->get_constant_value((u64)is_true, ctx->get_int_type(8));
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
-    ASSERT(instr->bbs.size() == 0);
     instr.destroy();
     return;
+  }
+
+  if (second_constant && instr->args[1].as_constant()->is_int()) {
+    auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
+    i128 c_val = instr->args[1].as_constant()->as_int();
+    bool check_negative = false;
+    bool check_positive = false;
+
+    // TODO : theres more cases like eq with a positive constant
+    check_negative = (sub_type == fir::ICmpInstrSubType::SLT && c_val == 0) ||
+                     (sub_type == fir::ICmpInstrSubType::SLE && c_val == -1);
+    check_negative = (sub_type == fir::ICmpInstrSubType::SGT && c_val == 0) ||
+                     (sub_type == fir::ICmpInstrSubType::SGE && c_val == 1);
+    if (check_positive || check_negative) {
+      const auto *bits = man.get_or_create_analysis<KnownBits>(instr->args[0]);
+      man.run();
+      auto msb_res = bits->msb_info();
+      bool value_known_negative = msb_res == KnownBits::KnownOne;
+      bool value_known_positive = msb_res == KnownBits::KnownZero;
+      bool evals_to_true = (value_known_negative && check_negative) ||
+                           (value_known_positive && check_positive);
+      bool evals_to_false = (value_known_negative && check_positive) ||
+                            (value_known_positive && check_negative);
+      if (evals_to_false || evals_to_true) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR(ctx->get_constant_value(
+            evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+        instr.destroy();
+        return;
+      }
+    }
+  }
+  auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
+  if (sub_type == ICmpInstrSubType::UGT || sub_type == ICmpInstrSubType::UGE ||
+      sub_type == ICmpInstrSubType::ULT || sub_type == ICmpInstrSubType::ULE) {
+    const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
+    const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
+    man.run();
+    bool evals_to_true = false;
+    bool evals_to_false = false;
+    if (sub_type == ICmpInstrSubType::UGT) {
+      evals_to_true =
+          bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
+      evals_to_false =
+          bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
+    } else if (sub_type == ICmpInstrSubType::UGE) {
+      evals_to_true =
+          bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
+      evals_to_false =
+          bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
+    } else if (sub_type == ICmpInstrSubType::ULT) {
+      evals_to_true =
+          bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
+      evals_to_false =
+          bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
+    } else if (sub_type == ICmpInstrSubType::ULE) {
+      evals_to_true =
+          bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
+      evals_to_false =
+          bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
+    }
+
+    ASSERT(!evals_to_false || !evals_to_true);
+    if (evals_to_true || evals_to_false) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(ValueR(ctx->get_constant_value(
+          evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+      instr.destroy();
+      return;
+    }
+  }
+
+  if (sub_type == ICmpInstrSubType::SGT || sub_type == ICmpInstrSubType::SGE ||
+      sub_type == ICmpInstrSubType::SLT || sub_type == ICmpInstrSubType::SLE) {
+    const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
+    const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
+    man.run();
+    bool evals_to_true = false;
+    bool evals_to_false = false;
+    if (sub_type == ICmpInstrSubType::SGT) {
+      evals_to_true =
+          bits1->get_signed_min_value() > bits2->get_signed_max_value();
+      evals_to_false =
+          bits1->get_signed_max_value() <= bits2->get_signed_min_value();
+    } else if (sub_type == ICmpInstrSubType::SGE) {
+      evals_to_true =
+          bits1->get_signed_min_value() >= bits2->get_signed_max_value();
+      evals_to_false =
+          bits1->get_signed_max_value() < bits2->get_signed_min_value();
+    } else if (sub_type == ICmpInstrSubType::SLT) {
+      evals_to_true =
+          bits1->get_signed_max_value() < bits2->get_signed_min_value();
+      evals_to_false =
+          bits1->get_signed_min_value() >= bits2->get_signed_max_value();
+    } else if (sub_type == ICmpInstrSubType::SLE) {
+      evals_to_true =
+          bits1->get_signed_max_value() <= bits2->get_signed_min_value();
+      evals_to_false =
+          bits1->get_signed_min_value() > bits2->get_signed_max_value();
+    }
+
+    ASSERT(!evals_to_false || !evals_to_true);
+    if (evals_to_true || evals_to_false) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(ValueR(ctx->get_constant_value(
+          evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+      instr.destroy();
+      return;
+    }
   }
 
   // if first is not a constant we could get still a
@@ -985,7 +1096,7 @@ static void simplify_store(fir::Instr instr, fir::BasicBlock bb,
 }
 
 static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                     WorkList &worklist) {
+                     WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
   auto instr_ty = instr->get_instr_type();
   if (instr_ty == InstrType::BinaryInstr) {
@@ -995,7 +1106,7 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return simplify_unary(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::ICmp) {
-    return simplify_icmp(instr, bb, ctx, worklist);
+    return simplify_icmp(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::FCmp) {
     return simplify_fcmp(instr, bb, ctx, worklist);
@@ -1025,6 +1136,7 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 
 void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   using namespace foptim::fir;
+  AttributerManager man;
 
   // TODO: maybe replace with actual queue
   TVec<WorkItem> worklist;
@@ -1041,7 +1153,7 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     if (!instr->parent.is_valid()) {
       continue;
     }
-    simplify(instr, bb, ctx, worklist);
+    simplify(instr, bb, ctx, worklist, man);
   }
 }
 

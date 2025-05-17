@@ -13,19 +13,15 @@ namespace foptim::fir {
 bool ValueR::is_valid(bool check_refs) const {
   switch (ty) {
   case ValueType::InvalidValue:
-    fmt::println("Got invalidValue");
     return false;
   case ValueType::Instr:
-    return check_refs && instr.is_valid();
+    return instr.is_valid();
   case ValueType::BBArg:
-    return check_refs && bb_arg.is_valid();
+    return bb_arg.is_valid();
   case ValueType::ConstantValueR:
-    if (!(check_refs && const_val.is_valid() && const_val->is_valid())) {
-      fmt::println("{}", const_val);
-      return false;
-    }
+    return const_val.is_valid() && (!check_refs || const_val->is_valid());
   case ValueType::BasicBlock:
-    return true;
+    return bb.is_valid();
   }
 }
 
