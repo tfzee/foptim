@@ -27,6 +27,7 @@
 #include "optim/func_passes/stack_known_bits.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_passes/IPCP.hpp"
+#include "optim/module_passes/function_dedup.hpp"
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/inline.hpp"
 #include "utils/arena.hpp"
@@ -40,7 +41,6 @@
 #include "llvm/llir_loader.hpp"
 
 #include <algorithm>
-#include <memory>
 #include <tracy/Tracy.hpp>
 #include <unistd.h>
 
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]) {
       foptim::FVec<foptim::fmir::Global> globals;
       foptim::FVec<foptim::IRString> decls;
       for (auto &[decl, f] : ctx.data->storage.functions) {
-        if (f.is_decl()) {
+        if (f->is_decl()) {
           decls.push_back(decl);
         }
       }
@@ -139,6 +139,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
+  // foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
   foptim::optim::StaticModulePassManager<GDCE>{}.apply(ctx);
   fmt::print("================FIR END====================\n");
 
@@ -199,7 +200,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   foptim::TVec<foptim::fir::Function *> reordered_funcs;
   reordered_funcs.reserve(ctx->storage.functions.size());
   for (auto &[_, func] : ctx->storage.functions) {
-    reordered_funcs.emplace_back(&func);
+    reordered_funcs.emplace_back(func.get());
   }
   reorder_funcs(reordered_funcs);
   for (auto *func : reordered_funcs) {
@@ -246,6 +247,9 @@ void optimize_mir(foptim::fir::Context &ctx,
   // foptim::fmir::RegAllocWP{}.apply(funcs);
   // foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();

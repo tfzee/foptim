@@ -21,6 +21,7 @@ public:
   }
 };
 
+//TODO: should be locked used
 struct GlobalData : public Used {
   struct RelocationInfo {
     size_t insert_offset;

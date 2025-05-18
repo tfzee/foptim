@@ -4,6 +4,7 @@
 #include "mir/instr.hpp"
 #include "utils/set.hpp"
 #include "utils/todo.hpp"
+#include "utils/types.hpp"
 
 namespace foptim::fmir {
 void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
@@ -127,40 +128,49 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
 
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
-  TMap<CReg, LinearRangeSet> lifeness;
+  TMap<CReg, TSet<size_t>> lifeness;
   lifeness.reserve(32);
   CReg regs[N_REGS_SELECTABLE];
   TMap<size_t, CReg> reg_mapping;
 
-  const auto lifetimes = linear_lifetime(func);
+  const auto lifetimes = reg_coll(func);
+  // TVec<std::pair<VReg, const TSet<size_t> *>> iter_lifetimes;
+  // for (const auto &[r, l] : lifetimes) {
+  //   iter_lifetimes.emplace_back(r, &l);
+  // }
+  // std::sort(iter_lifetimes.begin(), iter_lifetimes.end(),
+  //           [](const auto &a, const auto &b) {
+  //             return a.second->size() < b.second->size();
+  //           });
   get_reg_order(func, regs);
 
   {
     ZoneScopedN("Actual Alloc");
-    for (const auto &[reg, lifetime] : lifetimes) {
+    for (const auto &[reg, colls] : lifetimes) {
       if (reg.is_concrete()) {
-        lifeness.insert({reg.c_reg(), lifetime});
+        lifeness.insert({reg.c_reg(), colls});
       }
     }
 
-    for (const auto &[reg, lifetime] : lifetimes) {
+    for (const auto &[reg, colls] : lifetimes) {
       if (reg.is_concrete()) {
         continue;
       }
       bool found = false;
+      auto reg_id = reg_to_uid(reg);
       for (auto avail_reg : regs) {
         if (!reg_is_legal(reg, avail_reg)) {
           continue;
         }
 
         if (!lifeness.contains(avail_reg)) {
-          lifeness.insert({avail_reg, lifetime});
+          lifeness.insert({avail_reg, colls});
           reg_mapping.insert({reg.virt_id(), avail_reg});
           found = true;
           break;
         }
-        if (!lifeness.at(avail_reg).collide(lifetime)) {
-          lifeness.at(avail_reg).update(lifetime);
+        if (!lifeness.at(avail_reg).contains(reg_id)) {
+          lifeness.at(avail_reg).insert(colls.begin(), colls.end());
           reg_mapping.insert({reg.virt_id(), avail_reg});
           found = true;
           break;

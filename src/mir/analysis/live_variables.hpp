@@ -1,6 +1,7 @@
 #include "mir/analysis/cfg.hpp"
 #include "mir/func.hpp"
 #include "utils/bitset.hpp"
+#include "utils/set.hpp"
 
 namespace foptim::fmir {
 
@@ -151,5 +152,7 @@ struct LinearRangeSet {
 };
 
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func);
+
+TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func);
 
 } // namespace foptim::fmir

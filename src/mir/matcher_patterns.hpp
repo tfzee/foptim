@@ -8,6 +8,7 @@ void cjmp_patterns(IRVec<Pattern> &pats);
 void move_patterns(IRVec<Pattern> &pats);
 void base_patterns(IRVec<Pattern> &pats);
 void arith_patterns(IRVec<Pattern> &pats);
+void intrin_patterns(IRVec<Pattern> &pats);
 
 inline auto get_pats() {
   IRVec<Pattern> res;
@@ -17,6 +18,7 @@ inline auto get_pats() {
   cjmp_patterns(res);
   move_patterns(res);
   arith_patterns(res);
+  intrin_patterns(res);
   base_patterns(res);
 
   return res;

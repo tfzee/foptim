@@ -1575,27 +1575,6 @@ void base_patterns(IRVec<Pattern> &pats) {
   pats.push_back(Pattern{
       {CallNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto call_instr = res.matched_instrs[0];
-        if (call_instr->args[0].is_constant()) {
-          auto call_const = call_instr->args[0].as_constant();
-          if (call_const->is_func()) {
-            if (call_const->as_func()->name == "foptim.va_start") {
-              setup_va_start(call_instr, res, data);
-              return true;
-            }
-            if (call_const->as_func()->name == "foptim.va_end") {
-              setup_va_end(call_instr, res, data);
-              return true;
-            }
-            if (call_const->as_func()->name == "foptim.ctlz.i64") {
-              auto res_reg =
-                  valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-              auto arg =
-                  valueToArg(call_instr->args[1], res.result, data.alloc);
-              res.result.emplace_back(Opcode::lzcnt, res_reg, arg);
-              return true;
-            }
-          }
-        }
         setup_callargs(call_instr, res, data);
 
         MArgument calee;
@@ -1709,6 +1688,37 @@ void base_patterns(IRVec<Pattern> &pats) {
                 // TODO: prob nicer way to handle this
                 res.result.emplace_back(Opcode::push, MArgument((u8)0));
                 res.result.emplace_back(Opcode::ret);
+                return true;
+              }});
+}
+void intrin_patterns(IRVec<Pattern> &pats) {
+  using Node = Pattern::Node;
+  using InstrType = fir::InstrType;
+  using NodeType = Pattern::NodeType;
+
+  auto ctlzNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                       (u32)fir::IntrinsicSubType::CTLZ};
+  auto va_endNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                         (u32)fir::IntrinsicSubType::VA_end};
+  auto va_startNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                           (u32)fir::IntrinsicSubType::VA_start};
+
+  pats.push_back(Pattern{
+      {ctlzNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        res.result.emplace_back(Opcode::lzcnt, res_reg, arg);
+        return true;
+      }});
+  pats.push_back(
+      Pattern{{va_startNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                setup_va_start(res.matched_instrs[0], res, data);
+                return true;
+              }});
+  pats.push_back(
+      Pattern{{va_endNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                setup_va_end(res.matched_instrs[0], res, data);
                 return true;
               }});
 }

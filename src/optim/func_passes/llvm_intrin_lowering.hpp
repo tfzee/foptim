@@ -269,22 +269,23 @@ public:
         0, fir::ValueR{ctx->get_constant_value(ctx->get_function("exp"))});
   }
 
-  void handle_ctlz(fir::Instr instr, fir::Function &funcy,
+  void handle_ctlz(fir::Instr instr, fir::Function & /*funcy*/,
                    fir::FunctionR /*callee*/) {
-    auto *ctx = funcy.ctx;
-    instr.replace_arg(0, fir::ValueR{ctx->get_constant_value(
-                             ctx->get_function("foptim.ctlz.i64"))});
+    fir::Builder bb{instr};
+    auto res = bb.build_ctlz(instr->args[1], instr->args[2]);
+    instr->replace_all_uses(res);
+    instr.destroy();
   }
 
-  void handle_va(fir::Instr instr, fir::Function &funcy,
+  void handle_va(fir::Instr instr, fir::Function & /*funcy*/,
                  fir::FunctionR /*callee*/, bool is_start) {
-    auto *ctx = funcy.ctx;
-    auto func =
-        ctx->get_function(is_start ? "foptim.va_start" : "foptim.va_end");
-    foptim::fir::ValueR args[1] = {instr->args[1]};
     fir::Builder bb{instr};
-    auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
-                             func->func_ty, ctx->get_void_type(), args);
+    auto res = fir::ValueR{};
+    if (is_start) {
+      res = bb.build_va_start(instr->args[1]);
+    } else {
+      res = bb.build_va_end(instr->args[1]);
+    }
     instr->replace_all_uses(res);
     instr.destroy();
   }

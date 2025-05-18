@@ -252,18 +252,14 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
     bool found = false;
     for (auto bb : func.get_bbs()) {
       for (auto instr : bb->instructions) {
-        if (instr->is(fir::InstrType::CallInstr) &&
-            instr->args[0].is_constant() &&
-            instr->args[0].as_constant()->is_func()) {
-          auto fun = instr->args[0].as_constant()->as_func();
-          if (fun->name == "foptim.va_start") {
-            found = true;
-            break;
-          }
-        }
-        if (found) {
+        if (instr->is(fir::InstrType::Intrinsic) &&
+            instr->subtype == (u32)fir::IntrinsicSubType::VA_start) {
+          found = true;
           break;
         }
+      }
+      if (found) {
+        break;
       }
     }
     if (found) {

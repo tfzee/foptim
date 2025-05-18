@@ -37,6 +37,9 @@ enum class InstrType : u8 {
   // Memory
   LoadInstr,
   StoreInstr,
+
+  // Intrinsic
+  Intrinsic,
 };
 
 struct BBRefWithArgs {
@@ -54,6 +57,14 @@ struct BBRefWithArgs {
     }
     return true;
   }
+};
+
+enum class IntrinsicSubType : u32 {
+  INVALID = 0,
+  // count leading zeroes
+  CTLZ,
+  VA_start,
+  VA_end,
 };
 
 enum class ConversionSubType : u32 {
@@ -177,6 +188,17 @@ public:
 
   [[nodiscard]] constexpr const char *get_name() const {
     switch (instr_type) {
+    case InstrType::Intrinsic:
+      switch ((IntrinsicSubType)subtype) {
+      case IntrinsicSubType::INVALID:
+        return "INTRINSIC_INVALID";
+      case IntrinsicSubType::CTLZ:
+        return "INTRIN:CTLZ";
+      case IntrinsicSubType::VA_start:
+        return "INTRIN:VA_START";
+      case IntrinsicSubType::VA_end:
+        return "INTRIN:VA_END";
+      }
     case InstrType::Unreachable:
       return "unreachable";
     case InstrType::UnaryInstr:
@@ -384,6 +406,7 @@ public:
   static InstrData get_extract_value(TypeR ty);
   static InstrData get_insert_value(TypeR ty);
   static InstrData get_smod(TypeR ty);
+  static InstrData get_intrinsic(TypeR ty, IntrinsicSubType sub_type);
   static InstrData get_add(TypeR ty);
   static InstrData get_sub(TypeR ty);
   static InstrData get_mul(TypeR ty);
@@ -402,7 +425,7 @@ public:
   static InstrData get_zext(TypeR ty);
   static InstrData get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty);
   static InstrData get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty);
-  //only give void  type
+  // only give void  type
   static InstrData get_unreach(TypeR ty);
   static InstrData get_return(TypeR ty);
   static InstrData get_call(TypeR ty);

@@ -13,7 +13,7 @@ public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("IPCP");
     for (auto &f : ctx.data->storage.functions) {
-      constant_prop_args(fir::FunctionR(&f.second), ctx);
+      constant_prop_args(fir::FunctionR(f.second.get()), ctx);
     }
   }
 };
@@ -31,7 +31,8 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   case fir::Function::Linkage::Internal:
     break;
   }
-  if (func->is_decl()) {
+
+  if (func->is_decl() || func->variadic) {
     return;
   }
 

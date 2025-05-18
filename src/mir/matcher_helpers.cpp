@@ -228,19 +228,19 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
   std::abort();
 }
 
-void setup_va_start(fir::Instr &call_instr, MatchResult &res,
+void setup_va_start(fir::Instr &va_instr, MatchResult &res,
                     ExtraMatchData &data) {
-  auto ptr_arg = valueToArg(call_instr->args[1], res.result, data.alloc);
+  auto ptr_arg = valueToArg(va_instr->args[0], res.result, data.alloc);
   // TODO: handle other cases aswell
   ASSERT(ptr_arg.isReg());
 
   auto n_int_args = 0;
   auto n_vec_args = 0;
-  //TODO: idk about this
-  for (auto arg: data.func.args) {
-    if(arg.is_vec_reg()){
+  // TODO: idk about this
+  for (auto arg : data.func.args) {
+    if (arg.is_vec_reg()) {
       n_vec_args += 1;
-    }else{
+    } else {
       n_int_args += 1;
     }
   }
@@ -265,9 +265,9 @@ void setup_va_start(fir::Instr &call_instr, MatchResult &res,
                           MArgument((u16)176));
 }
 
-void setup_va_end(fir::Instr &call_instr, MatchResult &res,
+void setup_va_end(fir::Instr &va_instr, MatchResult &res,
                   ExtraMatchData &data) {
-  (void)call_instr;
+  (void)va_instr;
   (void)res;
   (void)data;
 }

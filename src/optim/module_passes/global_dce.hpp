@@ -41,14 +41,14 @@ public:
 
     // TODO: dead global variable deletion
     for (auto &[name, f] : ctx.data->storage.functions) {
-      if (f.get_n_uses() > 0) {
+      if (f->get_n_uses() > 0) {
         continue;
       }
       if (is_intrinsic(name)) {
         ctx.data->storage.functions.erase(name);
         continue;
       }
-      switch (f.linkage) {
+      switch (f->linkage) {
       case fir::Function::Linkage::External:
       case fir::Function::Linkage::WeakODR:
       case fir::Function::Linkage::Weak:
@@ -58,7 +58,7 @@ public:
       case fir::Function::Linkage::LinkOnceODR:
         break;
       }
-      if (func_global_reffed.contains(&f)) {
+      if (func_global_reffed.contains(f.get())) {
         continue;
       }
       if (name.starts_with("_GLOBAL")) {

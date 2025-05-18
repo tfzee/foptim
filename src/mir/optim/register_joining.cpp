@@ -7,7 +7,7 @@
 namespace foptim::fmir {
 
 void RegisterJoining::apply(MFunc &func) {
-  auto lives = linear_lifetime(func);
+  auto colls = reg_coll(func);
   TMap<u64, CReg> reg_mapping;
 
   for (size_t ip1 = func.bbs.size(); ip1 > 0; ip1--) {
@@ -49,17 +49,20 @@ void RegisterJoining::apply(MFunc &func) {
       }
 
       if (hit) {
-        ASSERT(lives.contains(virtual_value_reg));
-        ASSERT(lives.contains(pinned_target_reg));
+        ASSERT(colls.contains(virtual_value_reg));
+        ASSERT(colls.contains(pinned_target_reg));
         // fmt::println("TRYING JOIN {}", virtual_value_reg);
         // lives.at(virtual_value_reg).dump();
         // fmt::println("TRYING JOIN {}", pinned_target_reg);
         // lives.at(pinned_target_reg).dump();
 
-        if (!lives.at(pinned_target_reg).collide(lives.at(virtual_value_reg))) {
+        if (!colls.at(pinned_target_reg)
+                 .contains(reg_to_uid(virtual_value_reg))) {
           // fmt::println(" WORKED");
           reg_mapping[virtual_value_reg.virt_id()] = pinned_target_reg.c_reg();
-          lives.at(pinned_target_reg).update(lives.at(virtual_value_reg));
+          const auto &other_colls = colls.at(virtual_value_reg);
+          colls.at(pinned_target_reg)
+              .insert(other_colls.begin(), other_colls.end());
         } else {
           // fmt::println(" FAILED");
         }

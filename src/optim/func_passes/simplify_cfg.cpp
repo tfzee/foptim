@@ -7,7 +7,6 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "utils/arena.hpp"
-#include "utils/logging.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
@@ -391,11 +390,22 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
   if (!curr.bb->get_terminator()->is(fir::InstrType::Unreachable)) {
     return false;
   }
+  // TODO: right now if it can diverge we cancel the transformation
+  //  but we could instead only delete everything after the last point at which
+  //  it could diverge
   for (auto instr : curr.bb->instructions) {
     // just switching to make sure to update this
     switch (instr->instr_type) {
     case fir::InstrType::CallInstr:
       return false;
+    case fir::InstrType::Intrinsic:
+      switch ((fir::IntrinsicSubType)instr->subtype) {
+      case fir::IntrinsicSubType::INVALID:
+      case fir::IntrinsicSubType::CTLZ:
+      case fir::IntrinsicSubType::VA_end:
+      case fir::IntrinsicSubType::VA_start:
+        break;
+      }
     case fir::InstrType::ICmp:
     case fir::InstrType::FCmp:
     case fir::InstrType::BinaryInstr:

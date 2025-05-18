@@ -534,6 +534,45 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
 }
 
 // LINEAR LIFETIMES AFTER
+// void close_ranges(VReg reg, size_t instr_id, u32 bb_id,
+//                   TVec<std::pair<size_t, size_t>> &started_ranges,
+//                   TMap<VReg, LinearRangeSet> &ranges) {
+//   auto reg_id = reg_to_uid(reg);
+//   for (size_t start_idp1 = started_ranges.size(); start_idp1 > 0;
+//        start_idp1--) {
+//     const auto &[start_reg_id, start_pos] = started_ranges[start_idp1 - 1];
+//     if (start_reg_id == reg_id) {
+//       ranges[reg].update(LinearRange::inBB(bb_id, instr_id, start_pos));
+//       started_ranges.erase(started_ranges.begin() + start_idp1 - 1);
+//     }
+//   }
+// }
+// void open_ranges(MArgument &arg, size_t instr_id,
+//                  TVec<std::pair<size_t, size_t>> &started_ranges) {
+//   switch (arg.type) {
+//   case MArgument::ArgumentType::Imm:
+//   case MArgument::ArgumentType::Label:
+//   case MArgument::ArgumentType::MemLabel:
+//   case MArgument::ArgumentType::MemImmLabel:
+//   case MArgument::ArgumentType::MemImm:
+//     break;
+//   case MArgument::ArgumentType::VReg:
+//   case MArgument::ArgumentType::MemImmVReg:
+//   case MArgument::ArgumentType::MemVReg:
+//     started_ranges.emplace_back(reg_to_uid(arg.reg), instr_id);
+//     break;
+//   case MArgument::ArgumentType::MemImmVRegScale:
+//     started_ranges.emplace_back(reg_to_uid(arg.indx), instr_id);
+//     break;
+//   case MArgument::ArgumentType::MemVRegVReg:
+//   case MArgument::ArgumentType::MemImmVRegVReg:
+//   case MArgument::ArgumentType::MemVRegVRegScale:
+//   case MArgument::ArgumentType::MemImmVRegVRegScale:
+//     started_ranges.emplace_back(reg_to_uid(arg.reg), instr_id);
+//     started_ranges.emplace_back(reg_to_uid(arg.indx), instr_id);
+//     break;
+//   }
+// }
 
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   ZoneScopedN("LinearLifetimes");
@@ -575,8 +614,86 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   TVec<ArgData> helper;
   helper.reserve(4);
 
-  // this is used later one to find where the first def is
+  // TVec<std::pair<size_t, size_t>> started_ranges;
+  // fmt::println("=============");
+  // for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
+  //   fmt::println("=== {} ===", bb_id);
+  //   // const auto &alive = live._live[bb_id];
+  //   const auto &aliveIn = live._liveIn[bb_id];
+  //   const auto &aliveOut = live._liveOut[bb_id];
+  //   const auto &bb = func.bbs[bb_id];
 
+  //   for (size_t instridp1 = bb.instrs.size(); instridp1 > 0; instridp1--) {
+  //     const auto &instr = bb.instrs[instridp1 - 1];
+  //     if (instr.op == Opcode::cjmp_int_slt ||
+  //         instr.op == Opcode::cjmp_int_sge ||
+  //         instr.op == Opcode::cjmp_int_sle ||
+  //         instr.op == Opcode::cjmp_int_sgt ||
+  //         instr.op == Opcode::cjmp_int_ult ||
+  //         instr.op == Opcode::cjmp_int_ule ||
+  //         instr.op == Opcode::cjmp_int_ugt ||
+  //         instr.op == Opcode::cjmp_int_uge || instr.op == Opcode::cjmp_int_ne
+  //         || instr.op == Opcode::cjmp_int_eq || instr.op ==
+  //         Opcode::cjmp_flt_oeq || instr.op == Opcode::cjmp_flt_ogt ||
+  //         instr.op == Opcode::cjmp_flt_oge ||
+  //         instr.op == Opcode::cjmp_flt_olt ||
+  //         instr.op == Opcode::cjmp_flt_ole ||
+  //         instr.op == Opcode::cjmp_flt_one ||
+  //         instr.op == Opcode::cjmp_flt_ord ||
+  //         instr.op == Opcode::cjmp_flt_uno ||
+  //         instr.op == Opcode::cjmp_flt_ueq ||
+  //         instr.op == Opcode::cjmp_flt_ugt ||
+  //         instr.op == Opcode::cjmp_flt_uge ||
+  //         instr.op == Opcode::cjmp_flt_ult ||
+  //         instr.op == Opcode::cjmp_flt_ule ||
+  //         instr.op == Opcode::cjmp_flt_une || instr.op == Opcode::cjmp ||
+  //         instr.op == Opcode::jmp) {
+  //       for (auto live : aliveOut) {
+  //         started_ranges.emplace_back(live, bb.instrs.size());
+  //       }
+  //     }
+
+  //     fmt::println("{}", instr);
+  //     for (auto [reg, id] : started_ranges) {
+  //       fmt::print("{}: {}; ", uid_to_reg(reg), id);
+  //     }
+  //     fmt::println("");
+  //     helper.clear();
+  //     written_args(instr, helper);
+  //     // auto all defs
+  //     for (auto written : helper) {
+  //       if (written.arg.isReg()) {
+  //         fmt::println("   DEF {}", written.arg.reg);
+  //         close_ranges(written.arg.reg, instridp1 - 1, bb_id, started_ranges,
+  //                      ranges);
+  //       }
+  //     }
+  //     // find all uses
+  //     for (auto written : helper) {
+  //       if (!written.arg.isReg()) {
+  //         fmt::println("   USE {}", written.arg);
+  //         open_ranges(written.arg, instridp1 - 1, started_ranges);
+  //       }
+  //     }
+  //     helper.clear();
+  //     read_args(instr, helper);
+  //     for (auto read : helper) {
+  //       fmt::println("   USE {}", read.arg);
+  //       open_ranges(read.arg, instridp1 - 1, started_ranges);
+  //     }
+  //   }
+
+  //   for (auto live : aliveIn) {
+  //     close_ranges(uid_to_reg(live), 0, bb_id, started_ranges, ranges);
+  //   }
+  // }
+  // fmt::println("{}", func);
+  // for (auto [reg, range] : ranges) {
+  //   fmt::print("{}\n ", reg);
+  //   range.dump();
+  // }
+
+  // this is used later one to find where the first def is
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
     const auto &alive = live._live[bb_id];
     const auto &aliveIn = live._liveIn[bb_id];
@@ -637,6 +754,50 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
           }
         }
 
+        // if its alive out and we have multiple terminators we need to makr
+        // it alive at each
+        if (aliveOut[reg_id]) {
+          for (size_t instr_indx = 0;
+               instr_indx < func.bbs[bb_id].instrs.size(); instr_indx++) {
+            auto instr = func.bbs[bb_id].instrs[instr_indx];
+            if (instr.op == Opcode::cjmp_int_slt ||
+                instr.op == Opcode::cjmp_int_sge ||
+                instr.op == Opcode::cjmp_int_sle ||
+                instr.op == Opcode::cjmp_int_sgt ||
+                instr.op == Opcode::cjmp_int_ult ||
+                instr.op == Opcode::cjmp_int_ule ||
+                instr.op == Opcode::cjmp_int_ugt ||
+                instr.op == Opcode::cjmp_int_uge ||
+                instr.op == Opcode::cjmp_int_ne ||
+                instr.op == Opcode::cjmp_int_eq ||
+                instr.op == Opcode::cjmp_flt_oeq ||
+                instr.op == Opcode::cjmp_flt_ogt ||
+                instr.op == Opcode::cjmp_flt_oge ||
+                instr.op == Opcode::cjmp_flt_olt ||
+                instr.op == Opcode::cjmp_flt_ole ||
+                instr.op == Opcode::cjmp_flt_one ||
+                instr.op == Opcode::cjmp_flt_ord ||
+                instr.op == Opcode::cjmp_flt_uno ||
+                instr.op == Opcode::cjmp_flt_ueq ||
+                instr.op == Opcode::cjmp_flt_ugt ||
+                instr.op == Opcode::cjmp_flt_uge ||
+                instr.op == Opcode::cjmp_flt_ult ||
+                instr.op == Opcode::cjmp_flt_ule ||
+                instr.op == Opcode::cjmp_flt_une || instr.op == Opcode::cjmp) {
+              size_t closest_index = 0;
+              for (auto range : ranges[reg].ranges) {
+                if (range.end.bb_indx == bb_id &&
+                    range.end.instr_indx <= instr_indx &&
+                    range.end.instr_indx > closest_index) {
+                  closest_index = range.end.instr_indx;
+                }
+              }
+              ranges[reg].update(
+                  LinearRange::inBB(bb_id, closest_index, instr_indx));
+            }
+          }
+        }
+
         if (alive[reg_id] && ranges[reg].ranges.empty()) {
           ranges[reg].update(
               LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
@@ -646,4 +807,202 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   }
   return ranges;
 }
+
+TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
+  ZoneScopedN("regColl");
+  TSet<VReg> all_used_regs;
+
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      for (u32 arg_i = 0; arg_i < instr.n_args; arg_i++) {
+        const auto &arg = instr.args[arg_i];
+        switch (arg.type) {
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::MemImm:
+          break;
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+          all_used_regs.insert(arg.reg);
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          all_used_regs.insert(arg.reg);
+          all_used_regs.insert(arg.indx);
+          break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+          all_used_regs.insert(arg.indx);
+          break;
+        }
+      }
+    }
+  }
+  CFG cfg{func};
+  LiveVariables live{cfg, func};
+  TMap<VReg, TSet<size_t>> ranges;
+  TVec<ArgData> helper;
+  helper.reserve(8);
+
+  for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
+    // const auto &alive = live._live[bb_id];
+    // const auto &aliveIn = live._liveIn[bb_id];
+    const auto &aliveOut = live._liveOut[bb_id];
+    const auto &bb = func.bbs[bb_id];
+
+    auto curr_live = aliveOut;
+
+    for (size_t instridp1 = bb.instrs.size(); instridp1 > 0; instridp1--) {
+      const auto &instr = bb.instrs[instridp1 - 1];
+      // if (instr.op == Opcode::call || instr.op == Opcode::invoke) {
+      //   for (size_t ip1 = instridp1 - 1; ip1 > 0; ip1--) {
+      //     if (bb.instrs[ip1 - 1].op == Opcode::arg_setup) {
+      //       if (bb.instrs[ip1 - 1].n_args > 1) {
+      //         curr_live[reg_to_uid(bb.instrs[ip1 -
+      //         1].args[1].reg)].set(true);
+      //       }
+      //     } else {
+      //       break;
+      //     }
+      //   }
+      // }
+      if (instr.op == Opcode::arg_setup) {
+
+        if (instr.n_args > 1) {
+          ranges[instr.args[1].reg];
+        }
+      }
+      if (instr.op == Opcode::cjmp_int_slt ||
+          instr.op == Opcode::cjmp_int_sge ||
+          instr.op == Opcode::cjmp_int_sle ||
+          instr.op == Opcode::cjmp_int_sgt ||
+          instr.op == Opcode::cjmp_int_ult ||
+          instr.op == Opcode::cjmp_int_ule ||
+          instr.op == Opcode::cjmp_int_ugt ||
+          instr.op == Opcode::cjmp_int_uge || instr.op == Opcode::cjmp_int_ne ||
+          instr.op == Opcode::cjmp_int_eq || instr.op == Opcode::cjmp_flt_oeq ||
+          instr.op == Opcode::cjmp_flt_ogt ||
+          instr.op == Opcode::cjmp_flt_oge ||
+          instr.op == Opcode::cjmp_flt_olt ||
+          instr.op == Opcode::cjmp_flt_ole ||
+          instr.op == Opcode::cjmp_flt_one ||
+          instr.op == Opcode::cjmp_flt_ord ||
+          instr.op == Opcode::cjmp_flt_uno ||
+          instr.op == Opcode::cjmp_flt_ueq ||
+          instr.op == Opcode::cjmp_flt_ugt ||
+          instr.op == Opcode::cjmp_flt_uge ||
+          instr.op == Opcode::cjmp_flt_ult ||
+          instr.op == Opcode::cjmp_flt_ule ||
+          instr.op == Opcode::cjmp_flt_une || instr.op == Opcode::cjmp ||
+          instr.op == Opcode::jmp) {
+        curr_live.add(aliveOut);
+      }
+      helper.clear();
+      written_args(instr, helper);
+      // auto all defs
+      for (auto written : helper) {
+        if (written.arg.isReg()) {
+          ranges[written.arg.reg];
+          curr_live[reg_to_uid(written.arg.reg)].set(false);
+        }
+      }
+      // find all uses
+      for (auto written : helper) {
+        switch (written.arg.type) {
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::MemImm:
+        case MArgument::ArgumentType::VReg:
+          break;
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+          ranges[written.arg.reg];
+          for (auto r : curr_live) {
+            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
+            ranges[written.arg.reg].insert(r);
+          }
+          curr_live[reg_to_uid(written.arg.reg)].set(true);
+          break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+          ranges[written.arg.indx];
+          for (auto r : curr_live) {
+            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
+            ranges[written.arg.indx].insert(r);
+          }
+          curr_live[reg_to_uid(written.arg.indx)].set(true);
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          ranges[written.arg.reg];
+          ranges[written.arg.indx];
+          for (auto r : curr_live) {
+            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
+            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
+            ranges[written.arg.reg].insert(r);
+            ranges[written.arg.indx].insert(r);
+          }
+          curr_live[reg_to_uid(written.arg.reg)].set(true);
+          curr_live[reg_to_uid(written.arg.indx)].set(true);
+          break;
+        }
+      }
+      helper.clear();
+      read_args(instr, helper);
+      for (auto read : helper) {
+        switch (read.arg.type) {
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::MemImm:
+          break;
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+          ranges[read.arg.reg];
+          for (auto r : curr_live) {
+            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
+            ranges[read.arg.reg].insert(r);
+          }
+          curr_live[reg_to_uid(read.arg.reg)].set(true);
+          break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+          ranges[read.arg.indx];
+          for (auto r : curr_live) {
+            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
+            ranges[read.arg.indx].insert(r);
+          }
+          curr_live[reg_to_uid(read.arg.indx)].set(true);
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          ranges[read.arg.reg];
+          ranges[read.arg.indx];
+          for (auto r : curr_live) {
+            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
+            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
+            ranges[read.arg.reg].insert(r);
+            ranges[read.arg.indx].insert(r);
+          }
+          curr_live[reg_to_uid(read.arg.reg)].set(true);
+          curr_live[reg_to_uid(read.arg.indx)].set(true);
+          break;
+        }
+      }
+    }
+  }
+
+  return ranges;
+}
+
 } // namespace foptim::fmir

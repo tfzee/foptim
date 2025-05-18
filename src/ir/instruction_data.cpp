@@ -132,6 +132,8 @@ bool InstrData::has_result() const {
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
     return false;
+  case InstrType::Intrinsic:
+    return !this->get_type()->is_void();
   }
 }
 
@@ -145,6 +147,15 @@ bool InstrData::is_critical() const {
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
     return true;
+  case InstrType::Intrinsic:
+    switch ((IntrinsicSubType)subtype) {
+    case IntrinsicSubType::INVALID:
+    case IntrinsicSubType::CTLZ:
+      return false;
+    case IntrinsicSubType::VA_start:
+    case IntrinsicSubType::VA_end:
+      return true;
+    }
   case InstrType::InsertValue:
   case InstrType::ExtractValue:
   case InstrType::AllocaInstr:
@@ -184,6 +195,14 @@ bool InstrData::is_commutative() const {
     case BinaryInstrSubType::Shl:
     case BinaryInstrSubType::Shr:
     case BinaryInstrSubType::AShr:
+      return false;
+    }
+  case InstrType::Intrinsic:
+    switch ((IntrinsicSubType)subtype) {
+    case IntrinsicSubType::INVALID:
+    case IntrinsicSubType::CTLZ:
+    case IntrinsicSubType::VA_start:
+    case IntrinsicSubType::VA_end:
       return false;
     }
   case InstrType::FCmp:
@@ -237,6 +256,15 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::CallInstr:
   case InstrType::StoreInstr:
     return true;
+  case InstrType::Intrinsic:
+    switch ((IntrinsicSubType)subtype) {
+    case IntrinsicSubType::INVALID:
+    case IntrinsicSubType::CTLZ:
+      return false;
+    case IntrinsicSubType::VA_start:
+    case IntrinsicSubType::VA_end:
+      return true;
+    }
   case InstrType::InsertValue:
   case InstrType::ExtractValue:
   case InstrType::AllocaInstr:
@@ -264,6 +292,15 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::StoreInstr:
   case InstrType::AllocaInstr:
     return true;
+  case InstrType::Intrinsic:
+    switch ((IntrinsicSubType)subtype) {
+    case IntrinsicSubType::INVALID:
+    case IntrinsicSubType::CTLZ:
+      return false;
+    case IntrinsicSubType::VA_start:
+    case IntrinsicSubType::VA_end:
+      return true;
+    }
   case InstrType::InsertValue:
   case InstrType::ExtractValue:
   case InstrType::ReturnInstr:
@@ -329,6 +366,13 @@ InstrData InstrData::get_add(TypeR ty) {
 InstrData InstrData::get_smod(TypeR ty) {
   auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntSRem,
                        ty, BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(2);
+  return res;
+}
+
+InstrData InstrData::get_intrinsic(TypeR ty, IntrinsicSubType sub_type) {
+  auto res = InstrData{InstrType::Intrinsic, (u32)sub_type, ty,
+                       BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }

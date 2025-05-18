@@ -53,23 +53,21 @@ public:
   void remove_all_usages();
 };
 
-class FuncLockedUsed {
+class LockedUsed {
 public:
-  //TODO: idk how to fix
-  static Mutex<void *> lock;
-  Used _uses = {};
+  Mutex<Used> _uses = {};
 
   void add_usage(Use u) {
-    auto l = lock.scoped_lock();
-    _uses.uses.push_back(u);
+    auto us = _uses.scoped_lock();
+    us->uses.push_back(u);
   }
   [[nodiscard]] size_t get_n_uses() const {
-    auto l = lock.scoped_lock();
-    return _uses.uses.size();
+    auto us = _uses.scoped_lock();
+    return us->uses.size();
   }
   [[nodiscard]] const IRVec<Use> &get_uses() const {
-    auto l = lock.scoped_lock();
-    return _uses.uses;
+    auto us = _uses.scoped_lock();
+    return us->uses;
   }
 
   void replace_all_uses(ValueR new_value);

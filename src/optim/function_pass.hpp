@@ -52,13 +52,13 @@ template <class... Passes> class StaticFunctionPassManager {
 public:
   void apply(fir::Context &ctx) {
     for (auto &[name, func] : ctx->storage.functions) {
-      if (func.is_decl()) {
+      if (func->is_decl()) {
         continue;
       }
       if (utils::print_optimization_failure_reasons) {
-        (Passes{}.apply_pass(ctx, func).print_failures(), ...);
+        (Passes{}.apply_pass(ctx, *func).print_failures(), ...);
       } else {
-        (Passes{}.apply_pass(ctx, func), ...);
+        (Passes{}.apply_pass(ctx, *func), ...);
       }
     }
     ctx.data->storage.storage_instr.collect_garbage();
@@ -69,14 +69,14 @@ template <class... Passes> class StaticParallelFunctionPassManager {
 public:
   void apply(fir::Context &ctx, JobSheduler *shed) {
     for (auto &[name, func] : ctx->storage.functions) {
-      if (func.is_decl()) {
+      if (func->is_decl()) {
         continue;
       }
       shed->push([&ctx, &func]() {
         if (utils::print_optimization_failure_reasons) {
-          (Passes{}.apply_pass(ctx, func).print_failures(), ...);
+          (Passes{}.apply_pass(ctx, *func).print_failures(), ...);
         } else {
-          (Passes{}.apply_pass(ctx, func), ...);
+          (Passes{}.apply_pass(ctx, *func), ...);
         }
       });
     }
@@ -91,11 +91,11 @@ public:
 
   void apply(fir::Context &ctx) {
     for (auto &[name, func] : ctx->storage.functions) {
-      if (func.is_decl()) {
+      if (func->is_decl()) {
         continue;
       }
       for (auto pass : dyn_passes) {
-        pass.apply(ctx, func);
+        pass.apply(ctx, *func);
       }
     }
   }

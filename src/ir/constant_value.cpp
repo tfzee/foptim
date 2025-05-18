@@ -259,9 +259,8 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
     foptim::fir::ConstantValueR const &v, format_context &ctx) const {
   if (debug) {
     return fmt::format_to(ctx.out(), "{:d}", *v.get_raw_ptr());
-  } else {
-    return fmt::format_to(ctx.out(), "{}", *v.get_raw_ptr());
   }
+  return fmt::format_to(ctx.out(), "{}", *v.get_raw_ptr());
 }
 
 fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
@@ -280,19 +279,18 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
         return fmt::format_to(
             ctx.out(), color_number, "{:X}:{}",
             (foptim::u32)std::bit_cast<foptim::u64>(v.float_u.v.data), v.type);
-      } else {
-        return fmt::format_to(ctx.out(), color_number, "{:X}:{}",
-                              std::bit_cast<foptim::u64>(v.float_u.v.data),
-                              v.type);
       }
+      return fmt::format_to(ctx.out(), color_number, "{:X}:{}",
+                            std::bit_cast<foptim::u64>(v.float_u.v.data),
+                            v.type);
+
     } else {
       if (v.type->as_float() == 32) {
         return fmt::format_to(ctx.out(), color_number, "{}:{}", v.as_f32(),
                               v.type);
-      } else {
-        return fmt::format_to(ctx.out(), color_number, "{}:{}", v.as_f64(),
-                              v.type);
       }
+      return fmt::format_to(ctx.out(), color_number, "{}:{}", v.as_f64(),
+                            v.type);
     }
   case foptim::fir::ConstantType::GlobalPtr:
     return fmt::format_to(ctx.out(), color_constant, "G({})",

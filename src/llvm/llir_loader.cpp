@@ -97,11 +97,13 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     if (undef_constant->getType()->isFloatTy()) {
       return foptim::fir::ValueR(
           fctx->get_poisson_value(fctx->get_float_type(32)));
-    } else if (undef_constant->getType()->isDoubleTy()) {
+    }
+    if (undef_constant->getType()->isDoubleTy()) {
       return foptim::fir::ValueR(
           fctx->get_poisson_value(fctx->get_float_type(64)));
-    } else if (auto *v = dyn_cast_or_null<llvm::IntegerType>(
-                   undef_constant->getType())) {
+    }
+    if (auto *v =
+            dyn_cast_or_null<llvm::IntegerType>(undef_constant->getType())) {
       return foptim::fir::ValueR(
           fctx->get_poisson_value(fctx->get_int_type(v->getBitWidth())));
     }
@@ -1091,7 +1093,8 @@ inline void generate_trap(foptim::fir::Context &fctx) {
   }
   auto func_ty = fctx->get_func_ty(fctx->get_void_type(), {});
   fctx.data->storage.functions.insert(
-      {"abort", foptim::fir::Function(fctx.operator->(), "abort", func_ty)});
+      {"abort", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                        "abort", func_ty)});
 }
 
 inline void generate_memmove(foptim::fir::Context &fctx) {
@@ -1103,18 +1106,7 @@ inline void generate_memmove(foptim::fir::Context &fctx) {
       {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
   fctx.data->storage.functions.insert(
       {"memmove",
-       foptim::fir::Function(fctx.operator->(), "memmove", func_ty)});
-}
-
-inline void generate_ctlz(foptim::fir::Context &fctx) {
-  if (fctx->has_function("foptim.ctlz.i64")) {
-    return;
-  }
-  auto func_ty = fctx->get_func_ty(
-      fctx->get_int_type(64), {fctx->get_int_type(64), fctx->get_int_type(1)});
-  fctx.data->storage.functions.insert(
-      {"foptim.ctlz.i64",
-       foptim::fir::Function(fctx.operator->(), "foptim.ctlz.i64", func_ty)});
+       std::make_unique<foptim::fir::Function>(fctx.operator->(), "memmove", func_ty)});
 }
 
 inline void generate_fexp(foptim::fir::Context &fctx) {
@@ -1124,25 +1116,7 @@ inline void generate_fexp(foptim::fir::Context &fctx) {
   auto func_ty =
       fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
   fctx.data->storage.functions.insert(
-      {"exp", foptim::fir::Function(fctx.operator->(), "exp", func_ty)});
-}
-
-inline void generate_va(foptim::fir::Context &fctx) {
-  if (fctx->has_function("foptim.va_start")) {
-    return;
-  }
-  auto func_ty =
-      fctx->get_func_ty(fctx->get_void_type(), {fctx->get_ptr_type()});
-  // fctx->create_function("abort", func_ty);
-  fctx.data->storage.functions.insert(
-      {"foptim.va_start",
-       foptim::fir::Function(fctx.operator->(), "foptim.va_start", func_ty)});
-  fctx.data->storage.functions.insert(
-      {"foptim.va_end",
-       foptim::fir::Function(fctx.operator->(), "foptim.va_end", func_ty)});
-  // fctx.data->storage.functions.insert(
-  //     {"foptim.va_arg",
-  //      foptim::fir::Function(fctx.operator->(), "foptim.va_arg", func_ty)});
+      {"exp", std::make_unique<foptim::fir::Function>(fctx.operator->(), "exp", func_ty)});
 }
 
 inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
@@ -1157,19 +1131,15 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_fabs(fctx, func.getName());
   } else if (func.getName().starts_with("llvm.abs")) {
     generate_abs(fctx, func.getName());
-  } else if (func.getName().starts_with("llvm.va_start")) {
-    generate_va(fctx);
   } else if (func.getName().starts_with("llvm.exp.f")) {
     generate_fexp(fctx);
   } else if (func.getName().starts_with("llvm.memmove")) {
     generate_memmove(fctx);
-  } else if (func.getName().starts_with("llvm.ctlz")) {
-    generate_ctlz(fctx);
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(
       {func_name,
-       foptim::fir::Function(fctx.operator->(), func_name,
+       std::make_unique<foptim::fir::Function>(fctx.operator->(), func_name,
                              convert_type(func.getFunctionType(), fctx, mod))});
 
   const auto foff_func = fctx->get_function(func_name.c_str());

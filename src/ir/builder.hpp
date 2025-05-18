@@ -42,6 +42,9 @@ public:
   ValueR build_unary_op(ValueR a, UnaryInstrSubType sub_type);
   ValueR build_conversion_op(ValueR a, TypeR res_type,
                              ConversionSubType sub_type);
+  ValueR build_ctlz(ValueR a, ValueR b);
+  ValueR build_va_start(ValueR a);
+  ValueR build_va_end(ValueR a);
   ValueR build_int_add(ValueR a, ValueR b);
   ValueR build_float_add(ValueR a, ValueR b);
   ValueR build_float_sub(ValueR a, ValueR b);

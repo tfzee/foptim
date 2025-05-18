@@ -79,7 +79,7 @@ FunctionR ContextData::get_function(IRStringRef name) {
     fmt::println("Failed to find function '{}' from storage", name);
     ASSERT(false);
   }
-  return &storage.functions.at(name);
+  return storage.functions.at(name).get();
 }
 
 bool ContextData::has_function(IRStringRef name) const {
@@ -87,9 +87,9 @@ bool ContextData::has_function(IRStringRef name) const {
 }
 
 FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
-  storage.functions.insert({name, Function{this, name, type}});
+  storage.functions.emplace(name, std::make_unique<Function>(this, name, type));
 
-  auto func = FunctionR(&storage.functions.at(name));
+  auto func = FunctionR(storage.functions.at(name).get());
   auto init_bb = BasicBlock(storage.basic_blocks.push_back({func}));
   init_bb.verify_validness();
   func->append_bbr(init_bb);
@@ -113,7 +113,7 @@ bool ContextData::delete_function(IRStringRef delete_func) {
 
 bool ContextData::verify() const {
   for (const auto &[name, func] : storage.functions) {
-    if (!func.verify()) {
+    if (!func->verify()) {
       fmt::println("In Function: {}\n", name.c_str());
       return false;
     }
@@ -345,7 +345,7 @@ fmt::formatter<foptim::fir::Context>::format(foptim::fir::Context const &v,
     }
   }
   for (const auto &[_, func] : v.data->storage.functions) {
-    app = fmt::format_to(app, "{:d}\n", func);
+    app = fmt::format_to(app, "{:d}\n", *func);
   }
   return app;
 }

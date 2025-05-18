@@ -137,6 +137,9 @@ public:
         UNREACH();
       }
     }
+    case fir::InstrType::Intrinsic:
+      // TODO: implement constant propagation
+      return ConstantValue::Bottom();
     case fir::InstrType::BinaryInstr: {
       auto a = eval(instr->get_arg(0));
       auto b = eval(instr->get_arg(1));

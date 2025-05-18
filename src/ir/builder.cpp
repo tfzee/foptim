@@ -2,6 +2,7 @@
 #include "basic_block.hpp"
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/vec.hpp"
@@ -83,6 +84,37 @@ ValueR Builder::build_int_srem(ValueR a, ValueR b) {
   Instr instr = ctx->storage.insert_instr(InstrData::get_smod(a.get_type()));
   instr.add_arg(a);
   instr.add_arg(b);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_ctlz(ValueR a, ValueR b) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_intrinsic(a.get_type(), IntrinsicSubType::CTLZ));
+  instr.add_arg(a);
+  instr.add_arg(b);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_va_start(ValueR a) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(InstrData::get_intrinsic(
+      ctx->get_void_type(), IntrinsicSubType::VA_start));
+  instr.add_arg(a);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_va_end(ValueR a) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_intrinsic(ctx->get_void_type(), IntrinsicSubType::VA_end));
+  instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
   return ValueR(instr);

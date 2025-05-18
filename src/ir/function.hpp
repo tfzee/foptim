@@ -12,7 +12,7 @@
 namespace foptim::utils {}
 namespace foptim::fir {
 
-class Function : public Attributable, public FuncLockedUsed {
+class Function : public Attributable, public LockedUsed {
 public:
   enum class CallingConv { C, Dynamic };
   enum class Linkage {
