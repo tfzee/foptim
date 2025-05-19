@@ -541,11 +541,19 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ICmpInstrSubType::SLE:
       is_true = (i64)v1 <= (i64)v2;
       break;
-    case fir::ICmpInstrSubType::MulOverflow:
-    case fir::ICmpInstrSubType::AddOverflow:
-      // TODO:
-      return;
-      break;
+    case fir::ICmpInstrSubType::MulOverflow: {
+      i128 output = v1 * v2;
+      auto bitwidth = std::max(c1->type->as_int(), c2->type->as_int());
+      i128 mask = ~(((i128)1 << bitwidth) - 1);
+      is_true = (output & mask) != 0;
+    } break;
+
+    case fir::ICmpInstrSubType::AddOverflow: {
+      i128 output = v1 + v2;
+      auto bitwidth = std::max(c1->type->as_int(), c2->type->as_int());
+      i128 mask = ~(((i128)1 << bitwidth) - 1);
+      is_true = (output & mask) != 0;
+    } break;
     }
     auto new_const_value =
         ctx->get_constant_value((u64)is_true, ctx->get_int_type(8));
