@@ -247,9 +247,6 @@ void optimize_mir(foptim::fir::Context &ctx,
   // foptim::fmir::RegAllocWP{}.apply(funcs);
   // foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
-  // for (auto &f : funcs) {
-  //   fmt::println("{}", f);
-  // }
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
@@ -257,6 +254,9 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  for (auto &f : funcs) {
+    fmt::println("{}", f);
+  }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

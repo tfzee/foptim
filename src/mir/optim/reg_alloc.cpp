@@ -126,6 +126,15 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
   }
 }
 
+void spill_one(MFunc &func, TVec<VReg>& spillers, const TMap<VReg, TSet<size_t>> &reg_coll) {
+  fmt::println("========================\n{}", func);
+  fmt::println("========================\n{}", spillers);
+  TODO("spill it ?");
+  ASSERT(false);
+  (void)reg_coll;
+  // auto biggest =
+}
+
 void apply_func(MFunc &func) {
   ZoneScopedN("Allocating Func");
   TMap<CReg, TSet<size_t>> lifeness;
@@ -133,7 +142,6 @@ void apply_func(MFunc &func) {
   CReg regs[N_REGS_SELECTABLE];
   TMap<size_t, CReg> reg_mapping;
 
-  const auto lifetimes = reg_coll(func);
   // TVec<std::pair<VReg, const TSet<size_t> *>> iter_lifetimes;
   // for (const auto &[r, l] : lifetimes) {
   //   iter_lifetimes.emplace_back(r, &l);
@@ -146,43 +154,66 @@ void apply_func(MFunc &func) {
 
   {
     ZoneScopedN("Actual Alloc");
-    for (const auto &[reg, colls] : lifetimes) {
-      if (reg.is_concrete()) {
-        lifeness.insert({reg.c_reg(), colls});
-      }
-    }
+    TVec<VReg> spillers;
+    while (true) {
+      reg_mapping.clear();
+      lifeness.clear();
+      spillers.clear();
+      const auto lifetimes = reg_coll(func);
 
-    for (const auto &[reg, colls] : lifetimes) {
-      if (reg.is_concrete()) {
-        continue;
+      for (const auto &[reg, colls] : lifetimes) {
+        // fmt::print("{}: ", reg);
+        // for (auto coll : colls) {
+        //   fmt::print("{}:{}, ", uid_to_reg(coll), coll);
+        // }
+        // fmt::println("");
+        if (reg.is_concrete()) {
+          lifeness.insert({reg.c_reg(), colls});
+        }
       }
-      bool found = false;
-      auto reg_id = reg_to_uid(reg);
-      for (auto avail_reg : regs) {
-        if (!reg_is_legal(reg, avail_reg)) {
+
+
+      bool successfully_allocated = true;
+      for (const auto &[reg, colls] : lifetimes) {
+        if (reg.is_concrete()) {
           continue;
         }
+        bool found = false;
+        auto reg_id = reg_to_uid(reg);
+        for (auto avail_reg : regs) {
+          if (!reg_is_legal(reg, avail_reg)) {
+            continue;
+          }
 
-        if (!lifeness.contains(avail_reg)) {
-          lifeness.insert({avail_reg, colls});
-          reg_mapping.insert({reg.virt_id(), avail_reg});
-          found = true;
-          break;
+          if (!lifeness.contains(avail_reg)) {
+            lifeness.insert({avail_reg, colls});
+            reg_mapping.insert({reg.virt_id(), avail_reg});
+            found = true;
+            break;
+          }
+          if (!lifeness.at(avail_reg).contains(reg_id)) {
+            lifeness.at(avail_reg).insert(colls.begin(), colls.end());
+            reg_mapping.insert({reg.virt_id(), avail_reg});
+            found = true;
+            break;
+          }
         }
-        if (!lifeness.at(avail_reg).contains(reg_id)) {
-          lifeness.at(avail_reg).insert(colls.begin(), colls.end());
-          reg_mapping.insert({reg.virt_id(), avail_reg});
-          found = true;
-          break;
+        if (!found) {
+          spillers.push_back(reg);
+          successfully_allocated = false;
+          // fmt::println("========================\n{}", func);
+          // fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
+          // fmt::println("{} Size:: {} IS vec: {}", reg, reg.ty,
+          // reg.is_vec_reg());
+          // TODO("spill it ?");
+          // ASSERT(false);
         }
       }
-      if (!found) {
-        fmt::println("========================\n{}", func);
-        fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
-        fmt::println("{} Size:: {} IS vec: {}", reg, reg.ty, reg.is_vec_reg());
-        TODO("spill it ?");
-        ASSERT(false);
+      if (successfully_allocated) {
+        break;
       }
+      // if we didnt find one spill one
+      spill_one(func,spillers, lifetimes);
     }
   }
 

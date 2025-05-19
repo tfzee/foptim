@@ -811,6 +811,11 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
 TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
   ZoneScopedN("regColl");
   TSet<VReg> all_used_regs;
+  CFG cfg{func};
+  LiveVariables live{cfg, func};
+  TMap<VReg, TSet<size_t>> ranges;
+  TVec<ArgData> helper;
+  helper.reserve(8);
 
   for (const auto &bb : func.bbs) {
     for (const auto &instr : bb.instrs) {
@@ -826,27 +831,26 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
         case MArgument::ArgumentType::VReg:
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
+          ranges[arg.reg];
           all_used_regs.insert(arg.reg);
           break;
         case MArgument::ArgumentType::MemVRegVReg:
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
+          ranges[arg.reg];
+          ranges[arg.indx];
           all_used_regs.insert(arg.reg);
           all_used_regs.insert(arg.indx);
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
+          ranges[arg.indx];
           all_used_regs.insert(arg.indx);
           break;
         }
       }
     }
   }
-  CFG cfg{func};
-  LiveVariables live{cfg, func};
-  TMap<VReg, TSet<size_t>> ranges;
-  TVec<ArgData> helper;
-  helper.reserve(8);
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
     // const auto &alive = live._live[bb_id];
@@ -858,24 +862,6 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
 
     for (size_t instridp1 = bb.instrs.size(); instridp1 > 0; instridp1--) {
       const auto &instr = bb.instrs[instridp1 - 1];
-      // if (instr.op == Opcode::call || instr.op == Opcode::invoke) {
-      //   for (size_t ip1 = instridp1 - 1; ip1 > 0; ip1--) {
-      //     if (bb.instrs[ip1 - 1].op == Opcode::arg_setup) {
-      //       if (bb.instrs[ip1 - 1].n_args > 1) {
-      //         curr_live[reg_to_uid(bb.instrs[ip1 -
-      //         1].args[1].reg)].set(true);
-      //       }
-      //     } else {
-      //       break;
-      //     }
-      //   }
-      // }
-      if (instr.op == Opcode::arg_setup) {
-
-        if (instr.n_args > 1) {
-          ranges[instr.args[1].reg];
-        }
-      }
       if (instr.op == Opcode::cjmp_int_slt ||
           instr.op == Opcode::cjmp_int_sge ||
           instr.op == Opcode::cjmp_int_sle ||
@@ -906,7 +892,6 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
       // auto all defs
       for (auto written : helper) {
         if (written.arg.isReg()) {
-          ranges[written.arg.reg];
           curr_live[reg_to_uid(written.arg.reg)].set(false);
         }
       }
@@ -922,7 +907,7 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           break;
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
-          ranges[written.arg.reg];
+          // fmt::println("{} USE {} ", curr_live, written.arg.reg);
           for (auto r : curr_live) {
             ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
             ranges[written.arg.reg].insert(r);
@@ -930,7 +915,7 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           curr_live[reg_to_uid(written.arg.reg)].set(true);
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
-          ranges[written.arg.indx];
+          // fmt::println("{} USE {} ", curr_live, written.arg.indx);
           for (auto r : curr_live) {
             ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
             ranges[written.arg.indx].insert(r);
@@ -941,14 +926,16 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
-          ranges[written.arg.reg];
-          ranges[written.arg.indx];
+          // fmt::println("{} USE {} ", curr_live, written.arg.reg);
+          // fmt::println("{} USE {} ", curr_live, written.arg.indx);
           for (auto r : curr_live) {
             ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
             ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
             ranges[written.arg.reg].insert(r);
             ranges[written.arg.indx].insert(r);
           }
+          ranges[written.arg.reg].insert(reg_to_uid(written.arg.indx));
+          ranges[written.arg.indx].insert(reg_to_uid(written.arg.reg));
           curr_live[reg_to_uid(written.arg.reg)].set(true);
           curr_live[reg_to_uid(written.arg.indx)].set(true);
           break;
@@ -967,7 +954,7 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
         case MArgument::ArgumentType::VReg:
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
-          ranges[read.arg.reg];
+          // fmt::println("{} USE {} ", curr_live, read.arg.reg);
           for (auto r : curr_live) {
             ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
             ranges[read.arg.reg].insert(r);
@@ -975,7 +962,7 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           curr_live[reg_to_uid(read.arg.reg)].set(true);
           break;
         case MArgument::ArgumentType::MemImmVRegScale:
-          ranges[read.arg.indx];
+          // fmt::println("{} USE {} ", curr_live, read.arg.indx);
           for (auto r : curr_live) {
             ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
             ranges[read.arg.indx].insert(r);
@@ -986,14 +973,16 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
         case MArgument::ArgumentType::MemImmVRegVReg:
         case MArgument::ArgumentType::MemVRegVRegScale:
         case MArgument::ArgumentType::MemImmVRegVRegScale:
-          ranges[read.arg.reg];
-          ranges[read.arg.indx];
+          // fmt::println("{} USE {} ", curr_live, read.arg.reg);
+          // fmt::println("{} USE {} ", curr_live, read.arg.indx);
           for (auto r : curr_live) {
             ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
             ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
             ranges[read.arg.reg].insert(r);
             ranges[read.arg.indx].insert(r);
           }
+          ranges[read.arg.reg].insert(reg_to_uid(read.arg.indx));
+          ranges[read.arg.indx].insert(reg_to_uid(read.arg.reg));
           curr_live[reg_to_uid(read.arg.reg)].set(true);
           curr_live[reg_to_uid(read.arg.indx)].set(true);
           break;
