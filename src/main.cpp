@@ -109,11 +109,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
   fmt::print("================FIR====================\n");
-  // for (const auto &[_, func] : ctx.data->storage.functions) {
-  //   fmt::print("{:d}\n", func);
-  // }
   fmt::print("================FIR START====================\n");
   ASSERT(ctx->verify());
+  fmt::println("{}", ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       Mem2Reg, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering, DCE,
       GarbageCollect, SimplifyCFG, LICM, LoopRotate, DCE, LVN, SCCP,
