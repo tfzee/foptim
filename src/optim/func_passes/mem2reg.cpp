@@ -185,14 +185,18 @@ static void decide_value_store(fir::Instr instr, size_t &i,
   }
 
   auto &back_ref = current_variable_value.back();
+  auto val = instr->args[1];
+  if (val.is_constant() && val.as_constant()->is_int()) {
+    auto cval = val.as_constant();
+    if (cval->type != instr.get_type()) {
+      val = fir::ValueR{block->get_parent()->ctx->get_constant_value(
+          cval->as_int(), instr.get_type())};
+    }
+  }
   if (back_ref.contains(instr->args[0])) {
-    // fmt::print("{}", instr);
-    // fmt::println("STORE {} {}", instr->args[0], instr->args[1]);
-    back_ref.at(instr->args[0]) = {block, instr->args[1]};
+    back_ref.at(instr->args[0]) = {block, val};
   } else {
-    // fmt::print("{}", instr);
-    // fmt::println("STORE {} {}", instr->args[0], instr->args[1]);
-    back_ref.insert({instr->args[0], {block, instr->args[1]}});
+    back_ref.insert({instr->args[0], {block, val}});
   }
   block->remove_instr(i, true);
 }
