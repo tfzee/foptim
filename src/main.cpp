@@ -136,16 +136,13 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
-  // foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
-  foptim::optim::StaticModulePassManager<GDCE>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
   fmt::print("================FIR END====================\n");
 
   ASSERT(ctx->verify());
-  ctx.data->print_stats();
 }
 
 void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
-  fmt::println(" Got {} functions", reordered_funcs.size());
   (void)reordered_funcs;
   std::sort(reordered_funcs.begin(), reordered_funcs.end(),
             [](foptim::fir::Function *a, foptim::fir::Function *b) {
@@ -193,15 +190,16 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
 
   auto matcher = foptim::fmir::GreedyMatcher{};
-  fmt::print("================MATCHING====================\n");
   foptim::TVec<foptim::fir::Function *> reordered_funcs;
   reordered_funcs.reserve(ctx->storage.functions.size());
   for (auto &[_, func] : ctx->storage.functions) {
     reordered_funcs.emplace_back(func.get());
   }
   reorder_funcs(reordered_funcs);
+  fmt::print("================MATCHING====================\n");
+  fmt::println(" Got {} functions", reordered_funcs.size());
+  ctx.data->print_stats();
   for (auto *func : reordered_funcs) {
-    // fmt::print("{:d}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {

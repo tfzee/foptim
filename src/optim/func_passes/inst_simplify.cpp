@@ -578,6 +578,15 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   if (second_constant && instr->args[1].as_constant()->is_int()) {
+    // if (instr->args[0].is_instr() &&
+    //     instr->args[0].as_instr()->is(InstrType::BinaryInstr)) {
+    //   auto bin_instr = instr->args[0].as_instr();
+    //   if (bin_instr->subtype == (u32)BinaryInstrSubType::IntMul) {
+    //     fmt::println("{}{}", bin_instr, instr);
+    //     TODO("okak");
+    //   }
+    // }
+
     auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
     i128 c_val = instr->args[1].as_constant()->as_int();
     bool check_negative = false;
