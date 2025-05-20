@@ -3,6 +3,7 @@
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
+#include <bit>
 #include <cstring>
 #include <limits>
 
@@ -560,6 +561,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
 }
+
 void arith_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
   using InstrType = fir::InstrType;
@@ -573,8 +575,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
                          (u32)fir::BinaryInstrSubType::IntMul};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSRem};
-  // auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-  //                      (u32)fir::BinaryInstrSubType::IntSDiv};
+  auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::IntSDiv};
   // auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                     (u32)fir::BinaryInstrSubType::And};
   // auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -593,6 +595,31 @@ void arith_patterns(IRVec<Pattern> &pats) {
   //                      (u32)fir::BinaryInstrSubType::AShr};
   // auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
 
+  pats.push_back(Pattern{
+      {SDivNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        (void)data;
+        auto div_instr = res.matched_instrs[0];
+        if (!div_instr->args[1].is_constant()) {
+          return false;
+        }
+        if (!div_instr->args[1].as_constant()->is_int()) {
+          return false;
+        }
+
+        auto c = div_instr->args[1].as_constant()->as_int();
+        if (c <= 0 || c > std::numeric_limits<u32>::max() ||
+            (c & (c - 1)) != 0) {
+          return false;
+        }
+        auto power = std::bit_width((u32)c) - 1;
+
+        auto res_reg =
+            valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+        auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+        res.result.emplace_back(Opcode::mov, res_reg, base);
+        res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u32)power));
+        return true;
+      }});
   pats.push_back(Pattern{
       {IntMulNode, IntAddNode},
       {{0, 1, 1}},

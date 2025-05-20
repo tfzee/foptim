@@ -128,9 +128,9 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     }
     break;
   case Opcode::arg_setup:
-    if (instr.n_args > 1 && instr.args[1].isReg()) {
-      def[reg_to_uid(instr.args[1].reg)].set(true);
-    }
+    // if (instr.n_args > 1 && instr.args[1].isReg()) {
+    //   def[reg_to_uid(instr.args[1].reg)].set(true);
+    // }
     break;
   case Opcode::invoke:
     if (instr.n_args > 1 && instr.args[1].isReg()) {
@@ -613,85 +613,6 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   TMap<VReg, LinearRangeSet> ranges;
   TVec<ArgData> helper;
   helper.reserve(4);
-
-  // TVec<std::pair<size_t, size_t>> started_ranges;
-  // fmt::println("=============");
-  // for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
-  //   fmt::println("=== {} ===", bb_id);
-  //   // const auto &alive = live._live[bb_id];
-  //   const auto &aliveIn = live._liveIn[bb_id];
-  //   const auto &aliveOut = live._liveOut[bb_id];
-  //   const auto &bb = func.bbs[bb_id];
-
-  //   for (size_t instridp1 = bb.instrs.size(); instridp1 > 0; instridp1--) {
-  //     const auto &instr = bb.instrs[instridp1 - 1];
-  //     if (instr.op == Opcode::cjmp_int_slt ||
-  //         instr.op == Opcode::cjmp_int_sge ||
-  //         instr.op == Opcode::cjmp_int_sle ||
-  //         instr.op == Opcode::cjmp_int_sgt ||
-  //         instr.op == Opcode::cjmp_int_ult ||
-  //         instr.op == Opcode::cjmp_int_ule ||
-  //         instr.op == Opcode::cjmp_int_ugt ||
-  //         instr.op == Opcode::cjmp_int_uge || instr.op == Opcode::cjmp_int_ne
-  //         || instr.op == Opcode::cjmp_int_eq || instr.op ==
-  //         Opcode::cjmp_flt_oeq || instr.op == Opcode::cjmp_flt_ogt ||
-  //         instr.op == Opcode::cjmp_flt_oge ||
-  //         instr.op == Opcode::cjmp_flt_olt ||
-  //         instr.op == Opcode::cjmp_flt_ole ||
-  //         instr.op == Opcode::cjmp_flt_one ||
-  //         instr.op == Opcode::cjmp_flt_ord ||
-  //         instr.op == Opcode::cjmp_flt_uno ||
-  //         instr.op == Opcode::cjmp_flt_ueq ||
-  //         instr.op == Opcode::cjmp_flt_ugt ||
-  //         instr.op == Opcode::cjmp_flt_uge ||
-  //         instr.op == Opcode::cjmp_flt_ult ||
-  //         instr.op == Opcode::cjmp_flt_ule ||
-  //         instr.op == Opcode::cjmp_flt_une || instr.op == Opcode::cjmp ||
-  //         instr.op == Opcode::jmp) {
-  //       for (auto live : aliveOut) {
-  //         started_ranges.emplace_back(live, bb.instrs.size());
-  //       }
-  //     }
-
-  //     fmt::println("{}", instr);
-  //     for (auto [reg, id] : started_ranges) {
-  //       fmt::print("{}: {}; ", uid_to_reg(reg), id);
-  //     }
-  //     fmt::println("");
-  //     helper.clear();
-  //     written_args(instr, helper);
-  //     // auto all defs
-  //     for (auto written : helper) {
-  //       if (written.arg.isReg()) {
-  //         fmt::println("   DEF {}", written.arg.reg);
-  //         close_ranges(written.arg.reg, instridp1 - 1, bb_id, started_ranges,
-  //                      ranges);
-  //       }
-  //     }
-  //     // find all uses
-  //     for (auto written : helper) {
-  //       if (!written.arg.isReg()) {
-  //         fmt::println("   USE {}", written.arg);
-  //         open_ranges(written.arg, instridp1 - 1, started_ranges);
-  //       }
-  //     }
-  //     helper.clear();
-  //     read_args(instr, helper);
-  //     for (auto read : helper) {
-  //       fmt::println("   USE {}", read.arg);
-  //       open_ranges(read.arg, instridp1 - 1, started_ranges);
-  //     }
-  //   }
-
-  //   for (auto live : aliveIn) {
-  //     close_ranges(uid_to_reg(live), 0, bb_id, started_ranges, ranges);
-  //   }
-  // }
-  // fmt::println("{}", func);
-  // for (auto [reg, range] : ranges) {
-  //   fmt::print("{}\n ", reg);
-  //   range.dump();
-  // }
 
   // this is used later one to find where the first def is
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {

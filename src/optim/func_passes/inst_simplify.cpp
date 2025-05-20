@@ -502,10 +502,24 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (c1->is_global() || c1->is_func() || c2->is_global() || c2->is_func()) {
       return;
     }
-    ASSERT(c1->is_int());
-    ASSERT(c2->is_int());
-    const auto v1 = c1->as_int();
-    const auto v2 = c2->as_int();
+    i128 v1 = 0;
+    i128 v2 = 0;
+    if (c1->is_int()) {
+      v1 = c1->as_int();
+    } else if (c1->is_null() || c1->is_poison()) {
+    } else {
+      fmt::println("{}", instr);
+      fmt::println("{}", c1);
+      TODO("IMPL");
+    }
+    if (c2->is_int()) {
+      v2 = c2->as_int();
+    } else if (c2->is_null() || c2->is_poison()) {
+    } else {
+      fmt::println("{}", instr);
+      fmt::println("{}", c2);
+      TODO("IMPL");
+    }
 
     bool is_true = false;
     switch ((ICmpInstrSubType)instr->get_instr_subtype()) {

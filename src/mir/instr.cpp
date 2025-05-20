@@ -211,6 +211,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::ret:
     return;
   case Opcode::arg_setup:
+    return;
   case Opcode::invoke:
     if (instr.n_args > 1) {
       out.push_back({1, instr.args[1]});
@@ -453,14 +454,14 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
     return fmt::format_to(app, "[{} + {} + {}]:{}", value.reg, value.indx,
                           (foptim::i64)value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
-    return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx, value.scale,
+    return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx, 1 << value.scale,
                           (foptim::i64)value.imm, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
     return fmt::format_to(app, "[{} + {}*{}]:{}", value.reg, value.indx,
-                          value.scale, value.ty);
+                          1 << value.scale, value.ty);
   case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
     return fmt::format_to(app, "[{} + {}*{} + {}]:{}", value.reg, value.indx,
-                          value.scale, (foptim::i64)value.imm, value.ty);
+                          1 << value.scale, (foptim::i64)value.imm, value.ty);
   }
 }
 

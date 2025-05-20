@@ -111,7 +111,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   fmt::print("================FIR====================\n");
   fmt::print("================FIR START====================\n");
   ASSERT(ctx->verify());
-  fmt::println("{}", ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       Mem2Reg, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering, DCE,
       GarbageCollect, SimplifyCFG, LICM, LoopRotate, DCE, LVN, SCCP,
@@ -202,7 +201,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   }
   reorder_funcs(reordered_funcs);
   for (auto *func : reordered_funcs) {
-    fmt::print("{:d}", *func);
+    // fmt::print("{:d}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
@@ -252,9 +251,9 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
+  // for (auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
