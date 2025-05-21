@@ -369,7 +369,17 @@ public:
     case fir::InstrType::ExtractValue:
     case fir::InstrType::InsertValue:
       return ConstantValue::Bottom();
-    case fir::InstrType::ZExt:
+    case fir::InstrType::ZExt: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (a.is_top()) {
+        return ConstantValue::Top();
+      }
+      return ConstantValue::Constant(
+          ctx->get_constant_value(a.value->as_int(), instr->get_type()));
+    }
     case fir::InstrType::SExt: {
       auto a = eval(instr->get_arg(0));
       if (a.is_bottom()) {
@@ -378,8 +388,19 @@ public:
       if (a.is_top()) {
         return ConstantValue::Top();
       }
-      a.value->type = instr->get_type();
-      return a;
+      auto old_width = a.value->type->as_int();
+      auto old_value = a.value->as_int();
+      auto is_negative = (old_value & (1 << (old_width - 1))) != 0;
+      if (is_negative) {
+        auto new_width = instr->get_type()->as_int();
+        auto mask = (1 << (new_width - old_width)) - 1;
+        mask = mask << old_width;
+        return ConstantValue::Constant(
+            ctx->get_constant_value(old_value | mask, instr->get_type()));
+      } else {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(old_value, instr->get_type()));
+      }
     }
     case fir::InstrType::FCmp: {
       auto a = eval(instr->get_arg(0));
