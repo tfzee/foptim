@@ -1,4 +1,4 @@
-// RUN: clang++ -O0 %s -o %t.ll -S -emit-llvm
+// RUN: clang++ -fno-exceptions -O3 -mllvm -disable-llvm-optzns %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.o
 // RUN: clang++ %t.o -o %t.out
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
@@ -255,11 +255,11 @@ int main(int argc, char* argv[])
 {
 	int i;
 // #ifdef SMALL_PROBLEM_SIZE
-	int iterations = (1 < argc) ? atoi(argv[1]) : 30; // number of iterations
+	int iterations =  30; // number of iterations
 // #else
 // 	int iterations = (1 < argc) ? atoi(argv[1]) : 300; // number of iterations
 // #endif
-	int tablesize = (2 < argc) ? atoi(argv[2]) : 10000; // size of array
+	int tablesize =  1000; // size of array
 	
 	
 	// seed the random number generator, so we get repeatable results

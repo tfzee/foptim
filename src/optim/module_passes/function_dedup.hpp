@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/basic_block_arg.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
@@ -35,8 +36,11 @@ check_args2(fir::Instr i1, fir::Instr i2,
       return false;
     }
     // else if they aren teh same + they are the same local we cancel
+    // TODO: could do dynamic alloca bt idk if worth it could use cost variable
+    // to keep track of this
     if (!arg1.is_constant() || !arg2.is_constant() ||
-        i1->is(fir::InstrType::AllocaInstr)) {
+        i1->is(fir::InstrType::AllocaInstr) ||
+        arg1.get_type() != arg2.get_type()) {
       return false;
     }
     difference_values.push_back({fir::Use::norm(i1, i), fir::Use::norm(i2, i)});
@@ -98,7 +102,7 @@ public:
 
     for (auto &e1 : ctx.data->storage.functions) {
       auto &f1 = e1.second;
-      if (f1->is_decl()) {
+      if (f1->is_decl() || f1->variadic || f1->get_n_uses() == 0) {
         continue;
       }
       if (f1->linkage == fir::Function::Linkage::Weak ||
@@ -110,7 +114,8 @@ public:
 
       for (auto &e2 : ctx.data->storage.functions) {
         auto &f2 = e2.second;
-        if (f1->name == f2->name || f2->is_decl()) {
+        if ((void *)f1.get() == (void *)f2.get() || f2->is_decl() ||
+            f2->variadic || f2->get_n_uses() == 0) {
           continue;
         }
         // could be overwritten later so we cant rely on the function body
@@ -182,6 +187,7 @@ public:
             if (i1 == i2) {
               continue;
             }
+            // TODO: might need to check type here aswell
             if (i1->instr_type != i2->instr_type ||
                 i1->subtype != i2->subtype ||
                 i1->args.size() != i2->args.size()) {
@@ -211,7 +217,6 @@ public:
         // if theres no differnces just forward all calls to the one with more
         // references
         if (difference_values.empty()) {
-          //  TOOD: prob better way to handle this
           fir::Function *target = f1.get();
           fir::Function *looser = f2.get();
           if (f1->get_n_uses() < f2->get_n_uses()) {
@@ -225,13 +230,82 @@ public:
                 fir::ValueR(ctx->get_constant_value(fir::FunctionR{target})));
           }
         } else {
-          // if ((f1->linkage == fir::Function::Linkage::LinkOnceODR ||
-          //      f1->linkage == fir::Function::Linkage::Internal) ||
-          //     (f2->linkage == fir::Function::Linkage::LinkOnceODR ||
-          //      f2->linkage == fir::Function::Linkage::Internal)) {
+          auto new_name = f1->name + "_MERGED_" + f2->name;
+          if (ctx->has_function(new_name.c_str())) {
+            continue;
+          }
+          // TODO: Might create huge name
+          IRVec<fir::TypeR> new_arg_ty = f1->func_ty->as_func().arg_types;
+          auto n_orig_args = new_arg_ty.size();
+          for (auto diff : difference_values) {
+            new_arg_ty.push_back(diff.use1.get_type());
+          }
+
+          auto new_type =
+              ctx->get_func_ty(f1->func_ty->as_func().return_type, new_arg_ty);
+          auto new_func =
+              ctx->create_function(f1->name + "_MERGED_" + f2->name, new_type);
+          // delete the automatically inserted bb
+          ASSERT(new_func->basic_blocks.size() == 1);
+          new_func->basic_blocks[0]->remove_from_parent(false);
+          fir::ContextData::V2VMap subs;
+          for (size_t bb_id = 0; bb_id < f1->n_bbs(); bb_id++) {
+            auto new_bb = ctx->copy(f1->basic_blocks.at(bb_id), subs, false);
+            new_func->append_bbr(new_bb);
+          }
+
+          auto new_entry = new_func->get_entry();
+          for (auto diff : difference_values) {
+            new_entry.add_arg(
+                ctx->storage.insert_bb_arg(new_entry, diff.use1.get_type()));
+          }
+
+          (void)(new_entry);
+          (void)(n_orig_args);
+          auto i = 0;
+          for (auto diff : difference_values) {
+            subs.insert({diff.use1.get_value(),
+                         fir::ValueR{new_entry->args[n_orig_args + i]}});
+            i++;
+          }
+
+          for (auto bb : new_func->get_bbs()) {
+            for (auto instr : bb->instructions) {
+              instr.substitute(subs);
+            }
+          }
+
+          TVec<fir::Use> uses{f1->get_uses().begin(), f1->get_uses().end()};
+          auto new_func_ref = fir::ValueR(
+              ctx->get_constant_value(fir::FunctionR(new_func.func)));
+          for (const auto &use : uses) {
+            if (use.type == fir::UseType::NormalArg && use.argId == 0) {
+              auto instr = use.user;
+              if (instr->is(fir::InstrType::CallInstr)) {
+                instr.replace_arg(0, new_func_ref);
+                for (auto diff : difference_values) {
+                  instr.add_arg(diff.use1.get_value());
+                }
+              }
+            }
+          }
+          TVec<fir::Use> uses2{f2->get_uses().begin(), f2->get_uses().end()};
+          for (const auto &use : uses2) {
+            if (use.type == fir::UseType::NormalArg && use.argId == 0) {
+              auto instr = use.user;
+              if (instr->is(fir::InstrType::CallInstr)) {
+                instr.replace_arg(0, new_func_ref);
+                for (auto diff : difference_values) {
+                  instr.add_arg(diff.use2.get_value());
+                }
+              }
+            }
+          }
+          // fmt::println("==========MERGING===========\n");
+          // fmt::println("{:d} {:d}", *f1, *f2);
+          // fmt::println("=====================\n{:d}", *new_func.func);
           // fmt::println("{}", difference_values.size());
-          // TODO("impl constant merging");
-          // }
+          // TODO("okak");
         }
       }
     }
