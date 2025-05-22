@@ -232,7 +232,6 @@ void genann_free(genann *ann) {
 
 double const *genann_run(genann const *ann, double const *inputs) {
   double const *w = ann->weight;
-  double *o = ann->output + ann->inputs;
   double const *i = ann->output;
 
   /* Copy the inputs to the scratch area, where we also store each neuron's
@@ -242,6 +241,7 @@ double const *genann_run(genann const *ann, double const *inputs) {
   int h, j, k;
 
   if (!ann->hidden_layers) {
+    double *o = ann->output + ann->inputs;
     double *ret = o;
     for (j = 0; j < ann->outputs; ++j) {
       double sum = *w++ * -1.0;
@@ -260,6 +260,7 @@ double const *genann_run(genann const *ann, double const *inputs) {
     for (k = 0; k < ann->inputs; ++k) {
       sum += *w++ * i[k];
     }
+    double *o = ann->output + ann->inputs;
     *o++ = genann_act_hidden(ann, sum);
   }
 
@@ -272,12 +273,14 @@ double const *genann_run(genann const *ann, double const *inputs) {
       for (k = 0; k < ann->hidden; ++k) {
         sum += *w++ * i[k];
       }
+      double *o = ann->output + ann->inputs;
       *o++ = genann_act_hidden(ann, sum);
     }
 
     i += ann->hidden;
   }
 
+  double *o = ann->output + ann->inputs;
   double const *ret = o;
 
   /* Figure output layer. */
@@ -286,6 +289,7 @@ double const *genann_run(genann const *ann, double const *inputs) {
     for (k = 0; k < ann->hidden; ++k) {
       sum += *w++ * i[k];
     }
+    double *o = ann->output + ann->inputs;
     *o++ = genann_act_output(ann, sum);
   }
 
@@ -446,4 +450,3 @@ int main() {
   genann_free(ann);
   return 0;
 }
-

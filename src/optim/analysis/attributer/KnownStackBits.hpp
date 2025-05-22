@@ -74,6 +74,13 @@ public:
       new_mask = new_mask >> (64 - new_bitwidth);
       new_known_one = known_arg_bits->known_one & new_mask;
       new_known_zero = known_arg_bits->known_zero & new_mask;
+    } else if (instr->is(fir::InstrType::SelectInstr)) {
+      const auto *known_arg1_bits =
+          m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+      const auto *known_arg2_bits =
+          m.get_or_create_analysis<KnownBits>(instr->args[2], &worklist);
+      new_known_one = known_arg1_bits->known_one & known_arg2_bits->known_one;
+      new_known_zero = known_arg1_bits->known_one & known_arg2_bits->known_one;
     } else if (instr->is(fir::InstrType::SExt)) {
       auto old_bitwidth = instr->args[0].get_type()->get_size() * 8;
       const auto *known_arg_bits =

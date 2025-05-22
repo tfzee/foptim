@@ -102,7 +102,8 @@ public:
 
     for (auto &e1 : ctx.data->storage.functions) {
       auto &f1 = e1.second;
-      if (f1->is_decl() || f1->variadic || f1->get_n_uses() == 0) {
+      if (f1->is_decl() || f1->variadic || f1->get_n_uses() == 0 ||
+          f1->get_entry()->n_args() > 4) {
         continue;
       }
       if (f1->linkage == fir::Function::Linkage::Weak ||
@@ -115,7 +116,8 @@ public:
       for (auto &e2 : ctx.data->storage.functions) {
         auto &f2 = e2.second;
         if ((void *)f1.get() == (void *)f2.get() || f2->is_decl() ||
-            f2->variadic || f2->get_n_uses() == 0) {
+            f2->variadic || f2->get_n_uses() == 0 ||
+            f2->get_entry()->n_args() > 4) {
           continue;
         }
         // could be overwritten later so we cant rely on the function body
@@ -210,7 +212,7 @@ public:
 
         // TODO: heuristic
         if (difference_values.size() > f1_ninstrs ||
-            difference_values.size() > 5) {
+            difference_values.size() + f1->get_entry()->n_args() > 6) {
           continue;
         }
 
