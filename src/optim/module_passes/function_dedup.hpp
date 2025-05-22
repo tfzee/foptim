@@ -51,6 +51,10 @@ match_term2(fir::Instr i1, fir::Instr i2,
   if (i1 == i2) {
     return true;
   }
+  if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
+      i1->args.size() != i2->args.size()) {
+    return false;
+  }
   for (size_t bb_id = 0; bb_id < i1->bbs.size(); bb_id++) {
     auto &bb1 = i1->bbs[bb_id];
     auto &bb2 = i2->bbs[bb_id];
