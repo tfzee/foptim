@@ -101,6 +101,11 @@ public:
       if (f1->is_decl()) {
         continue;
       }
+      if (f1->linkage == fir::Function::Linkage::Weak ||
+          f1->linkage == fir::Function::Linkage::WeakODR ||
+          f1->linkage == fir::Function::Linkage::LinkOnce) {
+        continue;
+      }
       auto f1_ninstrs = f1->n_instrs();
 
       for (auto &e2 : ctx.data->storage.functions) {
@@ -109,10 +114,7 @@ public:
           continue;
         }
         // could be overwritten later so we cant rely on the function body
-        if (f1->linkage == fir::Function::Linkage::Weak ||
-            f1->linkage == fir::Function::Linkage::WeakODR ||
-            f1->linkage == fir::Function::Linkage::LinkOnce ||
-            f2->linkage == fir::Function::Linkage::Weak ||
+        if (f2->linkage == fir::Function::Linkage::Weak ||
             f2->linkage == fir::Function::Linkage::WeakODR ||
             f2->linkage == fir::Function::Linkage::LinkOnce) {
           continue;
@@ -140,10 +142,17 @@ public:
             break;
           }
           for (size_t i = 0; i < bb1->n_args(); i++) {
+            if (bb1->args[i]->get_type() != bb2->args[i]->get_type()) {
+              successful = false;
+              break;
+            }
             auto i1 = bb1->args[i];
             auto i2 = bb2->args[i];
             local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
             local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
+          }
+          if (!successful) {
+            break;
           }
           for (size_t i = 0; i < f1->basic_blocks[bb_id]->instructions.size();
                i++) {
@@ -205,15 +214,10 @@ public:
           //  TOOD: prob better way to handle this
           fir::Function *target = f1.get();
           fir::Function *looser = f2.get();
-          if (f1->linkage == fir::Function::Linkage::Weak ||
-              f1->linkage == fir::Function::Linkage::WeakODR ||
-              f1->linkage == fir::Function::Linkage::LinkOnce) {
+          if (f1->get_n_uses() < f2->get_n_uses()) {
             target = f2.get();
             looser = f1.get();
           }
-          (void)target;
-          (void)looser;
-          // fmt::println("MERGED {} {}", *f1, *f2);
           TVec<fir::Use> uses{looser->get_uses().begin(),
                               looser->get_uses().end()};
           for (auto use : uses) {
@@ -221,13 +225,13 @@ public:
                 fir::ValueR(ctx->get_constant_value(fir::FunctionR{target})));
           }
         } else {
-          if ((f1->linkage == fir::Function::Linkage::LinkOnceODR ||
-               f1->linkage == fir::Function::Linkage::Internal) ||
-              (f2->linkage == fir::Function::Linkage::LinkOnceODR ||
-               f2->linkage == fir::Function::Linkage::Internal)) {
-            // fmt::println("{}", difference_values.size());
-            // TODO("impl constant merging");
-          }
+          // if ((f1->linkage == fir::Function::Linkage::LinkOnceODR ||
+          //      f1->linkage == fir::Function::Linkage::Internal) ||
+          //     (f2->linkage == fir::Function::Linkage::LinkOnceODR ||
+          //      f2->linkage == fir::Function::Linkage::Internal)) {
+          // fmt::println("{}", difference_values.size());
+          // TODO("impl constant merging");
+          // }
         }
       }
     }
