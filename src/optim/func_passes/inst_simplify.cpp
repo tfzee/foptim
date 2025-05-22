@@ -18,7 +18,32 @@ static void swap_args(fir::Instr instr, u32 a1, u32 a2) {
   instr.replace_arg(a1, v2);
   instr.replace_arg(a2, v1);
 }
-
+static void swap_args_fcmp(fir::Instr instr) {
+  ASSERT(instr->is(fir::InstrType::FCmp))
+  switch ((fir::FCmpInstrSubType)instr->subtype) {
+  case fir::FCmpInstrSubType::INVALID:
+  case fir::FCmpInstrSubType::AlwFalse:
+  case fir::FCmpInstrSubType::OEQ:
+  case fir::FCmpInstrSubType::UEQ:
+  case fir::FCmpInstrSubType::ONE:
+  case fir::FCmpInstrSubType::UNE:
+  case fir::FCmpInstrSubType::AlwTrue:
+    swap_args(instr, 0, 1);
+    break;
+  case fir::FCmpInstrSubType::OGT:
+  case fir::FCmpInstrSubType::OGE:
+  case fir::FCmpInstrSubType::OLT:
+  case fir::FCmpInstrSubType::OLE:
+  case fir::FCmpInstrSubType::ORD:
+  case fir::FCmpInstrSubType::UNO:
+  case fir::FCmpInstrSubType::UGT:
+  case fir::FCmpInstrSubType::UGE:
+  case fir::FCmpInstrSubType::ULT:
+  case fir::FCmpInstrSubType::ULE:
+  case fir::FCmpInstrSubType::IsNaN:
+    break;
+  }
+}
 static void swap_args_icmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::ICmp))
   switch ((fir::ICmpInstrSubType)instr->subtype) {
@@ -748,7 +773,14 @@ static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
                           fir::Context &ctx, WorkList &worklist) {
   using namespace foptim::fir;
   {
-    // TODO: swap arges
+    if ((instr->args[0].is_constant() &&
+         (!instr->args[0].as_constant()->is_global() &&
+          !instr->args[0].as_constant()->is_func())) &&
+        (!instr->args[1].is_constant() ||
+         (instr->args[1].as_constant()->is_global() ||
+          instr->args[1].as_constant()->is_func()))) {
+      swap_args_fcmp(instr);
+    }
   }
 
   bool first_constant = instr->args[0].is_constant();
