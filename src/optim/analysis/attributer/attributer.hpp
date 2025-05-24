@@ -72,10 +72,11 @@ public:
     static_assert(std::is_base_of<AttributeAnalysis, AAna>::value,
                   "AAna must inherit AttributeAnalysis");
     ASSERT(loc.is_valid(true) && "must be valid");
-    if (!_attribs.contains(typeid(AAna))) {
-      _attribs.insert({typeid(AAna), {}});
+    const std::type_index aa_typeid = typeid(AAna);
+    if (!_attribs.contains(aa_typeid)) {
+      _attribs.insert({aa_typeid, {}});
     }
-    if (!_attribs.at(typeid(AAna)).contains(loc)) {
+    if (!_attribs.at(aa_typeid).contains(loc)) {
       AAna *analysis = utils::TempAlloc<AAna>{}.allocate(1);
       ASSERT(analysis);
       // ASSERT(((size_t)analysis) % alignof(AAna) == 0);
@@ -85,9 +86,10 @@ public:
       }
       new (analysis) AAna();
       analysis->associatedValue = loc;
-      _attribs.at(typeid(AAna)).insert({loc, analysis});
+      auto &help = _attribs.at(aa_typeid);
+      help.insert({loc, analysis});
     }
-    AAna *analysis = (AAna *)_attribs.at(typeid(AAna)).at(loc);
+    AAna *analysis = (AAna *)_attribs.at(aa_typeid).at(loc);
     if (_currently_updating) {
       _inverse_dependencies[analysis].push_back(_currently_updating);
     } else {
