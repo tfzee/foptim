@@ -41,7 +41,7 @@ bool ValueR::eql(const ValueR &other) const {
   case ValueType::BBArg:
     return (void *)bb_arg.get_raw_ptr() == (void *)other.bb_arg.get_raw_ptr();
   case ValueType::ConstantValueR:
-    return const_val->eql(*other.const_val.operator->());
+    return (void*)const_val.get_raw_ptr() == (void*)other.const_val.get_raw_ptr();
   }
   // fmt::println("{} and {}", *this, other);
   // UNREACH();
