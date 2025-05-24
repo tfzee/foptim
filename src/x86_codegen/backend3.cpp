@@ -16,8 +16,7 @@ enum class ProEpilogueType {
   None = 2,  // doing nothing
 };
 
-const char *
-get_reg_name(const ZydisRegister &data);
+const char *get_reg_name(const ZydisRegister &data);
 
 template <>
 class fmt::formatter<ZydisEncoderOperand>
@@ -1029,17 +1028,39 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int64) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int64);
+      return emit(out_buff, 0, &req);
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int32) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int32);
+      return emit(out_buff, 0, &req);
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int16) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int16);
+      size_t off = 0;
+      off = emit(out_buff, off, &req);
+      // mask out the higher bits since it doesnt do this for 16 and 8 bit
+      req.mnemonic = ZYDIS_MNEMONIC_AND;
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[1].imm.u = 0xFFFF;
+      return emit(out_buff, off, &req);
     } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int8) {
+      // TODO: could move this into the matcher that would allow for
+      // optimizations if known bits are there
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int8);
+      size_t off = 0;
+      off = emit(out_buff, off, &req);
+      // mask out the higher bits since it doesnt do this for 16 and 8 bit
+      //  NOTE: In 64-bit mode, r/m8 can not be encoded to access the following
+      //  byte registers if a REX prefix is used: AH, BH, CH, DH.
+      //  https://www.felixcloutier.com/x86/and
+      req.mnemonic = ZYDIS_MNEMONIC_AND;
+      req.operands[0].reg.value =
+          reg_with_type(instr.args[0].reg, fmir::Type::Int16);
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[1].imm.u = 0xFF;
+      return emit(out_buff, off, &req);
     }
-    return emit(out_buff, 0, &req);
   case fmir::Opcode::shl2:
     req.mnemonic = ZYDIS_MNEMONIC_SHL;
     return emit(out_buff, 0, &req);
