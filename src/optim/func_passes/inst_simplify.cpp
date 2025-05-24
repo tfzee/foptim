@@ -104,7 +104,8 @@ static void push_all_uses(WorkList &worklist, fir::Instr instr) {
 }
 
 static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
-                            fir::Context &ctx, WorkList &worklist) {
+                            fir::Context &ctx, WorkList &worklist,
+                            AttributerManager &man) {
   using namespace foptim::fir;
   // since both being constant would be handleded by constant folding we just
   // asume theres one and normalzie by putting it into the secodn arg
@@ -447,6 +448,61 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto zero_const = ctx.data->get_constant_value(0, c1_val->get_type());
       push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR{zero_const});
+      instr.destroy();
+      return;
+    }
+  }
+
+  // bit patterns
+
+  if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::And ||
+      instr->get_instr_subtype() == (u32)BinaryInstrSubType::Or) {
+    const auto *arg0_known =
+        man.get_or_create_analysis<KnownBits>(instr->args[0]);
+    const auto *arg1_known =
+        man.get_or_create_analysis<KnownBits>(instr->args[1]);
+    man.run();
+
+    auto is_redundant0 = false;
+    auto is_redundant1 = false;
+    switch ((BinaryInstrSubType)instr->get_instr_subtype()) {
+    case fir::BinaryInstrSubType::And:
+      is_redundant0 = (~arg0_known->known_zero & ~arg1_known->known_one) == 0;
+      is_redundant1 = (~arg1_known->known_zero & ~arg0_known->known_one) == 0;
+      break;
+    case fir::BinaryInstrSubType::Or:
+      is_redundant0 = (~arg0_known->known_one & ~arg1_known->known_zero) == 0;
+      is_redundant1 = (~arg1_known->known_one & ~arg0_known->known_zero) == 0;
+      break;
+    case fir::BinaryInstrSubType::Xor:
+      is_redundant0 = arg1_known->known_zero == ~0ULL;
+      is_redundant1 = arg0_known->known_zero == ~0ULL;
+      break;
+    case fir::BinaryInstrSubType::INVALID:
+    case fir::BinaryInstrSubType::IntAdd:
+    case fir::BinaryInstrSubType::IntSub:
+    case fir::BinaryInstrSubType::IntMul:
+    case fir::BinaryInstrSubType::IntSRem:
+    case fir::BinaryInstrSubType::IntSDiv:
+    case fir::BinaryInstrSubType::IntUDiv:
+    case fir::BinaryInstrSubType::Shl:
+    case fir::BinaryInstrSubType::Shr:
+    case fir::BinaryInstrSubType::AShr:
+    case fir::BinaryInstrSubType::FloatAdd:
+    case fir::BinaryInstrSubType::FloatSub:
+    case fir::BinaryInstrSubType::FloatMul:
+    case fir::BinaryInstrSubType::FloatDiv:
+      break;
+    }
+    if (is_redundant0) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[0]);
+      instr.destroy();
+      return;
+    }
+    if (is_redundant1) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[1]);
       instr.destroy();
       return;
     }
@@ -1207,7 +1263,7 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   using namespace foptim::fir;
   auto instr_ty = instr->get_instr_type();
   if (instr_ty == InstrType::BinaryInstr) {
-    return simplify_binary(instr, bb, ctx, worklist);
+    return simplify_binary(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::UnaryInstr) {
     return simplify_unary(instr, bb, ctx, worklist);
