@@ -3,6 +3,7 @@
 #include "ir/function_ref.hpp"
 #include "ir/types.hpp"
 #include "mir/func.hpp"
+#include "mir/legalize_bb_form.hpp"
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/calling_conv.hpp"
@@ -138,7 +139,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
   fmt::print("================FIR END====================\n");
-
   ASSERT(ctx->verify());
 }
 
@@ -218,7 +218,9 @@ void optimize_mir(foptim::fir::Context &ctx,
   fmt::print("================MIR START====================\n");
   ZoneScopedN("MIR Optim");
   // running dead to make inst simplify work better
+  foptim::fmir::LegalizeBBForm{}.apply(funcs);
   foptim::fmir::DeadCodeElim{}.apply(funcs);
+  ASSERT(foptim::fmir::verify(funcs));
   foptim::utils::TempAlloc<void *>::reset();
   ctx.data->storage.storage_instr.collect_garbage();
   foptim::fmir::InstSimplify{}.early_apply(funcs);

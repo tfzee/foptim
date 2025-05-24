@@ -4,10 +4,9 @@
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
-#include "optim/analysis/cfg.hpp"
-#include "optim/analysis/dominators.hpp"
 #include "utils/APInt.hpp"
-#include <limits>
+#include "utils/logging.hpp"
+#include <fmt/core.h>
 
 namespace foptim::optim {
 
@@ -181,6 +180,7 @@ public:
         new_known_one = a->known_one | b->known_one;
         new_known_zero = a->known_zero & b->known_zero;
       } else {
+        fmt::println("BITS KNOWN {}", *this);
         fmt::println("TODO: ATTRIB KNOWN BITS BIINARY OP {}",
                      associatedValue.as_instr());
       }
@@ -188,6 +188,7 @@ public:
     } else if (instr->is(fir::InstrType::CallInstr)) {
       // TODO: handle special builtin call instrs
     } else {
+        fmt::println("BITS KNOWN {}", *this);
       fmt::println("TODO: ATTRIB KNOWN BITS {}", associatedValue.as_instr());
     }
     if (new_known_one != known_one || new_known_zero != known_zero) {
@@ -333,3 +334,22 @@ static KnownBits computeForAddCarry(const KnownBits &LHS, const KnownBits &RHS,
 }
 
 } // namespace foptim::optim
+
+fmt::appender fmt::formatter<foptim::optim::KnownBits>::format(
+    foptim::optim::KnownBits const &v, format_context &ctx) const {
+  auto app = ctx.out();
+  auto o = v.known_one;
+  auto z = v.known_zero;
+  for (uint8_t x = 0; x < 64; x++) {
+    o = o >> 1;
+    z = z >> 1;
+    if ((o & 1) == 1) {
+      app = fmt::format_to(app, "1");
+    } else if ((z & 1) == 1) {
+      app = fmt::format_to(app, "0");
+    } else {
+      app = fmt::format_to(app, "?");
+    }
+  }
+  return app;
+}

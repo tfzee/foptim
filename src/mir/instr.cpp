@@ -344,6 +344,149 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   }
 }
 
+bool MInstr::is_control_flow(Opcode c) {
+  switch (c) {
+  case Opcode::mov:
+  case Opcode::cmov:
+  case Opcode::mov_zx:
+  case Opcode::mov_sx:
+  case Opcode::itrunc:
+  case Opcode::lea:
+  case Opcode::shl2:
+  case Opcode::shr2:
+  case Opcode::sar2:
+  case Opcode::land2:
+  case Opcode::lor2:
+  case Opcode::lxor2:
+  case Opcode::add2:
+  case Opcode::sub2:
+  case Opcode::mul2:
+  case Opcode::not1:
+  case Opcode::neg1:
+  case Opcode::idiv:
+  case Opcode::udiv:
+  case Opcode::smul3:
+  case Opcode::fadd:
+  case Opcode::fsub:
+  case Opcode::fmul:
+  case Opcode::fdiv:
+  case Opcode::ffmadd132:
+  case Opcode::ffmadd213:
+  case Opcode::ffmadd231:
+  case Opcode::fxor:
+  case Opcode::fAnd:
+  case Opcode::fOr:
+  case Opcode::lzcnt:
+  case Opcode::SI2FL:
+  case Opcode::UI2FL:
+  case Opcode::FL2SI:
+  case Opcode::FL2UI:
+  case Opcode::F64_ext:
+  case Opcode::F32_trunc:
+  case Opcode::push:
+  case Opcode::pop:
+  case Opcode::icmp_slt:
+  case Opcode::icmp_eq:
+  case Opcode::icmp_ult:
+  case Opcode::icmp_ne:
+  case Opcode::icmp_sgt:
+  case Opcode::icmp_ugt:
+  case Opcode::icmp_uge:
+  case Opcode::icmp_ule:
+  case Opcode::icmp_sge:
+  case Opcode::icmp_sle:
+  case Opcode::icmp_mul_overflow:
+  case Opcode::icmp_add_overflow:
+  case Opcode::fcmp_isNaN:
+  case Opcode::fcmp_oeq:
+  case Opcode::fcmp_ogt:
+  case Opcode::fcmp_oge:
+  case Opcode::fcmp_olt:
+  case Opcode::fcmp_ole:
+  case Opcode::fcmp_one:
+  case Opcode::fcmp_ord:
+  case Opcode::fcmp_uno:
+  case Opcode::fcmp_ueq:
+  case Opcode::fcmp_ugt:
+  case Opcode::fcmp_uge:
+  case Opcode::fcmp_ult:
+  case Opcode::fcmp_ule:
+  case Opcode::fcmp_une:
+  case Opcode::call:
+  case Opcode::arg_setup:
+  case Opcode::invoke:
+    return false;
+  case Opcode::ret:
+  case Opcode::cjmp_int_slt:
+  case Opcode::cjmp_int_sge:
+  case Opcode::cjmp_int_sle:
+  case Opcode::cjmp_int_sgt:
+  case Opcode::cjmp_int_ult:
+  case Opcode::cjmp_int_ule:
+  case Opcode::cjmp_int_ugt:
+  case Opcode::cjmp_int_uge:
+  case Opcode::cjmp_int_ne:
+  case Opcode::cjmp_int_eq:
+  case Opcode::cjmp_flt_oeq:
+  case Opcode::cjmp_flt_ogt:
+  case Opcode::cjmp_flt_oge:
+  case Opcode::cjmp_flt_olt:
+  case Opcode::cjmp_flt_ole:
+  case Opcode::cjmp_flt_one:
+  case Opcode::cjmp_flt_ord:
+  case Opcode::cjmp_flt_uno:
+  case Opcode::cjmp_flt_ueq:
+  case Opcode::cjmp_flt_ugt:
+  case Opcode::cjmp_flt_uge:
+  case Opcode::cjmp_flt_ult:
+  case Opcode::cjmp_flt_ule:
+  case Opcode::cjmp_flt_une:
+  case Opcode::cjmp:
+  case Opcode::jmp:
+    return true;
+  }
+}
+bool verify(MInstr &instr) {
+  (void)instr;
+  return true;
+}
+bool verify(MBB &bb) {
+  auto term_type = bb.instrs.back().op;
+  if (term_type != Opcode::ret && bb.instrs.back().op != Opcode::jmp) {
+    fmt::println("Last instruction should be jmp or ret but is {}",
+                 bb.instrs.back());
+    return false;
+  }
+  for (auto &instr : bb.instrs) {
+    if (!verify(instr)) {
+      fmt::println("In instr {}", instr);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool verify(MFunc &func) {
+  for (auto &bb : func.bbs) {
+    if (!verify(bb)) {
+      fmt::println("In bb {}", bb);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool verify(FVec<MFunc> &funcs) {
+  for (auto &func : funcs) {
+    if (!verify(func)) {
+      fmt::println("In func {}", func);
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace foptim::fmir
 
 fmt::appender

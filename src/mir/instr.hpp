@@ -605,6 +605,8 @@ public:
     return res;
   }
 
+  [[nodiscard]] static bool is_control_flow(Opcode c);
+
   COND_JUMP_GEN(cJmp_slt, Opcode::cjmp_int_slt)
   COND_JUMP_GEN(cJmp_sge, Opcode::cjmp_int_sge)
   COND_JUMP_GEN(cJmp_sle, Opcode::cjmp_int_sle)
@@ -688,6 +690,8 @@ struct ArgData {
 
 void written_args(const MInstr &instr, TVec<ArgData> &out);
 void read_args(const MInstr &instr, TVec<ArgData> &out);
+
+bool verify(FVec<MFunc>& funcs);
 
 } // namespace foptim::fmir
 

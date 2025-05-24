@@ -3,8 +3,10 @@
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
+#include "third_party/Zydis.h"
 #include <bit>
 #include <cstring>
+#include <fmt/core.h>
 #include <limits>
 
 namespace foptim::fmir {
@@ -670,11 +672,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
         if (!base.isReg() || !indx.isReg()) {
           return false;
         }
-        // ASSERT(base.isReg());
-        // ASSERT(indx.isReg());
+        auto base_reg = base.reg;
+        auto indx_reg = indx.reg;
         res.result.emplace_back(
             Opcode::lea, res_reg,
-            MArgument::MemBIS(base.reg, indx.reg, consti_val, res_ty));
+            MArgument::MemBIS(base_reg, indx_reg, consti_val, res_ty));
         return true;
       }});
   pats.push_back(Pattern{
@@ -790,101 +792,31 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-  pats.push_back(Pattern{
-      {SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-        return false;
-        auto srem_instr = res.matched_instrs[0];
-        if (!srem_instr->args[1].is_constant()) {
-          return false;
-        }
-        auto res_reg =
-            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
-        auto arg = valueToArg(srem_instr->args[0], res.result, data.alloc);
-        auto const_arg =
-            valueToArg(srem_instr->args[1], res.result, data.alloc);
+  pats.push_back(
+      Pattern{{SRemNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+                auto srem_instr = res.matched_instrs[0];
+                if (!srem_instr->args[1].is_constant()) {
+                  return false;
+                }
+                // auto res_reg =
+                //     valueToArg(fir::ValueR(srem_instr), res.result,
+                //     data.alloc);
+                // auto arg = valueToArg(srem_instr->args[0], res.result,
+                // data.alloc);
+                auto const_arg =
+                    valueToArg(srem_instr->args[1], res.result, data.alloc);
 
-        if (!const_arg.isImm()) {
-          return false;
-        }
-        if (srem_instr.get_type()->as_int() != 32) {
-          return false;
-        }
-        if (const_arg.imm == 5) {
-          // movsxd  r1:64, edi
-          // imul    r3:64, r1:64, 1717986919
-          // mov     r2:64, r3:64
-          // shr     r2:64, 63
-          // sar     r3:64, 33
-          // add     r4:32, r2:32
-          // lea     r4:32, [r3 + 4*r3]
-          // sub     r1:32, r4:32
+                if (!const_arg.isImm()) {
+                  return false;
+                }
+                if (srem_instr.get_type()->as_int() != 32) {
+                  return false;
+                }
+                fmt::println("Could have optimized the matchign of srem");
+                // TODO("impl");
 
-          auto r1 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto r2 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto r3 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto r4 =
-              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
-          auto r2s =
-              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
-          res.result.emplace_back(Opcode::mov_sx, r1, arg);
-          res.result.emplace_back(Opcode::smul3, r3, r1,
-                                  MArgument((u64)1717986919));
-          res.result.emplace_back(Opcode::mov, r2, r3);
-          res.result.emplace_back(Opcode::shr2, r2, MArgument((u64)63));
-          res.result.emplace_back(Opcode::sar2, r3, MArgument((u64)33));
-          res.result.emplace_back(Opcode::itrunc, r2s, r2);
-          res.result.emplace_back(Opcode::add2, r4, r2s);
-          res.result.emplace_back(
-              Opcode::lea, r4,
-              MArgument::MemBIS(r3.reg, r3.reg, 2, Type::Int64));
-          res.result.emplace_back(Opcode::itrunc, res_reg, r1);
-          res.result.emplace_back(Opcode::sub2, res_reg, r4);
-          return true;
-        } else if (const_arg.imm == 7) {
-          // movsxd  r1, edi
-          // imul    r2, r1, -1840700269
-          // shr     r2, 32
-          // add     r2s, r1s
-          // mov     r3, r2s
-          // shr     r3, 31
-          // sar     r2s, 2
-          // add     r2s, r3
-          // lea     r3, [8*r2]
-          // sub     r2s, r3
-          // add     r2s, r1s
-
-          auto r1 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto r3 =
-              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
-          auto r1s =
-              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
-          auto r2 = MArgument(VReg::RAX(), Type::Int64);
-          auto r2s = MArgument(VReg::EAX(), Type::Int32);
-
-          res.result.emplace_back(Opcode::mov_sx, r1, arg);
-          res.result.emplace_back(Opcode::smul3, r2, r1,
-                                  MArgument((u64)(i64)-1840700269));
-          res.result.emplace_back(Opcode::shr2, r2, MArgument((u64)32));
-          res.result.emplace_back(Opcode::itrunc, r1s, r1);
-          res.result.emplace_back(Opcode::add2, r2s, r1s);
-          res.result.emplace_back(Opcode::mov, r3, r2s);
-          res.result.emplace_back(Opcode::shr2, r3, MArgument((u8)31));
-          res.result.emplace_back(Opcode::sar2, r2s, MArgument((u8)2));
-          res.result.emplace_back(Opcode::add2, r2s, r3);
-          res.result.emplace_back(Opcode::lea, r3,
-                                  MArgument::MemOIS(0, r2.reg, 3, Type::Int64));
-          res.result.emplace_back(Opcode::sub2, r2s, r3);
-          res.result.emplace_back(Opcode::add2, r2s, r1s);
-          res.result.emplace_back(Opcode::mov, res_reg, r2s);
-          return true;
-        }
-
-        return false;
-      }});
+                return false;
+              }});
 }
 
 void base_patterns(IRVec<Pattern> &pats) {

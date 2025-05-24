@@ -414,6 +414,11 @@ bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
 
 bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
+  if (instr.op == Opcode::SI2FL && instr.args[1].isReg() &&
+      get_size(instr.args[1].ty) < 4) {
+    instr.args[1].ty = Type::Int32;
+    instr.args[1].reg.ty = Type::Int32;
+  }
   if (instr.op == Opcode::SI2FL && instr.args[1].isImm()) {
     indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
     return true;

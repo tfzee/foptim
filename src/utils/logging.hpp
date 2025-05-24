@@ -1,6 +1,5 @@
 #pragma once
 #include "types.hpp"
-#include "utils/stable_vec_ref.hpp"
 #include <fmt/color.h>
 #include <fmt/format.h>
 
@@ -50,6 +49,13 @@ constexpr auto color_debug = fg(fmt::color::brown);
 constexpr auto color_func = fg(fmt::color::orange);
 constexpr auto color_constant = fg(fmt::color::dark_orange);
 constexpr auto color_number = fg(fmt::color::medium_orchid);
+
+template <>
+class fmt::formatter<foptim::optim::KnownBits>
+    : public BaseIRFormatter<foptim::optim::KnownBits> {
+public:
+  appender format(foptim::optim::KnownBits const &k, format_context &ctx) const;
+};
 
 template <>
 class fmt::formatter<foptim::fir::ValueR>

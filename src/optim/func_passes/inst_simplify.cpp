@@ -620,7 +620,7 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     // TODO : theres more cases like eq with a positive constant
     check_negative = (sub_type == fir::ICmpInstrSubType::SLT && c_val == 0) ||
                      (sub_type == fir::ICmpInstrSubType::SLE && c_val == -1);
-    check_negative = (sub_type == fir::ICmpInstrSubType::SGT && c_val == 0) ||
+    check_positive = (sub_type == fir::ICmpInstrSubType::SGT && c_val == 0) ||
                      (sub_type == fir::ICmpInstrSubType::SGE && c_val == 1);
     if (check_positive || check_negative) {
       const auto *bits = man.get_or_create_analysis<KnownBits>(instr->args[0]);
@@ -978,14 +978,32 @@ static void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
 }
 
 static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
-                            fir::Context & /*ctx*/, WorkList &worklist) {
+                            fir::Context &ctx, WorkList &worklist) {
   // TODO: could also maybe figure out cases where we can convert everything
   // into higher bitwidth
-  if (instr->args[0].is_constant()) {
+  (void)ctx;
+  if (instr->args[0].is_constant() ||
+      instr->args[0].get_type() == instr.get_type()) {
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[0]);
     instr.destroy();
     return;
+  }
+  if (instr->is(fir::InstrType::ZExt) && instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::ITrunc)) {
+    auto trunc = instr->args[0].as_instr();
+    if (trunc->args[0].get_type() == instr.get_type()) {
+      fir::Builder b(instr);
+      auto bitwidth = trunc.get_type()->get_size() * 8;
+      auto mask =
+          ctx->get_constant_value(((u64)1 << bitwidth) - 1, instr->get_type());
+      auto new_result = b.build_binary_op(trunc->args[0], fir::ValueR{mask},
+                                          fir::BinaryInstrSubType::And);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(new_result);
+      instr.destroy();
+      return;
+    }
   }
 }
 

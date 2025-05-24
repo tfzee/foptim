@@ -56,43 +56,45 @@ MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
   if (!arg.is_instr()) {
     return valueToArg(arg, res.result, data.alloc);
   }
-  auto arg_instr = arg.as_instr();
-  if (arg_instr->is(fir::InstrType::BinaryInstr) &&
-      arg_instr->subtype == (u32)fir::BinaryInstrSubType::IntAdd) {
-    auto res_type = convert_type(arg_instr->get_type());
-    auto v0 = valueToArg(arg_instr->args[0], res.result, data.alloc);
-    auto end_reg = data.alloc.get_new_register(res_type);
-    auto end_argument = MArgument{end_reg, res_type};
+  // auto arg_instr = arg.as_instr();
+  // if (arg_instr->is(fir::InstrType::BinaryInstr) &&
+  //     arg_instr->subtype == (u32)fir::BinaryInstrSubType::IntAdd) {
+  //   auto res_type = convert_type(arg_instr->get_type());
+  //   auto v0 = valueToArg(arg_instr->args[0], res.result, data.alloc);
+  //   auto end_reg = data.alloc.get_new_register(res_type);
+  //   auto end_argument = MArgument{end_reg, res_type};
 
-    if (arg_instr->args[1].is_constant()) {
-      auto int_const = arg_instr->args[1].as_constant()->as_int();
-      if (v0.isLabel()) {
-        res.result.emplace_back(
-            Opcode::lea, end_argument,
-            MArgument::MemLO(v0.label, int_const, res_type));
-      } else if (v0.isReg()) {
-        res.result.emplace_back(Opcode::lea, end_argument,
-                                MArgument::MemOB(int_const, v0.reg, res_type));
-      } else {
+  //   if (arg_instr->args[1].is_constant()) {
+  //     auto int_const = arg_instr->args[1].as_constant()->as_int();
+  //     if (v0.isLabel()) {
+  //       res.result.emplace_back(
+  //           Opcode::lea, end_argument,
+  //           MArgument::MemLO(v0.label, int_const, res_type));
+  //     } else if (v0.isReg()) {
+  //       res.result.emplace_back(Opcode::lea, end_argument,
+  //                               MArgument::MemOB(int_const, v0.reg,
+  //                               res_type));
+  //     } else {
 
-        return valueToArg(arg, res.result, data.alloc);
-      }
-      return end_argument;
-    }
+  //       return valueToArg(arg, res.result, data.alloc);
+  //     }
+  //     return end_argument;
+  //   }
 
-    auto v1 = valueToArg(arg_instr->args[1], res.result, data.alloc);
-    if ((v0.isReg() && v0.reg.is_concrete()) ||
-        (v1.isReg() && v1.reg.is_concrete())) {
-      return valueToArg(arg, res.result, data.alloc);
-    }
-    if (v0.isReg() && v1.isReg()) {
-      res.result.emplace_back(Opcode::lea, end_argument,
-                              MArgument::MemBI(v0.reg, v1.reg, res_type));
-    } else {
-      return valueToArg(arg, res.result, data.alloc);
-    }
-    return end_argument;
-  }
+  //   auto v1 = valueToArg(arg_instr->args[1], res.result, data.alloc);
+  //   if ((v0.isReg() && v0.reg.is_concrete()) ||
+  //       (v1.isReg() && v1.reg.is_concrete())) {
+  //     return valueToArg(arg, res.result, data.alloc);
+  //   }
+  //   if (v0.isReg() && v1.isReg()) {
+  //     res.result.emplace_back(Opcode::lea, end_argument,
+  //                             MArgument::MemBI(v0.reg, v1.reg, res_type));
+  //     fmt::println("VV {}", res.result.back());
+  //   } else {
+  //     return valueToArg(arg, res.result, data.alloc);
+  //   }
+  //   return end_argument;
+  // }
 
   return valueToArg(arg, res.result, data.alloc);
 }
