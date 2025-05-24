@@ -188,7 +188,7 @@ public:
     } else if (instr->is(fir::InstrType::CallInstr)) {
       // TODO: handle special builtin call instrs
     } else {
-        fmt::println("BITS KNOWN {}", *this);
+      fmt::println("BITS KNOWN {}", *this);
       fmt::println("TODO: ATTRIB KNOWN BITS {}", associatedValue.as_instr());
     }
     if (new_known_one != known_one || new_known_zero != known_zero) {
@@ -250,8 +250,8 @@ public:
       return update_impl_constant();
     }
     if (associatedValue.is_bb_arg()) {
-      u64 new_known_one = known_one;
-      u64 new_known_zero = known_zero;
+      u64 new_known_one = 0;
+      u64 new_known_zero = 0;
       auto bb_arg = associatedValue.as_bb_arg();
       auto parent = bb_arg->get_parent();
       auto bb_arg_id = bb_arg->get_parent()->get_arg_id(bb_arg);
@@ -341,11 +341,11 @@ fmt::appender fmt::formatter<foptim::optim::KnownBits>::format(
   auto o = v.known_one;
   auto z = v.known_zero;
   for (uint8_t x = 0; x < 64; x++) {
-    o = o >> 1;
-    z = z >> 1;
-    if ((o & 1) == 1) {
+    auto o_t = o >> (63 - x);
+    auto z_t = z >> (63 - x);
+    if ((o_t & 1) == 1) {
       app = fmt::format_to(app, "1");
-    } else if ((z & 1) == 1) {
+    } else if ((z_t & 1) == 1) {
       app = fmt::format_to(app, "0");
     } else {
       app = fmt::format_to(app, "?");
