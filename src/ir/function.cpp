@@ -39,7 +39,7 @@ bool Function::verify() const {
     return false;
   }
   for (size_t i = 0; i < ty.arg_types.size(); i++) {
-    if (ty.arg_types[i] != entry->args[i]->get_type()) {
+    if (!ty.arg_types[i]->eql(*entry->args[i]->get_type().get_raw_ptr())) {
       fmt::println("Argument type at location {} does not match the type of "
                    "the function {} != {}",
                    i, ty.arg_types[i], entry->args[i]->get_type());
@@ -61,7 +61,8 @@ fmt::appender
 fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
                                               format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, "\nfunc {}", fmt::styled(func.getName().c_str(), color_func));
+  app = fmt::format_to(app, "\nfunc {}",
+                       fmt::styled(func.getName().c_str(), color_func));
 
   app = fmt::format_to(app, "<CC: ");
   switch (func.cc) {

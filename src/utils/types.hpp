@@ -18,6 +18,7 @@ namespace utils {}
 
 namespace optim {
 struct LiveRange;
+class KnownBits;
 }
 
 namespace fir {
