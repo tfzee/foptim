@@ -10,8 +10,9 @@
 namespace foptim::optim {
 
 struct DiffConst {
-  fir::Use use1;
-  fir::Use use2;
+  fir::Instr i1;
+  fir::Instr i2;
+  u32 arg_id;
 };
 
 [[nodiscard]] inline bool
@@ -43,7 +44,7 @@ check_args2(fir::Instr i1, fir::Instr i2,
         arg1.get_type() != arg2.get_type()) {
       return false;
     }
-    difference_values.push_back({fir::Use::norm(i1, i), fir::Use::norm(i2, i)});
+    difference_values.push_back({i1, i2, i});
   }
   return true;
 }
@@ -84,46 +85,106 @@ match_term2(fir::Instr i1, fir::Instr i2,
         return false;
       }
 
-      if (!a1.is_constant() || !a2.is_constant()) {
-        return false;
-      }
-      difference_values.push_back({fir::Use::bb_arg(i1, bb_id, arg_id),
-                                   fir::Use::bb_arg(i2, bb_id, arg_id)});
+      // if (!a1.is_constant() || !a2.is_constant()) {
+      return false;
+      // }
+      // difference_values.push_back({fir::Use::bb_arg(i1, bb_id, arg_id),
+      //                              fir::Use::bb_arg(i2, bb_id, arg_id)});
     }
   }
   return check_args2(i1, i2, local_value_map, difference_values);
+}
+
+inline bool check_match(std::unique_ptr<fir::Function> &f1,
+                        std::unique_ptr<fir::Function> &f2,
+                        TMap<fir::ValueR, fir::ValueR> &local_value_map,
+                        TVec<DiffConst> &difference_values) {
+  // fill up the local value map
+  for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
+    auto bb1 = f1->basic_blocks[bb_id];
+    auto bb2 = f2->basic_blocks[bb_id];
+    local_value_map.insert({fir::ValueR(bb1), fir::ValueR(bb2)});
+    local_value_map.insert({fir::ValueR(bb2), fir::ValueR(bb1)});
+    if (bb1->n_instrs() != bb2->n_instrs() || bb1->n_args() != bb2->n_args()) {
+      return false;
+    }
+    for (size_t i = 0; i < bb1->n_args(); i++) {
+      if (bb1->args[i]->get_type() != bb2->args[i]->get_type()) {
+        return false;
+      }
+      auto i1 = bb1->args[i];
+      auto i2 = bb2->args[i];
+      local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
+      local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
+    }
+    for (size_t i = 0; i < f1->basic_blocks[bb_id]->instructions.size(); i++) {
+      auto i1 = bb1->instructions[i];
+      auto i2 = bb2->instructions[i];
+      local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
+      local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
+    }
+  }
+
+  // then check if each instruction matches
+  for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
+    auto bb1 = f1->basic_blocks[bb_id];
+    auto bb2 = f2->basic_blocks[bb_id];
+
+    if (!match_term2(bb1->get_terminator(), bb2->get_terminator(),
+                     local_value_map, difference_values)) {
+      return false;
+    }
+    for (size_t i = 0; i < bb1->instructions.size(); i++) {
+      auto i1 = bb1->instructions[i];
+      auto i2 = bb2->instructions[i];
+      if (i1 == i2) {
+        continue;
+      }
+      // TODO: might need to check type here aswell
+      if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
+          i1->args.size() != i2->args.size()) {
+        return false;
+      }
+
+      if (!check_args2(i1, i2, local_value_map, difference_values)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+inline bool is_function_applicable(std::unique_ptr<fir::Function> &f) {
+  if (f->is_decl() || f->variadic || f->get_n_uses() == 0 ||
+      f->get_entry()->n_args() > 4) {
+    return false;
+  }
+  if (f->linkage == fir::Function::Linkage::Weak ||
+      f->linkage == fir::Function::Linkage::WeakODR ||
+      f->linkage == fir::Function::Linkage::LinkOnce) {
+    return false;
+  }
+  return true;
 }
 
 class FunctionDeDup final : public ModulePass {
 public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("FunctionDeDup");
-    (void)ctx;
+    TMap<fir::ValueR, fir::ValueR> local_value_map;
+    TVec<DiffConst> difference_values;
 
     for (auto &e1 : ctx.data->storage.functions) {
       auto &f1 = e1.second;
-      if (f1->is_decl() || f1->variadic || f1->get_n_uses() == 0 ||
-          f1->get_entry()->n_args() > 4) {
-        continue;
-      }
-      if (f1->linkage == fir::Function::Linkage::Weak ||
-          f1->linkage == fir::Function::Linkage::WeakODR ||
-          f1->linkage == fir::Function::Linkage::LinkOnce) {
+      if (!is_function_applicable(f1)) {
         continue;
       }
       auto f1_ninstrs = f1->n_instrs();
 
       for (auto &e2 : ctx.data->storage.functions) {
         auto &f2 = e2.second;
-        if ((void *)f1.get() == (void *)f2.get() || f2->is_decl() ||
-            f2->variadic || f2->get_n_uses() == 0 ||
-            f2->get_entry()->n_args() > 4) {
-          continue;
-        }
-        // could be overwritten later so we cant rely on the function body
-        if (f2->linkage == fir::Function::Linkage::Weak ||
-            f2->linkage == fir::Function::Linkage::WeakODR ||
-            f2->linkage == fir::Function::Linkage::LinkOnce) {
+        if ((void *)f1.get() == (void *)f2.get() ||
+            !is_function_applicable(f2)) {
           continue;
         }
 
@@ -133,80 +194,10 @@ public:
           continue;
         }
 
-        TMap<fir::ValueR, fir::ValueR> local_value_map;
-        TVec<DiffConst> difference_values;
+        local_value_map.clear();
+        difference_values.clear();
 
-        bool successful = true;
-        // fill up the local value map
-        for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
-          auto bb1 = f1->basic_blocks[bb_id];
-          auto bb2 = f2->basic_blocks[bb_id];
-          local_value_map.insert({fir::ValueR(bb1), fir::ValueR(bb2)});
-          local_value_map.insert({fir::ValueR(bb2), fir::ValueR(bb1)});
-          if (bb1->n_instrs() != bb2->n_instrs() ||
-              bb1->n_args() != bb2->n_args()) {
-            successful = false;
-            break;
-          }
-          for (size_t i = 0; i < bb1->n_args(); i++) {
-            if (bb1->args[i]->get_type() != bb2->args[i]->get_type()) {
-              successful = false;
-              break;
-            }
-            auto i1 = bb1->args[i];
-            auto i2 = bb2->args[i];
-            local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
-            local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
-          }
-          if (!successful) {
-            break;
-          }
-          for (size_t i = 0; i < f1->basic_blocks[bb_id]->instructions.size();
-               i++) {
-            auto i1 = bb1->instructions[i];
-            auto i2 = bb2->instructions[i];
-            local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
-            local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
-          }
-        }
-        if (!successful) {
-          continue;
-        }
-
-        // then check if each instruction matches
-        for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
-          auto bb1 = f1->basic_blocks[bb_id];
-          auto bb2 = f2->basic_blocks[bb_id];
-
-          if (!match_term2(bb1->get_terminator(), bb2->get_terminator(),
-                           local_value_map, difference_values)) {
-            successful = false;
-            break;
-          }
-          for (size_t i = 0; i < bb1->instructions.size(); i++) {
-            auto i1 = bb1->instructions[i];
-            auto i2 = bb2->instructions[i];
-            if (i1 == i2) {
-              continue;
-            }
-            // TODO: might need to check type here aswell
-            if (i1->instr_type != i2->instr_type ||
-                i1->subtype != i2->subtype ||
-                i1->args.size() != i2->args.size()) {
-              successful = false;
-              break;
-            }
-
-            if (!check_args2(i1, i2, local_value_map, difference_values)) {
-              successful = false;
-              break;
-            }
-          }
-          if (!successful) {
-            break;
-          }
-        }
-        if (!successful) {
+        if (!check_match(f1, f2, local_value_map, difference_values)) {
           continue;
         }
 
@@ -214,6 +205,11 @@ public:
         if (difference_values.size() > f1_ninstrs ||
             difference_values.size() + f1->get_entry()->n_args() > 6) {
           continue;
+        }
+
+        for (auto [i1, i2, i] : difference_values) {
+          fmt::println("   MERGE1 {} {} {}", (void *)i1.get_raw_ptr(),
+                       (void *)i2.get_raw_ptr(), i);
         }
 
         // if theres no differnces just forward all calls to the one with more
@@ -232,15 +228,18 @@ public:
                 fir::ValueR(ctx->get_constant_value(fir::FunctionR{target})));
           }
         } else {
+          // TODO: Might create huge name
           auto new_name = f1->name + "_MERGED_" + f2->name;
           if (ctx->has_function(new_name.c_str())) {
             continue;
           }
-          // TODO: Might create huge name
+          fmt::println("==========MERGING===========\n");
+          fmt::println("{:d} {:d}", *f1, *f2);
+
           IRVec<fir::TypeR> new_arg_ty = f1->func_ty->as_func().arg_types;
           auto n_orig_args = new_arg_ty.size();
           for (auto diff : difference_values) {
-            new_arg_ty.push_back(diff.use1.get_type());
+            new_arg_ty.push_back(diff.i1->args[diff.arg_id].get_type());
           }
 
           auto new_type =
@@ -258,15 +257,15 @@ public:
 
           auto new_entry = new_func->get_entry();
           for (auto diff : difference_values) {
-            new_entry.add_arg(
-                ctx->storage.insert_bb_arg(new_entry, diff.use1.get_type()));
+            new_entry.add_arg(ctx->storage.insert_bb_arg(
+                new_entry, diff.i1->args[diff.arg_id].get_type()));
           }
 
           (void)(new_entry);
           (void)(n_orig_args);
           auto i = 0;
           for (auto diff : difference_values) {
-            subs.insert({diff.use1.get_value(),
+            subs.insert({diff.i1->args[diff.arg_id],
                          fir::ValueR{new_entry->args[n_orig_args + i]}});
             i++;
           }
@@ -286,7 +285,7 @@ public:
               if (instr->is(fir::InstrType::CallInstr)) {
                 instr.replace_arg(0, new_func_ref);
                 for (auto diff : difference_values) {
-                  instr.add_arg(diff.use1.get_value());
+                  instr.add_arg(diff.i1->args[diff.arg_id]);
                 }
               }
             }
@@ -298,7 +297,7 @@ public:
               if (instr->is(fir::InstrType::CallInstr)) {
                 instr.replace_arg(0, new_func_ref);
                 for (auto diff : difference_values) {
-                  instr.add_arg(diff.use2.get_value());
+                  instr.add_arg(diff.i2->args[diff.arg_id]);
                 }
               }
             }
