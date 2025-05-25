@@ -227,8 +227,13 @@ static void decide_value_load(fir::Instr instr, size_t &i,
     load_val = fir::ValueR(ctx->get_poisson_value(instr.get_type()));
   }
   if (load_val.get_type() != instr.get_type()) {
-    if (load_val.get_type()->get_size() != instr.get_type()->get_size() ||
-        load_val.get_type()->get_align() != instr.get_type()->get_align()) {
+    if (load_val.is_constant() && load_val.as_constant()->is_poison()) {
+      auto *ctx = instr->get_parent()->get_parent()->ctx;
+      load_val = fir::ValueR{ctx->get_poisson_value(instr.get_type())};
+    } else if (load_val.get_type()->get_size() !=
+                   instr.get_type()->get_size() ||
+               load_val.get_type()->get_align() !=
+                   instr.get_type()->get_align()) {
       fmt::println("{} != {}", instr, load_val);
       fmt::println("{} != {}", instr.get_type(), load_val.get_type());
       TODO("wrong typein alloca?");
