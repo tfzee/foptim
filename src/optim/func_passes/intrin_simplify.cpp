@@ -11,16 +11,13 @@ struct GuessTypeResult {
 
 static GuessTypeResult guessType(fir::ValueR ptr) {
   if (ptr.is_constant()) {
-    auto c = ptr.as_constant();
-    if (c->is_int() || c->is_float() || c->is_null() || c->is_poison()) {
-      return {true, fir::TypeR{fir::TypeR::invalid()}};
-    }
+    return {true, fir::TypeR{fir::TypeR::invalid()}};
   }
   if (ptr.is_bb_arg()) {
-    auto bb_arg = ptr.as_bb_arg();
-    if (bb_arg->_parent == bb_arg->_parent->get_parent()->get_entry()) {
-      return {true, fir::TypeR{fir::TypeR::invalid()}};
-    }
+    // auto bb_arg = ptr.as_bb_arg();
+    // if (bb_arg->_parent == bb_arg->_parent->get_parent()->get_entry()) {
+    return {true, fir::TypeR{fir::TypeR::invalid()}};
+    // }
   }
   if (ptr.is_instr()) {
     auto ptr_instr = ptr.as_instr();
@@ -28,6 +25,9 @@ static GuessTypeResult guessType(fir::ValueR ptr) {
       if (ptr_instr->has_attrib("alloca::type")) {
         return {false, *ptr_instr->get_attrib("alloca::type").try_type()};
       }
+      return {true, fir::TypeR{fir::TypeR::invalid()}};
+    }
+    if (ptr_instr->is(fir::InstrType::LoadInstr)) {
       return {true, fir::TypeR{fir::TypeR::invalid()}};
     }
     if (ptr_instr->is(fir::InstrType::BinaryInstr) &&

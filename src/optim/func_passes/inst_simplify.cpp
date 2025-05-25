@@ -904,7 +904,7 @@ static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::FCmpInstrSubType::ULE:
       IMPL("implement");
     case fir::FCmpInstrSubType::UNE:
-      __asm__("vucomiss %2, %1\n\t"
+      __asm__("vucomisd %2, %1\n\t"
               "setne %0"
               : "=r"(is_true)
               : "x"(v1), "x"(v2));
@@ -1258,6 +1258,36 @@ static void simplify_store(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
+static void simplify_load(fir::Instr instr, fir::BasicBlock bb,
+                          fir::Context &ctx, WorkList &worklist) {
+  (void)bb;
+  (void)ctx;
+  (void)worklist;
+  if (instr->args[0].is_constant()) {
+    auto arg0_const = instr->args[0].as_constant();
+    if (arg0_const->is_poison()) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+      instr.destroy();
+      return;
+    }
+    if (arg0_const->is_global() && arg0_const->as_global()->is_constant) {
+      // TOOD: can fix this i guess
+      auto glob = arg0_const->as_global();
+      if (glob->reloc_info.empty()) {
+        fmt::println("HIT");
+        TODO("okak implement global constant loading");
+        // push_all_uses(worklist, instr);
+        // instr->replace_all_uses(
+        //     fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+        // instr.destroy();
+        // return;
+      }
+    }
+  }
+}
+
 static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
@@ -1294,6 +1324,9 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::StoreInstr) {
     return simplify_store(instr, bb, ctx, worklist);
+  }
+  if (instr_ty == InstrType::LoadInstr) {
+    return simplify_load(instr, bb, ctx, worklist);
   }
 }
 
