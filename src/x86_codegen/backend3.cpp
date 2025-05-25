@@ -446,6 +446,10 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.mnemonic = ZYDIS_MNEMONIC_MOVD;
     } else if ((!input_is_fp_reg && target_isfloat64) ||
                (!target_is_fp_reg && input_isfloat64)) {
+      if (instr.args[1].isReg() && instr.args[1].reg.size() < 8) {
+        req.operands[1].reg.value =
+            reg_with_type(instr.args[1].reg, fmir::Type::Int64);
+      }
       req.mnemonic = ZYDIS_MNEMONIC_MOVQ;
     } else if (target_isfloat32) {
       req.mnemonic = ZYDIS_MNEMONIC_MOVAPS;
