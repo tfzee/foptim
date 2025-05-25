@@ -1485,7 +1485,7 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
                          foptim::fir::Context &fctx, V2VMap &valueToValue) {
   if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
     auto data_layout = mod.getDataLayout();
-    auto global_size = data_layout.getTypeAllocSize(gval.getValueType());
+    auto global_size = data_layout.getTypeAllocSize(val->getValueType());
     ASSERT(!global_size.isScalable());
 
     auto actual_size = global_size.getFixedValue();
@@ -1499,6 +1499,7 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
 
     auto global = fctx->get_global(name, actual_size);
     auto as_global = fctx->get_constant_value(global);
+    global->is_constant = val->isConstant();
     global->init_value =
         foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
     memset(global->init_value, 0, actual_size);
