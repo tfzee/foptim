@@ -643,6 +643,25 @@ bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
+bool SimplifyCFG::eliminate_infinite_loop(CFG & /*cfg*/, CFG::Node &curr,
+                                          fir::Function &func, size_t /*bb_id*/,
+                                          bool /*is_entry*/) {
+  if (!func.must_progress) {
+    return false;
+  }
+  auto terminator = curr.bb->get_terminator();
+  // TODO: implement more complex infinite loop detection
+  if (terminator->is(fir::InstrType::BranchInstr) &&
+      terminator->bbs[0].bb == curr.bb) {
+    fir::Builder bb{curr.bb};
+    bb.at_penultimate(curr.bb);
+    bb.build_unreach();
+    terminator.destroy();
+    return true;
+  }
+  return false;
+}
+
 bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
@@ -688,6 +707,10 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   }
 
   if (dup_bb_to_args(cfg, curr, func, bb_id, is_entry)) {
+    return true;
+  }
+
+  if (eliminate_infinite_loop(cfg, curr, func, bb_id, is_entry)) {
     return true;
   }
 
