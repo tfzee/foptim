@@ -1105,8 +1105,8 @@ inline void generate_memmove(foptim::fir::Context &fctx) {
       fctx->get_ptr_type(),
       {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
   fctx.data->storage.functions.insert(
-      {"memmove",
-       std::make_unique<foptim::fir::Function>(fctx.operator->(), "memmove", func_ty)});
+      {"memmove", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                          "memmove", func_ty)});
 }
 
 inline void generate_fexp(foptim::fir::Context &fctx) {
@@ -1116,7 +1116,8 @@ inline void generate_fexp(foptim::fir::Context &fctx) {
   auto func_ty =
       fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
   fctx.data->storage.functions.insert(
-      {"exp", std::make_unique<foptim::fir::Function>(fctx.operator->(), "exp", func_ty)});
+      {"exp", std::make_unique<foptim::fir::Function>(fctx.operator->(), "exp",
+                                                      func_ty)});
 }
 
 inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
@@ -1138,9 +1139,9 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(
-      {func_name,
-       std::make_unique<foptim::fir::Function>(fctx.operator->(), func_name,
-                             convert_type(func.getFunctionType(), fctx, mod))});
+      {func_name, std::make_unique<foptim::fir::Function>(
+                      fctx.operator->(), func_name,
+                      convert_type(func.getFunctionType(), fctx, mod))});
 
   const auto foff_func = fctx->get_function(func_name.c_str());
   const auto func_ptr = fctx->get_constant_value(foff_func);
@@ -1165,7 +1166,9 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   }
 
   const auto foff_func = fctx->get_function(func.getName().str().c_str());
-  foff_func->variadic = func.isVarArg();
+  if (func.isVarArg()) {
+    foff_func->variadic = true;
+  }
 
   switch (func.getCallingConv()) {
   case llvm::CallingConv::C:
@@ -1205,6 +1208,10 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   if (foptim::utils::all_linkage_internal && func_name != "main" &&
       !func.empty()) {
     foff_func->linkage = foptim::fir::Function::Linkage::Internal;
+  }
+
+  if (func.mustProgress()) {
+    foff_func->must_progress = true;
   }
 }
 

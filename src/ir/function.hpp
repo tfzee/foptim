@@ -23,9 +23,11 @@ public:
     // odr says every definition *must* be the same which allows for
     // optimization/discarding of unused definition
     WeakODR,
-    // Similar to weak but different merging when linking this allows to be discarded but not inlined
+    // Similar to weak but different merging when linking this allows to be
+    // discarded but not inlined
     LinkOnce,
-    // ORD again says always the same definition which means it can be optimized and discarded
+    // ORD again says always the same definition which means it can be optimized
+    // and discarded
     LinkOnceODR,
   };
 
@@ -36,7 +38,8 @@ public:
   // metadata
   CallingConv cc = CallingConv::C;
   Linkage linkage = Linkage::Internal;
-  bool variadic = false;
+  u8 variadic : 1 = 0;
+  u8 must_progress : 1 = 0;
 
   Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}

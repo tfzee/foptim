@@ -61,6 +61,13 @@ fmt::appender
 fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
                                               format_context &ctx) const {
   auto app = ctx.out();
+  app = fmt::format_to(app, "\n; ");
+  if (func.variadic) {
+    app = fmt::format_to(app, "VARIADIC, ");
+  }
+  if (func.must_progress) {
+    app = fmt::format_to(app, "MUST_PROGRESS, ");
+  }
   app = fmt::format_to(app, "\nfunc {}",
                        fmt::styled(func.getName().c_str(), color_func));
 
@@ -72,9 +79,6 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   case foptim::fir::Function::CallingConv::Dynamic:
     app = fmt::format_to(app, "dyn");
     break;
-  }
-  if (func.variadic) {
-    app = fmt::format_to(app, ", VARIADIC");
   }
   app = fmt::format_to(app, ", LINK: ");
   switch (func.linkage) {
