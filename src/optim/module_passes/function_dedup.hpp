@@ -44,6 +44,9 @@ check_args2(fir::Instr i1, fir::Instr i2,
         arg1.get_type() != arg2.get_type()) {
       return false;
     }
+    if(i1->is(fir::InstrType::CallInstr) || i == 0){
+      return false;
+    }
     difference_values.push_back({i1, i2, i});
   }
   return true;
@@ -202,7 +205,7 @@ public:
         }
 
         // TODO: heuristic
-        if (difference_values.size() > f1_ninstrs ||
+        if (difference_values.size()*4 > f1_ninstrs ||
             difference_values.size() + f1->get_entry()->n_args() > 6) {
           continue;
         }
@@ -245,7 +248,7 @@ public:
           auto new_type =
               ctx->get_func_ty(f1->func_ty->as_func().return_type, new_arg_ty);
           auto new_func =
-              ctx->create_function(f1->name + "_MERGED_" + f2->name, new_type);
+              ctx->create_function(new_name, new_type);
           // delete the automatically inserted bb
           ASSERT(new_func->basic_blocks.size() == 1);
           new_func->basic_blocks[0]->remove_from_parent(false);

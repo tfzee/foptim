@@ -138,8 +138,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       SCCP, DCE, InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
-  fmt::print("================FIR END====================\n");
+  fmt::println("{:d}", ctx);
   ASSERT(ctx->verify());
+  fmt::print("================FIR END====================\n");
 }
 
 void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
@@ -231,6 +232,9 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  for (auto &f : funcs) {
+    fmt::println("{}", f);
+  }
   ctx.data->storage.storage_instr.collect_garbage();
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);
@@ -251,9 +255,6 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  // for (auto &f : funcs) {
-  //   fmt::println("{}", f);
-  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

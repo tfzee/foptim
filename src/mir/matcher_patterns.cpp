@@ -680,6 +680,45 @@ void arith_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
+      {IntAddNode, IntAddNode},
+      {{0, 1, 0}},
+      [](MatchResult &res, ExtraMatchData &data) {
+        // x + y + c
+        // x + c + y
+        auto add0_instr = res.matched_instrs[0];
+        auto add1_instr = res.matched_instrs[1];
+        auto res_ty = convert_type(add1_instr.get_type());
+        auto res_ty_size = get_size(res_ty);
+        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+          return false;
+        }
+        // TODO: handle x + c +y
+        if (!is_reg(add1_instr->args[0]) || !is_reg(add0_instr->args[0]) ||
+            !add0_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = add0_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+
+        if (consti_val > 128 || consti_val < 128) {
+          return false;
+        }
+        auto res_reg =
+            valueToArg(fir::ValueR(add1_instr), res.result, data.alloc);
+        auto a = valueToArg(add0_instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(add1_instr->args[0], res.result, data.alloc);
+        if (!a.isReg() || !b.isReg()) {
+          return false;
+        }
+        res.result.emplace_back(
+            Opcode::lea, res_reg,
+            MArgument::MemOBI((u8)consti_val, a.reg, b.reg, res_ty));
+        return true;
+      }});
+  pats.push_back(Pattern{
       {IntMulNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         // x*c where c is either 2 4 8  or 3 5 9
         auto mul_instr = res.matched_instrs[0];
@@ -743,6 +782,48 @@ void arith_patterns(IRVec<Pattern> &pats) {
               Opcode::lea, res_reg,
               MArgument::MemOIS(0, base.reg, consti_val, res_ty));
         }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      {IntMulNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        // x*c where c is a power of 2
+        auto mul_instr = res.matched_instrs[0];
+        auto res_ty = convert_type(mul_instr.get_type());
+        auto res_ty_size = get_size(res_ty);
+        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+          return false;
+        }
+        if (!is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = mul_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+        if (consti_val <= 0) {
+          return false;
+        }
+
+        // TODO: if off by 1 or similar could do shift and then use a add
+        if (__builtin_popcount(consti_val) != 1) {
+          return false;
+        }
+        auto x = consti_val;
+        u16 shift_width = 0;
+        for (shift_width = 0; x != 1; x >>= 1, shift_width++) {
+        }
+        // auto  =
+        //     sizeof(i128) * CHAR_BIT - __builtin_clzg((u128)consti_val) - 1;
+
+        ASSERT(shift_width < 256);
+        auto res_reg =
+            valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+        auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        ASSERT(base.isReg());
+        res.result.emplace_back(Opcode::mov, res_reg, base);
+        res.result.emplace_back(Opcode::shl2, res_reg,
+                                MArgument((u8)shift_width));
         return true;
       }});
 

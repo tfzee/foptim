@@ -156,8 +156,6 @@ static constexpr u32 get_size(fmir::Type type) {
   case fmir::Type::INVALID:
     TODO("INVALID TYPE");
   }
-  ASSERT(false);
-  std::abort();
 }
 
 enum class CReg : u8 {
