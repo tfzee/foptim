@@ -145,6 +145,7 @@ public:
         worklist.push_back(curr_ptr);
       }
     }
+    _currently_updating = nullptr;
   }
 };
 

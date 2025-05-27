@@ -362,6 +362,15 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
   }
+  if (c_idx == 1 && c_val->is_int() &&
+      instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntSub) {
+    if (c_val->as_int() == 0) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[0]);
+      instr.destroy();
+      return;
+    }
+  }
   if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
     if (c_val->as_int() == 0) {
@@ -454,6 +463,23 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   // bit patterns
+  if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd &&
+      instr->args[1].is_constant() && instr->args[1].as_constant()->is_int()) {
+    // const auto *arg0_known =
+    //     man.get_or_create_analysis<KnownBits>(instr->args[0]);
+    // man.run();
+    // TODO: IDK if this is worth it if we do it to early
+    //  auto c = instr->args[1].as_constant()->as_int();
+    //  if ((arg0_known->known_zero & c) == c) {
+    //    fir::Builder bb(instr);
+    //    auto new_val = bb.build_binary_op(instr->args[0], instr->args[1],
+    //                                      BinaryInstrSubType::Or);
+    //    push_all_uses(worklist, instr);
+    //    instr->replace_all_uses(ValueR{new_val});
+    //    instr.destroy();
+    //    return;
+    //  }
+  }
 
   if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::And ||
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::Or) {

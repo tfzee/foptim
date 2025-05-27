@@ -16,6 +16,7 @@ class KnownBits;
 
 static KnownBits computeForAddCarry(const KnownBits &LHS, const KnownBits &RHS,
                                     bool CarryZero, bool CarryOne);
+static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS);
 
 class KnownBits final : public AttributeAnalysis {
 public:
@@ -73,6 +74,10 @@ public:
       new_mask = new_mask >> (64 - new_bitwidth);
       new_known_one = known_arg_bits->known_one & new_mask;
       new_known_zero = known_arg_bits->known_zero & new_mask;
+    } else if (instr->is(fir::InstrType::AllocaInstr)) {
+      // TODO: idk how to handle this best
+      new_known_one = 0;
+      new_known_zero = 0;
     } else if (instr->is(fir::InstrType::SelectInstr)) {
       const auto *known_arg1_bits =
           m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
@@ -127,6 +132,10 @@ public:
         auto res = computeForAddCarry(*a, *b, true, false);
         new_known_one = res.known_one;
         new_known_zero = res.known_zero;
+      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::IntMul) {
+        auto res = computeMul(*a, *b);
+        new_known_one = res.known_one;
+        new_known_zero = res.known_zero;
       } else if (instr->subtype == (u32)fir::BinaryInstrSubType::IntSub) {
         auto flippedB = KnownBits{};
         flippedB.known_one = b->known_zero;
@@ -134,16 +143,6 @@ public:
         auto res = computeForAddCarry(*a, flippedB, false, true);
         new_known_one = res.known_one;
         new_known_zero = res.known_zero;
-      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::IntMul) {
-        auto b_mask = (b->known_zero | b->known_one);
-        auto b_const = b->known_one;
-        // if its a power of 2
-        if ((b_mask == ~0ULL && b_const > 0 &&
-             ((b_const & (b_const - 1)) == 0))) {
-          auto log2 = std::bit_width(b_const) - 1;
-          new_known_one = a->known_one << log2;
-          new_known_zero = a->known_zero << log2;
-        }
       } else if (instr->subtype == (u32)fir::BinaryInstrSubType::IntUDiv) {
         auto b_mask = (b->known_zero | b->known_one);
         auto b_const = b->known_one;
@@ -331,6 +330,50 @@ static KnownBits computeForAddCarry(const KnownBits &LHS, const KnownBits &RHS,
   KnownOut.known_zero = ~std::move(PossibleSumZero) & Known;
   KnownOut.known_one = std::move(PossibleSumOne) & Known;
   return KnownOut;
+}
+static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS) {
+  (void)LHS;
+
+  auto b_mask = (RHS.known_zero | RHS.known_one);
+  // if second is a constant + known power of 2
+  if (b_mask == ~0ULL) {
+    auto b_const = RHS.known_one;
+    // if its a power of 2
+    if (b_const > 0 && ((b_const & (b_const - 1)) == 0)) {
+      auto log2 = std::bit_width(b_const) - 1;
+      auto res = KnownBits{};
+      res.known_one = LHS.known_one << log2;
+      res.known_zero = LHS.known_zero << log2;
+      res.known_zero |= (1 << log2) - 1;
+      return res;
+    }
+  }
+
+  auto maybe1l = ~LHS.known_zero;
+  auto maybe1r = ~RHS.known_zero;
+  if (maybe1l == 0 || maybe1r == 0) {
+    auto res = KnownBits{};
+    res.known_zero = ~(u64)0;
+    return res;
+  }
+  auto res = KnownBits{};
+  // IF we know the lowest set bit we know all lower bits in the result will be
+  // 0
+  u32 llowest_bit_id = 0;
+  u32 rlowest_bit_id = 0;
+  while ((maybe1l & 1) == 0) {
+    llowest_bit_id++;
+    maybe1l >>= 1;
+  }
+  while ((maybe1r & 1) == 0) {
+    rlowest_bit_id++;
+    maybe1r >>= 1;
+  }
+  auto lowest_bit_id =
+      llowest_bit_id > rlowest_bit_id ? llowest_bit_id : rlowest_bit_id;
+  res.known_zero = (1 << lowest_bit_id) - 1;
+  // TODO: impl properly
+  return res;
 }
 
 } // namespace foptim::optim

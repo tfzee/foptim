@@ -139,13 +139,17 @@ bool InstrData::has_result() const {
 
 bool InstrData::is_critical() const {
   switch (instr_type) {
-  case InstrType::CallInstr:
   case InstrType::ReturnInstr:
   case InstrType::Unreachable:
   case InstrType::BranchInstr:
   case InstrType::SwitchInstr:
   case InstrType::CondBranchInstr:
   case InstrType::StoreInstr:
+    return true;
+  case InstrType::CallInstr:
+    if (args[0].is_constant() && args[0].as_constant()->is_func()) {
+      return !args[0].as_constant()->as_func()->mem_read_none;
+    }
     return true;
   case InstrType::Intrinsic:
     switch ((IntrinsicSubType)subtype) {
@@ -254,6 +258,11 @@ bool InstrData::is_commutative() const {
 bool InstrData::pot_modifies_mem() const {
   switch (instr_type) {
   case InstrType::CallInstr:
+    if (args[0].is_constant() && args[0].as_constant()->is_func()) {
+      auto f = args[0].as_constant()->as_func();
+      return !f->mem_read_none && !f->mem_read_only;
+    }
+    return true;
   case InstrType::StoreInstr:
     return true;
   case InstrType::Intrinsic:

@@ -1219,8 +1219,6 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   }
   if (func.doesNotAccessMemory()) {
     foff_func->mem_read_none = true;
-    fmt::println("{}", *foff_func.func);
-    fmt::println("OKAK");
   } else if (func.onlyReadsMemory()) {
     foff_func->mem_read_only = true;
   }
