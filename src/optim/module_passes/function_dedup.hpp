@@ -264,19 +264,17 @@ public:
                 new_entry, diff.i1->args[diff.arg_id].get_type()));
           }
 
-          (void)(new_entry);
-          (void)(n_orig_args);
-          auto i = 0;
-          for (auto diff : difference_values) {
-            subs.insert({diff.i1->args[diff.arg_id],
-                         fir::ValueR{new_entry->args[n_orig_args + i]}});
-            i++;
-          }
-
           for (auto bb : new_func->get_bbs()) {
             for (auto instr : bb->instructions) {
               instr.substitute(subs);
             }
+          }
+
+          auto i = 0;
+          for(auto diff: difference_values){
+            auto instr = subs.at(fir::ValueR(diff.i1)).as_instr();
+            instr.replace_arg(diff.arg_id, fir::ValueR{new_entry->args[n_orig_args + i]});
+            i++;
           }
 
           TVec<fir::Use> uses{f1->get_uses().begin(), f1->get_uses().end()};
