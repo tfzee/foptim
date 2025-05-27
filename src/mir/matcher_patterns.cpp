@@ -970,10 +970,11 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
                                           data.alloc);
+                if(!alloca_instr->args[0].is_constant()){
+                  return false;
+                }
 
                 auto size = (u64)alloca_instr->args[0].as_constant()->as_int();
-                // FIXME: aligning the allocas so teh stack will be 16byte
-                // aligned this is a cc thing and shouldnt be handled here
                 // TODO: this is inefficient for many stack allocations
                 // TODO: this also depends on the calling conv
                 if (size % 16 != 0) {
