@@ -40,6 +40,9 @@ public:
   Linkage linkage = Linkage::Internal;
   u8 variadic : 1 = 0;
   u8 must_progress : 1 = 0;
+  u8 no_recurse: 1 = 0;
+  u8 mem_read_only: 1 = 0;
+  u8 mem_read_none: 1 = 0;
 
   Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}

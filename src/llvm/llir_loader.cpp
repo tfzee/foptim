@@ -1213,6 +1213,17 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   if (func.mustProgress()) {
     foff_func->must_progress = true;
   }
+  // readNone: 0, readOnly: 0, noInline: 0, alwaysInline:
+  if (func.doesNotRecurse()) {
+    foff_func->no_recurse = true;
+  }
+  if (func.doesNotAccessMemory()) {
+    foff_func->mem_read_none = true;
+    fmt::println("{}", *foff_func.func);
+    fmt::println("OKAK");
+  } else if (func.onlyReadsMemory()) {
+    foff_func->mem_read_only = true;
+  }
 }
 
 inline void convert(llvm::Function &func, foptim::fir::Context &fctx,

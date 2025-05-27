@@ -68,6 +68,15 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   if (func.must_progress) {
     app = fmt::format_to(app, "MUST_PROGRESS, ");
   }
+  if (func.no_recurse) {
+    app = fmt::format_to(app, "NO_RECURSE, ");
+  }
+  if (func.mem_read_none) {
+    app = fmt::format_to(app, "MEM(NONE), ");
+  }
+  if (func.mem_read_only) {
+    app = fmt::format_to(app, "MEM(READ), ");
+  }
   app = fmt::format_to(app, "\nfunc {}",
                        fmt::styled(func.getName().c_str(), color_func));
 
