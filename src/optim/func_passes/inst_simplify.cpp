@@ -943,6 +943,35 @@ static void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return;
   }
+  if (instr->args[1].is_constant() && instr->args[2].is_constant() &&
+      instr->get_type()->is_int()) {
+    auto arg1 = instr->args[1].as_constant()->as_int();
+    auto arg2 = instr->args[2].as_constant()->as_int();
+    auto output_width = instr->get_type()->as_int();
+    if ((arg1 == 1 || (output_width == 1 && arg1 != 0)) && arg2 == 0) {
+      auto new_val = instr->args[0];
+      if (output_width != 1) {
+        fir::Builder b(instr);
+        new_val = b.build_zext(new_val, instr->get_type());
+      }
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(new_val);
+      instr.destroy();
+      return;
+    }
+    if (arg1 == 0 && (arg2 == 1 || (output_width == 1 && arg2 != 0))) {
+      fir::Builder b(instr);
+      auto new_val =
+          b.build_unary_op(instr->args[0], fir::UnaryInstrSubType::Not);
+      if (output_width != 1) {
+        new_val = b.build_zext(new_val, instr->get_type());
+      }
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(new_val);
+      instr.destroy();
+      return;
+    }
+  }
 }
 
 static void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
