@@ -30,7 +30,7 @@ public:
            i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
         const auto *v = &slab_g[i];
         if (v->used == foptim::utils::SlotState::Used) {
-          for (auto info : v->data.reloc_info) {
+          for (auto info : v->data->reloc_info) {
             if (info.ref->is_float()) {
               func_global_reffed.insert(info.ref->as_func().func);
             }

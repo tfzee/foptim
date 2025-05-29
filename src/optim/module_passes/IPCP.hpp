@@ -1,7 +1,9 @@
 #pragma once
+#include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
+#include <utility>
 
 namespace foptim::optim {
 static void constant_prop_args(fir::FunctionR func, fir::Context &ctx);
@@ -25,8 +27,7 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   case fir::Function::Linkage::LinkOnce:
   case fir::Function::Linkage::WeakODR:
   case fir::Function::Linkage::LinkOnceODR:
-    // not sure if this could work for link once since we then get the same
-    // symbol but with different args?? could rename it maybe
+    //TODO: check why this fails and fix it
     return;
   case fir::Function::Linkage::Internal:
     break;
@@ -52,6 +53,7 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
     }
   }
 
+  bool modified = false;
   for (u64 i = n_args_original - 1; i > 0; i--) {
     bool can_convert = true;
     fir::ConstantValueR consti =
@@ -78,10 +80,23 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
         // use.user->args.erase(use.user->args.begin() + i);
       }
       arg_tys.erase(arg_tys.begin() + (i - 1));
+      modified = true;
     }
   }
-  func.func->func_ty =
-      ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+  if (modified) {
+    func.func->func_ty =
+        ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+
+    // we need renaming
+    if (func->linkage == fir::Function::Linkage::LinkOnceODR) {
+      auto old_name = func->name;
+      auto new_name = old_name + "MODIPCP";
+      auto func_moved = std::move(ctx->storage.functions.at(old_name));
+      ctx->storage.functions.erase(old_name);
+      func_moved->name = new_name;
+      ctx->storage.functions.insert({new_name, std::move(func_moved)});
+    }
+  }
 }
 
 } // namespace foptim::optim

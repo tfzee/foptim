@@ -99,7 +99,7 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::ConstantStruct:
     return nullptr;
   case ConstantType::GlobalPtr:
-    return &gp_u.v.glob->uses;
+    // return gp_u.v.glob->get_uses();
   case ConstantType::FuncPtr:
     TODO("idk if this is legal");
     // return &fup_u.v.func->get_uses();

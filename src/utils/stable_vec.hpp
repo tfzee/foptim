@@ -135,7 +135,7 @@ public:
         std::memset((void *)target.ptr, 0, target.len * sizeof(Slot<T>));
       }
       res_ptr = target.ptr;
-      res_ptr->data = value;
+      res_ptr->data = std::move(value);
       target.ptr++;
       target.len--;
       if (target.len != 0) {

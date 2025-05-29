@@ -71,7 +71,7 @@ void ContextData::print_stats() const {
 }
 
 Global ContextData::get_global(IRString name, size_t size_bytes) {
-  return storage.insert_global({name, size_bytes});
+  return storage.insert_global(std::make_unique<GlobalData>(name, size_bytes));
 }
 
 FunctionR ContextData::get_function(IRStringRef name) {
@@ -344,7 +344,7 @@ fmt::formatter<foptim::fir::Context>::format(foptim::fir::Context const &v,
          i++) {
       const auto *glob = &slab_g[i];
       if (glob->used == foptim::utils::SlotState::Used) {
-        app = fmt::format_to(app, "{:d}\n", glob->data);
+        app = fmt::format_to(app, "{:d}\n", *glob->data);
       }
     }
   }

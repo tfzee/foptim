@@ -11,18 +11,27 @@
 namespace foptim::fir {
 struct GlobalData;
 
-struct Global : public utils::SRef<GlobalData> {
+struct Global : public utils::SRef<std::unique_ptr<GlobalData>> {
 public:
-  constexpr explicit Global(utils::SRef<GlobalData> &&crtp) {
+  constexpr explicit Global(utils::SRef<std::unique_ptr<GlobalData>> &&crtp) {
     this->data_ref = crtp.data_ref;
 #ifdef SLOT_CHECK_GENERATION
     this->generation = crtp.generation;
 #endif
   }
+
+  GlobalData *operator*() { return get_raw_ptr()->get(); }
+
+  constexpr GlobalData *operator->() {
+    return utils::SRef<std::unique_ptr<GlobalData>>::operator->()->get();
+  }
+  constexpr const GlobalData *operator->() const {
+    return utils::SRef<std::unique_ptr<GlobalData>>::operator->()->get();
+  }
 };
 
 // TODO: should be locked used
-struct GlobalData : public Used {
+struct GlobalData : public LockedUsed {
   struct RelocationInfo {
     size_t insert_offset;
     ConstantValueR ref;
@@ -30,10 +39,10 @@ struct GlobalData : public Used {
     size_t reloc_offset = 0;
   };
 
-  constexpr GlobalData(IRString name, size_t n_bytes)
+  GlobalData(IRString name, size_t n_bytes)
       : name(std::move(name)), n_bytes(n_bytes), reloc_info({}) {}
 
-  constexpr GlobalData(IRString name, size_t n_bytes, uint8_t *init_value)
+  GlobalData(IRString name, size_t n_bytes, uint8_t *init_value)
       : name(std::move(name)), n_bytes(n_bytes), init_value(init_value),
         reloc_info({}) {}
 

@@ -70,7 +70,7 @@ MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
         res.result.emplace_back(
             Opcode::lea, end_argument,
             MArgument::MemLO(v0.label, int_const, res_type));
-      } else if (v0.isReg()) {
+      } else if (v0.isReg() && get_size(v0.ty) >= 4) {
         res.result.emplace_back(Opcode::lea, end_argument,
                                 MArgument::MemOB(int_const, v0.reg, res_type));
       } else {

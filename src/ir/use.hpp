@@ -3,6 +3,7 @@
 #include "instruction.hpp"
 #include "utils/mutex.hpp"
 #include "utils/vec.hpp"
+#include <memory>
 
 namespace foptim::fir {
 
@@ -55,7 +56,7 @@ public:
 
 class LockedUsed {
 public:
-  Mutex<Used> _uses = {};
+  Mutex<Used> _uses;
 
   void add_usage(Use u) {
     auto us = _uses.scoped_lock();

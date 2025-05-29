@@ -163,10 +163,10 @@ void lower_to_mir(foptim::fir::Context &ctx,
          i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
       const auto *v = &slab_g[i];
       if (v->used == foptim::utils::SlotState::Used) {
-        auto size = v->data.n_bytes;
+        auto size = v->data->n_bytes;
         foptim::fmir::Global glob = {
-            .name = v->data.name.c_str(), .data = {}, .reloc_info = {}};
-        for (const auto &rel_inf : v->data.reloc_info) {
+            .name = v->data->name.c_str(), .data = {}, .reloc_info = {}};
+        for (const auto &rel_inf : v->data->reloc_info) {
           if (rel_inf.ref->is_global()) {
             glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
                 .insert_offset = rel_inf.insert_offset,
@@ -184,7 +184,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
           }
         }
         glob.data.resize(size, 0);
-        memcpy(glob.data.data(), v->data.init_value, size);
+        memcpy(glob.data.data(), v->data->init_value, size);
         globals.push_back(glob);
       }
     }
@@ -232,9 +232,6 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::DeadCodeElim{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  for (auto &f : funcs) {
-    fmt::println("{}", f);
-  }
   ctx.data->storage.storage_instr.collect_garbage();
   foptim::fmir::CallingConv{}.first_stage(funcs);
   foptim::fmir::Legalizer{}.apply(funcs);

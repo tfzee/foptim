@@ -66,6 +66,10 @@ public:
       new_known_one = known_arg_bits->known_one & old_mask;
       new_known_zero = known_arg_bits->known_zero & old_mask;
       new_known_zero |= new_zero;
+    } else if (instr->is(fir::InstrType::ICmp) ||
+               instr->is(fir::InstrType::FCmp)) {
+      new_known_one = 0;
+      new_known_zero = (~(u64)0) - 1;
     } else if (instr->is(fir::InstrType::ITrunc)) {
       const auto *known_arg_bits =
           m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
