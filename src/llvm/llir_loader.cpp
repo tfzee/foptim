@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <deque>
 #include <limits>
+#include <llvm/IR/Attributes.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/LLVMContext.h>
@@ -1210,6 +1211,13 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     foff_func->linkage = foptim::fir::Function::Linkage::Internal;
   }
 
+  
+  if(func.hasFnAttribute(llvm::Attribute::AttrKind::NoInline)){
+    foff_func->no_inline = true;
+  }
+  if(func.hasFnAttribute(llvm::Attribute::AttrKind::AlwaysInline)){
+    foff_func->must_inline = true;
+  }
   if (func.mustProgress()) {
     foff_func->must_progress = true;
   }
