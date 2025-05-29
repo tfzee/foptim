@@ -46,6 +46,9 @@
             (cutter.withPlugins (ps: with ps; [ rz-ghidra ]))
             valgrind
             kdePackages.kcachegrind
+
+            linuxKernel.packages.linux_6_6.perf
+            hotspot
           ];
 
           buildInputs = [ ];
