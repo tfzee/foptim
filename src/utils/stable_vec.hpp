@@ -14,24 +14,27 @@
 
 namespace foptim::utils {
 
-template <class T, u32 slot_slab_len = 128, class Alloc = FAlloc<Slot<T>>>
+template <class T> struct FreeInfo {
+  Slot<T> *ptr;
+  u32 len;
+};
+
+template <
+    class T, u32 slot_slab_len = 128, class AllocFreeList = FAlloc<FreeInfo<T>>,
+    class AllocSlabList = FAlloc<Slot<T> *>, class AllocSlabs = FAlloc<Slot<T>>>
 class StableVec {
-  struct FreeInfo {
-    Slot<T> *ptr;
-    u32 len;
-  };
 
 #ifdef SLOT_CHECK_GENERATION
   u32 curr_gen = 1;
 #endif
-  foptim::Mutex<std::vector<FreeInfo>> _free_list;
+  foptim::Mutex<std::vector<FreeInfo<T>, AllocFreeList>> _free_list;
 
 public:
   static constexpr u32 _slot_slab_len = slot_slab_len;
-  std::vector<Slot<T> *> _slot_slab_starts;
+  std::vector<Slot<T> *, AllocSlabList> _slot_slab_starts;
 
   StableVec() {
-    _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
+    _slot_slab_starts.push_back(AllocSlabs{}.allocate(slot_slab_len));
     std::memset((void *)_slot_slab_starts.back(), 0,
                 slot_slab_len * sizeof(Slot<T>));
     {
@@ -46,7 +49,7 @@ public:
         slot_alloc[i].~Slot<T>();
       }
       // TracyFree(slot_alloc);
-      Alloc{}.deallocate(slot_alloc, slot_slab_len);
+      AllocSlabs{}.deallocate(slot_alloc, slot_slab_len);
       // free(slot_alloc);
     }
   }
@@ -93,7 +96,7 @@ public:
 
   [[nodiscard]] constexpr size_t size_bytes() const {
     return (_slot_slab_starts.size() * slot_slab_len * sizeof(Slot<T>)) +
-           (_free_list.scoped_lock()->size() * sizeof(FreeInfo));
+           (_free_list.scoped_lock()->size() * sizeof(FreeInfo<T>));
   }
 
   [[nodiscard]] constexpr size_t n_slabs() const {
@@ -117,7 +120,7 @@ public:
   SRef<T> push_back(T value = {}) {
     Slot<T> *res_ptr = nullptr;
     {
-      FreeInfo target{nullptr, 0};
+      FreeInfo<T> target{nullptr, 0};
       bool is_new = false;
       {
         auto free_list = _free_list.scoped_lock();
@@ -125,7 +128,7 @@ public:
           target = free_list->back();
           free_list->pop_back();
         } else {
-          _slot_slab_starts.push_back(Alloc{}.allocate(slot_slab_len));
+          _slot_slab_starts.push_back(AllocSlabs{}.allocate(slot_slab_len));
           target.ptr = _slot_slab_starts.back();
           target.len = slot_slab_len;
           is_new = true;
@@ -158,8 +161,5 @@ public:
 // template <class T, u32 slot_slab_len = 128,
 //           class Alloc = IRAlloc<Slot<T>>>
 // using IRStableVec = StableVec<T, slot_slab_len, Alloc>;
-
-template <class T, u32 slot_slab_len = 128, class Alloc = FAlloc<Slot<T>>>
-using FStableVec = StableVec<T, slot_slab_len, Alloc>;
 
 } // namespace foptim::utils

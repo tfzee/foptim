@@ -3,7 +3,7 @@
 
 namespace foptim::utils {
 
-enum class SlotState {
+enum class SlotState: u8 {
   FreeList = 0,
   Used = 1,
   Free = 2,

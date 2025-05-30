@@ -5,6 +5,7 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
+#include <deque>
 #include <fmt/core.h>
 
 namespace foptim::optim {
@@ -33,9 +34,6 @@ check_args2(fir::Instr i1, fir::Instr i2,
       }
       return false;
     }
-    if (local_value_map.contains(arg2)) {
-      return false;
-    }
     // else if they aren teh same + they are the same local we cancel
     // TODO: could do dynamic alloca bt idk if worth it could use cost variable
     // to keep track of this
@@ -44,10 +42,10 @@ check_args2(fir::Instr i1, fir::Instr i2,
         arg1.get_type() != arg2.get_type()) {
       return false;
     }
-    if(i1->is(fir::InstrType::CallInstr) || i == 0){
+    if (i1->is(fir::InstrType::CallInstr) || i == 0) {
       return false;
     }
-    difference_values.push_back({i1, i2, i});
+    difference_values.emplace_back(i1, i2, i);
   }
   return true;
 }
@@ -84,10 +82,6 @@ match_term2(fir::Instr i1, fir::Instr i2,
         }
         return false;
       }
-      if (local_value_map.contains(a2)) {
-        return false;
-      }
-
       // if (!a1.is_constant() || !a2.is_constant()) {
       return false;
       // }
@@ -98,16 +92,17 @@ match_term2(fir::Instr i1, fir::Instr i2,
   return check_args2(i1, i2, local_value_map, difference_values);
 }
 
-inline bool check_match(std::unique_ptr<fir::Function> &f1,
-                        std::unique_ptr<fir::Function> &f2,
+inline bool check_match(fir::Function *f1, fir::Function *f2,
                         TMap<fir::ValueR, fir::ValueR> &local_value_map,
                         TVec<DiffConst> &difference_values) {
+  //quick and dirty first check since most wont match we can quit early
+
+  
   // fill up the local value map
   for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
     auto bb1 = f1->basic_blocks[bb_id];
     auto bb2 = f2->basic_blocks[bb_id];
     local_value_map.insert({fir::ValueR(bb1), fir::ValueR(bb2)});
-    local_value_map.insert({fir::ValueR(bb2), fir::ValueR(bb1)});
     if (bb1->n_instrs() != bb2->n_instrs() || bb1->n_args() != bb2->n_args()) {
       return false;
     }
@@ -118,13 +113,11 @@ inline bool check_match(std::unique_ptr<fir::Function> &f1,
       auto i1 = bb1->args[i];
       auto i2 = bb2->args[i];
       local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
-      local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
     }
     for (size_t i = 0; i < f1->basic_blocks[bb_id]->instructions.size(); i++) {
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
       local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
-      local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
     }
   }
 
@@ -137,7 +130,7 @@ inline bool check_match(std::unique_ptr<fir::Function> &f1,
                      local_value_map, difference_values)) {
       return false;
     }
-    for (size_t i = 0; i < bb1->instructions.size(); i++) {
+    for (size_t i = 0; i < bb1->instructions.size() - 1; i++) {
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
       if (i1 == i2) {
@@ -157,7 +150,7 @@ inline bool check_match(std::unique_ptr<fir::Function> &f1,
   return true;
 }
 
-inline bool is_function_applicable(std::unique_ptr<fir::Function> &f) {
+inline bool is_function_applicable(const fir::Function *f) {
   if (f->is_decl() || f->variadic || f->get_n_uses() == 0 ||
       f->get_entry()->n_args() > 4) {
     return false;
@@ -176,18 +169,25 @@ public:
     ZoneScopedN("FunctionDeDup");
     TMap<fir::ValueR, fir::ValueR> local_value_map;
     TVec<DiffConst> difference_values;
+    TVec<fir::Function *> worklist;
+    // helpers
+    TVec<fir::Use> uses1;
+    TVec<fir::Use> uses2;
+    worklist.reserve(ctx.data->storage.functions.size());
+    for (auto &iter2 : ctx.data->storage.functions) {
+      worklist.push_back(iter2.second.get());
+    }
 
-    for (auto &e1 : ctx.data->storage.functions) {
-      auto &f1 = e1.second;
+    while (!worklist.empty()) {
+      auto *f1 = worklist.back();
+      worklist.pop_back();
       if (!is_function_applicable(f1)) {
         continue;
       }
       auto f1_ninstrs = f1->n_instrs();
-
-      for (auto &e2 : ctx.data->storage.functions) {
-        auto &f2 = e2.second;
-        if ((void *)f1.get() == (void *)f2.get() ||
-            !is_function_applicable(f2)) {
+      for (auto &iter2 : ctx.data->storage.functions) {
+        auto *f2 = iter2.second.get();
+        if ((void *)f1 != (void *)f2 && !is_function_applicable(f2)) {
           continue;
         }
 
@@ -205,24 +205,19 @@ public:
         }
 
         // TODO: heuristic
-        if (difference_values.size()*4 > f1_ninstrs ||
+        if (difference_values.size() * 4 > f1_ninstrs ||
             difference_values.size() + f1->get_entry()->n_args() > 6) {
           continue;
-        }
-
-        for (auto [i1, i2, i] : difference_values) {
-          fmt::println("   MERGE1 {} {} {}", (void *)i1.get_raw_ptr(),
-                       (void *)i2.get_raw_ptr(), i);
         }
 
         // if theres no differnces just forward all calls to the one with more
         // references
         if (difference_values.empty()) {
-          fir::Function *target = f1.get();
-          fir::Function *looser = f2.get();
+          fir::Function *target = f1;
+          fir::Function *looser = f2;
           if (f1->get_n_uses() < f2->get_n_uses()) {
-            target = f2.get();
-            looser = f1.get();
+            target = f2;
+            looser = f1;
           }
           TVec<fir::Use> uses{looser->get_uses().begin(),
                               looser->get_uses().end()};
@@ -236,9 +231,8 @@ public:
           if (ctx->has_function(new_name.c_str())) {
             continue;
           }
-          fmt::println("==========MERGING===========\n");
-          fmt::println("{:d} {:d}", *f1, *f2);
 
+          // TODO prealloc to not have any reallocs
           IRVec<fir::TypeR> new_arg_ty = f1->func_ty->as_func().arg_types;
           auto n_orig_args = new_arg_ty.size();
           for (auto diff : difference_values) {
@@ -247,8 +241,7 @@ public:
 
           auto new_type =
               ctx->get_func_ty(f1->func_ty->as_func().return_type, new_arg_ty);
-          auto new_func =
-              ctx->create_function(new_name, new_type);
+          auto new_func = ctx->create_function(new_name, new_type);
           // delete the automatically inserted bb
           ASSERT(new_func->basic_blocks.size() == 1);
           new_func->basic_blocks[0]->remove_from_parent(false);
@@ -271,16 +264,18 @@ public:
           }
 
           auto i = 0;
-          for(auto diff: difference_values){
+          for (auto diff : difference_values) {
             auto instr = subs.at(fir::ValueR(diff.i1)).as_instr();
-            instr.replace_arg(diff.arg_id, fir::ValueR{new_entry->args[n_orig_args + i]});
+            instr.replace_arg(diff.arg_id,
+                              fir::ValueR{new_entry->args[n_orig_args + i]});
             i++;
           }
 
-          TVec<fir::Use> uses{f1->get_uses().begin(), f1->get_uses().end()};
           auto new_func_ref = fir::ValueR(
               ctx->get_constant_value(fir::FunctionR(new_func.func)));
-          for (const auto &use : uses) {
+          uses1.clear();
+          uses1.assign(f1->get_uses().begin(), f1->get_uses().end());
+          for (const auto &use : uses1) {
             if (use.type == fir::UseType::NormalArg && use.argId == 0) {
               auto instr = use.user;
               if (instr->is(fir::InstrType::CallInstr)) {
@@ -291,7 +286,8 @@ public:
               }
             }
           }
-          TVec<fir::Use> uses2{f2->get_uses().begin(), f2->get_uses().end()};
+          uses2.clear();
+          uses2.assign(f2->get_uses().begin(), f2->get_uses().end());
           for (const auto &use : uses2) {
             if (use.type == fir::UseType::NormalArg && use.argId == 0) {
               auto instr = use.user;
@@ -308,6 +304,8 @@ public:
           // fmt::println("=====================\n{:d}", *new_func.func);
           // fmt::println("{}", difference_values.size());
           // TODO("okak");
+          worklist.push_back(new_func.func);
+          break;
         }
       }
     }

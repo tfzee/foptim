@@ -49,8 +49,7 @@ public:
   T *allocate(size_t count) {
     auto ptr = (T *)arena_alloc(&temp_arena, count * sizeof(T));
     temp_arena_size += count * sizeof(T);
-    // static thread_local const auto alloc_name =
-    //     std::string("TempAlloc:") + thread_name;
+    // TracyMessageLS("temp_alloc", 10);
     TracyPlot(thread_name, (foptim::i64)temp_arena_size);
     return ptr;
   }
