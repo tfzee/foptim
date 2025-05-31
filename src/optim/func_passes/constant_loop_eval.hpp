@@ -26,31 +26,28 @@ class ConstLoopEval final : public FunctionPass {
         for (size_t bb_arg_id = 0; bb_arg_id < f.basic_blocks[id]->args.size();
              bb_arg_id++) {
           auto &v = use.user->bbs[use.argId].args[bb_arg_id];
-          if (v.is_constant() && !v.as_constant()->is_func() &&
-              !v.as_constant()->is_global()) {
-            continue;
+          if (v.is_constant() &&
+              (v.as_constant()->is_func() || v.as_constant()->is_global())) {
+            return false;
           }
-          if (v.is_instr()) {
-            auto instr = v.as_instr();
-            auto bb_id = f.bb_id(instr->get_parent());
+          if (v.is_instr() || v.is_bb_arg()) {
+            u32 bb_id = 0;
+            if (v.is_instr()) {
+              auto arg_instr = v.as_instr();
+              bb_id = f.bb_id(arg_instr->get_parent());
+            } else {
+              auto bbarg = v.as_bb_arg();
+              bb_id = f.bb_id(bbarg->get_parent());
+            }
             if (std::find(info.body_nodes.begin(), info.body_nodes.end(),
                           bb_id) == info.body_nodes.end()) {
               return false;
             }
-            continue;
           }
-          return false;
         }
       }
       for (auto instr : f.basic_blocks[id]->instructions) {
         switch (instr->instr_type) {
-        case fir::InstrType::BinaryInstr:
-        case fir::InstrType::ICmp:
-        case fir::InstrType::CondBranchInstr:
-        case fir::InstrType::BranchInstr:
-        case fir::InstrType::ZExt:
-        case fir::InstrType::SExt:
-          continue;
         case fir::InstrType::FCmp:
         case fir::InstrType::UnaryInstr:
         case fir::InstrType::Conversion:
@@ -68,40 +65,54 @@ class ConstLoopEval final : public FunctionPass {
         case fir::InstrType::LoadInstr:
         case fir::InstrType::StoreInstr:
           return false;
+        case fir::InstrType::BinaryInstr:
+        case fir::InstrType::ICmp:
+        case fir::InstrType::CondBranchInstr:
+        case fir::InstrType::BranchInstr:
+        case fir::InstrType::ZExt:
+        case fir::InstrType::SExt:
         }
         for (auto &bb : instr->bbs) {
           for (auto &arg : bb.args) {
-            if (arg.is_constant() && !arg.as_constant()->is_func() &&
-                !arg.as_constant()->is_global()) {
-              continue;
+            if (arg.is_constant() && (arg.as_constant()->is_func() ||
+                                      arg.as_constant()->is_global())) {
+              return false;
             }
-            if (arg.is_instr()) {
-              auto instr = arg.as_instr();
-              auto bb_id = f.bb_id(instr->get_parent());
+            if (arg.is_instr() || arg.is_bb_arg()) {
+              u32 bb_id = 0;
+              if (arg.is_instr()) {
+                auto arg_instr = arg.as_instr();
+                bb_id = f.bb_id(arg_instr->get_parent());
+              } else {
+                auto bbarg = arg.as_bb_arg();
+                bb_id = f.bb_id(bbarg->get_parent());
+              }
               if (std::find(info.body_nodes.begin(), info.body_nodes.end(),
                             bb_id) == info.body_nodes.end()) {
                 return false;
               }
-              continue;
             }
-            return false;
           }
         }
         for (auto arg : instr->args) {
-          if (arg.is_constant() && !arg.as_constant()->is_func() &&
-              !arg.as_constant()->is_global()) {
-            continue;
+          if (arg.is_constant() && (arg.as_constant()->is_func() ||
+                                    arg.as_constant()->is_global())) {
+            return false;
           }
-          if (arg.is_instr()) {
-            auto instr = arg.as_instr();
-            auto bb_id = f.bb_id(instr->get_parent());
+          if (arg.is_instr() || arg.is_bb_arg()) {
+            u32 bb_id = 0;
+            if (arg.is_instr()) {
+              auto arg_instr = arg.as_instr();
+              bb_id = f.bb_id(arg_instr->get_parent());
+            } else {
+              auto bbarg = arg.as_bb_arg();
+              bb_id = f.bb_id(bbarg->get_parent());
+            }
             if (std::find(info.body_nodes.begin(), info.body_nodes.end(),
                           bb_id) == info.body_nodes.end()) {
               return false;
             }
-            continue;
           }
-          return false;
         }
       }
     }
@@ -125,6 +136,7 @@ public:
     for (auto loop_iter = info.info.begin(); loop_iter != info.info.end();
          loop_iter++) {
       auto &loop = *loop_iter;
+
       if (applicable(func, loop)) {
         // find the entry bb that calls the loop header initially
         //  we know there is exactly one (because we check for it in teh
@@ -160,6 +172,7 @@ public:
           ZoneScopedN("Interpret");
           while (true) {
             if (!inter.step_till_end_of_bb()) {
+              TODO("failed?");
               failed = true;
               break;
             }

@@ -61,8 +61,14 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
     st.set_value(ValueR(instr),
                  ConstantValue{v1->as_int() + v2->as_int(), instr.get_type()});
     break;
-  case BinaryInstrSubType::IntSub:
   case BinaryInstrSubType::IntMul:
+    st.set_value(ValueR(instr),
+                 ConstantValue{v1->as_int() * v2->as_int(), instr.get_type()});
+    break;
+  case BinaryInstrSubType::IntSub:
+    st.set_value(ValueR(instr),
+                 ConstantValue{v1->as_int() - v2->as_int(), instr.get_type()});
+    break;
   case BinaryInstrSubType::IntSRem:
   case BinaryInstrSubType::IntSDiv:
   case BinaryInstrSubType::IntUDiv:
@@ -72,6 +78,7 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
   case BinaryInstrSubType::And:
   case BinaryInstrSubType::Or:
   case BinaryInstrSubType::Xor:
+    TODO("impl");
   default:
     return false;
   case BinaryInstrSubType::INVALID:
@@ -114,7 +121,7 @@ void Interpreter::dump_state() {
 bool Interpreter::step_instr() {
   auto curr_bb = ip.func->basic_blocks[ip.bb_id];
   auto curr_i = curr_bb->instructions[ip.instr_id];
-  // fmt::println("{}", curr_i);
+  fmt::println("{}", curr_i);
   // dump_state();
 
   switch (curr_i->instr_type) {

@@ -736,6 +736,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         auto consti_val = consti->as_int();
         bool mul1More = false;
+        bool mul1Less = false;
 
         switch (consti_val) {
         default: {
@@ -758,6 +759,23 @@ void arith_patterns(IRVec<Pattern> &pats) {
           consti_val = 2;
           mul1More = true;
           break;
+        case 6: {
+          auto res_reg =
+              valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+          auto helper_reg = data.alloc.get_new_register(res_ty);
+          auto helper_arg = MArgument(helper_reg, res_ty);
+          auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
+          res.result.emplace_back(Opcode::mov, helper_arg, base);
+          res.result.emplace_back(Opcode::add2, helper_arg, helper_arg);
+          res.result.emplace_back(
+              Opcode::lea, res_reg,
+              MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
+          return true;
+        }
+        case 7:
+          consti_val = 3;
+          mul1Less = true;
+          break;
         case 8:
           consti_val = 3;
           break;
@@ -777,6 +795,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(
               Opcode::lea, res_reg,
               MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
+        } else if (mul1Less) {
+          res.result.emplace_back(
+              Opcode::lea, res_reg,
+              MArgument::MemOIS(0, base.reg, consti_val, res_ty));
+          res.result.emplace_back(Opcode::sub2, res_reg, base);
         } else {
           res.result.emplace_back(
               Opcode::lea, res_reg,
@@ -970,7 +993,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
                                           data.alloc);
-                if(!alloca_instr->args[0].is_constant()){
+                if (!alloca_instr->args[0].is_constant()) {
                   return false;
                 }
 
