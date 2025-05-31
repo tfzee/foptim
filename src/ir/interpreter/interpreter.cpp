@@ -121,7 +121,7 @@ void Interpreter::dump_state() {
 bool Interpreter::step_instr() {
   auto curr_bb = ip.func->basic_blocks[ip.bb_id];
   auto curr_i = curr_bb->instructions[ip.instr_id];
-  fmt::println("{}", curr_i);
+  // fmt::println("{}", curr_i);
   // dump_state();
 
   switch (curr_i->instr_type) {

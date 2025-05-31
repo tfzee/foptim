@@ -189,7 +189,7 @@ public:
           continue;
         }
 
-        inter.dump_state();
+        // inter.dump_state();
         for (const auto &[v, c] : inter.get_values()) {
           auto vv = const_cast<fir::ValueR &>(v);
           vv.replace_all_uses(fir::ValueR{ctx->get_constant_value(c)});
