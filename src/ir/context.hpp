@@ -42,6 +42,7 @@ struct ContextData {
   ConstantValueR get_poisson_value(TypeR type);
   ConstantValueR get_constant_null();
   ConstantValueR get_constant_value(FunctionR func);
+  ConstantValueR get_constant_value(ConstantValue constant);
   ConstantValueR get_constant_value(f32 val, FloatTypeR ty);
   ConstantValueR get_constant_value(f64 val, FloatTypeR ty);
   ConstantValueR get_constant_value(u64 val, IntTypeR ty);
