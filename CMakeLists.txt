@@ -73,6 +73,7 @@ add_library (foptim OBJECT
                 ./src/ir/constant_value.cpp
                 ./src/ir/helpers.cpp
                 ./src/ir/builder.cpp
+                ./src/ir/interpreter/interpreter.cpp
 
                 #optim
                 ./src/optim/analysis/live_variables.cpp
