@@ -5,19 +5,19 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
-#include <deque>
+#include "utils/arena.hpp"
 #include <fmt/core.h>
 
 namespace foptim::optim {
 
 struct DiffConst {
-  fir::Instr i1;
-  fir::Instr i2;
+  u32 bb_id;
+  u32 instr_id;
   u32 arg_id;
 };
 
 [[nodiscard]] inline bool
-check_args2(fir::Instr i1, fir::Instr i2,
+check_args2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
             TMap<fir::ValueR, fir::ValueR> &local_value_map,
             TVec<DiffConst> &difference_values) {
   for (u32 i = 0; i < i1->args.size(); i++) {
@@ -45,13 +45,13 @@ check_args2(fir::Instr i1, fir::Instr i2,
     if (i1->is(fir::InstrType::CallInstr) || i == 0) {
       return false;
     }
-    difference_values.emplace_back(i1, i2, i);
+    difference_values.emplace_back(bb_id, instr_id, i);
   }
   return true;
 }
 
 [[nodiscard]] inline bool
-match_term2(fir::Instr i1, fir::Instr i2,
+match_term2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
             TMap<fir::ValueR, fir::ValueR> &local_value_map,
             TVec<DiffConst> &difference_values) {
   if (i1 == i2) {
@@ -61,9 +61,9 @@ match_term2(fir::Instr i1, fir::Instr i2,
       i1->args.size() != i2->args.size()) {
     return false;
   }
-  for (size_t bb_id = 0; bb_id < i1->bbs.size(); bb_id++) {
-    auto &bb1 = i1->bbs[bb_id];
-    auto &bb2 = i2->bbs[bb_id];
+  for (size_t bb_arg_id = 0; bb_arg_id < i1->bbs.size(); bb_arg_id++) {
+    auto &bb1 = i1->bbs[bb_arg_id];
+    auto &bb2 = i2->bbs[bb_arg_id];
     if (local_value_map.at(fir::ValueR(bb1.bb)).as_bb() != bb2.bb) {
       return false;
     }
@@ -89,15 +89,15 @@ match_term2(fir::Instr i1, fir::Instr i2,
       //                              fir::Use::bb_arg(i2, bb_id, arg_id)});
     }
   }
-  return check_args2(i1, i2, local_value_map, difference_values);
+  return check_args2(i1, i2, bb_id, instr_id, local_value_map,
+                     difference_values);
 }
 
 inline bool check_match(fir::Function *f1, fir::Function *f2,
                         TMap<fir::ValueR, fir::ValueR> &local_value_map,
                         TVec<DiffConst> &difference_values) {
-  //quick and dirty first check since most wont match we can quit early
+  // quick and dirty first check since most wont match we can quit early
 
-  
   // fill up the local value map
   for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
     auto bb1 = f1->basic_blocks[bb_id];
@@ -126,13 +126,14 @@ inline bool check_match(fir::Function *f1, fir::Function *f2,
     auto bb1 = f1->basic_blocks[bb_id];
     auto bb2 = f2->basic_blocks[bb_id];
 
-    if (!match_term2(bb1->get_terminator(), bb2->get_terminator(),
-                     local_value_map, difference_values)) {
+    if (!match_term2(bb1->get_terminator(), bb2->get_terminator(), bb_id,
+                     f1->n_instrs() - 1, local_value_map, difference_values)) {
       return false;
     }
-    for (size_t i = 0; i < bb1->instructions.size() - 1; i++) {
-      auto i1 = bb1->instructions[i];
-      auto i2 = bb2->instructions[i];
+    for (size_t instr_id = 0; instr_id < bb1->instructions.size() - 1;
+         instr_id++) {
+      auto i1 = bb1->instructions[instr_id];
+      auto i2 = bb2->instructions[instr_id];
       if (i1 == i2) {
         continue;
       }
@@ -142,7 +143,8 @@ inline bool check_match(fir::Function *f1, fir::Function *f2,
         return false;
       }
 
-      if (!check_args2(i1, i2, local_value_map, difference_values)) {
+      if (!check_args2(i1, i2, bb_id, instr_id, local_value_map,
+                       difference_values)) {
         return false;
       }
     }
@@ -163,31 +165,128 @@ inline bool is_function_applicable(const fir::Function *f) {
   return true;
 }
 
+// contains indicies to place where there is a difference
+//  + the funcs that thave this difference
+// NOTE: difference values are assumed to be constants only!
+struct MergableGroup {
+  TVec<DiffConst> diffs;
+  TVec<fir::Function *> funcs;
+};
+
+// merge the functions into a new function
+//  this new function taking in arguments for the difference values
+// NOTE: difference values are assumed to be constants only!
+// returns true on success false otherwise
+inline bool merge_functions(MergableGroup &group, fir::Context &ctx) {
+  // TODO: Might create huge name
+
+  auto diff_size = group.diffs.size();
+  auto func_size = group.funcs.size();
+  // NOTE: this is cancer with the tostring + c_str
+  auto new_name = group.funcs.back()->name + "_MERGED_" +
+                  std::to_string(func_size).c_str() + "_" +
+                  std::to_string(diff_size).c_str();
+  if (ctx->has_function(new_name.c_str())) {
+    ASSERT(false);
+    return false;
+  }
+  auto &f1 = group.funcs.back();
+
+  // TODO prealloc to not have any reallocs
+  IRVec<fir::TypeR> new_arg_ty = f1->func_ty->as_func().arg_types;
+  auto n_orig_args = new_arg_ty.size();
+  TVec<fir::TypeR> new_types;
+  new_types.reserve(group.diffs.size());
+
+  for (auto diff : group.diffs) {
+    auto typee = f1->basic_blocks[diff.bb_id]
+                     ->instructions[diff.instr_id]
+                     ->args[diff.arg_id]
+                     .get_type();
+    new_arg_ty.push_back(typee);
+    new_types.push_back(typee);
+  }
+
+  auto new_type =
+      ctx->get_func_ty(f1->func_ty->as_func().return_type, new_arg_ty);
+  auto new_func = ctx->create_function(new_name, new_type);
+  // delete the automatically inserted bb
+  ASSERT(new_func->basic_blocks.size() == 1);
+  new_func->basic_blocks[0]->remove_from_parent(false);
+  fir::ContextData::V2VMap subs;
+  for (size_t bb_id = 0; bb_id < f1->n_bbs(); bb_id++) {
+    auto new_bb = ctx->copy(f1->basic_blocks.at(bb_id), subs, false);
+    new_func->append_bbr(new_bb);
+  }
+
+  auto new_entry = new_func->get_entry();
+  for (auto typee : new_types) {
+    new_entry.add_arg(ctx->storage.insert_bb_arg(new_entry, typee));
+  }
+
+  for (auto bb : new_func->get_bbs()) {
+    for (auto instr : bb->instructions) {
+      instr.substitute(subs);
+    }
+  }
+
+  auto i = 0;
+  for (auto diff : group.diffs) {
+    auto instr1 = f1->basic_blocks[diff.bb_id]->instructions[diff.instr_id];
+    auto instr = subs.at(fir::ValueR(instr1)).as_instr();
+    instr.replace_arg(diff.arg_id,
+                      fir::ValueR{new_entry->args[n_orig_args + i]});
+    i++;
+  }
+
+  auto new_func_ref =
+      fir::ValueR(ctx->get_constant_value(fir::FunctionR(new_func.func)));
+
+  // TODO: prob should mvoe this out
+  TVec<fir::Use> uses;
+  for (auto *f : group.funcs) {
+    uses.clear();
+    uses.assign(f->get_uses().begin(), f->get_uses().end());
+    for (const auto &use : uses) {
+      if (use.type == fir::UseType::NormalArg && use.argId == 0) {
+        auto instr = use.user;
+        if (instr->is(fir::InstrType::CallInstr)) {
+          instr.replace_arg(0, new_func_ref);
+          for (auto diff : group.diffs) {
+            instr.add_arg(f->basic_blocks[diff.bb_id]
+                              ->instructions[diff.instr_id]
+                              ->args[diff.arg_id]);
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
 class FunctionDeDup final : public ModulePass {
 public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("FunctionDeDup");
+    TVec<MergableGroup> groups;
     TMap<fir::ValueR, fir::ValueR> local_value_map;
     TVec<DiffConst> difference_values;
-    TVec<fir::Function *> worklist;
     // helpers
-    TVec<fir::Use> uses1;
-    TVec<fir::Use> uses2;
-    worklist.reserve(ctx.data->storage.functions.size());
-    for (auto &iter2 : ctx.data->storage.functions) {
-      worklist.push_back(iter2.second.get());
-    }
-
-    while (!worklist.empty()) {
-      auto *f1 = worklist.back();
-      worklist.pop_back();
+    for (auto iter1 = ctx.data->storage.functions.begin();
+         iter1 != ctx.data->storage.functions.end(); iter1++) {
+      auto *f1 = iter1->second.get();
       if (!is_function_applicable(f1)) {
         continue;
       }
       auto f1_ninstrs = f1->n_instrs();
-      for (auto &iter2 : ctx.data->storage.functions) {
-        auto *f2 = iter2.second.get();
-        if ((void *)f1 != (void *)f2 && !is_function_applicable(f2)) {
+      MergableGroup group{};
+
+      auto iter2 = std::next(iter1);
+      // we just use the first match to then collect a group
+      //  which could be a non optimal group
+      for (; iter2 != ctx.data->storage.functions.end(); iter2++) {
+        auto *f2 = iter2->second.get();
+        if (!is_function_applicable(f2)) {
           continue;
         }
 
@@ -209,105 +308,99 @@ public:
             difference_values.size() + f1->get_entry()->n_args() > 6) {
           continue;
         }
-
-        // if theres no differnces just forward all calls to the one with more
-        // references
-        if (difference_values.empty()) {
-          fir::Function *target = f1;
-          fir::Function *looser = f2;
-          if (f1->get_n_uses() < f2->get_n_uses()) {
-            target = f2;
-            looser = f1;
+        if (group.funcs.empty()) {
+          // dont need to copy it if there was no diff
+          if (!difference_values.empty()) {
+            group.diffs = difference_values;
           }
-          TVec<fir::Use> uses{looser->get_uses().begin(),
-                              looser->get_uses().end()};
+        } else {
+          if (group.diffs.size() != difference_values.size()) {
+            continue;
+          }
+          bool matched = true;
+          for (size_t i = 0; i < group.diffs.size(); i++) {
+            if (group.diffs[i].arg_id != difference_values[i].arg_id ||
+                group.diffs[i].bb_id != difference_values[i].bb_id ||
+                group.diffs[i].instr_id != difference_values[i].instr_id) {
+              matched = false;
+              break;
+            }
+          }
+          if (!matched) {
+            continue;
+          }
+        }
+
+        group.funcs.push_back(f2);
+      }
+      if (group.funcs.size() > 0) {
+        group.funcs.push_back(f1);
+        groups.push_back(group);
+      }
+    }
+
+    // merge all groups that have no diffs since merging these does not really
+    // affect what can be merged only might reduce the number of mergable things
+    for (size_t g_id = 0; g_id < groups.size(); g_id++) {
+      auto &g = groups[g_id];
+      if (g.diffs.size() == 0 && g.funcs.size() > 1) {
+        fir::Function *target = g.funcs.back();
+        for (auto f2 = g.funcs.begin(); f2 != std::prev(g.funcs.end()); f2++) {
+          TVec<fir::Use> uses{(*f2)->get_uses().begin(),
+                              (*f2)->get_uses().end()};
           for (auto use : uses) {
             use.replace_use(
                 fir::ValueR(ctx->get_constant_value(fir::FunctionR{target})));
           }
-        } else {
-          // TODO: Might create huge name
-          auto new_name = f1->name + "_MERGED_" + f2->name;
-          if (ctx->has_function(new_name.c_str())) {
-            continue;
-          }
-
-          // TODO prealloc to not have any reallocs
-          IRVec<fir::TypeR> new_arg_ty = f1->func_ty->as_func().arg_types;
-          auto n_orig_args = new_arg_ty.size();
-          for (auto diff : difference_values) {
-            new_arg_ty.push_back(diff.i1->args[diff.arg_id].get_type());
-          }
-
-          auto new_type =
-              ctx->get_func_ty(f1->func_ty->as_func().return_type, new_arg_ty);
-          auto new_func = ctx->create_function(new_name, new_type);
-          // delete the automatically inserted bb
-          ASSERT(new_func->basic_blocks.size() == 1);
-          new_func->basic_blocks[0]->remove_from_parent(false);
-          fir::ContextData::V2VMap subs;
-          for (size_t bb_id = 0; bb_id < f1->n_bbs(); bb_id++) {
-            auto new_bb = ctx->copy(f1->basic_blocks.at(bb_id), subs, false);
-            new_func->append_bbr(new_bb);
-          }
-
-          auto new_entry = new_func->get_entry();
-          for (auto diff : difference_values) {
-            new_entry.add_arg(ctx->storage.insert_bb_arg(
-                new_entry, diff.i1->args[diff.arg_id].get_type()));
-          }
-
-          for (auto bb : new_func->get_bbs()) {
-            for (auto instr : bb->instructions) {
-              instr.substitute(subs);
+          // clena up from other groups by removing f2
+          for (size_t g2_id = 0; g2_id < groups.size(); g2_id++) {
+            if (g2_id == g_id) {
+              continue;
+            }
+            auto res = std::find(groups[g2_id].funcs.begin(),
+                                 groups[g2_id].funcs.end(), *f2);
+            if (res != groups[g2_id].funcs.end()) {
+              groups[g2_id].funcs.erase(res);
+              continue;
             }
           }
+        }
+        groups.erase(groups.begin() + g_id);
+        g_id--;
+      }
+    }
 
-          auto i = 0;
-          for (auto diff : difference_values) {
-            auto instr = subs.at(fir::ValueR(diff.i1)).as_instr();
-            instr.replace_arg(diff.arg_id,
-                              fir::ValueR{new_entry->args[n_orig_args + i]});
-            i++;
-          }
+    // since functions could be in multiple groups we will sort them to first
+    // merge the biggest groups
+    std::sort(groups.begin(), groups.end(), [](auto &a, auto &b) {
+      auto a_size = a.funcs.size();
+      auto b_size = b.funcs.size();
+      if (a_size == b_size) {
+        return a.diffs.size() > b.diffs.size();
+      }
+      return a_size < b_size;
+    });
 
-          auto new_func_ref = fir::ValueR(
-              ctx->get_constant_value(fir::FunctionR(new_func.func)));
-          uses1.clear();
-          uses1.assign(f1->get_uses().begin(), f1->get_uses().end());
-          for (const auto &use : uses1) {
-            if (use.type == fir::UseType::NormalArg && use.argId == 0) {
-              auto instr = use.user;
-              if (instr->is(fir::InstrType::CallInstr)) {
-                instr.replace_arg(0, new_func_ref);
-                for (auto diff : difference_values) {
-                  instr.add_arg(diff.i1->args[diff.arg_id]);
-                }
-              }
+    while (!groups.empty()) {
+      auto &curr = groups.back();
+      if (curr.funcs.size() > 1) {
+        fmt::println("Got group with size {} with {} diffs", curr.funcs.size(),
+                     curr.diffs.size());
+        merge_functions(curr, ctx);
+        // clena up from other groups by removing f2
+        for (size_t g2_id = 0; g2_id + 1 < groups.size(); g2_id++) {
+          for (auto f2 = curr.funcs.begin(); f2 != std::prev(curr.funcs.end());
+               f2++) {
+            auto res = std::find(groups[g2_id].funcs.begin(),
+                                 groups[g2_id].funcs.end(), *f2);
+            if (res != groups[g2_id].funcs.end()) {
+              groups[g2_id].funcs.erase(res);
+              continue;
             }
           }
-          uses2.clear();
-          uses2.assign(f2->get_uses().begin(), f2->get_uses().end());
-          for (const auto &use : uses2) {
-            if (use.type == fir::UseType::NormalArg && use.argId == 0) {
-              auto instr = use.user;
-              if (instr->is(fir::InstrType::CallInstr)) {
-                instr.replace_arg(0, new_func_ref);
-                for (auto diff : difference_values) {
-                  instr.add_arg(diff.i2->args[diff.arg_id]);
-                }
-              }
-            }
-          }
-          // fmt::println("==========MERGING===========\n");
-          // fmt::println("{:d} {:d}", *f1, *f2);
-          // fmt::println("=====================\n{:d}", *new_func.func);
-          // fmt::println("{}", difference_values.size());
-          // TODO("okak");
-          worklist.push_back(new_func.func);
-          break;
         }
       }
+      groups.pop_back();
     }
   }
 };
