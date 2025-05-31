@@ -13,6 +13,7 @@
 #include "mir/optim/lifetime_shortening.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
+#include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/garbage_collector.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
@@ -116,13 +117,13 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       Mem2Reg, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering, DCE,
       GarbageCollect, SimplifyCFG, LICM, LoopRotate, DCE, LVN, SCCP,
       InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE,
-      InstSimplify, SimplifyCFG>{}
+      ConstLoopEval, InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
-      IntrinSimplify, InstSimplify, DCE, SimplifyCFG>{}
+      IntrinSimplify, InstSimplify, ConstLoopEval, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
       .apply(ctx);
@@ -135,10 +136,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
-      SCCP, DCE, InstSimplify, InstSimplify, SimplifyCFG, InstSimplify>{}
+      SCCP, DCE, InstSimplify, InstSimplify, ConstLoopEval, SimplifyCFG, InstSimplify>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
-  fmt::println("{:d}", ctx);
   ASSERT(ctx->verify());
   fmt::print("================FIR END====================\n");
 }
@@ -201,6 +201,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
   for (auto *func : reordered_funcs) {
+    // fmt::println("{:d}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
