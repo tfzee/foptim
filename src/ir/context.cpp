@@ -250,6 +250,14 @@ ConstantValueR ContextData::get_constant_value(FunctionR func) {
   return storage.insert_constant(constant);
 }
 
+ConstantValueR ContextData::get_constant_value(ConstantValue constant) {
+  auto maybeR = try_reuse_constant(constant);
+  if (maybeR.is_valid()) {
+    return maybeR;
+  }
+  return storage.insert_constant(constant);
+}
+
 ConstantValueR ContextData::get_constant_value(f32 val, FloatTypeR ty) {
   const auto constant = ConstantValue(val, ty);
   auto maybeR = try_reuse_constant(constant);

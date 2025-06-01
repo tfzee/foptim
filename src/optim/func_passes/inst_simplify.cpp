@@ -685,17 +685,32 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   if (second_constant && instr->args[1].as_constant()->is_int()) {
-    // if (instr->args[0].is_instr() &&
-    //     instr->args[0].as_instr()->is(InstrType::BinaryInstr)) {
-    //   auto bin_instr = instr->args[0].as_instr();
-    //   if (bin_instr->subtype == (u32)BinaryInstrSubType::IntMul) {
-    //     fmt::println("{}{}", bin_instr, instr);
-    //     TODO("okak");
-    //   }
-    // }
-
     auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
     i128 c_val = instr->args[1].as_constant()->as_int();
+
+    // NOTE: a / 2^x > 0 -> a > x (if x is between 0-bitwidth)
+    if (c_val == 0 && (sub_type == ICmpInstrSubType::SGT) &&
+        instr->args[0].is_instr()) {
+      auto arg0 = instr->args[0].as_instr();
+      if (arg0->is(InstrType::BinaryInstr) &&
+          arg0->subtype == (u32)BinaryInstrSubType::IntSDiv &&
+          arg0->args[1].is_constant() &&
+          // TODO: could also be poision
+          arg0->args[1].as_constant()->is_int()) {
+        // auto a = instr->args[1].as_constant()->as_int();
+        auto x = arg0->args[1].as_constant()->as_int();
+        if (x > 0 && (x & (x - 1)) == 0 && x < arg0->get_type()->as_int()) {
+          Builder bb{instr};
+          auto new_val = bb.build_int_cmp(arg0->args[0], arg0->args[1],
+                                          ICmpInstrSubType::SGE);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(ValueR(new_val));
+          instr.destroy();
+          return;
+        }
+      }
+    }
+
     bool check_negative = false;
     bool check_positive = false;
 

@@ -495,11 +495,24 @@ void Legalizer::apply(MFunc &func) {
           ioff = 0;
         }
         break;
-      case Opcode::icmp_ugt:
       case Opcode::icmp_slt:
       case Opcode::icmp_eq:
+      case Opcode::icmp_ult:
+      case Opcode::icmp_ne:
+      case Opcode::icmp_sgt:
+      case Opcode::icmp_ugt:
+      case Opcode::icmp_uge:
+      case Opcode::icmp_ule:
+      case Opcode::icmp_sge:
+      case Opcode::icmp_sle:
       case Opcode::cjmp_int_slt:
+      case Opcode::cjmp_int_sge:
+      case Opcode::cjmp_int_sle:
+      case Opcode::cjmp_int_sgt:
       case Opcode::cjmp_int_ult:
+      case Opcode::cjmp_int_ule:
+      case Opcode::cjmp_int_ugt:
+      case Opcode::cjmp_int_uge:
       case Opcode::cjmp_int_ne:
       case Opcode::cjmp_int_eq:
         if (legalize_icmp(bb, i)) {

@@ -37,9 +37,8 @@ public:
 #else
   std::shared_mutex _mutex;
 #endif
-
-  [[nodiscard]] MutMutexGuard<T> scoped_lock() const {
-    return MutMutexGuard<T>{const_cast<Mutex<T> *>(this)};
+  [[nodiscard]] ConstMutexGuard<T> scoped_lock() const {
+    return ConstMutexGuard<T>{const_cast<Mutex<T> *>(this)};
   }
 
   [[nodiscard]] MutMutexGuard<T> scoped_lock() {

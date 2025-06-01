@@ -19,12 +19,12 @@ namespace foptim::fir {
 class IRStorage {
 public:
   IRMap<IRString, std::unique_ptr<Function>> functions;
-  utils::FStableVec<std::unique_ptr<GlobalData>> storage_global;
-  utils::FStableVec<InstrData> storage_instr;
-  utils::FStableVec<BasicBlockData> basic_blocks;
-  utils::FStableVec<BBArgumentData> bb_args;
-  utils::FStableVec<ConstantValue> storage_constant;
-  utils::FStableVec<AnyType> storage_type;
+  utils::StableVec<std::unique_ptr<GlobalData>> storage_global;
+  utils::StableVec<InstrData> storage_instr;
+  utils::StableVec<BasicBlockData> basic_blocks;
+  utils::StableVec<BBArgumentData> bb_args;
+  utils::StableVec<ConstantValue> storage_constant;
+  utils::StableVec<AnyType> storage_type;
 
   Instr insert_instr(InstrData v) {
     return Instr(this->storage_instr.push_back(std::move(v)));

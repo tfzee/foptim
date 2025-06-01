@@ -42,6 +42,7 @@
             (pkgs.python3.withPackages (python-pkgs: [
                 python-pkgs.pandas
                 python-pkgs.matplotlib
+                python-pkgs.z3-solver
               ]))
             (cutter.withPlugins (ps: with ps; [ rz-ghidra ]))
             valgrind
