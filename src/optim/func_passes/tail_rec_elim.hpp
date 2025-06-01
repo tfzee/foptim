@@ -31,8 +31,12 @@ public:
       if (funci.func != &func) {
         continue;
       }
-      fmt::println("TAIL CALL {}", func);
-
+      TODO("few constraints were missing");
+      //must ensure its not using parents stackframe!
+      //prob cant apply right now if theres allocas!
+      //return values i should look at them
+      // -> https://github.com/llvm/llvm-project/blob/main/llvm/lib/Transforms/Scalar/TailRecursionElimination.cpp
+      // commutative -> iterator variable
       auto old_entry = func.get_entry();
       auto new_bb = ctx->storage.insert_bb(fir::BasicBlockData{&func});
       for (auto arg : old_entry->args) {
