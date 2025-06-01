@@ -13,13 +13,33 @@ public:
       return;
     }
     for (auto bb : func.basic_blocks) {
+      for (auto instr : bb->instructions) {
+        if (instr->is(fir::InstrType::AllocaInstr)) {
+          // must ensure its not using parents stackframe!
+          // if there isnt one we dont need to worry :)
+          // also moves allocas out of initial block could lead to issues
+          // further down the pipeline further down the pipeline
+          return;
+        }
+      }
+    }
+    for (auto bb : func.basic_blocks) {
       if (!bb->get_terminator()->is(fir::InstrType::ReturnInstr) ||
           bb->instructions.size() <= 1 ||
           !bb->instructions[bb->instructions.size() - 2]->is(
               fir::InstrType::CallInstr)) {
         continue;
       }
+      auto term = bb->get_terminator();
       auto call = bb->instructions[bb->instructions.size() - 2];
+      // TODO: commutative -> iterator variable
+      // TODO: if all of the returns return the same constant we could still apply it
+      // see:
+      // https://github.com/llvm/llvm-project/blob/main/llvm/lib/Transforms/Scalar/TailRecursionElimination.cpp
+      if (!term->args.empty() &&
+          (term->args.size() != 1 || term->args[0] != fir::ValueR{call})) {
+        continue;
+      }
       if (!call->args[0].is_constant()) {
         continue;
       }
@@ -31,12 +51,6 @@ public:
       if (funci.func != &func) {
         continue;
       }
-      TODO("few constraints were missing");
-      //must ensure its not using parents stackframe!
-      //prob cant apply right now if theres allocas!
-      //return values i should look at them
-      // -> https://github.com/llvm/llvm-project/blob/main/llvm/lib/Transforms/Scalar/TailRecursionElimination.cpp
-      // commutative -> iterator variable
       auto old_entry = func.get_entry();
       auto new_bb = ctx->storage.insert_bb(fir::BasicBlockData{&func});
       for (auto arg : old_entry->args) {
