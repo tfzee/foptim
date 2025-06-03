@@ -170,17 +170,23 @@ public:
 
         {
           ZoneScopedN("Interpret");
+          size_t iter = 0;
           while (true) {
             if (!inter.step_till_end_of_bb()) {
               TODO("failed?");
               failed = true;
               break;
             }
+            iter++;
             auto ip = inter.get_ip();
             if ((void *)ip.func == (void *)&func &&
                 std::find(loop.body_nodes.begin(), loop.body_nodes.end(),
                           ip.bb_id) == loop.body_nodes.end()) {
 
+              break;
+            }
+            if (iter > 5000) {
+              failed = true;
               break;
             }
           }
