@@ -1,5 +1,6 @@
 #pragma once
 #include "ir/basic_block_arg.hpp"
+#include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "optim/analysis/dominators.hpp"
 
@@ -48,6 +49,41 @@ public:
         upper_bound_var(fir::Use::norm(fir::Instr{fir::Instr::invalid()}, 0)) {}
 
   bool update(CFG &cfg, LoopInfo &info);
+  void dump() const;
+};
+
+class InductionVarAnalysis {
+public:
+  enum IterationType {
+    PlusConst,
+    SubConst,
+    MulConst,
+    Other,
+  };
+  struct InductionVar {
+    fir::ValueR def;
+    fir::ConstantValueR consti;
+    IterationType type = IterationType::Other;
+  };
+  struct IInductionVar {
+    fir::ValueR def;
+    fir::ValueR arg1;
+    fir::ValueR arg2;
+    IterationType type = IterationType::Other;
+  };
+
+  std::optional<InductionVar>
+  _check_if_direct_induct(fir::BBArgument v, u32 arg_id,
+                          TVec<std::pair<fir::Instr, u32>> backwards_jumps,
+                          CFG &cfg, LoopInfo &info);
+  // do not depend on other induction vars
+  TVec<InductionVar> direct_inductvars;
+
+  // depend on other induction vars
+  TVec<IInductionVar> indirect_inductvars;
+
+  InductionVarAnalysis(CFG &cfg, LoopInfo &info) { update(cfg, info); }
+  void update(CFG &cfg, LoopInfo &info);
   void dump() const;
 };
 
