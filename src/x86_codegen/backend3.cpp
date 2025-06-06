@@ -1044,6 +1044,8 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       off = emit(out_buff, off, &req);
       // mask out the higher bits since it doesnt do this for 16 and 8 bit
       req.mnemonic = ZYDIS_MNEMONIC_AND;
+      req.operands[0].reg.value =
+          reg_with_type(instr.args[0].reg, fmir::Type::Int32);
       req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
       req.operands[1].imm.u = 0xFFFF;
       return emit(out_buff, off, &req);
