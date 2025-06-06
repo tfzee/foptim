@@ -182,7 +182,6 @@ public:
             if ((void *)ip.func == (void *)&func &&
                 std::find(loop.body_nodes.begin(), loop.body_nodes.end(),
                           ip.bb_id) == loop.body_nodes.end()) {
-
               break;
             }
             if (iter > 5000) {
@@ -195,10 +194,16 @@ public:
           continue;
         }
 
-        // inter.dump_state();
+        bool has_modified_anything = false;
         for (const auto &[v, c] : inter.get_values()) {
           auto vv = const_cast<fir::ValueR &>(v);
+          if (vv.get_n_uses() > 0) {
+            has_modified_anything = true;
+          }
           vv.replace_all_uses(fir::ValueR{ctx->get_constant_value(c)});
+        }
+        if (!has_modified_anything) {
+          continue;
         }
         // TODO cleanup all the cbranches
         // inter.dump_state();
