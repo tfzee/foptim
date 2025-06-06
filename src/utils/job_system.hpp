@@ -22,11 +22,9 @@ struct Worker {
   std::jthread thread;
 
   Worker(JobSheduler *shed, u8 id)
-      : worker_id(id), thread([this, shed](std::stop_token stoken) {
-          work_func(shed, stoken);
-        }) {}
+      : worker_id(id), thread(&Worker::work_func, this, shed) {}
 
-  void work_func(JobSheduler *shed, std::stop_token stoken);
+  void work_func(std::stop_token stoken, JobSheduler *shed);
 };
 
 class JobSheduler {
@@ -45,6 +43,7 @@ public:
       threads.emplace_back(this, i + 1);
     }
   }
+
   void deinit() {
     ZoneScopedN("DeinitThreads");
     for (auto &t : threads) {
@@ -65,7 +64,6 @@ public:
   }
 
   void wait_till_done() {
-    bool done = false;
     while (!jobs.empty()) {
       Job job;
       {
@@ -82,6 +80,8 @@ public:
       }
       job.func();
     }
+
+    bool done = false;
     while (!done) {
       done = true;
       for (auto &thread : threads) {

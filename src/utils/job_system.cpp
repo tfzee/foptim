@@ -7,7 +7,7 @@ namespace foptim {
 thread_local char thread_name[11] = {'W', 'o', 'r', 'k', 'e', 'r',
                                      ' ', '0', '0', '0', 0};
 
-void Worker::work_func(JobSheduler *shed, std::stop_token stoken) {
+void Worker::work_func(std::stop_token stoken, JobSheduler *shed) {
 #ifdef TRACY_ENABLE
   thread_name[9] = '0' + worker_id % 10;
   thread_name[8] = '0' + (worker_id / 10) % 10;
