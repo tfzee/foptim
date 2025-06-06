@@ -179,10 +179,11 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
         fmt::println("{}", consti->type->as_int());
         UNREACH();
       }
+    case fir::AnyTypeType::Ptr:
+      return {(u64)0};
     case fir::AnyTypeType::Float:
       return {0.0F};
     case fir::AnyTypeType::Vector:
-    case fir::AnyTypeType::Ptr:
     case fir::AnyTypeType::Function:
     case fir::AnyTypeType::Void:
     case fir::AnyTypeType::Struct:
