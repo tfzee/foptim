@@ -1,4 +1,5 @@
 #include "inst_simplify.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
@@ -93,17 +94,11 @@ static void swap_args_icmp(fir::Instr instr) {
 }
 static void push_all_uses(WorkList &worklist, fir::Instr instr) {
   for (auto &use : instr->uses) {
-    // if (use.type == fir::UseType::BBArg) {
-    // for (auto sub_use :
-    //      use.user->bbs[use.argId].bb->args[use.bbArgId]->get_uses()) {
-    //   worklist.emplace_back(sub_use.user, sub_use.user->parent);
-    // }
-    // }
     worklist.emplace_back(use.user, use.user->parent);
   }
 }
 
-static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
+static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context &ctx, WorkList &worklist,
                             AttributerManager &man) {
   using namespace foptim::fir;
@@ -140,41 +135,49 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       if (instr->subtype == (u32)BinaryInstrSubType::IntMul) {
         auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntMul);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       } else if (instr->subtype == (u32)BinaryInstrSubType::IntSDiv) {
         auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntSDiv);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       } else if (instr->subtype == (u32)BinaryInstrSubType::IntUDiv) {
         auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntUDiv);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       } else if (instr->subtype == (u32)BinaryInstrSubType::And) {
         auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::And);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::And);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       } else if (instr->subtype == (u32)BinaryInstrSubType::Or) {
         auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Or);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Or);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       } else if (instr->subtype == (u32)BinaryInstrSubType::Xor) {
         auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Xor);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Xor);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       } else if (instr->subtype == (u32)BinaryInstrSubType::Shl) {
         auto a1 = b.build_int_add(const1, const2);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shl);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       } else if (instr->subtype == (u32)BinaryInstrSubType::Shr) {
         auto a1 = b.build_int_add(const1, const2);
         auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shr);
+        worklist.emplace_back(a1.as_instr(), bb);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
       }
@@ -201,24 +204,28 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
             instr->subtype == (u32)BinaryInstrSubType::IntAdd) {
           auto a1 = b.build_int_add(const1, const2);
           auto res = b.build_int_add(x, a1);
+          worklist.emplace_back(a1.as_instr(), bb);
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
         } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub &&
                     instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
           auto a1 = b.build_int_add(const1, const2);
           auto res = b.build_int_sub(x, a1);
+          worklist.emplace_back(a1.as_instr(), bb);
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
         } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
                     instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
           auto a1 = b.build_int_sub(const1, const2);
           auto res = b.build_int_add(x, a1);
+          worklist.emplace_back(a1.as_instr(), bb);
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
         } else if ((inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub &&
                     instr->subtype == (u32)BinaryInstrSubType::IntAdd)) {
           auto a1 = b.build_int_sub(const2, const1);
           auto res = b.build_int_add(x, a1);
+          worklist.emplace_back(a1.as_instr(), bb);
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
 
@@ -284,13 +291,24 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   if ((c0_val && c0_val->is_poison()) || (c1_val && c1_val->is_poison())) {
+    push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR{ctx->get_poisson_value(instr.get_type())});
+    instr.destroy();
+    return;
+  }
+  if ((c0_val && c0_val->is_null()) || (c1_val && c1_val->is_null())) {
+    auto index = (c0_val && c0_val->is_null()) ? 1 : 0;
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(instr->args[index]);
     instr.destroy();
     return;
   }
 
   if ((c0_val != nullptr) && (c1_val != nullptr)) {
-    if (c1_val->type->is_int() && c0_val->type->is_int()) {
+    if ((c1_val->type->is_int() && c0_val->type->is_int()) ||
+        (c1_val->type->is_ptr() && c0_val->type->is_ptr())) {
+      // TODO: this is annoying but idk how to handle it better
+      push_all_uses(worklist, instr);
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_int(), c1_val->as_int(),
                                    c1_val->type, ctx)) {
@@ -299,6 +317,8 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     } else if (c1_val->type->is_float() && c1_val->type->as_float() == 32 &&
                c0_val->type->is_float() && c0_val->type->as_float() == 32) {
+      // TODO: this is annoying but idk how to handle it better
+      push_all_uses(worklist, instr);
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_f32(), c1_val->as_f32(),
                                    c1_val->type, ctx)) {
@@ -307,6 +327,8 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     } else if (c1_val->type->is_float() && c1_val->type->as_float() == 64 &&
                c0_val->type->is_float() && c0_val->type->as_float() == 64) {
+      // TODO: this is annoying but idk how to handle it better
+      push_all_uses(worklist, instr);
       if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                    c0_val->as_f64(), c1_val->as_f64(),
                                    c1_val->type, ctx)) {
@@ -357,7 +379,6 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr->args.erase(instr->args.begin() + c_idx);
       instr->instr_type = InstrType::UnaryInstr;
       instr->subtype = (u32)UnaryInstrSubType::Not;
-      worklist.emplace_back(instr, instr->parent);
       push_all_uses(worklist, instr);
       return;
     }
@@ -402,7 +423,6 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
         case fir::BinaryInstrSubType::IntMul:
           break;
         case fir::BinaryInstrSubType::IntAdd: {
-
           auto new_val =
               ctx->get_constant_value(c1_val->as_int() + sec_constant,
                                       ctx->get_int_type(biggest_bitwidth));
@@ -463,8 +483,8 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   // bit patterns
-  if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd &&
-      instr->args[1].is_constant() && instr->args[1].as_constant()->is_int()) {
+  // if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd &&
+  //     instr->args[1].is_constant() && instr->args[1].as_constant()->is_int()) {
     // const auto *arg0_known =
     //     man.get_or_create_analysis<KnownBits>(instr->args[0]);
     // man.run();
@@ -479,7 +499,7 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock /*bb*/,
     //    instr.destroy();
     //    return;
     //  }
-  }
+  // }
 
   if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::And ||
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::Or) {
@@ -602,6 +622,7 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
               ctx->get_constant_value((u32)is_true, ctx->get_int_type(8));
           push_all_uses(worklist, instr);
           instr->replace_all_uses(ValueR(new_const_value));
+          instr.destroy();
           return;
         }
       }
@@ -1014,7 +1035,6 @@ static void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 }
-
 static void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
                                  fir::Context & /*ctx*/,
                                  WorkList & /*worklist*/) {
@@ -1189,6 +1209,7 @@ static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
                            fir::Context &ctx, WorkList &worklist) {
   if (instr->args[0].is_constant() &&
       instr->args[0].as_constant()->is_poison()) {
+    push_all_uses(worklist, instr);
     instr->replace_all_uses(
         fir::ValueR{ctx->get_poisson_value(instr.get_type())});
     instr.destroy();
@@ -1342,6 +1363,14 @@ static void simplify_load(fir::Instr instr, fir::BasicBlock bb,
       instr.destroy();
       return;
     }
+    if (arg0_const->is_null() ||
+        (arg0_const->is_int() && arg0_const->as_int() == 0)) {
+      push_all_uses(worklist, instr);
+      // TODO: in theory could just put an unreach here
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+      return;
+    }
     if (arg0_const->is_global() && arg0_const->as_global()->is_constant) {
       // TOOD: can fix this i guess
       auto glob = arg0_const->as_global();
@@ -1416,7 +1445,7 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   while (!worklist.empty()) {
     auto [instr, bb] = worklist.back();
     worklist.pop_back();
-    if (!instr->parent.is_valid()) {
+    if (!instr.is_valid() || !instr->parent.is_valid()) {
       continue;
     }
     simplify(instr, bb, ctx, worklist, man);
