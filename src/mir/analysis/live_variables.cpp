@@ -813,6 +813,10 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
       // auto all defs
       for (auto written : helper) {
         if (written.arg.isReg()) {
+          for (auto r : curr_live) {
+            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
+            ranges[written.arg.reg].insert(r);
+          }
           curr_live[reg_to_uid(written.arg.reg)].set(false);
         }
       }
