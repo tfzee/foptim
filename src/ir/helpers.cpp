@@ -34,4 +34,49 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {
   return edge_bb;
 }
 
+void convert_constant_init(u8 *output, fir::ConstantValueR val) {
+  (void)output;
+  switch (val->ty) {
+  case ConstantType::PoisonValue:
+    return;
+  case ConstantType::IntValue:
+    switch (val->type->as_int()) {
+    case 8:
+      *output = (u8)val->int_u.v.data;
+      return;
+    case 16:
+      *((u16 *)output) = (u16)val->int_u.v.data;
+      return;
+    case 32:
+      *((u32 *)output) = (u32)val->int_u.v.data;
+      return;
+    case 64:
+      *((u64 *)output) = (u64)val->int_u.v.data;
+      return;
+    default:
+      fmt::println("{}", val);
+      TODO("okaka");
+    }
+    break;
+  case ConstantType::VectorValue: {
+    auto typee = val->type->as_vec();
+    auto width = typee.bitwidth;
+    size_t i = 0;
+    for (auto m : val->vec_u.v.members) {
+      convert_constant_init(output + (width + 7) / 8 * i, m);
+      i++;
+    }
+    return;
+  }
+  case ConstantType::FloatValue:
+  case ConstantType::GlobalPtr:
+  case ConstantType::FuncPtr:
+  case ConstantType::NullPtr:
+  case ConstantType::ConstantStruct:
+    break;
+  }
+  fmt::println("{}", val);
+  TODO("okaka");
+}
+
 } // namespace foptim::fir

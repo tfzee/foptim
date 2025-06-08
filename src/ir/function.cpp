@@ -68,6 +68,12 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   if (func.must_progress) {
     app = fmt::format_to(app, "MUST_PROGRESS, ");
   }
+  if (func.no_inline) {
+    app = fmt::format_to(app, "NO_INLINE, ");
+  }
+  if (func.must_inline) {
+    app = fmt::format_to(app, "MUST_INLINE, ");
+  }
   if (func.no_recurse) {
     app = fmt::format_to(app, "NO_RECURSE, ");
   }
@@ -91,22 +97,22 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   }
   app = fmt::format_to(app, ", LINK: ");
   switch (func.linkage) {
-  case foptim::fir::Function::Linkage::Internal:
+  case foptim::fir::Linkage::Internal:
     app = fmt::format_to(app, "internal");
     break;
-  case foptim::fir::Function::Linkage::External:
+  case foptim::fir::Linkage::External:
     app = fmt::format_to(app, "external");
     break;
-  case foptim::fir::Function::Linkage::Weak:
+  case foptim::fir::Linkage::Weak:
     app = fmt::format_to(app, "weak");
     break;
-  case foptim::fir::Function::Linkage::WeakODR:
+  case foptim::fir::Linkage::WeakODR:
     app = fmt::format_to(app, "weakODR");
     break;
-  case foptim::fir::Function::Linkage::LinkOnce:
+  case foptim::fir::Linkage::LinkOnce:
     app = fmt::format_to(app, "linkonce");
     break;
-  case foptim::fir::Function::Linkage::LinkOnceODR:
+  case foptim::fir::Linkage::LinkOnceODR:
     app = fmt::format_to(app, "linkonceODR");
     break;
   }
