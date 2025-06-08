@@ -36,4 +36,19 @@ Attributable *Attributable::add_attrib(IRString key, ConstantValueR value) {
   attribs.insert({key, Attribute(value)});
   return this;
 }
+
+Attributable *Attributable::set_attrib(IRString key, IRStringRef value) {
+  attribs[key] = Attribute(value);
+  return this;
+}
+
+Attributable *Attributable::set_attrib(IRString key, TypeR value) {
+  attribs[key] = Attribute(value);
+  return this;
+}
+
+Attributable *Attributable::set_attrib(IRString key, ConstantValueR value) {
+  attribs[key] = Attribute(value);
+  return this;
+}
 } // namespace foptim::fir
