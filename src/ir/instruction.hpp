@@ -12,6 +12,8 @@ public:
     this->generation = crtp.generation;
 #endif
   }
+  consteval Instr()
+      : utils::SRef<InstrData>(utils::SRef<InstrData>::invalid()) {}
 
   [[nodiscard]] TypeR get_type() const;
   void clear_args();
