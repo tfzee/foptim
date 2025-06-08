@@ -141,7 +141,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
-      SCCP, DCE, InstSimplify, InstSimplify, ConstLoopEval, InstSimplify,SimplifyCFG>{}
+      SCCP, DCE, InstSimplify, InstSimplify, ConstLoopEval, InstSimplify,
+      SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
   ASSERT(ctx->verify());

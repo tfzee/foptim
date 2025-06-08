@@ -16,6 +16,18 @@ bool SimplifyCFG::remove_dead_bb(CFG & /*cfg*/, CFG::Node &curr,
                                  bool is_entry) {
   ZoneScopedN("rem dead bb");
   if (curr.pred.empty() && !is_entry) {
+    auto *ctx = func.ctx;
+    // ASSERT(curr.bb->get_n_uses() == 0);
+    for (auto i : func.basic_blocks[bb_id]->args) {
+      if (i->get_n_uses() > 0) {
+        i->replace_all_uses(fir::ValueR{ctx->get_poisson_value(i->get_type())});
+      }
+    }
+    for (auto i : func.basic_blocks[bb_id]->instructions) {
+      if (i->get_n_uses() > 0) {
+        i->replace_all_uses(fir::ValueR{ctx->get_poisson_value(i.get_type())});
+      }
+    }
     func.basic_blocks[bb_id]->remove_from_parent(true, true, true);
     return true;
   }
