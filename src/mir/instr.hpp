@@ -133,9 +133,12 @@ enum class Type : u16 {
   Int32 = 3,
   Int64 = 4,
 
+  // NOTE: ORDER matters then floating point smallest to biggest
   Float32 = 5,
   Float64 = 6,
 
+  // NOTE: ORDER matters then vec smallest to biggest
+  Int32x4 = 7,
 };
 
 /*Returns the size in bytes of the given type*/
@@ -153,6 +156,8 @@ static constexpr u32 get_size(fmir::Type type) {
     return 4;
   case fmir::Type::Int64:
     return 8;
+  case Type::Int32x4:
+    return 4 * 4;
   case fmir::Type::INVALID:
     TODO("INVALID TYPE");
   }
@@ -245,7 +250,7 @@ public:
   [[nodiscard]] constexpr bool is_vec_reg() const {
     switch (rty) {
     case RegType::Virtual:
-      return ty == Type::Float32 || ty == Type::Float64;
+      return ty >= Type::Float32;
     case RegType::Concrete:
       return conc.creg >= CReg::mm0;
     }
@@ -689,7 +694,7 @@ struct ArgData {
 void written_args(const MInstr &instr, TVec<ArgData> &out);
 void read_args(const MInstr &instr, TVec<ArgData> &out);
 
-bool verify(FVec<MFunc>& funcs);
+bool verify(FVec<MFunc> &funcs);
 
 } // namespace foptim::fmir
 

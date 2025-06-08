@@ -11,6 +11,8 @@ class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
 
+  static constexpr bool debug_print = true;
+
 public:
   bool should_be_inlined(const fir::Instr instr) {
     if (_should_be_inlined(instr)) {
@@ -23,7 +25,6 @@ public:
   }
 
   bool _should_be_inlined(const fir::Instr instr) {
-    // auto func = instr->get_parent()->get_parent();
     auto called_func = instr->get_arg(0);
     if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
       return false;
@@ -32,25 +33,51 @@ public:
     if (v->is_decl() || v->variadic) {
       return false;
     }
+    if (debug_print) {
+      fmt::println("Maybe inlining {}", v->name);
+    }
+
+    if (v->no_inline) {
+      if (debug_print) {
+        fmt::println("N No inline");
+      }
+      return false;
+    }
+    if (v->must_inline) {
+      if (debug_print) {
+        fmt::println("Y Must inline");
+      }
+      return true;
+    }
+
+    switch (v->linkage) {
+    case fir::Linkage::Weak:
+    case fir::Linkage::LinkOnce:
+      if (debug_print) {
+        fmt::println("N Bad linkage");
+      }
+      return false;
+    case fir::Linkage::Internal:
+    case fir::Linkage::External:
+    case fir::Linkage::WeakODR:
+    case fir::Linkage::LinkOnceODR:
+      break;
+    }
+
     // TODO: impl to hndle this correctly
     for (auto instr : v->basic_blocks[0]->instructions) {
       if (instr->is(fir::InstrType::AllocaInstr)) {
+        if (debug_print) {
+          fmt::println("N Alloca");
+        }
         return false;
       }
     }
 
-    switch (v->linkage) {
-    case fir::Function::Linkage::Weak:
-    case fir::Function::Linkage::LinkOnce:
-      return false;
-    case fir::Function::Linkage::Internal:
-    case fir::Function::Linkage::External:
-    case fir::Function::Linkage::WeakODR:
-    case fir::Function::Linkage::LinkOnceODR:
-      break;
-    }
-
     if (v->n_instrs() <= (5 + v.func->get_entry()->n_args())) {
+      if (debug_print) {
+        fmt::println("Y Shorter then setting up args");
+      }
       return true;
     }
 
@@ -61,26 +88,41 @@ public:
       }
     }
     if (all_args_are_constant) {
+      if (debug_print) {
+        fmt::println("Y All args const");
+      }
       return true;
     }
     // NOTE: this aint perfect it would also try to inlnie namespace std {
     // namespace min { void someFunc(); }}
     if (v->name.starts_with("_ZSt3min") || v->name.starts_with("_ZSt3max")) {
+      if (debug_print) {
+        fmt::println("Y Special");
+      }
       return true;
     }
 
     if (n_inlined_instructions < 100 && n_inlined_calls < 50) {
+      if (debug_print) {
+        fmt::println("N already inlined a bunch");
+      }
       return false;
     }
 
     if (v.func->get_n_uses() == 1 &&
-        (v.func->linkage == fir::Function::Function::Linkage::Internal ||
-         v.func->linkage == fir::Function::Function::Linkage::LinkOnceODR)) {
+        (v.func->linkage == fir::Linkage::Internal ||
+         v.func->linkage == fir::Linkage::LinkOnceODR)) {
+      if (debug_print) {
+        fmt::println("Y single use");
+      }
       return true;
     }
 
     if (v.func->n_instrs() <=
         (2 + v.func->get_entry()->n_args() + (instr->has_result() ? 1 : 0))) {
+      if (debug_print) {
+        fmt::println("Y shorter the nsetup");
+      }
       return true;
     }
 
@@ -107,10 +149,19 @@ public:
 
     if (is_in_straightline_section &&
         ((v.func->n_bbs() == 1 && v.func->n_instrs() < 50))) {
+      if (debug_print) {
+        fmt::println("Y straight  and short");
+      }
       return true;
     }
     if (v.func->n_instrs() < 5) {
+      if (debug_print) {
+        fmt::println("Y short");
+      }
       return true;
+    }
+    if (debug_print) {
+      fmt::println("N end");
     }
     return false;
   }

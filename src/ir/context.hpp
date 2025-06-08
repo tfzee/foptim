@@ -23,8 +23,9 @@ struct ContextData {
   FloatTypeR get_float_type(u16 bitwidth);
 
   VoidTypeR get_void_type();
-  VoidTypeR get_ptr_type();
-  VoidTypeR get_struct_type(IRVec<StructType::StructElem> elems);
+  TypeR get_ptr_type();
+  StructTypeR get_struct_type(IRVec<StructType::StructElem> elems);
+  TypeR get_vec_type(fir::TypeR elem_ty, u16 n_lanes);
 
   template <class T>
   static void print_stats_vec(const utils::StableVec<T> &vec) {
@@ -50,6 +51,7 @@ struct ContextData {
   ConstantValueR get_constant_value(i32 val, IntTypeR ty);
   ConstantValueR get_constant_value(i128 val, IntTypeR ty);
   ConstantValueR get_constant_value(u32 val, IntTypeR ty);
+  ConstantValueR get_constant_value(IRVec<ConstantValueR> data, TypeR vec_ty);
   ConstantValueR try_reuse_constant(const ConstantValue &val);
   TypeR try_reuse_type(const AnyType &val);
   ConstantValueR get_constant_value(Global glob);

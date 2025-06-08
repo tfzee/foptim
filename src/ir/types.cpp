@@ -189,7 +189,16 @@ fmt::formatter<foptim::fir::AnyType>::format(foptim::fir::AnyType const &v,
     return fmt::format_to(app, col, ")");
   }
   case foptim::fir::AnyTypeType::Vector:
-    return fmt::format_to(app, col, "VEC");
+    switch (v.vec_u.v.type) {
+    case foptim::fir::VectorType::SubType::Integer:
+      return fmt::format_to(app, col, "{}@i{}", v.vec_u.v.member_number,
+                            v.vec_u.v.bitwidth);
+      break;
+    case foptim::fir::VectorType::SubType::Floating:
+      return fmt::format_to(app, col, "{}@f{}", v.vec_u.v.member_number,
+                            v.vec_u.v.bitwidth);
+      break;
+    }
   case foptim::fir::AnyTypeType::Struct:
     app = fmt::format_to(app, col, "{{");
     for (auto member : v.as_struct().elems) {

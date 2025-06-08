@@ -301,9 +301,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
       val_big = static_cast<i64>(val_smol);
       break;
     }
-    case Type::Int64:
-    case Type::Float32:
-    case Type::Float64:
+    default:
       TODO("IMPL");
     }
     instr.args[1].imm = (u64)val_big;

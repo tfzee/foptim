@@ -110,7 +110,7 @@ struct TLabelUsageMap {
   }
 };
 
-ZydisRegister get_reg_sized(const ZydisRegister *regs, u32 size) {
+ZydisRegister get_reg_sized_gpr(const ZydisRegister *regs, u32 size) {
   switch (size) {
   case 1:
     return regs[0];
@@ -123,6 +123,25 @@ ZydisRegister get_reg_sized(const ZydisRegister *regs, u32 size) {
   default:
   }
   fmt::println("Got size: {} but only 1,2,4,8 is valid\n", size);
+  ASSERT_M(false, "Tried to get invalid reg size");
+  std::abort();
+}
+
+ZydisRegister get_reg_sized_vec(const ZydisRegister *regs, u32 size) {
+  switch (size) {
+  case 1:
+  case 2:
+  case 4:
+  case 8:
+  case 16:
+    return regs[0];
+  case 32:
+    return regs[1];
+  case 64:
+    return regs[2];
+  default:
+  }
+  fmt::println("Got size: {} but only 1,2,4,8,16,32,64 is valid\n", size);
   ASSERT_M(false, "Tried to get invalid reg size");
   std::abort();
 }
@@ -166,72 +185,104 @@ ZydisRegister convert_reg(const fmir::VReg &reg) {
   constexpr ZydisRegister r15_regs[] = {
       ZYDIS_REGISTER_R15B, ZYDIS_REGISTER_R15W, ZYDIS_REGISTER_R15D,
       ZYDIS_REGISTER_R15};
+  constexpr ZydisRegister xmm0_regs[] = {
+      ZYDIS_REGISTER_XMM0, ZYDIS_REGISTER_YMM0, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm1_regs[] = {
+      ZYDIS_REGISTER_XMM1, ZYDIS_REGISTER_YMM1, ZYDIS_REGISTER_ZMM1};
+  constexpr ZydisRegister xmm2_regs[] = {
+      ZYDIS_REGISTER_XMM2, ZYDIS_REGISTER_YMM2, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm3_regs[] = {
+      ZYDIS_REGISTER_XMM3, ZYDIS_REGISTER_YMM3, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm4_regs[] = {
+      ZYDIS_REGISTER_XMM4, ZYDIS_REGISTER_YMM4, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm5_regs[] = {
+      ZYDIS_REGISTER_XMM5, ZYDIS_REGISTER_YMM5, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm6_regs[] = {
+      ZYDIS_REGISTER_XMM6, ZYDIS_REGISTER_YMM6, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm7_regs[] = {
+      ZYDIS_REGISTER_XMM7, ZYDIS_REGISTER_YMM7, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm8_regs[] = {
+      ZYDIS_REGISTER_XMM8, ZYDIS_REGISTER_YMM8, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm9_regs[] = {
+      ZYDIS_REGISTER_XMM9, ZYDIS_REGISTER_YMM9, ZYDIS_REGISTER_ZMM0};
+  constexpr ZydisRegister xmm10_regs[] = {
+      ZYDIS_REGISTER_XMM10, ZYDIS_REGISTER_YMM10, ZYDIS_REGISTER_ZMM10};
+  constexpr ZydisRegister xmm11_regs[] = {
+      ZYDIS_REGISTER_XMM11, ZYDIS_REGISTER_YMM11, ZYDIS_REGISTER_ZMM11};
+  constexpr ZydisRegister xmm12_regs[] = {
+      ZYDIS_REGISTER_XMM12, ZYDIS_REGISTER_YMM12, ZYDIS_REGISTER_ZMM12};
+  constexpr ZydisRegister xmm13_regs[] = {
+      ZYDIS_REGISTER_XMM13, ZYDIS_REGISTER_YMM13, ZYDIS_REGISTER_ZMM13};
+  constexpr ZydisRegister xmm14_regs[] = {
+      ZYDIS_REGISTER_XMM14, ZYDIS_REGISTER_YMM14, ZYDIS_REGISTER_ZMM14};
+  constexpr ZydisRegister xmm15_regs[] = {
+      ZYDIS_REGISTER_XMM15, ZYDIS_REGISTER_YMM15, ZYDIS_REGISTER_ZMM15};
 
   switch (reg.c_reg()) {
   case fmir::CReg::A:
-    return get_reg_sized(a_regs, reg.size());
+    return get_reg_sized_gpr(a_regs, reg.size());
   case fmir::CReg::B:
-    return get_reg_sized(b_regs, reg.size());
+    return get_reg_sized_gpr(b_regs, reg.size());
   case fmir::CReg::C:
-    return get_reg_sized(c_regs, reg.size());
+    return get_reg_sized_gpr(c_regs, reg.size());
   case fmir::CReg::D:
-    return get_reg_sized(d_regs, reg.size());
+    return get_reg_sized_gpr(d_regs, reg.size());
   case fmir::CReg::DI:
-    return get_reg_sized(di_regs, reg.size());
+    return get_reg_sized_gpr(di_regs, reg.size());
   case fmir::CReg::SI:
-    return get_reg_sized(si_regs, reg.size());
+    return get_reg_sized_gpr(si_regs, reg.size());
   case fmir::CReg::SP:
-    return get_reg_sized(sp_regs, reg.size());
+    return get_reg_sized_gpr(sp_regs, reg.size());
   case fmir::CReg::BP:
-    return get_reg_sized(bp_regs, reg.size());
+    return get_reg_sized_gpr(bp_regs, reg.size());
   case fmir::CReg::R8:
-    return get_reg_sized(r8_regs, reg.size());
+    return get_reg_sized_gpr(r8_regs, reg.size());
   case fmir::CReg::R9:
-    return get_reg_sized(r9_regs, reg.size());
+    return get_reg_sized_gpr(r9_regs, reg.size());
   case fmir::CReg::R10:
-    return get_reg_sized(r10_regs, reg.size());
+    return get_reg_sized_gpr(r10_regs, reg.size());
   case fmir::CReg::R11:
-    return get_reg_sized(r11_regs, reg.size());
+    return get_reg_sized_gpr(r11_regs, reg.size());
   case fmir::CReg::R12:
-    return get_reg_sized(r12_regs, reg.size());
+    return get_reg_sized_gpr(r12_regs, reg.size());
   case fmir::CReg::R13:
-    return get_reg_sized(r13_regs, reg.size());
+    return get_reg_sized_gpr(r13_regs, reg.size());
   case fmir::CReg::R14:
-    return get_reg_sized(r14_regs, reg.size());
+    return get_reg_sized_gpr(r14_regs, reg.size());
   case fmir::CReg::R15:
-    return get_reg_sized(r15_regs, reg.size());
+    return get_reg_sized_gpr(r15_regs, reg.size());
   case fmir::CReg::mm0:
-    return ZYDIS_REGISTER_XMM0;
+    return get_reg_sized_vec(xmm0_regs, reg.size());
   case fmir::CReg::mm1:
-    return ZYDIS_REGISTER_XMM1;
+    return get_reg_sized_vec(xmm1_regs, reg.size());
   case fmir::CReg::mm2:
-    return ZYDIS_REGISTER_XMM2;
+    return get_reg_sized_vec(xmm2_regs, reg.size());
   case fmir::CReg::mm3:
-    return ZYDIS_REGISTER_XMM3;
+    return get_reg_sized_vec(xmm3_regs, reg.size());
   case fmir::CReg::mm4:
-    return ZYDIS_REGISTER_XMM4;
+    return get_reg_sized_vec(xmm4_regs, reg.size());
   case fmir::CReg::mm5:
-    return ZYDIS_REGISTER_XMM5;
+    return get_reg_sized_vec(xmm5_regs, reg.size());
   case fmir::CReg::mm6:
-    return ZYDIS_REGISTER_XMM6;
+    return get_reg_sized_vec(xmm6_regs, reg.size());
   case fmir::CReg::mm7:
-    return ZYDIS_REGISTER_XMM7;
+    return get_reg_sized_vec(xmm7_regs, reg.size());
   case fmir::CReg::mm8:
-    return ZYDIS_REGISTER_XMM8;
+    return get_reg_sized_vec(xmm8_regs, reg.size());
   case fmir::CReg::mm9:
-    return ZYDIS_REGISTER_XMM9;
+    return get_reg_sized_vec(xmm9_regs, reg.size());
   case fmir::CReg::mm10:
-    return ZYDIS_REGISTER_XMM10;
+    return get_reg_sized_vec(xmm10_regs, reg.size());
   case fmir::CReg::mm11:
-    return ZYDIS_REGISTER_XMM11;
+    return get_reg_sized_vec(xmm11_regs, reg.size());
   case fmir::CReg::mm12:
-    return ZYDIS_REGISTER_XMM12;
+    return get_reg_sized_vec(xmm12_regs, reg.size());
   case fmir::CReg::mm13:
-    return ZYDIS_REGISTER_XMM13;
+    return get_reg_sized_vec(xmm13_regs, reg.size());
   case fmir::CReg::mm14:
-    return ZYDIS_REGISTER_XMM14;
+    return get_reg_sized_vec(xmm14_regs, reg.size());
   case fmir::CReg::mm15:
-    return ZYDIS_REGISTER_XMM15;
+    return get_reg_sized_vec(xmm15_regs, reg.size());
   case fmir::CReg::N_REGS:
   case fmir::CReg::Virtual:
     UNREACH();
@@ -275,6 +326,8 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
       operand.imm.s = i;
       break;
     }
+    case fmir::Type::Int32x4:
+      TODO("invalid");
     }
     return;
   case fmir::MArgument::ArgumentType::VReg:
@@ -436,13 +489,26 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
         instr.args[0].isReg() && instr.args[0].reg.is_vec_reg();
     bool target_isfloat64 = target_is_fp_reg && instr.args[0].reg.size() == 8;
     bool target_isfloat32 = target_is_fp_reg && instr.args[0].reg.size() == 4;
+    bool target_is_vec =
+        target_is_fp_reg && instr.args[0].ty > fmir::Type::Float64;
     bool input_isfloat64 = input_is_fp_reg && instr.args[1].reg.size() == 8;
     bool input_isfloat32 = input_is_fp_reg && instr.args[1].reg.size() == 4;
+    bool input_is_vec =
+        input_is_fp_reg && instr.args[1].ty > fmir::Type::Float64;
 
     req.mnemonic = ZYDIS_MNEMONIC_MOV;
 
-    if ((!input_is_fp_reg && target_isfloat32) ||
-        (!target_is_fp_reg && input_isfloat32)) {
+    if (input_is_vec || target_is_vec) {
+      auto arg_index = input_is_vec ? 1 : 0;
+      switch (instr.args[arg_index].ty) {
+      case fmir::Type::Int32x4:
+        req.mnemonic = ZYDIS_MNEMONIC_MOVUPS;
+        break;
+      default:
+        TODO("UNREACH?");
+      }
+    } else if ((!input_is_fp_reg && target_isfloat32) ||
+               (!target_is_fp_reg && input_isfloat32)) {
       req.mnemonic = ZYDIS_MNEMONIC_MOVD;
     } else if ((!input_is_fp_reg && target_isfloat64) ||
                (!target_is_fp_reg && input_isfloat64)) {

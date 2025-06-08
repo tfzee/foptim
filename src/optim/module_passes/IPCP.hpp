@@ -7,6 +7,7 @@
 
 namespace foptim::optim {
 static void constant_prop_args(fir::FunctionR func, fir::Context &ctx);
+static void kill_dead_args(fir::FunctionR func, fir::Context &ctx);
 
 // inter procedural constant propagation
 // replace arguments insideo of functions with constant args
@@ -15,6 +16,7 @@ public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("IPCP");
     for (auto &f : ctx.data->storage.functions) {
+      kill_dead_args(f.second.get(), ctx);
       constant_prop_args(fir::FunctionR(f.second.get()), ctx);
     }
   }
@@ -22,14 +24,14 @@ public:
 
 static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   switch (func.func->linkage) {
-  case fir::Function::Linkage::External:
-  case fir::Function::Linkage::Weak:
-  case fir::Function::Linkage::LinkOnce:
-  case fir::Function::Linkage::WeakODR:
-  case fir::Function::Linkage::LinkOnceODR:
-    //TODO: check why this fails and fix it
+  case fir::Linkage::External:
+  case fir::Linkage::Weak:
+  case fir::Linkage::LinkOnce:
+  case fir::Linkage::WeakODR:
+  case fir::Linkage::LinkOnceODR:
+    // TODO: check why this fails and fix it
     return;
-  case fir::Function::Linkage::Internal:
+  case fir::Linkage::Internal:
     break;
   }
 
@@ -40,12 +42,10 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
-  auto arg_tys = func_ty.arg_types;
-  auto n_args_original = arg_tys.size();
+  auto n_args_original = func_ty.arg_types.size();
   if (n_args_original == 0) {
     return;
   }
-
   for (auto use : func.func->get_uses()) {
     if (!use.user->is(fir::InstrType::CallInstr) ||
         use.type != fir::UseType::NormalArg || use.argId != 0) {
@@ -53,8 +53,11 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
     }
   }
 
+  // TODO: this allocation is mostly gonna just waste memory
+  auto arg_tys = func_ty.arg_types;
+
   bool modified = false;
-  for (u64 i = n_args_original - 1; i > 0; i--) {
+  for (u64 i = n_args_original; i > 0; i--) {
     bool can_convert = true;
     fir::ConstantValueR consti =
         fir::ConstantValueR(fir::ConstantValueR::invalid());
@@ -86,9 +89,11 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   if (modified) {
     func.func->func_ty =
         ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
-
+    for (auto use : func.func->get_uses()) {
+      use.user->set_attrib("callee_type", func.func->func_ty);
+    }
     // we need renaming
-    if (func->linkage == fir::Function::Linkage::LinkOnceODR) {
+    if (func->linkage == fir::Linkage::LinkOnceODR) {
       auto old_name = func->name;
       auto new_name = old_name + "MODIPCP";
       auto func_moved = std::move(ctx->storage.functions.at(old_name));
@@ -99,4 +104,70 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   }
 }
 
+static void kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
+  switch (func.func->linkage) {
+  case fir::Linkage::External:
+  case fir::Linkage::Weak:
+  case fir::Linkage::LinkOnce:
+  case fir::Linkage::WeakODR:
+  case fir::Linkage::LinkOnceODR:
+    // TODO: could do with linkonce when enabling the renaming at the bottom
+    return;
+  case fir::Linkage::Internal:
+    break;
+  }
+
+  if (func->is_decl() || func->variadic) {
+    return;
+  }
+
+  // constant propagate arguments
+  auto entry_block = func->get_entry();
+  auto func_ty = func.func->func_ty->as_func();
+  auto n_args_original = func_ty.arg_types.size();
+  if (n_args_original == 0) {
+    return;
+  }
+
+  for (auto use : func.func->get_uses()) {
+    if (!use.user->is(fir::InstrType::CallInstr) ||
+        use.type != fir::UseType::NormalArg || use.argId != 0) {
+      return;
+    }
+  }
+
+  // TODO: this allocation is mostly gonna just waste memory
+  auto arg_tys = func_ty.arg_types;
+
+  bool modified = false;
+  for (u64 i = n_args_original; i > 0; i--) {
+    bool can_delete = entry_block->args[i - 1]->get_n_uses() == 0;
+
+    if (can_delete) {
+      entry_block->remove_arg(i - 1);
+      for (auto use : func.func->get_uses()) {
+        use.user.remove_arg(i, true);
+      }
+      arg_tys.erase(arg_tys.begin() + (i - 1));
+      modified = true;
+    }
+  }
+  if (modified) {
+    func.func->func_ty =
+        ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+    for (auto use : func.func->get_uses()) {
+      use.user->set_attrib("callee_type", func.func->func_ty);
+    }
+
+    // // we need renaming
+    // if (func->linkage == fir::Linkage::LinkOnceODR) {
+    //   auto old_name = func->name;
+    //   auto new_name = old_name + "MODIPCP";
+    //   auto func_moved = std::move(ctx->storage.functions.at(old_name));
+    //   ctx->storage.functions.erase(old_name);
+    //   func_moved->name = new_name;
+    //   ctx->storage.functions.insert({new_name, std::move(func_moved)});
+    // }
+  }
+}
 } // namespace foptim::optim

@@ -18,6 +18,7 @@
 #include "optim/func_passes/garbage_collector.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
+#include "optim/func_passes/legalize_vecs.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
@@ -27,6 +28,7 @@
 #include "optim/func_passes/merge_alloca.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
+#include "optim/func_passes/slp_vectorizer.hpp"
 #include "optim/func_passes/stack_known_bits.hpp"
 #include "optim/func_passes/tail_rec_elim.hpp"
 #include "optim/function_pass.hpp"
@@ -125,9 +127,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
-      InstSimplify, SimplifyCFG, LICM, DCE, GarbageCollect, LVN, SCCP,
-      IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG,
-      DCE, SimplifyCFG>{}
+      InstSimplify, SimplifyCFG, LICM, DCE, SLPVectorizer, GarbageCollect, LVN,
+      SCCP, IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify,
+      SimplifyCFG, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
       .apply(ctx);
@@ -142,7 +144,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, InstSimplify, InstSimplify, ConstLoopEval, InstSimplify,
-      SimplifyCFG>{}
+      SimplifyCFG, LegalizeVecs>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
   ASSERT(ctx->verify());

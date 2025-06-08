@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/constant_value_ref.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/global.hpp"
 #include "ir/types.hpp"
@@ -50,7 +51,7 @@ struct GlobalPointer {
 };
 
 struct VectorValue {
-  IRVec<ConstantValue> members;
+  IRVec<ConstantValueR> members;
   bool operator==(const VectorValue &other) const;
 };
 
@@ -129,6 +130,9 @@ struct ConstantValue {
   constexpr ConstantValue(ConstantStruct stru, TypeR typee)
       : type(typee), stru_u({ConstantType::ConstantStruct, stru}) {}
 
+  constexpr ConstantValue(IRVec<ConstantValueR> members, TypeR typee)
+      : type(typee), vec_u({ConstantType::VectorValue, VectorValue{std::move(members)}}) {}
+
   static ConstantValue null_ptr(TypeR typee) {
     auto c = ConstantValue(typee);
     c.ty = ConstantType::NullPtr;
@@ -167,9 +171,18 @@ struct ConstantValue {
     return ty == ConstantType::PoisonValue;
   }
 
+  [[nodiscard]] constexpr bool is_vec() const {
+    return ty == ConstantType::VectorValue;
+  }
+
   [[nodiscard]] constexpr FunctionR as_func() const {
     ASSERT(is_func());
     return fup_u.v.func;
+  }
+
+  [[nodiscard]] constexpr const VectorValue& as_vec() const {
+    ASSERT(is_vec());
+    return vec_u.v;
   }
 
   [[nodiscard]] constexpr f32 as_f32() const {

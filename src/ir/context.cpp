@@ -1,5 +1,6 @@
 #include "context.hpp"
 #include "global.hpp"
+#include "ir/constant_value.hpp"
 #include "ir/types.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/stable_vec_slot.hpp"
@@ -126,13 +127,34 @@ VoidTypeR ContextData::get_void_type() {
   return void_type;
 }
 
-VoidTypeR ContextData::get_ptr_type() {
+TypeR ContextData::get_ptr_type() {
   static auto ptr_type = storage.insert_type(AnyType::Ptr());
   return ptr_type;
 }
 
 StructTypeR ContextData::get_struct_type(IRVec<StructType::StructElem> elems) {
   auto ty = StructType(std::move(elems));
+  auto maybeT = try_reuse_type(ty);
+  if (maybeT.is_valid()) {
+    return maybeT;
+  }
+  return storage.insert_type(AnyType(ty));
+}
+
+TypeR ContextData::get_vec_type(fir::TypeR elem_ty, u16 n_lanes) {
+  VectorType::SubType elemy = VectorType::SubType::Integer;
+  u16 width = 0;
+  if (elem_ty->is_int()) {
+    elemy = VectorType::SubType::Integer;
+    width = elem_ty->as_int();
+  } else if (elem_ty->is_float()) {
+    elemy = VectorType::SubType::Floating;
+    width = elem_ty->as_float();
+  } else {
+    TODO("INVALID?");
+  }
+
+  auto ty = VectorType(elemy, width, n_lanes);
   auto maybeT = try_reuse_type(ty);
   if (maybeT.is_valid()) {
     return maybeT;
@@ -314,6 +336,16 @@ ConstantValueR ContextData::get_constant_null() {
 
 ConstantValueR ContextData::get_constant_value(i128 val, IntTypeR ty) {
   const auto constant = ConstantValue(val, ty);
+  auto maybeR = try_reuse_constant(constant);
+  if (maybeR.is_valid()) {
+    return maybeR;
+  }
+  return storage.insert_constant(constant);
+}
+
+ConstantValueR ContextData::get_constant_value(IRVec<ConstantValueR> data,
+                                               TypeR vec_ty) {
+  const auto constant = ConstantValue(std::move(data), vec_ty);
   auto maybeR = try_reuse_constant(constant);
   if (maybeR.is_valid()) {
     return maybeR;

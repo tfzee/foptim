@@ -49,13 +49,13 @@ public:
         continue;
       }
       switch (f->linkage) {
-      case fir::Function::Linkage::External:
-      case fir::Function::Linkage::WeakODR:
-      case fir::Function::Linkage::Weak:
+      case fir::Linkage::External:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::Weak:
         continue;
-      case fir::Function::Linkage::Internal:
-      case fir::Function::Linkage::LinkOnce:
-      case fir::Function::Linkage::LinkOnceODR:
+      case fir::Linkage::Internal:
+      case fir::Linkage::LinkOnce:
+      case fir::Linkage::LinkOnceODR:
         break;
       }
       if (func_global_reffed.contains(f.get())) {

@@ -782,6 +782,8 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
     auto curr_live = aliveOut;
 
     for (size_t instridp1 = bb.instrs.size(); instridp1 > 0; instridp1--) {
+      // fmt::println("{}", curr_live);
+      // fmt::println("{}", bb.instrs[instridp1 - 1]);
       const auto &instr = bb.instrs[instridp1 - 1];
       if (instr.op == Opcode::cjmp_int_slt ||
           instr.op == Opcode::cjmp_int_sge ||
@@ -820,6 +822,22 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           curr_live[reg_to_uid(written.arg.reg)].set(false);
         }
       }
+      // special case is call or invoke in which case also all args are read
+      //   iff the call target is a register and not a constant
+      if ((instr.op == Opcode::call || instr.op == Opcode::invoke) &&
+          instr.args[0].isReg()) {
+        for (auto arg_ip1 = instridp1 - 1; arg_ip1 > 0; arg_ip1--) {
+          const auto &arg_instr = bb.instrs[arg_ip1 - 1];
+          if (arg_instr.op != Opcode::arg_setup) {
+            break;
+          }
+          if (arg_instr.n_args > 1) {
+            ASSERT(arg_instr.args[1].isReg());
+            curr_live[reg_to_uid(arg_instr.args[1].reg)].set(true);
+          }
+        }
+      }
+
       // find all uses
       for (auto written : helper) {
         switch (written.arg.type) {

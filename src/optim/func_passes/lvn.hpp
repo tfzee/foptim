@@ -36,7 +36,8 @@ public:
         //  replace the load
         if (instr->is(fir::InstrType::StoreInstr) &&
             instr2->is(fir::InstrType::LoadInstr) &&
-            instr->get_arg(0) == instr2->get_arg(0)) {
+            instr->get_arg(0) == instr2->get_arg(0) &&
+            instr->get_type() == instr2.get_type()) {
           bool pot_store_between = false;
           for (size_t between_i = i + 1; between_i < i2; between_i++) {
             auto binstr = bb->instructions[between_i];

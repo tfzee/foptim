@@ -10,7 +10,7 @@ bool VectorValue::operator==(const VectorValue &other) const {
     return false;
   }
   for (size_t i = 0; i < members.size(); i++) {
-    if (members[i].eql(other.members[i])) {
+    if (!members[i]->eql(*other.members[i].get_raw_ptr())) {
       return false;
     }
   }
@@ -22,7 +22,7 @@ bool ConstantStruct::operator==(const ConstantStruct &other) const {
     return false;
   }
   for (size_t i = 0; i < v.size(); i++) {
-    if (v[i].eql(other.v[i])) {
+    if (!v[i].eql(other.v[i])) {
       return false;
     }
   }
@@ -157,6 +157,7 @@ ConstantValue::~ConstantValue() {
     return;
   case ConstantType::ConstantStruct:
     stru_u.v.v.~vector();
+    return;
   case ConstantType::VectorValue:
     vec_u.v.members.~vector();
     return;
@@ -298,8 +299,14 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
   case foptim::fir::ConstantType::FuncPtr:
     return fmt::format_to(ctx.out(), color_func, "{}",
                           v.fup_u.v.func->getName().c_str());
-  case foptim::fir::ConstantType::VectorValue:
-    return fmt::format_to(ctx.out(), color_constant, "VECTOR");
+  case foptim::fir::ConstantType::VectorValue: {
+    const auto &va = v.vec_u.v;
+    auto ct = fmt::format_to(ctx.out(), color_constant, "<");
+    for (auto m : va.members) {
+      ct = fmt::format_to(ct, color_constant, "{}, ", m);
+    }
+    return fmt::format_to(ct, color_constant, ">:{}", v.type);
+  }
   case foptim::fir::ConstantType::ConstantStruct:
     return fmt::format_to(ctx.out(), color_constant, "STRUCT");
   }

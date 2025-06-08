@@ -126,6 +126,7 @@ public:
   constexpr AnyType(IntegerType t) : int_u({AnyTypeType::Integer, t}) {}
   constexpr AnyType(FloatType t) : float_u({AnyTypeType::Float, t}) {}
   constexpr AnyType(FunctionType t) : func_u({AnyTypeType::Function, t}) {}
+  constexpr AnyType(VectorType t) : vec_u({AnyTypeType::Vector, t}) {}
   constexpr AnyType(StructType t) : struct_u({AnyTypeType::Struct, t}) {}
 
   static AnyType Ptr() {
@@ -145,10 +146,16 @@ public:
   [[nodiscard]] bool is_float() const { return ty == AnyTypeType::Float; }
   [[nodiscard]] bool is_void() const { return ty == AnyTypeType::Void; }
   [[nodiscard]] bool is_ptr() const { return ty == AnyTypeType::Ptr; }
+  [[nodiscard]] bool is_vec() const { return ty == AnyTypeType::Vector; }
 
   [[nodiscard]] const StructType &as_struct() const {
     ASSERT(is_struct());
     return struct_u.v;
+  }
+
+  [[nodiscard]] const VectorType &as_vec() const {
+    ASSERT(is_vec());
+    return vec_u.v;
   }
 
   [[nodiscard]] const FunctionType &as_func() const {

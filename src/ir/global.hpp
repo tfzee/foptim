@@ -1,8 +1,8 @@
 #pragma once
 #include <utility>
 
+#include "helpers.hpp"
 #include "ir/constant_value_ref.hpp"
-// #include "types_ref.hpp"
 #include "ir/use.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/string.hpp"
@@ -52,6 +52,7 @@ struct GlobalData : public LockedUsed {
   bool is_constant = false;
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;
+  Linkage linkage;
 };
 
 }; // namespace foptim::fir
@@ -62,7 +63,27 @@ class fmt::formatter<foptim::fir::GlobalData>
 public:
   appender format(foptim::fir::GlobalData const &v, format_context &ctx) const {
     auto app = ctx.out();
-    app = fmt::format_to(app, "GLOBAL {} @ {} Bytes ", v.name, v.n_bytes);
+    app = fmt::format_to(app, "GLOBAL {} @ {} Bytes Link: ", v.name, v.n_bytes);
+    switch (v.linkage) {
+    case foptim::fir::Linkage::Internal:
+      app = fmt::format_to(app, "internal");
+      break;
+    case foptim::fir::Linkage::External:
+      app = fmt::format_to(app, "external");
+      break;
+    case foptim::fir::Linkage::Weak:
+      app = fmt::format_to(app, "weak");
+      break;
+    case foptim::fir::Linkage::WeakODR:
+      app = fmt::format_to(app, "weakODR");
+      break;
+    case foptim::fir::Linkage::LinkOnce:
+      app = fmt::format_to(app, "linkonce");
+      break;
+    case foptim::fir::Linkage::LinkOnceODR:
+      app = fmt::format_to(app, "linkonceODR");
+      break;
+    }
     if (debug) {
       for (auto r : v.reloc_info) {
         app =

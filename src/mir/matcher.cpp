@@ -233,6 +233,19 @@ Type convert_type(fir::TypeR type) {
       return Type::Float64;
     }
     TODO("IMPL");
+  } else if (type->is_vec()) {
+    auto d = type->as_vec();
+    switch (d.type) {
+    case fir::VectorType::SubType::Integer:
+      if (d.bitwidth == 32 && d.member_number == 4) {
+        return Type::Int32x4;
+      }
+      fmt::println("{}", type);
+      ASSERT(false);
+    case fir::VectorType::SubType::Floating:
+      fmt::println("{}", type);
+      ASSERT(false);
+    }
   } else {
     fmt::println("{}", type);
     ASSERT(false);
