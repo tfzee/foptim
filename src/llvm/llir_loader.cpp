@@ -5,6 +5,7 @@
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/global.hpp"
+#include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
@@ -898,7 +899,7 @@ inline void generate_memset(foptim::fir::Context &fctx) {
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_int_type(8), fctx->get_int_type(64)});
   auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Function::Linkage::LinkOnceODR;
+  ffunc.func->linkage = foptim::fir::Linkage::LinkOnceODR;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -973,7 +974,7 @@ inline void generate_fabs(foptim::fir::Context &fctx,
   auto func_ty = fctx->get_func_ty(fctx->get_float_type(width),
                                    {fctx->get_float_type(width)});
   auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Function::Linkage::LinkOnceODR;
+  ffunc.func->linkage = foptim::fir::Linkage::LinkOnceODR;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -1008,7 +1009,7 @@ inline void generate_abs(foptim::fir::Context &fctx,
   auto width_type = fctx->get_int_type(width);
   auto func_ty = fctx->get_func_ty(width_type, {width_type});
   auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Function::Linkage::Internal;
+  ffunc.func->linkage = foptim::fir::Linkage::Internal;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -1033,7 +1034,7 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
   auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Function::Linkage::Internal;
+  ffunc.func->linkage = foptim::fir::Linkage::Internal;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -1184,47 +1185,42 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   switch (func.getLinkage()) {
   case llvm::GlobalValue::InternalLinkage:
   case llvm::GlobalValue::PrivateLinkage:
-    foff_func->linkage = foptim::fir::Function::Linkage::Internal;
+    foff_func->linkage = foptim::fir::Linkage::Internal;
     break;
   case llvm::GlobalValue::LinkOnceAnyLinkage:
-    foff_func->linkage = foptim::fir::Function::Linkage::LinkOnce;
+    foff_func->linkage = foptim::fir::Linkage::LinkOnce;
     break;
   case llvm::GlobalValue::LinkOnceODRLinkage:
-    foff_func->linkage = foptim::fir::Function::Linkage::LinkOnceODR;
+    foff_func->linkage = foptim::fir::Linkage::LinkOnceODR;
     break;
   case llvm::GlobalValue::WeakAnyLinkage:
-    foff_func->linkage = foptim::fir::Function::Linkage::Weak;
+    foff_func->linkage = foptim::fir::Linkage::Weak;
     break;
   case llvm::GlobalValue::WeakODRLinkage:
-    foff_func->linkage = foptim::fir::Function::Linkage::WeakODR;
+    foff_func->linkage = foptim::fir::Linkage::WeakODR;
     break;
   case llvm::GlobalValue::ExternalLinkage:
   case llvm::GlobalValue::AvailableExternallyLinkage:
   case llvm::GlobalValue::AppendingLinkage:
   case llvm::GlobalValue::ExternalWeakLinkage:
   case llvm::GlobalValue::CommonLinkage:
-    foff_func->linkage = foptim::fir::Function::Linkage::External;
+    foff_func->linkage = foptim::fir::Linkage::External;
     break;
   }
   if (foptim::utils::all_linkage_internal && func_name != "main" &&
       !func.empty()) {
-    foff_func->linkage = foptim::fir::Function::Linkage::Internal;
+    foff_func->linkage = foptim::fir::Linkage::Internal;
   }
 
-  
-  if(func.hasFnAttribute(llvm::Attribute::AttrKind::NoInline)){
-    foff_func->no_inline = true;
-  }
-  if(func.hasFnAttribute(llvm::Attribute::AttrKind::AlwaysInline)){
-    foff_func->must_inline = true;
-  }
-  if (func.mustProgress()) {
-    foff_func->must_progress = true;
-  }
-  // readNone: 0, readOnly: 0, noInline: 0, alwaysInline:
-  if (func.doesNotRecurse()) {
-    foff_func->no_recurse = true;
-  }
+  foff_func->no_inline =
+      func.hasFnAttribute(llvm::Attribute::AttrKind::NoInline);
+  foff_func->must_inline =
+      func.hasFnAttribute(llvm::Attribute::AttrKind::AlwaysInline);
+  foff_func->must_progress = func.mustProgress();
+  // readNone: 0, readOnly: 0,
+  // noInline: 0, alwaysInline:
+  foff_func->no_recurse = func.doesNotRecurse();
+
   if (func.doesNotAccessMemory()) {
     foff_func->mem_read_none = true;
   } else if (func.onlyReadsMemory()) {
@@ -1523,6 +1519,32 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
 
     auto global = fctx->get_global(name, actual_size);
     auto as_global = fctx->get_constant_value(global);
+
+    switch (val->getLinkage()) {
+    case llvm::GlobalValue::ExternalLinkage:
+    case llvm::GlobalValue::AvailableExternallyLinkage:
+    case llvm::GlobalValue::AppendingLinkage:
+    case llvm::GlobalValue::CommonLinkage:
+      global->linkage = foptim::fir::Linkage::External;
+      break;
+    case llvm::GlobalValue::LinkOnceAnyLinkage:
+      global->linkage = foptim::fir::Linkage::LinkOnce;
+      break;
+    case llvm::GlobalValue::LinkOnceODRLinkage:
+      global->linkage = foptim::fir::Linkage::LinkOnceODR;
+      break;
+    case llvm::GlobalValue::ExternalWeakLinkage:
+    case llvm::GlobalValue::WeakAnyLinkage:
+      global->linkage = foptim::fir::Linkage::Weak;
+      break;
+    case llvm::GlobalValue::WeakODRLinkage:
+      global->linkage = foptim::fir::Linkage::WeakODR;
+      break;
+    case llvm::GlobalValue::InternalLinkage:
+    case llvm::GlobalValue::PrivateLinkage:
+      global->linkage = foptim::fir::Linkage::Internal;
+      break;
+    }
     global->is_constant = val->isConstant();
     global->init_value =
         foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
