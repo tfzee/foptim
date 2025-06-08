@@ -135,7 +135,8 @@ public:
         const auto n_instrs = bb->get_instrs().size();
         for (size_t instr_id_p1 = n_instrs; instr_id_p1 > 0; instr_id_p1--) {
           auto instr = bb->get_instrs()[instr_id_p1 - 1];
-          // killing alloca that only get written to but never read or never used
+          // killing alloca that only get written to but never read or never
+          // used
           if (instr->is(fir::InstrType::AllocaInstr)) {
             bool kill = true;
             for (auto &use : instr->uses) {
@@ -168,6 +169,8 @@ public:
             IMPL("handle dce cond branch simplification");
           }
 
+          instr->replace_all_uses(
+              fir::ValueR{ctx->get_poisson_value(instr.get_type())});
           bb->remove_instr(instr_id_p1 - 1, true);
         }
       }
@@ -186,6 +189,10 @@ public:
       // reverse so we run high ones first
       std::reverse(dead_blocks.begin(), dead_blocks.end());
       for (auto dead_bb_id : dead_blocks) {
+        for (auto instr : func.basic_blocks[dead_bb_id]->instructions) {
+          instr->replace_all_uses(
+              fir::ValueR{ctx->get_poisson_value(instr.get_type())});
+        }
         func.basic_blocks[dead_bb_id]->remove_from_parent(true, true, true);
       }
     }
