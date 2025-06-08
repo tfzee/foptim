@@ -367,6 +367,18 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
   //  }
   // }
 
+  if (c_val->is_float() &&
+      instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul &&
+      c_val->as_f64() == -1) {
+
+    Builder bb{instr};
+    auto new_neg =
+        bb.build_unary_op(instr->args[v_idx], UnaryInstrSubType::FloatNeg);
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(new_neg);
+    instr.destroy();
+    return;
+  }
   if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
     auto val = c_val->as_int();
@@ -484,21 +496,22 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
 
   // bit patterns
   // if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd &&
-  //     instr->args[1].is_constant() && instr->args[1].as_constant()->is_int()) {
-    // const auto *arg0_known =
-    //     man.get_or_create_analysis<KnownBits>(instr->args[0]);
-    // man.run();
-    // TODO: IDK if this is worth it if we do it to early
-    //  auto c = instr->args[1].as_constant()->as_int();
-    //  if ((arg0_known->known_zero & c) == c) {
-    //    fir::Builder bb(instr);
-    //    auto new_val = bb.build_binary_op(instr->args[0], instr->args[1],
-    //                                      BinaryInstrSubType::Or);
-    //    push_all_uses(worklist, instr);
-    //    instr->replace_all_uses(ValueR{new_val});
-    //    instr.destroy();
-    //    return;
-    //  }
+  //     instr->args[1].is_constant() && instr->args[1].as_constant()->is_int())
+  //     {
+  // const auto *arg0_known =
+  //     man.get_or_create_analysis<KnownBits>(instr->args[0]);
+  // man.run();
+  // TODO: IDK if this is worth it if we do it to early
+  //  auto c = instr->args[1].as_constant()->as_int();
+  //  if ((arg0_known->known_zero & c) == c) {
+  //    fir::Builder bb(instr);
+  //    auto new_val = bb.build_binary_op(instr->args[0], instr->args[1],
+  //                                      BinaryInstrSubType::Or);
+  //    push_all_uses(worklist, instr);
+  //    instr->replace_all_uses(ValueR{new_val});
+  //    instr.destroy();
+  //    return;
+  //  }
   // }
 
   if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::And ||
