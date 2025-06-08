@@ -75,7 +75,7 @@ class TailRecElim final : public FunctionPass {
     if (term->args.size() != 1 || term->args[0] != fir::ValueR{add}) {
       return;
     }
-    u16 accum_rec_arg_id = add->args[0] == fir::ValueR{call} ? 0 : 1;
+    u16 accum_rec_arg_id = add->args[0] == fir::ValueR{call} ? 1 : 0;
     if (add->args[0] != fir::ValueR{call} &&
         add->args[1] != fir::ValueR{call}) {
       return;
@@ -94,11 +94,16 @@ class TailRecElim final : public FunctionPass {
     setup(ctx, func, bb);
     auto accum_type = ret_type;
     // add the default value for the accumulator
+    auto bool_type = ctx->get_int_type(1);
     new_entry->get_terminator().add_bb_arg(
         0, fir::ValueR{ctx->get_constant_value(0, accum_type)});
+    new_entry->get_terminator().add_bb_arg(
+        0, fir::ValueR{ctx->get_constant_value(0, bool_type)});
 
     auto new_accum_bb_arg =
         old_entry.add_arg(ctx->storage.insert_bb_arg(old_entry, accum_type));
+    auto has_entered_loop_cond =
+        old_entry.add_arg(ctx->storage.insert_bb_arg(old_entry, bool_type));
 
     fir::Builder b{new_entry};
     b.at_penultimate(bb);
@@ -108,6 +113,7 @@ class TailRecElim final : public FunctionPass {
       new_term.add_bb_arg(0, *call_iter);
     }
     new_term.add_bb_arg(0, fir::ValueR{add});
+    new_term.add_bb_arg(0, fir::ValueR{ctx->get_constant_value(1, bool_type)});
 
     bb->get_terminator().destroy();
 
@@ -120,8 +126,16 @@ class TailRecElim final : public FunctionPass {
         }
         fir::Builder b{term};
         auto new_add = b.insert_copy(add);
+        fmt::println("{}", new_add);
         new_add.replace_arg(accum_rec_arg_id, term->args[0]);
-        term.replace_arg(0, fir::ValueR{new_add});
+        // since we do not dominate this block potentially we need to add a
+        // select
+        //  to only choose the add version if we went trhough our loop
+        //  otherwise the default return
+        auto select = b.build_select(new_add.get_type(),
+                                     fir::ValueR{has_entered_loop_cond},
+                                     fir::ValueR{new_add}, term->args[0]);
+        term.replace_arg(0, fir::ValueR{select});
       }
     }
     // should only have 1 use which is the add, this must be true otherwise we
