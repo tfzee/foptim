@@ -13,6 +13,8 @@ public:
     this->generation = crtp.generation;
 #endif
   }
+  consteval TypeR()
+      : utils::SRef<AnyType>(utils::SRef<AnyType>::invalid()) {}
 };
 
 using FunctionTypeR = TypeR;
