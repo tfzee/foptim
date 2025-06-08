@@ -2,10 +2,10 @@
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
-#include "utils/stable_vec_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
+#include "utils/stable_vec_ref.hpp"
 
 namespace foptim::fir {
 
@@ -289,14 +289,15 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
     return fmt::format_to(app, "INVALID");
   }
 
-  if (instr->has_result()) {
-    app = fmt::format_to(app, "{:p}: {} = ",
-                         fmt::styled((void *)instr.get_raw_ptr(), color_value),
-                         instr->get_type());
-  } else {
-    app = fmt::format_to(
-        app, "{:p} = ", fmt::styled((void *)instr.get_raw_ptr(), color_value));
-  }
+  // if (instr->has_result()) {
+  app = fmt::format_to(
+      app, "{:p}: {} = ", fmt::styled((void *)instr.get_raw_ptr(), color_value),
+      instr->get_type());
+  // } else {
+  //   app = fmt::format_to(
+  //       app, "{:p} = ", fmt::styled((void *)instr.get_raw_ptr(),
+  //       color_value));
+  // }
   // else if (!instr->get_type()->is_void()) {
   //   app = fmt::format_to(app, "{} ", instr->get_type());
   // }
