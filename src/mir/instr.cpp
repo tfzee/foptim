@@ -876,6 +876,36 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
           ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
     default:
     }
+  } else if (get_size(value.ty) > 8) {
+    switch (value.c_reg()) {
+    case CReg::mm0:
+    case CReg::mm1:
+    case CReg::mm2:
+    case CReg::mm3:
+    case CReg::mm4:
+    case CReg::mm5:
+    case CReg::mm6:
+    case CReg::mm7:
+    case CReg::mm8:
+    case CReg::mm9:
+    case CReg::mm10:
+    case CReg::mm11:
+    case CReg::mm12:
+    case CReg::mm13:
+    case CReg::mm14:
+    case CReg::mm15: {
+      auto size = get_size(value.ty);
+      const auto *size_name = size == 16   ? "x"
+                              : size == 32 ? "y"
+                              : size == 64 ? "z"
+                                           : "?";
+      return fmt::format_to(
+          app, col_vec, "${}mm{}", size_name,
+          ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
+    }
+    default:
+      TODO("URNEACH");
+    }
   } else {
     TODO("unrach?");
   }
