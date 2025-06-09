@@ -138,26 +138,49 @@ enum class Type : u16 {
   Float64 = 6,
 
   // NOTE: ORDER matters then vec smallest to biggest
-  Int32x4 = 7,
+  // xmm
+  Int32x4,
+  Int64x2,
+  Float32x4,
+  Float64x2,
+  // ymm
+  Int32x8,
+  Int64x4,
+  Float32x8,
+  Float64x4,
 };
 
 /*Returns the size in bytes of the given type*/
 static constexpr u32 get_size(fmir::Type type) {
   switch (type) {
-  case fmir::Type::Float32:
+  case Type::Float32:
     return 4;
-  case fmir::Type::Float64:
+  case Type::Float64:
     return 8;
-  case fmir::Type::Int8:
+  case Type::Int8:
     return 1;
-  case fmir::Type::Int16:
+  case Type::Int16:
     return 2;
-  case fmir::Type::Int32:
+  case Type::Int32:
     return 4;
-  case fmir::Type::Int64:
+  case Type::Int64:
     return 8;
   case Type::Int32x4:
     return 4 * 4;
+  case Type::Int64x2:
+    return 8 * 2;
+  case Type::Float32x4:
+    return 4 * 4;
+  case Type::Float64x2:
+    return 8 * 2;
+  case Type::Int32x8:
+    return 2 * 8;
+  case Type::Int64x4:
+    return 8 * 4;
+  case Type::Float32x8:
+    return 4 * 8;
+  case Type::Float64x4:
+    return 8 * 4;
   case fmir::Type::INVALID:
     TODO("INVALID TYPE");
   }

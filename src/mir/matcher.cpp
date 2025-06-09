@@ -243,6 +243,12 @@ Type convert_type(fir::TypeR type) {
       fmt::println("{}", type);
       ASSERT(false);
     case fir::VectorType::SubType::Floating:
+      if (d.bitwidth == 64 && d.member_number == 2) {
+        return Type::Float64x2;
+      }
+      if (d.bitwidth == 64 && d.member_number == 4) {
+        return Type::Float64x4;
+      }
       fmt::println("{}", type);
       ASSERT(false);
     }

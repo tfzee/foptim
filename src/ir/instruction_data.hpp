@@ -184,6 +184,7 @@ public:
    * result*/
   [[nodiscard]] bool is_commutative() const;
   [[nodiscard]] bool pot_modifies_mem() const;
+  [[nodiscard]] bool pot_reads_mem() const;
   [[nodiscard]] bool has_pot_sideeffects() const;
 
   [[nodiscard]] constexpr const char *get_name() const {

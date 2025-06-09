@@ -65,7 +65,14 @@ class SLPVectorizer final : public FunctionPass {
         auto [sdata, sbase] = get_store_data(instr);
         if (curr.base == sbase) {
           curr.data.push_back(sdata);
+        } else {
+          // TODO: could do aliasing check here
+          //  only if they alias we need to stop
+          break;
         }
+      } else if (instr->pot_modifies_mem() || instr->pot_reads_mem()) {
+        // TODO if it writes we could use aliasing to still apply this
+        break;
       }
     }
     if (curr.data.size() > 1) {
@@ -91,16 +98,16 @@ class SLPVectorizer final : public FunctionPass {
     if (n_stor != 2 && n_stor != 4 && n_stor != 8 && n_stor != 16) {
       return false;
     }
-    if (bundle.type->get_size() == 1 && n_stor != 16) {
+    if (bundle.type->get_size() == 1 && n_stor % 16 != 0) {
       return false;
     }
-    if (bundle.type->get_size() == 2 && n_stor != 8) {
+    if (bundle.type->get_size() == 2 && n_stor % 8 != 0) {
       return false;
     }
-    if (bundle.type->get_size() == 4 && n_stor != 4) {
+    if (bundle.type->get_size() == 4 && n_stor % 4 != 0) {
       return false;
     }
-    if (bundle.type->get_size() == 8 && n_stor != 2) {
+    if (bundle.type->get_size() == 8 && n_stor % 2 != 0) {
       return false;
     }
 

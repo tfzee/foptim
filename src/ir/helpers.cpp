@@ -39,6 +39,19 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val) {
   switch (val->ty) {
   case ConstantType::PoisonValue:
     return;
+  case ConstantType::FloatValue:
+    switch (val->type->as_float()) {
+    case 32:
+      *((f32 *)output) = (f32)val->float_u.v.data;
+      return;
+    case 64:
+      *((f64 *)output) = (f64)val->float_u.v.data;
+      return;
+    default:
+      fmt::println("{}", val);
+      TODO("okakf");
+    }
+    break;
   case ConstantType::IntValue:
     switch (val->type->as_int()) {
     case 8:
@@ -68,7 +81,6 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val) {
     }
     return;
   }
-  case ConstantType::FloatValue:
   case ConstantType::GlobalPtr:
   case ConstantType::FuncPtr:
   case ConstantType::NullPtr:
@@ -76,7 +88,7 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val) {
     break;
   }
   fmt::println("{}", val);
-  TODO("okaka");
+  TODO("okaku");
 }
 
 } // namespace foptim::fir

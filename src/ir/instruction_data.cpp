@@ -295,6 +295,48 @@ bool InstrData::pot_modifies_mem() const {
     return false;
   }
 }
+
+bool InstrData::pot_reads_mem() const {
+  switch (instr_type) {
+  case InstrType::CallInstr:
+    if (args[0].is_constant() && args[0].as_constant()->is_func()) {
+      auto f = args[0].as_constant()->as_func();
+      return !f->mem_read_none;
+    }
+    return true;
+  case InstrType::Intrinsic:
+    switch ((IntrinsicSubType)subtype) {
+    case IntrinsicSubType::INVALID:
+    case IntrinsicSubType::CTLZ:
+      return false;
+    case IntrinsicSubType::VA_start:
+    case IntrinsicSubType::VA_end:
+      return true;
+    }
+  case InstrType::LoadInstr:
+    return true;
+  case InstrType::StoreInstr:
+  case InstrType::InsertValue:
+  case InstrType::ExtractValue:
+  case InstrType::AllocaInstr:
+  case InstrType::BranchInstr:
+  case InstrType::SwitchInstr:
+  case InstrType::CondBranchInstr:
+  case InstrType::SelectInstr:
+  case InstrType::ReturnInstr:
+  case InstrType::Unreachable:
+  case InstrType::BinaryInstr:
+  case InstrType::UnaryInstr:
+  case InstrType::ICmp:
+  case InstrType::FCmp:
+  case InstrType::SExt:
+  case InstrType::ZExt:
+  case InstrType::ITrunc:
+  case InstrType::Conversion:
+    return false;
+  }
+}
+
 bool InstrData::has_pot_sideeffects() const {
   switch (instr_type) {
   case InstrType::CallInstr:
