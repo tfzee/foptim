@@ -119,9 +119,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
       Mem2Reg, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering, DCE,
-      GarbageCollect, SimplifyCFG, TailRecElim, LICM, LoopRotate, DCE, LVN,
-      SCCP, InstSimplify, DCE, SimplifyCFG, StackKnownBits, Mem2Reg,
-      SimplifyCFG, DCE, InstSimplify, ConstLoopEval, InstSimplify,
+      GarbageCollect, SimplifyCFG, TailRecElim, LICM, LoopRotate, DCE,
+      SLPVectorizer, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, StackKnownBits,
+      Mem2Reg, SimplifyCFG, DCE, InstSimplify, ConstLoopEval, InstSimplify,
       SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
@@ -261,6 +261,9 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  // for (const auto &f : funcs) {
+  //   fmt::println("{}", f);
+  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

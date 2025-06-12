@@ -30,7 +30,7 @@ class LegalizeVecs final : public FunctionPass {
             foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
         memset(global->init_value, 0, actual_size);
 
-        convert_constant_init(global->init_value, constant);
+        convert_constant_init(global->init_value, constant, global);
 
         fir::Builder bb{instr};
         auto load_val = bb.build_load(
@@ -43,8 +43,9 @@ class LegalizeVecs final : public FunctionPass {
 public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     for (auto bb : func.basic_blocks) {
-      for (auto instr : bb->instructions) {
-        legalize(ctx, instr);
+      for (size_t instr_id = 0; instr_id < bb->instructions.size();
+           instr_id++) {
+        legalize(ctx, bb->instructions[instr_id]);
       }
     }
   }

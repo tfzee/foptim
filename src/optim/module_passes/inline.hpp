@@ -11,10 +11,10 @@ class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
 
-  static constexpr bool debug_print = true;
+  static constexpr bool debug_print = false;
 
 public:
-  bool should_be_inlined(const fir::Instr instr) {
+  [[nodiscard]] bool should_be_inlined(const fir::Instr instr) {
     if (_should_be_inlined(instr)) {
       auto v = instr->get_arg(0).as_constant()->as_func();
       n_inlined_calls += 1;
@@ -24,7 +24,7 @@ public:
     return false;
   }
 
-  bool _should_be_inlined(const fir::Instr instr) {
+  [[nodiscard]] bool _should_be_inlined(const fir::Instr instr) const {
     auto called_func = instr->get_arg(0);
     if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
       return false;

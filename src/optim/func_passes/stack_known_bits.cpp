@@ -5,6 +5,7 @@
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
 #include <deque>
+#include <fmt/core.h>
 #include <llvm/ADT/STLExtras.h>
 #include <map>
 #include <unistd.h>
@@ -179,8 +180,14 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
   // we dont know what we write so just reset the bits accordingly
   if (result == StackOffsetResult::KnownLocal) {
     auto size = instr->get_type()->get_size() * 8;
-    new_in_one.set(offset * 8, size, 0);
-    new_in_zero.set(offset * 8, size, 0);
+    // TOOD: impl
+    if (size > 64) {
+      new_in_one.reset(0);
+      new_in_zero.reset(0);
+    } else {
+      new_in_one.set(offset * 8, size, 0);
+      new_in_zero.set(offset * 8, size, 0);
+    }
   }
   if (result == StackOffsetResult::UnknownLocal) {
     new_in_one.reset(false);
@@ -420,8 +427,8 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
         failure({"Failed cause of dynamic alloca", instr});
         return;
       }
-      cache.insert(
-          {fir::ValueR{instr}, {StackOffsetResult::KnownLocal, stack_size / 8}});
+      cache.insert({fir::ValueR{instr},
+                    {StackOffsetResult::KnownLocal, stack_size / 8}});
       stack_size += a1.as_constant()->as_int() * 8;
     }
   }

@@ -51,8 +51,8 @@ endif()
 
 
 link_libraries(fmt)
-# add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
-# add_link_options(-fsanitize=thread -fPIE -pie)
+# add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer)
+# add_link_options(-fsanitize=undefined -fPIE -pie)
 
 add_library (foptim OBJECT
                 #loading
@@ -80,6 +80,7 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/loop_analysis.cpp
                 ./src/optim/analysis/cfg.cpp
                 ./src/optim/func_passes/mem2reg.cpp
+                ./src/optim/func_passes/slp_vectorizer.cpp
                 ./src/optim/func_passes/pre.cpp
                 ./src/optim/func_passes/simplify_cfg.cpp
                 ./src/optim/func_passes/intrin_simplify.cpp
