@@ -29,7 +29,7 @@ enum class Opcode : u32 {
   udiv,
   smul3,
 
-  //vector instructions
+  // vector instructions
   vadd,
   vsub,
   fmul,
@@ -40,6 +40,7 @@ enum class Opcode : u32 {
   fxor,
   fAnd,
   fOr,
+  vpshuf,
 
   // bit manipulation
   lzcnt,
@@ -577,6 +578,9 @@ public:
 
   [[nodiscard]] constexpr bool is_fp() const {
     return ty == Type::Float32 || ty == Type::Float64;
+  }
+  [[nodiscard]] constexpr bool is_vec_reg() const {
+    return ty >= Type::Float32;
   }
 };
 

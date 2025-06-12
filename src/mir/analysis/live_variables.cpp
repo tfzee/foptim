@@ -84,6 +84,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::ffmadd132:
   case Opcode::ffmadd231:
   case Opcode::ffmadd213:
+  case Opcode::vpshuf:
   case Opcode::fxor:
   case Opcode::fAnd:
   case Opcode::fOr:
@@ -247,6 +248,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::smul3:
   case Opcode::vadd:
   case Opcode::vsub:
+  case Opcode::vpshuf:
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::fxor:

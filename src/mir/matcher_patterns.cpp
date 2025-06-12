@@ -1017,6 +1017,8 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto ZExtNode = Node{NodeType::Instr, InstrType::ZExt, 0};
   auto ITruncNode = Node{NodeType::Instr, InstrType::ITrunc, 0};
   auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, 0};
+  auto BroadcastNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                            (u32)fir::VectorISubType::Broadcast};
 
   pats.push_back(
       Pattern{{AllocaNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
@@ -1155,6 +1157,49 @@ void base_patterns(IRVec<Pattern> &pats) {
                 res.result.emplace_back(Opcode::neg1, res_reg);
                 return true;
               }});
+  pats.push_back(Pattern{
+      {BroadcastNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto broad_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
+        auto arg = valueToArg(broad_instr->args[0], res.result, data.alloc);
+        if (arg.isImm() && ((!arg.is_fp() && arg.imm == 0) ||
+                            (arg.is_fp() && arg.immf == 0))) {
+          res.result.emplace_back(Opcode::fxor, res_reg, res_reg, res_reg);
+          return true;
+        }
+        // TODO: better to use if we know that its the n lowest bits that are
+        // set pcmpeqd       xmm0, xmm0 psrld xmm0, 32-n
+
+        auto res_reg_smoll = res_reg;
+        bool can_pshuf = false;
+        switch (res_reg.ty) {
+        case Type::INVALID:
+        case Type::Int32x4:
+        case Type::Int32x8:
+        case Type::Float32x8:
+        case Type::Float32x4:
+          can_pshuf = true;
+          res_reg_smoll.ty = Type::Float32;
+          res_reg_smoll.reg.ty = Type::Float32;
+          break;
+        case Type::Int64x2:
+        case Type::Int64x4:
+        case Type::Float64x2:
+        case Type::Float64x4:
+          res_reg_smoll.ty = Type::Float64;
+          res_reg_smoll.reg.ty = Type::Float64;
+          break;
+        default:
+          TODO("UNREACH");
+        }
+        if (can_pshuf) {
+          res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
+          res.result.emplace_back(Opcode::vpshuf, res_reg, res_reg,
+                                  MArgument((u8)0));
+        }
+        return true;
+      }});
   pats.push_back(Pattern{
       {IntSubNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto sub_instr = res.matched_instrs[0];

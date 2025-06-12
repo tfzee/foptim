@@ -503,10 +503,11 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     bool input_isfloat32 = input_is_fp_reg && instr.args[1].reg.size() == 4;
     bool input_is_vec =
         input_is_fp_reg && instr.args[1].ty > fmir::Type::Float64;
-
     req.mnemonic = ZYDIS_MNEMONIC_MOV;
 
-    if (input_is_vec || target_is_vec) {
+    if ((input_is_vec && target_is_vec) ||
+        (target_is_vec && instr.args[1].isMem()) ||
+        (input_is_vec && instr.args[0].isMem())) {
       auto arg_index = input_is_vec ? 1 : 0;
       switch (instr.args[arg_index].ty) {
         // TODO: aligned??
@@ -614,6 +615,33 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       return emit(out_buff, off, &req);
     }
     req.mnemonic = ZYDIS_MNEMONIC_PUSH;
+    return emit(out_buff, 0, &req);
+  }
+  case fmir::Opcode::vpshuf: {
+    assert(req.operand_count == 3);
+    ASSERT(instr.args[0].isReg());
+    switch (instr.args[0].ty) {
+    case fmir::Type::INVALID:
+      TODO("UNREACH");
+    case fmir::Type::Int32x4:
+    case fmir::Type::Float32x4:
+    case fmir::Type::Int32x8:
+    case fmir::Type::Float32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VPSHUFD;
+      break;
+    case fmir::Type::Int8:
+    case fmir::Type::Int16:
+    case fmir::Type::Int32:
+    case fmir::Type::Int64:
+    case fmir::Type::Float32:
+    case fmir::Type::Float64:
+    case fmir::Type::Int64x2:
+    case fmir::Type::Float64x2:
+    case fmir::Type::Int64x4:
+    case fmir::Type::Float64x4:
+      TODO("UNREACH");
+      break;
+    }
     return emit(out_buff, 0, &req);
   }
   case fmir::Opcode::pop:
