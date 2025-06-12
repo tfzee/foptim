@@ -55,8 +55,8 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(lxor2);
     ReturnString(not1);
     ReturnString(neg1);
-    ReturnString(fadd);
-    ReturnString(fsub);
+    ReturnString(vadd);
+    ReturnString(vsub);
     ReturnString(fmul);
     ReturnString(lzcnt);
     ReturnString(ffmadd132);
@@ -128,8 +128,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::sub2:
   case Opcode::mul2:
   case Opcode::smul3:
-  case Opcode::fadd:
-  case Opcode::fsub:
+  case Opcode::vadd:
+  case Opcode::vsub:
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::ffmadd132:
@@ -291,8 +291,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     out.push_back({1, instr.args[1]});
     return;
   case Opcode::smul3:
-  case Opcode::fadd:
-  case Opcode::fsub:
+  case Opcode::vadd:
+  case Opcode::vsub:
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::fxor:
@@ -366,8 +366,8 @@ bool MInstr::is_control_flow(Opcode c) {
   case Opcode::idiv:
   case Opcode::udiv:
   case Opcode::smul3:
-  case Opcode::fadd:
-  case Opcode::fsub:
+  case Opcode::vadd:
+  case Opcode::vsub:
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::ffmadd132:
@@ -536,9 +536,9 @@ fmt::formatter<foptim::fmir::MInstr>::format(foptim::fmir::MInstr const &v,
       return fmt::format_to(app, "clear {}", v.args[0]);
     }
     return fmt::format_to(app, "{} ^= {}", v.args[0], v.args[1]);
-  case foptim::fmir::Opcode::fsub:
+  case foptim::fmir::Opcode::vsub:
     return fmt::format_to(app, "{} = {} - {}", v.args[0], v.args[1], v.args[2]);
-  case foptim::fmir::Opcode::fadd:
+  case foptim::fmir::Opcode::vadd:
     return fmt::format_to(app, "{} = {} + {}", v.args[0], v.args[1], v.args[2]);
   case foptim::fmir::Opcode::fmul:
     return fmt::format_to(app, "{} = {} * {}", v.args[0], v.args[1], v.args[2]);

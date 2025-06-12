@@ -5,6 +5,7 @@ namespace foptim::fir {
 
 class BasicBlock;
 class ConstantValueR;
+struct Global;
 
 enum class Linkage {
   Internal,
@@ -31,6 +32,6 @@ terminator
 BasicBlock insert_bb_between(BasicBlock from, BasicBlock to);
 // BasicBlock split_block(BasicBlock a);
 
-void convert_constant_init(u8 *output, ConstantValueR val);
+void convert_constant_init(u8 *output, ConstantValueR val, Global glob);
 
 } // namespace foptim::fir

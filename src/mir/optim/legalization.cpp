@@ -565,9 +565,9 @@ void Legalizer::apply(MFunc &func) {
         break;
       case Opcode::fmul:
       case Opcode::fdiv:
-      case Opcode::fsub:
+      case Opcode::vsub:
       case Opcode::fxor:
-      case Opcode::fadd:
+      case Opcode::vadd:
       case Opcode::fAnd:
       case Opcode::fOr:
         if (legalize_floating_binary_ops(bb, i)) {

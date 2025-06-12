@@ -512,8 +512,12 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
         // TODO: aligned??
       case fmir::Type::Float32x4:
       case fmir::Type::Int32x4:
+      case fmir::Type::Float32x8:
+      case fmir::Type::Int32x8:
         req.mnemonic = ZYDIS_MNEMONIC_MOVUPS;
         break;
+      case fmir::Type::Int64x2:
+      case fmir::Type::Float64x2:
       case fmir::Type::Int64x4:
       case fmir::Type::Float64x4:
         req.mnemonic = ZYDIS_MNEMONIC_VMOVUPD;
@@ -793,22 +797,87 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.mnemonic = ZYDIS_MNEMONIC_NEG;
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
-  case fmir::Opcode::fadd:
-    req.mnemonic = instr.args[0].ty == fmir::Type::Float32
-                       ? ZYDIS_MNEMONIC_VADDSS
-                       : ZYDIS_MNEMONIC_VADDSD;
+  case fmir::Opcode::vadd:
+    switch (instr.args[0].ty) {
+    default:
+      TODO("UNREACH");
+    case fmir::Type::Float32:
+      req.mnemonic = ZYDIS_MNEMONIC_VADDSS;
+      break;
+    case fmir::Type::Float64:
+      req.mnemonic = ZYDIS_MNEMONIC_VADDSD;
+      break;
+    case fmir::Type::Float32x4:
+    case fmir::Type::Float32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VADDPS;
+      break;
+    case fmir::Type::Float64x4:
+    case fmir::Type::Float64x2:
+      req.mnemonic = ZYDIS_MNEMONIC_VADDPD;
+      break;
+    case fmir::Type::Int32x4:
+    case fmir::Type::Int32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VPADDD;
+      break;
+    case fmir::Type::Int64x2:
+    case fmir::Type::Int64x4:
+      req.mnemonic = ZYDIS_MNEMONIC_VPADDQ;
+      break;
+    }
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
-  case fmir::Opcode::fsub:
-    req.mnemonic = instr.args[0].ty == fmir::Type::Float32
-                       ? ZYDIS_MNEMONIC_VSUBSS
-                       : ZYDIS_MNEMONIC_VSUBSD;
+  case fmir::Opcode::vsub:
+    switch (instr.args[0].ty) {
+    default:
+      TODO("UNREACH");
+    case fmir::Type::Float32:
+      req.mnemonic = ZYDIS_MNEMONIC_VSUBSS;
+      break;
+    case fmir::Type::Float64:
+      req.mnemonic = ZYDIS_MNEMONIC_VSUBSD;
+      break;
+    case fmir::Type::Float32x4:
+    case fmir::Type::Float32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VSUBPS;
+      break;
+    case fmir::Type::Float64x4:
+    case fmir::Type::Float64x2:
+      req.mnemonic = ZYDIS_MNEMONIC_VSUBPD;
+      break;
+    case fmir::Type::Int32x4:
+      req.mnemonic = ZYDIS_MNEMONIC_PSUBD;
+      break;
+    case fmir::Type::Int32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VPSUBD;
+      break;
+    case fmir::Type::Int64x2:
+      req.mnemonic = ZYDIS_MNEMONIC_PSUBQ;
+      break;
+    case fmir::Type::Int64x4:
+      req.mnemonic = ZYDIS_MNEMONIC_VPSUBQ;
+      break;
+    }
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::fmul:
-    req.mnemonic = instr.args[0].ty == fmir::Type::Float32
-                       ? ZYDIS_MNEMONIC_VMULSS
-                       : ZYDIS_MNEMONIC_VMULSD;
+    switch (instr.args[0].ty) {
+    default:
+      TODO("UNREACH");
+    case fmir::Type::Float32:
+      req.mnemonic = ZYDIS_MNEMONIC_VMULSS;
+      break;
+    case fmir::Type::Float64:
+      req.mnemonic = ZYDIS_MNEMONIC_VMULSD;
+      break;
+    case fmir::Type::Float32x4:
+    case fmir::Type::Float32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VMULPS;
+      break;
+    case fmir::Type::Float64x4:
+    case fmir::Type::Float64x2:
+      req.mnemonic = ZYDIS_MNEMONIC_VMULPD;
+      break;
+    }
     ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
     return length;
   case fmir::Opcode::fdiv:

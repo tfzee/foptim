@@ -286,7 +286,7 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
                                            format_context &ctx) const {
   auto app = ctx.out();
   if (!instr.is_valid()) {
-    return fmt::format_to(app, "INVALID");
+    return fmt::format_to(app, "INVALID\n");
   }
 
   // if (instr->has_result()) {

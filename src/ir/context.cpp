@@ -150,7 +150,11 @@ TypeR ContextData::get_vec_type(fir::TypeR elem_ty, u16 n_lanes) {
   } else if (elem_ty->is_float()) {
     elemy = VectorType::SubType::Floating;
     width = elem_ty->as_float();
+  } else if (elem_ty->is_ptr()) {
+    elemy = VectorType::SubType::Integer;
+    width = 64;
   } else {
+    fmt::println("{}", elem_ty);
     TODO("INVALID?");
   }
 

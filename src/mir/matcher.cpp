@@ -240,9 +240,24 @@ Type convert_type(fir::TypeR type) {
       if (d.bitwidth == 32 && d.member_number == 4) {
         return Type::Int32x4;
       }
+      if (d.bitwidth == 32 && d.member_number == 8) {
+        return Type::Int32x8;
+      }
+      if (d.bitwidth == 64 && d.member_number == 2) {
+        return Type::Int64x2;
+      }
+      if (d.bitwidth == 64 && d.member_number == 4) {
+        return Type::Int64x4;
+      }
       fmt::println("{}", type);
       ASSERT(false);
     case fir::VectorType::SubType::Floating:
+      if (d.bitwidth == 32 && d.member_number == 4) {
+        return Type::Float32x4;
+      }
+      if (d.bitwidth == 32 && d.member_number == 8) {
+        return Type::Float32x8;
+      }
       if (d.bitwidth == 64 && d.member_number == 2) {
         return Type::Float64x2;
       }

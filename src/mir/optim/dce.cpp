@@ -21,8 +21,8 @@ bool is_applicable(Opcode op) {
   case Opcode::add2:
   case Opcode::sub2:
   case Opcode::mul2:
-  case Opcode::fadd:
-  case Opcode::fsub:
+  case Opcode::vadd:
+  case Opcode::vsub:
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::ffmadd132:

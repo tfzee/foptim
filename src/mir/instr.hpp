@@ -28,8 +28,10 @@ enum class Opcode : u32 {
   idiv,
   udiv,
   smul3,
-  fadd,
-  fsub,
+
+  //vector instructions
+  vadd,
+  vsub,
   fmul,
   fdiv,
   ffmadd132,

@@ -2,6 +2,7 @@
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/global.hpp"
 
 namespace foptim::fir {
 BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {
@@ -34,7 +35,7 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {
   return edge_bb;
 }
 
-void convert_constant_init(u8 *output, fir::ConstantValueR val) {
+void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
   (void)output;
   switch (val->ty) {
   case ConstantType::PoisonValue:
@@ -52,6 +53,9 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val) {
       TODO("okakf");
     }
     break;
+  case ConstantType::NullPtr:
+    *((u64 *)output) = 0;
+    return;
   case ConstantType::IntValue:
     switch (val->type->as_int()) {
     case 8:
@@ -76,14 +80,22 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val) {
     auto width = typee.bitwidth;
     size_t i = 0;
     for (auto m : val->vec_u.v.members) {
-      convert_constant_init(output + (width + 7) / 8 * i, m);
+      convert_constant_init(output + (width + 7) / 8 * i, m, glob);
       i++;
     }
     return;
   }
-  case ConstantType::GlobalPtr:
-  case ConstantType::FuncPtr:
-  case ConstantType::NullPtr:
+  case ConstantType::GlobalPtr: {
+    glob->reloc_info.push_back(GlobalData::RelocationInfo{
+        (size_t)output - (size_t)glob->init_value, val, 0});
+    return;
+  }
+  case ConstantType::FuncPtr: {
+    glob->reloc_info.push_back(GlobalData::RelocationInfo{
+        (size_t)output - (size_t)glob->init_value, val, 0});
+    return;
+    return;
+  }
   case ConstantType::ConstantStruct:
     break;
   }

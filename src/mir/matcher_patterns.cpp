@@ -140,7 +140,12 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto add_instr = res.matched_instrs[1];
         auto load_instr = res.matched_instrs[2];
         auto load_ty = convert_type(load_instr.get_type());
-        auto add_ty_size = get_size(convert_type(add_instr.get_type()));
+        auto add_ty = convert_type(add_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
+        auto add_ty_size = get_size(add_ty);
         if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
           return false;
         }
@@ -194,7 +199,12 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto add_instr = res.matched_instrs[1];
         auto store_instr = res.matched_instrs[2];
         auto store_ty = convert_type(store_instr.get_type());
-        auto add_ty_size = get_size(convert_type(add_instr.get_type()));
+        auto add_ty = convert_type(add_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
+        auto add_ty_size = get_size(add_ty);
         if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
           return false;
         }
@@ -255,6 +265,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
         auto load_ty = convert_type(load_instr.get_type());
+        auto add_ty = convert_type(add_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
 
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
 
@@ -323,6 +338,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto add1_instr = res.matched_instrs[1];
         auto store_instr = res.matched_instrs[2];
 
+        auto add_ty = convert_type(add1_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
         auto store_ty = convert_type(store_instr.get_type());
         auto a00 = valueToArg(add0_instr->args[0], res.result, data.alloc);
         auto a01 = valueToArg(add0_instr->args[1], res.result, data.alloc);
@@ -353,6 +373,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
 
         // return false;
         auto add_instr = res.matched_instrs[0];
+        auto add_ty = convert_type(add_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
         auto store_instr = res.matched_instrs[1];
 
         auto store_ty = convert_type(store_instr.get_type());
@@ -629,6 +654,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
         // x + y * 1|2|4|8
         auto mul_instr = res.matched_instrs[0];
         auto add_instr = res.matched_instrs[1];
+        auto add_ty = convert_type(add_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
         auto res_ty = convert_type(add_instr.get_type());
         auto res_ty_size = get_size(res_ty);
         if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
@@ -687,6 +717,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
         // x + c + y
         auto add0_instr = res.matched_instrs[0];
         auto add1_instr = res.matched_instrs[1];
+        auto add_ty = convert_type(add1_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
         auto res_ty = convert_type(add1_instr.get_type());
         auto res_ty_size = get_size(res_ty);
         if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
@@ -892,7 +927,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
           // res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
           //                         mul_arg2);
           res.result.emplace_back(Opcode::fmul, res_reg, mul_arg1, mul_arg2);
-          res.result.emplace_back(Opcode::fadd, res_reg, res_reg, add_arg2);
+          res.result.emplace_back(Opcode::vadd, res_reg, res_reg, add_arg2);
         }
         return true;
       }});
@@ -1040,7 +1075,12 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
 
         auto res_ty = convert_type(add_instr.get_type());
-
+        if (res_ty >= Type::Float32) {
+          // int vector add has different 3 oeprand operation
+          auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
+          res.result.emplace_back(Opcode::vadd, res_reg, a0, a1);
+          return true;
+        }
         if (res_reg.ty != a0.ty) {
           auto res_reg = data.alloc.get_new_register(res_ty);
           auto helper_reg0 = MArgument(res_reg, res_ty);
@@ -1115,20 +1155,28 @@ void base_patterns(IRVec<Pattern> &pats) {
                 res.result.emplace_back(Opcode::neg1, res_reg);
                 return true;
               }});
-  pats.push_back(
-      Pattern{{IntSubNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
-                auto sub_instr = res.matched_instrs[0];
-                auto res_reg =
-                    valueToArg(fir::ValueR(sub_instr), res.result, data.alloc);
+  pats.push_back(Pattern{
+      {IntSubNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
+        auto sub_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(sub_instr), res.result, data.alloc);
+        auto res_ty = convert_type(sub_instr.get_type());
+        if (res_ty >= Type::Float32) {
+          // int vector add has different 3 oeprand operation
+          auto a0 = valueToArg(sub_instr->args[0], res.result, data.alloc);
+          auto a1 = valueToArg(sub_instr->args[1], res.result, data.alloc);
+          res.result.emplace_back(Opcode::vsub, res_reg, a0, a1);
+          return true;
+        }
 
-                res.result.emplace_back(
-                    Opcode::mov, res_reg,
-                    valueToArg(sub_instr->args[0], res.result, data.alloc));
-                res.result.emplace_back(
-                    Opcode::sub2, res_reg,
-                    valueToArg(sub_instr->args[1], res.result, data.alloc));
-                return true;
-              }});
+        res.result.emplace_back(
+            Opcode::mov, res_reg,
+            valueToArg(sub_instr->args[0], res.result, data.alloc));
+        res.result.emplace_back(
+            Opcode::sub2, res_reg,
+            valueToArg(sub_instr->args[1], res.result, data.alloc));
+        return true;
+      }});
   pats.push_back(Pattern{
       {ShlNode}, {}, [](MatchResult &res, ExtraMatchData &data) {
         auto shift_instr = res.matched_instrs[0];
@@ -1687,7 +1735,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::fadd, res_reg, a1, a2);
+        res.result.emplace_back(Opcode::vadd, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -1720,7 +1768,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::fsub, res_reg, a1, a2);
+        res.result.emplace_back(Opcode::vsub, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
