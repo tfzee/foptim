@@ -418,6 +418,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
       case fir::IntrinsicSubType::VA_start:
         break;
       }
+    case fir::InstrType::VectorInstr:
     case fir::InstrType::ICmp:
     case fir::InstrType::FCmp:
     case fir::InstrType::BinaryInstr:

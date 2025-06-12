@@ -64,6 +64,7 @@ class ConstLoopEval final : public FunctionPass {
         case fir::InstrType::Unreachable:
         case fir::InstrType::LoadInstr:
         case fir::InstrType::StoreInstr:
+        case fir::InstrType::VectorInstr:
           return false;
         case fir::InstrType::BinaryInstr:
         case fir::InstrType::ICmp:

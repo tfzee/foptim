@@ -65,6 +65,7 @@ public:
   ValueR build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty);
   ValueR build_float_cmp(ValueR a, ValueR b, FCmpInstrSubType ty);
   ValueR build_alloca(ValueR size);
+  ValueR build_vbroadcast(ValueR val, TypeR type);
   Instr build_branch(BasicBlock target_bb);
   Instr build_cond_branch(ValueR cond, BasicBlock true_bb, BasicBlock false_bb);
   Instr build_switch(ValueR value,

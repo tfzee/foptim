@@ -344,6 +344,16 @@ ValueR Builder::build_alloca(ValueR size) {
   return ValueR(instr);
 }
 
+ValueR Builder::build_vbroadcast(ValueR v, TypeR type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_vector(type, VectorISubType::Broadcast));
+  instr.add_arg(v);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 Instr Builder::build_branch(BasicBlock target_bb) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_branch(ctx));

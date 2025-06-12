@@ -121,6 +121,7 @@ bool InstrData::has_result() const {
   case InstrType::SExt:
   case InstrType::ZExt:
   case InstrType::Conversion:
+  case InstrType::VectorInstr:
     return true;
   case InstrType::CallInstr:
     return !this->get_type()->is_void();
@@ -160,6 +161,7 @@ bool InstrData::is_critical() const {
     case IntrinsicSubType::VA_end:
       return true;
     }
+  case InstrType::VectorInstr:
   case InstrType::InsertValue:
   case InstrType::ExtractValue:
   case InstrType::AllocaInstr:
@@ -249,6 +251,7 @@ bool InstrData::is_commutative() const {
   case InstrType::ITrunc:
   case InstrType::Conversion:
   case InstrType::InsertValue:
+  case InstrType::VectorInstr:
   case InstrType::ExtractValue:
     return false;
   }
@@ -292,6 +295,7 @@ bool InstrData::pot_modifies_mem() const {
   case InstrType::ZExt:
   case InstrType::ITrunc:
   case InstrType::Conversion:
+  case InstrType::VectorInstr:
     return false;
   }
 }
@@ -333,6 +337,7 @@ bool InstrData::pot_reads_mem() const {
   case InstrType::ZExt:
   case InstrType::ITrunc:
   case InstrType::Conversion:
+  case InstrType::VectorInstr:
     return false;
   }
 }
@@ -369,6 +374,7 @@ bool InstrData::has_pot_sideeffects() const {
   case InstrType::ZExt:
   case InstrType::ITrunc:
   case InstrType::Conversion:
+  case InstrType::VectorInstr:
     return false;
   }
 }
@@ -423,6 +429,13 @@ InstrData InstrData::get_smod(TypeR ty) {
 
 InstrData InstrData::get_intrinsic(TypeR ty, IntrinsicSubType sub_type) {
   auto res = InstrData{InstrType::Intrinsic, (u32)sub_type, ty,
+                       BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(2);
+  return res;
+}
+
+InstrData InstrData::get_vector(TypeR ty, VectorISubType sub_type) {
+  auto res = InstrData{InstrType::VectorInstr, (u32)sub_type, ty,
                        BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;

@@ -93,6 +93,9 @@ public:
   ConstantValue eval_instr(fir::Context &ctx, fir::Instr instr) {
 
     switch (instr->get_instr_type()) {
+    case fir::InstrType::VectorInstr: {
+      return ConstantValue::Top();
+    }
     case fir::InstrType::UnaryInstr: {
       auto a = eval(instr->get_arg(0));
 

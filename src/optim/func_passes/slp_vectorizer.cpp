@@ -1,6 +1,7 @@
 #include "slp_vectorizer.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "utils/arena.hpp"
@@ -11,6 +12,7 @@ namespace foptim::optim {
 class TreeElem {
 public:
   TVec<TreeElem *> children;
+  fir::Instr insert_loc;
 
   TreeElem() = default;
   virtual fir::ValueR generate(fir::Context & /*ctx*/) { TODO("UNREACH"); }
@@ -19,7 +21,6 @@ public:
 };
 
 class BinaryTreeOp final : public TreeElem {
-  fir::Instr insert_loc;
 
 public:
   void dump() final {
@@ -95,7 +96,6 @@ public:
 
 class StoreTreeOp final : public TreeElem {
   fir::Instr store_loc;
-  fir::Instr insert_loc;
 
 public:
   void dump() final {
@@ -136,7 +136,8 @@ public:
     fmt::print(">");
   }
 
-  ConstantTreeOp *init(const TVec<fir::ValueR> &values) {
+  ConstantTreeOp *init(const TVec<fir::ValueR> &values, TreeElem *parent) {
+    insert_loc = parent->insert_loc;
     my_values = values;
     return this;
   }
@@ -158,10 +159,22 @@ public:
   fir::ValueR generate(fir::Context &ctx) final {
     auto n_elems = my_values.size();
     IRVec<fir::ConstantValueR> args;
+
     for (size_t i = 0; i < n_elems; i++) {
       args.push_back(my_values[i].as_constant());
     }
+    bool all_equal = true;
+    for (size_t i = 1; i < args.size(); i++) {
+      if (args[i] != args[0]) {
+        all_equal = false;
+        break;
+      }
+    }
     auto vec_ty = ctx->get_vec_type(args.at(0)->get_type(), n_elems);
+    if (all_equal) {
+      fir::Builder b{insert_loc};
+      return fir::ValueR{b.build_vbroadcast(fir::ValueR{args[0]}, vec_ty)};
+    }
     auto constant_data = ctx->get_constant_value(std::move(args), vec_ty);
     return fir::ValueR{constant_data};
   }
@@ -169,7 +182,6 @@ public:
 
 class LoadTreeOp final : public TreeElem {
   fir::Instr base_load;
-  fir::Instr insert_loc;
   u16 n_lanes = 0;
 
 public:
@@ -314,6 +326,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
       case fir::InstrType::SwitchInstr:
       case fir::InstrType::Unreachable:
       case fir::InstrType::Intrinsic:
+      case fir::InstrType::VectorInstr:
         fmt::println("Failed tree vectorize at something like {}",
                      curr.back().as_instr());
         return false;
@@ -331,7 +344,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
     if (test_i.is_constant()) {
       if (ConstantTreeOp::match(curr)) {
         auto *result = ConstAlloc{}.allocate(1);
-        (new (result) ConstantTreeOp)->init(curr);
+        (new (result) ConstantTreeOp)->init(curr, parent);
         parent->children.push_back(result);
         tree.push_back(result);
       } else {

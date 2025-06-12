@@ -13,11 +13,13 @@ enum class InstrType : u8 {
   FCmp,
   BinaryInstr,
   UnaryInstr,
-  AllocaInstr,
 
+  // Structs / Vectors
   ExtractValue,
   InsertValue,
+  VectorInstr,
 
+  // Conversions
   ITrunc,
   ZExt,
   SExt,
@@ -26,7 +28,6 @@ enum class InstrType : u8 {
   SelectInstr,
 
   CallInstr,
-
   // Terminators
   ReturnInstr,
   BranchInstr,
@@ -35,6 +36,7 @@ enum class InstrType : u8 {
   Unreachable,
 
   // Memory
+  AllocaInstr,
   LoadInstr,
   StoreInstr,
 
@@ -57,6 +59,12 @@ struct BBRefWithArgs {
     }
     return true;
   }
+};
+
+enum class VectorISubType : u32 {
+  INVALID = 0,
+  Broadcast,
+  Shuffle,
 };
 
 enum class IntrinsicSubType : u32 {
@@ -189,6 +197,15 @@ public:
 
   [[nodiscard]] constexpr const char *get_name() const {
     switch (instr_type) {
+    case InstrType::VectorInstr:
+      switch ((VectorISubType)subtype) {
+      case VectorISubType::INVALID:
+        return "VECTORINSTR_INVALID";
+      case VectorISubType::Broadcast:
+        return "V.Broadcast";
+      case VectorISubType::Shuffle:
+        return "V.Shuffle";
+      }
     case InstrType::Intrinsic:
       switch ((IntrinsicSubType)subtype) {
       case IntrinsicSubType::INVALID:
@@ -408,6 +425,7 @@ public:
   static InstrData get_insert_value(TypeR ty);
   static InstrData get_smod(TypeR ty);
   static InstrData get_intrinsic(TypeR ty, IntrinsicSubType sub_type);
+  static InstrData get_vector(TypeR ty, VectorISubType sub_type);
   static InstrData get_add(TypeR ty);
   static InstrData get_sub(TypeR ty);
   static InstrData get_mul(TypeR ty);
