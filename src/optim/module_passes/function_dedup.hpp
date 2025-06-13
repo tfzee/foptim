@@ -157,9 +157,9 @@ inline bool is_function_applicable(const fir::Function *f) {
       f->get_entry()->n_args() > 4) {
     return false;
   }
-  if (f->linkage == fir::Linkage::Weak ||
-      f->linkage == fir::Linkage::WeakODR ||
-      f->linkage == fir::Linkage::LinkOnce) {
+  if (f->linkage == fir::Linkage::Weak || f->linkage == fir::Linkage::WeakODR ||
+      f->linkage == fir::Linkage::LinkOnce ||
+      f->linkage == fir::Linkage::External) {
     return false;
   }
   return true;
