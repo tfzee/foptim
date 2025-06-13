@@ -12,6 +12,7 @@ class LVN final : public FunctionPass {
 public:
   static bool applicable(fir::Instr instr) {
     return !instr->is(fir::InstrType::LoadInstr) &&
+           !instr->is(fir::InstrType::StoreInstr) &&
            !instr->is(fir::InstrType::AllocaInstr) &&
            !instr->is(fir::InstrType::CallInstr);
   }
