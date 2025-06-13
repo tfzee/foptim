@@ -217,9 +217,23 @@ private:
       auto &b = store_bundles[bi - 1];
       {
         auto n_stor = b.data.size();
-        if (n_stor != 2 && n_stor != 4 && n_stor != 8 && n_stor != 16) {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
-          continue;
+        if (n_stor != 2 && n_stor != 4 && n_stor != 8 && n_stor != 16 &&
+            n_stor != 32) {
+          // just cut it off 4head
+          if (n_stor > 32) {
+            b.data.resize(32);
+          } else if (n_stor > 16) {
+            b.data.resize(16);
+          } else if (n_stor > 8) {
+            b.data.resize(8);
+          } else if (n_stor > 4) {
+            b.data.resize(4);
+          } else if (n_stor > 2) {
+            b.data.resize(2);
+          } else {
+            store_bundles.erase(store_bundles.begin() + bi - 1);
+            continue;
+          }
         }
         if (b.type->get_size() == 1 && n_stor % 16 != 0) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
@@ -340,8 +354,7 @@ public:
       find_successive_storeloads(bb, store_bundles, load_bundles);
     }
 
-    for (auto bi = store_bundles.size(); bi > 0; bi--) {
-      auto &b = store_bundles[bi - 1];
+    for (auto &b : store_bundles) {
       bool already_used = false;
       for (const auto &data : b.data) {
         if (!data.instr.is_valid()) {
