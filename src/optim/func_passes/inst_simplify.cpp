@@ -405,6 +405,15 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
     }
   }
   if (c_val->is_int() &&
+      instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
+    if (c_val->as_int() == 0) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[v_idx]);
+      instr.destroy();
+      return;
+    }
+  }
+  if (c_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
     if (c_val->as_int() == 0) {
       push_all_uses(worklist, instr);
@@ -1175,6 +1184,15 @@ static void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
   // itrunc
   // = +-* on smaller bitwidth
   // since lea doesnt like 1byte value we skip those for now
+  if (instr->args[0].get_type() == instr.get_type()) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(instr->args[0]);
+    instr.destroy();
+    return;
+  }
+  if (instr->args[0].is_constant()) {
+    TODO("impl itrunc constant propagate");
+  }
   if (instr->args[0].is_instr() && instr.get_type()->get_size() > 1) {
     auto inner_math = instr->args[0].as_instr();
     if (!inner_math->is(fir::InstrType::BinaryInstr)) {
