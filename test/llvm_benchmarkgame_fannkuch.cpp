@@ -4,7 +4,7 @@
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 
-// XFAIL: *
+// CHECK: Pfannkuchen(11) = 51 Result:0
 
 #include <cstdio>
 #include <cstdlib>
