@@ -42,6 +42,7 @@ enum class Opcode : u32 {
   fOr,
   vpshuf,
   punpckl,
+  vbroadcast,
 
   // bit manipulation
   lzcnt,

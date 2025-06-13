@@ -53,6 +53,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(land2);
     ReturnString(lor2);
     ReturnString(punpckl);
+    ReturnString(vbroadcast);
     ReturnString(lxor2);
     ReturnString(not1);
     ReturnString(neg1);
@@ -134,6 +135,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::vsub:
   case Opcode::vpshuf:
   case Opcode::punpckl:
+  case Opcode::vbroadcast:
   case Opcode::fmul:
   case Opcode::fdiv:
   case Opcode::ffmadd132:
@@ -298,6 +300,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::vadd:
   case Opcode::vsub:
   case Opcode::punpckl:
+  case Opcode::vbroadcast:
   case Opcode::vpshuf:
   case Opcode::fmul:
   case Opcode::fdiv:
@@ -361,6 +364,7 @@ bool MInstr::is_control_flow(Opcode c) {
   case Opcode::shl2:
   case Opcode::shr2:
   case Opcode::punpckl:
+  case Opcode::vbroadcast:
   case Opcode::vpshuf:
   case Opcode::sar2:
   case Opcode::land2:

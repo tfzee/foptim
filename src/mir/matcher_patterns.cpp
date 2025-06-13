@@ -1173,7 +1173,8 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         auto res_reg_smoll = res_reg;
         bool can_pshuf = false;
-        bool can_punpcklqdq = false;
+        bool can_punpckl = false;
+        bool can_vbroadcast = false;
         switch (res_reg.ty) {
         case Type::INVALID:
         case Type::Int32x4:
@@ -1185,10 +1186,14 @@ void base_patterns(IRVec<Pattern> &pats) {
           res_reg_smoll.reg.ty = Type::Float32;
           break;
         case Type::Int64x2:
-        case Type::Int64x4:
         case Type::Float64x2:
+          can_punpckl = true;
+          res_reg_smoll.ty = Type::Float64;
+          res_reg_smoll.reg.ty = Type::Float64;
+          break;
+        case Type::Int64x4:
         case Type::Float64x4:
-          can_punpcklqdq = true;
+          can_vbroadcast = true;
           res_reg_smoll.ty = Type::Float64;
           res_reg_smoll.reg.ty = Type::Float64;
           break;
@@ -1201,9 +1206,14 @@ void base_patterns(IRVec<Pattern> &pats) {
                                   MArgument((u8)0));
           return true;
         }
-        if (can_punpcklqdq) {
+        if (can_punpckl) {
           res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
           res.result.emplace_back(Opcode::punpckl, res_reg, res_reg, res_reg);
+          return true;
+        }
+        if (can_vbroadcast) {
+          res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
+          res.result.emplace_back(Opcode::vbroadcast, res_reg, res_reg, res_reg);
           return true;
         }
         TODO("IMPL broadcast");

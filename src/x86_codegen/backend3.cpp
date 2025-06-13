@@ -617,6 +617,33 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.mnemonic = ZYDIS_MNEMONIC_PUSH;
     return emit(out_buff, 0, &req);
   }
+  case fmir::Opcode::vbroadcast: {
+    assert(req.operand_count == 2);
+    ASSERT(instr.args[0].isReg());
+    switch (instr.args[0].ty) {
+    case fmir::Type::INVALID:
+    case fmir::Type::Int8:
+    case fmir::Type::Int16:
+    case fmir::Type::Int32:
+    case fmir::Type::Int64:
+    case fmir::Type::Float32:
+    case fmir::Type::Float64:
+      TODO("UNREACH");
+    case fmir::Type::Int32x4:
+    case fmir::Type::Float32x4:
+    case fmir::Type::Int32x8:
+    case fmir::Type::Float32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VBROADCASTSS;
+      break;
+    case fmir::Type::Int64x2:
+    case fmir::Type::Float64x2:
+    case fmir::Type::Int64x4:
+    case fmir::Type::Float64x4:
+      req.mnemonic = ZYDIS_MNEMONIC_VBROADCASTSD;
+      break;
+    }
+    return emit(out_buff, 0, &req);
+  }
   case fmir::Opcode::punpckl: {
     assert(req.operand_count == 3);
     ASSERT(instr.args[0].isReg());
@@ -1271,6 +1298,9 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
       req.operands[1].imm.u = 0xFF;
       return emit(out_buff, off, &req);
+    } else {
+      fmt::println("implit {}", instr);
+      TODO("UNREACH");
     }
   case fmir::Opcode::shl2:
     req.mnemonic = ZYDIS_MNEMONIC_SHL;
