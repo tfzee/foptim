@@ -1173,6 +1173,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         auto res_reg_smoll = res_reg;
         bool can_pshuf = false;
+        bool can_punpcklqdq = false;
         switch (res_reg.ty) {
         case Type::INVALID:
         case Type::Int32x4:
@@ -1187,6 +1188,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         case Type::Int64x4:
         case Type::Float64x2:
         case Type::Float64x4:
+          can_punpcklqdq = true;
           res_reg_smoll.ty = Type::Float64;
           res_reg_smoll.reg.ty = Type::Float64;
           break;
@@ -1197,8 +1199,15 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
           res.result.emplace_back(Opcode::vpshuf, res_reg, res_reg,
                                   MArgument((u8)0));
+          return true;
         }
-        return true;
+        if (can_punpcklqdq) {
+          res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
+          res.result.emplace_back(Opcode::punpckl, res_reg, res_reg, res_reg);
+          return true;
+        }
+        TODO("IMPL broadcast");
+        return false;
       }});
   pats.push_back(Pattern{
       {IntSubNode}, {}, [](MatchResult &res, ExtraMatchData &data) {

@@ -20,8 +20,42 @@ public:
   virtual ~TreeElem() = default;
 };
 
-class BinaryTreeOp final : public TreeElem {
+class BroadcastTreeOp final : public TreeElem {
+  fir::ValueR v;
 
+public:
+  void dump() final { fmt::print("BROAD({})", v); }
+
+  BroadcastTreeOp *init(const TVec<fir::ValueR> &values) {
+    if (values.back().is_bb_arg()) {
+      insert_loc = values.back().as_bb_arg()->_parent->instructions[0];
+    } else {
+      insert_loc = values.back().as_instr();
+    }
+    v = values.back();
+    return this;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    auto base_v = values.back();
+    if (base_v.is_constant()) {
+      return false;
+    }
+    for (auto v : values) {
+      if (v != base_v) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  fir::ValueR generate(fir::Context & /*ctx*/) final {
+    fir::Builder bb{insert_loc};
+    return bb.build_vbroadcast(v, insert_loc->get_type());
+  }
+};
+
+class BinaryTreeOp final : public TreeElem {
 public:
   void dump() final {
     children.at(1)->dump();
@@ -235,6 +269,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
   using LoadAlloc = utils::TempAlloc<LoadTreeOp>;
   using BinaryAlloc = utils::TempAlloc<BinaryTreeOp>;
   using ConstAlloc = utils::TempAlloc<ConstantTreeOp>;
+  using BroadcastAlloc = utils::TempAlloc<BroadcastTreeOp>;
   TVec<TreeElem *> tree;
   TVec<std::pair<TreeElem *, TVec<fir::ValueR>>> worklist;
   {
@@ -250,6 +285,16 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
     worklist.pop_back();
     auto test_i = curr.back();
 
+    // if they are all the same it can just be a broadcast
+    if (BroadcastTreeOp::match(curr)) {
+      auto *result = BroadcastAlloc{}.allocate(1);
+      (new (result) BroadcastTreeOp)->init(curr);
+      ASSERT(parent != nullptr);
+      parent->children.push_back(result);
+      tree.push_back(result);
+      continue;
+    }
+
     if (test_i.is_instr()) {
       TreeElem *result;
       size_t n_args = 999999;
@@ -262,6 +307,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
           n_args = 2;
           ASSERT(parent == nullptr);
         } else {
+          fmt::println("Failed tree vectorize at store {}", curr[0]);
           return false;
         }
         break;
@@ -282,6 +328,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
               if (c == arg_0 && arg_id == 1 && test_i != c) {
                 auto t = test_i.as_instr()->args[1].get_type();
                 if (t->is_float()) {
+                  // TODO THis is only correct ofr addition
                   data.emplace_back(ctx->get_constant_value(0.F, t));
                 } else {
                   data.emplace_back(ctx->get_constant_value(0, t));
@@ -295,8 +342,10 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
             worklist.emplace_back(result, std::move(data));
           }
           continue;
+        } else {
+          fmt::println("Failed tree vectorize at binary {}", curr[0]);
+          return false;
         }
-        return false;
       case fir::InstrType::LoadInstr:
         if (LoadTreeOp::match(curr, load_bundles)) {
           auto *result_t = LoadAlloc{}.allocate(1);
@@ -305,6 +354,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
           n_args = 1;
           parent->children.push_back(result);
         } else {
+          fmt::println("Failed tree vectorize at load {}", curr[0]);
           return false;
         }
         break;

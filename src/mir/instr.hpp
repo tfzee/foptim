@@ -41,6 +41,7 @@ enum class Opcode : u32 {
   fAnd,
   fOr,
   vpshuf,
+  punpckl,
 
   // bit manipulation
   lzcnt,

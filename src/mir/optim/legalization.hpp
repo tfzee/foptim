@@ -16,6 +16,7 @@ class Legalizer {
   u32 move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty);
 
   // legalizing
+  bool legalize_punpckl(MBB &bb, u32 indx);
   bool legalize_icmp(MBB &bb, u32 indx);
   bool legalize_fcmp(MBB &bb, u32 indx);
   bool legalize_idiv(MBB &bb, u32 indx);

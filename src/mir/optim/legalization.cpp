@@ -22,10 +22,29 @@ u32 Legalizer::move_arg_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
 }
 
 u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
-  auto int_version = (ty == Type::Float64 || ty == Type::Int64) ? Type::Int64
-                     : (ty == Type::Float32 || ty == Type::Int32)
-                         ? Type::Int32
-                         : Type::INVALID;
+  Type int_version = Type::INVALID;
+  switch (ty) {
+  case Type::INVALID:
+  case Type::Int8:
+  case Type::Int16:
+  case Type::Int32:
+  case Type::Int64:
+    TODO("UNREACH");
+  case Type::Int32x4:
+  case Type::Float32x4:
+  case Type::Int32x8:
+  case Type::Float32x8:
+  case Type::Float32:
+    int_version = Type::Int32;
+    break;
+  case Type::Int64x2:
+  case Type::Float64x2:
+  case Type::Int64x4:
+  case Type::Float64x4:
+  case Type::Float64:
+    int_version = Type::Int64;
+    break;
+  }
   ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
   auto new_float_reg = get_reg(ty);
@@ -42,10 +61,29 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
 }
 
 u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
-  auto int_version = (ty == Type::Float64 || ty == Type::Int64) ? Type::Int64
-                     : (ty == Type::Float32 || ty == Type::Int32)
-                         ? Type::Int32
-                         : Type::INVALID;
+  Type int_version = Type::INVALID;
+  switch (ty) {
+  case Type::INVALID:
+  case Type::Int8:
+  case Type::Int16:
+  case Type::Int32:
+  case Type::Int64:
+    TODO("UNREACH");
+  case Type::Int32x4:
+  case Type::Float32x4:
+  case Type::Int32x8:
+  case Type::Float32x8:
+  case Type::Float32:
+    int_version = Type::Int32;
+    break;
+  case Type::Int64x2:
+  case Type::Float64x2:
+  case Type::Int64x4:
+  case Type::Float64x4:
+  case Type::Float64:
+    int_version = Type::Int64;
+    break;
+  }
   ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
   auto old_arg = bb.instrs[indx].args[arg_id];
@@ -410,6 +448,22 @@ bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
   return false;
 }
 
+bool Legalizer::legalize_punpckl(MBB &bb, u32 indx) {
+  {
+    // 2nd arg cant be a constant
+    MInstr &instr = bb.instrs[indx];
+    if (instr.args[2].isImm()) {
+      if (instr.args[2].ty >= Type::Float32) {
+        indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
+      } else {
+        indx = move_arg_to_reg(bb, indx, 2, instr.args[0].ty);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
   if (instr.op == Opcode::SI2FL && instr.args[1].isReg() &&
@@ -586,6 +640,11 @@ void Legalizer::apply(MFunc &func) {
         break;
       case Opcode::cmov:
         if (legalize_cmove(bb, i)) {
+          ioff = 0;
+        }
+        break;
+      case Opcode::punpckl:
+        if (legalize_punpckl(bb, i)) {
           ioff = 0;
         }
         break;
