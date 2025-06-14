@@ -70,8 +70,7 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     return foptim::fir::ValueR(fctx->get_constant_value(
         value.getZExtValue(), fctx->get_int_type(bitwidth)));
   }
-  if (const auto *ptr_null_constant =
-          llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
+  if (nullptr != llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
     return foptim::fir::ValueR(fctx->get_constant_null());
   }
   if (const auto *float_constant =
@@ -90,7 +89,7 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
           value.convertToDouble(), fctx->get_float_type(64)));
     }
   }
-  if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(value)) {
+  if (nullptr != llvm::dyn_cast_or_null<llvm::Function>(value)) {
     return foptim::fir::ValueR(fctx->get_constant_value(
         fctx->get_function(value->getName().str().c_str())));
   }
@@ -1424,8 +1423,10 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     if (const auto *gep = llvm::dyn_cast_or_null<llvm::GetElementPtrInst>(
             d->getAsInstruction())) {
       ASSERT(gep->getNumIndices() == 1);
-      ASSERT(gep->getSourceElementType()->isIntegerTy() &&
+      ASSERT(!gep->getSourceElementType()->isIntegerTy() ||
              gep->getSourceElementType()->getIntegerBitWidth() == 8);
+      ASSERT((gep->getSourceElementType()->isPointerTy() ||
+              gep->getSourceElementType()->isIntegerTy()));
 
       auto *const index = gep->indices().begin()->get();
       if (const auto *int_constant =
