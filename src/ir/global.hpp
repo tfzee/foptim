@@ -20,6 +20,9 @@ public:
 #endif
   }
 
+  consteval explicit Global()
+      : utils::SRef<std::unique_ptr<GlobalData>>(invalid()) {}
+
   GlobalData *operator*() { return get_raw_ptr()->get(); }
 
   constexpr GlobalData *operator->() {
@@ -38,6 +41,8 @@ struct GlobalData : public LockedUsed {
     // used as addent in relocation
     size_t reloc_offset = 0;
   };
+
+  bool verify();
 
   GlobalData(IRString name, size_t n_bytes)
       : name(std::move(name)), n_bytes(n_bytes), reloc_info({}) {}
@@ -61,41 +66,14 @@ template <>
 class fmt::formatter<foptim::fir::GlobalData>
     : public BaseIRFormatter<foptim::fir::GlobalData> {
 public:
-  appender format(foptim::fir::GlobalData const &v, format_context &ctx) const {
-    auto app = ctx.out();
-    if (v.is_constant) {
-      app =
-          fmt::format_to(app, "GLOBAL {} @ {} Bytes Link: ", v.name, v.n_bytes);
-    } else {
-      app = fmt::format_to(app, "CONSTANT {} @ {} Bytes Link: ", v.name,
-                           v.n_bytes);
-    }
-    switch (v.linkage) {
-    case foptim::fir::Linkage::Internal:
-      app = fmt::format_to(app, "internal");
-      break;
-    case foptim::fir::Linkage::External:
-      app = fmt::format_to(app, "external");
-      break;
-    case foptim::fir::Linkage::Weak:
-      app = fmt::format_to(app, "weak");
-      break;
-    case foptim::fir::Linkage::WeakODR:
-      app = fmt::format_to(app, "weakODR");
-      break;
-    case foptim::fir::Linkage::LinkOnce:
-      app = fmt::format_to(app, "linkonce");
-      break;
-    case foptim::fir::Linkage::LinkOnceODR:
-      app = fmt::format_to(app, "linkonceODR");
-      break;
-    }
-    if (debug) {
-      for (auto r : v.reloc_info) {
-        app =
-            fmt::format_to(app, " REF: {} {}", r.insert_offset, r.reloc_offset);
-      }
-    }
-    return app;
+  appender format(foptim::fir::GlobalData const &v, format_context &ctx) const; 
+};
+
+template <> struct std::hash<foptim::fir::Global> {
+  std::size_t operator()(const foptim::fir::Global &k) const {
+    using foptim::u32;
+    using std::hash;
+    return hash<
+        foptim::utils::SRef<std::unique_ptr<foptim::fir::GlobalData>>>()(k);
   }
 };

@@ -66,6 +66,7 @@ add_library (foptim OBJECT
                 ./src/ir/basic_block_arg.cpp
                 ./src/ir/instruction_data.cpp
                 ./src/ir/instruction.cpp
+                ./src/ir/global.cpp
                 ./src/ir/types.cpp
                 ./src/ir/value.cpp
                 ./src/ir/use.cpp
