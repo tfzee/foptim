@@ -16,7 +16,7 @@
           };
           nativeBuildInputs = with pkgs; [
             # IMPORTANT CLANG TOOLS AT START
-            clang-tools_18
+            llvmPackages_20.clang-tools
 
             #depend
             libllvm
@@ -29,7 +29,7 @@
             cmakeCurses
             cmake
             ninja
-            clang_18
+            llvmPackages_20.clang
 
             #for testing stuff
             graphviz
