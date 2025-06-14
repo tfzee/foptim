@@ -19,7 +19,7 @@ public:
 
   void apply_lvn(fir::BasicBlock bb) {
     for (size_t i = 0; i < bb->instructions.size(); i++) {
-      const auto instr = bb->instructions[i];
+      auto instr = bb->instructions[i];
       for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
         auto instr2 = bb->instructions[i2];
         (void)instr;
@@ -34,7 +34,7 @@ public:
 
         // if we store and afterwards load from teh same address
         //  and there is no other store that could interfere inbetween we can
-        //  replace the load
+        //  replace the load(TOOD: unless its volatile)
         if (instr->is(fir::InstrType::StoreInstr) &&
             instr2->is(fir::InstrType::LoadInstr) &&
             instr->get_arg(0) == instr2->get_arg(0) &&
@@ -51,6 +51,29 @@ public:
             // fmt::println("No Store between {} {}", instr, instr2);
             instr2->replace_all_uses(instr->get_arg(1));
             continue;
+          }
+        }
+
+        // if we store and afterwards store to the same address
+        //  and there is nobody loading that memory inbetween we can
+        //  delete the first store(TOOD: unless its volatile)
+        if (instr->is(fir::InstrType::StoreInstr) &&
+            instr2->is(fir::InstrType::StoreInstr) &&
+            instr->get_arg(0) == instr2->get_arg(0) &&
+            instr->get_type()->get_bitwidth() == instr2.get_type()->get_bitwidth()) {
+          bool pot_load_between = false;
+          for (size_t between_i = i + 1; between_i < i2; between_i++) {
+            auto binstr = bb->instructions[between_i];
+            if (binstr->pot_reads_mem()) {
+              pot_load_between = true;
+              break;
+            }
+          }
+          if (!pot_load_between) {
+            // fmt::println("No Store between {} {}", instr, instr2);
+            instr.destroy();
+            i--;
+            break;
           }
         }
       }
