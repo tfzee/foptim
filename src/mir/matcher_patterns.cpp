@@ -1213,7 +1213,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
         if (can_vbroadcast) {
           res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
-          res.result.emplace_back(Opcode::vbroadcast, res_reg, res_reg, res_reg);
+          res.result.emplace_back(Opcode::vbroadcast, res_reg, res_reg,
+                                  res_reg);
           return true;
         }
         TODO("IMPL broadcast");

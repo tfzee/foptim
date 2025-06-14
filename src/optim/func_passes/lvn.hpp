@@ -51,8 +51,6 @@ public:
             // fmt::println("No Store between {} {}", instr, instr2);
             instr2->replace_all_uses(instr->get_arg(1));
             continue;
-          } else {
-            failure({"StoreLoadElim Store inbetween ", {bb}});
           }
         }
       }
