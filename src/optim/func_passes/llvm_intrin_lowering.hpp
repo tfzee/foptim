@@ -27,20 +27,28 @@ public:
 
     fir::ValueR args[3] = {target_ptr, value, size};
     // TODO: impl optimizations
-    //  if (size.is_constant() && value.is_constant() &&
-    //      value.as_constant()->is_int() && size.as_constant()->as_int() < 8) {
-    //    auto out_size = size.as_constant()->as_int();
-    //    u8 constant = value.as_constant()->as_int();
-    //    u64 value = 0;
-    //    for (u8 i = 0; i < out_size; i++) {
-    //      value = (value << 8) | constant;
-    //    }
-    //    bb.build_store(target_ptr, fir::ValueR{ctx->get_constant_value(
-    //                                   value, ctx->get_int_type(8 *
-    //                                   out_size))});
-    //    instr.destroy();
-    //    return;
-    //  }
+    if (size.is_constant() && value.is_constant() &&
+        value.as_constant()->is_int()) {
+      auto out_size = size.as_constant()->as_int();
+      if (out_size <= 8) {
+        u8 constant = value.as_constant()->as_int();
+        u64 value = 0;
+        for (u8 i = 0; i < out_size; i++) {
+          value = (value << 8) | constant;
+        }
+        bb.build_store(target_ptr,
+                       fir::ValueR{ctx->get_constant_value(
+                           value, ctx->get_int_type(8 * out_size))});
+        instr.destroy();
+        return;
+      }
+      if (out_size % 8 == 0 && out_size <= 32) {
+        TODO("impl");
+      }
+      if (out_size % 4 == 0 && out_size <= 32) {
+        TODO("impl");
+      }
+    }
     bb.build_call(fir::ValueR(ctx->get_constant_value(
                       ctx->get_function("foptim.memset"))),
                   *func_ty, void_ty, args);
