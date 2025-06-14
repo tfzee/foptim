@@ -367,7 +367,7 @@ ConstantValueR ContextData::get_constant_value(u32 val, IntTypeR ty) {
 }
 
 ConstantValueR ContextData::get_constant_value(Global glob) {
-  static auto global_ptr_typee = storage.insert_type(AnyType::Ptr());
+  static auto global_ptr_typee = get_ptr_type();
 
   const auto constant = ConstantValue(glob, global_ptr_typee);
   auto maybeR = try_reuse_constant(constant);
