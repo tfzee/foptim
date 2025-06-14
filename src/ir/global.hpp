@@ -63,7 +63,13 @@ class fmt::formatter<foptim::fir::GlobalData>
 public:
   appender format(foptim::fir::GlobalData const &v, format_context &ctx) const {
     auto app = ctx.out();
-    app = fmt::format_to(app, "GLOBAL {} @ {} Bytes Link: ", v.name, v.n_bytes);
+    if (v.is_constant) {
+      app =
+          fmt::format_to(app, "GLOBAL {} @ {} Bytes Link: ", v.name, v.n_bytes);
+    } else {
+      app = fmt::format_to(app, "CONSTANT {} @ {} Bytes Link: ", v.name,
+                           v.n_bytes);
+    }
     switch (v.linkage) {
     case foptim::fir::Linkage::Internal:
       app = fmt::format_to(app, "internal");
