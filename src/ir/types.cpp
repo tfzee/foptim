@@ -34,6 +34,25 @@ u32 AnyType::get_size() const {
   }
 }
 
+u32 AnyType::get_bitwidth() const {
+  switch (ty) {
+  case AnyTypeType::Void:
+    return 0;
+  case AnyTypeType::Ptr:
+    return 8 * 8;
+  case AnyTypeType::Integer:
+    return int_u.v.bitwidth;
+  case AnyTypeType::Float:
+    return float_u.v.bitwidth;
+  case AnyTypeType::Function:
+    return func_u.v.get_bitwidth();
+  case AnyTypeType::Struct:
+    return struct_u.v.get_bitwidth();
+  case AnyTypeType::Vector:
+    return vec_u.v.bitwidth * vec_u.v.member_number;
+  }
+}
+
 u32 AnyType::get_align() const {
   switch (ty) {
   case AnyTypeType::Void:
@@ -159,6 +178,16 @@ u32 StructType::get_size() const {
     auto [off, ty] = elems.back();
     auto size = off + ty->get_size();
     auto align_off = size % get_align();
+    return size + align_off;
+  }
+  return 0;
+}
+
+u32 StructType::get_bitwidth() const {
+  if (elems.size() > 0) {
+    auto [off, ty] = elems.back();
+    auto size = off + ty->get_bitwidth();
+    auto align_off = (ty->get_size() % get_align()) * 8;
     return size + align_off;
   }
   return 0;

@@ -35,6 +35,7 @@ public:
   };
   IRVec<StructElem> elems;
   [[nodiscard]] u32 get_size() const;
+  [[nodiscard]] u32 get_bitwidth() const;
   [[nodiscard]] u32 get_align() const;
   [[nodiscard]] constexpr bool eql(const StructType &other) const {
     if (elems.size() != other.elems.size()) {
@@ -55,6 +56,7 @@ public:
   TypeR return_type;
   IRVec<TypeR> arg_types;
   [[nodiscard]] constexpr u32 get_size() const { return 8; }
+  [[nodiscard]] constexpr u32 get_bitwidth() const { return 8 * 8; }
   [[nodiscard]] constexpr u32 get_align() const { return 8; }
   [[nodiscard]] bool eql(const FunctionType &other) const;
 };
@@ -137,6 +139,7 @@ public:
 
   //@returns the size of this type in bytes
   [[nodiscard]] u32 get_size() const;
+  [[nodiscard]] u32 get_bitwidth() const;
   [[nodiscard]] u32 get_align() const;
   [[nodiscard]] bool eql(const AnyType &other) const;
 
