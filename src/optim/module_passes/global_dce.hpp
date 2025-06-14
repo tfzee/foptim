@@ -31,7 +31,7 @@ public:
         const auto *v = &slab_g[i];
         if (v->used == foptim::utils::SlotState::Used) {
           for (auto info : v->data->reloc_info) {
-            if (info.ref->is_float()) {
+            if (info.ref->is_func()) {
               func_global_reffed.insert(info.ref->as_func().func);
             }
           }
@@ -65,7 +65,6 @@ public:
         continue;
       }
 
-      // TODO: need to figure out if its reffed by a global object
       ctx.data->storage.functions.erase(name);
     }
   }
