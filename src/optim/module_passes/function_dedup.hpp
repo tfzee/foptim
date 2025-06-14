@@ -8,6 +8,8 @@
 #include "utils/arena.hpp"
 #include <fmt/core.h>
 
+#include <algorithm>
+
 namespace foptim::optim {
 
 struct DiffConst {
@@ -187,7 +189,6 @@ inline bool merge_functions(MergableGroup &group, fir::Context &ctx) {
                   std::to_string(func_size).c_str() + "_" +
                   std::to_string(diff_size).c_str();
   if (ctx->has_function(new_name.c_str())) {
-    ASSERT(false);
     return false;
   }
   auto &f1 = group.funcs.back();
@@ -372,7 +373,7 @@ public:
 
     // since functions could be in multiple groups we will sort them to first
     // merge the biggest groups
-    std::sort(groups.begin(), groups.end(), [](auto &a, auto &b) {
+    std::ranges::sort(groups, [](auto &a, auto &b) {
       auto a_size = a.funcs.size();
       auto b_size = b.funcs.size();
       if (a_size == b_size) {
@@ -383,9 +384,10 @@ public:
 
     while (!groups.empty()) {
       auto &curr = groups.back();
+      groups.pop_back();
       if (curr.funcs.size() > 1) {
-        fmt::println("Got group with size {} with {} diffs", curr.funcs.size(),
-                     curr.diffs.size());
+        // fmt::println("Got group with size {} with {} diffs", curr.funcs.size(),
+        //              curr.diffs.size());
         merge_functions(curr, ctx);
         // clena up from other groups by removing f2
         for (size_t g2_id = 0; g2_id + 1 < groups.size(); g2_id++) {
@@ -399,8 +401,17 @@ public:
             }
           }
         }
+
+        // after we did cleanup we should resort
+        std::ranges::sort(groups, [](auto &a, auto &b) {
+          auto a_size = a.funcs.size();
+          auto b_size = b.funcs.size();
+          if (a_size == b_size) {
+            return a.diffs.size() > b.diffs.size();
+          }
+          return a_size < b_size;
+        });
       }
-      groups.pop_back();
     }
   }
 };

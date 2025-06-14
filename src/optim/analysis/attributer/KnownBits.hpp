@@ -126,7 +126,20 @@ public:
       case fir::ConversionSubType::SITOFP:
         break;
       }
-
+    } else if (instr->is(fir::InstrType::UnaryInstr)) {
+      const auto *a =
+          m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+      switch ((fir::UnaryInstrSubType)instr->subtype) {
+      case fir::UnaryInstrSubType::INVALID:
+        TODO("UNREACH");
+      case fir::UnaryInstrSubType::FloatNeg:
+      case fir::UnaryInstrSubType::IntNeg:
+        break;
+      case fir::UnaryInstrSubType::Not:
+        new_known_one = ~a->known_one;
+        new_known_zero = ~a->known_zero;
+        break;
+      }
     } else if (instr->is(fir::InstrType::BinaryInstr)) {
       const auto *a =
           m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);

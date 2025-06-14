@@ -5,7 +5,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
-#include "optim/analysis/attributer/KnownStackBits.hpp"
+#include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 
 namespace foptim::optim {
