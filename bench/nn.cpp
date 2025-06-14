@@ -436,17 +436,19 @@ int main() {
 
   const double input[4][2] = {{0, 0}, {0, 1}, {1, 0}, {1, 1}};
   const double output[4] = {0, 1, 1, 0};
-  int i;
 
-  genann *ann = genann_init(2, 1, 2, 1);
+  for (int i = 0; i < 10; i++) {
+    srand(i);
+    genann *ann = genann_init(2, 1, 2, 1);
 
-  for (i = 0; i < 1000; ++i) {
-    genann_train(ann, input[0], output + 0, 2);
-    genann_train(ann, input[1], output + 1, 2);
-    genann_train(ann, input[2], output + 2, 2);
-    genann_train(ann, input[3], output + 3, 2);
+    for (int i = 0; i < 1000; ++i) {
+      genann_train(ann, input[0], output + 0, 2);
+      genann_train(ann, input[1], output + 1, 2);
+      genann_train(ann, input[2], output + 2, 2);
+      genann_train(ann, input[3], output + 3, 2);
+    }
+    print_out(ann);
+    genann_free(ann);
   }
-  print_out(ann);
-  genann_free(ann);
   return 0;
 }

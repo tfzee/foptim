@@ -1,12 +1,40 @@
-import os
+import os, platform, subprocess, re
+import json
+from datetime import datetime
 
 collect_compiletimes = False
 tests_to_record = []
-# tests_to_record = ["matmul.cpp", "prime_sieve.c", "fib.c", "mandelbrot.cpp", "lu_decomp.cpp"]
+# tests_to_record = ["fib.c", "matmul.cpp"]
+
+def line_prepender(filename, line):
+    with open(filename, 'r+') as f:
+        content = f.read()
+        f.seek(0, 0)
+        f.write(line.rstrip('\r\n') + '\n' + content)
+
+def get_processor_name():
+    if platform.system() == "Windows":
+        return platform.processor()
+    elif platform.system() == "Darwin":
+        os.environ['PATH'] = os.environ['PATH'] + os.pathsep + '/usr/sbin'
+        command ="sysctl -n machdep.cpu.brand_string"
+        return subprocess.check_output(command).strip()
+    elif platform.system() == "Linux":
+        command = "cat /proc/cpuinfo"
+        all_info = subprocess.check_output(command, shell=True).decode().strip()
+        for line in all_info.split("\n"):
+            if "model name" in line:
+                return re.sub( ".*model name.*:", "", line,1)
+    return ""
+
+
+
+res_dir = "../bench/Output/"
+perf_name = res_dir + datetime.today().strftime('%Y_%m_%d_%H_%M') + "_perf.json"
+comp_name = res_dir + datetime.today().strftime('%Y_%m_%d_%H_%M') + "_comp.json"
 
 if __name__ == "__main__":
     out_dir = "../build"
-    res_dir = "../bench/Output"
 
     benches = [benchy for benchy in os.listdir("../bench/") if(benchy.endswith(".c") or benchy.endswith(".cpp"))]
     if(len(tests_to_record) != 0):
@@ -16,7 +44,7 @@ if __name__ == "__main__":
     
    
     if collect_compiletimes:
-        compile_command = f"hyperfine -N --export-csv={res_dir}/compile.csv"
+        compile_command = f"hyperfine -N --export-json={comp_name}"
         for benchy in benches:
             clang_name = f"clang{'++' if benchy.endswith(".cpp") else ''}"
             clang_command = f"{clang_name} -mllvm -disable-llvm-optzns -03 {clang_options} ../bench/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
@@ -49,7 +77,7 @@ if __name__ == "__main__":
 
     # print(hyperfine_compile_command)
 
-    hyperfine_run_command = f"hyperfine -i -N --export-csv={res_dir}/perf.csv"
+    hyperfine_run_command = f"hyperfine -i -N --export-json={perf_name}"
     for benchy in benches:
         link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
         os.system(link_command)
@@ -69,15 +97,8 @@ if __name__ == "__main__":
 
     os.system(hyperfine_run_command)  
 
-    # for benchy in os.listdir("../bench/"):
-    #     if(benchy.endswith(".c") or benchy.endswith(".cpp")):
-    #         os.system(f"nasm {out_dir}/{benchy}.tmp.ss -felf64 -g -F dwarf && ld {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out")
-
-    #         name = ".".join(benchy.split(".")[:-1])
-    #         hyperfine_run_command += f" -n {name}_run"
-    #         hyperfine_run_command += f" \"{out_dir}/{benchy}.tmp.out\""
-
-    # os.system(hyperfine_run_command)  
-
-
-
+    with open(perf_name, "r") as read_data:
+        d = json.load(read_data)
+    d["processor"] = get_processor_name()
+    with open(perf_name, "w") as write_data:
+        json.dump(d, write_data, indent=4)
