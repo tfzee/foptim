@@ -876,14 +876,13 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     (void)evals_to_false;
     (void)evals_to_true;
 
-    // ASSERT(!evals_to_false || !evals_to_true);
-    // if (evals_to_true || evals_to_false) {
-    //   push_all_uses(worklist, instr);
-    //   instr->replace_all_uses(ValueR(ctx->get_constant_value(
-    //       evals_to_true ? 1 : 0, ctx->get_int_type(1))));
-    //   instr.destroy();
-    //   return;
-    // }
+    if (evals_to_true || evals_to_false) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(ValueR(ctx->get_constant_value(
+          evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+      instr.destroy();
+      return;
+    }
   }
 
   // if first is not a constant we could get still a
@@ -1191,6 +1190,20 @@ static void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     return;
   }
   if (instr->args[0].is_constant()) {
+    auto v = instr->args[0].as_constant()->as_int();
+
+    auto old_bitwidth = instr->args[0].get_type()->as_int();
+    auto new_bitwidth = instr.get_type()->as_int();
+    ASSERT(new_bitwidth < old_bitwidth);
+
+    auto mask = (1 << new_bitwidth) - 1;
+    auto truncated_v = v & mask;
+
+    auto new_v = ctx->get_constant_value(truncated_v, instr->get_type());
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(fir::ValueR{new_v});
+    instr.destroy();
+    return;
     TODO("impl itrunc constant propagate");
   }
   if (instr->args[0].is_instr() && instr.get_type()->get_size() > 1) {
@@ -1405,7 +1418,7 @@ static void simplify_load(fir::Instr instr, fir::BasicBlock bb,
     if (arg0_const->is_global() && arg0_const->as_global()->is_constant) {
       // TOOD: can fix this i guess
       auto glob = arg0_const->as_global();
-      if (glob->reloc_info.empty()) {
+      if (!glob->reloc_info.empty()) {
         fmt::println("HIT");
         TODO("okak implement global constant loading");
         // push_all_uses(worklist, instr);
@@ -1413,6 +1426,28 @@ static void simplify_load(fir::Instr instr, fir::BasicBlock bb,
         //     fir::ValueR{ctx->get_poisson_value(instr->get_type())});
         // instr.destroy();
         // return;
+      }
+    }
+  }
+  // handle constant global + offset
+  if (instr->args[0].is_instr()) {
+    auto arg_instr = instr->args[0].as_instr();
+    if (arg_instr->is(fir::InstrType::BinaryInstr) &&
+        arg_instr->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
+        arg_instr->args[0].is_constant() && arg_instr->args[1].is_constant()) {
+      auto base_global = arg_instr->args[0].as_constant();
+      auto offset = arg_instr->args[1].as_constant();
+      if (base_global->is_global() && offset->is_int()) {
+        auto offset_v = offset->as_int();
+        auto global_v = base_global->as_global();
+        for (auto reloc : global_v->reloc_info) {
+          if (reloc.insert_offset == offset_v) {
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(fir::ValueR{reloc.ref});
+            instr.destroy();
+            return;
+          }
+        }
       }
     }
   }
