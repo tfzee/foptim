@@ -11,6 +11,11 @@ namespace foptim::fir {
 
 void Instr::destroy() {
   ASSERT(is_valid());
+  this->clear_args();
+  for (size_t bb_id = 0; bb_id < (*this)->bbs.size(); bb_id++) {
+    this->clear_bb_args(bb_id);
+  }
+  this->clear_bbs();
   remove_from_parent();
   _invalidate();
 }
