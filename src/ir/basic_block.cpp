@@ -8,16 +8,16 @@ namespace foptim::fir {
 // Also handles a bunch of cleanup stuff
 void BasicBlockData::remove_instr(size_t indx, bool delete_instr) {
   if (delete_instr) {
-    instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
     instructions[indx]->remove_all_usages();
     instructions[indx].clear_args();
     instructions[indx].clear_bbs();
+    instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
     instructions[indx]._invalidate();
   } else {
-    instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
     instructions[indx]->remove_all_usages();
     instructions[indx].clear_args();
     instructions[indx].clear_bbs();
+    instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
   }
   instructions.erase(instructions.begin() + (i64)indx);
 }
