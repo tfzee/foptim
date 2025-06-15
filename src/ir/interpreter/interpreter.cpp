@@ -69,6 +69,15 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
     st.set_value(ValueR(instr),
                  ConstantValue{v1->as_int() - v2->as_int(), instr.get_type()});
     break;
+  case BinaryInstrSubType::FloatAdd:
+    if (instr.get_type()->as_float() == 32) {
+      st.set_value(ValueR(instr), ConstantValue{v1->as_f32() + v2->as_f32(),
+                                                instr.get_type()});
+    } else {
+      st.set_value(ValueR(instr), ConstantValue{v1->as_f64() + v2->as_f64(),
+                                                instr.get_type()});
+    }
+    break;
   case BinaryInstrSubType::IntSRem:
   case BinaryInstrSubType::IntSDiv:
   case BinaryInstrSubType::IntUDiv:
