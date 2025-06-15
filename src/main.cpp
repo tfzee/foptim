@@ -258,21 +258,12 @@ void optimize_mir(foptim::fir::Context &ctx,
   // foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  for (const auto &f : funcs) {
-    fmt::println("{}", f);
-  }
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  for (const auto &f : funcs) {
-    fmt::println("{}", f);
-  }
   foptim::fmir::InstSimplify{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  for (const auto &f : funcs) {
-    fmt::println("{}", f);
-  }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

@@ -62,6 +62,13 @@ struct Loc {
     }
     return instr_indx < other.instr_indx;
   }
+
+  [[nodiscard]] constexpr bool operator<=(const Loc &other) const {
+    if (bb_indx != other.bb_indx) {
+      return bb_indx <= other.bb_indx;
+    }
+    return instr_indx <= other.instr_indx;
+  }
 };
 
 struct LinearRange {

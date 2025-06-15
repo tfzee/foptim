@@ -180,16 +180,16 @@ static void save_locals(IRVec<MInstr> &instrs,
         continue;
       }
     }
-    if (!is_alive(VReg{reg_ty}, lives, end, end, bb_id) || reg_ty == CReg::SP ||
-        reg_ty == CReg::BP) {
+    if (!is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id) ||
+        reg_ty == CReg::SP || reg_ty == CReg::BP) {
       continue;
     }
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
   }
   if (call.n_args == 2 && !return_value_overwrites_ret_reg) {
-    const auto reg_ty = call.args[1].is_fp() ? CReg::mm0 : CReg::A;
-    if (is_alive(VReg{reg_ty}, lives, end, end, bb_id)) {
+    const auto reg_ty = call.args[1].is_vec_reg() ? CReg::mm0 : CReg::A;
+    if (is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id)) {
       auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
       instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
     }
@@ -217,9 +217,9 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
 
     if (!return_value_overwrites_ret_reg) {
       bool a_gets_overwritten =
-          (!is_float && is_alive(VReg{CReg::A}, lives, end, end, bb_id));
+          (!is_float && is_alive(VReg{CReg::A}, lives, end, end + 1, bb_id));
       bool mm0_gets_overwritten =
-          (is_float && is_alive(VReg{CReg::mm0}, lives, end, end, bb_id));
+          (is_float && is_alive(VReg{CReg::mm0}, lives, end, end + 1, bb_id));
       if (a_gets_overwritten || mm0_gets_overwritten) {
         auto arg = MArgument{VReg{ret_reg_type, Type::Int64}, Type::Int64};
         instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
@@ -236,8 +236,8 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
   for (auto reg_ty : caller_saved) {
     bool skip_a = reg_ty == CReg::A && can_skip_a;
     bool skip_mm0 = reg_ty == CReg::mm0 && can_skip_mm0;
-    if (!is_alive(VReg{reg_ty}, lives, end, end, bb_id) || skip_a || skip_mm0 ||
-        reg_ty == CReg::SP || reg_ty == CReg::BP) {
+    if (!is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id) || skip_a ||
+        skip_mm0 || reg_ty == CReg::SP || reg_ty == CReg::BP) {
       continue;
     }
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
