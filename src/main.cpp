@@ -33,6 +33,7 @@
 #include "optim/func_passes/tail_rec_elim.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_passes/IPCP.hpp"
+#include "optim/module_passes/arg_promotion.hpp"
 #include "optim/module_passes/function_dedup.hpp"
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/inline.hpp"
@@ -124,7 +125,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       Mem2Reg, SimplifyCFG, DCE, InstSimplify, ConstLoopEval, InstSimplify,
       SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, ArgPromotion,
+                                         GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, SLPVectorizer, GarbageCollect, LVN,
@@ -151,12 +153,13 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   fmt::print("================FIR END====================\n");
 }
 
-void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
+static void
+reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
   (void)reordered_funcs;
-  std::sort(reordered_funcs.begin(), reordered_funcs.end(),
-            [](foptim::fir::Function *a, foptim::fir::Function *b) {
-              return a->get_n_uses() < b->get_n_uses();
-            });
+  std::ranges::sort(reordered_funcs,
+                    [](foptim::fir::Function *a, foptim::fir::Function *b) {
+                      return a->get_n_uses() < b->get_n_uses();
+                    });
 }
 
 void lower_to_mir(foptim::fir::Context &ctx,
@@ -209,7 +212,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
   for (auto *func : reordered_funcs) {
-    fmt::println("{:d}", *func);
+    fmt::println("{}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
@@ -255,15 +258,21 @@ void optimize_mir(foptim::fir::Context &ctx,
   // foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::RegAlloc{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  for (const auto &f : funcs) {
+    fmt::println("{}", f);
+  }
   foptim::fmir::CallingConv{}.second_stage(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  for (const auto &f : funcs) {
+    fmt::println("{}", f);
+  }
   foptim::fmir::InstSimplify{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
-  // for (const auto &f : funcs) {
-  //   fmt::println("{}", f);
-  // }
+  for (const auto &f : funcs) {
+    fmt::println("{}", f);
+  }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
