@@ -928,6 +928,14 @@ static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
+    if (c1->is_poison() || c2->is_poison()) {
+      auto new_const_value =
+          ctx->get_poisson_value(ctx->get_int_type(8));
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(ValueR(new_const_value));
+      instr.destroy();
+      return;
+    }
     ASSERT(c1->is_float());
     const auto v1 = c1->as_float();
     const auto v2 = c2->as_float();
@@ -1060,13 +1068,19 @@ static void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
                                  fir::Context & /*ctx*/,
                                  WorkList & /*worklist*/) {
   if (instr->args[0].is_constant()) {
+    auto c = instr->args[0].as_constant();
     fir::Builder b(bb);
     b.at_end(bb);
 
-    auto v1 = instr->args[0].as_constant()->as_int();
     auto *target = &instr->bbs[0];
-    if (v1 == 0) {
-      target = &instr->bbs[1];
+
+    if (c->is_poison()) {
+      // TODO: Could also pplace some unreach??
+    } else {
+      auto v1 = c->as_int();
+      if (v1 == 0) {
+        target = &instr->bbs[1];
+      }
     }
 
     auto new_branch = b.build_branch(target->bb);
@@ -1190,7 +1204,15 @@ static void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     return;
   }
   if (instr->args[0].is_constant()) {
-    auto v = instr->args[0].as_constant()->as_int();
+    auto c = instr->args[0].as_constant();
+    if (c->is_poison()) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+      instr.destroy();
+      return;
+    }
+    auto v = c->as_int();
 
     auto old_bitwidth = instr->args[0].get_type()->as_int();
     auto new_bitwidth = instr.get_type()->as_int();

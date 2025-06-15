@@ -175,6 +175,27 @@ struct MergableGroup {
   TVec<fir::Function *> funcs;
 };
 
+// select a fitting type based on the value types + potential constriants by the
+// instruction
+inline fir::TypeR select_type(TVec<fir::TypeR> tys, fir::Instr instr,
+                              u32 /*arg_id*/) {
+  fir::TypeR biggest_type = tys[0];
+  u32 biggest_width = tys[0]->get_bitwidth();
+  for (auto ty : tys) {
+    if (ty->get_bitwidth() > biggest_width) {
+      biggest_width = biggest_type->get_bitwidth();
+      biggest_type = ty;
+    }
+  }
+  if ((instr->is(fir::InstrType::UnaryInstr) ||
+       instr->is(fir::InstrType::BinaryInstr)) &&
+      biggest_width < instr.get_type()->get_bitwidth()) {
+    return instr.get_type();
+  }
+
+  return biggest_type;
+}
+
 // merge the functions into a new function
 //  this new function taking in arguments for the difference values
 // NOTE: difference values are assumed to be constants only!
@@ -199,13 +220,22 @@ inline bool merge_functions(MergableGroup &group, fir::Context &ctx) {
   TVec<fir::TypeR> new_types;
   new_types.reserve(group.diffs.size());
 
+  TVec<fir::TypeR> all_the_types;
   for (auto diff : group.diffs) {
-    auto typee = f1->basic_blocks[diff.bb_id]
-                     ->instructions[diff.instr_id]
-                     ->args[diff.arg_id]
-                     .get_type();
-    new_arg_ty.push_back(typee);
-    new_types.push_back(typee);
+    all_the_types.clear();
+    for (auto *f : group.funcs) {
+      auto typee = f->basic_blocks[diff.bb_id]
+                       ->instructions[diff.instr_id]
+                       ->args[diff.arg_id]
+                       .get_type();
+      all_the_types.push_back(typee);
+    }
+    auto res_type = select_type(
+        all_the_types,
+        f1->basic_blocks[diff.bb_id]->instructions[diff.instr_id], diff.arg_id);
+
+    new_arg_ty.push_back(res_type);
+    new_types.push_back(res_type);
   }
 
   auto new_type =
@@ -386,7 +416,8 @@ public:
       auto &curr = groups.back();
       groups.pop_back();
       if (curr.funcs.size() > 1) {
-        // fmt::println("Got group with size {} with {} diffs", curr.funcs.size(),
+        // fmt::println("Got group with size {} with {} diffs",
+        // curr.funcs.size(),
         //              curr.diffs.size());
         merge_functions(curr, ctx);
         // clena up from other groups by removing f2

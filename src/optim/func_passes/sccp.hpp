@@ -380,6 +380,10 @@ public:
       if (a.is_top()) {
         return ConstantValue::Top();
       }
+      if (a.value->is_poison()) {
+        return ConstantValue::Constant(
+            ctx->get_poisson_value(instr->get_type()));
+      }
       return ConstantValue::Constant(
           ctx->get_constant_value(a.value->as_int(), instr->get_type()));
     }
@@ -413,6 +417,10 @@ public:
       }
       if (!a.is_const() || !b.is_const()) {
         return ConstantValue::Top();
+      }
+      if (!a.value->is_poison() || !b.value->is_poison()) {
+        return ConstantValue::Constant(
+            ctx->get_poisson_value(instr->get_type()));
       }
       const auto res_type = ctx->get_int_type(1);
 
