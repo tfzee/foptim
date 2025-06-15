@@ -596,7 +596,8 @@ public:
 
 class MInstr {
 public:
-  bool has_bb_ref;
+  bool has_bb_ref : 1;
+  bool is_var_arg_call : 1 = false;
   u8 n_args;
   Opcode op;
   u32 bb_ref;

@@ -562,6 +562,11 @@ fmt::formatter<foptim::fmir::MInstr>::format(foptim::fmir::MInstr const &v,
       app = fmt::format_to(app, "{}, ", v.args[arg_indx]);
     }
     app = fmt::format_to(app, ")");
+    if ((v.op == foptim::fmir::Opcode::call ||
+         v.op == foptim::fmir::Opcode::invoke) &&
+        v.is_var_arg_call) {
+      app = fmt::format_to(app, "  VARARG");
+    }
     if (v.has_bb_ref) {
       app = fmt::format_to(app, " -> {}", fmt::styled(v.bb_ref, color_bb));
     }

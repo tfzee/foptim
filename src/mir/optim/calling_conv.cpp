@@ -357,8 +357,8 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
   }
 
   for (auto push_pop : push_pop_queue | std::views::reverse) {
-    auto &arg = args[push_pop];
-    auto &arg_ty = arg.args[0].ty;
+    const auto &arg = args[push_pop];
+    const auto &arg_ty = arg.args[0].ty;
     auto arg_po = arg_pos[push_pop];
     switch (arg_po.ty) {
     case ArgPosition::IntReg:
@@ -386,6 +386,7 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
 
   TVec<MInstr> args;
   MInstr call = instrs[end];
+  auto is_var_args = call.is_var_arg_call;
   args.reserve(n_args);
 
   for (u32 i = 0; i < n_args; i++) {
@@ -422,6 +423,22 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   // do call
   instrs.insert(instrs.begin() + (i64)start,
                 MInstr{Opcode::call, call.args[0]});
+  instrs[start].is_var_arg_call = is_var_args;
+
+  // for vararg setup al with the number of xmm registiers
+  if (is_var_args) {
+    u8 n_xmm_regs = 0;
+    for (auto arg_p : arg_pos) {
+      if (arg_p.ty == ArgPosition::FloatReg) {
+        n_xmm_regs++;
+      }
+    }
+    instrs.insert(instrs.begin() + (i64)start,
+                  MInstr{Opcode::mov,
+                         MArgument{VReg{CReg::A, Type::Int8}, Type::Int8},
+                         MArgument{(n_xmm_regs)}});
+  }
+
   // setup args
   setup_call_arguments(instrs, args, arg_pos, start);
   // for (auto &arg : args) {
@@ -573,7 +590,8 @@ void gen_arg_mapping(MFunc &func) {
     if (is_float && float_arg_id < n_float_arg_regs) {
       instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{float_arg_reg[float_arg_id], arg_ty}, arg_ty});
-      // func.args[arg_i].info = VRegInfo{float_arg_reg[float_arg_id], arg_ty};
+      // func.args[arg_i].info = VRegInfo{float_arg_reg[float_arg_id],
+      // arg_ty};
       float_arg_id++;
     } else if (!is_float && int_arg_id < n_int_arg_regs) {
       instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},

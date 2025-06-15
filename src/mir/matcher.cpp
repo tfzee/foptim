@@ -332,8 +332,11 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   }
 
   TMap<fir::BBArgument, MArgument> bb_arg_mapping;
-  ExtraMatchData extra_data = {alloc, bbs, bb_arg_mapping, res_func,
-                               static_alloca_size};
+  ExtraMatchData extra_data = {.alloc = alloc,
+                               .bbs = bbs,
+                               .bb_arg_mapping = bb_arg_mapping,
+                               .func = res_func,
+                               .static_alloca_size = static_alloca_size};
 
   // so we dont need to realloc
   MatchResult match_result{};

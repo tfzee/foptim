@@ -1644,7 +1644,7 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
   }
 }
 
-u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
+static u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
              TLabelUsageMap &reloc_map) {
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
