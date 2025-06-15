@@ -211,7 +211,8 @@ IntTypeR ContextData::get_int_type(u16 bitwidth) {
 }
 
 FunctionTypeR ContextData::get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
-  auto func_ty = FunctionType{ret_type, std::move(args)};
+  auto func_ty =
+      FunctionType{.return_type = ret_type, .arg_types = std::move(args)};
   auto maybeT = try_reuse_type(func_ty);
   if (maybeT.is_valid()) {
     return maybeT;
