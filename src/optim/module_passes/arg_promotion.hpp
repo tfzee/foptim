@@ -20,7 +20,6 @@ public:
     const auto &func_ty = func->func_ty->as_func();
     auto n_args_original = func_ty.arg_types.size();
     auto entry_block = func->get_entry();
-    IRVec<fir::TypeR> arg_tys = func_ty.arg_types;
 
     // + we might have issues if there are
     // stores/funccalls which could cause writes over an aliased variable for
@@ -42,6 +41,7 @@ public:
     // we can only do it tho iff the loads all have the same type
     //  we only load the value so no geps and similar stuff
     bool modified = false;
+    IRVec<fir::TypeR> arg_tys;
     for (u64 i = n_args_original; i > 0; i--) {
       auto arg = entry_block->args[i - 1];
       if (arg->get_n_uses() == 0) {
@@ -64,6 +64,10 @@ public:
       }
 
       if (can_promote && load_type.is_valid()) {
+        if (arg_tys.empty()) {
+          // only make the copy if we know theres some thing we can modify
+          arg_tys = func_ty.arg_types;
+        }
         // TODO copy
         TVec<fir::Use> uses =
             TVec<fir::Use>{arg->get_uses().begin(), arg->get_uses().end()};
@@ -106,7 +110,6 @@ public:
 
   void apply(fir::Context &ctx) override {
     ZoneScopedN("ArgumentPromoition");
-    fmt::println("{:d}", ctx);
     auto iter = ctx.data->storage.functions.begin();
     for (; iter != ctx.data->storage.functions.end(); iter++) {
       auto &[_, f] = *iter;
@@ -128,7 +131,7 @@ public:
         continue;
       }
 
-      auto func_ty = f->func_ty->as_func();
+      const auto &func_ty = f->func_ty->as_func();
       auto n_args_original = func_ty.arg_types.size();
       // if we have no args skip
       if (n_args_original == 0) {
