@@ -23,7 +23,6 @@ public:
     // now we only apply it if there are no writing operations in the function
     // TODO: this can be improved (either with better aliasing analysis)
     // or by only checking if from entry to the load there is any stores
-    // fmt::println("POT PROMOTED {}", *func.func);
     if (use.user->get_parent() == func->get_entry()) {
       for (auto i : func->get_entry()->instructions) {
         if (i == use.user) {

@@ -133,7 +133,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       SCCP, IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify,
       SimplifyCFG, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, GDCE>{}
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, ArgPromotion, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE, IntrinSimplify,
