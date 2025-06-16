@@ -90,7 +90,7 @@ class LifetimeShortening {
           case MArgument::ArgumentType::MemImmLabel:
             break;
           case MArgument::ArgumentType::VReg:
-            if (mappings.contains(read.reg)) {
+            if (mappings.contains(read.reg) && !instr.args[id].reg.is_concrete()) {
               instr.args[id] =
                   MArgument{mappings.at(read.reg), instr.args[id].ty};
             }
