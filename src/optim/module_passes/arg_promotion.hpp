@@ -1,8 +1,11 @@
 #pragma once
+#include "ir/basic_block_arg.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
+#include "ir/function_ref.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
 #include <fmt/core.h>
@@ -12,6 +15,29 @@ namespace foptim::optim {
 
 class ArgPromotion final : public ModulePass {
 public:
+  bool are_there_potential_aliasing_stores(fir::FunctionR func,
+                                           fir::BBArgument /*barg*/,
+                                           fir::Use use) {
+    // + we might have issues if there are
+    // stores/funccalls which could cause writes over an aliased variable for
+    // now we only apply it if there are no writing operations in the function
+    // TODO: this can be improved (either with better aliasing analysis)
+    // or by only checking if from entry to the load there is any stores
+    // fmt::println("POT PROMOTED {}", *func.func);
+    if (use.user->get_parent() == func->get_entry()) {
+      for (auto i : func->get_entry()->instructions) {
+        if (i == use.user) {
+          break;
+        }
+        if (i->pot_modifies_mem()) {
+          return true;
+        }
+      }
+      return false;
+    }
+    return true;
+  }
+
   // if we have ptr arguments and all we do is a load of its value and its not a
   // massive value (<= ptrsize also good cause CC)
   //  we can isntead do the load before the call allowing potentialy more
@@ -20,20 +46,6 @@ public:
     const auto &func_ty = func->func_ty->as_func();
     auto n_args_original = func_ty.arg_types.size();
     auto entry_block = func->get_entry();
-
-    // + we might have issues if there are
-    // stores/funccalls which could cause writes over an aliased variable for
-    // now we only apply it if there are no writing operations in the function
-    // TODO: this can be improved (either with better aliasing analysis)
-    // or by only checking if from entry to the load there is any stores
-    for (auto bb : func->basic_blocks) {
-      for (auto instr : bb->instructions) {
-        if (instr->pot_modifies_mem()) {
-          return false;
-        }
-      }
-    }
-    // fmt::println("POT PROMOTED {}", *func.func);
     // for (auto use : func->get_uses()) {
     //   fmt::println("USED {}", use.user->get_parent());
     // }
@@ -61,31 +73,37 @@ public:
           can_promote = false;
           break;
         }
+        if (!func->mem_read_none && !func->mem_read_only &&
+            are_there_potential_aliasing_stores(func, arg, use)) {
+          can_promote = false;
+          break;
+        }
+      }
+      if (!can_promote || !load_type.is_valid()) {
+        continue;
       }
 
-      if (can_promote && load_type.is_valid()) {
-        if (arg_tys.empty()) {
-          // only make the copy if we know theres some thing we can modify
-          arg_tys = func_ty.arg_types;
-        }
-        // TODO copy
-        TVec<fir::Use> uses =
-            TVec<fir::Use>{arg->get_uses().begin(), arg->get_uses().end()};
-        for (auto use : uses) {
-          use.user->replace_all_uses(fir::ValueR{arg});
-        }
-        for (auto use : uses) {
-          use.user.destroy();
-        }
-        for (auto use : func->get_uses()) {
-          fir::Builder b{use.user};
-          auto load_result = b.build_load(load_type, use.user->args[1 + i - 1]);
-          use.user.replace_arg(1 + i - 1, load_result);
-        }
-        arg->_type = load_type;
-        arg_tys[i - 1] = load_type;
-        modified = true;
+      if (arg_tys.empty()) {
+        // only make the copy if we know theres some thing we can modify
+        arg_tys = func_ty.arg_types;
       }
+      // TODO copy
+      TVec<fir::Use> uses =
+          TVec<fir::Use>{arg->get_uses().begin(), arg->get_uses().end()};
+      for (auto use : uses) {
+        use.user->replace_all_uses(fir::ValueR{arg});
+      }
+      for (auto use : uses) {
+        use.user.destroy();
+      }
+      for (auto use : func->get_uses()) {
+        fir::Builder b{use.user};
+        auto load_result = b.build_load(load_type, use.user->args[1 + i - 1]);
+        use.user.replace_arg(1 + i - 1, load_result);
+      }
+      arg->_type = load_type;
+      arg_tys[i - 1] = load_type;
+      modified = true;
     }
     if (modified) {
       func.func->func_ty =
