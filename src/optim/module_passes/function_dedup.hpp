@@ -159,8 +159,10 @@ inline bool is_function_applicable(const fir::Function *f) {
       f->get_entry()->n_args() > 4) {
     return false;
   }
+  // TODO: should work for linkonce odr aswell
   if (f->linkage == fir::Linkage::Weak || f->linkage == fir::Linkage::WeakODR ||
       f->linkage == fir::Linkage::LinkOnce ||
+      f->linkage == fir::Linkage::LinkOnceODR ||
       f->linkage == fir::Linkage::External) {
     return false;
   }
@@ -181,11 +183,18 @@ inline fir::TypeR select_type(TVec<fir::TypeR> tys, fir::Instr instr,
                               u32 /*arg_id*/) {
   fir::TypeR biggest_type = tys[0];
   u32 biggest_width = tys[0]->get_bitwidth();
+  bool all_the_same = true;
   for (auto ty : tys) {
     if (ty->get_bitwidth() > biggest_width) {
       biggest_width = biggest_type->get_bitwidth();
       biggest_type = ty;
     }
+    if (tys[0] != ty) {
+      all_the_same = false;
+    }
+  }
+  if (all_the_same) {
+    return biggest_type;
   }
   if ((instr->is(fir::InstrType::UnaryInstr) ||
        instr->is(fir::InstrType::BinaryInstr)) &&
@@ -219,7 +228,6 @@ inline bool merge_functions(MergableGroup &group, fir::Context &ctx) {
   auto n_orig_args = new_arg_ty.size();
   TVec<fir::TypeR> new_types;
   new_types.reserve(group.diffs.size());
-
   TVec<fir::TypeR> all_the_types;
   for (auto diff : group.diffs) {
     all_the_types.clear();
@@ -419,7 +427,9 @@ public:
         // fmt::println("Got group with size {} with {} diffs",
         // curr.funcs.size(),
         //              curr.diffs.size());
-        merge_functions(curr, ctx);
+        if (!merge_functions(curr, ctx)) {
+          continue;
+        }
         // clena up from other groups by removing f2
         for (size_t g2_id = 0; g2_id + 1 < groups.size(); g2_id++) {
           for (auto f2 = curr.funcs.begin(); f2 != std::prev(curr.funcs.end());
