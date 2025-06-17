@@ -3,6 +3,7 @@
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
+#include "ir/helpers.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
@@ -118,6 +119,8 @@ public:
         auto func_moved = std::move(ctx->storage.functions.at(old_name));
         ctx->storage.functions.erase(old_name);
         func_moved->name = new_name;
+        func_moved->linkage = fir::Linkage::Internal;
+        func_moved->no_inline = false;
         ctx->storage.functions.insert({new_name, std::move(func_moved)});
         return true;
       }
