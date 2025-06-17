@@ -7,6 +7,7 @@
 
 namespace foptim::optim {
 static void constant_prop_args(fir::FunctionR func, fir::Context &ctx);
+static void constant_prop_return(fir::FunctionR func, fir::Context &ctx);
 static void kill_dead_args(fir::FunctionR func, fir::Context &ctx);
 
 // inter procedural constant propagation
@@ -16,11 +17,69 @@ public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("IPCP");
     for (auto &f : ctx.data->storage.functions) {
+      switch (f.second->linkage) {
+      case fir::Linkage::External:
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::LinkOnceODR:
+        // TODO: could do with linkonce when enabling the renaming at the bottom
+        continue;
+      case fir::Linkage::Internal:
+        break;
+      }
+
+      if (f.second->is_decl() || f.second->variadic) {
+        continue;
+      }
+      for (auto use : f.second->get_uses()) {
+        if (!use.user->is(fir::InstrType::CallInstr) ||
+            use.type != fir::UseType::NormalArg || use.argId != 0) {
+          continue;
+        }
+      }
       kill_dead_args(f.second.get(), ctx);
       constant_prop_args(fir::FunctionR(f.second.get()), ctx);
+      constant_prop_return(fir::FunctionR(f.second.get()), ctx);
     }
   }
 };
+static void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
+  auto ret_val = fir::ValueR();
+  if (func->func_ty->as_func().return_type->is_void()) {
+    return;
+  }
+  for (auto bb : func->basic_blocks) {
+    for (auto instr : bb->instructions) {
+      if (!instr->is(fir::InstrType::ReturnInstr)) {
+        continue;
+      }
+      ASSERT(!instr->args.empty());
+      if (ret_val.is_invalid()) {
+        ret_val = instr->args[0];
+        if (!ret_val.is_constant() && !ret_val.is_bb_arg()) {
+          return;
+        }
+      } else if (ret_val != instr->args[0]) {
+        return;
+      }
+    }
+  }
+  if (ret_val.is_constant()) {
+    for (auto use : func->get_uses()) {
+      use.user->replace_all_uses(ret_val);
+    }
+  }
+  if ((ret_val.is_bb_arg() &&
+       ret_val.as_bb_arg()->get_parent() == func->get_entry())) {
+    auto id =
+        ret_val.as_bb_arg()->get_parent()->get_arg_id(ret_val.as_bb_arg());
+
+    for (auto use : func->get_uses()) {
+      use.user->replace_all_uses(use.user->args[id+1]);
+    }
+  }
+}
 
 static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   switch (func.func->linkage) {
@@ -35,22 +94,12 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
     break;
   }
 
-  if (func->is_decl() || func->variadic) {
-    return;
-  }
-
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
   auto n_args_original = func_ty.arg_types.size();
   if (n_args_original == 0) {
     return;
-  }
-  for (auto use : func.func->get_uses()) {
-    if (!use.user->is(fir::InstrType::CallInstr) ||
-        use.type != fir::UseType::NormalArg || use.argId != 0) {
-      return;
-    }
   }
 
   // TODO: this allocation is mostly gonna just waste memory
@@ -105,21 +154,6 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
 }
 
 static void kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
-  switch (func.func->linkage) {
-  case fir::Linkage::External:
-  case fir::Linkage::Weak:
-  case fir::Linkage::LinkOnce:
-  case fir::Linkage::WeakODR:
-  case fir::Linkage::LinkOnceODR:
-    // TODO: could do with linkonce when enabling the renaming at the bottom
-    return;
-  case fir::Linkage::Internal:
-    break;
-  }
-
-  if (func->is_decl() || func->variadic) {
-    return;
-  }
 
   // constant propagate arguments
   auto entry_block = func->get_entry();
@@ -127,13 +161,6 @@ static void kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
   auto n_args_original = func_ty.arg_types.size();
   if (n_args_original == 0) {
     return;
-  }
-
-  for (auto use : func.func->get_uses()) {
-    if (!use.user->is(fir::InstrType::CallInstr) ||
-        use.type != fir::UseType::NormalArg || use.argId != 0) {
-      return;
-    }
   }
 
   // TODO: this allocation is mostly gonna just waste memory
