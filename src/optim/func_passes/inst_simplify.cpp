@@ -3,6 +3,7 @@
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
+#include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
@@ -1442,6 +1443,50 @@ static void simplify_call(fir::Instr instr, fir::BasicBlock bb,
           return;
         }
       }
+      // printf(lit) -> fputs(lit, stdout)
+      //   if (funci->name == "printf" && instr->args.size() == 2 &&
+      //       instr->get_n_uses() == 0) {
+
+      //     if (!ctx->has_function("fputs")) {
+      //       // int fputs( const char* restrict str, FILE* restrict stream )
+      //       auto puts_func = ctx->create_function(
+      //           "fputs",
+      //           ctx->get_func_ty(ctx->get_int_type(32),
+      //                            {ctx->get_ptr_type(),
+      //                            ctx->get_ptr_type()}));
+      //       puts_func->linkage = fir::Linkage::External;
+      //       puts_func->basic_blocks.clear();
+      //     }
+
+      //     fir::ValueR stdout{};
+      //     if (!ctx->has_global("stdout")) {
+      //       auto global = ctx->insert_global("stdout", 8);
+      //       global->linkage = fir::Linkage::External;
+      //       stdout = fir::ValueR{ctx->get_constant_value(global)};
+      //     } else {
+      //       stdout =
+      //           fir::ValueR{ctx->get_constant_value(ctx->get_global("stdout"))};
+      //     }
+
+      //     auto fputs_func = ctx->get_function("fputs");
+
+      //     fir::Builder builder{instr};
+      //     auto stdout_ptr_val = builder.build_load(ctx->get_ptr_type(),
+      //     stdout); auto stdout_val = builder.build_load(ctx->get_ptr_type(),
+      //     stdout_ptr_val); fir::ValueR args[2] = {
+      //         instr->args[1],
+      //         fir::ValueR{stdout_val}};
+      //     // fir::ValueR args[2] = {
+      //     //     instr->args[1],
+      //     //     fir::ValueR{ctx->get_constant_value(1,
+      //     ctx->get_ptr_type())}};
+      //     builder.build_call(fir::ValueR{ctx->get_constant_value(fputs_func)},
+      //                        fputs_func->func_ty, ctx->get_int_type(32),
+      //                        args);
+      //     instr.destroy();
+      //     // TODO("okak");
+      //     return;
+      //   }
     }
   }
 }

@@ -23,7 +23,7 @@ class LegalizeVecs final : public FunctionPass {
         const auto &typ = constant->type->as_vec();
         const auto actual_size = typ.get_size();
         // TODO assert that this doesnt actually already exists
-        auto global = ctx->get_global(name, actual_size);
+        auto global = ctx->insert_global(name, actual_size);
         global->is_constant = true;
         global->linkage = fir::Linkage::Internal;
         global->init_value =

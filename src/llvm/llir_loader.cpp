@@ -1518,7 +1518,7 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
       name = "it didnt have a name??";
     }
 
-    auto global = fctx->get_global(name, actual_size);
+    auto global = fctx->insert_global(name, actual_size);
     auto as_global = fctx->get_constant_value(global);
 
     switch (val->getLinkage()) {

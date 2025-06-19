@@ -197,7 +197,9 @@ void lower_to_mir(foptim::fir::Context &ctx,
           }
         }
         glob.data.resize(size, 0);
-        memcpy(glob.data.data(), v->data->init_value, size);
+        if (v->data->init_value) {
+          memcpy(glob.data.data(), v->data->init_value, size);
+        }
         globals.push_back(glob);
       }
     }
