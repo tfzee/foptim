@@ -929,8 +929,7 @@ static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
     if (c1->is_poison() || c2->is_poison()) {
-      auto new_const_value =
-          ctx->get_poisson_value(ctx->get_int_type(8));
+      auto new_const_value = ctx->get_poisson_value(ctx->get_int_type(8));
       push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR(new_const_value));
       instr.destroy();
@@ -1412,6 +1411,38 @@ static void simplify_store(fir::Instr instr, fir::BasicBlock bb,
   if (instr->args[0].is_constant() &&
       instr->args[0].as_constant()->is_poison()) {
     instr.destroy();
+    return;
+  }
+}
+
+static void simplify_call(fir::Instr instr, fir::BasicBlock bb,
+                          fir::Context &ctx, WorkList &worklist) {
+  (void)bb;
+  (void)ctx;
+  (void)worklist;
+  if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_func()) {
+    auto funci = instr->args[0].as_constant()->as_func();
+    if (instr->get_n_uses() == 0 && funci->mem_read_none) {
+      instr.destroy();
+      return;
+    }
+
+    if (foptim::utils::assume_cstdlib_beheaviour) {
+      // constant propagate strlen of string literals
+      if (funci->name == "strlen" && instr->args[1].is_constant() &&
+          instr->args[1].as_constant()->is_global()) {
+        auto g = instr->args[1].as_constant()->as_global();
+        if (g->is_constant && g->init_value != nullptr) {
+          auto len = strlen((const char *)g->init_value);
+          auto len_constant =
+              ctx->get_constant_value(len, ctx->get_int_type(64));
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(fir::ValueR{len_constant});
+          instr.destroy();
+          return;
+        }
+      }
+    }
   }
 }
 
@@ -1514,6 +1545,9 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::LoadInstr) {
     return simplify_load(instr, bb, ctx, worklist);
+  }
+  if (instr_ty == InstrType::CallInstr) {
+    return simplify_call(instr, bb, ctx, worklist);
   }
 }
 

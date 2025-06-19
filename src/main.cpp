@@ -15,6 +15,7 @@
 #include "mir/optim/register_joining.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
+#include "optim/func_passes/func_annotator.hpp"
 #include "optim/func_passes/garbage_collector.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
@@ -119,8 +120,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   fmt::print("================FIR START====================\n");
   ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
-      Mem2Reg, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering, DCE,
-      GarbageCollect, SimplifyCFG, TailRecElim, LICM, LoopRotate, DCE,
+      Mem2Reg, FuncAnnotator, InstSimplify, SimplifyCFG, LLVMInstrinsicLowering,
+      DCE, GarbageCollect, SimplifyCFG, TailRecElim, LICM, LoopRotate, DCE,
       SLPVectorizer, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, StackKnownBits,
       Mem2Reg, SimplifyCFG, DCE, InstSimplify, ConstLoopEval, InstSimplify,
       SimplifyCFG>{}
@@ -133,14 +134,15 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       SCCP, IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify,
       SimplifyCFG, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, ArgPromotion, GDCE>{}
+  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, ArgPromotion,
+                                         GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE, IntrinSimplify,
       InstSimplify, DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg,
-                                                   MergeAllocaPass, DCE>{}
+  foptim::optim::StaticParallelFunctionPassManager<
+      StackKnownBits, Mem2Reg, MergeAllocaPass, DCE, FuncAnnotator>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<

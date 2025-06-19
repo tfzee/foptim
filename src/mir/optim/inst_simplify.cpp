@@ -1,6 +1,7 @@
 #include "inst_simplify.hpp"
 #include "mir/instr.hpp"
 #include <cmath>
+#include <fmt/core.h>
 
 namespace foptim::fmir {
 
@@ -110,10 +111,61 @@ static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
           i4.args[0] = i1.args[1];
         }
       }
-
-      return false;
     }
   }
+  return false;
+}
+
+static bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
+  if (instr_id + 1 < instrs.size() &&
+      ((instrs[instr_id + 0].op == Opcode::add2 &&
+        instrs[instr_id + 1].op == Opcode::sub2) ||
+       (instrs[instr_id + 0].op == Opcode::sub2 &&
+        instrs[instr_id + 1].op == Opcode::add2))) {
+    auto a0 = instrs[instr_id + 0];
+    auto a1 = instrs[instr_id + 1];
+    if (a0.args[0] == a1.args[0] && a0.args[1] == a1.args[1]) {
+      instrs.erase(instrs.begin() + instr_id, instrs.begin() + instr_id + 2);
+      return true;
+    }
+  }
+  // if (instr_id + 1 < instrs.size() && instrs[instr_id + 0].op ==
+  // Opcode::push) {
+  //   bool found = false;
+  //   auto i2 = instr_id + 1;
+  //   fmt::println("{}", instrs[instr_id]);
+  //   for (; i2 < instrs.size(); i2++) {
+  //     fmt::println("   {}", instrs[i2]);
+  //     if (instrs[i2].op == Opcode::pop) {
+  //       if (instrs[i2].args[0] == instrs[instr_id].args[0]) {
+  //         found = true;
+  //       }
+  //       break;
+  //     }
+  //     if (instrs[i2].op == Opcode::push) {
+  //       break;
+  //     }
+  //     if (instrs[i2].op == Opcode::call || instrs[i2].op == Opcode::invoke) {
+  //       break;
+  //     }
+  //     bool breakit = false;
+  //     for (auto arg : instrs[i2].args) {
+  //       if (arg.isReg() && arg.reg.is_concrete() &&
+  //           arg.reg.conc.creg == CReg::SP) {
+  //         breakit = true;
+  //         break;
+  //       }
+  //     }
+  //     if (breakit) {
+  //       break;
+  //     }
+  //   }
+  //   if (found) {
+  //     fmt::println("{}", instrs[instr_id]);
+  //     fmt::println("{}", instrs[i2]);
+  //     TODO("Okak");
+  //   }
+  // }
   return false;
 }
 
@@ -126,10 +178,10 @@ void InstSimplify::apply(FVec<MFunc> &funcs) {
           instr_id--;
           continue;
         }
-        // if (multi_simplify(bb.instrs, instr_id)) {
-        //   instr_id--;
-        //   continue;
-        // }
+        if (multi_simplify(bb.instrs, instr_id)) {
+          instr_id--;
+          continue;
+        }
       }
     }
   }
