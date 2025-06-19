@@ -71,7 +71,37 @@ void ContextData::print_stats() const {
   print_stats_vec(storage.storage_global);
 }
 
-Global ContextData::get_global(IRString name, size_t size_bytes) {
+bool ContextData::has_global(IRString name) const {
+  for (const auto *slab_g : storage.storage_global._slot_slab_starts) {
+    for (size_t i = 0; i < decltype(storage.storage_global)::_slot_slab_len;
+         i++) {
+      const auto *v = &slab_g[i];
+      if (v->used == foptim::utils::SlotState::Used) {
+        if (v->data->name == name) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+Global ContextData::get_global(IRString name) {
+  for (auto *slab_g : storage.storage_global._slot_slab_starts) {
+    for (size_t i = 0; i < decltype(storage.storage_global)::_slot_slab_len;
+         i++) {
+      auto *v = &slab_g[i];
+      if (v->used == foptim::utils::SlotState::Used) {
+        if (v->data->name == name) {
+          return fir::Global{utils::SRef{v, v->generation}};
+        }
+      }
+    }
+  }
+  TODO("Tried to get global that doesnt exist");
+}
+
+Global ContextData::insert_global(IRString name, size_t size_bytes) {
   return storage.insert_global(std::make_unique<GlobalData>(name, size_bytes));
 }
 

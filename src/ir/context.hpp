@@ -56,7 +56,9 @@ struct ContextData {
   TypeR try_reuse_type(const AnyType &val);
   ConstantValueR get_constant_value(Global glob);
 
-  Global get_global(IRString name, size_t size_bytes);
+  bool has_global(IRString name) const;
+  Global get_global(IRString name);
+  Global insert_global(IRString name, size_t size_bytes);
   FunctionR get_function(IRStringRef name);
   bool has_function(IRStringRef name) const;
   FunctionR create_function(IRString name, FunctionTypeR type);
