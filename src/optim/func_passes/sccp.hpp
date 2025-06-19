@@ -190,6 +190,9 @@ public:
       case fir::BinaryInstrSubType::IntAdd:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() + b.value->as_int(), out_type));
+      case fir::BinaryInstrSubType::IntUDiv:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            (u64)a.value->as_int() / (u64)b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::IntSRem:
         return ConstantValue::Constant(ctx->get_constant_value(
             ((i64)a.value->as_int()) % ((i64)b.value->as_int()), out_type));
@@ -200,33 +203,41 @@ public:
         if (out_type->as_float() == 32) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f32() + b.value->as_f32(), out_type));
-        } else {
+        } else if (out_type->as_float() == 64) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f64() + b.value->as_f64(), out_type));
+        } else {
+          TODO("support other bitwidths");
         }
       case fir::BinaryInstrSubType::FloatMul:
         if (out_type->as_float() == 32) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f32() * b.value->as_f32(), out_type));
-        } else {
+        } else if (out_type->as_float() == 64) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f64() * b.value->as_f64(), out_type));
+        } else {
+          TODO("support other bitwidths");
         }
       case fir::BinaryInstrSubType::FloatDiv:
         if (out_type->as_float() == 32) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f32() / b.value->as_f32(), out_type));
-        } else {
+        } else if (out_type->as_float() == 64) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f64() / b.value->as_f64(), out_type));
+        } else {
+          TODO("support other bitwidths");
         }
       case fir::BinaryInstrSubType::FloatSub:
         if (out_type->as_float() == 32) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f32() - b.value->as_f32(), out_type));
-        } else {
+        } else if (out_type->as_float() == 64) {
           return ConstantValue::Constant(ctx->get_constant_value(
               a.value->as_f64() - b.value->as_f64(), out_type));
+        } else {
+          TODO("support other bitwidths");
         }
       }
       UNREACH();
