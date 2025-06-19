@@ -28,6 +28,7 @@ public:
   u8 no_recurse : 1 = 0;
   u8 no_inline : 1 = 0;
   u8 must_inline : 1 = 0;
+  u8 mem_write_only : 1 = 0;
   u8 mem_read_only : 1 = 0;
   u8 mem_read_none : 1 = 0;
 
