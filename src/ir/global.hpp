@@ -26,10 +26,10 @@ public:
   GlobalData *operator*() { return get_raw_ptr()->get(); }
 
   constexpr GlobalData *operator->() {
-    return utils::SRef<std::unique_ptr<GlobalData>>::operator->()->get();
+    return utils::SRef<std::unique_ptr<GlobalData>>::operator->() -> get();
   }
   constexpr const GlobalData *operator->() const {
-    return utils::SRef<std::unique_ptr<GlobalData>>::operator->()->get();
+    return utils::SRef<std::unique_ptr<GlobalData>>::operator->() -> get();
   }
 };
 
@@ -57,7 +57,7 @@ struct GlobalData : public LockedUsed {
   bool is_constant = false;
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;
-  Linkage linkage;
+  Linkage linkage = Linkage::External;
 };
 
 }; // namespace foptim::fir
@@ -66,7 +66,7 @@ template <>
 class fmt::formatter<foptim::fir::GlobalData>
     : public BaseIRFormatter<foptim::fir::GlobalData> {
 public:
-  appender format(foptim::fir::GlobalData const &v, format_context &ctx) const; 
+  appender format(foptim::fir::GlobalData const &v, format_context &ctx) const;
 };
 
 template <> struct std::hash<foptim::fir::Global> {
