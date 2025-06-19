@@ -9,5 +9,6 @@ u8 number_worker_threads = 0;
 
 //make 
 bool all_linkage_internal = false;
+bool assume_cstdlib_beheaviour = true;
 
 } // namespace foptim::utils
