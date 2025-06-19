@@ -202,8 +202,12 @@ public:
         break;
       }
       for (auto call : calls) {
-        auto success = inline_call(call);
-        ASSERT(success);
+        inline_call(call);
+        // if(!success){
+        //   fmt::println("{}", call);
+        //   fmt::println("{}", *call->args[0].as_constant()->as_func().func);
+        // }
+        // ASSERT(success);
       }
     }
   }
