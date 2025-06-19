@@ -44,6 +44,7 @@ public:
     }
   }
 };
+
 static void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
   auto ret_val = fir::ValueR();
   if (func->func_ty->as_func().return_type->is_void()) {

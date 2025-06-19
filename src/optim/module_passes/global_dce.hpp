@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/function.hpp"
 #include "ir/global.hpp"
+#include "ir/instruction_data.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 
@@ -73,13 +74,8 @@ public:
       }
     }
 
-    // TODO: dead global variable deletion
     for (auto &[name, f] : ctx.data->storage.functions) {
       if (f->get_n_uses() > 0) {
-        continue;
-      }
-      if (is_intrinsic(name)) {
-        ctx.data->storage.functions.erase(name);
         continue;
       }
       switch (f->linkage) {
@@ -93,6 +89,10 @@ public:
         break;
       }
       if (func_global_reffed.contains(f.get())) {
+        continue;
+      }
+      if (is_intrinsic(name)) {
+        ctx.data->storage.functions.erase(name);
         continue;
       }
       if (name.starts_with("_GLOBAL")) {
