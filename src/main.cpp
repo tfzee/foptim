@@ -1,6 +1,7 @@
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
+#include "ir/helpers.hpp"
 #include "ir/types.hpp"
 #include "mir/func.hpp"
 #include "mir/legalize_bb_form.hpp"
@@ -49,6 +50,7 @@
 #include "llvm/llir_loader.hpp"
 
 #include <algorithm>
+#include <fmt/core.h>
 #include <tracy/Tracy.hpp>
 #include <unistd.h>
 
@@ -177,8 +179,11 @@ void lower_to_mir(foptim::fir::Context &ctx,
       const auto *v = &slab_g[i];
       if (v->used == foptim::utils::SlotState::Used) {
         auto size = v->data->n_bytes;
-        foptim::fmir::Global glob = {
-            .name = v->data->name.c_str(), .data = {}, .reloc_info = {}};
+        foptim::fmir::Global glob = {.name = v->data->name.c_str(),
+                                     .data = {},
+                                     .size = 0,
+                                     .reloc_info = {},
+                                     .vis = v->data->linkvis};
         for (const auto &rel_inf : v->data->reloc_info) {
           if (rel_inf.ref->is_global()) {
             glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
@@ -196,8 +201,9 @@ void lower_to_mir(foptim::fir::Context &ctx,
             TODO("dont think theeres any others");
           }
         }
-        glob.data.resize(size, 0);
+        glob.size = size;
         if (v->data->init_value) {
+          glob.data.resize(size, 0);
           memcpy(glob.data.data(), v->data->init_value, size);
         }
         globals.push_back(glob);
@@ -216,7 +222,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
   for (auto *func : reordered_funcs) {
-    fmt::println("{}", *func);
+    fmt::println("{:?}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
