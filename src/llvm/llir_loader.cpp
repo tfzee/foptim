@@ -1569,9 +1569,11 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
       break;
     }
     global->is_constant = val->isConstant();
-    global->init_value =
-        foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
-    memset(global->init_value, 0, actual_size);
+    if (!val->isDeclaration()) {
+      global->init_value =
+          foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
+      memset(global->init_value, 0, actual_size);
+    }
     valueToValue.insert({(llvm::Value *)&gval, foptim::fir::ValueR(as_global)});
   }
 }
