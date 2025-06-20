@@ -30,6 +30,7 @@ public:
       return false;
     }
     auto v = called_func.as_constant()->as_func();
+    const auto called_n_instrs = v->n_instrs();
     if (v->is_decl() || v->variadic) {
       return false;
     }
@@ -74,7 +75,8 @@ public:
       }
     }
 
-    if (v->n_instrs() <= (5 + v.func->get_entry()->n_args())) {
+    if (called_n_instrs <=
+        (4 + v.func->get_entry()->n_args() + (instr->has_result() ? 4 : 0))) {
       if (debug_print) {
         fmt::println("Y Shorter then setting up args");
       }
@@ -82,9 +84,15 @@ public:
     }
 
     bool all_args_are_constant = true;
+    bool all_args_are_constant_or_allocas = true;
     for (auto arg : instr->args) {
       if (!arg.is_constant()) {
         all_args_are_constant = false;
+        // TODO: could check for indexed allocas instructions
+        if (!arg.is_instr() ||
+            !arg.as_instr()->is(fir::InstrType::AllocaInstr)) {
+          all_args_are_constant_or_allocas = false;
+        }
       }
     }
     if (all_args_are_constant) {
@@ -102,7 +110,7 @@ public:
       return true;
     }
 
-    if (n_inlined_instructions < 100 && n_inlined_calls < 50) {
+    if (n_inlined_instructions > 100 && n_inlined_calls > 50) {
       if (debug_print) {
         fmt::println("N already inlined a bunch");
       }
@@ -114,14 +122,6 @@ public:
          v.func->linkage == fir::Linkage::LinkOnceODR)) {
       if (debug_print) {
         fmt::println("Y single use");
-      }
-      return true;
-    }
-
-    if (v.func->n_instrs() <=
-        (2 + v.func->get_entry()->n_args() + (instr->has_result() ? 1 : 0))) {
-      if (debug_print) {
-        fmt::println("Y shorter the nsetup");
       }
       return true;
     }
@@ -148,18 +148,28 @@ public:
     }
 
     if (is_in_straightline_section &&
-        ((v.func->n_bbs() == 1 && v.func->n_instrs() < 50))) {
+        ((v.func->n_bbs() == 1 && called_n_instrs < 50))) {
       if (debug_print) {
         fmt::println("Y straight  and short");
       }
       return true;
     }
-    if (v.func->n_instrs() < 5) {
+
+    if (all_args_are_constant_or_allocas && called_n_instrs < 50) {
+      if (debug_print) {
+        fmt::println("Y all args are constnat + allocs might allow for mem2reg "
+                     "and shit");
+      }
+      return true;
+    }
+
+    if (called_n_instrs < 5) {
       if (debug_print) {
         fmt::println("Y short");
       }
       return true;
     }
+
     if (debug_print) {
       fmt::println("N end");
     }
