@@ -2,6 +2,7 @@
 #include "basic_block.hpp"
 #include "basic_block_ref.hpp"
 #include "ir/attributable.hpp"
+#include "ir/helpers.hpp"
 #include "types.hpp"
 #include "types_ref.hpp"
 #include "utils/logging.hpp"
@@ -23,6 +24,7 @@ public:
   // metadata
   CallingConv cc = CallingConv::C;
   Linkage linkage = Linkage::Internal;
+  LinkVisibility linkvis = LinkVisibility::Default;
   u8 variadic : 1 = 0;
   u8 must_progress : 1 = 0;
   u8 no_recurse : 1 = 0;

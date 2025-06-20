@@ -18,11 +18,14 @@ fmt::appender fmt::formatter<foptim::fir::GlobalData>::format(
     foptim::fir::GlobalData const &v, format_context &ctx) const {
   auto app = ctx.out();
   if (v.is_constant) {
-    app = fmt::format_to(app, "GLOBAL {} @ {} Bytes Link: ", v.name, v.n_bytes);
+    app = fmt::format_to(app, "GLOBAL");
   } else {
-    app =
-        fmt::format_to(app, "CONSTANT {} @ {} Bytes Link: ", v.name, v.n_bytes);
+    fmt::format_to(app, "CONSTANT");
   }
+  if (v.init_value == nullptr) {
+    app = fmt::format_to(app, " DECL");
+  }
+  app = fmt::format_to(app, " {} @ {} Bytes Link: ", v.name, v.n_bytes);
   switch (v.linkage) {
   case foptim::fir::Linkage::Internal:
     app = fmt::format_to(app, "internal");
@@ -42,6 +45,15 @@ fmt::appender fmt::formatter<foptim::fir::GlobalData>::format(
   case foptim::fir::Linkage::LinkOnceODR:
     app = fmt::format_to(app, "linkonceODR");
     break;
+  }
+  switch (v.linkvis) {
+  case foptim::fir::LinkVisibility::Hidden:
+    app = fmt::format_to(app, " hidden");
+    break;
+  case foptim::fir::LinkVisibility::Protected:
+    app = fmt::format_to(app, " protected");
+    break;
+  case foptim::fir::LinkVisibility::Default:
   }
   if (debug) {
     for (auto r : v.reloc_info) {

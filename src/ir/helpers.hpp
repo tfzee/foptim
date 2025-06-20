@@ -22,6 +22,11 @@ enum class Linkage {
   // and discarded
   LinkOnceODR,
 };
+enum class LinkVisibility {
+  Default,
+  Hidden,
+  Protected,
+};
 
 /*
 Inserts a new basicblock redirects 'from's edges to 'to' into the new basicblock

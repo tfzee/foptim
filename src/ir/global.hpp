@@ -58,6 +58,7 @@ struct GlobalData : public LockedUsed {
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;
   Linkage linkage = Linkage::External;
+  LinkVisibility linkvis = LinkVisibility::Default;
 };
 
 }; // namespace foptim::fir
