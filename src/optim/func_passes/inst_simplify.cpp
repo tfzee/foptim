@@ -1444,49 +1444,63 @@ static void simplify_call(fir::Instr instr, fir::BasicBlock bb,
         }
       }
       // printf(lit) -> fputs(lit, stdout)
-      //   if (funci->name == "printf" && instr->args.size() == 2 &&
-      //       instr->get_n_uses() == 0) {
+      if (funci->name == "printf" && instr->args.size() == 2 &&
+          instr->get_n_uses() == 0) {
 
-      //     if (!ctx->has_function("fputs")) {
-      //       // int fputs( const char* restrict str, FILE* restrict stream )
-      //       auto puts_func = ctx->create_function(
-      //           "fputs",
-      //           ctx->get_func_ty(ctx->get_int_type(32),
-      //                            {ctx->get_ptr_type(),
-      //                            ctx->get_ptr_type()}));
-      //       puts_func->linkage = fir::Linkage::External;
-      //       puts_func->basic_blocks.clear();
-      //     }
+        if (!ctx->has_function("write")) {
+          auto puts_func = ctx->create_function(
+              "write",
+              ctx->get_func_ty(ctx->get_int_type(64),
+                               {ctx->get_int_type(32), ctx->get_ptr_type(),
+                                ctx->get_int_type(64)}));
+          puts_func->linkage = fir::Linkage::External;
+          puts_func->basic_blocks.clear();
+        }
+        if (!ctx->has_function("strlen")) {
+          auto strlen_func = ctx->create_function(
+              "strlen",
+              ctx->get_func_ty(ctx->get_int_type(64), {ctx->get_ptr_type()}));
+          strlen_func->linkage = fir::Linkage::External;
+          strlen_func->basic_blocks.clear();
+        }
 
-      //     fir::ValueR stdout{};
-      //     if (!ctx->has_global("stdout")) {
-      //       auto global = ctx->insert_global("stdout", 8);
-      //       global->linkage = fir::Linkage::External;
-      //       stdout = fir::ValueR{ctx->get_constant_value(global)};
-      //     } else {
-      //       stdout =
-      //           fir::ValueR{ctx->get_constant_value(ctx->get_global("stdout"))};
-      //     }
+        // fir::ValueR stdout{};
+        // if (!ctx->has_global("stdout")) {
+        //   auto global = ctx->insert_global("stdout", 8);
+        //   global->linkage = fir::Linkage::External;
+        //   stdout = fir::ValueR{ctx->get_constant_value(global)};
+        // } else {
+        //   stdout =
+        //       fir::ValueR{ctx->get_constant_value(ctx->get_global("stdout"))};
+        // }
 
-      //     auto fputs_func = ctx->get_function("fputs");
+        auto write_func = ctx->get_function("write");
+        auto strlen_func = ctx->get_function("strlen");
 
-      //     fir::Builder builder{instr};
-      //     auto stdout_ptr_val = builder.build_load(ctx->get_ptr_type(),
-      //     stdout); auto stdout_val = builder.build_load(ctx->get_ptr_type(),
-      //     stdout_ptr_val); fir::ValueR args[2] = {
-      //         instr->args[1],
-      //         fir::ValueR{stdout_val}};
-      //     // fir::ValueR args[2] = {
-      //     //     instr->args[1],
-      //     //     fir::ValueR{ctx->get_constant_value(1,
-      //     ctx->get_ptr_type())}};
-      //     builder.build_call(fir::ValueR{ctx->get_constant_value(fputs_func)},
-      //                        fputs_func->func_ty, ctx->get_int_type(32),
-      //                        args);
-      //     instr.destroy();
-      //     // TODO("okak");
-      //     return;
-      //   }
+        fir::Builder builder{instr};
+        // TODO: should load stdcout
+        //
+        //  auto stdout_ptr_val = builder.build_load(ctx->get_ptr_type(),
+        //  stdout); auto stdout_val =
+        //      builder.build_load(ctx->get_ptr_type(), stdout_ptr_val);
+        //  fir::ValueR args[2] = {instr->args[1], fir::ValueR{stdout_val}};
+        fir::ValueR args1[1] = {
+            instr->args[1],
+        };
+        auto string_len = builder.build_call(
+            fir::ValueR{ctx->get_constant_value(strlen_func)},
+            write_func->func_ty, ctx->get_int_type(32), args1);
+        fir::ValueR args2[3] = {
+            fir::ValueR{ctx->get_constant_value(1, ctx->get_int_type(32))},
+            instr->args[1],
+            string_len,
+        };
+        builder.build_call(fir::ValueR{ctx->get_constant_value(write_func)},
+                           write_func->func_ty, ctx->get_int_type(32), args2);
+        instr.destroy();
+        // TODO("okak");
+        return;
+      }
     }
   }
 }
