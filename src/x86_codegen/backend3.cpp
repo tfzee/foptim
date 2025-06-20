@@ -1,4 +1,5 @@
 #include "backend.hpp"
+#include "ir/helpers.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
@@ -78,6 +79,11 @@ enum class RelocKind : u8 {
   Func,
   Data,
 };
+enum class RelocBinding : u8 {
+  INVALID,
+  Global,
+  Weak,
+};
 
 struct LabelRelocData {
   struct Usage {
@@ -91,6 +97,8 @@ struct LabelRelocData {
   // absolute location *inside* of the section
   RelocKind kind = RelocKind::INVALID;
   RelocSection section = RelocSection::INVALID;
+  RelocBinding binding = RelocBinding::Global;
+  fir::LinkVisibility vis = fir::LinkVisibility::Default;
   u64 def_loc = 0;
   u64 size = 0;
   TVec<Usage> usage_loc;
@@ -1645,7 +1653,7 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
 }
 
 static u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
-             TLabelUsageMap &reloc_map) {
+                    TLabelUsageMap &reloc_map) {
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
@@ -1835,6 +1843,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         label_usage_map.label_map[global.name].section =
             RelocSection::InitArray;
         label_usage_map.label_map[global.name].size = global.data.size();
+        label_usage_map.label_map[global.name].vis = global.vis;
         // fmt::println("CTOR {}", global.name);
         { // handle reloccs
           int i = 0;
@@ -1861,13 +1870,19 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       if (strcmp(global.name, "llvm.global_dtors") == 0) {
         // https://llvm.org/docs/Passes.html#lower-global-dtors-lower-global-destructors
         TODO("impl");
+        continue;
       }
       label_usage_map.label_map[global.name].def_loc =
           curr_data_ptr - start_data;
       label_usage_map.label_map[global.name].kind = RelocKind::Data;
-      label_usage_map.label_map[global.name].section = RelocSection::Data;
-      label_usage_map.label_map[global.name].size = global.data.size();
-      memcpy(curr_data_ptr, global.data.data(), global.data.size());
+      label_usage_map.label_map[global.name].section =
+          global.data.empty() ? RelocSection::Extern : RelocSection::Data;
+      label_usage_map.label_map[global.name].size = global.size;
+      label_usage_map.label_map[global.name].vis = global.vis;
+
+      if (!global.data.empty()) {
+        memcpy(curr_data_ptr, global.data.data(), global.data.size());
+      }
       { // handle reloccs
         for (const auto &reloc_info : global.reloc_info) {
           fmt::println("RELOC INFO {}", reloc_info.name);
@@ -1904,6 +1919,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     Elf_Half sec_indx = 0;
     Elf_Word symbol_type = STT_FUNC;
     Elf_Word symbol_binding = STB_GLOBAL;
+
     switch (label_data.section) {
     case RelocSection::INVALID:
       UNREACH();
@@ -1931,10 +1947,33 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       symbol_type = STT_OBJECT;
       break;
     }
+    switch (label_data.binding) {
+    case RelocBinding::INVALID:
+      UNREACH();
+    case RelocBinding::Global:
+      symbol_binding = STB_GLOBAL;
+      break;
+    case RelocBinding::Weak:
+      symbol_binding = STB_WEAK;
+      break;
+    }
+
+    unsigned char other = 0;
+    switch (label_data.vis) {
+    case fir::LinkVisibility::Default:
+      other |= STV_DEFAULT;
+      break;
+    case fir::LinkVisibility::Hidden:
+      other |= STV_HIDDEN;
+      break;
+    case fir::LinkVisibility::Protected:
+      other |= STV_PROTECTED;
+      break;
+    }
 
     auto symbol = syma.add_symbol(stra, label_name.c_str(), label_data.def_loc,
                                   label_data.size, symbol_binding, symbol_type,
-                                  0, sec_indx);
+                                  other, sec_indx);
 
     for (auto loc : label_data.usage_loc) {
       ASSERT(loc.usage_section != RelocSection::INVALID);

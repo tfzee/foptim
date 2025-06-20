@@ -1206,6 +1206,17 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     foff_func->linkage = foptim::fir::Linkage::External;
     break;
   }
+  switch (func.getVisibility()) {
+  case llvm::GlobalValue::DefaultVisibility:
+    foff_func->linkvis = foptim::fir::LinkVisibility::Default;
+    break;
+  case llvm::GlobalValue::HiddenVisibility:
+    foff_func->linkvis = foptim::fir::LinkVisibility::Hidden;
+    break;
+  case llvm::GlobalValue::ProtectedVisibility:
+    foff_func->linkvis = foptim::fir::LinkVisibility::Protected;
+    break;
+  }
   if (foptim::utils::all_linkage_internal && func_name != "main" &&
       !func.empty()) {
     foff_func->linkage = foptim::fir::Linkage::Internal;
@@ -1544,6 +1555,17 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
     case llvm::GlobalValue::InternalLinkage:
     case llvm::GlobalValue::PrivateLinkage:
       global->linkage = foptim::fir::Linkage::Internal;
+      break;
+    }
+    switch (val->getVisibility()) {
+    case llvm::GlobalValue::DefaultVisibility:
+      global->linkvis = foptim::fir::LinkVisibility::Default;
+      break;
+    case llvm::GlobalValue::HiddenVisibility:
+      global->linkvis = foptim::fir::LinkVisibility::Hidden;
+      break;
+    case llvm::GlobalValue::ProtectedVisibility:
+      global->linkvis = foptim::fir::LinkVisibility::Protected;
       break;
     }
     global->is_constant = val->isConstant();
