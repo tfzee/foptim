@@ -26,6 +26,8 @@ public:
 
   [[nodiscard]] bool _should_be_inlined(const fir::Instr instr) const {
     auto called_func = instr->get_arg(0);
+    auto self_func = instr->get_parent()->get_parent();
+    auto self_n_instrs = self_func->n_instrs();
     if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
       return false;
     }
@@ -126,6 +128,13 @@ public:
       return true;
     }
 
+    if (self_n_instrs > 1000) {
+      if (debug_print) {
+        fmt::println("N self already big");
+      }
+      return false;
+    }
+
     bool is_in_straightline_section = true;
     {
       auto par_bb = instr->get_parent();
@@ -148,14 +157,15 @@ public:
     }
 
     if (is_in_straightline_section &&
-        ((v.func->n_bbs() == 1 && called_n_instrs < 50))) {
+        ((v.func->n_bbs() == 1 && called_n_instrs < 30))) {
       if (debug_print) {
-        fmt::println("Y straight  and short");
+        fmt::println("Y straight and short");
       }
       return true;
     }
 
-    if (all_args_are_constant_or_allocas && called_n_instrs < 50) {
+    if (all_args_are_constant_or_allocas && self_n_instrs < 100 &&
+        called_n_instrs < 20) {
       if (debug_print) {
         fmt::println("Y all args are constnat + allocs might allow for mem2reg "
                      "and shit");

@@ -55,12 +55,12 @@ if __name__ == "__main__":
             compile_command += f" \"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.o\""
 
             compile_command += f" -n {name}_clang_O1_compile_baseline"
-            compile_command += f" \"{clang_name} ../bench/{benchy} -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out\""
+            compile_command += f" \"{clang_name} ../bench/{benchy} -static-libstdc++ -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out\""
 
             compile_command += f" -n {name}_clang_O3_compile_baseline"
-            compile_command += f" \"{clang_name} ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out\""
+            compile_command += f" \"{clang_name} ../bench/{benchy} -static-libstdc++ -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out\""
             compile_command += f" -n {name}_gcc_O3_compile_baseline"
-            compile_command += f" \"g++ ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out\""
+            compile_command += f" \"g++ ../bench/{benchy} -static-libstdc++ -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out\""
         os.system(compile_command)  
     else:
         for benchy in benches:
@@ -69,17 +69,16 @@ if __name__ == "__main__":
             os.system(clang_command)
             print(clang_command)
             os.system(f"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.o")
-            os.system(f"{clang_name} ../bench/{benchy} -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
-            os.system(f"{clang_name} ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
-            os.system(f"g++ ../bench/{benchy} -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out")
-            print(f"clang++ {out_dir}/{benchy}.tmp.ll -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
+            os.system(f"{clang_name} ../bench/{benchy} -static-libstdc++ -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
+            os.system(f"{clang_name} ../bench/{benchy} -static-libstdc++ -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
+            os.system(f"g++ ../bench/{benchy} -static-libstdc++ -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out")
             
 
     # print(hyperfine_compile_command)
 
     hyperfine_run_command = f"hyperfine -i -N --export-json={perf_name}"
     for benchy in benches:
-        link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
+        link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} -static-libstdc++ {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
         os.system(link_command)
 
         name = ".".join(benchy.split(".")[:-1])

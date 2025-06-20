@@ -10,11 +10,11 @@ compile_optim="-O3 -mllvm -disable-llvm-optzns"
 # compile_optim="-O0"
 
 clang++ $compile_optim $flags $test_linkdir $test_file -o min.ll -S -emit-llvm || exit 1
-clang++ -O2 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o clang_min.out || exit 1
-g++ -O2 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o gcc_min.out || exit 1
+clang++ -static-libstdc++ -O2 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o clang_min.out || exit 1
+g++ -static-libstdc++ -O2 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o gcc_min.out || exit 1
 
 $foptim min.ll min.o || exit 0
-clang++ min.o -o min.out -lm || exit 1
+clang++ min.o -o min.out -static-libstdc++ || exit 1
 
 echo "Running Mine"
 OUT_got=$(./min.out 2>&1)

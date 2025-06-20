@@ -155,6 +155,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
   ASSERT(ctx->verify());
   fmt::print("================FIR END====================\n");
+  fmt::print("{:d}", ctx);
 }
 
 static void
@@ -202,7 +203,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
           }
         }
         glob.size = size;
-        if (v->data->init_value) {
+        if (v->data->init_value != nullptr) {
           glob.data.resize(size, 0);
           memcpy(glob.data.data(), v->data->init_value, size);
         }

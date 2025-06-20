@@ -1,6 +1,6 @@
 // RUN: clang++ -fno-exceptions -O3 -mllvm -disable-llvm-optzns %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.o
-// RUN: clang++ %t.o -o %t.out
+// RUN: clang++ -static-libstdc++ %t.o -o %t.out
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 

@@ -32,6 +32,11 @@
             llvmPackages_20.clang
 
             #for testing stuff
+            (pkgs.python312.withPackages (python-pkgs: [
+                python-pkgs.pandas
+                python-pkgs.matplotlib
+                python-pkgs.z3-solver
+              ]))
             graphviz
             cvise
             gtest
@@ -39,11 +44,6 @@
             gdb
             lit
             hyperfine
-            (pkgs.python312.withPackages (python-pkgs: [
-                python-pkgs.pandas
-                python-pkgs.matplotlib
-                python-pkgs.z3-solver
-              ]))
             (cutter.withPlugins (ps: with ps; [ rz-ghidra ]))
             valgrind
             kdePackages.kcachegrind
