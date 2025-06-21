@@ -1367,13 +1367,28 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::vsub, res_reg, a0, a1);
           return true;
         }
+        auto a0 = valueToArg(sub_instr->args[0], res.result, data.alloc);
+        if (a0.isImm()) {
+          // then we gucci
+        } else if (res_reg.ty != a0.ty) {
+          auto res_reg = data.alloc.get_new_register(res_ty);
+          auto helper_reg1 = MArgument(res_reg, res_ty);
+          res.result.emplace_back(Opcode::mov, helper_reg1, a0);
+          a0 = helper_reg1;
+        }
 
-        res.result.emplace_back(
-            Opcode::mov, res_reg,
-            valueToArg(sub_instr->args[0], res.result, data.alloc));
-        res.result.emplace_back(
-            Opcode::sub2, res_reg,
-            valueToArg(sub_instr->args[1], res.result, data.alloc));
+        auto a1 = valueToArg(sub_instr->args[1], res.result, data.alloc);
+        if (a1.isImm()) {
+          // then we gucci
+        } else if (res_reg.ty != a1.ty) {
+          auto res_reg = data.alloc.get_new_register(res_ty);
+          auto helper_reg1 = MArgument(res_reg, res_ty);
+          res.result.emplace_back(Opcode::mov, helper_reg1, a1);
+          a1 = helper_reg1;
+        }
+
+        res.result.emplace_back(Opcode::mov, res_reg, a0);
+        res.result.emplace_back(Opcode::sub2, res_reg, a1);
         return true;
       }});
   pats.push_back(Pattern{
