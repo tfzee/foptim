@@ -7,6 +7,8 @@
 
 namespace foptim::fir::intepreter {
 
+namespace {
+
 std::optional<ConstantValue> get_constant_value(ValueR val, State &st) {
   if (val.is_constant()) {
     auto c = val.as_constant();
@@ -133,6 +135,8 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
   ip.instr_id++;
   return true;
 }
+
+} // namespace
 
 void Interpreter::dump_state() {
   fmt::println("========STATE=========");
