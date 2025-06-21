@@ -43,14 +43,29 @@ bool try_constant_eval_binary(fir::Instr instr,
   case fir::BinaryInstrSubType::IntUDiv:
     instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(a / b, type)));
     return true;
+  case fir::BinaryInstrSubType::Or:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a | b, type)));
+      return true;
+    }
+  case fir::BinaryInstrSubType::And:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a & b, type)));
+      return true;
+    }
+  case fir::BinaryInstrSubType::Xor:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a ^ b, type)));
+      return true;
+    }
+  case fir::BinaryInstrSubType::AShr:
+  case fir::BinaryInstrSubType::Shr:
   case fir::BinaryInstrSubType::IntSRem:
   case fir::BinaryInstrSubType::Shl:
-  case fir::BinaryInstrSubType::And:
-  case fir::BinaryInstrSubType::Or:
-  case fir::BinaryInstrSubType::Xor:
   case fir::BinaryInstrSubType::INVALID:
-  case fir::BinaryInstrSubType::Shr:
-  case fir::BinaryInstrSubType::AShr:
     return false;
   }
 }

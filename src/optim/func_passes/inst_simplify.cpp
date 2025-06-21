@@ -930,6 +930,51 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
   bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
 
+  // conert to integer comparison
+  if (instr->args[0].is_instr() && second_constant) {
+    auto arg0_i = instr->args[0].as_instr();
+    auto const1_i = instr->args[1].as_constant();
+    if (const1_i->is_float() && arg0_i->is(InstrType::Conversion) &&
+        arg0_i->subtype == (u32)ConversionSubType::SITOFP) {
+      fir::Builder b{instr};
+      // TODO: this is iffy
+      auto const_val = const1_i->as_f64();
+      switch ((FCmpInstrSubType)instr->get_instr_subtype()) {
+      case fir::FCmpInstrSubType::OLT: {
+        auto r = b.build_int_cmp(
+            arg0_i->args[0],
+            fir::ValueR{ctx->get_constant_value((i128)ceil(const_val),
+                                                arg0_i->args[0].get_type())},
+            ICmpInstrSubType::SLT);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        return;
+      }
+      case fir::FCmpInstrSubType::INVALID:
+      case fir::FCmpInstrSubType::AlwFalse:
+      case fir::FCmpInstrSubType::OEQ:
+      case fir::FCmpInstrSubType::OGT:
+      case fir::FCmpInstrSubType::OGE:
+      case fir::FCmpInstrSubType::OLE:
+      case fir::FCmpInstrSubType::ONE:
+      case fir::FCmpInstrSubType::ORD:
+      case fir::FCmpInstrSubType::UNO:
+      case fir::FCmpInstrSubType::UEQ:
+      case fir::FCmpInstrSubType::UGT:
+      case fir::FCmpInstrSubType::UGE:
+      case fir::FCmpInstrSubType::ULT:
+      case fir::FCmpInstrSubType::ULE:
+      case fir::FCmpInstrSubType::UNE:
+      case fir::FCmpInstrSubType::AlwTrue:
+      case fir::FCmpInstrSubType::IsNaN:
+        fmt::println("{}", instr);
+        TODO("impl");
+        break;
+      }
+    }
+  }
+
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
@@ -1230,45 +1275,100 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     return;
     TODO("impl itrunc constant propagate");
   }
-  if (instr->args[0].is_instr() && instr.get_type()->get_size() > 1) {
-    auto inner_math = instr->args[0].as_instr();
-    if (!inner_math->is(fir::InstrType::BinaryInstr)) {
+  if (instr->args[0].is_instr()) {
+    auto arg_i = instr->args[0].as_instr();
+    auto out_type = instr->get_type();
+
+    if ((arg_i->is(fir::InstrType::SExt) || arg_i->is(fir::InstrType::ZExt)) &&
+        arg_i->args[0].get_type() == instr.get_type()) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(arg_i->args[0]);
+      instr.destroy();
       return;
     }
-    bool b0 = inner_math->args[0].is_constant();
-    bool b0I = (inner_math->args[0].is_instr() &&
-                (inner_math->args[0].as_instr()->is(fir::InstrType::SExt) ||
-                 inner_math->args[0].as_instr()->is(fir::InstrType::ZExt)));
-    bool b1 = inner_math->args[1].is_constant();
-    bool b1I = (inner_math->args[1].is_instr() &&
-                (inner_math->args[1].as_instr()->is(fir::InstrType::SExt) ||
-                 inner_math->args[1].as_instr()->is(fir::InstrType::ZExt)));
-    auto new_type = instr.get_type();
 
-    if ((b0 || b0I) && (b1 || b1I)) {
-      fir::Builder b(instr);
-      fir::ValueR a0 = inner_math->args[0];
-      fir::ValueR a1 = inner_math->args[1];
-      if (b0I) {
-        a0 = inner_math->args[0].as_instr()->args[0];
-      } else {
-        auto v = inner_math->args[0].as_constant()->as_int();
-        a0 = fir::ValueR{ctx->get_constant_value(v, new_type)};
+    if (instr.get_type()->get_size() > 1) {
+      auto inner_math = arg_i;
+      if (!inner_math->is(fir::InstrType::BinaryInstr)) {
+        return;
       }
-      if (b1I) {
-        a1 = inner_math->args[1].as_instr()->args[0];
-      } else {
-        auto v = inner_math->args[1].as_constant()->as_int();
-        a1 = fir::ValueR{ctx->get_constant_value(v, new_type)};
-      }
-      // fmt::println("{} {}", inner_math, instr);
-      // fmt::println("{} {}", a0.get_type(), a1.get_type());
+      bool b0 = inner_math->args[0].is_constant();
+      bool b0I = (inner_math->args[0].is_instr() &&
+                  (inner_math->args[0].as_instr()->is(fir::InstrType::SExt) ||
+                   inner_math->args[0].as_instr()->is(fir::InstrType::ZExt)));
+      bool b1 = inner_math->args[1].is_constant();
+      bool b1I = (inner_math->args[1].is_instr() &&
+                  (inner_math->args[1].as_instr()->is(fir::InstrType::SExt) ||
+                   inner_math->args[1].as_instr()->is(fir::InstrType::ZExt)));
+      auto new_type = instr.get_type();
 
-      auto res = b.build_binary_op(
-          a0, a1, (fir::BinaryInstrSubType)inner_math->subtype);
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(res);
-      instr.destroy();
+      if ((b0 || b0I) && (b1 || b1I)) {
+        fir::Builder b(instr);
+        fir::ValueR a0 = inner_math->args[0];
+        fir::ValueR a1 = inner_math->args[1];
+        if (b0I) {
+          a0 = inner_math->args[0].as_instr()->args[0];
+        } else {
+          auto v = inner_math->args[0].as_constant()->as_int();
+          a0 = fir::ValueR{ctx->get_constant_value(v, new_type)};
+        }
+        if (b1I) {
+          a1 = inner_math->args[1].as_instr()->args[0];
+        } else {
+          auto v = inner_math->args[1].as_constant()->as_int();
+          a1 = fir::ValueR{ctx->get_constant_value(v, new_type)};
+        }
+        // fmt::println("{} {}", inner_math, instr);
+        // fmt::println("{} {}", a0.get_type(), a1.get_type());
+
+        auto res = b.build_binary_op(
+            a0, a1, (fir::BinaryInstrSubType)inner_math->subtype);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+        instr.destroy();
+        return;
+      }
+    }
+    switch (arg_i->instr_type) {
+    case fir::InstrType::BinaryInstr: {
+      auto i_arg0 = arg_i->args[0];
+      auto i_arg1 = arg_i->args[1];
+      fir::Builder b{instr};
+      switch ((fir::BinaryInstrSubType)arg_i->subtype) {
+      case fir::BinaryInstrSubType::Xor: {
+        auto v0 = b.build_itrunc(i_arg0, out_type);
+        auto v1 = b.build_itrunc(i_arg1, out_type);
+        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::Xor);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        return;
+      }
+      case fir::BinaryInstrSubType::And: {
+        auto v0 = b.build_itrunc(i_arg0, out_type);
+        auto v1 = b.build_itrunc(i_arg1, out_type);
+        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::And);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        return;
+      }
+      case fir::BinaryInstrSubType::Or: {
+        auto v0 = b.build_itrunc(i_arg0, out_type);
+        auto v1 = b.build_itrunc(i_arg1, out_type);
+        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::Or);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        return;
+      }
+      default:
+        break;
+      }
+      break;
+    }
+    default:
+      break;
     }
   }
 }
@@ -1281,6 +1381,14 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     instr->replace_all_uses(
         fir::ValueR{ctx->get_poisson_value(instr.get_type())});
     instr.destroy();
+    return;
+  }
+  if ((fir::UnaryInstrSubType)instr->subtype ==
+          fir::UnaryInstrSubType::IntNeg &&
+      instr->get_type()->get_bitwidth() == 1) {
+    instr->subtype = (u32)fir::UnaryInstrSubType::Not;
+    worklist.push_back(
+        InstSimplify::WorkItem{.instr = instr, .b = instr->get_parent()});
     return;
   }
   if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
