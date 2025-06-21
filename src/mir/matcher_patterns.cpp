@@ -126,6 +126,13 @@ void move_patterns(IRVec<Pattern> &pats) {
         fir::Instr cmp_instr = res.matched_instrs[0];
         fir::Instr slct_instr = res.matched_instrs[1];
 
+        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        case fir::ICmpInstrSubType::MulOverflow:
+        case fir::ICmpInstrSubType::AddOverflow:
+          // TODO: impl
+          return false;
+        default:
+        }
         auto res_arg =
             valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
         if (res_arg.is_vec_reg() || res_arg.ty == Type::Int8) {
@@ -170,8 +177,6 @@ void move_patterns(IRVec<Pattern> &pats) {
           break;
         case fir::ICmpInstrSubType::MulOverflow:
         case fir::ICmpInstrSubType::AddOverflow:
-          fmt::println("{} {}", cmp_instr, slct_instr);
-          TODO("okak");
         case fir::ICmpInstrSubType::INVALID:
           UNREACH();
         }
