@@ -4,20 +4,15 @@
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/attributer/IntRange.hpp"
-#include "optim/analysis/attributer/PtrAA.hpp"
-#include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
-#include "utils/logging.hpp"
 #include "utils/set.hpp"
-#include <algorithm>
 #include <tuple>
 
 namespace foptim::optim {
-
-static bool can_be_converted_into_phi(fir::Instr instr) {
+namespace {
+bool can_be_converted_into_phi(fir::Instr instr) {
   if (!instr->has_attrib("alloca::type")) {
     return false;
   }
@@ -35,7 +30,7 @@ static bool can_be_converted_into_phi(fir::Instr instr) {
 
 using AllocToPhiLoc = TMap<fir::Instr, TSet<u32>>;
 
-static bool type_equal_enough_for_guess(fir::TypeR got, fir::TypeR exp) {
+bool type_equal_enough_for_guess(fir::TypeR got, fir::TypeR exp) {
   if (got->eql(*exp.get_raw_ptr())) {
     return true;
   }
@@ -59,7 +54,7 @@ static bool type_equal_enough_for_guess(fir::TypeR got, fir::TypeR exp) {
 //  we can check the loads/stores
 //  but if we hit a load that only is used in a store and vice verse the types
 //  of these can be freely changed aslong as the bitwidth matches
-static void fix_types(fir::Function &func) {
+void fix_types(fir::Function &func) {
   TSet<fir::Instr> convertable_set;
   for (auto bb : func.basic_blocks) {
     for (auto instr : bb->instructions) {
@@ -134,8 +129,8 @@ static void fix_types(fir::Function &func) {
 
 // For a alloca instruction get all basic blocks it needs an phi in.
 //  for this we look at all bbs that store to it
-static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
-                                 AllocToPhiLoc &res, Dominators &dom) {
+void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
+                          AllocToPhiLoc &res, Dominators &dom) {
   if (!alloca_instr->is(fir::InstrType::AllocaInstr)) {
     return;
   }
@@ -162,7 +157,8 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
         auto guess = guessType(fir::ValueR{usage.user});
         if (guess.typeless) {
           continue;
-        } else if (guess.type.is_valid()) {
+        }
+        if (guess.type.is_valid()) {
           guessed_type = guess.type;
         } else {
           guessed_type = fir::TypeR{fir::TypeR::invalid()};
@@ -224,8 +220,7 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
   }
 }
 
-static AllocToPhiLoc phi_insert_locations(fir::Function &func,
-                                          Dominators &dom) {
+AllocToPhiLoc phi_insert_locations(fir::Function &func, Dominators &dom) {
   AllocToPhiLoc res;
 
   // for every alloca instruction
@@ -239,9 +234,9 @@ static AllocToPhiLoc phi_insert_locations(fir::Function &func,
 }
 
 [[maybe_unused]]
-static void
-dump(const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
-         &current_variable_value) {
+void dump(
+    const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
+        &current_variable_value) {
   (void)current_variable_value;
   TODO("Reimpl");
   // pritn << "DUMP CURR VAR VALUE\n";
@@ -258,7 +253,7 @@ dump(const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
   // }
 }
 
-static bool decide_variable_value(
+bool decide_variable_value(
     fir::ValueR variable,
     const TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>
         &current_variable_value,
@@ -276,10 +271,9 @@ static bool decide_variable_value(
 using VarValueStack =
     TVec<TMap<fir::ValueR, std::tuple<fir::BasicBlock, fir::ValueR>>>;
 
-static void decide_value_store(fir::Instr instr, size_t &i,
-                               fir::BasicBlock block,
-                               const AllocToPhiLoc &phi_insert_locs,
-                               VarValueStack &current_variable_value) {
+void decide_value_store(fir::Instr instr, size_t &i, fir::BasicBlock block,
+                        const AllocToPhiLoc &phi_insert_locs,
+                        VarValueStack &current_variable_value) {
   if (!instr->args[0].is_instr()) {
     i++;
     return;
@@ -308,9 +302,9 @@ static void decide_value_store(fir::Instr instr, size_t &i,
   block->remove_instr(i, true);
 }
 
-static void decide_value_load(fir::Instr instr, size_t &i,
-                              const AllocToPhiLoc &phi_insert_locs,
-                              const VarValueStack &current_variable_value) {
+void decide_value_load(fir::Instr instr, size_t &i,
+                       const AllocToPhiLoc &phi_insert_locs,
+                       const VarValueStack &current_variable_value) {
   // auto *ctx = instr->get_parent()->get_parent().func->ctx;
   fir::ValueR load_val = fir::ValueR();
 
@@ -352,12 +346,12 @@ static void decide_value_load(fir::Instr instr, size_t &i,
   i++;
 }
 
-static void
-decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
-                         fir::BasicBlock block, TSet<fir::BasicBlock> &visited,
-                         TMap<fir::ValueR, fir::ValueR> &bb_arg_to_alloca,
-                         const AllocToPhiLoc &phi_insert_locs,
-                         VarValueStack &current_variable_value) {
+void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
+                              fir::BasicBlock block,
+                              TSet<fir::BasicBlock> &visited,
+                              TMap<fir::ValueR, fir::ValueR> &bb_arg_to_alloca,
+                              const AllocToPhiLoc &phi_insert_locs,
+                              VarValueStack &current_variable_value) {
 
   const auto &args = block->get_args();
   // for each bb argument we find the origin
@@ -424,6 +418,7 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
     current_variable_value.pop_back();
   }
 }
+} // namespace
 
 void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("Mem2Reg");

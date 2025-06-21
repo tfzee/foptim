@@ -1,10 +1,7 @@
 #pragma once
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
-#include "ir/types_ref.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
-#include "optim/analysis/cfg.hpp"
-#include "optim/analysis/dominators.hpp"
 #include "utils/APInt.hpp"
 #include <limits>
 

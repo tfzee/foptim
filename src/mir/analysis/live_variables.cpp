@@ -194,6 +194,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   }
 }
 
+namespace {
 void update_uses(const MArgument &arg, utils::BitSet<> &uses) {
   switch (arg.type) {
   case MArgument::ArgumentType::VReg:
@@ -387,6 +388,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     break;
   }
 }
+} // namespace
 
 void LiveVariables::update(const fmir::MFunc &func) {
   ZoneScopedN("LiveVariables::update");
@@ -468,7 +470,7 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
 
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
                             size_t start_instr, TVec<ArgData> &args_temp) {
-  NextUseResult res{false, false, 0};
+  NextUseResult res{.is_write = false, .is_read = false, .index = 0};
   args_temp.clear();
 
   for (auto i = start_instr; i < instrs.size(); i++) {

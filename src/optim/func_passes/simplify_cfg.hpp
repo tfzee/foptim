@@ -68,7 +68,7 @@ public:
                             size_t bb_id, bool is_entry);
   // If we got 2 blocks that are identical but some constants/vars
   // we could merge them into 1 and replace differences by bb args
-  bool dup_bb_to_args(CFG &cfg, CFG::Node &curr, fir::Function &func,
+  bool dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
                       size_t bb_id, bool is_entry);
   // if we have mustprogress + an infinite loop delete it
   bool eliminate_infinite_loop(CFG &cfg, CFG::Node &curr, fir::Function &func,

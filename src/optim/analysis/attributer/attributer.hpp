@@ -69,7 +69,7 @@ public:
 
   template <class AAna>
   AAna *get_or_create_analysis(fir::ValueR loc, Worklist *worklist = nullptr) {
-    static_assert(std::is_base_of<AttributeAnalysis, AAna>::value,
+    static_assert(std::is_base_of_v<AttributeAnalysis, AAna>,
                   "AAna must inherit AttributeAnalysis");
     ASSERT(loc.is_valid(true) && "must be valid");
     const std::type_index aa_typeid = typeid(AAna);
@@ -96,7 +96,7 @@ public:
       analysis->force_update = true;
     }
     ASSERT(analysis);
-    return (AAna *)(analysis);
+    return analysis;
   }
 
   void materialize(fir::Context &ctx) {

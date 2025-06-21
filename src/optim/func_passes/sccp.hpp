@@ -8,7 +8,6 @@
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
-#include "utils/logging.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
 #include <bit>
@@ -46,15 +45,17 @@ class SCCP final : public FunctionPass {
     }
 
     static ConstantValue Top() {
-      return ConstantValue{ValueType::Top,
-                           fir::ConstantValueR(fir::ConstantValueR::invalid())};
+      return ConstantValue{
+          .type = ValueType::Top,
+          .value = fir::ConstantValueR(fir::ConstantValueR::invalid())};
     }
     static ConstantValue Bottom() {
-      return ConstantValue{ValueType::Bottom,
-                           fir::ConstantValueR(fir::ConstantValueR::invalid())};
+      return ConstantValue{
+          .type = ValueType::Bottom,
+          .value = fir::ConstantValueR(fir::ConstantValueR::invalid())};
     }
     static ConstantValue Constant(fir::ConstantValueR v) {
-      return ConstantValue{ValueType::Constant, v};
+      return ConstantValue{.type = ValueType::Constant, .value = v};
     }
 
     bool operator==(const ConstantValue &other) const {
@@ -108,7 +109,7 @@ public:
 
       if ((!a.value->is_int() && !a.value->is_float())) {
         failure(
-            {"Cannot do SCCP on binary expr using non integers/floats", instr});
+            {.reason="Cannot do SCCP on binary expr using non integers/floats", .loc=instr});
         return ConstantValue::Bottom();
       }
 
@@ -157,7 +158,7 @@ public:
       if ((!a.value->is_int() && !a.value->is_float()) ||
           (!b.value->is_int() && !b.value->is_float())) {
         failure(
-            {"Cannot do SCCP on binary expr using non integers/floats", instr});
+            {.reason="Cannot do SCCP on binary expr using non integers/floats", .loc=instr});
         return ConstantValue::Bottom();
       }
 
@@ -415,10 +416,9 @@ public:
         mask = mask << old_width;
         return ConstantValue::Constant(
             ctx->get_constant_value(old_value | mask, instr->get_type()));
-      } else {
-        return ConstantValue::Constant(
-            ctx->get_constant_value(old_value, instr->get_type()));
       }
+      return ConstantValue::Constant(
+          ctx->get_constant_value(old_value, instr->get_type()));
     }
     case fir::InstrType::FCmp: {
       auto a = eval(instr->get_arg(0));
@@ -522,7 +522,7 @@ public:
       case fir::FCmpInstrSubType::INVALID:
         break;
       }
-      failure({"Imply fcmp", instr});
+      failure({.reason="Imply fcmp", .loc=instr});
       return ConstantValue::Bottom();
     }
     case fir::InstrType::ICmp: {
@@ -553,7 +553,7 @@ public:
       }
 
       if (!a.value->is_int() || !b.value->is_int()) {
-        failure({"Impl icmp on non ints", instr});
+        failure({.reason="Impl icmp on non ints", .loc=instr});
         return ConstantValue::Bottom();
       }
 
@@ -634,7 +634,7 @@ public:
       }
 
       if (!a.value->is_int()) {
-        failure({"Impl icmp on non ints", instr});
+        failure({.reason="Impl icmp on non ints", .loc=instr});
         return ConstantValue::Bottom();
       }
 

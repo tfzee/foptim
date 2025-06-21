@@ -11,12 +11,6 @@
 #include <elfio/elfio.hpp>
 #include <fmt/core.h>
 
-enum class ProEpilogueType {
-  Full = 0,  // full epilogue for setting up bp and sp
-  Align = 1, // just aligning the stack for calls not setting up sp/bp
-  None = 2,  // doing nothing
-};
-
 const char *get_reg_name(const ZydisRegister &data);
 
 template <>
@@ -65,6 +59,14 @@ public:
 };
 
 namespace foptim::codegen {
+
+namespace {
+
+enum class ProEpilogueType {
+  Full = 0,  // full epilogue for setting up bp and sp
+  Align = 1, // just aligning the stack for calls not setting up sp/bp
+  None = 2,  // doing nothing
+};
 
 enum class RelocSection : u8 {
   INVALID,
@@ -1309,26 +1311,25 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       ASSERT(new_jmp_end == old_jmp_end);
 
       return last_instr_off;
-    } else {
-      req.mnemonic = ZYDIS_MNEMONIC_TEST;
-      req.operand_count = 2;
-      req.operands[0] = cond;
-      req.operands[1] = cond;
-      u64 off = 0;
-      off = emit(out_buff, off, &req);
-      req.mnemonic = ZYDIS_MNEMONIC_CMOVNZ;
-      req.operand_count = 2;
-      req.operands[0] = targ;
-      req.operands[1] = value;
-      if (get_size(instr.args[0].ty) == 1 &&
-          value.type == ZYDIS_OPERAND_TYPE_REGISTER) {
-        req.operands[0].reg.value =
-            reg_with_type(instr.args[0].reg, fmir::Type::Int64);
-        req.operands[1].reg.value =
-            reg_with_type(instr.args[2].reg, fmir::Type::Int64);
-      }
-      return emit(out_buff, off, &req);
     }
+    req.mnemonic = ZYDIS_MNEMONIC_TEST;
+    req.operand_count = 2;
+    req.operands[0] = cond;
+    req.operands[1] = cond;
+    u64 off = 0;
+    off = emit(out_buff, off, &req);
+    req.mnemonic = ZYDIS_MNEMONIC_CMOVNZ;
+    req.operand_count = 2;
+    req.operands[0] = targ;
+    req.operands[1] = value;
+    if (get_size(instr.args[0].ty) == 1 &&
+        value.type == ZYDIS_OPERAND_TYPE_REGISTER) {
+      req.operands[0].reg.value =
+          reg_with_type(instr.args[0].reg, fmir::Type::Int64);
+      req.operands[1].reg.value =
+          reg_with_type(instr.args[2].reg, fmir::Type::Int64);
+    }
+    return emit(out_buff, off, &req);
   }
   case fmir::Opcode::lea:
     req.mnemonic = ZYDIS_MNEMONIC_LEA;
@@ -1366,11 +1367,13 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int64);
       return emit(out_buff, 0, &req);
-    } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int32) {
+    }
+    if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int32) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int32);
       return emit(out_buff, 0, &req);
-    } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int16) {
+    }
+    if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int16) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int16);
       size_t off = 0;
@@ -1382,7 +1385,8 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
       req.operands[1].imm.u = 0xFFFF;
       return emit(out_buff, off, &req);
-    } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int8) {
+    }
+    if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int8) {
       // TODO: could move this into the matcher that would allow for
       // optimizations if known bits are there
       req.operands[1].reg.value =
@@ -1399,10 +1403,9 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
       req.operands[1].imm.u = 0xFF;
       return emit(out_buff, off, &req);
-    } else {
-      fmt::println("implit {}", instr);
-      TODO("UNREACH");
     }
+    fmt::println("implit {}", instr);
+    TODO("UNREACH");
   case fmir::Opcode::shl2:
     req.mnemonic = ZYDIS_MNEMONIC_SHL;
     return emit(out_buff, 0, &req);
@@ -1706,7 +1709,9 @@ OpData get_op_addr(u8 *buff, u8 op_num) {
 
   auto old_val =
       is_imm ? operands[op_num].imm.value.s : operands[op_num].mem.disp.value;
-  return {buff + op_off, (u8)(instruction.length - op_off), old_val};
+  return {.op_addr = buff + op_off,
+          .op_off = (u8)(instruction.length - op_off),
+          .op_val = old_val};
 }
 
 void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
@@ -1745,8 +1750,8 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
   }
 }
 
-static u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
-                    TLabelUsageMap &reloc_map) {
+u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
+             TLabelUsageMap &reloc_map) {
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
@@ -1951,10 +1956,11 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                 });
             i++;
           }
-          init_array_sec->set_size(8 * i);
-          void *buff_data = malloc(8 * i);
-          memset(buff_data, 0, 8 * i);
-          data_sec->set_data((const char *)buff_data, 8 * i);
+          u32 size = 8 * i;
+          init_array_sec->set_size(size);
+          void *buff_data = malloc(size);
+          memset(buff_data, 0, size);
+          data_sec->set_data((const char *)buff_data, size);
           // IDK if i assume it copies it ??
           free(buff_data);
         }
@@ -2131,6 +2137,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
 
   ASSERT(writer.save(utils::out_file_path));
 }
+} // namespace
 
 void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
          std::span<const fmir::Global> globals) {

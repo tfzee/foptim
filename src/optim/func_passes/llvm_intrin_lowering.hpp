@@ -28,7 +28,7 @@ public:
       if (out_size <= 8) {
         u8 constant = value.as_constant()->as_int();
         u64 value = 0;
-        for (u8 i = 0; i < out_size; i++) {
+        for (u32 i = 0; i < out_size; i++) {
           value = (value << 8) | constant;
         }
         bb.build_store(target_ptr,

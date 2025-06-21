@@ -2,7 +2,6 @@
 #include "basic_block_ref.hpp"
 #include "instruction.hpp"
 #include "ir/basic_block_arg.hpp"
-#include "ir/constant_value.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
 #include "types_ref.hpp"

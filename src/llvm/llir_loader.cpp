@@ -1,3 +1,4 @@
+#include "llir_loader.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -31,6 +32,7 @@
 #include <llvm/Support/SourceMgr.h>
 #include <memory>
 
+namespace {
 using foptim::u32;
 using foptim::u64;
 
@@ -115,9 +117,8 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
   TODO("IDK HOW TO HANDLE THIS ARG");
 }
 
-inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
-                                       foptim::fir::Context &ctx,
-                                       llvm::Module &module) {
+foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
+                                llvm::Module &module) {
   if (auto *v = llvm::dyn_cast_or_null<llvm::IntegerType>(any_ty)) {
     u32 width = v->getBitWidth();
     return ctx->get_int_type(width);
@@ -163,11 +164,10 @@ inline foptim::fir::TypeR convert_type(llvm::Type *any_ty,
   std::abort();
 }
 
-inline void convert_alloca(const llvm::Instruction *any_instr,
-                           const llvm::AllocaInst *alloca_instr,
-                           foptim::fir::Context &fctx,
-                           foptim::fir::Builder &builder, V2VMap &valueToValue,
-                           llvm::Module &mod) {
+void convert_alloca(const llvm::Instruction *any_instr,
+                    const llvm::AllocaInst *alloca_instr,
+                    foptim::fir::Context &fctx, foptim::fir::Builder &builder,
+                    V2VMap &valueToValue, llvm::Module &mod) {
 
   // auto mod = instr->getModule();
   auto datalayout = mod.getDataLayout();
@@ -187,12 +187,11 @@ inline void convert_alloca(const llvm::Instruction *any_instr,
   valueToValue.insert({any_instr, alloca});
 }
 
-inline void convert_gep(const llvm::Instruction *any_instr,
-                        const llvm::GetElementPtrInst *gep_instr,
-                        foptim::fir::Context &fctx,
-                        foptim::fir::FunctionR ffunc,
-                        foptim::fir::Builder &builder, V2VMap &valueToValue,
-                        llvm::Module &mod, B2BMap &b2b) {
+void convert_gep(const llvm::Instruction *any_instr,
+                 const llvm::GetElementPtrInst *gep_instr,
+                 foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
+                 foptim::fir::Builder &builder, V2VMap &valueToValue,
+                 llvm::Module &mod, B2BMap &b2b) {
 
   auto ptr = convert_instr_arg(gep_instr->getPointerOperand(), fctx, ffunc,
                                builder, valueToValue, mod, b2b);
@@ -269,11 +268,10 @@ inline void convert_gep(const llvm::Instruction *any_instr,
   valueToValue.insert({any_instr, result_value});
 }
 
-inline void convert_branch(const llvm::BranchInst *branch_instr,
-                           foptim::fir::Context &fctx,
-                           foptim::fir::FunctionR ffunc,
-                           foptim::fir::Builder &builder, V2VMap &valueToValue,
-                           llvm::Module &mod, B2BMap &b2b) {
+void convert_branch(const llvm::BranchInst *branch_instr,
+                    foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
+                    foptim::fir::Builder &builder, V2VMap &valueToValue,
+                    llvm::Module &mod, B2BMap &b2b) {
 
   if (!branch_instr->isConditional()) {
     auto target = b2b.at(branch_instr->getSuccessor(0));
@@ -291,19 +289,9 @@ inline void convert_branch(const llvm::BranchInst *branch_instr,
   // UNREACH
 }
 
-inline void convert_switch(llvm::SwitchInst *switch_instr,
-                           foptim::fir::Context &fctx,
-                           foptim::fir::FunctionR ffunc,
-                           foptim::fir::Builder &builder, V2VMap &valueToValue,
-                           llvm::Module &mod, B2BMap &b2b) {
-  (void)switch_instr;
-  (void)fctx;
-  (void)ffunc;
-  (void)builder;
-  (void)valueToValue;
-  (void)mod;
-  (void)b2b;
-
+void convert_switch(llvm::SwitchInst *switch_instr, foptim::fir::Context &fctx,
+                    foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+                    V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   auto defaultDest =
       foptim::fir::BasicBlock{foptim::fir::BasicBlock::invalid()};
   if (!switch_instr->defaultDestUndefined()) {
@@ -334,12 +322,10 @@ inline void convert_switch(llvm::SwitchInst *switch_instr,
   builder.build_switch(value, cases, defaultDest);
 }
 
-inline void convert_call(const llvm::Instruction *any_instr,
-                         const llvm::CallInst *call_instr,
-                         foptim::fir::Context &fctx,
-                         foptim::fir::FunctionR ffunc,
-                         foptim::fir::Builder &builder, V2VMap &valueToValue,
-                         llvm::Module &mod, B2BMap &b2b) {
+void convert_call(const llvm::Instruction *any_instr,
+                  const llvm::CallInst *call_instr, foptim::fir::Context &fctx,
+                  foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+                  V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
 
   foptim::TVec<foptim::fir::ValueR> args = {};
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {
@@ -368,12 +354,10 @@ inline void convert_call(const llvm::Instruction *any_instr,
   valueToValue.insert({any_instr, res});
 }
 
-inline bool convert_fcmp(const llvm::Instruction *any_instr,
-                         const llvm::FCmpInst *cmp_inst,
-                         foptim::fir::Context &fctx,
-                         foptim::fir::FunctionR ffunc,
-                         foptim::fir::Builder &builder, V2VMap &valueToValue,
-                         llvm::Module &mod, B2BMap &b2b) {
+bool convert_fcmp(const llvm::Instruction *any_instr,
+                  const llvm::FCmpInst *cmp_inst, foptim::fir::Context &fctx,
+                  foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+                  V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   auto a = convert_instr_arg(cmp_inst->getOperand(0), fctx, ffunc, builder,
                              valueToValue, mod, b2b);
   auto b = convert_instr_arg(cmp_inst->getOperand(1), fctx, ffunc, builder,
@@ -439,12 +423,10 @@ inline bool convert_fcmp(const llvm::Instruction *any_instr,
   return true;
 }
 
-inline bool convert_icmp(const llvm::Instruction *any_instr,
-                         const llvm::ICmpInst *cmp_inst,
-                         foptim::fir::Context &fctx,
-                         foptim::fir::FunctionR ffunc,
-                         foptim::fir::Builder &builder, V2VMap &valueToValue,
-                         llvm::Module &mod, B2BMap &b2b) {
+bool convert_icmp(const llvm::Instruction *any_instr,
+                  const llvm::ICmpInst *cmp_inst, foptim::fir::Context &fctx,
+                  foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+                  V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
 
   auto a = convert_instr_arg(cmp_inst->getOperand(0), fctx, ffunc, builder,
                              valueToValue, mod, b2b);
@@ -490,9 +472,9 @@ inline bool convert_icmp(const llvm::Instruction *any_instr,
   return true;
 }
 
-inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
-                    foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-                    V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
+void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
+             foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+             V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   auto op_code = any_instr->getOpcode();
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::ReturnInst>(any_instr)) {
     if (auto *v = instr->getReturnValue()) {
@@ -889,7 +871,7 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   std::abort();
 }
 
-inline void generate_memset(foptim::fir::Context &fctx) {
+void generate_memset(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memset";
   if (fctx->has_function(name)) {
     return;
@@ -949,8 +931,7 @@ inline void generate_memset(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
-inline void generate_fabs(foptim::fir::Context &fctx,
-                          llvm::StringRef func_name) {
+void generate_fabs(foptim::fir::Context &fctx, llvm::StringRef func_name) {
 
   const char *name = "invalidfabs";
   u32 width = 0;
@@ -986,8 +967,7 @@ inline void generate_fabs(foptim::fir::Context &fctx,
   bb.build_return(res);
 }
 
-inline void generate_abs(foptim::fir::Context &fctx,
-                         llvm::StringRef func_name) {
+void generate_abs(foptim::fir::Context &fctx, llvm::StringRef func_name) {
   const char *name = "invalidabs";
   u32 width = 0;
   if (func_name.ends_with("i64")) {
@@ -1024,7 +1004,7 @@ inline void generate_abs(foptim::fir::Context &fctx,
   bb.build_return(res);
 }
 
-inline void generate_memcpy(foptim::fir::Context &fctx) {
+void generate_memcpy(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memcpy";
   if (fctx->has_function(name)) {
     return;
@@ -1088,7 +1068,7 @@ inline void generate_memcpy(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
-inline void generate_trap(foptim::fir::Context &fctx) {
+void generate_trap(foptim::fir::Context &fctx) {
   if (fctx->has_function("abort")) {
     return;
   }
@@ -1098,7 +1078,7 @@ inline void generate_trap(foptim::fir::Context &fctx) {
                                                         "abort", func_ty)});
 }
 
-inline void generate_memmove(foptim::fir::Context &fctx) {
+void generate_memmove(foptim::fir::Context &fctx) {
   if (fctx->has_function("memmove")) {
     return;
   }
@@ -1110,7 +1090,7 @@ inline void generate_memmove(foptim::fir::Context &fctx) {
                                                           "memmove", func_ty)});
 }
 
-inline void generate_fexp(foptim::fir::Context &fctx) {
+void generate_fexp(foptim::fir::Context &fctx) {
   if (fctx->has_function("exp")) {
     return;
   }
@@ -1121,8 +1101,8 @@ inline void generate_fexp(foptim::fir::Context &fctx) {
                                                       func_ty)});
 }
 
-inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
-                         V2VMap &valueToValue, llvm::Module &mod) {
+void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
+                  V2VMap &valueToValue, llvm::Module &mod) {
   if (func.getName().starts_with("llvm.memset")) {
     generate_memset(fctx);
   } else if (func.getName().starts_with("llvm.memcpy")) {
@@ -1149,8 +1129,8 @@ inline void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
   valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
 }
 
-inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
-                           V2VMap &valueToValue, llvm::Module &mod) {
+void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
+                    V2VMap &valueToValue, llvm::Module &mod) {
   if (!func.hasName()) {
     return;
   }
@@ -1238,8 +1218,8 @@ inline void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   }
 }
 
-inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
-                    V2VMap &valueToValue) {
+void convert(llvm::Function &func, foptim::fir::Context &fctx,
+             V2VMap &valueToValue) {
   ZoneScopedN("Convert Func");
   if (!func.hasName() || func.empty()) {
     return;
@@ -1343,10 +1323,9 @@ inline void convert(llvm::Function &func, foptim::fir::Context &fctx,
   }
 }
 
-inline void
-convert_constant_init(const uint8_t *output, const llvm::Constant *val,
-                      foptim::fir::Context &fctx, foptim::fir::Global glob,
-                      llvm::DataLayout &layout, V2VMap &valueToValue) {
+void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
+                           foptim::fir::Context &fctx, foptim::fir::Global glob,
+                           llvm::DataLayout &layout, V2VMap &valueToValue) {
   if ((llvm::dyn_cast_or_null<llvm::ConstantAggregateZero>(val) != nullptr) ||
       (llvm::dyn_cast_or_null<llvm::UndefValue>(val) != nullptr) ||
       (llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(val) != nullptr)) {
@@ -1482,7 +1461,7 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::Function>(val)) {
     size_t reloc_off = output - glob->init_value;
-    llvm::errs() << "getting func" << valueToValue.contains(d) << " "
+    llvm::errs() << "getting func" << (int)valueToValue.contains(d) << " "
                  << d->getName() << "\n";
     foptim::fir::ConstantValueR reloc_ref = valueToValue.at(d).as_constant();
     glob->reloc_info.push_back({reloc_off, reloc_ref});
@@ -1498,17 +1477,21 @@ convert_constant_init(const uint8_t *output, const llvm::Constant *val,
   llvm::errs() << "TODO: handle global init\n";
   llvm::errs() << "idk " << *val << "\n";
   llvm::errs() << "isConstantData: "
-               << (llvm::dyn_cast_or_null<llvm::ConstantData>(val) != nullptr)
+               << static_cast<int>(llvm::dyn_cast_or_null<llvm::ConstantData>(
+                                       val) != nullptr)
                << "\n";
   llvm::errs() << "isConstantExpr: "
-               << (llvm::dyn_cast_or_null<llvm::ConstantExpr>(val) != nullptr)
+               << static_cast<int>(llvm::dyn_cast_or_null<llvm::ConstantExpr>(
+                                       val) != nullptr)
                << "\n";
   llvm::errs() << "isGlobalValue: "
-               << (llvm::dyn_cast_or_null<llvm::GlobalValue>(val) != nullptr)
+               << static_cast<int>(
+                      llvm::dyn_cast_or_null<llvm::GlobalValue>(val) != nullptr)
                << "\n";
   llvm::errs() << "isConstantAggregate: "
-               << (llvm::dyn_cast_or_null<llvm::ConstantAggregate>(val) !=
-                   nullptr)
+               << static_cast<int>(
+                      llvm::dyn_cast_or_null<llvm::ConstantAggregate>(val) !=
+                      nullptr)
                << "\n";
   TODO("IMPL");
 }
@@ -1578,8 +1561,8 @@ inline void setup_global(llvm::Module &mod, llvm::GlobalValue &gval,
   }
 }
 
-inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
-                    foptim::fir::Context &fctx, V2VMap &valueToValue) {
+void convert(llvm::Module &mod, llvm::GlobalValue &gval,
+             foptim::fir::Context &fctx, V2VMap &valueToValue) {
   if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
     ZoneScopedN("Initializing Global Variable");
     auto layout = mod.getDataLayout();
@@ -1593,7 +1576,7 @@ inline void convert(llvm::Module &mod, llvm::GlobalValue &gval,
   }
 }
 
-inline void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
+void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
   V2VMap valueToValue;
   {
     ZoneScopedN("Initializing Globals + Functions");
@@ -1614,6 +1597,8 @@ inline void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
     }
   }
 }
+
+} // namespace
 
 void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
   llvm::LLVMContext context;

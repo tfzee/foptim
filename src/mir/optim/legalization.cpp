@@ -305,10 +305,10 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
     if (get_size(t0) > get_size(t1)) {
       instr.op = Opcode::mov_zx;
       return true;
-    } else {
-      instr.op = Opcode::itrunc;
-      return true;
     }
+    instr.op = Opcode::itrunc;
+    return true;
+
     // ASSERT(get_size(t0) > get_size(t1));
     // instr.args[1].ty = t1;
     // instr.args[1].reg.info.reg_size = 4;

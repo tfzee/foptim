@@ -33,6 +33,8 @@ void Instr::remove_from_parent() {
   }
 }
 
+namespace {
+
 template <class T> bool substitute_impl(Instr &t, const T &repl) {
   auto *self = t.operator->();
   const auto n_args = self->args.size();
@@ -59,6 +61,9 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
   }
   return replaced;
 }
+
+} // namespace
+
 bool Instr::substitute(const FMap<ValueR, ValueR> &repl) {
   return substitute_impl(*this, repl);
 }

@@ -7,14 +7,14 @@
 
 struct Region;
 
-typedef struct {
+using Arena = struct {
   Region *begin, *end;
-} Arena;
+};
 
-typedef struct {
+using Arena_Mark = struct {
   Region *region;
   size_t count;
-} Arena_Mark;
+};
 
 void *arena_alloc(Arena *a, size_t size_bytes);
 // void *arena_realloc(Arena *a, void *oldptr, size_t oldsz, size_t newsz);
@@ -44,7 +44,8 @@ public:
   using value_type = T;
   using pointer = T *;
   consteval TempAlloc() noexcept = default;
-  template <class U> constexpr TempAlloc(const TempAlloc<U> &) noexcept {}
+  template <class U>
+  constexpr TempAlloc(const TempAlloc<U> & /*unnused*/) noexcept {}
 
   T *allocate(size_t count) {
     auto ptr = (T *)arena_alloc(&temp_arena, count * sizeof(T));
@@ -81,7 +82,8 @@ public:
   using value_type = T;
   using pointer = T *;
   consteval IRAlloc() noexcept = default;
-  template <class U> constexpr IRAlloc(const IRAlloc<U> &) noexcept {}
+  template <class U>
+  constexpr IRAlloc(const IRAlloc<U> & /*unnused*/) noexcept {}
 
   T *allocate(size_t count) {
     T *ptr = nullptr;
@@ -125,21 +127,25 @@ public:
 };
 
 template <class T, class U>
-constexpr bool operator==(const IRAlloc<T> &, const IRAlloc<U> &) noexcept {
+constexpr bool operator==(const IRAlloc<T> & /*unnused*/,
+                          const IRAlloc<U> & /*unnused*/) noexcept {
   return true;
 }
 template <class T, class U>
-constexpr bool operator!=(const IRAlloc<T> &, const IRAlloc<U> &) noexcept {
+constexpr bool operator!=(const IRAlloc<T> & /*unnused*/,
+                          const IRAlloc<U> & /*unnused*/) noexcept {
   return false;
 }
 
 template <class T, class U>
-constexpr bool operator==(const TempAlloc<T> &, const TempAlloc<U> &) noexcept {
+constexpr bool operator==(const TempAlloc<T> & /*unnused*/,
+                          const TempAlloc<U> & /*unnused*/) noexcept {
   return true;
 }
 
 template <class T, class U>
-constexpr bool operator!=(const TempAlloc<T> &, const TempAlloc<U> &) noexcept {
+constexpr bool operator!=(const TempAlloc<T> & /*unnused*/,
+                          const TempAlloc<U> & /*unnused*/) noexcept {
   return false;
 }
 } // namespace foptim::utils

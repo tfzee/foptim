@@ -3,7 +3,6 @@
 #include "instruction.hpp"
 #include "utils/mutex.hpp"
 #include "utils/vec.hpp"
-#include <memory>
 
 namespace foptim::fir {
 

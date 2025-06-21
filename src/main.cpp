@@ -2,7 +2,6 @@
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
-#include "ir/types.hpp"
 #include "mir/func.hpp"
 #include "mir/legalize_bb_form.hpp"
 #include "mir/matcher.hpp"
@@ -24,7 +23,6 @@
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
-#include "optim/func_passes/loop_simplify.hpp"
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/merge_alloca.hpp"
@@ -40,7 +38,6 @@
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/inline.hpp"
 #include "utils/arena.hpp"
-#include "utils/helpers.hpp"
 #include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
 #include "utils/stable_vec_ref.hpp"
@@ -54,6 +51,7 @@
 #include <tracy/Tracy.hpp>
 #include <unistd.h>
 
+namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx);
 void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed);
 void lower_to_mir(foptim::fir::Context &ctx,
@@ -67,6 +65,8 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals);
 
 foptim::JobSheduler shed;
+
+} // namespace
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
@@ -108,6 +108,7 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
@@ -143,18 +144,18 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE, IntrinSimplify,
       InstSimplify, DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      StackKnownBits, Mem2Reg, DCE, FuncAnnotator>{}
+  foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg, DCE,
+                                                   FuncAnnotator>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
-      SCCP, DCE, InstSimplify, ConstLoopEval, InstSimplify,
-      SimplifyCFG, LegalizeVecs>{}
+      SCCP, DCE, InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG,
+      LegalizeVecs>{}
       .apply(ctx, shed);
 
   fmt::print("{:d}", ctx);
-  //general cleanup / legalization / finalization
+  // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
@@ -165,8 +166,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   fmt::print("================FIR END====================\n");
 }
 
-static void
-reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
+void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
   (void)reordered_funcs;
   std::ranges::sort(reordered_funcs,
                     [](foptim::fir::Function *a, foptim::fir::Function *b) {
@@ -291,3 +291,4 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::codegen::run(funcs, decls, globals);
   fmt::println("Done!");
 }
+} // namespace

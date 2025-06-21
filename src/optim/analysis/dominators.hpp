@@ -3,7 +3,6 @@
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/bitset.hpp"
-#include "utils/logging.hpp"
 
 namespace foptim::optim {
 using utils::BitSet;
@@ -52,8 +51,11 @@ public:
     BitSet fullBitSet{n_bbs, true};
     BitSet emptyBitSet{n_bbs, false};
 
-    for (size_t i = 0; i < cfg.bbrs.size(); i++) {
-      dom_bbs.push_back(Node{cfg.bbrs[i].bb, -1, fullBitSet, emptyBitSet});
+    for (const auto &bbr : cfg.bbrs) {
+      dom_bbs.push_back(Node{.bb = bbr.bb,
+                             .im_dom = -1,
+                             .dominators = fullBitSet,
+                             .frontier = emptyBitSet});
     }
 
     std::deque<u32, utils::TempAlloc<u32>> worklist{cfg.entry};

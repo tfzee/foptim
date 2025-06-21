@@ -5,9 +5,7 @@
 #include "ir/instruction_data.hpp"
 #include "utils/arena.hpp"
 #include "utils/bitset.hpp"
-#include "utils/helpers.hpp"
 #include <deque>
-#include <tracy/Tracy.hpp>
 
 namespace foptim::optim {
 
@@ -59,7 +57,7 @@ public:
       if (bb == func.get_entry()) {
         entry = bbrs.size();
       }
-      bbrs.push_back(Node{bb, {}, {}});
+      bbrs.push_back(Node{.bb=bb, .pred={}, .succ={}});
     }
 
     const auto &bbs = func.get_bbs();

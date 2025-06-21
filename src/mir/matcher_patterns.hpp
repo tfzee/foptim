@@ -1,7 +1,9 @@
 #pragma once
-#include "mir/matcher.hpp"
+#include "utils/vec.hpp"
 
 namespace foptim::fmir {
+
+struct Pattern;
 
 void memory_patterns(IRVec<Pattern> &pats);
 void cjmp_patterns(IRVec<Pattern> &pats);
@@ -10,17 +12,5 @@ void base_patterns(IRVec<Pattern> &pats);
 void arith_patterns(IRVec<Pattern> &pats);
 void intrin_patterns(IRVec<Pattern> &pats);
 
-inline auto get_pats() {
-  IRVec<Pattern> res;
-  res.reserve(100);
-
-  memory_patterns(res);
-  cjmp_patterns(res);
-  move_patterns(res);
-  arith_patterns(res);
-  intrin_patterns(res);
-  base_patterns(res);
-
-  return res;
-}
+IRVec<Pattern> get_pats();
 } // namespace foptim::fmir

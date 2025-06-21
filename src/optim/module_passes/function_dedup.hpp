@@ -6,7 +6,6 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
-#include "utils/arena.hpp"
 #include <fmt/core.h>
 
 #include <algorithm>

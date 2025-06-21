@@ -2,7 +2,6 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
-#include "ir/constant_value.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
@@ -34,6 +33,7 @@ bool SimplifyCFG::remove_dead_bb(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
+namespace {
 // check for true uses (so a  bb arg  that is actually used in an instruction)
 //  we might have a loop of multiple bbs that just forward a bb so it will
 //  have uses but all are just forwarding to the next bb
@@ -72,6 +72,7 @@ bool has_true_use(fir::BBArgument v) {
   }
   return false;
 }
+} // namespace
 
 bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
                                      fir::Function &func, size_t /*bb_id*/,
@@ -109,6 +110,8 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
   }
   return false;
 }
+
+namespace {
 
 struct DiffConst {
   fir::Use use1;
@@ -191,6 +194,8 @@ struct DiffConst {
   }
   return res;
 }
+
+} // namespace
 
 bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
                                  size_t bb_id, bool is_entry) {
@@ -449,7 +454,8 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
     if (pred_term->is(fir::InstrType::SwitchInstr)) {
       // TODO: impl
       continue;
-    } else if (pred_term->is(fir::InstrType::CondBranchInstr)) {
+    }
+    if (pred_term->is(fir::InstrType::CondBranchInstr)) {
       fir::Builder bb(pred_bb);
       bb.at_end(pred_bb);
 
@@ -746,7 +752,8 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
       }
     }
     if (iter++ > 100) {
-      failure({"Didnt converge fixme\n", func.basic_blocks[0]});
+      failure(
+          {.reason = "Didnt converge fixme\n", .loc = func.basic_blocks[0]});
       break;
     }
 

@@ -2,7 +2,6 @@
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
-#include "utils/logging.hpp"
 
 namespace foptim::optim {
 

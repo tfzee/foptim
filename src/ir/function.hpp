@@ -3,14 +3,11 @@
 #include "basic_block_ref.hpp"
 #include "ir/attributable.hpp"
 #include "ir/helpers.hpp"
-#include "types.hpp"
 #include "types_ref.hpp"
-#include "utils/logging.hpp"
 #include "utils/string.hpp"
 #include "utils/todo.hpp"
 #include <utility>
 
-namespace foptim::utils {}
 namespace foptim::fir {
 
 class Function : public Attributable, public LockedUsed {

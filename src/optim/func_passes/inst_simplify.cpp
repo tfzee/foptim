@@ -11,16 +11,17 @@
 
 namespace foptim::optim {
 
+namespace {
 using WorkList = TVec<InstSimplify::WorkItem>;
 
-static void swap_args(fir::Instr instr, u32 a1, u32 a2) {
+void swap_args(fir::Instr instr, u32 a1, u32 a2) {
   using namespace foptim::fir;
   auto v1 = instr->args[a1];
   auto v2 = instr->args[a2];
   instr.replace_arg(a1, v2);
   instr.replace_arg(a2, v1);
 }
-static void swap_args_fcmp(fir::Instr instr) {
+void swap_args_fcmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::FCmp))
   switch ((fir::FCmpInstrSubType)instr->subtype) {
   case fir::FCmpInstrSubType::INVALID:
@@ -46,7 +47,7 @@ static void swap_args_fcmp(fir::Instr instr) {
     break;
   }
 }
-static void swap_args_icmp(fir::Instr instr) {
+void swap_args_icmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::ICmp))
   switch ((fir::ICmpInstrSubType)instr->subtype) {
   case fir::ICmpInstrSubType::NE:
@@ -93,15 +94,14 @@ static void swap_args_icmp(fir::Instr instr) {
     UNREACH();
   }
 }
-static void push_all_uses(WorkList &worklist, fir::Instr instr) {
+void push_all_uses(WorkList &worklist, fir::Instr instr) {
   for (auto &use : instr->uses) {
     worklist.emplace_back(use.user, use.user->parent);
   }
 }
 
-static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
-                            fir::Context &ctx, WorkList &worklist,
-                            AttributerManager &man) {
+void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                     WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
   // since both being constant would be handleded by constant folding we just
   // asume theres one and normalzie by putting it into the secodn arg
@@ -291,14 +291,16 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
     return;
   }
 
-  if ((c0_val && c0_val->is_poison()) || (c1_val && c1_val->is_poison())) {
+  if (((c0_val != nullptr) && c0_val->is_poison()) ||
+      ((c1_val != nullptr) && c1_val->is_poison())) {
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR{ctx->get_poisson_value(instr.get_type())});
     instr.destroy();
     return;
   }
-  if ((c0_val && c0_val->is_null()) || (c1_val && c1_val->is_null())) {
-    auto index = (c0_val && c0_val->is_null()) ? 1 : 0;
+  if (((c0_val != nullptr) && c0_val->is_null()) ||
+      ((c1_val != nullptr) && c1_val->is_null())) {
+    auto index = ((c0_val != nullptr) && c0_val->is_null()) ? 1 : 0;
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[index]);
     instr.destroy();
@@ -487,7 +489,7 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
     }
   }
   // handle 0*constant
-  if (c1_val && c1_val->is_int() &&
+  if ((c1_val != nullptr) && c1_val->is_int() &&
       instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
     if (c1_val->as_int() == 1) {
       push_all_uses(worklist, instr);
@@ -578,9 +580,8 @@ static void simplify_binary(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
-static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
-                          fir::Context &ctx, WorkList &worklist,
-                          AttributerManager &man) {
+void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
+                   WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
   {
     if ((instr->args[0].is_constant() &&
@@ -909,8 +910,8 @@ static void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   // }
 }
 
-static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
-                          fir::Context &ctx, WorkList &worklist) {
+void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
+                   WorkList &worklist) {
   using namespace foptim::fir;
   {
     if ((instr->args[0].is_constant() &&
@@ -1015,8 +1016,8 @@ static void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-static void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
-                            fir::Context & /*ctx*/, WorkList &worklist) {
+void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
+                     fir::Context & /*ctx*/, WorkList &worklist) {
   if (instr->args[0].is_constant()) {
     auto v1 = instr->args[0].as_constant()->as_int();
     push_all_uses(worklist, instr);
@@ -1064,15 +1065,14 @@ static void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 }
-static void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
-                                 fir::Context & /*ctx*/,
-                                 WorkList & /*worklist*/) {
+void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
+                          fir::Context & /*ctx*/, WorkList & /*worklist*/) {
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant();
     fir::Builder b(bb);
     b.at_end(bb);
 
-    auto *target = &instr->bbs[0];
+    auto *target = instr->bbs.data();
 
     if (c->is_poison()) {
       // TODO: Could also pplace some unreach??
@@ -1092,9 +1092,8 @@ static void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
-static void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
-                                   fir::Context & /*ctx*/,
-                                   WorkList & /*worklist*/) {
+void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
+                            fir::Context & /*ctx*/, WorkList & /*worklist*/) {
   if (!instr->args.empty() && instr->args.back().is_constant()) {
     fir::Builder b(bb);
     b.at_end(bb);
@@ -1158,8 +1157,8 @@ static void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
-static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
-                            fir::Context &ctx, WorkList &worklist) {
+void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
+                     fir::Context &ctx, WorkList &worklist) {
   // TODO: could also maybe figure out cases where we can convert everything
   // into higher bitwidth
   (void)ctx;
@@ -1188,8 +1187,8 @@ static void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-static void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
-                            fir::Context &ctx, WorkList &worklist) {
+void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
+                     fir::Context &ctx, WorkList &worklist) {
   (void)instr;
   (void)worklist;
   // ext
@@ -1271,8 +1270,8 @@ static void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
-                           fir::Context &ctx, WorkList &worklist) {
+void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
+                    WorkList &worklist) {
   if (instr->args[0].is_constant() &&
       instr->args[0].as_constant()->is_poison()) {
     push_all_uses(worklist, instr);
@@ -1371,8 +1370,8 @@ static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
-                                fir::Context &ctx, WorkList &worklist) {
+void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
+                         fir::Context &ctx, WorkList &worklist) {
   (void)ctx;
   (void)worklist;
   switch ((fir::ConversionSubType)instr->subtype) {
@@ -1450,8 +1449,8 @@ static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-static void simplify_store(fir::Instr instr, fir::BasicBlock bb,
-                           fir::Context &ctx, WorkList &worklist) {
+void simplify_store(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                    WorkList &worklist) {
   (void)bb;
   (void)ctx;
   (void)worklist;
@@ -1462,8 +1461,8 @@ static void simplify_store(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
-static void simplify_call(fir::Instr instr, fir::BasicBlock bb,
-                          fir::Context &ctx, WorkList &worklist) {
+void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                   WorkList &worklist) {
   (void)bb;
   (void)ctx;
   (void)worklist;
@@ -1551,8 +1550,8 @@ static void simplify_call(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
-static void simplify_load(fir::Instr instr, fir::BasicBlock bb,
-                          fir::Context &ctx, WorkList &worklist) {
+void simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                   WorkList &worklist) {
   (void)bb;
   (void)ctx;
   (void)worklist;
@@ -1611,50 +1610,64 @@ static void simplify_load(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
-static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                     WorkList &worklist, AttributerManager &man) {
+void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+              WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
   auto instr_ty = instr->get_instr_type();
   if (instr_ty == InstrType::BinaryInstr) {
-    return simplify_binary(instr, bb, ctx, worklist, man);
+    simplify_binary(instr, bb, ctx, worklist, man);
+    return;
   }
   if (instr_ty == InstrType::UnaryInstr) {
-    return simplify_unary(instr, bb, ctx, worklist);
+    simplify_unary(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::ICmp) {
-    return simplify_icmp(instr, bb, ctx, worklist, man);
+    simplify_icmp(instr, bb, ctx, worklist, man);
+    return;
   }
   if (instr_ty == InstrType::FCmp) {
-    return simplify_fcmp(instr, bb, ctx, worklist);
+    simplify_fcmp(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::SelectInstr) {
-    return simplify_select(instr, bb, ctx, worklist);
+    simplify_select(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::CondBranchInstr) {
-    return simplify_cond_branch(instr, bb, ctx, worklist);
+    simplify_cond_branch(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::SwitchInstr) {
-    return simplify_switch_branch(instr, bb, ctx, worklist);
+    simplify_switch_branch(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::SExt || instr_ty == InstrType::ZExt) {
-    return simplify_extend(instr, bb, ctx, worklist);
+    simplify_extend(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::ITrunc) {
-    return simplify_itrunc(instr, bb, ctx, worklist);
+    simplify_itrunc(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::Conversion) {
-    return simplify_conversion(instr, bb, ctx, worklist);
+    simplify_conversion(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::StoreInstr) {
-    return simplify_store(instr, bb, ctx, worklist);
+    simplify_store(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::LoadInstr) {
-    return simplify_load(instr, bb, ctx, worklist);
+    simplify_load(instr, bb, ctx, worklist);
+    return;
   }
   if (instr_ty == InstrType::CallInstr) {
-    return simplify_call(instr, bb, ctx, worklist);
+    simplify_call(instr, bb, ctx, worklist);
+    return;
   }
 }
+} // namespace
 
 void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   using namespace foptim::fir;
@@ -1664,8 +1677,8 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   TVec<WorkItem> worklist;
   for (BasicBlock bb : func.basic_blocks) {
     auto &instrs = bb->get_instrs();
-    for (size_t instr_id = 0; instr_id < instrs.size(); instr_id++) {
-      worklist.emplace_back(instrs[instr_id], bb);
+    for (auto &instr : instrs) {
+      worklist.emplace_back(instr, bb);
     }
   }
 

@@ -507,6 +507,8 @@ bool MInstr::is_control_flow(Opcode c) {
     return true;
   }
 }
+
+namespace {
 bool verify(MInstr &instr) {
   (void)instr;
   return true;
@@ -537,6 +539,7 @@ bool verify(MFunc &func) {
   }
   return true;
 }
+} // namespace
 
 bool verify(FVec<MFunc> &funcs) {
   for (auto &func : funcs) {
@@ -961,10 +964,20 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
     case CReg::mm14:
     case CReg::mm15: {
       auto size = get_size(value.ty);
-      const auto *size_name = size == 16   ? "x"
-                              : size == 32 ? "y"
-                              : size == 64 ? "z"
-                                           : "?";
+      const auto *size_name = "?";
+      switch (size) {
+      case 16:
+        size_name = "x";
+        break;
+      case 32:
+        size_name = "y";
+        break;
+      case 64:
+        size_name = "z";
+        break;
+      default:
+        break;
+      }
       return fmt::format_to(
           app, col_vec, "${}mm{}", size_name,
           ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
