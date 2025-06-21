@@ -125,11 +125,11 @@ public:
   AnyType(const AnyType &);
   AnyType &operator=(const AnyType &);
   // constexpr AnyType(VoidType t) : ty(AnyTypeType::Void) {}
-  constexpr AnyType(IntegerType t) : int_u({AnyTypeType::Integer, t}) {}
-  constexpr AnyType(FloatType t) : float_u({AnyTypeType::Float, t}) {}
-  constexpr AnyType(FunctionType t) : func_u({AnyTypeType::Function, t}) {}
-  constexpr AnyType(VectorType t) : vec_u({AnyTypeType::Vector, t}) {}
-  constexpr AnyType(StructType t) : struct_u({AnyTypeType::Struct, t}) {}
+  constexpr AnyType(IntegerType t) : int_u({._ty=AnyTypeType::Integer, .v=t}) {}
+  constexpr AnyType(FloatType t) : float_u({._ty=AnyTypeType::Float, .v=t}) {}
+  constexpr AnyType(FunctionType t) : func_u({._ty=AnyTypeType::Function, .v=t}) {}
+  constexpr AnyType(VectorType t) : vec_u({._ty=AnyTypeType::Vector, .v=t}) {}
+  constexpr AnyType(StructType t) : struct_u({._ty=AnyTypeType::Struct, .v=t}) {}
 
   static AnyType Ptr() {
     auto out = AnyType();
