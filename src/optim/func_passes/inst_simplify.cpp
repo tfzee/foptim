@@ -21,6 +21,7 @@ void swap_args(fir::Instr instr, u32 a1, u32 a2) {
   instr.replace_arg(a1, v2);
   instr.replace_arg(a2, v1);
 }
+
 void swap_args_fcmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::FCmp))
   switch ((fir::FCmpInstrSubType)instr->subtype) {
@@ -47,6 +48,7 @@ void swap_args_fcmp(fir::Instr instr) {
     break;
   }
 }
+
 void swap_args_icmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::ICmp))
   switch ((fir::ICmpInstrSubType)instr->subtype) {
@@ -94,6 +96,7 @@ void swap_args_icmp(fir::Instr instr) {
     UNREACH();
   }
 }
+
 void push_all_uses(WorkList &worklist, fir::Instr instr) {
   for (auto &use : instr->uses) {
     worklist.emplace_back(use.user, use.user->parent);

@@ -5,8 +5,9 @@
 
 namespace foptim::fmir {
 
+namespace {
 //@returns true if the instruction was deleted
-static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
+bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   switch (instr.op) {
   case Opcode::mov:
   case Opcode::mov_zx: {
@@ -55,8 +56,7 @@ static bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   return false;
 }
 //@returns true if the instruction was deleted
-static bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs,
-                           size_t instr_id) {
+bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   switch (instr.op) {
   case Opcode::mov:
   case Opcode::mov_zx: {
@@ -72,7 +72,7 @@ static bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs,
   return false;
 }
 
-static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
+bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   // if (instr_id + 1 < instrs.size() && instrs[instr_id + 0].op == Opcode::lea
   // &&
   //     instrs[instr_id + 1].op == Opcode::mov) {
@@ -116,7 +116,7 @@ static bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   return false;
 }
 
-static bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
+bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   if (instr_id + 1 < instrs.size() &&
       ((instrs[instr_id + 0].op == Opcode::add2 &&
         instrs[instr_id + 1].op == Opcode::sub2) ||
@@ -168,6 +168,7 @@ static bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   // }
   return false;
 }
+} // namespace
 
 void InstSimplify::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("InstSimplify");
