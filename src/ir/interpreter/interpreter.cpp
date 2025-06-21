@@ -136,6 +136,16 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
   return true;
 }
 
+bool interpret_sext(Instr instr, State &st, InstrPointer &ip) {
+  auto v1 = get_constant_value(instr->args[0], st);
+  if (!v1) {
+    return false;
+  }
+  st.set_value(ValueR(instr), ConstantValue{v1->as_int(), instr->get_type()});
+  ip.instr_id++;
+  return true;
+}
+
 } // namespace
 
 void Interpreter::dump_state() {
@@ -161,6 +171,8 @@ bool Interpreter::step_instr() {
     return interpret_icmp(curr_i, state, ip);
   case InstrType::CondBranchInstr:
     return interpret_cbranch(curr_i, state, ip);
+  case InstrType::SExt:
+    return interpret_sext(curr_i, state, ip);
   default:
   }
   fmt::println("{}", curr_i);
