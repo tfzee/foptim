@@ -1,51 +1,10 @@
 #include "intrin_simplify.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
 
-struct GuessTypeResult {
-  bool typeless;
-  fir::TypeR type;
-};
-
-static GuessTypeResult guessType(fir::ValueR ptr) {
-  if (ptr.is_constant()) {
-    return {true, fir::TypeR{fir::TypeR::invalid()}};
-  }
-  if (ptr.is_bb_arg()) {
-    // auto bb_arg = ptr.as_bb_arg();
-    // if (bb_arg->_parent == bb_arg->_parent->get_parent()->get_entry()) {
-    return {true, fir::TypeR{fir::TypeR::invalid()}};
-    // }
-  }
-  if (ptr.is_instr()) {
-    auto ptr_instr = ptr.as_instr();
-    if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
-      if (ptr_instr->has_attrib("alloca::type")) {
-        return {false, *ptr_instr->get_attrib("alloca::type").try_type()};
-      }
-      return {true, fir::TypeR{fir::TypeR::invalid()}};
-    }
-    if (ptr_instr->is(fir::InstrType::LoadInstr)) {
-      return {true, fir::TypeR{fir::TypeR::invalid()}};
-    }
-    if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
-        (fir::BinaryInstrSubType)ptr_instr->subtype ==
-            fir::BinaryInstrSubType::IntAdd) {
-      GuessTypeResult out_res = guessType(ptr_instr->args[0]);
-      GuessTypeResult r2 = guessType(ptr_instr->args[1]);
-      if (out_res.typeless && !r2.typeless) {
-        return r2;
-      }
-      if (!out_res.typeless && !r2.typeless) {
-        return {false, fir::TypeR{fir::TypeR::invalid()}};
-      }
-      return out_res;
-    }
-  }
-  return {false, fir::TypeR{fir::TypeR::invalid()}};
-}
 
 static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context &ctx) {

@@ -28,4 +28,44 @@ void flip_cond_branch(fir::Instr cond_term) {
   }
 }
 
+GuessTypeResult guessType(fir::ValueR ptr) {
+  if (ptr.is_constant()) {
+    return {.typeless = true, .type = fir::TypeR{fir::TypeR::invalid()}};
+  }
+  if (ptr.is_bb_arg()) {
+    // auto bb_arg = ptr.as_bb_arg();
+    // if (bb_arg->_parent == bb_arg->_parent->get_parent()->get_entry()) {
+    return {.typeless = true, .type = fir::TypeR{fir::TypeR::invalid()}};
+    // }
+  }
+  if (ptr.is_instr()) {
+    auto ptr_instr = ptr.as_instr();
+    if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
+      if (ptr_instr->has_attrib("alloca::type")) {
+        return {.typeless = false,
+                .type = *ptr_instr->get_attrib("alloca::type").try_type()};
+      }
+      return {.typeless = true, .type = fir::TypeR{fir::TypeR::invalid()}};
+    }
+    if (ptr_instr->is(fir::InstrType::LoadInstr)) {
+      return {.typeless = true, .type = fir::TypeR{fir::TypeR::invalid()}};
+    }
+    if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
+        (fir::BinaryInstrSubType)ptr_instr->subtype ==
+            fir::BinaryInstrSubType::IntAdd) {
+      GuessTypeResult out_res = guessType(ptr_instr->args[0]);
+      GuessTypeResult r2 = guessType(ptr_instr->args[1]);
+      if (out_res.typeless && !r2.typeless) {
+        return r2;
+      }
+      if (!out_res.typeless && !r2.typeless) {
+        return {.typeless = false, .type = fir::TypeR{fir::TypeR::invalid()}};
+      }
+      return out_res;
+    }
+  }
+  return {.typeless = false, .type = fir::TypeR{fir::TypeR::invalid()}};
+}
+
+
 } // namespace foptim::optim

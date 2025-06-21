@@ -119,21 +119,21 @@ public:
       return false;
     }
 
-    if (v.func->get_n_uses() == 1 &&
-        (v.func->linkage == fir::Linkage::Internal ||
-         v.func->linkage == fir::Linkage::LinkOnceODR)) {
-      if (debug_print) {
-        fmt::println("Y single use");
-      }
-      return true;
-    }
-
     if (self_n_instrs > 1000) {
       if (debug_print) {
         fmt::println("N self already big");
       }
       return false;
     }
+
+    // if (v.func->get_n_uses() == 1 &&
+    //     (v.func->linkage == fir::Linkage::Internal ||
+    //      v.func->linkage == fir::Linkage::LinkOnceODR)) {
+    //   if (debug_print) {
+    //     fmt::println("Y single use");
+    //   }
+    //   return true;
+    // }
 
     bool is_in_straightline_section = true;
     {
@@ -164,8 +164,8 @@ public:
       return true;
     }
 
-    if (all_args_are_constant_or_allocas && self_n_instrs < 100 &&
-        called_n_instrs < 20) {
+    if (all_args_are_constant_or_allocas && self_n_instrs < 50 &&
+        called_n_instrs < 10) {
       if (debug_print) {
         fmt::println("Y all args are constnat + allocs might allow for mem2reg "
                      "and shit");

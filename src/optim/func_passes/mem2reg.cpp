@@ -1,6 +1,7 @@
 #include "mem2reg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/attributer/IntRange.hpp"
@@ -8,6 +9,7 @@
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/helper/helper.hpp"
 #include "utils/logging.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
@@ -33,6 +35,103 @@ static bool can_be_converted_into_phi(fir::Instr instr) {
 
 using AllocToPhiLoc = TMap<fir::Instr, TSet<u32>>;
 
+static bool type_equal_enough_for_guess(fir::TypeR got, fir::TypeR exp) {
+  if (got->eql(*exp.get_raw_ptr())) {
+    return true;
+  }
+  // int 64 and ptr are the same
+  if (got->is_int() && got->as_int() == 64 && exp->is_ptr()) {
+    return true;
+  }
+  if (exp->is_int() && exp->as_int() == 64 && got->is_ptr()) {
+    return true;
+  }
+  return false;
+}
+
+// sometimes when converting memcpy/memset and stuff to store/load
+//  it might not be able to figure out the type correctly
+//  leading to i64/i32 or similar loads and stores
+//  even thoug hte actual type is a floation point
+//  this then prevents mem2reg from converting it into a value/bbarg
+//  here we want to fix these up
+//  generally when we hit a alloca and we dont know its type
+//  we can check the loads/stores
+//  but if we hit a load that only is used in a store and vice verse the types
+//  of these can be freely changed aslong as the bitwidth matches
+static void fix_types(fir::Function &func) {
+  TSet<fir::Instr> convertable_set;
+  for (auto bb : func.basic_blocks) {
+    for (auto instr : bb->instructions) {
+      if (instr->is(fir::InstrType::LoadInstr) && instr->get_n_uses() == 1 &&
+          instr->uses[0].user->is(fir::InstrType::StoreInstr) &&
+          instr->uses[0].argId == 1) {
+        convertable_set.emplace(instr);
+        // convertable_set.emplace(instr->uses[0].user);
+      }
+    }
+  }
+  if (convertable_set.empty()) {
+    return;
+  }
+  TMap<fir::Instr, fir::TypeR> convert_load_to_type;
+  TVec<fir::Instr> convertable_uses;
+  for (auto bb : func.basic_blocks) {
+    for (auto instr : bb->instructions) {
+      if (!instr->is(fir::InstrType::AllocaInstr)) {
+        continue;
+      }
+      if (instr->has_attrib("alloca::type")) {
+        continue;
+      }
+      convertable_uses.clear();
+      fir::TypeR real_type;
+      // fir::TypeR backup_type;
+      for (auto use : instr->uses) {
+        if (convertable_set.contains(use.user)) {
+          convertable_uses.push_back(use.user);
+        } else if (use.user->is(fir::InstrType::StoreInstr) &&
+                   use.user->args[1].is_instr() &&
+                   convertable_set.contains(use.user->args[1].as_instr())) {
+          convertable_uses.push_back(use.user->args[1].as_instr());
+        } else if (!real_type.is_valid() ||
+                   type_equal_enough_for_guess(real_type,
+                                               use.user->get_type())) {
+          real_type = use.user.get_type();
+        }
+      }
+
+      if (!real_type.is_valid()) {
+        continue;
+      }
+      for (auto u : convertable_uses) {
+        if (convert_load_to_type.contains(u)) {
+          auto old_ty = convert_load_to_type.at(u);
+          if (old_ty.is_valid() &&
+              !type_equal_enough_for_guess(old_ty, real_type)) {
+            convert_load_to_type.at(u) = fir::TypeR{};
+          }
+        } else {
+          convert_load_to_type.insert({u, real_type});
+        }
+      }
+    }
+  }
+  if (!convert_load_to_type.empty()) {
+    for (auto [cu, ty] : convert_load_to_type) {
+      auto store = cu->uses[0].user;
+      if (!ty.is_valid() ||
+          cu->get_type()->get_bitwidth() != ty->get_bitwidth() ||
+          store->get_type()->get_bitwidth() != ty->get_bitwidth()) {
+        continue;
+      }
+      const_cast<fir::InstrData *>(cu.get_raw_ptr())->value_type = ty;
+      const_cast<fir::InstrData *>(cu->uses[0].user.get_raw_ptr())->value_type =
+          ty;
+    }
+  }
+}
+
 // For a alloca instruction get all basic blocks it needs an phi in.
 //  for this we look at all bbs that store to it
 static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
@@ -45,24 +144,32 @@ static void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
   if (!alloca_instr->has_attrib("alloca::type")) {
     fir::TypeR guessed_type{fir::TypeR::invalid()};
     for (auto usage : alloca_instr->uses) {
-      if (usage.user->is(fir::InstrType::LoadInstr)) {
+      bool is_load = usage.user->is(fir::InstrType::LoadInstr);
+      bool is_store =
+          usage.user->is(fir::InstrType::StoreInstr) && usage.argId == 0;
+      // bool is_add =;
+      if (is_load || is_store) {
         if (!guessed_type.is_valid() ||
-            guessed_type->eql(*usage.user.get_type().get_raw_ptr())) {
+            type_equal_enough_for_guess(usage.user.get_type(), guessed_type)) {
           guessed_type = usage.user.get_type();
         } else {
           guessed_type = fir::TypeR{fir::TypeR::invalid()};
           break;
         }
-      } else if (usage.user->is(fir::InstrType::StoreInstr) &&
+      } else if (usage.user->is(fir::InstrType::BinaryInstr) &&
+                 usage.user->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
                  usage.argId == 0) {
-        if (!guessed_type.is_valid() ||
-            guessed_type->eql(*usage.user.get_type().get_raw_ptr())) {
-          guessed_type = usage.user.get_type();
+        auto guess = guessType(fir::ValueR{usage.user});
+        if (guess.typeless) {
+          continue;
+        } else if (guess.type.is_valid()) {
+          guessed_type = guess.type;
         } else {
           guessed_type = fir::TypeR{fir::TypeR::invalid()};
           break;
         }
       } else {
+        // TODO: supposrt atleast add instr
         guessed_type = fir::TypeR{fir::TypeR::invalid()};
         break;
       }
@@ -320,7 +427,9 @@ decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
 
 void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("Mem2Reg");
-  (void)ctx;
+
+  fix_types(func);
+
   CFG cfg{func};
   Dominators dom{cfg};
 

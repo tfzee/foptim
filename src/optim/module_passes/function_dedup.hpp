@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/basic_block_arg.hpp"
 #include "ir/function.hpp"
+#include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
@@ -101,6 +102,9 @@ inline bool check_match(fir::Function *f1, fir::Function *f2,
   // quick and dirty first check since most wont match we can quit early
 
   // fill up the local value map
+  // for recursive calls
+  local_value_map.insert({fir::ValueR{f1->ctx->get_constant_value(f1)},
+                          fir::ValueR{f1->ctx->get_constant_value(f2)}});
   for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
     auto bb1 = f1->basic_blocks[bb_id];
     auto bb2 = f2->basic_blocks[bb_id];
@@ -162,7 +166,6 @@ inline bool is_function_applicable(const fir::Function *f) {
   // TODO: should work for linkonce odr aswell
   if (f->linkage == fir::Linkage::Weak || f->linkage == fir::Linkage::WeakODR ||
       f->linkage == fir::Linkage::LinkOnce ||
-      f->linkage == fir::Linkage::LinkOnceODR ||
       f->linkage == fir::Linkage::External) {
     return false;
   }
@@ -384,6 +387,10 @@ public:
       auto &g = groups[g_id];
       if (g.diffs.size() == 0 && g.funcs.size() > 1) {
         fir::Function *target = g.funcs.back();
+        // only works if the target one is not linkOnceODR
+        if (target->linkage != fir::Linkage::Internal) {
+          continue;
+        }
         for (auto f2 = g.funcs.begin(); f2 != std::prev(g.funcs.end()); f2++) {
           TVec<fir::Use> uses{(*f2)->get_uses().begin(),
                               (*f2)->get_uses().end()};

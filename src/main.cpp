@@ -144,18 +144,25 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
-      StackKnownBits, Mem2Reg, MergeAllocaPass, DCE, FuncAnnotator>{}
+      StackKnownBits, Mem2Reg, DCE, FuncAnnotator>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
-      SCCP, DCE, InstSimplify, InstSimplify, ConstLoopEval, InstSimplify,
+      SCCP, DCE, InstSimplify, ConstLoopEval, InstSimplify,
       SimplifyCFG, LegalizeVecs>{}
+      .apply(ctx, shed);
+
+  fmt::print("{:d}", ctx);
+  //general cleanup / legalization / finalization
+  foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
+      ctx, shed);
+  foptim::optim::StaticParallelFunctionPassManager<
+      InstSimplify, LVN, SCCP, SimplifyCFG, DCE, GarbageCollect, LegalizeVecs>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
   ASSERT(ctx->verify());
   fmt::print("================FIR END====================\n");
-  fmt::print("{:d}", ctx);
 }
 
 static void
@@ -223,7 +230,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
   for (auto *func : reordered_funcs) {
-    fmt::println("{:d}", *func);
+    // fmt::println("{:d}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {

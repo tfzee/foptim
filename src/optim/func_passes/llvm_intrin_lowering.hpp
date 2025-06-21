@@ -6,7 +6,7 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
-#include "utils/logging.hpp"
+#include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
 
@@ -21,11 +21,6 @@ public:
     auto value = instr->args[2];
     auto size = instr->args[3];
 
-    auto void_ty = ctx->get_void_type();
-    auto *func_ty = instr->get_attrib("callee_type").try_type();
-    assert(func_ty);
-
-    fir::ValueR args[3] = {target_ptr, value, size};
     // TODO: impl optimizations
     if (size.is_constant() && value.is_constant() &&
         value.as_constant()->is_int()) {
@@ -49,6 +44,12 @@ public:
         TODO("impl");
       }
     }
+
+    auto void_ty = ctx->get_void_type();
+    auto *func_ty = instr->get_attrib("callee_type").try_type();
+    assert(func_ty);
+
+    fir::ValueR args[3] = {target_ptr, value, size};
     bb.build_call(fir::ValueR(ctx->get_constant_value(
                       ctx->get_function("foptim.memset"))),
                   *func_ty, void_ty, args);
@@ -97,18 +98,6 @@ public:
     auto src_ptr = instr->args[2];
     auto size = instr->args[3];
 
-    auto void_ty = ctx->get_void_type();
-    auto *old_func_ty = instr->get_attrib("callee_type").try_type();
-    assert(old_func_ty);
-    auto old_func_ty_f = (*old_func_ty)->as_func();
-
-    IRVec<fir::TypeR> arg_types = {old_func_ty_f.arg_types[0],
-                                   old_func_ty_f.arg_types[1],
-                                   old_func_ty_f.arg_types[2]};
-    fir::TypeR func_ty = ctx->get_func_ty(void_ty, std::move(arg_types));
-
-    fir::ValueR args[3] = {dst_ptr, src_ptr, size};
-
     if (instr->args[0].is_constant() &&
         instr->args[0].as_constant()->is_func() && size.is_constant() &&
         instr->args.size() == 5) {
@@ -133,6 +122,16 @@ public:
       }
     }
 
+    auto void_ty = ctx->get_void_type();
+    auto *old_func_ty = instr->get_attrib("callee_type").try_type();
+    assert(old_func_ty);
+    auto old_func_ty_f = (*old_func_ty)->as_func();
+    IRVec<fir::TypeR> arg_types = {old_func_ty_f.arg_types[0],
+                                   old_func_ty_f.arg_types[1],
+                                   old_func_ty_f.arg_types[2]};
+    fir::TypeR func_ty = ctx->get_func_ty(void_ty, std::move(arg_types));
+
+    fir::ValueR args[3] = {dst_ptr, src_ptr, size};
     bb.build_call(fir::ValueR(ctx->get_constant_value(
                       ctx->get_function("foptim.memcpy"))),
                   func_ty, void_ty, args);
@@ -359,36 +358,6 @@ public:
     for (auto bb : func.basic_blocks) {
       apply(bb, func);
     }
-  }
-
-private:
-  struct GuessTypeResult {
-    bool typeless;
-    fir::TypeR type;
-  };
-  GuessTypeResult guessType(fir::ValueR ptr) {
-    if (ptr.is_bb_arg()) {
-      auto bb_arg = ptr.as_bb_arg();
-      if (bb_arg->_parent == bb_arg->_parent->get_parent()->get_entry()) {
-        return {true, fir::TypeR{fir::TypeR::invalid()}};
-      }
-    }
-    if (ptr.is_instr()) {
-      auto ptr_instr = ptr.as_instr();
-      if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
-        if (ptr_instr->has_attrib("alloca::type")) {
-          return {false, *ptr_instr->get_attrib("alloca::type").try_type()};
-        }
-        return {true, fir::TypeR{fir::TypeR::invalid()}};
-      }
-      if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
-          (fir::BinaryInstrSubType)ptr_instr->subtype ==
-              fir::BinaryInstrSubType::IntAdd &&
-          ptr_instr->args[0].is_instr()) {
-        return guessType(ptr);
-      }
-    }
-    return {false, fir::TypeR{fir::TypeR::invalid()}};
   }
 };
 } // namespace foptim::optim

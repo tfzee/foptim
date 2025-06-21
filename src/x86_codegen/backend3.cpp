@@ -1885,7 +1885,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       }
       { // handle reloccs
         for (const auto &reloc_info : global.reloc_info) {
-          fmt::println("RELOC INFO {}", reloc_info.name);
+          // fmt::println("RELOC INFO {}", reloc_info.name);
           ASSERT(label_usage_map.label_map.contains(reloc_info.name));
           label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
               LabelRelocData::Usage{
