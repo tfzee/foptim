@@ -1180,6 +1180,99 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                             RelocSection::Text);
     return emit(out_buff, off, &req);
   }
+  case fmir::Opcode::cmov_sgt:
+  case fmir::Opcode::cmov_slt:
+  case fmir::Opcode::cmov_ult:
+  case fmir::Opcode::cmov_sge:
+  case fmir::Opcode::cmov_sle:
+  case fmir::Opcode::cmov_ne:
+  case fmir::Opcode::cmov_eq:
+  case fmir::Opcode::cmov_ugt:
+  case fmir::Opcode::cmov_uge:
+  case fmir::Opcode::cmov_ule:
+  case fmir::Opcode::cmov_ns: {
+    ASSERT(!instr.args[0].is_vec_reg());
+    ASSERT(!instr.args[1].is_vec_reg());
+    ASSERT(!instr.args[2].is_vec_reg());
+    ASSERT(!instr.args[3].is_vec_reg());
+
+    auto targ = req.operands[0];
+    auto val = req.operands[1];
+    auto c1 = req.operands[2];
+    auto c2 = req.operands[3];
+    u64 off = 0;
+
+    { // test
+      req.operand_count = 2;
+      req.operands[0] = c1;
+      req.operands[1] = c2;
+      switch (instr.op) {
+      case fmir::Opcode::cmov_ns:
+        req.mnemonic = ZYDIS_MNEMONIC_TEST;
+        break;
+      case fmir::Opcode::cmov_slt:
+      case fmir::Opcode::cmov_sgt:
+      case fmir::Opcode::cmov_ult:
+      case fmir::Opcode::cmov_sge:
+      case fmir::Opcode::cmov_sle:
+      case fmir::Opcode::cmov_ugt:
+      case fmir::Opcode::cmov_uge:
+      case fmir::Opcode::cmov_ne:
+      case fmir::Opcode::cmov_eq:
+      case fmir::Opcode::cmov_ule:
+        req.mnemonic = ZYDIS_MNEMONIC_CMP;
+        break;
+      default:
+        fmt::println("{}", instr);
+        TODO("impl");
+      }
+      off = emit(out_buff, off, &req);
+    }
+
+    { // cmov
+      req.operand_count = 2;
+      req.operands[0] = targ;
+      req.operands[1] = val;
+      switch (instr.op) {
+      case fmir::Opcode::cmov_ns:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVNS;
+        break;
+      case fmir::Opcode::cmov_sgt:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVNLE;
+        break;
+      case fmir::Opcode::cmov_uge:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVNB;
+        break;
+      case fmir::Opcode::cmov_ne:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVNZ;
+        break;
+      case fmir::Opcode::cmov_eq:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVZ;
+        break;
+      case fmir::Opcode::cmov_ult:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVB;
+        break;
+      case fmir::Opcode::cmov_slt:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVL;
+        break;
+      case fmir::Opcode::cmov_sge:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVNL;
+        break;
+      case fmir::Opcode::cmov_sle:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVLE;
+        break;
+      case fmir::Opcode::cmov_ugt:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVNBE;
+        break;
+      case fmir::Opcode::cmov_ule:
+        req.mnemonic = ZYDIS_MNEMONIC_CMOVBE;
+        break;
+      default:
+        UNREACH();
+      }
+    }
+    return emit(out_buff, off, &req);
+  }
   case fmir::Opcode::cmov: {
     auto targ = req.operands[0];
     auto cond = req.operands[1];
@@ -1194,7 +1287,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       u64 off = 0;
       off = emit(out_buff, off, &req);
       auto off_start_jmp = off;
-      req.mnemonic = ZYDIS_MNEMONIC_JNZ;
+      req.mnemonic = ZYDIS_MNEMONIC_JZ;
       req.operand_count = 1;
       req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
       req.operands[0].imm.s = 16;
@@ -1208,7 +1301,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       auto last_instr_size = last_instr_off - off;
       ASSERT(last_instr_size <= 16);
 
-      req.mnemonic = ZYDIS_MNEMONIC_JNZ;
+      req.mnemonic = ZYDIS_MNEMONIC_JZ;
       req.operand_count = 1;
       req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
       req.operands[0].imm.s = (i64)last_instr_size;
@@ -1223,7 +1316,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       req.operands[1] = cond;
       u64 off = 0;
       off = emit(out_buff, off, &req);
-      req.mnemonic = ZYDIS_MNEMONIC_CMOVZ;
+      req.mnemonic = ZYDIS_MNEMONIC_CMOVNZ;
       req.operand_count = 2;
       req.operands[0] = targ;
       req.operands[1] = value;
@@ -1657,7 +1750,7 @@ static u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    // fmt::println("{}", func);
+    fmt::println("{}", func);
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;

@@ -57,6 +57,20 @@ enum class Opcode : u32 {
   push,
   pop,
 
+  // cmove
+  cmov_ns,
+  cmov_sgt,
+  cmov_slt,
+  cmov_ult,
+  cmov_sge,
+  cmov_sle,
+  cmov_ne,
+  cmov_eq,
+  cmov_ugt,
+  cmov_uge,
+  cmov_ule,
+
+  // comparisons
   icmp_slt,
   icmp_eq,
   icmp_ult,

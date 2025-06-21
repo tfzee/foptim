@@ -26,6 +26,7 @@ class Legalizer {
   bool legalize_arg_setup(MBB &bb, u32 indx);
   bool legalize_move(MBB &bb, u32 indx);
   bool legalize_cmove(MBB &bb, u32 indx);
+  bool legalize_cmoveXX(MBB &bb, u32 indx);
   // bool legalize_si2fl(MBB &bb, u32 indx);
   // bool legalize_sub(MBB &bb, u32 indx);
   void apply(MFunc &funcs);

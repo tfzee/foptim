@@ -153,7 +153,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       SimplifyCFG, LegalizeVecs>{}
       .apply(ctx, shed);
 
-  fmt::print("{:d}", ctx);
+  // fmt::print("{:d}", ctx);
   //general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
@@ -230,7 +230,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
   for (auto *func : reordered_funcs) {
-    // fmt::println("{:d}", *func);
+    fmt::println("{:d}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {

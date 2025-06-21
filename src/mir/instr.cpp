@@ -35,6 +35,17 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(fcmp_une);
     ReturnString(mov);
     ReturnString(cmov);
+    ReturnString(cmov_ns);
+    ReturnString(cmov_sgt);
+    ReturnString(cmov_slt);
+    ReturnString(cmov_ult);
+    ReturnString(cmov_sge);
+    ReturnString(cmov_sle);
+    ReturnString(cmov_ne);
+    ReturnString(cmov_eq);
+    ReturnString(cmov_ugt);
+    ReturnString(cmov_uge);
+    ReturnString(cmov_ule);
     ReturnString(F64_ext);
     ReturnString(F32_trunc);
     ReturnString(lea);
@@ -114,6 +125,17 @@ const char *getNameFromOpcode(Opcode code) {
 void written_args(const MInstr &instr, TVec<ArgData> &out) {
   switch (instr.op) {
   case Opcode::cmov:
+  case Opcode::cmov_ns:
+  case Opcode::cmov_sgt:
+  case Opcode::cmov_slt:
+  case Opcode::cmov_ult:
+  case Opcode::cmov_sge:
+  case Opcode::cmov_sle:
+  case Opcode::cmov_ne:
+  case Opcode::cmov_eq:
+  case Opcode::cmov_ugt:
+  case Opcode::cmov_uge:
+  case Opcode::cmov_ule:
   case Opcode::mov_zx:
   case Opcode::mov_sx:
   case Opcode::mov:
@@ -345,6 +367,22 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     out.push_back({1, instr.args[1]});
     out.push_back({2, instr.args[2]});
     return;
+  case Opcode::cmov_ns:
+  case Opcode::cmov_sgt:
+  case Opcode::cmov_slt:
+  case Opcode::cmov_ult:
+  case Opcode::cmov_sge:
+  case Opcode::cmov_sle:
+  case Opcode::cmov_ne:
+  case Opcode::cmov_eq:
+  case Opcode::cmov_ugt:
+  case Opcode::cmov_uge:
+  case Opcode::cmov_ule:
+    out.push_back({0, instr.args[0]});
+    out.push_back({1, instr.args[1]});
+    out.push_back({2, instr.args[2]});
+    out.push_back({3, instr.args[3]});
+    return;
   case Opcode::udiv:
   case Opcode::idiv:
     out.push_back({2, instr.args[2]});
@@ -357,6 +395,17 @@ bool MInstr::is_control_flow(Opcode c) {
   switch (c) {
   case Opcode::mov:
   case Opcode::cmov:
+  case Opcode::cmov_ns:
+  case Opcode::cmov_sgt:
+  case Opcode::cmov_slt:
+  case Opcode::cmov_ult:
+  case Opcode::cmov_sge:
+  case Opcode::cmov_sle:
+  case Opcode::cmov_ne:
+  case Opcode::cmov_eq:
+  case Opcode::cmov_ugt:
+  case Opcode::cmov_uge:
+  case Opcode::cmov_ule:
   case Opcode::mov_zx:
   case Opcode::mov_sx:
   case Opcode::itrunc:

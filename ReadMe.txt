@@ -6,22 +6,20 @@ Simple optimizing backend
 
 
 ## TODO
-
++ replace cond + select with specific cmovXX commands
+	+ missing for floatingpoint
 + optimize llvm intrin lowering like memset/memcopy
 + verification
 + serialize
 + deserialize
-+ somewhat generic dataflow analysis
 + Abstract away graph based matcher (maybe a DSL)
 + convert codegen into library
 + Dont generate stack setup destruction if no stack usage
 	(need to make sure stack is still aligned iff thers call)
-
++ replace globals only used in 1 func to local variable(iff not recursive)
 + More Passes
-	+ Change lifetime check in reg alloc to better handle arguments(only check if they alive after?)
 	+ Fix epath pre
 	+ rework sccp
-	+ add Useable to Globals and Functions
 + More Tests
 	+ GCC Tests
 

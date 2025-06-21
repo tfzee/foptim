@@ -119,6 +119,67 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         return true;
       }});
+  pats.push_back(Pattern{
+      .nodes = {IntCmpNode, SelectNode},
+      .edges = {{0, 1, 0}},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        fir::Instr cmp_instr = res.matched_instrs[0];
+        fir::Instr slct_instr = res.matched_instrs[1];
+
+        auto res_arg =
+            valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+        if (res_arg.is_vec_reg() || res_arg.ty == Type::Int8) {
+          return false;
+        }
+        auto c1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto c2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+        auto arg1 = valueToArg(slct_instr->args[1], res.result, data.alloc);
+        auto arg2 = valueToArg(slct_instr->args[2], res.result, data.alloc);
+        Opcode op = Opcode::cmov;
+
+        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        case fir::ICmpInstrSubType::SGT:
+          op = Opcode::cmov_sgt;
+          break;
+        case fir::ICmpInstrSubType::SLT:
+          op = Opcode::cmov_slt;
+          break;
+        case fir::ICmpInstrSubType::ULT:
+          op = Opcode::cmov_ult;
+          break;
+        case fir::ICmpInstrSubType::SGE:
+          op = Opcode::cmov_sge;
+          break;
+        case fir::ICmpInstrSubType::SLE:
+          op = Opcode::cmov_sle;
+          break;
+        case fir::ICmpInstrSubType::NE:
+          op = Opcode::cmov_ne;
+          break;
+        case fir::ICmpInstrSubType::EQ:
+          op = Opcode::cmov_eq;
+          break;
+        case fir::ICmpInstrSubType::UGT:
+          op = Opcode::cmov_ugt;
+          break;
+        case fir::ICmpInstrSubType::UGE:
+          op = Opcode::cmov_uge;
+          break;
+        case fir::ICmpInstrSubType::ULE:
+          op = Opcode::cmov_ule;
+          break;
+        case fir::ICmpInstrSubType::MulOverflow:
+        case fir::ICmpInstrSubType::AddOverflow:
+          fmt::println("{} {}", cmp_instr, slct_instr);
+          TODO("okak");
+        case fir::ICmpInstrSubType::INVALID:
+          UNREACH();
+        }
+
+        res.result.emplace_back(Opcode::mov, res_arg, arg2);
+        res.result.emplace_back(op, res_arg, arg1, c1, c2);
+        return true;
+      }});
 }
 void memory_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
@@ -602,6 +663,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
                          (u32)fir::BinaryInstrSubType::IntMul};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSRem};
+  auto UDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::IntUDiv};
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSDiv};
   // auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -636,6 +699,46 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
 
         auto c = div_instr->args[1].as_constant()->as_int();
+        auto out_type = convert_type(div_instr->get_type());
+        (void)out_type;
+        switch (c) {
+        default:
+          return false;
+        case 8: {
+          auto res_reg =
+              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+          // lea eax, [rdi + 7]
+          ASSERT(base.isReg());
+          res.result.emplace_back(Opcode::lea, res_reg,
+                                  MArgument::MemOB(7, base.reg, out_type));
+          // test edi, edi
+          // cmovns eax, edi
+          res.result.emplace_back(Opcode::cmov_ns, res_reg, base, base, base);
+          // sar eax, 3
+          res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u8)3));
+        }
+        }
+
+        // res.result.emplace_back(Opcode::mov, res_reg, base);
+        // res.result.emplace_back(Opcode::shr2, res_reg,
+        // MArgument((u32)power));
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {UDivNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        (void)data;
+        auto div_instr = res.matched_instrs[0];
+        if (!div_instr->args[1].is_constant()) {
+          return false;
+        }
+        if (!div_instr->args[1].as_constant()->is_int()) {
+          return false;
+        }
+
+        auto c = div_instr->args[1].as_constant()->as_int();
         if (c <= 0 || c > std::numeric_limits<u32>::max() ||
             (c & (c - 1)) != 0) {
           return false;
@@ -646,7 +749,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
         auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
         res.result.emplace_back(Opcode::mov, res_reg, base);
-        res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u32)power));
+        res.result.emplace_back(Opcode::shr2, res_reg, MArgument((u32)power));
         return true;
       }});
   pats.push_back(Pattern{
@@ -1133,8 +1236,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a = valueToArg(select_instr->args[1], res.result, data.alloc);
         auto b = valueToArg(select_instr->args[2], res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::mov, res_reg, a);
-        res.result.emplace_back(Opcode::cmov, res_reg, cond, b);
+        res.result.emplace_back(Opcode::mov, res_reg, b);
+        res.result.emplace_back(Opcode::cmov, res_reg, cond, a);
         return true;
       }});
   pats.push_back(Pattern{

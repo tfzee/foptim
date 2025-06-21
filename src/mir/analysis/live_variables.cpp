@@ -63,6 +63,17 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::mov:
   case Opcode::lzcnt:
   case Opcode::cmov:
+  case Opcode::cmov_ns:
+  case Opcode::cmov_sgt:
+  case Opcode::cmov_slt:
+  case Opcode::cmov_ult:
+  case Opcode::cmov_sge:
+  case Opcode::cmov_sle:
+  case Opcode::cmov_ne:
+  case Opcode::cmov_eq:
+  case Opcode::cmov_ugt:
+  case Opcode::cmov_uge:
+  case Opcode::cmov_ule:
   case Opcode::mov_zx:
   case Opcode::mov_sx:
   case Opcode::itrunc:
@@ -291,6 +302,17 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     update_uses(instr.args[1], uses);
     update_uses(instr.args[2], uses);
     break;
+  case Opcode::cmov_ns:
+  case Opcode::cmov_sgt:
+  case Opcode::cmov_slt:
+  case Opcode::cmov_ult:
+  case Opcode::cmov_sge:
+  case Opcode::cmov_sle:
+  case Opcode::cmov_ne:
+  case Opcode::cmov_eq:
+  case Opcode::cmov_ugt:
+  case Opcode::cmov_uge:
+  case Opcode::cmov_ule:
   case Opcode::ffmadd132:
   case Opcode::ffmadd231:
   case Opcode::ffmadd213:

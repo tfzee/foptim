@@ -448,6 +448,56 @@ bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
   return false;
 }
 
+bool Legalizer::legalize_cmoveXX(MBB &bb, u32 indx) {
+  MInstr &instr = bb.instrs[indx];
+  {
+    // 2nd arg cant be a constant
+    if (instr.args[1].isImm()) {
+      if (instr.args[1].ty == Type::Float32 ||
+          instr.args[1].ty == Type::Float64) {
+        indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+      } else {
+        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+      }
+      return true;
+    }
+  }
+
+  { // cant have big constants in comparison
+    bool big_unsigned_const =
+        instr.args[3].isImm() &&
+        instr.args[3].imm > (u64)std::numeric_limits<u16>::max();
+    bool big_signed_const =
+        instr.args[3].isImm() &&
+        (i64)instr.args[3].imm > (i64)std::numeric_limits<i16>::max;
+
+    switch (instr.op) {
+    case Opcode::cmov_ne:
+    case Opcode::cmov_eq:
+    case Opcode::cmov_ult:
+    case Opcode::cmov_ugt:
+    case Opcode::cmov_ule:
+    case Opcode::cmov_uge:
+      if (big_unsigned_const) {
+        indx = move_arg_to_reg(bb, indx, 3, instr.args[2].ty);
+        return true;
+      }
+      break;
+    case Opcode::cmov_slt:
+    case Opcode::cmov_sgt:
+    case Opcode::cmov_sge:
+    case Opcode::cmov_sle:
+      if (big_signed_const) {
+        indx = move_arg_to_reg(bb, indx, 3, instr.args[2].ty);
+        return true;
+      }
+      break;
+    default:
+    }
+  }
+  return false;
+}
+
 bool Legalizer::legalize_punpckl(MBB &bb, u32 indx) {
   {
     // 2nd arg cant be a constant
@@ -635,6 +685,20 @@ void Legalizer::apply(MFunc &func) {
         break;
       case Opcode::arg_setup:
         if (legalize_arg_setup(bb, i)) {
+          ioff = 0;
+        }
+        break;
+      case Opcode::cmov_sgt:
+      case Opcode::cmov_slt:
+      case Opcode::cmov_ult:
+      case Opcode::cmov_sge:
+      case Opcode::cmov_sle:
+      case Opcode::cmov_ne:
+      case Opcode::cmov_eq:
+      case Opcode::cmov_ugt:
+      case Opcode::cmov_uge:
+      case Opcode::cmov_ule:
+        if (legalize_cmoveXX(bb, i)) {
           ioff = 0;
         }
         break;
