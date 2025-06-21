@@ -1292,6 +1292,14 @@ static void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr.destroy();
       return;
     }
+    if (input_instr->is(fir::InstrType::UnaryInstr) &&
+        (fir::UnaryInstrSubType)input_instr->subtype ==
+            fir::UnaryInstrSubType::Not) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(input_instr->args[0]);
+      instr.destroy();
+      return;
+    }
   }
   if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
       instr->args[0].is_instr() &&
@@ -1370,37 +1378,75 @@ static void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   switch ((fir::ConversionSubType)instr->subtype) {
   case fir::ConversionSubType::INVALID:
     TODO("unreach");
-  case fir::ConversionSubType::FPTOSI:
-    // if (instr->args[0].is_constant() &&
-    //     instr->args[0].as_constant()->is_float()) {
-    //   auto val = instr->args[0].as_constant()->as_float();
-    //   push_all_uses(worklist, instr);
-    //   instr->replace_all_uses(
-    //       fir::ValueR{ctx->get_constant_value((u64)val,
-    //       instr->get_type())});
-    //   instr.destroy();
-    //   TODO("OKAK IMPL");
-    //   return;
-    // }
-  case fir::ConversionSubType::FPTOUI:
-    // if (instr->args[0].is_constant() &&
-    //     instr->args[0].as_constant()->is_float()) {
-    //   auto val = instr->args[0].as_constant()->as_float();
-    //   push_all_uses(worklist, instr);
-    //   instr->replace_all_uses(
-    //       fir::ValueR{ctx->get_constant_value((u64)val,
-    //       instr->get_type())});
-    //   instr.destroy();
-    //   TODO("OKAK IMPL");
-    //   return;
-    // }
-  case fir::ConversionSubType::FPEXT:
-  case fir::ConversionSubType::FPTRUNC:
-  case fir::ConversionSubType::UITOFP:
   case fir::ConversionSubType::SITOFP:
+  case fir::ConversionSubType::UITOFP:
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_int()) {
+      auto val = instr->args[0].as_constant()->as_int();
+      push_all_uses(worklist, instr);
+      auto out_width = instr->get_type()->as_float();
+      if (out_width == 32) {
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value((f32)val, instr->get_type())});
+      } else if (out_width == 64) {
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value((f64)val, instr->get_type())});
+      } else {
+        TODO("Not supported other float bitwidths");
+      }
+      instr.destroy();
+      return;
+    }
+    break;
   case fir::ConversionSubType::PtrToInt:
   case fir::ConversionSubType::IntToPtr:
-    return;
+    if (instr->args[0].is_constant()) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[0]);
+      instr.destroy();
+      return;
+    }
+    break;
+  case fir::ConversionSubType::FPTOSI:
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_float()) {
+      //   auto val = instr->args[0].as_constant()->as_float();
+      //   push_all_uses(worklist, instr);
+      //   instr->replace_all_uses(
+      //       fir::ValueR{ctx->get_constant_value((u64)val,
+      //       instr->get_type())});
+      //   instr.destroy();
+      TODO("OKAK IMPL");
+      return;
+    }
+    break;
+  case fir::ConversionSubType::FPTOUI:
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_float()) {
+      //   auto val = instr->args[0].as_constant()->as_float();
+      //   push_all_uses(worklist, instr);
+      //   instr->replace_all_uses(
+      //       fir::ValueR{ctx->get_constant_value((u64)val,
+      //       instr->get_type())});
+      //   instr.destroy();
+      TODO("OKAK IMPL");
+      return;
+    }
+    break;
+  case fir::ConversionSubType::FPEXT:
+  case fir::ConversionSubType::FPTRUNC:
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_float()) {
+      //   auto val = instr->args[0].as_constant()->as_float();
+      //   push_all_uses(worklist, instr);
+      //   instr->replace_all_uses(
+      //       fir::ValueR{ctx->get_constant_value((u64)val,
+      //       instr->get_type())});
+      //   instr.destroy();
+      TODO("OKAK IMPL");
+      return;
+    }
+    break;
   }
 }
 
