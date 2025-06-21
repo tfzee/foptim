@@ -91,6 +91,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::vadd:
   case Opcode::vsub:
   case Opcode::fmul:
+  case Opcode::abs:
   case Opcode::fdiv:
   case Opcode::ffmadd132:
   case Opcode::ffmadd231:
@@ -224,6 +225,7 @@ void update_uses(const MArgument &arg, utils::BitSet<> &uses) {
 void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   switch (instr.op) {
   // for moves this is only correct if the target is a reg
+  case Opcode::abs:
   case Opcode::mov:
   case Opcode::lzcnt:
   case Opcode::itrunc:

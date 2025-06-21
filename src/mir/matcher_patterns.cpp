@@ -1,6 +1,6 @@
 #include "matcher_patterns.hpp"
-#include "matcher.hpp"
 #include "ir/instruction_data.hpp"
+#include "matcher.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include <bit>
@@ -2092,6 +2092,10 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                          (u32)fir::IntrinsicSubType::VA_end};
   auto va_startNode = Node{NodeType::Instr, InstrType::Intrinsic,
                            (u32)fir::IntrinsicSubType::VA_start};
+  auto absNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                      (u32)fir::IntrinsicSubType::Abs};
+  auto fabsNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                       (u32)fir::IntrinsicSubType::FAbs};
 
   pats.push_back(Pattern{
       .nodes = {ctlzNode},
@@ -2101,6 +2105,38 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         res.result.emplace_back(Opcode::lzcnt, res_reg, arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {absNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        res.result.emplace_back(Opcode::abs, res_reg, arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {fabsNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        if (arg.ty == Type::Float32) {
+          res.result.emplace_back(Opcode::mov, res_reg, arg);
+          res.result.emplace_back(
+              Opcode::fAnd, res_reg, res_reg,
+              MArgument(std::bit_cast<f32>((u32)0x7fffffff)));
+        } else if (arg.ty == Type::Float64) {
+          res.result.emplace_back(Opcode::mov, res_reg, arg);
+          res.result.emplace_back(
+              Opcode::fAnd, res_reg, res_reg,
+              MArgument(std::bit_cast<f64>((u64)0x7fffffffffffffff)));
+        } else {
+          TODO("impl");
+        }
         return true;
       }});
   pats.push_back(

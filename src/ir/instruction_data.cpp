@@ -156,6 +156,8 @@ bool InstrData::is_critical() const {
     switch ((IntrinsicSubType)subtype) {
     case IntrinsicSubType::INVALID:
     case IntrinsicSubType::CTLZ:
+    case IntrinsicSubType::Abs:
+    case IntrinsicSubType::FAbs:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
@@ -209,6 +211,8 @@ bool InstrData::is_commutative() const {
     case IntrinsicSubType::CTLZ:
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
+    case IntrinsicSubType::Abs:
+    case IntrinsicSubType::FAbs:
       return false;
     }
   case InstrType::FCmp:
@@ -272,6 +276,8 @@ bool InstrData::pot_modifies_mem() const {
     switch ((IntrinsicSubType)subtype) {
     case IntrinsicSubType::INVALID:
     case IntrinsicSubType::CTLZ:
+    case IntrinsicSubType::Abs:
+    case IntrinsicSubType::FAbs:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
@@ -312,6 +318,8 @@ bool InstrData::pot_reads_mem() const {
     switch ((IntrinsicSubType)subtype) {
     case IntrinsicSubType::INVALID:
     case IntrinsicSubType::CTLZ:
+    case IntrinsicSubType::Abs:
+    case IntrinsicSubType::FAbs:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
@@ -352,6 +360,8 @@ bool InstrData::has_pot_sideeffects() const {
     switch ((IntrinsicSubType)subtype) {
     case IntrinsicSubType::INVALID:
     case IntrinsicSubType::CTLZ:
+    case IntrinsicSubType::Abs:
+    case IntrinsicSubType::FAbs:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:

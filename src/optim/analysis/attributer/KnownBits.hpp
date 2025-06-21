@@ -5,6 +5,7 @@
 #include "ir/use.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "utils/APInt.hpp"
+#include "utils/bitset.hpp"
 #include "utils/logging.hpp"
 #include <fmt/core.h>
 
@@ -17,6 +18,7 @@ class KnownBits;
 static KnownBits computeForAddCarry(const KnownBits &LHS, const KnownBits &RHS,
                                     bool CarryZero, bool CarryOne);
 static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS);
+static KnownBits abs_known_bits(const KnownBits &input);
 
 class KnownBits final : public AttributeAnalysis {
 public:
@@ -70,6 +72,26 @@ public:
                instr->is(fir::InstrType::FCmp)) {
       new_known_one = 0;
       new_known_zero = (~(u64)0) - 1;
+    } else if (instr->is(fir::InstrType::Intrinsic)) {
+      switch ((fir::IntrinsicSubType)instr->subtype) {
+      case fir::IntrinsicSubType::Abs: {
+        const auto *known_arg_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        auto res = abs_known_bits(*known_arg_bits);
+        new_known_one = res.known_one;
+        new_known_zero = res.known_zero;
+        break;
+      }
+      case fir::IntrinsicSubType::INVALID:
+      case fir::IntrinsicSubType::CTLZ:
+      case fir::IntrinsicSubType::VA_start:
+      case fir::IntrinsicSubType::VA_end:
+      case fir::IntrinsicSubType::FAbs:
+        fmt::println("BITS KNOWN {}", *this);
+        fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
+                     associatedValue.as_instr());
+        break;
+      }
     } else if (instr->is(fir::InstrType::ITrunc)) {
       const auto *known_arg_bits =
           m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
@@ -390,6 +412,72 @@ static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS) {
       llowest_bit_id > rlowest_bit_id ? llowest_bit_id : rlowest_bit_id;
   res.known_zero = (1 << lowest_bit_id) - 1;
   // TODO: impl properly
+  return res;
+}
+
+static KnownBits abs_known_bits(const KnownBits &input) {
+  auto msb = input.msb_info();
+  if (msb == KnownBits::BitInfo::KnownZero) {
+    // if we know its positive
+    return input;
+  }
+  if (msb == KnownBits::BitInfo::KnownOne) {
+    // if we know its negative
+    uint64_t maybe_ones = input.known_one;
+    uint64_t maybe_zeros = input.known_zero;
+
+    uint64_t abs_known = 0;
+    uint64_t abs_known_zero = 0;
+
+    uint64_t carry = 1;
+    for (int i = 0; i < 64; ++i) {
+      uint64_t bit = 1ULL << i;
+
+      // Check if bit is known
+      bool one = (maybe_ones & bit) != 0;
+      bool zero = (maybe_zeros & bit) != 0;
+
+      if (one || zero) {
+        bool inv = !one;        // ~x flips the known one
+        bool sum = inv ^ carry; // Compute the sum bit
+        bool next_carry = inv & carry;
+
+        abs_known |= bit;
+        if (!sum)
+          abs_known_zero |= bit;
+
+        carry = next_carry;
+      } else {
+        // Once we hit an unknown bit, all higher bits become unknown
+        break;
+      }
+    }
+
+    KnownBits res;
+    res.known_one = abs_known & ~abs_known_zero;
+    res.known_zero = abs_known_zero;
+    return res;
+  }
+  // idk sign
+  // just try both and and them
+  auto neg = input;
+  neg.known_one |=
+      1ULL << (input.associatedValue.get_type()->get_bitwidth() - 1);
+  neg.known_zero &=
+      ~(1ULL << (input.associatedValue.get_type()->get_bitwidth() - 1));
+  auto pos = input;
+  pos.known_zero |=
+      1ULL << (input.associatedValue.get_type()->get_bitwidth() - 1);
+  pos.known_one &=
+      ~(1ULL << (input.associatedValue.get_type()->get_bitwidth() - 1));
+
+  // Compute abs of negative version
+  neg = abs_known_bits(neg);
+  // Compute abs of positive version
+  pos = abs_known_bits(pos);
+  KnownBits res;
+  res.known_one = pos.known_one & neg.known_one;
+  res.known_zero = pos.known_zero & neg.known_zero;
   return res;
 }
 

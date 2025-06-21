@@ -73,6 +73,8 @@ enum class IntrinsicSubType : u32 {
   CTLZ,
   VA_start,
   VA_end,
+  Abs,
+  FAbs,
 };
 
 enum class ConversionSubType : u32 {
@@ -214,6 +216,10 @@ public:
         return "INTRIN:CTLZ";
       case IntrinsicSubType::VA_start:
         return "INTRIN:VA_START";
+      case IntrinsicSubType::Abs:
+        return "INTRIN:ABS";
+      case IntrinsicSubType::FAbs:
+        return "INTRIN:FABS";
       case IntrinsicSubType::VA_end:
         return "INTRIN:VA_END";
       }

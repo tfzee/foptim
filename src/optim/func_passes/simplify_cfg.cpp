@@ -419,6 +419,8 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
       switch ((fir::IntrinsicSubType)instr->subtype) {
       case fir::IntrinsicSubType::INVALID:
       case fir::IntrinsicSubType::CTLZ:
+      case fir::IntrinsicSubType::Abs:
+      case fir::IntrinsicSubType::FAbs:
       case fir::IntrinsicSubType::VA_end:
       case fir::IntrinsicSubType::VA_start:
         break;

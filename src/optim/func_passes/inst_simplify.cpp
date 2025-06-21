@@ -1721,6 +1721,36 @@ void simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
 }
 
+void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
+                        fir::Context &ctx, WorkList &worklist) {
+  auto sub_type = (fir::IntrinsicSubType)instr->subtype;
+  if (sub_type == fir::IntrinsicSubType::Abs && instr->args[0].is_constant()) {
+    push_all_uses(worklist, instr);
+    auto val = std::abs(instr->args[0].as_constant()->as_int());
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+    instr.destroy();
+    return;
+  }
+  if (sub_type == fir::IntrinsicSubType::FAbs && instr->args[0].is_constant()) {
+    auto ty = instr->get_type();
+    auto width = ty->as_float();
+
+    push_all_uses(worklist, instr);
+    if (width == 32) {
+      auto val = std::fabs(instr->args[0].as_constant()->as_f32());
+      instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
+    } else if (width == 64) {
+      auto val = std::fabs(instr->args[0].as_constant()->as_f64());
+      instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
+    } else {
+      TODO("IMPL");
+    }
+    instr.destroy();
+    return;
+  }
+}
+
 void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
@@ -1775,6 +1805,10 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::CallInstr) {
     simplify_call(instr, bb, ctx, worklist);
+    return;
+  }
+  if (instr_ty == InstrType::Intrinsic) {
+    simplify_intrinsic(instr, bb, ctx, worklist);
     return;
   }
 }

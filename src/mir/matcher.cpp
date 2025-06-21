@@ -9,15 +9,13 @@
 #include "mir/matcher_helpers.hpp"
 #include "mir/matcher_patterns.hpp"
 #include "mir/reg_alloc.hpp"
-#include "optim/analysis/dominators.hpp"
-#include "optim/analysis/live_variables.hpp"
-#include "utils/logging.hpp"
 #include <algorithm>
 #include <ranges>
 #include <tracy/Tracy.hpp>
 
 namespace foptim::fmir {
 
+namespace {
 MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
                      ExtraMatchData &data) {
   // ASSERT(get_size(reg_type) <= 255);
@@ -205,6 +203,7 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
   std::reverse(result_bb.instrs.begin(), result_bb.instrs.end());
   return result_bb;
 }
+} // namespace
 
 Type convert_type(fir::TypeR type) {
   if (type->is_int()) {

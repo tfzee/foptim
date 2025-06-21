@@ -973,6 +973,7 @@ void generate_abs(foptim::fir::Context &fctx, llvm::StringRef func_name) {
   if (func_name.ends_with("i64")) {
     name = "foptim.abs.i64";
     width = 64;
+
   } else if (func_name.ends_with("i32")) {
     name = "foptim.abs.i32";
     width = 32;

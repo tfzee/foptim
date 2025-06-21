@@ -171,52 +171,54 @@ public:
     instr.destroy();
   }
 
-  void handle_fabs(fir::Instr instr, fir::Function &funcy,
+  void handle_fabs(fir::Instr instr, fir::Function &/*funcy*/,
                    fir::FunctionR /*callee*/) {
-    auto width = instr.get_type()->as_float();
+    // auto width = instr.get_type()->as_float();
     fir::Builder bb{instr};
-    auto *ctx = funcy.ctx;
-    const auto *func_name = "INVALID_FUNC_NAME";
+    // auto *ctx = funcy.ctx;
+    // const auto *func_name = "INVALID_FUNC_NAME";
 
-    if (width == 64) {
-      func_name = "foptim.abs.f64";
-    } else if (width == 32) {
-      func_name = "foptim.abs.f32";
-    } else {
-      fmt::println("{}", instr);
-      TODO("IMPL");
-    }
+    // if (width == 64) {
+    //   func_name = "foptim.abs.f64";
+    // } else if (width == 32) {
+    //   func_name = "foptim.abs.f32";
+    // } else {
+    //   fmt::println("{}", instr);
+    //   TODO("IMPL");
+    // }
 
-    auto func = ctx->get_function(func_name);
-    auto ret_type = instr.get_type();
-    foptim::fir::ValueR args[1] = {instr->args[1]};
-    auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
-                             func->func_ty, ret_type, args);
+    // auto func = ctx->get_function(func_name);
+    // auto ret_type = instr.get_type();
+    // foptim::fir::ValueR args[1] = {instr->args[1]};
+    // auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
+    //                          func->func_ty, ret_type, args);
+    auto res = bb.build_fabs(instr->args[1]);
     instr->replace_all_uses(res);
     instr.destroy();
   }
 
-  void handle_abs(fir::Instr instr, fir::Function &funcy,
+  void handle_abs(fir::Instr instr, fir::Function &/*funcy*/,
                   fir::FunctionR /*callee*/) {
-    auto width = instr.get_type()->as_int();
+    // auto width = instr.get_type()->as_int();
     fir::Builder bb{instr};
-    auto *ctx = funcy.ctx;
-    const auto *func_name = "INVALID_FUNC_NAME";
+    // auto *ctx = funcy.ctx;
+    // const auto *func_name = "INVALID_FUNC_NAME";
 
-    if (width == 64) {
-      func_name = "foptim.abs.i64";
-    } else if (width == 32) {
-      func_name = "foptim.abs.i32";
-    } else {
-      fmt::println("{}", instr);
-      TODO("IMPL");
-    }
+    // if (width == 64) {
+    //   func_name = "foptim.abs.i64";
+    // } else if (width == 32) {
+    //   func_name = "foptim.abs.i32";
+    // } else {
+    //   fmt::println("{}", instr);
+    //   TODO("IMPL");
+    // }
 
-    auto func = ctx->get_function(func_name);
-    auto ret_type = instr.get_type();
-    foptim::fir::ValueR args[1] = {instr->args[1]};
-    auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
-                             func->func_ty, ret_type, args);
+    // auto func = ctx->get_function(func_name);
+    // auto ret_type = instr.get_type();
+    // foptim::fir::ValueR args[1] = {instr->args[1]};
+    // auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
+    //                          func->func_ty, ret_type, args);
+    auto res = bb.build_abs(instr->args[1]);
     instr->replace_all_uses(res);
     instr.destroy();
   }

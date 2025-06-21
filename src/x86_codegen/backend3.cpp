@@ -736,6 +736,24 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     req.mnemonic = ZYDIS_MNEMONIC_POP;
     return emit(out_buff, 0, &req);
 
+  case fmir::Opcode::abs: {
+    u64 off = 0;
+    // auto target = req.operands[0];
+    // auto arg = req.operands[1];
+    //  mov     eax, edi
+    //  neg     eax
+    //  cmovs   eax, edi
+    //  ret
+    req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    off = emit(out_buff, off, &req);
+    req.mnemonic = ZYDIS_MNEMONIC_NEG;
+    req.operand_count = 1;
+    off = emit(out_buff, off, &req);
+    req.mnemonic = ZYDIS_MNEMONIC_CMOVS;
+    req.operand_count = 2;
+    off = emit(out_buff, off, &req);
+    return off;
+  }
   case fmir::Opcode::jmp:
     req.mnemonic = ZYDIS_MNEMONIC_JMP;
     req.branch_type = ZYDIS_BRANCH_TYPE_NEAR;

@@ -45,6 +45,8 @@ public:
   ValueR build_ctlz(ValueR a, ValueR b);
   ValueR build_va_start(ValueR a);
   ValueR build_va_end(ValueR a);
+  ValueR build_fabs(ValueR a);
+  ValueR build_abs(ValueR a);
   ValueR build_int_add(ValueR a, ValueR b);
   ValueR build_float_add(ValueR a, ValueR b);
   ValueR build_float_sub(ValueR a, ValueR b);

@@ -33,6 +33,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(fcmp_ult);
     ReturnString(fcmp_ule);
     ReturnString(fcmp_une);
+    ReturnString(abs);
     ReturnString(mov);
     ReturnString(cmov);
     ReturnString(cmov_ns);
@@ -146,6 +147,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::sar2:
   case Opcode::land2:
   case Opcode::lor2:
+  case Opcode::abs:
   case Opcode::lxor2:
   case Opcode::not1:
   case Opcode::neg1:
@@ -271,6 +273,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::mov_zx:
   case Opcode::mov_sx:
   case Opcode::mov:
+  case Opcode::abs:
   case Opcode::itrunc:
   case Opcode::lea:
   case Opcode::SI2FL:
@@ -409,6 +412,7 @@ bool MInstr::is_control_flow(Opcode c) {
   case Opcode::mov_zx:
   case Opcode::mov_sx:
   case Opcode::itrunc:
+  case Opcode::abs:
   case Opcode::lea:
   case Opcode::shl2:
   case Opcode::shr2:

@@ -13,6 +13,8 @@ enum class Opcode : u32 {
   itrunc,
   lea,
 
+  abs,
+
   shl2,
   shr2,
   sar2,

@@ -120,6 +120,26 @@ ValueR Builder::build_va_end(ValueR a) {
   return ValueR(instr);
 }
 
+ValueR Builder::build_fabs(ValueR a) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_intrinsic(a.get_type(), IntrinsicSubType::FAbs));
+  instr.add_arg(a);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_abs(ValueR a) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_intrinsic(a.get_type(), IntrinsicSubType::Abs));
+  instr.add_arg(a);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 ValueR Builder::build_binary_op(ValueR a, ValueR b,
                                 BinaryInstrSubType sub_type) {
   check_bb_set();
@@ -346,8 +366,8 @@ ValueR Builder::build_alloca(ValueR size) {
 
 ValueR Builder::build_vbroadcast(ValueR v, TypeR type) {
   check_bb_set();
-  Instr instr =
-      ctx->storage.insert_instr(InstrData::get_vector(type, VectorISubType::Broadcast));
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_vector(type, VectorISubType::Broadcast));
   instr.add_arg(v);
   bb.insert_instr(indx, instr);
   indx++;
