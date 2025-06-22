@@ -703,16 +703,30 @@ void arith_patterns(IRVec<Pattern> &pats) {
         if (!div_instr->args[1].is_constant()) {
           return false;
         }
-        if (!div_instr->args[1].as_constant()->is_int()) {
+        auto cc = div_instr->args[1].as_constant();
+        if (!cc->is_int()) {
           return false;
         }
 
-        auto c = div_instr->args[1].as_constant()->as_int();
+        auto c = cc->as_int();
         auto out_type = convert_type(div_instr->get_type());
-        (void)out_type;
         switch (c) {
         default:
           return false;
+        case 2: {
+          auto res_reg =
+              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+          // mov     eax, edi
+          // shr     eax, 31
+          // add     eax, edi
+          // sar     eax
+          res.result.emplace_back(Opcode::mov, res_reg, base);
+          res.result.emplace_back(Opcode::shr2, res_reg, MArgument((u8)31));
+          res.result.emplace_back(Opcode::add2, res_reg, base);
+          res.result.emplace_back(Opcode::cmov_ns, res_reg, base, base, base);
+          res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u8)1));
+        }
         case 8: {
           auto res_reg =
               valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
