@@ -1558,13 +1558,13 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   case fir::ConversionSubType::FPTOSI:
     if (instr->args[0].is_constant() &&
         instr->args[0].as_constant()->is_float()) {
-      //   auto val = instr->args[0].as_constant()->as_float();
-      //   push_all_uses(worklist, instr);
-      //   instr->replace_all_uses(
-      //       fir::ValueR{ctx->get_constant_value((u64)val,
-      //       instr->get_type())});
-      //   instr.destroy();
-      TODO("OKAK IMPL");
+        auto val = instr->args[0].as_constant()->as_float();
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value((i128)val,
+            instr->get_type())});
+        instr.destroy();
+      // TODO("OKAK IMPL");
       return;
     }
     break;

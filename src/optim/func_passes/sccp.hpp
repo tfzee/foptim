@@ -108,8 +108,9 @@ public:
       }
 
       if ((!a.value->is_int() && !a.value->is_float())) {
-        failure(
-            {.reason="Cannot do SCCP on binary expr using non integers/floats", .loc=instr});
+        failure({.reason =
+                     "Cannot do SCCP on binary expr using non integers/floats",
+                 .loc = instr});
         return ConstantValue::Bottom();
       }
 
@@ -157,8 +158,9 @@ public:
 
       if ((!a.value->is_int() && !a.value->is_float()) ||
           (!b.value->is_int() && !b.value->is_float())) {
-        failure(
-            {.reason="Cannot do SCCP on binary expr using non integers/floats", .loc=instr});
+        failure({.reason =
+                     "Cannot do SCCP on binary expr using non integers/floats",
+                 .loc = instr});
         return ConstantValue::Bottom();
       }
 
@@ -306,8 +308,12 @@ public:
         return ConstantValue::Top();
       }
 
-      ASSERT(arg.value->is_int());
-      bool cond = arg.value->as_int() != 0;
+      bool cond = false;
+      if (arg.value->is_poison()) {
+      } else {
+        ASSERT(arg.value->is_int());
+        cond = arg.value->as_int() != 0;
+      }
 
       if (cond) {
         cfg_worklist.push_back(targets[0].bb);
@@ -522,7 +528,7 @@ public:
       case fir::FCmpInstrSubType::INVALID:
         break;
       }
-      failure({.reason="Imply fcmp", .loc=instr});
+      failure({.reason = "Imply fcmp", .loc = instr});
       return ConstantValue::Bottom();
     }
     case fir::InstrType::ICmp: {
@@ -553,7 +559,7 @@ public:
       }
 
       if (!a.value->is_int() || !b.value->is_int()) {
-        failure({.reason="Impl icmp on non ints", .loc=instr});
+        failure({.reason = "Impl icmp on non ints", .loc = instr});
         return ConstantValue::Bottom();
       }
 
@@ -634,7 +640,7 @@ public:
       }
 
       if (!a.value->is_int()) {
-        failure({.reason="Impl icmp on non ints", .loc=instr});
+        failure({.reason = "Impl icmp on non ints", .loc = instr});
         return ConstantValue::Bottom();
       }
 
