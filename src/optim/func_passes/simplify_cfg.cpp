@@ -761,8 +761,10 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
 
     foptim::utils::TempAlloc<void *>::reset();
     cfg = CFG(func, false);
-    // fmt::println("{}", func);
-    ASSERT(func.verify());
+    if (!func.verify()) {
+      fmt::println("{}", func);
+      TODO("fix");
+    }
   }
 }
 

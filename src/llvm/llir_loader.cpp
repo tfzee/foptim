@@ -931,79 +931,82 @@ void generate_memset(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
-void generate_fabs(foptim::fir::Context &fctx, llvm::StringRef func_name) {
+// void generate_fabs(foptim::fir::Context &fctx, llvm::StringRef func_name) {
 
-  const char *name = "invalidfabs";
-  u32 width = 0;
-  u64 constant_value = 0;
-  if (func_name.ends_with("f64")) {
-    name = "foptim.abs.f64";
-    width = 64;
-    constant_value = 0x7fffffffffffffff;
-  } else if (func_name.ends_with("f32")) {
-    name = "foptim.abs.f32";
-    width = 32;
-    constant_value = 0x7fffffff;
-  } else {
-    fmt::println("{}", func_name.str().c_str());
-    TODO("IMPL");
-  }
-  if (fctx->has_function(name)) {
-    return;
-  }
-  auto func_ty = fctx->get_func_ty(fctx->get_float_type(width),
-                                   {fctx->get_float_type(width)});
-  auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Linkage::LinkOnceODR;
+//   const char *name = "invalidfabs";
+//   u32 width = 0;
+//   u64 constant_value = 0;
+//   if (func_name.ends_with("f64")) {
+//     name = "foptim.abs.f64";
+//     width = 64;
+//     constant_value = 0x7fffffffffffffff;
+//   } else if (func_name.ends_with("f32")) {
+//     name = "foptim.abs.f32";
+//     width = 32;
+//     constant_value = 0x7fffffff;
+//   } else {
+//     fmt::println("{}", func_name.str().c_str());
+//     TODO("IMPL");
+//   }
+//   if (fctx->has_function(name)) {
+//     return;
+//   }
+//   auto func_ty = fctx->get_func_ty(fctx->get_float_type(width),
+//                                    {fctx->get_float_type(width)});
+//   auto ffunc = fctx->create_function(name, func_ty);
+//   ffunc.func->linkage = foptim::fir::Linkage::LinkOnceODR;
 
-  auto bb = ffunc.builder();
-  auto entry_bb = ffunc->get_entry();
-  bb.at_end(entry_bb);
+//   auto bb = ffunc.builder();
+//   auto entry_bb = ffunc->get_entry();
+//   bb.at_end(entry_bb);
 
-  auto constant = foptim::fir::ValueR(fctx->get_constant_value(
-      std::bit_cast<foptim::f64>(constant_value), fctx->get_float_type(width)));
-  auto res = bb.build_binary_op(foptim::fir::ValueR{entry_bb->args[0]},
-                                constant, foptim::fir::BinaryInstrSubType::And);
-  bb.build_return(res);
-}
+//   auto constant = foptim::fir::ValueR(fctx->get_constant_value(
+//       std::bit_cast<foptim::f64>(constant_value),
+//       fctx->get_float_type(width)));
+//   auto res = bb.build_binary_op(foptim::fir::ValueR{entry_bb->args[0]},
+//                                 constant,
+//                                 foptim::fir::BinaryInstrSubType::And);
+//   bb.build_return(res);
+// }
 
-void generate_abs(foptim::fir::Context &fctx, llvm::StringRef func_name) {
-  const char *name = "invalidabs";
-  u32 width = 0;
-  if (func_name.ends_with("i64")) {
-    name = "foptim.abs.i64";
-    width = 64;
+// void generate_abs(foptim::fir::Context &fctx, llvm::StringRef func_name) {
+//   const char *name = "invalidabs";
+//   u32 width = 0;
+//   if (func_name.ends_with("i64")) {
+//     name = "foptim.abs.i64";
+//     width = 64;
 
-  } else if (func_name.ends_with("i32")) {
-    name = "foptim.abs.i32";
-    width = 32;
-  } else {
-    fmt::println("{}", func_name.str().c_str());
-    TODO("IMPL");
-  }
+//   } else if (func_name.ends_with("i32")) {
+//     name = "foptim.abs.i32";
+//     width = 32;
+//   } else {
+//     fmt::println("{}", func_name.str().c_str());
+//     TODO("IMPL");
+//   }
 
-  if (fctx->has_function(name)) {
-    return;
-  }
+//   if (fctx->has_function(name)) {
+//     return;
+//   }
 
-  auto width_type = fctx->get_int_type(width);
-  auto func_ty = fctx->get_func_ty(width_type, {width_type});
-  auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Linkage::Internal;
+//   auto width_type = fctx->get_int_type(width);
+//   auto func_ty = fctx->get_func_ty(width_type, {width_type});
+//   auto ffunc = fctx->create_function(name, func_ty);
+//   ffunc.func->linkage = foptim::fir::Linkage::Internal;
 
-  auto bb = ffunc.builder();
-  auto entry_bb = ffunc->get_entry();
-  bb.at_end(entry_bb);
+//   auto bb = ffunc.builder();
+//   auto entry_bb = ffunc->get_entry();
+//   bb.at_end(entry_bb);
 
-  auto constant_zero =
-      foptim::fir::ValueR(fctx->get_constant_value((u64)0, width_type));
-  auto arg = foptim::fir::ValueR{entry_bb->args[0]};
-  auto cond =
-      bb.build_int_cmp(arg, constant_zero, foptim::fir::ICmpInstrSubType::SGT);
-  auto negated = bb.build_unary_op(arg, foptim::fir::UnaryInstrSubType::IntNeg);
-  auto res = bb.build_select(width_type, cond, arg, negated);
-  bb.build_return(res);
-}
+//   auto constant_zero =
+//       foptim::fir::ValueR(fctx->get_constant_value((u64)0, width_type));
+//   auto arg = foptim::fir::ValueR{entry_bb->args[0]};
+//   auto cond =
+//       bb.build_int_cmp(arg, constant_zero,
+//       foptim::fir::ICmpInstrSubType::SGT);
+//   auto negated = bb.build_unary_op(arg,
+//   foptim::fir::UnaryInstrSubType::IntNeg); auto res =
+//   bb.build_select(width_type, cond, arg, negated); bb.build_return(res);
+// }
 
 void generate_memcpy(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memcpy";
@@ -1110,10 +1113,8 @@ void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_memcpy(fctx);
   } else if (func.getName().starts_with("llvm.trap")) {
     generate_trap(fctx);
-  } else if (func.getName().starts_with("llvm.fabs")) {
-    generate_fabs(fctx, func.getName());
-  } else if (func.getName().starts_with("llvm.abs")) {
-    generate_abs(fctx, func.getName());
+  } else if (func.getName().starts_with("llvm.fabs") ||
+             func.getName().starts_with("llvm.abs")) {
   } else if (func.getName().starts_with("llvm.exp.f")) {
     generate_fexp(fctx);
   } else if (func.getName().starts_with("llvm.memmove")) {

@@ -743,7 +743,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       if (arg0->is(InstrType::BinaryInstr) &&
           arg0->subtype == (u32)BinaryInstrSubType::IntSDiv &&
           arg0->args[1].is_constant() &&
-          // TODO: could also be poision
+          // TODO: could also be poision but that gets propagated anyway
           arg0->args[1].as_constant()->is_int()) {
         // auto a = instr->args[1].as_constant()->as_int();
         auto x = arg0->args[1].as_constant()->as_int();
@@ -756,6 +756,42 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
           instr.destroy();
           return;
         }
+      }
+    }
+    if ((sub_type == ICmpInstrSubType::SLT) && instr->args[0].is_instr()) {
+      auto arg0 = instr->args[0].as_instr();
+      if (arg0->is(InstrType::Intrinsic) &&
+          arg0->subtype == (u32)IntrinsicSubType::Abs && c_val == 1) {
+        // abs(x) < 1 => x == 0
+        auto x = arg0->args[0];
+        Builder bb{instr};
+        auto new_val = bb.build_int_cmp(
+            x, fir::ValueR{ctx->get_constant_value(0, x.get_type())},
+            ICmpInstrSubType::EQ);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR(new_val));
+        instr.destroy();
+        return;
+      }
+    }
+
+    if ((sub_type == ICmpInstrSubType::EQ ||
+         sub_type == ICmpInstrSubType::NE) &&
+        instr->args[0].is_instr()) {
+      auto arg0 = instr->args[0].as_instr();
+      if (arg0->is(InstrType::ZExt) ||
+          (arg0->is(InstrType::SExt) && c_val == 0)) {
+        // zext(x) == 0 => x == C
+        // zext(x) != 0 => x != C
+        // sext(x) == 0 => x == 0
+        // sext(x) != 0 => x != 0
+        auto x = arg0->args[0];
+        Builder bb{instr};
+        instr.replace_arg(0, x);
+        instr.replace_arg(
+            1, fir::ValueR{ctx->get_constant_value(c_val, x.get_type())});
+        worklist.emplace_back(instr, instr->get_parent());
+        return;
       }
     }
 
@@ -786,7 +822,9 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       }
     }
   }
+
   auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
+
   if (sub_type == ICmpInstrSubType::UGT || sub_type == ICmpInstrSubType::UGE ||
       sub_type == ICmpInstrSubType::ULT || sub_type == ICmpInstrSubType::ULE) {
     const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
