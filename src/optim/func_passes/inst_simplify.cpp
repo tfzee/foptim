@@ -737,10 +737,10 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     i128 c_val = instr->args[1].as_constant()->as_int();
 
     // NOTE: a / 2^x > 0 -> a > x (if x is between 0-bitwidth)
-    if (c_val == 0 && (sub_type == ICmpInstrSubType::SGT) &&
-        instr->args[0].is_instr()) {
+    if (instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
-      if (arg0->is(InstrType::BinaryInstr) &&
+      if (c_val == 0 && (sub_type == ICmpInstrSubType::SGT) &&
+          arg0->is(InstrType::BinaryInstr) &&
           arg0->subtype == (u32)BinaryInstrSubType::IntSDiv &&
           arg0->args[1].is_constant() &&
           // TODO: could also be poision but that gets propagated anyway
@@ -757,7 +757,47 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
           return;
         }
       }
+
+      if ((sub_type == ICmpInstrSubType::SLE ||
+           sub_type == ICmpInstrSubType::SLT) &&
+          arg0->is(InstrType::BinaryInstr) &&
+          arg0->subtype == (u32)BinaryInstrSubType::IntSDiv &&
+          arg0->args[1].is_constant()) {
+        bool is_or_eq = sub_type == ICmpInstrSubType::SLE;
+        auto x = arg0->args[0];
+        auto c_div = arg0->args[1].as_constant()->as_int();
+        Builder bb{instr};
+        auto new_val = bb.build_int_cmp(
+            x,
+            fir::ValueR{ctx->get_constant_value(
+                (c_val + (is_or_eq ? 1 : 0)) * c_div, x.get_type())},
+            ICmpInstrSubType::SLE);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR(new_val));
+        instr.destroy();
+        return;
+      }
+      if ((sub_type == ICmpInstrSubType::SGE ||
+           sub_type == ICmpInstrSubType::SGT) &&
+          arg0->is(InstrType::BinaryInstr) &&
+          arg0->subtype == (u32)BinaryInstrSubType::IntSDiv &&
+          arg0->args[1].is_constant()) {
+        bool is_or_eq = sub_type == ICmpInstrSubType::SGE;
+        auto x = arg0->args[0];
+        auto c_div = arg0->args[1].as_constant()->as_int();
+        Builder bb{instr};
+        auto new_val = bb.build_int_cmp(
+            x,
+            fir::ValueR{ctx->get_constant_value(
+                (c_val + (is_or_eq ? 0 : 1)) * c_div, x.get_type())},
+            ICmpInstrSubType::SGE);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR(new_val));
+        instr.destroy();
+        return;
+      }
     }
+
     if ((sub_type == ICmpInstrSubType::SLT) && instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
       if (arg0->is(InstrType::Intrinsic) &&
@@ -1558,12 +1598,11 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   case fir::ConversionSubType::FPTOSI:
     if (instr->args[0].is_constant() &&
         instr->args[0].as_constant()->is_float()) {
-        auto val = instr->args[0].as_constant()->as_float();
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value((i128)val,
-            instr->get_type())});
-        instr.destroy();
+      auto val = instr->args[0].as_constant()->as_float();
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_constant_value((i128)val, instr->get_type())});
+      instr.destroy();
       // TODO("OKAK IMPL");
       return;
     }
