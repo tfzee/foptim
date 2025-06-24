@@ -158,6 +158,15 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
     }
     return ctx->get_func_ty(ret_type, args);
   }
+  if (auto *v = llvm::dyn_cast_or_null<llvm::VectorType>(any_ty)) {
+    auto sub_type = convert_type(v->getElementType(), ctx, module);
+    auto maybe_num = v->getElementCount();
+    ASSERT(maybe_num.isFixed());
+    auto num = maybe_num.getFixedValue();
+
+    ASSERT(sub_type->is_float() || sub_type->is_int() || sub_type->is_ptr());
+    return ctx->get_vec_type(sub_type, num);
+  }
 
   llvm::errs() << "FAILED TO CONVERT LLVM IR TYPE TO NORMAL TYPE TODO\n";
   llvm::errs() << *any_ty << "\n" << "TODO\n";
