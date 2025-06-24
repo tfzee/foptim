@@ -24,7 +24,7 @@ void StackKnownBits::update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
     auto size = instr->args[3];
     u64 offset = 0;
     auto result = get_stack_offset(offset, ptr, cache);
-    cache.insert({ptr, {result, offset}});
+    cache.insert({ptr, {.result = result, .offset = offset}});
     if (result == StackOffsetResult::KnownNonLocal) {
       return;
     }
@@ -72,7 +72,7 @@ void StackKnownBits::update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
       // fmt::println("Result for {} arg: knwn {} unknwn {}", arg,
       //              result == StackOffsetResult::KnownLocal,
       //              result == StackOffsetResult::UnknownLocal);
-      cache.insert({arg, {result, offset}});
+      cache.insert({arg, {.result = result, .offset = offset}});
       if (result == StackOffsetResult::KnownLocal ||
           result == StackOffsetResult::UnknownLocal) {
         new_in_one.reset(false);
@@ -90,7 +90,7 @@ void StackKnownBits::update_load(fir::Instr instr, utils::BitSet<> &new_in_one,
   u64 offset = 0;
   auto result = get_stack_offset(offset, instr->args[0], cache);
   // fmt::println("Load {}", instr->args[0]);
-  cache.insert({instr->args[0], {result, offset}});
+  cache.insert({instr->args[0], {.result = result, .offset = offset}});
   if (result == StackOffsetResult::UnknownLocal) {
     return;
   }
@@ -99,8 +99,13 @@ void StackKnownBits::update_load(fir::Instr instr, utils::BitSet<> &new_in_one,
   }
 
   auto load_width = instr->get_type()->get_size() * 8;
+  if (load_width > 64) {
+    return;
+    // TODO: impl;
+  }
   u64 in_zero = new_in_zero.get(offset * 8, load_width);
   u64 in_one = new_in_one.get(offset * 8, load_width);
+
   ASSERT((in_one & in_zero) == 0);
 
   u64 known_bits = in_zero | in_one;
@@ -120,7 +125,7 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
   u64 offset = 0;
   auto result = get_stack_offset(offset, instr->args[0], cache);
   // fmt::println("Store {}", instr->args[0]);
-  cache.insert({instr->args[0], {result, offset}});
+  cache.insert({instr->args[0], {.result = result, .offset = offset}});
   if (result == StackOffsetResult::KnownNonLocal) {
     return true;
   }
@@ -214,7 +219,9 @@ bool handle_arg(fir::ValueR arg, fir::Use use, fir::TypeR type,
     auto v_size = arg.get_type()->get_size();
     if (lower_bound == acceses.end()) {
       // its upper bound so just insert cant collide
-      acceses.insert({r.offset, {type, {use}, v_size}});
+      acceses.insert(
+          {r.offset,
+           {.type = type, .associated_values = {use}, .size = v_size}});
     } else if (lower_bound->first == r.offset) {
       // perfect match so types neeed to match
       if (!lower_bound->second.type.is_valid() ||
@@ -327,7 +334,7 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
           u64 sub_offset = 0;
           auto sub_result = get_stack_offset(sub_offset, arg, cache);
           if (!cache.contains(arg)) {
-            cache.insert({arg, {sub_result, sub_offset}});
+            cache.insert({arg, {.result = sub_result, .offset = sub_offset}});
           }
           if (sub_result == StackOffsetResult::UnknownLocal ||
               sub_result == StackOffsetResult::KnownLocal) {
@@ -346,14 +353,16 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
         sub_offset = 0;
         sub_result = get_stack_offset(sub_offset, ptr_instr->args[0], cache);
         if (!cache.contains(ptr_instr->args[0])) {
-          cache.insert({ptr_instr->args[0], {sub_result, sub_offset}});
+          cache.insert({ptr_instr->args[0],
+                        {.result = sub_result, .offset = sub_offset}});
         }
         offset_index = 1;
       } else {
         sub_offset = 0;
         sub_result = get_stack_offset(sub_offset, ptr_instr->args[1], cache);
         if (!cache.contains(ptr_instr->args[1])) {
-          cache.insert({ptr_instr->args[1], {sub_result, sub_offset}});
+          cache.insert({ptr_instr->args[1],
+                        {.result = sub_result, .offset = sub_offset}});
         }
         offset_index = 0;
       }
@@ -386,13 +395,15 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
       auto sub0_result =
           get_stack_offset(sub0_offset, ptr_instr->args[1], cache);
       if (!cache.contains(ptr_instr->args[1])) {
-        cache.insert({ptr_instr->args[1], {sub0_result, sub0_offset}});
+        cache.insert({ptr_instr->args[1],
+                      {.result = sub0_result, .offset = sub0_offset}});
       }
       u64 sub1_offset = 0;
       auto sub1_result =
           get_stack_offset(sub1_offset, ptr_instr->args[2], cache);
       if (!cache.contains(ptr_instr->args[2])) {
-        cache.insert({ptr_instr->args[2], {sub1_result, sub1_offset}});
+        cache.insert({ptr_instr->args[2],
+                      {.result = sub1_result, .offset = sub1_offset}});
       }
       if (sub0_result == StackOffsetResult::KnownNonLocal &&
           sub1_result == StackOffsetResult::KnownNonLocal) {
@@ -424,18 +435,19 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
     if (instr->is(fir::InstrType::AllocaInstr)) {
       auto a1 = instr->get_arg(0);
       if (!a1.is_constant()) {
-        failure({"Failed cause of dynamic alloca", instr});
+        failure({.reason = "Failed cause of dynamic alloca", .loc = instr});
         return;
       }
       cache.insert({fir::ValueR{instr},
-                    {StackOffsetResult::KnownLocal, stack_size / 8}});
+                    {.result = StackOffsetResult::KnownLocal,
+                     .offset = stack_size / 8}});
       stack_size += a1.as_constant()->as_int() * 8;
     }
   }
 
   if (stack_size == 0 || stack_size > 4096) {
-    failure(
-        {"Failed cause either none or too much stack space", func.get_entry()});
+    failure({.reason = "Failed cause either none or too much stack space",
+             .loc = func.get_entry()});
     return;
   }
   // fmt::println("Got {} bits\n", stack_size);
@@ -488,7 +500,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
           (ConversionSubType)instr->subtype == ConversionSubType::PtrToInt) {
         // TODO: this can be improved depending on the usage
         // but important to not have escaping pointers
-        failure({"PtrToInt escape", instr});
+        failure({.reason = "PtrToInt escape", .loc = instr});
         return;
       }
       if (instr->is(fir::InstrType::CallInstr)) {
@@ -498,7 +510,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
       } else if (instr->is(fir::InstrType::StoreInstr)) {
         // important to not have escaping pointers
         if (!update_store(instr, new_in_one, new_in_zero, cache)) {
-          failure({"Storing a local pointer away", instr});
+          failure({.reason = "Storing a local pointer away", .loc = instr});
           return;
         }
         load_stores.push_back(instr);

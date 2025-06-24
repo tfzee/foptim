@@ -361,6 +361,10 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
       case fir::InstrType::ICmp:
       case fir::InstrType::FCmp:
       case fir::InstrType::UnaryInstr:
+      case fir::InstrType::Intrinsic:
+        fmt::println("Failed tree vectorize at something like {}",
+                     curr.back().as_instr());
+        TODO("impl");
       case fir::InstrType::AllocaInstr:
       case fir::InstrType::ExtractValue:
       case fir::InstrType::InsertValue:
@@ -375,7 +379,6 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
       case fir::InstrType::CondBranchInstr:
       case fir::InstrType::SwitchInstr:
       case fir::InstrType::Unreachable:
-      case fir::InstrType::Intrinsic:
       case fir::InstrType::VectorInstr:
         fmt::println("Failed tree vectorize at something like {}",
                      curr.back().as_instr());
