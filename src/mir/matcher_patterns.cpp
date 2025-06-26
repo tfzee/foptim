@@ -1853,31 +1853,36 @@ void base_patterns(IRVec<Pattern> &pats) {
                                     MArgument(data.static_alloca_size));
           }
         }
-        if (ret_instr->has_args()) {
-          auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
-          auto is_float_val = ret_val.is_fp();
-
-          if (!is_float_val &&
-              (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
-               ret_val.reg.c_reg() != CReg::A)) {
-            auto converted_type = convert_type(ret_instr.get_type());
-            auto res_reg = VReg{CReg::A, converted_type};
-            auto res_arg = MArgument(res_reg, converted_type);
-            res.result.emplace_back(Opcode::mov, res_arg, ret_val);
-            res.result.emplace_back(Opcode::ret, res_arg);
-          } else if (is_float_val &&
-                     (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
-                      ret_val.reg.c_reg() != CReg::mm0)) {
-            auto converted_type = convert_type(ret_instr.get_type());
-            auto res_reg = VReg{CReg::mm0, converted_type};
-            auto res_arg = MArgument(res_reg, converted_type);
-            res.result.emplace_back(Opcode::mov, res_arg, ret_val);
-            res.result.emplace_back(Opcode::ret, res_arg);
-          } else {
-            res.result.emplace_back(Opcode::ret, ret_val);
-          }
-        } else {
+        if (!ret_instr->has_args()) {
           res.result.emplace_back(Opcode::ret);
+          return true;
+        }
+        if (ret_instr->args[0].get_type()->is_struct()) {
+          TODO("return pair via rax/rdx and xmm0/xmm1");
+          // res.result.emplace_back(Opcode::ret);
+          // return true;
+        }
+
+        auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
+        auto is_float_val = ret_val.is_fp();
+
+        if (!is_float_val && (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
+                              ret_val.reg.c_reg() != CReg::A)) {
+          auto converted_type = convert_type(ret_instr.get_type());
+          auto res_reg = VReg{CReg::A, converted_type};
+          auto res_arg = MArgument(res_reg, converted_type);
+          res.result.emplace_back(Opcode::mov, res_arg, ret_val);
+          res.result.emplace_back(Opcode::ret, res_arg);
+        } else if (is_float_val &&
+                   (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
+                    ret_val.reg.c_reg() != CReg::mm0)) {
+          auto converted_type = convert_type(ret_instr.get_type());
+          auto res_reg = VReg{CReg::mm0, converted_type};
+          auto res_arg = MArgument(res_reg, converted_type);
+          res.result.emplace_back(Opcode::mov, res_arg, ret_val);
+          res.result.emplace_back(Opcode::ret, res_arg);
+        } else {
+          res.result.emplace_back(Opcode::ret, ret_val);
         }
         return true;
       }});

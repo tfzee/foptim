@@ -338,6 +338,7 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
     }
     case fmir::Type::Int32x4:
     case fmir::Type::Int64x2:
+    case fmir::Type::Float32x2:
     case fmir::Type::Float32x4:
     case fmir::Type::Float64x2:
     case fmir::Type::Int32x8:
@@ -640,6 +641,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     case fmir::Type::Float64:
       TODO("UNREACH");
     case fmir::Type::Int32x4:
+    case fmir::Type::Float32x2:
     case fmir::Type::Float32x4:
     case fmir::Type::Int32x8:
     case fmir::Type::Float32x8:
@@ -669,6 +671,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       // req.mnemonic = ZYDIS_MNEMONIC_VPUNPCKLBW;
       // req.mnemonic = ZYDIS_MNEMONIC_VPUNPCKLWD;
     case fmir::Type::Int32x4:
+    case fmir::Type::Float32x2:
     case fmir::Type::Float32x4:
     case fmir::Type::Int32x8:
     case fmir::Type::Float32x8:
@@ -688,6 +691,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ASSERT(instr.args[0].isReg());
     switch (instr.args[0].ty) {
     case fmir::Type::Int32x4:
+    case fmir::Type::Float32x2:
     case fmir::Type::Float32x4:
     case fmir::Type::Int32x8:
     case fmir::Type::Float32x8:

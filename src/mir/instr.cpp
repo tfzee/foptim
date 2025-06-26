@@ -705,6 +705,8 @@ fmt::formatter<foptim::fmir::Type>::format(foptim::fmir::Type const &v,
     return fmt::format_to(app, col, "i32x4");
   case foptim::fmir::Type::Int64x2:
     return fmt::format_to(app, col, "i64x2");
+  case foptim::fmir::Type::Float32x2:
+    return fmt::format_to(app, col, "f32x2");
   case foptim::fmir::Type::Float32x4:
     return fmt::format_to(app, col, "f32x4");
   case foptim::fmir::Type::Float64x2:

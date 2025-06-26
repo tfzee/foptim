@@ -31,6 +31,7 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
   case Type::Int64:
     TODO("UNREACH");
   case Type::Int32x4:
+  case Type::Float32x2:
   case Type::Float32x4:
   case Type::Int32x8:
   case Type::Float32x8:
@@ -70,6 +71,7 @@ u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
   case Type::Int64:
     TODO("UNREACH");
   case Type::Int32x4:
+  case Type::Float32x2:
   case Type::Float32x4:
   case Type::Int32x8:
   case Type::Float32x8:
