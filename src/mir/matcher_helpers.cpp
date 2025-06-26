@@ -1,4 +1,5 @@
 #include "ir/basic_block_arg.hpp"
+#include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
@@ -205,6 +206,27 @@ MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc) {
   }
   Type type_id = convert_type(val.get_type());
   return {alloc.get_register(val), type_id};
+}
+
+TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
+                                 DumbRegAlloc &alloc) {
+  if (!val.get_type()->is_struct()) {
+    return {valueToArg(val, res, alloc)};
+  }
+  auto t = val.get_type()->as_struct();
+  if (val.is_constant()) {
+    TODO("impl struct constant");
+  }
+  TVec<MArgument> result;
+  result.reserve(t.elems.size());
+
+  u32 id = 0;
+  for (auto m : t.elems) {
+    Type type_id = convert_type(m.ty);
+    result.emplace_back(alloc.get_struct_register(val, m.ty, id), type_id);
+    id++;
+  }
+  return result;
 }
 
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {

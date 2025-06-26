@@ -15,7 +15,8 @@ struct ExtraMatchData;
 MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
                                       ExtraMatchData &data);
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc);
-MArgument valueToArg(fir::ValueR val, IRVec<MInstr> &res, DumbRegAlloc &alloc);
+MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
+TVec<MArgument>  valueToArgStruct(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
 MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
                           DumbRegAlloc &alloc);
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,

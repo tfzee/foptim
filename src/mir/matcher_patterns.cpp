@@ -1,4 +1,6 @@
 #include "matcher_patterns.hpp"
+#include "ir/basic_block.hpp"
+#include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "matcher.hpp"
 #include "mir/instr.hpp"
@@ -1186,6 +1188,9 @@ void base_patterns(IRVec<Pattern> &pats) {
               .edges = {},
               .generator = [](MatchResult &res, ExtraMatchData &data) {
                 auto load_instr = res.matched_instrs[0];
+                if (load_instr->get_type()->is_struct()) {
+                  TODO("struct loading should prob be legalized");
+                }
                 auto res_reg =
                     valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
                 auto arg = valueToArgPtr(load_instr->args[0],
@@ -1857,13 +1862,31 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::ret);
           return true;
         }
-        if (ret_instr->args[0].get_type()->is_struct()) {
-          TODO("return pair via rax/rdx and xmm0/xmm1");
-          // res.result.emplace_back(Opcode::ret);
-          // return true;
+        auto ret_vals =
+            valueToArgStruct(ret_instr->args[0], res.result, data.alloc);
+        if (ret_vals.size() > 1) {
+          ASSERT(ret_vals.size() == 2);
+          auto ret_val = ret_vals[0];
+          auto is_float_val = ret_val.is_fp();
+          auto converted_type =
+              convert_type(ret_instr.get_type()->as_struct().elems[0].ty);
+
+          auto res1_reg = VReg{CReg::A, converted_type};
+          auto res2_reg = VReg{CReg::D, converted_type};
+          if (is_float_val) {
+            res1_reg = VReg{CReg::mm0, converted_type};
+            res2_reg = VReg{CReg::mm1, converted_type};
+          }
+          auto res1_arg = MArgument(res1_reg, converted_type);
+          auto res2_arg = MArgument(res2_reg, converted_type);
+          res.result.emplace_back(Opcode::mov, res1_arg, ret_vals[0]);
+          res.result.emplace_back(Opcode::mov, res2_arg, ret_vals[1]);
+          res.result.emplace_back(Opcode::ret, res1_arg, res2_arg);
+          return true;
         }
 
-        auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
+        ASSERT(ret_vals.size() == 1);
+        auto ret_val = ret_vals[0];
         auto is_float_val = ret_val.is_fp();
 
         if (!is_float_val && (!ret_val.isReg() || !ret_val.reg.is_concrete() ||

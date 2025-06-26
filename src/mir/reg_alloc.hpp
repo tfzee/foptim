@@ -1,35 +1,40 @@
 #pragma once
-#include "ir/IRLocation.hpp"
 #include "ir/value.hpp"
 #include "mir/instr.hpp"
 #include "utils/map.hpp"
-#include "utils/set.hpp"
 
-namespace foptim::fir {
-struct IRLocation;
-}
-namespace foptim::optim {
-class LiveVariables;
-} // namespace foptim::optim
-namespace foptim::fmir {
+struct IndexedValue {
+  foptim::fir::ValueR v;
+  foptim::u32 id;
 
-class FunctionRegAlloatorParent {
-  // Register get_register(ValueR value);
+  [[nodiscard]] constexpr bool operator==(const IndexedValue &other) const {
+    return v == other.v && id == other.id;
+  }
+};
+template <> struct std::hash<IndexedValue> {
+  std::size_t operator()(const IndexedValue &k) const {
+    using foptim::u32;
+    using foptim::fir::ValueR;
+    return hash<ValueR>()(k.v) ^ hash<u32>()(k.id);
+  }
 };
 
-class DumbRegAlloc : public FunctionRegAlloatorParent {
+namespace foptim::fmir {
+
+class DumbRegAlloc {
   u64 vreg_num = 1;
-  TSet<VReg> free_regs;
-  TMap<fir::ValueR, VReg> mapping;
+  TMap<IndexedValue, VReg> mapping;
 
 public:
   VReg get_new_register(Type type);
-  void reset();
-
-  DumbRegAlloc();
+  constexpr void reset() {
+    mapping.clear();
+    vreg_num = 1;
+  }
+  constexpr DumbRegAlloc() { reset(); }
   // void alloc_func(fir::Function &, optim::LiveVariables &lives);
-  void dump();
   VReg get_register(fir::ValueR valu);
+  VReg get_struct_register(fir::ValueR valu, fir::TypeR t, u32 id);
 };
 
 } // namespace foptim::fmir

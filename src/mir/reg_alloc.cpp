@@ -1,23 +1,11 @@
 #include "reg_alloc.hpp"
-#include "ir/IRLocation.hpp"
-#include "ir/basic_block_ref.hpp"
 #include "ir/value.hpp"
 #include "mir/instr.hpp"
 // #include "optim/analysis/cfg.hpp"
 // #include "optim/analysis/dominators.hpp"
 #include "mir/matcher.hpp"
-#include "optim/analysis/live_variables.hpp"
-#include "utils/bitset.hpp"
-#include "utils/logging.hpp"
 
 namespace foptim::fmir {
-DumbRegAlloc::DumbRegAlloc() { reset(); }
-
-void DumbRegAlloc::reset() {
-  free_regs.clear();
-  mapping.clear();
-  vreg_num = 1;
-}
 
 // VReg DumbRegAlloc::create_new_register(fir::ValueR) {
 //   vreg_num++;
@@ -38,19 +26,21 @@ VReg DumbRegAlloc::get_new_register(Type type) {
   vreg_num++;
   return VReg{vreg_num, type};
 }
+
 VReg DumbRegAlloc::get_register(fir::ValueR value) {
-  if (!mapping.contains(value)) {
+  if (!mapping.contains({value, 0})) {
     auto new_reg = get_new_register(convert_type(value.get_type()));
-    mapping.insert({value, new_reg});
+    mapping.insert({{.v = value, .id = 0}, new_reg});
   }
-  return mapping.at(value);
+  return mapping.at({value, 0});
 }
 
-void DumbRegAlloc::dump() {
-  fmt::println("Unused regs: {}", free_regs.size());
-  for (auto [v, a] : mapping) {
-    TODO("reimpl");
-    // fmt::println("{}: {}", v, a);
+VReg DumbRegAlloc::get_struct_register(fir::ValueR value, fir::TypeR t, u32 id) {
+  if (!mapping.contains({value, id})) {
+    auto new_reg = get_new_register(convert_type(t));
+    mapping.insert({{.v = value, .id = id}, new_reg});
   }
+  return mapping.at({value, id});
 }
+
 } // namespace foptim::fmir
