@@ -39,9 +39,9 @@ public:
   [[nodiscard]] BitInfo msb_info() const {
     auto size = associatedValue.get_type()->get_size() * 8;
     ASSERT(size <= 64);
-    u64 mask = 0x1 << (size - 1);
-    auto is_one = known_one & mask;
-    auto is_zero = known_zero & mask;
+    u64 mask = ((u64)0x1) << (size - 1);
+    u64 is_one = known_one & mask;
+    u64 is_zero = known_zero & mask;
     ASSERT(is_one == 0 || is_zero == 0);
     if (is_one != 0) {
       return BitInfo::KnownOne;
@@ -230,6 +230,7 @@ public:
       fmt::println("TODO: ATTRIB KNOWN BITS {}", associatedValue.as_instr());
     }
     if (new_known_one != known_one || new_known_zero != known_zero) {
+      ASSERT((new_known_zero & new_known_one) == 0);
       known_zero = new_known_zero;
       known_one = new_known_one;
       return Result::Changed;

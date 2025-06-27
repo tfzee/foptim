@@ -193,6 +193,9 @@ public:
       case fir::BinaryInstrSubType::IntAdd:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() + b.value->as_int(), out_type));
+      case fir::BinaryInstrSubType::IntSDiv:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            a.value->as_int() / b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::IntUDiv:
         return ConstantValue::Constant(ctx->get_constant_value(
             (u64)a.value->as_int() / (u64)b.value->as_int(), out_type));
@@ -662,7 +665,7 @@ public:
       }
       if (c.value->is_poison()) {
         TODO("okeee");
-        //TODO: idk if this makes the most sense
+        // TODO: idk if this makes the most sense
         return a;
       }
 
