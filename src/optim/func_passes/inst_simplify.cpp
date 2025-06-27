@@ -450,18 +450,16 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         case fir::BinaryInstrSubType::IntMul:
           break;
         case fir::BinaryInstrSubType::IntAdd: {
-          auto new_val =
-              ctx->get_constant_value(c1_val->as_int() + sec_constant,
-                                      ctx->get_int_type(biggest_bitwidth));
+          auto new_val = ctx->get_constant_int(c1_val->as_int() + sec_constant,
+                                               biggest_bitwidth);
           instr.replace_arg(0, a0->args[0]);
           instr.replace_arg(1, ValueR(new_val));
           push_all_uses(worklist, instr);
           break;
         }
         case fir::BinaryInstrSubType::IntSub: {
-          auto new_val =
-              ctx->get_constant_value(c1_val->as_int() - sec_constant,
-                                      ctx->get_int_type(biggest_bitwidth));
+          auto new_val = ctx->get_constant_int(c1_val->as_int() - sec_constant,
+                                               biggest_bitwidth);
           instr.replace_arg(0, a0->args[0]);
           instr.replace_arg(1, ValueR(new_val));
           push_all_uses(worklist, instr);
@@ -645,8 +643,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         }
 
         if (is_known) {
-          auto new_const_value =
-              ctx->get_constant_value((u32)is_true, ctx->get_int_type(8));
+          auto new_const_value = ctx->get_constant_int((u32)is_true, 8);
           push_all_uses(worklist, instr);
           instr->replace_all_uses(ValueR(new_const_value));
           instr.destroy();
@@ -724,8 +721,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       is_true = (output & mask) != 0;
     } break;
     }
-    auto new_const_value =
-        ctx->get_constant_value((u64)is_true, ctx->get_int_type(8));
+    auto new_const_value = ctx->get_constant_int((u64)is_true, 8);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
     instr.destroy();
@@ -855,8 +851,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
                             (value_known_positive && check_negative);
       if (evals_to_false || evals_to_true) {
         push_all_uses(worklist, instr);
-        instr->replace_all_uses(ValueR(ctx->get_constant_value(
-            evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+        instr->replace_all_uses(
+            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
         instr.destroy();
         return;
       }
@@ -897,8 +893,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     ASSERT(!evals_to_false || !evals_to_true);
     if (evals_to_true || evals_to_false) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR(ctx->get_constant_value(
-          evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+      instr->replace_all_uses(ValueR(ctx->get_constant_int(
+          evals_to_true ? 1 : 0, 1)));
       instr.destroy();
       return;
     }
@@ -936,8 +932,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     ASSERT(!evals_to_false || !evals_to_true);
     if (evals_to_true || evals_to_false) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR(ctx->get_constant_value(
-          evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+      instr->replace_all_uses(
+          ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
       instr.destroy();
       return;
     }
@@ -961,8 +957,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
 
     if (evals_to_true || evals_to_false) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR(ctx->get_constant_value(
-          evals_to_true ? 1 : 0, ctx->get_int_type(1))));
+      instr->replace_all_uses(ValueR(ctx->get_constant_int(
+          evals_to_true ? 1 : 0, 1)));
       instr.destroy();
       return;
     }
@@ -1132,8 +1128,7 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     case fir::FCmpInstrSubType::AlwTrue:
       return;
     }
-    auto new_const_value =
-        ctx->get_constant_value((u64)is_true, ctx->get_int_type(8));
+    auto new_const_value = ctx->get_constant_int((u64)is_true, 8);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
     ASSERT(instr->bbs.size() == 0);
@@ -1668,8 +1663,7 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         auto g = instr->args[1].as_constant()->as_global();
         if (g->is_constant && g->init_value != nullptr) {
           auto len = strlen((const char *)g->init_value);
-          auto len_constant =
-              ctx->get_constant_value(len, ctx->get_int_type(64));
+          auto len_constant = ctx->get_constant_int(len, 64);
           push_all_uses(worklist, instr);
           instr->replace_all_uses(fir::ValueR{len_constant});
           instr.destroy();
@@ -1724,7 +1718,7 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             fir::ValueR{ctx->get_constant_value(strlen_func)},
             write_func->func_ty, ctx->get_int_type(32), args1);
         fir::ValueR args2[3] = {
-            fir::ValueR{ctx->get_constant_value(1, ctx->get_int_type(32))},
+            fir::ValueR{ctx->get_constant_int(1, 32)},
             instr->args[1],
             string_len,
         };

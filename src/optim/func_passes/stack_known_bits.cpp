@@ -285,7 +285,7 @@ void StackKnownBits::execute_sroa(TVec<fir::Instr> &load_stores,
     auto *ctx = entry_bb->get_parent().func->ctx;
     auto bb = fir::Builder(entry_bb);
     auto alloca = bb.build_alloca(
-        fir::ValueR(ctx->get_constant_value(res.size, ctx->get_int_type(32))));
+        fir::ValueR(ctx->get_constant_int(res.size, 32)));
     alloca.as_instr()->add_attrib("alloca::type", res.type);
     for (auto &v : res.associated_values) {
       v.replace_use(alloca);

@@ -646,8 +646,8 @@ public:
 
       auto res_type_width = instr->get_type()->as_int();
       u64 mask = ((u64)1 << res_type_width) - 1;
-      return ConstantValue::Constant(ctx->get_constant_value(
-          a.value->as_int() & mask, ctx->get_int_type(res_type_width)));
+      return ConstantValue::Constant(ctx->get_constant_int(
+          a.value->as_int() & mask, res_type_width));
     }
     case fir::InstrType::SelectInstr: {
       auto c = eval(instr->get_arg(0));

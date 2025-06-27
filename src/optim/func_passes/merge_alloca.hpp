@@ -39,13 +39,12 @@ public:
     auto bb = fir::Builder{bl};
     bb.at_start(bl);
 
-    auto new_alloca = bb.build_alloca(fir::ValueR{
-        ctx->get_constant_value(total_alloca_size, ctx->get_int_type(32))});
+    auto new_alloca = bb.build_alloca(
+        fir::ValueR{ctx->get_constant_int(total_alloca_size, 32)});
 
     for (auto [alloca, offset] : allocas) {
       auto new_value = bb.build_int_add(
-          new_alloca, fir::ValueR{ctx->get_constant_value(
-                          offset, ctx->get_int_type(32))});
+          new_alloca, fir::ValueR{ctx->get_constant_int(offset, 32)});
       alloca->replace_all_uses(new_value);
     }
     // fmt::println("{}\n========================", bl);

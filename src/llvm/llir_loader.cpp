@@ -66,11 +66,11 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     auto value = int_constant->getValue();
 
     if (value.isNegative() && bitwidth != 1) {
-      return foptim::fir::ValueR(fctx->get_constant_value(
-          value.getSExtValue(), fctx->get_int_type(bitwidth)));
+      return foptim::fir::ValueR(
+          fctx->get_constant_int(value.getSExtValue(), bitwidth));
     }
-    return foptim::fir::ValueR(fctx->get_constant_value(
-        value.getZExtValue(), fctx->get_int_type(bitwidth)));
+    return foptim::fir::ValueR(
+        fctx->get_constant_int(value.getZExtValue(), bitwidth));
   }
   if (nullptr != llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
     return foptim::fir::ValueR(fctx->get_constant_null());
@@ -186,8 +186,8 @@ void convert_alloca(const llvm::Instruction *any_instr,
   ASSERT(!alloc_size.isScalable());
   auto type_size = alloc_size.getFixedValue();
 
-  auto alloca = builder.build_alloca(foptim::fir::ValueR(
-      fctx->get_constant_value(type_size, fctx->get_int_type(32))));
+  auto alloca = builder.build_alloca(
+      foptim::fir::ValueR(fctx->get_constant_int(type_size, 32)));
 
   if (!llvm_type->isAggregateType()) {
     auto type = convert_type(llvm_type, fctx, mod);
@@ -220,8 +220,8 @@ void convert_gep(const llvm::Instruction *any_instr,
       auto arg_mul_ptr = datalayout.getTypeAllocSize(indexed_type);
 
       ASSERT(arg_mul_ptr.isFixed())
-      auto arg_mul_ptr_value = fctx->get_constant_value(
-          arg_mul_ptr.getFixedValue(), fctx->get_int_type(32));
+      auto arg_mul_ptr_value =
+          fctx->get_constant_int(arg_mul_ptr.getFixedValue(), 32);
       auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
                                        foptim::fir::ValueR(arg_mul_ptr_value));
       result_value = builder.build_int_add(result_value, mul);
@@ -238,8 +238,8 @@ void convert_gep(const llvm::Instruction *any_instr,
                 ->getZExtValue();
         auto arg_offset = datalayout.getStructLayout(struct_type)
                               ->getElementOffset(offset_struct);
-        auto arg_offset_foptim = fctx->get_constant_value(
-            arg_offset.getFixedValue(), fctx->get_int_type(32));
+        auto arg_offset_foptim =
+            fctx->get_constant_int(arg_offset.getFixedValue(), 32);
         result_value = builder.build_int_add(
             result_value, foptim::fir::ValueR{arg_offset_foptim});
         indexed_type = struct_type->getElementType(offset_struct);
@@ -252,8 +252,8 @@ void convert_gep(const llvm::Instruction *any_instr,
         auto arg_mul_ptr =
             datalayout.getTypeAllocSize(array_type->getElementType());
         ASSERT(arg_mul_ptr.isFixed())
-        auto arg_mul_ptr_value = fctx->get_constant_value(
-            arg_mul_ptr.getFixedValue(), fctx->get_int_type(32));
+        auto arg_mul_ptr_value =
+            fctx->get_constant_int(arg_mul_ptr.getFixedValue(), 32);
         auto mul = builder.build_int_mul(
             offset_struct_ptr_foptim, foptim::fir::ValueR(arg_mul_ptr_value));
         result_value = builder.build_int_add(result_value, mul);
@@ -267,8 +267,7 @@ void convert_gep(const llvm::Instruction *any_instr,
                           builder, valueToValue, mod, b2b);
     auto arg_mul = datalayout.getTypeAllocSize(indexed_type);
     ASSERT(arg_mul.isFixed())
-    auto arg_mul_value = fctx->get_constant_value(arg_mul.getFixedValue(),
-                                                  fctx->get_int_type(32));
+    auto arg_mul_value = fctx->get_constant_int(arg_mul.getFixedValue(), 32);
     auto mul =
         builder.build_int_mul(arg_foptim, foptim::fir::ValueR(arg_mul_value));
     result_value = builder.build_int_add(result_value, mul);
@@ -320,9 +319,7 @@ void convert_switch(llvm::SwitchInst *switch_instr, foptim::fir::Context &fctx,
     }
     auto target_bb = b2b.at(cass.getCaseSuccessor());
     cases.emplace_back(
-        fctx->get_constant_value(
-            val, fctx->get_int_type(case_llvm_value->getBitWidth())),
-        target_bb);
+        fctx->get_constant_int(val, case_llvm_value->getBitWidth()), target_bb);
   }
 
   auto value = convert_instr_arg(switch_instr->getCondition(), fctx, ffunc,
@@ -846,8 +843,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto *out_type = instr->getType();
     foptim::TVec<foptim::fir::ValueR> args;
     for (auto index : indicies) {
-      args.emplace_back(
-          fctx->get_constant_value(index, fctx->get_int_type(32)));
+      args.emplace_back(fctx->get_constant_int(index, 32));
     }
     auto add = builder.build_extract_value(stru, args,
                                            convert_type(out_type, fctx, mod));
@@ -863,8 +859,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto *out_type = instr->getType();
     foptim::TVec<foptim::fir::ValueR> args;
     for (auto index : indicies) {
-      args.emplace_back(
-          fctx->get_constant_value(index, fctx->get_int_type(32)));
+      args.emplace_back(fctx->get_constant_int(index, 32));
     }
     auto add = builder.build_insert_value(stru, v, args,
                                           convert_type(out_type, fctx, mod));

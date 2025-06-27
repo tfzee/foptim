@@ -20,8 +20,8 @@ public:
         fir::ConstantValueR{fir::ConstantValueR::invalid()};
     fir::ConstantValueR min_val =
         fir::ConstantValueR{fir::ConstantValueR::invalid()};
-    max_val = ctx->get_constant_value((i64)(max.value), ctx->get_int_type(64));
-    min_val = ctx->get_constant_value((i64)(min.value), ctx->get_int_type(64));
+    max_val = ctx->get_constant_int((i64)(max.value), 64);
+    min_val = ctx->get_constant_int((i64)(min.value), 64);
 
     if (associatedValue.is_instr()) {
       if (!max.isWorst()) {
