@@ -50,6 +50,7 @@ struct ContextData {
   ConstantValueR get_constant_value(i64 val, IntTypeR ty);
   ConstantValueR get_constant_value(i32 val, IntTypeR ty);
   ConstantValueR get_constant_value(i128 val, IntTypeR ty);
+  ConstantValueR get_constant_int(i128 val, u32 bitwidth);
   ConstantValueR get_constant_value(u32 val, IntTypeR ty);
   ConstantValueR get_constant_value(IRVec<ConstantValueR> data, TypeR vec_ty);
   ConstantValueR try_reuse_constant(const ConstantValue &val);
