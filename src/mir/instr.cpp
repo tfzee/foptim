@@ -244,6 +244,9 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::invoke:
     if (instr.n_args > 1) {
       out.push_back({1, instr.args[1]});
+      if (instr.n_args > 2) {
+        out.push_back({2, instr.args[2]});
+      }
     }
     return;
   }

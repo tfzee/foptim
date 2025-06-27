@@ -155,6 +155,14 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
       } else {
         def[reg_to_uid(VReg::EAX())].set(true);
       }
+      if (instr.n_args > 2 && instr.args[2].isReg()) {
+        def[reg_to_uid(instr.args[2].reg)].set(true);
+        if (instr.args[2].is_fp()) {
+          def[reg_to_uid(VReg::MM1SS())].set(true);
+        } else {
+          def[reg_to_uid(VReg::EDX())].set(true);
+        }
+      }
     }
     break;
   case Opcode::udiv:
@@ -335,13 +343,19 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::invoke:
   case Opcode::call:
     update_uses(instr.args[0], uses);
-    if (instr.n_args > 1 && !instr.args[0].isReg()) {
+    if (instr.n_args > 1 && !instr.args[1].isReg()) {
       update_uses(instr.args[1], uses);
+      if (instr.n_args > 2 && !instr.args[2].isReg()) {
+        update_uses(instr.args[2], uses);
+      }
     }
     break;
   case Opcode::ret:
     if (instr.n_args > 0) {
       update_uses(instr.args[0], uses);
+      if (instr.n_args > 1) {
+        update_uses(instr.args[1], uses);
+      }
     }
     break;
   case Opcode::jmp:

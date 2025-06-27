@@ -435,7 +435,7 @@ public:
       if (!a.is_const() || !b.is_const()) {
         return ConstantValue::Top();
       }
-      if (!a.value->is_poison() || !b.value->is_poison()) {
+      if (a.value->is_poison() || b.value->is_poison()) {
         return ConstantValue::Constant(
             ctx->get_poisson_value(instr->get_type()));
       }
@@ -646,8 +646,8 @@ public:
 
       auto res_type_width = instr->get_type()->as_int();
       u64 mask = ((u64)1 << res_type_width) - 1;
-      return ConstantValue::Constant(ctx->get_constant_int(
-          a.value->as_int() & mask, res_type_width));
+      return ConstantValue::Constant(
+          ctx->get_constant_int(a.value->as_int() & mask, res_type_width));
     }
     case fir::InstrType::SelectInstr: {
       auto c = eval(instr->get_arg(0));
@@ -659,6 +659,11 @@ public:
       }
       if (c.is_top()) {
         return ConstantValue::Top();
+      }
+      if (c.value->is_poison()) {
+        TODO("okeee");
+        //TODO: idk if this makes the most sense
+        return a;
       }
 
       if (c.value->as_int() != 0) {

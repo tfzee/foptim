@@ -78,6 +78,14 @@ public:
       if (f->get_n_uses() > 0) {
         continue;
       }
+      if (func_global_reffed.contains(f.get())) {
+        continue;
+      }
+      if (is_intrinsic(name)) {
+        // can always delete these even if they are external
+        ctx.data->storage.functions.erase(name);
+        continue;
+      }
       switch (f->linkage) {
       case fir::Linkage::External:
       case fir::Linkage::WeakODR:
@@ -87,13 +95,6 @@ public:
       case fir::Linkage::LinkOnce:
       case fir::Linkage::LinkOnceODR:
         break;
-      }
-      if (func_global_reffed.contains(f.get())) {
-        continue;
-      }
-      if (is_intrinsic(name)) {
-        ctx.data->storage.functions.erase(name);
-        continue;
       }
       if (name.starts_with("_GLOBAL")) {
         continue;

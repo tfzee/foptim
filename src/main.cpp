@@ -123,7 +123,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   fmt::print("================FIR====================\n");
   fmt::print("================FIR START====================\n");
   ASSERT(ctx->verify());
-  fmt::print("{:d}", ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeStructs, Mem2Reg, FuncAnnotator, InstSimplify, SimplifyCFG,
       LLVMInstrinsicLowering, DCE, GarbageCollect, SimplifyCFG, TailRecElim,

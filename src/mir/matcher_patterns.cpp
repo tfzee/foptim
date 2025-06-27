@@ -1156,7 +1156,8 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto BroadcastNode = Node{NodeType::Instr, InstrType::VectorInstr,
                             (u32)fir::VectorISubType::Broadcast};
   auto InsertValueNode = Node{NodeType::Instr, InstrType::InsertValue, (u32)0};
-  // auto ExtractNode = Node{NodeType::Instr, InstrType::InsertValue, (u32)0};
+  auto ExtractValueNode =
+      Node{NodeType::Instr, InstrType::ExtractValue, (u32)0};
 
   pats.push_back(
       Pattern{.nodes = {AllocaNode},
@@ -2036,6 +2037,14 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.back().is_var_arg_call = is_var_arg;
           return true;
         }
+        if (res_type->is_struct()) {
+          auto res_reg =
+              valueToArgStruct(fir::ValueR(call_instr), res.result, data.alloc);
+          res.result.emplace_back(Opcode::invoke, calee, res_reg[0],
+                                  res_reg[1]);
+          res.result.back().is_var_arg_call = is_var_arg;
+          return true;
+        }
         TODO("impl ret value");
       }});
   pats.push_back(Pattern{
@@ -2148,6 +2157,25 @@ void base_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(Opcode::mov, target[i], input[i]);
           }
         }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {ExtractValueNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto extract_instr = res.matched_instrs[0];
+        ASSERT(extract_instr->args.size() == 2);
+        auto input =
+            valueToArgStruct(extract_instr->args[0], res.result, data.alloc);
+        ASSERT(extract_instr->args[1].is_constant() &&
+               extract_instr->args[1].as_constant()->is_int());
+        auto indx = extract_instr->args[1].as_constant()->as_int();
+
+        auto target =
+            valueToArg(fir::ValueR{extract_instr}, res.result, data.alloc);
+        ASSERT(input.size() > indx);
+
+        res.result.emplace_back(Opcode::mov, target, input[indx]);
         return true;
       }});
 }

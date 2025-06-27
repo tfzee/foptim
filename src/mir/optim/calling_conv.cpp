@@ -7,6 +7,7 @@
 
 namespace foptim::fmir {
 
+namespace {
 utils::BitSet<> calculate_used_regs(const MFunc &f);
 
 constexpr CReg caller_saved[] = {
@@ -28,7 +29,7 @@ constexpr CReg float_arg_reg[] = {CReg::mm0, CReg::mm1, CReg::mm2, CReg::mm3,
                                   CReg::mm4, CReg::mm5, CReg::mm6, CReg::mm7};
 constexpr u32 n_float_arg_regs = sizeof(int_arg_reg) / sizeof(int_arg_reg[0]);
 
-static void save_regs_callee(MFunc &func, CFG &cfg) {
+void save_regs_callee(MFunc &func, CFG &cfg) {
   auto &first_bb = func.bbs[0];
 
   auto used_regs = calculate_used_regs(func);
@@ -158,25 +159,26 @@ static void save_regs_callee(MFunc &func, CFG &cfg) {
   }
 }
 
-static bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives,
-                     size_t start, size_t end, size_t bb_id) {
+bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives, size_t start,
+              size_t end, size_t bb_id) {
   if (!lives.contains(reg_ty)) {
     return false;
   }
   return lives.at(reg_ty).collide(LinearRange::inBB(bb_id, start, end + 1));
 }
 
-static void save_locals(IRVec<MInstr> &instrs,
-                        TMap<VReg, LinearRangeSet> &lives, size_t start,
-                        size_t end, size_t bb_id, MInstr &call,
-                        bool return_value_overwrites_ret_reg) {
+void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
+                 size_t start, size_t end, size_t bb_id, MInstr &call,
+                 bool return_value_overwrites_ret_reg) {
   for (auto reg_ty : caller_saved | std::views::reverse) {
-    if (call.n_args == 2) {
+    if (call.n_args >= 2) {
       bool is_float = call.args[1].is_fp();
-      if (!is_float && reg_ty == CReg::A) {
+      if (!is_float &&
+          (reg_ty == CReg::A || (call.n_args > 2 && reg_ty == CReg::D))) {
         continue;
       }
-      if (is_float && reg_ty == CReg::mm0) {
+      if (is_float &&
+          (reg_ty == CReg::mm0 || (call.n_args > 2 && reg_ty == CReg::mm1))) {
         continue;
       }
     }
@@ -187,41 +189,65 @@ static void save_locals(IRVec<MInstr> &instrs,
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
     instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
   }
-  if (call.n_args == 2 && !return_value_overwrites_ret_reg) {
-    const auto reg_ty = call.args[1].is_vec_reg() ? CReg::mm0 : CReg::A;
-    if (is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id)) {
-      auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
+  if (call.n_args >= 2 && !return_value_overwrites_ret_reg) {
+    const auto reg1_ty = call.args[1].is_vec_reg() ? CReg::mm0 : CReg::A;
+    if (is_alive(VReg{reg1_ty}, lives, end, end + 1, bb_id)) {
+      auto arg = MArgument{VReg{reg1_ty, Type::Int64}, Type::Int64};
       instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
+    }
+    if (call.n_args > 2) {
+      const auto reg2_ty = call.args[1].is_vec_reg() ? CReg::mm1 : CReg::D;
+      if (is_alive(VReg{reg2_ty}, lives, end, end + 1, bb_id)) {
+        auto arg = MArgument{VReg{reg2_ty, Type::Int64}, Type::Int64};
+        instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
+      }
     }
   }
 }
 
-static uint32_t restore_locals(IRVec<MInstr> &instrs,
-                               TMap<VReg, LinearRangeSet> &lives, size_t start,
-                               size_t end, size_t bb_id,
-                               bool return_value_overwrites_ret_reg,
-                               MInstr &call) {
+uint32_t restore_locals(IRVec<MInstr> &instrs,
+                        TMap<VReg, LinearRangeSet> &lives, size_t start,
+                        size_t end, size_t bb_id,
+                        bool return_value_overwrites_ret_reg, MInstr &call) {
   uint32_t n_locals_restored = 0;
 
   bool can_skip_a = false;
+  bool can_skip_d = false;
   bool can_skip_mm0 = false;
+  bool can_skip_mm1 = false;
   // ret value
-  if (call.n_args == 2) {
-    bool is_float = call.args[1].is_fp();
-    auto ret_reg_type = is_float ? CReg::mm0 : CReg::A;
+  if (call.n_args >= 2) {
+    bool is_float = call.args[1].is_vec_reg();
+    auto ret1_reg_type = is_float ? CReg::mm0 : CReg::A;
+    auto ret2_reg_type = is_float ? CReg::mm1 : CReg::D;
     if (is_float) {
       can_skip_mm0 = true;
+      if (call.n_args > 2) {
+        can_skip_mm1 = true;
+      }
     } else {
       can_skip_a = true;
+      if (call.n_args > 2) {
+        can_skip_d = true;
+      }
     }
 
     if (!return_value_overwrites_ret_reg) {
       bool a_gets_overwritten =
           (!is_float && is_alive(VReg{CReg::A}, lives, end, end + 1, bb_id));
+      bool d_gets_overwritten =
+          (!is_float && is_alive(VReg{CReg::D}, lives, end, end + 1, bb_id));
       bool mm0_gets_overwritten =
           (is_float && is_alive(VReg{CReg::mm0}, lives, end, end + 1, bb_id));
+      bool mm1_gets_overwritten =
+          (is_float && is_alive(VReg{CReg::mm1}, lives, end, end + 1, bb_id));
       if (a_gets_overwritten || mm0_gets_overwritten) {
-        auto arg = MArgument{VReg{ret_reg_type, Type::Int64}, Type::Int64};
+        auto arg = MArgument{VReg{ret1_reg_type, Type::Int64}, Type::Int64};
+        instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
+        n_locals_restored++;
+      }
+      if (d_gets_overwritten || mm1_gets_overwritten) {
+        auto arg = MArgument{VReg{ret2_reg_type, Type::Int64}, Type::Int64};
         instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
         n_locals_restored++;
       }
@@ -230,14 +256,22 @@ static uint32_t restore_locals(IRVec<MInstr> &instrs,
     auto ret_type = call.args[1].ty;
     instrs.insert(instrs.begin() + (i64)start,
                   MInstr{Opcode::mov, call.args[1],
-                         MArgument{VReg{ret_reg_type, ret_type}, ret_type}});
+                         MArgument{VReg{ret1_reg_type, ret_type}, ret_type}});
+    if (call.n_args > 2) {
+      instrs.insert(instrs.begin() + (i64)start,
+                    MInstr{Opcode::mov, call.args[2],
+                           MArgument{VReg{ret2_reg_type, ret_type}, ret_type}});
+    }
   }
 
   for (auto reg_ty : caller_saved) {
     bool skip_a = reg_ty == CReg::A && can_skip_a;
     bool skip_mm0 = reg_ty == CReg::mm0 && can_skip_mm0;
-    if (!is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id) || skip_a ||
-        skip_mm0 || reg_ty == CReg::SP || reg_ty == CReg::BP) {
+    bool skip_d = reg_ty == CReg::D && can_skip_d;
+    bool skip_mm1 = reg_ty == CReg::mm1 && can_skip_mm1;
+    if (!is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id) || skip_d ||
+        skip_a || skip_mm1 || skip_mm0 || reg_ty == CReg::SP ||
+        reg_ty == CReg::BP) {
       continue;
     }
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
@@ -263,11 +297,11 @@ u32 calculate_arg_locations(const TVec<MInstr> &args, TVec<ArgPosition> &pos) {
   u32 stack_arg_id = 0;
   for (const auto &arg : args) {
     const auto &arg_ty = arg.args[0].ty;
-    bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
-    if (is_float && float_arg_id < n_float_arg_regs) {
+    bool is_vec_reg = arg_ty >= Type::Float32;
+    if (is_vec_reg && float_arg_id < n_float_arg_regs) {
       pos.push_back({ArgPosition::Type::FloatReg, float_arg_id});
       float_arg_id++;
-    } else if (!is_float && int_arg_id < n_int_arg_regs) {
+    } else if (!is_vec_reg && int_arg_id < n_int_arg_regs) {
       pos.push_back({ArgPosition::Type::IntReg, int_arg_id});
       int_arg_id++;
     } else {
@@ -379,8 +413,8 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
                     output_vec.end());
 }
 
-static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
-                           size_t bb_id, TMap<VReg, LinearRangeSet> &lives) {
+void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
+                    size_t bb_id, TMap<VReg, LinearRangeSet> &lives) {
 
   size_t n_args = end - start;
 
@@ -394,9 +428,16 @@ static void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   }
   instrs.erase(instrs.begin() + (i64)start, instrs.begin() + (i64)end + 1);
 
-  bool return_value_overwrites_ret_reg =
-      (call.args[1].isReg() && (call.args[1].reg.c_reg() == CReg::A ||
-                                call.args[1].reg.c_reg() == CReg::mm0));
+  bool return_value_overwrites_ret_reg = false;
+  if (call.n_args > 1 && call.args[1].isReg()) {
+    return_value_overwrites_ret_reg = (call.args[1].reg.c_reg() == CReg::A ||
+                                       call.args[1].reg.c_reg() == CReg::mm0);
+    if (call.n_args > 2 && call.args[2].isReg()) {
+      return_value_overwrites_ret_reg &=
+          (call.args[2].reg.c_reg() == CReg::D ||
+           call.args[2].reg.c_reg() == CReg::mm1);
+    }
+  }
 
   const uint32_t n_locals_need_saving = restore_locals(
       instrs, lives, start, end, bb_id, return_value_overwrites_ret_reg, call);
@@ -500,11 +541,11 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
   for (u32 arg_i = 0; arg_i < f.args.size(); arg_i++) {
     auto arg_ty = f.args[arg_i].ty;
     // register saving in this cc
-    bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
-    if (is_float && float_arg_id < n_float_arg_regs) {
+    bool is_vec_reg = arg_ty >= Type::Float32;
+    if (is_vec_reg && float_arg_id < n_float_arg_regs) {
       res[(u8)float_arg_reg[float_arg_id] - 1].set(true);
       float_arg_id++;
-    } else if (!is_float && int_arg_id < n_int_arg_regs) {
+    } else if (!is_vec_reg && int_arg_id < n_int_arg_regs) {
       res[(u8)int_arg_reg[int_arg_id] - 1].set(true);
       int_arg_id++;
     }
@@ -512,6 +553,8 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
 
   return res;
 }
+
+} // namespace
 
 void CallingConv::second_stage(FVec<MFunc> &funcs) {
   ZoneScopedN("CC 2nd Stage");
@@ -573,6 +616,7 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
   }
 }
 
+namespace {
 void gen_arg_mapping(MFunc &func) {
   u32 int_arg_id = 0;
   u32 float_arg_id = 0;
@@ -586,14 +630,14 @@ void gen_arg_mapping(MFunc &func) {
     // this needs to stay this way or needs to be synched with the callee
     // register saving in this cc
     MInstr instr{Opcode::mov};
-    bool is_float = arg_ty == Type::Float32 || arg_ty == Type::Float64;
-    if (is_float && float_arg_id < n_float_arg_regs) {
+    bool is_vec_reg = arg_ty >= Type::Float32;
+    if (is_vec_reg && float_arg_id < n_float_arg_regs) {
       instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{float_arg_reg[float_arg_id], arg_ty}, arg_ty});
       // func.args[arg_i].info = VRegInfo{float_arg_reg[float_arg_id],
       // arg_ty};
       float_arg_id++;
-    } else if (!is_float && int_arg_id < n_int_arg_regs) {
+    } else if (!is_vec_reg && int_arg_id < n_int_arg_regs) {
       instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{int_arg_reg[int_arg_id], arg_ty}, arg_ty});
       // func.args[arg_i].info = VRegInfo{int_arg_reg[int_arg_id], arg_ty};
@@ -608,7 +652,7 @@ void gen_arg_mapping(MFunc &func) {
   }
 }
 
-static void function_argument_loading(MFunc &func) { gen_arg_mapping(func); }
+void function_argument_loading(MFunc &func) { gen_arg_mapping(func); }
 
 void mark_arguments_with_regs(IRVec<MInstr> &instrs, size_t instr_start_id,
                               size_t instr_end_id) {
@@ -643,6 +687,7 @@ void mark_arguments_with_regs(IRVec<MInstr> &instrs, size_t instr_start_id,
     }
   }
 }
+} // namespace
 
 void CallingConv::first_stage(FVec<MFunc> &funcs) {
   ZoneScopedN("CC 1st Stage");

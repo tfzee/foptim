@@ -316,6 +316,9 @@ public:
   [[nodiscard]] static consteval VReg MM0SS() {
     return {CReg::mm0, Type::Float32};
   }
+  [[nodiscard]] static consteval VReg MM1SS() {
+    return {CReg::mm1, Type::Float32};
+  }
 
   [[nodiscard]] static consteval VReg RSP() { return {CReg::SP, Type::Int64}; }
   [[nodiscard]] static consteval VReg RBP() { return {CReg::BP, Type::Int64}; }

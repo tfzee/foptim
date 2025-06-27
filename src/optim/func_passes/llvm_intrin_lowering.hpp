@@ -103,19 +103,31 @@ public:
         instr->args.size() == 5) {
       auto *called_func = instr->args[0].as_constant()->as_func().func;
       auto csize = size.as_constant()->as_int();
-      if (((called_func->name == "llvm.memcpy.p0.p0.i64" && csize <= 8) ||
-           (called_func->name == "llvm.memcpy.p0.p0.i32" && csize <= 4)) &&
-          (csize == 8 || csize == 4 || csize == 1)) {
+      u32 copy_size = csize % 8 == 0 ? 8 : 4;
+      bool supported_func = ((called_func->name == "llvm.memcpy.p0.p0.i64") ||
+                             (called_func->name == "llvm.memcpy.p0.p0.i32"));
+      if (supported_func && (csize == 16 || csize == 8 || csize == 4)) {
         auto input_ty = guessType(src_ptr);
         auto output_ty = guessType(dst_ptr);
         if ((input_ty.typeless && output_ty.typeless) ||
             (input_ty.type.is_valid() && output_ty.type.is_valid() &&
              input_ty.type->eql(*output_ty.type.get_raw_ptr()))) {
-          auto input = bb.build_load(input_ty.type.is_valid()
-                                         ? input_ty.type
-                                         : ctx->get_int_type(csize * 8),
-                                     src_ptr);
-          bb.build_store(dst_ptr, input);
+          size_t off = 0;
+          while (csize > 0) {
+            auto in_off = bb.build_int_add(
+                src_ptr, fir::ValueR{ctx->get_constant_int(off, 64)});
+            auto out_off = bb.build_int_add(
+                dst_ptr, fir::ValueR{ctx->get_constant_int(off, 64)});
+            auto input =
+                bb.build_load(input_ty.type.is_valid() &&
+                                      input_ty.type->get_size() == copy_size
+                                  ? input_ty.type
+                                  : ctx->get_int_type(copy_size*8),
+                              in_off);
+            bb.build_store(out_off, input);
+            csize -= copy_size;
+            off += copy_size;
+          }
           instr.destroy();
           return;
         }
@@ -171,7 +183,7 @@ public:
     instr.destroy();
   }
 
-  void handle_fabs(fir::Instr instr, fir::Function &/*funcy*/,
+  void handle_fabs(fir::Instr instr, fir::Function & /*funcy*/,
                    fir::FunctionR /*callee*/) {
     // auto width = instr.get_type()->as_float();
     fir::Builder bb{instr};
@@ -197,7 +209,7 @@ public:
     instr.destroy();
   }
 
-  void handle_abs(fir::Instr instr, fir::Function &/*funcy*/,
+  void handle_abs(fir::Instr instr, fir::Function & /*funcy*/,
                   fir::FunctionR /*callee*/) {
     // auto width = instr.get_type()->as_int();
     fir::Builder bb{instr};
