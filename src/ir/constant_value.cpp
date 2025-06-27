@@ -247,7 +247,7 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
     fmt::println("Type is ptr but constant is not\n");
     return false;
   }
-  if (type->is_struct() && ty != ConstantType::ConstantStruct) {
+  if (type->is_struct() && ty != ConstantType::PoisonValue && ty != ConstantType::ConstantStruct) {
     fmt::println("Type is struct but constant is not\n");
     return false;
   }
