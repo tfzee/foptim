@@ -1869,7 +1869,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (ret_vals.size() > 1) {
           ASSERT(ret_vals.size() == 2);
           auto ret_val = ret_vals[0];
-          auto is_float_val = ret_val.is_fp();
+          auto is_float_val = ret_val.is_vec_reg();
           auto converted_type =
               convert_type(ret_instr.get_type()->as_struct().elems[0].ty);
 
@@ -1889,7 +1889,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         ASSERT(ret_vals.size() == 1);
         auto ret_val = ret_vals[0];
-        auto is_float_val = ret_val.is_fp();
+        auto is_float_val = ret_val.is_vec_reg();
 
         if (!is_float_val && (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
                               ret_val.reg.c_reg() != CReg::A)) {
