@@ -522,6 +522,10 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
       auto arg_index = input_is_vec ? 1 : 0;
       switch (instr.args[arg_index].ty) {
         // TODO: aligned??
+      case fmir::Type::Float32x2:
+        req.mnemonic =
+            target_is_fp_reg && input_is_fp_reg ? ZYDIS_MNEMONIC_MOVUPS : ZYDIS_MNEMONIC_MOVQ;
+        break;
       case fmir::Type::Float32x4:
       case fmir::Type::Int32x4:
       case fmir::Type::Float32x8:

@@ -241,7 +241,6 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::ret:
   case Opcode::arg_setup:
     return;
-    return;
   case Opcode::invoke:
     if (instr.n_args > 1) {
       out.push_back({1, instr.args[1]});
@@ -259,6 +258,9 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::ret:
     if (instr.n_args > 0) {
       out.push_back({0, instr.args[0]});
+      if (instr.n_args > 1) {
+        out.push_back({1, instr.args[1]});
+      }
     }
     return;
   case Opcode::call:

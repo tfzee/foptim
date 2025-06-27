@@ -1155,6 +1155,8 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, 0};
   auto BroadcastNode = Node{NodeType::Instr, InstrType::VectorInstr,
                             (u32)fir::VectorISubType::Broadcast};
+  auto InsertValueNode = Node{NodeType::Instr, InstrType::InsertValue, (u32)0};
+  // auto ExtractNode = Node{NodeType::Instr, InstrType::InsertValue, (u32)0};
 
   pats.push_back(
       Pattern{.nodes = {AllocaNode},
@@ -2122,7 +2124,34 @@ void base_patterns(IRVec<Pattern> &pats) {
                 res.result.emplace_back(Opcode::ret);
                 return true;
               }});
+  pats.push_back(Pattern{
+      .nodes = {InsertValueNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto insert_instr = res.matched_instrs[0];
+        ASSERT(insert_instr->args.size() == 3);
+        auto input =
+            valueToArgStruct(insert_instr->args[0], res.result, data.alloc);
+        auto val = valueToArg(insert_instr->args[1], res.result, data.alloc);
+        ASSERT(insert_instr->args[2].is_constant() &&
+               insert_instr->args[2].as_constant()->is_int());
+        auto indx = insert_instr->args[2].as_constant()->as_int();
+
+        auto target =
+            valueToArgStruct(fir::ValueR{insert_instr}, res.result, data.alloc);
+        ASSERT(input.size() == target.size() && input.size() > indx);
+
+        for (size_t i = 0; i < input.size(); i++) {
+          if (i == indx) {
+            res.result.emplace_back(Opcode::mov, target[i], val);
+          } else {
+            res.result.emplace_back(Opcode::mov, target[i], input[i]);
+          }
+        }
+        return true;
+      }});
 }
+
 void intrin_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
   using InstrType = fir::InstrType;

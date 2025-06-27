@@ -214,7 +214,7 @@ TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
     return {valueToArg(val, res, alloc)};
   }
   auto t = val.get_type()->as_struct();
-  if (val.is_constant()) {
+  if (val.is_constant() && !val.as_constant()->is_poison()) {
     TODO("impl struct constant");
   }
   TVec<MArgument> result;
