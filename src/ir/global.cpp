@@ -18,9 +18,9 @@ fmt::appender fmt::formatter<foptim::fir::GlobalData>::format(
     foptim::fir::GlobalData const &v, format_context &ctx) const {
   auto app = ctx.out();
   if (v.is_constant) {
-    app = fmt::format_to(app, "GLOBAL");
+    app = fmt::format_to(app, "CONSTANT");
   } else {
-    fmt::format_to(app, "CONSTANT");
+    app = fmt::format_to(app, "GLOBAL");
   }
   if (v.init_value == nullptr) {
     app = fmt::format_to(app, " DECL");
