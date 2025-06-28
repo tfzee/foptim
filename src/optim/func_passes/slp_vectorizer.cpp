@@ -158,6 +158,79 @@ public:
   }
 };
 
+class IntrinTreeOp final : public TreeElem {
+  fir::IntrinsicSubType type;
+
+public:
+  void dump() final {
+    switch (type) {
+    case fir::IntrinsicSubType::INVALID:
+    case fir::IntrinsicSubType::CTLZ:
+    case fir::IntrinsicSubType::VA_start:
+    case fir::IntrinsicSubType::VA_end:
+      TODO("UNREACH");
+    case fir::IntrinsicSubType::Abs:
+      fmt::print("abs(");
+      children.at(0)->dump();
+      fmt::print(")");
+      break;
+    case fir::IntrinsicSubType::FAbs:
+      fmt::print("fabs(");
+      children.at(0)->dump();
+      fmt::print(")");
+      break;
+    }
+  }
+
+  IntrinTreeOp *init(const TVec<fir::ValueR> &values) {
+    insert_loc = values.back().as_instr();
+    type = (fir::IntrinsicSubType)insert_loc->subtype;
+    return this;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    auto base_v = values.back().as_instr();
+    for (auto i_v : values) {
+      if (!i_v.is_instr()) {
+        return false;
+      }
+      auto i = i_v.as_instr();
+      if (i->instr_type != base_v->instr_type ||
+          i->subtype != base_v->subtype) {
+        return false;
+      }
+    }
+
+    switch ((fir::IntrinsicSubType)base_v->subtype) {
+    case fir::IntrinsicSubType::INVALID:
+    case fir::IntrinsicSubType::CTLZ:
+    case fir::IntrinsicSubType::VA_start:
+    case fir::IntrinsicSubType::VA_end:
+      return false;
+    case fir::IntrinsicSubType::Abs:
+    case fir::IntrinsicSubType::FAbs:
+      return true;
+    }
+  }
+
+  fir::ValueR generate(fir::Context &ctx) final {
+    // TODO: assuming continious stores
+    auto val = children.at(0)->generate(ctx);
+    fir::Builder bb{insert_loc};
+    switch (type) {
+    case fir::IntrinsicSubType::INVALID:
+    case fir::IntrinsicSubType::CTLZ:
+    case fir::IntrinsicSubType::VA_start:
+    case fir::IntrinsicSubType::VA_end:
+      TODO("UNREACH");
+    case fir::IntrinsicSubType::Abs:
+      return bb.build_abs(val);
+    case fir::IntrinsicSubType::FAbs:
+      return bb.build_fabs(val);
+    }
+  }
+};
+
 class ConstantTreeOp final : public TreeElem {
   TVec<fir::ValueR> my_values;
 
@@ -269,6 +342,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
   using LoadAlloc = utils::TempAlloc<LoadTreeOp>;
   using BinaryAlloc = utils::TempAlloc<BinaryTreeOp>;
   using ConstAlloc = utils::TempAlloc<ConstantTreeOp>;
+  using IntrinAlloc = utils::TempAlloc<IntrinTreeOp>;
   using BroadcastAlloc = utils::TempAlloc<BroadcastTreeOp>;
   TVec<TreeElem *> tree;
   TVec<std::pair<TreeElem *, TVec<fir::ValueR>>> worklist;
@@ -362,9 +436,18 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
       case fir::InstrType::FCmp:
       case fir::InstrType::UnaryInstr:
       case fir::InstrType::Intrinsic:
-        fmt::println("Failed tree vectorize at something like {}",
-                     curr.back().as_instr());
-        TODO("impl");
+        if (IntrinTreeOp::match(curr)) {
+          auto *result_t = IntrinAlloc{}.allocate(1);
+          (new (result_t) IntrinTreeOp)->init(curr);
+          result = result_t;
+          n_args = 1;
+          parent->children.push_back(result);
+        } else {
+          fmt::println("Failed tree vectorize at something like {}",
+                       curr.back().as_instr());
+          TODO("impl");
+        }
+        break;
       case fir::InstrType::AllocaInstr:
       case fir::InstrType::ExtractValue:
       case fir::InstrType::InsertValue:

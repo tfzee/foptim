@@ -4,9 +4,12 @@
 #include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/arena.hpp"
 #include <fmt/core.h>
+
+#include <algorithm>
 
 namespace foptim::optim {
 
@@ -55,13 +58,15 @@ private:
     return {data, storeload->args[0]};
   }
 
-  std::optional<StoreLoadBundle> find_successive_loads(fir::BasicBlock bb,
-                                                       size_t instr_id) {
+  std::optional<StoreLoadBundle>
+  find_successive_loads(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa) {
     StoreLoadBundle curr;
     auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
     curr.base = base;
     curr.type = bb->instructions[instr_id].get_type();
     curr.data.push_back(data);
+
+    TVec<fir::Instr> pot_aliasing_stores;
 
     for (auto i = instr_id + 1; i < bb->instructions.size(); i++) {
       auto instr = bb->instructions[i];
@@ -71,9 +76,21 @@ private:
         if (curr.base == sbase) {
           curr.data.push_back(sdata);
         }
+      } else if (instr->is(fir::InstrType::StoreInstr)) {
+        pot_aliasing_stores.push_back(instr);
       } else if (instr->pot_modifies_mem()) {
         // TODO if it writes we could use aliasing to still apply this
         break;
+      }
+    }
+    // if we alias with anything just abort for now
+    // TODO: could just remove the aliasing loads from the set
+    for (auto pot_stor : pot_aliasing_stores) {
+      for (auto &load : curr.data) {
+        if (aa.alias(pot_stor->args[0], load.instr->args[0]) !=
+            AliasAnalyis::AAResult::NoAlias) {
+          return {};
+        }
       }
     }
     if (curr.data.size() > 1) {
@@ -83,7 +100,8 @@ private:
   }
 
   std::optional<StoreLoadBundle> find_successive_stores(fir::BasicBlock bb,
-                                                        size_t instr_id) {
+                                                        size_t instr_id,
+                                                        AliasAnalyis &aa) {
     StoreLoadBundle curr;
     auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
     curr.base = base;
@@ -102,6 +120,24 @@ private:
           //  only if they alias we need to stop
           break;
         }
+      } else if (instr->is(fir::InstrType::LoadInstr)) {
+        // this load could load one of the previous stores
+        //  if that is the case we cannot simply transform it into vector code
+        //  since it would need to be placed before this load
+        // TODO: we could transform it but leave the store that is associated
+        // to this load alive to keep it correct? (would need to check if
+        // thats even worth it)
+        bool might_alias = false;
+        for (const auto &s : curr.data) {
+          if (aa.alias(instr->args[0], s.instr->args[0]) !=
+              AliasAnalyis::AAResult::NoAlias) {
+            might_alias = true;
+            break;
+          }
+        }
+        if (might_alias) {
+          break;
+        }
       } else if (instr->pot_modifies_mem() || instr->pot_reads_mem()) {
         // TODO if it writes we could use aliasing to still apply this
         break;
@@ -115,28 +151,29 @@ private:
 
   void find_successive_storeloads(fir::BasicBlock bb,
                                   TVec<StoreLoadBundle> &store_bundles,
-                                  TVec<StoreLoadBundle> &load_bundles) {
+                                  TVec<StoreLoadBundle> &load_bundles,
+                                  AliasAnalyis &aa) {
     for (size_t i = 0; i < bb->instructions.size(); i++) {
       if (bb->instructions[i]->is(fir::InstrType::StoreInstr)) {
-        auto res = find_successive_stores(bb, i);
+        auto res = find_successive_stores(bb, i, aa);
         if (res) {
           store_bundles.push_back(res.value());
         }
       } else if (bb->instructions[i]->is(fir::InstrType::LoadInstr)) {
-        auto res = find_successive_loads(bb, i);
+        auto res = find_successive_loads(bb, i, aa);
         if (res) {
           load_bundles.push_back(res.value());
         }
       }
     }
-    std::sort(store_bundles.begin(), store_bundles.end(),
-              [](const StoreLoadBundle &b1, const StoreLoadBundle &b2) {
-                return b1.data.size() > b2.data.size();
-              });
-    std::sort(load_bundles.begin(), load_bundles.end(),
-              [](const StoreLoadBundle &b1, const StoreLoadBundle &b2) {
-                return b1.data.size() > b2.data.size();
-              });
+    std::ranges::sort(store_bundles,
+                      [](const StoreLoadBundle &b1, const StoreLoadBundle &b2) {
+                        return b1.data.size() > b2.data.size();
+                      });
+    std::ranges::sort(load_bundles,
+                      [](const StoreLoadBundle &b1, const StoreLoadBundle &b2) {
+                        return b1.data.size() > b2.data.size();
+                      });
     // CLEANUP
     for (auto bi = load_bundles.size(); bi > 0; bi--) {
       auto &b = load_bundles[bi - 1];
@@ -163,18 +200,17 @@ private:
           continue;
         }
         // sort the stores
-        std::sort(b.data.begin(), b.data.end(),
-                  [](const auto &a, const auto &b) {
-                    i128 av = 0;
-                    i128 bv = 0;
-                    if (a.b.is_constant() && a.b.as_constant()->is_int()) {
-                      av = a.b.as_constant()->as_int();
-                    }
-                    if (b.b.is_constant() && b.b.as_constant()->is_int()) {
-                      bv = b.b.as_constant()->as_int();
-                    }
-                    return av < bv;
-                  });
+        std::ranges::sort(b.data, [](const auto &a, const auto &b) {
+          i128 av = 0;
+          i128 bv = 0;
+          if (a.b.is_constant() && a.b.as_constant()->is_int()) {
+            av = a.b.as_constant()->as_int();
+          }
+          if (b.b.is_constant() && b.b.as_constant()->is_int()) {
+            bv = b.b.as_constant()->as_int();
+          }
+          return av < bv;
+        });
         // check if continious
         {
           TVec<i128> offsets;
@@ -252,18 +288,17 @@ private:
           continue;
         }
         // sort the stores
-        std::sort(b.data.begin(), b.data.end(),
-                  [](const auto &a, const auto &b) {
-                    i128 av = 0;
-                    i128 bv = 0;
-                    if (a.b.is_constant() && a.b.as_constant()->is_int()) {
-                      av = a.b.as_constant()->as_int();
-                    }
-                    if (b.b.is_constant() && b.b.as_constant()->is_int()) {
-                      bv = b.b.as_constant()->as_int();
-                    }
-                    return av < bv;
-                  });
+        std::ranges::sort(b.data, [](const auto &a, const auto &b) {
+          i128 av = 0;
+          i128 bv = 0;
+          if (a.b.is_constant() && a.b.as_constant()->is_int()) {
+            av = a.b.as_constant()->as_int();
+          }
+          if (b.b.is_constant() && b.b.as_constant()->is_int()) {
+            bv = b.b.as_constant()->as_int();
+          }
+          return av < bv;
+        });
         // check if continious
         {
           TVec<i128> offsets;
@@ -345,13 +380,15 @@ private:
 
 public:
   void apply(fir::Context &ctx, fir::Function &func) override {
+    ZoneScopedN("SLPVectorizer");
     (void)ctx;
     (void)func;
+    AliasAnalyis aa{};
     // fmt::println("{}", func);
     TVec<StoreLoadBundle> store_bundles;
     TVec<StoreLoadBundle> load_bundles;
     for (auto bb : func.basic_blocks) {
-      find_successive_storeloads(bb, store_bundles, load_bundles);
+      find_successive_storeloads(bb, store_bundles, load_bundles, aa);
     }
 
     for (auto &b : store_bundles) {
