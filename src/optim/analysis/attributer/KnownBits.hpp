@@ -217,6 +217,53 @@ public:
       } else if (instr->subtype == (u32)fir::BinaryInstrSubType::Or) {
         new_known_one = a->known_one | b->known_one;
         new_known_zero = a->known_zero & b->known_zero;
+      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::Shr) {
+        if ((b->known_one | b->known_zero) == ~(u64)1) {
+          new_known_one = a->known_one >> b->known_one;
+          new_known_zero = a->known_zero >> b->known_one;
+        } else {
+          // the top n bits are zero after the shift by atleast n
+          auto min_shift = b->get_unsigned_min_value();
+          new_known_one = 0;
+          new_known_zero = ~(~(u64)0 >> min_shift);
+        }
+      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::AShr) {
+        if ((b->known_one | b->known_zero) == ~(u64)0) {
+          // shift amount is known
+          u64 shift = b->known_one;
+          auto a_msb = a->msb_info();
+          bool msb_known_one = a_msb == KnownOne;
+          bool msb_known_zero = a_msb == KnownZero;
+
+          new_known_one = a->known_one >> shift;
+          new_known_zero = a->known_zero >> shift;
+
+          // Sign extension for known MSB
+          if (msb_known_one) {
+            u64 sign_extension = ~(~(u64)0 >> shift); // top 'shift' bits set
+            new_known_one |= sign_extension;
+          } else if (msb_known_zero) {
+            u64 sign_extension =
+                ~(~(u64)0 >> shift); // top 'shift' bits cleared
+            new_known_zero |= sign_extension;
+          }
+        } else {
+          // shift amount is not fully known
+          u64 min_shift = b->get_unsigned_min_value();
+
+          // In this conservative case, we don't know shifted bits, but we can
+          // propagate known sign bits into the upper bits
+          new_known_one = 0;
+          new_known_zero = 0;
+
+          auto msb = a->msb_info();
+          u64 sign_extension = ~(~(u64)0 >> min_shift);
+          if (msb == KnownOne) {
+            new_known_one |= sign_extension;
+          } else if (msb == KnownZero) {
+            new_known_zero |= sign_extension;
+          }
+        }
       } else {
         fmt::println("BITS KNOWN {}", *this);
         fmt::println("TODO: ATTRIB KNOWN BITS BIINARY OP {}",
