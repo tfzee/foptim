@@ -200,7 +200,7 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
     }
   }
 
-  std::reverse(result_bb.instrs.begin(), result_bb.instrs.end());
+  std::ranges::reverse(result_bb.instrs);
   return result_bb;
 }
 } // namespace

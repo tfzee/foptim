@@ -111,11 +111,8 @@ public:
         // furthermore all blocks in the reverse domintor frontier become also
         // critical since they decide if this instruction gets executed to mark
         // them as critical we mark the last branch isntruction as such
-        const size_t bb_id =
-            std::find(func.basic_blocks.begin(), func.basic_blocks.end(),
-                      curr_i->get_parent()) -
-            func.basic_blocks.begin();
-        for (auto bb_id : rev_dom.dom_bbs[bb_id].frontier) {
+        const size_t bb_id = rev_cfg.get_bb_id(curr_i->get_parent());
+        for (auto bb_id : rev_dom.dom_bbs.at(bb_id).frontier) {
           auto term = func.basic_blocks[bb_id]->get_terminator();
           if (std::get<1>(marked.insert(term))) {
             worklist.push_back(term);

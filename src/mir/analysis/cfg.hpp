@@ -29,7 +29,7 @@ public:
     bbrs.reserve(func.bbs.size());
 
     for (size_t i = 0; i < func.bbs.size(); i++) {
-      bbrs.push_back(Node{{}, {}});
+      bbrs.push_back(Node{.pred = {}, .succ = {}});
     }
 
     const auto &bbs = func.bbs;

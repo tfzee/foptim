@@ -57,7 +57,7 @@ public:
       if (bb == func.get_entry()) {
         entry = bbrs.size();
       }
-      bbrs.push_back(Node{.bb=bb, .pred={}, .succ={}});
+      bbrs.push_back(Node{.bb = bb, .pred = {}, .succ = {}});
     }
 
     const auto &bbs = func.get_bbs();

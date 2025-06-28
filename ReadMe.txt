@@ -10,6 +10,8 @@ Simple optimizing backend
 	+ missing for floatingpoint
 + optimize llvm intrin lowering like memset/memcopy
 + 2 allocas without overlapping lifetimes could be merged to use same stack space
++ Maybe allow passes to register compiler driver arguments
++ Add a proper compiler driver
 + convert final fir legalization maybe into dedicated step with match style?
 + verification
 + serialize
