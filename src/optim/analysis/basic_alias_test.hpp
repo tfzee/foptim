@@ -129,6 +129,11 @@ public:
 
   HeapEntry analyze_impl(fir::ValueR v);
 
+  bool is_known_local_stack(fir::ValueR v) {
+    HeapEntry v_heap = analyze(v);
+    return is_desc_eql(v_heap.heap, local_stack_h);
+  }
+
   // checks if the pointer at a/b might overlap given the size
   //  if the size is 0 it assumes they can be any size(useful for example for
   //  arrays and stuff)

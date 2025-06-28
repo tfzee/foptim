@@ -9,6 +9,7 @@
 #include "ir/use.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
+#include "optim/analysis/basic_alias_test.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
@@ -1986,78 +1987,142 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
-                     fir::Context &ctx, WorkList &worklist) {
-  TSet<fir::Use> visited;
-  TVec<fir::Use> alloca_worklist{instr->uses.begin(), instr->uses.end()};
-  bool is_read = false;
-  bool is_written = false;
-  bool escapes = false;
-  while (!alloca_worklist.empty()) {
-    if ((is_written && is_read) || escapes) {
-      break;
-    }
-    auto curr = alloca_worklist.back();
-    alloca_worklist.pop_back();
-    switch (curr.type) {
-    case fir::UseType::NormalArg:
-      if (curr.user->is(fir::InstrType::LoadInstr) && curr.argId == 0) {
-        is_read = true;
-      } else if (curr.user->is(fir::InstrType::StoreInstr) && curr.argId == 0) {
-        is_written = true;
-      } else if ((curr.user->is(fir::InstrType::BinaryInstr) &&
-                  curr.argId == 0) ||
-                 (curr.user->is(fir::InstrType::SelectInstr) &&
-                  curr.argId != 0)) {
-        alloca_worklist.insert(alloca_worklist.end(), curr.user->uses.begin(),
-                               curr.user->uses.end());
-      } else if ((curr.user->is(fir::InstrType::StoreInstr) &&
-                  curr.argId == 1) ||
-                 curr.user->is(fir::InstrType::CallInstr) ||
-                 curr.user->is(fir::InstrType::Intrinsic) ||
-                 curr.user->is(fir::InstrType::ICmp)) {
-        escapes = true;
-      } else {
-        fmt::println("{}", instr);
-        fmt::println("{}", curr.user);
-        TODO("IMPL");
-      }
-      break;
-    case fir::UseType::BBArg: {
-      const auto &bb_uses =
-          curr.user->bbs[curr.argId].bb->args[curr.bbArgId]->uses;
-      for (auto bb_use : bb_uses) {
-        if (visited.contains(bb_use)) {
-          continue;
-        }
-        visited.insert(bb_use);
-        alloca_worklist.push_back(bb_use);
-      }
-    } break;
-    case fir::UseType::BB:
-      fmt::println("{}", instr);
-      TODO("IMPL");
-      break;
-    }
-  }
+fir::ValueR propagate_load_through_select(fir::Instr select) {
+  ASSERT(select->is(fir::InstrType::SelectInstr));
+  ASSERT(select->get_n_uses() == 1);
+  ASSERT(select->uses[0].user->is(fir::InstrType::LoadInstr));
+  auto load = select->uses[0];
+  fir::Builder bu{select};
+  auto n_type = load.user.get_type();
+  auto a = bu.build_load(n_type, select->args[1]);
+  auto b = bu.build_load(n_type, select->args[2]);
+  auto r = bu.build_select(n_type, select->args[0], a, b);
+  load.user->replace_all_uses(r);
+  return r;
+}
 
-  // if alloca is only read then all reads are poision
-  // if alloca is only written then we can discard
-  if (escapes) {
-    return;
-  }
-  if ((!is_written && is_read) || (is_written && !is_read)) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(
-        fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())});
-    instr.destroy();
-    return;
+void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
+                     fir::Context &ctx, WorkList &worklist, AliasAnalyis &aa) {
+  {
+    // check if only read or written
+    //  then we can delete
+    TSet<fir::Use> visited;
+    TVec<fir::Use> alloca_worklist{instr->uses.begin(), instr->uses.end()};
+    bool is_read = false;
+    bool is_written = false;
+    bool escapes = false;
+    TVec<fir::Use> mem2reg_blockers{};
+    while (!alloca_worklist.empty()) {
+      if (escapes) {
+        break;
+      }
+      auto curr = alloca_worklist.back();
+      alloca_worklist.pop_back();
+      switch (curr.type) {
+      case fir::UseType::NormalArg:
+        if (curr.user->is(fir::InstrType::LoadInstr) && curr.argId == 0) {
+          is_read = true;
+        } else if (curr.user->is(fir::InstrType::StoreInstr) &&
+                   curr.argId == 0) {
+          is_written = true;
+        } else if ((curr.user->is(fir::InstrType::BinaryInstr) &&
+                    curr.argId == 0) ||
+                   (curr.user->is(fir::InstrType::SelectInstr) &&
+                    curr.argId != 0)) {
+          if (curr.user->is(fir::InstrType::SelectInstr)) {
+            // binary_instrs we generally can fix by running sroa
+            mem2reg_blockers.push_back(curr);
+          }
+          alloca_worklist.insert(alloca_worklist.end(), curr.user->uses.begin(),
+                                 curr.user->uses.end());
+        } else if ((curr.user->is(fir::InstrType::StoreInstr) &&
+                    curr.argId == 1) ||
+                   curr.user->is(fir::InstrType::CallInstr) ||
+                   curr.user->is(fir::InstrType::Intrinsic) ||
+                   curr.user->is(fir::InstrType::ICmp)) {
+          mem2reg_blockers.push_back(curr);
+          escapes = true;
+        } else {
+          fmt::println("{}", instr);
+          fmt::println("{}", curr.user);
+          TODO("IMPL");
+        }
+        break;
+      case fir::UseType::BBArg: {
+        mem2reg_blockers.push_back(curr);
+        const auto &bb_uses =
+            curr.user->bbs[curr.argId].bb->args[curr.bbArgId]->uses;
+        for (auto bb_use : bb_uses) {
+          if (visited.contains(bb_use)) {
+            continue;
+          }
+          visited.insert(bb_use);
+          alloca_worklist.push_back(bb_use);
+        }
+      } break;
+      case fir::UseType::BB:
+        fmt::println("{}", instr);
+        TODO("IMPL");
+        break;
+      }
+    }
+
+    // if alloca is only read then all reads are poision
+    // if alloca is only written then we can discard
+    if (escapes) {
+      return;
+    }
+    if ((!is_written && is_read) || (is_written && !is_read)) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())});
+      instr.destroy();
+      return;
+    }
+
+    // if the mem2reg blockers all can be transformed we should definetly do it
+    // only makes sense if its static and not too big
+    if (!mem2reg_blockers.empty() && instr->args[1].is_constant() &&
+        instr->args[1].as_constant()->as_int() < 64) {
+      // fmt::println("{}", *instr->get_parent()->get_parent().func);
+      // fmt::println("{}", instr);
+      bool transform = true;
+      for (auto b : mem2reg_blockers) {
+        // fmt::println("{}", b);
+        if (b.user->is(fir::InstrType::SelectInstr)) {
+          if (b.user->get_n_uses() == 1 &&
+              b.user->uses[0].user->is(fir::InstrType::LoadInstr) &&
+              ((b.argId == 1 && aa.is_known_local_stack(b.user->args[2])) ||
+               (b.argId == 2 && aa.is_known_local_stack(b.user->args[1])))) {
+            continue;
+          }
+        } else {
+          fmt::println("{}", b.user->get_parent());
+          TODO("okak");
+        }
+        transform = false;
+      }
+      if (transform) {
+        for (auto b : mem2reg_blockers) {
+          if (b.user->is(fir::InstrType::SelectInstr)) {
+            auto load = b.user->uses[0].user;
+            push_all_uses(worklist, load);
+            propagate_load_through_select(b.user);
+            load.destroy();
+          }
+        }
+        // fmt::println("{}", *instr->get_parent()->get_parent().func);
+        // TODO("okey");
+      }
+      // fmt::println("=======================");
+    }
   }
 }
 
 void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-              WorkList &worklist, AttributerManager &man) {
+              WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
   using namespace foptim::fir;
+  (void)anal;
   auto instr_ty = instr->get_instr_type();
   if (instr_ty == InstrType::BinaryInstr) {
     simplify_binary(instr, bb, ctx, worklist, man);
@@ -2116,7 +2181,7 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return;
   }
   if (instr_ty == InstrType::AllocaInstr) {
-    simplify_alloca(instr, bb, ctx, worklist);
+    simplify_alloca(instr, bb, ctx, worklist, anal);
     return;
   }
 }
@@ -2125,6 +2190,7 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   using namespace foptim::fir;
   AttributerManager man;
+  AliasAnalyis anal{};
 
   // TODO: maybe replace with actual queue
   TVec<WorkItem> worklist;
@@ -2141,7 +2207,7 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     if (!instr.is_valid() || !instr->parent.is_valid()) {
       continue;
     }
-    simplify(instr, bb, ctx, worklist, man);
+    simplify(instr, bb, ctx, worklist, man, anal);
   }
 }
 
