@@ -1,5 +1,6 @@
 #pragma once
 #include "ir/basic_block_arg.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
@@ -8,7 +9,10 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/basic_alias_test.hpp"
+#include "optim/analysis/cfg.hpp"
 #include "optim/module_pass.hpp"
+#include "utils/set.hpp"
 #include <fmt/core.h>
 #include <utility>
 
@@ -16,26 +20,45 @@ namespace foptim::optim {
 
 class ArgPromotion final : public ModulePass {
 public:
-  bool are_there_potential_aliasing_stores(fir::FunctionR func,
+  bool are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
                                            fir::BBArgument /*barg*/,
-                                           fir::Use use) {
-    // + we might have issues if there are
-    // stores/funccalls which could cause writes over an aliased variable for
-    // now we only apply it if there are no writing operations in the function
-    // TODO: this can be improved (either with better aliasing analysis)
-    // or by only checking if from entry to the load there is any stores
-    if (use.user->get_parent() == func->get_entry()) {
-      for (auto i : func->get_entry()->instructions) {
+                                           fir::Use use, CFG &cfg,
+                                           AliasAnalyis &aa) {
+    // iterate over parent bbs till entry
+    //  if theres any writes that might alias we need to break
+    // TODO: should prob move this out
+    TSet<u32> visited;
+    TVec<u32> worklist;
+    worklist.push_back(cfg.get_bb_id(use.user->parent));
+    ASSERT(use.user->is(fir::InstrType::LoadInstr));
+
+    while (!worklist.empty()) {
+      auto c = worklist.back();
+      visited.insert(c);
+      worklist.pop_back();
+      for (auto p : cfg.bbrs[c].pred) {
+        if (!visited.contains(c)) {
+          worklist.push_back(p);
+          visited.insert(p);
+        }
+      }
+
+      for (auto i : cfg.bbrs[c].bb->instructions) {
         if (i == use.user) {
+          // only up to our instruction
           break;
+        }
+        if (i->is(fir::InstrType::StoreInstr) &&
+            aa.alias(i->args[0], use.user->args[0]) ==
+                AliasAnalyis::AAResult::NoAlias) {
+          continue;
         }
         if (i->pot_modifies_mem()) {
           return true;
         }
       }
-      return false;
     }
-    return true;
+    return false;
   }
 
   // if we have ptr arguments and all we do is a load of its value and its not a
@@ -43,6 +66,8 @@ public:
   //  we can isntead do the load before the call allowing potentialy more
   //  optimizations on that side like mem2reg
   bool promote_ptr_to_value_args(fir::FunctionR func, fir::Context &ctx) {
+    CFG cfg{*func.func};
+    AliasAnalyis aa;
     const auto &func_ty = func->func_ty->as_func();
     auto n_args_original = func_ty.arg_types.size();
     auto entry_block = func->get_entry();
@@ -74,7 +99,7 @@ public:
           break;
         }
         if (!func->mem_read_none && !func->mem_read_only &&
-            are_there_potential_aliasing_stores(func, arg, use)) {
+            are_there_potential_aliasing_stores(func, arg, use, cfg, aa)) {
           can_promote = false;
           break;
         }
