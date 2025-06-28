@@ -2,6 +2,7 @@
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/basic_alias_test.hpp"
 
 namespace foptim::optim {
 
@@ -16,13 +17,11 @@ public:
            !instr->is(fir::InstrType::CallInstr);
   }
 
-  void apply_lvn(fir::BasicBlock bb) {
+  void apply_lvn(fir::BasicBlock bb, AliasAnalyis &aa) {
     for (size_t i = 0; i < bb->instructions.size(); i++) {
       auto instr = bb->instructions[i];
       for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
         auto instr2 = bb->instructions[i2];
-        (void)instr;
-        (void)instr2;
         if (applicable(instr2) && instr->eql_expr(*instr2.get_raw_ptr())) {
           instr2->replace_all_uses(fir::ValueR{instr});
           ASSERT(instr2->get_n_uses() == 0);
@@ -41,7 +40,13 @@ public:
           bool pot_store_between = false;
           for (size_t between_i = i + 1; between_i < i2; between_i++) {
             auto binstr = bb->instructions[between_i];
-            if (binstr->pot_modifies_mem()) {
+            if (binstr->is(fir::InstrType::StoreInstr)) {
+              if (aa.alias(binstr->args[0], instr->args[0]) !=
+                  AliasAnalyis::AAResult::NoAlias) {
+                pot_store_between = true;
+                break;
+              }
+            } else if (binstr->pot_modifies_mem()) {
               pot_store_between = true;
               break;
             }
@@ -59,11 +64,18 @@ public:
         if (instr->is(fir::InstrType::StoreInstr) &&
             instr2->is(fir::InstrType::StoreInstr) &&
             instr->get_arg(0) == instr2->get_arg(0) &&
-            instr->get_type()->get_bitwidth() == instr2.get_type()->get_bitwidth()) {
+            instr->get_type()->get_bitwidth() ==
+                instr2.get_type()->get_bitwidth()) {
           bool pot_load_between = false;
           for (size_t between_i = i + 1; between_i < i2; between_i++) {
             auto binstr = bb->instructions[between_i];
-            if (binstr->pot_reads_mem()) {
+            if (binstr->is(fir::InstrType::LoadInstr)) {
+              if (aa.alias(binstr->args[0], instr->args[0]) !=
+                  AliasAnalyis::AAResult::NoAlias) {
+                pot_load_between = true;
+                break;
+              }
+            } else if (binstr->pot_reads_mem()) {
               pot_load_between = true;
               break;
             }
@@ -83,8 +95,9 @@ public:
     // ZoneScopedN("GVN TODO");
     // {
     ZoneScopedN("LVN");
+    AliasAnalyis aa;
     for (auto bb : func.basic_blocks) {
-      apply_lvn(bb);
+      apply_lvn(bb, aa);
     }
     // }
   }

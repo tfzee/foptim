@@ -1,4 +1,5 @@
 #include "basic_alias_test.hpp"
+#include "ir/instruction_data.hpp"
 
 namespace foptim::optim {
 AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
@@ -37,6 +38,10 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     }
     if (i->is(fir::InstrType::BinaryInstr)) {
       auto a = analyze(i->args[0]);
+      if (i->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
+          i->args[1].is_constant() && i->args[1].as_constant()->is_int()) {
+        return {.heap = a.heap, .offset = i->args[1].as_constant()->as_int()};
+      }
       auto b = analyze(i->args[1]);
       // TOOD: implement binary instr stuff like add for offset
       if (b.heap == 0) {

@@ -9,6 +9,8 @@ Simple optimizing backend
 + replace cond + select with specific cmovXX commands
 	+ missing for floatingpoint
 + optimize llvm intrin lowering like memset/memcopy
++ 2 allocas without overlapping lifetimes could be merged to use same stack space
++ convert final fir legalization maybe into dedicated step with match style?
 + verification
 + serialize
 + deserialize
