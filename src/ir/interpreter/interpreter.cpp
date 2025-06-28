@@ -127,6 +127,18 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
                  ConstantValue{(v1->as_int() <= v2->as_int()) ? ~(i128)0 : 0,
                                instr->get_type()});
     break;
+  case ICmpInstrSubType::ULT:
+    st.set_value(
+        ValueR(instr),
+        ConstantValue{(std::bit_cast<u128>(v1->as_int()) < std::bit_cast<u128>(v2->as_int())) ? ~(i128)0 : 0,
+                      instr->get_type()});
+    break;
+  case ICmpInstrSubType::ULE:
+    st.set_value(
+        ValueR(instr),
+        ConstantValue{(std::bit_cast<u128>(v1->as_int()) <= std::bit_cast<u128>(v2->as_int())) ? ~(i128)0 : 0,
+                      instr->get_type()});
+    break;
   default:
     return false;
   case ICmpInstrSubType::INVALID:

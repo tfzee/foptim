@@ -29,10 +29,10 @@ class Interpreter {
   InstrPointer ip;
 
 public:
-  Interpreter(Function *func) : state(), ip({func, 0, 0}) {};
-  Interpreter(Function *func, u32 bb_id) : state(), ip({func, bb_id, 0}) {};
+  Interpreter(Function *func) : state(), ip({.func=func, .bb_id=0, .instr_id=0}) {};
+  Interpreter(Function *func, u32 bb_id) : state(), ip({.func=func, .bb_id=bb_id, .instr_id=0}) {};
   Interpreter(Function *func, u32 bb_id, u32 instr_id)
-      : state(), ip({func, bb_id, instr_id}) {};
+      : state(), ip({.func=func, .bb_id=bb_id, .instr_id=instr_id}) {};
 
   void dump_state();
   // returns true if and only if the instruction got correctly interpreted

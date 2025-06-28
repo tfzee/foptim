@@ -4,10 +4,12 @@
 #include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
+#include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
+#include "utils/set.hpp"
 
 namespace foptim::optim {
 
@@ -815,6 +817,24 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
          sub_type == ICmpInstrSubType::NE) &&
         instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
+      if (arg0->get_type()->as_int() == 1 && c_val == 0) {
+        bool needs_negation = sub_type == ICmpInstrSubType::EQ;
+        if (needs_negation) {
+          fir::Builder b{instr};
+          auto negated =
+              b.build_unary_op(instr->args[0], UnaryInstrSubType::Not);
+          push_all_uses(worklist, instr);
+          worklist.push_back(
+              {negated.as_instr(), negated.as_instr()->get_parent()});
+          instr->replace_all_uses(negated);
+          instr.destroy();
+          return;
+        }
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[0]);
+        instr.destroy();
+        return;
+      }
       if (arg0->is(InstrType::ZExt) ||
           (arg0->is(InstrType::SExt) && c_val == 0)) {
         // zext(x) == 0 => x == C
@@ -893,8 +913,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     ASSERT(!evals_to_false || !evals_to_true);
     if (evals_to_true || evals_to_false) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR(ctx->get_constant_int(
-          evals_to_true ? 1 : 0, 1)));
+      instr->replace_all_uses(
+          ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
       instr.destroy();
       return;
     }
@@ -957,8 +977,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
 
     if (evals_to_true || evals_to_false) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR(ctx->get_constant_int(
-          evals_to_true ? 1 : 0, 1)));
+      instr->replace_all_uses(
+          ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
       instr.destroy();
       return;
     }
@@ -1187,7 +1207,7 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
-                          fir::Context & /*ctx*/, WorkList & /*worklist*/) {
+                          fir::Context & /*ctx*/, WorkList &worklist) {
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant();
     fir::Builder b(bb);
@@ -1210,6 +1230,31 @@ void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
     }
     instr.remove_from_parent();
     return;
+  }
+  if (instr->args[0].is_instr()) {
+    auto cond = instr->args[0].as_instr();
+    if (cond->is(fir::InstrType::UnaryInstr) &&
+        cond->subtype == (u32)fir::UnaryInstrSubType::Not) {
+      TVec<fir::ValueR> args0 = {instr->bbs[0].args.begin(),
+                                 instr->bbs[0].args.end()};
+      TVec<fir::ValueR> args1 = {instr->bbs[1].args.begin(),
+                                 instr->bbs[1].args.end()};
+      fir::BasicBlock bb0 = instr->bbs[0].bb;
+      fir::BasicBlock bb1 = instr->bbs[1].bb;
+      instr.clear_bb_args(0);
+      instr.clear_bb_args(1);
+
+      instr.replace_bb(0, bb1, true, false);
+      for (auto arg : args1) {
+        instr.add_bb_arg(0, arg);
+      }
+      instr.replace_bb(1, bb0, true, false);
+      for (auto arg : args0) {
+        instr.add_bb_arg(1, arg);
+      }
+      instr.replace_arg(0, cond->args[0]);
+      worklist.push_back({instr, instr->get_parent()});
+    }
   }
 }
 
@@ -1822,6 +1867,75 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
+void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
+                     fir::Context &ctx, WorkList &worklist) {
+  TSet<fir::Use> visited;
+  TVec<fir::Use> alloca_worklist{instr->uses.begin(), instr->uses.end()};
+  bool is_read = false;
+  bool is_written = false;
+  bool escapes = false;
+  while (!alloca_worklist.empty()) {
+    if ((is_written && is_read) || escapes) {
+      break;
+    }
+    auto curr = alloca_worklist.back();
+    alloca_worklist.pop_back();
+    switch (curr.type) {
+    case fir::UseType::NormalArg:
+      if (curr.user->is(fir::InstrType::LoadInstr) && curr.argId == 0) {
+        is_read = true;
+      } else if (curr.user->is(fir::InstrType::StoreInstr) && curr.argId == 0) {
+        is_written = true;
+      } else if ((curr.user->is(fir::InstrType::BinaryInstr) &&
+                  curr.argId == 0) ||
+                 (curr.user->is(fir::InstrType::SelectInstr) &&
+                  curr.argId != 0)) {
+        alloca_worklist.insert(alloca_worklist.end(), curr.user->uses.begin(),
+                               curr.user->uses.end());
+      } else if ((curr.user->is(fir::InstrType::StoreInstr) &&
+                  curr.argId == 1) ||
+                 curr.user->is(fir::InstrType::CallInstr) ||
+                 curr.user->is(fir::InstrType::Intrinsic) ||
+                 curr.user->is(fir::InstrType::ICmp)) {
+        escapes = true;
+      } else {
+        fmt::println("{}", instr);
+        fmt::println("{}", curr.user);
+        TODO("IMPL");
+      }
+      break;
+    case fir::UseType::BBArg: {
+      const auto &bb_uses =
+          curr.user->bbs[curr.argId].bb->args[curr.bbArgId]->uses;
+      for (auto bb_use : bb_uses) {
+        if (visited.contains(bb_use)) {
+          continue;
+        }
+        visited.insert(bb_use);
+        alloca_worklist.push_back(bb_use);
+      }
+    } break;
+    case fir::UseType::BB:
+      fmt::println("{}", instr);
+      TODO("IMPL");
+      break;
+    }
+  }
+
+  // if alloca is only read then all reads are poision
+  // if alloca is only written then we can discard
+  if (escapes) {
+    return;
+  }
+  if ((!is_written && is_read) || (is_written && !is_read)) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())});
+    instr.destroy();
+    return;
+  }
+}
+
 void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
@@ -1880,6 +1994,10 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::Intrinsic) {
     simplify_intrinsic(instr, bb, ctx, worklist);
+    return;
+  }
+  if (instr_ty == InstrType::AllocaInstr) {
+    simplify_alloca(instr, bb, ctx, worklist);
     return;
   }
 }

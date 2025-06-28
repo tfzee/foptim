@@ -29,6 +29,8 @@ private:
   TMap<fir::ValueR, HeapEntry> mapping;
   TVec<Heap> heaps;
   HeapId any_h;
+  HeapId null_h;
+  HeapId poision_h;
   HeapId argument_h;
   HeapId staticH_h;
   HeapId dynamicH_h;
@@ -107,6 +109,8 @@ public:
     heaps.clear();
     mapping.clear();
     any_h = createHeap(0);
+    null_h = createHeap(any_h);
+    poision_h = createHeap(any_h);
     argument_h = createHeap(any_h);
     staticH_h = createHeap(argument_h);
     dynamicH_h = createHeap(argument_h);
@@ -136,8 +140,19 @@ public:
     }
     HeapEntry a_heap = analyze(a);
     HeapEntry b_heap = analyze(b);
-    ASSERT(a_heap.heap != 0);
-    ASSERT(b_heap.heap != 0);
+    if (a_heap.heap == 0 || b_heap.heap == 0) {
+      if (a.is_instr() && b.is_instr()) {
+        fmt::println("{} {}", a.as_instr(), b.as_instr());
+      }
+      fmt::println("{} {}", a_heap.heap, b_heap.heap);
+      fmt::println("{} {}", a, b);
+      ASSERT(false);
+    }
+    // TODO: could also handle null_h as special case but idk about stuff like
+    // embedded could add a parameter for that case
+    if (a_heap.heap == poision_h || b_heap.heap == poision_h) {
+      return AAResult::NoAlias;
+    }
     if (a_heap.heap == b_heap.heap) {
       if (a_size == 0 || b_size == 0) {
         return AAResult::MightAlias;

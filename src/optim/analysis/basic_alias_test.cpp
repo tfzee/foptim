@@ -8,7 +8,13 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
   }
   if (v.is_constant()) {
     auto c = v.as_constant();
-    if (c->is_int() || c->is_float() || c->is_poison()) {
+    if (c->is_null()) {
+      return {.heap = null_h, .offset = {}};
+    }
+    if (c->is_poison()) {
+      return {.heap = poision_h, .offset = {}};
+    }
+    if (c->is_int() || c->is_float()) {
       return {.heap = 0, .offset = {}};
     }
     if (c->is_global() || c->is_func()) {

@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
@@ -39,8 +41,8 @@ class ConstLoopEval final : public FunctionPass {
               auto bbarg = v.as_bb_arg();
               bb_id = f.bb_id(bbarg->get_parent());
             }
-            if (std::find(info.body_nodes.begin(), info.body_nodes.end(),
-                          bb_id) == info.body_nodes.end()) {
+            if (std::ranges::find(info.body_nodes, bb_id) ==
+                info.body_nodes.end()) {
               return false;
             }
           }
@@ -88,8 +90,8 @@ class ConstLoopEval final : public FunctionPass {
                 auto bbarg = arg.as_bb_arg();
                 bb_id = f.bb_id(bbarg->get_parent());
               }
-              if (std::find(info.body_nodes.begin(), info.body_nodes.end(),
-                            bb_id) == info.body_nodes.end()) {
+              if (std::ranges::find(info.body_nodes, bb_id) ==
+                  info.body_nodes.end()) {
                 return false;
               }
             }
@@ -109,8 +111,8 @@ class ConstLoopEval final : public FunctionPass {
               auto bbarg = arg.as_bb_arg();
               bb_id = f.bb_id(bbarg->get_parent());
             }
-            if (std::find(info.body_nodes.begin(), info.body_nodes.end(),
-                          bb_id) == info.body_nodes.end()) {
+            if (std::ranges::find(info.body_nodes, bb_id) ==
+                info.body_nodes.end()) {
               return false;
             }
           }
@@ -149,8 +151,7 @@ public:
         for (auto use : func.basic_blocks[loop.head]->uses) {
           auto use_bb = use.user->get_parent();
           auto use_bb_id = func.bb_id(use_bb);
-          if (std::find(loop.tails.begin(), loop.tails.end(), use_bb_id) ==
-              loop.tails.end()) {
+          if (std::ranges::find(loop.tails, use_bb_id) == loop.tails.end()) {
             enter_bb_id = use_bb_id;
             enter_bb_instr_id = use_bb->n_instrs() - 1;
             break;
@@ -181,8 +182,8 @@ public:
             iter++;
             auto ip = inter.get_ip();
             if ((void *)ip.func == (void *)&func &&
-                std::find(loop.body_nodes.begin(), loop.body_nodes.end(),
-                          ip.bb_id) == loop.body_nodes.end()) {
+                std::ranges::find(loop.body_nodes, ip.bb_id) ==
+                    loop.body_nodes.end()) {
               break;
             }
             if (iter > 5000) {
@@ -198,6 +199,14 @@ public:
         bool has_modified_anything = false;
         for (const auto &[v, c] : inter.get_values()) {
           auto vv = const_cast<fir::ValueR &>(v);
+          // we can modify bb args outside of our loop
+          if (vv.is_bb_arg()) {
+            auto parent_id = cfg.get_bb_id(vv.as_bb_arg()->get_parent());
+            if (std::ranges::find(loop.body_nodes, parent_id) ==
+                loop.body_nodes.end()) {
+              continue;
+            }
+          }
           if (vv.get_n_uses() > 0) {
             has_modified_anything = true;
           }
