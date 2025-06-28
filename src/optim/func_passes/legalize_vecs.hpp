@@ -2,6 +2,7 @@
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
+#include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/string.hpp"
 #include <fmt/core.h>
@@ -10,7 +11,7 @@ namespace foptim::optim {
 
 class LegalizeVecs final : public FunctionPass {
 
-  void legalize(fir::Context &ctx, fir::Instr instr) {
+  bool legalize(fir::Context &ctx, fir::Instr instr) {
     for (size_t arg_id = 0; arg_id < instr->args.size(); arg_id++) {
       auto arg = instr->args[arg_id];
       // replace vec with reference to global variable
@@ -38,6 +39,32 @@ class LegalizeVecs final : public FunctionPass {
         instr.replace_arg(arg_id, load_val);
       }
     }
+    if (instr->is(fir::InstrType::Intrinsic) &&
+        instr->subtype == (u32)fir::IntrinsicSubType::FAbs &&
+        instr->get_type()->is_vec()) {
+      fir::Builder b{instr};
+      auto width = instr->get_type()->as_vec().bitwidth;
+      auto f_type = ctx->get_float_type(width);
+      ASSERT(width == 64 || width == 32);
+      fir::ValueR broad{};
+      if (width == 64) {
+        broad = b.build_vbroadcast(
+            fir::ValueR{ctx->get_constant_value(
+                std::bit_cast<f64>((u64)0x7fffffffffffffff), f_type)},
+            instr->get_type());
+      } else {
+        broad = b.build_vbroadcast(
+            fir::ValueR{ctx->get_constant_value(
+                std::bit_cast<f32>((u32)0x7fffffff), f_type)},
+            instr->get_type());
+      }
+      auto r = b.build_binary_op(instr->args[0], broad,
+                                 fir::BinaryInstrSubType::And);
+      instr->replace_all_uses(r);
+      instr.destroy();
+      return true;
+    }
+    return false;
   }
 
 public:
@@ -45,7 +72,9 @@ public:
     for (auto bb : func.basic_blocks) {
       for (size_t instr_id = 0; instr_id < bb->instructions.size();
            instr_id++) {
-        legalize(ctx, bb->instructions[instr_id]);
+        if (legalize(ctx, bb->instructions[instr_id])) {
+          instr_id = 0;
+        }
       }
     }
   }

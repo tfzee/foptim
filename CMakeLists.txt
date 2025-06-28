@@ -80,6 +80,7 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/live_variables.cpp
                 ./src/optim/analysis/loop_analysis.cpp
                 ./src/optim/analysis/cfg.cpp
+                ./src/optim/analysis/basic_alias_test.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/slp_vectorizer.cpp
                 ./src/optim/func_passes/pre.cpp
