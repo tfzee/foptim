@@ -94,7 +94,7 @@ public:
   void apply(fir::Context & /*unused*/, fir::Function &func) override {
     // ZoneScopedN("GVN TODO");
     // {
-    ZoneScopedN("LVN");
+    ZoneScopedNC("LVN", COLOR_OPTIMF);
     AliasAnalyis aa;
     for (auto bb : func.basic_blocks) {
       apply_lvn(bb, aa);

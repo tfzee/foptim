@@ -129,7 +129,7 @@ public:
   }
 
   void apply(fir::Context &ctx) override {
-    ZoneScopedN("ArgumentPromoition");
+    ZoneScopedNC("ArgumentPromoition", COLOR_OPTIMM);
     auto iter = ctx.data->storage.functions.begin();
     for (; iter != ctx.data->storage.functions.end(); iter++) {
       auto &[_, f] = *iter;

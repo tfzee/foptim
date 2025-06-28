@@ -120,7 +120,7 @@ void DeadCodeElim::apply(MFunc &func) {
 }
 
 void DeadCodeElim::apply(FVec<MFunc> &funcs) {
-  ZoneScopedN("DCE");
+  ZoneScopedNC("DCE", COLOR_OPTIMF);
   for (auto &func : funcs) {
     apply(func);
   }

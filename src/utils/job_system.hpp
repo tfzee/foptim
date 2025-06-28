@@ -37,7 +37,7 @@ public:
 
   void init(u8 n_threads) {
     ZoneScopedN("InitThreads");
-    jobs.reserve(10);
+    jobs.reserve(32);
     threads.reserve(n_threads);
     for (u32 i = 0; i < n_threads; i++) {
       threads.emplace_back(this, i + 1);

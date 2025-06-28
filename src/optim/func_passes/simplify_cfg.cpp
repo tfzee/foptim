@@ -739,7 +739,7 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
 }
 
 void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
-  ZoneScopedN("SimplifyCFG");
+  ZoneScopedNC("SimplifyCFG", COLOR_OPTIMF);
   CFG cfg{func};
 
   auto iter = 0;

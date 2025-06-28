@@ -108,7 +108,7 @@ public:
   }
 
   void run() {
-    ZoneScopedN("Attributer::run");
+    ZoneScopedNC("Attributer::run", COLOR_ANALY);
     Worklist worklist;
     for (auto &[_, loc] : _attribs) {
       for (auto &[_, att] : loc) {

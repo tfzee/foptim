@@ -38,7 +38,7 @@ public:
   }
 
   void update(const CFG &cfg) {
-    ZoneScopedN("DOM UPDATE");
+    ZoneScopedNC("DOM UPDATE", COLOR_ANALY);
 
     dom_bbs.clear();
     this->cfg = &cfg;

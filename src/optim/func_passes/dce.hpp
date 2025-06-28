@@ -1,11 +1,9 @@
 #pragma once
 #include "../function_pass.hpp"
-#include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/arena.hpp"
-#include "utils/logging.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
 
@@ -43,7 +41,7 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 class DCE final : public FunctionPass {
 public:
   void apply(fir::Context &ctx, fir::Function &func) override {
-    ZoneScopedN("DCE");
+    ZoneScopedNC("DCE", COLOR_OPTIMF);
     {
       CFG rev_cfg{func, true};
       Dominators rev_dom{rev_cfg};

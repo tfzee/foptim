@@ -47,7 +47,7 @@ public:
   void dump_graph() const;
 
   void update(fir::Function &func, bool reverse) {
-    ZoneScopedN("CFG UPDATE");
+    ZoneScopedNC("CFG UPDATE", COLOR_ANALY);
     bbrs.clear();
     entry = 0;
 

@@ -19,7 +19,7 @@ namespace utils {}
 namespace optim {
 struct LiveRange;
 class KnownBits;
-}
+} // namespace optim
 
 namespace fir {
 class Function;
@@ -67,7 +67,10 @@ using f64 = double;
 
 using size_t = std::size_t;
 
-#define fori(input) for(size_t i = 0; i < (input).size(); i++)
-  
+#define fori(input) for (size_t i = 0; i < (input).size(); i++)
+
+#define COLOR_OPTIMF 0xEE0000
+#define COLOR_OPTIMM 0xEE4444
+#define COLOR_ANALY 0x0000EE
 
 }; // namespace foptim

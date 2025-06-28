@@ -196,7 +196,7 @@ template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {
 public:
   void apply(fir::Context &ctx) override {
-    ZoneScopedN("INLINE");
+    ZoneScopedNC("INLINE", COLOR_OPTIMM);
     for (auto &f : ctx.data->storage.functions) {
       apply(ctx, *f.second);
     }

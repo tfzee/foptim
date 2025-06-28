@@ -426,7 +426,7 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
 
 void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
   using namespace foptim::fir;
-  ZoneScopedN("StackKnownBits");
+  ZoneScopedNC("StackKnownBits", COLOR_OPTIMF);
 
   u64 stack_size = 0;
   StackKnowCache cache;
