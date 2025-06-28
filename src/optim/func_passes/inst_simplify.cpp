@@ -1905,6 +1905,28 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
        sub_type == fir::IntrinsicSubType::SMax ||
        sub_type == fir::IntrinsicSubType::FMin ||
        sub_type == fir::IntrinsicSubType::FMax) &&
+      instr->args[0].is_constant() && instr->args[1].is_constant()) {
+    push_all_uses(worklist, instr);
+    switch (sub_type) {
+    default:
+      TODO("UNREACH");
+    case fir::IntrinsicSubType::FMin:
+    case fir::IntrinsicSubType::FMax:
+    case fir::IntrinsicSubType::UMin:
+    case fir::IntrinsicSubType::UMax:
+    case fir::IntrinsicSubType::SMin:
+    case fir::IntrinsicSubType::SMax:
+      TODO("impl");
+    }
+    instr.destroy();
+    return;
+  }
+  if ((sub_type == fir::IntrinsicSubType::UMin ||
+       sub_type == fir::IntrinsicSubType::UMax ||
+       sub_type == fir::IntrinsicSubType::SMin ||
+       sub_type == fir::IntrinsicSubType::SMax ||
+       sub_type == fir::IntrinsicSubType::FMin ||
+       sub_type == fir::IntrinsicSubType::FMax) &&
       instr->args[0].is_constant() && !instr->args[1].is_constant()) {
     auto old0 = instr->args[0];
     auto old1 = instr->args[1];

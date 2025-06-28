@@ -82,10 +82,7 @@ public:
         new_known_zero = res.known_zero;
         break;
       }
-      case fir::IntrinsicSubType::INVALID:
       case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::VA_start:
-      case fir::IntrinsicSubType::VA_end:
       case fir::IntrinsicSubType::FAbs:
       case fir::IntrinsicSubType::UMin:
       case fir::IntrinsicSubType::UMax:
@@ -96,7 +93,11 @@ public:
         fmt::println("BITS KNOWN {}", *this);
         fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
                      associatedValue.as_instr());
-        break;
+        TODO("impl");
+      case fir::IntrinsicSubType::INVALID:
+      case fir::IntrinsicSubType::VA_start:
+      case fir::IntrinsicSubType::VA_end:
+        TODO("UNREACH");
       }
     } else if (instr->is(fir::InstrType::ITrunc)) {
       const auto *known_arg_bits =
