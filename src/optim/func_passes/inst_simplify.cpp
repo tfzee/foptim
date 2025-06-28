@@ -1234,8 +1234,6 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                                             : fir::IntrinsicSubType::UMax);
         break;
       case fir::ICmpInstrSubType::SLT:
-      case fir::ICmpInstrSubType::NE:
-      case fir::ICmpInstrSubType::EQ:
       case fir::ICmpInstrSubType::SGT:
       case fir::ICmpInstrSubType::SGE:
       case fir::ICmpInstrSubType::SLE:
@@ -1243,9 +1241,45 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         fmt::print("{}", instr);
         TODO("okak");
         break;
-      case fir::ICmpInstrSubType::MulOverflow:
-      case fir::ICmpInstrSubType::AddOverflow:
-      case fir::ICmpInstrSubType::INVALID:
+      default:
+        break;
+      }
+      if (!new_val.is_invalid()) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_val);
+        instr.destroy();
+        return;
+      }
+    }
+  }
+  if (instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::FCmp) &&
+      instr->args[1].is_constant() && instr->get_type()->is_int()) {
+    auto fcmp = instr->args[0].as_instr();
+    bool negated = false;
+    bool positive = false;
+    if (fcmp->args[1] == instr->args[1] && fcmp->args[0] == instr->args[2]) {
+      positive = true;
+    } else if (fcmp->args[1] == instr->args[2] &&
+               fcmp->args[0] == instr->args[1]) {
+      negated = true;
+    }
+    if (negated || positive) {
+      fir::Builder b{instr};
+      fir::ValueR new_val;
+      switch ((fir::FCmpInstrSubType)fcmp->subtype) {
+      case fir::FCmpInstrSubType::OGT:
+      case fir::FCmpInstrSubType::OGE:
+      case fir::FCmpInstrSubType::OLT:
+      case fir::FCmpInstrSubType::OLE:
+      case fir::FCmpInstrSubType::UGT:
+      case fir::FCmpInstrSubType::UGE:
+      case fir::FCmpInstrSubType::ULT:
+      case fir::FCmpInstrSubType::ULE:
+        fmt::print("{}", fcmp);
+        fmt::print("{}", instr);
+        TODO("okak");
+      default:
         break;
       }
       if (!new_val.is_invalid()) {
