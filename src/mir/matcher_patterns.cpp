@@ -1545,7 +1545,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 auto res_reg =
                     valueToArg(fir::ValueR(and_instr), res.result, data.alloc);
 
-                if (res_reg.is_fp()) {
+                if (res_reg.is_vec_reg()) {
                   res.result.emplace_back(
                       Opcode::fAnd, res_reg,
                       valueToArg(and_instr->args[0], res.result, data.alloc),
