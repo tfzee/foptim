@@ -1,6 +1,8 @@
 #pragma once
 #include "ir/builder.hpp"
 #include "ir/global.hpp"
+#include "ir/instruction_data.hpp"
+#include "ir/use.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
@@ -64,6 +66,18 @@ public:
           // lifetime then this function
           for (auto u : uses) {
             auto funcy = u.user->get_parent()->get_parent();
+            if (u.type == fir::UseType::NormalArg) {
+              if ((u.user->is(fir::InstrType::StoreInstr) ||
+                   u.user->is(fir::InstrType::LoadInstr)) &&
+                  u.argId == 0) {
+              } else {
+                target_f = nullptr;
+                break;
+              }
+            } else {
+              target_f = nullptr;
+              break;
+            }
             if (target_f == nullptr || funcy == target_f) {
               target_f = funcy.func;
             } else {
