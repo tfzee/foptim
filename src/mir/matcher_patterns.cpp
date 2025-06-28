@@ -728,6 +728,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::add2, res_reg, base);
           res.result.emplace_back(Opcode::cmov_ns, res_reg, base, base, base);
           res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u8)1));
+          break;
         }
         case 8: {
           auto res_reg =
@@ -742,6 +743,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::cmov_ns, res_reg, base, base, base);
           // sar eax, 3
           res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u8)3));
+          break;
         }
         }
 
