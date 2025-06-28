@@ -103,10 +103,14 @@ public:
         instr->args.size() == 5) {
       auto *called_func = instr->args[0].as_constant()->as_func().func;
       auto csize = size.as_constant()->as_int();
-      u32 copy_size = csize % 8 == 0 ? 8 : 4;
+      u32 copy_size = csize;
+      if (copy_size > 8) {
+        copy_size = (copy_size % 8 == 0 ? 8 : 4);
+      }
       bool supported_func = ((called_func->name == "llvm.memcpy.p0.p0.i64") ||
                              (called_func->name == "llvm.memcpy.p0.p0.i32"));
-      if (supported_func && (csize == 16 || csize == 8 || csize == 4)) {
+      if (supported_func && (csize == 16 || csize == 8 || csize == 4 ||
+                             csize == 2 || csize == 1)) {
         auto input_ty = guessType(src_ptr);
         auto output_ty = guessType(dst_ptr);
         if ((input_ty.typeless && output_ty.typeless) ||
@@ -122,7 +126,7 @@ public:
                 bb.build_load(input_ty.type.is_valid() &&
                                       input_ty.type->get_size() == copy_size
                                   ? input_ty.type
-                                  : ctx->get_int_type(copy_size*8),
+                                  : ctx->get_int_type(copy_size * 8),
                               in_off);
             bb.build_store(out_off, input);
             csize -= copy_size;
@@ -131,6 +135,9 @@ public:
           instr.destroy();
           return;
         }
+      } else {
+        // fmt::println("TODO {}", instr);
+        // TODO("okak");
       }
     }
 
