@@ -158,10 +158,17 @@ bool InstrData::is_critical() const {
     case IntrinsicSubType::CTLZ:
     case IntrinsicSubType::Abs:
     case IntrinsicSubType::FAbs:
+    case IntrinsicSubType::UMin:
+    case IntrinsicSubType::UMax:
+    case IntrinsicSubType::SMin:
+    case IntrinsicSubType::SMax:
+    case IntrinsicSubType::FMin:
+    case IntrinsicSubType::FMax:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
       return true;
+      break;
     }
   case InstrType::VectorInstr:
   case InstrType::InsertValue:
@@ -214,6 +221,13 @@ bool InstrData::is_commutative() const {
     case IntrinsicSubType::Abs:
     case IntrinsicSubType::FAbs:
       return false;
+    case IntrinsicSubType::UMin:
+    case IntrinsicSubType::UMax:
+    case IntrinsicSubType::SMin:
+    case IntrinsicSubType::SMax:
+    case IntrinsicSubType::FMin:
+    case IntrinsicSubType::FMax:
+      return true;
     }
   case InstrType::FCmp:
     switch ((FCmpInstrSubType)subtype) {
@@ -278,6 +292,12 @@ bool InstrData::pot_modifies_mem() const {
     case IntrinsicSubType::CTLZ:
     case IntrinsicSubType::Abs:
     case IntrinsicSubType::FAbs:
+    case IntrinsicSubType::UMin:
+    case IntrinsicSubType::UMax:
+    case IntrinsicSubType::SMin:
+    case IntrinsicSubType::SMax:
+    case IntrinsicSubType::FMin:
+    case IntrinsicSubType::FMax:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
@@ -320,6 +340,12 @@ bool InstrData::pot_reads_mem() const {
     case IntrinsicSubType::CTLZ:
     case IntrinsicSubType::Abs:
     case IntrinsicSubType::FAbs:
+    case IntrinsicSubType::UMin:
+    case IntrinsicSubType::UMax:
+    case IntrinsicSubType::SMin:
+    case IntrinsicSubType::SMax:
+    case IntrinsicSubType::FMin:
+    case IntrinsicSubType::FMax:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
@@ -362,6 +388,12 @@ bool InstrData::has_pot_sideeffects() const {
     case IntrinsicSubType::CTLZ:
     case IntrinsicSubType::Abs:
     case IntrinsicSubType::FAbs:
+    case IntrinsicSubType::UMin:
+    case IntrinsicSubType::UMax:
+    case IntrinsicSubType::SMin:
+    case IntrinsicSubType::SMax:
+    case IntrinsicSubType::FMin:
+    case IntrinsicSubType::FMax:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:

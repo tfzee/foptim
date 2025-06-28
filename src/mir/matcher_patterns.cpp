@@ -2197,7 +2197,21 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                       (u32)fir::IntrinsicSubType::Abs};
   auto fabsNode = Node{NodeType::Instr, InstrType::Intrinsic,
                        (u32)fir::IntrinsicSubType::FAbs};
+  auto uminNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                       (u32)fir::IntrinsicSubType::UMin};
 
+  pats.push_back(Pattern{
+      .nodes = {uminNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto a = valueToArg(instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        res.result.emplace_back(Opcode::mov, res_reg, b);
+        res.result.emplace_back(Opcode::cmov_ugt, res_reg, a, res_reg, a);
+        return true;
+      }});
   pats.push_back(Pattern{
       .nodes = {ctlzNode},
       .edges = {},

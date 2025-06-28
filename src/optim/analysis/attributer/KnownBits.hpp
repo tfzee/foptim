@@ -87,6 +87,12 @@ public:
       case fir::IntrinsicSubType::VA_start:
       case fir::IntrinsicSubType::VA_end:
       case fir::IntrinsicSubType::FAbs:
+      case fir::IntrinsicSubType::UMin:
+      case fir::IntrinsicSubType::UMax:
+      case fir::IntrinsicSubType::SMin:
+      case fir::IntrinsicSubType::SMax:
+      case fir::IntrinsicSubType::FMin:
+      case fir::IntrinsicSubType::FMax:
         fmt::println("BITS KNOWN {}", *this);
         fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
                      associatedValue.as_instr());

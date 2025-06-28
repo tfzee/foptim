@@ -423,6 +423,12 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
       case fir::IntrinsicSubType::FAbs:
       case fir::IntrinsicSubType::VA_end:
       case fir::IntrinsicSubType::VA_start:
+      case fir::IntrinsicSubType::UMin:
+      case fir::IntrinsicSubType::UMax:
+      case fir::IntrinsicSubType::SMin:
+      case fir::IntrinsicSubType::SMax:
+      case fir::IntrinsicSubType::FMin:
+      case fir::IntrinsicSubType::FMax:
         break;
       }
     case fir::InstrType::VectorInstr:

@@ -497,6 +497,38 @@ bool Legalizer::legalize_cmoveXX(MBB &bb, u32 indx) {
     default:
     }
   }
+  { // cant have big constants in comparison
+    bool big_unsigned_const =
+        instr.args[2].isImm() &&
+        instr.args[2].imm > (u64)std::numeric_limits<u16>::max();
+    bool big_signed_const =
+        instr.args[2].isImm() &&
+        (i64)instr.args[2].imm > (i64)std::numeric_limits<i16>::max;
+
+    switch (instr.op) {
+    case Opcode::cmov_ne:
+    case Opcode::cmov_eq:
+    case Opcode::cmov_ult:
+    case Opcode::cmov_ugt:
+    case Opcode::cmov_ule:
+    case Opcode::cmov_uge:
+      if (big_unsigned_const) {
+        indx = move_arg_to_reg(bb, indx, 2, instr.args[3].ty);
+        return true;
+      }
+      break;
+    case Opcode::cmov_slt:
+    case Opcode::cmov_sgt:
+    case Opcode::cmov_sge:
+    case Opcode::cmov_sle:
+      if (big_signed_const) {
+        indx = move_arg_to_reg(bb, indx, 2, instr.args[3].ty);
+        return true;
+      }
+      break;
+    default:
+    }
+  }
   return false;
 }
 

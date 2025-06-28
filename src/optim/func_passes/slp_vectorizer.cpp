@@ -168,6 +168,12 @@ public:
     case fir::IntrinsicSubType::CTLZ:
     case fir::IntrinsicSubType::VA_start:
     case fir::IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::UMin:
+    case fir::IntrinsicSubType::UMax:
+    case fir::IntrinsicSubType::SMin:
+    case fir::IntrinsicSubType::SMax:
+    case fir::IntrinsicSubType::FMin:
+    case fir::IntrinsicSubType::FMax:
       TODO("UNREACH");
     case fir::IntrinsicSubType::Abs:
       fmt::print("abs(");
@@ -206,6 +212,12 @@ public:
     case fir::IntrinsicSubType::CTLZ:
     case fir::IntrinsicSubType::VA_start:
     case fir::IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::UMin:
+    case fir::IntrinsicSubType::UMax:
+    case fir::IntrinsicSubType::SMin:
+    case fir::IntrinsicSubType::SMax:
+    case fir::IntrinsicSubType::FMin:
+    case fir::IntrinsicSubType::FMax:
       return false;
     case fir::IntrinsicSubType::Abs:
     case fir::IntrinsicSubType::FAbs:
@@ -218,10 +230,7 @@ public:
     auto val = children.at(0)->generate(ctx);
     fir::Builder bb{insert_loc};
     switch (type) {
-    case fir::IntrinsicSubType::INVALID:
-    case fir::IntrinsicSubType::CTLZ:
-    case fir::IntrinsicSubType::VA_start:
-    case fir::IntrinsicSubType::VA_end:
+    default:
       TODO("UNREACH");
     case fir::IntrinsicSubType::Abs:
       return bb.build_abs(val);

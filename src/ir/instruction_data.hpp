@@ -75,6 +75,12 @@ enum class IntrinsicSubType : u32 {
   VA_end,
   Abs,
   FAbs,
+  UMin,
+  UMax,
+  SMin,
+  SMax,
+  FMin,
+  FMax,
 };
 
 enum class ConversionSubType : u32 {
@@ -222,6 +228,18 @@ public:
         return "INTRIN:FABS";
       case IntrinsicSubType::VA_end:
         return "INTRIN:VA_END";
+      case IntrinsicSubType::UMin:
+        return "INTRIN:UMin";
+      case IntrinsicSubType::UMax:
+        return "INTRIN:UMax";
+      case IntrinsicSubType::SMin:
+        return "INTRIN:SMin";
+      case IntrinsicSubType::SMax:
+        return "INTRIN:SMax";
+      case IntrinsicSubType::FMin:
+        return "INTRIN:FMin";
+      case IntrinsicSubType::FMax:
+        return "INTRIN:FMax";
       }
     case InstrType::Unreachable:
       return "unreachable";

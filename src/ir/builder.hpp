@@ -2,6 +2,7 @@
 #include "context.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/instruction_data.hpp"
 #include <span>
 
 namespace foptim::fir {
@@ -47,6 +48,7 @@ public:
   ValueR build_va_end(ValueR a);
   ValueR build_fabs(ValueR a);
   ValueR build_abs(ValueR a);
+  ValueR build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type);
   ValueR build_int_add(ValueR a, ValueR b);
   ValueR build_float_add(ValueR a, ValueR b);
   ValueR build_float_sub(ValueR a, ValueR b);

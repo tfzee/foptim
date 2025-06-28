@@ -1205,6 +1205,57 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
   }
+  if (instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::ICmp) &&
+      instr->args[1].is_constant() && instr->get_type()->is_int()) {
+    auto icmp = instr->args[0].as_instr();
+    bool negated = false;
+    bool positive = false;
+    if (icmp->args[1] == instr->args[1] && icmp->args[0] == instr->args[2]) {
+      positive = true;
+    } else if (icmp->args[1] == instr->args[2] &&
+               icmp->args[0] == instr->args[1]) {
+      negated = true;
+    }
+    if (negated || positive) {
+      fir::Builder b{instr};
+      fir::ValueR new_val;
+      switch ((fir::ICmpInstrSubType)icmp->subtype) {
+      case fir::ICmpInstrSubType::UGT:
+      case fir::ICmpInstrSubType::UGE:
+        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                    negated ? fir::IntrinsicSubType::UMax
+                                            : fir::IntrinsicSubType::UMin);
+        break;
+      case fir::ICmpInstrSubType::ULT:
+      case fir::ICmpInstrSubType::ULE:
+        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                    negated ? fir::IntrinsicSubType::UMin
+                                            : fir::IntrinsicSubType::UMax);
+        break;
+      case fir::ICmpInstrSubType::SLT:
+      case fir::ICmpInstrSubType::NE:
+      case fir::ICmpInstrSubType::EQ:
+      case fir::ICmpInstrSubType::SGT:
+      case fir::ICmpInstrSubType::SGE:
+      case fir::ICmpInstrSubType::SLE:
+        fmt::print("{}", icmp);
+        fmt::print("{}", instr);
+        TODO("okak");
+        break;
+      case fir::ICmpInstrSubType::MulOverflow:
+      case fir::ICmpInstrSubType::AddOverflow:
+      case fir::ICmpInstrSubType::INVALID:
+        break;
+      }
+      if (!new_val.is_invalid()) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_val);
+        instr.destroy();
+        return;
+      }
+    }
+  }
 }
 void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
                           fir::Context & /*ctx*/, WorkList &worklist) {
@@ -1847,6 +1898,18 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
         fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
     instr.destroy();
     return;
+  }
+  if ((sub_type == fir::IntrinsicSubType::UMin ||
+       sub_type == fir::IntrinsicSubType::UMax ||
+       sub_type == fir::IntrinsicSubType::SMin ||
+       sub_type == fir::IntrinsicSubType::SMax ||
+       sub_type == fir::IntrinsicSubType::FMin ||
+       sub_type == fir::IntrinsicSubType::FMax) &&
+      instr->args[0].is_constant() && !instr->args[1].is_constant()) {
+    auto old0 = instr->args[0];
+    auto old1 = instr->args[1];
+    instr.replace_arg(0, old1);
+    instr.replace_arg(1, old0);
   }
   if (sub_type == fir::IntrinsicSubType::FAbs && instr->args[0].is_constant()) {
     auto ty = instr->get_type();

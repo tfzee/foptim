@@ -140,6 +140,16 @@ ValueR Builder::build_abs(ValueR a) {
   return ValueR(instr);
 }
 
+ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_intrinsic(a.get_type(), type));
+  instr.add_arg(a);
+  instr.add_arg(b);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
 ValueR Builder::build_binary_op(ValueR a, ValueR b,
                                 BinaryInstrSubType sub_type) {
   check_bb_set();
