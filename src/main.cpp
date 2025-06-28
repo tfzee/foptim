@@ -37,6 +37,7 @@
 #include "optim/module_passes/arg_promotion.hpp"
 #include "optim/module_passes/function_dedup.hpp"
 #include "optim/module_passes/global_dce.hpp"
+#include "optim/module_passes/global_promotion.hpp"
 #include "optim/module_passes/inline.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
@@ -130,16 +131,16 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE, InstSimplify,
       ConstLoopEval, InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, ArgPromotion,
-                                         GDCE>{}
+  foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
+                                         Inline<>, ArgPromotion, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, SLPVectorizer, GarbageCollect, LVN,
       SCCP, IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify,
       SimplifyCFG, DCE, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, Inline<>, ArgPromotion,
-                                         GDCE>{}
+  foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
+                                         Inline<>, ArgPromotion, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE, IntrinSimplify,
@@ -148,7 +149,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg, DCE,
                                                    FuncAnnotator>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, Inline<>, GDCE>{}.apply(ctx);
+  foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
+                                         GDCE>{}
+      .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG,
