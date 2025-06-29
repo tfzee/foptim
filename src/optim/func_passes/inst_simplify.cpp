@@ -1782,7 +1782,8 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   (void)worklist;
   if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_func()) {
     auto funci = instr->args[0].as_constant()->as_func();
-    if (instr->get_n_uses() == 0 && funci->mem_read_none) {
+    if (instr->get_n_uses() == 0 &&
+        (funci->mem_read_none || funci->mem_read_only)) {
       instr.destroy();
       return;
     }
