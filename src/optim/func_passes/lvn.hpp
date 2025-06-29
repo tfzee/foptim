@@ -3,6 +3,8 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
+#include "optim/analysis/cfg.hpp"
+#include "optim/analysis/dominators.hpp"
 
 namespace foptim::optim {
 
@@ -10,19 +12,52 @@ namespace foptim::optim {
 
 class LVN final : public FunctionPass {
 public:
-  static bool applicable(fir::Instr instr) {
+  static bool lvn_applicable(fir::Instr instr) {
     return !instr->is(fir::InstrType::LoadInstr) &&
            !instr->is(fir::InstrType::StoreInstr) &&
            !instr->is(fir::InstrType::AllocaInstr) &&
            !instr->is(fir::InstrType::CallInstr);
   }
+  static bool gvn_applicable(fir::Instr instr) {
+    return !instr->is(fir::InstrType::LoadInstr) &&
+           !instr->is(fir::InstrType::StoreInstr) &&
+           !instr->is(fir::InstrType::AllocaInstr) &&
+           !instr->is(fir::InstrType::CallInstr) &&
+           !instr->has_pot_sideeffects() && !instr->is_critical();
+  }
 
-  void apply_lvn(fir::BasicBlock bb, AliasAnalyis &aa) {
+  bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
+                 const Dominators &dom) {
+    auto bb_id = cfg.get_bb_id(bb);
+    for (auto d : dom.dom_bbs[bb_id].dominators) {
+      if (d == bb_id) {
+        // lvn handles this case
+        continue;
+      }
+      auto prev_bb = cfg.bbrs[d].bb;
+      for (auto instr2 : prev_bb->instructions) {
+        if (instr->eql_expr(*instr2.get_raw_ptr())) {
+          instr->replace_all_uses(fir::ValueR{instr2});
+          instr.destroy();
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
+                 AliasAnalyis &aa) {
     for (size_t i = 0; i < bb->instructions.size(); i++) {
       auto instr = bb->instructions[i];
+      if (gvn_applicable(instr) && apply_gvn(instr, bb, cfg, dom)) {
+        i--;
+        continue;
+      }
+
       for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
         auto instr2 = bb->instructions[i2];
-        if (applicable(instr2) && instr->eql_expr(*instr2.get_raw_ptr())) {
+        if (lvn_applicable(instr2) && instr->eql_expr(*instr2.get_raw_ptr())) {
           instr2->replace_all_uses(fir::ValueR{instr});
           ASSERT(instr2->get_n_uses() == 0);
           instr2.destroy();
@@ -92,14 +127,13 @@ public:
   }
 
   void apply(fir::Context & /*unused*/, fir::Function &func) override {
-    // ZoneScopedN("GVN TODO");
-    // {
     ZoneScopedNC("LVN", COLOR_OPTIMF);
+    CFG cfg{func};
+    Dominators dom{cfg};
     AliasAnalyis aa;
     for (auto bb : func.basic_blocks) {
-      apply_lvn(bb, aa);
+      apply_lvn(bb, cfg, dom, aa);
     }
-    // }
   }
 };
 } // namespace foptim::optim
