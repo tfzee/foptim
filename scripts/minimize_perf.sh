@@ -34,7 +34,7 @@ echo "$OUT_exp2"
 echo $stats_exp2
 
 if [[ "$stats_exp" == "$stats_exp2" ]] || [[ "$OUT_exp" == "$OUT_exp2" ]] ||  [[ "$stats_got" == "$stats_exp" ]] || [[ "$OUT_got" == "$OUT_exp" ]]; then
-perf=$(hyperfine -i -N --style=basic -n mine ./min.out -n clang ./clang_min.out | tail -1 | xargs | cut -d' ' -f1)
+perf=$(hyperfine -i -N --style=basic -n mine ./min.out -n clang ./clang_min.out -n gcc ./gcc_min.out | tail -1 | xargs | cut -d' ' -f1)
 echo "$perf Times" 
 within_range=$(awk -v p="$perf" 'BEGIN { if ((p - 5) > 0) print "true"; else print "false" }')
 if [[ "$within_range" == "true" ]]; then
