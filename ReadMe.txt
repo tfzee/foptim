@@ -8,10 +8,11 @@ Simple optimizing backend
 ## TODO
 + replace cond + select with specific cmovXX commands
 	+ missing for floatingpoint
++ need recursive fucntion attribute attributer as a module pass
 + optimize llvm intrin lowering like memset/memcopy
 + 2 allocas without overlapping lifetimes could be merged to use same stack space
-+ Maybe allow passes to register compiler driver arguments
 + Add a proper compiler driver
+	+ Maybe allow passes to register compiler driver arguments
 + convert final fir legalization maybe into dedicated step with match style?
 + verification
 + serialize
@@ -20,7 +21,6 @@ Simple optimizing backend
 + convert codegen into library
 + Dont generate stack setup destruction if no stack usage
 	(need to make sure stack is still aligned iff thers call)
-+ replace globals only used in 1 func to local variable(iff not recursive)
 + More Passes
 	+ Fix epath pre
 	+ rework sccp
