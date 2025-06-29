@@ -6,9 +6,9 @@
 #include <utility>
 
 namespace foptim::optim {
-static void constant_prop_args(fir::FunctionR func, fir::Context &ctx);
+static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx);
 static void constant_prop_return(fir::FunctionR func, fir::Context &ctx);
-static void kill_dead_args(fir::FunctionR func, fir::Context &ctx);
+static bool kill_dead_args(fir::FunctionR func, fir::Context &ctx);
 
 // inter procedural constant propagation
 // replace arguments insideo of functions with constant args
@@ -22,9 +22,8 @@ public:
       case fir::Linkage::Weak:
       case fir::Linkage::LinkOnce:
       case fir::Linkage::WeakODR:
-      case fir::Linkage::LinkOnceODR:
-        // TODO: could do with linkonce when enabling the renaming at the bottom
         continue;
+      case fir::Linkage::LinkOnceODR:
       case fir::Linkage::Internal:
         break;
       }
@@ -38,8 +37,12 @@ public:
           continue;
         }
       }
-      kill_dead_args(f.second.get(), ctx);
-      constant_prop_args(fir::FunctionR(f.second.get()), ctx);
+      if (kill_dead_args(f.second.get(), ctx)) {
+        continue;
+      }
+      if (constant_prop_args(fir::FunctionR(f.second.get()), ctx)) {
+        continue;
+      }
       constant_prop_return(fir::FunctionR(f.second.get()), ctx);
     }
   }
@@ -77,30 +80,18 @@ static void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
         ret_val.as_bb_arg()->get_parent()->get_arg_id(ret_val.as_bb_arg());
 
     for (auto use : func->get_uses()) {
-      use.user->replace_all_uses(use.user->args[id+1]);
+      use.user->replace_all_uses(use.user->args[id + 1]);
     }
   }
 }
 
-static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
-  switch (func.func->linkage) {
-  case fir::Linkage::External:
-  case fir::Linkage::Weak:
-  case fir::Linkage::LinkOnce:
-  case fir::Linkage::WeakODR:
-  case fir::Linkage::LinkOnceODR:
-    // TODO: check why this fails and fix it
-    return;
-  case fir::Linkage::Internal:
-    break;
-  }
-
+static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
   auto n_args_original = func_ty.arg_types.size();
   if (n_args_original == 0) {
-    return;
+    return false;
   }
 
   // TODO: this allocation is mostly gonna just waste memory
@@ -149,19 +140,23 @@ static void constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
       auto func_moved = std::move(ctx->storage.functions.at(old_name));
       ctx->storage.functions.erase(old_name);
       func_moved->name = new_name;
+      func_moved->linkage = fir::Linkage::Internal;
+      func_moved->no_inline = false;
       ctx->storage.functions.insert({new_name, std::move(func_moved)});
+      return true;
     }
   }
+  return false;
 }
 
-static void kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
+static bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
 
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
   auto n_args_original = func_ty.arg_types.size();
   if (n_args_original == 0) {
-    return;
+    return false;
   }
 
   // TODO: this allocation is mostly gonna just waste memory
@@ -187,15 +182,18 @@ static void kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
       use.user->set_attrib("callee_type", func.func->func_ty);
     }
 
-    // // we need renaming
-    // if (func->linkage == fir::Linkage::LinkOnceODR) {
-    //   auto old_name = func->name;
-    //   auto new_name = old_name + "MODIPCP";
-    //   auto func_moved = std::move(ctx->storage.functions.at(old_name));
-    //   ctx->storage.functions.erase(old_name);
-    //   func_moved->name = new_name;
-    //   ctx->storage.functions.insert({new_name, std::move(func_moved)});
-    // }
+    if (func->linkage == fir::Linkage::LinkOnceODR) {
+      auto old_name = func->name;
+      auto new_name = old_name + "MODIPCP";
+      auto func_moved = std::move(ctx->storage.functions.at(old_name));
+      ctx->storage.functions.erase(old_name);
+      func_moved->name = new_name;
+      func_moved->linkage = fir::Linkage::Internal;
+      func_moved->no_inline = false;
+      ctx->storage.functions.insert({new_name, std::move(func_moved)});
+      return true;
+    }
   }
+  return false;
 }
 } // namespace foptim::optim
