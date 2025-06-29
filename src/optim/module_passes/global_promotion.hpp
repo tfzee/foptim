@@ -85,7 +85,7 @@ public:
               break;
             }
           }
-          if (target_f == nullptr) {
+          if (target_f == nullptr || !target_f->no_recurse) {
             continue;
           }
           fir::Builder b{target_f};
