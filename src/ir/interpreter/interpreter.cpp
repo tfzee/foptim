@@ -128,16 +128,20 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
                                instr->get_type()});
     break;
   case ICmpInstrSubType::ULT:
-    st.set_value(
-        ValueR(instr),
-        ConstantValue{(std::bit_cast<u128>(v1->as_int()) < std::bit_cast<u128>(v2->as_int())) ? ~(i128)0 : 0,
-                      instr->get_type()});
+    st.set_value(ValueR(instr),
+                 ConstantValue{(std::bit_cast<u128>(v1->as_int()) <
+                                std::bit_cast<u128>(v2->as_int()))
+                                   ? ~(i128)0
+                                   : 0,
+                               instr->get_type()});
     break;
   case ICmpInstrSubType::ULE:
-    st.set_value(
-        ValueR(instr),
-        ConstantValue{(std::bit_cast<u128>(v1->as_int()) <= std::bit_cast<u128>(v2->as_int())) ? ~(i128)0 : 0,
-                      instr->get_type()});
+    st.set_value(ValueR(instr),
+                 ConstantValue{(std::bit_cast<u128>(v1->as_int()) <=
+                                std::bit_cast<u128>(v2->as_int()))
+                                   ? ~(i128)0
+                                   : 0,
+                               instr->get_type()});
     break;
   default:
     return false;
@@ -154,6 +158,19 @@ bool interpret_sext(Instr instr, State &st, InstrPointer &ip) {
     return false;
   }
   st.set_value(ValueR(instr), ConstantValue{v1->as_int(), instr->get_type()});
+  ip.instr_id++;
+  return true;
+}
+
+bool interpret_zext(Instr instr, State &st, InstrPointer &ip) {
+  auto v1 = get_constant_value(instr->args[0], st);
+  if (!v1) {
+    return false;
+  }
+  auto bitwidth = instr->get_type()->as_int();
+  i128 mask = std::bit_cast<i128>((((u128)1) << bitwidth) - 1);
+  st.set_value(ValueR(instr),
+               ConstantValue{v1->as_int() & mask, instr->get_type()});
   ip.instr_id++;
   return true;
 }
@@ -185,6 +202,8 @@ bool Interpreter::step_instr() {
     return interpret_cbranch(curr_i, state, ip);
   case InstrType::SExt:
     return interpret_sext(curr_i, state, ip);
+  case InstrType::ZExt:
+    return interpret_zext(curr_i, state, ip);
   default:
   }
   fmt::println("{}", curr_i);
