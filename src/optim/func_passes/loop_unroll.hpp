@@ -140,11 +140,13 @@ bool Unroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   (void)func;
   LoopRangeAnalysis range;
   if (!range.update(cfg, loop)) {
-    failure({"Didnt find loop range", {cfg.bbrs[loop.head].bb}});
+    failure(
+        {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
   if (!range.known_upper || !range.known_lower) {
-    failure({"Didnt find loop upper/lower bound", {cfg.bbrs[loop.head].bb}});
+    failure({.reason = "Didnt find loop upper/lower bound",
+             .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
 
@@ -164,14 +166,13 @@ bool Unroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   }
 
   size_t n_instrs = 0;
-  for(auto i: loop.body_nodes){
+  for (auto i : loop.body_nodes) {
     n_instrs += cfg.bbrs[i].bb->n_instrs();
   }
-  
-  if(unroll_factor * n_instrs > 50){
+
+  if (unroll_factor * n_instrs > 50) {
     return false;
   }
-
 
   // ensure loop is do while loop
   if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {

@@ -23,12 +23,7 @@ public:
     LoopInfoAnalysis linfo{dom};
 
     for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
-      // fmt::println("======\n{}", func);
-      // loop->dump();
-      // ASSERT(func.verify());
       bool apply_res = apply(ctx, cfg, *loop);
-      // fmt::println("=\n{}", func);
-      // ASSERT(func.verify());
       if (apply_res && linfo.info.size() > 1) {
         cfg.update(func, false);
         dom.update(cfg);
@@ -62,8 +57,6 @@ public:
 
     // IDK about this
     // since they are just inserted at the end we could just use the length
-    //  FVec<fir::Instr> new_instrs;
-
     for (auto instr : header_bb->instructions) {
       fir::Instr new_instr = bb.insert_copy(instr);
       new_instr.substitute(repl_map);
@@ -89,20 +82,20 @@ public:
     // only if the header is the only exiting node
     if (linfo.leaving_nodes.size() == 0) {
       linfo.dump();
-      failure({"No leaving node ", {cfg.bbrs[linfo.head].bb}});
+      failure({.reason = "No leaving node ", .loc = {cfg.bbrs[linfo.head].bb}});
       return false;
     }
     if (linfo.leaving_nodes.size() != 1 ||
         linfo.leaving_nodes[0] != linfo.head) {
-      failure(
-          {"Only leaving node can be the header ", {cfg.bbrs[linfo.head].bb}});
+      failure({.reason = "Only leaving node can be the header ",
+               .loc = {cfg.bbrs[linfo.head].bb}});
       return false;
     }
     auto header_bb = cfg.bbrs[linfo.head].bb;
     // only worth it if the header aint to big
     // TODO: magic number parameter
     if (header_bb->instructions.size() > 10) {
-      failure({"Header to big ", {cfg.bbrs[linfo.head].bb}});
+      failure({.reason = "Header to big ", .loc = {cfg.bbrs[linfo.head].bb}});
       return false;
     }
     // only if all of the operations in the header dont have sideeffects
@@ -115,11 +108,13 @@ public:
         }
       }
       if (has_uses_outside) {
-        failure({"Header values are used later", {cfg.bbrs[linfo.head].bb}});
+        failure({.reason = "Header values are used later",
+                 .loc = {cfg.bbrs[linfo.head].bb}});
         return false;
       }
       if (instr->has_pot_sideeffects()) {
-        failure({"Header has side effects ", {cfg.bbrs[linfo.head].bb}});
+        failure({.reason = "Header has side effects ",
+                 .loc = {cfg.bbrs[linfo.head].bb}});
         return false;
       }
     }
@@ -139,7 +134,8 @@ public:
 
     if (needs_preheader) {
       // also needs to updated cfg
-      failure({"TODO: Impl preheader insertion", {cfg.bbrs[linfo.head].bb}});
+      failure({.reason = "TODO: Impl preheader insertion",
+               .loc = {cfg.bbrs[linfo.head].bb}});
       return false;
 
       TODO("TODO preheader insertion");
@@ -153,8 +149,8 @@ public:
       auto first_target = header_bb->get_terminator()->bbs[0].bb;
       for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
         if (cfg.bbrs[bb_id].bb == first_target &&
-            std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
-                      bb_id) != linfo.body_nodes.end()) {
+            std::ranges::find(linfo.body_nodes, bb_id) !=
+                linfo.body_nodes.end()) {
           non_exiting_target = 0;
           break;
         }
@@ -170,8 +166,8 @@ public:
     for (auto &arg : header_bb->args) {
       for (auto &use : arg->uses) {
         auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
-        if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
-                      user_bb_id) == linfo.body_nodes.end()) {
+        if (std::ranges::find(linfo.body_nodes, user_bb_id) ==
+            linfo.body_nodes.end()) {
           used_after_args.push_back(arg);
           break;
         }
@@ -221,8 +217,8 @@ public:
         TVec<fir::Use> replaced_uses;
         for (auto &use : arg->uses) {
           auto user_bb_id = cfg.get_bb_id(use.user->get_parent());
-          if (std::find(linfo.body_nodes.begin(), linfo.body_nodes.end(),
-                        user_bb_id) == linfo.body_nodes.end()) {
+          if (std::ranges::find(linfo.body_nodes, user_bb_id) ==
+              linfo.body_nodes.end()) {
             replaced_uses.push_back(use);
           }
         }

@@ -28,6 +28,9 @@ public:
       auto &loop = loops.info.at(loop_ip1 - 1);
       bool has_sideeffects = false;
       TVec<fir::Use> use_after;
+      if (cfg.bbrs[loop.head].pred.size() > 1) {
+        continue;
+      }
       for (auto b : loop.body_nodes) {
         if (has_sideeffects) {
           break;
