@@ -2231,8 +2231,8 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
 
     // if the mem2reg blockers all can be transformed we should definetly do
     // it only makes sense if its static and not too big
-    if (!mem2reg_blockers.empty() && instr->args[1].is_constant() &&
-        instr->args[1].as_constant()->as_int() < 64) {
+    if (!mem2reg_blockers.empty() && instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->as_int() < 64) {
       // fmt::println("{}", *instr->get_parent()->get_parent().func);
       // fmt::println("{}", instr);
       bool transform = true;
@@ -2245,8 +2245,11 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                (b.argId == 2 && aa.is_known_local_stack(b.user->args[1])))) {
             continue;
           }
+        } else if (b.type == fir::UseType::BBArg) {
+          transform = false;
+          continue;
         } else {
-          fmt::println("{}", b.user->get_parent());
+          fmt::println("{} {}", b.user, b.user->get_parent());
           TODO("okak");
         }
         transform = false;
