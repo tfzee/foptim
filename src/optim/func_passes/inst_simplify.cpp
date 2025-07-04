@@ -814,6 +814,25 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       }
     }
 
+    if ((sub_type == ICmpInstrSubType::MulOverflow) &&
+        instr->args[0].is_instr() &&
+        instr->args[0].as_instr()->is(fir::InstrType::SExt)) {
+      // if we multiply 2 32bit values with 1 being sign extended it can only be
+      // the case if
+      //  the sign extnded one was negative
+      if ((u128)c_val <= std::numeric_limits<u32>::max()) {
+        auto x = instr->args[0].as_instr()->args[0];
+        Builder bb{instr};
+        auto new_val = bb.build_int_cmp(
+            x, fir::ValueR{ctx->get_constant_value(0, x.get_type())},
+            ICmpInstrSubType::SLT);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR(new_val));
+        instr.destroy();
+        return;
+      }
+    }
+
     if ((sub_type == ICmpInstrSubType::EQ ||
          sub_type == ICmpInstrSubType::NE) &&
         instr->args[0].is_instr()) {
