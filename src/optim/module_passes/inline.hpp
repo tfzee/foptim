@@ -173,7 +173,7 @@ public:
       return true;
     }
 
-    if (called_n_instrs < 5) {
+    if ((v.func->n_bbs() == 1 && called_n_instrs < 20) || called_n_instrs < 5) {
       if (debug_print) {
         fmt::println("Y short");
       }
