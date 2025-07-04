@@ -1,4 +1,5 @@
 #include "inst_simplify.hpp"
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -11,6 +12,7 @@
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "utils/set.hpp"
+#include <algorithm>
 
 namespace foptim::optim {
 
@@ -105,12 +107,133 @@ void push_all_uses(WorkList &worklist, fir::Instr instr) {
     worklist.emplace_back(use.user, use.user->parent);
   }
 }
+bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
+                        fir::Context &ctx, WorkList &worklist,
+                        AttributerManager &man) {
+  // detect reductions
+  //  and try to simplify it
+  //  for example merging constants on different leaves of the reduction if
+  //  possible and merging duplicate values in the reduction
+  using namespace foptim::fir;
+  (void)man;
+
+  auto instr_ty = instr->instr_type;
+  auto instr_sty = instr->subtype;
+  i128 neutral_val = 0;
+  if (!instr->is(fir::InstrType::BinaryInstr) ||
+      instr->subtype != (u32)BinaryInstrSubType::IntAdd) {
+    // TODO: support stuff like min/max reductions
+    return false;
+  }
+
+  TVec<fir::ValueR> red_args;
+  TVec<fir::ValueR> red_worklist{fir::ValueR{instr}};
+  while (!red_worklist.empty()) {
+    auto c = red_worklist.back();
+    red_worklist.pop_back();
+    if (c.is_instr()) {
+      auto c_in = c.as_instr();
+      // fmt::print("   P {}", c_in);
+      if (c_in->instr_type == instr_ty && c_in->subtype == instr_sty) {
+        for (auto arg : c_in->args) {
+          red_worklist.push_back(arg);
+        }
+      } else {
+        red_args.push_back(c);
+      }
+    } else {
+      red_args.push_back(c);
+    }
+  }
+  if (red_args.size() <= 2) {
+    return false;
+  }
+  i128 constval = neutral_val;
+  std::ranges::sort(red_args, [](const auto &a, const auto &b) {
+    if (a.is_constant()) {
+      if (b.is_constant()) {
+        return a.as_constant().get_raw_ptr() < b.as_constant().get_raw_ptr();
+      }
+      return true;
+    }
+    if (a.is_instr() && b.is_instr()) {
+      return a.as_instr().get_raw_ptr() < b.as_instr().get_raw_ptr();
+    }
+    if (a.is_bb_arg() && b.is_bb_arg()) {
+      return a.as_bb_arg().get_raw_ptr() < b.as_bb_arg().get_raw_ptr();
+    }
+    return false;
+  });
+  {
+    u32 n_const = 0;
+    size_t max_group_size = 0;
+    for (size_t i = 0; i < red_args.size(); i++) {
+      if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
+        n_const++;
+        constval += red_args[i].as_constant()->as_int();
+      } else {
+        size_t endgroup = i + 1;
+        for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
+          if (red_args[i] != red_args[i2]) {
+            endgroup = i2;
+            break;
+          }
+        }
+        max_group_size = std::max(max_group_size, endgroup - i);
+      }
+    }
+    if (max_group_size <= 2 || n_const <= 2) {
+      return false;
+    }
+  }
+
+  fir::Builder b{instr};
+  auto out_bitwidth = instr->get_type()->get_bitwidth();
+  auto red_v = fir::ValueR{ctx->get_constant_int(constval, out_bitwidth)};
+
+  for (size_t i = 0; i < red_args.size(); i++) {
+    if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
+      continue;
+    }
+    size_t endgroup = i + 1;
+    for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
+      if (red_args[i] != red_args[i2]) {
+        endgroup = i2;
+        break;
+      }
+    }
+    if (i + 1 != endgroup) {
+      auto group_size = endgroup - i;
+      auto mul_res = b.build_int_mul(
+          red_args[i],
+          fir::ValueR{ctx->get_constant_int(group_size, out_bitwidth)});
+      worklist.push_back(
+          {mul_res.as_instr(), mul_res.as_instr()->get_parent()});
+      red_v = b.build_int_add(red_v, mul_res);
+      worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
+      i = endgroup - 1;
+    } else {
+      red_v = b.build_int_add(red_v, red_args[i]);
+      worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
+    }
+  }
+  worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
+  push_all_uses(worklist, instr);
+  instr->replace_all_uses(red_v);
+  instr.destroy();
+  // for (auto arg : red_args) {
+  //   fmt::println("   {}", arg);
+  // }
+  // fmt::println("Const {}", constval);
+  // fmt::println("CONVERTED");
+  return true;
+}
 
 void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist, AttributerManager &man) {
   using namespace foptim::fir;
-  // since both being constant would be handleded by constant folding we just
-  // asume theres one and normalzie by putting it into the secodn arg
+  // since both being constant would be handleded by constant folding we
+  // just asume theres one and normalzie by putting it into the secodn arg
   {
     if (instr->is_commutative() && instr->args[0].is_constant() &&
         !instr->args[0].as_constant()->is_global() &&
@@ -293,226 +416,229 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   const bool has_const = (c0_val != nullptr) || (c1_val != nullptr);
   // const bool both_const = has_const && instr->args[0].is_constant();
-  if (!has_const) {
-    return;
-  }
+  if (has_const) {
 
-  if (((c0_val != nullptr) && c0_val->is_poison()) ||
-      ((c1_val != nullptr) && c1_val->is_poison())) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(ValueR{ctx->get_poisson_value(instr.get_type())});
-    instr.destroy();
-    return;
-  }
-  if (((c0_val != nullptr) && c0_val->is_null()) ||
-      ((c1_val != nullptr) && c1_val->is_null())) {
-    auto index = ((c0_val != nullptr) && c0_val->is_null()) ? 1 : 0;
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(instr->args[index]);
-    instr.destroy();
-    return;
-  }
-
-  if ((c0_val != nullptr) && (c1_val != nullptr)) {
-    if ((c1_val->type->is_int() && c0_val->type->is_int()) ||
-        (c1_val->type->is_ptr() && c0_val->type->is_ptr())) {
-      // TODO: this is annoying but idk how to handle it better
+    if (((c0_val != nullptr) && c0_val->is_poison()) ||
+        ((c1_val != nullptr) && c1_val->is_poison())) {
       push_all_uses(worklist, instr);
-      if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
-                                   c0_val->as_int(), c1_val->as_int(),
-                                   c1_val->type, ctx)) {
-        instr.destroy();
-        return;
-      }
-    } else if (c1_val->type->is_float() && c1_val->type->as_float() == 32 &&
-               c0_val->type->is_float() && c0_val->type->as_float() == 32) {
-      // TODO: this is annoying but idk how to handle it better
-      push_all_uses(worklist, instr);
-      if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
-                                   c0_val->as_f32(), c1_val->as_f32(),
-                                   c1_val->type, ctx)) {
-        instr.destroy();
-        return;
-      }
-    } else if (c1_val->type->is_float() && c1_val->type->as_float() == 64 &&
-               c0_val->type->is_float() && c0_val->type->as_float() == 64) {
-      // TODO: this is annoying but idk how to handle it better
-      push_all_uses(worklist, instr);
-      if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
-                                   c0_val->as_f64(), c1_val->as_f64(),
-                                   c1_val->type, ctx)) {
-        instr.destroy();
-        return;
-      }
-    }
-  }
-
-  const auto *c_val = (c1_val != nullptr) ? c1_val : c0_val;
-  const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
-  const u32 v_idx = (c1_val != nullptr) ? 0 : 1;
-
-  // at this point it cant have both as constant
-  // if (c_val->is_float()) {
-  // TODO: need to check also if its special constant with sign bit and shit
-  //  if (c_val->as_float() == 0 &&
-  //      instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatAdd) {
-  //    push_all_uses(worklist, instr);
-  //    instr->replace_all_uses(instr->args[v_idx]);
-  //    instr.destroy();
-  //    return;
-  //  }
-  //  if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul) {
-  //    if (c_val->as_float() == 1) {
-  //      push_all_uses(worklist, instr);
-  //      instr->replace_all_uses(instr->args[v_idx]);
-  //      instr.destroy();
-  //    } else if (c_val->as_float() == 0) {
-  //      auto zero_const = ctx.data->get_constant_value(.0,
-  //      c_val->get_type()); push_all_uses(worklist, instr);
-  //      instr->replace_all_uses(ValueR{zero_const});
-  //      instr.destroy();
-  //    }
-  //    return;
-  //  }
-  // }
-
-  if (c_val->is_float() &&
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul &&
-      c_val->as_f64() == -1) {
-
-    Builder bb{instr};
-    auto new_neg =
-        bb.build_unary_op(instr->args[v_idx], UnaryInstrSubType::FloatNeg);
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(new_neg);
-    instr.destroy();
-    return;
-  }
-  if (c_val->is_int() &&
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
-    auto val = c_val->as_int();
-    auto bit_width = instr->get_type()->as_int();
-    u64 all_one_mask = ~0;
-    if (bit_width < 64) {
-      all_one_mask = (1UL << bit_width) - 1;
-    }
-    if (val == all_one_mask) {
-      instr->args.erase(instr->args.begin() + c_idx);
-      instr->instr_type = InstrType::UnaryInstr;
-      instr->subtype = (u32)UnaryInstrSubType::Not;
-      push_all_uses(worklist, instr);
-      return;
-    }
-  }
-  if (c_idx == 1 && c_val->is_int() &&
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntSub) {
-    if (c_val->as_int() == 0) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
+      instr->replace_all_uses(ValueR{ctx->get_poisson_value(instr.get_type())});
       instr.destroy();
       return;
     }
-  }
-  if (c_val->is_int() &&
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
-    if (c_val->as_int() == 0) {
+    if (((c0_val != nullptr) && c0_val->is_null()) ||
+        ((c1_val != nullptr) && c1_val->is_null())) {
+      auto index = ((c0_val != nullptr) && c0_val->is_null()) ? 1 : 0;
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[v_idx]);
+      instr->replace_all_uses(instr->args[index]);
       instr.destroy();
       return;
     }
-  }
-  if (c_val->is_int() &&
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
-    if (c_val->as_int() == 0) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[v_idx]);
-      instr.destroy();
-      return;
-    }
-    if (instr->args[0].is_instr() && c1_val->get_type()->is_int()) {
-      ASSERT(c0_val == nullptr);
-      auto a0 = instr->args[0].as_instr();
-      if (a0->is(InstrType::BinaryInstr) && a0->args[1].is_constant() &&
-          a0->args[1].as_constant()->is_int()) {
-        auto sec_constant = a0->args[1].as_constant()->as_int();
-        // fmt::println("{}", instr);
-        // FIXME: fix potential issue with overflow
-        auto biggest_bitwidth = std::max(a0->args[1].get_type()->as_int(),
-                                         c1_val->get_type()->as_int());
 
-        switch ((BinaryInstrSubType)a0->subtype) {
-        case fir::BinaryInstrSubType::INVALID:
-        case fir::BinaryInstrSubType::FloatAdd:
-        case fir::BinaryInstrSubType::FloatSub:
-        case fir::BinaryInstrSubType::FloatMul:
-        case fir::BinaryInstrSubType::FloatDiv:
-          UNREACH();
-        case fir::BinaryInstrSubType::IntSDiv:
-        case fir::BinaryInstrSubType::IntUDiv:
-        case fir::BinaryInstrSubType::IntMul:
-          break;
-        case fir::BinaryInstrSubType::IntAdd: {
-          auto new_val = ctx->get_constant_int(c1_val->as_int() + sec_constant,
-                                               biggest_bitwidth);
-          instr.replace_arg(0, a0->args[0]);
-          instr.replace_arg(1, ValueR(new_val));
-          push_all_uses(worklist, instr);
-          break;
+    if ((c0_val != nullptr) && (c1_val != nullptr)) {
+      if ((c1_val->type->is_int() && c0_val->type->is_int()) ||
+          (c1_val->type->is_ptr() && c0_val->type->is_ptr())) {
+        // TODO: this is annoying but idk how to handle it better
+        push_all_uses(worklist, instr);
+        if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
+                                     c0_val->as_int(), c1_val->as_int(),
+                                     c1_val->type, ctx)) {
+          instr.destroy();
+          return;
         }
-        case fir::BinaryInstrSubType::IntSub: {
-          auto new_val = ctx->get_constant_int(c1_val->as_int() - sec_constant,
-                                               biggest_bitwidth);
-          instr.replace_arg(0, a0->args[0]);
-          instr.replace_arg(1, ValueR(new_val));
-          push_all_uses(worklist, instr);
-          break;
+      } else if (c1_val->type->is_float() && c1_val->type->as_float() == 32 &&
+                 c0_val->type->is_float() && c0_val->type->as_float() == 32) {
+        // TODO: this is annoying but idk how to handle it better
+        push_all_uses(worklist, instr);
+        if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
+                                     c0_val->as_f32(), c1_val->as_f32(),
+                                     c1_val->type, ctx)) {
+          instr.destroy();
+          return;
         }
-        default:
-          break;
-          // fmt::println("Previous op {}", a0);
-          // UNREACH();
+      } else if (c1_val->type->is_float() && c1_val->type->as_float() == 64 &&
+                 c0_val->type->is_float() && c0_val->type->as_float() == 64) {
+        // TODO: this is annoying but idk how to handle it better
+        push_all_uses(worklist, instr);
+        if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
+                                     c0_val->as_f64(), c1_val->as_f64(),
+                                     c1_val->type, ctx)) {
+          instr.destroy();
+          return;
         }
       }
     }
-  }
-  if (c_val->is_int() &&
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
-    if (c_val->as_int() == 1) {
+
+    const auto *c_val = (c1_val != nullptr) ? c1_val : c0_val;
+    const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
+    const u32 v_idx = (c1_val != nullptr) ? 0 : 1;
+
+    // at this point it cant have both as constant
+    // if (c_val->is_float()) {
+    // TODO: need to check also if its special constant with sign bit and
+    // shit
+    //  if (c_val->as_float() == 0 &&
+    //      instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatAdd)
+    //      {
+    //    push_all_uses(worklist, instr);
+    //    instr->replace_all_uses(instr->args[v_idx]);
+    //    instr.destroy();
+    //    return;
+    //  }
+    //  if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul)
+    //  {
+    //    if (c_val->as_float() == 1) {
+    //      push_all_uses(worklist, instr);
+    //      instr->replace_all_uses(instr->args[v_idx]);
+    //      instr.destroy();
+    //    } else if (c_val->as_float() == 0) {
+    //      auto zero_const = ctx.data->get_constant_value(.0,
+    //      c_val->get_type()); push_all_uses(worklist, instr);
+    //      instr->replace_all_uses(ValueR{zero_const});
+    //      instr.destroy();
+    //    }
+    //    return;
+    //  }
+    // }
+
+    if (c_val->is_float() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul &&
+        c_val->as_f64() == -1) {
+
+      Builder bb{instr};
+      auto new_neg =
+          bb.build_unary_op(instr->args[v_idx], UnaryInstrSubType::FloatNeg);
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[v_idx]);
+      instr->replace_all_uses(new_neg);
       instr.destroy();
       return;
     }
-    if (c_val->as_int() == 0) {
-      auto zero_const = ctx.data->get_constant_value(0, c_val->get_type());
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR{zero_const});
-      instr.destroy();
-      return;
+    if (c_val->is_int() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
+      auto val = c_val->as_int();
+      auto bit_width = instr->get_type()->as_int();
+      u64 all_one_mask = ~0;
+      if (bit_width < 64) {
+        all_one_mask = (1UL << bit_width) - 1;
+      }
+      if (val == all_one_mask) {
+        instr->args.erase(instr->args.begin() + c_idx);
+        instr->instr_type = InstrType::UnaryInstr;
+        instr->subtype = (u32)UnaryInstrSubType::Not;
+        push_all_uses(worklist, instr);
+        return;
+      }
     }
-  }
-  // handle 0*constant
-  if ((c1_val != nullptr) && c1_val->is_int() &&
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
-    if (c1_val->as_int() == 1) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
-      instr.destroy();
-      return;
+    if (c_idx == 1 && c_val->is_int() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntSub) {
+      if (c_val->as_int() == 0) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[0]);
+        instr.destroy();
+        return;
+      }
     }
-    if (c1_val->as_int() == 0) {
-      auto zero_const = ctx.data->get_constant_value(0, c1_val->get_type());
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR{zero_const});
-      instr.destroy();
-      return;
+    if (c_val->is_int() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
+      if (c_val->as_int() == 0) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.destroy();
+        return;
+      }
+    }
+    if (c_val->is_int() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd) {
+      if (c_val->as_int() == 0) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.destroy();
+        return;
+      }
+      if (instr->args[0].is_instr() && c1_val->get_type()->is_int()) {
+        ASSERT(c0_val == nullptr);
+        auto a0 = instr->args[0].as_instr();
+        if (a0->is(InstrType::BinaryInstr) && a0->args[1].is_constant() &&
+            a0->args[1].as_constant()->is_int()) {
+          auto sec_constant = a0->args[1].as_constant()->as_int();
+          // fmt::println("{}", instr);
+          // FIXME: fix potential issue with overflow
+          auto biggest_bitwidth = std::max(a0->args[1].get_type()->as_int(),
+                                           c1_val->get_type()->as_int());
+
+          switch ((BinaryInstrSubType)a0->subtype) {
+          case fir::BinaryInstrSubType::INVALID:
+          case fir::BinaryInstrSubType::FloatAdd:
+          case fir::BinaryInstrSubType::FloatSub:
+          case fir::BinaryInstrSubType::FloatMul:
+          case fir::BinaryInstrSubType::FloatDiv:
+            UNREACH();
+          case fir::BinaryInstrSubType::IntSDiv:
+          case fir::BinaryInstrSubType::IntUDiv:
+          case fir::BinaryInstrSubType::IntMul:
+            break;
+          case fir::BinaryInstrSubType::IntAdd: {
+            auto new_val = ctx->get_constant_int(
+                c1_val->as_int() + sec_constant, biggest_bitwidth);
+            instr.replace_arg(0, a0->args[0]);
+            instr.replace_arg(1, ValueR(new_val));
+            push_all_uses(worklist, instr);
+            break;
+          }
+          case fir::BinaryInstrSubType::IntSub: {
+            auto new_val = ctx->get_constant_int(
+                c1_val->as_int() - sec_constant, biggest_bitwidth);
+            instr.replace_arg(0, a0->args[0]);
+            instr.replace_arg(1, ValueR(new_val));
+            push_all_uses(worklist, instr);
+            break;
+          }
+          default:
+            break;
+            // fmt::println("Previous op {}", a0);
+            // UNREACH();
+          }
+        }
+      }
+    }
+    if (c_val->is_int() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
+      if (c_val->as_int() == 1) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.destroy();
+        return;
+      }
+      if (c_val->as_int() == 0) {
+        auto zero_const = ctx.data->get_constant_value(0, c_val->get_type());
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR{zero_const});
+        instr.destroy();
+        return;
+      }
+    }
+    // handle 0*constant
+    if ((c1_val != nullptr) && c1_val->is_int() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
+      if (c1_val->as_int() == 1) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[0]);
+        instr.destroy();
+        return;
+      }
+      if (c1_val->as_int() == 0) {
+        auto zero_const = ctx.data->get_constant_value(0, c1_val->get_type());
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR{zero_const});
+        instr.destroy();
+        return;
+      }
     }
   }
 
   // bit patterns
   // if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntAdd &&
-  //     instr->args[1].is_constant() && instr->args[1].as_constant()->is_int())
+  //     instr->args[1].is_constant() &&
+  //     instr->args[1].as_constant()->is_int())
   //     {
   // const auto *arg0_known =
   //     man.get_or_create_analysis<KnownBits>(instr->args[0]);
@@ -581,6 +707,10 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       instr.destroy();
       return;
     }
+  }
+
+  if (simplify_reduction(instr, bb, ctx, worklist, man)) {
+    return;
   }
 }
 
@@ -817,8 +947,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     if ((sub_type == ICmpInstrSubType::MulOverflow) &&
         instr->args[0].is_instr() &&
         instr->args[0].as_instr()->is(fir::InstrType::SExt)) {
-      // if we multiply 2 32bit values with 1 being sign extended it can only be
-      // the case if
+      // if we multiply 2 32bit values with 1 being sign extended it can
+      // only be the case if
       //  the sign extnded one was negative
       if ((u128)c_val <= std::numeric_limits<u32>::max()) {
         auto x = instr->args[0].as_instr()->args[0];
@@ -2045,8 +2175,7 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
         } else if (curr.user->is(fir::InstrType::StoreInstr) &&
                    curr.argId == 0) {
           is_written = true;
-        } else if ((curr.user->is(fir::InstrType::BinaryInstr) &&
-                    curr.argId == 0) ||
+        } else if ((curr.user->is(fir::InstrType::BinaryInstr)) ||
                    (curr.user->is(fir::InstrType::SelectInstr) &&
                     curr.argId != 0)) {
           if (curr.user->is(fir::InstrType::SelectInstr)) {
@@ -2100,8 +2229,8 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
 
-    // if the mem2reg blockers all can be transformed we should definetly do it
-    // only makes sense if its static and not too big
+    // if the mem2reg blockers all can be transformed we should definetly do
+    // it only makes sense if its static and not too big
     if (!mem2reg_blockers.empty() && instr->args[1].is_constant() &&
         instr->args[1].as_constant()->as_int() < 64) {
       // fmt::println("{}", *instr->get_parent()->get_parent().func);
