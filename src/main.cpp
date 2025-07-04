@@ -162,6 +162,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, SimplifyCFG, LegalizeVecs>{}
       .apply(ctx, shed);
 
+  fmt::print("{:d}", ctx);
   // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
@@ -169,7 +170,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, LVN, SCCP, SimplifyCFG, DCE, GarbageCollect, LegalizeVecs>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup, GDCE>{}.apply(ctx);
-  fmt::print("{:d}", ctx);
   ASSERT(ctx->verify());
   fmt::print("================FIR END====================\n");
 }
