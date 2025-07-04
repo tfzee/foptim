@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
 #include <utility>
@@ -31,11 +32,16 @@ public:
       if (f.second->is_decl() || f.second->variadic) {
         continue;
       }
+      bool skip = false;
       for (auto use : f.second->get_uses()) {
         if (!use.user->is(fir::InstrType::CallInstr) ||
             use.type != fir::UseType::NormalArg || use.argId != 0) {
-          continue;
+          skip = true;
+          break;
         }
+      }
+      if (skip) {
+        continue;
       }
       if (kill_dead_args(f.second.get(), ctx)) {
         continue;
@@ -93,6 +99,9 @@ static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   if (n_args_original == 0) {
     return false;
   }
+  if (func.func->get_n_uses() == 0) {
+    return false;
+  }
 
   // TODO: this allocation is mostly gonna just waste memory
   auto arg_tys = func_ty.arg_types;
@@ -102,7 +111,6 @@ static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
     bool can_convert = true;
     fir::ConstantValueR consti =
         fir::ConstantValueR(fir::ConstantValueR::invalid());
-
     for (auto use : func.func->get_uses()) {
       if (!use.user->args[i].is_constant()) {
         can_convert = false;
@@ -116,7 +124,7 @@ static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
       consti = new_const;
     }
 
-    if (can_convert && func.func->get_n_uses() != 0) {
+    if (can_convert) {
       entry_block->args[i - 1]->replace_all_uses(fir::ValueR(consti));
       entry_block->remove_arg(i - 1);
       for (auto use : func.func->get_uses()) {
