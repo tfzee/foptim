@@ -2079,7 +2079,8 @@ void simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 }
 
 void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
-                        fir::Context &ctx, WorkList &worklist) {
+                        fir::Context &ctx, WorkList &worklist,
+                        AttributerManager &man) {
   auto sub_type = (fir::IntrinsicSubType)instr->subtype;
   if (sub_type == fir::IntrinsicSubType::Abs && instr->args[0].is_constant()) {
     push_all_uses(worklist, instr);
@@ -2089,48 +2090,43 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return;
   }
-  if ((sub_type == fir::IntrinsicSubType::UMin ||
-       sub_type == fir::IntrinsicSubType::UMax ||
-       sub_type == fir::IntrinsicSubType::SMin ||
-       sub_type == fir::IntrinsicSubType::SMax ||
-       sub_type == fir::IntrinsicSubType::FMin ||
-       sub_type == fir::IntrinsicSubType::FMax) &&
-      instr->args[0].is_constant() && instr->args[1].is_constant()) {
-    push_all_uses(worklist, instr);
-    switch (sub_type) {
-    default:
-      TODO("UNREACH");
-    case fir::IntrinsicSubType::SMax: {
+  if (sub_type == fir::IntrinsicSubType::UMin ||
+      sub_type == fir::IntrinsicSubType::UMax ||
+      sub_type == fir::IntrinsicSubType::SMin ||
+      sub_type == fir::IntrinsicSubType::SMax ||
+      sub_type == fir::IntrinsicSubType::FMin ||
+      sub_type == fir::IntrinsicSubType::FMax) {
+    if (instr->args[0].is_constant() && instr->args[1].is_constant()) {
       push_all_uses(worklist, instr);
-      auto val = std::max(instr->args[0].as_constant()->as_int(),
-                          instr->args[1].as_constant()->as_int());
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-      instr.destroy();
+      switch (sub_type) {
+      default:
+        TODO("UNREACH");
+      case fir::IntrinsicSubType::SMax: {
+        push_all_uses(worklist, instr);
+        auto val = std::max(instr->args[0].as_constant()->as_int(),
+                            instr->args[1].as_constant()->as_int());
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+        instr.destroy();
+        return;
+      }
+      case fir::IntrinsicSubType::FMin:
+      case fir::IntrinsicSubType::FMax:
+      case fir::IntrinsicSubType::UMin:
+      case fir::IntrinsicSubType::UMax:
+      case fir::IntrinsicSubType::SMin:
+        fmt::println("{}", instr);
+        TODO("impl");
+      }
       return;
     }
-    case fir::IntrinsicSubType::FMin:
-    case fir::IntrinsicSubType::FMax:
-    case fir::IntrinsicSubType::UMin:
-    case fir::IntrinsicSubType::UMax:
-    case fir::IntrinsicSubType::SMin:
-      fmt::println("{}", instr);
-      TODO("impl");
+    if (instr->args[0].is_constant() && !instr->args[1].is_constant()) {
+      auto old0 = instr->args[0];
+      auto old1 = instr->args[1];
+      instr.replace_arg(0, old1);
+      instr.replace_arg(1, old0);
+      return;
     }
-    instr.destroy();
-    return;
-  }
-  if ((sub_type == fir::IntrinsicSubType::UMin ||
-       sub_type == fir::IntrinsicSubType::UMax ||
-       sub_type == fir::IntrinsicSubType::SMin ||
-       sub_type == fir::IntrinsicSubType::SMax ||
-       sub_type == fir::IntrinsicSubType::FMin ||
-       sub_type == fir::IntrinsicSubType::FMax) &&
-      instr->args[0].is_constant() && !instr->args[1].is_constant()) {
-    auto old0 = instr->args[0];
-    auto old1 = instr->args[1];
-    instr.replace_arg(0, old1);
-    instr.replace_arg(1, old0);
   }
   if (sub_type == fir::IntrinsicSubType::FAbs && instr->args[0].is_constant()) {
     auto ty = instr->get_type();
@@ -2148,6 +2144,44 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
     instr.destroy();
     return;
+  }
+
+  switch (sub_type) {
+  default:
+    break;
+  case fir::IntrinsicSubType::UMin:
+  case fir::IntrinsicSubType::UMax:
+  case fir::IntrinsicSubType::SMin:
+  case fir::IntrinsicSubType::FMin:
+  case fir::IntrinsicSubType::FMax:
+  case fir::IntrinsicSubType::SMax: {
+    // IDK if these are worth the effort
+    break;
+  }
+
+  case fir::IntrinsicSubType::Abs: {
+    auto *a0 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
+    man.run();
+    auto r = a0->msb_info();
+    if (r == KnownBits::KnownZero) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[0]);
+      instr.destroy();
+      return;
+    }
+    if (r == KnownBits::KnownOne) {
+      push_all_uses(worklist, instr);
+      fir::Builder b{instr};
+      auto negated_val =
+          b.build_unary_op(instr->args[0], fir::UnaryInstrSubType::IntNeg);
+      instr->replace_all_uses(negated_val);
+      instr.destroy();
+      return;
+    }
+    break;
+  }
+  case fir::IntrinsicSubType::FAbs:
+    break;
   }
 }
 
@@ -2343,7 +2377,7 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return;
   }
   if (instr_ty == InstrType::Intrinsic) {
-    simplify_intrinsic(instr, bb, ctx, worklist);
+    simplify_intrinsic(instr, bb, ctx, worklist, man);
     return;
   }
   if (instr_ty == InstrType::AllocaInstr) {
