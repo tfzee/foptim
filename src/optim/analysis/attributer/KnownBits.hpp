@@ -82,12 +82,52 @@ public:
         new_known_zero = res.known_zero;
         break;
       }
+      case fir::IntrinsicSubType::UMax: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const auto *known_arg1_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+        if (known_arg0_bits->get_unsigned_min_value() >=
+            known_arg1_bits->get_unsigned_max_value()) {
+          new_known_one = known_arg0_bits->known_one;
+          new_known_zero = known_arg0_bits->known_zero;
+        } else if (known_arg1_bits->get_unsigned_min_value() >=
+                   known_arg0_bits->get_unsigned_max_value()) {
+          new_known_one = known_arg1_bits->known_one;
+          new_known_zero = known_arg1_bits->known_zero;
+        } else {
+          new_known_one =
+              known_arg0_bits->known_one & known_arg1_bits->known_one;
+          new_known_zero =
+              known_arg0_bits->known_zero & known_arg1_bits->known_zero;
+        }
+        break;
+      }
+      case fir::IntrinsicSubType::SMax: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const auto *known_arg1_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+        if (known_arg0_bits->get_signed_min_value() >=
+            known_arg1_bits->get_signed_max_value()) {
+          new_known_one = known_arg0_bits->known_one;
+          new_known_zero = known_arg0_bits->known_zero;
+        } else if (known_arg1_bits->get_signed_min_value() >=
+                   known_arg0_bits->get_signed_max_value()) {
+          new_known_one = known_arg1_bits->known_one;
+          new_known_zero = known_arg1_bits->known_zero;
+        } else {
+          new_known_one =
+              known_arg0_bits->known_one & known_arg1_bits->known_one;
+          new_known_zero =
+              known_arg0_bits->known_zero & known_arg1_bits->known_zero;
+        }
+        break;
+      }
       case fir::IntrinsicSubType::CTLZ:
       case fir::IntrinsicSubType::FAbs:
       case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::UMax:
       case fir::IntrinsicSubType::SMin:
-      case fir::IntrinsicSubType::SMax:
       case fir::IntrinsicSubType::FMin:
       case fir::IntrinsicSubType::FMax:
         fmt::println("BITS KNOWN {}", *this);

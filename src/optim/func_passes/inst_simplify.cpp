@@ -1356,8 +1356,7 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
   if (instr->args[0].is_instr() &&
-      instr->args[0].as_instr()->is(fir::InstrType::ICmp) &&
-      instr->args[1].is_constant() && instr->get_type()->is_int()) {
+      instr->args[0].as_instr()->is(fir::InstrType::ICmp)) {
     auto icmp = instr->args[0].as_instr();
     bool negated = false;
     bool positive = false;
@@ -1384,14 +1383,21 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                                             : fir::IntrinsicSubType::UMax);
         break;
       case fir::ICmpInstrSubType::SLT:
+      case fir::ICmpInstrSubType::SLE:
+        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                    negated ? fir::IntrinsicSubType::SMin
+                                            : fir::IntrinsicSubType::SMax);
+        break;
       case fir::ICmpInstrSubType::SGT:
       case fir::ICmpInstrSubType::SGE:
-      case fir::ICmpInstrSubType::SLE:
+        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                    negated ? fir::IntrinsicSubType::SMax
+                                            : fir::IntrinsicSubType::SMin);
+        break;
+      default:
         fmt::print("{}", icmp);
         fmt::print("{}", instr);
         TODO("okak");
-        break;
-      default:
         break;
       }
       if (!new_val.is_invalid()) {
@@ -1403,8 +1409,7 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
   if (instr->args[0].is_instr() &&
-      instr->args[0].as_instr()->is(fir::InstrType::FCmp) &&
-      instr->args[1].is_constant() && instr->get_type()->is_int()) {
+      instr->args[0].as_instr()->is(fir::InstrType::FCmp)) {
     auto fcmp = instr->args[0].as_instr();
     bool negated = false;
     bool positive = false;
@@ -2095,12 +2100,21 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
     switch (sub_type) {
     default:
       TODO("UNREACH");
+    case fir::IntrinsicSubType::SMax: {
+      push_all_uses(worklist, instr);
+      auto val = std::max(instr->args[0].as_constant()->as_int(),
+                          instr->args[1].as_constant()->as_int());
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+      instr.destroy();
+      return;
+    }
     case fir::IntrinsicSubType::FMin:
     case fir::IntrinsicSubType::FMax:
     case fir::IntrinsicSubType::UMin:
     case fir::IntrinsicSubType::UMax:
     case fir::IntrinsicSubType::SMin:
-    case fir::IntrinsicSubType::SMax:
+      fmt::println("{}", instr);
       TODO("impl");
     }
     instr.destroy();
