@@ -80,6 +80,7 @@ const char *getNameFromOpcode(Opcode code) {
     ReturnString(fxor);
     ReturnString(fAnd);
     ReturnString(fOr);
+    ReturnString(fShl);
     ReturnString(icmp_slt);
     ReturnString(icmp_eq);
     ReturnString(jmp);
@@ -167,6 +168,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::ffmadd231:
   case Opcode::fxor:
   case Opcode::fOr:
+  case Opcode::fShl:
   case Opcode::fAnd:
   case Opcode::SI2FL:
   case Opcode::UI2FL:
@@ -337,6 +339,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case Opcode::fxor:
   case Opcode::fAnd:
   case Opcode::fOr:
+  case Opcode::fShl:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
   case Opcode::icmp_ult:
@@ -446,6 +449,7 @@ bool MInstr::is_control_flow(Opcode c) {
   case Opcode::fxor:
   case Opcode::fAnd:
   case Opcode::fOr:
+  case Opcode::fShl:
   case Opcode::lzcnt:
   case Opcode::SI2FL:
   case Opcode::UI2FL:

@@ -42,6 +42,7 @@ enum class Opcode : u32 {
   fxor,
   fAnd,
   fOr,
+  fShl,
   vpshuf,
   punpckl,
   vbroadcast,

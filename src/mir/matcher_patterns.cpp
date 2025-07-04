@@ -1429,6 +1429,19 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
+        if (res_reg.is_vec_reg()) {
+          switch (shift_instr->get_type()->as_vec().bitwidth) {
+          case 32:
+            // vpsllvd ymm0, ymm1, ymm2
+            res.result.emplace_back(Opcode::fShl, res_reg, a, b);
+            return true;
+          case 64:
+            // idk this seems not very easy for avx2
+          default:
+            fmt::println("{}", shift_instr);
+            TODO("impl");
+          }
+        }
 
         if (b.isImm()) {
           res.result.emplace_back(Opcode::mov, res_reg, a);

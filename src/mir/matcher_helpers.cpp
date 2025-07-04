@@ -70,7 +70,6 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
         }
       }
     }
-    fmt::println("{} SAFE: {}", arg, safe_to_not_copy);
     if (safe_to_not_copy) {
       data.bb_arg_mapping.insert(
           {arg, valueToArg(fir::ValueR{arg}, res.result, data.alloc)});

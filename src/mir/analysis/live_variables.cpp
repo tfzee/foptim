@@ -102,6 +102,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case Opcode::fxor:
   case Opcode::fAnd:
   case Opcode::fOr:
+  case Opcode::fShl:
   case Opcode::not1:
   case Opcode::neg1:
   case Opcode::SI2FL:
@@ -279,6 +280,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case Opcode::fdiv:
   case Opcode::fxor:
   case Opcode::fOr:
+  case Opcode::fShl:
   case Opcode::fAnd:
   case Opcode::icmp_slt:
   case Opcode::icmp_eq:
