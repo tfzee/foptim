@@ -1449,6 +1449,34 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                        ? ZYDIS_MNEMONIC_VXORPS
                        : ZYDIS_MNEMONIC_VXORPD;
     return emit(out_buff, 0, &req);
+  case fmir::Opcode::fShl:
+    switch (instr.args[0].ty) {
+    case fmir::Type::Int32x4:
+    case fmir::Type::Float32x2:
+    case fmir::Type::Int32x8:
+    case fmir::Type::Float32x4:
+    case fmir::Type::Float32x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VPSLLVD;
+      break;
+    case fmir::Type::Int64x2:
+    case fmir::Type::Float64x2:
+    case fmir::Type::Int64x4:
+    case fmir::Type::Float64x4:
+      // TOdO: idk if this is avx512 some sources list it there but most under
+      // avx2
+      req.mnemonic = ZYDIS_MNEMONIC_VPSLLVQ;
+      break;
+    case fmir::Type::INVALID:
+    case fmir::Type::Int8:
+    case fmir::Type::Int16:
+    case fmir::Type::Int32:
+    case fmir::Type::Int64:
+    case fmir::Type::Float32:
+    case fmir::Type::Float64:
+      fmt::println("{}", instr);
+      TODO("Impl");
+    }
+    return emit(out_buff, 0, &req);
   case fmir::Opcode::fOr:
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VORPS
