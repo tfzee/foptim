@@ -112,7 +112,7 @@ private:
          subtype != (u32)fir::BinaryInstrSubType::FloatAdd)) {
       return {};
     }
-    fmt::println("MAYBE REDUCTION BUNDLE {}", bb->instructions[instr_id]);
+    // fmt::println("MAYBE REDUCTION BUNDLE {}", bb->instructions[instr_id]);
     return {};
   }
 
@@ -183,16 +183,18 @@ private:
         if (res) {
           load_bundles.push_back(res.value());
         }
-      } else {
-        auto res = find_reduction(bb, i, aa);
-        if (res) {
-          fmt::println("FOUND");
-          fmt::println("LEN {} AT {} ", res.value().data.size(),
-                       res.value().base);
-          TODO("okak");
-          reduction_bundles.push_back(res.value());
-        }
       }
+      (void)reduction_bundles;
+      // } else {
+      //   auto res = find_reduction(bb, i, aa);
+      //   if (res) {
+      //     fmt::println("FOUND");
+      //     fmt::println("LEN {} AT {} ", res.value().data.size(),
+      //                  res.value().base);
+      //     TODO("okak");
+      //     reduction_bundles.push_back(res.value());
+      //   }
+      // }
     }
     std::ranges::sort(store_bundles,
                       [](const SeedBundle &b1, const SeedBundle &b2) {
