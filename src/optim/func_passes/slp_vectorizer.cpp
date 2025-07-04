@@ -13,6 +13,7 @@ class TreeElem {
 public:
   TVec<TreeElem *> children;
   fir::Instr insert_loc;
+  u32 n_lanes;
 
   TreeElem() = default;
   virtual fir::ValueR generate(fir::Context & /*ctx*/) { TODO("UNREACH"); }
@@ -27,6 +28,7 @@ public:
   void dump() final { fmt::print("BROAD({})", v); }
 
   BroadcastTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
     if (values.back().is_bb_arg()) {
       insert_loc = values.back().as_bb_arg()->_parent->instructions[0];
     } else {
@@ -49,9 +51,10 @@ public:
     return true;
   }
 
-  fir::ValueR generate(fir::Context & /*ctx*/) final {
+  fir::ValueR generate(fir::Context &ctx) final {
     fir::Builder bb{insert_loc};
-    return bb.build_vbroadcast(v, insert_loc->get_type());
+    return bb.build_vbroadcast(
+        v, ctx->get_vec_type(insert_loc->get_type(), n_lanes));
   }
 };
 
@@ -72,6 +75,7 @@ public:
   }
 
   BinaryTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
     insert_loc = values.back().as_instr();
     return this;
   }
@@ -97,6 +101,7 @@ public:
     switch ((fir::BinaryInstrSubType)base_v->subtype) {
     case fir::BinaryInstrSubType::FloatAdd:
     case fir::BinaryInstrSubType::IntAdd:
+    case fir::BinaryInstrSubType::Shl:
       return true;
     case fir::BinaryInstrSubType::FloatSub:
     case fir::BinaryInstrSubType::FloatMul:
@@ -107,13 +112,14 @@ public:
     case fir::BinaryInstrSubType::IntSRem:
     case fir::BinaryInstrSubType::IntSDiv:
     case fir::BinaryInstrSubType::IntUDiv:
-    case fir::BinaryInstrSubType::Shl:
     case fir::BinaryInstrSubType::Shr:
     case fir::BinaryInstrSubType::AShr:
     case fir::BinaryInstrSubType::And:
     case fir::BinaryInstrSubType::Or:
     case fir::BinaryInstrSubType::Xor:
     case fir::BinaryInstrSubType::FloatDiv:
+      fmt::println("{}", base_v);
+      TODO("impl");
       return false;
     }
     // we cant handle neutral elemtns for everything
@@ -140,6 +146,7 @@ public:
   }
 
   StoreTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
     store_loc = values[0].as_instr();
     insert_loc = values.back().as_instr();
     return this;
@@ -189,6 +196,7 @@ public:
   }
 
   IntrinTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
     insert_loc = values.back().as_instr();
     type = (fir::IntrinsicSubType)insert_loc->subtype;
     return this;
@@ -209,16 +217,17 @@ public:
 
     switch ((fir::IntrinsicSubType)base_v->subtype) {
     case fir::IntrinsicSubType::INVALID:
-    case fir::IntrinsicSubType::CTLZ:
     case fir::IntrinsicSubType::VA_start:
     case fir::IntrinsicSubType::VA_end:
+      return false;
+    case fir::IntrinsicSubType::CTLZ:
     case fir::IntrinsicSubType::UMin:
     case fir::IntrinsicSubType::UMax:
     case fir::IntrinsicSubType::SMin:
     case fir::IntrinsicSubType::SMax:
     case fir::IntrinsicSubType::FMin:
     case fir::IntrinsicSubType::FMax:
-      return false;
+      TODO("impl?");
     case fir::IntrinsicSubType::Abs:
     case fir::IntrinsicSubType::FAbs:
       return true;
@@ -253,6 +262,7 @@ public:
   }
 
   ConstantTreeOp *init(const TVec<fir::ValueR> &values, TreeElem *parent) {
+    n_lanes = values.size();
     insert_loc = parent->insert_loc;
     my_values = values;
     return this;
@@ -298,7 +308,6 @@ public:
 
 class LoadTreeOp final : public TreeElem {
   fir::Instr base_load;
-  u16 n_lanes = 0;
 
 public:
   void dump() final {
@@ -308,14 +317,14 @@ public:
   }
 
   LoadTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
     base_load = values[0].as_instr();
     insert_loc = values.back().as_instr();
-    n_lanes = values.size();
     return this;
   }
 
   static bool match(const TVec<fir::ValueR> &values,
-                    const TVec<SLPVectorizer::StoreLoadBundle> &load_bundles) {
+                    const TVec<SLPVectorizer::SeedBundle> &load_bundles) {
     auto base_v = values.back().as_instr();
     for (auto i_v : values) {
       if (!i_v.is_instr()) {
@@ -343,8 +352,8 @@ public:
   }
 };
 
-bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
-                                   const TVec<StoreLoadBundle> &load_bundles) {
+bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
+                                   const TVec<SeedBundle> &load_bundles) {
   (void)ctx;
 
   using StoreAlloc = utils::TempAlloc<StoreTreeOp>;
@@ -513,7 +522,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, StoreLoadBundle &b,
   return true;
 }
 
-void SLPVectorizer::continious_vector_store(StoreLoadBundle &bundle,
+void SLPVectorizer::continious_vector_store(SeedBundle &bundle,
                                             fir::ValueR value) {
   TVec<i128> offsets;
   // collect constant offsets

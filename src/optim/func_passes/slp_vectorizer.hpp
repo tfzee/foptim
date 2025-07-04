@@ -15,22 +15,22 @@ namespace foptim::optim {
 
 class SLPVectorizer final : public FunctionPass {
 public:
-  struct StoreLoadData {
+  struct SeedInstrData {
     fir::Instr instr;
     fir::ValueR a;
     fir::ValueR b;
   };
-  struct StoreLoadBundle {
+  struct SeedBundle {
     fir::ValueR base;
     fir::TypeR type;
     //(base*a + b)
-    TVec<StoreLoadData> data;
+    TVec<SeedInstrData> data;
   };
 
 private:
-  std::pair<StoreLoadData, fir::ValueR>
+  std::pair<SeedInstrData, fir::ValueR>
   get_storeload_data(fir::Instr storeload) {
-    StoreLoadData data;
+    SeedInstrData data;
     data.instr = storeload;
     if (!storeload->args[0].is_instr()) {
       return {data, storeload->args[0]};
@@ -58,9 +58,9 @@ private:
     return {data, storeload->args[0]};
   }
 
-  std::optional<StoreLoadBundle>
+  std::optional<SeedBundle>
   find_successive_loads(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa) {
-    StoreLoadBundle curr;
+    SeedBundle curr;
     auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
     curr.base = base;
     curr.type = bb->instructions[instr_id].get_type();
@@ -99,10 +99,27 @@ private:
     return {};
   }
 
-  std::optional<StoreLoadBundle> find_successive_stores(fir::BasicBlock bb,
-                                                        size_t instr_id,
-                                                        AliasAnalyis &aa) {
-    StoreLoadBundle curr;
+  std::optional<SeedBundle> find_reduction(fir::BasicBlock bb, size_t instr_id,
+                                           AliasAnalyis &aa) {
+    SeedBundle curr;
+    (void)bb;
+    (void)aa;
+    (void)instr_id;
+    auto base_instr = bb->instructions[instr_id];
+    auto subtype = base_instr->subtype;
+    if (!base_instr->is(fir::InstrType::BinaryInstr) ||
+        (subtype != (u32)fir::BinaryInstrSubType::IntAdd &&
+         subtype != (u32)fir::BinaryInstrSubType::FloatAdd)) {
+      return {};
+    }
+    fmt::println("MAYBE REDUCTION BUNDLE {}", bb->instructions[instr_id]);
+    return {};
+  }
+
+  std::optional<SeedBundle> find_successive_stores(fir::BasicBlock bb,
+                                                   size_t instr_id,
+                                                   AliasAnalyis &aa) {
+    SeedBundle curr;
     auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
     curr.base = base;
     curr.type = bb->instructions[instr_id].get_type();
@@ -149,10 +166,12 @@ private:
     return {};
   }
 
-  void find_successive_storeloads(fir::BasicBlock bb,
-                                  TVec<StoreLoadBundle> &store_bundles,
-                                  TVec<StoreLoadBundle> &load_bundles,
-                                  AliasAnalyis &aa) {
+  void find_seeds(fir::BasicBlock bb, TVec<SeedBundle> &store_bundles,
+                  TVec<SeedBundle> &load_bundles,
+                  TVec<SeedBundle> &reduction_bundles, AliasAnalyis &aa) {
+    // collect store and reduction seed bundles
+    //  also collect load bundles since that simplifiies later one checking if a
+    //  load is valid to vectorize
     for (size_t i = 0; i < bb->instructions.size(); i++) {
       if (bb->instructions[i]->is(fir::InstrType::StoreInstr)) {
         auto res = find_successive_stores(bb, i, aa);
@@ -164,14 +183,23 @@ private:
         if (res) {
           load_bundles.push_back(res.value());
         }
+      } else {
+        auto res = find_reduction(bb, i, aa);
+        if (res) {
+          fmt::println("FOUND");
+          fmt::println("LEN {} AT {} ", res.value().data.size(),
+                       res.value().base);
+          TODO("okak");
+          reduction_bundles.push_back(res.value());
+        }
       }
     }
     std::ranges::sort(store_bundles,
-                      [](const StoreLoadBundle &b1, const StoreLoadBundle &b2) {
+                      [](const SeedBundle &b1, const SeedBundle &b2) {
                         return b1.data.size() > b2.data.size();
                       });
     std::ranges::sort(load_bundles,
-                      [](const StoreLoadBundle &b1, const StoreLoadBundle &b2) {
+                      [](const SeedBundle &b1, const SeedBundle &b2) {
                         return b1.data.size() > b2.data.size();
                       });
     // CLEANUP
@@ -358,7 +386,7 @@ private:
     // }
   }
 
-  bool constant_vector_store(fir::Context &ctx, StoreLoadBundle &bundle) {
+  bool constant_vector_store(fir::Context &ctx, SeedBundle &bundle) {
     IRVec<fir::ConstantValueR> args;
     for (const auto &data : bundle.data) {
       if (!data.instr->args[1].is_constant()) {
@@ -374,9 +402,9 @@ private:
     return true;
   }
 
-  void continious_vector_store(StoreLoadBundle &bundle, fir::ValueR value);
-  bool tree_vectorize(fir::Context &ctx, StoreLoadBundle &bundle,
-                      const TVec<StoreLoadBundle> &load_bundles);
+  void continious_vector_store(SeedBundle &bundle, fir::ValueR value);
+  bool tree_vectorize(fir::Context &ctx, SeedBundle &bundle,
+                      const TVec<SeedBundle> &load_bundles);
 
 public:
   void apply(fir::Context &ctx, fir::Function &func) override {
@@ -385,10 +413,11 @@ public:
     (void)func;
     AliasAnalyis aa{};
     // fmt::println("{}", func);
-    TVec<StoreLoadBundle> store_bundles;
-    TVec<StoreLoadBundle> load_bundles;
+    TVec<SeedBundle> store_bundles;
+    TVec<SeedBundle> load_bundles;
+    TVec<SeedBundle> reduction_bundles;
     for (auto bb : func.basic_blocks) {
-      find_successive_storeloads(bb, store_bundles, load_bundles, aa);
+      find_seeds(bb, store_bundles, load_bundles, reduction_bundles, aa);
     }
 
     for (auto &b : store_bundles) {
