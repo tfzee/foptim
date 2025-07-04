@@ -4,6 +4,7 @@
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher.hpp"
+#include "utils/set.hpp"
 
 namespace foptim::fmir {
 
@@ -33,13 +34,43 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
       safe_to_not_copy = n_hits <= 1;
     }
     if (safe_to_not_copy) {
+      // just checking the uses is not enough as it turns out
+      //  we could have a bbarg which is used by and add instruction inside the
+      //  bb making it look safe to omit the copy. But if that add is used by
+      //  for example a load later on this add might be merged into the future
+      //  load which then makes it unsafe to omit the copy.
+      // technically there are only a few instructions which could lead to such
+      //  a forward merge but since this might change in the future and its hard
+      //  to detect this i will just emit a copy everytime theres a use by a use
+      //  by a use... that is used outside of this bb
+      TSet<fir::Instr> checked;
+      TVec<fir::Instr> worklist;
       for (auto use : arg->uses) {
         if (use.user->parent != def_bb) {
           safe_to_not_copy = false;
           break;
         }
+        checked.insert(use.user);
+        for (auto u : use.user->uses) {
+          worklist.push_back(u.user);
+        }
+      }
+      while (!worklist.empty()) {
+        auto u = worklist.back();
+        checked.insert(u);
+        worklist.pop_back();
+        if (u->parent != def_bb) {
+          safe_to_not_copy = false;
+          break;
+        }
+        for (auto use : u->uses) {
+          if (!checked.contains(use.user)) {
+            worklist.push_back(use.user);
+          }
+        }
       }
     }
+    fmt::println("{} SAFE: {}", arg, safe_to_not_copy);
     if (safe_to_not_copy) {
       data.bb_arg_mapping.insert(
           {arg, valueToArg(fir::ValueR{arg}, res.result, data.alloc)});
