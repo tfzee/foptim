@@ -334,4 +334,75 @@ void setup_va_end(fir::Instr &va_instr, MatchResult &res,
   (void)data;
 }
 
+bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
+                             i128 consti_val, TVec<MInstr> &result,
+                             Type res_ty) {
+  // x*c where c is either 2 4 8  or 3 5 9
+  auto res_ty_size = get_size(res_ty);
+  if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+    return false;
+  }
+  bool mul1More = false;
+  bool mul1Less = false;
+  auto base = MArgument(arg0, res_ty);
+
+  switch (consti_val) {
+  default: {
+    return false;
+  }
+  case 1:
+    consti_val = 0;
+    break;
+  case 2:
+    consti_val = 1;
+    break;
+  case 3:
+    consti_val = 1;
+    mul1More = true;
+    break;
+  case 4:
+    consti_val = 2;
+    break;
+  case 5:
+    consti_val = 2;
+    mul1More = true;
+    break;
+  case 6: {
+    auto helper_arg = MArgument(helper_reg, res_ty);
+    result.emplace_back(Opcode::mov, helper_arg, base);
+    result.emplace_back(Opcode::add2, helper_arg, helper_arg);
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
+    return true;
+  }
+  case 7:
+    consti_val = 3;
+    mul1Less = true;
+    break;
+  case 8:
+    consti_val = 3;
+    break;
+  case 9:
+    consti_val = 3;
+    mul1More = true;
+    break;
+  }
+
+  // $1 = $0 * c
+  // where $0 must be reg and C in [1,2,3,4,5,8,9]
+  if (mul1More) {
+    result.emplace_back(
+        Opcode::lea, res_reg,
+        MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
+  } else if (mul1Less) {
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemOIS(0, base.reg, consti_val, res_ty));
+    result.emplace_back(Opcode::sub2, res_reg, base);
+  } else {
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemOIS(0, base.reg, consti_val, res_ty));
+  }
+  return true;
+}
+
 } // namespace foptim::fmir

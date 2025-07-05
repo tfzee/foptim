@@ -5,6 +5,7 @@
 #include "matcher.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
+#include "utils/helpers.hpp"
 #include <bit>
 #include <cstring>
 #include <fmt/core.h>
@@ -904,76 +905,14 @@ void arith_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         auto consti_val = consti->as_int();
-        bool mul1More = false;
-        bool mul1Less = false;
-
-        switch (consti_val) {
-        default: {
-          return false;
-        }
-        case 1:
-          consti_val = 0;
-          break;
-        case 2:
-          consti_val = 1;
-          break;
-        case 3:
-          consti_val = 1;
-          mul1More = true;
-          break;
-        case 4:
-          consti_val = 2;
-          break;
-        case 5:
-          consti_val = 2;
-          mul1More = true;
-          break;
-        case 6: {
-          auto res_reg =
-              valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
-          auto helper_reg = data.alloc.get_new_register(res_ty);
-          auto helper_arg = MArgument(helper_reg, res_ty);
-          auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
-          res.result.emplace_back(Opcode::mov, helper_arg, base);
-          res.result.emplace_back(Opcode::add2, helper_arg, helper_arg);
-          res.result.emplace_back(
-              Opcode::lea, res_reg,
-              MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
-          return true;
-        }
-        case 7:
-          consti_val = 3;
-          mul1Less = true;
-          break;
-        case 8:
-          consti_val = 3;
-          break;
-        case 9:
-          consti_val = 3;
-          mul1More = true;
-          break;
-        }
-
-        // $1 = $0 * c
-        // where $0 must be reg and C in [1,2,3,4,5,8,9]
+        auto helper_reg = data.alloc.get_new_register(res_ty);
         auto res_reg =
             valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+
         auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
         ASSERT(base.isReg());
-        if (mul1More) {
-          res.result.emplace_back(
-              Opcode::lea, res_reg,
-              MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
-        } else if (mul1Less) {
-          res.result.emplace_back(
-              Opcode::lea, res_reg,
-              MArgument::MemOIS(0, base.reg, consti_val, res_ty));
-          res.result.emplace_back(Opcode::sub2, res_reg, base);
-        } else {
-          res.result.emplace_back(
-              Opcode::lea, res_reg,
-              MArgument::MemOIS(0, base.reg, consti_val, res_ty));
-        }
+        return generate_lea_from_cmult(res_reg, helper_reg, base.reg,
+                                       consti_val, res.result, res_ty);
         return true;
       }});
   pats.push_back(Pattern{
@@ -1094,6 +1033,120 @@ void arith_patterns(IRVec<Pattern> &pats) {
 
                 return false;
               }});
+  pats.push_back(Pattern{
+      .nodes = {IntMulNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        // x*c where c can be split into powers of two that can be added or
+        // substracted and this list must be short
+        auto mul_instr = res.matched_instrs[0];
+        auto res_ty = convert_type(mul_instr.get_type());
+        auto res_ty_size = get_size(res_ty);
+
+        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+          return false;
+        }
+        if (!is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = mul_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        i128 consti_val = consti->as_int();
+        if (consti_val < 0 ||
+            __builtin_clzg((u128)consti_val) < ((i32)res_ty_size * 8 + 1)) {
+          //  TOOD: should be possible to extend to negative
+          return false;
+        }
+        constexpr u32 MAX_SIZE = 2;
+        i128 powers_needed[MAX_SIZE + 1];
+        u32 power_index = 0;
+        u32 free_powers = 0;
+
+        while (consti_val != 0) {
+          bool negated = consti_val < 0;
+          auto abs_consti_val = negated ? -consti_val : consti_val;
+          u64 upper_pow = (u64)utils::npow2((u128)abs_consti_val);
+          auto upper_pow_v = ((i128)1) << upper_pow;
+          u64 lower_pow = upper_pow >> 1;
+          auto lower_pow_v = ((i128)1) << lower_pow;
+          auto selected_pow_v = lower_pow_v;
+          auto selected_pow_i = lower_pow;
+          if (std::abs(abs_consti_val - upper_pow_v) <=
+              std::abs(abs_consti_val - lower_pow_v)) {
+            selected_pow_v = upper_pow_v;
+            selected_pow_i = upper_pow;
+          }
+          powers_needed[power_index] =
+              (negated ? -(i128)selected_pow_i : (i128)selected_pow_i);
+          if (powers_needed[power_index] == 1 ||
+              powers_needed[power_index] == 2 ||
+              powers_needed[power_index] == 3) {
+            free_powers += 1;
+          }
+          power_index++;
+          consti_val = negated ? consti_val + selected_pow_v
+                               : consti_val - selected_pow_v;
+          if ((power_index - free_powers) > (MAX_SIZE)) {
+            return false;
+          }
+        }
+        // for (size_t i = 0; i < power_index; i++) {
+        //   fmt::println("  {}", powers_needed[i]);
+        // }
+        // fmt::println(" {}  power neede {}", consti_val_orig, power_index);
+
+        auto res_reg =
+            valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+        auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        ASSERT(base.isReg());
+
+        for (size_t i = 0; i < power_index; i++) {
+          auto curr_power = powers_needed[i];
+          bool negated = curr_power < 0;
+          if (curr_power == 1 || curr_power == 2 || curr_power == 3) {
+            if (i == 0) {
+              res.result.emplace_back(
+                  Opcode::lea, res_reg,
+                  MArgument::MemOIS(0, base.reg, curr_power, res_ty));
+            } else {
+              res.result.emplace_back(
+                  Opcode::lea, res_reg,
+                  MArgument::MemBIS(res_reg.reg, base.reg, curr_power, res_ty));
+            }
+          } else {
+            auto helper_reg =
+                MArgument(data.alloc.get_new_register(res_ty), res_ty);
+            res.result.emplace_back(Opcode::mov, helper_reg, base);
+            res.result.emplace_back(
+                Opcode::shl2, helper_reg,
+                MArgument((u64)(negated ? -curr_power : curr_power)));
+            if (negated) {
+              if (i == 0) {
+                res.result.emplace_back(Opcode::lxor2, res_reg, res_reg);
+              }
+              res.result.emplace_back(Opcode::sub2, res_reg, helper_reg);
+            } else {
+              if (i == 0) {
+                res.result.emplace_back(Opcode::mov, res_reg, helper_reg);
+              } else {
+                res.result.emplace_back(Opcode::add2, res_reg, helper_reg);
+              }
+            }
+          }
+        }
+        // fmt::println("REs ");
+        // for (auto &g : res.result) {
+        //   fmt::println("{}", g);
+        // }
+        // ASSERT(base.isReg());
+        // res.result.emplace_back(
+        //     Opcode::lea, res_reg,
+        //     MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
+        // TODO("okak");
+        return true;
+      }});
 }
 
 void base_patterns(IRVec<Pattern> &pats) {

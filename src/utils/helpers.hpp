@@ -1,4 +1,5 @@
 #pragma once
+#include "utils/types.hpp"
 #include <memory>
 #include <tracy/Tracy.hpp>
 
@@ -25,5 +26,14 @@ template <class T> using FAlloc = TrackingAlloc<T>;
 #else
 template <class T> using FAlloc = std::allocator<T>;
 #endif
+
+// returns the number of bits needed to store this value
+// so (1 << npow2) will give you the actual next bigger or requal power of 2
+__attribute__((const)) static inline u128 npow2(u128 x) {
+  if (x < 2) {
+    return 0;
+  }
+  return (128 - __builtin_clzg(x - 1));
+}
 
 } // namespace foptim::utils

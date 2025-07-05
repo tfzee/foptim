@@ -16,7 +16,8 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
                                       ExtraMatchData &data);
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc);
 MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
-TVec<MArgument>  valueToArgStruct(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
+TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
+                                 DumbRegAlloc &alloc);
 MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
                           DumbRegAlloc &alloc);
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,
@@ -24,5 +25,9 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
 void setup_va_start(fir::Instr &call_instr, MatchResult &res,
                     ExtraMatchData &data);
 void setup_va_end(fir::Instr &call_instr, MatchResult &res,
-                    ExtraMatchData &data);
+                  ExtraMatchData &data);
+
+bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
+                             i128 consti_val, TVec<MInstr> &result,
+                             Type res_ty);
 } // namespace foptim::fmir
