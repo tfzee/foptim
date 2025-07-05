@@ -45,6 +45,7 @@
 #include "utils/parameters.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/stable_vec_slot.hpp"
+#include "utils/stats.hpp"
 #include "utils/todo.hpp"
 #include "x86_codegen/backend.hpp"
 #include "llvm/llir_loader.hpp"
@@ -104,6 +105,7 @@ int main(int argc, char *argv[]) {
       codegen(funcs, decls, globals);
     }
 
+    foptim::utils::StatCollector::get().dump();
     ctx.free();
   }
   foptim::utils::TempAlloc<void *>::free();
