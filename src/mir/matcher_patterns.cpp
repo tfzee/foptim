@@ -6,7 +6,9 @@
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "utils/helpers.hpp"
+#include "utils/stats.hpp"
 #include <bit>
+#include <cstdlib>
 #include <cstring>
 #include <fmt/core.h>
 #include <limits>
@@ -913,7 +915,6 @@ void arith_patterns(IRVec<Pattern> &pats) {
         ASSERT(base.isReg());
         return generate_lea_from_cmult(res_reg, helper_reg, base.reg,
                                        consti_val, res.result, res_ty);
-        return true;
       }});
   pats.push_back(Pattern{
       .nodes = {IntMulNode},
@@ -1043,9 +1044,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto res_ty = convert_type(mul_instr.get_type());
         auto res_ty_size = get_size(res_ty);
 
-        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+        if (res_ty_size != 4) {
           return false;
         }
+        res_ty = Type::Int64;
+        res_ty_size = 8;
         if (!is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
           return false;
         }
@@ -1059,14 +1062,21 @@ void arith_patterns(IRVec<Pattern> &pats) {
           //  TOOD: should be possible to extend to negative
           return false;
         }
-        constexpr u32 MAX_SIZE = 2;
-        i128 powers_needed[MAX_SIZE + 1];
-        u32 power_index = 0;
-        u32 free_powers = 0;
+        // fmt::println("{}", consti_val);
+        constexpr u32 MAX_SIZE = 3;
+        i128 multi_needed[MAX_SIZE + 1];
+        u32 multi_index = 0;
 
         while (consti_val != 0) {
           bool negated = consti_val < 0;
           auto abs_consti_val = negated ? -consti_val : consti_val;
+          if (abs_consti_val <= 9) {
+            multi_needed[multi_index] = consti_val;
+            multi_index++;
+            consti_val = 0;
+            continue;
+          }
+
           u64 upper_pow = (u64)utils::npow2((u128)abs_consti_val);
           auto upper_pow_v = ((i128)1) << upper_pow;
           u64 lower_pow = upper_pow >> 1;
@@ -1078,53 +1088,59 @@ void arith_patterns(IRVec<Pattern> &pats) {
             selected_pow_v = upper_pow_v;
             selected_pow_i = upper_pow;
           }
-          powers_needed[power_index] =
-              (negated ? -(i128)selected_pow_i : (i128)selected_pow_i);
-          if (powers_needed[power_index] == 1 ||
-              powers_needed[power_index] == 2 ||
-              powers_needed[power_index] == 3) {
-            free_powers += 1;
-          }
-          power_index++;
+          multi_needed[multi_index] = (negated ? -(i128)(1 << selected_pow_i)
+                                               : (i128)1 << selected_pow_i);
+          multi_index++;
           consti_val = negated ? consti_val + selected_pow_v
                                : consti_val - selected_pow_v;
-          if ((power_index - free_powers) > (MAX_SIZE)) {
+          if (multi_index > MAX_SIZE) {
             return false;
           }
         }
-        // for (size_t i = 0; i < power_index; i++) {
-        //   fmt::println("  {}", powers_needed[i]);
+        // for (size_t i = 0; i < multi_index; i++) {
+        //   fmt::println("  P: {}", multi_needed[i]);
         // }
-        // fmt::println(" {}  power neede {}", consti_val_orig, power_index);
+        // fmt::println(" power neede {}", multi_index);
 
         auto res_reg =
             valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+        res_reg.ty = res_ty;
+        res_reg.reg.ty = res_ty;
         auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
+        base.ty = res_ty;
+        base.reg.ty = res_ty;
         ASSERT(base.isReg());
 
-        for (size_t i = 0; i < power_index; i++) {
-          auto curr_power = powers_needed[i];
-          bool negated = curr_power < 0;
-          if (curr_power == 1 || curr_power == 2 || curr_power == 3) {
+        for (size_t i = 0; i < multi_index; i++) {
+          auto curr_multi = multi_needed[i];
+          bool negated = curr_multi < 0;
+          auto abs_c_multi = negated ? -curr_multi : curr_multi;
+          if (abs_c_multi >= 1 && abs_c_multi <= 9) {
+            auto helper_reg = data.alloc.get_new_register(res_ty);
             if (i == 0) {
-              res.result.emplace_back(
-                  Opcode::lea, res_reg,
-                  MArgument::MemOIS(0, base.reg, curr_power, res_ty));
+              ASSERT(generate_lea_from_cmult(res_reg, helper_reg, base.reg,
+                                             abs_c_multi, res.result, res_ty));
             } else {
-              res.result.emplace_back(
-                  Opcode::lea, res_reg,
-                  MArgument::MemBIS(res_reg.reg, base.reg, curr_power, res_ty));
+              auto res2_reg =
+                  MArgument(data.alloc.get_new_register(res_ty), res_ty);
+              ASSERT(generate_lea_from_cmult(res2_reg, helper_reg, base.reg,
+                                             abs_c_multi, res.result, res_ty));
+              if (negated) {
+                res.result.emplace_back(Opcode::sub2, res_reg, res2_reg);
+              } else {
+                res.result.emplace_back(Opcode::add2, res_reg, res2_reg);
+              }
             }
           } else {
             auto helper_reg =
                 MArgument(data.alloc.get_new_register(res_ty), res_ty);
             res.result.emplace_back(Opcode::mov, helper_reg, base);
-            res.result.emplace_back(
-                Opcode::shl2, helper_reg,
-                MArgument((u64)(negated ? -curr_power : curr_power)));
+            auto p2 = utils::npow2(abs_c_multi);
+            res.result.emplace_back(Opcode::shl2, helper_reg,
+                                    MArgument((u64)p2));
             if (negated) {
               if (i == 0) {
-                res.result.emplace_back(Opcode::lxor2, res_reg, res_reg);
+                ASSERT(false);
               }
               res.result.emplace_back(Opcode::sub2, res_reg, helper_reg);
             } else {
@@ -1136,15 +1152,14 @@ void arith_patterns(IRVec<Pattern> &pats) {
             }
           }
         }
+
         // fmt::println("REs ");
         // for (auto &g : res.result) {
         //   fmt::println("{}", g);
         // }
-        // ASSERT(base.isReg());
-        // res.result.emplace_back(
-        //     Opcode::lea, res_reg,
-        //     MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
         // TODO("okak");
+        utils::StatCollector::get().addi(1, "mul_to_shift_chain",
+                                         utils::StatCollector::StatMatcher);
         return true;
       }});
 }
