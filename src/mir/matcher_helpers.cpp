@@ -348,6 +348,8 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
 
   switch (consti_val) {
   default: {
+    // fmt::println("Failed simplify mul x*{}", consti_val);
+    // TODO("failed");
     return false;
   }
   case 1:
@@ -386,6 +388,61 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
     consti_val = 3;
     mul1More = true;
     break;
+  case 10: {
+    auto helper_arg = MArgument(helper_reg, res_ty);
+    result.emplace_back(Opcode::mov, helper_arg, base);
+    result.emplace_back(Opcode::add2, helper_arg, helper_arg);
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
+    return true;
+  }
+  case 11: {
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(base.reg, base.reg, 2, res_ty));
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(base.reg, res_reg.reg, 1, res_ty));
+    return true;
+  }
+  case 12: {
+    auto helper_arg = MArgument(helper_reg, res_ty);
+    result.emplace_back(Opcode::mov, helper_arg, base);
+    result.emplace_back(Opcode::shl2, res_reg, MArgument((u8)2));
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(helper_reg, helper_reg, 1, res_ty));
+    return true;
+  }
+  case 13: {
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(base.reg, base.reg, 1, res_ty));
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(base.reg, res_reg.reg, 2, res_ty));
+    return true;
+  }
+  case 14: {
+    auto helper_arg = MArgument(helper_reg, res_ty);
+    //       mov     eax, edi
+    // lea     ecx, [rax + rax]
+    // shl     eax, 4
+    // sub     eax, ecx
+    result.emplace_back(Opcode::mov, res_reg, base);
+    result.emplace_back(Opcode::lea, helper_arg,
+                        MArgument::MemBI(res_reg.reg, res_reg.reg, res_ty));
+    result.emplace_back(Opcode::shl2, res_reg, MArgument((u8)4));
+    result.emplace_back(Opcode::sub2, res_reg, helper_arg);
+    return true;
+  }
+  case 15: {
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(base.reg, base.reg, 4, res_ty));
+    result.emplace_back(Opcode::lea, res_reg,
+                        MArgument::MemBIS(res_reg.reg, res_reg.reg, 2, res_ty));
+    return true;
+  }
+  case 16: {
+    result.emplace_back(Opcode::mov, res_reg, base);
+    result.emplace_back(Opcode::shl2, res_reg, MArgument((u8)4));
+    return true;
+  }
   }
 
   // $1 = $0 * c

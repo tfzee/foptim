@@ -715,8 +715,12 @@ void arith_patterns(IRVec<Pattern> &pats) {
 
         auto c = cc->as_int();
         auto out_type = convert_type(div_instr->get_type());
+        if (get_size(out_type) != 4) {
+          return false;
+        }
         switch (c) {
         default:
+          fmt::println("OPTIMIZE SDIV ?? x/{}", c);
           return false;
         case 2: {
           auto res_reg =
@@ -748,11 +752,37 @@ void arith_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u8)3));
           break;
         }
+        case 10: {
+          auto res_reg32 =
+              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+          auto res_reg64 = res_reg32;
+          res_reg64.ty = Type::Int64;
+          res_reg64.reg.ty = Type::Int64;
+          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+          auto helper64 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto helper32 = helper64;
+          helper32.ty = Type::Int32;
+          helper32.reg.ty = Type::Int32;
+
+          ASSERT(base.isReg());
+          // movsxd  target64, edi
+          res.result.emplace_back(Opcode::mov_sx, res_reg64, base);
+          // imul    target64, target64, 1717986919
+          res.result.emplace_back(Opcode::smul3, res_reg64, res_reg64,
+                                  MArgument((u32)1717986919));
+          // mov     helper64, target64
+          res.result.emplace_back(Opcode::mov, helper64, res_reg64);
+          // shr     helper64, 63
+          res.result.emplace_back(Opcode::shr2, helper64, MArgument((u8)63));
+          // sar     target64, 34
+          res.result.emplace_back(Opcode::sar2, res_reg64, MArgument((u8)34));
+          // add     target32, helper32
+          res.result.emplace_back(Opcode::land2, res_reg32, helper32);
+          break;
+        }
         }
 
-        // res.result.emplace_back(Opcode::mov, res_reg, base);
-        // res.result.emplace_back(Opcode::shr2, res_reg,
-        // MArgument((u32)power));
         return true;
       }});
   pats.push_back(Pattern{
@@ -1007,33 +1037,72 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-  pats.push_back(
-      Pattern{.nodes = {SRemNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto srem_instr = res.matched_instrs[0];
-                if (!srem_instr->args[1].is_constant()) {
-                  return false;
-                }
-                // auto res_reg =
-                //     valueToArg(fir::ValueR(srem_instr), res.result,
-                //     data.alloc);
-                // auto arg = valueToArg(srem_instr->args[0], res.result,
-                // data.alloc);
-                auto const_arg =
-                    valueToArg(srem_instr->args[1], res.result, data.alloc);
+  pats.push_back(Pattern{
+      .nodes = {SRemNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto srem_instr = res.matched_instrs[0];
+        if (!srem_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto res_reg =
+            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
+        auto arg = valueToArg(srem_instr->args[0], res.result, data.alloc);
+        auto const_arg =
+            valueToArg(srem_instr->args[1], res.result, data.alloc);
 
-                if (!const_arg.isImm()) {
-                  return false;
-                }
-                if (srem_instr.get_type()->as_int() != 32) {
-                  return false;
-                }
-                fmt::println("Could have optimized the matchign of srem");
-                // TODO("impl");
+        if (!const_arg.isImm()) {
+          return false;
+        }
+        if (srem_instr.get_type()->as_int() != 32) {
+          return false;
+        }
+        switch (const_arg.imm) {
+        default:
+          return false;
+        case 5: {
+          auto h64 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto h32 = h64;
+          h32.ty = Type::Int32;
+          h32.reg.ty = Type::Int32;
+          auto g64 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto g32 = g64;
+          g32.ty = Type::Int32;
+          g32.reg.ty = Type::Int32;
+          auto res_reg64 = res_reg;
+          res_reg64.ty = Type::Int64;
+          res_reg64.reg.ty = Type::Int64;
 
-                return false;
-              }});
+          // movsxd  out64, inp32
+          res.result.emplace_back(Opcode::mov_sx, res_reg64, arg);
+          // imul    h64, out64, 1717986919
+          res.result.emplace_back(Opcode::smul3, h64, res_reg64,
+                                  MArgument((u64)1717986919));
+          // mov     g64, h64
+          res.result.emplace_back(Opcode::mov, g64, h64);
+          // shr     g64, 63
+          res.result.emplace_back(Opcode::shr2, g64, MArgument((u8)63));
+          // sar     h64, 33
+          res.result.emplace_back(Opcode::sar2, h64, MArgument((u8)33));
+          // add     h32, g32
+          res.result.emplace_back(Opcode::add2, h32, g32);
+          // lea     h32, [h64 + 4*h64]
+          res.result.emplace_back(
+              Opcode::lea, h32,
+              MArgument::MemBIS(h32.reg, h32.reg, 2, Type::Int32));
+          // sub     out32, h32
+          res.result.emplace_back(Opcode::sub2, res_reg, h32);
+          return true;
+        }
+        }
+        fmt::println("Could have optimized the matchign of srem x%{}",
+                     const_arg.imm);
+        TODO("impl");
+
+        return false;
+      }});
   pats.push_back(Pattern{
       .nodes = {IntMulNode},
       .edges = {},
@@ -1067,10 +1136,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
         i128 multi_needed[MAX_SIZE + 1];
         u32 multi_index = 0;
 
+        fmt::println("Considering {}", consti_val);
         while (consti_val != 0) {
           bool negated = consti_val < 0;
           auto abs_consti_val = negated ? -consti_val : consti_val;
-          if (abs_consti_val <= 9) {
+          if (abs_consti_val <= 16) {
             multi_needed[multi_index] = consti_val;
             multi_index++;
             consti_val = 0;
@@ -1097,10 +1167,10 @@ void arith_patterns(IRVec<Pattern> &pats) {
             return false;
           }
         }
+        // fmt::println("Succ {}", multi_index);
         // for (size_t i = 0; i < multi_index; i++) {
         //   fmt::println("  P: {}", multi_needed[i]);
         // }
-        // fmt::println(" power neede {}", multi_index);
 
         auto res_reg =
             valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
@@ -1115,7 +1185,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
           auto curr_multi = multi_needed[i];
           bool negated = curr_multi < 0;
           auto abs_c_multi = negated ? -curr_multi : curr_multi;
-          if (abs_c_multi >= 1 && abs_c_multi <= 9) {
+          if (abs_c_multi >= 1 && abs_c_multi <= 16) {
             auto helper_reg = data.alloc.get_new_register(res_ty);
             if (i == 0) {
               ASSERT(generate_lea_from_cmult(res_reg, helper_reg, base.reg,
