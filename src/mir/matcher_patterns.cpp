@@ -1060,6 +1060,24 @@ void arith_patterns(IRVec<Pattern> &pats) {
         switch (const_arg.imm) {
         default:
           return false;
+        case 2: {
+          auto h32 =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          // mov     out32, in32
+          res.result.emplace_back(Opcode::mov, res_reg, arg);
+          // mov     h32, in32
+          res.result.emplace_back(Opcode::mov, h32, arg);
+          // shr     h32, 31
+          res.result.emplace_back(Opcode::shr2, h32, MArgument((u8)31));
+          // add     h32, in32
+          res.result.emplace_back(Opcode::add2, h32, arg);
+          // and     h32, -2
+          res.result.emplace_back(Opcode::land2, h32,
+                                  MArgument(std::bit_cast<u32>((i32)-2)));
+          // sub     out32, h32
+          res.result.emplace_back(Opcode::sub2, res_reg, h32);
+          return true;
+        }
         case 5: {
           auto h64 =
               MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
@@ -1136,7 +1154,6 @@ void arith_patterns(IRVec<Pattern> &pats) {
         i128 multi_needed[MAX_SIZE + 1];
         u32 multi_index = 0;
 
-        fmt::println("Considering {}", consti_val);
         while (consti_val != 0) {
           bool negated = consti_val < 0;
           auto abs_consti_val = negated ? -consti_val : consti_val;
@@ -1167,10 +1184,6 @@ void arith_patterns(IRVec<Pattern> &pats) {
             return false;
           }
         }
-        // fmt::println("Succ {}", multi_index);
-        // for (size_t i = 0; i < multi_index; i++) {
-        //   fmt::println("  P: {}", multi_needed[i]);
-        // }
 
         auto res_reg =
             valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
