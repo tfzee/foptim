@@ -1693,6 +1693,15 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto i_arg1 = arg_i->args[1];
       fir::Builder b{instr};
       switch ((fir::BinaryInstrSubType)arg_i->subtype) {
+      case fir::BinaryInstrSubType::IntAdd: {
+        auto v0 = b.build_itrunc(i_arg0, out_type);
+        auto v1 = b.build_itrunc(i_arg1, out_type);
+        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::IntAdd);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        return;
+      }
       case fir::BinaryInstrSubType::Xor: {
         auto v0 = b.build_itrunc(i_arg0, out_type);
         auto v1 = b.build_itrunc(i_arg1, out_type);
