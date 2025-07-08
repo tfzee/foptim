@@ -1608,6 +1608,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return;
   }
+  (void)ctx;
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant();
     if (c->is_poison()) {
@@ -1623,19 +1624,18 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto new_bitwidth = instr.get_type()->as_int();
     ASSERT(new_bitwidth < old_bitwidth);
 
-    auto mask = (1 << new_bitwidth) - 1;
+    auto mask = ((i128)1 << new_bitwidth) - 1;
     auto truncated_v = v & mask;
-
-    auto new_v = ctx->get_constant_value(truncated_v, instr->get_type());
+    auto new_v = ctx->get_constant_int(truncated_v, new_bitwidth);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(fir::ValueR{new_v});
     instr.destroy();
     return;
-    TODO("impl itrunc constant propagate");
   }
   if (instr->args[0].is_instr()) {
     auto arg_i = instr->args[0].as_instr();
     auto out_type = instr->get_type();
+    (void)out_type;
 
     if ((arg_i->is(fir::InstrType::SExt) || arg_i->is(fir::InstrType::ZExt)) &&
         arg_i->args[0].get_type() == instr.get_type()) {
@@ -1645,11 +1645,9 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
 
-    if (instr.get_type()->get_size() > 1) {
+    if (instr.get_type()->get_size() > 1 &&
+        arg_i->is(fir::InstrType::BinaryInstr)) {
       auto inner_math = arg_i;
-      if (!inner_math->is(fir::InstrType::BinaryInstr)) {
-        return;
-      }
       bool b0 = inner_math->args[0].is_constant();
       bool b0I = (inner_math->args[0].is_instr() &&
                   (inner_math->args[0].as_instr()->is(fir::InstrType::SExt) ||
