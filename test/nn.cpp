@@ -1,11 +1,10 @@
 // RUN: clang++ -O0 %s -o %t.ll -S -emit-llvm
 // RUN: %foffcc %t.ll %t.o
-// RUN: clang++ %t.o -o %t.out
+// RUN: clang++ -static-libstdc++ %t.o -o %t.out
 // RUN: result=$(bash -c '(%t.out); echo Result:$?' 2>&1)
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Output for [0 0] is 0.0469648 Output for [0 1] is 0.64579 Output for[1 0] is 0.647464 Output for [1 1] is 0.647464 Result:0
-// XFAIL: *
 
 #include <assert.h>
 #include <iostream>
