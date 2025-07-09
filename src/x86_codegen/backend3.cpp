@@ -529,6 +529,10 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
     default:
       TODO("UNREACH?");
     }
+  } else if (instr.args[1].isMem() && target_isfloat64) {
+    req.mnemonic = ZYDIS_MNEMONIC_VMOVSD;
+  } else if (instr.args[1].isMem() && target_isfloat32) {
+    req.mnemonic = ZYDIS_MNEMONIC_VMOVSS;
   } else if ((!input_is_fp_reg && target_isfloat32) ||
              (!target_is_fp_reg && input_isfloat32)) {
     req.mnemonic = ZYDIS_MNEMONIC_MOVD;
