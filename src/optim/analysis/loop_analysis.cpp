@@ -1,12 +1,13 @@
 #include "loop_analysis.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/constant_value_ref.hpp"
+#include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
-#include "utils/arena.hpp"
 #include "utils/bitset.hpp"
-#include "utils/logging.hpp"
+#include "utils/set.hpp"
 #include "utils/vec.hpp"
 #include <algorithm>
 #include <fmt/core.h>
@@ -58,7 +59,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
     }
 
     TVec<u32> body_nodes;
-    body_nodes.reserve(1 + 1 + tails.size() * 2);
+    body_nodes.reserve(2 + (tails.size() * 2));
 
     for (auto tail : tails) {
       backward[tail].set(true);
@@ -100,8 +101,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
     leaving_nodes.reserve(body_nodes.size() / 2);
     for (u32 node : body_nodes) {
       for (auto succ : cfg.bbrs[node].succ) {
-        if (std::find(body_nodes.begin(), body_nodes.end(), succ) ==
-            body_nodes.end()) {
+        if (std::ranges::find(body_nodes, succ) == body_nodes.end()) {
           leaving_nodes.push_back(node);
         }
       }
@@ -142,19 +142,25 @@ void LoopRangeAnalysis::dump() const {
 
 bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   fir::BasicBlock head = cfg.bbrs[info.head].bb;
+  constexpr bool debug_print = false;
   // info.dump();
-  // exactly 1 induction var
-  if (head->args.size() != 1) {
+  // need 1 induction var
+  if (head->args.empty()) {
+    // just gonna assume the first for now
+    if constexpr (debug_print) {
+      fmt::println("0a");
+    }
     return false;
   }
   // only 1 incoming edge into the loop
   if (cfg.bbrs[info.head].pred.size() != 1 + info.tails.size()) {
-    fmt::println("0");
+    if constexpr (debug_print) {
+      fmt::println("0");
+    }
     return false;
   }
   for (u32 p : cfg.bbrs[info.head].pred) {
-    if (std::find(info.body_nodes.begin(), info.body_nodes.end(), p) ==
-        info.body_nodes.end()) {
+    if (std::ranges::find(info.body_nodes, p) == info.body_nodes.end()) {
       auto incoming_bb_term = cfg.bbrs[p].bb->get_terminator();
       auto outgoing_id = incoming_bb_term.get_bb_id(head);
       auto arg = incoming_bb_term->bbs[outgoing_id].args[0];
@@ -178,7 +184,9 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     auto tail_bb = cfg.bbrs[tail].bb;
     auto term = tail_bb->get_terminator();
     if (tail_bb != head || !term->is(fir::InstrType::CondBranchInstr)) {
-      // fmt::println("1");
+      if constexpr (debug_print) {
+        fmt::println("1");
+      }
       return false;
     }
     // there can only be 1 arg
@@ -186,14 +194,18 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     auto induction_arg = term->bbs[0].args[0];
     // TODO: improve
     if (!induction_arg.is_instr()) {
-      // fmt::println("2");
+      if constexpr (debug_print) {
+        fmt::println("2");
+      }
       return false;
     }
     auto induct_oper = induction_arg.as_instr();
     if (!induct_oper->is(fir::InstrType::BinaryInstr) ||
         (fir::BinaryInstrSubType)induct_oper->subtype !=
             fir::BinaryInstrSubType::IntAdd) {
-      // fmt::println("3");
+      if constexpr (debug_print) {
+        fmt::println("3");
+      }
       return false;
     }
 
@@ -206,23 +218,31 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
       var_index = 0;
       constant_index = 1;
     } else {
-      // fmt::println("4a");
+      if constexpr (debug_print) {
+        fmt::println("4a");
+      }
       return false;
     }
     auto con = induct_oper->args[constant_index].as_constant();
     auto var = induct_oper->args[var_index];
     if (!con->is_int()) {
-      // fmt::println("4");
+      if constexpr (debug_print) {
+        fmt::println("4");
+      }
       return false;
     }
     if (!var.is_bb_arg() || var.as_bb_arg() != induct_incoming) {
-      // fmt::println("5");
+      if constexpr (debug_print) {
+        fmt::println("5");
+      }
       return false;
     }
 
     auto new_off = con->as_int();
     if (set && constant_off != new_off) {
-      // fmt::println("6");
+      if constexpr (debug_print) {
+        fmt::println("6");
+      }
       return false;
     }
 
@@ -238,14 +258,18 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     ASSERT(term->is(fir::InstrType::CondBranchInstr));
     auto cond = term->args[0];
     if (!cond.is_instr() || !cond.as_instr()->is(fir::InstrType::ICmp)) {
-      // fmt::println("7");
+      if constexpr (debug_print) {
+        fmt::println("7");
+      }
       return false;
     }
     auto cond_instr = cond.as_instr();
     auto condi = (fir::ICmpInstrSubType)cond_instr->subtype;
     if (condi != fir::ICmpInstrSubType::ULT &&
         condi != fir::ICmpInstrSubType::SLT) {
-      // fmt::println("8");
+      if constexpr (debug_print) {
+        fmt::println("8");
+      }
       return false;
     }
 
@@ -258,17 +282,23 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
       var_index = 0;
       constant_index = 1;
     } else {
-      // fmt::println("9a");
+      if constexpr (debug_print) {
+        fmt::println("9a");
+      }
       return false;
     }
     auto con = cond_instr->args[constant_index].as_constant();
     auto var = cond_instr->args[var_index];
     if (!con->is_int()) {
-      // fmt::println("9");
+      if (debug_print) {
+        fmt::println("9");
+      }
       return false;
     }
     if (var != induct_outgoing) {
-      // fmt::println("10");
+      if constexpr (debug_print) {
+        fmt::println("10");
+      }
       return false;
     }
 
@@ -276,6 +306,9 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     known_upper = true;
     upper_bound = new_off;
     upper_bound_var = fir::Use::norm(cond_instr, constant_index);
+  }
+  if constexpr (debug_print) {
+    fmt::println("f");
   }
 
   return true;
@@ -288,109 +321,171 @@ InductionVarAnalysis::_check_if_direct_induct(
     LoopInfo &info) {
   (void)info;
   (void)cfg;
-  // go along usedef chain upwards from the tails and check if argument at
-  // location i always depends on
-  //  the same bbarg in the header + constant or - constant
+
   bool first = true;
-  InductionVar var{fir::ValueR{v},
-                   fir::ConstantValueR{fir::ConstantValueR::invalid()},
-                   IterationType::Other};
-  for (auto &backwards : backwards_jumps) {
-    auto backv = backwards.first->bbs[backwards.second].args[arg_id];
-    if (backv.is_instr() && backv.as_instr()->is(fir::InstrType::BinaryInstr)) {
-      auto i = backv.as_instr();
-      auto subty = (fir::BinaryInstrSubType)i->subtype;
-      if ((subty == fir::BinaryInstrSubType::IntAdd ||
-           subty == fir::BinaryInstrSubType::IntSub) &&
-          i->args[0].is_bb_arg() && i->args[1].is_constant()) {
-        if (i->args[0].as_bb_arg() != v) {
-          return {};
-        }
-        auto new_iter_ty = subty == fir::BinaryInstrSubType::IntAdd
-                               ? IterationType::PlusConst
-                               : IterationType::SubConst;
-        auto new_const = i->args[1].as_constant();
-        if (first) {
-          first = false;
-          var.consti = new_const;
-          var.type = new_iter_ty;
-        } else if (var.consti != new_const || var.type != new_iter_ty) {
-          fmt::println("Failed1 induct {}", v);
-          return {};
-        }
-      }
+  InductionVar var{
+      .def = fir::ValueR{v},
+      .consti = fir::ConstantValueR{fir::ConstantValueR::invalid()},
+      .type = IterationType::Other,
+  };
+
+  for (auto &[term, target_idx] : backwards_jumps) {
+    if (arg_id >= term->bbs[target_idx].args.size()) {
+      continue;
+    }
+    auto backv = term->bbs.at(target_idx).args.at(arg_id);
+
+    if (!backv.is_instr()) {
+      return std::nullopt;
+    }
+
+    auto i = backv.as_instr();
+    if (!i->is(fir::InstrType::BinaryInstr)) {
+      return std::nullopt;
+    }
+
+    auto subty = static_cast<fir::BinaryInstrSubType>(i->subtype);
+
+    if ((subty != fir::BinaryInstrSubType::IntAdd &&
+         subty != fir::BinaryInstrSubType::IntSub) ||
+        (!i->args[0].is_bb_arg() && !i->args[1].is_bb_arg()) ||
+        (!i->args[0].is_constant() && !i->args[1].is_constant())) {
+      return std::nullopt;
+    }
+
+    // Normalize operands: `v +/- c` or `c +/- v` (commutative for Add)
+    fir::ValueR var_arg;
+    fir::ConstantValueR const_arg{fir::ConstantValueR::invalid()};
+    IterationType type = IterationType::Other;
+
+    if (i->args[0].is_bb_arg() && i->args[0].as_bb_arg() == v &&
+        i->args[1].is_constant()) {
+      var_arg = i->args[0];
+      const_arg = i->args[1].as_constant();
+      type = (subty == fir::BinaryInstrSubType::IntAdd)
+                 ? IterationType::PlusConst
+                 : IterationType::SubConst;
+    } else if (subty == fir::BinaryInstrSubType::IntAdd &&
+               i->args[1].is_bb_arg() && i->args[1].as_bb_arg() == v &&
+               i->args[0].is_constant()) {
+      // Commutative Add: allow `c + v`
+      var_arg = i->args[1];
+      const_arg = i->args[0].as_constant();
+      type = IterationType::PlusConst;
     } else {
-      fmt::println("Failed2 induct {}", v);
-      return {};
+      return std::nullopt;
+    }
+
+    if (first) {
+      first = false;
+      var.consti = const_arg;
+      var.type = type;
+    } else {
+      if (!var.consti.is_valid() || !const_arg.is_valid()) {
+        return std::nullopt;
+      }
+
+      if (var.consti->as_int() != const_arg->as_int() || var.type != type) {
+        return std::nullopt;
+      }
     }
   }
+
   return var;
 }
 
 void InductionVarAnalysis::update(CFG &cfg, LoopInfo &info) {
   ZoneScopedN("Induct var UPDATE");
+
   direct_inductvars.clear();
   indirect_inductvars.clear();
 
+  // --- Collect backward jumps for loop header phi analysis ---
   TVec<std::pair<fir::Instr, u32>> backwards_jumps;
+  TSet<u32> body_node_set(info.body_nodes.begin(), info.body_nodes.end());
+
   for (auto tail : info.tails) {
     auto term = cfg.bbrs[tail].bb->get_terminator();
-    auto term_id = 0;
-    for (auto &target_bb : term->bbs) {
-      auto target_bb_id = cfg.get_bb_id(target_bb.bb);
-      if (std::find(info.body_nodes.begin(), info.body_nodes.end(),
-                    target_bb_id) != info.body_nodes.end()) {
-        backwards_jumps.emplace_back(term, term_id);
+    for (u32 i = 0; i < term->bbs.size(); ++i) {
+      const auto &target_bb = term->bbs[i];
+      u32 target_id = cfg.get_bb_id(target_bb.bb);
+      if (body_node_set.contains(target_id)) {
+        backwards_jumps.emplace_back(term, i);
       }
-      term_id++;
     }
   }
 
+  // --- Identify direct induction variables from loop header phi args ---
   auto &header = cfg.bbrs[info.head];
-  u32 arg_id = 0;
-  for (auto arg : header.bb->args) {
+  for (u32 arg_id = 0; arg_id < header.bb->args.size(); ++arg_id) {
+    auto arg = header.bb->args[arg_id];
     if (!arg->get_type()->is_int() && !arg->get_type()->is_ptr()) {
       continue;
     }
+
     if (auto v =
             _check_if_direct_induct(arg, arg_id, backwards_jumps, cfg, info)) {
-      direct_inductvars.push_back(v.value());
+      direct_inductvars.push_back(*v);
     }
-    arg_id++;
   }
 
+  // --- Collect indirect induction variables from BinaryInstrs ---
   TVec<fir::ValueR> worklist;
-  worklist.reserve(direct_inductvars.size() * 2);
-  for (auto i : direct_inductvars) {
-    worklist.push_back(i.def);
+  TSet<fir::ValueR> seen;
+  for (const auto &d : direct_inductvars) {
+    worklist.push_back(d.def);
+    seen.insert(d.def);
   }
+
   while (!worklist.empty()) {
-    auto f = worklist.back();
+    fir::ValueR current = worklist.back();
     worklist.pop_back();
-    for (auto &use : *f.get_uses()) {
-      if (use.user->is(fir::InstrType::BinaryInstr) &&
-          use.type == fir::UseType::NormalArg && use.argId == 0) {
-        if (use.user->args[1].is_constant()) {
-          switch ((fir::BinaryInstrSubType)use.user->subtype) {
-          case fir::BinaryInstrSubType::IntAdd:
-            indirect_inductvars.push_back({fir::ValueR{use.user},
-                                           use.user->args[0], use.user->args[1],
-                                           IterationType::PlusConst});
-            break;
-          case fir::BinaryInstrSubType::IntSub:
-            indirect_inductvars.push_back({fir::ValueR{use.user},
-                                           use.user->args[0], use.user->args[1],
-                                           IterationType::SubConst});
-            break;
-          case fir::BinaryInstrSubType::IntMul:
-            indirect_inductvars.push_back({fir::ValueR{use.user},
-                                           use.user->args[0], use.user->args[1],
-                                           IterationType::MulConst});
-            break;
-          default:
-            break;
-          }
-        }
+
+    auto *uses = current.get_uses();
+    if (uses == nullptr) {
+      continue;
+    }
+
+    for (const auto &use : *uses) {
+      auto user = use.user;
+
+      // Only consider binary operations on normal arg0
+      if (!user->is(fir::InstrType::BinaryInstr) ||
+          use.type != fir::UseType::NormalArg || use.argId != 0) {
+        continue;
+      }
+
+      // Check second arg is constant
+      const auto &rhs = user->args[1];
+      if (!rhs.is_constant()) {
+        continue;
+      }
+
+      auto subtype = static_cast<fir::BinaryInstrSubType>(user->subtype);
+      IterationType itype = IterationType::Other;
+
+      switch (subtype) {
+      case fir::BinaryInstrSubType::IntAdd:
+        itype = IterationType::PlusConst;
+        break;
+      case fir::BinaryInstrSubType::IntSub:
+        itype = IterationType::SubConst;
+        break;
+      case fir::BinaryInstrSubType::IntMul:
+        itype = IterationType::MulConst;
+        break;
+      default:
+        continue;
+      }
+
+      fir::ValueR result{user};
+      if (!seen.contains(result)) {
+        indirect_inductvars.push_back({.def = result,
+                                       .arg1 = user->args[0],
+                                       .arg2 = user->args[1],
+                                       .type = itype});
+        worklist.push_back(result);
+        seen.insert(result);
       }
     }
   }
@@ -434,4 +529,301 @@ void InductionVarAnalysis::dump() const {
   }
 }
 
+namespace {
+std::optional<i128> get_constant(fir::ValueR v) {
+  return v.is_constant() ? std::optional{i128(v.as_constant()->as_int())}
+                         : std::nullopt;
+}
+
+std::optional<InductionVarAnalysis::InductionVar>
+resolve_base_induction(const fir::ValueR &v, const InductionVarAnalysis &ianal,
+                       i128 &acc_offset) {
+  auto current = std::ranges::find_if(
+      ianal.indirect_inductvars, [&](const auto &iv) { return iv.def == v; });
+
+  if (current != ianal.indirect_inductvars.end() ||
+      ((current->type != InductionVarAnalysis::PlusConst &&
+        current->type != InductionVarAnalysis::SubConst) ||
+       !current->arg2.is_constant())) {
+    return {};
+  }
+
+  while (current != ianal.indirect_inductvars.end()) {
+    i128 delta = current->arg2.as_constant()->as_int();
+    if (current->type == InductionVarAnalysis::PlusConst) {
+      acc_offset += delta;
+    } else if (current->type == InductionVarAnalysis::SubConst) {
+      acc_offset -= delta;
+    }
+
+    const auto &parent_v = current->arg1;
+
+    auto neww =
+        std::ranges::find_if(ianal.indirect_inductvars, [&](const auto &iv) {
+          return iv.def == parent_v &&
+                 (iv.type == InductionVarAnalysis::PlusConst ||
+                  iv.type == InductionVarAnalysis::SubConst) &&
+                 iv.arg2.is_constant();
+        });
+    if (neww == ianal.indirect_inductvars.end()) {
+      break;
+    }
+    current = neww;
+  }
+
+  auto base =
+      std::ranges::find_if(ianal.direct_inductvars, [&](const auto &dv) {
+        return dv.def == current->arg1;
+      });
+
+  if (base != ianal.direct_inductvars.end()) {
+    return *base;
+  }
+
+  return std::nullopt;
+}
+} // namespace
+
+void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
+                                       InductionVarAnalysis &ianal) {
+  info.clear();
+
+  TSet<fir::BasicBlock> loop_bbs;
+  loop_bbs.reserve(linfo.body_nodes.size());
+  for (auto node : linfo.body_nodes) {
+    loop_bbs.insert(cfg.bbrs[node].bb);
+  }
+
+  for (auto leav : linfo.leaving_nodes) {
+    auto &lbb = cfg.bbrs[leav];
+    if (lbb.succ.size() != 2) {
+      continue;
+    }
+
+    auto term = lbb.bb->get_terminator();
+    fir::BasicBlock out_bb = term->bbs[1].bb;
+    if (loop_bbs.contains(out_bb)) {
+      continue;
+    }
+
+    auto condv = term->args[0];
+    if (!condv.is_instr()) {
+      continue;
+    }
+
+    auto cond = condv.as_instr();
+    if (!cond->is(fir::InstrType::ICmp)) {
+      continue;
+    }
+
+    auto subtype = static_cast<fir::ICmpInstrSubType>(cond->subtype);
+    bool is_leq_type = subtype == fir::ICmpInstrSubType::SLE ||
+                       subtype == fir::ICmpInstrSubType::ULE;
+    bool is_lt_type = subtype == fir::ICmpInstrSubType::SLT ||
+                      subtype == fir::ICmpInstrSubType::ULT;
+
+    if (!is_leq_type && !is_lt_type) {
+      continue;
+    }
+
+    const fir::ValueR &induct_candidate = cond->args[0];
+    const fir::ValueR &limit_candidate = cond->args[1];
+
+    auto cmp_val_opt = get_constant(limit_candidate);
+    if (!cmp_val_opt) {
+      continue;
+    }
+
+    i128 cmp_val = *cmp_val_opt;
+    i128 offset = 0;
+
+    auto base_induct_opt =
+        resolve_base_induction(induct_candidate, ianal, offset);
+
+    if (!base_induct_opt.has_value()) {
+      continue;
+    }
+
+    const auto &base_induct = base_induct_opt.value();
+
+    if (base_induct.type != InductionVarAnalysis::PlusConst) {
+      continue;
+    }
+
+    if (!base_induct.consti->is_int() || base_induct.consti->as_int() != 1) {
+      continue;
+    }
+
+    i128 base_val = cmp_val + (is_leq_type ? 1 : 0);
+    TMap<fir::ValueR, i128> values;
+    values.insert({base_induct.def, base_val});
+    values.insert({induct_candidate, base_val + offset});
+
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (const auto &iv : ianal.indirect_inductvars) {
+        // skip if already computed
+        if (values.contains(iv.def)) {
+          continue;
+        }
+
+        std::optional<i128> val1;
+        std::optional<i128> val2;
+
+        if (auto c1 = get_constant(iv.arg1); c1.has_value()) {
+          val1 = c1;
+        } else if (auto it = values.find(iv.arg1); it != values.end()) {
+          val1 = it->second;
+        }
+
+        if (auto c2 = get_constant(iv.arg2); c2.has_value()) {
+          val2 = c2;
+        } else if (auto it = values.find(iv.arg2); it != values.end()) {
+          val2 = it->second;
+        }
+
+        if (val1.has_value() && val2.has_value()) {
+          i128 result;
+          switch (iv.type) {
+          case InductionVarAnalysis::PlusConst:
+            result = *val1 + *val2;
+            break;
+          case InductionVarAnalysis::SubConst:
+            result = *val1 - *val2;
+            break;
+          case InductionVarAnalysis::MulConst:
+            result = *val1 * *val2;
+            break;
+          default:
+            continue;
+          }
+          values.insert({iv.def, result});
+          changed = true;
+        }
+      }
+    }
+
+    info.push_back(EndInfo{
+        .from_bb = lbb.bb,
+        .to_bb = out_bb,
+        .values = std::move(values),
+    });
+  }
+}
+
+// void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
+//                                        InductionVarAnalysis &ianal) {
+//   info.clear();
+//   TSet<fir::BasicBlock> loop_bbs{};
+//   loop_bbs.reserve(linfo.body_nodes.size());
+//   for (auto v : linfo.body_nodes) {
+//     loop_bbs.insert(cfg.bbrs[v].bb);
+//   }
+//   // just doing 1 leaving node for now
+//   for (auto leav : linfo.leaving_nodes) {
+//     auto &lbb = cfg.bbrs[leav];
+//     if (lbb.succ.size() != 2) {
+//       continue;
+//     }
+//     auto term = lbb.bb->get_terminator();
+//     // TODO: make it handle both
+//     if (loop_bbs.contains(term->bbs[1].bb)) {
+//       continue;
+//     }
+//     auto condv = term->args[0];
+//     if (!condv.is_instr()) {
+//       continue;
+//     }
+//     auto cond = condv.as_instr();
+//     if (!cond->is(fir::InstrType::ICmp)) {
+//       continue;
+//     }
+//     bool cond_on_equal = cond->subtype == (u32)fir::ICmpInstrSubType::ULE ||
+//                          cond->subtype == (u32)fir::ICmpInstrSubType::SLE;
+//     if (!cond_on_equal && cond->subtype != (u32)fir::ICmpInstrSubType::SLT &&
+//         cond->subtype != (u32)fir::ICmpInstrSubType::ULT) {
+//       continue;
+//     }
+//     // arg1 cannot be modified in the loop
+//     // TODO: technically we could haveo thervals here aswell
+//     if (!cond->args[1].is_constant()) {
+//       continue;
+//     }
+//     auto condition_val = cond->args[1].as_constant();
+//     auto induct_used_iter =
+//         std::ranges::find_if(ianal.indirect_inductvars, [&](const auto &a) {
+//           return a.def == cond->args[0];
+//         });
+//     if (induct_used_iter == ianal.indirect_inductvars.end()) {
+//       continue;
+//     }
+//     auto &induct_used = *induct_used_iter;
+//     if (induct_used.type != InductionVarAnalysis::PlusConst ||
+//         !induct_used.arg2.is_constant()) {
+//       continue;
+//     }
+
+//     i128 offset_of_base_induct_var = 0;
+//     auto parent_var = induct_used_iter;
+//     while (true) {
+//       offset_of_base_induct_var += parent_var->arg2.as_constant()->as_int();
+//       auto new_var = std::ranges::find_if(
+//           ianal.indirect_inductvars,
+//           [&](const InductionVarAnalysis::IInductionVar &v) {
+//             return v.type == InductionVarAnalysis::PlusConst &&
+//                    v.def == parent_var->arg1;
+//           });
+//       if (new_var == ianal.indirect_inductvars.end()) {
+//         break;
+//       }
+//       parent_var = new_var;
+//     }
+//     auto base_induct_var =
+//         std::ranges::find_if(ianal.direct_inductvars,
+//                              [&](const InductionVarAnalysis::InductionVar &v)
+//                              {
+//                                return v.def == parent_var->arg1;
+//                              });
+//     if (base_induct_var == ianal.direct_inductvars.end() ||
+//         base_induct_var->type != InductionVarAnalysis::PlusConst ||
+//         // for checking != 1 we could also check if we know start value and
+//         end
+//         // value and step value it should be end+(end - start)%step
+//         base_induct_var->consti->as_int() != 1) {
+//       continue;
+//     }
+
+//     auto base_value = condition_val->as_int() + (cond_on_equal ? 1 : 0);
+//     TMap<fir::ValueR, i128> known_values;
+//     known_values.insert({base_induct_var->def, base_value});
+//     known_values.insert(
+//         {induct_used.def, base_value + offset_of_base_induct_var});
+
+//     TMap<fir::ValueR, i128> values;
+//     values.insert({induct_used.def, condition_val->as_int()});
+//     values.insert({base_induct_var->def,
+//                    condition_val->as_int() - offset_of_base_induct_var});
+
+//     info.push_back(EndInfo{
+//         .from_bb = lbb.bb,
+//         .to_bb = term->bbs[1].bb,
+//         .values = values,
+//     });
+
+//     // fmt::println("{}", base_induct_var->def);
+//     // fmt::println("{}", offset_of_base_induct_var);
+//     // fmt::println("{}", lbb.bb);
+//   }
+// }
+
+void InductionEndValueAnalysis::dump() {
+  fmt::println("Known Ends:");
+  for (const auto &i : info) {
+    fmt::println("@ {}=>{}:", i.from_bb, i.to_bb);
+    for (const auto &[b, v] : i.values) {
+      fmt::println("  {}: {}", b, v);
+    }
+  }
+}
 } // namespace foptim::optim

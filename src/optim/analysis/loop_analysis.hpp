@@ -1,5 +1,6 @@
 #pragma once
 #include "ir/basic_block_arg.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -85,6 +86,23 @@ public:
   InductionVarAnalysis(CFG &cfg, LoopInfo &info) { update(cfg, info); }
   void update(CFG &cfg, LoopInfo &info);
   void dump() const;
+};
+
+class InductionEndValueAnalysis {
+public:
+  struct EndInfo {
+    fir::BasicBlock from_bb;
+    fir::BasicBlock to_bb;
+    TMap<fir::ValueR, i128> values;
+  };
+
+  TVec<EndInfo> info;
+  InductionEndValueAnalysis(CFG &cfg, LoopInfo &info,
+                            InductionVarAnalysis &ianal) {
+    update(cfg, info, ianal);
+  };
+  void update(CFG &cfg, LoopInfo &info, InductionVarAnalysis &ianal);
+  void dump();
 };
 
 } // namespace foptim::optim
