@@ -215,7 +215,7 @@ public:
     if (iranal.info.empty()) {
       return false;
     }
-    iranal.dump();
+    // iranal.dump();
     bool modified = false;
     for (auto v : iranal.info) {
       auto term = v.from_bb->get_terminator();
