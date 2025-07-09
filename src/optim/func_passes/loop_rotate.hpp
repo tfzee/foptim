@@ -81,7 +81,7 @@ public:
   bool apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     // only if the header is the only exiting node
     if (linfo.leaving_nodes.size() == 0) {
-      linfo.dump();
+      // linfo.dump();
       failure({.reason = "No leaving node ", .loc = {cfg.bbrs[linfo.head].bb}});
       return false;
     }

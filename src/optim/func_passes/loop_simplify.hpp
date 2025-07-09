@@ -160,7 +160,6 @@ public:
           keep = i1;
           repl = i2;
         }
-        fmt::println("okaaaa");
 
         auto keepes = cfg.bbrs[loop.head].bb->get_arg_id(
             ianal.direct_inductvars[keep].def.as_bb_arg());
@@ -210,12 +209,10 @@ public:
     if (ianal.direct_inductvars.empty() && ianal.indirect_inductvars.empty()) {
       return false;
     }
-    ianal.dump();
     InductionEndValueAnalysis iranal{cfg, loops.info[loop_i], ianal};
     if (iranal.info.empty()) {
       return false;
     }
-    // iranal.dump();
     bool modified = false;
     for (auto v : iranal.info) {
       auto term = v.from_bb->get_terminator();

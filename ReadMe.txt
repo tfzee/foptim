@@ -13,6 +13,8 @@ Simple optimizing backend
 + 2 allocas without overlapping lifetimes could be merged to use same stack space
 + Add a proper compiler driver
 	+ Maybe allow passes to register compiler driver arguments
++ optimize sdiv
+	+ can convert into imul shifts and add 
 + convert final fir legalization maybe into dedicated step with match style?
 + verification
 + serialize
