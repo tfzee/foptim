@@ -2116,6 +2116,35 @@ void base_patterns(IRVec<Pattern> &pats) {
         case fir::ConversionSubType::INVALID:
           UNREACH();
         case fir::ConversionSubType::FPTOUI:
+          if (get_size(res_reg.ty) == 8) {
+            // _Z4testv:
+            //         vmovsd/vmovss     hF64, Input
+            //         cvttsd2si/cttss2s1 h64, hF64
+            //         mov       g64, h64
+            //         subsd     hF64, hF64, 0x43e0000000000000
+            //         cvttsd2si res, hF64
+            //         sar       g64, 63
+            //         and       res, g64
+            //         or        res, h64
+            auto doub = get_size(val.ty) == 64;
+            auto reg_ty = val.ty;
+            auto hf = MArgument(data.alloc.get_new_register(reg_ty), reg_ty);
+            auto h64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                 Type::Int64);
+            auto g64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                 Type::Int64);
+            res.result.emplace_back(Opcode::mov, hf, val);
+            res.result.emplace_back(Opcode::FL2SI, h64, hf);
+            res.result.emplace_back(Opcode::mov, g64, h64);
+            res.result.emplace_back(
+                Opcode::vsub, hf, hf,
+                MArgument(doub ? (f64)0x43e0000000000000 : (f64)0x5f000000));
+            res.result.emplace_back(Opcode::FL2SI, res_reg, hf);
+            res.result.emplace_back(Opcode::sar2, g64, MArgument((u8)63));
+            res.result.emplace_back(Opcode::land2, res_reg, g64);
+            res.result.emplace_back(Opcode::lor2, res_reg, h64);
+            return true;
+          }
           res_opcode = Opcode::FL2UI;
           break;
         case fir::ConversionSubType::FPTOSI:
