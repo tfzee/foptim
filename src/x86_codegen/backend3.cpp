@@ -1662,9 +1662,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
 
     req.mnemonic =
-        is_f32
-            ? (!out_64 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTSS2SI)
-            : (!out_64 ? ZYDIS_MNEMONIC_VCVTTSD2SI : ZYDIS_MNEMONIC_VCVTSD2SI);
+        is_f32 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTTSD2SI;
     if (out_32 && is_unsigned) {
       req.operands[0].reg.value =
           reg_with_type(instr.args[0].reg, fmir::Type::Int64);
