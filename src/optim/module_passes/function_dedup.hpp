@@ -6,6 +6,7 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
+#include "utils/stats.hpp"
 #include <fmt/core.h>
 
 #include <algorithm>
@@ -305,7 +306,7 @@ inline bool merge_functions(MergableGroup &group, fir::Context &ctx) {
   return true;
 }
 
-class FunctionDeDup final : public ModulePass {
+template <bool onlySame> class FunctionDeDup final : public ModulePass {
 public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("FunctionDeDup");
@@ -342,6 +343,11 @@ public:
 
         if (!check_match(f1, f2, local_value_map, difference_values)) {
           continue;
+        }
+        if constexpr (onlySame) {
+          if (!difference_values.empty()) {
+            continue;
+          }
         }
 
         // TODO: heuristic
@@ -386,8 +392,16 @@ public:
       auto &g = groups[g_id];
       if (g.diffs.size() == 0 && g.funcs.size() > 1) {
         fir::Function *target = g.funcs.back();
-        // only works if the target one is not linkOnceODR
-        if (target->linkage != fir::Linkage::Internal) {
+        for (u32 i = 0; i < g.funcs.size(); i++) {
+          target = g.funcs[i];
+          if (target->linkage != fir::Linkage::Internal &&
+              target->linkage != fir::Linkage::LinkOnceODR) {
+            continue;
+          }
+          break;
+        }
+        if (target->linkage != fir::Linkage::Internal &&
+            target->linkage != fir::Linkage::LinkOnceODR) {
           continue;
         }
         for (auto f2 = g.funcs.begin(); f2 != std::prev(g.funcs.end()); f2++) {
@@ -410,6 +424,8 @@ public:
             }
           }
         }
+        utils::StatCollector::get().addi(
+            1, "funcDedup0Diff", utils::StatCollector::StatType::StatFOptim);
         groups.erase(groups.begin() + g_id);
         g_id--;
       }
@@ -436,6 +452,8 @@ public:
         if (!merge_functions(curr, ctx)) {
           continue;
         }
+        utils::StatCollector::get().addi(
+            1, "funcDedup", utils::StatCollector::StatType::StatFOptim);
         // clena up from other groups by removing f2
         for (size_t g2_id = 0; g2_id + 1 < groups.size(); g2_id++) {
           for (auto f2 = curr.funcs.begin(); f2 != std::prev(curr.funcs.end());

@@ -515,6 +515,12 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     if (c_val->is_int() &&
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
       auto val = c_val->as_int();
+      if (val == 0) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.destroy();
+        return;
+      }
       auto bit_width = instr->get_type()->as_int();
       u64 all_one_mask = ~0;
       if (bit_width < 64) {
@@ -533,15 +539,6 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       if (c_val->as_int() == 0) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
-        instr.destroy();
-        return;
-      }
-    }
-    if (c_val->is_int() &&
-        instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
-      if (c_val->as_int() == 0) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(instr->args[v_idx]);
         instr.destroy();
         return;
       }
@@ -967,6 +964,15 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
          sub_type == ICmpInstrSubType::NE) &&
         instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
+      if (arg0->is(InstrType::BinaryInstr) &&
+          arg0->subtype == (u32)BinaryInstrSubType::IntSub && c_val == 0) {
+        fir::Builder b{instr};
+        auto new_cmp = b.build_int_cmp(arg0->args[0], arg0->args[1], sub_type);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_cmp);
+        instr.destroy();
+        return;
+      }
       if (arg0->get_type()->as_int() == 1 && c_val == 0) {
         bool needs_negation = sub_type == ICmpInstrSubType::EQ;
         if (needs_negation) {
@@ -1029,108 +1035,133 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     }
   }
 
+  if (instr->args[0].is_instr()) {
+    auto a1i = instr->args[0].as_instr();
+    if (a1i->is(InstrType::BinaryInstr) &&
+        a1i->subtype == (u32)BinaryInstrSubType::And &&
+        a1i->args[1].is_constant()) {
+      auto const_and = a1i->args[1].as_constant()->as_int();
+      // could also check <= and insert a itrunc previously
+      for (auto amount : {8, 16, 32}) {
+        if (const_and == (1UL << amount) - 1) {
+          fir::Builder b{instr};
+          auto truncated_val =
+              b.build_itrunc(a1i->args[0], ctx->get_int_type(amount));
+          worklist.push_back({truncated_val.as_instr(),
+                              truncated_val.as_instr()->get_parent()});
+          instr.replace_arg(0, truncated_val);
+          auto truncated_o =
+              b.build_itrunc(instr->args[1], ctx->get_int_type(amount));
+          worklist.push_back(
+              {truncated_o.as_instr(), truncated_o.as_instr()->get_parent()});
+          instr.replace_arg(1, truncated_o);
+          return;
+        }
+      }
+    }
+  }
+
   auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
-
-  if (sub_type == ICmpInstrSubType::UGT || sub_type == ICmpInstrSubType::UGE ||
-      sub_type == ICmpInstrSubType::ULT || sub_type == ICmpInstrSubType::ULE) {
+  {
     const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
     const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
     man.run();
-    bool evals_to_true = false;
-    bool evals_to_false = false;
-    if (sub_type == ICmpInstrSubType::UGT) {
-      evals_to_true =
-          bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
-      evals_to_false =
-          bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
-    } else if (sub_type == ICmpInstrSubType::UGE) {
-      evals_to_true =
-          bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
-      evals_to_false =
-          bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
-    } else if (sub_type == ICmpInstrSubType::ULT) {
-      evals_to_true =
-          bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
-      evals_to_false =
-          bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
-    } else if (sub_type == ICmpInstrSubType::ULE) {
-      evals_to_true =
-          bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
-      evals_to_false =
-          bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
+    if (sub_type == ICmpInstrSubType::UGT ||
+        sub_type == ICmpInstrSubType::UGE ||
+        sub_type == ICmpInstrSubType::ULT ||
+        sub_type == ICmpInstrSubType::ULE) {
+      bool evals_to_true = false;
+      bool evals_to_false = false;
+      if (sub_type == ICmpInstrSubType::UGT) {
+        evals_to_true =
+            bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
+        evals_to_false =
+            bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
+      } else if (sub_type == ICmpInstrSubType::UGE) {
+        evals_to_true =
+            bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
+        evals_to_false =
+            bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
+      } else if (sub_type == ICmpInstrSubType::ULT) {
+        evals_to_true =
+            bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
+        evals_to_false =
+            bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
+      } else if (sub_type == ICmpInstrSubType::ULE) {
+        evals_to_true =
+            bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
+        evals_to_false =
+            bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
+      }
+
+      ASSERT(!evals_to_false || !evals_to_true);
+      if (evals_to_true || evals_to_false) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
+        instr.destroy();
+        return;
+      }
     }
 
-    ASSERT(!evals_to_false || !evals_to_true);
-    if (evals_to_true || evals_to_false) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
-      instr.destroy();
-      return;
-    }
-  }
+    if (sub_type == ICmpInstrSubType::SGT ||
+        sub_type == ICmpInstrSubType::SGE ||
+        sub_type == ICmpInstrSubType::SLT ||
+        sub_type == ICmpInstrSubType::SLE) {
+      bool evals_to_true = false;
+      bool evals_to_false = false;
+      if (sub_type == ICmpInstrSubType::SGT) {
+        evals_to_true =
+            bits1->get_signed_min_value() > bits2->get_signed_max_value();
+        evals_to_false =
+            bits1->get_signed_max_value() <= bits2->get_signed_min_value();
+      } else if (sub_type == ICmpInstrSubType::SGE) {
+        evals_to_true =
+            bits1->get_signed_min_value() >= bits2->get_signed_max_value();
+        evals_to_false =
+            bits1->get_signed_max_value() < bits2->get_signed_min_value();
+      } else if (sub_type == ICmpInstrSubType::SLT) {
+        evals_to_true =
+            bits1->get_signed_max_value() < bits2->get_signed_min_value();
+        evals_to_false =
+            bits1->get_signed_min_value() >= bits2->get_signed_max_value();
+      } else if (sub_type == ICmpInstrSubType::SLE) {
+        evals_to_true =
+            bits1->get_signed_max_value() <= bits2->get_signed_min_value();
+        evals_to_false =
+            bits1->get_signed_min_value() > bits2->get_signed_max_value();
+      }
 
-  if (sub_type == ICmpInstrSubType::SGT || sub_type == ICmpInstrSubType::SGE ||
-      sub_type == ICmpInstrSubType::SLT || sub_type == ICmpInstrSubType::SLE) {
-    const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
-    const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
-    man.run();
-    bool evals_to_true = false;
-    bool evals_to_false = false;
-    if (sub_type == ICmpInstrSubType::SGT) {
-      evals_to_true =
-          bits1->get_signed_min_value() > bits2->get_signed_max_value();
-      evals_to_false =
-          bits1->get_signed_max_value() <= bits2->get_signed_min_value();
-    } else if (sub_type == ICmpInstrSubType::SGE) {
-      evals_to_true =
-          bits1->get_signed_min_value() >= bits2->get_signed_max_value();
-      evals_to_false =
-          bits1->get_signed_max_value() < bits2->get_signed_min_value();
-    } else if (sub_type == ICmpInstrSubType::SLT) {
-      evals_to_true =
-          bits1->get_signed_max_value() < bits2->get_signed_min_value();
-      evals_to_false =
-          bits1->get_signed_min_value() >= bits2->get_signed_max_value();
-    } else if (sub_type == ICmpInstrSubType::SLE) {
-      evals_to_true =
-          bits1->get_signed_max_value() <= bits2->get_signed_min_value();
-      evals_to_false =
-          bits1->get_signed_min_value() > bits2->get_signed_max_value();
+      ASSERT(!evals_to_false || !evals_to_true);
+      if (evals_to_true || evals_to_false) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
+        instr.destroy();
+        return;
+      }
     }
 
-    ASSERT(!evals_to_false || !evals_to_true);
-    if (evals_to_true || evals_to_false) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
-      instr.destroy();
-      return;
-    }
-  }
+    if (sub_type == ICmpInstrSubType::EQ || sub_type == ICmpInstrSubType::NE) {
+      bool evals_to_true = false;
+      bool evals_to_false = false;
+      if (sub_type == ICmpInstrSubType::EQ) {
+        evals_to_false = (bits1->known_one & bits2->known_zero) != 0 ||
+                         (bits1->known_zero & bits2->known_one) != 0;
+      } else if (sub_type == ICmpInstrSubType::NE) {
+        evals_to_true = (bits1->known_one & bits2->known_zero) != 0 ||
+                        (bits1->known_zero & bits2->known_one) != 0;
+      }
+      (void)evals_to_false;
+      (void)evals_to_true;
 
-  if (sub_type == ICmpInstrSubType::EQ || sub_type == ICmpInstrSubType::NE) {
-    const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
-    const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
-    man.run();
-    bool evals_to_true = false;
-    bool evals_to_false = false;
-    if (sub_type == ICmpInstrSubType::EQ) {
-      evals_to_false = (bits1->known_one & bits2->known_zero) != 0 ||
-                       (bits1->known_zero & bits2->known_one) != 0;
-    } else if (sub_type == ICmpInstrSubType::NE) {
-      evals_to_true = (bits1->known_one & bits2->known_zero) != 0 ||
-                      (bits1->known_zero & bits2->known_one) != 0;
-    }
-    (void)evals_to_false;
-    (void)evals_to_true;
-
-    if (evals_to_true || evals_to_false) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
-      instr.destroy();
-      return;
+      if (evals_to_true || evals_to_false) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
+        instr.destroy();
+        return;
+      }
     }
   }
 
