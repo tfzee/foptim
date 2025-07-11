@@ -565,57 +565,57 @@ public:
         failure({.reason = "Impl icmp on non ints", .loc = instr});
         return ConstantValue::Bottom();
       }
+      auto bit_width = std::max(instr->args[0].get_type()->as_int(),
+                                instr->args[1].get_type()->as_int());
+      auto mask = ((i128)1 << bit_width) - 1;
+      auto rest_width = (128 - bit_width);
 
+      auto a_val = ((a.value->as_int() & mask) << rest_width) >> rest_width;
+      auto b_val = ((b.value->as_int() & mask) << rest_width) >> rest_width;
       switch ((fir::ICmpInstrSubType)instr->get_instr_subtype()) {
       case fir::ICmpInstrSubType::INVALID:
         UNREACH();
         break;
       case fir::ICmpInstrSubType::NE:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(a.value->as_int() != b.value->as_int()),
-            res_type));
+            static_cast<u64>(a_val != b_val), res_type));
       case fir::ICmpInstrSubType::EQ:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(a.value->as_int() == b.value->as_int()),
-            res_type));
+            static_cast<u64>(a_val == b_val), res_type));
       case fir::ICmpInstrSubType::SLT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>((i64)a.value->as_int() < (i64)b.value->as_int()),
-            res_type));
+            static_cast<u64>((i64)a_val < (i64)b_val), res_type));
       case fir::ICmpInstrSubType::ULT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) <
-                             std::bit_cast<u64>((i64)b.value->as_int())),
+            static_cast<u64>(std::bit_cast<u64>((i64)a_val) <
+                             std::bit_cast<u64>((i64)b_val)),
             res_type));
       case fir::ICmpInstrSubType::SGT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>((i64)a.value->as_int() > (i64)b.value->as_int()),
-            res_type));
+            static_cast<u64>((i64)a_val > (i64)b_val), res_type));
       case fir::ICmpInstrSubType::UGT:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) >
-                             std::bit_cast<u64>((i64)b.value->as_int())),
+            static_cast<u64>(std::bit_cast<u64>((i64)a_val) >
+                             std::bit_cast<u64>((i64)b_val)),
             res_type));
       case fir::ICmpInstrSubType::UGE:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) >=
-                             std::bit_cast<u64>((i64)b.value->as_int())),
+            static_cast<u64>(std::bit_cast<u64>((i64)a_val) >=
+                             std::bit_cast<u64>((i64)b_val)),
             res_type));
       case fir::ICmpInstrSubType::ULE:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>(std::bit_cast<u64>((i64)a.value->as_int()) <=
-                             std::bit_cast<u64>((i64)b.value->as_int())),
+            static_cast<u64>(std::bit_cast<u64>((i64)a_val) <=
+                             std::bit_cast<u64>((i64)b_val)),
             res_type));
       case fir::ICmpInstrSubType::SGE:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>((i64)a.value->as_int() >= (i64)b.value->as_int()),
-            res_type));
+            static_cast<u64>((i64)a_val >= (i64)b_val), res_type));
       case fir::ICmpInstrSubType::SLE:
         return ConstantValue::Constant(ctx->get_constant_value(
-            static_cast<u64>((i64)a.value->as_int() <= (i64)b.value->as_int()),
-            res_type));
+            static_cast<u64>((i64)a_val <= (i64)b_val), res_type));
       case fir::ICmpInstrSubType::MulOverflow: {
-        i128 output = a.value->as_int() * b.value->as_int();
+        i128 output = a_val * b_val;
         auto bitwidth =
             std::max(a.value->type->as_int(), b.value->type->as_int());
         i128 mask = ~(((i128)1 << bitwidth) - 1);
@@ -623,7 +623,7 @@ public:
             ctx->get_constant_value((u64)((output & mask) != 0), res_type));
       }
       case fir::ICmpInstrSubType::AddOverflow: {
-        i128 output = a.value->as_int() + b.value->as_int();
+        i128 output = a_val + b_val;
         auto bitwidth =
             std::max(a.value->type->as_int(), b.value->type->as_int());
         i128 mask = ~(((i128)1 << bitwidth) - 1);

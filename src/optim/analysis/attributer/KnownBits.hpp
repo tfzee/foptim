@@ -323,6 +323,13 @@ public:
       fmt::println("BITS KNOWN {}", *this);
       fmt::println("TODO: ATTRIB KNOWN BITS {}", associatedValue.as_instr());
     }
+
+    // mask the result
+    auto bitwidth = associatedValue.get_type()->get_bitwidth();
+    auto mask = ((u64)1 << bitwidth) - 1;
+    new_known_one &= mask;
+    new_known_zero &= mask;
+
     if (new_known_one != known_one || new_known_zero != known_zero) {
       ASSERT((new_known_zero & new_known_one) == 0);
       known_zero = new_known_zero;
@@ -366,6 +373,14 @@ public:
     case fir::ConstantType::ConstantStruct:
       break;
     }
+
+    // mask the result
+    // TODO: should known zero just be filled up the top bits??
+    // nice english
+    auto bitwidth = associatedValue.get_type()->get_bitwidth();
+    auto mask = ((u64)1 << bitwidth) - 1;
+    new_known_one &= mask;
+    new_known_zero &= mask;
 
     if (new_known_one != known_one || new_known_zero != known_zero) {
       known_zero = new_known_zero;
@@ -419,26 +434,30 @@ public:
     auto msb = msb_info();
     // set all bits that can be one to one
     u64 result = ~known_zero;
+    auto size = associatedValue.get_type()->get_bitwidth();
     if (msb == KnownZero || msb == Unknown) {
       // but mask out the msb to 0 if it could be 0 since that will be a
       // positive ie greater number
-      auto size = associatedValue.get_type()->get_size() * 8;
       ASSERT(size <= 64);
-      u64 msb_mask = 0x1 << (size - 1);
+      u64 msb_mask = (u64)1 << (size - 1);
       result &= ~msb_mask;
     }
-    return std::bit_cast<i64>(result);
+    u64 mask = (u64)(((u128)1 << size) - 1);
+    i64 masked_result = (i64)(result & mask) << (64 - size) >> (64 - size);
+    return masked_result;
   }
   [[nodiscard]] i64 get_signed_min_value() const {
     auto msb = msb_info();
     auto result = known_one;
+    auto size = associatedValue.get_type()->get_bitwidth();
     if (msb == Unknown) {
-      auto size = associatedValue.get_type()->get_size() * 8;
       ASSERT(size <= 64);
       u64 msb_mask = 0x1 << (size - 1);
       result |= msb_mask;
     }
-    return std::bit_cast<i64>(result);
+    u64 mask = (u64)(((u128)1 << size) - 1);
+    i64 masked_result = (i64)(result & mask) << (64 - size) >> (64 - size);
+    return masked_result;
   }
 };
 

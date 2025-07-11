@@ -803,6 +803,11 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       TODO("IMPL");
     }
 
+    auto bitwidth = std::max(c1->type->as_int(), c2->type->as_int());
+    auto mask = ((i128)1 << bitwidth) - 1;
+    auto rest_width = (128 - bitwidth);
+    v1 = ((v1 & mask) << rest_width) >> rest_width;
+    v2 = ((v2 & mask) << rest_width) >> rest_width;
     bool is_true = false;
     switch ((ICmpInstrSubType)instr->get_instr_subtype()) {
     case fir::ICmpInstrSubType::INVALID:
@@ -839,19 +844,17 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       break;
     case fir::ICmpInstrSubType::MulOverflow: {
       i128 output = v1 * v2;
-      auto bitwidth = std::max(c1->type->as_int(), c2->type->as_int());
       i128 mask = ~(((i128)1 << bitwidth) - 1);
       is_true = (output & mask) != 0;
     } break;
 
     case fir::ICmpInstrSubType::AddOverflow: {
       i128 output = v1 + v2;
-      auto bitwidth = std::max(c1->type->as_int(), c2->type->as_int());
       i128 mask = ~(((i128)1 << bitwidth) - 1);
       is_true = (output & mask) != 0;
     } break;
     }
-    auto new_const_value = ctx->get_constant_int((u64)is_true, 8);
+    auto new_const_value = ctx->get_constant_int((u64)is_true, 1);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
     instr.destroy();
@@ -1152,8 +1155,6 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         evals_to_true = (bits1->known_one & bits2->known_zero) != 0 ||
                         (bits1->known_zero & bits2->known_one) != 0;
       }
-      (void)evals_to_false;
-      (void)evals_to_true;
 
       if (evals_to_true || evals_to_false) {
         push_all_uses(worklist, instr);
@@ -1722,37 +1723,16 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto i_arg1 = arg_i->args[1];
       fir::Builder b{instr};
       switch ((fir::BinaryInstrSubType)arg_i->subtype) {
+      case fir::BinaryInstrSubType::Xor:
+      case fir::BinaryInstrSubType::And:
+      case fir::BinaryInstrSubType::Or:
+      case fir::BinaryInstrSubType::IntSub:
+      case fir::BinaryInstrSubType::IntMul:
       case fir::BinaryInstrSubType::IntAdd: {
         auto v0 = b.build_itrunc(i_arg0, out_type);
         auto v1 = b.build_itrunc(i_arg1, out_type);
-        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::IntAdd);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return;
-      }
-      case fir::BinaryInstrSubType::Xor: {
-        auto v0 = b.build_itrunc(i_arg0, out_type);
-        auto v1 = b.build_itrunc(i_arg1, out_type);
-        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::Xor);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return;
-      }
-      case fir::BinaryInstrSubType::And: {
-        auto v0 = b.build_itrunc(i_arg0, out_type);
-        auto v1 = b.build_itrunc(i_arg1, out_type);
-        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::And);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return;
-      }
-      case fir::BinaryInstrSubType::Or: {
-        auto v0 = b.build_itrunc(i_arg0, out_type);
-        auto v1 = b.build_itrunc(i_arg1, out_type);
-        auto r = b.build_binary_op(v0, v1, fir::BinaryInstrSubType::Or);
+        auto r =
+            b.build_binary_op(v0, v1, (fir::BinaryInstrSubType)arg_i->subtype);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(r);
         instr.destroy();
