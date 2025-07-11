@@ -438,7 +438,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-
   pats.push_back(Pattern{
       .nodes = {IntAddNode, StoreNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
@@ -511,24 +510,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-  // pats.push_back(Pattern{
-  //     {LoadNode, IntAddNode},
-  //     {{0, 1, 0}},
-  //     [](MatchResult &res, ExtraMatchData &data) {
-  //       auto load_instr = res.matched_instrs[0];
-  //       auto add_instr = res.matched_instrs[1];
-  //       auto res_reg =
-  //           valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
-
-  //       auto a0 =
-  //           valueToArgPtr(load_instr->args[0],
-  //                         convert_type(load_instr.get_type()), data.alloc);
-  //       a0.ty = convert_type(load_instr.get_type());
-  //       auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
-  //       res.result.emplace_back(Opcode::mov, res_reg, a0);
-  //       res.result.emplace_back(Opcode::add2, res_reg, a1);
-  //       return true;
-  //     }});
 }
 
 void cjmp_patterns(IRVec<Pattern> &pats) {
@@ -1664,22 +1645,46 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
         return true;
       }});
-  pats.push_back(
-      Pattern{.nodes = {IntMulNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto add_instr = res.matched_instrs[0];
-                auto res_reg =
-                    valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+  pats.push_back(Pattern{
+      .nodes = {IntMulNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto add_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+        if (res_reg.ty == Type::Int8) {
+          // cant do mul2 on a int8 atleast not as easy
+          // since there is only a version which multiplies by al
+          // TODO: prob should impl that
+          res.result.emplace_back(
+              Opcode::mov, res_reg,
+              valueToArg(add_instr->args[0], res.result, data.alloc));
+          auto res_reg16 = res_reg;
+          ASSERT(res_reg16.isReg());
+          res_reg16.ty = Type::Int16;
+          res_reg16.reg.ty = Type::Int16;
+          auto arg1 = valueToArg(add_instr->args[1], res.result, data.alloc);
+          if (arg1.isReg()) {
+            arg1.ty = Type::Int16;
+            arg1.reg.ty = Type::Int16;
+          } else if (arg1.isImm()) {
+            arg1.ty = Type::Int16;
+          } else {
+            ASSERT(false);
+          }
+          res.result.emplace_back(Opcode::mul2, res_reg16, arg1);
+          res.result.emplace_back(Opcode::land2, res_reg16, MArgument((u8)255));
+          return true;
+        }
 
-                res.result.emplace_back(
-                    Opcode::mov, res_reg,
-                    valueToArg(add_instr->args[0], res.result, data.alloc));
-                res.result.emplace_back(
-                    Opcode::mul2, res_reg,
-                    valueToArg(add_instr->args[1], res.result, data.alloc));
-                return true;
-              }});
+        res.result.emplace_back(
+            Opcode::mov, res_reg,
+            valueToArg(add_instr->args[0], res.result, data.alloc));
+        res.result.emplace_back(
+            Opcode::mul2, res_reg,
+            valueToArg(add_instr->args[1], res.result, data.alloc));
+        return true;
+      }});
   pats.push_back(
       Pattern{.nodes = {OrNode},
               .edges = {},
