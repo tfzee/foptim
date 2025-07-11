@@ -238,7 +238,7 @@ def plot_benchmark_performance(performance_data):
 
     # Overlay Mine time series on same plot (normalized)
     for i, benchmark in enumerate(benchmarks):
-        entries = performance_data[benchmark].get('Mine', [])
+        entries = performance_data[benchmark].get('Mine', [])[-10:]
         if not entries:
             continue
         entries.sort(key=lambda x: x["time"])
