@@ -219,7 +219,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         auto add_ty_size = get_size(add_ty);
-        if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
+        if (add_ty_size != 8 && add_ty_size != 4) {
           return false;
         }
         if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
@@ -279,7 +279,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         auto add_ty_size = get_size(add_ty);
-        if (add_ty_size != 8 && add_ty_size != 4 && add_ty_size != 2) {
+        if (add_ty_size != 8 && add_ty_size != 4) {
           return false;
         }
         if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
@@ -807,7 +807,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         auto res_ty = convert_type(add_instr.get_type());
         auto res_ty_size = get_size(res_ty);
-        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+        if (res_ty_size != 8 && res_ty_size != 4) {
           return false;
         }
         if (!is_reg(add_instr->args[0]) || !is_reg(mul_instr->args[0]) ||
@@ -870,7 +870,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         auto res_ty = convert_type(add1_instr.get_type());
         auto res_ty_size = get_size(res_ty);
-        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+        if (res_ty_size != 8 && res_ty_size != 4) {
           return false;
         }
         // TODO: handle x + c +y
@@ -907,7 +907,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto mul_instr = res.matched_instrs[0];
         auto res_ty = convert_type(mul_instr.get_type());
         auto res_ty_size = get_size(res_ty);
-        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+        if (res_ty_size != 8 && res_ty_size != 4) {
           return false;
         }
         if (!is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
@@ -935,7 +935,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto mul_instr = res.matched_instrs[0];
         auto res_ty = convert_type(mul_instr.get_type());
         auto res_ty_size = get_size(res_ty);
-        if (res_ty_size != 8 && res_ty_size != 4 && res_ty_size != 2) {
+        if (res_ty_size != 8 && res_ty_size != 4) {
           return false;
         }
         if (!is_reg(mul_instr->args[0]) || !mul_instr->args[1].is_constant()) {
