@@ -19,63 +19,57 @@ class LoopSimplify final : public FunctionPass {
 public:
   bool dead_loop_elimination(CFG &cfg, LoopInfoAnalysis &loops, u32 loop_i) {
     auto &loop = loops.info.at(loop_i);
-    bool has_sideeffects = false;
-    TVec<fir::Use> use_after;
-    if (cfg.bbrs[loop.head].pred.size() > 1) {
-      return false;
-    }
     for (auto b : loop.body_nodes) {
-      if (has_sideeffects) {
-        break;
-      }
       for (auto arg : cfg.bbrs[b].bb->args) {
         for (auto u : arg->uses) {
           auto use_bb = cfg.get_bb_id(u.user->get_parent());
           if (u.type == fir::UseType::BBArg) {
             if (!std::ranges::contains(
                     loop.body_nodes, cfg.get_bb_id(u.user->bbs[u.argId].bb))) {
-              use_after.push_back(u);
+              return false;
             }
           } else if (!std::ranges::contains(loop.body_nodes, use_bb)) {
-            use_after.push_back(u);
+            return false;
           }
         }
       }
       for (auto i : cfg.bbrs[b].bb->instructions) {
         if (i->has_pot_sideeffects()) {
-          has_sideeffects = true;
-          break;
+          return false;
         }
         for (auto u : i->uses) {
           auto use_bb = cfg.get_bb_id(u.user->get_parent());
           if (u.type == fir::UseType::BBArg) {
             if (!std::ranges::contains(
                     loop.body_nodes, cfg.get_bb_id(u.user->bbs[u.argId].bb))) {
-              use_after.push_back(u);
+              return false;
             }
           } else if (!std::ranges::contains(loop.body_nodes, use_bb)) {
-            use_after.push_back(u);
+            return false;
           }
         }
       }
     }
-    if (!has_sideeffects && use_after.empty()) {
-      auto head_term = cfg.bbrs[loop.head].bb->get_terminator();
-      ASSERT(head_term->is(fir::InstrType::CondBranchInstr))
-      fir::Builder bb{head_term};
+    if (loop.leaving_nodes.size() == 1) {
+      auto leaver_id = loop.leaving_nodes[0];
+      auto leaver_term = cfg.bbrs[leaver_id].bb->get_terminator();
+      if (!leaver_term->is(fir::InstrType::CondBranchInstr)) {
+        return false;
+      }
+      fir::Builder bb{leaver_term};
       auto leave_index = 0;
       if (std::ranges::contains(loop.body_nodes,
-                                cfg.get_bb_id(head_term->bbs[0].bb))) {
+                                cfg.get_bb_id(leaver_term->bbs[0].bb))) {
         leave_index = 1;
       }
-      auto new_branch = bb.build_branch(head_term->bbs[leave_index].bb);
-      for (auto a : head_term->bbs[leave_index].args) {
+      auto new_branch = bb.build_branch(leaver_term->bbs[leave_index].bb);
+      for (auto a : leaver_term->bbs[leave_index].args) {
         new_branch.add_bb_arg(0, a);
       }
-      head_term.destroy();
-      return true;
+      leaver_term.destroy();
       utils::StatCollector::get().addi(1, "DeadLoopElim",
                                        utils::StatCollector::StatFOptim);
+      return true;
     }
     return false;
   }
@@ -132,6 +126,7 @@ public:
         break;
       }
     }
+    auto *ctx = cfg.func->ctx;
 
     InductionVarAnalysis ianal{cfg, loop};
     for (size_t i1 = 0; i1 < ianal.direct_inductvars.size(); i1++) {
@@ -147,18 +142,26 @@ public:
           continue;
         }
         if (!ianal.direct_inductvars[i1].consti->is_int() ||
-            !ianal.direct_inductvars[i2].consti->is_int() ||
-            ianal.direct_inductvars[i1].consti->as_int() !=
-                ianal.direct_inductvars[i2].consti->as_int()) {
+            !ianal.direct_inductvars[i2].consti->is_int()) {
           continue;
         }
 
         auto keep = i2;
         auto repl = i1;
+        auto incr_keep = ianal.direct_inductvars[i2].consti->as_int();
+        auto incr_repl = ianal.direct_inductvars[i1].consti->as_int();
         if (ianal.direct_inductvars[i1].def.get_type()->get_bitwidth() >
             ianal.direct_inductvars[i2].def.get_type()->get_bitwidth()) {
           keep = i1;
           repl = i2;
+          incr_keep = ianal.direct_inductvars[i1].consti->as_int();
+          incr_repl = ianal.direct_inductvars[i2].consti->as_int();
+        }
+        if ((ianal.direct_inductvars[i1].type !=
+                 InductionVarAnalysis::IterationType::PlusConst ||
+             incr_keep == 0 || incr_repl % incr_keep != 0) &&
+            (incr_repl != incr_keep)) {
+          continue;
         }
 
         auto keepes = cfg.bbrs[loop.head].bb->get_arg_id(
@@ -185,9 +188,14 @@ public:
         }
         fir::Builder b{
             ianal.direct_inductvars[keep].def.as_bb_arg()->get_parent()};
+        auto repl_type = ianal.direct_inductvars[repl].def.get_type();
         auto new_repl =
-            b.build_itrunc(ianal.direct_inductvars[keep].def,
-                           ianal.direct_inductvars[repl].def.get_type());
+            b.build_itrunc(ianal.direct_inductvars[keep].def, repl_type);
+        if (incr_repl != incr_keep) {
+          new_repl =
+              b.build_int_mul(new_repl, fir::ValueR{ctx->get_constant_value(
+                                            incr_repl / incr_keep, repl_type)});
+        }
         ianal.direct_inductvars[repl].def.replace_all_uses(new_repl);
 
         return true;
@@ -204,7 +212,6 @@ public:
     // if we can calculate the exit value of a a induction variable we can
     // constant "propagate" it into other bbs following this
     (void)dom;
-    // fmt::println("{}", *cfg.bbrs[0].bb->get_parent().func);
     InductionVarAnalysis ianal{cfg, loops.info[loop_i]};
     if (ianal.direct_inductvars.empty() && ianal.indirect_inductvars.empty()) {
       return false;
@@ -254,8 +261,6 @@ public:
     if (modified) {
       utils::StatCollector::get().addi(1, "LoopExitValProp",
                                        utils::StatCollector::StatFOptim);
-      fmt::println("{}", *cfg.bbrs[0].bb->get_parent().func);
-      TODO("okak");
     }
     return modified;
   }

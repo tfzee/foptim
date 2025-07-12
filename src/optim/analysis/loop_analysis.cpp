@@ -541,7 +541,7 @@ resolve_base_induction(const fir::ValueR &v, const InductionVarAnalysis &ianal,
   auto current = std::ranges::find_if(
       ianal.indirect_inductvars, [&](const auto &iv) { return iv.def == v; });
 
-  if (current != ianal.indirect_inductvars.end() ||
+  if (current == ianal.indirect_inductvars.end() ||
       ((current->type != InductionVarAnalysis::PlusConst &&
         current->type != InductionVarAnalysis::SubConst) ||
        !current->arg2.is_constant())) {
@@ -639,7 +639,6 @@ void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
 
     auto base_induct_opt =
         resolve_base_induction(induct_candidate, ianal, offset);
-
     if (!base_induct_opt.has_value()) {
       continue;
     }
@@ -656,8 +655,8 @@ void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
 
     i128 base_val = cmp_val + (is_leq_type ? 1 : 0);
     TMap<fir::ValueR, i128> values;
-    values.insert({base_induct.def, base_val});
-    values.insert({induct_candidate, base_val + offset});
+    values.insert({base_induct.def, base_val - offset});
+    values.insert({induct_candidate, base_val});
 
     bool changed = true;
     while (changed) {
@@ -711,111 +710,6 @@ void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
     });
   }
 }
-
-// void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
-//                                        InductionVarAnalysis &ianal) {
-//   info.clear();
-//   TSet<fir::BasicBlock> loop_bbs{};
-//   loop_bbs.reserve(linfo.body_nodes.size());
-//   for (auto v : linfo.body_nodes) {
-//     loop_bbs.insert(cfg.bbrs[v].bb);
-//   }
-//   // just doing 1 leaving node for now
-//   for (auto leav : linfo.leaving_nodes) {
-//     auto &lbb = cfg.bbrs[leav];
-//     if (lbb.succ.size() != 2) {
-//       continue;
-//     }
-//     auto term = lbb.bb->get_terminator();
-//     // TODO: make it handle both
-//     if (loop_bbs.contains(term->bbs[1].bb)) {
-//       continue;
-//     }
-//     auto condv = term->args[0];
-//     if (!condv.is_instr()) {
-//       continue;
-//     }
-//     auto cond = condv.as_instr();
-//     if (!cond->is(fir::InstrType::ICmp)) {
-//       continue;
-//     }
-//     bool cond_on_equal = cond->subtype == (u32)fir::ICmpInstrSubType::ULE ||
-//                          cond->subtype == (u32)fir::ICmpInstrSubType::SLE;
-//     if (!cond_on_equal && cond->subtype != (u32)fir::ICmpInstrSubType::SLT &&
-//         cond->subtype != (u32)fir::ICmpInstrSubType::ULT) {
-//       continue;
-//     }
-//     // arg1 cannot be modified in the loop
-//     // TODO: technically we could haveo thervals here aswell
-//     if (!cond->args[1].is_constant()) {
-//       continue;
-//     }
-//     auto condition_val = cond->args[1].as_constant();
-//     auto induct_used_iter =
-//         std::ranges::find_if(ianal.indirect_inductvars, [&](const auto &a) {
-//           return a.def == cond->args[0];
-//         });
-//     if (induct_used_iter == ianal.indirect_inductvars.end()) {
-//       continue;
-//     }
-//     auto &induct_used = *induct_used_iter;
-//     if (induct_used.type != InductionVarAnalysis::PlusConst ||
-//         !induct_used.arg2.is_constant()) {
-//       continue;
-//     }
-
-//     i128 offset_of_base_induct_var = 0;
-//     auto parent_var = induct_used_iter;
-//     while (true) {
-//       offset_of_base_induct_var += parent_var->arg2.as_constant()->as_int();
-//       auto new_var = std::ranges::find_if(
-//           ianal.indirect_inductvars,
-//           [&](const InductionVarAnalysis::IInductionVar &v) {
-//             return v.type == InductionVarAnalysis::PlusConst &&
-//                    v.def == parent_var->arg1;
-//           });
-//       if (new_var == ianal.indirect_inductvars.end()) {
-//         break;
-//       }
-//       parent_var = new_var;
-//     }
-//     auto base_induct_var =
-//         std::ranges::find_if(ianal.direct_inductvars,
-//                              [&](const InductionVarAnalysis::InductionVar &v)
-//                              {
-//                                return v.def == parent_var->arg1;
-//                              });
-//     if (base_induct_var == ianal.direct_inductvars.end() ||
-//         base_induct_var->type != InductionVarAnalysis::PlusConst ||
-//         // for checking != 1 we could also check if we know start value and
-//         end
-//         // value and step value it should be end+(end - start)%step
-//         base_induct_var->consti->as_int() != 1) {
-//       continue;
-//     }
-
-//     auto base_value = condition_val->as_int() + (cond_on_equal ? 1 : 0);
-//     TMap<fir::ValueR, i128> known_values;
-//     known_values.insert({base_induct_var->def, base_value});
-//     known_values.insert(
-//         {induct_used.def, base_value + offset_of_base_induct_var});
-
-//     TMap<fir::ValueR, i128> values;
-//     values.insert({induct_used.def, condition_val->as_int()});
-//     values.insert({base_induct_var->def,
-//                    condition_val->as_int() - offset_of_base_induct_var});
-
-//     info.push_back(EndInfo{
-//         .from_bb = lbb.bb,
-//         .to_bb = term->bbs[1].bb,
-//         .values = values,
-//     });
-
-//     // fmt::println("{}", base_induct_var->def);
-//     // fmt::println("{}", offset_of_base_induct_var);
-//     // fmt::println("{}", lbb.bb);
-//   }
-// }
 
 void InductionEndValueAnalysis::dump() {
   fmt::println("Known Ends:");
