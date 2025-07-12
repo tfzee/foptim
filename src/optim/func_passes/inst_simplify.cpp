@@ -472,45 +472,30 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
     const u32 v_idx = (c1_val != nullptr) ? 0 : 1;
 
-    // at this point it cant have both as constant
-    // if (c_val->is_float()) {
-    // TODO: need to check also if its special constant with sign bit and
-    // shit
-    //  if (c_val->as_float() == 0 &&
-    //      instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatAdd)
-    //      {
-    //    push_all_uses(worklist, instr);
-    //    instr->replace_all_uses(instr->args[v_idx]);
-    //    instr.destroy();
-    //    return;
-    //  }
-    //  if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul)
-    //  {
-    //    if (c_val->as_float() == 1) {
-    //      push_all_uses(worklist, instr);
-    //      instr->replace_all_uses(instr->args[v_idx]);
-    //      instr.destroy();
-    //    } else if (c_val->as_float() == 0) {
-    //      auto zero_const = ctx.data->get_constant_value(.0,
-    //      c_val->get_type()); push_all_uses(worklist, instr);
-    //      instr->replace_all_uses(ValueR{zero_const});
-    //      instr.destroy();
-    //    }
-    //    return;
-    //  }
-    // }
-
     if (c_val->is_float() &&
-        instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul &&
-        c_val->as_f64() == -1) {
-
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul) {
       Builder bb{instr};
-      auto new_neg =
-          bb.build_unary_op(instr->args[v_idx], UnaryInstrSubType::FloatNeg);
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(new_neg);
-      instr.destroy();
-      return;
+      if (c_val->as_f64() == -1) {
+        auto new_neg =
+            bb.build_unary_op(instr->args[v_idx], UnaryInstrSubType::FloatNeg);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_neg);
+        instr.destroy();
+        return;
+      }
+      if (c_val->as_f64() == 0) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value((f64)0.0, instr->get_type())});
+        instr.destroy();
+        return;
+      }
+      if (c_val->as_f64() == 1) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.destroy();
+        return;
+      }
     }
     if (c_val->is_int() &&
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
