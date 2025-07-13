@@ -25,6 +25,7 @@
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/loop_simplify.hpp"
+#include "optim/func_passes/loop_unroll.hpp"
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/merge_alloca.hpp"
@@ -46,6 +47,7 @@
 #include "utils/stable_vec_ref.hpp"
 #include "utils/stable_vec_slot.hpp"
 #include "utils/stats.hpp"
+#include "utils/timer.hpp"
 #include "utils/todo.hpp"
 #include "x86_codegen/backend.hpp"
 #include "llvm/llir_loader.hpp"
@@ -74,12 +76,15 @@ foptim::JobSheduler shed;
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
+  foptim::utils::DumbTimer t;
 
-  parse_args(argc, argv);
   {
+    auto a1 = t.scopedTimer("CompileTime");
+    parse_args(argc, argv);
 
     foptim::fir::Context ctx;
     {
+      auto a1 = t.scopedTimer("Parse+Optim");
       foptim::JobSheduler shed;
       shed.init(foptim::utils::number_worker_threads);
       // fir
@@ -88,11 +93,13 @@ int main(int argc, char *argv[]) {
       // cleanup
       shed.deinit();
     }
+
+    // mir
+    foptim::FVec<foptim::fmir::MFunc> funcs;
+    foptim::FVec<foptim::fmir::Global> globals;
+    foptim::FVec<foptim::IRString> decls;
     {
-      // mir
-      foptim::FVec<foptim::fmir::MFunc> funcs;
-      foptim::FVec<foptim::fmir::Global> globals;
-      foptim::FVec<foptim::IRString> decls;
+      auto a1 = t.scopedTimer("Mir");
       for (auto &[decl, f] : ctx.data->storage.functions) {
         if (f->is_decl()) {
           decls.push_back(decl);
@@ -100,7 +107,9 @@ int main(int argc, char *argv[]) {
       }
       lower_to_mir(ctx, funcs, globals);
       optimize_mir(ctx, funcs, globals);
-
+    }
+    {
+      auto a1 = t.scopedTimer("Codegen");
       // asm
       codegen(funcs, decls, globals);
     }
@@ -108,6 +117,7 @@ int main(int argc, char *argv[]) {
     foptim::utils::StatCollector::get().dump();
     ctx.free();
   }
+  t.print();
   foptim::utils::TempAlloc<void *>::free();
   foptim::utils::IRAlloc<void *>::free();
   return 0;
@@ -126,16 +136,16 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   using namespace foptim::optim;
   fmt::print("================FIR====================\n");
   fmt::print("================FIR START====================\n");
-  ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeStructs, Mem2Reg, FuncAnnotator, InstSimplify, SimplifyCFG,
       LLVMInstrinsicLowering>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       DCE, GarbageCollect, SimplifyCFG, TailRecElim, LICM, LoopRotate,
-      LoopSimplify, DCE, SLPVectorizer, LVN, SCCP, InstSimplify, DCE,
-      FuncAnnotator, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE,
-      InstSimplify, ConstLoopEval, LoopSimplify, InstSimplify, SimplifyCFG>{}
+      LoopSimplify, LoopUnroll, DCE, SLPVectorizer, LVN, SCCP, InstSimplify,
+      DCE, FuncAnnotator, SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG,
+      DCE, InstSimplify, ConstLoopEval, LoopSimplify, InstSimplify,
+      SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
                                          Inline<>, ArgPromotion,
@@ -143,8 +153,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, FuncAnnotator, SLPVectorizer,
-      GarbageCollect, LVN, SCCP, LoopSimplify, IntrinSimplify, InstSimplify,
-      ConstLoopEval, InstSimplify, SimplifyCFG, DCE, SimplifyCFG>{}
+      GarbageCollect, LVN, SCCP, LoopSimplify, LoopUnroll, IntrinSimplify,
+      InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG, DCE,
+      SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
                                          Inline<>, ArgPromotion,
@@ -163,7 +174,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, FuncAnnotator, InstSimplify, ConstLoopEval, LoopSimplify,
-      InstSimplify, SimplifyCFG, LegalizeVecs>{}
+      LoopUnroll, SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs>{}
       .apply(ctx, shed);
 
   // fmt::print("{:d}", ctx);

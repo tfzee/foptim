@@ -5,10 +5,11 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"
+#include "utils/stats.hpp"
 
 namespace foptim::optim {
 
-class Unroll final : public FunctionPass {
+class LoopUnroll final : public FunctionPass {
 public:
   void apply(fir::Context &ctx, fir::Function &func) override;
   bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
@@ -133,36 +134,41 @@ inline void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor,
   // TODO("okka");
 }
 
-bool Unroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
-                      fir::Function &func) {
+bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
+                          fir::Function &func) {
   (void)loop;
   (void)ctx;
   (void)func;
-  LoopRangeAnalysis range;
-  if (!range.update(cfg, loop)) {
+  // fmt::println("==IV2==");
+  // loop.dump();
+  ScalarEvo evo{cfg, loop};
+  LoopBoundsAnalysis lb{};
+  // if () {
+  //   evo.dump();
+  //   lb.dump();
+  //   // TODO("nice");
+  //   fmt::println("====");
+  // }
+  // LoopRangeAnalysis range;
+  if (!lb.update(evo, cfg, loop)) {
     failure(
         {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
-  if (!range.known_upper || !range.known_lower) {
-    failure({.reason = "Didnt find loop upper/lower bound",
-             .loc = {cfg.bbrs[loop.head].bb}});
-    return false;
-  }
 
-  ASSERT(range.type == LoopRangeAnalysis::IterationType::PlusA);
-  auto iteration_count = (range.upper_bound - range.lower_bound) / range.a;
+  // lb.dump();
+  auto iteration_count = lb.n_iter;
   u8 unroll_factor = 2;
   bool is_full_unroll = false;
   if (iteration_count % 8 == 0) {
     unroll_factor = 8;
-  }
-  if (iteration_count % 4 == 0) {
+  } else if (iteration_count % 4 == 0) {
     unroll_factor = 4;
-  }
-  if (iteration_count <= 10) {
+  } else if (iteration_count > 1 && iteration_count <= 6) {
     is_full_unroll = true;
     unroll_factor = iteration_count;
+  } else {
+    return false;
   }
 
   size_t n_instrs = 0;
@@ -170,23 +176,34 @@ bool Unroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
     n_instrs += cfg.bbrs[i].bb->n_instrs();
   }
 
+  if (n_instrs < 4 && iteration_count < 32) {
+    return true;
+  }
   if (unroll_factor * n_instrs > 50) {
+    failure({.reason = "Unroll too massive", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
 
   // ensure loop is do while loop
   if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
-    failure({"Need a do while loop", {cfg.bbrs[loop.head].bb}});
+    failure(
+        {.reason = "Need a do while loop", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
 
+  // fmt::println("{}", func);
+  // fmt::println("unrollnig!!");
+  // loop.dump();
+  // fmt::println("{} factor", unroll_factor);
+  // fmt::println("{} full?", is_full_unroll);
   unroll_it(cfg, loop, unroll_factor, ctx, func, is_full_unroll);
-
+  // fmt::println("{}", func);
+  // TODO("okak");
   // fmt::println("===UNROLLED\n{}", func);
   return true;
 }
 
-void Unroll::apply(fir::Context &ctx, fir::Function &func) {
+void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("unroll");
   CFG cfg{func};
   Dominators dom{cfg};
@@ -194,6 +211,8 @@ void Unroll::apply(fir::Context &ctx, fir::Function &func) {
 
   for (auto &loop : linfo.info) {
     if (apply_it(cfg, loop, ctx, func)) {
+      utils::StatCollector::get().addi(1, "loopUnrolled",
+                                       utils::StatCollector::StatFOptim);
       // TODO: impl to do multiple loops
       return;
     }
