@@ -36,7 +36,8 @@ public:
       }
       auto prev_bb = cfg.bbrs[d].bb;
       for (auto instr2 : prev_bb->instructions) {
-        if (instr->eql_expr(*instr2.get_raw_ptr())) {
+        if (instr->eql_expr(*instr2.get_raw_ptr()) &&
+            instr->get_type() == instr2.get_type()) {
           instr->replace_all_uses(fir::ValueR{instr2});
           instr.destroy();
           return true;
@@ -57,7 +58,8 @@ public:
 
       for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
         auto instr2 = bb->instructions[i2];
-        if (lvn_applicable(instr2) && instr->eql_expr(*instr2.get_raw_ptr())) {
+        if (lvn_applicable(instr2) && instr->eql_expr(*instr2.get_raw_ptr()) &&
+            instr->get_type() == instr2.get_type()) {
           instr2->replace_all_uses(fir::ValueR{instr});
           ASSERT(instr2->get_n_uses() == 0);
           instr2.destroy();
