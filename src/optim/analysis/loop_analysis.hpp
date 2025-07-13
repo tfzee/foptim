@@ -29,6 +29,48 @@ public:
   void dump() const;
 };
 
+struct SCEVExpr {
+  enum class Type {
+    Invalid,
+    Add,
+    Sub,
+    SExt,
+    ZExt,
+    Mul,
+    Input,
+    Invariant,
+  };
+  using SCEVExprR = u32;
+
+  Type t;
+  fir::ValueR associated_val;
+  SCEVExprR args[4];
+};
+
+class ScalarEvo {
+public:
+  TVec<SCEVExpr> exprs;
+  TVec<std::pair<u32, SCEVExpr::SCEVExprR>> direct_induct;
+
+  ScalarEvo(CFG &cfg, LoopInfo &info) { update(cfg, info); }
+  void update(CFG &cfg, LoopInfo &info);
+  void dump() const;
+};
+
+class LoopBoundsAnalysis {
+public:
+  SCEVExpr::SCEVExprR induct;
+  i128 start_value;
+  i128 end_value;
+  i128 real_end_value;
+  i128 change_val;
+  u64 n_iter;
+
+  LoopBoundsAnalysis() = default;
+  bool update(ScalarEvo &evo, CFG &cfg, LoopInfo &info);
+  void dump() const;
+};
+
 class LoopRangeAnalysis {
 public:
   fir::BBArgument induction_var;

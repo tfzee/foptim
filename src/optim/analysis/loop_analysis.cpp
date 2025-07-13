@@ -142,7 +142,7 @@ void LoopRangeAnalysis::dump() const {
 
 bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   fir::BasicBlock head = cfg.bbrs[info.head].bb;
-  constexpr bool debug_print = false;
+  constexpr bool debug_print = true;
   // info.dump();
   // need 1 induction var
   if (head->args.empty()) {
@@ -720,4 +720,324 @@ void InductionEndValueAnalysis::dump() {
     }
   }
 }
+
+void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
+  constexpr bool debug_print = false;
+  exprs.clear();
+  direct_induct.clear();
+
+  auto make_expr = [&](const SCEVExpr &e) -> SCEVExpr::SCEVExprR {
+    exprs.push_back(e);
+    return exprs.size();
+  };
+
+  auto is_loop_invariant = [&](fir::ValueR v) -> bool {
+    if (v.is_constant()) {
+      return true;
+    }
+    fir::BasicBlock def_bb{fir::BasicBlock::invalid()};
+    if (v.is_instr()) {
+      def_bb = v.as_instr()->get_parent();
+    } else if (v.is_bb_arg()) {
+      def_bb = v.as_bb_arg()->get_parent();
+    } else {
+      fmt::println("{}", v);
+      TODO("Unhandled value type");
+    }
+
+    u32 bb_id = cfg.get_bb_id(def_bb);
+    return std::ranges::find(loop_info.body_nodes, bb_id) ==
+           loop_info.body_nodes.end();
+  };
+
+  TMap<fir::ValueR, SCEVExpr::SCEVExprR> lookup;
+  TVec<fir::Instr> worklist;
+  TSet<fir::ValueR> processed;
+  for (auto incoming_arg : cfg.bbrs[loop_info.head].bb->args) {
+    lookup.insert(
+        {fir::ValueR{incoming_arg},
+         make_expr(SCEVExpr{.t = SCEVExpr::Type::Input,
+                            .associated_val = fir::ValueR{incoming_arg},
+                            .args = {}})});
+    processed.insert(fir::ValueR{incoming_arg});
+    for (auto u : incoming_arg->uses) {
+      worklist.emplace_back(u.user);
+    }
+  }
+
+  while (!worklist.empty()) {
+    auto instr = worklist.back();
+    worklist.pop_back();
+    if (processed.contains(fir::ValueR{instr})) {
+      continue;
+    }
+
+    if (instr->is(fir::InstrType::ZExt) || instr->is(fir::InstrType::SExt)) {
+      auto is_signext = instr->is(fir::InstrType::SExt);
+      SCEVExpr::SCEVExprR lhs = 0;
+      SCEVExpr::SCEVExprR rhs = 0;
+      if (lookup.contains(instr->args[0])) {
+        lhs = lookup.at(instr->args[0]);
+      } else if (is_loop_invariant(instr->args[0])) {
+        lhs = make_expr(SCEVExpr{.t = SCEVExpr::Type::Invariant,
+                                 .associated_val = instr->args[0],
+                                 .args = {}});
+      } else {
+        if (instr->args[0].is_instr()) {
+          worklist.push_back(instr->args[0].as_instr());
+        }
+        continue;
+      }
+      auto newi = make_expr(SCEVExpr{.t = is_signext ? SCEVExpr::Type::SExt
+                                                     : SCEVExpr::Type::ZExt,
+                                     .associated_val = fir::ValueR{instr},
+                                     .args = {lhs, rhs}});
+      for (auto u : instr->get_uses()) {
+        worklist.push_back(u.user);
+      }
+      lookup.insert({fir::ValueR{instr}, newi});
+      processed.insert(fir::ValueR{instr});
+      continue;
+    }
+    if (instr->is(fir::InstrType::BinaryInstr)) {
+      SCEVExpr::SCEVExprR lhs = 0;
+      SCEVExpr::SCEVExprR rhs = 0;
+      if (lookup.contains(instr->args[0])) {
+        lhs = lookup.at(instr->args[0]);
+      } else if (is_loop_invariant(instr->args[0])) {
+        lhs = make_expr(SCEVExpr{.t = SCEVExpr::Type::Invariant,
+                                 .associated_val = instr->args[0],
+                                 .args = {}});
+      } else {
+        if (instr->args[0].is_instr()) {
+          worklist.push_back(instr->args[0].as_instr());
+        }
+        continue;
+      }
+      if (lookup.contains(instr->args[1])) {
+        rhs = lookup.at(instr->args[1]);
+      } else if (is_loop_invariant(instr->args[1])) {
+        rhs = make_expr(SCEVExpr{.t = SCEVExpr::Type::Invariant,
+                                 .associated_val = instr->args[1],
+                                 .args = {}});
+      } else {
+        if (instr->args[1].is_instr()) {
+          worklist.push_back(instr->args[1].as_instr());
+        }
+        continue;
+      }
+
+      SCEVExpr::Type ty = SCEVExpr::Type::Invalid;
+      switch ((fir::BinaryInstrSubType)instr->subtype) {
+      case fir::BinaryInstrSubType::IntAdd:
+        ty = SCEVExpr::Type::Add;
+        break;
+      case fir::BinaryInstrSubType::IntSub:
+        ty = SCEVExpr::Type::Sub;
+        break;
+      case fir::BinaryInstrSubType::IntMul:
+        ty = SCEVExpr::Type::Mul;
+        break;
+      default:
+        if constexpr (debug_print) {
+          fmt::println("IV2 missed binary {}", instr);
+        }
+        processed.insert(fir::ValueR{instr});
+        continue;
+      }
+
+      auto newi = make_expr(SCEVExpr{
+          .t = ty, .associated_val = fir::ValueR{instr}, .args = {lhs, rhs}});
+      for (auto u : instr->get_uses()) {
+        worklist.push_back(u.user);
+      }
+      lookup.insert({fir::ValueR{instr}, newi});
+      processed.insert(fir::ValueR{instr});
+      continue;
+    }
+    if constexpr (debug_print) {
+      fmt::println("IV2 missed on {}", instr);
+    }
+    processed.emplace(instr);
+  }
+
+  auto is_direct_induct = [&](this const auto &self, const SCEVExpr &r,
+                              fir::BBArgument &arg) -> bool {
+    switch (r.t) {
+    case SCEVExpr::Type::Add:
+    case SCEVExpr::Type::Sub:
+    case SCEVExpr::Type::Mul:
+      return self(exprs[r.args[0] - 1], arg) &&
+             exprs[r.args[1] - 1].t == SCEVExpr::Type::Invariant;
+    case SCEVExpr::Type::SExt:
+    case SCEVExpr::Type::ZExt:
+      return self(exprs[r.args[0] - 1], arg);
+    case SCEVExpr::Type::Input:
+      return r.associated_val.as_bb_arg() == arg;
+    case SCEVExpr::Type::Invalid:
+    case SCEVExpr::Type::Invariant:
+      return false;
+    }
+  };
+
+  for (auto t : loop_info.tails) {
+    auto term = cfg.bbrs[t].bb->get_terminator();
+    auto v = (u32)(std::ranges::find(cfg.bbrs[t].succ, loop_info.head) -
+                   cfg.bbrs[t].succ.begin());
+    size_t arg_id = 0;
+    for (auto a : term->bbs[v].args) {
+      if (lookup.contains(a) &&
+          is_direct_induct(exprs[lookup.at(a) - 1],
+                           cfg.bbrs[loop_info.head].bb->args[arg_id])) {
+        direct_induct.emplace_back(arg_id, lookup.at(a));
+      }
+      arg_id++;
+    }
+  }
+}
+
+void ScalarEvo::dump() const {
+  fmt::print("Expr 0: INVALID\n");
+  for (size_t i = 0; i < exprs.size(); ++i) {
+    fmt::print("Expr {}: ", i + 1);
+    const auto &e = exprs[i];
+    switch (e.t) {
+    case SCEVExpr::Type::Invalid:
+      fmt::print("INVALID\n");
+      break;
+    case SCEVExpr::Type::Input:
+      fmt::print("IN {}\n", e.associated_val);
+      break;
+    case SCEVExpr::Type::Add:
+      fmt::print("{} = Add({}, {})\n", e.associated_val, e.args[0], e.args[1]);
+      break;
+    case SCEVExpr::Type::Sub:
+      fmt::print("{} = Sub({}, {})\n", e.associated_val, e.args[0], e.args[1]);
+      break;
+    case SCEVExpr::Type::ZExt:
+      fmt::print("{} = ZExt({})\n", e.associated_val, e.args[0]);
+      break;
+    case SCEVExpr::Type::SExt:
+      fmt::print("{} = SExt({})\n", e.associated_val, e.args[0]);
+      break;
+    case SCEVExpr::Type::Mul:
+      fmt::print("{} = Mul({}, {})\n", e.associated_val, e.args[0], e.args[1]);
+      break;
+    case SCEVExpr::Type::Invariant:
+      fmt::print("Invariant({})\n", e.associated_val);
+      break;
+    }
+  }
+
+  fmt::print("Direct Induction Vars:\n");
+  for (auto [arg_id, idx] : direct_induct) {
+    fmt::print("  {}: {}\n", arg_id, idx);
+  }
+  fmt::print("\n");
+}
+
+bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
+  if (evo.direct_induct.empty()) {
+    return false;
+  }
+  if (info.leaving_nodes.size() != 1) {
+    return false;
+  }
+  // can only have 1 incoming value so we can use it as lower bound
+  if (cfg.bbrs[info.head].pred.size() != info.tails.size() + 1) {
+    return false;
+  }
+  auto leav_bb = cfg.bbrs[info.leaving_nodes[0]].bb;
+  auto leav_term = leav_bb->get_terminator();
+
+  if (!leav_term->is(fir::InstrType::CondBranchInstr)) {
+    return false;
+  }
+  auto loop_continue =
+      (u32)(std::ranges::find(cfg.bbrs[info.leaving_nodes[0]].succ, info.head) -
+            cfg.bbrs[info.leaving_nodes[0]].succ.begin());
+  if (loop_continue != 0) {
+    return false;
+  }
+
+  auto cond = leav_term->args[0];
+  if (!cond.is_instr()) {
+    return false;
+  }
+  auto condi = cond.as_instr();
+  auto sub = (fir::ICmpInstrSubType)condi->subtype;
+  bool isle =
+      sub == fir::ICmpInstrSubType::SLE || sub == fir::ICmpInstrSubType::ULE;
+  if (!condi->is(fir::InstrType::ICmp) &&
+      (sub == fir::ICmpInstrSubType::SLT || sub == fir::ICmpInstrSubType::ULT ||
+       isle)) {
+    return false;
+  }
+  if (!condi->args[1].is_constant()) {
+    return false;
+  }
+  end_value = condi->args[1].as_constant()->as_int() + (isle ? 1 : 0);
+  auto induct_id =
+      std::ranges::find_if(evo.direct_induct, [&](const auto &a) -> bool {
+        const SCEVExpr &expr = evo.exprs[a.second - 1];
+        return expr.associated_val == condi->args[0];
+      });
+  if (induct_id == evo.direct_induct.end()) {
+    return false;
+  }
+  induct = induct_id->second;
+  auto &expr = evo.exprs[induct_id->second - 1];
+  if (expr.t != SCEVExpr::Type::Add ||
+      !evo.exprs[expr.args[1] - 1].associated_val.is_constant()) {
+    return false;
+  }
+  change_val =
+      evo.exprs[expr.args[1] - 1].associated_val.as_constant()->as_int();
+
+  // find out which incoming edge is the from outside the loop
+  // and then use its values if they are constant
+  u32 incoming_bb = 0;
+  for (auto incoming : cfg.bbrs[info.head].pred) {
+    if (std::ranges::find(info.body_nodes, incoming) == info.body_nodes.end()) {
+      incoming_bb = incoming;
+      break;
+    }
+  }
+  auto incoming_term = cfg.bbrs[incoming_bb].bb->get_terminator();
+  if (!incoming_term->is(fir::InstrType::BranchInstr)) {
+    return false;
+  }
+  auto lowwer_boundv = incoming_term->bbs[0].args[induct_id->first];
+  if (!lowwer_boundv.is_constant()) {
+    return false;
+  }
+  start_value = lowwer_boundv.as_constant()->as_int();
+  if ((change_val > 0 && start_value > end_value) ||
+      (change_val < 0 && start_value < end_value)) {
+    // it might overflow??
+    return false;
+  }
+
+  // if the upper bound is not divisible by teh incr the final value of the
+  // induction variable will be higher and not equal to the upper bound
+  // the exact value depends on the starting value + upper_bound mod  incr
+  ASSERT(change_val > 0);
+  real_end_value = end_value;
+  i128 range = (end_value - start_value);
+  if (range % change_val != 0) {
+    real_end_value = end_value + (change_val - (range % change_val));
+  }
+  n_iter = (real_end_value - start_value) / change_val;
+  return true;
+}
+
+void LoopBoundsAnalysis::dump() const {
+  fmt::println("LoopsBoundAnalysis:");
+  fmt::println("  InductId:{}", induct);
+  fmt::println("  Iter:{}", n_iter);
+  fmt::println("  Start:{}", start_value);
+  fmt::println("  Change:{}", change_val);
+  fmt::println("  End:{}({})", end_value, real_end_value);
+}
+
 } // namespace foptim::optim
