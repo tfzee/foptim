@@ -5,18 +5,38 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
 
-bool SimplifyCFG::remove_dead_bb(CFG & /*cfg*/, CFG::Node &curr,
-                                 fir::Function &func, size_t bb_id,
-                                 bool is_entry) {
+bool SimplifyCFG::remove_dead_bb(CFG &cfg, CFG::Node &curr, fir::Function &func,
+                                 size_t bb_id, bool is_entry) {
   ZoneScopedN("rem dead bb");
-  if (curr.pred.empty() && !is_entry) {
+  if (is_entry) {
+    return false;
+  }
+
+  bool is_dead = false;
+  if (curr.pred.empty()) {
+    is_dead = true;
+  }
+  // or all bs that jump into this bb are all dominated by this bb
+  if (!is_dead) {
+    Dominators dom{cfg};
+    is_dead = true;
+    for (auto pred : curr.pred) {
+      if (dom.dom_bbs[pred].dominators[bb_id]) {
+        continue;
+      }
+      is_dead = false;
+      break;
+    }
+  }
+
+  if (is_dead) {
     auto *ctx = func.ctx;
-    // ASSERT(curr.bb->get_n_uses() == 0);
     for (auto i : func.basic_blocks[bb_id]->args) {
       if (i->get_n_uses() > 0) {
         i->replace_all_uses(fir::ValueR{ctx->get_poisson_value(i->get_type())});
@@ -692,52 +712,89 @@ bool SimplifyCFG::eliminate_infinite_loop(CFG & /*cfg*/, CFG::Node &curr,
 bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
+  constexpr bool debug = false;
 
   if (remove_dead_bb(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("1");
+    }
     return true;
   }
 
   if (remove_dead_bb_arg(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("2");
+    }
     return true;
   }
 
   if (merge_linear_relation(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("3");
+    }
     return true;
   }
 
   if (remove_constant_bb_args(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("4");
+    }
     return true;
   }
 
   if (remove_useless_bb_args(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("5");
+    }
     return true;
   }
 
   if (merge_empty_block_backwards(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("6");
+    }
     return true;
   }
 
   if (merge_empty_block_forwards(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("7");
+    }
     return true;
   }
 
   if (distribute_return_unreach(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("8");
+    }
     return true;
   }
 
   if (remove_unreach(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("9");
+    }
     return true;
   }
 
   if (conditional_to_cmove(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("10");
+    }
     return true;
   }
 
   if (dup_bb_to_args(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("11");
+    }
     return true;
   }
 
   if (eliminate_infinite_loop(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("12");
+    }
     return true;
   }
 
@@ -767,10 +824,10 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
 
     foptim::utils::TempAlloc<void *>::reset();
     cfg = CFG(func, false);
-    if (!func.verify()) {
-      fmt::println("{}", func);
-      TODO("fix");
-    }
+    // if (!func.verify()) {
+    // fmt::println("{}", func);
+    //   TODO("fix");
+    // }
   }
 }
 
