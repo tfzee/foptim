@@ -83,10 +83,16 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       }
     }
 
-    if (arg.is_instr() &&
-        (!arg.as_instr().is_valid() || !arg.as_instr()->parent.is_valid())) {
-      fmt::print("Got invalid instruction as argument\n");
-      return false;
+    if (arg.is_instr()) {
+      auto arg_i = arg.as_instr();
+      if (arg_i.get_raw_ptr() == this) {
+        fmt::print("Cant have a isntruction referencing itself\n");
+        return false;
+      }
+      if (!arg_i.is_valid() || !arg.as_instr()->parent.is_valid()) {
+        fmt::print("Got invalid instruction as argument\n");
+        return false;
+      }
     }
     arg_id++;
   }
