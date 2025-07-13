@@ -1608,6 +1608,30 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
   }
+  if ((instr->is(fir::InstrType::SExt) || instr->is(fir::InstrType::ZExt)) &&
+      instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::ZExt)) {
+    auto zext = instr->args[0].as_instr();
+    // just to make sure incase that didnt get cleaned up yet
+    if (zext->args[0].get_type() != zext.get_type()) {
+      fir::Builder b(instr);
+      auto new_result = b.build_zext(zext->args[0], instr->get_type());
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(new_result);
+      instr.destroy();
+      return;
+    }
+  }
+  if (instr->is(fir::InstrType::SExt) && instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::SExt)) {
+    auto sext = instr->args[0].as_instr();
+    fir::Builder b(instr);
+    auto new_result = b.build_sext(sext->args[0], instr->get_type());
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(new_result);
+    instr.destroy();
+    return;
+  }
 }
 
 void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
@@ -1662,46 +1686,48 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
 
-    if (instr.get_type()->get_size() > 1 &&
-        arg_i->is(fir::InstrType::BinaryInstr)) {
-      auto inner_math = arg_i;
-      bool b0 = inner_math->args[0].is_constant();
-      bool b0I = (inner_math->args[0].is_instr() &&
-                  (inner_math->args[0].as_instr()->is(fir::InstrType::SExt) ||
-                   inner_math->args[0].as_instr()->is(fir::InstrType::ZExt)));
-      bool b1 = inner_math->args[1].is_constant();
-      bool b1I = (inner_math->args[1].is_instr() &&
-                  (inner_math->args[1].as_instr()->is(fir::InstrType::SExt) ||
-                   inner_math->args[1].as_instr()->is(fir::InstrType::ZExt)));
-      auto new_type = instr.get_type();
+    // if (instr.get_type()->get_size() > 1 &&
+    //     arg_i->is(fir::InstrType::BinaryInstr)) {
+    //   auto inner_math = arg_i;
+    //   bool b0 = inner_math->args[0].is_constant();
+    //   bool b0I = (inner_math->args[0].is_instr() &&
+    //               (inner_math->args[0].as_instr()->is(fir::InstrType::SExt)
+    //               ||
+    //                inner_math->args[0].as_instr()->is(fir::InstrType::ZExt)));
+    //   bool b1 = inner_math->args[1].is_constant();
+    //   bool b1I = (inner_math->args[1].is_instr() &&
+    //               (inner_math->args[1].as_instr()->is(fir::InstrType::SExt)
+    //               ||
+    //                inner_math->args[1].as_instr()->is(fir::InstrType::ZExt)));
+    //   auto new_type = instr.get_type();
 
-      if ((b0 || b0I) && (b1 || b1I)) {
-        fir::Builder b(instr);
-        fir::ValueR a0 = inner_math->args[0];
-        fir::ValueR a1 = inner_math->args[1];
-        if (b0I) {
-          a0 = inner_math->args[0].as_instr()->args[0];
-        } else {
-          auto v = inner_math->args[0].as_constant()->as_int();
-          a0 = fir::ValueR{ctx->get_constant_value(v, new_type)};
-        }
-        if (b1I) {
-          a1 = inner_math->args[1].as_instr()->args[0];
-        } else {
-          auto v = inner_math->args[1].as_constant()->as_int();
-          a1 = fir::ValueR{ctx->get_constant_value(v, new_type)};
-        }
-        // fmt::println("{} {}", inner_math, instr);
-        // fmt::println("{} {}", a0.get_type(), a1.get_type());
+    //   if ((b0 || b0I) && (b1 || b1I)) {
+    //     fir::Builder b(instr);
+    //     fir::ValueR a0 = inner_math->args[0];
+    //     fir::ValueR a1 = inner_math->args[1];
+    //     if (b0I) {
+    //       a0 = inner_math->args[0].as_instr()->args[0];
+    //     } else {
+    //       auto v = inner_math->args[0].as_constant()->as_int();
+    //       a0 = fir::ValueR{ctx->get_constant_value(v, new_type)};
+    //     }
+    //     if (b1I) {
+    //       a1 = inner_math->args[1].as_instr()->args[0];
+    //     } else {
+    //       auto v = inner_math->args[1].as_constant()->as_int();
+    //       a1 = fir::ValueR{ctx->get_constant_value(v, new_type)};
+    //     }
+    //     // fmt::println("{} {}", inner_math, instr);
+    //     // fmt::println("{} {}", a0.get_type(), a1.get_type());
 
-        auto res = b.build_binary_op(
-            a0, a1, (fir::BinaryInstrSubType)inner_math->subtype);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-        instr.destroy();
-        return;
-      }
-    }
+    //     auto res = b.build_binary_op(
+    //         a0, a1, (fir::BinaryInstrSubType)inner_math->subtype);
+    //     push_all_uses(worklist, instr);
+    //     instr->replace_all_uses(res);
+    //     instr.destroy();
+    //     return;
+    //   }
+    // }
     switch (arg_i->instr_type) {
     case fir::InstrType::BinaryInstr: {
       auto i_arg0 = arg_i->args[0];
