@@ -850,9 +850,9 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
     i128 c_val = instr->args[1].as_constant()->as_int();
 
-    // NOTE: a / 2^x > 0 -> a > x (if x is between 0-bitwidth)
     if (instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
+      // NOTE: a / 2^x > 0 -> a > x (if x is between 0-bitwidth)
       if (c_val == 0 && (sub_type == ICmpInstrSubType::SGT) &&
           arg0->is(InstrType::BinaryInstr) &&
           arg0->subtype == (u32)BinaryInstrSubType::IntSDiv &&
