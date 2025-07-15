@@ -27,6 +27,9 @@ template <class T> using FAlloc = TrackingAlloc<T>;
 template <class T> using FAlloc = std::allocator<T>;
 #endif
 
+__attribute__((const)) static inline bool is_pow2(u128 x) {
+  return (x != 0) && ((x & (x - 1)) == 0);
+}
 // returns the number of bits needed to store this value
 // so (1 << npow2) will give you the actual next bigger or requal power of 2
 __attribute__((const)) static inline u128 npow2(u128 x) {
