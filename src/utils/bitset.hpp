@@ -16,16 +16,10 @@ template <class StorageType = u64> struct BitRef {
     const auto set_val = *_data | ((StorageType)1 << offset);
     const auto unset_val = *_data & ~((StorageType)1 << offset);
     *_data = value ? set_val : unset_val;
-
-    ASSERT(offset <= sizeof(StorageType) * 8);
-    // *_data = (*_data & ~(1 << offset)) | ((StorageType)value << offset);
     return *this;
   }
 
-  constexpr operator bool() const {
-    ASSERT(offset <= sizeof(StorageType) * 8);
-    return (*_data >> offset) & 1;
-  }
+  constexpr operator bool() const { return (*_data >> offset) & 1; }
 };
 
 template <class StorageType = u64> struct IterBitSet {
