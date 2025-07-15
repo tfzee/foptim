@@ -31,6 +31,7 @@ llvm_map_components_to_libnames(llvm_libs support core irreader)
 option(generation_check "check generations in references" ON)
 option(tracy_perf "tracy" OFF)
 option(optim_stats "optimization stats" ON)
+option(assert_check "Assertion Checks" ON)
 if(generation_check)
   add_definitions(-DSLOT_CHECK_GENERATION)
 else()
@@ -41,12 +42,16 @@ if(optim_stats)
 else()
   remove_definitions(-DOPTIM_STATS)
 endif()
-
 if(tracy_perf)
   link_libraries(TracyClient)
   add_definitions(-DTRACY_ENABLE)
 else()
   remove_definitions(-DTRACY_ENABLE)
+endif()
+if(assert_check)
+  add_definitions(-DASSERT_ENABLED)
+else()
+  remove_definitions(-DASSERT_ENABLED)
 endif()
 
 
@@ -115,7 +120,6 @@ add_library (foptim OBJECT
 
                 #utils
                 ./src/utils/parameters.cpp
-                ./src/utils/todo.cpp
                 ./src/utils/job_system.cpp
                 ./src/utils/arena.cpp
 

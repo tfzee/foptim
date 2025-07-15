@@ -19,7 +19,7 @@
             llvmPackages_20.clang-tools
 
             #depend
-            libllvm
+            llvmPackages_20.libllvm
             argparse
             fmt
             #for codegen
