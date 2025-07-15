@@ -1,5 +1,6 @@
 #pragma once
 #include "types.hpp"
+#include <fmt/core.h>
 
 namespace foptim {
 
@@ -13,13 +14,30 @@ namespace foptim {
 // void ASSERT_HANDLE(bool cond, const char *filename, const size_t lineNumber,
 //                    const char *message);
 
-[[noreturn]] void todo_impl(const char *text, const char *filename,
-                                   u64 line);
+[[noreturn]] inline void todo_impl(const char *text, const char *filename,
+                                   u64 line) {
+  fmt::println("[TODO] @ %s:%lu : %s\n", filename, line, text);
+  std::abort();
+}
 
-[[noreturn]] void impl_impl(const char *text, const char *filename,
-                                   u64 line);
+[[noreturn]] inline void impl_impl(const char *text, const char *filename,
+                                   u64 line) {
+  fmt::println("[IMPLEMENT] @ %s:%lu : %s\n", filename, line, text);
+  std::abort();
+}
 
-void ASSERT_HANDLE(bool cond, const char *filename, size_t lineNumber,
-                          const char *message);
+#ifdef ASSERT_ENABLED
+inline void ASSERT_HANDLE(bool cond, const char *filename, size_t lineNumber,
+                          const char *message) {
+  if (!cond) {
+    fmt::println("{}:{} Failed Assert! {}\n", filename, lineNumber, message);
+    std::abort();
+  }
+}
+#else
+[[clang::always_inline]] constexpr void
+ASSERT_HANDLE(bool /*cond*/, const char * /*filename*/, size_t /*lineNumber*/,
+              const char * /*message*/) {}
+#endif
 
 } // namespace foptim
