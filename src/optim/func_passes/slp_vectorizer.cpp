@@ -435,7 +435,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
           }
           continue;
         } else {
-          fmt::println("Failed tree vectorize at binary {}", curr[0]);
+          fmt::println("Failed tree vectorize at binary {} {}", curr[0], curr[1]);
           return false;
         }
       case fir::InstrType::LoadInstr:

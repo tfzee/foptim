@@ -11,8 +11,11 @@
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
+#include "utils/helpers.hpp"
 #include "utils/set.hpp"
 #include <algorithm>
+#include <bit>
+#include <fmt/core.h>
 
 namespace foptim::optim {
 
@@ -584,35 +587,40 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
     if (c_val->is_int() &&
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
-      if (c_val->as_int() == 1) {
+      auto c_vali = c_val->as_int();
+      if (c_vali == 1) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[v_idx]);
         instr.destroy();
         return;
       }
-      if (c_val->as_int() == 0) {
+      if (c_vali == 0) {
         auto zero_const = ctx.data->get_constant_value(0, c_val->get_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR{zero_const});
         instr.destroy();
         return;
       }
-    }
-    // handle 0*constant
-    if ((c1_val != nullptr) && c1_val->is_int() &&
-        instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntMul) {
-      if (c1_val->as_int() == 1) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(instr->args[0]);
-        instr.destroy();
-        return;
-      }
-      if (c1_val->as_int() == 0) {
-        auto zero_const = ctx.data->get_constant_value(0, c1_val->get_type());
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(ValueR{zero_const});
-        instr.destroy();
-        return;
+      if (instr->args[v_idx].is_instr()) {
+        auto v_i = instr->args[v_idx].as_instr();
+        auto uval = std::bit_cast<u128>(c_vali);
+        if (utils::is_pow2(uval) && v_i->is(InstrType::BinaryInstr) &&
+            (v_i->subtype == (u32)BinaryInstrSubType::IntSDiv ||
+             v_i->subtype == (u32)BinaryInstrSubType::IntUDiv) &&
+            v_i->args[1].is_constant() &&
+            v_i->args[1].as_constant()->eql(*c_val)) {
+          fir::Builder b{instr};
+
+          auto magic_constant = ctx->get_constant_int(
+              ~(1 << (utils::npow2(uval) - 1)), instr->get_type()->get_bitwidth());
+          auto res =
+              b.build_binary_op(v_i->args[0], fir::ValueR{magic_constant},
+                                BinaryInstrSubType::And);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+          instr.destroy();
+          return;
+        }
       }
     }
   }
