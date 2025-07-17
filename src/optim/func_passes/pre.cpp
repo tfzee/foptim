@@ -48,7 +48,7 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
                            const std::span<fir::Instr> exprs,
                            const std::span<fir::BasicBlock> bbs) {
   const size_t n_bbs = bbs.size();
-  TVec<fir::ValueR> repl_map(insert_sin[0].size());
+  TVec<fir::ValueR> repl_map(insert_sin[0].bit_size());
 
   for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
     const auto &cbb = bbs[bb_id];

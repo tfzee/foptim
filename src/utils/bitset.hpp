@@ -150,18 +150,40 @@ struct BitSet {
     // return (_data[n_elems - 1] & mask) != 0;
   }
 
-  constexpr BitRef<StorageType> operator[](const size_t indx) const {
+  [[nodiscard]] constexpr BitRef<StorageType>
+  operator[](const size_t indx) const {
     ASSERT(indx < _size_bits);
     return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
   }
-  constexpr BitRef<StorageType> operator[](const size_t indx) {
+  [[nodiscard]] constexpr BitRef<StorageType> operator[](const size_t indx) {
     ASSERT(indx < _size_bits);
     return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
   }
-  [[nodiscard]] constexpr size_t size() const { return _size_bits; }
+  [[nodiscard]] constexpr size_t bit_size() const { return _size_bits; }
+  [[nodiscard]] constexpr size_t count() const {
+    auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;
+    size_t count = 0;
 
-  constexpr bool operator==(const BitSet &other) const {
-    if (size() != other.size()) {
+    // mask out the last bits of the last storage space
+    u16 n_dead_bits = (n_elems * StrgTySizeBit) - _size_bits;
+    u16 n_alive_bits = StrgTySizeBit - n_dead_bits;
+    auto mask = ((StorageType)1 << n_alive_bits) - 1;
+    _data[n_elems - 1] = _data[n_elems - 1] & mask;
+
+    for (size_t i = 0; i < n_elems; i++) {
+      auto t = _data[i];
+      while (t) {
+        if (t & 1) {
+          count++;
+        }
+        t >>= 1;
+      }
+    }
+
+    return count;
+  }
+  [[nodiscard]] constexpr bool operator==(const BitSet &other) const {
+    if (bit_size() != other.bit_size()) {
       return false;
     }
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;

@@ -476,7 +476,7 @@ void LiveVariables::update(const fmir::MFunc &func) {
 
 bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
   auto id = reg_to_uid(reg);
-  if (id >= _live.at(bb_id).size()) {
+  if (id >= _live.at(bb_id).bit_size()) {
     TODO("REIMPL");
     // fmt::println(
     //     "Faled to index into live variables with reg {} which gets id {}",
