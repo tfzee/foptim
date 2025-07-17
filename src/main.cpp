@@ -84,12 +84,17 @@ int main(int argc, char *argv[]) {
 
     foptim::fir::Context ctx;
     {
-      auto a1 = t.scopedTimer("Parse+Optim");
       foptim::JobSheduler shed;
       shed.init(foptim::utils::number_worker_threads);
       // fir
-      parse_llvm_ir(ctx);
-      optimize_fir(ctx, &shed);
+      {
+        auto a1 = t.scopedTimer("ParseConvert");
+        parse_llvm_ir(ctx);
+      }
+      {
+        auto a1 = t.scopedTimer("Optimize");
+        optimize_fir(ctx, &shed);
+      }
       // cleanup
       shed.deinit();
     }
@@ -173,7 +178,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, FuncAnnotator, InstSimplify, ConstLoopEval, LoopSimplify,
-      LoopUnroll, SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs, DCE, GarbageCollect>{}
+      LoopUnroll, SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs, DCE,
+      GarbageCollect>{}
       .apply(ctx, shed);
 
   // fmt::print("{:d}", ctx);
