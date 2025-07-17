@@ -1,5 +1,6 @@
 #pragma once
 #include "optim/analysis/cfg.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "optim/function_pass.hpp"
 
 namespace foptim::fir {
@@ -7,6 +8,7 @@ class Function;
 class BasicBlock;
 } // namespace foptim::fir
 namespace foptim::optim {
+class Dominators;
 
 // + [x] remove bb with no predecessor
 // + [x] merge bb with pred if thats only edge
@@ -20,10 +22,9 @@ namespace foptim::optim {
 // + [ ]
 
 class SimplifyCFG final : public FunctionPass {
-public:
   // if not jumped to just delete
-  bool remove_dead_bb(CFG &cfg, CFG::Node &curr, fir::Function &func,
-                      size_t bb_id, bool is_entry);
+  bool remove_dead_bb(CFG &cfg, Dominators &dom, CFG::Node &curr,
+                      fir::Function &func, size_t bb_id, bool is_entry);
   // if we got a bb arg that got no use remove it
   bool remove_dead_bb_arg(CFG &cfg, CFG::Node &curr, fir::Function &func,
                           size_t bb_id, bool is_entry);
@@ -73,7 +74,10 @@ public:
   // if we have mustprogress + an infinite loop delete it
   bool eliminate_infinite_loop(CFG &cfg, CFG::Node &curr, fir::Function &func,
                                size_t bb_id, bool is_entry);
-  bool simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id);
+
+public:
+  bool simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
+                    size_t bb_id);
   void apply(fir::Context & /*unused*/, fir::Function &func) override;
 };
 

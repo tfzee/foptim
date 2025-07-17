@@ -11,7 +11,8 @@
 
 namespace foptim::optim {
 
-bool SimplifyCFG::remove_dead_bb(CFG &cfg, CFG::Node &curr, fir::Function &func,
+bool SimplifyCFG::remove_dead_bb(CFG & /*cfg*/, Dominators &dom,
+                                 CFG::Node &curr, fir::Function &func,
                                  size_t bb_id, bool is_entry) {
   ZoneScopedN("rem dead bb");
   if (is_entry) {
@@ -24,7 +25,6 @@ bool SimplifyCFG::remove_dead_bb(CFG &cfg, CFG::Node &curr, fir::Function &func,
   }
   // or all bs that jump into this bb are all dominated by this bb
   if (!is_dead) {
-    Dominators dom{cfg};
     is_dead = true;
     for (auto pred : curr.pred) {
       if (dom.dom_bbs[pred].dominators[bb_id]) {
@@ -709,12 +709,13 @@ bool SimplifyCFG::eliminate_infinite_loop(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
-bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
+bool SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
+                               size_t bb_id) {
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
   constexpr bool debug = false;
 
-  if (remove_dead_bb(cfg, curr, func, bb_id, is_entry)) {
+  if (remove_dead_bb(cfg, dom, curr, func, bb_id, is_entry)) {
     if constexpr (debug) {
       fmt::println("1");
     }
@@ -804,13 +805,14 @@ bool SimplifyCFG::simplify_cfg(CFG &cfg, fir::Function &func, size_t bb_id) {
 void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("SimplifyCFG", COLOR_OPTIMF);
   CFG cfg{func};
+  Dominators dom{cfg};
 
   auto iter = 0;
   bool modified = true;
   while (modified) {
     modified = false;
     for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
-      if (simplify_cfg(cfg, func, bb_id - 1)) {
+      if (simplify_cfg(cfg, dom, func, bb_id - 1)) {
         // cfg.update(func, false);
         modified = true;
         break;
@@ -824,6 +826,7 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
 
     foptim::utils::TempAlloc<void *>::reset();
     cfg = CFG(func, false);
+    dom = Dominators(cfg);
     // if (!func.verify()) {
     // fmt::println("{}", func);
     //   TODO("fix");

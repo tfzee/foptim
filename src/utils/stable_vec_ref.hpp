@@ -60,12 +60,11 @@ public:
   }
 
   inline constexpr void verify_validness() const {
-    ASSERT(data_ref != nullptr);
+    ASSERT(data_ref != nullptr && data_ref->used == SlotState::Used);
 #ifdef SLOT_CHECK_GENERATION
     ASSERT(generation != 0);
     ASSERT(data_ref->generation == generation);
 #endif
-    ASSERT(data_ref->used == SlotState::Used);
   }
 
   constexpr const T *get_raw_ptr() const {
@@ -107,7 +106,6 @@ constexpr inline bool operator==(const SRef<T> &self, const SRef<T> &other) {
 }
 
 } // namespace foptim::utils
-
 
 template <class T> struct std::hash<foptim::utils::SRef<T>> {
   std::size_t operator()(const foptim::utils::SRef<T> &k) const {

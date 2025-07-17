@@ -39,7 +39,6 @@ public:
 
   void update(const CFG &cfg) {
     ZoneScopedNC("DOM UPDATE", COLOR_ANALY);
-
     dom_bbs.clear();
     this->cfg = &cfg;
 
@@ -66,20 +65,17 @@ public:
       worklist.pop_front();
 
       const auto &pred = cfg_bbs[cur].pred;
-      newSet.reset(false);
-      if (!pred.empty()) {
+      if (pred.empty()) {
+        newSet.reset(false);
+      } else {
         newSet.assign(dom_bbs[pred[0]].dominators);
         for (size_t i = 1; i < pred.size(); i++) {
           auto &dom = dom_bbs[pred[i]];
-          // if (dom.dominators[cur]) {
-          //   continue;
-          // }
           newSet *= dom.dominators;
         }
       }
 
       newSet[cur].set(true);
-
       if (newSet != dom_bbs[cur].dominators) {
         dom_bbs[cur].dominators.assign(newSet);
         for (auto succ : cfg_bbs[cur].succ) {
@@ -89,7 +85,7 @@ public:
     }
 
     BitSet doms{n_bbs, false};
-    BitSet strict_dom{n_bbs, false};
+    // BitSet strict_dom{n_bbs, false};
 
     // frontier
     // iter over all blocks look at each successor
@@ -97,33 +93,12 @@ public:
 
       for (u32 succ_id : cfg_bbs[node_id].succ) {
         // if a succ has less dominators then the parent -> its a frontier
-        strict_dom.assign(dom_bbs[succ_id].dominators);
-        strict_dom[succ_id].set(false);
-        doms.assign(dom_bbs[node_id].dominators)
-            .xor_(strict_dom)
-            .mul(dom_bbs[node_id].dominators);
-        // doms.assign().assign(strict_dom).negate();
-
-        // auto doms =
-        //     (dom_bbs[node_id].dominators ^ dom_bbs[succ_id].dominators) *
-        //     dom_bbs[node_id].dominators;
+        doms.assign(dom_bbs[succ_id].dominators);
+        doms[succ_id].set(false);
+        doms.xor_(dom_bbs[node_id].dominators).mul(dom_bbs[node_id].dominators);
         for (auto dom : doms) {
           dom_bbs[dom].frontier[succ_id].set(true);
         }
-
-        // for (size_t parent_elem : dom_bbs[node_id].dominators) {
-        //   bool succ_also_has_it = false;
-        //   for (size_t succ_elem : dom_bbs[succ_id].dominators) {
-        //     if (succ_elem == parent_elem) {
-        //       succ_also_has_it = true;
-        //       break;
-        //     }
-        //   }
-        //   if (!succ_also_has_it) {
-        //     // so this is a frontier for this parent_element
-        //     dom_bbs[parent_elem].frontier[succ_id] = true;
-        //   }
-        // }
       }
     }
   }
