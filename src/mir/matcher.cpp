@@ -220,6 +220,7 @@ Type convert_type(fir::TypeR type) {
     if (width <= 64) {
       return Type::Int64;
     }
+    fmt::println("Int with {}", width);
     TODO("IMPL");
   } else if (type->is_ptr()) {
     return Type::Int64;
@@ -231,6 +232,7 @@ Type convert_type(fir::TypeR type) {
     if (width == 64) {
       return Type::Float64;
     }
+    fmt::println("float with {}", width);
     TODO("IMPL");
   } else if (type->is_vec()) {
     auto d = type->as_vec();
