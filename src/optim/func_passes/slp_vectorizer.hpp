@@ -132,9 +132,8 @@ private:
         auto [sdata, sbase] = get_storeload_data(instr);
         if (curr.base == sbase) {
           curr.data.push_back(sdata);
-        } else {
-          // TODO: could do aliasing check here
-          //  only if they alias we need to stop
+        } else if (aa.alias(curr.base, sbase) !=
+                   AliasAnalyis::AAResult::NoAlias) {
           break;
         }
       } else if (instr->is(fir::InstrType::LoadInstr)) {
