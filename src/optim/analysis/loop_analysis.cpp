@@ -956,9 +956,6 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
   auto loop_continue =
       (u32)(std::ranges::find(cfg.bbrs[info.leaving_nodes[0]].succ, info.head) -
             cfg.bbrs[info.leaving_nodes[0]].succ.begin());
-  if (loop_continue != 0) {
-    return false;
-  }
 
   auto cond = leav_term->args[0];
   if (!cond.is_instr()) {
@@ -966,11 +963,14 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
   }
   auto condi = cond.as_instr();
   auto sub = (fir::ICmpInstrSubType)condi->subtype;
+  bool is_eql_cond =
+      sub == fir::ICmpInstrSubType::NE || sub == fir::ICmpInstrSubType::EQ;
   bool isle =
       sub == fir::ICmpInstrSubType::SLE || sub == fir::ICmpInstrSubType::ULE;
-  if (!condi->is(fir::InstrType::ICmp) &&
-      (sub == fir::ICmpInstrSubType::SLT || sub == fir::ICmpInstrSubType::ULT ||
-       isle)) {
+
+  if (!condi->is(fir::InstrType::ICmp) ||
+      (!is_eql_cond && sub != fir::ICmpInstrSubType::SLT &&
+       sub != fir::ICmpInstrSubType::ULT && !isle)) {
     return false;
   }
   if (!condi->args[1].is_constant()) {
@@ -982,12 +982,17 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
         const SCEVExpr &expr = evo.exprs[a.second - 1];
         return expr.associated_val == condi->args[0];
       });
+  // TODO: this isnt very robust we might be using teh value oft he previous
+  // iteration as a condition
+  //  which then would fail this check
+  //  maybe implement a forwarding system??
   if (induct_id == evo.direct_induct.end()) {
     return false;
   }
   induct = induct_id->second;
   auto &expr = evo.exprs[induct_id->second - 1];
   if (expr.t != SCEVExpr::Type::Add ||
+      // TODO support other stuff like sub atleast
       !evo.exprs[expr.args[1] - 1].associated_val.is_constant()) {
     return false;
   }
@@ -1004,6 +1009,7 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
     }
   }
   auto incoming_term = cfg.bbrs[incoming_bb].bb->get_terminator();
+  // TODO: support cbranch/switch
   if (!incoming_term->is(fir::InstrType::BranchInstr)) {
     return false;
   }
@@ -1012,22 +1018,44 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
     return false;
   }
   start_value = lowwer_boundv.as_constant()->as_int();
-  if ((change_val > 0 && start_value > end_value) ||
-      (change_val < 0 && start_value < end_value)) {
-    // it might overflow??
-    return false;
-  }
 
-  // if the upper bound is not divisible by teh incr the final value of the
-  // induction variable will be higher and not equal to the upper bound
-  // the exact value depends on the starting value + upper_bound mod  incr
   ASSERT(change_val > 0);
-  real_end_value = end_value;
-  i128 range = (end_value - start_value);
-  if (range % change_val != 0) {
-    real_end_value = end_value + (change_val - (range % change_val));
+  if (is_eql_cond) {
+    fmt::println("{}", end_value);
+    fmt::println("{}", change_val);
+    fmt::println("{}", start_value);
+    fmt::println("{}", condi);
+    TODO("impl eql cond");
+    if (loop_continue != 0) {
+      // means if the targets of the leaving cbranch are switched the
+      // condition
+      // is effectively also switched
+      TODO("impl different continue");
+      // return false;
+    }
+  } else {
+    if (loop_continue != 0) {
+      // means if the targets of the leaving cbranch are switched the condition
+      // is effectively also switched
+      TODO("impl different continue");
+      // return false;
+    }
+    if ((change_val > 0 && start_value > end_value) ||
+        (change_val < 0 && start_value < end_value)) {
+      // it might overflow??
+      return false;
+    }
+
+    // if the upper bound is not divisible by teh incr the final value of the
+    // induction variable will be higher and not equal to the upper bound
+    // the exact value depends on the starting value + upper_bound mod  incr
+    real_end_value = end_value;
+    i128 range = (end_value - start_value);
+    if (range % change_val != 0) {
+      real_end_value = end_value + (change_val - (range % change_val));
+    }
+    n_iter = (real_end_value - start_value) / change_val;
   }
-  n_iter = (real_end_value - start_value) / change_val;
   return true;
 }
 

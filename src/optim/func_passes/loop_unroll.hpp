@@ -139,17 +139,9 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   (void)loop;
   (void)ctx;
   (void)func;
-  // fmt::println("==IV2==");
   // loop.dump();
   ScalarEvo evo{cfg, loop};
   LoopBoundsAnalysis lb{};
-  // if () {
-  //   evo.dump();
-  //   lb.dump();
-  //   // TODO("nice");
-  //   fmt::println("====");
-  // }
-  // LoopRangeAnalysis range;
   if (!lb.update(evo, cfg, loop)) {
     failure(
         {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
@@ -160,7 +152,11 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   auto iteration_count = lb.n_iter;
   u8 unroll_factor = 2;
   bool is_full_unroll = false;
-  if (iteration_count % 8 == 0) {
+  if (iteration_count % 32 == 0) {
+    unroll_factor = 32;
+  } else if (iteration_count % 16 == 0) {
+    unroll_factor = 16;
+  } else if (iteration_count % 8 == 0) {
     unroll_factor = 8;
   } else if (iteration_count % 4 == 0) {
     unroll_factor = 4;
@@ -176,11 +172,13 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
     n_instrs += cfg.bbrs[i].bb->n_instrs();
   }
 
-  if (n_instrs < 4 && iteration_count < 32) {
-    return true;
+  while (!is_full_unroll && unroll_factor * n_instrs > 64 &&
+         unroll_factor > 1) {
+    unroll_factor = unroll_factor / 2;
   }
-  if (unroll_factor * n_instrs > 50) {
-    failure({.reason = "Unroll too massive", .loc = {cfg.bbrs[loop.head].bb}});
+  if (unroll_factor == 1) {
+    failure(
+        {.reason = "Unroll prob too massive", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
 
@@ -194,8 +192,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   // fmt::println("{}", func);
   // fmt::println("unrollnig!!");
   // loop.dump();
-  // fmt::println("{} factor", unroll_factor);
-  // fmt::println("{} full?", is_full_unroll);
+  // fmt::println("{} factor full? {}", unroll_factor, is_full_unroll);
   unroll_it(cfg, loop, unroll_factor, ctx, func, is_full_unroll);
   // fmt::println("{}", func);
   // TODO("okak");
