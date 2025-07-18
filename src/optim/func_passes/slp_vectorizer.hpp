@@ -125,6 +125,8 @@ private:
     curr.type = bb->instructions[instr_id].get_type();
     curr.data.push_back(data);
 
+    // fmt::print("===============Col store================\n{}",
+    //            bb->instructions[instr_id]);
     for (auto i = instr_id + 1; i < bb->instructions.size(); i++) {
       auto instr = bb->instructions[i];
       if (instr->is(fir::InstrType::StoreInstr) &&
@@ -134,6 +136,7 @@ private:
           curr.data.push_back(sdata);
         } else if (aa.alias(curr.base, sbase) !=
                    AliasAnalyis::AAResult::NoAlias) {
+          // fmt::println("Failed aliasing store {}", instr);
           break;
         }
       } else if (instr->is(fir::InstrType::LoadInstr)) {
@@ -152,9 +155,11 @@ private:
           }
         }
         if (might_alias) {
+          // fmt::println("Failed aliasing load {}", instr);
           break;
         }
       } else if (instr->pot_modifies_mem() || instr->pot_reads_mem()) {
+        // fmt::println("Failed aliasing operation {}", instr);
         // TODO if it writes we could use aliasing to still apply this
         break;
       }

@@ -111,6 +111,7 @@ public:
       break;
     case fir::BinaryInstrSubType::INVALID:
     case fir::BinaryInstrSubType::IntSRem:
+    case fir::BinaryInstrSubType::IntURem:
     case fir::BinaryInstrSubType::IntSDiv:
     case fir::BinaryInstrSubType::IntUDiv:
     case fir::BinaryInstrSubType::Shr:
