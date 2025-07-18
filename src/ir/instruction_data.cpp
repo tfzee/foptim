@@ -213,6 +213,7 @@ bool InstrData::is_commutative() const {
       return true;
     case BinaryInstrSubType::IntSub:
     case BinaryInstrSubType::IntSRem:
+    case BinaryInstrSubType::IntURem:
     case BinaryInstrSubType::IntSDiv:
     case BinaryInstrSubType::IntUDiv:
     case BinaryInstrSubType::FloatAdd:
@@ -476,6 +477,13 @@ InstrData InstrData::get_add(TypeR ty) {
 
 InstrData InstrData::get_smod(TypeR ty) {
   auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntSRem,
+                       ty, BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(2);
+  return res;
+}
+
+InstrData InstrData::get_umod(TypeR ty) {
+  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntURem,
                        ty, BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;

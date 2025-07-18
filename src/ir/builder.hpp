@@ -39,6 +39,7 @@ public:
   ValueR build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
                     std::span<ValueR> args);
   ValueR build_int_srem(ValueR a, ValueR b);
+  ValueR build_int_urem(ValueR a, ValueR b);
   ValueR build_binary_op(ValueR a, ValueR b, BinaryInstrSubType sub_type);
   ValueR build_unary_op(ValueR a, UnaryInstrSubType sub_type);
   ValueR build_conversion_op(ValueR a, TypeR res_type,

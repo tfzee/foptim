@@ -147,6 +147,7 @@ enum class BinaryInstrSubType : u32 {
   IntSub,
   IntMul,
   IntSRem,
+  IntURem,
   IntSDiv,
   IntUDiv,
 
@@ -266,6 +267,8 @@ public:
         return "IntMul";
       case BinaryInstrSubType::IntSRem:
         return "IntSRem";
+      case BinaryInstrSubType::IntURem:
+        return "IntURem";
       case BinaryInstrSubType::IntSDiv:
         return "IntSDiv";
       case BinaryInstrSubType::IntUDiv:
@@ -448,6 +451,7 @@ public:
   static InstrData get_extract_value(TypeR ty);
   static InstrData get_insert_value(TypeR ty);
   static InstrData get_smod(TypeR ty);
+  static InstrData get_umod(TypeR ty);
   static InstrData get_intrinsic(TypeR ty, IntrinsicSubType sub_type);
   static InstrData get_vector(TypeR ty, VectorISubType sub_type);
   static InstrData get_add(TypeR ty);

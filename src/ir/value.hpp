@@ -64,6 +64,13 @@ public:
 
   [[nodiscard]] bool is_valid(bool check_refs) const;
 
+  [[nodiscard]] constexpr ConstantValueR try_constant() const {
+    if (is_constant()) {
+      return const_val;
+    }
+    return ConstantValueR{ConstantValueR::invalid()};
+  }
+
   [[nodiscard]] constexpr Instr as_instr() const {
     ASSERT(is_instr());
     return instr;
