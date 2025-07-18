@@ -1,5 +1,4 @@
 #include "inst_simplify.hpp"
-
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -675,6 +674,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     case fir::BinaryInstrSubType::IntSub:
     case fir::BinaryInstrSubType::IntMul:
     case fir::BinaryInstrSubType::IntSRem:
+    case fir::BinaryInstrSubType::IntURem:
     case fir::BinaryInstrSubType::IntSDiv:
     case fir::BinaryInstrSubType::IntUDiv:
     case fir::BinaryInstrSubType::Shl:
@@ -1051,8 +1051,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
               b.build_itrunc(instr->args[1], ctx->get_int_type(amount));
           worklist.push_back({truncated_val.as_instr(),
                               truncated_val.as_instr()->get_parent()});
-          worklist.push_back(
-              {truncated_val.as_instr(), truncated_val.as_instr()->get_parent()});
+          worklist.push_back({truncated_val.as_instr(),
+                              truncated_val.as_instr()->get_parent()});
           worklist.push_back(
               {truncated_o.as_instr(), truncated_o.as_instr()->get_parent()});
           instr.replace_arg(1, truncated_o);
@@ -1944,16 +1944,28 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
     break;
   case fir::ConversionSubType::FPEXT:
+    if (instr->args[0].is_constant() &&
+        instr->args[0].as_constant()->is_float()) {
+      ASSERT(instr->args[0].get_type()->as_float() == 32);
+      ASSERT(instr.get_type()->as_float() == 64);
+      auto val = instr->args[0].as_constant()->as_f32();
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_constant_value((f64)val, instr->get_type())});
+      instr.destroy();
+      return;
+    }
+    break;
   case fir::ConversionSubType::FPTRUNC:
     if (instr->args[0].is_constant() &&
         instr->args[0].as_constant()->is_float()) {
-      //   auto val = instr->args[0].as_constant()->as_float();
-      //   push_all_uses(worklist, instr);
-      //   instr->replace_all_uses(
-      //       fir::ValueR{ctx->get_constant_value((u64)val,
-      //       instr->get_type())});
-      //   instr.destroy();
-      TODO("OKAK IMPL");
+      ASSERT(instr->args[0].get_type()->as_float() == 64);
+      ASSERT(instr.get_type()->as_float() == 32);
+      auto val = instr->args[0].as_constant()->as_f64();
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_constant_value((f32)val, instr->get_type())});
+      instr.destroy();
       return;
     }
     break;
@@ -1999,64 +2011,67 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           return;
         }
       }
+      //NOTE: this current version does not work cause it does not append
       // printf(lit) -> fputs(lit, stdout)
-      if (funci->name == "printf" && instr->args.size() == 2 &&
-          instr->get_n_uses() == 0) {
+      // if (funci->name == "printf" && instr->args.size() == 2 &&
+      //     instr->get_n_uses() == 0) {
 
-        if (!ctx->has_function("write")) {
-          auto puts_func = ctx->create_function(
-              "write",
-              ctx->get_func_ty(ctx->get_int_type(64),
-                               {ctx->get_int_type(32), ctx->get_ptr_type(),
-                                ctx->get_int_type(64)}));
-          puts_func->linkage = fir::Linkage::External;
-          puts_func->basic_blocks.clear();
-        }
-        if (!ctx->has_function("strlen")) {
-          auto strlen_func = ctx->create_function(
-              "strlen",
-              ctx->get_func_ty(ctx->get_int_type(64), {ctx->get_ptr_type()}));
-          strlen_func->linkage = fir::Linkage::External;
-          strlen_func->basic_blocks.clear();
-        }
+      //   if (!ctx->has_function("write")) {
+      //     auto puts_func = ctx->create_function(
+      //         "write",
+      //         ctx->get_func_ty(ctx->get_int_type(64),
+      //                          {ctx->get_int_type(32), ctx->get_ptr_type(),
+      //                           ctx->get_int_type(64)}));
+      //     puts_func->linkage = fir::Linkage::External;
+      //     puts_func->basic_blocks.clear();
+      //   }
+      //   if (!ctx->has_function("strlen")) {
+      //     auto strlen_func = ctx->create_function(
+      //         "strlen",
+      //         ctx->get_func_ty(ctx->get_int_type(64),
+      //         {ctx->get_ptr_type()}));
+      //     strlen_func->linkage = fir::Linkage::External;
+      //     strlen_func->basic_blocks.clear();
+      //   }
 
-        // fir::ValueR stdout{};
-        // if (!ctx->has_global("stdout")) {
-        //   auto global = ctx->insert_global("stdout", 8);
-        //   global->linkage = fir::Linkage::External;
-        //   stdout = fir::ValueR{ctx->get_constant_value(global)};
-        // } else {
-        //   stdout =
-        //       fir::ValueR{ctx->get_constant_value(ctx->get_global("stdout"))};
-        // }
+      //   // fir::ValueR stdout{};
+      //   // if (!ctx->has_global("stdout")) {
+      //   //   auto global = ctx->insert_global("stdout", 8);
+      //   //   global->linkage = fir::Linkage::External;
+      //   //   stdout = fir::ValueR{ctx->get_constant_value(global)};
+      //   // } else {
+      //   //   stdout =
+      //   // fir::ValueR{ctx->get_constant_value(ctx->get_global("stdout"))};
+      //   // }
 
-        auto write_func = ctx->get_function("write");
-        auto strlen_func = ctx->get_function("strlen");
+      //   auto write_func = ctx->get_function("write");
+      //   auto strlen_func = ctx->get_function("strlen");
 
-        fir::Builder builder{instr};
-        // TODO: should load stdcout
-        //
-        //  auto stdout_ptr_val = builder.build_load(ctx->get_ptr_type(),
-        //  stdout); auto stdout_val =
-        //      builder.build_load(ctx->get_ptr_type(), stdout_ptr_val);
-        //  fir::ValueR args[2] = {instr->args[1], fir::ValueR{stdout_val}};
-        fir::ValueR args1[1] = {
-            instr->args[1],
-        };
-        auto string_len = builder.build_call(
-            fir::ValueR{ctx->get_constant_value(strlen_func)},
-            write_func->func_ty, ctx->get_int_type(32), args1);
-        fir::ValueR args2[3] = {
-            fir::ValueR{ctx->get_constant_int(1, 32)},
-            instr->args[1],
-            string_len,
-        };
-        builder.build_call(fir::ValueR{ctx->get_constant_value(write_func)},
-                           write_func->func_ty, ctx->get_int_type(32), args2);
-        instr.destroy();
-        // TODO("okak");
-        return;
-      }
+      //   fir::Builder builder{instr};
+      //   // TODO: should load stdcout
+      //   //
+      //   //  auto stdout_ptr_val = builder.build_load(ctx->get_ptr_type(),
+      //   //  stdout); auto stdout_val =
+      //   //      builder.build_load(ctx->get_ptr_type(), stdout_ptr_val);
+      //   //  fir::ValueR args[2] = {instr->args[1], fir::ValueR{stdout_val}};
+      //   fir::ValueR args1[1] = {
+      //       instr->args[1],
+      //   };
+      //   auto string_len = builder.build_call(
+      //       fir::ValueR{ctx->get_constant_value(strlen_func)},
+      //       write_func->func_ty, ctx->get_int_type(32), args1);
+      //   fir::ValueR args2[3] = {
+      //       fir::ValueR{ctx->get_constant_int(1, 32)},
+      //       instr->args[1],
+      //       string_len,
+      //   };
+      //   builder.build_call(fir::ValueR{ctx->get_constant_value(write_func)},
+      //                      write_func->func_ty, ctx->get_int_type(32),
+      //                      args2);
+      //   instr.destroy();
+      //   // TODO("okak");
+      //   return;
+      // }
     }
   }
 }
@@ -2351,7 +2366,7 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
             auto load = b.user->uses[0].user;
             push_all_uses(worklist, load);
             propagate_load_through_select(b.user);
-            load.destroy();
+            // load.destroy();
           }
         }
         // fmt::println("{}", *instr->get_parent()->get_parent().func);

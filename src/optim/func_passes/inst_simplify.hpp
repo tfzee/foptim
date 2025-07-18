@@ -64,6 +64,7 @@ bool try_constant_eval_binary(fir::Instr instr,
   case fir::BinaryInstrSubType::AShr:
   case fir::BinaryInstrSubType::Shr:
   case fir::BinaryInstrSubType::IntSRem:
+  case fir::BinaryInstrSubType::IntURem:
   case fir::BinaryInstrSubType::Shl:
   case fir::BinaryInstrSubType::INVALID:
     return false;
