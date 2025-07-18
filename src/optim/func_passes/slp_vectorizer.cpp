@@ -5,6 +5,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "utils/arena.hpp"
+#include "utils/stats.hpp"
 #include <fmt/core.h>
 
 namespace foptim::optim {
@@ -435,7 +436,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
           }
           continue;
         } else {
-          fmt::println("Failed tree vectorize at binary {} {}", curr[0], curr[1]);
+          fmt::println("Failed tree vectorize at binary {} {}", curr[0],
+                       curr[1]);
           return false;
         }
       case fir::InstrType::LoadInstr:
@@ -515,6 +517,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   if (!tree.empty()) {
     tree[0]->generate(ctx);
   }
+  utils::StatCollector::get().addi(1, "SLPVectorized",
+                                   utils::StatCollector::StatFOptim);
   // auto par = b.data[0].instr->parent->get_parent();
   for (auto &bu : b.data) {
     bu.instr.destroy();
