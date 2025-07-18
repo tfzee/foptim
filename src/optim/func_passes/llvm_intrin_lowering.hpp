@@ -37,11 +37,24 @@ public:
         instr.destroy();
         return;
       }
-      if (out_size % 8 == 0 && out_size <= 32) {
-        TODO("impl");
-      }
-      if (out_size % 4 == 0 && out_size <= 32) {
-        TODO("impl");
+
+      bool is_mod8 = out_size % 8 == 0;
+      if ((is_mod8 || out_size % 4 == 0) && out_size <= 32) {
+        u8 constant = value.as_constant()->as_int();
+        u64 value = 0;
+        for (u32 i = 0; i < (is_mod8 ? 8 : 4); i++) {
+          value = (value << 8) | constant;
+        }
+        for (auto i = 0; i < out_size; i += 8) {
+          // TODO directly vectorize??
+          auto ptr = bb.build_int_add(
+              target_ptr, fir::ValueR{ctx->get_constant_int(i, 64)});
+          bb.build_store(ptr,
+                         fir::ValueR{ctx->get_constant_value(
+                             value, ctx->get_int_type(is_mod8 ? 64 : 32))});
+        }
+        instr.destroy();
+        return;
       }
     }
 
