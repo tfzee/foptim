@@ -640,6 +640,17 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       valueToValue.insert({any_instr, add});
       return;
     }
+  } else if (op_code == llvm::Instruction::URem) {
+    auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto right = convert_instr_arg(any_instr->getOperand(1), fctx, ffunc,
+                                   builder, valueToValue, mod, b2b);
+
+    if (any_instr->getType()->isIntegerTy()) {
+      auto add = builder.build_int_urem(left, right);
+      valueToValue.insert({any_instr, add});
+      return;
+    }
   } else if (op_code == llvm::Instruction::Add) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
