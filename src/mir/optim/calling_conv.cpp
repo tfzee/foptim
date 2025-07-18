@@ -216,18 +216,20 @@ uint32_t restore_locals(IRVec<MInstr> &instrs,
   bool can_skip_mm0 = false;
   bool can_skip_mm1 = false;
   // ret value
-  if (call.n_args >= 2) {
+  bool has_ret = call.n_args >= 2;
+  bool has_double_ret = call.n_args > 2;
+  if (has_ret) {
     bool is_float = call.args[1].is_vec_reg();
     auto ret1_reg_type = is_float ? CReg::mm0 : CReg::A;
     auto ret2_reg_type = is_float ? CReg::mm1 : CReg::D;
     if (is_float) {
       can_skip_mm0 = true;
-      if (call.n_args > 2) {
+      if (has_double_ret) {
         can_skip_mm1 = true;
       }
     } else {
       can_skip_a = true;
-      if (call.n_args > 2) {
+      if (has_double_ret) {
         can_skip_d = true;
       }
     }
@@ -246,7 +248,7 @@ uint32_t restore_locals(IRVec<MInstr> &instrs,
         instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
         n_locals_restored++;
       }
-      if (d_gets_overwritten || mm1_gets_overwritten) {
+      if ((d_gets_overwritten || mm1_gets_overwritten) && has_double_ret) {
         auto arg = MArgument{VReg{ret2_reg_type, Type::Int64}, Type::Int64};
         instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
         n_locals_restored++;
@@ -257,7 +259,7 @@ uint32_t restore_locals(IRVec<MInstr> &instrs,
     instrs.insert(instrs.begin() + (i64)start,
                   MInstr{Opcode::mov, call.args[1],
                          MArgument{VReg{ret1_reg_type, ret_type}, ret_type}});
-    if (call.n_args > 2) {
+    if (has_double_ret) {
       instrs.insert(instrs.begin() + (i64)start,
                     MInstr{Opcode::mov, call.args[2],
                            MArgument{VReg{ret2_reg_type, ret_type}, ret_type}});
