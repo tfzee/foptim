@@ -2,6 +2,8 @@
 #include "types.hpp"
 #include <fmt/core.h>
 
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 namespace foptim {
 
 #define TODO(text) foptim::todo_impl(text, __FILE__, __LINE__)
@@ -14,22 +16,22 @@ namespace foptim {
 // void ASSERT_HANDLE(bool cond, const char *filename, const size_t lineNumber,
 //                    const char *message);
 
-[[noreturn]] inline void todo_impl(const char *text, const char *filename,
-                                   u64 line) {
-  fmt::println("[TODO] @ %s:%lu : %s\n", filename, line, text);
+[[noreturn, gnu::cold]] inline void todo_impl(const char *text,
+                                              const char *filename, u64 line) {
+  fmt::println("[TODO] @ {}:{} : {}\n", filename, line, text);
   std::abort();
 }
 
-[[noreturn]] inline void impl_impl(const char *text, const char *filename,
-                                   u64 line) {
-  fmt::println("[IMPLEMENT] @ %s:%lu : %s\n", filename, line, text);
+[[noreturn, gnu::cold]] inline void impl_impl(const char *text,
+                                              const char *filename, u64 line) {
+  fmt::println("[TODO] @ {}:{} : {}\n", filename, line, text);
   std::abort();
 }
 
 #ifdef ASSERT_ENABLED
 inline void ASSERT_HANDLE(bool cond, const char *filename, size_t lineNumber,
                           const char *message) {
-  if (!cond) {
+  if (unlikely(!cond)) {
     fmt::println("{}:{} Failed Assert! {}\n", filename, lineNumber, message);
     std::abort();
   }

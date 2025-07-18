@@ -611,8 +611,9 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             v_i->args[1].as_constant()->eql(*c_val)) {
           fir::Builder b{instr};
 
-          auto magic_constant = ctx->get_constant_int(
-              ~(1 << (utils::npow2(uval) - 1)), instr->get_type()->get_bitwidth());
+          auto magic_constant =
+              ctx->get_constant_int(~(1 << (utils::npow2(uval) - 1)),
+                                    instr->get_type()->get_bitwidth());
           auto res =
               b.build_binary_op(v_i->args[0], fir::ValueR{magic_constant},
                                 BinaryInstrSubType::And);
@@ -1048,6 +1049,10 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
           instr.replace_arg(0, truncated_val);
           auto truncated_o =
               b.build_itrunc(instr->args[1], ctx->get_int_type(amount));
+          worklist.push_back({truncated_val.as_instr(),
+                              truncated_val.as_instr()->get_parent()});
+          worklist.push_back(
+              {truncated_val.as_instr(), truncated_val.as_instr()->get_parent()});
           worklist.push_back(
               {truncated_o.as_instr(), truncated_o.as_instr()->get_parent()});
           instr.replace_arg(1, truncated_o);
@@ -1657,7 +1662,6 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return;
   }
-  (void)ctx;
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant();
     if (c->is_poison()) {
@@ -1752,6 +1756,8 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
         auto v1 = b.build_itrunc(i_arg1, out_type);
         auto r =
             b.build_binary_op(v0, v1, (fir::BinaryInstrSubType)arg_i->subtype);
+        worklist.push_back({v0.as_instr(), v0.as_instr()->get_parent()});
+        worklist.push_back({v1.as_instr(), v1.as_instr()->get_parent()});
         push_all_uses(worklist, instr);
         instr->replace_all_uses(r);
         instr.destroy();

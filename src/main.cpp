@@ -146,18 +146,18 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LLVMInstrinsicLowering, DCE, GarbageCollect>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
-      DCE, SimplifyCFG, TailRecElim, LICM, LoopRotate, LoopSimplify, LoopUnroll,
-      DCE, SLPVectorizer, LVN, SCCP, InstSimplify, DCE, FuncAnnotator,
-      SimplifyCFG, StackKnownBits, Mem2Reg, SimplifyCFG, DCE, InstSimplify,
-      ConstLoopEval, LoopSimplify, InstSimplify, SimplifyCFG, GarbageCollect>{}
+      DCE, SimplifyCFG, TailRecElim, LICM, LoopRotate, LoopSimplify, DCE,
+      SLPVectorizer, LVN, SCCP, InstSimplify, DCE, FuncAnnotator, SimplifyCFG,
+      StackKnownBits, Mem2Reg, SimplifyCFG, DCE, InstSimplify, ConstLoopEval,
+      LoopSimplify, InstSimplify, SimplifyCFG, GarbageCollect>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
                                          Inline<>, ArgPromotion,
                                          FunctionDeDup<true>, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
-      InstSimplify, SimplifyCFG, LICM, DCE, FuncAnnotator, SLPVectorizer,
-      GarbageCollect, LVN, SCCP, LoopSimplify, LoopUnroll, IntrinSimplify,
+      InstSimplify, SimplifyCFG, LICM, DCE, FuncAnnotator, LoopSimplify,
+      LoopUnroll, SLPVectorizer, GarbageCollect, LVN, SCCP, IntrinSimplify,
       InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG, DCE,
       GarbageCollect>{}
       .apply(ctx, shed);
@@ -182,7 +182,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       GarbageCollect>{}
       .apply(ctx, shed);
 
-  // fmt::print("{:d}", ctx);
+  fmt::print("{:d}", ctx);
   // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
