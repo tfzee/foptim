@@ -37,6 +37,7 @@
 #include "optim/function_pass.hpp"
 #include "optim/module_passes/IPCP.hpp"
 #include "optim/module_passes/arg_promotion.hpp"
+#include "optim/module_passes/func_property_annotator.hpp"
 #include "optim/module_passes/function_dedup.hpp"
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/global_promotion.hpp"
@@ -145,6 +146,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LegalizeStructs, Mem2Reg, FuncAnnotator, InstSimplify, SimplifyCFG,
       LLVMInstrinsicLowering, DCE, GarbageCollect>{}
       .apply(ctx, shed);
+  foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
+                                         ArgPromotion, FunctionDeDup<true>,
+                                         GDCE>{}
+      .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       DCE, SimplifyCFG, TailRecElim, LICM, LoopRotate, LoopSimplify, DCE,
       SLPVectorizer, LVN, SCCP, InstSimplify, DCE, FuncAnnotator, SimplifyCFG,
@@ -157,9 +162,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, FuncAnnotator, LoopSimplify,
-      LoopUnroll, SLPVectorizer, GarbageCollect, LVN, SCCP, IntrinSimplify,
-      InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG, DCE,
-      GarbageCollect>{}
+      LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, GarbageCollect, LVN, SCCP,
+      IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG,
+      DCE, GarbageCollect>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
                                          Inline<>, ArgPromotion,
@@ -178,8 +183,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, GarbageCollect, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, FuncAnnotator, InstSimplify, ConstLoopEval, LoopSimplify,
-      LoopUnroll, SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs, DCE,
-      GarbageCollect>{}
+      LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, InstSimplify, SimplifyCFG,
+      LegalizeVecs, DCE, GarbageCollect>{}
       .apply(ctx, shed);
 
   fmt::print("{:d}", ctx);
@@ -259,7 +264,7 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
   for (auto *func : reordered_funcs) {
-    // fmt::println("{:d}", *func);
+    fmt::println("{:d}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
