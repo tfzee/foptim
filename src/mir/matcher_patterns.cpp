@@ -1246,6 +1246,8 @@ void base_patterns(IRVec<Pattern> &pats) {
                          (u32)fir::BinaryInstrSubType::IntMul};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSRem};
+  auto URemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       (u32)fir::BinaryInstrSubType::IntURem};
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::IntSDiv};
   auto UDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -1778,6 +1780,28 @@ void base_patterns(IRVec<Pattern> &pats) {
                 return true;
               }});
   pats.push_back(
+      Pattern{.nodes = {URemNode},
+              .edges = {},
+              .generator = [](MatchResult &res, ExtraMatchData &data) {
+                auto srem_instr = res.matched_instrs[0];
+                // FIXME: variable size
+                auto res_div = VReg::EAX();
+                auto res_rem = VReg::EDX();
+                auto res_reg =
+                    valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
+                auto res_div_arg =
+                    MArgument(res_div, convert_type(srem_instr.get_type()));
+                auto res_rem_arg =
+                    MArgument(res_rem, convert_type(srem_instr.get_type()));
+
+                res.result.emplace_back(
+                    Opcode::udiv, res_div_arg, res_rem_arg,
+                    valueToArg(srem_instr->args[0], res.result, data.alloc),
+                    valueToArg(srem_instr->args[1], res.result, data.alloc));
+                res.result.emplace_back(Opcode::mov, res_reg, res_rem_arg);
+                return true;
+              }});
+  pats.push_back(
       Pattern{.nodes = {SDivNode},
               .edges = {},
               .generator = [](MatchResult &res, ExtraMatchData &data) {
@@ -1988,9 +2012,10 @@ void base_patterns(IRVec<Pattern> &pats) {
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto branch_instr = res.matched_instrs[0];
+        fmt::println("{}", branch_instr);
         auto value =
             valueToArg(branch_instr->args.back(), res.result, data.alloc);
-        for (size_t instr_id = 0; instr_id < branch_instr->args.size() - 1;
+        for (size_t instr_id = 0; instr_id < branch_instr->bbs.size() - 1;
              instr_id++) {
           auto &bb_with_args = branch_instr->bbs[instr_id];
           auto target_bb = branch_instr->bbs[instr_id].bb;
@@ -2002,7 +2027,7 @@ void base_patterns(IRVec<Pattern> &pats) {
               MInstr::cJmp_eq(value, cond_val, data.bbs[bb_with_args.bb]));
         }
         {
-          size_t instr_id = branch_instr->args.size() - 1;
+          size_t instr_id = branch_instr->bbs.size() - 1;
           auto &bb_with_args = branch_instr->bbs[instr_id];
           auto target_bb = branch_instr->bbs[instr_id].bb;
           ASSERT(bb_with_args.args.size() == target_bb->args.size());
@@ -2395,6 +2420,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                       (u32)fir::IntrinsicSubType::Abs};
   auto fabsNode = Node{NodeType::Instr, InstrType::Intrinsic,
                        (u32)fir::IntrinsicSubType::FAbs};
+  auto sminNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                       (u32)fir::IntrinsicSubType::SMin};
   auto uminNode = Node{NodeType::Instr, InstrType::Intrinsic,
                        (u32)fir::IntrinsicSubType::UMin};
   auto umaxNode = Node{NodeType::Instr, InstrType::Intrinsic,
@@ -2424,6 +2451,18 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         res.result.emplace_back(Opcode::mov, res_reg, b);
         res.result.emplace_back(Opcode::cmov_ult, res_reg, a, res_reg, a);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {sminNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto a = valueToArg(instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        res.result.emplace_back(Opcode::mov, res_reg, b);
+        res.result.emplace_back(Opcode::cmov_sgt, res_reg, a, res_reg, a);
         return true;
       }});
   pats.push_back(Pattern{
