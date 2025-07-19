@@ -193,15 +193,25 @@ public:
       case fir::BinaryInstrSubType::IntAdd:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() + b.value->as_int(), out_type));
-      case fir::BinaryInstrSubType::IntSDiv:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            a.value->as_int() / b.value->as_int(), out_type));
       case fir::BinaryInstrSubType::IntUDiv:
         return ConstantValue::Constant(ctx->get_constant_value(
             (u64)a.value->as_int() / (u64)b.value->as_int(), out_type));
-      case fir::BinaryInstrSubType::IntSRem:
-        return ConstantValue::Constant(ctx->get_constant_value(
-            ((i64)a.value->as_int()) % ((i64)b.value->as_int()), out_type));
+      case fir::BinaryInstrSubType::IntSDiv: {
+        auto a_width = (128 - a.value->type->get_bitwidth());
+        auto b_width = (128 - a.value->type->get_bitwidth());
+        auto sexta = (a.value->as_int() << a_width) >> a_width;
+        auto sextb = (b.value->as_int() << b_width) >> b_width;
+        return ConstantValue::Constant(
+            ctx->get_constant_value(sexta / sextb, out_type));
+      }
+      case fir::BinaryInstrSubType::IntSRem: {
+        auto a_width = (128 - a.value->type->get_bitwidth());
+        auto b_width = (128 - a.value->type->get_bitwidth());
+        auto sexta = (a.value->as_int() << a_width) >> a_width;
+        auto sextb = (b.value->as_int() << b_width) >> b_width;
+        return ConstantValue::Constant(
+            ctx->get_constant_value(sexta % sextb, out_type));
+      }
       case fir::BinaryInstrSubType::IntMul:
         return ConstantValue::Constant(ctx->get_constant_value(
             a.value->as_int() * b.value->as_int(), out_type));
