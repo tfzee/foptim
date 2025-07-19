@@ -2,6 +2,8 @@
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/value.hpp"
+#include "utils/logging.hpp"
+#include <fmt/color.h>
 
 namespace foptim::fir {
 
@@ -247,7 +249,8 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
     fmt::println("Type is ptr but constant is not\n");
     return false;
   }
-  if (type->is_struct() && ty != ConstantType::PoisonValue && ty != ConstantType::ConstantStruct) {
+  if (type->is_struct() && ty != ConstantType::PoisonValue &&
+      ty != ConstantType::ConstantStruct) {
     fmt::println("Type is struct but constant is not\n");
     return false;
   }
@@ -258,6 +261,12 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
 
 fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
     foptim::fir::ConstantValueR const &v, format_context &ctx) const {
+  if (color && debug) {
+    return fmt::format_to(ctx.out(), "{:cd}", *v.get_raw_ptr());
+  }
+  if (color) {
+    return fmt::format_to(ctx.out(), "{:c}", *v.get_raw_ptr());
+  }
   if (debug) {
     return fmt::format_to(ctx.out(), "{:d}", *v.get_raw_ptr());
   }
@@ -266,48 +275,55 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
 
 fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
     foptim::fir::ConstantValue const &v, format_context &ctx) const {
+
+  auto colconst = color ? color_constant : text_style{};
+  auto colnumber = color ? color_number : text_style{};
+  auto colfunc = color ? color_func : text_style{};
   switch (v.ty) {
   case foptim::fir::ConstantType::NullPtr:
-    return fmt::format_to(ctx.out(), color_constant, "NULL");
+    return fmt::format_to(ctx.out(), colconst, "NULL");
   case foptim::fir::ConstantType::PoisonValue:
-    return fmt::format_to(ctx.out(), color_constant, "POISON");
+    return fmt::format_to(ctx.out(), colconst, "POISON");
   case foptim::fir::ConstantType::IntValue:
-    return fmt::format_to(ctx.out(), color_number, "{}:{}", v.int_u.v.data,
-                          v.type);
+    if (color) {
+      return fmt::format_to(ctx.out(), colnumber, "{}:{:c}", v.int_u.v.data,
+                            v.type);
+    } else {
+      return fmt::format_to(ctx.out(), "{}:{}", v.int_u.v.data, v.type);
+    }
   case foptim::fir::ConstantType::FloatValue:
     if (debug) {
       if (v.type->as_float() == 32) {
         return fmt::format_to(
-            ctx.out(), color_number, "{:X}:{}",
+            ctx.out(), colnumber, "{:X}:{}",
             (foptim::u32)std::bit_cast<foptim::u64>(v.float_u.v.data), v.type);
       }
-      return fmt::format_to(ctx.out(), color_number, "{:X}:{}",
+      return fmt::format_to(ctx.out(), colnumber, "{:X}:{}",
                             std::bit_cast<foptim::u64>(v.float_u.v.data),
                             v.type);
 
     } else {
       if (v.type->as_float() == 32) {
-        return fmt::format_to(ctx.out(), color_number, "{}:{}", v.as_f32(),
+        return fmt::format_to(ctx.out(), colnumber, "{}:{}", v.as_f32(),
                               v.type);
       }
-      return fmt::format_to(ctx.out(), color_number, "{}:{}", v.as_f64(),
-                            v.type);
+      return fmt::format_to(ctx.out(), colnumber, "{}:{}", v.as_f64(), v.type);
     }
   case foptim::fir::ConstantType::GlobalPtr:
-    return fmt::format_to(ctx.out(), color_constant, "G({})",
+    return fmt::format_to(ctx.out(), colconst, "G({})",
                           v.gp_u.v.glob->name.c_str());
   case foptim::fir::ConstantType::FuncPtr:
-    return fmt::format_to(ctx.out(), color_func, "{}",
+    return fmt::format_to(ctx.out(), colfunc, "{}",
                           v.fup_u.v.func->getName().c_str());
   case foptim::fir::ConstantType::VectorValue: {
     const auto &va = v.vec_u.v;
-    auto ct = fmt::format_to(ctx.out(), color_constant, "<");
+    auto ct = fmt::format_to(ctx.out(), colconst, "<");
     for (auto m : va.members) {
-      ct = fmt::format_to(ct, color_constant, "{}, ", m);
+      ct = fmt::format_to(ct, colconst, "{}, ", m);
     }
-    return fmt::format_to(ct, color_constant, ">:{}", v.type);
+    return fmt::format_to(ct, colconst, ">:{}", v.type);
   }
   case foptim::fir::ConstantType::ConstantStruct:
-    return fmt::format_to(ctx.out(), color_constant, "STRUCT");
+    return fmt::format_to(ctx.out(), colconst, "STRUCT");
   }
 }

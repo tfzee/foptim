@@ -6,19 +6,30 @@
 template <class T> class BaseIRFormatter {
 public:
   bool debug = false;
+  bool color = false;
+
   constexpr auto parse(auto &ctx) {
-    auto i = ctx.begin();
+    auto it = ctx.begin();
     auto end = ctx.end();
-    if (i != end) {
-      if (*i == 'd') {
+
+    while (it != end && *it != '}') {
+      switch (*it) {
+      case 'd':
         debug = true;
-      }
-      if (*i == 'p') {
+        break;
+      case 'c':
+        color = true;
+        break;
+      case 'p':
         debug = false;
+        break;
+      default:
+        return it;
       }
+      ++it;
     }
-    i += 1;
-    return i;
+
+    return it;
   }
 };
 
@@ -35,9 +46,15 @@ public:
     if (!k.is_valid()) {
       return fmt::format_to(ctx.out(), "INVALID");
     }
-    // if (this->debug) {
-    //   return fmt::format_to(app, "{:d}", *k.get_raw_ptr());
-    // }
+    if (this->color && this->debug) {
+      return fmt::format_to(app, "{:cd}", *k.get_raw_ptr());
+    }
+    if (this->color) {
+      return fmt::format_to(app, "{:c}", *k.get_raw_ptr());
+    }
+    if (this->debug) {
+      return fmt::format_to(app, "{:d}", *k.get_raw_ptr());
+    }
     return fmt::format_to(app, "{}", *k.get_raw_ptr());
   }
 };
@@ -49,6 +66,7 @@ constexpr auto color_debug = fg(fmt::color::brown);
 constexpr auto color_func = fg(fmt::color::orange);
 constexpr auto color_constant = fg(fmt::color::dark_orange);
 constexpr auto color_number = fg(fmt::color::medium_orchid);
+constexpr auto color_type = fg(fmt::color::light_coral);
 
 template <>
 class fmt::formatter<foptim::optim::KnownBits>

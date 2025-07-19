@@ -6,6 +6,8 @@
 #include "ir/constant_value.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
+#include "utils/logging.hpp"
+#include <fmt/color.h>
 #include <fmt/format.h>
 
 namespace foptim::fir {
@@ -41,7 +43,8 @@ bool ValueR::eql(const ValueR &other) const {
   case ValueType::BBArg:
     return (void *)bb_arg.get_raw_ptr() == (void *)other.bb_arg.get_raw_ptr();
   case ValueType::ConstantValueR:
-    return (void*)const_val.get_raw_ptr() == (void*)other.const_val.get_raw_ptr();
+    return (void *)const_val.get_raw_ptr() ==
+           (void *)other.const_val.get_raw_ptr();
   }
   // fmt::println("{} and {}", *this, other);
   // UNREACH();
@@ -157,23 +160,35 @@ void ValueR::replace_all_uses(ValueR new_value) {
 fmt::appender
 fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
                                             format_context &ctx) const {
+  auto col1 = color ? color_value : text_style{};
+  auto col2 = color ? color_value2 : text_style{};
+  auto colbb = color ? color_bb : text_style{};
   switch (k.ty) {
   case foptim::fir::ValueType::InvalidValue:
     return fmt::format_to(ctx.out(), "INVALID");
   case foptim::fir::ValueType::Instr:
-    return fmt::format_to(ctx.out(), color_value, "{:p}",
+    return fmt::format_to(ctx.out(), col1, "{:p}",
                           (void *)k.instr.get_raw_ptr());
   case foptim::fir::ValueType::BasicBlock:
-    return fmt::format_to(ctx.out(), color_bb, "{:p}",
-                          (void *)k.bb.get_raw_ptr());
+    return fmt::format_to(ctx.out(), colbb, "{:p}", (void *)k.bb.get_raw_ptr());
   case foptim::fir::ValueType::BBArg:
-    if (debug) {
-      return fmt::format_to(ctx.out(), color_value2, "{:d}", k.bb_arg);
-    } else {
-      return fmt::format_to(ctx.out(), color_value2, "{}", k.bb_arg);
+    if (debug && color) {
+      return fmt::format_to(ctx.out(), col2, "{:cd}", k.bb_arg);
     }
-  case foptim::fir::ValueType::ConstantValueR:
+    if (color) {
+      return fmt::format_to(ctx.out(), col2, "{:c}", k.bb_arg);
+    }
     if (debug) {
+      return fmt::format_to(ctx.out(), col2, "{:d}", k.bb_arg);
+    }
+    return fmt::format_to(ctx.out(), col2, "{}", k.bb_arg);
+
+  case foptim::fir::ValueType::ConstantValueR:
+    if (debug && color) {
+      return fmt::format_to(ctx.out(), "{:cd}", k.const_val);
+    } else if (color) {
+      return fmt::format_to(ctx.out(), "{:c}", k.const_val);
+    } else if (debug) {
       return fmt::format_to(ctx.out(), "{:d}", k.const_val);
     } else {
       return fmt::format_to(ctx.out(), "{}", k.const_val);

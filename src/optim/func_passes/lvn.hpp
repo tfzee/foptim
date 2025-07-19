@@ -1,6 +1,7 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
@@ -58,13 +59,33 @@ public:
 
       for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
         auto instr2 = bb->instructions[i2];
-        if (lvn_applicable(instr2) && instr->eql_expr(*instr2.get_raw_ptr()) &&
-            instr->get_type() == instr2.get_type()) {
-          instr2->replace_all_uses(fir::ValueR{instr});
-          ASSERT(instr2->get_n_uses() == 0);
-          instr2.destroy();
-          i2--;
-          continue;
+        if (lvn_applicable(instr2) && instr->get_type() == instr2.get_type()) {
+          if (instr->eql_expr(*instr2.get_raw_ptr())) {
+            instr2->replace_all_uses(fir::ValueR{instr});
+            ASSERT(instr2->get_n_uses() == 0);
+            instr2.destroy();
+            i2--;
+            continue;
+          }
+          if (instr->is(fir::InstrType::ICmp) &&
+              instr2->is(fir::InstrType::ICmp) &&
+              instr->args[0].eql(instr2->args[0]) &&
+              instr->args[1].eql(instr2->args[1])) {
+            bool opposite_eql =
+                (instr->subtype == (u32)fir::ICmpInstrSubType::EQ &&
+                 instr2->subtype == (u32)fir::ICmpInstrSubType::NE) ||
+                (instr->subtype == (u32)fir::ICmpInstrSubType::NE &&
+                 instr2->subtype == (u32)fir::ICmpInstrSubType::EQ);
+            if (opposite_eql) {
+              fir::Builder bb{instr2};
+              auto res = bb.build_unary_op(fir::ValueR{instr},
+                                           fir::UnaryInstrSubType::Not);
+              instr2->replace_all_uses(res);
+              instr2.destroy();
+              i2--;
+              continue;
+            }
+          }
         }
 
         // if we store and afterwards load from teh same address

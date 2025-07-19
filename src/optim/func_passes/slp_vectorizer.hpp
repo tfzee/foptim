@@ -37,7 +37,8 @@ private:
     }
     auto arg = storeload->args[0].as_instr();
     if (arg->is(fir::InstrType::BinaryInstr) &&
-        arg->subtype == (u32)fir::BinaryInstrSubType::IntAdd) {
+        arg->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
+        arg->args[1].is_constant()) {
       data.b = arg->args[1];
       return {data, arg->args[0]};
     }
@@ -125,18 +126,20 @@ private:
     curr.type = bb->instructions[instr_id].get_type();
     curr.data.push_back(data);
 
-    // fmt::print("===============Col store================\n{}",
+    // fmt::print("===============Col store================\n{}\n",
     //            bb->instructions[instr_id]);
     for (auto i = instr_id + 1; i < bb->instructions.size(); i++) {
       auto instr = bb->instructions[i];
       if (instr->is(fir::InstrType::StoreInstr) &&
           curr.type == instr.get_type()) {
         auto [sdata, sbase] = get_storeload_data(instr);
+        // fmt::println("{} =?= {} => {}\n", curr.base, sbase, curr.base ==
+        // sbase);
         if (curr.base == sbase) {
           curr.data.push_back(sdata);
         } else if (aa.alias(curr.base, sbase) !=
                    AliasAnalyis::AAResult::NoAlias) {
-          // fmt::println("Failed aliasing store {}", instr);
+          // fmt::println("Failed aliasing store {}\n", instr);
           break;
         }
       } else if (instr->is(fir::InstrType::LoadInstr)) {
@@ -155,11 +158,11 @@ private:
           }
         }
         if (might_alias) {
-          // fmt::println("Failed aliasing load {}", instr);
+          // fmt::println("Failed aliasing load {}\n", instr);
           break;
         }
       } else if (instr->pot_modifies_mem() || instr->pot_reads_mem()) {
-        // fmt::println("Failed aliasing operation {}", instr);
+        // fmt::println("Failed pot aliasing operation {}\n", instr);
         // TODO if it writes we could use aliasing to still apply this
         break;
       }
@@ -208,28 +211,30 @@ private:
                       [](const SeedBundle &b1, const SeedBundle &b2) {
                         return b1.data.size() > b2.data.size();
                       });
+    // fmt::println("{}  {}", store_bundles.size(), load_bundles.size());
     // CLEANUP
     for (auto bi = load_bundles.size(); bi > 0; bi--) {
       auto &b = load_bundles[bi - 1];
       {
         auto n_stor = b.data.size();
-        if (n_stor != 2 && n_stor != 4 && n_stor != 8 && n_stor != 16) {
+        if (n_stor != 2 && n_stor != 4 && n_stor != 8 && n_stor != 16 &&
+            n_stor != 32) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 1 && n_stor % 16 != 0) {
+        if (b.type->get_size() == 1 && (n_stor % 16 != 0 || n_stor % 32 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 2 && n_stor % 8 != 0) {
+        if (b.type->get_size() == 2 && (n_stor % 8 != 0 || n_stor % 16 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 4 && n_stor % 4 != 0) {
+        if (b.type->get_size() == 4 && (n_stor % 4 != 0 || n_stor % 8 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 8 && n_stor % 2 != 0) {
+        if (b.type->get_size() == 8 && (n_stor % 2 != 0 || n_stor % 4 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
@@ -251,6 +256,7 @@ private:
           // collect constant offsets
           bool failed = false;
           for (const auto &data : b.data) {
+            // fmt::println("GOT {} => {} {}", data.instr, data.a, data.b);
             if (!data.a.is_invalid() ||
                 (!data.b.is_invalid() &&
                  (!data.b.is_constant() || !data.b.as_constant()->is_int()))) {
@@ -265,6 +271,7 @@ private:
           }
           if (failed) {
             load_bundles.erase(load_bundles.begin() + bi - 1);
+            fmt::println("skip constant");
             continue;
           }
 
@@ -276,12 +283,14 @@ private:
             }
           }
           if (failed) {
+            fmt::println("skip cont");
             load_bundles.erase(load_bundles.begin() + bi - 1);
             continue;
           }
         }
       }
     }
+    // fmt::println("{}  {}", store_bundles.size(), load_bundles.size());
 
     for (auto bi = store_bundles.size(); bi > 0; bi--) {
       auto &b = store_bundles[bi - 1];
@@ -305,19 +314,19 @@ private:
             continue;
           }
         }
-        if (b.type->get_size() == 1 && n_stor % 16 != 0) {
+        if (b.type->get_size() == 1 && (n_stor % 16 != 0 || n_stor % 32 != 0)) {
+          store_bundles.erase(load_bundles.begin() + bi - 1);
+          continue;
+        }
+        if (b.type->get_size() == 2 && (n_stor % 8 != 0 || n_stor % 16 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 2 && n_stor % 8 != 0) {
+        if (b.type->get_size() == 4 && (n_stor % 4 != 0 || n_stor % 8 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 4 && n_stor % 4 != 0) {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
-          continue;
-        }
-        if (b.type->get_size() == 8 && n_stor % 2 != 0) {
+        if (b.type->get_size() == 8 && (n_stor % 2 != 0 || n_stor % 4 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
@@ -370,6 +379,7 @@ private:
         }
       }
     }
+    fmt::println("{}  {}", store_bundles.size(), load_bundles.size());
 
     // // TODO: improve
     // //  any store set thats a subset of another can be deleted
@@ -418,13 +428,17 @@ public:
     (void)ctx;
     (void)func;
     AliasAnalyis aa{};
-    // fmt::println("{}", func);
+    if (func.name != "_ZL14benchmark_bodyi") {
+      return;
+    }
+    fmt::println("{:cd}", func);
     TVec<SeedBundle> store_bundles;
     TVec<SeedBundle> load_bundles;
     TVec<SeedBundle> reduction_bundles;
     for (auto bb : func.basic_blocks) {
       find_seeds(bb, store_bundles, load_bundles, reduction_bundles, aa);
     }
+    fmt::println("Stor {} Lod {}", store_bundles.size(), load_bundles.size());
 
     for (auto &b : store_bundles) {
       bool already_used = false;

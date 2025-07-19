@@ -1,4 +1,5 @@
 #include "ir/types.hpp"
+#include <fmt/color.h>
 
 namespace foptim::fir {
 
@@ -198,8 +199,8 @@ u32 StructType::get_bitwidth() const {
 fmt::appender
 fmt::formatter<foptim::fir::AnyType>::format(foptim::fir::AnyType const &v,
                                              format_context &ctx) const {
-  constexpr auto col = fg(fmt::color::light_coral);
   auto app = ctx.out();
+  const auto col = color ? color_type : text_style{};
   switch (v.ty) {
   case foptim::fir::AnyTypeType::Void:
     return fmt::format_to(app, col, "()");

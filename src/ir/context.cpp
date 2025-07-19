@@ -416,6 +416,82 @@ ConstantValueR ContextData::get_constant_value(Global glob) {
   }
   return storage.insert_constant(constant);
 }
+void ContextData::dump_graph(const char *filename) {
+  // digraph G {
+  //  compound=true;
+  //  rankdir=TB;
+  //  node [shape=box, fontname="monospace", fontsize=10];
+  //  // Function 1 as a cluster
+  //  subgraph cluster_func1 {
+  //      label = "Function: 0x55f551a2e420";
+  //      color = lightgrey;
+
+  //      BB1 [label="BB_1:\n  inst1\n  inst2"];
+  //      BB2 [label="BB_2:\n  inst3"];
+  //      BB1 -> BB2;
+  //  }
+  //  // Function 2 as another cluster
+  //  subgraph cluster_func2 {
+  //      label = "Function: 0x55f551a94e20";
+  //      color = lightblue;
+  //      BB3 [label="BB_3:\n  inst4"];
+  //      BB4 [label="BB_4:\n  inst5"];
+  //      BB3 -> BB4;
+  //  }
+  //  // Cross-function edges
+  //  BB2 -> BB3
+
+  auto *file = std::fopen(filename, "w");
+  if (file == nullptr) {
+    TODO("failed to open output dump file");
+  }
+  fmt::print(file, "digraph G{{\ncompound = true;\nrankdir=TB;\n");
+  fmt::print(file, "node [shape=box, fontname=\"monospace\", fontsize=10];\n");
+  for (const auto &f : storage.functions) {
+    fmt::print(
+        file,
+        "subgraph \"cluster_{}\" {{\n label = \"Function: {}\";\n color = "
+        "lightgrey;\n",
+        f.second->name, f.second->name);
+    for (auto bb : f.second->basic_blocks) {
+      fmt::print(file, R"( "{}"[label="{}:\n)", (void *)bb.get_raw_ptr(),
+                 (void *)bb.get_raw_ptr());
+      for (auto i : bb->instructions) {
+        fmt::print(file, R"(    {}\n)", i);
+      }
+      fmt::print(file, "\"];\n");
+      u32 i = 0;
+      constexpr u32 N_EDGE_COLORS = 6;
+      constexpr const char *edgecolors[N_EDGE_COLORS] = {
+          "green", "red", "blue", "purple", "yellow", "black"};
+      for (auto &t : bb->get_terminator()->bbs) {
+        fmt::print(file, "\"{}\" -> \"{}\" [color=\"{}\"];\n",
+                   (void *)bb.get_raw_ptr(), (void *)t.bb.get_raw_ptr(),
+                   edgecolors[std::min(i, N_EDGE_COLORS - 1)]);
+        i++;
+      }
+    }
+    fmt::print(file, "}}\n");
+  }
+  // fmt::print(file,
+  //            "subgraph cluster_func1 {{label = \"Function: 0x55f551a2e420\";
+  //            " "color = lightgrey;BB1 [label=\"BB_1:\n  inst1\n  inst2\"];BB2
+  //            "
+  //            "[label=\"BB_2:\n  inst3\"];BB1 -> BB2;}}\n");
+  // Function 2 as another cluster
+  // fmt::print(file, "subgraph cluster_func2 {{"
+  //                  "label = \"Function: 0x55f551a94e20\";"
+  //                  "color = lightblue;"
+  //                  "BB3[label = \"BB_3:\n  inst4\"];"
+  //                  "BB4[label = \"BB_4:\n  inst5\"];"
+  //                  "BB3->BB4;}}\n");
+  // fmt::print(
+  //     file,
+  //     "BB2->BB3 [ltail=cluster_func1 lhead=cluster_func2
+  //     label=\"call\"];\n");
+  fmt::print(file, "}}\n", errno);
+  fclose(file);
+}
 
 } // namespace foptim::fir
 

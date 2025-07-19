@@ -67,6 +67,7 @@ struct ContextData {
   // deleted
   bool delete_function(IRStringRef func);
   bool verify() const;
+  void dump_graph(const char* filename);
 };
 
 class Context {

@@ -4,6 +4,7 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "utils/logging.hpp"
+#include <fmt/color.h>
 #include <fmt/core.h>
 
 namespace foptim::fir {
@@ -40,12 +41,19 @@ BBArgument BasicBlock::add_arg(BBArgument arg) {
 fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
     foptim::fir::BasicBlock const &bb, format_context &ctx) const {
 
-  fmt::format_to(ctx.out(), color_bb, "{:p}", (void *)bb.get_raw_ptr());
+  auto colbb = color ? color_bb : text_style{};
+  auto colv2 = color ? color_value2 : text_style{};
+
+  fmt::format_to(ctx.out(), colbb, "{:p}", (void *)bb.get_raw_ptr());
   fmt::format_to(ctx.out(), "(");
   const auto &args = bb->args;
   if (args.size() > 0) {
-    fmt::format_to(ctx.out(), color_value2, "{}", args[0]);
-    fmt::format_to(ctx.out(), ": {}", args[0]->get_type());
+    fmt::format_to(ctx.out(), colv2, "{}", args[0]);
+    if (color) {
+      fmt::format_to(ctx.out(), ": {:c}", args[0]->get_type());
+    } else {
+      fmt::format_to(ctx.out(), ": {}", args[0]->get_type());
+    }
     if (!args[0]->get_attribs().empty()) {
       fmt::format_to(ctx.out(), "{{");
       const auto &attribs = args[0]->get_attribs();
@@ -55,8 +63,12 @@ fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
       fmt::format_to(ctx.out(), "}}");
     }
     for (size_t i = 1; i < args.size(); i++) {
-      fmt::format_to(ctx.out(), color_value2, ", {}", args[i]);
-      fmt::format_to(ctx.out(), ": {}", args[i]->get_type());
+      fmt::format_to(ctx.out(), colv2, ", {}", args[i]);
+      if (color) {
+        fmt::format_to(ctx.out(), ": {:c}", args[i]->get_type());
+      } else {
+        fmt::format_to(ctx.out(), ": {}", args[i]->get_type());
+      }
       if (!args[i]->get_attribs().empty()) {
         fmt::format_to(ctx.out(), "{{");
         const auto &attribs = args[i]->get_attribs();
@@ -70,10 +82,14 @@ fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
 
   fmt::format_to(ctx.out(), "):\n");
   for (foptim::fir::Instr instr : bb->get_instrs()) {
-    if (debug) {
-      fmt::format_to(ctx.out(), "    {:d}", instr);
+    if (debug && color) {
+      fmt::format_to(ctx.out(), "    {:cd}\n", instr);
+    } else if (debug) {
+      fmt::format_to(ctx.out(), "    {:d}\n", instr);
+    } else if (color) {
+      fmt::format_to(ctx.out(), "    {:c}\n", instr);
     } else {
-      fmt::format_to(ctx.out(), "    {}", instr);
+      fmt::format_to(ctx.out(), "    {}\n", instr);
     }
   }
   return ctx.out();

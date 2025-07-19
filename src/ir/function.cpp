@@ -83,8 +83,9 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   if (func.mem_read_only) {
     app = fmt::format_to(app, "MEM(READ), ");
   }
+  auto colfunc = color ? color_func : text_style{};
   app = fmt::format_to(app, "\nfunc {}",
-                       fmt::styled(func.getName().c_str(), color_func));
+                       fmt::styled(func.getName().c_str(), colfunc));
 
   app = fmt::format_to(app, "<CC: ");
   switch (func.cc) {
@@ -124,12 +125,17 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
 
   app = fmt::format_to(app, ">");
   if (debug) {
-    app = fmt::format_to(app, color_debug, " Uses: {}", func.get_n_uses());
+    auto coldebug = color ? color_debug : text_style{};
+    app = fmt::format_to(app, coldebug, " Uses: {}", func.get_n_uses());
   }
   if (!func.get_bbs().empty()) {
     app = fmt::format_to(app, "\n{{\n");
     for (foptim::fir::BasicBlock bb : func.get_bbs()) {
-      if (debug) {
+      if (debug && color) {
+        app = fmt::format_to(app, "  {:cd}", bb);
+      } else if (color) {
+        app = fmt::format_to(app, "  {:c}", bb);
+      } else if (debug) {
         app = fmt::format_to(app, "  {:d}", bb);
       } else {
         app = fmt::format_to(app, "  {}", bb);

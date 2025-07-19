@@ -1,5 +1,6 @@
 #include "instr.hpp"
 #include "mir/func.hpp"
+#include <fmt/color.h>
 namespace foptim::fmir {
 
 #define ReturnString(name)                                                     \
@@ -570,17 +571,29 @@ fmt::appender
 fmt::formatter<foptim::fmir::MFunc>::format(foptim::fmir::MFunc const &func,
                                             format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, "func {} (",
-                       fmt::styled(func.name.c_str(), color_func));
+  if (color) {
+    app = fmt::format_to(app, "func {} (",
+                         fmt::styled(func.name.c_str(), color_func));
+  } else {
+    app = fmt::format_to(app, "func {} (", func.name.c_str());
+  }
   auto n_args = func.args.size();
   for (foptim::u32 i = 0; i < n_args; i++) {
-    app = fmt::format_to(app, "{}: {}, ", func.args[i], func.args[i].ty);
+    if (color) {
+      app = fmt::format_to(app, "{:c}: {:c}, ", func.args[i], func.args[i].ty);
+    } else {
+      app = fmt::format_to(app, "{}: {}, ", func.args[i], func.args[i].ty);
+    }
   }
   app = fmt::format_to(app, ")\n");
 
   for (size_t bb_indx = 0; bb_indx < func.bbs.size(); bb_indx++) {
-    app = fmt::format_to(app, "  {}:\n{}", fmt::styled(bb_indx, color_bb),
-                         func.bbs[bb_indx]);
+    if (color) {
+      app = fmt::format_to(app, "  {}:\n{:c}", fmt::styled(bb_indx, color_bb),
+                           func.bbs[bb_indx]);
+    } else {
+      app = fmt::format_to(app, "  {}:\n{}", bb_indx, func.bbs[bb_indx]);
+    }
   }
   return app;
 }
@@ -590,7 +603,11 @@ fmt::formatter<foptim::fmir::MBB>::format(foptim::fmir::MBB const &bb,
                                           format_context &ctx) const {
   auto app = ctx.out();
   for (const auto &instr : bb.instrs) {
-    app = fmt::format_to(app, "    {}\n", instr);
+    if (color) {
+      app = fmt::format_to(app, "    {:c}\n", instr);
+    } else {
+      app = fmt::format_to(app, "    {}\n", instr);
+    }
   }
   return app;
 }
@@ -599,94 +616,161 @@ fmt::appender
 fmt::formatter<foptim::fmir::MInstr>::format(foptim::fmir::MInstr const &v,
                                              format_context &ctx) const {
   auto app = ctx.out();
-  switch (v.op) {
-  case foptim::fmir::Opcode::mov:
-    return fmt::format_to(app, "{} = {}", v.args[0], v.args[1]);
-  case foptim::fmir::Opcode::add2:
-    return fmt::format_to(app, "{} += {}", v.args[0], v.args[1]);
-  case foptim::fmir::Opcode::sub2:
-    return fmt::format_to(app, "{} -= {}", v.args[0], v.args[1]);
-  case foptim::fmir::Opcode::mul2:
-    return fmt::format_to(app, "{} *= {}", v.args[0], v.args[1]);
-  case foptim::fmir::Opcode::lxor2:
-    if (v.args[0] == v.args[1]) {
-      return fmt::format_to(app, "clear {}", v.args[0]);
+  if (color) {
+    switch (v.op) {
+    case foptim::fmir::Opcode::mov:
+      return fmt::format_to(app, "{:c} = {:c}", v.args[0], v.args[1]);
+    case foptim::fmir::Opcode::add2:
+      return fmt::format_to(app, "{:c} += {:c}", v.args[0], v.args[1]);
+    case foptim::fmir::Opcode::sub2:
+      return fmt::format_to(app, "{:c} -= {:c}", v.args[0], v.args[1]);
+    case foptim::fmir::Opcode::mul2:
+      return fmt::format_to(app, "{:c} *= {:c}", v.args[0], v.args[1]);
+    case foptim::fmir::Opcode::lxor2:
+      if (v.args[0] == v.args[1]) {
+        return fmt::format_to(app, "clear {:c}", v.args[0]);
+      }
+      return fmt::format_to(app, "{:c} ^= {:c}", v.args[0], v.args[1]);
+    case foptim::fmir::Opcode::vsub:
+      return fmt::format_to(app, "{:c} = {:c} - {:c}", v.args[0], v.args[1],
+                            v.args[2]);
+    case foptim::fmir::Opcode::vadd:
+      return fmt::format_to(app, "{:c} = {:c} + {:c}", v.args[0], v.args[1],
+                            v.args[2]);
+    case foptim::fmir::Opcode::fmul:
+      return fmt::format_to(app, "{:c} = {:c} * {:c}", v.args[0], v.args[1],
+                            v.args[2]);
+    case foptim::fmir::Opcode::fdiv:
+      return fmt::format_to(app, "{:c} = {:c} / {:c}", v.args[0], v.args[1],
+                            v.args[2]);
+    default:
     }
-    return fmt::format_to(app, "{} ^= {}", v.args[0], v.args[1]);
-  case foptim::fmir::Opcode::vsub:
-    return fmt::format_to(app, "{} = {} - {}", v.args[0], v.args[1], v.args[2]);
-  case foptim::fmir::Opcode::vadd:
-    return fmt::format_to(app, "{} = {} + {}", v.args[0], v.args[1], v.args[2]);
-  case foptim::fmir::Opcode::fmul:
-    return fmt::format_to(app, "{} = {} * {}", v.args[0], v.args[1], v.args[2]);
-  case foptim::fmir::Opcode::fdiv:
-    return fmt::format_to(app, "{} = {} / {}", v.args[0], v.args[1], v.args[2]);
-  default:
-    app = fmt::format_to(app, "{}(", getNameFromOpcode(v.op));
-    for (size_t arg_indx = 0; arg_indx < v.n_args; arg_indx++) {
+  }
+  app = fmt::format_to(app, "{}(", getNameFromOpcode(v.op));
+  for (size_t arg_indx = 0; arg_indx < v.n_args; arg_indx++) {
+    if (color) {
+      app = fmt::format_to(app, "{:c}, ", v.args[arg_indx]);
+    } else {
       app = fmt::format_to(app, "{}, ", v.args[arg_indx]);
     }
-    app = fmt::format_to(app, ")");
-    if ((v.op == foptim::fmir::Opcode::call ||
-         v.op == foptim::fmir::Opcode::invoke) &&
-        v.is_var_arg_call) {
-      app = fmt::format_to(app, "  VARARG");
-    }
-    if (v.has_bb_ref) {
-      app = fmt::format_to(app, " -> {}", fmt::styled(v.bb_ref, color_bb));
-    }
-    return app;
   }
+  app = fmt::format_to(app, ")");
+  if ((v.op == foptim::fmir::Opcode::call ||
+       v.op == foptim::fmir::Opcode::invoke) &&
+      v.is_var_arg_call) {
+    app = fmt::format_to(app, "  VARARG");
+  }
+  if (v.has_bb_ref) {
+    if (color) {
+      app = fmt::format_to(app, " -> {}", fmt::styled(v.bb_ref, color_bb));
+    } else {
+      app = fmt::format_to(app, " -> {}", v.bb_ref);
+    }
+  }
+  return app;
 }
 fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
     foptim::fmir::MArgument const &value, format_context &ctx) const {
 
   auto app = ctx.out();
-  switch (value.type) {
-  case foptim::fmir::MArgument::ArgumentType::MemLabel:
-    return fmt::format_to(app, "[{}]: {}", fmt::styled(value.label, color_func),
-                          value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
-    return fmt::format_to(app, "[{} + {}]: {}",
-                          fmt::styled(value.label, color_func), value.imm,
-                          value.ty);
-  case foptim::fmir::MArgument::ArgumentType::Label:
-    return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
-  case foptim::fmir::MArgument::ArgumentType::Imm: {
-    if (value.ty == foptim::fmir::Type::Float32) {
-      return fmt::format_to(
-          app, color_number, "{}f",
-          std::bit_cast<foptim::f32>(
-              (foptim::u32)std::bit_cast<foptim::u64>(value.immf)));
+  if (!color) {
+    switch (value.type) {
+    case foptim::fmir::MArgument::ArgumentType::MemLabel:
+      return fmt::format_to(app, "[{}]: {}",
+                            fmt::styled(value.label, color_func), value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
+      return fmt::format_to(app, "[{} + {}]: {}",
+                            fmt::styled(value.label, color_func), value.imm,
+                            value.ty);
+    case foptim::fmir::MArgument::ArgumentType::Label:
+      return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
+    case foptim::fmir::MArgument::ArgumentType::Imm: {
+      if (value.ty == foptim::fmir::Type::Float32) {
+        return fmt::format_to(
+            app, color_number, "{}f",
+            std::bit_cast<foptim::f32>(
+                (foptim::u32)std::bit_cast<foptim::u64>(value.immf)));
+      }
+      if (value.ty == foptim::fmir::Type::Float64) {
+        return fmt::format_to(app, color_number, "{}d", value.immf);
+      }
+      return fmt::format_to(app, color_number, "{}:{}", value.imm, value.ty);
     }
-    if (value.ty == foptim::fmir::Type::Float64) {
-      return fmt::format_to(app, color_number, "{}d", value.immf);
+    case foptim::fmir::MArgument::ArgumentType::VReg:
+      return fmt::format_to(app, "{}:{}", value.reg, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemVReg:
+      return fmt::format_to(app, "[{}]:{}", value.reg, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
+      return fmt::format_to(app, "[{} + {}]:{}", value.reg, value.indx,
+                            value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImm:
+      return fmt::format_to(app, "[{}]:{}", (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
+      return fmt::format_to(app, "[{} + {}]:{}", value.reg,
+                            (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
+      return fmt::format_to(app, "[{} + {} + {}]:{}", value.reg, value.indx,
+                            (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
+      return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx,
+                            1 << value.scale, (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
+      return fmt::format_to(app, "[{} + {}*{}]:{}", value.reg, value.indx,
+                            1 << value.scale, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
+      return fmt::format_to(app, "[{} + {}*{} + {}]:{}", value.reg, value.indx,
+                            1 << value.scale, (foptim::i64)value.imm, value.ty);
     }
-    return fmt::format_to(app, color_number, "{}:{}", value.imm, value.ty);
-  }
-  case foptim::fmir::MArgument::ArgumentType::VReg:
-    return fmt::format_to(app, "{}:{}", value.reg, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemVReg:
-    return fmt::format_to(app, "[{}]:{}", value.reg, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
-    return fmt::format_to(app, "[{} + {}]:{}", value.reg, value.indx, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemImm:
-    return fmt::format_to(app, "[{}]:{}", (foptim::i64)value.imm, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
-    return fmt::format_to(app, "[{} + {}]:{}", value.reg,
-                          (foptim::i64)value.imm, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
-    return fmt::format_to(app, "[{} + {} + {}]:{}", value.reg, value.indx,
-                          (foptim::i64)value.imm, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
-    return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx, 1 << value.scale,
-                          (foptim::i64)value.imm, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
-    return fmt::format_to(app, "[{} + {}*{}]:{}", value.reg, value.indx,
-                          1 << value.scale, value.ty);
-  case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-    return fmt::format_to(app, "[{} + {}*{} + {}]:{}", value.reg, value.indx,
-                          1 << value.scale, (foptim::i64)value.imm, value.ty);
+  } else {
+
+    switch (value.type) {
+    case foptim::fmir::MArgument::ArgumentType::MemLabel:
+      return fmt::format_to(app, "[{}]: {:c}",
+                            fmt::styled(value.label, color_func), value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
+      return fmt::format_to(app, "[{} + {}]: {:c}",
+                            fmt::styled(value.label, color_func), value.imm,
+                            value.ty);
+    case foptim::fmir::MArgument::ArgumentType::Label:
+      return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
+    case foptim::fmir::MArgument::ArgumentType::Imm: {
+      if (value.ty == foptim::fmir::Type::Float32) {
+        return fmt::format_to(
+            app, color_number, "{}f",
+            std::bit_cast<foptim::f32>(
+                (foptim::u32)std::bit_cast<foptim::u64>(value.immf)));
+      }
+      if (value.ty == foptim::fmir::Type::Float64) {
+        return fmt::format_to(app, color_number, "{}d", value.immf);
+      }
+      return fmt::format_to(app, color_number, "{}:{:c}", value.imm, value.ty);
+    }
+    case foptim::fmir::MArgument::ArgumentType::VReg:
+      return fmt::format_to(app, "{:c}:{:c}", value.reg, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemVReg:
+      return fmt::format_to(app, "[{:c}]:{:c}", value.reg, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
+      return fmt::format_to(app, "[{:c} + {:c}]:{:c}", value.reg, value.indx,
+                            value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImm:
+      return fmt::format_to(app, "[{}]:{:c}", (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
+      return fmt::format_to(app, "[{:c} + {}]:{:c}", value.reg,
+                            (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
+      return fmt::format_to(app, "[{:c} + {:c} + {}]:{:c}", value.reg,
+                            value.indx, (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
+      return fmt::format_to(app, "[{:c}*{} + {}]:{:c}", value.indx,
+                            1 << value.scale, (foptim::i64)value.imm, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
+      return fmt::format_to(app, "[{:c} + {:c}*{}]:{:c}", value.reg, value.indx,
+                            1 << value.scale, value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
+      return fmt::format_to(app, "[{:c} + {:c}*{} + {}]:{:c}", value.reg,
+                            value.indx, 1 << value.scale,
+                            (foptim::i64)value.imm, value.ty);
+    }
   }
 }
 
@@ -694,7 +778,7 @@ fmt::appender
 fmt::formatter<foptim::fmir::Type>::format(foptim::fmir::Type const &v,
                                            format_context &ctx) const {
   auto app = ctx.out();
-  constexpr auto col = fg(fmt::color::light_coral);
+  const auto col = color ? fg(fmt::color::light_coral) : text_style{};
   switch (v) {
   case foptim::fmir::Type::INVALID:
     return fmt::format_to(app, col, "INVALID");
@@ -737,153 +821,157 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
 
   using foptim::fmir::CReg;
   auto app = ctx.out();
-  auto col_vec = fg(fmt::color::steel_blue);
+  auto col_vec = color ? fg(fmt::color::steel_blue) : text_style{};
+  auto colv2 = color ? color_value2 : text_style{};
   if (!value.is_concrete()) {
-    return fmt::format_to(app, color_value, "${}", value.virt_id());
+    if (color) {
+      return fmt::format_to(app, color_value, "${}", value.virt_id());
+    }
+    return fmt::format_to(app, "${}", value.virt_id());
   }
 
   if (get_size(value.ty) == 0) {
     switch (value.c_reg()) {
     case CReg::A:
-      return fmt::format_to(app, color_value2, "$a");
+      return fmt::format_to(app, colv2, "$a");
     case CReg::SP:
-      return fmt::format_to(app, color_value2, "$sp");
+      return fmt::format_to(app, colv2, "$sp");
     case CReg::B:
-      return fmt::format_to(app, color_value2, "$b");
+      return fmt::format_to(app, colv2, "$b");
     case CReg::C:
-      return fmt::format_to(app, color_value2, "$c");
+      return fmt::format_to(app, colv2, "$c");
     case CReg::D:
-      return fmt::format_to(app, color_value2, "$d");
+      return fmt::format_to(app, colv2, "$d");
     case CReg::DI:
-      return fmt::format_to(app, color_value2, "$di");
+      return fmt::format_to(app, colv2, "$di");
     case CReg::SI:
-      return fmt::format_to(app, color_value2, "$si");
+      return fmt::format_to(app, colv2, "$si");
     case CReg::BP:
-      return fmt::format_to(app, color_value2, "$bp");
+      return fmt::format_to(app, colv2, "$bp");
     case CReg::R8:
-      return fmt::format_to(app, color_value2, "$8");
+      return fmt::format_to(app, colv2, "$8");
     case CReg::R9:
-      return fmt::format_to(app, color_value2, "$9");
+      return fmt::format_to(app, colv2, "$9");
     case CReg::R10:
-      return fmt::format_to(app, color_value2, "$10");
+      return fmt::format_to(app, colv2, "$10");
     case CReg::R11:
-      return fmt::format_to(app, color_value2, "$11");
+      return fmt::format_to(app, colv2, "$11");
     case CReg::R12:
-      return fmt::format_to(app, color_value2, "$12");
+      return fmt::format_to(app, colv2, "$12");
     case CReg::R13:
-      return fmt::format_to(app, color_value2, "$13");
+      return fmt::format_to(app, colv2, "$13");
     case CReg::R14:
-      return fmt::format_to(app, color_value2, "$14");
+      return fmt::format_to(app, colv2, "$14");
     case CReg::R15:
-      return fmt::format_to(app, color_value2, "$15");
+      return fmt::format_to(app, colv2, "$15");
     default:
     }
   } else if (get_size(value.ty) == 1) {
     switch (value.c_reg()) {
     case CReg::A:
-      return fmt::format_to(app, color_value2, "$al");
+      return fmt::format_to(app, colv2, "$al");
     case CReg::SP:
-      return fmt::format_to(app, color_value2, "$spl");
+      return fmt::format_to(app, colv2, "$spl");
     case CReg::B:
-      return fmt::format_to(app, color_value2, "$bl");
+      return fmt::format_to(app, colv2, "$bl");
     case CReg::C:
-      return fmt::format_to(app, color_value2, "$cl");
+      return fmt::format_to(app, colv2, "$cl");
     case CReg::D:
-      return fmt::format_to(app, color_value2, "$dl");
+      return fmt::format_to(app, colv2, "$dl");
     case CReg::DI:
-      return fmt::format_to(app, color_value2, "$ldi");
+      return fmt::format_to(app, colv2, "$ldi");
     case CReg::SI:
-      return fmt::format_to(app, color_value2, "$lsi");
+      return fmt::format_to(app, colv2, "$lsi");
     case CReg::BP:
-      return fmt::format_to(app, color_value2, "$lbp");
+      return fmt::format_to(app, colv2, "$lbp");
     case CReg::R8:
-      return fmt::format_to(app, color_value2, "$r8l");
+      return fmt::format_to(app, colv2, "$r8l");
     case CReg::R9:
-      return fmt::format_to(app, color_value2, "$r9l");
+      return fmt::format_to(app, colv2, "$r9l");
     case CReg::R10:
-      return fmt::format_to(app, color_value2, "$r10l");
+      return fmt::format_to(app, colv2, "$r10l");
     case CReg::R11:
-      return fmt::format_to(app, color_value2, "$r11l");
+      return fmt::format_to(app, colv2, "$r11l");
     case CReg::R12:
-      return fmt::format_to(app, color_value2, "$r12l");
+      return fmt::format_to(app, colv2, "$r12l");
     case CReg::R13:
-      return fmt::format_to(app, color_value2, "$r13l");
+      return fmt::format_to(app, colv2, "$r13l");
     case CReg::R14:
-      return fmt::format_to(app, color_value2, "$r14l");
+      return fmt::format_to(app, colv2, "$r14l");
     case CReg::R15:
-      return fmt::format_to(app, color_value2, "$r15l");
+      return fmt::format_to(app, colv2, "$r15l");
     default:
     }
   } else if (get_size(value.ty) == 2) {
     switch (value.c_reg()) {
     case CReg::A:
-      return fmt::format_to(app, color_value2, "$ax");
+      return fmt::format_to(app, colv2, "$ax");
     case CReg::SP:
-      return fmt::format_to(app, color_value2, "$sp");
+      return fmt::format_to(app, colv2, "$sp");
     case CReg::B:
-      return fmt::format_to(app, color_value2, "$bx");
+      return fmt::format_to(app, colv2, "$bx");
     case CReg::C:
-      return fmt::format_to(app, color_value2, "$cx");
+      return fmt::format_to(app, colv2, "$cx");
     case CReg::D:
-      return fmt::format_to(app, color_value2, "$dx");
+      return fmt::format_to(app, colv2, "$dx");
     case CReg::DI:
-      return fmt::format_to(app, color_value2, "$di");
+      return fmt::format_to(app, colv2, "$di");
     case CReg::SI:
-      return fmt::format_to(app, color_value2, "$si");
+      return fmt::format_to(app, colv2, "$si");
     case CReg::BP:
-      return fmt::format_to(app, color_value2, "$bp");
+      return fmt::format_to(app, colv2, "$bp");
     case CReg::R8:
-      return fmt::format_to(app, color_value2, "$r8");
+      return fmt::format_to(app, colv2, "$r8");
     case CReg::R9:
-      return fmt::format_to(app, color_value2, "$r9");
+      return fmt::format_to(app, colv2, "$r9");
     case CReg::R10:
-      return fmt::format_to(app, color_value2, "$r10");
+      return fmt::format_to(app, colv2, "$r10");
     case CReg::R11:
-      return fmt::format_to(app, color_value2, "$r11");
+      return fmt::format_to(app, colv2, "$r11");
     case CReg::R12:
-      return fmt::format_to(app, color_value2, "$r12");
+      return fmt::format_to(app, colv2, "$r12");
     case CReg::R13:
-      return fmt::format_to(app, color_value2, "$r13");
+      return fmt::format_to(app, colv2, "$r13");
     case CReg::R14:
-      return fmt::format_to(app, color_value2, "$r14");
+      return fmt::format_to(app, colv2, "$r14");
     case CReg::R15:
-      return fmt::format_to(app, color_value2, "$r15");
+      return fmt::format_to(app, colv2, "$r15");
     default:
     }
   } else if (get_size(value.ty) == 4) {
     switch (value.c_reg()) {
     case CReg::A:
-      return fmt::format_to(app, color_value2, "$eax");
+      return fmt::format_to(app, colv2, "$eax");
     case CReg::SP:
-      return fmt::format_to(app, color_value2, "$esp");
+      return fmt::format_to(app, colv2, "$esp");
     case CReg::B:
-      return fmt::format_to(app, color_value2, "$ebx");
+      return fmt::format_to(app, colv2, "$ebx");
     case CReg::C:
-      return fmt::format_to(app, color_value2, "$ecx");
+      return fmt::format_to(app, colv2, "$ecx");
     case CReg::D:
-      return fmt::format_to(app, color_value2, "$edx");
+      return fmt::format_to(app, colv2, "$edx");
     case CReg::DI:
-      return fmt::format_to(app, color_value2, "$edi");
+      return fmt::format_to(app, colv2, "$edi");
     case CReg::SI:
-      return fmt::format_to(app, color_value2, "$esi");
+      return fmt::format_to(app, colv2, "$esi");
     case CReg::BP:
-      return fmt::format_to(app, color_value2, "$ebp");
+      return fmt::format_to(app, colv2, "$ebp");
     case CReg::R8:
-      return fmt::format_to(app, color_value2, "$r8d");
+      return fmt::format_to(app, colv2, "$r8d");
     case CReg::R9:
-      return fmt::format_to(app, color_value2, "$r9d");
+      return fmt::format_to(app, colv2, "$r9d");
     case CReg::R10:
-      return fmt::format_to(app, color_value2, "$r10d");
+      return fmt::format_to(app, colv2, "$r10d");
     case CReg::R11:
-      return fmt::format_to(app, color_value2, "$r11d");
+      return fmt::format_to(app, colv2, "$r11d");
     case CReg::R12:
-      return fmt::format_to(app, color_value2, "$r12d");
+      return fmt::format_to(app, colv2, "$r12d");
     case CReg::R13:
-      return fmt::format_to(app, color_value2, "$r13d");
+      return fmt::format_to(app, colv2, "$r13d");
     case CReg::R14:
-      return fmt::format_to(app, color_value2, "$r14d");
+      return fmt::format_to(app, colv2, "$r14d");
     case CReg::R15:
-      return fmt::format_to(app, color_value2, "$r15d");
+      return fmt::format_to(app, colv2, "$r15d");
     case CReg::mm0:
     case CReg::mm1:
     case CReg::mm2:
@@ -908,37 +996,37 @@ fmt::formatter<foptim::fmir::VReg>::format(foptim::fmir::VReg const &value,
   } else if (get_size(value.ty) == 8) {
     switch (value.c_reg()) {
     case CReg::A:
-      return fmt::format_to(app, color_value2, "$rax");
+      return fmt::format_to(app, colv2, "$rax");
     case CReg::SP:
-      return fmt::format_to(app, color_value2, "$rsp");
+      return fmt::format_to(app, colv2, "$rsp");
     case CReg::B:
-      return fmt::format_to(app, color_value2, "$rbx");
+      return fmt::format_to(app, colv2, "$rbx");
     case CReg::C:
-      return fmt::format_to(app, color_value2, "$rcx");
+      return fmt::format_to(app, colv2, "$rcx");
     case CReg::D:
-      return fmt::format_to(app, color_value2, "$rdx");
+      return fmt::format_to(app, colv2, "$rdx");
     case CReg::DI:
-      return fmt::format_to(app, color_value2, "$rdi");
+      return fmt::format_to(app, colv2, "$rdi");
     case CReg::SI:
-      return fmt::format_to(app, color_value2, "$rsi");
+      return fmt::format_to(app, colv2, "$rsi");
     case CReg::BP:
-      return fmt::format_to(app, color_value2, "$rbp");
+      return fmt::format_to(app, colv2, "$rbp");
     case CReg::R8:
-      return fmt::format_to(app, color_value2, "$r8");
+      return fmt::format_to(app, colv2, "$r8");
     case CReg::R9:
-      return fmt::format_to(app, color_value2, "$r9");
+      return fmt::format_to(app, colv2, "$r9");
     case CReg::R10:
-      return fmt::format_to(app, color_value2, "$r10");
+      return fmt::format_to(app, colv2, "$r10");
     case CReg::R11:
-      return fmt::format_to(app, color_value2, "$r11");
+      return fmt::format_to(app, colv2, "$r11");
     case CReg::R12:
-      return fmt::format_to(app, color_value2, "$r12");
+      return fmt::format_to(app, colv2, "$r12");
     case CReg::R13:
-      return fmt::format_to(app, color_value2, "$r13");
+      return fmt::format_to(app, colv2, "$r13");
     case CReg::R14:
-      return fmt::format_to(app, color_value2, "$r14");
+      return fmt::format_to(app, colv2, "$r14");
     case CReg::R15:
-      return fmt::format_to(app, color_value2, "$r15");
+      return fmt::format_to(app, colv2, "$r15");
     case CReg::mm0:
     case CReg::mm1:
     case CReg::mm2:

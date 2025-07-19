@@ -6,6 +6,7 @@
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
 #include "utils/stable_vec_ref.hpp"
+#include <fmt/color.h>
 
 namespace foptim::fir {
 
@@ -278,13 +279,25 @@ u16 Instr::add_bb(BasicBlock val) {
 fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
     foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const {
   auto app = ctx.out();
-  app = fmt::format_to(app, color_bb, "{:p}",
-                       (void *)bb_with_args.bb.get_raw_ptr());
+  if (color) {
+    app = fmt::format_to(app, color_bb, "{:p}",
+                         (void *)bb_with_args.bb.get_raw_ptr());
+  } else {
+    app = fmt::format_to(app, "{:p}", (void *)bb_with_args.bb.get_raw_ptr());
+  }
   app = fmt::format_to(app, "(");
   if (!bb_with_args.args.empty()) {
-    app = fmt::format_to(app, "{}", bb_with_args.args[0]);
+    if (color) {
+      app = fmt::format_to(app, "{:c}", bb_with_args.args[0]);
+    } else {
+      app = fmt::format_to(app, "{}", bb_with_args.args[0]);
+    }
     for (size_t i = 1; i < bb_with_args.args.size(); i++) {
-      app = fmt::format_to(app, ", {}", bb_with_args.args[i]);
+      if (color) {
+        app = fmt::format_to(app, ", {:c}", bb_with_args.args[i]);
+      } else {
+        app = fmt::format_to(app, ", {}", bb_with_args.args[i]);
+      }
     }
   }
   app = fmt::format_to(app, ")");
@@ -299,25 +312,35 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
     return fmt::format_to(app, "INVALID\n");
   }
 
-  // if (instr->has_result()) {
-  app = fmt::format_to(
-      app, "{:p}: {} = ", fmt::styled((void *)instr.get_raw_ptr(), color_value),
-      instr->get_type());
-  // } else {
-  //   app = fmt::format_to(
-  //       app, "{:p} = ", fmt::styled((void *)instr.get_raw_ptr(),
-  //       color_value));
-  // }
-  // else if (!instr->get_type()->is_void()) {
-  //   app = fmt::format_to(app, "{} ", instr->get_type());
-  // }
-  app = fmt::format_to(app, "{}", instr->get_name());
-
+  if (color) {
+    app = fmt::format_to(app, "{:p}: {:c} = {}",
+                         fmt::styled((void *)instr.get_raw_ptr(), color_value),
+                         instr->get_type(), instr->get_name());
+  } else {
+    app = fmt::format_to(app, "{:p}: {} = {}", (void *)instr.get_raw_ptr(),
+                         instr->get_type(), instr->get_name());
+  }
   const auto &bb_args = instr->get_bb_args();
   if (bb_args.size() > 0) {
-    app = fmt::format_to(app, "<{}", bb_args[0]);
+    if (debug && color) {
+      app = fmt::format_to(app, "<{:cd}", bb_args[0]);
+    } else if (debug) {
+      app = fmt::format_to(app, "<{:d}", bb_args[0]);
+    } else if (color) {
+      app = fmt::format_to(app, "<{:c}", bb_args[0]);
+    } else {
+      app = fmt::format_to(app, "<{}", bb_args[0]);
+    }
     for (size_t i = 1; i < bb_args.size(); i++) {
-      app = fmt::format_to(app, ", {}", bb_args[i]);
+      if (debug && color) {
+        app = fmt::format_to(app, ", {:cd}", bb_args[i]);
+      } else if (debug) {
+        app = fmt::format_to(app, ", {:d}", bb_args[i]);
+      } else if (color) {
+        app = fmt::format_to(app, ", {:c}", bb_args[i]);
+      } else {
+        app = fmt::format_to(app, ", {}", bb_args[i]);
+      }
     }
     app = fmt::format_to(app, ">");
   }
@@ -325,10 +348,22 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
   app = fmt::format_to(app, "(");
   const auto &args = instr->get_args();
   if (args.size() > 0) {
-    app = fmt::format_to(app, "{}", args[0]);
+    if (debug && color) {
+      app = fmt::format_to(app, "{:dc}", args[0]);
+    } else if (debug) {
+      app = fmt::format_to(app, "{:d}", args[0]);
+    } else if (color) {
+      app = fmt::format_to(app, "{:c}", args[0]);
+    } else {
+      app = fmt::format_to(app, "{}", args[0]);
+    }
     for (size_t i = 1; i < args.size(); i++) {
-      if (debug) {
+      if (debug && color) {
+        app = fmt::format_to(app, ", {:dc}", args[i]);
+      } else if (debug) {
         app = fmt::format_to(app, ", {:d}", args[i]);
+      } else if (color) {
+        app = fmt::format_to(app, ", {:c}", args[i]);
       } else {
         app = fmt::format_to(app, ", {}", args[i]);
       }
@@ -342,8 +377,9 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
   }
   app = fmt::format_to(app, "}}");
   if (debug) {
-    app = fmt::format_to(app, color_debug, " NUses:{}", instr->get_n_uses());
+    app = fmt::format_to(app, color ? color_debug : text_style{}, " NUses:{}",
+                         instr->get_n_uses());
   }
-  app = fmt::format_to(app, "\n");
+  // app = fmt::format_to(app, "\n");
   return app;
 }
