@@ -237,9 +237,11 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   // since both being constant would be handleded by constant folding we
   // just asume theres one and normalzie by putting it into the secodn arg
   {
-    if (instr->is_commutative() && instr->args[0].is_constant() &&
-        !instr->args[0].as_constant()->is_global() &&
-        !instr->args[0].as_constant()->is_func()) {
+
+    auto swap_const_back = instr->args[0].is_constant() &&
+                           (!instr->args[0].as_constant()->is_global() &&
+                            !instr->args[0].as_constant()->is_func());
+    if (instr->is_commutative() && swap_const_back) {
       swap_args(instr, 0, 1);
     }
   }
@@ -473,6 +475,28 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     const auto *c_val = (c1_val != nullptr) ? c1_val : c0_val;
     const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
     const u32 v_idx = (c1_val != nullptr) ? 0 : 1;
+
+    // (x+c1) +y => (x+y)+c1
+    if (instr->subtype == (u32)BinaryInstrSubType::IntAdd &&
+        instr->args[v_idx].is_instr()) {
+      auto sub = instr->args[v_idx].as_instr();
+      if (sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
+          (sub->args[1].is_constant() &&
+           sub->args[1].as_constant()->is_int())) {
+        auto x = instr->args[1 - v_idx];
+        auto y = sub->args[0];
+        auto consti = sub->args[1];
+        Builder bb{instr};
+
+        auto inter = bb.build_binary_op(x, y, BinaryInstrSubType::IntAdd);
+        auto res =
+            bb.build_binary_op(inter, consti, BinaryInstrSubType::IntAdd);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+        instr.destroy();
+        return;
+      }
+    }
 
     if (c_val->is_float() &&
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatMul) {
@@ -2011,10 +2035,10 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           return;
         }
       }
-      //NOTE: this current version does not work cause it does not append
-      // printf(lit) -> fputs(lit, stdout)
-      // if (funci->name == "printf" && instr->args.size() == 2 &&
-      //     instr->get_n_uses() == 0) {
+      // NOTE: this current version does not work cause it does not append
+      //  printf(lit) -> fputs(lit, stdout)
+      //  if (funci->name == "printf" && instr->args.size() == 2 &&
+      //      instr->get_n_uses() == 0) {
 
       //   if (!ctx->has_function("write")) {
       //     auto puts_func = ctx->create_function(
