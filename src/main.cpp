@@ -187,7 +187,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LegalizeVecs, DCE, GarbageCollect>{}
       .apply(ctx, shed);
 
-  fmt::print("{:d}", ctx);
   // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
@@ -263,8 +262,9 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::print("================MATCHING====================\n");
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
+  // ctx->dump_graph("out.dot");
   for (auto *func : reordered_funcs) {
-    fmt::println("{:d}", *func);
+    fmt::println("{:dc}", *func);
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
