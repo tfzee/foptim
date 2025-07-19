@@ -504,12 +504,20 @@ fmt::formatter<foptim::fir::Context>::format(foptim::fir::Context const &v,
          i++) {
       const auto *glob = &slab_g[i];
       if (glob->used == foptim::utils::SlotState::Used) {
-        app = fmt::format_to(app, "{:d}\n", *glob->data);
+        if (color) {
+          app = fmt::format_to(app, "{:cd}\n", *glob->data);
+        } else {
+          app = fmt::format_to(app, "{:d}\n", *glob->data);
+        }
       }
     }
   }
   for (const auto &[_, func] : v.data->storage.functions) {
-    app = fmt::format_to(app, "{:d}\n", *func);
+    if (color) {
+      app = fmt::format_to(app, "{:cd}\n", *func);
+    } else {
+      app = fmt::format_to(app, "{:d}\n", *func);
+    }
   }
   return app;
 }
