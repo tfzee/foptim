@@ -90,7 +90,7 @@ void md5(uint8_t *initial_msg, size_t initial_len) {
 
     int new_len = ((((initial_len + 8) / 64) + 1) * 64) - 8;
 
-    msg = calloc_beebs(new_len + 64, 1); // also appends "0" bits
+    msg = (uint8_t*)calloc_beebs(new_len + 64, 1); // also appends "0" bits
                                    // (we alloc also 64 extra bytes...)
     memcpy(msg, initial_msg, initial_len);
     msg[initial_len] = 128; // write the "1" bit
@@ -216,7 +216,7 @@ benchmark_body (int rpt, int len)
   for (j = 0; j < rpt; j++) {
     init_heap_beebs ((void *) heap, HEAP_SIZE);
 
-    uint8_t *msg = malloc_beebs(len);
+    uint8_t *msg = (uint8_t*)malloc_beebs(len);
     for (i = 0; i < len; i++){
       msg[i] = i;
     }

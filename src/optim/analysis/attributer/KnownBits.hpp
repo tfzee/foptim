@@ -205,8 +205,8 @@ public:
       case fir::UnaryInstrSubType::IntNeg:
         break;
       case fir::UnaryInstrSubType::Not:
-        new_known_one = ~a->known_one;
-        new_known_zero = ~a->known_zero;
+        new_known_zero = a->known_one;
+        new_known_one = a->known_zero;
         break;
       }
     } else if (instr->is(fir::InstrType::BinaryInstr)) {
@@ -341,7 +341,19 @@ public:
     new_known_zero &= mask;
 
     if (new_known_one != known_one || new_known_zero != known_zero) {
-      ASSERT((new_known_zero & new_known_one) == 0);
+
+      if ((new_known_zero & new_known_one) != 0) {
+        if (associatedValue.is_instr()) {
+          fmt::println(
+              "Failed known bits on {:c}\n it marked bits as both 1 and 0",
+              associatedValue.as_instr());
+        } else {
+          fmt::println(
+              "Failed known bits on {:c}\n it marked bits as both 1 and 0",
+              associatedValue);
+        }
+        TODO("Failed");
+      }
       known_zero = new_known_zero;
       known_one = new_known_one;
       return Result::Changed;
