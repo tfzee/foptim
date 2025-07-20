@@ -260,12 +260,12 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::print("================MATCHING====================\n");
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
-  ctx->dump_graph("out.dot");
+  // ctx->dump_graph("out.dot");
   for (auto *func : reordered_funcs) {
-    if (func->name == "_Z19_nettle_aes_encryptjPKjPK9aes_tablemPhPKh") {
-      fmt::println("{:dc}", *func);
-      TODO("okak");
-    }
+    // if (func->name == "_Z19_nettle_aes_encryptjPKjPK9aes_tablemPhPKh") {
+    //   fmt::println("{:dc}", *func);
+    //   TODO("okak");
+    // }
     auto mark = foptim::utils::TempAlloc<void *>::save();
 
     if (func->is_decl()) {
