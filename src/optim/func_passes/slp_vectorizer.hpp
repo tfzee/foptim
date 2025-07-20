@@ -315,7 +315,7 @@ private:
           }
         }
         if (b.type->get_size() == 1 && (n_stor % 8 != 0 || n_stor % 16 != 0 || n_stor % 32 != 0)) {
-          store_bundles.erase(load_bundles.begin() + bi - 1);
+          store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
         if (b.type->get_size() == 2 && (n_stor % 8 != 0 || n_stor % 16 != 0)) {
