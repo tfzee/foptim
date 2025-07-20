@@ -222,7 +222,7 @@ private:
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 1 && (n_stor % 16 != 0 || n_stor % 32 != 0)) {
+        if (b.type->get_size() == 1 && (n_stor % 8 != 0 || n_stor % 16 != 0 || n_stor % 32 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
@@ -314,7 +314,7 @@ private:
             continue;
           }
         }
-        if (b.type->get_size() == 1 && (n_stor % 16 != 0 || n_stor % 32 != 0)) {
+        if (b.type->get_size() == 1 && (n_stor % 8 != 0 || n_stor % 16 != 0 || n_stor % 32 != 0)) {
           store_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
@@ -428,17 +428,17 @@ public:
     (void)ctx;
     (void)func;
     AliasAnalyis aa{};
-    if (func.name != "_ZL14benchmark_bodyi") {
-      return;
-    }
-    fmt::println("{:cd}", func);
+    // if (func.name != "_Z19_nettle_aes_encryptjPKjPK9aes_tablemPhPKh") {
+    //   return;
+    // }
+    // fmt::println("{:cd}", func);
     TVec<SeedBundle> store_bundles;
     TVec<SeedBundle> load_bundles;
     TVec<SeedBundle> reduction_bundles;
     for (auto bb : func.basic_blocks) {
       find_seeds(bb, store_bundles, load_bundles, reduction_bundles, aa);
     }
-    fmt::println("Stor {} Lod {}", store_bundles.size(), load_bundles.size());
+    // fmt::println("Stor {} Lod {}", store_bundles.size(), load_bundles.size());
 
     for (auto &b : store_bundles) {
       bool already_used = false;

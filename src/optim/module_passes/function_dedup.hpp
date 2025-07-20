@@ -6,10 +6,13 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
+#include "utils/arena.hpp"
+#include "utils/set.hpp"
 #include "utils/stats.hpp"
 #include <fmt/core.h>
 
 #include <algorithm>
+#include <tracy/Tracy.hpp>
 
 namespace foptim::optim {
 
@@ -22,7 +25,8 @@ struct DiffConst {
 [[nodiscard]] inline bool
 check_args2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
             TMap<fir::ValueR, fir::ValueR> &local_value_map,
-            TVec<DiffConst> &difference_values) {
+            TVec<DiffConst> &difference_values, bool onlySame) {
+  // ZoneScopedN("CheckArgs2");
   for (u32 i = 0; i < i1->args.size(); i++) {
     auto &arg1 = i1->args[i];
     auto &arg2 = i2->args[i];
@@ -48,6 +52,9 @@ check_args2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
     if (i1->is(fir::InstrType::CallInstr) || i == 0) {
       return false;
     }
+    if (onlySame) {
+      return false;
+    }
     difference_values.emplace_back(bb_id, instr_id, i);
   }
   return true;
@@ -56,7 +63,8 @@ check_args2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
 [[nodiscard]] inline bool
 match_term2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
             TMap<fir::ValueR, fir::ValueR> &local_value_map,
-            TVec<DiffConst> &difference_values) {
+            TVec<DiffConst> &difference_values, bool onlySame) {
+  // ZoneScopedN("MatchTerm2");
   if (i1 == i2) {
     return true;
   }
@@ -88,27 +96,30 @@ match_term2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
       // if (!a1.is_constant() || !a2.is_constant()) {
       return false;
       // }
+      // if(onlySame){
+      //   return false;
+      // }
       // difference_values.push_back({fir::Use::bb_arg(i1, bb_id, arg_id),
       //                              fir::Use::bb_arg(i2, bb_id, arg_id)});
     }
   }
   return check_args2(i1, i2, bb_id, instr_id, local_value_map,
-                     difference_values);
+                     difference_values, onlySame);
 }
 
 inline bool check_match(fir::Function *f1, fir::Function *f2,
                         TMap<fir::ValueR, fir::ValueR> &local_value_map,
-                        TVec<DiffConst> &difference_values) {
+                        TVec<DiffConst> &difference_values, bool onlySame) {
+  // ZoneScopedN("CheckMatch");
   // quick and dirty first check since most wont match we can quit early
 
   // fill up the local value map
   // for recursive calls
-  local_value_map.insert({fir::ValueR{f1->ctx->get_constant_value(f1)},
-                          fir::ValueR{f1->ctx->get_constant_value(f2)}});
+  // local_value_map.insert({fir::ValueR{f1->ctx->get_constant_value(f1)},
+  //                         fir::ValueR{f1->ctx->get_constant_value(f2)}});
   for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
-    auto bb1 = f1->basic_blocks[bb_id];
-    auto bb2 = f2->basic_blocks[bb_id];
-    local_value_map.insert({fir::ValueR(bb1), fir::ValueR(bb2)});
+    const auto &bb1 = f1->basic_blocks[bb_id];
+    const auto &bb2 = f2->basic_blocks[bb_id];
     if (bb1->n_instrs() != bb2->n_instrs() || bb1->n_args() != bb2->n_args()) {
       return false;
     }
@@ -116,41 +127,53 @@ inline bool check_match(fir::Function *f1, fir::Function *f2,
       if (bb1->args[i]->get_type() != bb2->args[i]->get_type()) {
         return false;
       }
-      auto i1 = bb1->args[i];
-      auto i2 = bb2->args[i];
+    }
+    for (size_t instr_id = 0; instr_id < bb1->instructions.size(); instr_id++) {
+      auto i1 = bb1->instructions[instr_id];
+      auto i2 = bb2->instructions[instr_id];
+      // TODO: might need to check type here aswell
+      if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
+          i1->args.size() != i2->args.size() ||
+          i1->bbs.size() != i2->bbs.size()) {
+        return false;
+      }
+    }
+  }
+
+  for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
+    const auto &bb1 = f1->basic_blocks[bb_id];
+    const auto &bb2 = f2->basic_blocks[bb_id];
+    local_value_map.insert({fir::ValueR(bb1), fir::ValueR(bb2)});
+    for (size_t i = 0; i < bb1->n_args(); i++) {
+      const auto &i1 = bb1->args[i];
+      const auto &i2 = bb2->args[i];
       local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
     }
     for (size_t i = 0; i < f1->basic_blocks[bb_id]->instructions.size(); i++) {
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
-      local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
+      if (i1->has_result()) {
+        local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
+      }
     }
   }
 
   // then check if each instruction matches
   for (size_t bb_id = 0; bb_id < f1->basic_blocks.size(); bb_id++) {
-    auto bb1 = f1->basic_blocks[bb_id];
-    auto bb2 = f2->basic_blocks[bb_id];
+    const auto &bb1 = f1->basic_blocks[bb_id];
+    const auto &bb2 = f2->basic_blocks[bb_id];
 
     if (!match_term2(bb1->get_terminator(), bb2->get_terminator(), bb_id,
-                     f1->n_instrs() - 1, local_value_map, difference_values)) {
+                     f1->n_instrs() - 1, local_value_map, difference_values,
+                     onlySame)) {
       return false;
     }
     for (size_t instr_id = 0; instr_id < bb1->instructions.size() - 1;
          instr_id++) {
       auto i1 = bb1->instructions[instr_id];
       auto i2 = bb2->instructions[instr_id];
-      if (i1 == i2) {
-        continue;
-      }
-      // TODO: might need to check type here aswell
-      if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
-          i1->args.size() != i2->args.size()) {
-        return false;
-      }
-
       if (!check_args2(i1, i2, bb_id, instr_id, local_value_map,
-                       difference_values)) {
+                       difference_values, onlySame)) {
         return false;
       }
     }
@@ -310,172 +333,211 @@ template <bool onlySame> class FunctionDeDup final : public ModulePass {
 public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("FunctionDeDup");
+    // TODO maybe run always onlysame before hand ??
+    // but then we iterate twice over everything??
+    if constexpr (onlySame) {
+      applyOnlySame(ctx);
+      return;
+    }
+
     TVec<MergableGroup> groups;
     TMap<fir::ValueR, fir::ValueR> local_value_map;
     TVec<DiffConst> difference_values;
+    TSet<fir::Function *> used_funcs;
     // helpers
+    {
+      ZoneScopedN("GroupCollection");
+
+      for (auto iter1 = ctx.data->storage.functions.begin();
+           iter1 != ctx.data->storage.functions.end(); iter1++) {
+        auto *f1 = iter1->second.get();
+        if (!is_function_applicable(f1)) {
+          continue;
+        }
+        auto f1_ninstrs = f1->n_instrs();
+        MergableGroup group{};
+
+        auto iter2 = std::next(iter1);
+        // we just use the first match to then collect a group
+        //  which could be a non optimal group
+        for (; iter2 != ctx.data->storage.functions.end(); iter2++) {
+          auto *f2 = iter2->second.get();
+          if (!is_function_applicable(f2)) {
+            continue;
+          }
+
+          if (f1->basic_blocks.size() != f2->basic_blocks.size() ||
+              f1->get_entry()->n_args() != f2->get_entry()->n_args() ||
+              f1_ninstrs != f2->n_instrs()) {
+            continue;
+          }
+
+          local_value_map.clear();
+          difference_values.clear();
+
+          if (!check_match(f1, f2, local_value_map, difference_values,
+                           onlySame)) {
+            continue;
+          }
+
+          // TODO: heuristic
+          if (difference_values.size() * 4 > f1_ninstrs ||
+              difference_values.size() + f1->get_entry()->n_args() > 6) {
+            continue;
+          }
+          if (group.funcs.empty()) {
+            // dont need to copy it if there was no diff
+            if (!difference_values.empty()) {
+              group.diffs = difference_values;
+            }
+          } else {
+            if (group.diffs.size() != difference_values.size()) {
+              continue;
+            }
+            bool matched = true;
+            for (size_t i = 0; i < group.diffs.size(); i++) {
+              if (group.diffs[i].arg_id != difference_values[i].arg_id ||
+                  group.diffs[i].bb_id != difference_values[i].bb_id ||
+                  group.diffs[i].instr_id != difference_values[i].instr_id) {
+                matched = false;
+                break;
+              }
+            }
+            if (!matched) {
+              continue;
+            }
+          }
+
+          group.funcs.push_back(f2);
+        }
+        if (group.funcs.size() > 0) {
+          group.funcs.push_back(f1);
+          groups.push_back(group);
+        }
+      }
+    }
+
+    {
+      ZoneScopedN("DiffMerging");
+      // since functions could be in multiple groups we will sort them to first
+      // merge the biggest groups
+      std::ranges::sort(groups, [](auto &a, auto &b) {
+        auto a_size = a.funcs.size();
+        auto b_size = b.funcs.size();
+        if (a_size == b_size) {
+          return a.diffs.size() > b.diffs.size();
+        }
+        return a_size < b_size;
+      });
+
+      while (!groups.empty()) {
+        auto &curr = groups.back();
+        groups.pop_back();
+        if (curr.funcs.size() > 1) {
+          // fmt::println("Got group with size {} with {} diffs",
+          // curr.funcs.size(),
+          //              curr.diffs.size());
+          if (!merge_functions(curr, ctx)) {
+            continue;
+          }
+          utils::StatCollector::get().addi(
+              curr.funcs.size() - 1, "funcDedupDiff",
+              utils::StatCollector::StatType::StatFOptim);
+          // clena up from other groups by removing f2
+          for (size_t g2_id = 0; g2_id + 1 < groups.size(); g2_id++) {
+            for (auto f2 = curr.funcs.begin();
+                 f2 != std::prev(curr.funcs.end()); f2++) {
+              auto res = std::find(groups[g2_id].funcs.begin(),
+                                   groups[g2_id].funcs.end(), *f2);
+              if (res != groups[g2_id].funcs.end()) {
+                groups[g2_id].funcs.erase(res);
+                continue;
+              }
+            }
+          }
+
+          // after we did cleanup we should resort
+          std::ranges::sort(groups, [](auto &a, auto &b) {
+            auto a_size = a.funcs.size();
+            auto b_size = b.funcs.size();
+            if (a_size == b_size) {
+              return a.diffs.size() > b.diffs.size();
+            }
+            return a_size < b_size;
+          });
+        }
+      }
+    }
+  }
+
+  void applyOnlySame(fir::Context &ctx) {
+    ZoneScopedN("FunctionDeDup0Diff");
+    auto saved_talloc = utils::TempAlloc<void *>::scoped();
+    TMap<fir::ValueR, fir::ValueR> local_value_map;
+    TVec<DiffConst> difference_values;
+    TVec<fir::Use> uses;
+
     for (auto iter1 = ctx.data->storage.functions.begin();
          iter1 != ctx.data->storage.functions.end(); iter1++) {
+      // helpers
       auto *f1 = iter1->second.get();
       if (!is_function_applicable(f1)) {
         continue;
       }
       auto f1_ninstrs = f1->n_instrs();
-      MergableGroup group{};
 
       auto iter2 = std::next(iter1);
       // we just use the first match to then collect a group
       //  which could be a non optimal group
-      for (; iter2 != ctx.data->storage.functions.end(); iter2++) {
-        auto *f2 = iter2->second.get();
-        if (!is_function_applicable(f2)) {
-          continue;
-        }
+      {
+        for (; iter2 != ctx.data->storage.functions.end(); iter2++) {
+          auto *f2 = iter2->second.get();
+          if (!is_function_applicable(f2)) {
+            continue;
+          }
 
-        if (f1->basic_blocks.size() != f2->basic_blocks.size() ||
-            f1->get_entry()->n_args() != f2->get_entry()->n_args() ||
-            f1_ninstrs != f2->n_instrs()) {
-          continue;
-        }
+          if (f1->func_ty != f2->func_ty ||
+              f1->basic_blocks.size() != f2->basic_blocks.size() ||
+              f1->get_entry()->n_args() != f2->get_entry()->n_args() ||
+              f1_ninstrs != f2->n_instrs()) {
+            continue;
+          }
 
-        local_value_map.clear();
-        difference_values.clear();
+          local_value_map.clear();
 
-        if (!check_match(f1, f2, local_value_map, difference_values)) {
-          continue;
-        }
-        if constexpr (onlySame) {
+          if (!check_match(f1, f2, local_value_map, difference_values,
+                           onlySame)) {
+            continue;
+          }
           if (!difference_values.empty()) {
             continue;
           }
-        }
-
-        // TODO: heuristic
-        if (difference_values.size() * 4 > f1_ninstrs ||
-            difference_values.size() + f1->get_entry()->n_args() > 6) {
-          continue;
-        }
-        if (group.funcs.empty()) {
-          // dont need to copy it if there was no diff
-          if (!difference_values.empty()) {
-            group.diffs = difference_values;
-          }
-        } else {
-          if (group.diffs.size() != difference_values.size()) {
-            continue;
-          }
-          bool matched = true;
-          for (size_t i = 0; i < group.diffs.size(); i++) {
-            if (group.diffs[i].arg_id != difference_values[i].arg_id ||
-                group.diffs[i].bb_id != difference_values[i].bb_id ||
-                group.diffs[i].instr_id != difference_values[i].instr_id) {
-              matched = false;
-              break;
+          {
+            // merge each pair that have no diffs since merging these does not
+            // really affect stuff
+            fir::Function *target = f2;
+            fir::Function *other = f1;
+            if (f1->linkage == fir::Linkage::Internal) {
+              target = f1;
+              other = f2;
             }
-          }
-          if (!matched) {
-            continue;
-          }
-        }
-
-        group.funcs.push_back(f2);
-      }
-      if (group.funcs.size() > 0) {
-        group.funcs.push_back(f1);
-        groups.push_back(group);
-      }
-    }
-
-    // merge all groups that have no diffs since merging these does not really
-    // affect what can be merged only might reduce the number of mergable things
-    for (size_t g_id = 0; g_id < groups.size(); g_id++) {
-      auto &g = groups[g_id];
-      if (g.diffs.size() == 0 && g.funcs.size() > 1) {
-        fir::Function *target = g.funcs.back();
-        for (u32 i = 0; i < g.funcs.size(); i++) {
-          target = g.funcs[i];
-          if (target->linkage != fir::Linkage::Internal &&
-              target->linkage != fir::Linkage::LinkOnceODR) {
-            continue;
-          }
-          break;
-        }
-        if (target->linkage != fir::Linkage::Internal &&
-            target->linkage != fir::Linkage::LinkOnceODR) {
-          continue;
-        }
-        for (auto f2 = g.funcs.begin(); f2 != std::prev(g.funcs.end()); f2++) {
-          TVec<fir::Use> uses{(*f2)->get_uses().begin(),
-                              (*f2)->get_uses().end()};
-          for (auto use : uses) {
-            use.replace_use(
-                fir::ValueR(ctx->get_constant_value(fir::FunctionR{target})));
-          }
-          // clena up from other groups by removing f2
-          for (size_t g2_id = 0; g2_id < groups.size(); g2_id++) {
-            if (g2_id == g_id) {
+            if (target->linkage != fir::Linkage::Internal &&
+                target->linkage != fir::Linkage::LinkOnceODR) {
               continue;
             }
-            auto res = std::find(groups[g2_id].funcs.begin(),
-                                 groups[g2_id].funcs.end(), *f2);
-            if (res != groups[g2_id].funcs.end()) {
-              groups[g2_id].funcs.erase(res);
-              continue;
+            auto target_ref = ctx->get_constant_value(fir::FunctionR{target});
+            uses.clear();
+            uses.insert(uses.begin(), other->get_uses().begin(),
+                        other->get_uses().end());
+            // other->replace_all_uses(fir::ValueR{target_ref});
+            for (auto use : uses) {
+              use.replace_use(fir::ValueR(target_ref));
             }
+            utils::StatCollector::get().addi(
+                1, "funcDedup0Diff",
+                utils::StatCollector::StatType::StatFOptim);
           }
         }
-        utils::StatCollector::get().addi(
-            1, "funcDedup0Diff", utils::StatCollector::StatType::StatFOptim);
-        groups.erase(groups.begin() + g_id);
-        g_id--;
-      }
-    }
-
-    // since functions could be in multiple groups we will sort them to first
-    // merge the biggest groups
-    std::ranges::sort(groups, [](auto &a, auto &b) {
-      auto a_size = a.funcs.size();
-      auto b_size = b.funcs.size();
-      if (a_size == b_size) {
-        return a.diffs.size() > b.diffs.size();
-      }
-      return a_size < b_size;
-    });
-
-    while (!groups.empty()) {
-      auto &curr = groups.back();
-      groups.pop_back();
-      if (curr.funcs.size() > 1) {
-        // fmt::println("Got group with size {} with {} diffs",
-        // curr.funcs.size(),
-        //              curr.diffs.size());
-        if (!merge_functions(curr, ctx)) {
-          continue;
-        }
-        utils::StatCollector::get().addi(
-            1, "funcDedup", utils::StatCollector::StatType::StatFOptim);
-        // clena up from other groups by removing f2
-        for (size_t g2_id = 0; g2_id + 1 < groups.size(); g2_id++) {
-          for (auto f2 = curr.funcs.begin(); f2 != std::prev(curr.funcs.end());
-               f2++) {
-            auto res = std::find(groups[g2_id].funcs.begin(),
-                                 groups[g2_id].funcs.end(), *f2);
-            if (res != groups[g2_id].funcs.end()) {
-              groups[g2_id].funcs.erase(res);
-              continue;
-            }
-          }
-        }
-
-        // after we did cleanup we should resort
-        std::ranges::sort(groups, [](auto &a, auto &b) {
-          auto a_size = a.funcs.size();
-          auto b_size = b.funcs.size();
-          if (a_size == b_size) {
-            return a.diffs.size() > b.diffs.size();
-          }
-          return a_size < b_size;
-        });
       }
     }
   }

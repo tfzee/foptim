@@ -1427,7 +1427,6 @@ void base_patterns(IRVec<Pattern> &pats) {
             return true;
           }
 
-          ASSERT(bitwidth == 4 || bitwidth == 8);
           res.result.emplace_back(
               Opcode::mov, res_reg,
               valueToArg(not_instr->args[0], res.result, data.alloc));

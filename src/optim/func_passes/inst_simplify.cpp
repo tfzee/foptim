@@ -524,6 +524,22 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       }
     }
     if (c_val->is_int() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntURem) {
+      auto val = c_val->as_int();
+      if (utils::is_pow2(val)) {
+        auto mask = (1 << utils::npow2(val)) - 1;
+        fir::Builder bb{instr};
+        auto new_res = bb.build_binary_op(
+            instr->args[1 - c_idx],
+            fir::ValueR{ctx->get_constant_value(mask, instr->get_type())},
+            BinaryInstrSubType::And);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_res);
+        instr.destroy();
+        return;
+      }
+    }
+    if (c_val->is_int() &&
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::Xor) {
       auto val = c_val->as_int();
       if (val == 0) {

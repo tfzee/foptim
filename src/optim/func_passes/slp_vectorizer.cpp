@@ -98,6 +98,7 @@ public:
         return false;
       }
     }
+    // auto v_width = base_v->get_type()->get_bitwidth();
 
     switch ((fir::BinaryInstrSubType)base_v->subtype) {
     case fir::BinaryInstrSubType::FloatAdd:

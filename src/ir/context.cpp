@@ -265,8 +265,9 @@ ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
          i++) {
       auto *constant = &constant_slab[i];
       if (constant->used == utils::SlotState::Used) {
-        if (constant->data.eql(val) &&
-            constant->data.get_type() == val.get_type()) {
+        if (constant->data.ty == val.ty &&
+            constant->data.get_type() == val.get_type() &&
+            constant->data.eql(val)) {
 #ifdef SLOT_CHECK_GENERATION
           return ConstantValueR{utils::SRef{constant, constant->generation}};
 #else
@@ -361,12 +362,9 @@ ConstantValueR ContextData::get_constant_value(i32 val, IntTypeR ty) {
 }
 
 ConstantValueR ContextData::get_constant_null() {
-  const auto constant = ConstantValue(ConstantValue::null_ptr(get_ptr_type()));
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  static const auto null_const =
+      storage.insert_constant(ConstantValue::null_ptr(get_ptr_type()));
+  return null_const;
 }
 
 ConstantValueR ContextData::get_constant_value(i128 val, IntTypeR ty) {

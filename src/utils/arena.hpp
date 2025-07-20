@@ -47,6 +47,15 @@ public:
   template <class U>
   constexpr TempAlloc(const TempAlloc<U> & /*unnused*/) noexcept {}
 
+  class ScopedTempStorage {
+  public:
+    Arena_Mark _stored;
+    ScopedTempStorage(Arena_Mark m) : _stored(m) {}
+    ~ScopedTempStorage() { TempAlloc::restore(_stored); }
+  };
+
+  static ScopedTempStorage scoped() { return {save()}; }
+
   T *allocate(size_t count) {
     auto ptr = (T *)arena_alloc(&temp_arena, count * sizeof(T));
     temp_arena_size += count * sizeof(T);

@@ -78,10 +78,11 @@ public:
         } else {
           (Passes{}.apply_pass(ctx, *func), ...);
         }
+        ctx.data->storage.storage_instr.collect_garbage();
       });
     }
     shed->wait_till_done();
-    ctx.data->storage.storage_instr.collect_garbage();
+    // ctx.data->storage.storage_instr.collect_garbage();
   }
 };
 

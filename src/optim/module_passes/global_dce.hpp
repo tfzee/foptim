@@ -1,9 +1,11 @@
 #pragma once
+#include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
+#include "utils/stable_vec_slot.hpp"
 
 namespace foptim::optim {
 
@@ -68,6 +70,18 @@ public:
           // if (name.starts_with("_GLOBAL")) {
           //   continue;
           // }
+          for (auto *slab_g : ctx->storage.storage_constant._slot_slab_starts) {
+            for (size_t i = 0;
+                 i < decltype(ctx->storage.storage_constant)::_slot_slab_len;
+                 i++) {
+              auto *v = &slab_g[i];
+              if (v->used == foptim::utils::SlotState::Used &&
+                  v->data.is_global() && v->data.as_global() == g) {
+                auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
+                r._invalidate();
+              }
+            }
+          }
 
           ctx->storage.storage_global.remove(g);
         }
@@ -102,6 +116,17 @@ public:
 
       while (!f->basic_blocks.empty()) {
         f->basic_blocks.back()->remove_from_parent(true, true, true);
+      }
+      for (auto *slab_g : ctx->storage.storage_constant._slot_slab_starts) {
+        for (size_t i = 0;
+             i < decltype(ctx->storage.storage_constant)::_slot_slab_len; i++) {
+          auto *v = &slab_g[i];
+          if (v->used == foptim::utils::SlotState::Used && v->data.is_func() &&
+              v->data.as_func().func == f.get()) {
+            auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
+            r._invalidate();
+          }
+        }
       }
       ctx.data->storage.functions.erase(name);
     }
