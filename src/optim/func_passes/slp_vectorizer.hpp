@@ -211,30 +211,43 @@ private:
                       [](const SeedBundle &b1, const SeedBundle &b2) {
                         return b1.data.size() > b2.data.size();
                       });
-    // fmt::println("{}  {}", store_bundles.size(), load_bundles.size());
+    // fmt::println("I {}  {}", store_bundles.size(), load_bundles.size());
     // CLEANUP
     for (auto bi = load_bundles.size(); bi > 0; bi--) {
       auto &b = load_bundles[bi - 1];
       {
-        auto n_stor = b.data.size();
-        if (n_stor != 2 && n_stor != 4 && n_stor != 8 && n_stor != 16 &&
-            n_stor != 32) {
+        auto n_load = b.data.size();
+        if (n_load != 2 && n_load != 4 && n_load != 8 && n_load != 16 &&
+            n_load != 32) {
+          if (n_load > 32) {
+            b.data.resize(32);
+          } else if (n_load > 16) {
+            b.data.resize(16);
+          } else if (n_load > 8) {
+            b.data.resize(8);
+          } else if (n_load > 4) {
+            b.data.resize(4);
+          } else if (n_load > 2) {
+            b.data.resize(2);
+          } else {
+            load_bundles.erase(load_bundles.begin() + bi - 1);
+            continue;
+          }
+        }
+        if (b.type->get_size() == 1 &&
+            (n_load % 8 != 0 && n_load % 16 != 0 && n_load % 32 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 1 && (n_stor % 8 != 0 || n_stor % 16 != 0 || n_stor % 32 != 0)) {
+        if (b.type->get_size() == 2 && (n_load % 8 != 0 && n_load % 16 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 2 && (n_stor % 8 != 0 || n_stor % 16 != 0)) {
+        if (b.type->get_size() == 4 && (n_load % 4 != 0 && n_load % 8 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 4 && (n_stor % 4 != 0 || n_stor % 8 != 0)) {
-          load_bundles.erase(load_bundles.begin() + bi - 1);
-          continue;
-        }
-        if (b.type->get_size() == 8 && (n_stor % 2 != 0 || n_stor % 4 != 0)) {
+        if (b.type->get_size() == 8 && (n_load % 2 != 0 && n_load % 4 != 0)) {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
@@ -290,7 +303,7 @@ private:
         }
       }
     }
-    // fmt::println("{}  {}", store_bundles.size(), load_bundles.size());
+    // fmt::println("F1 {}  {}", store_bundles.size(), load_bundles.size());
 
     for (auto bi = store_bundles.size(); bi > 0; bi--) {
       auto &b = store_bundles[bi - 1];
@@ -314,19 +327,20 @@ private:
             continue;
           }
         }
-        if (b.type->get_size() == 1 && (n_stor % 8 != 0 || n_stor % 16 != 0 || n_stor % 32 != 0)) {
+        if (b.type->get_size() == 1 &&
+            (n_stor % 8 != 0 && n_stor % 16 != 0 && n_stor % 32 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 2 && (n_stor % 8 != 0 || n_stor % 16 != 0)) {
+        if (b.type->get_size() == 2 && (n_stor % 8 != 0 && n_stor % 16 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 4 && (n_stor % 4 != 0 || n_stor % 8 != 0)) {
+        if (b.type->get_size() == 4 && (n_stor % 4 != 0 && n_stor % 8 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 8 && (n_stor % 2 != 0 || n_stor % 4 != 0)) {
+        if (b.type->get_size() == 8 && (n_stor % 2 != 0 && n_stor % 4 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
@@ -379,7 +393,7 @@ private:
         }
       }
     }
-    fmt::println("{}  {}", store_bundles.size(), load_bundles.size());
+    // fmt::println("F{}  {}", store_bundles.size(), load_bundles.size());
 
     // // TODO: improve
     // //  any store set thats a subset of another can be deleted
