@@ -6,7 +6,9 @@
 #include "ir/helpers.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "ir/use.hpp"
+#include "ir/value.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
@@ -1929,6 +1931,24 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   switch ((fir::ConversionSubType)instr->subtype) {
   case fir::ConversionSubType::INVALID:
     TODO("unreach");
+  case fir::ConversionSubType::BitCast:
+    if (instr->args[0].is_instr()) {
+      auto iarg0 = instr->args[0].as_instr();
+      if (iarg0->is(fir::InstrType::Conversion) &&
+          iarg0->subtype == (u32)fir::ConversionSubType::BitCast &&
+          iarg0->args[0].get_type() == instr.get_type()) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(iarg0->args[0]);
+        instr.destroy();
+        return;
+      }
+    }
+    if (instr->args[0].is_constant()) {
+      fmt::println("implc const bitcast instr {:cd}", instr);
+      return;
+      // TODO("todo");
+    }
+    break;
   case fir::ConversionSubType::SITOFP:
   case fir::ConversionSubType::UITOFP:
     if (instr->args[0].is_constant() &&
@@ -2369,8 +2389,21 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
     if ((!is_written && is_read) || (is_written && !is_read)) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())});
+      TVec<fir::Use> use_copy{instr->uses.begin(), instr->uses.end()};
+      auto p_val = fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())};
+      for (auto u : use_copy) {
+        if (u.user->is(fir::InstrType::LoadInstr)) {
+          push_all_uses(worklist, u.user);
+          u.user->replace_all_uses(p_val);
+          u.user.destroy();
+          continue;
+        }
+        if (u.user->is(fir::InstrType::StoreInstr) && u.argId == 0) {
+          u.user.destroy();
+          continue;
+        }
+        u.replace_use(p_val);
+      }
       instr.destroy();
       return;
     }
@@ -2417,6 +2450,67 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
+void simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
+                              WorkList &worklist, u32 extend_to,
+                              u32 n_out_elems, fir::TypeR out_type) {
+
+  if (instr->is(fir::InstrType::StoreInstr)) {
+    auto out_type = ctx->get_int_type(extend_to * 8);
+    fir::Builder bb{instr};
+    auto in_addr = instr->args[0];
+    auto in_val = instr->args[1];
+    auto casted_val = bb.build_conversion_op(
+        in_val,
+        n_out_elems == 1 ? out_type : ctx->get_vec_type(out_type, n_out_elems),
+        fir::ConversionSubType::BitCast);
+    auto res = bb.build_store(in_addr, casted_val);
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return;
+  }
+  if (instr->is(fir::InstrType::VectorInstr) &&
+      instr->subtype == (u32)fir::VectorISubType::Broadcast) {
+    fir::Builder bb{instr};
+    auto in_val = instr->args[0];
+    auto orig_v = bb.build_zext(in_val, out_type);
+    auto v = orig_v;
+    for (u32 i = 1; i < extend_to; i++) {
+      auto add = bb.build_binary_op(
+          in_val, fir::ValueR{ctx->get_constant_value(i * 8, out_type)},
+          fir::BinaryInstrSubType::Shl);
+      v = bb.build_binary_op(v, add, fir::BinaryInstrSubType::Or);
+    }
+    if (n_out_elems != 1) {
+      v = bb.build_vbroadcast(v, ctx->get_vec_type(out_type, n_out_elems));
+    }
+    auto res = bb.build_conversion_op(v, instr->get_type(),
+                                      fir::ConversionSubType::BitCast);
+    worklist.push_back({orig_v.as_instr(), orig_v.as_instr()->get_parent()});
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return;
+  }
+}
+void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
+                     fir::Context &ctx, WorkList &worklist) {
+  const auto &v_t = instr->get_type()->as_vec();
+  if (v_t.type == fir::VectorType::SubType::Integer && v_t.bitwidth == 8) {
+    auto extend_to = v_t.member_number;
+    if ((extend_to % 8 == 0 && extend_to / 8 <= 2) ||
+        (extend_to % 4 == 0 && extend_to / 4 <= 4)) {
+      auto n_out_elems = extend_to / 4;
+      if (extend_to == 8) {
+        n_out_elems = extend_to / 8;
+      }
+      auto out_type = ctx->get_int_type(extend_to * 8);
+      simplify_ext_byte_vector(instr, ctx, worklist, extend_to, n_out_elems,
+                               out_type);
+    }
+  }
+}
+
 void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
   using namespace foptim::fir;
@@ -2432,6 +2526,12 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::ICmp) {
     simplify_icmp(instr, bb, ctx, worklist, man);
+    return;
+  }
+  if (instr_ty == InstrType::VectorInstr ||
+      (instr_ty == InstrType::LoadInstr && instr->get_type()->is_vec()) ||
+      (instr_ty == InstrType::StoreInstr && instr->get_type()->is_vec())) {
+    simplify_vector(instr, bb, ctx, worklist);
     return;
   }
   if (instr_ty == InstrType::FCmp) {

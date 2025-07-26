@@ -2144,6 +2144,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         switch ((fir::ConversionSubType)conversion_instr->subtype) {
         case fir::ConversionSubType::INVALID:
           UNREACH();
+        case fir::ConversionSubType::BitCast:
+          TODO("impl");
         case fir::ConversionSubType::FPTOUI:
           if (get_size(res_reg.ty) == 8) {
             // _Z4testv:

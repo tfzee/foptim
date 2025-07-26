@@ -374,6 +374,8 @@ public:
       switch ((fir::ConversionSubType)instr->get_instr_subtype()) {
       case fir::ConversionSubType::INVALID:
         UNREACH();
+      case fir::ConversionSubType::BitCast:
+        TODO("impl");
       case fir::ConversionSubType::FPTOUI:
         return ConstantValue::Constant(ctx->get_constant_value(
             static_cast<u64>(a.value->as_f64()), instr->get_type()));

@@ -70,16 +70,19 @@ bool try_constant_eval_binary(fir::Instr instr,
       auto invwidth = (128 + 1 - width);
       auto extended_a = ((a << invwidth) >> invwidth);
       auto extended_b = ((b << invwidth) >> invwidth);
-      auto res =
-          fir::ValueR(ctx->get_constant_value(extended_a % extended_b, type));
       instr->replace_all_uses(
           fir::ValueR(ctx->get_constant_value(extended_a % extended_b, type)));
+      return true;
+    }
+  case fir::BinaryInstrSubType::Shl:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a << b, type)));
       return true;
     }
   case fir::BinaryInstrSubType::IntURem:
   case fir::BinaryInstrSubType::AShr:
   case fir::BinaryInstrSubType::Shr:
-  case fir::BinaryInstrSubType::Shl:
     TODO("impl");
   case fir::BinaryInstrSubType::INVALID:
     return false;

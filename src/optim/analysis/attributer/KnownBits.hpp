@@ -186,6 +186,8 @@ public:
         new_known_one = a->known_one;
         new_known_zero = a->known_zero;
       } break;
+      case fir::ConversionSubType::BitCast:
+        TODO("impl");
       case fir::ConversionSubType::INVALID:
       case fir::ConversionSubType::FPEXT:
       case fir::ConversionSubType::FPTRUNC:

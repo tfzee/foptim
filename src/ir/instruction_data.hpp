@@ -93,6 +93,7 @@ enum class ConversionSubType : u32 {
   SITOFP,
   PtrToInt,
   IntToPtr,
+  BitCast,
 };
 
 enum class ICmpInstrSubType : u32 {
@@ -300,6 +301,8 @@ public:
         return "CONVERSIONOP_INVALID";
       case ConversionSubType::FPTOUI:
         return "FP_UI";
+      case ConversionSubType::BitCast:
+        return "BITCAST";
       case ConversionSubType::FPTOSI:
         return "FP_SI";
       case ConversionSubType::UITOFP:
