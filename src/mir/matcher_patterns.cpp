@@ -205,6 +205,41 @@ void memory_patterns(IRVec<Pattern> &pats) {
   auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
 
   pats.push_back(Pattern{
+      .nodes = {LoadNode, IntAddNode, StoreNode},
+      .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0},
+                {.from_instr = 1, .to_instr = 2, .to_arg = 1}},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto load_instr = res.matched_instrs[0];
+        auto add_instr = res.matched_instrs[1];
+        auto store_instr = res.matched_instrs[2];
+        auto add_ty = convert_type(add_instr.get_type());
+        if (add_ty >= Type::Float32) {
+          // cant do it on vector regs
+          return false;
+        }
+        if (!add_instr->args[1].is_constant()) {
+          return false;
+        }
+        auto consti = add_instr->args[1].as_constant();
+        if (!consti->is_int()) {
+          return false;
+        }
+        if (load_instr->args[0] != store_instr->args[0]) {
+          return false;
+        }
+        auto store_ty = convert_type(store_instr->get_type());
+        if (convert_type(load_instr->get_type()) != store_ty) {
+          return false;
+        }
+        auto consti_val = consti->as_int();
+        auto ptr = valueToArg(load_instr->args[0], res.result, data.alloc);
+        assert(ptr.isReg());
+        res.result.emplace_back(
+            Opcode::add2, MArgument::MemB(ptr.reg, store_ty),
+            MArgument{(u64)std::bit_cast<u128>(consti_val)});
+        return true;
+      }});
+  pats.push_back(Pattern{
       .nodes = {IntMulNode, IntAddNode, LoadNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 1},
                 {.from_instr = 1, .to_instr = 2, .to_arg = 0}},
