@@ -2510,6 +2510,27 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
+void simplify_extract(fir::Instr instr, WorkList &worklist) {
+  if (instr->args[0].is_instr()) {
+    auto argi = instr->args[0].as_instr();
+    if (argi->is(fir::InstrType::InsertValue)) {
+      if (instr->args[1].eql(argi->args[2])) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(argi->args[1]);
+        instr.destroy();
+        return;
+      }
+      fir::Builder bb{instr};
+      fir::ValueR v[1] = {instr->args[1]};
+      auto res = bb.build_extract_value(argi->args[0], v, instr->get_type());
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return;
+    }
+  }
+}
+
 void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
   using namespace foptim::fir;
@@ -2576,6 +2597,10 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::Intrinsic) {
     simplify_intrinsic(instr, bb, ctx, worklist, man);
+    return;
+  }
+  if (instr_ty == InstrType::ExtractValue) {
+    simplify_extract(instr, worklist);
     return;
   }
   if (instr_ty == InstrType::AllocaInstr) {
