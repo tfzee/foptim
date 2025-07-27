@@ -276,10 +276,10 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
       auto constant_ptr = constant->as_int();
       return MArgument::MemO((u64)constant_ptr, type_id);
     }
-    if (constant->is_null()) {
+    if (constant->is_null() || constant->is_poison()) {
       return MArgument::MemO((u64)0, type_id);
     }
-    // fmt::println("{}", constant);
+    fmt::println("{}", constant);
     TODO("unreach?");
     // return {(u64)0, :wype_id};
   } else {
