@@ -5,7 +5,6 @@
 
 namespace foptim::optim {
 
-
 static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context &ctx) {
   (void)instr;
@@ -20,20 +19,27 @@ static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
   if (size > 8) {
     return;
   }
+  fmt::println("Simplify memcpy {:cd}", instr);
   auto dst_ptr = instr->args[1];
   auto src_ptr = instr->args[2];
 
   auto input_ty = guessType(src_ptr);
   auto output_ty = guessType(dst_ptr);
+  fmt::println("==== {} {}   {} {}", input_ty.type, input_ty.typeless,
+               output_ty.type, output_ty.typeless);
   // fmt::println("{}", instr->parent);
   // fmt::println("{} {}", input_ty.typeless, output_ty.typeless);
-  if ((input_ty.typeless && output_ty.typeless) ||
+  if ((input_ty.typeless || output_ty.typeless) ||
       (input_ty.type.is_valid() && output_ty.type.is_valid() &&
        input_ty.type->eql(*output_ty.type.get_raw_ptr()))) {
     fir::Builder b{instr};
-    auto input = b.build_load(
-        input_ty.type.is_valid() ? input_ty.type : ctx->get_int_type(size * 8),
-        src_ptr);
+
+    auto selected_type =
+        input_ty.type.is_valid()
+            ? input_ty.type
+            : (output_ty.type.is_valid() ? output_ty.type
+                                         : ctx->get_int_type(size * 8));
+    auto input = b.build_load(selected_type, src_ptr);
     b.build_store(dst_ptr, input);
     instr.destroy();
     // fmt::println("Simplify");
