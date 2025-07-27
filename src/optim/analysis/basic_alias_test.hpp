@@ -15,7 +15,6 @@ struct AliasAnalyis {
   };
   using HeapId = u32;
 
-private:
   struct Heap {
     HeapId parent;
     u32 id;
@@ -26,6 +25,7 @@ private:
     std::optional<u32> offset;
   };
 
+private:
   TMap<fir::ValueR, HeapEntry> mapping;
   TVec<Heap> heaps;
   HeapId any_h;
@@ -166,9 +166,9 @@ public:
         return AAResult::MightAlias;
       }
       bool a_smaller_nooverlap =
-          (a_heap.offset.value() + a_size < b_heap.offset);
+          (a_heap.offset.value() + a_size <= b_heap.offset);
       bool b_smaller_nooverlap =
-          (b_heap.offset.value() + b_size < a_heap.offset);
+          (b_heap.offset.value() + b_size <= a_heap.offset);
       if (a_smaller_nooverlap || b_smaller_nooverlap) {
         return AAResult::NoAlias;
       }

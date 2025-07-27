@@ -147,6 +147,17 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
         {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
+  // ensure loop is do while loop
+  if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
+    failure(
+        {.reason = "Need a do while loop", .loc = {cfg.bbrs[loop.head].bb}});
+    return false;
+  }
+
+  size_t n_instrs = 0;
+  for (auto i : loop.body_nodes) {
+    n_instrs += cfg.bbrs[i].bb->n_instrs();
+  }
 
   // lb.dump();
   auto iteration_count = lb.n_iter;
@@ -158,18 +169,14 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
     unroll_factor = 16;
   } else if (iteration_count % 8 == 0) {
     unroll_factor = 8;
-  } else if (iteration_count % 4 == 0) {
-    unroll_factor = 4;
-  } else if (iteration_count > 1 && iteration_count <= 6) {
+  } else if (iteration_count > 1 && iteration_count <= 6 &&
+             iteration_count * n_instrs < 64) {
     is_full_unroll = true;
     unroll_factor = iteration_count;
+  } else if (iteration_count % 4 == 0) {
+    unroll_factor = 4;
   } else {
     return false;
-  }
-
-  size_t n_instrs = 0;
-  for (auto i : loop.body_nodes) {
-    n_instrs += cfg.bbrs[i].bb->n_instrs();
   }
 
   while (!is_full_unroll && unroll_factor * n_instrs > 64 &&
@@ -181,13 +188,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
         {.reason = "Unroll prob too massive", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
-
-  // ensure loop is do while loop
-  if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
-    failure(
-        {.reason = "Need a do while loop", .loc = {cfg.bbrs[loop.head].bb}});
-    return false;
-  }
+  // fmt::println("unrolled {} {}", n_instrs, unroll_factor);
 
   // fmt::println("{}", func);
   // fmt::println("unrollnig!!");

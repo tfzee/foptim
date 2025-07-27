@@ -6,6 +6,7 @@
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include <fmt/std.h>
 
 namespace foptim::optim {
 
@@ -99,7 +100,9 @@ public:
           for (size_t between_i = i + 1; between_i < i2; between_i++) {
             auto binstr = bb->instructions[between_i];
             if (binstr->is(fir::InstrType::StoreInstr)) {
-              if (aa.alias(binstr->args[0], instr->args[0]) !=
+              if (aa.alias(binstr->args[0], instr->args[0],
+                           binstr->get_type()->get_size(),
+                           instr->get_type()->get_size()) !=
                   AliasAnalyis::AAResult::NoAlias) {
                 pot_store_between = true;
                 break;
@@ -110,7 +113,7 @@ public:
             }
           }
           if (!pot_store_between) {
-            // fmt::println("No Store between {} {}", instr, instr2);
+            // fmt::println("No Store between {:cd}\n{:cd}", instr, instr2);
             instr2->replace_all_uses(instr->get_arg(1));
             continue;
           }
