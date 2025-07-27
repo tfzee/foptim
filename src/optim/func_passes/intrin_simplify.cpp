@@ -19,14 +19,11 @@ static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
   if (size > 8) {
     return;
   }
-  fmt::println("Simplify memcpy {:cd}", instr);
   auto dst_ptr = instr->args[1];
   auto src_ptr = instr->args[2];
 
   auto input_ty = guessType(src_ptr);
   auto output_ty = guessType(dst_ptr);
-  fmt::println("==== {} {}   {} {}", input_ty.type, input_ty.typeless,
-               output_ty.type, output_ty.typeless);
   // fmt::println("{}", instr->parent);
   // fmt::println("{} {}", input_ty.typeless, output_ty.typeless);
   if ((input_ty.typeless || output_ty.typeless) ||
