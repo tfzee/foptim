@@ -54,6 +54,7 @@ public:
 
   fir::ValueR generate(fir::Context &ctx) final {
     fir::Builder bb{insert_loc};
+    bb.after(insert_loc);
     return bb.build_vbroadcast(
         v, ctx->get_vec_type(insert_loc->get_type(), n_lanes));
   }
