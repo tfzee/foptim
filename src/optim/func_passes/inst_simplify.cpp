@@ -2032,16 +2032,15 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-void simplify_store(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                    WorkList &worklist) {
-  (void)bb;
-  (void)ctx;
-  (void)worklist;
-  if (instr->args[0].is_constant() &&
-      instr->args[0].as_constant()->is_poison()) {
+bool simplify_store(fir::Instr instr) {
+  if ((instr->args[0].is_constant() &&
+       instr->args[0].as_constant()->is_poison()) ||
+      (instr->args[1].is_constant() &&
+       instr->args[1].as_constant()->is_poison())) {
     instr.destroy();
-    return;
+    return true;
   }
+  return false;
 }
 
 void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
@@ -2337,7 +2336,7 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
       switch (curr.type) {
       case fir::UseType::NormalArg:
         if (curr.user->is(fir::InstrType::LoadInstr) && curr.argId == 0) {
-          is_read = true;
+          is_read |= curr.user->get_n_uses() > 0;
         } else if (curr.user->is(fir::InstrType::StoreInstr) &&
                    curr.argId == 0) {
           is_written = true;
@@ -2528,6 +2527,11 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     simplify_icmp(instr, bb, ctx, worklist, man);
     return;
   }
+  if (instr_ty == InstrType::StoreInstr) {
+    if (simplify_store(instr)) {
+      return;
+    }
+  }
   if (instr_ty == InstrType::VectorInstr ||
       (instr_ty == InstrType::LoadInstr && instr->get_type()->is_vec()) ||
       (instr_ty == InstrType::StoreInstr && instr->get_type()->is_vec())) {
@@ -2560,10 +2564,6 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::Conversion) {
     simplify_conversion(instr, bb, ctx, worklist);
-    return;
-  }
-  if (instr_ty == InstrType::StoreInstr) {
-    simplify_store(instr, bb, ctx, worklist);
     return;
   }
   if (instr_ty == InstrType::LoadInstr) {
