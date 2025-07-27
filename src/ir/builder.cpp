@@ -41,6 +41,13 @@ BasicBlock Builder::append_bb() {
 //          bb->instructions.begin();
 // }
 
+void Builder::after(fir::Instr i) {
+  indx = std::find(bb->instructions.begin(), bb->instructions.end(), i) -
+         bb->instructions.begin() + 1;
+  bb = i->get_parent();
+  func = bb->get_parent();
+}
+
 void Builder::at_end(BasicBlock bbr) {
   bb = bbr;
   func = bbr->func;

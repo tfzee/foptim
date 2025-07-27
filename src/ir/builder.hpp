@@ -30,7 +30,7 @@ public:
   */
   BasicBlock append_bb();
 
-  // void before(Instr instr);
+  void after(Instr instr);
   void at_end(BasicBlock bbr);
   void at_start(BasicBlock bbr);
   void at_penultimate(BasicBlock bbr);
