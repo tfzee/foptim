@@ -1,5 +1,3 @@
-#include "backend3.hpp"
-
 #include <fmt/core.h>
 
 #include <cmath>
@@ -7,12 +5,12 @@
 #include <elfio/elfio.hpp>
 
 #include "backend.hpp"
+#include "backend3.hpp"
 #include "ir/helpers.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
 #include "utils/arena.hpp"
-#include "utils/logging.hpp"
 #include "utils/parameters.hpp"
 #include "x86_codegen/backend3_instr_gen.hpp"
 

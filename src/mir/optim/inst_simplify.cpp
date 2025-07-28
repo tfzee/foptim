@@ -1,9 +1,8 @@
-#include "inst_simplify.hpp"
-
 #include <fmt/core.h>
 
 #include <cmath>
 
+#include "inst_simplify.hpp"
 #include "mir/instr.hpp"
 
 namespace foptim::fmir {
