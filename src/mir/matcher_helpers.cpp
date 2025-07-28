@@ -4,6 +4,7 @@
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher.hpp"
+#include "mir/matcher_helpers.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::fmir {
