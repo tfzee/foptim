@@ -1,5 +1,4 @@
 #include "context.hpp"
-
 #include "global.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/types.hpp"
@@ -488,7 +487,7 @@ void ContextData::dump_graph(const char *filename) {
   //     file,
   //     "BB2->BB3 [ltail=cluster_func1 lhead=cluster_func2
   //     label=\"call\"];\n");
-  fmt::print(file, "}}\n", errno);
+  fmt::print(file, "}}\n");
   fclose(file);
 }
 

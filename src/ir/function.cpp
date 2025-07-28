@@ -1,12 +1,38 @@
 #include <fmt/color.h>
 
 #include "builder.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
 
 namespace foptim::fir {
 
 Builder FunctionR::builder() { return Builder{*this}; }
+
+void Function::dump_data_dependency_graph(const char *filename) const {
+  auto *file = std::fopen(filename, "w");
+  fmt::println(file, "digraph G{{");
+  fmt::println(file, "node [shape=box, fontname=\"monospace\", fontsize=10];");
+  for (auto b : basic_blocks) {
+    for (auto arg : b->args) {
+      fmt::println(file, R"( "{}"[label="{}"])", (void *)arg.get_raw_ptr(),
+                   (void *)arg.get_raw_ptr());
+      for (auto u : arg->get_uses()) {
+        fmt::print(file, "\"{}\" -> \"{}\" [color=\"red\"];\n",
+                   (void *)arg.get_raw_ptr(), (void *)u.user.get_raw_ptr());
+      }
+    }
+    for (auto i : b->instructions) {
+      fmt::print(file, R"( "{}"[label="{}"])", (void *)i.get_raw_ptr(), i);
+      for (auto u : i->get_uses()) {
+        fmt::print(file, "\"{}\" -> \"{}\" [color=\"red\"];\n",
+                   (void *)i.get_raw_ptr(), (void *)u.user.get_raw_ptr());
+      }
+    }
+  }
+  fmt::print(file, "}}\n");
+  fclose(file);
+}
 
 [[nodiscard]] size_t Function::bb_id(BasicBlock b) const {
   for (size_t bb_indx = 0; bb_indx < basic_blocks.size(); bb_indx++) {

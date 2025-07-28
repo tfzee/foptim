@@ -35,6 +35,7 @@ class Function : public Attributable, public LockedUsed {
   Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}
 
+  void dump_data_dependency_graph(const char *filename = "out.dot") const;
   bool is_decl() const { return basic_blocks.empty(); }
   IRString &getName() { return name; }
   const IRString &getName() const { return name; }
