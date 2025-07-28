@@ -1,17 +1,18 @@
-#include "matcher.hpp"
+#include <algorithm>
+#include <ranges>
+#include <tracy/Tracy.hpp>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
+#include "matcher.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "mir/matcher_patterns.hpp"
 #include "mir/reg_alloc.hpp"
-#include <algorithm>
-#include <ranges>
-#include <tracy/Tracy.hpp>
 
 namespace foptim::fmir {
 
@@ -22,7 +23,7 @@ MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
 
   VReg helper = data.alloc.get_new_register(reg_type);
   auto helper_arg = MArgument(helper, reg_type);
-  res.result.emplace_back(Opcode::mov, helper_arg, val);
+  res.result.emplace_back(GBaseSubtype::mov, helper_arg, val);
   return helper_arg;
 }
 
@@ -62,7 +63,6 @@ struct MatchTodos {
 
 bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res,
                TVec<MatchTodos> &match_todos) {
-
   // for now TREE only matching
   //  for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
   //       start_node_id++) {
@@ -196,14 +196,14 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
       for (auto minstr : res | std::views::reverse) {
         result_bb.instrs.push_back(minstr);
       }
-      result_bb.instrs.emplace_back(Opcode::mov, real_reg, transfer_reg);
+      result_bb.instrs.emplace_back(GBaseSubtype::mov, real_reg, transfer_reg);
     }
   }
 
   std::ranges::reverse(result_bb.instrs);
   return result_bb;
 }
-} // namespace
+}  // namespace
 
 Type convert_type(fir::TypeR type) {
   if (type->is_int()) {
@@ -237,39 +237,39 @@ Type convert_type(fir::TypeR type) {
   } else if (type->is_vec()) {
     auto d = type->as_vec();
     switch (d.type) {
-    case fir::VectorType::SubType::Integer:
-      if (d.bitwidth == 32 && d.member_number == 4) {
-        return Type::Int32x4;
-      }
-      if (d.bitwidth == 32 && d.member_number == 8) {
-        return Type::Int32x8;
-      }
-      if (d.bitwidth == 64 && d.member_number == 2) {
-        return Type::Int64x2;
-      }
-      if (d.bitwidth == 64 && d.member_number == 4) {
-        return Type::Int64x4;
-      }
-      fmt::println("{}", type);
-      ASSERT(false);
-    case fir::VectorType::SubType::Floating:
-      if (d.bitwidth == 32 && d.member_number == 2) {
-        return Type::Float32x2;
-      }
-      if (d.bitwidth == 32 && d.member_number == 4) {
-        return Type::Float32x4;
-      }
-      if (d.bitwidth == 32 && d.member_number == 8) {
-        return Type::Float32x8;
-      }
-      if (d.bitwidth == 64 && d.member_number == 2) {
-        return Type::Float64x2;
-      }
-      if (d.bitwidth == 64 && d.member_number == 4) {
-        return Type::Float64x4;
-      }
-      fmt::println("{}", type);
-      ASSERT(false);
+      case fir::VectorType::SubType::Integer:
+        if (d.bitwidth == 32 && d.member_number == 4) {
+          return Type::Int32x4;
+        }
+        if (d.bitwidth == 32 && d.member_number == 8) {
+          return Type::Int32x8;
+        }
+        if (d.bitwidth == 64 && d.member_number == 2) {
+          return Type::Int64x2;
+        }
+        if (d.bitwidth == 64 && d.member_number == 4) {
+          return Type::Int64x4;
+        }
+        fmt::println("{}", type);
+        ASSERT(false);
+      case fir::VectorType::SubType::Floating:
+        if (d.bitwidth == 32 && d.member_number == 2) {
+          return Type::Float32x2;
+        }
+        if (d.bitwidth == 32 && d.member_number == 4) {
+          return Type::Float32x4;
+        }
+        if (d.bitwidth == 32 && d.member_number == 8) {
+          return Type::Float32x8;
+        }
+        if (d.bitwidth == 64 && d.member_number == 2) {
+          return Type::Float64x2;
+        }
+        if (d.bitwidth == 64 && d.member_number == 4) {
+          return Type::Float64x4;
+        }
+        fmt::println("{}", type);
+        ASSERT(false);
     }
   } else {
     fmt::println("{}", type);
@@ -407,7 +407,7 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
         const auto to = pairs[pair1_id].to;
         const auto from = pairs[pair1_id].from;
 
-        res.result.emplace_back(Opcode::mov, to, from);
+        res.result.emplace_back(GBaseSubtype::mov, to, from);
         pairs.erase(pairs.begin() + (int64_t)pair1_id);
         if (pair1_id > 0) {
           pair1_id--;
@@ -423,7 +423,7 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
       pairs.erase(pairs.begin() + 0);
       auto save_reg = data.alloc.get_new_register(pair.from.ty);
       auto save_arg = MArgument{save_reg, pair.from.ty};
-      res.result.emplace_back(Opcode::mov, save_arg, pair.from);
+      res.result.emplace_back(GBaseSubtype::mov, save_arg, pair.from);
       pairs.push_back(PhiPair{.to = pair.to, .from = save_arg});
       found_one = true;
     }
@@ -433,4 +433,4 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
 }
 
 GreedyMatcher::GreedyMatcher() : Matcher(get_pats()) {}
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -1,17 +1,19 @@
-#include "matcher_patterns.hpp"
+#include <fmt/core.h>
+
+#include <bit>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+
 #include "ir/basic_block.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "matcher.hpp"
+#include "matcher_patterns.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "utils/helpers.hpp"
 #include "utils/stats.hpp"
-#include <bit>
-#include <cstdlib>
-#include <cstring>
-#include <fmt/core.h>
-#include <limits>
 
 namespace foptim::fmir {
 
@@ -35,7 +37,7 @@ bool is_reg(fir::ValueR val) {
     return true;
   }
 }
-} // namespace
+}  // namespace
 
 void move_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
@@ -71,53 +73,53 @@ void move_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
         auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
-        Opcode op = Opcode::icmp_eq;
+        GJumpSubtype op = GJumpSubtype::icmp_eq;
 
         switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
-        case fir::ICmpInstrSubType::SLT:
-          op = dir1 ? Opcode::icmp_slt : Opcode::icmp_sge;
-          break;
-        case fir::ICmpInstrSubType::ULT:
-          op = dir1 ? Opcode::icmp_ult : Opcode::icmp_uge;
-          break;
-        case fir::ICmpInstrSubType::NE:
-          op = dir1 ? Opcode::icmp_ne : Opcode::icmp_eq;
-          break;
-        case fir::ICmpInstrSubType::EQ:
-          op = dir1 ? Opcode::icmp_eq : Opcode::icmp_ne;
-          break;
-        case fir::ICmpInstrSubType::SGT:
-          op = dir1 ? Opcode::icmp_sgt : Opcode::icmp_sle;
-          break;
-        case fir::ICmpInstrSubType::UGT:
-          op = dir1 ? Opcode::icmp_ugt : Opcode::icmp_ule;
-          break;
-        case fir::ICmpInstrSubType::UGE:
-          op = dir1 ? Opcode::icmp_uge : Opcode::icmp_ult;
-          break;
-        case fir::ICmpInstrSubType::ULE:
-          op = dir1 ? Opcode::icmp_ule : Opcode::icmp_ugt;
-          break;
-        case fir::ICmpInstrSubType::SGE:
-          op = dir1 ? Opcode::icmp_sge : Opcode::icmp_slt;
-          break;
-        case fir::ICmpInstrSubType::SLE:
-          op = dir1 ? Opcode::icmp_sle : Opcode::icmp_sgt;
-          break;
-        case fir::ICmpInstrSubType::INVALID:
-          UNREACH();
-        case fir::ICmpInstrSubType::MulOverflow:
-          if (!dir1) {
-            return false;
-          }
-          op = Opcode::icmp_mul_overflow;
-          break;
-        case fir::ICmpInstrSubType::AddOverflow:
-          if (!dir1) {
-            return false;
-          }
-          op = Opcode::icmp_add_overflow;
-          break;
+          case fir::ICmpInstrSubType::SLT:
+            op = dir1 ? GJumpSubtype::icmp_slt : GJumpSubtype::icmp_sge;
+            break;
+          case fir::ICmpInstrSubType::ULT:
+            op = dir1 ? GJumpSubtype::icmp_ult : GJumpSubtype::icmp_uge;
+            break;
+          case fir::ICmpInstrSubType::NE:
+            op = dir1 ? GJumpSubtype::icmp_ne : GJumpSubtype::icmp_eq;
+            break;
+          case fir::ICmpInstrSubType::EQ:
+            op = dir1 ? GJumpSubtype::icmp_eq : GJumpSubtype::icmp_ne;
+            break;
+          case fir::ICmpInstrSubType::SGT:
+            op = dir1 ? GJumpSubtype::icmp_sgt : GJumpSubtype::icmp_sle;
+            break;
+          case fir::ICmpInstrSubType::UGT:
+            op = dir1 ? GJumpSubtype::icmp_ugt : GJumpSubtype::icmp_ule;
+            break;
+          case fir::ICmpInstrSubType::UGE:
+            op = dir1 ? GJumpSubtype::icmp_uge : GJumpSubtype::icmp_ult;
+            break;
+          case fir::ICmpInstrSubType::ULE:
+            op = dir1 ? GJumpSubtype::icmp_ule : GJumpSubtype::icmp_ugt;
+            break;
+          case fir::ICmpInstrSubType::SGE:
+            op = dir1 ? GJumpSubtype::icmp_sge : GJumpSubtype::icmp_slt;
+            break;
+          case fir::ICmpInstrSubType::SLE:
+            op = dir1 ? GJumpSubtype::icmp_sle : GJumpSubtype::icmp_sgt;
+            break;
+          case fir::ICmpInstrSubType::INVALID:
+            UNREACH();
+          case fir::ICmpInstrSubType::MulOverflow:
+            if (!dir1) {
+              return false;
+            }
+            op = GJumpSubtype::icmp_mul_overflow;
+            break;
+          case fir::ICmpInstrSubType::AddOverflow:
+            if (!dir1) {
+              return false;
+            }
+            op = GJumpSubtype::icmp_add_overflow;
+            break;
         }
         // Do a little cheating
         res_arg.reg.ty = Type::Int8;
@@ -133,11 +135,11 @@ void move_patterns(IRVec<Pattern> &pats) {
         fir::Instr slct_instr = res.matched_instrs[1];
 
         switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
-        case fir::ICmpInstrSubType::MulOverflow:
-        case fir::ICmpInstrSubType::AddOverflow:
-          // TODO: impl
-          return false;
-        default:
+          case fir::ICmpInstrSubType::MulOverflow:
+          case fir::ICmpInstrSubType::AddOverflow:
+            // TODO: impl
+            return false;
+          default:
         }
         auto res_arg =
             valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
@@ -148,46 +150,46 @@ void move_patterns(IRVec<Pattern> &pats) {
         auto c2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
         auto arg1 = valueToArg(slct_instr->args[1], res.result, data.alloc);
         auto arg2 = valueToArg(slct_instr->args[2], res.result, data.alloc);
-        Opcode op = Opcode::cmov;
+        GCMovSubtype op = GCMovSubtype::cmov;
 
         switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
-        case fir::ICmpInstrSubType::SGT:
-          op = Opcode::cmov_sgt;
-          break;
-        case fir::ICmpInstrSubType::SLT:
-          op = Opcode::cmov_slt;
-          break;
-        case fir::ICmpInstrSubType::ULT:
-          op = Opcode::cmov_ult;
-          break;
-        case fir::ICmpInstrSubType::SGE:
-          op = Opcode::cmov_sge;
-          break;
-        case fir::ICmpInstrSubType::SLE:
-          op = Opcode::cmov_sle;
-          break;
-        case fir::ICmpInstrSubType::NE:
-          op = Opcode::cmov_ne;
-          break;
-        case fir::ICmpInstrSubType::EQ:
-          op = Opcode::cmov_eq;
-          break;
-        case fir::ICmpInstrSubType::UGT:
-          op = Opcode::cmov_ugt;
-          break;
-        case fir::ICmpInstrSubType::UGE:
-          op = Opcode::cmov_uge;
-          break;
-        case fir::ICmpInstrSubType::ULE:
-          op = Opcode::cmov_ule;
-          break;
-        case fir::ICmpInstrSubType::MulOverflow:
-        case fir::ICmpInstrSubType::AddOverflow:
-        case fir::ICmpInstrSubType::INVALID:
-          UNREACH();
+          case fir::ICmpInstrSubType::SGT:
+            op = GCMovSubtype::cmov_sgt;
+            break;
+          case fir::ICmpInstrSubType::SLT:
+            op = GCMovSubtype::cmov_slt;
+            break;
+          case fir::ICmpInstrSubType::ULT:
+            op = GCMovSubtype::cmov_ult;
+            break;
+          case fir::ICmpInstrSubType::SGE:
+            op = GCMovSubtype::cmov_sge;
+            break;
+          case fir::ICmpInstrSubType::SLE:
+            op = GCMovSubtype::cmov_sle;
+            break;
+          case fir::ICmpInstrSubType::NE:
+            op = GCMovSubtype::cmov_ne;
+            break;
+          case fir::ICmpInstrSubType::EQ:
+            op = GCMovSubtype::cmov_eq;
+            break;
+          case fir::ICmpInstrSubType::UGT:
+            op = GCMovSubtype::cmov_ugt;
+            break;
+          case fir::ICmpInstrSubType::UGE:
+            op = GCMovSubtype::cmov_uge;
+            break;
+          case fir::ICmpInstrSubType::ULE:
+            op = GCMovSubtype::cmov_ule;
+            break;
+          case fir::ICmpInstrSubType::MulOverflow:
+          case fir::ICmpInstrSubType::AddOverflow:
+          case fir::ICmpInstrSubType::INVALID:
+            UNREACH();
         }
 
-        res.result.emplace_back(Opcode::mov, res_arg, arg2);
+        res.result.emplace_back(GBaseSubtype::mov, res_arg, arg2);
         res.result.emplace_back(op, res_arg, arg1, c1, c2);
         return true;
       }});
@@ -235,7 +237,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto ptr = valueToArg(load_instr->args[0], res.result, data.alloc);
         assert(ptr.isReg());
         res.result.emplace_back(
-            Opcode::add2, MArgument::MemB(ptr.reg, store_ty),
+            GArithSubtype::add2, MArgument::MemB(ptr.reg, store_ty),
             MArgument{(u64)std::bit_cast<u128>(consti_val)});
         return true;
       }});
@@ -268,21 +270,21 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto consti_val = consti->as_int();
 
         switch (consti_val) {
-        default: {
-          return false;
-        }
-        case 1:
-          consti_val = 0;
-          break;
-        case 2:
-          consti_val = 1;
-          break;
-        case 4:
-          consti_val = 2;
-          break;
-        case 8:
-          consti_val = 3;
-          break;
+          default: {
+            return false;
+          }
+          case 1:
+            consti_val = 0;
+            break;
+          case 2:
+            consti_val = 1;
+            break;
+          case 4:
+            consti_val = 2;
+            break;
+          case 8:
+            consti_val = 3;
+            break;
         }
 
         // $1 = $0 * C
@@ -295,7 +297,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         ASSERT(base.isReg());
         ASSERT(indx.isReg());
         res.result.emplace_back(
-            Opcode::mov, res_reg,
+            GBaseSubtype::mov, res_reg,
             MArgument::MemBIS(base.reg, indx.reg, consti_val, load_ty));
         return true;
       }});
@@ -328,21 +330,21 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto consti_val = consti->as_int();
 
         switch (consti_val) {
-        default: {
-          return false;
-        }
-        case 1:
-          consti_val = 0;
-          break;
-        case 2:
-          consti_val = 1;
-          break;
-        case 4:
-          consti_val = 2;
-          break;
-        case 8:
-          consti_val = 3;
-          break;
+          default: {
+            return false;
+          }
+          case 1:
+            consti_val = 0;
+            break;
+          case 2:
+            consti_val = 1;
+            break;
+          case 4:
+            consti_val = 2;
+            break;
+          case 8:
+            consti_val = 3;
+            break;
         }
 
         // $1 = $0 * C
@@ -357,7 +359,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         // ASSERT(base.isReg());
         // ASSERT(indx.isReg());
         res.result.emplace_back(
-            Opcode::mov,
+            GBaseSubtype::mov,
             MArgument::MemBIS(base.reg, indx.reg, consti_val, store_ty), value);
         return true;
       }});
@@ -389,7 +391,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
                 valueToArgPtr(add_instr->args[1], Type::Int64, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
-                Opcode::mov, res_reg,
+                GBaseSubtype::mov, res_reg,
                 MArgument::MemLO(repl.label, a0.imm, load_ty));
             return true;
           }
@@ -402,7 +404,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
                 valueToArgPtr(add_instr->args[0], Type::Int64, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
-                Opcode::mov, res_reg,
+                GBaseSubtype::mov, res_reg,
                 MArgument::MemLO(repl.label, a1.imm, load_ty));
             return true;
           }
@@ -417,10 +419,10 @@ void memory_patterns(IRVec<Pattern> &pats) {
         // }
 
         if (a0.isReg() && a1.isImm()) {
-          res.result.emplace_back(Opcode::mov, res_reg,
+          res.result.emplace_back(GBaseSubtype::mov, res_reg,
                                   MArgument::MemOB(a1.imm, a0.reg, load_ty));
         } else if (a0.isImm() && a1.isReg()) {
-          res.result.emplace_back(Opcode::mov, res_reg,
+          res.result.emplace_back(GBaseSubtype::mov, res_reg,
                                   MArgument::MemOB(a0.imm, a1.reg, load_ty));
         } else if (a0.isReg() && a1.isReg()) {
           auto max_type = std::max(a0.reg.ty, a1.reg.ty);
@@ -428,7 +430,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
           auto a1_ext = a1.reg;
           a0_ext.ty = max_type;
           a1_ext.ty = max_type;
-          res.result.emplace_back(Opcode::mov, res_reg,
+          res.result.emplace_back(GBaseSubtype::mov, res_reg,
                                   MArgument::MemBI(a0_ext, a1_ext, load_ty));
         } else {
           return false;
@@ -462,11 +464,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
 
         if (a00.isReg() && a01.isImm() && a10.isReg()) {
           res.result.emplace_back(
-              Opcode::mov,
+              GBaseSubtype::mov,
               MArgument::MemOBI(a01.imm, a00.reg, a10.reg, store_ty), value);
         } else if (a00.isImm() && a01.isReg() && a10.isReg()) {
           res.result.emplace_back(
-              Opcode::mov,
+              GBaseSubtype::mov,
               MArgument::MemOBI(a00.imm, a01.reg, a10.reg, store_ty), value);
         } else {
           return false;
@@ -500,8 +502,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
                 valueToArgPtr(add_instr->args[1], Type::Int64, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
-                Opcode::mov, MArgument::MemLO(repl.label, a0.imm, store_ty),
-                value);
+                GBaseSubtype::mov,
+                MArgument::MemLO(repl.label, a0.imm, store_ty), value);
             return true;
           }
           if (c1->is_int() && c1->as_int() < 0) {
@@ -517,8 +519,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
                 valueToArgPtr(add_instr->args[0], Type::Int64, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
-                Opcode::mov, MArgument::MemLO(repl.label, a1.imm, store_ty),
-                value);
+                GBaseSubtype::mov,
+                MArgument::MemLO(repl.label, a1.imm, store_ty), value);
             return true;
           }
         }
@@ -532,14 +534,17 @@ void memory_patterns(IRVec<Pattern> &pats) {
         }
 
         if (a0.isReg() && a1.isImm()) {
-          res.result.emplace_back(
-              Opcode::mov, MArgument::MemOB(a1.imm, a0.reg, store_ty), value);
+          res.result.emplace_back(GBaseSubtype::mov,
+                                  MArgument::MemOB(a1.imm, a0.reg, store_ty),
+                                  value);
         } else if (a0.isImm() && a1.isReg()) {
-          res.result.emplace_back(
-              Opcode::mov, MArgument::MemOB(a0.imm, a1.reg, store_ty), value);
+          res.result.emplace_back(GBaseSubtype::mov,
+                                  MArgument::MemOB(a0.imm, a1.reg, store_ty),
+                                  value);
         } else if (a0.isReg() && a1.isReg()) {
-          res.result.emplace_back(
-              Opcode::mov, MArgument::MemBI(a0.reg, a1.reg, store_ty), value);
+          res.result.emplace_back(GBaseSubtype::mov,
+                                  MArgument::MemBI(a0.reg, a1.reg, store_ty),
+                                  value);
         } else {
           return false;
         }
@@ -593,8 +598,8 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         // auto v2 = MArgument{v2_reg, comp_ty};
 
         // TODO: this is a issue with lifetimes
-        // res.result.emplace_back(Opcode::mov, v1, v1_orig);
-        // res.result.emplace_back(Opcode::mov, v2, v2_orig);
+        // res.result.emplace_back(GBaseSubtype::mov, v1, v1_orig);
+        // res.result.emplace_back(GBaseSubtype::mov, v2, v2_orig);
 
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
         // ASSERT(bb_with_args.args.size() == 0);
@@ -735,68 +740,75 @@ void arith_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         switch (c) {
-        default:
-          fmt::println("OPTIMIZE SDIV ?? x/{}", c);
-          return false;
-        case 2: {
-          auto res_reg =
-              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-          // mov     eax, edi
-          // shr     eax, 31
-          // add     eax, edi
-          // sar     eax
-          res.result.emplace_back(Opcode::mov, res_reg, base);
-          res.result.emplace_back(Opcode::shr2, res_reg, MArgument((u8)31));
-          res.result.emplace_back(Opcode::add2, res_reg, base);
-          res.result.emplace_back(Opcode::cmov_ns, res_reg, base, base, base);
-          res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u8)1));
-          break;
-        }
-        case 8: {
-          auto res_reg =
-              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-          // lea eax, [rdi + 7]
-          ASSERT(base.isReg());
-          res.result.emplace_back(Opcode::lea, res_reg,
-                                  MArgument::MemOB(7, base.reg, out_type));
-          // test edi, edi
-          // cmovns eax, edi
-          res.result.emplace_back(Opcode::cmov_ns, res_reg, base, base, base);
-          // sar eax, 3
-          res.result.emplace_back(Opcode::sar2, res_reg, MArgument((u8)3));
-          break;
-        }
-        case 10: {
-          auto res_reg32 =
-              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-          auto res_reg64 = res_reg32;
-          res_reg64.ty = Type::Int64;
-          res_reg64.reg.ty = Type::Int64;
-          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-          auto helper64 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto helper32 = helper64;
-          helper32.ty = Type::Int32;
-          helper32.reg.ty = Type::Int32;
+          default:
+            fmt::println("OPTIMIZE SDIV ?? x/{}", c);
+            return false;
+          case 2: {
+            auto res_reg =
+                valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+            auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+            // mov     eax, edi
+            // shr     eax, 31
+            // add     eax, edi
+            // sar     eax
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
+            res.result.emplace_back(GArithSubtype::shr2, res_reg,
+                                    MArgument((u8)31));
+            res.result.emplace_back(GArithSubtype::add2, res_reg, base);
+            res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
+                                    base);
+            res.result.emplace_back(GArithSubtype::sar2, res_reg,
+                                    MArgument((u8)1));
+            break;
+          }
+          case 8: {
+            auto res_reg =
+                valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+            auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+            // lea eax, [rdi + 7]
+            ASSERT(base.isReg());
+            res.result.emplace_back(X86Subtype::lea, res_reg,
+                                    MArgument::MemOB(7, base.reg, out_type));
+            // test edi, edi
+            // cmovns eax, edi
+            res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
+                                    base);
+            // sar eax, 3
+            res.result.emplace_back(GArithSubtype::sar2, res_reg,
+                                    MArgument((u8)3));
+            break;
+          }
+          case 10: {
+            auto res_reg32 =
+                valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+            auto res_reg64 = res_reg32;
+            res_reg64.ty = Type::Int64;
+            res_reg64.reg.ty = Type::Int64;
+            auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+            auto helper64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                      Type::Int64);
+            auto helper32 = helper64;
+            helper32.ty = Type::Int32;
+            helper32.reg.ty = Type::Int32;
 
-          ASSERT(base.isReg());
-          // movsxd  target64, edi
-          res.result.emplace_back(Opcode::mov_sx, res_reg64, base);
-          // imul    target64, target64, 1717986919
-          res.result.emplace_back(Opcode::smul3, res_reg64, res_reg64,
-                                  MArgument((u32)1717986919));
-          // mov     helper64, target64
-          res.result.emplace_back(Opcode::mov, helper64, res_reg64);
-          // shr     helper64, 63
-          res.result.emplace_back(Opcode::shr2, helper64, MArgument((u8)63));
-          // sar     target64, 34
-          res.result.emplace_back(Opcode::sar2, res_reg64, MArgument((u8)34));
-          // add     target32, helper32
-          res.result.emplace_back(Opcode::land2, res_reg32, helper32);
-          break;
-        }
+            ASSERT(base.isReg());
+            // movsxd  target64, edi
+            res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, base);
+            // imul    target64, target64, 1717986919
+            res.result.emplace_back(GArithSubtype::smul3, res_reg64, res_reg64,
+                                    MArgument((u32)1717986919));
+            // mov     helper64, target64
+            res.result.emplace_back(GBaseSubtype::mov, helper64, res_reg64);
+            // shr     helper64, 63
+            res.result.emplace_back(GArithSubtype::shr2, helper64,
+                                    MArgument((u8)63));
+            // sar     target64, 34
+            res.result.emplace_back(GArithSubtype::sar2, res_reg64,
+                                    MArgument((u8)34));
+            // add     target32, helper32
+            res.result.emplace_back(GArithSubtype::land2, res_reg32, helper32);
+            break;
+          }
         }
 
         return true;
@@ -824,8 +836,9 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
         auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(Opcode::mov, res_reg, base);
-        res.result.emplace_back(Opcode::shr2, res_reg, MArgument((u32)power));
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
+        res.result.emplace_back(GArithSubtype::shr2, res_reg,
+                                MArgument((u32)power));
         return true;
       }});
   pats.push_back(Pattern{
@@ -856,21 +869,21 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto consti_val = consti->as_int();
 
         switch (consti_val) {
-        default: {
-          return false;
-        }
-        case 1:
-          consti_val = 0;
-          break;
-        case 2:
-          consti_val = 1;
-          break;
-        case 4:
-          consti_val = 2;
-          break;
-        case 8:
-          consti_val = 3;
-          break;
+          default: {
+            return false;
+          }
+          case 1:
+            consti_val = 0;
+            break;
+          case 2:
+            consti_val = 1;
+            break;
+          case 4:
+            consti_val = 2;
+            break;
+          case 8:
+            consti_val = 3;
+            break;
         }
 
         // $1 = $0 * C
@@ -886,7 +899,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto base_reg = base.reg;
         auto indx_reg = indx.reg;
         res.result.emplace_back(
-            Opcode::lea, res_reg,
+            X86Subtype::lea, res_reg,
             MArgument::MemBIS(base_reg, indx_reg, consti_val, res_ty));
         return true;
       }});
@@ -930,7 +943,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         res.result.emplace_back(
-            Opcode::lea, res_reg,
+            X86Subtype::lea, res_reg,
             MArgument::MemOBI((u8)consti_val, a.reg, b.reg, res_ty));
         return true;
       }});
@@ -1001,8 +1014,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
         auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
         ASSERT(base.isReg());
-        res.result.emplace_back(Opcode::mov, res_reg, base);
-        res.result.emplace_back(Opcode::shl2, res_reg,
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
+        res.result.emplace_back(GArithSubtype::shl2, res_reg,
                                 MArgument((u8)shift_width));
         return true;
       }});
@@ -1021,35 +1034,37 @@ void arith_patterns(IRVec<Pattern> &pats) {
 
         if (res_reg == add_arg2 && add_arg2.isReg() && mul_arg1.isReg() &&
             (mul_arg2.isReg() || mul_arg2.isMem())) {
-          res.result.emplace_back(Opcode::ffmadd231, res_reg, mul_arg1,
+          res.result.emplace_back(X86Subtype::ffmadd231, res_reg, mul_arg1,
                                   mul_arg2);
         } else if (res_reg == mul_arg1 && mul_arg1.isReg() &&
                    mul_arg2.isReg() && (add_arg2.isReg() || add_arg2.isMem())) {
-          res.result.emplace_back(Opcode::ffmadd231, mul_arg1, mul_arg2,
+          res.result.emplace_back(X86Subtype::ffmadd231, mul_arg1, mul_arg2,
 
                                   add_arg2);
         } else if (res_reg == mul_arg2 && mul_arg1.isReg() &&
                    mul_arg2.isReg() && (add_arg2.isReg() || add_arg2.isMem())) {
-          res.result.emplace_back(Opcode::ffmadd231, mul_arg2, mul_arg1,
+          res.result.emplace_back(X86Subtype::ffmadd231, mul_arg2, mul_arg1,
 
                                   add_arg2);
         } else if (res_reg == mul_arg1 && mul_arg1.isReg() &&
                    add_arg2.isReg() && (mul_arg2.isReg() || mul_arg2.isMem())) {
-          res.result.emplace_back(Opcode::ffmadd132, mul_arg1, add_arg2,
+          res.result.emplace_back(X86Subtype::ffmadd132, mul_arg1, add_arg2,
                                   mul_arg2);
         } else if (res_reg == mul_arg2 && mul_arg2.isReg() &&
                    add_arg2.isReg() && (mul_arg1.isReg() || mul_arg1.isMem())) {
-          res.result.emplace_back(Opcode::ffmadd132, mul_arg2, add_arg2,
+          res.result.emplace_back(X86Subtype::ffmadd132, mul_arg2, add_arg2,
                                   mul_arg1);
         } else {
-          // res.result.emplace_back(Opcode::mov, res_reg, add_arg2);
+          // res.result.emplace_back(GBaseSubtype::mov, res_reg, add_arg2);
           // res.result.emplace_back(Opcode::ffmadd231, res_reg, mul_arg1,
           //                         mul_arg2);
-          // res.result.emplace_back(Opcode::mov, res_reg, mul_arg1);
+          // res.result.emplace_back(GBaseSubtype::mov, res_reg, mul_arg1);
           // res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
           //                         mul_arg2);
-          res.result.emplace_back(Opcode::fmul, res_reg, mul_arg1, mul_arg2);
-          res.result.emplace_back(Opcode::vadd, res_reg, res_reg, add_arg2);
+          res.result.emplace_back(GVecSubtype::fmul, res_reg, mul_arg1,
+                                  mul_arg2);
+          res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg,
+                                  add_arg2);
         }
         return true;
       }});
@@ -1074,62 +1089,65 @@ void arith_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         switch (const_arg.imm) {
-        default:
-          return false;
-        case 2: {
-          auto h32 =
-              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
-          // mov     out32, in32
-          res.result.emplace_back(Opcode::mov, res_reg, arg);
-          // mov     h32, in32
-          res.result.emplace_back(Opcode::mov, h32, arg);
-          // shr     h32, 31
-          res.result.emplace_back(Opcode::shr2, h32, MArgument((u8)31));
-          // add     h32, in32
-          res.result.emplace_back(Opcode::add2, h32, arg);
-          // and     h32, -2
-          res.result.emplace_back(Opcode::land2, h32,
-                                  MArgument(std::bit_cast<u32>((i32)-2)));
-          // sub     out32, h32
-          res.result.emplace_back(Opcode::sub2, res_reg, h32);
-          return true;
-        }
-        case 5: {
-          auto h64 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto h32 = h64;
-          h32.ty = Type::Int32;
-          h32.reg.ty = Type::Int32;
-          auto g64 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto g32 = g64;
-          g32.ty = Type::Int32;
-          g32.reg.ty = Type::Int32;
-          auto res_reg64 = res_reg;
-          res_reg64.ty = Type::Int64;
-          res_reg64.reg.ty = Type::Int64;
+          default:
+            return false;
+          case 2: {
+            auto h32 = MArgument(data.alloc.get_new_register(Type::Int32),
+                                 Type::Int32);
+            // mov     out32, in32
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+            // mov     h32, in32
+            res.result.emplace_back(GBaseSubtype::mov, h32, arg);
+            // shr     h32, 31
+            res.result.emplace_back(GArithSubtype::shr2, h32,
+                                    MArgument((u8)31));
+            // add     h32, in32
+            res.result.emplace_back(GArithSubtype::add2, h32, arg);
+            // and     h32, -2
+            res.result.emplace_back(GArithSubtype::land2, h32,
+                                    MArgument(std::bit_cast<u32>((i32)-2)));
+            // sub     out32, h32
+            res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
+            return true;
+          }
+          case 5: {
+            auto h64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                 Type::Int64);
+            auto h32 = h64;
+            h32.ty = Type::Int32;
+            h32.reg.ty = Type::Int32;
+            auto g64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                 Type::Int64);
+            auto g32 = g64;
+            g32.ty = Type::Int32;
+            g32.reg.ty = Type::Int32;
+            auto res_reg64 = res_reg;
+            res_reg64.ty = Type::Int64;
+            res_reg64.reg.ty = Type::Int64;
 
-          // movsxd  out64, inp32
-          res.result.emplace_back(Opcode::mov_sx, res_reg64, arg);
-          // imul    h64, out64, 1717986919
-          res.result.emplace_back(Opcode::smul3, h64, res_reg64,
-                                  MArgument((u64)1717986919));
-          // mov     g64, h64
-          res.result.emplace_back(Opcode::mov, g64, h64);
-          // shr     g64, 63
-          res.result.emplace_back(Opcode::shr2, g64, MArgument((u8)63));
-          // sar     h64, 33
-          res.result.emplace_back(Opcode::sar2, h64, MArgument((u8)33));
-          // add     h32, g32
-          res.result.emplace_back(Opcode::add2, h32, g32);
-          // lea     h32, [h64 + 4*h64]
-          res.result.emplace_back(
-              Opcode::lea, h32,
-              MArgument::MemBIS(h32.reg, h32.reg, 2, Type::Int32));
-          // sub     out32, h32
-          res.result.emplace_back(Opcode::sub2, res_reg, h32);
-          return true;
-        }
+            // movsxd  out64, inp32
+            res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, arg);
+            // imul    h64, out64, 1717986919
+            res.result.emplace_back(GArithSubtype::smul3, h64, res_reg64,
+                                    MArgument((u64)1717986919));
+            // mov     g64, h64
+            res.result.emplace_back(GBaseSubtype::mov, g64, h64);
+            // shr     g64, 63
+            res.result.emplace_back(GArithSubtype::shr2, g64,
+                                    MArgument((u8)63));
+            // sar     h64, 33
+            res.result.emplace_back(GArithSubtype::sar2, h64,
+                                    MArgument((u8)33));
+            // add     h32, g32
+            res.result.emplace_back(GArithSubtype::add2, h32, g32);
+            // lea     h32, [h64 + 4*h64]
+            res.result.emplace_back(
+                X86Subtype::lea, h32,
+                MArgument::MemBIS(h32.reg, h32.reg, 2, Type::Int32));
+            // sub     out32, h32
+            res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
+            return true;
+          }
         }
         fmt::println("Could have optimized the matchign of srem x%{}",
                      const_arg.imm);
@@ -1225,28 +1243,29 @@ void arith_patterns(IRVec<Pattern> &pats) {
               ASSERT(generate_lea_from_cmult(res2_reg, helper_reg, base.reg,
                                              abs_c_multi, res.result, res_ty));
               if (negated) {
-                res.result.emplace_back(Opcode::sub2, res_reg, res2_reg);
+                res.result.emplace_back(GArithSubtype::sub2, res_reg, res2_reg);
               } else {
-                res.result.emplace_back(Opcode::add2, res_reg, res2_reg);
+                res.result.emplace_back(GArithSubtype::add2, res_reg, res2_reg);
               }
             }
           } else {
             auto helper_reg =
                 MArgument(data.alloc.get_new_register(res_ty), res_ty);
-            res.result.emplace_back(Opcode::mov, helper_reg, base);
+            res.result.emplace_back(GBaseSubtype::mov, helper_reg, base);
             auto p2 = utils::npow2(abs_c_multi);
-            res.result.emplace_back(Opcode::shl2, helper_reg,
+            res.result.emplace_back(GArithSubtype::shl2, helper_reg,
                                     MArgument((u64)p2));
             if (negated) {
               if (i == 0) {
                 ASSERT(false);
               }
-              res.result.emplace_back(Opcode::sub2, res_reg, helper_reg);
+              res.result.emplace_back(GArithSubtype::sub2, res_reg, helper_reg);
             } else {
               if (i == 0) {
-                res.result.emplace_back(Opcode::mov, res_reg, helper_reg);
+                res.result.emplace_back(GBaseSubtype::mov, res_reg, helper_reg);
               } else {
-                res.result.emplace_back(Opcode::add2, res_reg, helper_reg);
+                res.result.emplace_back(GArithSubtype::add2, res_reg,
+                                        helper_reg);
               }
             }
           }
@@ -1330,50 +1349,50 @@ void base_patterns(IRVec<Pattern> &pats) {
   auto ExtractValueNode =
       Node{NodeType::Instr, InstrType::ExtractValue, (u32)0};
 
-  pats.push_back(
-      Pattern{.nodes = {AllocaNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                // TODO: this should be done once for all allocas that only
-                // get executed once
-                auto alloca_instr = res.matched_instrs[0];
-                auto rsp_reg = VReg::RSP();
-                auto rsp_arg = MArgument{rsp_reg, Type::Int64};
+  pats.push_back(Pattern{
+      .nodes = {AllocaNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        // TODO: this should be done once for all allocas that only
+        // get executed once
+        auto alloca_instr = res.matched_instrs[0];
+        auto rsp_reg = VReg::RSP();
+        auto rsp_arg = MArgument{rsp_reg, Type::Int64};
 
-                auto res_reg = valueToArg(fir::ValueR(alloca_instr), res.result,
-                                          data.alloc);
-                if (!alloca_instr->args[0].is_constant()) {
-                  return false;
-                }
+        auto res_reg =
+            valueToArg(fir::ValueR(alloca_instr), res.result, data.alloc);
+        if (!alloca_instr->args[0].is_constant()) {
+          return false;
+        }
 
-                auto size = (u64)alloca_instr->args[0].as_constant()->as_int();
-                // TODO: this is inefficient for many stack allocations
-                // TODO: this also depends on the calling conv
-                if (size % 16 != 0) {
-                  size = size + (16 - (size % 16));
-                }
+        auto size = (u64)alloca_instr->args[0].as_constant()->as_int();
+        // TODO: this is inefficient for many stack allocations
+        // TODO: this also depends on the calling conv
+        if (size % 16 != 0) {
+          size = size + (16 - (size % 16));
+        }
 
-                res.result.emplace_back(Opcode::sub2, rsp_arg, size);
-                res.result.emplace_back(Opcode::mov, res_reg, rsp_arg);
-                return true;
-              }});
-  pats.push_back(
-      Pattern{.nodes = {LoadNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto load_instr = res.matched_instrs[0];
-                if (load_instr->get_type()->is_struct()) {
-                  TODO("struct loading should prob be legalized");
-                }
-                auto res_reg =
-                    valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
-                auto arg = valueToArgPtr(load_instr->args[0],
-                                         convert_type(load_instr.get_type()),
-                                         data.alloc);
-                arg.ty = convert_type(load_instr.get_type());
-                res.result.emplace_back(Opcode::mov, res_reg, arg);
-                return true;
-              }});
+        res.result.emplace_back(GArithSubtype::sub2, rsp_arg, size);
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, rsp_arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {LoadNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto load_instr = res.matched_instrs[0];
+        if (load_instr->get_type()->is_struct()) {
+          TODO("struct loading should prob be legalized");
+        }
+        auto res_reg =
+            valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+        auto arg =
+            valueToArgPtr(load_instr->args[0],
+                          convert_type(load_instr.get_type()), data.alloc);
+        arg.ty = convert_type(load_instr.get_type());
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+        return true;
+      }});
   pats.push_back(Pattern{
       .nodes = {StoreNode},
       .edges = {},
@@ -1385,7 +1404,7 @@ void base_patterns(IRVec<Pattern> &pats) {
             valueToArgPtr(store_instr->args[0],
                           convert_type(store_instr.get_type()), data.alloc);
         ptr_target.ty = convert_type(store_instr.get_type());
-        res.result.emplace_back(Opcode::mov, ptr_target, value);
+        res.result.emplace_back(GBaseSubtype::mov, ptr_target, value);
         return true;
       }});
   pats.push_back(Pattern{
@@ -1401,14 +1420,14 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (res_ty >= Type::Float32) {
           // int vector add has different 3 oeprand operation
           auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
-          res.result.emplace_back(Opcode::vadd, res_reg, a0, a1);
+          res.result.emplace_back(GVecSubtype::vadd, res_reg, a0, a1);
           return true;
         }
         if (res_reg.ty != a0.ty) {
           auto res_reg = data.alloc.get_new_register(res_ty);
           auto helper_reg0 = MArgument(res_reg, res_ty);
 
-          res.result.emplace_back(Opcode::mov, helper_reg0, a0);
+          res.result.emplace_back(GBaseSubtype::mov, helper_reg0, a0);
           a0 = helper_reg0;
         }
 
@@ -1419,12 +1438,12 @@ void base_patterns(IRVec<Pattern> &pats) {
           auto res_reg = data.alloc.get_new_register(res_ty);
           auto helper_reg1 = MArgument(res_reg, res_ty);
 
-          res.result.emplace_back(Opcode::mov, helper_reg1, a1);
+          res.result.emplace_back(GBaseSubtype::mov, helper_reg1, a1);
           a1 = helper_reg1;
         }
 
-        res.result.emplace_back(Opcode::mov, res_reg, a0);
-        res.result.emplace_back(Opcode::add2, res_reg, a1);
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, a0);
+        res.result.emplace_back(GArithSubtype::add2, res_reg, a1);
         return true;
       }});
   pats.push_back(Pattern{
@@ -1438,51 +1457,52 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a = valueToArg(select_instr->args[1], res.result, data.alloc);
         auto b = valueToArg(select_instr->args[2], res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::mov, res_reg, b);
-        res.result.emplace_back(Opcode::cmov, res_reg, cond, a);
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {NotNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto not_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
-
-        if (res_reg.is_fp()) {
-          TODO("impl");
-        } else {
-          auto bitwidth = not_instr.get_type()->as_int();
-          if (bitwidth == 1) {
-            res.result.emplace_back(
-                Opcode::mov, res_reg,
-                valueToArg(not_instr->args[0], res.result, data.alloc));
-            res.result.emplace_back(Opcode::lxor2, res_reg, MArgument((u8)0x1));
-            return true;
-          }
-
-          res.result.emplace_back(
-              Opcode::mov, res_reg,
-              valueToArg(not_instr->args[0], res.result, data.alloc));
-          res.result.emplace_back(Opcode::not1, res_reg);
-        }
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
+        res.result.emplace_back(GCMovSubtype::cmov, res_reg, cond, a);
         return true;
       }});
   pats.push_back(
-      Pattern{.nodes = {NegateNode},
+      Pattern{.nodes = {NotNode},
               .edges = {},
               .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto negate_instr = res.matched_instrs[0];
-                auto res_reg = valueToArg(fir::ValueR(negate_instr), res.result,
-                                          data.alloc);
+                auto not_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
 
-                res.result.emplace_back(
-                    Opcode::mov, res_reg,
-                    valueToArg(negate_instr->args[0], res.result, data.alloc));
-                res.result.emplace_back(Opcode::neg1, res_reg);
+                if (res_reg.is_fp()) {
+                  TODO("impl");
+                } else {
+                  auto bitwidth = not_instr.get_type()->as_int();
+                  if (bitwidth == 1) {
+                    res.result.emplace_back(
+                        GBaseSubtype::mov, res_reg,
+                        valueToArg(not_instr->args[0], res.result, data.alloc));
+                    res.result.emplace_back(GArithSubtype::lxor2, res_reg,
+                                            MArgument((u8)0x1));
+                    return true;
+                  }
+
+                  res.result.emplace_back(
+                      GBaseSubtype::mov, res_reg,
+                      valueToArg(not_instr->args[0], res.result, data.alloc));
+                  res.result.emplace_back(GArithSubtype::not1, res_reg);
+                }
                 return true;
               }});
+  pats.push_back(Pattern{
+      .nodes = {NegateNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto negate_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(negate_instr), res.result, data.alloc);
+
+        res.result.emplace_back(
+            GBaseSubtype::mov, res_reg,
+            valueToArg(negate_instr->args[0], res.result, data.alloc));
+        res.result.emplace_back(GArithSubtype::neg1, res_reg);
+        return true;
+      }});
   pats.push_back(Pattern{
       .nodes = {BroadcastNode},
       .edges = {},
@@ -1493,7 +1513,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto arg = valueToArg(broad_instr->args[0], res.result, data.alloc);
         if (arg.isImm() && ((!arg.is_fp() && arg.imm == 0) ||
                             (arg.is_fp() && arg.immf == 0))) {
-          res.result.emplace_back(Opcode::fxor, res_reg, res_reg, res_reg);
+          res.result.emplace_back(GVecSubtype::fxor, res_reg, res_reg, res_reg);
           return true;
         }
         // TODO: better to use if we know that its the n lowest bits that are
@@ -1504,44 +1524,45 @@ void base_patterns(IRVec<Pattern> &pats) {
         bool can_punpckl = false;
         bool can_vbroadcast = false;
         switch (res_reg.ty) {
-        case Type::INVALID:
-        case Type::Int32x4:
-        case Type::Int32x8:
-        case Type::Float32x8:
-        case Type::Float32x4:
-          can_pshuf = true;
-          res_reg_smoll.ty = Type::Float32;
-          res_reg_smoll.reg.ty = Type::Float32;
-          break;
-        case Type::Int64x2:
-        case Type::Float64x2:
-          can_punpckl = true;
-          res_reg_smoll.ty = Type::Float64;
-          res_reg_smoll.reg.ty = Type::Float64;
-          break;
-        case Type::Int64x4:
-        case Type::Float64x4:
-          can_vbroadcast = true;
-          res_reg_smoll.ty = Type::Float64;
-          res_reg_smoll.reg.ty = Type::Float64;
-          break;
-        default:
-          TODO("UNREACH");
+          case Type::INVALID:
+          case Type::Int32x4:
+          case Type::Int32x8:
+          case Type::Float32x8:
+          case Type::Float32x4:
+            can_pshuf = true;
+            res_reg_smoll.ty = Type::Float32;
+            res_reg_smoll.reg.ty = Type::Float32;
+            break;
+          case Type::Int64x2:
+          case Type::Float64x2:
+            can_punpckl = true;
+            res_reg_smoll.ty = Type::Float64;
+            res_reg_smoll.reg.ty = Type::Float64;
+            break;
+          case Type::Int64x4:
+          case Type::Float64x4:
+            can_vbroadcast = true;
+            res_reg_smoll.ty = Type::Float64;
+            res_reg_smoll.reg.ty = Type::Float64;
+            break;
+          default:
+            TODO("UNREACH");
         }
         if (can_pshuf) {
-          res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
-          res.result.emplace_back(Opcode::vpshuf, res_reg, res_reg,
+          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
+          res.result.emplace_back(X86Subtype::vpshuf, res_reg, res_reg,
                                   MArgument((u8)0));
           return true;
         }
         if (can_punpckl) {
-          res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
-          res.result.emplace_back(Opcode::punpckl, res_reg, res_reg, res_reg);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
+          res.result.emplace_back(X86Subtype::punpckl, res_reg, res_reg,
+                                  res_reg);
           return true;
         }
         if (can_vbroadcast) {
-          res.result.emplace_back(Opcode::mov, res_reg_smoll, arg);
-          res.result.emplace_back(Opcode::vbroadcast, res_reg, res_reg,
+          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
+          res.result.emplace_back(X86Subtype::vbroadcast, res_reg, res_reg,
                                   res_reg);
           return true;
         }
@@ -1560,7 +1581,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           // int vector add has different 3 oeprand operation
           auto a0 = valueToArg(sub_instr->args[0], res.result, data.alloc);
           auto a1 = valueToArg(sub_instr->args[1], res.result, data.alloc);
-          res.result.emplace_back(Opcode::vsub, res_reg, a0, a1);
+          res.result.emplace_back(GVecSubtype::vsub, res_reg, a0, a1);
           return true;
         }
         auto a0 = valueToArg(sub_instr->args[0], res.result, data.alloc);
@@ -1569,7 +1590,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         } else if (res_reg.ty != a0.ty) {
           auto res_reg = data.alloc.get_new_register(res_ty);
           auto helper_reg1 = MArgument(res_reg, res_ty);
-          res.result.emplace_back(Opcode::mov, helper_reg1, a0);
+          res.result.emplace_back(GBaseSubtype::mov, helper_reg1, a0);
           a0 = helper_reg1;
         }
 
@@ -1579,12 +1600,12 @@ void base_patterns(IRVec<Pattern> &pats) {
         } else if (res_reg.ty != a1.ty) {
           auto res_reg = data.alloc.get_new_register(res_ty);
           auto helper_reg1 = MArgument(res_reg, res_ty);
-          res.result.emplace_back(Opcode::mov, helper_reg1, a1);
+          res.result.emplace_back(GBaseSubtype::mov, helper_reg1, a1);
           a1 = helper_reg1;
         }
 
-        res.result.emplace_back(Opcode::mov, res_reg, a0);
-        res.result.emplace_back(Opcode::sub2, res_reg, a1);
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, a0);
+        res.result.emplace_back(GArithSubtype::sub2, res_reg, a1);
         return true;
       }});
   pats.push_back(Pattern{
@@ -1599,31 +1620,31 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
         if (res_reg.is_vec_reg()) {
           switch (shift_instr->get_type()->as_vec().bitwidth) {
-          case 32:
-            // vpsllvd ymm0, ymm1, ymm2
-            res.result.emplace_back(Opcode::fShl, res_reg, a, b);
-            return true;
-          case 64:
-            // idk this seems not very easy for avx2
-          default:
-            fmt::println("{}", shift_instr);
-            TODO("impl");
+            case 32:
+              // vpsllvd ymm0, ymm1, ymm2
+              res.result.emplace_back(GVecSubtype::fShl, res_reg, a, b);
+              return true;
+            case 64:
+              // idk this seems not very easy for avx2
+            default:
+              fmt::println("{}", shift_instr);
+              TODO("impl");
           }
         }
 
         if (b.isImm()) {
-          res.result.emplace_back(Opcode::mov, res_reg, a);
-          res.result.emplace_back(Opcode::shl2, res_reg, b);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
+          res.result.emplace_back(GArithSubtype::shl2, res_reg, b);
         } else {
           auto shift_reg = VReg::CL();
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
-            res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
+            res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
           } else {
-            res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
+            res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
           }
-          res.result.emplace_back(Opcode::mov, res_reg, a);
-          res.result.emplace_back(Opcode::shl2, res_reg, shift_reg_arg);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
+          res.result.emplace_back(GArithSubtype::shl2, res_reg, shift_reg_arg);
         }
         return true;
       }});
@@ -1639,18 +1660,18 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
         if (b.isImm()) {
-          res.result.emplace_back(Opcode::mov, res_reg, a);
-          res.result.emplace_back(Opcode::shr2, res_reg, b);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
+          res.result.emplace_back(GArithSubtype::shr2, res_reg, b);
         } else {
           auto shift_reg = VReg::CL();
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
-            res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
+            res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
           } else {
-            res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
+            res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
           }
-          res.result.emplace_back(Opcode::mov, res_reg, a);
-          res.result.emplace_back(Opcode::shr2, res_reg, shift_reg_arg);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
+          res.result.emplace_back(GArithSubtype::shr2, res_reg, shift_reg_arg);
         }
         return true;
       }});
@@ -1666,18 +1687,18 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
         if (b.isImm()) {
-          res.result.emplace_back(Opcode::mov, res_reg, a);
-          res.result.emplace_back(Opcode::sar2, res_reg, b);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
+          res.result.emplace_back(GArithSubtype::sar2, res_reg, b);
         } else {
           auto shift_reg = VReg::CL();
           auto shift_reg_arg = MArgument(shift_reg, Type::Int8);
           if (b.ty == Type::Int8) {
-            res.result.emplace_back(Opcode::mov, shift_reg_arg, b);
+            res.result.emplace_back(GBaseSubtype::mov, shift_reg_arg, b);
           } else {
-            res.result.emplace_back(Opcode::itrunc, shift_reg_arg, b);
+            res.result.emplace_back(GConvSubtype::itrunc, shift_reg_arg, b);
           }
-          res.result.emplace_back(Opcode::mov, res_reg, a);
-          res.result.emplace_back(Opcode::sar2, res_reg, shift_reg_arg);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
+          res.result.emplace_back(GArithSubtype::sar2, res_reg, shift_reg_arg);
         }
         return true;
       }});
@@ -1693,7 +1714,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           // since there is only a version which multiplies by al
           // TODO: prob should impl that
           res.result.emplace_back(
-              Opcode::mov, res_reg,
+              GBaseSubtype::mov, res_reg,
               valueToArg(add_instr->args[0], res.result, data.alloc));
           auto res_reg16 = res_reg;
           ASSERT(res_reg16.isReg());
@@ -1708,16 +1729,17 @@ void base_patterns(IRVec<Pattern> &pats) {
           } else {
             ASSERT(false);
           }
-          res.result.emplace_back(Opcode::mul2, res_reg16, arg1);
-          res.result.emplace_back(Opcode::land2, res_reg16, MArgument((u8)255));
+          res.result.emplace_back(GArithSubtype::mul2, res_reg16, arg1);
+          res.result.emplace_back(GArithSubtype::land2, res_reg16,
+                                  MArgument((u8)255));
           return true;
         }
 
         res.result.emplace_back(
-            Opcode::mov, res_reg,
+            GBaseSubtype::mov, res_reg,
             valueToArg(add_instr->args[0], res.result, data.alloc));
         res.result.emplace_back(
-            Opcode::mul2, res_reg,
+            GArithSubtype::mul2, res_reg,
             valueToArg(add_instr->args[1], res.result, data.alloc));
         return true;
       }});
@@ -1731,15 +1753,15 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 if (res_reg.is_fp()) {
                   res.result.emplace_back(
-                      Opcode::fOr, res_reg,
+                      GVecSubtype::fOr, res_reg,
                       valueToArg(or_instr->args[0], res.result, data.alloc),
                       valueToArg(or_instr->args[1], res.result, data.alloc));
                 } else {
                   res.result.emplace_back(
-                      Opcode::mov, res_reg,
+                      GBaseSubtype::mov, res_reg,
                       valueToArg(or_instr->args[0], res.result, data.alloc));
                   res.result.emplace_back(
-                      Opcode::lor2, res_reg,
+                      GArithSubtype::lor2, res_reg,
                       valueToArg(or_instr->args[1], res.result, data.alloc));
                 }
                 return true;
@@ -1754,15 +1776,15 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 if (res_reg.is_vec_reg()) {
                   res.result.emplace_back(
-                      Opcode::fAnd, res_reg,
+                      GVecSubtype::fAnd, res_reg,
                       valueToArg(and_instr->args[0], res.result, data.alloc),
                       valueToArg(and_instr->args[1], res.result, data.alloc));
                 } else {
                   res.result.emplace_back(
-                      Opcode::mov, res_reg,
+                      GBaseSubtype::mov, res_reg,
                       valueToArg(and_instr->args[0], res.result, data.alloc));
                   res.result.emplace_back(
-                      Opcode::land2, res_reg,
+                      GArithSubtype::land2, res_reg,
 
                       valueToArg(and_instr->args[1], res.result, data.alloc));
                 }
@@ -1778,107 +1800,107 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 if (res_reg.is_fp()) {
                   res.result.emplace_back(
-                      Opcode::fxor, res_reg,
+                      GVecSubtype::fxor, res_reg,
                       valueToArg(xor_instr->args[0], res.result, data.alloc),
                       valueToArg(xor_instr->args[1], res.result, data.alloc));
                 } else {
                   res.result.emplace_back(
-                      Opcode::mov, res_reg,
+                      GBaseSubtype::mov, res_reg,
                       valueToArg(xor_instr->args[0], res.result, data.alloc));
                   res.result.emplace_back(
-                      Opcode::lxor2, res_reg,
+                      GArithSubtype::lxor2, res_reg,
                       valueToArg(xor_instr->args[1], res.result, data.alloc));
                 }
                 return true;
               }});
-  pats.push_back(
-      Pattern{.nodes = {SRemNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto srem_instr = res.matched_instrs[0];
-                // FIXME: variable size
-                auto res_div = VReg::EAX();
-                auto res_rem = VReg::EDX();
-                auto res_reg =
-                    valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
-                auto res_div_arg =
-                    MArgument(res_div, convert_type(srem_instr.get_type()));
-                auto res_rem_arg =
-                    MArgument(res_rem, convert_type(srem_instr.get_type()));
+  pats.push_back(Pattern{
+      .nodes = {SRemNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto srem_instr = res.matched_instrs[0];
+        // FIXME: variable size
+        auto res_div = VReg::EAX();
+        auto res_rem = VReg::EDX();
+        auto res_reg =
+            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
+        auto res_div_arg =
+            MArgument(res_div, convert_type(srem_instr.get_type()));
+        auto res_rem_arg =
+            MArgument(res_rem, convert_type(srem_instr.get_type()));
 
-                res.result.emplace_back(
-                    Opcode::idiv, res_div_arg, res_rem_arg,
-                    valueToArg(srem_instr->args[0], res.result, data.alloc),
-                    valueToArg(srem_instr->args[1], res.result, data.alloc));
-                res.result.emplace_back(Opcode::mov, res_reg, res_rem_arg);
-                return true;
-              }});
-  pats.push_back(
-      Pattern{.nodes = {URemNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto srem_instr = res.matched_instrs[0];
-                // FIXME: variable size
-                auto res_div = VReg::EAX();
-                auto res_rem = VReg::EDX();
-                auto res_reg =
-                    valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
-                auto res_div_arg =
-                    MArgument(res_div, convert_type(srem_instr.get_type()));
-                auto res_rem_arg =
-                    MArgument(res_rem, convert_type(srem_instr.get_type()));
+        res.result.emplace_back(
+            GArithSubtype::idiv, res_div_arg, res_rem_arg,
+            valueToArg(srem_instr->args[0], res.result, data.alloc),
+            valueToArg(srem_instr->args[1], res.result, data.alloc));
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, res_rem_arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {URemNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto srem_instr = res.matched_instrs[0];
+        // FIXME: variable size
+        auto res_div = VReg::EAX();
+        auto res_rem = VReg::EDX();
+        auto res_reg =
+            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
+        auto res_div_arg =
+            MArgument(res_div, convert_type(srem_instr.get_type()));
+        auto res_rem_arg =
+            MArgument(res_rem, convert_type(srem_instr.get_type()));
 
-                res.result.emplace_back(
-                    Opcode::udiv, res_div_arg, res_rem_arg,
-                    valueToArg(srem_instr->args[0], res.result, data.alloc),
-                    valueToArg(srem_instr->args[1], res.result, data.alloc));
-                res.result.emplace_back(Opcode::mov, res_reg, res_rem_arg);
-                return true;
-              }});
-  pats.push_back(
-      Pattern{.nodes = {SDivNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto sdiv_instr = res.matched_instrs[0];
-                // FIXME: variable size
-                auto res_div = VReg::EAX();
-                auto res_rem = VReg::EDX();
-                auto res_reg =
-                    valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
-                auto res_div_arg =
-                    MArgument(res_div, convert_type(sdiv_instr.get_type()));
-                auto res_rem_arg =
-                    MArgument(res_rem, convert_type(sdiv_instr.get_type()));
+        res.result.emplace_back(
+            GArithSubtype::udiv, res_div_arg, res_rem_arg,
+            valueToArg(srem_instr->args[0], res.result, data.alloc),
+            valueToArg(srem_instr->args[1], res.result, data.alloc));
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, res_rem_arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {SDivNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto sdiv_instr = res.matched_instrs[0];
+        // FIXME: variable size
+        auto res_div = VReg::EAX();
+        auto res_rem = VReg::EDX();
+        auto res_reg =
+            valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
+        auto res_div_arg =
+            MArgument(res_div, convert_type(sdiv_instr.get_type()));
+        auto res_rem_arg =
+            MArgument(res_rem, convert_type(sdiv_instr.get_type()));
 
-                res.result.emplace_back(
-                    Opcode::idiv, res_div_arg, res_rem_arg,
-                    valueToArg(sdiv_instr->args[0], res.result, data.alloc),
-                    valueToArg(sdiv_instr->args[1], res.result, data.alloc));
-                res.result.emplace_back(Opcode::mov, res_reg, res_div_arg);
-                return true;
-              }});
-  pats.push_back(
-      Pattern{.nodes = {UDivNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto sdiv_instr = res.matched_instrs[0];
-                // FIXME: variable size
-                auto res_div = VReg::EAX();
-                auto res_rem = VReg::EDX();
-                auto res_reg =
-                    valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
-                auto res_div_arg =
-                    MArgument(res_div, convert_type(sdiv_instr.get_type()));
-                auto res_rem_arg =
-                    MArgument(res_rem, convert_type(sdiv_instr.get_type()));
+        res.result.emplace_back(
+            GArithSubtype::idiv, res_div_arg, res_rem_arg,
+            valueToArg(sdiv_instr->args[0], res.result, data.alloc),
+            valueToArg(sdiv_instr->args[1], res.result, data.alloc));
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, res_div_arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {UDivNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto sdiv_instr = res.matched_instrs[0];
+        // FIXME: variable size
+        auto res_div = VReg::EAX();
+        auto res_rem = VReg::EDX();
+        auto res_reg =
+            valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
+        auto res_div_arg =
+            MArgument(res_div, convert_type(sdiv_instr.get_type()));
+        auto res_rem_arg =
+            MArgument(res_rem, convert_type(sdiv_instr.get_type()));
 
-                res.result.emplace_back(
-                    Opcode::udiv, res_div_arg, res_rem_arg,
-                    valueToArg(sdiv_instr->args[0], res.result, data.alloc),
-                    valueToArg(sdiv_instr->args[1], res.result, data.alloc));
-                res.result.emplace_back(Opcode::mov, res_reg, res_div_arg);
-                return true;
-              }});
+        res.result.emplace_back(
+            GArithSubtype::udiv, res_div_arg, res_rem_arg,
+            valueToArg(sdiv_instr->args[0], res.result, data.alloc),
+            valueToArg(sdiv_instr->args[1], res.result, data.alloc));
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, res_div_arg);
+        return true;
+      }});
   pats.push_back(Pattern{
       .nodes = {FCMPNode},
       .edges = {},
@@ -1891,59 +1913,59 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
-        Opcode op = Opcode::fcmp_oeq;
+        GJumpSubtype op = GJumpSubtype::fcmp_oeq;
 
         switch ((fir::FCmpInstrSubType)cmp_instr->get_instr_subtype()) {
-        case fir::FCmpInstrSubType::IsNaN:
-          op = Opcode::fcmp_isNaN;
-          break;
-        case fir::FCmpInstrSubType::OEQ:
-          op = Opcode::fcmp_oeq;
-          break;
-        case fir::FCmpInstrSubType::OGT:
-          op = Opcode::fcmp_ogt;
-          break;
-        case fir::FCmpInstrSubType::OGE:
-          op = Opcode::fcmp_oge;
-          break;
-        case fir::FCmpInstrSubType::OLT:
-          op = Opcode::fcmp_olt;
-          break;
-        case fir::FCmpInstrSubType::OLE:
-          op = Opcode::fcmp_ole;
-          break;
-        case fir::FCmpInstrSubType::ONE:
-          op = Opcode::fcmp_one;
-          break;
-        case fir::FCmpInstrSubType::ORD:
-          op = Opcode::fcmp_ord;
-          break;
-        case fir::FCmpInstrSubType::UNO:
-          op = Opcode::fcmp_uno;
-          break;
-        case fir::FCmpInstrSubType::UEQ:
-          op = Opcode::fcmp_ueq;
-          break;
-        case fir::FCmpInstrSubType::UGT:
-          op = Opcode::fcmp_ugt;
-          break;
-        case fir::FCmpInstrSubType::UGE:
-          op = Opcode::fcmp_uge;
-          break;
-        case fir::FCmpInstrSubType::ULT:
-          op = Opcode::fcmp_ult;
-          break;
-        case fir::FCmpInstrSubType::ULE:
-          op = Opcode::fcmp_ule;
-          break;
-        case fir::FCmpInstrSubType::UNE:
-          op = Opcode::fcmp_une;
-          break;
-        case fir::FCmpInstrSubType::INVALID:
-        case fir::FCmpInstrSubType::AlwFalse:
-        case fir::FCmpInstrSubType::AlwTrue:
-          IMPL("");
-          break;
+          case fir::FCmpInstrSubType::IsNaN:
+            op = GJumpSubtype::fcmp_isNaN;
+            break;
+          case fir::FCmpInstrSubType::OEQ:
+            op = GJumpSubtype::fcmp_oeq;
+            break;
+          case fir::FCmpInstrSubType::OGT:
+            op = GJumpSubtype::fcmp_ogt;
+            break;
+          case fir::FCmpInstrSubType::OGE:
+            op = GJumpSubtype::fcmp_oge;
+            break;
+          case fir::FCmpInstrSubType::OLT:
+            op = GJumpSubtype::fcmp_olt;
+            break;
+          case fir::FCmpInstrSubType::OLE:
+            op = GJumpSubtype::fcmp_ole;
+            break;
+          case fir::FCmpInstrSubType::ONE:
+            op = GJumpSubtype::fcmp_one;
+            break;
+          case fir::FCmpInstrSubType::ORD:
+            op = GJumpSubtype::fcmp_ord;
+            break;
+          case fir::FCmpInstrSubType::UNO:
+            op = GJumpSubtype::fcmp_uno;
+            break;
+          case fir::FCmpInstrSubType::UEQ:
+            op = GJumpSubtype::fcmp_ueq;
+            break;
+          case fir::FCmpInstrSubType::UGT:
+            op = GJumpSubtype::fcmp_ugt;
+            break;
+          case fir::FCmpInstrSubType::UGE:
+            op = GJumpSubtype::fcmp_uge;
+            break;
+          case fir::FCmpInstrSubType::ULT:
+            op = GJumpSubtype::fcmp_ult;
+            break;
+          case fir::FCmpInstrSubType::ULE:
+            op = GJumpSubtype::fcmp_ule;
+            break;
+          case fir::FCmpInstrSubType::UNE:
+            op = GJumpSubtype::fcmp_une;
+            break;
+          case fir::FCmpInstrSubType::INVALID:
+          case fir::FCmpInstrSubType::AlwFalse:
+          case fir::FCmpInstrSubType::AlwTrue:
+            IMPL("");
+            break;
         }
         res.result.emplace_back(op, res_arg, arg1, arg2);
         return true;
@@ -1961,47 +1983,47 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
-        Opcode op = Opcode::icmp_eq;
+        GJumpSubtype op = GJumpSubtype::icmp_eq;
 
         switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
-        case fir::ICmpInstrSubType::SLT:
-          op = Opcode::icmp_slt;
-          break;
-        case fir::ICmpInstrSubType::ULT:
-          op = Opcode::icmp_ult;
-          break;
-        case fir::ICmpInstrSubType::NE:
-          op = Opcode::icmp_ne;
-          break;
-        case fir::ICmpInstrSubType::EQ:
-          op = Opcode::icmp_eq;
-          break;
-        case fir::ICmpInstrSubType::SGT:
-          op = Opcode::icmp_sgt;
-          break;
-        case fir::ICmpInstrSubType::UGT:
-          op = Opcode::icmp_ugt;
-          break;
-        case fir::ICmpInstrSubType::UGE:
-          op = Opcode::icmp_uge;
-          break;
-        case fir::ICmpInstrSubType::ULE:
-          op = Opcode::icmp_ule;
-          break;
-        case fir::ICmpInstrSubType::SGE:
-          op = Opcode::icmp_sge;
-          break;
-        case fir::ICmpInstrSubType::SLE:
-          op = Opcode::icmp_sle;
-          break;
-        case fir::ICmpInstrSubType::MulOverflow:
-          op = Opcode::icmp_mul_overflow;
-          break;
-        case fir::ICmpInstrSubType::AddOverflow:
-          op = Opcode::icmp_add_overflow;
-          break;
-        case fir::ICmpInstrSubType::INVALID:
-          UNREACH();
+          case fir::ICmpInstrSubType::SLT:
+            op = GJumpSubtype::icmp_slt;
+            break;
+          case fir::ICmpInstrSubType::ULT:
+            op = GJumpSubtype::icmp_ult;
+            break;
+          case fir::ICmpInstrSubType::NE:
+            op = GJumpSubtype::icmp_ne;
+            break;
+          case fir::ICmpInstrSubType::EQ:
+            op = GJumpSubtype::icmp_eq;
+            break;
+          case fir::ICmpInstrSubType::SGT:
+            op = GJumpSubtype::icmp_sgt;
+            break;
+          case fir::ICmpInstrSubType::UGT:
+            op = GJumpSubtype::icmp_ugt;
+            break;
+          case fir::ICmpInstrSubType::UGE:
+            op = GJumpSubtype::icmp_uge;
+            break;
+          case fir::ICmpInstrSubType::ULE:
+            op = GJumpSubtype::icmp_ule;
+            break;
+          case fir::ICmpInstrSubType::SGE:
+            op = GJumpSubtype::icmp_sge;
+            break;
+          case fir::ICmpInstrSubType::SLE:
+            op = GJumpSubtype::icmp_sle;
+            break;
+          case fir::ICmpInstrSubType::MulOverflow:
+            op = GJumpSubtype::icmp_mul_overflow;
+            break;
+          case fir::ICmpInstrSubType::AddOverflow:
+            op = GJumpSubtype::icmp_add_overflow;
+            break;
+          case fir::ICmpInstrSubType::INVALID:
+            UNREACH();
         }
         res.result.emplace_back(op, res_arg, arg1, arg2);
         return true;
@@ -2082,17 +2104,17 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto ret_instr = res.matched_instrs[0];
         if (data.static_alloca_size > 0) {
           if (data.static_alloca_size < 255) {
-            res.result.emplace_back(Opcode::add2,
+            res.result.emplace_back(GArithSubtype::add2,
                                     MArgument(VReg::RSP(), Type::Int64),
                                     MArgument((u8)data.static_alloca_size));
           } else {
-            res.result.emplace_back(Opcode::add2,
+            res.result.emplace_back(GArithSubtype::add2,
                                     MArgument(VReg::RSP(), Type::Int64),
                                     MArgument(data.static_alloca_size));
           }
         }
         if (!ret_instr->has_args()) {
-          res.result.emplace_back(Opcode::ret);
+          res.result.emplace_back(GBaseSubtype::ret);
           return true;
         }
         auto ret_vals =
@@ -2112,9 +2134,9 @@ void base_patterns(IRVec<Pattern> &pats) {
           }
           auto res1_arg = MArgument(res1_reg, converted_type);
           auto res2_arg = MArgument(res2_reg, converted_type);
-          res.result.emplace_back(Opcode::mov, res1_arg, ret_vals[0]);
-          res.result.emplace_back(Opcode::mov, res2_arg, ret_vals[1]);
-          res.result.emplace_back(Opcode::ret, res1_arg, res2_arg);
+          res.result.emplace_back(GBaseSubtype::mov, res1_arg, ret_vals[0]);
+          res.result.emplace_back(GBaseSubtype::mov, res2_arg, ret_vals[1]);
+          res.result.emplace_back(GBaseSubtype::ret, res1_arg, res2_arg);
           return true;
         }
 
@@ -2127,18 +2149,18 @@ void base_patterns(IRVec<Pattern> &pats) {
           auto converted_type = convert_type(ret_instr.get_type());
           auto res_reg = VReg{CReg::A, converted_type};
           auto res_arg = MArgument(res_reg, converted_type);
-          res.result.emplace_back(Opcode::mov, res_arg, ret_val);
-          res.result.emplace_back(Opcode::ret, res_arg);
+          res.result.emplace_back(GBaseSubtype::mov, res_arg, ret_val);
+          res.result.emplace_back(GBaseSubtype::ret, res_arg);
         } else if (is_float_val &&
                    (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
                     ret_val.reg.c_reg() != CReg::mm0)) {
           auto converted_type = convert_type(ret_instr.get_type());
           auto res_reg = VReg{CReg::mm0, converted_type};
           auto res_arg = MArgument(res_reg, converted_type);
-          res.result.emplace_back(Opcode::mov, res_arg, ret_val);
-          res.result.emplace_back(Opcode::ret, res_arg);
+          res.result.emplace_back(GBaseSubtype::mov, res_arg, ret_val);
+          res.result.emplace_back(GBaseSubtype::ret, res_arg);
         } else {
-          res.result.emplace_back(Opcode::ret, ret_val);
+          res.result.emplace_back(GBaseSubtype::ret, ret_val);
         }
         return true;
       }});
@@ -2151,7 +2173,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(sext_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::mov_sx, res_reg, val);
+        res.result.emplace_back(GConvSubtype::mov_sx, res_reg, val);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2163,7 +2185,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(zext_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::mov_zx, res_reg, val);
+        res.result.emplace_back(GConvSubtype::mov_zx, res_reg, val);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2175,63 +2197,64 @@ void base_patterns(IRVec<Pattern> &pats) {
             valueToArg(conversion_instr->args[0], res.result, data.alloc);
         auto res_reg =
             valueToArg(fir::ValueR(conversion_instr), res.result, data.alloc);
-        auto res_opcode = Opcode::FL2SI;
+        auto res_opcode = GConvSubtype::FL2SI;
         switch ((fir::ConversionSubType)conversion_instr->subtype) {
-        case fir::ConversionSubType::INVALID:
-          UNREACH();
-        case fir::ConversionSubType::BitCast:
-          TODO("impl");
-        case fir::ConversionSubType::FPTOUI:
-          if (get_size(res_reg.ty) == 8) {
-            // _Z4testv:
-            //         vmovsd/vmovss     hF64, Input
-            //         cvttsd2si/cttss2s1 h64, hF64
-            //         mov       g64, h64
-            //         subsd     hF64, hF64, 0x43e0000000000000
-            //         cvttsd2si res, hF64
-            //         sar       g64, 63
-            //         and       res, g64
-            //         or        res, h64
-            auto doub = get_size(val.ty) == 64;
-            auto reg_ty = val.ty;
-            auto hf = MArgument(data.alloc.get_new_register(reg_ty), reg_ty);
-            auto h64 = MArgument(data.alloc.get_new_register(Type::Int64),
-                                 Type::Int64);
-            auto g64 = MArgument(data.alloc.get_new_register(Type::Int64),
-                                 Type::Int64);
-            res.result.emplace_back(Opcode::mov, hf, val);
-            res.result.emplace_back(Opcode::FL2SI, h64, hf);
-            res.result.emplace_back(Opcode::mov, g64, h64);
-            res.result.emplace_back(
-                Opcode::vsub, hf, hf,
-                MArgument(doub ? (f64)0x43e0000000000000 : (f64)0x5f000000));
-            res.result.emplace_back(Opcode::FL2SI, res_reg, hf);
-            res.result.emplace_back(Opcode::sar2, g64, MArgument((u8)63));
-            res.result.emplace_back(Opcode::land2, res_reg, g64);
-            res.result.emplace_back(Opcode::lor2, res_reg, h64);
+          case fir::ConversionSubType::INVALID:
+            UNREACH();
+          case fir::ConversionSubType::BitCast:
+            TODO("impl");
+          case fir::ConversionSubType::FPTOUI:
+            if (get_size(res_reg.ty) == 8) {
+              // _Z4testv:
+              //         vmovsd/vmovss     hF64, Input
+              //         cvttsd2si/cttss2s1 h64, hF64
+              //         mov       g64, h64
+              //         subsd     hF64, hF64, 0x43e0000000000000
+              //         cvttsd2si res, hF64
+              //         sar       g64, 63
+              //         and       res, g64
+              //         or        res, h64
+              auto doub = get_size(val.ty) == 64;
+              auto reg_ty = val.ty;
+              auto hf = MArgument(data.alloc.get_new_register(reg_ty), reg_ty);
+              auto h64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                   Type::Int64);
+              auto g64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                   Type::Int64);
+              res.result.emplace_back(GBaseSubtype::mov, hf, val);
+              res.result.emplace_back(GConvSubtype::FL2SI, h64, hf);
+              res.result.emplace_back(GBaseSubtype::mov, g64, h64);
+              res.result.emplace_back(
+                  GVecSubtype::vsub, hf, hf,
+                  MArgument(doub ? (f64)0x43e0000000000000 : (f64)0x5f000000));
+              res.result.emplace_back(GConvSubtype::FL2SI, res_reg, hf);
+              res.result.emplace_back(GArithSubtype::sar2, g64,
+                                      MArgument((u8)63));
+              res.result.emplace_back(GArithSubtype::land2, res_reg, g64);
+              res.result.emplace_back(GArithSubtype::lor2, res_reg, h64);
+              return true;
+            }
+            res_opcode = GConvSubtype::FL2UI;
+            break;
+          case fir::ConversionSubType::FPTOSI:
+            res_opcode = GConvSubtype::FL2SI;
+            break;
+          case fir::ConversionSubType::UITOFP:
+            res_opcode = GConvSubtype::UI2FL;
+            break;
+          case fir::ConversionSubType::SITOFP:
+            res_opcode = GConvSubtype::SI2FL;
+            break;
+          case fir::ConversionSubType::FPEXT:
+            res_opcode = GConvSubtype::F64_ext;
+            break;
+          case fir::ConversionSubType::FPTRUNC:
+            res_opcode = GConvSubtype::F32_trunc;
+            break;
+          case fir::ConversionSubType::PtrToInt:
+          case fir::ConversionSubType::IntToPtr:
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
             return true;
-          }
-          res_opcode = Opcode::FL2UI;
-          break;
-        case fir::ConversionSubType::FPTOSI:
-          res_opcode = Opcode::FL2SI;
-          break;
-        case fir::ConversionSubType::UITOFP:
-          res_opcode = Opcode::UI2FL;
-          break;
-        case fir::ConversionSubType::SITOFP:
-          res_opcode = Opcode::SI2FL;
-          break;
-        case fir::ConversionSubType::PtrToInt:
-        case fir::ConversionSubType::IntToPtr:
-          res_opcode = Opcode::mov;
-          break;
-        case fir::ConversionSubType::FPEXT:
-          res_opcode = Opcode::F64_ext;
-          break;
-        case fir::ConversionSubType::FPTRUNC:
-          res_opcode = Opcode::F32_trunc;
-          break;
         }
 
         res.result.emplace_back(res_opcode, res_reg, val);
@@ -2245,7 +2268,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto val = valueToArg(itrunc_instr->args[0], res.result, data.alloc);
         auto res_reg =
             valueToArg(fir::ValueR(itrunc_instr), res.result, data.alloc);
-        res.result.emplace_back(Opcode::itrunc, res_reg, val);
+        res.result.emplace_back(GConvSubtype::itrunc, res_reg, val);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2266,7 +2289,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         auto res_type = call_instr.get_type();
         if (res_type->is_void() || call_instr->get_n_uses() == 0) {
-          res.result.emplace_back(Opcode::invoke, calee);
+          res.result.emplace_back(GBaseSubtype::invoke, calee);
           res.result.back().is_var_arg_call = is_var_arg;
           return true;
         }
@@ -2276,17 +2299,17 @@ void base_patterns(IRVec<Pattern> &pats) {
           if (get_size(res_reg.ty) == 8) {
             auto ax_reg = VReg::RAX();
             auto ax_arg = MArgument{ax_reg, res_reg.ty};
-            res.result.emplace_back(Opcode::invoke, calee, ax_arg);
+            res.result.emplace_back(GBaseSubtype::invoke, calee, ax_arg);
             res.result.back().is_var_arg_call = is_var_arg;
-            res.result.emplace_back(Opcode::mov, res_reg, ax_arg);
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, ax_arg);
           } else if (get_size(res_reg.ty) <= 4) {
             auto ax_reg = VReg::EAX();
             auto ax_arg = MArgument{ax_reg, res_reg.ty};
-            res.result.emplace_back(Opcode::invoke, calee, ax_arg);
+            res.result.emplace_back(GBaseSubtype::invoke, calee, ax_arg);
             res.result.back().is_var_arg_call = is_var_arg;
-            res.result.emplace_back(Opcode::mov, res_reg, ax_arg);
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, ax_arg);
           } else {
-            res.result.emplace_back(Opcode::invoke, calee, res_reg);
+            res.result.emplace_back(GBaseSubtype::invoke, calee, res_reg);
             res.result.back().is_var_arg_call = is_var_arg;
           }
           return true;
@@ -2294,14 +2317,14 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (res_type->is_float()) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(Opcode::invoke, calee, res_reg);
+          res.result.emplace_back(GBaseSubtype::invoke, calee, res_reg);
           res.result.back().is_var_arg_call = is_var_arg;
           return true;
         }
         if (res_type->is_struct()) {
           auto res_reg =
               valueToArgStruct(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(Opcode::invoke, calee, res_reg[0],
+          res.result.emplace_back(GBaseSubtype::invoke, calee, res_reg[0],
                                   res_reg[1]);
           res.result.back().is_var_arg_call = is_var_arg;
           return true;
@@ -2318,7 +2341,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::vadd, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::vadd, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2342,7 +2365,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           std::memcpy(&v, &val, sizeof(f32));
           a2 = MArgument{v};
         }
-        res.result.emplace_back(Opcode::fxor, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::fxor, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2355,7 +2378,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::vsub, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::vsub, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2368,7 +2391,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::fmul, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::fmul, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2381,7 +2404,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
 
-        res.result.emplace_back(Opcode::fdiv, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::fdiv, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(
@@ -2391,7 +2414,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 (void)data;
                 (void)res;
                 // TODO: prob nicer way to handle this
-                res.result.emplace_back(Opcode::ret);
+                res.result.emplace_back(GBaseSubtype::ret);
                 return true;
               }});
   pats.push_back(Pattern{
@@ -2413,9 +2436,9 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         for (size_t i = 0; i < input.size(); i++) {
           if (i == indx) {
-            res.result.emplace_back(Opcode::mov, target[i], val);
+            res.result.emplace_back(GBaseSubtype::mov, target[i], val);
           } else {
-            res.result.emplace_back(Opcode::mov, target[i], input[i]);
+            res.result.emplace_back(GBaseSubtype::mov, target[i], input[i]);
           }
         }
         return true;
@@ -2436,7 +2459,7 @@ void base_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR{extract_instr}, res.result, data.alloc);
         ASSERT(input.size() > indx);
 
-        res.result.emplace_back(Opcode::mov, target, input[indx]);
+        res.result.emplace_back(GBaseSubtype::mov, target, input[indx]);
         return true;
       }});
 }
@@ -2473,8 +2496,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(Opcode::mov, res_reg, b);
-        res.result.emplace_back(Opcode::cmov_slt, res_reg, a, res_reg, a);
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
+        res.result.emplace_back(GCMovSubtype::cmov_slt, res_reg, a, res_reg, a);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2485,8 +2508,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(Opcode::mov, res_reg, b);
-        res.result.emplace_back(Opcode::cmov_ult, res_reg, a, res_reg, a);
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
+        res.result.emplace_back(GCMovSubtype::cmov_ult, res_reg, a, res_reg, a);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2497,8 +2520,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(Opcode::mov, res_reg, b);
-        res.result.emplace_back(Opcode::cmov_sgt, res_reg, a, res_reg, a);
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
+        res.result.emplace_back(GCMovSubtype::cmov_sgt, res_reg, a, res_reg, a);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2509,8 +2532,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(Opcode::mov, res_reg, b);
-        res.result.emplace_back(Opcode::cmov_ugt, res_reg, a, res_reg, a);
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
+        res.result.emplace_back(GCMovSubtype::cmov_ugt, res_reg, a, res_reg, a);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2520,7 +2543,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto instr = res.matched_instrs[0];
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(Opcode::lzcnt, res_reg, arg);
+        res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2530,7 +2553,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto instr = res.matched_instrs[0];
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(Opcode::abs, res_reg, arg);
+        res.result.emplace_back(GArithSubtype::abs, res_reg, arg);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2541,14 +2564,14 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         if (arg.ty == Type::Float32) {
-          res.result.emplace_back(Opcode::mov, res_reg, arg);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
           res.result.emplace_back(
-              Opcode::fAnd, res_reg, res_reg,
+              GVecSubtype::fAnd, res_reg, res_reg,
               MArgument(std::bit_cast<f32>((u32)0x7fffffff)));
         } else if (arg.ty == Type::Float64) {
-          res.result.emplace_back(Opcode::mov, res_reg, arg);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
           res.result.emplace_back(
-              Opcode::fAnd, res_reg, res_reg,
+              GVecSubtype::fAnd, res_reg, res_reg,
               MArgument(std::bit_cast<f64>((u64)0x7fffffffffffffff)));
         } else {
           TODO("impl");
@@ -2584,4 +2607,4 @@ IRVec<Pattern> get_pats() {
 
   return res;
 }
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -166,7 +166,7 @@ enum class BinaryInstrSubType : u32 {
 };
 
 class InstrData : public Used, public Attributable {
-public:
+ public:
   InstrType instr_type;
   u32 subtype;
   TypeR value_type;
@@ -207,213 +207,213 @@ public:
 
   [[nodiscard]] constexpr const char *get_name() const {
     switch (instr_type) {
-    case InstrType::VectorInstr:
-      switch ((VectorISubType)subtype) {
-      case VectorISubType::INVALID:
-        return "VECTORINSTR_INVALID";
-      case VectorISubType::Broadcast:
-        return "V.Broadcast";
-      case VectorISubType::Shuffle:
-        return "V.Shuffle";
-      }
-    case InstrType::Intrinsic:
-      switch ((IntrinsicSubType)subtype) {
-      case IntrinsicSubType::INVALID:
-        return "INTRINSIC_INVALID";
-      case IntrinsicSubType::CTLZ:
-        return "INTRIN:CTLZ";
-      case IntrinsicSubType::VA_start:
-        return "INTRIN:VA_START";
-      case IntrinsicSubType::Abs:
-        return "INTRIN:ABS";
-      case IntrinsicSubType::FAbs:
-        return "INTRIN:FABS";
-      case IntrinsicSubType::VA_end:
-        return "INTRIN:VA_END";
-      case IntrinsicSubType::UMin:
-        return "INTRIN:UMin";
-      case IntrinsicSubType::UMax:
-        return "INTRIN:UMax";
-      case IntrinsicSubType::SMin:
-        return "INTRIN:SMin";
-      case IntrinsicSubType::SMax:
-        return "INTRIN:SMax";
-      case IntrinsicSubType::FMin:
-        return "INTRIN:FMin";
-      case IntrinsicSubType::FMax:
-        return "INTRIN:FMax";
-      }
-    case InstrType::Unreachable:
-      return "unreachable";
-    case InstrType::UnaryInstr:
-      switch ((UnaryInstrSubType)subtype) {
-      case UnaryInstrSubType::INVALID:
-        return "UNARYYOP_INVALID";
-      case UnaryInstrSubType::FloatNeg:
-        return "FloatNeg";
-      case UnaryInstrSubType::IntNeg:
-        return "IntNeg";
-      case UnaryInstrSubType::Not:
-        return "Not";
-      }
-    case InstrType::BinaryInstr:
-      switch ((BinaryInstrSubType)subtype) {
-      case BinaryInstrSubType::INVALID:
-        return "BINARYOP_INVALID";
-      case BinaryInstrSubType::IntAdd:
-        return "IntAdd";
-      case BinaryInstrSubType::IntSub:
-        return "IntSub";
-      case BinaryInstrSubType::IntMul:
-        return "IntMul";
-      case BinaryInstrSubType::IntSRem:
-        return "IntSRem";
-      case BinaryInstrSubType::IntURem:
-        return "IntURem";
-      case BinaryInstrSubType::IntSDiv:
-        return "IntSDiv";
-      case BinaryInstrSubType::IntUDiv:
-        return "IntUDiv";
-      case BinaryInstrSubType::FloatAdd:
-        return "FloatAdd";
-      case BinaryInstrSubType::FloatSub:
-        return "FloatSub";
-      case BinaryInstrSubType::FloatMul:
-        return "FloatMul";
-      case BinaryInstrSubType::FloatDiv:
-        return "FloatDiv";
-      case BinaryInstrSubType::Shl:
-        return "Shl";
-      case BinaryInstrSubType::Shr:
-        return "LShR";
-      case BinaryInstrSubType::AShr:
-        return "AShR";
-      case BinaryInstrSubType::Or:
-        return "Or";
-      case BinaryInstrSubType::Xor:
-        return "Xor";
-      case BinaryInstrSubType::And:
-        return "And";
-      }
-    case InstrType::Conversion:
-      switch ((ConversionSubType)subtype) {
-      case ConversionSubType::INVALID:
-        return "CONVERSIONOP_INVALID";
-      case ConversionSubType::FPTOUI:
-        return "FP_UI";
-      case ConversionSubType::BitCast:
-        return "BITCAST";
-      case ConversionSubType::FPTOSI:
-        return "FP_SI";
-      case ConversionSubType::UITOFP:
-        return "UI_FP";
-      case ConversionSubType::SITOFP:
-        return "SI_FP";
-      case ConversionSubType::IntToPtr:
-        return "INT_PTR";
-      case ConversionSubType::PtrToInt:
-        return "PTR_INT";
-      case ConversionSubType::FPEXT:
-        return "FP_EXT";
-      case ConversionSubType::FPTRUNC:
-        return "FP_TRUNC";
-      }
-    case InstrType::InsertValue:
-      return "InsertValue";
-    case InstrType::ExtractValue:
-      return "ExtractValue";
-    case InstrType::ITrunc:
-      return "ITrunc";
-    case InstrType::SExt:
-      return "SExt";
-    case InstrType::SelectInstr:
-      return "Select";
-    case InstrType::ZExt:
-      return "ZExt";
-    case InstrType::CondBranchInstr:
-      return "CondBranch";
-    case InstrType::SwitchInstr:
-      return "Switch";
-    case InstrType::CallInstr:
-      return "Call";
-    case InstrType::LoadInstr:
-      return "Load";
-    case InstrType::StoreInstr:
-      return "Store";
-    case InstrType::AllocaInstr:
-      return "Alloca";
-    case InstrType::ReturnInstr:
-      return "Return";
-    case InstrType::BranchInstr:
-      return "Branch";
-    case InstrType::ICmp:
-      switch ((ICmpInstrSubType)subtype) {
-      case ICmpInstrSubType::INVALID:
-        return "INVALID";
-      case ICmpInstrSubType::ULT:
-        return "IntULT";
-      case ICmpInstrSubType::SLT:
-        return "IntSLT";
-      case ICmpInstrSubType::NE:
-        return "IntNE";
-      case ICmpInstrSubType::EQ:
-        return "IntEQ";
-      case ICmpInstrSubType::SGT:
-        return "IntSGT";
-      case ICmpInstrSubType::UGT:
-        return "IntUGT";
-      case ICmpInstrSubType::UGE:
-        return "IntUGE";
-      case ICmpInstrSubType::ULE:
-        return "IntULE";
-      case ICmpInstrSubType::SGE:
-        return "IntSGE";
-      case ICmpInstrSubType::SLE:
-        return "IntSLE";
-      case ICmpInstrSubType::MulOverflow:
-        return "IntMulOverflow";
-      case ICmpInstrSubType::AddOverflow:
-        return "IntAddOverflow";
-      }
-    case InstrType::FCmp:
-      switch ((FCmpInstrSubType)subtype) {
-      case FCmpInstrSubType::INVALID:
-        return "FloatINVALID";
-      case FCmpInstrSubType::IsNaN:
-        return "FloatIsNaN";
-      case FCmpInstrSubType::AlwFalse:
-        return "FloatAlwFalse";
-      case FCmpInstrSubType::OEQ:
-        return "FloatOEQ";
-      case FCmpInstrSubType::OGT:
-        return "FloatOGT";
-      case FCmpInstrSubType::OGE:
-        return "FloatOGE";
-      case FCmpInstrSubType::OLT:
-        return "FloatOLT";
-      case FCmpInstrSubType::OLE:
-        return "FloatOLE";
-      case FCmpInstrSubType::ONE:
-        return "FloatONE";
-      case FCmpInstrSubType::ORD:
-        return "FloatORD";
-      case FCmpInstrSubType::UNO:
-        return "FloatUNO";
-      case FCmpInstrSubType::UEQ:
-        return "FloatUEQ";
-      case FCmpInstrSubType::UGT:
-        return "FloatUGT";
-      case FCmpInstrSubType::UGE:
-        return "FloatUGE";
-      case FCmpInstrSubType::ULT:
-        return "FloatULT";
-      case FCmpInstrSubType::ULE:
-        return "FloatULE";
-      case FCmpInstrSubType::UNE:
-        return "FloatUNE";
-      case FCmpInstrSubType::AlwTrue:
-        return "FloatAlwTrue";
-      }
+      case InstrType::VectorInstr:
+        switch ((VectorISubType)subtype) {
+          case VectorISubType::INVALID:
+            return "VECTORINSTR_INVALID";
+          case VectorISubType::Broadcast:
+            return "V.Broadcast";
+          case VectorISubType::Shuffle:
+            return "V.Shuffle";
+        }
+      case InstrType::Intrinsic:
+        switch ((IntrinsicSubType)subtype) {
+          case IntrinsicSubType::INVALID:
+            return "INTRINSIC_INVALID";
+          case IntrinsicSubType::CTLZ:
+            return "INTRIN:CTLZ";
+          case IntrinsicSubType::VA_start:
+            return "INTRIN:VA_START";
+          case IntrinsicSubType::Abs:
+            return "INTRIN:ABS";
+          case IntrinsicSubType::FAbs:
+            return "INTRIN:FABS";
+          case IntrinsicSubType::VA_end:
+            return "INTRIN:VA_END";
+          case IntrinsicSubType::UMin:
+            return "INTRIN:UMin";
+          case IntrinsicSubType::UMax:
+            return "INTRIN:UMax";
+          case IntrinsicSubType::SMin:
+            return "INTRIN:SMin";
+          case IntrinsicSubType::SMax:
+            return "INTRIN:SMax";
+          case IntrinsicSubType::FMin:
+            return "INTRIN:FMin";
+          case IntrinsicSubType::FMax:
+            return "INTRIN:FMax";
+        }
+      case InstrType::Unreachable:
+        return "unreachable";
+      case InstrType::UnaryInstr:
+        switch ((UnaryInstrSubType)subtype) {
+          case UnaryInstrSubType::INVALID:
+            return "UNARYYOP_INVALID";
+          case UnaryInstrSubType::FloatNeg:
+            return "FloatNeg";
+          case UnaryInstrSubType::IntNeg:
+            return "IntNeg";
+          case UnaryInstrSubType::Not:
+            return "Not";
+        }
+      case InstrType::BinaryInstr:
+        switch ((BinaryInstrSubType)subtype) {
+          case BinaryInstrSubType::INVALID:
+            return "BINARYOP_INVALID";
+          case BinaryInstrSubType::IntAdd:
+            return "IntAdd";
+          case BinaryInstrSubType::IntSub:
+            return "IntSub";
+          case BinaryInstrSubType::IntMul:
+            return "IntMul";
+          case BinaryInstrSubType::IntSRem:
+            return "IntSRem";
+          case BinaryInstrSubType::IntURem:
+            return "IntURem";
+          case BinaryInstrSubType::IntSDiv:
+            return "IntSDiv";
+          case BinaryInstrSubType::IntUDiv:
+            return "IntUDiv";
+          case BinaryInstrSubType::FloatAdd:
+            return "FloatAdd";
+          case BinaryInstrSubType::FloatSub:
+            return "FloatSub";
+          case BinaryInstrSubType::FloatMul:
+            return "FloatMul";
+          case BinaryInstrSubType::FloatDiv:
+            return "FloatDiv";
+          case BinaryInstrSubType::Shl:
+            return "Shl";
+          case BinaryInstrSubType::Shr:
+            return "LShR";
+          case BinaryInstrSubType::AShr:
+            return "AShR";
+          case BinaryInstrSubType::Or:
+            return "Or";
+          case BinaryInstrSubType::Xor:
+            return "Xor";
+          case BinaryInstrSubType::And:
+            return "And";
+        }
+      case InstrType::Conversion:
+        switch ((ConversionSubType)subtype) {
+          case ConversionSubType::INVALID:
+            return "CONVERSIONOP_INVALID";
+          case ConversionSubType::FPTOUI:
+            return "FP_UI";
+          case ConversionSubType::BitCast:
+            return "BITCAST";
+          case ConversionSubType::FPTOSI:
+            return "FP_SI";
+          case ConversionSubType::UITOFP:
+            return "UI_FP";
+          case ConversionSubType::SITOFP:
+            return "SI_FP";
+          case ConversionSubType::IntToPtr:
+            return "INT_PTR";
+          case ConversionSubType::PtrToInt:
+            return "PTR_INT";
+          case ConversionSubType::FPEXT:
+            return "FP_EXT";
+          case ConversionSubType::FPTRUNC:
+            return "FP_TRUNC";
+        }
+      case InstrType::InsertValue:
+        return "InsertValue";
+      case InstrType::ExtractValue:
+        return "ExtractValue";
+      case InstrType::ITrunc:
+        return "ITrunc";
+      case InstrType::SExt:
+        return "SExt";
+      case InstrType::SelectInstr:
+        return "Select";
+      case InstrType::ZExt:
+        return "ZExt";
+      case InstrType::CondBranchInstr:
+        return "CondBranch";
+      case InstrType::SwitchInstr:
+        return "Switch";
+      case InstrType::CallInstr:
+        return "Call";
+      case InstrType::LoadInstr:
+        return "Load";
+      case InstrType::StoreInstr:
+        return "Store";
+      case InstrType::AllocaInstr:
+        return "Alloca";
+      case InstrType::ReturnInstr:
+        return "Return";
+      case InstrType::BranchInstr:
+        return "Branch";
+      case InstrType::ICmp:
+        switch ((ICmpInstrSubType)subtype) {
+          case ICmpInstrSubType::INVALID:
+            return "INVALID";
+          case ICmpInstrSubType::ULT:
+            return "IntULT";
+          case ICmpInstrSubType::SLT:
+            return "IntSLT";
+          case ICmpInstrSubType::NE:
+            return "IntNE";
+          case ICmpInstrSubType::EQ:
+            return "IntEQ";
+          case ICmpInstrSubType::SGT:
+            return "IntSGT";
+          case ICmpInstrSubType::UGT:
+            return "IntUGT";
+          case ICmpInstrSubType::UGE:
+            return "IntUGE";
+          case ICmpInstrSubType::ULE:
+            return "IntULE";
+          case ICmpInstrSubType::SGE:
+            return "IntSGE";
+          case ICmpInstrSubType::SLE:
+            return "IntSLE";
+          case ICmpInstrSubType::MulOverflow:
+            return "IntMulOverflow";
+          case ICmpInstrSubType::AddOverflow:
+            return "IntAddOverflow";
+        }
+      case InstrType::FCmp:
+        switch ((FCmpInstrSubType)subtype) {
+          case FCmpInstrSubType::INVALID:
+            return "FloatINVALID";
+          case FCmpInstrSubType::IsNaN:
+            return "FloatIsNaN";
+          case FCmpInstrSubType::AlwFalse:
+            return "FloatAlwFalse";
+          case FCmpInstrSubType::OEQ:
+            return "FloatOEQ";
+          case FCmpInstrSubType::OGT:
+            return "FloatOGT";
+          case FCmpInstrSubType::OGE:
+            return "FloatOGE";
+          case FCmpInstrSubType::OLT:
+            return "FloatOLT";
+          case FCmpInstrSubType::OLE:
+            return "FloatOLE";
+          case FCmpInstrSubType::ONE:
+            return "FloatONE";
+          case FCmpInstrSubType::ORD:
+            return "FloatORD";
+          case FCmpInstrSubType::UNO:
+            return "FloatUNO";
+          case FCmpInstrSubType::UEQ:
+            return "FloatUEQ";
+          case FCmpInstrSubType::UGT:
+            return "FloatUGT";
+          case FCmpInstrSubType::UGE:
+            return "FloatUGE";
+          case FCmpInstrSubType::ULT:
+            return "FloatULT";
+          case FCmpInstrSubType::ULE:
+            return "FloatULE";
+          case FCmpInstrSubType::UNE:
+            return "FloatUNE";
+          case FCmpInstrSubType::AlwTrue:
+            return "FloatAlwTrue";
+        }
     }
     ASSERT_M(false, "Add your instruction to the get_name function");
     return "UNKNOWN";
@@ -425,29 +425,29 @@ public:
 
   constexpr void verify() const {
     switch (instr_type) {
-    case InstrType::BinaryInstr:
-      ASSERT(args.size() == 2);
-      break;
-    case InstrType::ICmp:
-      ASSERT(args.size() == 2);
-      break;
-    case InstrType::CallInstr:
-      ASSERT(args.size() >= 1);
-      break;
-    case InstrType::AllocaInstr:
-      ASSERT(args.size() == 1);
-      break;
-    case InstrType::ReturnInstr:
-      ASSERT(args.size() <= 1);
-      break;
-    case InstrType::LoadInstr:
-      ASSERT(args.size() == 1);
-      break;
-    case InstrType::StoreInstr:
-      ASSERT(args.size() == 2);
-      break;
-    default:
-      break;
+      case InstrType::BinaryInstr:
+        ASSERT(args.size() == 2);
+        break;
+      case InstrType::ICmp:
+        ASSERT(args.size() == 2);
+        break;
+      case InstrType::CallInstr:
+        ASSERT(args.size() >= 1);
+        break;
+      case InstrType::AllocaInstr:
+        ASSERT(args.size() == 1);
+        break;
+      case InstrType::ReturnInstr:
+        ASSERT(args.size() <= 1);
+        break;
+      case InstrType::LoadInstr:
+        ASSERT(args.size() == 1);
+        break;
+      case InstrType::StoreInstr:
+        ASSERT(args.size() == 2);
+        break;
+      default:
+        break;
     }
   }
 
@@ -518,4 +518,4 @@ public:
   }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

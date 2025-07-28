@@ -1,7 +1,6 @@
-#include "reg_alloc.hpp"
-#include "mir/analysis/cfg.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
+#include "reg_alloc.hpp"
 #include "utils/set.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
@@ -18,46 +17,46 @@ void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
 void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
-    case MArgument::ArgumentType::Imm:
-    case MArgument::ArgumentType::Label:
-    case MArgument::ArgumentType::MemLabel:
-    case MArgument::ArgumentType::MemImmLabel:
-    case MArgument::ArgumentType::MemImm:
-      break;
-    case MArgument::ArgumentType::VReg:
-    case MArgument::ArgumentType::MemImmVReg:
-    case MArgument::ArgumentType::MemVReg: {
-      auto reg = instr.args[i].reg;
-      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-        instr.args[i].reg.rty = VReg::RegType::Concrete;
-        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+      case MArgument::ArgumentType::Imm:
+      case MArgument::ArgumentType::Label:
+      case MArgument::ArgumentType::MemLabel:
+      case MArgument::ArgumentType::MemImmLabel:
+      case MArgument::ArgumentType::MemImm:
+        break;
+      case MArgument::ArgumentType::VReg:
+      case MArgument::ArgumentType::MemImmVReg:
+      case MArgument::ArgumentType::MemVReg: {
+        auto reg = instr.args[i].reg;
+        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+          instr.args[i].reg.rty = VReg::RegType::Concrete;
+          instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+        }
+        break;
       }
-      break;
-    }
-    case MArgument::ArgumentType::MemVRegVRegScale:
-    case MArgument::ArgumentType::MemImmVRegVReg:
-    case MArgument::ArgumentType::MemVRegVReg:
-    case MArgument::ArgumentType::MemImmVRegVRegScale: {
-      auto reg = instr.args[i].reg;
-      auto indx = instr.args[i].indx;
-      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-        instr.args[i].reg.rty = VReg::RegType::Concrete;
-        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+      case MArgument::ArgumentType::MemVRegVRegScale:
+      case MArgument::ArgumentType::MemImmVRegVReg:
+      case MArgument::ArgumentType::MemVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVRegScale: {
+        auto reg = instr.args[i].reg;
+        auto indx = instr.args[i].indx;
+        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+          instr.args[i].reg.rty = VReg::RegType::Concrete;
+          instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+        }
+        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+          instr.args[i].indx.rty = VReg::RegType::Concrete;
+          instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
+        }
+        break;
       }
-      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-        instr.args[i].indx.rty = VReg::RegType::Concrete;
-        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
+      case MArgument::ArgumentType::MemImmVRegScale: {
+        auto indx = instr.args[i].indx;
+        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+          instr.args[i].indx.rty = VReg::RegType::Concrete;
+          instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
+        }
+        break;
       }
-      break;
-    }
-    case MArgument::ArgumentType::MemImmVRegScale: {
-      auto indx = instr.args[i].indx;
-      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-        instr.args[i].indx.rty = VReg::RegType::Concrete;
-        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
-      }
-      break;
-    }
     }
   }
 }
@@ -106,7 +105,7 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
   bool is_leaf = true;
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {
-      if (instr.op == Opcode::call || instr.op == Opcode::invoke) {
+      if (instr.is(GBaseSubtype::call) || instr.is(GBaseSubtype::invoke)) {
         is_leaf = false;
         break;
       }
@@ -126,7 +125,8 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
   }
 }
 
-void spill_one(MFunc &func, TVec<VReg>& spillers, const TMap<VReg, TSet<size_t>> &reg_coll) {
+void spill_one(MFunc &func, TVec<VReg> &spillers,
+               const TMap<VReg, TSet<size_t>> &reg_coll) {
   fmt::println("========================\n{:c}", func);
   fmt::println("========================\n{}", spillers);
   TODO("spill it ?");
@@ -172,7 +172,6 @@ void apply_func(MFunc &func) {
         }
       }
 
-
       bool successfully_allocated = true;
       for (const auto &[reg, colls] : lifetimes) {
         if (reg.is_concrete()) {
@@ -213,7 +212,7 @@ void apply_func(MFunc &func) {
         break;
       }
       // if we didnt find one spill one
-      spill_one(func,spillers, lifetimes);
+      spill_one(func, spillers, lifetimes);
     }
   }
 
@@ -234,4 +233,4 @@ void RegAlloc::apply(FVec<MFunc> &funcs) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

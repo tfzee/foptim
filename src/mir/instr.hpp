@@ -5,75 +5,31 @@
 
 namespace foptim::fmir {
 
-enum class Opcode : u32 {
-  mov,
-  cmov,
-  mov_zx,
-  mov_sx,
-  itrunc,
-  lea,
+enum class GOpcode : u32 {
+  GBase,
+  GJmp,
+  GConv,
+  GArith,
+  GCMov,
+  GVec,
+  X86,
+};
 
-  abs,
-
-  shl2,
-  shr2,
-  sar2,
-  land2,
-  lor2,
-  lxor2,
-
-  add2,
-  sub2,
-  mul2,
-  not1,
-  neg1,
-  idiv,
-  udiv,
-  smul3,
-
-  // vector instructions
+enum class GVecSubtype : u32 {
+  INVALID = 0,
   vadd,
   vsub,
   fmul,
   fdiv,
-  ffmadd132,
-  ffmadd213,
-  ffmadd231,
+  ffmadd,
   fxor,
   fAnd,
   fOr,
   fShl,
-  vpshuf,
-  punpckl,
-  vbroadcast,
+};
 
-  // bit manipulation
-  lzcnt,
-
-  SI2FL,
-  UI2FL,
-  FL2SI,
-  FL2UI,
-  F64_ext,
-  F32_trunc,
-
-  push,
-  pop,
-
-  // cmove
-  cmov_ns,
-  cmov_sgt,
-  cmov_slt,
-  cmov_ult,
-  cmov_sge,
-  cmov_sle,
-  cmov_ne,
-  cmov_eq,
-  cmov_ugt,
-  cmov_uge,
-  cmov_ule,
-
-  // comparisons
+enum class GJumpSubtype : u32 {
+  INVALID = 0,
   icmp_slt,
   icmp_eq,
   icmp_ult,
@@ -130,13 +86,68 @@ enum class Opcode : u32 {
 
   cjmp,
   jmp,
+};
 
+enum class GArithSubtype : u32 {
+  INVALID = 0,
+  abs,
+  shl2,
+  shr2,
+  sar2,
+  land2,
+  lor2,
+  lxor2,
+  add2,
+  sub2,
+  mul2,
+  not1,
+  neg1,
+  idiv,
+  udiv,
+  smul3,
+};
+
+enum class GConvSubtype : u32 {
+  INVALID = 0,
+  SI2FL,
+  UI2FL,
+  FL2SI,
+  FL2UI,
+  F64_ext,
+  F32_trunc,
+  itrunc,
+  // should prob be named just zx and sx not move
+  mov_zx,
+  mov_sx,
+};
+
+enum class GCMovSubtype : u32 {
+  INVALID = 0,
+  cmov,
+  cmov_ns,
+  cmov_sgt,
+  cmov_slt,
+  cmov_ult,
+  cmov_sge,
+  cmov_sle,
+  cmov_ne,
+  cmov_eq,
+  cmov_ugt,
+  cmov_uge,
+  cmov_ule,
+};
+
+enum class GBaseSubtype : u32 {
+  INVALID = 0,
+  // could be named copy or so to differentiate it idk
+  mov,
+  push,
+  pop,
   call,
   ret,
 
   // special purpose helper instructions
   //  that *cant* be generated and *need* to be lowered
-
   // used for each arg for a function call
   arg_setup,
   // used for each function call all arg_setups immediatly prior are the args
@@ -145,7 +156,19 @@ enum class Opcode : u32 {
   invoke,
 };
 
-const char *getNameFromOpcode(Opcode code);
+enum class X86Subtype : u32 {
+  INVALID = 0,
+  lea,
+  vpshuf,
+  punpckl,
+  vbroadcast,
+  lzcnt,
+  ffmadd132,
+  ffmadd213,
+  ffmadd231,
+};
+
+const char *getNameFromOpcode(GOpcode code, u32 sop);
 
 enum class Type : u16 {
   INVALID = 0,
@@ -161,53 +184,53 @@ enum class Type : u16 {
 
   // NOTE: ORDER matters then vec smallest to biggest
   // xmm
-  Int32x4,
-  Int64x2,
-  Float32x2,
-  Float32x4,
-  Float64x2,
+  Int32x4 = 7,
+  Int64x2 = 8,
+  Float32x2 = 9,
+  Float32x4 = 10,
+  Float64x2 = 11,
   // ymm
-  Int32x8,
-  Int64x4,
-  Float32x8,
-  Float64x4,
+  Int32x8 = 12,
+  Int64x4 = 13,
+  Float32x8 = 14,
+  Float64x4 = 15,
 };
 
 /*Returns the size in bytes of the given type*/
 static constexpr u32 get_size(fmir::Type type) {
   switch (type) {
-  case Type::Float32:
-    return 4;
-  case Type::Float64:
-    return 8;
-  case Type::Int8:
-    return 1;
-  case Type::Int16:
-    return 2;
-  case Type::Int32:
-    return 4;
-  case Type::Int64:
-    return 8;
-  case Type::Float32x2:
-    return 4 * 2;
-  case Type::Int32x4:
-    return 4 * 4;
-  case Type::Int64x2:
-    return 8 * 2;
-  case Type::Float32x4:
-    return 4 * 4;
-  case Type::Float64x2:
-    return 8 * 2;
-  case Type::Int32x8:
-    return 2 * 8;
-  case Type::Int64x4:
-    return 8 * 4;
-  case Type::Float32x8:
-    return 4 * 8;
-  case Type::Float64x4:
-    return 8 * 4;
-  case fmir::Type::INVALID:
-    TODO("INVALID TYPE");
+    case Type::Float32:
+      return 4;
+    case Type::Float64:
+      return 8;
+    case Type::Int8:
+      return 1;
+    case Type::Int16:
+      return 2;
+    case Type::Int32:
+      return 4;
+    case Type::Int64:
+      return 8;
+    case Type::Float32x2:
+      return 4 * 2;
+    case Type::Int32x4:
+      return 4 * 4;
+    case Type::Int64x2:
+      return 8 * 2;
+    case Type::Float32x4:
+      return 4 * 4;
+    case Type::Float64x2:
+      return 8 * 2;
+    case Type::Int32x8:
+      return 2 * 8;
+    case Type::Int64x4:
+      return 8 * 4;
+    case Type::Float32x8:
+      return 4 * 8;
+    case Type::Float64x4:
+      return 8 * 4;
+    case fmir::Type::INVALID:
+      TODO("INVALID TYPE");
   }
 }
 
@@ -250,7 +273,7 @@ enum class CReg : u8 {
 };
 
 class VReg {
-public:
+ public:
   enum class RegType : u8 {
     Virtual,
     Concrete,
@@ -297,10 +320,10 @@ public:
 
   [[nodiscard]] constexpr bool is_vec_reg() const {
     switch (rty) {
-    case RegType::Virtual:
-      return ty >= Type::Float32;
-    case RegType::Concrete:
-      return conc.creg >= CReg::mm0;
+      case RegType::Virtual:
+        return ty >= Type::Float32;
+      case RegType::Concrete:
+        return conc.creg >= CReg::mm0;
     }
   }
   [[nodiscard]] static consteval VReg RDI() { return {CReg::DI, Type::Int64}; }
@@ -330,17 +353,17 @@ public:
       return false;
     }
     switch (rty) {
-    case RegType::Virtual:
-      return virt.id == other.virt.id;
-    case RegType::Concrete:
-      return conc.creg == other.conc.creg;
-      break;
+      case RegType::Virtual:
+        return virt.id == other.virt.id;
+      case RegType::Concrete:
+        return conc.creg == other.conc.creg;
+        break;
     }
   }
 };
 
 class MArgument {
-public:
+ public:
   enum class ArgumentType : u8 {
     Imm,
     VReg,
@@ -383,7 +406,8 @@ public:
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
   MArgument(f64 imm) : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
   MArgument(f32 imm)
-      : type(ArgumentType::Imm), ty(Type::Float32),
+      : type(ArgumentType::Imm),
+        ty(Type::Float32),
         immf(std::bit_cast<f64>((u64)std::bit_cast<u32>(imm))) {}
   MArgument(IRStringRef lab)
       : type(ArgumentType::Label), ty(Type::INVALID), label(lab) {}
@@ -488,21 +512,21 @@ public:
   }
   [[nodiscard]] constexpr bool isMem() const {
     switch (type) {
-    case ArgumentType::Imm:
-    case ArgumentType::VReg:
-    case ArgumentType::Label:
-      return false;
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImm:
-    case ArgumentType::MemImmVReg:
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemImmVRegScale:
-    case ArgumentType::MemImmVRegVRegScale:
-    case ArgumentType::MemLabel:
-    case ArgumentType::MemImmLabel:
-      return true;
+      case ArgumentType::Imm:
+      case ArgumentType::VReg:
+      case ArgumentType::Label:
+        return false;
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImm:
+      case ArgumentType::MemImmVReg:
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemImmVRegScale:
+      case ArgumentType::MemImmVRegVRegScale:
+      case ArgumentType::MemLabel:
+      case ArgumentType::MemImmLabel:
+        return true;
     }
   }
 
@@ -511,93 +535,93 @@ public:
       return false;
     }
     switch (type) {
-    case ArgumentType::MemLabel:
-    case ArgumentType::Label:
-      return label == other.label;
-    case ArgumentType::MemImm:
-    case ArgumentType::Imm:
-      return imm == other.imm;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-      return reg == other.reg;
-    case ArgumentType::MemImmVReg:
-      return reg == other.reg && imm == other.imm;
-    case ArgumentType::MemImmVRegScale:
-      return indx == other.indx && scale == other.scale && imm == other.imm;
-    case ArgumentType::MemVRegVReg:
-      return reg == other.reg && indx == other.indx;
-    case ArgumentType::MemImmVRegVReg:
-      return reg == other.reg && indx == other.indx && imm == other.imm;
-    case ArgumentType::MemVRegVRegScale:
-      return reg == other.reg && indx == other.indx && scale == other.scale;
-    case ArgumentType::MemImmVRegVRegScale:
-      return reg == other.reg && indx == other.indx && imm == other.imm &&
-             scale == other.scale;
-    case ArgumentType::MemImmLabel:
-      return label == other.label && imm == other.imm;
+      case ArgumentType::MemLabel:
+      case ArgumentType::Label:
+        return label == other.label;
+      case ArgumentType::MemImm:
+      case ArgumentType::Imm:
+        return imm == other.imm;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+        return reg == other.reg;
+      case ArgumentType::MemImmVReg:
+        return reg == other.reg && imm == other.imm;
+      case ArgumentType::MemImmVRegScale:
+        return indx == other.indx && scale == other.scale && imm == other.imm;
+      case ArgumentType::MemVRegVReg:
+        return reg == other.reg && indx == other.indx;
+      case ArgumentType::MemImmVRegVReg:
+        return reg == other.reg && indx == other.indx && imm == other.imm;
+      case ArgumentType::MemVRegVRegScale:
+        return reg == other.reg && indx == other.indx && scale == other.scale;
+      case ArgumentType::MemImmVRegVRegScale:
+        return reg == other.reg && indx == other.indx && imm == other.imm &&
+               scale == other.scale;
+      case ArgumentType::MemImmLabel:
+        return label == other.label && imm == other.imm;
     }
   }
   [[nodiscard]] constexpr bool uses_same_vreg(const VReg &other) const {
     switch (type) {
-    case ArgumentType::Imm:
-    case ArgumentType::MemImm:
-    case ArgumentType::Label:
-    case ArgumentType::MemLabel:
-    case ArgumentType::MemImmLabel:
-      return false;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemImmVReg:
-      return reg == other;
-    case ArgumentType::MemImmVRegScale:
-      return indx == other;
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImmVRegVRegScale:
-      return reg == other || indx == other;
+      case ArgumentType::Imm:
+      case ArgumentType::MemImm:
+      case ArgumentType::Label:
+      case ArgumentType::MemLabel:
+      case ArgumentType::MemImmLabel:
+        return false;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemImmVReg:
+        return reg == other;
+      case ArgumentType::MemImmVRegScale:
+        return indx == other;
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImmVRegVRegScale:
+        return reg == other || indx == other;
     }
   }
 
   [[nodiscard]] constexpr bool uses_same_vreg(const MArgument &other) const {
     switch (other.type) {
-    case ArgumentType::Imm:
-    case ArgumentType::MemImm:
-    case ArgumentType::Label:
-    case ArgumentType::MemLabel:
-    case ArgumentType::MemImmLabel:
-      return false;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemImmVReg:
-      return uses_same_vreg(other.reg);
-    case ArgumentType::MemImmVRegScale:
-      return uses_same_vreg(other.indx);
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImmVRegVRegScale:
-      return uses_same_vreg(other.reg) || uses_same_vreg(other.indx);
+      case ArgumentType::Imm:
+      case ArgumentType::MemImm:
+      case ArgumentType::Label:
+      case ArgumentType::MemLabel:
+      case ArgumentType::MemImmLabel:
+        return false;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemImmVReg:
+        return uses_same_vreg(other.reg);
+      case ArgumentType::MemImmVRegScale:
+        return uses_same_vreg(other.indx);
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImmVRegVRegScale:
+        return uses_same_vreg(other.reg) || uses_same_vreg(other.indx);
     }
   }
 
   [[nodiscard]] constexpr bool uses_vreg() const {
     switch (type) {
-    case ArgumentType::MemImmLabel:
-    case ArgumentType::Imm:
-    case ArgumentType::Label:
-    case ArgumentType::MemImm:
-    case ArgumentType::MemLabel:
-      return false;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImmVReg:
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemImmVRegScale:
-    case ArgumentType::MemImmVRegVRegScale:
-      return true;
+      case ArgumentType::MemImmLabel:
+      case ArgumentType::Imm:
+      case ArgumentType::Label:
+      case ArgumentType::MemImm:
+      case ArgumentType::MemLabel:
+        return false;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImmVReg:
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemImmVRegScale:
+      case ArgumentType::MemImmVRegVRegScale:
+        return true;
     }
   }
 
@@ -609,40 +633,77 @@ public:
   }
 };
 
-#define COND_JUMP_GEN(NAME, TYP)                                               \
-  static MInstr NAME(MArgument v1, MArgument v2, u32 new_bb_ref) {             \
-    auto res = MInstr{TYP, v1, v2};                                            \
-    res.bb_ref = new_bb_ref;                                                   \
-    res.has_bb_ref = true;                                                     \
-    return res;                                                                \
+#define COND_JUMP_GEN(NAME, TYP)                                   \
+  static MInstr NAME(MArgument v1, MArgument v2, u32 new_bb_ref) { \
+    auto res = MInstr{GOpcode::GJmp, (u32)(TYP), v1, v2};          \
+    res.bb_ref = new_bb_ref;                                       \
+    res.has_bb_ref = true;                                         \
+    return res;                                                    \
+  }
+
+#define CONSTR_REGN(TYP, STYP)                                                \
+  MInstr(STYP sop) : has_bb_ref(false), n_args(0), bop(TYP), sop((u32)sop) {} \
+  MInstr(STYP sop, MArgument a1)                                              \
+      : has_bb_ref(false), n_args(1), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+  }                                                                           \
+  MInstr(STYP sop, MArgument a1, MArgument a2)                                \
+      : has_bb_ref(false), n_args(2), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+    args[1] = a2;                                                             \
+  }                                                                           \
+  MInstr(STYP sop, MArgument a1, MArgument a2, MArgument a3)                  \
+      : has_bb_ref(false), n_args(3), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+    args[1] = a2;                                                             \
+    args[2] = a3;                                                             \
+  }                                                                           \
+  MInstr(STYP sop, MArgument a1, MArgument a2, MArgument a3, MArgument a4)    \
+      : has_bb_ref(false), n_args(4), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+    args[1] = a2;                                                             \
+    args[2] = a3;                                                             \
+    args[3] = a4;                                                             \
   }
 
 class MInstr {
-public:
+ public:
   bool has_bb_ref : 1;
   bool is_var_arg_call : 1 = false;
   u8 n_args;
-  Opcode op;
+  GOpcode bop;
+  u32 sop;
   u32 bb_ref;
   MArgument args[4];
 
-  MInstr(Opcode op) : has_bb_ref(false), n_args(0), op(op) {}
-  MInstr(Opcode op, MArgument a1) : has_bb_ref(false), n_args(1), op(op) {
+  CONSTR_REGN(GOpcode::GBase, GBaseSubtype);
+  CONSTR_REGN(GOpcode::GJmp, GJumpSubtype);
+  CONSTR_REGN(GOpcode::GArith, GArithSubtype);
+  CONSTR_REGN(GOpcode::GCMov, GCMovSubtype);
+  CONSTR_REGN(GOpcode::GConv, GConvSubtype);
+  CONSTR_REGN(GOpcode::GVec, GVecSubtype);
+  CONSTR_REGN(GOpcode::X86, X86Subtype);
+
+  MInstr(GOpcode op, u32 sop)
+      : has_bb_ref(false), n_args(0), bop(op), sop(sop) {}
+  MInstr(GOpcode op, u32 sop, MArgument a1)
+      : has_bb_ref(false), n_args(1), bop(op), sop(sop) {
     args[0] = a1;
   }
-  MInstr(Opcode op, MArgument a1, MArgument a2)
-      : has_bb_ref(false), n_args(2), op(op) {
+  MInstr(GOpcode op, u32 sop, MArgument a1, MArgument a2)
+      : has_bb_ref(false), n_args(2), bop(op), sop(sop) {
     args[0] = a1;
     args[1] = a2;
   }
-  MInstr(Opcode op, MArgument a1, MArgument a2, MArgument a3)
-      : has_bb_ref(false), n_args(3), op(op) {
+  MInstr(GOpcode op, u32 sop, MArgument a1, MArgument a2, MArgument a3)
+      : has_bb_ref(false), n_args(3), bop(op), sop(sop) {
     args[0] = a1;
     args[1] = a2;
     args[2] = a3;
   }
-  MInstr(Opcode op, MArgument a1, MArgument a2, MArgument a3, MArgument a4)
-      : has_bb_ref(false), n_args(4), op(op) {
+  MInstr(GOpcode op, u32 sop, MArgument a1, MArgument a2, MArgument a3,
+         MArgument a4)
+      : has_bb_ref(false), n_args(4), bop(op), sop(sop) {
     args[0] = a1;
     args[1] = a2;
     args[2] = a3;
@@ -650,90 +711,109 @@ public:
   }
 
   static MInstr jmp(u32 new_bb_ref) {
-    auto res = MInstr{Opcode::jmp};
+    auto res = MInstr{GOpcode::GJmp, (u32)GJumpSubtype::jmp};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;
   }
 
   static MInstr cJmp(MArgument cond, u32 new_bb_ref) {
-    auto res = MInstr{Opcode::cjmp, cond};
+    auto res = MInstr{GOpcode::GJmp, (u32)GJumpSubtype::cjmp, cond};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;
   }
 
-  [[nodiscard]] static bool is_control_flow(Opcode c);
+  [[nodiscard]] bool is(GBaseSubtype sub) const {
+    return bop == GOpcode::GBase && sop == (u32)sub;
+  }
+  [[nodiscard]] bool is(GCMovSubtype sub) const {
+    return bop == GOpcode::GCMov && sop == (u32)sub;
+  }
+  [[nodiscard]] bool is(GConvSubtype sub) const {
+    return bop == GOpcode::GConv && sop == (u32)sub;
+  }
+  [[nodiscard]] bool is(GJumpSubtype sub) const {
+    return bop == GOpcode::GJmp && sop == (u32)sub;
+  }
+  [[nodiscard]] bool is(GVecSubtype sub) const {
+    return bop == GOpcode::GVec && sop == (u32)sub;
+  }
+  [[nodiscard]] bool is(GArithSubtype sub) const {
+    return bop == GOpcode::GArith && sop == (u32)sub;
+  }
 
-  COND_JUMP_GEN(cJmp_slt, Opcode::cjmp_int_slt)
-  COND_JUMP_GEN(cJmp_sge, Opcode::cjmp_int_sge)
-  COND_JUMP_GEN(cJmp_sle, Opcode::cjmp_int_sle)
-  COND_JUMP_GEN(cJmp_sgt, Opcode::cjmp_int_sgt)
-  COND_JUMP_GEN(cJmp_ult, Opcode::cjmp_int_ult)
-  COND_JUMP_GEN(cJmp_ule, Opcode::cjmp_int_ule)
-  COND_JUMP_GEN(cJmp_ugt, Opcode::cjmp_int_ugt)
-  COND_JUMP_GEN(cJmp_uge, Opcode::cjmp_int_uge)
-  COND_JUMP_GEN(cJmp_eq, Opcode::cjmp_int_eq)
-  COND_JUMP_GEN(cJmp_ne, Opcode::cjmp_int_ne)
+  [[nodiscard]] static bool is_control_flow(GOpcode c, u32 sop);
+
+  COND_JUMP_GEN(cJmp_slt, GJumpSubtype::cjmp_int_slt)
+  COND_JUMP_GEN(cJmp_sge, GJumpSubtype::cjmp_int_sge)
+  COND_JUMP_GEN(cJmp_sle, GJumpSubtype::cjmp_int_sle)
+  COND_JUMP_GEN(cJmp_sgt, GJumpSubtype::cjmp_int_sgt)
+  COND_JUMP_GEN(cJmp_ult, GJumpSubtype::cjmp_int_ult)
+  COND_JUMP_GEN(cJmp_ule, GJumpSubtype::cjmp_int_ule)
+  COND_JUMP_GEN(cJmp_ugt, GJumpSubtype::cjmp_int_ugt)
+  COND_JUMP_GEN(cJmp_uge, GJumpSubtype::cjmp_int_uge)
+  COND_JUMP_GEN(cJmp_eq, GJumpSubtype::cjmp_int_eq)
+  COND_JUMP_GEN(cJmp_ne, GJumpSubtype::cjmp_int_ne)
 
   static MInstr cJmp_flt(MArgument v1, MArgument v2, u32 new_bb_ref,
                          fir::FCmpInstrSubType compare_type) {
-    auto opcode_type = Opcode::cjmp_flt_oeq;
+    auto sopcode_type = GJumpSubtype::cjmp_flt_oeq;
 
     switch (compare_type) {
-    case fir::FCmpInstrSubType::INVALID:
-      UNREACH();
-      break;
-    case fir::FCmpInstrSubType::AlwFalse:
-    case fir::FCmpInstrSubType::AlwTrue:
-    case fir::FCmpInstrSubType::IsNaN:
-      IMPL("IMPL");
-      break;
-    case fir::FCmpInstrSubType::OEQ:
-      opcode_type = Opcode::cjmp_flt_oeq;
-      break;
-    case fir::FCmpInstrSubType::OGT:
-      opcode_type = Opcode::cjmp_flt_ogt;
-      break;
-    case fir::FCmpInstrSubType::OGE:
-      opcode_type = Opcode::cjmp_flt_oge;
-      break;
-    case fir::FCmpInstrSubType::OLT:
-      opcode_type = Opcode::cjmp_flt_olt;
-      break;
-    case fir::FCmpInstrSubType::OLE:
-      opcode_type = Opcode::cjmp_flt_ole;
-      break;
-    case fir::FCmpInstrSubType::ONE:
-      opcode_type = Opcode::cjmp_flt_one;
-      break;
-    case fir::FCmpInstrSubType::ORD:
-      opcode_type = Opcode::cjmp_flt_ord;
-      break;
-    case fir::FCmpInstrSubType::UNO:
-      opcode_type = Opcode::cjmp_flt_uno;
-      break;
-    case fir::FCmpInstrSubType::UEQ:
-      opcode_type = Opcode::cjmp_flt_ueq;
-      break;
-    case fir::FCmpInstrSubType::UGT:
-      opcode_type = Opcode::cjmp_flt_ugt;
-      break;
-    case fir::FCmpInstrSubType::UGE:
-      opcode_type = Opcode::cjmp_flt_uge;
-      break;
-    case fir::FCmpInstrSubType::ULT:
-      opcode_type = Opcode::cjmp_flt_ult;
-      break;
-    case fir::FCmpInstrSubType::ULE:
-      opcode_type = Opcode::cjmp_flt_ule;
-      break;
-    case fir::FCmpInstrSubType::UNE:
-      opcode_type = Opcode::cjmp_flt_une;
-      break;
+      case fir::FCmpInstrSubType::INVALID:
+        UNREACH();
+        break;
+      case fir::FCmpInstrSubType::AlwFalse:
+      case fir::FCmpInstrSubType::AlwTrue:
+      case fir::FCmpInstrSubType::IsNaN:
+        IMPL("IMPL");
+        break;
+      case fir::FCmpInstrSubType::OEQ:
+        sopcode_type = GJumpSubtype::cjmp_flt_oeq;
+        break;
+      case fir::FCmpInstrSubType::OGT:
+        sopcode_type = GJumpSubtype::cjmp_flt_ogt;
+        break;
+      case fir::FCmpInstrSubType::OGE:
+        sopcode_type = GJumpSubtype::cjmp_flt_oge;
+        break;
+      case fir::FCmpInstrSubType::OLT:
+        sopcode_type = GJumpSubtype::cjmp_flt_olt;
+        break;
+      case fir::FCmpInstrSubType::OLE:
+        sopcode_type = GJumpSubtype::cjmp_flt_ole;
+        break;
+      case fir::FCmpInstrSubType::ONE:
+        sopcode_type = GJumpSubtype::cjmp_flt_one;
+        break;
+      case fir::FCmpInstrSubType::ORD:
+        sopcode_type = GJumpSubtype::cjmp_flt_ord;
+        break;
+      case fir::FCmpInstrSubType::UNO:
+        sopcode_type = GJumpSubtype::cjmp_flt_uno;
+        break;
+      case fir::FCmpInstrSubType::UEQ:
+        sopcode_type = GJumpSubtype::cjmp_flt_ueq;
+        break;
+      case fir::FCmpInstrSubType::UGT:
+        sopcode_type = GJumpSubtype::cjmp_flt_ugt;
+        break;
+      case fir::FCmpInstrSubType::UGE:
+        sopcode_type = GJumpSubtype::cjmp_flt_uge;
+        break;
+      case fir::FCmpInstrSubType::ULT:
+        sopcode_type = GJumpSubtype::cjmp_flt_ult;
+        break;
+      case fir::FCmpInstrSubType::ULE:
+        sopcode_type = GJumpSubtype::cjmp_flt_ule;
+        break;
+      case fir::FCmpInstrSubType::UNE:
+        sopcode_type = GJumpSubtype::cjmp_flt_une;
+        break;
     }
 
-    auto res = MInstr{opcode_type, v1, v2};
+    auto res = MInstr{GOpcode::GJmp, (u32)sopcode_type, v1, v2};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;
@@ -751,9 +831,10 @@ void read_args(const MInstr &instr, TVec<ArgData> &out);
 
 bool verify(FVec<MFunc> &funcs);
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir
 
-template <> struct std::hash<foptim::fmir::VReg> {
+template <>
+struct std::hash<foptim::fmir::VReg> {
   std::size_t operator()(const foptim::fmir::VReg &k) const {
     using foptim::u64;
     using foptim::u8;

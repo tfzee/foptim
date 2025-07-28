@@ -26,7 +26,8 @@ class LegalizeBBForm {
         // if we find a control flow instruction
         //  and there are instructions between this instruction and the last
         //  instruction we need to move them
-        if (MInstr::is_control_flow(func.bbs[bb_id].instrs[instr_id].op)) {
+        if (MInstr::is_control_flow(func.bbs[bb_id].instrs[instr_id].bop,
+                                    func.bbs[bb_id].instrs[instr_id].sop)) {
           if (instr_id + 1 != start_instr) {
             // if (!moved) {
             //   fmt::println("=============LEG============");
@@ -43,7 +44,7 @@ class LegalizeBBForm {
 
             // only last cf instruction can be ret
             auto old_term = old_bb.instrs[start_instr];
-            bool is_ret = old_bb.instrs[start_instr].op == Opcode::ret;
+            bool is_ret = old_bb.instrs[start_instr].is(GBaseSubtype::ret);
             // update to jump to new bb
             if (!is_ret) {
               old_bb.instrs[start_instr].bb_ref = func.bbs.size() - 1;
@@ -69,7 +70,7 @@ class LegalizeBBForm {
     // }
   }
 
-public:
+ public:
   void apply(FVec<MFunc> &funcs) {
     for (auto &f : funcs) {
       apply(f);
@@ -77,4 +78,4 @@ public:
   }
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -4,67 +4,73 @@
 
 namespace foptim::fmir {
 
-bool is_applicable(Opcode op) {
+namespace {
+bool is_applicable(GOpcode op, u32 sop) {
   switch (op) {
-  case Opcode::cmov:
-  case Opcode::mov_zx:
-  case Opcode::mov_sx:
-  case Opcode::mov:
-  case Opcode::itrunc:
-  case Opcode::lea:
-  case Opcode::shl2:
-  case Opcode::shr2:
-  case Opcode::sar2:
-  case Opcode::land2:
-  case Opcode::lor2:
-  case Opcode::lxor2:
-  case Opcode::add2:
-  case Opcode::sub2:
-  case Opcode::mul2:
-  case Opcode::vadd:
-  case Opcode::vsub:
-  case Opcode::fmul:
-  case Opcode::fdiv:
-  case Opcode::punpckl:
-  case Opcode::vbroadcast:
-  case Opcode::vpshuf:
-  case Opcode::ffmadd132:
-  case Opcode::ffmadd213:
-  case Opcode::ffmadd231:
-  case Opcode::fxor:
-  case Opcode::SI2FL:
-  case Opcode::UI2FL:
-  case Opcode::FL2SI:
-  case Opcode::FL2UI:
-  case Opcode::icmp_slt:
-  case Opcode::icmp_eq:
-  case Opcode::icmp_ult:
-  case Opcode::icmp_ne:
-  case Opcode::icmp_sgt:
-  case Opcode::icmp_ugt:
-  case Opcode::icmp_uge:
-  case Opcode::icmp_ule:
-  case Opcode::icmp_sge:
-  case Opcode::icmp_sle:
-  case Opcode::fcmp_oeq:
-  case Opcode::fcmp_ogt:
-  case Opcode::fcmp_oge:
-  case Opcode::fcmp_olt:
-  case Opcode::fcmp_ole:
-  case Opcode::fcmp_one:
-  case Opcode::fcmp_ord:
-  case Opcode::fcmp_uno:
-  case Opcode::fcmp_ueq:
-  case Opcode::fcmp_ugt:
-  case Opcode::fcmp_uge:
-  case Opcode::fcmp_ult:
-  case Opcode::fcmp_ule:
-  case Opcode::fcmp_une:
-    return true;
-  default:
-    return false;
+    case GOpcode::GJmp:
+      switch ((GJumpSubtype)sop) {
+        case GJumpSubtype::icmp_slt:
+        case GJumpSubtype::icmp_eq:
+        case GJumpSubtype::icmp_ult:
+        case GJumpSubtype::icmp_ne:
+        case GJumpSubtype::icmp_sgt:
+        case GJumpSubtype::icmp_ugt:
+        case GJumpSubtype::icmp_uge:
+        case GJumpSubtype::icmp_ule:
+        case GJumpSubtype::icmp_sge:
+        case GJumpSubtype::icmp_sle:
+        case GJumpSubtype::fcmp_oeq:
+        case GJumpSubtype::fcmp_ogt:
+        case GJumpSubtype::fcmp_oge:
+        case GJumpSubtype::fcmp_olt:
+        case GJumpSubtype::fcmp_ole:
+        case GJumpSubtype::fcmp_one:
+        case GJumpSubtype::fcmp_ord:
+        case GJumpSubtype::fcmp_uno:
+        case GJumpSubtype::fcmp_ueq:
+        case GJumpSubtype::fcmp_ugt:
+        case GJumpSubtype::fcmp_uge:
+        case GJumpSubtype::fcmp_ult:
+        case GJumpSubtype::fcmp_ule:
+        case GJumpSubtype::fcmp_une:
+          return true;
+        default:
+          return false;
+      }
+    case GOpcode::GConv:
+    case GOpcode::GArith:
+    case GOpcode::GCMov:
+    case GOpcode::GVec:
+      return true;
+    case GOpcode::GBase:
+      switch ((GBaseSubtype)sop) {
+        case GBaseSubtype::INVALID:
+        case GBaseSubtype::mov:
+          return true;
+        case GBaseSubtype::push:
+        case GBaseSubtype::pop:
+        case GBaseSubtype::call:
+        case GBaseSubtype::ret:
+        case GBaseSubtype::arg_setup:
+        case GBaseSubtype::invoke:
+          return false;
+      }
+    case GOpcode::X86:
+      switch ((X86Subtype)sop) {
+        case X86Subtype::INVALID:
+        case X86Subtype::lea:
+        case X86Subtype::vpshuf:
+        case X86Subtype::punpckl:
+        case X86Subtype::vbroadcast:
+        case X86Subtype::lzcnt:
+        case X86Subtype::ffmadd132:
+        case X86Subtype::ffmadd213:
+        case X86Subtype::ffmadd231:
+          return true;
+      }
   }
 }
+}  // namespace
 
 void DeadCodeElim::apply(MFunc &func) {
   CFG cfg{func};
@@ -84,7 +90,7 @@ void DeadCodeElim::apply(MFunc &func) {
       w_args.clear();
       written_args(bb.instrs[instr_id], w_args);
 
-      if (!is_applicable(bb.instrs[instr_id].op)) {
+      if (!is_applicable(bb.instrs[instr_id].bop, bb.instrs[instr_id].sop)) {
         continue;
       }
 
@@ -126,4 +132,4 @@ void DeadCodeElim::apply(FVec<MFunc> &funcs) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -1,8 +1,8 @@
-#include "register_joining.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/optim/reg_alloc.hpp"
+#include "register_joining.hpp"
 
 namespace foptim::fmir {
 
@@ -22,19 +22,19 @@ void RegisterJoining::apply(MFunc &func) {
       VReg pinned_target_reg;
       VReg virtual_value_reg;
 
-      if (instr.op == Opcode::mov && instr.args[0].isReg() &&
+      if (instr.is(GBaseSubtype::mov) && instr.args[0].isReg() &&
           instr.args[1].isReg() && instr.args[0].reg.is_concrete() &&
           !instr.args[1].reg.is_concrete()) {
         pinned_target_reg = instr.args[0].reg;
         virtual_value_reg = instr.args[1].reg;
         hit = true;
-      } else if (instr.op == Opcode::mov && instr.args[0].isReg() &&
+      } else if (instr.is(GBaseSubtype::mov) && instr.args[0].isReg() &&
                  instr.args[1].isReg() && instr.args[1].reg.is_concrete() &&
                  !instr.args[0].reg.is_concrete()) {
         pinned_target_reg = instr.args[1].reg;
         virtual_value_reg = instr.args[0].reg;
         hit = true;
-      } else if (instr.op == Opcode::arg_setup && instr.args[0].isReg() &&
+      } else if (instr.is(GBaseSubtype::arg_setup) && instr.args[0].isReg() &&
                  instr.args[1].isReg() && !instr.args[0].reg.is_concrete() &&
                  instr.args[1].reg.is_concrete()) {
         virtual_value_reg = instr.args[0].reg;
@@ -79,4 +79,4 @@ void RegisterJoining::apply(foptim::FVec<MFunc> &funcs) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

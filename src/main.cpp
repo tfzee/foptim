@@ -1,7 +1,14 @@
+#include <fmt/core.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <tracy/Tracy.hpp>
+
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
+#include "llvm/llir_loader.hpp"
 #include "mir/func.hpp"
 #include "mir/legalize_bb_form.hpp"
 #include "mir/matcher.hpp"
@@ -38,7 +45,6 @@
 #include "optim/module_passes/arg_promotion.hpp"
 #include "optim/module_passes/func_property_annotator.hpp"
 #include "optim/module_passes/function_dedup.hpp"
-#include "optim/module_passes/garbage_collect.hpp"
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/global_promotion.hpp"
 #include "optim/module_passes/inline.hpp"
@@ -51,12 +57,6 @@
 #include "utils/timer.hpp"
 #include "utils/todo.hpp"
 #include "x86_codegen/backend.hpp"
-#include "llvm/llir_loader.hpp"
-
-#include <algorithm>
-#include <fmt/core.h>
-#include <tracy/Tracy.hpp>
-#include <unistd.h>
 
 namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx);
@@ -73,7 +73,7 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
 
 foptim::JobSheduler shed;
 
-} // namespace
+}  // namespace
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
@@ -284,6 +284,7 @@ void optimize_mir(foptim::fir::Context &ctx,
   (void)globals;
   fmt::print("================MIR START====================\n");
   ZoneScopedN("MIR Optim");
+  ASSERT(foptim::fmir::verify(funcs));
   // running dead to make inst simplify work better
   foptim::fmir::LegalizeBBForm{}.apply(funcs);
   foptim::fmir::DeadCodeElim{}.apply(funcs);
@@ -318,6 +319,7 @@ void optimize_mir(foptim::fir::Context &ctx,
   foptim::utils::TempAlloc<void *>::reset();
   foptim::fmir::BBReordering{}.apply(funcs);
   foptim::utils::TempAlloc<void *>::reset();
+  ASSERT(foptim::fmir::verify(funcs));
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
@@ -327,4 +329,4 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::codegen::run(funcs, decls, globals);
   fmt::println("Done!");
 }
-} // namespace
+}  // namespace

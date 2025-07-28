@@ -1,9 +1,10 @@
+#include <ranges>
+
 #include "calling_conv.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/todo.hpp"
-#include <ranges>
 
 namespace foptim::fmir {
 
@@ -36,14 +37,13 @@ void save_regs_callee(MFunc &func, CFG &cfg) {
   // store all the regs in the initial bb
   size_t n_regs_saved = 0;
   for (auto reg_ty : callee_saved) {
-
     if (!used_regs[(u8)reg_ty - 1] || reg_ty == CReg::SP ||
         reg_ty == CReg::BP) {
       continue;
     }
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
     first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                           MInstr{Opcode::push, arg});
+                           MInstr{GBaseSubtype::push, arg});
     n_regs_saved++;
   }
 
@@ -67,10 +67,10 @@ void save_regs_callee(MFunc &func, CFG &cfg) {
 
   // align the stack
   if (n_regs_saved % 2 != 0) {
-    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                           MInstr{Opcode::sub2,
-                                  MArgument{VReg::RSP(), Type::Int64},
-                                  MArgument{8U}});
+    first_bb.instrs.insert(
+        first_bb.instrs.begin() + 0,
+        MInstr{GArithSubtype::sub2, MArgument{VReg::RSP(), Type::Int64},
+               MArgument{8U}});
   }
 
   // save all potential va args from registers into the register_save_area
@@ -101,7 +101,7 @@ void save_regs_callee(MFunc &func, CFG &cfg) {
     for (auto [reg, offset] : arg_int_regs) {
       first_bb.instrs.insert(
           first_bb.instrs.begin() + 0,
-          MInstr{Opcode::mov,
+          MInstr{GBaseSubtype::mov,
                  MArgument::MemOB((i32)offset, VReg::RSP(), Type::Int64),
                  MArgument{reg, reg.ty}});
     }
@@ -113,14 +113,14 @@ void save_regs_callee(MFunc &func, CFG &cfg) {
     for (auto [reg, offset] : arg_xmm_regs) {
       first_bb.instrs.insert(
           first_bb.instrs.begin() + 0,
-          MInstr{Opcode::mov,
+          MInstr{GBaseSubtype::mov,
                  MArgument::MemOB((i32)offset, VReg::RSP(), Type::Int64),
                  MArgument{reg, reg.ty}});
     }
-    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                           MInstr{Opcode::sub2,
-                                  MArgument{VReg::RSP(), Type::Int64},
-                                  MArgument{176U}});
+    first_bb.instrs.insert(
+        first_bb.instrs.begin() + 0,
+        MInstr{GArithSubtype::sub2, MArgument{VReg::RSP(), Type::Int64},
+               MArgument{176U}});
   }
 
   // restore in *every* exiting basic block we first need to find these
@@ -139,22 +139,22 @@ void save_regs_callee(MFunc &func, CFG &cfg) {
       }
       auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
       func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
-                                    MInstr{Opcode::pop, arg});
+                                    MInstr{GBaseSubtype::pop, arg});
       n_regs_restored++;
     }
     ASSERT(n_regs_saved == n_regs_restored);
     // align the stack
     if (n_regs_restored % 2 != 0) {
-      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
-                                    MInstr{Opcode::add2,
-                                           MArgument{VReg::RSP(), Type::Int64},
-                                           MArgument{8U}});
+      func.bbs[bb_id].instrs.insert(
+          func.bbs[bb_id].instrs.end() - 1,
+          MInstr{GArithSubtype::add2, MArgument{VReg::RSP(), Type::Int64},
+                 MArgument{8U}});
     }
     if (func.needs_register_save_area) {
-      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
-                                    MInstr{Opcode::add2,
-                                           MArgument{VReg::RSP(), Type::Int64},
-                                           MArgument{176U}});
+      func.bbs[bb_id].instrs.insert(
+          func.bbs[bb_id].instrs.end() - 1,
+          MInstr{GArithSubtype::add2, MArgument{VReg::RSP(), Type::Int64},
+                 MArgument{176U}});
     }
   }
 }
@@ -187,19 +187,21 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
       continue;
     }
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
-    instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
+    instrs.insert(instrs.begin() + (i64)start, MInstr{GBaseSubtype::push, arg});
   }
   if (call.n_args >= 2 && !return_value_overwrites_ret_reg) {
     const auto reg1_ty = call.args[1].is_vec_reg() ? CReg::mm0 : CReg::A;
     if (is_alive(VReg{reg1_ty}, lives, end, end + 1, bb_id)) {
       auto arg = MArgument{VReg{reg1_ty, Type::Int64}, Type::Int64};
-      instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
+      instrs.insert(instrs.begin() + (i64)start,
+                    MInstr{GBaseSubtype::push, arg});
     }
     if (call.n_args > 2) {
       const auto reg2_ty = call.args[1].is_vec_reg() ? CReg::mm1 : CReg::D;
       if (is_alive(VReg{reg2_ty}, lives, end, end + 1, bb_id)) {
         auto arg = MArgument{VReg{reg2_ty, Type::Int64}, Type::Int64};
-        instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::push, arg});
+        instrs.insert(instrs.begin() + (i64)start,
+                      MInstr{GBaseSubtype::push, arg});
       }
     }
   }
@@ -245,23 +247,25 @@ uint32_t restore_locals(IRVec<MInstr> &instrs,
           (is_float && is_alive(VReg{CReg::mm1}, lives, end, end + 1, bb_id));
       if (a_gets_overwritten || mm0_gets_overwritten) {
         auto arg = MArgument{VReg{ret1_reg_type, Type::Int64}, Type::Int64};
-        instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
+        instrs.insert(instrs.begin() + (i64)start,
+                      MInstr{GBaseSubtype::pop, arg});
         n_locals_restored++;
       }
       if ((d_gets_overwritten || mm1_gets_overwritten) && has_double_ret) {
         auto arg = MArgument{VReg{ret2_reg_type, Type::Int64}, Type::Int64};
-        instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
+        instrs.insert(instrs.begin() + (i64)start,
+                      MInstr{GBaseSubtype::pop, arg});
         n_locals_restored++;
       }
     }
 
     auto ret_type = call.args[1].ty;
     instrs.insert(instrs.begin() + (i64)start,
-                  MInstr{Opcode::mov, call.args[1],
+                  MInstr{GBaseSubtype::mov, call.args[1],
                          MArgument{VReg{ret1_reg_type, ret_type}, ret_type}});
     if (has_double_ret) {
       instrs.insert(instrs.begin() + (i64)start,
-                    MInstr{Opcode::mov, call.args[2],
+                    MInstr{GBaseSubtype::mov, call.args[2],
                            MArgument{VReg{ret2_reg_type, ret_type}, ret_type}});
     }
   }
@@ -277,7 +281,7 @@ uint32_t restore_locals(IRVec<MInstr> &instrs,
       continue;
     }
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
-    instrs.insert(instrs.begin() + (i64)start, MInstr{Opcode::pop, arg});
+    instrs.insert(instrs.begin() + (i64)start, MInstr{GBaseSubtype::pop, arg});
     n_locals_restored++;
   }
   return n_locals_restored;
@@ -318,26 +322,26 @@ void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
                   const ArgPosition &arg_pos) {
   const auto &arg_ty = arg.args[0].ty;
   switch (arg_pos.ty) {
-  case ArgPosition::IntReg:
-    instrs.emplace_back(
-        Opcode::mov, MArgument{{int_arg_reg[arg_pos.position], arg_ty}, arg_ty},
-        arg.args[0]);
-    break;
-  case ArgPosition::FloatReg:
-    instrs.emplace_back(
-        Opcode::mov,
-        MArgument{{float_arg_reg[arg_pos.position], arg_ty}, arg_ty},
-        arg.args[0]);
-    break;
-  case ArgPosition::Stack:
-    instrs.emplace_back(Opcode::push, arg.args[0]);
-    break;
+    case ArgPosition::IntReg:
+      instrs.emplace_back(
+          GBaseSubtype::mov,
+          MArgument{{int_arg_reg[arg_pos.position], arg_ty}, arg_ty},
+          arg.args[0]);
+      break;
+    case ArgPosition::FloatReg:
+      instrs.emplace_back(
+          GBaseSubtype::mov,
+          MArgument{{float_arg_reg[arg_pos.position], arg_ty}, arg_ty},
+          arg.args[0]);
+      break;
+    case ArgPosition::Stack:
+      instrs.emplace_back(GBaseSubtype::push, arg.args[0]);
+      break;
   }
 }
 
 void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
                           const TVec<ArgPosition> &arg_pos, size_t start) {
-
   TVec<MInstr> output_vec;
   TVec<u32> worklist;
   for (size_t arg_id = 0; arg_id < args.size(); arg_id++) {
@@ -357,15 +361,15 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
       auto arg_id = worklist[curr_work_item];
       CReg wants_reg = CReg::A;
       switch (arg_pos[arg_id].ty) {
-      case ArgPosition::IntReg:
-        wants_reg = int_arg_reg[arg_pos[arg_id].position];
-        break;
-      case ArgPosition::FloatReg:
-        wants_reg = float_arg_reg[arg_pos[arg_id].position];
-        break;
-      case ArgPosition::Stack:
-        UNREACH();
-        break;
+        case ArgPosition::IntReg:
+          wants_reg = int_arg_reg[arg_pos[arg_id].position];
+          break;
+        case ArgPosition::FloatReg:
+          wants_reg = float_arg_reg[arg_pos[arg_id].position];
+          break;
+        case ArgPosition::Stack:
+          UNREACH();
+          break;
       }
 
       bool collision = false;
@@ -386,7 +390,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
     // if we didnt find any that dont colllide
     // we us a push and pop
     if (!found_one && !worklist.empty()) {
-      output_vec.emplace_back(Opcode::push, args[worklist[0]].args[0]);
+      output_vec.emplace_back(GBaseSubtype::push, args[worklist[0]].args[0]);
       push_pop_queue.push_back(worklist[0]);
       worklist.erase(worklist.begin() + 0);
     }
@@ -397,18 +401,18 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
     const auto &arg_ty = arg.args[0].ty;
     auto arg_po = arg_pos[push_pop];
     switch (arg_po.ty) {
-    case ArgPosition::IntReg:
-      output_vec.emplace_back(
-          Opcode::pop,
-          MArgument{{int_arg_reg[arg_po.position], arg_ty}, arg_ty});
-      break;
-    case ArgPosition::FloatReg:
-      output_vec.emplace_back(
-          Opcode::pop,
-          MArgument{{float_arg_reg[arg_po.position], arg_ty}, arg_ty});
-      break;
-    case ArgPosition::Stack:
-      UNREACH();
+      case ArgPosition::IntReg:
+        output_vec.emplace_back(
+            GBaseSubtype::pop,
+            MArgument{{int_arg_reg[arg_po.position], arg_ty}, arg_ty});
+        break;
+      case ArgPosition::FloatReg:
+        output_vec.emplace_back(
+            GBaseSubtype::pop,
+            MArgument{{float_arg_reg[arg_po.position], arg_ty}, arg_ty});
+        break;
+      case ArgPosition::Stack:
+        UNREACH();
     }
   }
   out_instrs.insert(out_instrs.begin() + start, output_vec.begin(),
@@ -417,7 +421,6 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
 
 void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
                     size_t bb_id, TMap<VReg, LinearRangeSet> &lives) {
-
   size_t n_args = end - start;
 
   TVec<MInstr> args;
@@ -450,8 +453,8 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
     instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_need_saving +
                       (call.n_args == 2 ? 1 : 0),
-                  MInstr{Opcode::add2, MArgument{VReg::RSP(), Type::Int64},
-                         MArgument{8U}});
+                  MInstr{GArithSubtype::add2,
+                         MArgument{VReg::RSP(), Type::Int64}, MArgument{8U}});
   }
 
   // cleanup args
@@ -459,13 +462,13 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
     auto sp = MArgument{VReg::RSP(), Type::Int64};
     if (n_stack_args > 0) {
       instrs.insert(instrs.begin() + (i64)start,
-                    MInstr{Opcode::add2, sp, 8 * n_stack_args});
+                    MInstr{GArithSubtype::add2, sp, 8 * n_stack_args});
     }
   }
 
   // do call
   instrs.insert(instrs.begin() + (i64)start,
-                MInstr{Opcode::call, call.args[0]});
+                MInstr{GBaseSubtype::call, call.args[0]});
   instrs[start].is_var_arg_call = is_var_args;
 
   // for vararg setup al with the number of xmm registiers
@@ -477,7 +480,7 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
       }
     }
     instrs.insert(instrs.begin() + (i64)start,
-                  MInstr{Opcode::mov,
+                  MInstr{GBaseSubtype::mov,
                          MArgument{VReg{CReg::A, Type::Int8}, Type::Int8},
                          MArgument{(n_xmm_regs)}});
   }
@@ -494,8 +497,8 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
 
   if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
     instrs.insert(instrs.begin() + (i64)start,
-                  MInstr{Opcode::sub2, MArgument{VReg::RSP(), Type::Int64},
-                         MArgument{8U}});
+                  MInstr{GArithSubtype::sub2,
+                         MArgument{VReg::RSP(), Type::Int64}, MArgument{8U}});
   }
 }
 
@@ -509,30 +512,30 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
       for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
         const auto &arg = instr.args[arg_id];
         switch (arg.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-          break;
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-        case MArgument::ArgumentType::VReg: {
-          res[(u8)arg.reg.c_reg() - 1].set(true);
-          break;
-        }
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-        case MArgument::ArgumentType::MemVRegVRegScale: {
-          res[(u8)arg.reg.c_reg() - 1].set(true);
-          res[(u8)arg.indx.c_reg() - 1].set(true);
-          break;
-        }
-        case MArgument::ArgumentType::MemImmVRegScale: {
-          res[(u8)arg.indx.c_reg() - 1].set(true);
-          break;
-        }
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+          case MArgument::ArgumentType::VReg: {
+            res[(u8)arg.reg.c_reg() - 1].set(true);
+            break;
+          }
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+          case MArgument::ArgumentType::MemVRegVRegScale: {
+            res[(u8)arg.reg.c_reg() - 1].set(true);
+            res[(u8)arg.indx.c_reg() - 1].set(true);
+            break;
+          }
+          case MArgument::ArgumentType::MemImmVRegScale: {
+            res[(u8)arg.indx.c_reg() - 1].set(true);
+            break;
+          }
         }
       }
     }
@@ -556,7 +559,7 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
   return res;
 }
 
-} // namespace
+}  // namespace
 
 void CallingConv::second_stage(FVec<MFunc> &funcs) {
   ZoneScopedN("CC 2nd Stage");
@@ -577,7 +580,7 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
       size_t n_instrs = bb.instrs.size();
       for (size_t instr_idp1 = n_instrs; instr_idp1 > 0; instr_idp1--) {
         size_t instr_end_id = instr_idp1 - 1;
-        if (bb.instrs[instr_end_id].op != Opcode::invoke) {
+        if (!bb.instrs[instr_end_id].is(GBaseSubtype::invoke)) {
           continue;
         }
         size_t instr_start_idp1 = instr_end_id + 1;
@@ -585,7 +588,7 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
         for (instr_start_idp1 = instr_end_id; instr_start_idp1 > 0;
              instr_start_idp1--) {
           instr_start_id = instr_start_idp1 - 1;
-          if (bb.instrs[instr_start_id].op != Opcode::arg_setup) {
+          if (!bb.instrs[instr_start_id].is(GBaseSubtype::arg_setup)) {
             instr_start_id++;
             break;
           }
@@ -631,22 +634,22 @@ void gen_arg_mapping(MFunc &func) {
     auto arg_ty = func.args[arg_i].ty;
     // this needs to stay this way or needs to be synched with the callee
     // register saving in this cc
-    MInstr instr{Opcode::mov};
+    MInstr instr{GBaseSubtype::mov};
     bool is_vec_reg = arg_ty >= Type::Float32;
     if (is_vec_reg && float_arg_id < n_float_arg_regs) {
-      instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
+      instr = MInstr(GBaseSubtype::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{float_arg_reg[float_arg_id], arg_ty}, arg_ty});
       // func.args[arg_i].info = VRegInfo{float_arg_reg[float_arg_id],
       // arg_ty};
       float_arg_id++;
     } else if (!is_vec_reg && int_arg_id < n_int_arg_regs) {
-      instr = MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
+      instr = MInstr(GBaseSubtype::mov, MArgument{func.args[arg_i], arg_ty},
                      MArgument{{int_arg_reg[int_arg_id], arg_ty}, arg_ty});
       // func.args[arg_i].info = VRegInfo{int_arg_reg[int_arg_id], arg_ty};
       int_arg_id++;
     } else {
       instr =
-          MInstr(Opcode::mov, MArgument{func.args[arg_i], arg_ty},
+          MInstr(GBaseSubtype::mov, MArgument{func.args[arg_i], arg_ty},
                  MArgument::MemOB(8 * (n_stack_args + 2), VReg::RSP(), arg_ty));
       n_stack_args++;
     }
@@ -674,22 +677,22 @@ void mark_arguments_with_regs(IRVec<MInstr> &instrs, size_t instr_start_id,
     auto arg_pos = pos[i];
     auto arg_ty = instrs[instr_start_id + i].args[0].ty;
     switch (arg_pos.ty) {
-    case ArgPosition::IntReg:
-      instrs[instr_start_id + i].n_args = 2;
-      instrs[instr_start_id + i].args[1] =
-          MArgument({int_arg_reg[arg_pos.position], arg_ty}, arg_ty);
-      break;
-    case ArgPosition::FloatReg:
-      instrs[instr_start_id + i].n_args = 2;
-      instrs[instr_start_id + i].args[1] =
-          MArgument({float_arg_reg[arg_pos.position], arg_ty}, arg_ty);
-      break;
-    case ArgPosition::Stack:
-      break;
+      case ArgPosition::IntReg:
+        instrs[instr_start_id + i].n_args = 2;
+        instrs[instr_start_id + i].args[1] =
+            MArgument({int_arg_reg[arg_pos.position], arg_ty}, arg_ty);
+        break;
+      case ArgPosition::FloatReg:
+        instrs[instr_start_id + i].n_args = 2;
+        instrs[instr_start_id + i].args[1] =
+            MArgument({float_arg_reg[arg_pos.position], arg_ty}, arg_ty);
+        break;
+      case ArgPosition::Stack:
+        break;
     }
   }
 }
-} // namespace
+}  // namespace
 
 void CallingConv::first_stage(FVec<MFunc> &funcs) {
   ZoneScopedN("CC 1st Stage");
@@ -700,13 +703,13 @@ void CallingConv::first_stage(FVec<MFunc> &funcs) {
     for (auto &bb : func.bbs) {
       size_t n_instrs = bb.instrs.size();
       for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
-        if (bb.instrs[instr_id].op != Opcode::arg_setup &&
-            bb.instrs[instr_id].op != Opcode::invoke) {
+        if (!bb.instrs[instr_id].is(GBaseSubtype::arg_setup) &&
+            !bb.instrs[instr_id].is(GBaseSubtype::invoke)) {
           continue;
         }
         for (size_t instr_end_id = instr_id; instr_end_id < n_instrs;
              instr_end_id++) {
-          if (bb.instrs[instr_end_id].op != Opcode::invoke) {
+          if (!bb.instrs[instr_end_id].is(GBaseSubtype::invoke)) {
             continue;
           }
           mark_arguments_with_regs(bb.instrs, instr_id, instr_end_id);
@@ -718,4 +721,4 @@ void CallingConv::first_stage(FVec<MFunc> &funcs) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

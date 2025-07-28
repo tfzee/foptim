@@ -1,16 +1,16 @@
+#include <fmt/core.h>
+
+#include <cmath>
+
 #include "inst_simplify.hpp"
 #include "mir/instr.hpp"
-#include <cmath>
-#include <fmt/core.h>
 
 namespace foptim::fmir {
 
 namespace {
 //@returns true if the instruction was deleted
 bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
-  switch (instr.op) {
-  case Opcode::mov:
-  case Opcode::mov_zx: {
+  if (instr.is(GBaseSubtype::mov) || instr.is(GConvSubtype::mov_zx)) {
     if (instr.args[0] == instr.args[1]) {
       instrs.erase(instrs.begin() + instr_id);
       return true;
@@ -24,50 +24,44 @@ bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       is_zero |= !is_fp && instr.args[1].imm == 0;
 
       if (is_zero && !instr.args[0].reg.is_vec_reg()) {
-        instr.op = Opcode::lxor2;
+        instr.bop = GOpcode::GArith;
+        instr.sop = (u32)GArithSubtype::lxor2;
         instr.n_args = 2;
         instr.args[1] = instr.args[0];
         return false;
       }
       if (is_zero && instr.args[0].reg.is_vec_reg()) {
-        instr.op = Opcode::fxor;
+        instr.bop = GOpcode::GVec;
+        instr.sop = (u32)GVecSubtype::fxor;
         instr.n_args = 3;
         instr.args[1] = instr.args[0];
         instr.args[2] = instr.args[0];
         return false;
       }
     }
-  }
-  case Opcode::cmov: {
+  } else if (instr.is(GCMovSubtype::cmov)) {
     if (instr.args[0] == instr.args[2]) {
       instrs.erase(instrs.begin() + instr_id);
       return true;
     }
     // if both inputs are the same replace iwth basic move
     if (instr.args[1] == instr.args[2]) {
-      instr.op = Opcode::mov;
+      instr.bop = GOpcode::GBase;
+      instr.sop = (u32)GBaseSubtype::mov;
       instr.n_args = 2;
       return false;
     }
-  }
-  default:
-    break;
   }
   return false;
 }
 //@returns true if the instruction was deleted
 bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
-  switch (instr.op) {
-  case Opcode::mov:
-  case Opcode::mov_zx: {
+  if (instr.is(GBaseSubtype::mov) || instr.is(GConvSubtype::mov_zx)) {
     if (instr.args[0] == instr.args[1] && instr.args[0].isReg() &&
         !instr.args[0].reg.is_concrete()) {
       instrs.erase(instrs.begin() + instr_id);
       return true;
     }
-  }
-  default:
-    break;
   }
   return false;
 }
@@ -81,10 +75,11 @@ bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   //   // x = lea(global)
   //   // z = [x]
   // }
-  if (instr_id + 2 < instrs.size() && instrs[instr_id + 0].op == Opcode::mov &&
-      (instrs[instr_id + 1].op == Opcode::add2 ||
-       instrs[instr_id + 1].op == Opcode::sub2) &&
-      instrs[instr_id + 2].op == Opcode::mov) {
+  if (instr_id + 2 < instrs.size() &&
+      instrs[instr_id + 0].is(GBaseSubtype::mov) &&
+      (instrs[instr_id + 1].is(GArithSubtype::add2) ||
+       instrs[instr_id + 1].is(GArithSubtype::sub2)) &&
+      instrs[instr_id + 2].is(GBaseSubtype::mov)) {
     auto &i1 = instrs[instr_id + 0];
     auto &i2 = instrs[instr_id + 1];
     auto &i3 = instrs[instr_id + 2];
@@ -95,18 +90,24 @@ bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
     if (i1.args[0] == i2.args[0] && i1.args[0] == i3.args[1] &&
         i1.args[1] == i3.args[0] && i1.args[0] != i1.args[1] &&
         i2.args[1].isImm()) {
-      i3.op = i2.op;
+      i3.bop = i2.bop;
+      i3.sop = i2.sop;
       i3.args[1] = i2.args[1];
 
       // cjmp x _
       if (instr_id + 3 < instrs.size()) {
         auto &i4 = instrs[instr_id + 3];
         // TODO: expand
-        if ((i4.op == Opcode::cjmp_int_eq || i4.op == Opcode::cjmp_int_slt ||
-             i4.op == Opcode::cjmp_int_ult || i4.op == Opcode::cjmp_int_sgt ||
-             i4.op == Opcode::cjmp_int_ugt || i4.op == Opcode::cjmp_int_ne ||
-             i4.op == Opcode::cjmp_int_sle || i4.op == Opcode::cjmp_int_ule ||
-             i4.op == Opcode::cjmp_int_sge || i4.op == Opcode::cjmp_int_uge) &&
+        if ((i4.is(GJumpSubtype::cjmp_int_eq) ||
+             i4.is(GJumpSubtype::cjmp_int_slt) ||
+             i4.is(GJumpSubtype::cjmp_int_ult) ||
+             i4.is(GJumpSubtype::cjmp_int_sgt) ||
+             i4.is(GJumpSubtype::cjmp_int_ugt) ||
+             i4.is(GJumpSubtype::cjmp_int_ne) ||
+             i4.is(GJumpSubtype::cjmp_int_sle) ||
+             i4.is(GJumpSubtype::cjmp_int_ule) ||
+             i4.is(GJumpSubtype::cjmp_int_sge) ||
+             i4.is(GJumpSubtype::cjmp_int_uge)) &&
             i4.args[0] == i1.args[0]) {
           i4.args[0] = i1.args[1];
         }
@@ -118,10 +119,10 @@ bool early_multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
 
 bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   if (instr_id + 1 < instrs.size() &&
-      ((instrs[instr_id + 0].op == Opcode::add2 &&
-        instrs[instr_id + 1].op == Opcode::sub2) ||
-       (instrs[instr_id + 0].op == Opcode::sub2 &&
-        instrs[instr_id + 1].op == Opcode::add2))) {
+      ((instrs[instr_id + 0].is(GArithSubtype::add2) &&
+        instrs[instr_id + 1].is(GArithSubtype::sub2)) ||
+       (instrs[instr_id + 0].is(GArithSubtype::sub2) &&
+        instrs[instr_id + 1].is(GArithSubtype::add2)))) {
     auto a0 = instrs[instr_id + 0];
     auto a1 = instrs[instr_id + 1];
     if (a0.args[0] == a1.args[0] && a0.args[1] == a1.args[1]) {
@@ -129,46 +130,9 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
       return true;
     }
   }
-  // if (instr_id + 1 < instrs.size() && instrs[instr_id + 0].op ==
-  // Opcode::push) {
-  //   bool found = false;
-  //   auto i2 = instr_id + 1;
-  //   fmt::println("{}", instrs[instr_id]);
-  //   for (; i2 < instrs.size(); i2++) {
-  //     fmt::println("   {}", instrs[i2]);
-  //     if (instrs[i2].op == Opcode::pop) {
-  //       if (instrs[i2].args[0] == instrs[instr_id].args[0]) {
-  //         found = true;
-  //       }
-  //       break;
-  //     }
-  //     if (instrs[i2].op == Opcode::push) {
-  //       break;
-  //     }
-  //     if (instrs[i2].op == Opcode::call || instrs[i2].op == Opcode::invoke) {
-  //       break;
-  //     }
-  //     bool breakit = false;
-  //     for (auto arg : instrs[i2].args) {
-  //       if (arg.isReg() && arg.reg.is_concrete() &&
-  //           arg.reg.conc.creg == CReg::SP) {
-  //         breakit = true;
-  //         break;
-  //       }
-  //     }
-  //     if (breakit) {
-  //       break;
-  //     }
-  //   }
-  //   if (found) {
-  //     fmt::println("{}", instrs[instr_id]);
-  //     fmt::println("{}", instrs[i2]);
-  //     TODO("Okak");
-  //   }
-  // }
   return false;
 }
-} // namespace
+}  // namespace
 
 void InstSimplify::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("InstSimplify");
@@ -206,4 +170,4 @@ void InstSimplify::early_apply(FVec<MFunc> &funcs) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir
