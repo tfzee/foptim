@@ -1,5 +1,3 @@
-#include "stack_known_bits.hpp"
-
 #include <fmt/core.h>
 #include <llvm/ADT/STLExtras.h>
 #include <unistd.h>
@@ -11,6 +9,7 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
+#include "stack_known_bits.hpp"
 #include "utils/arena.hpp"
 
 namespace foptim::optim {

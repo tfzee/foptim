@@ -125,7 +125,21 @@ class KnownBits final : public AttributeAnalysis {
           }
           break;
         }
-        case fir::IntrinsicSubType::CTLZ:
+        case fir::IntrinsicSubType::CTLZ: {
+          const auto *known_arg0_bits =
+              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+          if (known_arg0_bits->known_zero == 0) {
+            // could loook at max value
+            new_known_one = 0;
+            new_known_zero = 0;
+            break;
+          }
+          auto pre = __builtin_clzg(known_arg0_bits->known_zero);
+          fmt::println(" {}\n{}", instr, *known_arg0_bits);
+          fmt::println(" clz {} {}", pre, 128 - pre);
+          std::abort();
+          break;
+        }
         case fir::IntrinsicSubType::FAbs:
         case fir::IntrinsicSubType::UMin:
         case fir::IntrinsicSubType::SMin:

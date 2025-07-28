@@ -1,5 +1,3 @@
-#include "slp_vectorizer.hpp"
-
 #include <fmt/core.h>
 
 #include "ir/basic_block_ref.hpp"
@@ -7,6 +5,7 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
+#include "slp_vectorizer.hpp"
 #include "utils/arena.hpp"
 #include "utils/stats.hpp"
 
@@ -112,6 +111,9 @@ class BinaryTreeOp final : public TreeElem {
       case fir::BinaryInstrSubType::FloatMul:
       case fir::BinaryInstrSubType::IntSub:
       case fir::BinaryInstrSubType::IntMul:
+      case fir::BinaryInstrSubType::And:
+      case fir::BinaryInstrSubType::Or:
+      case fir::BinaryInstrSubType::Xor:
         break;
       case fir::BinaryInstrSubType::INVALID:
       case fir::BinaryInstrSubType::IntSRem:
@@ -120,9 +122,6 @@ class BinaryTreeOp final : public TreeElem {
       case fir::BinaryInstrSubType::IntUDiv:
       case fir::BinaryInstrSubType::Shr:
       case fir::BinaryInstrSubType::AShr:
-      case fir::BinaryInstrSubType::And:
-      case fir::BinaryInstrSubType::Or:
-      case fir::BinaryInstrSubType::Xor:
       case fir::BinaryInstrSubType::FloatDiv:
         fmt::println("{}", base_v);
         TODO("impl");
