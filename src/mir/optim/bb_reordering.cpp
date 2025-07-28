@@ -7,17 +7,16 @@ void BBReordering::apply(MFunc &func) {
   new_bb_vals.reserve(func.bbs.size());
 
   for (size_t bb1_i = 0; bb1_i < func.bbs.size(); bb1_i++) {
-
     if (func.bbs[bb1_i].instrs.empty()) {
       continue;
     }
 
     auto &t1 = func.bbs[bb1_i].instrs.back();
-    if (t1.op == Opcode::ret) {
+    if (t1.is(GBaseSubtype::ret)) {
       continue;
     }
 
-    if (t1.op != Opcode::jmp) {
+    if (!t1.is(GJumpSubtype::jmp)) {
       ASSERT(false);
     }
     u32 target_bb = t1.bb_ref;
@@ -80,4 +79,4 @@ void BBReordering::apply(FVec<MFunc> &funcs) {
     apply(func);
   }
 }
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

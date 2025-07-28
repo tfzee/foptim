@@ -1,14 +1,16 @@
 #pragma once
+#include <cassert>
+#include <cstring>
+
 #include "types.hpp"
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
-#include <cassert>
-#include <cstring>
 
 namespace foptim::utils {
 
-template <class StorageType = u64> struct BitRef {
+template <class StorageType = u64>
+struct BitRef {
   u16 offset;
   StorageType *_data;
 
@@ -22,7 +24,8 @@ template <class StorageType = u64> struct BitRef {
   constexpr operator bool() const { return (*_data >> offset) & 1; }
 };
 
-template <class StorageType = u64> struct IterBitSet {
+template <class StorageType = u64>
+struct IterBitSet {
   static constexpr u16 StrgTySizeBit = sizeof(StorageType) * 8;
   static constexpr u16 StrgTySizeByte = sizeof(StorageType);
   size_t indx;
@@ -60,7 +63,6 @@ template <class StorageType = u64> struct IterBitSet {
 
 template <class StorageType = u64, class Alloc = TempAlloc<StorageType>>
 struct BitSet {
-
   static constexpr u16 StrgTySizeBit = sizeof(StorageType) * 8;
   static constexpr u16 StrgTySizeByte = sizeof(StorageType);
   StorageType *_data = nullptr;
@@ -150,8 +152,8 @@ struct BitSet {
     // return (_data[n_elems - 1] & mask) != 0;
   }
 
-  [[nodiscard]] constexpr BitRef<StorageType>
-  operator[](const size_t indx) const {
+  [[nodiscard]] constexpr BitRef<StorageType> operator[](
+      const size_t indx) const {
     ASSERT(indx < _size_bits);
     return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
   }
@@ -321,15 +323,14 @@ struct BitSet {
   }
 };
 
-} // namespace foptim::utils
+}  // namespace foptim::utils
 
 template <class T, class Alloc>
 class fmt::formatter<foptim::utils::BitSet<T, Alloc>>
     : public BaseIRFormatter<foptim::utils::BitSet<T, Alloc>> {
-public:
+ public:
   appender format(foptim::utils::BitSet<T, Alloc> const &sett,
                   format_context &ctx) const {
-
     auto app = ctx.out();
     for (size_t i = 0; i < sett._size_bits; i++) {
       app = fmt::format_to(app, "{}", (sett[i] ? '1' : '0'));

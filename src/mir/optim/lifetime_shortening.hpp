@@ -11,109 +11,112 @@ class LifetimeShortening {
     TVec<ArgData> temp;
 
     for (auto &instr : bb.instrs) {
-      switch (instr.op) {
-      case Opcode::mov:
-        if (instr.args[0].isReg() && instr.args[1].isReg() &&
-            instr.args[0] != instr.args[1] &&
-            instr.args[0].ty == instr.args[1].ty) {
-          mappings[instr.args[1].reg] = instr.args[0].reg;
+      if (instr.bop == GOpcode::GBase) {
+        switch ((GBaseSubtype)instr.sop) {
+          case GBaseSubtype::mov:
+            if (instr.args[0].isReg() && instr.args[1].isReg() &&
+                instr.args[0] != instr.args[1] &&
+                instr.args[0].ty == instr.args[1].ty) {
+              mappings[instr.args[1].reg] = instr.args[0].reg;
+            }
+            continue;
+          case GBaseSubtype::call:
+          case GBaseSubtype::invoke:
+            mappings.clear();
+            continue;
+          default:
+            break;
         }
-        break;
-      case Opcode::call:
-      case Opcode::invoke:
-        mappings.clear();
-        break;
-      default: {
+      }
+      {
         temp.clear();
         written_args(instr, temp);
         for (auto [_, written] : temp) {
           switch (written.type) {
-          case MArgument::ArgumentType::Imm:
-          case MArgument::ArgumentType::MemImm:
-          case MArgument::ArgumentType::Label:
-          case MArgument::ArgumentType::MemLabel:
-          case MArgument::ArgumentType::MemImmLabel:
-            break;
-          case MArgument::ArgumentType::MemImmVRegScale:
-            mappings.erase(written.indx);
-            for (auto it = mappings.begin(); it != mappings.end();) {
-              if (it->second == written.indx) {
-                it = mappings.erase(it);
-                break;
+            case MArgument::ArgumentType::Imm:
+            case MArgument::ArgumentType::MemImm:
+            case MArgument::ArgumentType::Label:
+            case MArgument::ArgumentType::MemLabel:
+            case MArgument::ArgumentType::MemImmLabel:
+              break;
+            case MArgument::ArgumentType::MemImmVRegScale:
+              mappings.erase(written.indx);
+              for (auto it = mappings.begin(); it != mappings.end();) {
+                if (it->second == written.indx) {
+                  it = mappings.erase(it);
+                  break;
+                }
+                ++it;
               }
-              ++it;
-            }
-            break;
-          case MArgument::ArgumentType::MemVRegVReg:
-          case MArgument::ArgumentType::MemImmVRegVReg:
-          case MArgument::ArgumentType::MemVRegVRegScale:
-          case MArgument::ArgumentType::MemImmVRegVRegScale:
-            mappings.erase(written.indx);
-            for (auto it = mappings.begin(); it != mappings.end();) {
-              if (it->second == written.indx) {
-                it = mappings.erase(it);
-                break;
+              break;
+            case MArgument::ArgumentType::MemVRegVReg:
+            case MArgument::ArgumentType::MemImmVRegVReg:
+            case MArgument::ArgumentType::MemVRegVRegScale:
+            case MArgument::ArgumentType::MemImmVRegVRegScale:
+              mappings.erase(written.indx);
+              for (auto it = mappings.begin(); it != mappings.end();) {
+                if (it->second == written.indx) {
+                  it = mappings.erase(it);
+                  break;
+                }
+                ++it;
               }
-              ++it;
-            }
-            mappings.erase(written.reg);
-            for (auto it = mappings.begin(); it != mappings.end();) {
-              if (it->second == written.reg) {
-                it = mappings.erase(it);
-                break;
+              mappings.erase(written.reg);
+              for (auto it = mappings.begin(); it != mappings.end();) {
+                if (it->second == written.reg) {
+                  it = mappings.erase(it);
+                  break;
+                }
+                ++it;
               }
-              ++it;
-            }
-            break;
-          case MArgument::ArgumentType::VReg:
-          case MArgument::ArgumentType::MemVReg:
-          case MArgument::ArgumentType::MemImmVReg:
-            mappings.erase(written.reg);
-            for (auto it = mappings.begin(); it != mappings.end();) {
-              if (it->second == written.reg) {
-                it = mappings.erase(it);
-                break;
+              break;
+            case MArgument::ArgumentType::VReg:
+            case MArgument::ArgumentType::MemVReg:
+            case MArgument::ArgumentType::MemImmVReg:
+              mappings.erase(written.reg);
+              for (auto it = mappings.begin(); it != mappings.end();) {
+                if (it->second == written.reg) {
+                  it = mappings.erase(it);
+                  break;
+                }
+                ++it;
               }
-              ++it;
-            }
-            break;
+              break;
           }
         }
         temp.clear();
         read_args(instr, temp);
         for (auto [id, read] : temp) {
           switch (read.type) {
-          case MArgument::ArgumentType::Imm:
-          case MArgument::ArgumentType::MemImm:
-          case MArgument::ArgumentType::Label:
-          case MArgument::ArgumentType::MemLabel:
-          case MArgument::ArgumentType::MemImmLabel:
-            break;
-          case MArgument::ArgumentType::VReg:
-            if (mappings.contains(read.reg) && !instr.args[id].reg.is_concrete()) {
-              instr.args[id] =
-                  MArgument{mappings.at(read.reg), instr.args[id].ty};
-            }
-            break;
-          case MArgument::ArgumentType::MemVReg:
-          case MArgument::ArgumentType::MemImmVReg:
-          case MArgument::ArgumentType::MemImmVRegScale:
-          case MArgument::ArgumentType::MemVRegVReg:
-          case MArgument::ArgumentType::MemImmVRegVReg:
-          case MArgument::ArgumentType::MemVRegVRegScale:
-          case MArgument::ArgumentType::MemImmVRegVRegScale:
-            //TODO: some of these might be able to be fixed
-            break;
+            case MArgument::ArgumentType::Imm:
+            case MArgument::ArgumentType::MemImm:
+            case MArgument::ArgumentType::Label:
+            case MArgument::ArgumentType::MemLabel:
+            case MArgument::ArgumentType::MemImmLabel:
+              break;
+            case MArgument::ArgumentType::VReg:
+              if (mappings.contains(read.reg) &&
+                  !instr.args[id].reg.is_concrete()) {
+                instr.args[id] =
+                    MArgument{mappings.at(read.reg), instr.args[id].ty};
+              }
+              break;
+            case MArgument::ArgumentType::MemVReg:
+            case MArgument::ArgumentType::MemImmVReg:
+            case MArgument::ArgumentType::MemImmVRegScale:
+            case MArgument::ArgumentType::MemVRegVReg:
+            case MArgument::ArgumentType::MemImmVRegVReg:
+            case MArgument::ArgumentType::MemVRegVRegScale:
+            case MArgument::ArgumentType::MemImmVRegVRegScale:
+              // TODO: some of these might be able to be fixed
+              break;
           }
         }
-
-        break;
-      }
       }
     }
   }
 
-public:
+ public:
   void apply(FVec<MFunc> &funcs) {
     for (auto &f : funcs) {
       for (auto &bb : f.bbs) {
@@ -123,4 +126,4 @@ public:
   }
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

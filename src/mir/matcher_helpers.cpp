@@ -82,6 +82,7 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
   return data.bb_arg_mapping.at(arg);
 }
 
+namespace {
 MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
                         ExtraMatchData &data) {
   if (!arg.is_instr()) {
@@ -99,13 +100,12 @@ MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
       auto int_const = arg_instr->args[1].as_constant()->as_int();
       if (v0.isLabel()) {
         res.result.emplace_back(
-            Opcode::lea, end_argument,
+            X86Subtype::lea, end_argument,
             MArgument::MemLO(v0.label, int_const, res_type));
       } else if (v0.isReg() && get_size(v0.ty) >= 4) {
-        res.result.emplace_back(Opcode::lea, end_argument,
+        res.result.emplace_back(X86Subtype::lea, end_argument,
                                 MArgument::MemOB(int_const, v0.reg, res_type));
       } else {
-
         return valueToArg(arg, res.result, data.alloc);
       }
       return end_argument;
@@ -118,7 +118,7 @@ MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
     }
     if (v0.isReg() && v1.isReg() && get_size(v0.ty) >= 4 &&
         get_size(v1.ty) == get_size(v0.ty)) {
-      res.result.emplace_back(Opcode::lea, end_argument,
+      res.result.emplace_back(X86Subtype::lea, end_argument,
                               MArgument::MemBI(v0.reg, v1.reg, res_type));
     } else {
       return valueToArg(arg, res.result, data.alloc);
@@ -128,6 +128,7 @@ MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
 
   return valueToArg(arg, res.result, data.alloc);
 }
+}  // namespace
 
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,
                     ExtraMatchData &data) {
@@ -138,13 +139,12 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
         setup_callarg(call_instr->args[arg_id], res, data));
   }
   for (auto arg_value : evaluated_args) {
-    res.result.emplace_back(Opcode::arg_setup, arg_value);
+    res.result.emplace_back(GBaseSubtype::arg_setup, arg_value);
   }
 }
 
 MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
                           DumbRegAlloc &alloc) {
-
   ASSERT(val.is_constant());
   auto consti = val.as_constant();
   if (consti->is_int()) {
@@ -152,19 +152,19 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
       return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
     }
     switch (val.get_type()->as_int()) {
-    case 1:
-      return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
-    case 8:
-      return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
-    case 16:
-      return {(u16)std::bit_cast<u64>((i64)consti->as_int())};
-    case 32:
-      return {(u32)std::bit_cast<u64>((i64)consti->as_int())};
-    case 64:
-      return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
-    default:
-      fmt::println("{}", (i64)consti->as_int());
-      TODO("impl");
+      case 1:
+        return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
+      case 8:
+        return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
+      case 16:
+        return {(u16)std::bit_cast<u64>((i64)consti->as_int())};
+      case 32:
+        return {(u32)std::bit_cast<u64>((i64)consti->as_int())};
+      case 64:
+        return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
+      default:
+        fmt::println("{}", (i64)consti->as_int());
+        TODO("impl");
     }
   }
   if (consti->is_null()) {
@@ -184,43 +184,43 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     Type type_id = convert_type(val.get_type());
     auto arg = MArgument::MemL(global->name.c_str(), type_id);
     auto helper = MArgument{alloc.get_new_register(Type::Int64), Type::Int64};
-    res.emplace_back(Opcode::lea, helper, arg);
+    res.emplace_back(X86Subtype::lea, helper, arg);
     return helper;
   }
   if (consti->is_func()) {
     auto funcy = consti->as_func();
     auto arg = MArgument::MemL(funcy->getName().c_str(), Type::Int64);
     auto helper = MArgument(alloc.get_new_register(Type::Int64), Type::Int64);
-    res.emplace_back(Opcode::lea, helper, arg);
+    res.emplace_back(X86Subtype::lea, helper, arg);
     return helper;
   }
   if (consti->is_poison()) {
     switch (consti->type->ty) {
-    case fir::AnyTypeType::Integer:
-      switch (consti->type->as_int()) {
-      case 8:
-        return {(u8)0};
-      case 16:
-        return {(u16)0};
-      case 32:
-        return {(u32)0};
-      case 64:
+      case fir::AnyTypeType::Integer:
+        switch (consti->type->as_int()) {
+          case 8:
+            return {(u8)0};
+          case 16:
+            return {(u16)0};
+          case 32:
+            return {(u32)0};
+          case 64:
+            return {(u64)0};
+          default:
+            fmt::println("{}", consti->type->as_int());
+            UNREACH();
+        }
+      case fir::AnyTypeType::Ptr:
         return {(u64)0};
-      default:
-        fmt::println("{}", consti->type->as_int());
+      case fir::AnyTypeType::Float:
+        return {0.0F};
+      case fir::AnyTypeType::Vector:
+      case fir::AnyTypeType::Function:
+      case fir::AnyTypeType::Void:
+      case fir::AnyTypeType::Struct:
+        fmt::println("{} with type {}", consti, consti->type);
         UNREACH();
-      }
-    case fir::AnyTypeType::Ptr:
-      return {(u64)0};
-    case fir::AnyTypeType::Float:
-      return {0.0F};
-    case fir::AnyTypeType::Vector:
-    case fir::AnyTypeType::Function:
-    case fir::AnyTypeType::Void:
-    case fir::AnyTypeType::Struct:
-      fmt::println("{} with type {}", consti, consti->type);
-      UNREACH();
-      break;
+        break;
     }
   }
   // if (consti->is_vec()) {
@@ -307,22 +307,22 @@ void setup_va_start(fir::Instr &va_instr, MatchResult &res,
     }
   }
 
-  res.result.emplace_back(Opcode::mov,
+  res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(0, ptr_arg.reg, Type::Int32),
                           MArgument((u32)8 * n_int_args));
-  res.result.emplace_back(Opcode::mov,
+  res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(4, ptr_arg.reg, Type::Int32),
                           MArgument((u32)48 + 16 * n_vec_args));
-  res.result.emplace_back(Opcode::mov,
+  res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
                           MArgument(VReg::RBP(), Type::Int64));
-  res.result.emplace_back(Opcode::add2,
+  res.result.emplace_back(GArithSubtype::add2,
                           MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
                           MArgument((u16)16));
-  res.result.emplace_back(Opcode::mov,
+  res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(16, ptr_arg.reg, Type::Int64),
                           MArgument(VReg::RBP(), Type::Int64));
-  res.result.emplace_back(Opcode::sub2,
+  res.result.emplace_back(GArithSubtype::sub2,
                           MArgument::MemOB(16, ptr_arg.reg, Type::Int64),
                           MArgument((u16)176));
 }
@@ -347,119 +347,120 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
   auto base = MArgument(arg0, res_ty);
 
   switch (consti_val) {
-  default: {
-    // fmt::println("Failed simplify mul x*{}", consti_val);
-    // TODO("failed");
-    return false;
-  }
-  case 1:
-    consti_val = 0;
-    break;
-  case 2:
-    consti_val = 1;
-    break;
-  case 3:
-    consti_val = 1;
-    mul1More = true;
-    break;
-  case 4:
-    consti_val = 2;
-    break;
-  case 5:
-    consti_val = 2;
-    mul1More = true;
-    break;
-  case 6: {
-    auto helper_arg = MArgument(helper_reg, res_ty);
-    result.emplace_back(Opcode::mov, helper_arg, base);
-    result.emplace_back(Opcode::add2, helper_arg, helper_arg);
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
-    return true;
-  }
-  case 7:
-    consti_val = 3;
-    mul1Less = true;
-    break;
-  case 8:
-    consti_val = 3;
-    break;
-  case 9:
-    consti_val = 3;
-    mul1More = true;
-    break;
-  case 10: {
-    auto helper_arg = MArgument(helper_reg, res_ty);
-    result.emplace_back(Opcode::mov, helper_arg, base);
-    result.emplace_back(Opcode::add2, helper_arg, helper_arg);
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
-    return true;
-  }
-  case 11: {
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(base.reg, base.reg, 2, res_ty));
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(base.reg, res_reg.reg, 1, res_ty));
-    return true;
-  }
-  case 12: {
-    auto helper_arg = MArgument(helper_reg, res_ty);
-    result.emplace_back(Opcode::mov, helper_arg, base);
-    result.emplace_back(Opcode::shl2, res_reg, MArgument((u8)2));
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(helper_reg, helper_reg, 1, res_ty));
-    return true;
-  }
-  case 13: {
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(base.reg, base.reg, 1, res_ty));
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(base.reg, res_reg.reg, 2, res_ty));
-    return true;
-  }
-  case 14: {
-    auto helper_arg = MArgument(helper_reg, res_ty);
-    //       mov     eax, edi
-    // lea     ecx, [rax + rax]
-    // shl     eax, 4
-    // sub     eax, ecx
-    result.emplace_back(Opcode::mov, res_reg, base);
-    result.emplace_back(Opcode::lea, helper_arg,
-                        MArgument::MemBI(res_reg.reg, res_reg.reg, res_ty));
-    result.emplace_back(Opcode::shl2, res_reg, MArgument((u8)4));
-    result.emplace_back(Opcode::sub2, res_reg, helper_arg);
-    return true;
-  }
-  case 15: {
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(base.reg, base.reg, 4, res_ty));
-    result.emplace_back(Opcode::lea, res_reg,
-                        MArgument::MemBIS(res_reg.reg, res_reg.reg, 2, res_ty));
-    return true;
-  }
-  case 16: {
-    result.emplace_back(Opcode::mov, res_reg, base);
-    result.emplace_back(Opcode::shl2, res_reg, MArgument((u8)4));
-    return true;
-  }
+    default: {
+      // fmt::println("Failed simplify mul x*{}", consti_val);
+      // TODO("failed");
+      return false;
+    }
+    case 1:
+      consti_val = 0;
+      break;
+    case 2:
+      consti_val = 1;
+      break;
+    case 3:
+      consti_val = 1;
+      mul1More = true;
+      break;
+    case 4:
+      consti_val = 2;
+      break;
+    case 5:
+      consti_val = 2;
+      mul1More = true;
+      break;
+    case 6: {
+      auto helper_arg = MArgument(helper_reg, res_ty);
+      result.emplace_back(GBaseSubtype::mov, helper_arg, base);
+      result.emplace_back(GArithSubtype::add2, helper_arg, helper_arg);
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
+      return true;
+    }
+    case 7:
+      consti_val = 3;
+      mul1Less = true;
+      break;
+    case 8:
+      consti_val = 3;
+      break;
+    case 9:
+      consti_val = 3;
+      mul1More = true;
+      break;
+    case 10: {
+      auto helper_arg = MArgument(helper_reg, res_ty);
+      result.emplace_back(GBaseSubtype::mov, helper_arg, base);
+      result.emplace_back(GArithSubtype::add2, helper_arg, helper_arg);
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
+      return true;
+    }
+    case 11: {
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(base.reg, base.reg, 2, res_ty));
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(base.reg, res_reg.reg, 1, res_ty));
+      return true;
+    }
+    case 12: {
+      auto helper_arg = MArgument(helper_reg, res_ty);
+      result.emplace_back(GBaseSubtype::mov, helper_arg, base);
+      result.emplace_back(GArithSubtype::shl2, res_reg, MArgument((u8)2));
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(helper_reg, helper_reg, 1, res_ty));
+      return true;
+    }
+    case 13: {
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(base.reg, base.reg, 1, res_ty));
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(base.reg, res_reg.reg, 2, res_ty));
+      return true;
+    }
+    case 14: {
+      auto helper_arg = MArgument(helper_reg, res_ty);
+      //       mov     eax, edi
+      // lea     ecx, [rax + rax]
+      // shl     eax, 4
+      // sub     eax, ecx
+      result.emplace_back(GBaseSubtype::mov, res_reg, base);
+      result.emplace_back(X86Subtype::lea, helper_arg,
+                          MArgument::MemBI(res_reg.reg, res_reg.reg, res_ty));
+      result.emplace_back(GArithSubtype::shl2, res_reg, MArgument((u8)4));
+      result.emplace_back(GArithSubtype::sub2, res_reg, helper_arg);
+      return true;
+    }
+    case 15: {
+      result.emplace_back(X86Subtype::lea, res_reg,
+                          MArgument::MemBIS(base.reg, base.reg, 4, res_ty));
+      result.emplace_back(
+          X86Subtype::lea, res_reg,
+          MArgument::MemBIS(res_reg.reg, res_reg.reg, 2, res_ty));
+      return true;
+    }
+    case 16: {
+      result.emplace_back(GBaseSubtype::mov, res_reg, base);
+      result.emplace_back(GArithSubtype::shl2, res_reg, MArgument((u8)4));
+      return true;
+    }
   }
 
   // $1 = $0 * c
   // where $0 must be reg and C in [1,2,3,4,5,8,9]
   if (mul1More) {
     result.emplace_back(
-        Opcode::lea, res_reg,
+        X86Subtype::lea, res_reg,
         MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
   } else if (mul1Less) {
-    result.emplace_back(Opcode::lea, res_reg,
+    result.emplace_back(X86Subtype::lea, res_reg,
                         MArgument::MemOIS(0, base.reg, consti_val, res_ty));
-    result.emplace_back(Opcode::sub2, res_reg, base);
+    result.emplace_back(GArithSubtype::sub2, res_reg, base);
   } else {
-    result.emplace_back(Opcode::lea, res_reg,
+    result.emplace_back(X86Subtype::lea, res_reg,
                         MArgument::MemOIS(0, base.reg, consti_val, res_ty));
   }
   return true;
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

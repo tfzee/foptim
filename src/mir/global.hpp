@@ -22,4 +22,4 @@ struct Global {
   fir::LinkVisibility vis;
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -49,12 +49,12 @@ struct Pattern {
 };
 
 class Matcher {
-public:
+ public:
   IRVec<Pattern> patterns;
 };
 
 class GreedyMatcher : public Matcher {
-public:
+ public:
   GreedyMatcher();
   MFunc apply(fir::Function &func);
 };
@@ -64,4 +64,4 @@ MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
 Type convert_type(fir::TypeR type);
 void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
                       ExtraMatchData &data);
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

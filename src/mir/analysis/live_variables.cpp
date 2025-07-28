@@ -1,8 +1,9 @@
+#include <deque>
+
 #include "live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
-#include <deque>
 
 namespace foptim::fmir {
 
@@ -12,30 +13,30 @@ size_t max_vreg_id(const MFunc &func) {
     for (const auto &instr : bb.instrs) {
       for (u8 i = 0; i < instr.n_args; i++) {
         switch (instr.args[i].type) {
-        case MArgument::ArgumentType::VReg:
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-          if (!instr.args[i].reg.is_concrete()) {
-            unique_reg_id =
-                std::max(unique_reg_id, instr.args[i].reg.virt_id());
-          }
-          break;
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          if (!instr.args[i].reg.is_concrete()) {
-            unique_reg_id =
-                std::max(unique_reg_id, instr.args[i].reg.virt_id());
-          }
-          if (!instr.args[i].indx.is_concrete()) {
-            unique_reg_id =
-                std::max(unique_reg_id, instr.args[i].indx.virt_id());
-          }
-          break;
-        default:
-          break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            if (!instr.args[i].reg.is_concrete()) {
+              unique_reg_id =
+                  std::max(unique_reg_id, instr.args[i].reg.virt_id());
+            }
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            if (!instr.args[i].reg.is_concrete()) {
+              unique_reg_id =
+                  std::max(unique_reg_id, instr.args[i].reg.virt_id());
+            }
+            if (!instr.args[i].indx.is_concrete()) {
+              unique_reg_id =
+                  std::max(unique_reg_id, instr.args[i].indx.virt_id());
+            }
+            break;
+          default:
+            break;
         }
       }
     }
@@ -58,355 +59,501 @@ VReg uid_to_reg(size_t id) {
 }
 
 void update_def(const MInstr &instr, utils::BitSet<> &def) {
-  switch (instr.op) {
-  // for moves this is correct only if its not pointers
-  case Opcode::mov:
-  case Opcode::lzcnt:
-  case Opcode::cmov:
-  case Opcode::cmov_ns:
-  case Opcode::cmov_sgt:
-  case Opcode::cmov_slt:
-  case Opcode::cmov_ult:
-  case Opcode::cmov_sge:
-  case Opcode::cmov_sle:
-  case Opcode::cmov_ne:
-  case Opcode::cmov_eq:
-  case Opcode::cmov_ugt:
-  case Opcode::cmov_uge:
-  case Opcode::cmov_ule:
-  case Opcode::mov_zx:
-  case Opcode::mov_sx:
-  case Opcode::itrunc:
-  case Opcode::lea:
-  case Opcode::add2:
-  case Opcode::shl2:
-  case Opcode::shr2:
-  case Opcode::lor2:
-  case Opcode::land2:
-  case Opcode::lxor2:
-  case Opcode::sar2:
-  case Opcode::sub2:
-  case Opcode::mul2:
-  case Opcode::smul3:
-  case Opcode::vadd:
-  case Opcode::vsub:
-  case Opcode::fmul:
-  case Opcode::abs:
-  case Opcode::fdiv:
-  case Opcode::ffmadd132:
-  case Opcode::ffmadd231:
-  case Opcode::ffmadd213:
-  case Opcode::vbroadcast:
-  case Opcode::punpckl:
-  case Opcode::vpshuf:
-  case Opcode::fxor:
-  case Opcode::fAnd:
-  case Opcode::fOr:
-  case Opcode::fShl:
-  case Opcode::not1:
-  case Opcode::neg1:
-  case Opcode::SI2FL:
-  case Opcode::UI2FL:
-  case Opcode::FL2SI:
-  case Opcode::FL2UI:
-  case Opcode::F64_ext:
-  case Opcode::F32_trunc:
-  case Opcode::pop:
-  case Opcode::icmp_mul_overflow:
-  case Opcode::icmp_add_overflow:
-  case Opcode::icmp_slt:
-  case Opcode::icmp_eq:
-  case Opcode::icmp_ult:
-  case Opcode::icmp_ne:
-  case Opcode::icmp_sgt:
-  case Opcode::icmp_ugt:
-  case Opcode::icmp_uge:
-  case Opcode::icmp_ule:
-  case Opcode::icmp_sge:
-  case Opcode::icmp_sle:
-  case Opcode::fcmp_isNaN:
-  case Opcode::fcmp_oeq:
-  case Opcode::fcmp_ogt:
-  case Opcode::fcmp_oge:
-  case Opcode::fcmp_olt:
-  case Opcode::fcmp_ole:
-  case Opcode::fcmp_one:
-  case Opcode::fcmp_ord:
-  case Opcode::fcmp_uno:
-  case Opcode::fcmp_ueq:
-  case Opcode::fcmp_ugt:
-  case Opcode::fcmp_uge:
-  case Opcode::fcmp_ult:
-  case Opcode::fcmp_ule:
-  case Opcode::fcmp_une:
-    if (instr.args[0].isReg()) {
-      def[reg_to_uid(instr.args[0].reg)].set(true);
-    }
-    break;
-  case Opcode::arg_setup:
-    // if (instr.n_args > 1 && instr.args[1].isReg()) {
-    //   def[reg_to_uid(instr.args[1].reg)].set(true);
-    // }
-    break;
-  case Opcode::invoke:
-    if (instr.n_args > 1 && instr.args[1].isReg()) {
-      def[reg_to_uid(instr.args[1].reg)].set(true);
-      if (instr.args[1].is_fp()) {
-        def[reg_to_uid(VReg::MM0SS())].set(true);
-      } else {
-        def[reg_to_uid(VReg::EAX())].set(true);
+  switch (instr.bop) {
+    case GOpcode::GBase:
+      switch ((GBaseSubtype)instr.sop) {
+        case GBaseSubtype::INVALID:
+          return;
+        case GBaseSubtype::mov:
+        case GBaseSubtype::pop:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
+        case GBaseSubtype::push:
+        case GBaseSubtype::call:
+        case GBaseSubtype::arg_setup:
+        case GBaseSubtype::ret:
+          return;
+        case GBaseSubtype::invoke:
+          if (instr.n_args > 1 && instr.args[1].isReg()) {
+            def[reg_to_uid(instr.args[1].reg)].set(true);
+            if (instr.args[1].is_fp()) {
+              def[reg_to_uid(VReg::MM0SS())].set(true);
+            } else {
+              def[reg_to_uid(VReg::EAX())].set(true);
+            }
+            if (instr.n_args > 2 && instr.args[2].isReg()) {
+              def[reg_to_uid(instr.args[2].reg)].set(true);
+              if (instr.args[2].is_fp()) {
+                def[reg_to_uid(VReg::MM1SS())].set(true);
+              } else {
+                def[reg_to_uid(VReg::EDX())].set(true);
+              }
+            }
+          }
+          return;
       }
-      if (instr.n_args > 2 && instr.args[2].isReg()) {
-        def[reg_to_uid(instr.args[2].reg)].set(true);
-        if (instr.args[2].is_fp()) {
-          def[reg_to_uid(VReg::MM1SS())].set(true);
-        } else {
-          def[reg_to_uid(VReg::EDX())].set(true);
-        }
+    case GOpcode::GJmp:
+      switch ((GJumpSubtype)instr.sop) {
+        case GJumpSubtype::INVALID:
+          return;
+        case GJumpSubtype::icmp_slt:
+        case GJumpSubtype::icmp_eq:
+        case GJumpSubtype::icmp_ult:
+        case GJumpSubtype::icmp_ne:
+        case GJumpSubtype::icmp_sgt:
+        case GJumpSubtype::icmp_ugt:
+        case GJumpSubtype::icmp_uge:
+        case GJumpSubtype::icmp_ule:
+        case GJumpSubtype::icmp_sge:
+        case GJumpSubtype::icmp_sle:
+        case GJumpSubtype::icmp_mul_overflow:
+        case GJumpSubtype::icmp_add_overflow:
+        case GJumpSubtype::fcmp_isNaN:
+        case GJumpSubtype::fcmp_oeq:
+        case GJumpSubtype::fcmp_ogt:
+        case GJumpSubtype::fcmp_oge:
+        case GJumpSubtype::fcmp_olt:
+        case GJumpSubtype::fcmp_ole:
+        case GJumpSubtype::fcmp_one:
+        case GJumpSubtype::fcmp_ord:
+        case GJumpSubtype::fcmp_uno:
+        case GJumpSubtype::fcmp_ueq:
+        case GJumpSubtype::fcmp_ugt:
+        case GJumpSubtype::fcmp_uge:
+        case GJumpSubtype::fcmp_ult:
+        case GJumpSubtype::fcmp_ule:
+        case GJumpSubtype::fcmp_une:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
+        case GJumpSubtype::cjmp_int_slt:
+        case GJumpSubtype::cjmp_int_sge:
+        case GJumpSubtype::cjmp_int_sle:
+        case GJumpSubtype::cjmp_int_sgt:
+        case GJumpSubtype::cjmp_int_ult:
+        case GJumpSubtype::cjmp_int_ule:
+        case GJumpSubtype::cjmp_int_ugt:
+        case GJumpSubtype::cjmp_int_uge:
+        case GJumpSubtype::cjmp_int_ne:
+        case GJumpSubtype::cjmp_int_eq:
+        case GJumpSubtype::cjmp_flt_oeq:
+        case GJumpSubtype::cjmp_flt_ogt:
+        case GJumpSubtype::cjmp_flt_oge:
+        case GJumpSubtype::cjmp_flt_olt:
+        case GJumpSubtype::cjmp_flt_ole:
+        case GJumpSubtype::cjmp_flt_one:
+        case GJumpSubtype::cjmp_flt_ord:
+        case GJumpSubtype::cjmp_flt_uno:
+        case GJumpSubtype::cjmp_flt_ueq:
+        case GJumpSubtype::cjmp_flt_ugt:
+        case GJumpSubtype::cjmp_flt_uge:
+        case GJumpSubtype::cjmp_flt_ult:
+        case GJumpSubtype::cjmp_flt_ule:
+        case GJumpSubtype::cjmp_flt_une:
+        case GJumpSubtype::cjmp:
+        case GJumpSubtype::jmp:
+          return;
       }
-    }
-    break;
-  case Opcode::udiv:
-  case Opcode::idiv:
-    def[reg_to_uid(instr.args[0].reg)].set(true);
-    def[reg_to_uid(instr.args[1].reg)].set(true);
-    break;
-  case Opcode::cjmp_int_slt:
-  case Opcode::cjmp_int_sge:
-  case Opcode::cjmp_int_sle:
-  case Opcode::cjmp_int_sgt:
-  case Opcode::cjmp_int_ult:
-  case Opcode::cjmp_int_ule:
-  case Opcode::cjmp_int_ugt:
-  case Opcode::cjmp_int_uge:
-  case Opcode::cjmp_int_ne:
-  case Opcode::cjmp_int_eq:
-  case Opcode::cjmp_flt_oeq:
-  case Opcode::cjmp_flt_ogt:
-  case Opcode::cjmp_flt_oge:
-  case Opcode::cjmp_flt_olt:
-  case Opcode::cjmp_flt_ole:
-  case Opcode::cjmp_flt_one:
-  case Opcode::cjmp_flt_ord:
-  case Opcode::cjmp_flt_uno:
-  case Opcode::cjmp_flt_ueq:
-  case Opcode::cjmp_flt_ugt:
-  case Opcode::cjmp_flt_uge:
-  case Opcode::cjmp_flt_ult:
-  case Opcode::cjmp_flt_ule:
-  case Opcode::cjmp_flt_une:
-  case Opcode::push:
-  case Opcode::cjmp:
-  case Opcode::jmp:
-  case Opcode::call:
-  case Opcode::ret:
-    break;
+    case GOpcode::GConv:
+      switch ((GConvSubtype)instr.sop) {
+        case GConvSubtype::INVALID:
+          return;
+        case GConvSubtype::SI2FL:
+        case GConvSubtype::UI2FL:
+        case GConvSubtype::FL2SI:
+        case GConvSubtype::FL2UI:
+        case GConvSubtype::F64_ext:
+        case GConvSubtype::F32_trunc:
+        case GConvSubtype::itrunc:
+        case GConvSubtype::mov_zx:
+        case GConvSubtype::mov_sx:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
+      }
+    case GOpcode::GArith:
+      switch ((GArithSubtype)instr.sop) {
+        case GArithSubtype::INVALID:
+          return;
+        case GArithSubtype::idiv:
+        case GArithSubtype::udiv:
+          def[reg_to_uid(instr.args[0].reg)].set(true);
+          def[reg_to_uid(instr.args[1].reg)].set(true);
+          return;
+        case GArithSubtype::abs:
+        case GArithSubtype::shl2:
+        case GArithSubtype::shr2:
+        case GArithSubtype::sar2:
+        case GArithSubtype::land2:
+        case GArithSubtype::lor2:
+        case GArithSubtype::lxor2:
+        case GArithSubtype::add2:
+        case GArithSubtype::sub2:
+        case GArithSubtype::mul2:
+        case GArithSubtype::not1:
+        case GArithSubtype::neg1:
+        case GArithSubtype::smul3:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
+      }
+    case GOpcode::GCMov:
+      switch ((GCMovSubtype)instr.sop) {
+        case GCMovSubtype::INVALID:
+          return;
+        case GCMovSubtype::cmov:
+        case GCMovSubtype::cmov_ns:
+        case GCMovSubtype::cmov_sgt:
+        case GCMovSubtype::cmov_slt:
+        case GCMovSubtype::cmov_ult:
+        case GCMovSubtype::cmov_sge:
+        case GCMovSubtype::cmov_sle:
+        case GCMovSubtype::cmov_ne:
+        case GCMovSubtype::cmov_eq:
+        case GCMovSubtype::cmov_ugt:
+        case GCMovSubtype::cmov_uge:
+        case GCMovSubtype::cmov_ule:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
+      }
+    case GOpcode::GVec:
+      switch ((GVecSubtype)instr.sop) {
+        case GVecSubtype::INVALID:
+          return;
+        case GVecSubtype::vadd:
+        case GVecSubtype::vsub:
+        case GVecSubtype::fmul:
+        case GVecSubtype::fdiv:
+        case GVecSubtype::ffmadd:
+        case GVecSubtype::fxor:
+        case GVecSubtype::fAnd:
+        case GVecSubtype::fOr:
+        case GVecSubtype::fShl:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
+      }
+    case GOpcode::X86:
+      switch ((X86Subtype)instr.sop) {
+        case X86Subtype::INVALID:
+          return;
+        case X86Subtype::lea:
+        case X86Subtype::vpshuf:
+        case X86Subtype::punpckl:
+        case X86Subtype::vbroadcast:
+        case X86Subtype::lzcnt:
+        case X86Subtype::ffmadd132:
+        case X86Subtype::ffmadd213:
+        case X86Subtype::ffmadd231:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
+      }
   }
 }
 
 namespace {
 void update_uses(const MArgument &arg, utils::BitSet<> &uses) {
   switch (arg.type) {
-  case MArgument::ArgumentType::VReg:
-  case MArgument::ArgumentType::MemVReg:
-  case MArgument::ArgumentType::MemImmVReg:
-    uses[reg_to_uid(arg.reg)].set(true);
-    break;
-  case MArgument::ArgumentType::MemImmVRegScale:
-    uses[reg_to_uid(arg.indx)].set(true);
-    break;
-  case MArgument::ArgumentType::MemVRegVReg:
-  case MArgument::ArgumentType::MemImmVRegVReg:
-  case MArgument::ArgumentType::MemVRegVRegScale:
-  case MArgument::ArgumentType::MemImmVRegVRegScale:
-    uses[reg_to_uid(arg.reg)].set(true);
-    uses[reg_to_uid(arg.indx)].set(true);
-    break;
-  case MArgument::ArgumentType::MemImm:
-  case MArgument::ArgumentType::Label:
-  case MArgument::ArgumentType::MemLabel:
-  case MArgument::ArgumentType::MemImmLabel:
-  case MArgument::ArgumentType::Imm:
-    break;
+    case MArgument::ArgumentType::VReg:
+    case MArgument::ArgumentType::MemVReg:
+    case MArgument::ArgumentType::MemImmVReg:
+      uses[reg_to_uid(arg.reg)].set(true);
+      break;
+    case MArgument::ArgumentType::MemImmVRegScale:
+      uses[reg_to_uid(arg.indx)].set(true);
+      break;
+    case MArgument::ArgumentType::MemVRegVReg:
+    case MArgument::ArgumentType::MemImmVRegVReg:
+    case MArgument::ArgumentType::MemVRegVRegScale:
+    case MArgument::ArgumentType::MemImmVRegVRegScale:
+      uses[reg_to_uid(arg.reg)].set(true);
+      uses[reg_to_uid(arg.indx)].set(true);
+      break;
+    case MArgument::ArgumentType::MemImm:
+    case MArgument::ArgumentType::Label:
+    case MArgument::ArgumentType::MemLabel:
+    case MArgument::ArgumentType::MemImmLabel:
+    case MArgument::ArgumentType::Imm:
+      break;
   }
 }
 
 void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
-  switch (instr.op) {
-  // for moves this is only correct if the target is a reg
-  case Opcode::abs:
-  case Opcode::mov:
-  case Opcode::lzcnt:
-  case Opcode::itrunc:
-  case Opcode::mov_zx:
-  case Opcode::mov_sx:
-  case Opcode::lea:
-  case Opcode::SI2FL:
-  case Opcode::UI2FL:
-  case Opcode::FL2SI:
-  case Opcode::F64_ext:
-  case Opcode::F32_trunc:
-  case Opcode::FL2UI:
-    if (!instr.args[0].isReg()) {
-      update_uses(instr.args[0], uses);
-    }
-    update_uses(instr.args[1], uses);
-    break;
-  case Opcode::not1:
-  case Opcode::neg1:
-    update_uses(instr.args[0], uses);
-    break;
-  case Opcode::add2:
-  case Opcode::shl2:
-  case Opcode::shr2:
-  case Opcode::lor2:
-  case Opcode::land2:
-  case Opcode::lxor2:
-  case Opcode::sar2:
-  case Opcode::sub2:
-  case Opcode::mul2:
-    // for these it doesnt matter if its a reg its always used
-    update_uses(instr.args[0], uses);
-    update_uses(instr.args[1], uses);
-    break;
-  case Opcode::cmov:
-  case Opcode::smul3:
-  case Opcode::vadd:
-  case Opcode::vsub:
-  case Opcode::vbroadcast:
-  case Opcode::punpckl:
-  case Opcode::vpshuf:
-  case Opcode::fmul:
-  case Opcode::fdiv:
-  case Opcode::fxor:
-  case Opcode::fOr:
-  case Opcode::fShl:
-  case Opcode::fAnd:
-  case Opcode::icmp_slt:
-  case Opcode::icmp_eq:
-  case Opcode::icmp_ult:
-  case Opcode::icmp_ne:
-  case Opcode::icmp_sgt:
-  case Opcode::icmp_ugt:
-  case Opcode::icmp_uge:
-  case Opcode::icmp_ule:
-  case Opcode::icmp_sge:
-  case Opcode::icmp_sle:
-  case Opcode::icmp_mul_overflow:
-  case Opcode::icmp_add_overflow:
-  case Opcode::fcmp_isNaN:
-  case Opcode::fcmp_oeq:
-  case Opcode::fcmp_ogt:
-  case Opcode::fcmp_oge:
-  case Opcode::fcmp_olt:
-  case Opcode::fcmp_ole:
-  case Opcode::fcmp_one:
-  case Opcode::fcmp_ord:
-  case Opcode::fcmp_uno:
-  case Opcode::fcmp_ueq:
-  case Opcode::fcmp_ugt:
-  case Opcode::fcmp_uge:
-  case Opcode::fcmp_ult:
-  case Opcode::fcmp_ule:
-  case Opcode::fcmp_une:
-    if (!instr.args[0].isReg()) {
-      update_uses(instr.args[0], uses);
-    }
-    update_uses(instr.args[1], uses);
-    update_uses(instr.args[2], uses);
-    break;
-  case Opcode::cmov_ns:
-  case Opcode::cmov_sgt:
-  case Opcode::cmov_slt:
-  case Opcode::cmov_ult:
-  case Opcode::cmov_sge:
-  case Opcode::cmov_sle:
-  case Opcode::cmov_ne:
-  case Opcode::cmov_eq:
-  case Opcode::cmov_ugt:
-  case Opcode::cmov_uge:
-  case Opcode::cmov_ule:
-  case Opcode::ffmadd132:
-  case Opcode::ffmadd231:
-  case Opcode::ffmadd213:
-    if (!instr.args[0].isReg()) {
-      update_uses(instr.args[0], uses);
-    }
-    update_uses(instr.args[1], uses);
-    update_uses(instr.args[2], uses);
-    update_uses(instr.args[3], uses);
-    break;
-  case Opcode::udiv:
-  case Opcode::idiv:
-    // 0 and 1 are fixed regs
-    update_uses(instr.args[2], uses);
-    update_uses(instr.args[3], uses);
-    break;
-  case Opcode::invoke:
-  case Opcode::call:
-    update_uses(instr.args[0], uses);
-    if (instr.n_args > 1 && !instr.args[1].isReg()) {
-      update_uses(instr.args[1], uses);
-      if (instr.n_args > 2 && !instr.args[2].isReg()) {
-        update_uses(instr.args[2], uses);
+  switch (instr.bop) {
+    case GOpcode::GJmp:
+      switch ((GJumpSubtype)instr.sop) {
+        case GJumpSubtype::INVALID:
+          return;
+        case GJumpSubtype::icmp_slt:
+        case GJumpSubtype::icmp_eq:
+        case GJumpSubtype::icmp_ult:
+        case GJumpSubtype::icmp_ne:
+        case GJumpSubtype::icmp_sgt:
+        case GJumpSubtype::icmp_ugt:
+        case GJumpSubtype::icmp_uge:
+        case GJumpSubtype::icmp_ule:
+        case GJumpSubtype::icmp_sge:
+        case GJumpSubtype::icmp_sle:
+        case GJumpSubtype::icmp_mul_overflow:
+        case GJumpSubtype::icmp_add_overflow:
+        case GJumpSubtype::fcmp_isNaN:
+        case GJumpSubtype::fcmp_oeq:
+        case GJumpSubtype::fcmp_ogt:
+        case GJumpSubtype::fcmp_oge:
+        case GJumpSubtype::fcmp_olt:
+        case GJumpSubtype::fcmp_ole:
+        case GJumpSubtype::fcmp_one:
+        case GJumpSubtype::fcmp_ord:
+        case GJumpSubtype::fcmp_uno:
+        case GJumpSubtype::fcmp_ueq:
+        case GJumpSubtype::fcmp_ugt:
+        case GJumpSubtype::fcmp_uge:
+        case GJumpSubtype::fcmp_ult:
+        case GJumpSubtype::fcmp_ule:
+        case GJumpSubtype::fcmp_une:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          return;
+        case GJumpSubtype::cjmp_int_slt:
+        case GJumpSubtype::cjmp_int_sge:
+        case GJumpSubtype::cjmp_int_sle:
+        case GJumpSubtype::cjmp_int_sgt:
+        case GJumpSubtype::cjmp_int_ult:
+        case GJumpSubtype::cjmp_int_ule:
+        case GJumpSubtype::cjmp_int_ugt:
+        case GJumpSubtype::cjmp_int_uge:
+        case GJumpSubtype::cjmp_int_ne:
+        case GJumpSubtype::cjmp_int_eq:
+        case GJumpSubtype::cjmp_flt_oeq:
+        case GJumpSubtype::cjmp_flt_ogt:
+        case GJumpSubtype::cjmp_flt_oge:
+        case GJumpSubtype::cjmp_flt_olt:
+        case GJumpSubtype::cjmp_flt_ole:
+        case GJumpSubtype::cjmp_flt_one:
+        case GJumpSubtype::cjmp_flt_ord:
+        case GJumpSubtype::cjmp_flt_uno:
+        case GJumpSubtype::cjmp_flt_ueq:
+        case GJumpSubtype::cjmp_flt_ugt:
+        case GJumpSubtype::cjmp_flt_uge:
+        case GJumpSubtype::cjmp_flt_ult:
+        case GJumpSubtype::cjmp_flt_ule:
+        case GJumpSubtype::cjmp_flt_une:
+          update_uses(instr.args[0], uses);
+          update_uses(instr.args[1], uses);
+          return;
+        case GJumpSubtype::cjmp:
+          update_uses(instr.args[0], uses);
+          return;
+        case GJumpSubtype::jmp:
+          return;
       }
-    }
-    break;
-  case Opcode::ret:
-    if (instr.n_args > 0) {
-      update_uses(instr.args[0], uses);
-      if (instr.n_args > 1) {
-        update_uses(instr.args[1], uses);
+    case GOpcode::GCMov:
+      switch ((GCMovSubtype)instr.sop) {
+        case GCMovSubtype::INVALID:
+          return;
+        case GCMovSubtype::cmov:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          return;
+        case GCMovSubtype::cmov_ns:
+        case GCMovSubtype::cmov_sgt:
+        case GCMovSubtype::cmov_slt:
+        case GCMovSubtype::cmov_ult:
+        case GCMovSubtype::cmov_sge:
+        case GCMovSubtype::cmov_sle:
+        case GCMovSubtype::cmov_ne:
+        case GCMovSubtype::cmov_eq:
+        case GCMovSubtype::cmov_ugt:
+        case GCMovSubtype::cmov_uge:
+        case GCMovSubtype::cmov_ule:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          update_uses(instr.args[3], uses);
+          return;
       }
-    }
-    break;
-  case Opcode::jmp:
-    break;
-  case Opcode::pop:
-    if (!instr.args[0].isReg()) {
-      update_uses(instr.args[0], uses);
-    }
-    break;
-  case Opcode::arg_setup:
-    if (!instr.args[1].isReg()) {
-      update_uses(instr.args[1], uses);
-    }
-    update_uses(instr.args[0], uses);
-    break;
-  case Opcode::push:
-  case Opcode::cjmp:
-    update_uses(instr.args[0], uses);
-    break;
-  case Opcode::cjmp_int_slt:
-  case Opcode::cjmp_int_sge:
-  case Opcode::cjmp_int_sle:
-  case Opcode::cjmp_int_sgt:
-  case Opcode::cjmp_int_ult:
-  case Opcode::cjmp_int_ule:
-  case Opcode::cjmp_int_ugt:
-  case Opcode::cjmp_int_uge:
-  case Opcode::cjmp_int_ne:
-  case Opcode::cjmp_int_eq:
-  case Opcode::cjmp_flt_oeq:
-  case Opcode::cjmp_flt_ogt:
-  case Opcode::cjmp_flt_oge:
-  case Opcode::cjmp_flt_olt:
-  case Opcode::cjmp_flt_ole:
-  case Opcode::cjmp_flt_one:
-  case Opcode::cjmp_flt_ord:
-  case Opcode::cjmp_flt_uno:
-  case Opcode::cjmp_flt_ueq:
-  case Opcode::cjmp_flt_ugt:
-  case Opcode::cjmp_flt_uge:
-  case Opcode::cjmp_flt_ult:
-  case Opcode::cjmp_flt_ule:
-  case Opcode::cjmp_flt_une:
-    update_uses(instr.args[0], uses);
-    update_uses(instr.args[1], uses);
-    break;
+    case GOpcode::GConv:
+      switch ((GConvSubtype)instr.sop) {
+        case GConvSubtype::INVALID:
+          return;
+        case GConvSubtype::SI2FL:
+        case GConvSubtype::UI2FL:
+        case GConvSubtype::FL2SI:
+        case GConvSubtype::FL2UI:
+        case GConvSubtype::itrunc:
+        case GConvSubtype::F64_ext:
+        case GConvSubtype::F32_trunc:
+        case GConvSubtype::mov_zx:
+        case GConvSubtype::mov_sx:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          return;
+      }
+    case GOpcode::GArith:
+      switch ((GArithSubtype)instr.sop) {
+        case GArithSubtype::INVALID:
+          return;
+        case GArithSubtype::abs:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          return;
+        case GArithSubtype::shl2:
+        case GArithSubtype::shr2:
+        case GArithSubtype::sar2:
+        case GArithSubtype::land2:
+        case GArithSubtype::lor2:
+        case GArithSubtype::lxor2:
+        case GArithSubtype::add2:
+        case GArithSubtype::sub2:
+        case GArithSubtype::mul2:
+          update_uses(instr.args[0], uses);
+          update_uses(instr.args[1], uses);
+          return;
+        case GArithSubtype::not1:
+        case GArithSubtype::neg1:
+          update_uses(instr.args[0], uses);
+          return;
+        case GArithSubtype::idiv:
+        case GArithSubtype::udiv:
+          // 0 and 1 are fixed regs
+          update_uses(instr.args[2], uses);
+          update_uses(instr.args[3], uses);
+          return;
+        case GArithSubtype::smul3:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          return;
+      }
+    case GOpcode::GVec:
+      switch ((GVecSubtype)instr.sop) {
+        case GVecSubtype::INVALID:
+          return;
+        case GVecSubtype::ffmadd:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          update_uses(instr.args[3], uses);
+          return;
+        case GVecSubtype::vadd:
+        case GVecSubtype::vsub:
+        case GVecSubtype::fmul:
+        case GVecSubtype::fdiv:
+        case GVecSubtype::fxor:
+        case GVecSubtype::fAnd:
+        case GVecSubtype::fOr:
+        case GVecSubtype::fShl:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          return;
+      }
+    case GOpcode::GBase:
+      switch ((GBaseSubtype)instr.sop) {
+        case GBaseSubtype::INVALID:
+          return;
+        case GBaseSubtype::mov:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          return;
+        case GBaseSubtype::call:
+        case GBaseSubtype::invoke:
+          update_uses(instr.args[0], uses);
+          if (instr.n_args > 1 && !instr.args[1].isReg()) {
+            update_uses(instr.args[1], uses);
+            if (instr.n_args > 2 && !instr.args[2].isReg()) {
+              update_uses(instr.args[2], uses);
+            }
+          }
+          return;
+        case GBaseSubtype::pop:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          return;
+        case GBaseSubtype::push:
+          update_uses(instr.args[0], uses);
+          return;
+        case GBaseSubtype::ret:
+          if (instr.n_args > 0) {
+            update_uses(instr.args[0], uses);
+            if (instr.n_args > 1) {
+              update_uses(instr.args[1], uses);
+            }
+          }
+          return;
+        case GBaseSubtype::arg_setup:
+          if (!instr.args[1].isReg()) {
+            update_uses(instr.args[1], uses);
+          }
+          update_uses(instr.args[0], uses);
+          return;
+      }
+    case GOpcode::X86:
+      switch ((X86Subtype)instr.sop) {
+        case X86Subtype::INVALID:
+          return;
+        case X86Subtype::lea:
+        case X86Subtype::lzcnt:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          return;
+        case X86Subtype::punpckl:
+        case X86Subtype::vpshuf:
+        case X86Subtype::vbroadcast:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          return;
+
+        case X86Subtype::ffmadd132:
+        case X86Subtype::ffmadd213:
+        case X86Subtype::ffmadd231:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          update_uses(instr.args[3], uses);
+          return;
+      }
   }
 }
-} // namespace
+}  // namespace
 
 void LiveVariables::update(const fmir::MFunc &func) {
   ZoneScopedN("LiveVariables::update");
@@ -492,7 +639,8 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
   args_temp.clear();
 
   for (auto i = start_instr; i < instrs.size(); i++) {
-    if (instrs[i].op == Opcode::call || instrs[i].op == Opcode::invoke) {
+    if (instrs[i].is(GBaseSubtype::call) ||
+        instrs[i].is(GBaseSubtype::invoke)) {
       // TODO: this could be more specific since certain CCs can only read/write
       // certain args legaly
       if (instrs[i].n_args > 1) {
@@ -517,37 +665,37 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
       for (size_t arg_id = 0; arg_id < instrs[i].n_args; arg_id++) {
         const auto &argy = instrs[i].args[arg_id];
         switch (argy.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::MemImm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-          // here we need to skip vreg
-        case MArgument::ArgumentType::VReg:
-          break;
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-          if (reg_to_uid(argy.reg) == search_reg_id) {
-            res.is_read = true;
-            res.index = i;
-          }
-          break;
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          if (reg_to_uid(argy.reg) == search_reg_id ||
-              reg_to_uid(argy.indx) == search_reg_id) {
-            res.is_read = true;
-            res.index = i;
-          }
-          break;
-        case MArgument::ArgumentType::MemImmVRegScale:
-          if (reg_to_uid(argy.indx) == search_reg_id) {
-            res.is_read = true;
-            res.index = i;
-          }
-          break;
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::MemImm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+            // here we need to skip vreg
+          case MArgument::ArgumentType::VReg:
+            break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            if (reg_to_uid(argy.reg) == search_reg_id) {
+              res.is_read = true;
+              res.index = i;
+            }
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            if (reg_to_uid(argy.reg) == search_reg_id ||
+                reg_to_uid(argy.indx) == search_reg_id) {
+              res.is_read = true;
+              res.index = i;
+            }
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            if (reg_to_uid(argy.indx) == search_reg_id) {
+              res.is_read = true;
+              res.index = i;
+            }
+            break;
         }
       }
     }
@@ -563,12 +711,12 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
     }
     if (res.is_read) {
       auto instr = instrs[i];
-      if (instrs[i].op == Opcode::fxor && instr.args[1].isReg() &&
+      if (instrs[i].is(GVecSubtype::fxor) && instr.args[1].isReg() &&
           reg_to_uid(instr.args[1].reg) == search_reg_id &&
           instr.args[1] == instr.args[2]) {
         res.is_read = false;
       }
-      if (instrs[i].op == Opcode::lxor2 && instr.args[0].isReg() &&
+      if (instrs[i].is(GArithSubtype::lxor2) && instr.args[0].isReg() &&
           reg_to_uid(instr.args[0].reg) == search_reg_id &&
           instr.args[1] == instr.args[2]) {
         res.is_read = false;
@@ -631,27 +779,27 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
       for (u32 arg_i = 0; arg_i < instr.n_args; arg_i++) {
         const auto &arg = instr.args[arg_i];
         switch (arg.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-          break;
-        case MArgument::ArgumentType::VReg:
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-          all_used_regs.insert(arg.reg);
-          break;
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          all_used_regs.insert(arg.reg);
-          all_used_regs.insert(arg.indx);
-          break;
-        case MArgument::ArgumentType::MemImmVRegScale:
-          all_used_regs.insert(arg.indx);
-          break;
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            all_used_regs.insert(arg.reg);
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            all_used_regs.insert(arg.reg);
+            all_used_regs.insert(arg.indx);
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            all_used_regs.insert(arg.indx);
+            break;
         }
       }
     }
@@ -729,30 +877,31 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
           for (size_t instr_indx = 0;
                instr_indx < func.bbs[bb_id].instrs.size(); instr_indx++) {
             auto instr = func.bbs[bb_id].instrs[instr_indx];
-            if (instr.op == Opcode::cjmp_int_slt ||
-                instr.op == Opcode::cjmp_int_sge ||
-                instr.op == Opcode::cjmp_int_sle ||
-                instr.op == Opcode::cjmp_int_sgt ||
-                instr.op == Opcode::cjmp_int_ult ||
-                instr.op == Opcode::cjmp_int_ule ||
-                instr.op == Opcode::cjmp_int_ugt ||
-                instr.op == Opcode::cjmp_int_uge ||
-                instr.op == Opcode::cjmp_int_ne ||
-                instr.op == Opcode::cjmp_int_eq ||
-                instr.op == Opcode::cjmp_flt_oeq ||
-                instr.op == Opcode::cjmp_flt_ogt ||
-                instr.op == Opcode::cjmp_flt_oge ||
-                instr.op == Opcode::cjmp_flt_olt ||
-                instr.op == Opcode::cjmp_flt_ole ||
-                instr.op == Opcode::cjmp_flt_one ||
-                instr.op == Opcode::cjmp_flt_ord ||
-                instr.op == Opcode::cjmp_flt_uno ||
-                instr.op == Opcode::cjmp_flt_ueq ||
-                instr.op == Opcode::cjmp_flt_ugt ||
-                instr.op == Opcode::cjmp_flt_uge ||
-                instr.op == Opcode::cjmp_flt_ult ||
-                instr.op == Opcode::cjmp_flt_ule ||
-                instr.op == Opcode::cjmp_flt_une || instr.op == Opcode::cjmp) {
+            if (instr.is(GJumpSubtype::cjmp_int_slt) ||
+                instr.is(GJumpSubtype::cjmp_int_sge) ||
+                instr.is(GJumpSubtype::cjmp_int_sle) ||
+                instr.is(GJumpSubtype::cjmp_int_sgt) ||
+                instr.is(GJumpSubtype::cjmp_int_ult) ||
+                instr.is(GJumpSubtype::cjmp_int_ule) ||
+                instr.is(GJumpSubtype::cjmp_int_ugt) ||
+                instr.is(GJumpSubtype::cjmp_int_uge) ||
+                instr.is(GJumpSubtype::cjmp_int_ne) ||
+                instr.is(GJumpSubtype::cjmp_int_eq) ||
+                instr.is(GJumpSubtype::cjmp_flt_oeq) ||
+                instr.is(GJumpSubtype::cjmp_flt_ogt) ||
+                instr.is(GJumpSubtype::cjmp_flt_oge) ||
+                instr.is(GJumpSubtype::cjmp_flt_olt) ||
+                instr.is(GJumpSubtype::cjmp_flt_ole) ||
+                instr.is(GJumpSubtype::cjmp_flt_one) ||
+                instr.is(GJumpSubtype::cjmp_flt_ord) ||
+                instr.is(GJumpSubtype::cjmp_flt_uno) ||
+                instr.is(GJumpSubtype::cjmp_flt_ueq) ||
+                instr.is(GJumpSubtype::cjmp_flt_ugt) ||
+                instr.is(GJumpSubtype::cjmp_flt_uge) ||
+                instr.is(GJumpSubtype::cjmp_flt_ult) ||
+                instr.is(GJumpSubtype::cjmp_flt_ule) ||
+                instr.is(GJumpSubtype::cjmp_flt_une) ||
+                instr.is(GJumpSubtype::cjmp)) {
               size_t closest_index = 0;
               for (auto range : ranges[reg].ranges) {
                 if (range.end.bb_indx == bb_id &&
@@ -791,31 +940,31 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
       for (u32 arg_i = 0; arg_i < instr.n_args; arg_i++) {
         const auto &arg = instr.args[arg_i];
         switch (arg.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-          break;
-        case MArgument::ArgumentType::VReg:
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-          ranges[arg.reg];
-          all_used_regs.insert(arg.reg);
-          break;
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          ranges[arg.reg];
-          ranges[arg.indx];
-          all_used_regs.insert(arg.reg);
-          all_used_regs.insert(arg.indx);
-          break;
-        case MArgument::ArgumentType::MemImmVRegScale:
-          ranges[arg.indx];
-          all_used_regs.insert(arg.indx);
-          break;
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            ranges[arg.reg];
+            all_used_regs.insert(arg.reg);
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            ranges[arg.reg];
+            ranges[arg.indx];
+            all_used_regs.insert(arg.reg);
+            all_used_regs.insert(arg.indx);
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            ranges[arg.indx];
+            all_used_regs.insert(arg.indx);
+            break;
         }
       }
     }
@@ -833,29 +982,31 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
       // fmt::println("{}", curr_live);
       // fmt::println("{}", bb.instrs[instridp1 - 1]);
       const auto &instr = bb.instrs[instridp1 - 1];
-      if (instr.op == Opcode::cjmp_int_slt ||
-          instr.op == Opcode::cjmp_int_sge ||
-          instr.op == Opcode::cjmp_int_sle ||
-          instr.op == Opcode::cjmp_int_sgt ||
-          instr.op == Opcode::cjmp_int_ult ||
-          instr.op == Opcode::cjmp_int_ule ||
-          instr.op == Opcode::cjmp_int_ugt ||
-          instr.op == Opcode::cjmp_int_uge || instr.op == Opcode::cjmp_int_ne ||
-          instr.op == Opcode::cjmp_int_eq || instr.op == Opcode::cjmp_flt_oeq ||
-          instr.op == Opcode::cjmp_flt_ogt ||
-          instr.op == Opcode::cjmp_flt_oge ||
-          instr.op == Opcode::cjmp_flt_olt ||
-          instr.op == Opcode::cjmp_flt_ole ||
-          instr.op == Opcode::cjmp_flt_one ||
-          instr.op == Opcode::cjmp_flt_ord ||
-          instr.op == Opcode::cjmp_flt_uno ||
-          instr.op == Opcode::cjmp_flt_ueq ||
-          instr.op == Opcode::cjmp_flt_ugt ||
-          instr.op == Opcode::cjmp_flt_uge ||
-          instr.op == Opcode::cjmp_flt_ult ||
-          instr.op == Opcode::cjmp_flt_ule ||
-          instr.op == Opcode::cjmp_flt_une || instr.op == Opcode::cjmp ||
-          instr.op == Opcode::jmp) {
+      if (instr.is(GJumpSubtype::cjmp_int_slt) ||
+          instr.is(GJumpSubtype::cjmp_int_sge) ||
+          instr.is(GJumpSubtype::cjmp_int_sle) ||
+          instr.is(GJumpSubtype::cjmp_int_sgt) ||
+          instr.is(GJumpSubtype::cjmp_int_ult) ||
+          instr.is(GJumpSubtype::cjmp_int_ule) ||
+          instr.is(GJumpSubtype::cjmp_int_ugt) ||
+          instr.is(GJumpSubtype::cjmp_int_uge) ||
+          instr.is(GJumpSubtype::cjmp_int_ne) ||
+          instr.is(GJumpSubtype::cjmp_int_eq) ||
+          instr.is(GJumpSubtype::cjmp_flt_oeq) ||
+          instr.is(GJumpSubtype::cjmp_flt_ogt) ||
+          instr.is(GJumpSubtype::cjmp_flt_oge) ||
+          instr.is(GJumpSubtype::cjmp_flt_olt) ||
+          instr.is(GJumpSubtype::cjmp_flt_ole) ||
+          instr.is(GJumpSubtype::cjmp_flt_one) ||
+          instr.is(GJumpSubtype::cjmp_flt_ord) ||
+          instr.is(GJumpSubtype::cjmp_flt_uno) ||
+          instr.is(GJumpSubtype::cjmp_flt_ueq) ||
+          instr.is(GJumpSubtype::cjmp_flt_ugt) ||
+          instr.is(GJumpSubtype::cjmp_flt_uge) ||
+          instr.is(GJumpSubtype::cjmp_flt_ult) ||
+          instr.is(GJumpSubtype::cjmp_flt_ule) ||
+          instr.is(GJumpSubtype::cjmp_flt_une) ||
+          instr.is(GJumpSubtype::cjmp) || instr.is(GJumpSubtype::jmp)) {
         curr_live.add(aliveOut);
       }
       helper.clear();
@@ -872,11 +1023,11 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
       }
       // special case is call or invoke in which case also all args are read
       //   iff the call target is a register and not a constant
-      if ((instr.op == Opcode::call || instr.op == Opcode::invoke) &&
+      if ((instr.is(GBaseSubtype::call) || instr.is(GBaseSubtype::invoke)) &&
           instr.args[0].isReg()) {
         for (auto arg_ip1 = instridp1 - 1; arg_ip1 > 0; arg_ip1--) {
           const auto &arg_instr = bb.instrs[arg_ip1 - 1];
-          if (arg_instr.op != Opcode::arg_setup) {
+          if (!arg_instr.is(GBaseSubtype::arg_setup)) {
             break;
           }
           if (arg_instr.n_args > 1) {
@@ -889,94 +1040,94 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
       // find all uses
       for (auto written : helper) {
         switch (written.arg.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-        case MArgument::ArgumentType::VReg:
-          break;
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-          // fmt::println("{} USE {} ", curr_live, written.arg.reg);
-          for (auto r : curr_live) {
-            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
-            ranges[written.arg.reg].insert(r);
-          }
-          curr_live[reg_to_uid(written.arg.reg)].set(true);
-          break;
-        case MArgument::ArgumentType::MemImmVRegScale:
-          // fmt::println("{} USE {} ", curr_live, written.arg.indx);
-          for (auto r : curr_live) {
-            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
-            ranges[written.arg.indx].insert(r);
-          }
-          curr_live[reg_to_uid(written.arg.indx)].set(true);
-          break;
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          // fmt::println("{} USE {} ", curr_live, written.arg.reg);
-          // fmt::println("{} USE {} ", curr_live, written.arg.indx);
-          for (auto r : curr_live) {
-            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
-            ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
-            ranges[written.arg.reg].insert(r);
-            ranges[written.arg.indx].insert(r);
-          }
-          ranges[written.arg.reg].insert(reg_to_uid(written.arg.indx));
-          ranges[written.arg.indx].insert(reg_to_uid(written.arg.reg));
-          curr_live[reg_to_uid(written.arg.reg)].set(true);
-          curr_live[reg_to_uid(written.arg.indx)].set(true);
-          break;
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+          case MArgument::ArgumentType::VReg:
+            break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            // fmt::println("{} USE {} ", curr_live, written.arg.reg);
+            for (auto r : curr_live) {
+              ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
+              ranges[written.arg.reg].insert(r);
+            }
+            curr_live[reg_to_uid(written.arg.reg)].set(true);
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            // fmt::println("{} USE {} ", curr_live, written.arg.indx);
+            for (auto r : curr_live) {
+              ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
+              ranges[written.arg.indx].insert(r);
+            }
+            curr_live[reg_to_uid(written.arg.indx)].set(true);
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            // fmt::println("{} USE {} ", curr_live, written.arg.reg);
+            // fmt::println("{} USE {} ", curr_live, written.arg.indx);
+            for (auto r : curr_live) {
+              ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.reg));
+              ranges[uid_to_reg(r)].insert(reg_to_uid(written.arg.indx));
+              ranges[written.arg.reg].insert(r);
+              ranges[written.arg.indx].insert(r);
+            }
+            ranges[written.arg.reg].insert(reg_to_uid(written.arg.indx));
+            ranges[written.arg.indx].insert(reg_to_uid(written.arg.reg));
+            curr_live[reg_to_uid(written.arg.reg)].set(true);
+            curr_live[reg_to_uid(written.arg.indx)].set(true);
+            break;
         }
       }
       helper.clear();
       read_args(instr, helper);
       for (auto read : helper) {
         switch (read.arg.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-          break;
-        case MArgument::ArgumentType::VReg:
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-          // fmt::println("{} USE {} ", curr_live, read.arg.reg);
-          for (auto r : curr_live) {
-            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
-            ranges[read.arg.reg].insert(r);
-          }
-          curr_live[reg_to_uid(read.arg.reg)].set(true);
-          break;
-        case MArgument::ArgumentType::MemImmVRegScale:
-          // fmt::println("{} USE {} ", curr_live, read.arg.indx);
-          for (auto r : curr_live) {
-            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
-            ranges[read.arg.indx].insert(r);
-          }
-          curr_live[reg_to_uid(read.arg.indx)].set(true);
-          break;
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          // fmt::println("{} USE {} ", curr_live, read.arg.reg);
-          // fmt::println("{} USE {} ", curr_live, read.arg.indx);
-          for (auto r : curr_live) {
-            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
-            ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
-            ranges[read.arg.reg].insert(r);
-            ranges[read.arg.indx].insert(r);
-          }
-          ranges[read.arg.reg].insert(reg_to_uid(read.arg.indx));
-          ranges[read.arg.indx].insert(reg_to_uid(read.arg.reg));
-          curr_live[reg_to_uid(read.arg.reg)].set(true);
-          curr_live[reg_to_uid(read.arg.indx)].set(true);
-          break;
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            // fmt::println("{} USE {} ", curr_live, read.arg.reg);
+            for (auto r : curr_live) {
+              ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
+              ranges[read.arg.reg].insert(r);
+            }
+            curr_live[reg_to_uid(read.arg.reg)].set(true);
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            // fmt::println("{} USE {} ", curr_live, read.arg.indx);
+            for (auto r : curr_live) {
+              ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
+              ranges[read.arg.indx].insert(r);
+            }
+            curr_live[reg_to_uid(read.arg.indx)].set(true);
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            // fmt::println("{} USE {} ", curr_live, read.arg.reg);
+            // fmt::println("{} USE {} ", curr_live, read.arg.indx);
+            for (auto r : curr_live) {
+              ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.reg));
+              ranges[uid_to_reg(r)].insert(reg_to_uid(read.arg.indx));
+              ranges[read.arg.reg].insert(r);
+              ranges[read.arg.indx].insert(r);
+            }
+            ranges[read.arg.reg].insert(reg_to_uid(read.arg.indx));
+            ranges[read.arg.indx].insert(reg_to_uid(read.arg.reg));
+            curr_live[reg_to_uid(read.arg.reg)].set(true);
+            curr_live[reg_to_uid(read.arg.indx)].set(true);
+            break;
         }
       }
     }
@@ -985,4 +1136,4 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
   return ranges;
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -11,7 +11,8 @@ struct IndexedValue {
     return v == other.v && id == other.id;
   }
 };
-template <> struct std::hash<IndexedValue> {
+template <>
+struct std::hash<IndexedValue> {
   std::size_t operator()(const IndexedValue &k) const {
     using foptim::u32;
     using foptim::fir::ValueR;
@@ -25,7 +26,7 @@ class DumbRegAlloc {
   u64 vreg_num = 1;
   TMap<IndexedValue, VReg> mapping;
 
-public:
+ public:
   VReg get_new_register(Type type);
   constexpr void reset() {
     mapping.clear();
@@ -37,4 +38,4 @@ public:
   VReg get_struct_register(fir::ValueR valu, fir::TypeR t, u32 id);
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

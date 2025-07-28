@@ -4,7 +4,7 @@
 namespace foptim::fmir {
 
 class CFG {
-public:
+ public:
   struct Node {
     TVec<u32> pred;
     TVec<u32> succ;
@@ -52,4 +52,4 @@ public:
   }
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

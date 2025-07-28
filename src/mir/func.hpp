@@ -5,12 +5,12 @@
 namespace foptim::fmir {
 
 class MBB {
-public:
+ public:
   IRVec<MInstr> instrs;
 };
 
 class MFunc {
-public:
+ public:
   IRVec<MBB> bbs;
   IRVec<VReg> args;
 
@@ -20,9 +20,9 @@ public:
   // IRVec<Type> arg_tys;
 
   uint32_t curr_arg_stack_off;
-  
+
   bool void_ret = true;
   Type res_ty = Type::INVALID;
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir
