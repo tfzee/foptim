@@ -8,7 +8,7 @@
 namespace foptim::optim {
 
 class LICM final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("LICM");
     CFG cfg{func};
@@ -116,4 +116,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

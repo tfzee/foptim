@@ -4,8 +4,8 @@
 namespace foptim::optim {
 
 class IntrinSimplify final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override;
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::optim

@@ -1,4 +1,7 @@
 #include "mem2reg.hpp"
+
+#include <tuple>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
@@ -8,7 +11,6 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "utils/set.hpp"
-#include <tuple>
 
 namespace foptim::optim {
 namespace {
@@ -352,7 +354,6 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
                               TMap<fir::ValueR, fir::ValueR> &bb_arg_to_alloca,
                               const AllocToPhiLoc &phi_insert_locs,
                               VarValueStack &current_variable_value) {
-
   const auto &args = block->get_args();
   // for each bb argument we find the origin
   for (u32 arg = 0; arg < args.size(); arg++) {
@@ -418,7 +419,7 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
     current_variable_value.pop_back();
   }
 }
-} // namespace
+}  // namespace
 
 void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("Mem2Reg");
@@ -458,4 +459,4 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
 }
-} // namespace foptim::optim
+}  // namespace foptim::optim

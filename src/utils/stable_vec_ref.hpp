@@ -7,8 +7,9 @@
 
 namespace foptim::utils {
 
-template <class T> class SRef {
-public:
+template <class T>
+class SRef {
+ public:
   Slot<T> *data_ref;
 #ifdef SLOT_CHECK_GENERATION
   u32 generation;
@@ -105,9 +106,10 @@ constexpr inline bool operator==(const SRef<T> &self, const SRef<T> &other) {
 #endif
 }
 
-} // namespace foptim::utils
+}  // namespace foptim::utils
 
-template <class T> struct std::hash<foptim::utils::SRef<T>> {
+template <class T>
+struct std::hash<foptim::utils::SRef<T>> {
   std::size_t operator()(const foptim::utils::SRef<T> &k) const {
     using foptim::u32;
     using std::hash;

@@ -30,4 +30,4 @@ void setup_va_end(fir::Instr &call_instr, MatchResult &res,
 bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
                              i128 consti_val, TVec<MInstr> &result,
                              Type res_ty);
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

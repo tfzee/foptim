@@ -1,4 +1,8 @@
 #pragma once
+#include <fmt/core.h>
+
+#include <algorithm>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
@@ -11,12 +15,10 @@
 #include "optim/function_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stats.hpp"
-#include <algorithm>
-#include <fmt/core.h>
 
 namespace foptim::optim {
 class LoopSimplify final : public FunctionPass {
-public:
+ public:
   bool dead_loop_elimination(CFG &cfg, LoopInfoAnalysis &loops, u32 loop_i) {
     auto &loop = loops.info.at(loop_i);
     for (auto b : loop.body_nodes) {
@@ -293,4 +295,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

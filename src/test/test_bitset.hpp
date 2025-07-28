@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <utils/bitset.hpp>
 
 using namespace foptim::utils;

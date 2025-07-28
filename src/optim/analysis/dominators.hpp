@@ -8,7 +8,7 @@ namespace foptim::optim {
 using utils::BitSet;
 
 class Dominators {
-public:
+ public:
   struct Node {
     fir::BasicBlock bb;
     i64 im_dom;
@@ -90,7 +90,6 @@ public:
     // frontier
     // iter over all blocks look at each successor
     for (u32 node_id = 0; node_id < dom_bbs.size(); node_id++) {
-
       for (u32 succ_id : cfg_bbs[node_id].succ) {
         // if a succ has less dominators then the parent -> its a frontier
         doms.assign(dom_bbs[succ_id].dominators);
@@ -104,4 +103,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

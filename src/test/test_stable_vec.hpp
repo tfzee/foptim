@@ -1,7 +1,9 @@
+#include <gtest/gtest.h>
+
+#include <utils/stable_vec.hpp>
+
 #include "utils/logging.hpp"
 #include "utils/stable_vec_slot.hpp"
-#include <gtest/gtest.h>
-#include <utils/stable_vec.hpp>
 
 using namespace foptim::utils;
 using namespace foptim;

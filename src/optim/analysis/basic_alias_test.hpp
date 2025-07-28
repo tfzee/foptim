@@ -1,9 +1,10 @@
 #pragma once
+#include <functional>
+
 #include "ir/function_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "utils/types.hpp"
-#include <functional>
 
 namespace foptim::optim {
 
@@ -25,7 +26,7 @@ struct AliasAnalyis {
     std::optional<u32> offset;
   };
 
-private:
+ private:
   TMap<fir::ValueR, HeapEntry> mapping;
   TVec<Heap> heaps;
   HeapId any_h;
@@ -95,7 +96,7 @@ private:
     return meet(heaps[a - 1].parent, heaps[b - 1].parent);
   }
 
-public:
+ public:
   AliasAnalyis() {
     reset();
     // fmt::println("true == {}", is_desc_eql(argument_h, any_h));
@@ -183,4 +184,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

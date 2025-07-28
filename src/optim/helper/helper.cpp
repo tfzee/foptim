@@ -1,4 +1,5 @@
 #include "helper.hpp"
+
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 
@@ -67,5 +68,4 @@ GuessTypeResult guessType(fir::ValueR ptr) {
   return {.typeless = false, .type = fir::TypeR{fir::TypeR::invalid()}};
 }
 
-
-} // namespace foptim::optim
+}  // namespace foptim::optim

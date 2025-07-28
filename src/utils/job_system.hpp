@@ -1,7 +1,8 @@
 #pragma once
-#include "utils/vec.hpp"
 #include <functional>
 #include <thread>
+
+#include "utils/vec.hpp"
 
 namespace foptim {
 
@@ -28,7 +29,7 @@ struct Worker {
 };
 
 class JobSheduler {
-public:
+ public:
   // this is definetly not optimal for short running jobs
   std::mutex job_queue;
   foptim::IRVec<Job> jobs;
@@ -95,4 +96,4 @@ public:
   }
 };
 
-} // namespace foptim
+}  // namespace foptim

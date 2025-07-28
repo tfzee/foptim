@@ -1,9 +1,11 @@
 #pragma once
-#include "utils/types.hpp"
+#include <fmt/core.h>
+
 #include <atomic>
 #include <cstddef>
-#include <fmt/core.h>
 #include <tracy/Tracy.hpp>
+
+#include "utils/types.hpp"
 
 struct Region;
 
@@ -39,8 +41,9 @@ extern std::atomic<unsigned long> temp_ir_size;
 
 namespace foptim::utils {
 
-template <class T> class TempAlloc {
-public:
+template <class T>
+class TempAlloc {
+ public:
   using value_type = T;
   using pointer = T *;
   consteval TempAlloc() noexcept = default;
@@ -48,7 +51,7 @@ public:
   constexpr TempAlloc(const TempAlloc<U> & /*unnused*/) noexcept {}
 
   class ScopedTempStorage {
-  public:
+   public:
     Arena_Mark _stored;
     ScopedTempStorage(Arena_Mark m) : _stored(m) {}
     ~ScopedTempStorage() { TempAlloc::restore(_stored); }
@@ -81,13 +84,15 @@ public:
     arena_free(&temp_arena);
     // TODO: tracy free pool
   }
-  template <typename U> struct rebind {
+  template <typename U>
+  struct rebind {
     using other = TempAlloc<U>;
   };
 };
 
-template <class T> class IRAlloc {
-public:
+template <class T>
+class IRAlloc {
+ public:
   using value_type = T;
   using pointer = T *;
   consteval IRAlloc() noexcept = default;
@@ -130,7 +135,8 @@ public:
     arena_free(&ir_arena);
   }
 
-  template <typename U> struct rebind {
+  template <typename U>
+  struct rebind {
     using other = IRAlloc<U>;
   };
 };
@@ -157,4 +163,4 @@ constexpr bool operator!=(const TempAlloc<T> & /*unnused*/,
                           const TempAlloc<U> & /*unnused*/) noexcept {
   return false;
 }
-} // namespace foptim::utils
+}  // namespace foptim::utils

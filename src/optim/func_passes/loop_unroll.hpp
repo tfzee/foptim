@@ -10,7 +10,7 @@
 namespace foptim::optim {
 
 class LoopUnroll final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override;
   bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
                 fir::Function &func);
@@ -217,4 +217,4 @@ void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   }
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

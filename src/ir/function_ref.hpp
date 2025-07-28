@@ -5,17 +5,17 @@ class Builder;
 class Function;
 
 class FunctionR {
-public:
+ public:
   Function *func;
   constexpr FunctionR(Function *func) : func(func) {}
 
   constexpr Function *operator->() const { return func; }
 
-  constexpr bool operator==(FunctionR other) const{
-    return (void*)func == other.func;
-  } 
+  constexpr bool operator==(FunctionR other) const {
+    return (void *)func == other.func;
+  }
   Builder builder();
 };
 
 using CFunctionR = const FunctionR;
-} // namespace foptim::fir
+}  // namespace foptim::fir

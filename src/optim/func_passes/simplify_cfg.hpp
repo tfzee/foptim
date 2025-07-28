@@ -6,7 +6,7 @@
 namespace foptim::fir {
 class Function;
 class BasicBlock;
-} // namespace foptim::fir
+}  // namespace foptim::fir
 namespace foptim::optim {
 class Dominators;
 
@@ -75,10 +75,10 @@ class SimplifyCFG final : public FunctionPass {
   bool eliminate_infinite_loop(CFG &cfg, CFG::Node &curr, fir::Function &func,
                                size_t bb_id, bool is_entry);
 
-public:
+ public:
   bool simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
                     size_t bb_id);
   void apply(fir::Context & /*unused*/, fir::Function &func) override;
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

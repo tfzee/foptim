@@ -1,16 +1,17 @@
 #pragma once
+#include <limits>
+
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "utils/APInt.hpp"
-#include <limits>
 
 namespace foptim::optim {
 
 // using utils::Int128;
 
 class IntRange final : public AttributeAnalysis {
-public:
+ public:
   IntegerLattice<i128, 0, std::numeric_limits<i128>::min()> min;
   IntegerLattice<i128, 0, std::numeric_limits<i128>::max()> max;
   IntRange() = default;
@@ -67,34 +68,34 @@ public:
       bool worst_max = a1->max.isWorst() || a2->max.isWorst();
 
       switch ((fir::BinaryInstrSubType)instr->subtype) {
-      case fir::BinaryInstrSubType::IntAdd: {
-        auto new_min_val = worst_min ? min.getWorst() : a1->min + a2->min;
-        if (new_min_val != min.value) {
-          min.value = new_min_val;
-          changed = true;
+        case fir::BinaryInstrSubType::IntAdd: {
+          auto new_min_val = worst_min ? min.getWorst() : a1->min + a2->min;
+          if (new_min_val != min.value) {
+            min.value = new_min_val;
+            changed = true;
+          }
+          auto new_max_val = worst_max ? max.getWorst() : a1->max + a2->max;
+          if (new_max_val != max.value) {
+            max.value = new_max_val;
+            changed = true;
+          }
+          break;
         }
-        auto new_max_val = worst_max ? max.getWorst() : a1->max + a2->max;
-        if (new_max_val != max.value) {
-          max.value = new_max_val;
-          changed = true;
+        case fir::BinaryInstrSubType::IntMul: {
+          auto new_min_val = worst_min ? min.getWorst() : a1->min * a2->min;
+          if (new_min_val != min.value) {
+            min.value = new_min_val;
+            changed = true;
+          }
+          auto new_max_val = worst_max ? max.getWorst() : a1->max * a2->max;
+          if (new_max_val != max.value) {
+            max.value = new_max_val;
+            changed = true;
+          }
+          break;
         }
-        break;
-      }
-      case fir::BinaryInstrSubType::IntMul: {
-        auto new_min_val = worst_min ? min.getWorst() : a1->min * a2->min;
-        if (new_min_val != min.value) {
-          min.value = new_min_val;
-          changed = true;
-        }
-        auto new_max_val = worst_max ? max.getWorst() : a1->max * a2->max;
-        if (new_max_val != max.value) {
-          max.value = new_max_val;
-          changed = true;
-        }
-        break;
-      }
-      default:
-        break;
+        default:
+          break;
       }
     }
 
@@ -102,4 +103,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

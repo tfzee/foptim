@@ -11,10 +11,9 @@
 namespace foptim::optim {
 
 class LLVMInstrinsicLowering final : public FunctionPass {
-public:
+ public:
   void handle_memset(fir::Instr instr, fir::Function &func,
                      fir::FunctionR /*callee*/) {
-
     auto *ctx = func.ctx;
     fir::Builder bb{instr};
     auto target_ptr = instr->args[1];
@@ -104,7 +103,6 @@ public:
 
   void handle_memcpy(fir::Instr instr, fir::Function &func,
                      fir::FunctionR /*callee*/) {
-
     auto *ctx = func.ctx;
     fir::Builder bb{instr};
     auto dst_ptr = instr->args[1];
@@ -257,7 +255,6 @@ public:
 
   void handle_umul_with_overflow(fir::Instr instr, fir::Function & /*funcy*/,
                                  fir::FunctionR /*callee*/) {
-
     auto width = instr.get_type()->as_struct().elems[0].ty->as_int();
     if (width == 64) {
       fir::Builder bb{instr};
@@ -394,4 +391,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

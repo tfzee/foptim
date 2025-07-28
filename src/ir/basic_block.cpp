@@ -1,4 +1,5 @@
 #include "basic_block.hpp"
+
 #include "function.hpp"
 #include "instruction_data.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -74,4 +75,4 @@ void BasicBlockData::remove_from_parent(bool remove_references,
 }
 
 // FVec<Instr> &BasicBlockData::get_instrs() { return instructions; }
-} // namespace foptim::fir
+}  // namespace foptim::fir

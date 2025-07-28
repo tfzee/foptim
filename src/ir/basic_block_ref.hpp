@@ -5,7 +5,7 @@
 namespace foptim::fir {
 
 class BasicBlock : public utils::SRef<BasicBlockData> {
-public:
+ public:
   constexpr bool operator==(const BasicBlock &other) const {
     return utils::SRef<BasicBlockData>::operator==(other);
   }
@@ -21,9 +21,10 @@ public:
   Builder builder();
   Builder builder_at_end();
 };
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct std::hash<foptim::fir::BasicBlock> {
+template <>
+struct std::hash<foptim::fir::BasicBlock> {
   std::size_t operator()(const foptim::fir::BasicBlock &k) const {
     using foptim::u32;
     using std::hash;

@@ -4,28 +4,32 @@
 
 namespace foptim {
 
-template <class T> class Mutex;
+template <class T>
+class Mutex;
 
-template <class T> class MutMutexGuard {
+template <class T>
+class MutMutexGuard {
   Mutex<T> *const mutex;
 
-public:
+ public:
   MutMutexGuard(Mutex<T> *cont) : mutex(cont) { mutex->_mutex.lock(); }
   ~MutMutexGuard() { mutex->_mutex.unlock(); }
   T *operator->() { return &mutex->_contained; }
 };
 
-template <class T> class ConstMutexGuard {
+template <class T>
+class ConstMutexGuard {
   Mutex<T> *const mutex;
 
-public:
+ public:
   ConstMutexGuard(Mutex<T> *cont) : mutex(cont) { mutex->_mutex.lock_shared(); }
   ~ConstMutexGuard() { mutex->_mutex.unlock_shared(); }
   const T *operator->() { return &mutex->_contained; }
 };
 
-template <class T> class Mutex {
-public:
+template <class T>
+class Mutex {
+ public:
   T _contained;
 #ifdef TRACY_ENABLE
   tracy::SharedLockable<std::shared_mutex> _mutex = {
@@ -46,4 +50,4 @@ public:
   }
 };
 
-} // namespace foptim
+}  // namespace foptim

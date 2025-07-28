@@ -1,13 +1,14 @@
 #pragma once
+#include <fmt/core.h>
+
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
-#include <fmt/core.h>
 
 namespace foptim::optim {
 
 class FuncAnnotator final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context & /*ctx*/, fir::Function &func) override {
     bool does_read = false;
     bool wont_recurse = true;
@@ -68,4 +69,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

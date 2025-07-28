@@ -4,7 +4,7 @@
 namespace foptim::optim {
 
 class GarbageCollect final : public ModulePass {
-public:
+ public:
   void apply(fir::Context &ctx) override {
     ctx.data->storage.storage_instr.collect_garbage();
     // ctx.data->storage.storage_global.collect_garbage();
@@ -12,4 +12,4 @@ public:
     // ctx.data->storage.storage_type.collect_garbage();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -1,9 +1,10 @@
 #pragma once
+#include <span>
+
 #include "context.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
-#include <span>
 
 namespace foptim::fir {
 struct ContextData;
@@ -19,7 +20,7 @@ class Builder {
   BasicBlock bb;
   size_t indx;
 
-public:
+ public:
   Builder(FunctionR func);
   Builder(BasicBlock bb);
   Builder(Instr instr);
@@ -73,9 +74,10 @@ public:
   ValueR build_vbroadcast(ValueR val, TypeR type);
   Instr build_branch(BasicBlock target_bb);
   Instr build_cond_branch(ValueR cond, BasicBlock true_bb, BasicBlock false_bb);
-  Instr build_switch(ValueR value,
-                     std::span<std::pair<fir::ConstantValueR, fir::BasicBlock>> targets,
-                     BasicBlock default_bb);
+  Instr build_switch(
+      ValueR value,
+      std::span<std::pair<fir::ConstantValueR, fir::BasicBlock>> targets,
+      BasicBlock default_bb);
   ValueR build_load(TypeR type, ValueR ptr);
   ValueR build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2);
   ValueR build_store(ValueR ptr, ValueR value);
@@ -88,4 +90,4 @@ public:
   Instr move_instr(Instr instr);
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

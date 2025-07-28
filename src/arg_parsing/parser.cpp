@@ -1,11 +1,12 @@
-#include "utils/parameters.hpp"
+#include <fmt/core.h>
+
 #include <argparse/argparse.hpp>
 #include <cassert>
-#include <fmt/core.h>
 #include <tracy/Tracy.hpp>
 
-void parse_args(int argc, char *argv[]) {
+#include "utils/parameters.hpp"
 
+void parse_args(int argc, char *argv[]) {
   ZoneScopedN("Arg Parsing");
   argparse::ArgumentParser program("FIR");
   program.add_argument("--workers")

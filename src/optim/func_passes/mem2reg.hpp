@@ -6,8 +6,8 @@
 namespace foptim::optim {
 
 class Mem2Reg final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override;
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

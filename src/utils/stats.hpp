@@ -1,13 +1,15 @@
 #pragma once
+#include <fmt/core.h>
+
+#include <unordered_map>
+
 #include "types.hpp"
 #include "utils/todo.hpp"
-#include <fmt/core.h>
-#include <unordered_map>
 
 namespace foptim::utils {
 
 class StatCollector {
-public:
+ public:
   enum StatType {
     STAT_ANY,
     StatFOptim,
@@ -83,32 +85,32 @@ public:
       if (stat.ty == filter_ty || stat.ty == STAT_ANY ||
           filter_ty == STAT_ANY) {
         switch (stat.ty) {
-        case STAT_ANY:
-          fmt::print("ANYY:");
-          break;
-        case StatFOptim:
-          fmt::print("FOPT:");
-          break;
-        case StatMatcher:
-          fmt::print("MATC:");
-          break;
-        case StatMirOptim:
-          fmt::print("MIRO:");
-          break;
-        case StatOther:
-          fmt::print("OTHR:");
-          break;
+          case STAT_ANY:
+            fmt::print("ANYY:");
+            break;
+          case StatFOptim:
+            fmt::print("FOPT:");
+            break;
+          case StatMatcher:
+            fmt::print("MATC:");
+            break;
+          case StatMirOptim:
+            fmt::print("MIRO:");
+            break;
+          case StatOther:
+            fmt::print("OTHR:");
+            break;
         }
         switch (stat.type) {
-        case StatValType::I64:
-          fmt::println("{: <25}: {: >5}", name, stat.iv);
-          break;
-        case StatValType::F64:
-          fmt::println("{: <25}: {: >5}", name, stat.dv);
-          break;
+          case StatValType::I64:
+            fmt::println("{: <25}: {: >5}", name, stat.iv);
+            break;
+          case StatValType::F64:
+            fmt::println("{: <25}: {: >5}", name, stat.dv);
+            break;
         }
       }
     }
   }
 };
-} // namespace foptim::utils
+}  // namespace foptim::utils

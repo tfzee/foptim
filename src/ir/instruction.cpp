@@ -1,4 +1,7 @@
 #include "ir/instruction.hpp"
+
+#include <fmt/color.h>
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
@@ -6,7 +9,6 @@
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
 #include "utils/stable_vec_ref.hpp"
-#include <fmt/color.h>
 
 namespace foptim::fir {
 
@@ -36,7 +38,8 @@ void Instr::remove_from_parent() {
 
 namespace {
 
-template <class T> bool substitute_impl(Instr &t, const T &repl) {
+template <class T>
+bool substitute_impl(Instr &t, const T &repl) {
   auto *self = t.operator->();
   const auto n_args = self->args.size();
   bool replaced = false;
@@ -63,7 +66,7 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
   return replaced;
 }
 
-} // namespace
+}  // namespace
 
 bool Instr::substitute(const FMap<ValueR, ValueR> &repl) {
   return substitute_impl(*this, repl);
@@ -274,7 +277,7 @@ u16 Instr::add_bb(BasicBlock val) {
   return self->bbs.size() - 1;
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
     foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const {
@@ -304,9 +307,8 @@ fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
   return app;
 }
 
-fmt::appender
-fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
-                                           format_context &ctx) const {
+fmt::appender fmt::formatter<foptim::fir::Instr>::format(
+    foptim::fir::Instr const &instr, format_context &ctx) const {
   auto app = ctx.out();
   if (!instr.is_valid()) {
     return fmt::format_to(app, "INVALID\n");

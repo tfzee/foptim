@@ -78,7 +78,7 @@ struct LiveRange {
 };
 
 class LiveVariables {
-public:
+ public:
   LiveVariables(fir::Function &func, CFG &cfg) { update(func, cfg); }
 
   TMap<fir::ValueR, TVec<LiveRange>> live_variables;
@@ -150,4 +150,4 @@ public:
   void update(fir::Function &func, CFG &cfg);
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

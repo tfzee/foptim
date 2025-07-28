@@ -8,7 +8,7 @@
 namespace foptim::optim {
 
 class FunctionPass {
-public:
+ public:
   struct FailureReason {
     const char *reason;
     fir::IRLocation loc;
@@ -48,8 +48,9 @@ public:
   }
 };
 
-template <class... Passes> class StaticFunctionPassManager {
-public:
+template <class... Passes>
+class StaticFunctionPassManager {
+ public:
   void apply(fir::Context &ctx) {
     for (auto &[name, func] : ctx->storage.functions) {
       if (func->is_decl()) {
@@ -65,8 +66,9 @@ public:
   }
 };
 
-template <class... Passes> class StaticParallelFunctionPassManager {
-public:
+template <class... Passes>
+class StaticParallelFunctionPassManager {
+ public:
   void apply(fir::Context &ctx, JobSheduler *shed) {
     for (auto &[name, func] : ctx->storage.functions) {
       if (func->is_decl()) {
@@ -87,7 +89,7 @@ public:
 };
 
 class FunctionPassManager {
-public:
+ public:
   FVec<FunctionPass> dyn_passes;
 
   void apply(fir::Context &ctx) {
@@ -101,4 +103,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

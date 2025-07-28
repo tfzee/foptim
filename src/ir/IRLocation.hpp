@@ -1,11 +1,12 @@
 #pragma once
+#include <unordered_map>
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "utils/types.hpp"
-#include <unordered_map>
 
 namespace foptim::fir {
 
@@ -86,16 +87,18 @@ struct IRLocation {
     bb = get_bb_indx(from_bb);
   }
 };
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct std::hash<foptim::fir::IRLocation::LocationType> {
-  std::size_t
-  operator()(const foptim::fir::IRLocation::LocationType &k) const noexcept {
+template <>
+struct std::hash<foptim::fir::IRLocation::LocationType> {
+  std::size_t operator()(
+      const foptim::fir::IRLocation::LocationType &k) const noexcept {
     return hash<foptim::u8>()((foptim::u8)k);
   }
 };
 
-template <> struct std::hash<foptim::fir::IRLocation> {
+template <>
+struct std::hash<foptim::fir::IRLocation> {
   std::size_t operator()(const foptim::fir::IRLocation &k) const noexcept {
     return hash<foptim::u32>()(k.bb) ^ hash<foptim::u32>()(k.instr) ^
            hash<foptim::fir::IRLocation::LocationType>()(k.type);

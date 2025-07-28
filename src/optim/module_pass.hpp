@@ -7,7 +7,7 @@
 namespace foptim::optim {
 
 class ModulePass {
-public:
+ public:
   struct FailureReason {
     const char *reason;
     fir::IRLocation loc;
@@ -45,8 +45,9 @@ public:
   }
 };
 
-template <class... Passes> class StaticModulePassManager {
-public:
+template <class... Passes>
+class StaticModulePassManager {
+ public:
   void apply(fir::Context &ctx) {
     if (utils::print_optimization_failure_reasons) {
       (Passes{}.apply_pass(ctx).print_failures(), ...);
@@ -57,7 +58,7 @@ public:
 };
 
 class ModulePassManager {
-public:
+ public:
   FVec<ModulePass> dyn_passes;
 
   void apply(fir::Context &ctx) {
@@ -66,4 +67,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

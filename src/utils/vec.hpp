@@ -1,8 +1,9 @@
 #pragma once
+#include <vector>
+
 #include "helpers.hpp"
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
-#include <vector>
 
 namespace foptim {
 
@@ -15,16 +16,15 @@ using TVec = std::vector<Val, Alloc>;
 template <class Val, class Alloc = utils::IRAlloc<Val>>
 using IRVec = std::vector<Val, Alloc>;
 
-} // namespace foptim
-
+}  // namespace foptim
 
 template <class T>
 class fmt::formatter<foptim::TVec<T>>
     : public BaseIRFormatter<foptim::TVec<T>> {
-public:
-  appender format(foptim::TVec<T> const &k, format_context &ctx) const{
+ public:
+  appender format(foptim::TVec<T> const &k, format_context &ctx) const {
     auto app = ctx.out();
-    for(const auto& elem: k){
+    for (const auto &elem : k) {
       app = fmt::format_to(app, "{}", elem);
     }
     return app;

@@ -10,7 +10,7 @@
 namespace foptim::optim {
 
 class GlobalPromotion final : public ModulePass {
-public:
+ public:
   void apply(fir::Context &ctx) override {
     // if we have a global thats linked internally
     //  and its only used in 1 function we can promote it to a local alloca
@@ -40,14 +40,14 @@ public:
               v->generation};
           auto global = fir::Global{std::move(sref)};
           switch (global->linkage) {
-          case fir::Linkage::External:
-          case fir::Linkage::Weak:
-          case fir::Linkage::WeakODR:
-          case fir::Linkage::LinkOnce:
-          case fir::Linkage::LinkOnceODR:
-            continue;
-          case fir::Linkage::Internal:
-            break;
+            case fir::Linkage::External:
+            case fir::Linkage::Weak:
+            case fir::Linkage::WeakODR:
+            case fir::Linkage::LinkOnce:
+            case fir::Linkage::LinkOnceODR:
+              continue;
+            case fir::Linkage::Internal:
+              break;
           }
           // TODO: tweak
           if (global->n_bytes > 8) {
@@ -124,4 +124,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

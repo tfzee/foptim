@@ -1,7 +1,8 @@
+#include <fmt/color.h>
+
 #include "builder.hpp"
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
-#include <fmt/color.h>
 
 namespace foptim::fir {
 
@@ -40,9 +41,10 @@ bool Function::verify() const {
   }
   for (size_t i = 0; i < ty.arg_types.size(); i++) {
     if (!ty.arg_types[i]->eql(*entry->args[i]->get_type().get_raw_ptr())) {
-      fmt::println("Argument type at location {} does not match the type of "
-                   "the function {} != {}",
-                   i, ty.arg_types[i], entry->args[i]->get_type());
+      fmt::println(
+          "Argument type at location {} does not match the type of "
+          "the function {} != {}",
+          i, ty.arg_types[i], entry->args[i]->get_type());
       return false;
     }
   }
@@ -55,11 +57,10 @@ bool Function::verify() const {
   }
   return true;
 }
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-fmt::appender
-fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
-                                              format_context &ctx) const {
+fmt::appender fmt::formatter<foptim::fir::Function>::format(
+    foptim::fir::Function const &func, format_context &ctx) const {
   auto app = ctx.out();
   app = fmt::format_to(app, "\n; ");
   if (func.variadic) {
@@ -89,33 +90,33 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
 
   app = fmt::format_to(app, "<CC: ");
   switch (func.cc) {
-  case foptim::fir::Function::CallingConv::C:
-    app = fmt::format_to(app, "C");
-    break;
-  case foptim::fir::Function::CallingConv::Dynamic:
-    app = fmt::format_to(app, "dyn");
-    break;
+    case foptim::fir::Function::CallingConv::C:
+      app = fmt::format_to(app, "C");
+      break;
+    case foptim::fir::Function::CallingConv::Dynamic:
+      app = fmt::format_to(app, "dyn");
+      break;
   }
   app = fmt::format_to(app, ", LINK: ");
   switch (func.linkage) {
-  case foptim::fir::Linkage::Internal:
-    app = fmt::format_to(app, "internal");
-    break;
-  case foptim::fir::Linkage::External:
-    app = fmt::format_to(app, "external");
-    break;
-  case foptim::fir::Linkage::Weak:
-    app = fmt::format_to(app, "weak");
-    break;
-  case foptim::fir::Linkage::WeakODR:
-    app = fmt::format_to(app, "weakODR");
-    break;
-  case foptim::fir::Linkage::LinkOnce:
-    app = fmt::format_to(app, "linkonce");
-    break;
-  case foptim::fir::Linkage::LinkOnceODR:
-    app = fmt::format_to(app, "linkonceODR");
-    break;
+    case foptim::fir::Linkage::Internal:
+      app = fmt::format_to(app, "internal");
+      break;
+    case foptim::fir::Linkage::External:
+      app = fmt::format_to(app, "external");
+      break;
+    case foptim::fir::Linkage::Weak:
+      app = fmt::format_to(app, "weak");
+      break;
+    case foptim::fir::Linkage::WeakODR:
+      app = fmt::format_to(app, "weakODR");
+      break;
+    case foptim::fir::Linkage::LinkOnce:
+      app = fmt::format_to(app, "linkonce");
+      break;
+    case foptim::fir::Linkage::LinkOnceODR:
+      app = fmt::format_to(app, "linkonceODR");
+      break;
   }
   app = fmt::format_to(app, ", ");
   const auto &attribs = func.get_attribs();

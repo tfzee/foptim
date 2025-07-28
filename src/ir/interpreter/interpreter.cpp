@@ -1,4 +1,5 @@
 #include "interpreter.hpp"
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value.hpp"
@@ -59,94 +60,93 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
     return false;
   }
   switch ((BinaryInstrSubType)instr->subtype) {
-  case BinaryInstrSubType::IntAdd:
-    st.set_value(ValueR(instr),
-                 ConstantValue{v1->as_int() + v2->as_int(), instr.get_type()});
-    break;
-  case BinaryInstrSubType::IntMul:
-    st.set_value(ValueR(instr),
-                 ConstantValue{v1->as_int() * v2->as_int(), instr.get_type()});
-    break;
-  case BinaryInstrSubType::IntSub:
-    st.set_value(ValueR(instr),
-                 ConstantValue{v1->as_int() - v2->as_int(), instr.get_type()});
-    break;
-  case BinaryInstrSubType::FloatAdd:
-    if (instr.get_type()->as_float() == 32) {
-      st.set_value(ValueR(instr), ConstantValue{v1->as_f32() + v2->as_f32(),
+    case BinaryInstrSubType::IntAdd:
+      st.set_value(ValueR(instr), ConstantValue{v1->as_int() + v2->as_int(),
                                                 instr.get_type()});
-    } else {
-      st.set_value(ValueR(instr), ConstantValue{v1->as_f64() + v2->as_f64(),
+      break;
+    case BinaryInstrSubType::IntMul:
+      st.set_value(ValueR(instr), ConstantValue{v1->as_int() * v2->as_int(),
                                                 instr.get_type()});
-    }
-    break;
-  case BinaryInstrSubType::IntSRem:
-  case BinaryInstrSubType::IntSDiv:
-  case BinaryInstrSubType::IntUDiv:
-  case BinaryInstrSubType::Shl:
-  case BinaryInstrSubType::Shr:
-  case BinaryInstrSubType::AShr:
-  case BinaryInstrSubType::And:
-  case BinaryInstrSubType::Or:
-  case BinaryInstrSubType::Xor:
-    TODO("impl");
-  default:
-    return false;
-  case BinaryInstrSubType::INVALID:
-    TODO("INVALID");
+      break;
+    case BinaryInstrSubType::IntSub:
+      st.set_value(ValueR(instr), ConstantValue{v1->as_int() - v2->as_int(),
+                                                instr.get_type()});
+      break;
+    case BinaryInstrSubType::FloatAdd:
+      if (instr.get_type()->as_float() == 32) {
+        st.set_value(ValueR(instr), ConstantValue{v1->as_f32() + v2->as_f32(),
+                                                  instr.get_type()});
+      } else {
+        st.set_value(ValueR(instr), ConstantValue{v1->as_f64() + v2->as_f64(),
+                                                  instr.get_type()});
+      }
+      break;
+    case BinaryInstrSubType::IntSRem:
+    case BinaryInstrSubType::IntSDiv:
+    case BinaryInstrSubType::IntUDiv:
+    case BinaryInstrSubType::Shl:
+    case BinaryInstrSubType::Shr:
+    case BinaryInstrSubType::AShr:
+    case BinaryInstrSubType::And:
+    case BinaryInstrSubType::Or:
+    case BinaryInstrSubType::Xor:
+      TODO("impl");
+    default:
+      return false;
+    case BinaryInstrSubType::INVALID:
+      TODO("INVALID");
   }
   ip.instr_id++;
   return true;
 }
 
 bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
-
   auto v1 = get_constant_value(instr->args[0], st);
   auto v2 = get_constant_value(instr->args[1], st);
   if (!v1 || !v2) {
     return false;
   }
   switch ((ICmpInstrSubType)instr->subtype) {
-  case ICmpInstrSubType::SGE:
-    st.set_value(ValueR(instr),
-                 ConstantValue{(v1->as_int() >= v2->as_int()) ? ~(i128)0 : 0,
-                               instr->get_type()});
-    break;
-  case ICmpInstrSubType::SGT:
-    st.set_value(ValueR(instr),
-                 ConstantValue{(v1->as_int() > v2->as_int()) ? ~(i128)0 : 0,
-                               instr->get_type()});
-    break;
-  case ICmpInstrSubType::SLT:
-    st.set_value(ValueR(instr),
-                 ConstantValue{(v1->as_int() < v2->as_int()) ? ~(i128)0 : 0,
-                               instr->get_type()});
-    break;
-  case ICmpInstrSubType::SLE:
-    st.set_value(ValueR(instr),
-                 ConstantValue{(v1->as_int() <= v2->as_int()) ? ~(i128)0 : 0,
-                               instr->get_type()});
-    break;
-  case ICmpInstrSubType::ULT:
-    st.set_value(ValueR(instr),
-                 ConstantValue{(std::bit_cast<u128>(v1->as_int()) <
-                                std::bit_cast<u128>(v2->as_int()))
-                                   ? ~(i128)0
-                                   : 0,
-                               instr->get_type()});
-    break;
-  case ICmpInstrSubType::ULE:
-    st.set_value(ValueR(instr),
-                 ConstantValue{(std::bit_cast<u128>(v1->as_int()) <=
-                                std::bit_cast<u128>(v2->as_int()))
-                                   ? ~(i128)0
-                                   : 0,
-                               instr->get_type()});
-    break;
-  default:
-    return false;
-  case ICmpInstrSubType::INVALID:
-    TODO("INVALID");
+    case ICmpInstrSubType::SGE:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(v1->as_int() >= v2->as_int()) ? ~(i128)0 : 0,
+                                 instr->get_type()});
+      break;
+    case ICmpInstrSubType::SGT:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(v1->as_int() > v2->as_int()) ? ~(i128)0 : 0,
+                                 instr->get_type()});
+      break;
+    case ICmpInstrSubType::SLT:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(v1->as_int() < v2->as_int()) ? ~(i128)0 : 0,
+                                 instr->get_type()});
+      break;
+    case ICmpInstrSubType::SLE:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(v1->as_int() <= v2->as_int()) ? ~(i128)0 : 0,
+                                 instr->get_type()});
+      break;
+    case ICmpInstrSubType::ULT:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(std::bit_cast<u128>(v1->as_int()) <
+                                  std::bit_cast<u128>(v2->as_int()))
+                                     ? ~(i128)0
+                                     : 0,
+                                 instr->get_type()});
+      break;
+    case ICmpInstrSubType::ULE:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(std::bit_cast<u128>(v1->as_int()) <=
+                                  std::bit_cast<u128>(v2->as_int()))
+                                     ? ~(i128)0
+                                     : 0,
+                                 instr->get_type()});
+      break;
+    default:
+      return false;
+    case ICmpInstrSubType::INVALID:
+      TODO("INVALID");
   }
   ip.instr_id++;
   return true;
@@ -175,7 +175,7 @@ bool interpret_zext(Instr instr, State &st, InstrPointer &ip) {
   return true;
 }
 
-} // namespace
+}  // namespace
 
 void Interpreter::dump_state() {
   fmt::println("========STATE=========");
@@ -192,19 +192,19 @@ bool Interpreter::step_instr() {
   // dump_state();
 
   switch (curr_i->instr_type) {
-  case InstrType::BranchInstr:
-    return interpret_branch(curr_i, state, ip);
-  case InstrType::BinaryInstr:
-    return interpret_binary_expr(curr_i, state, ip);
-  case InstrType::ICmp:
-    return interpret_icmp(curr_i, state, ip);
-  case InstrType::CondBranchInstr:
-    return interpret_cbranch(curr_i, state, ip);
-  case InstrType::SExt:
-    return interpret_sext(curr_i, state, ip);
-  case InstrType::ZExt:
-    return interpret_zext(curr_i, state, ip);
-  default:
+    case InstrType::BranchInstr:
+      return interpret_branch(curr_i, state, ip);
+    case InstrType::BinaryInstr:
+      return interpret_binary_expr(curr_i, state, ip);
+    case InstrType::ICmp:
+      return interpret_icmp(curr_i, state, ip);
+    case InstrType::CondBranchInstr:
+      return interpret_cbranch(curr_i, state, ip);
+    case InstrType::SExt:
+      return interpret_sext(curr_i, state, ip);
+    case InstrType::ZExt:
+      return interpret_zext(curr_i, state, ip);
+    default:
   }
   fmt::println("{}", curr_i);
   TODO("impl interpreter instr");
@@ -244,4 +244,4 @@ void Interpreter::set(ValueR r, ConstantValue cv) {
   state.vals.insert({r, cv});
 }
 
-} // namespace foptim::fir::intepreter
+}  // namespace foptim::fir::intepreter

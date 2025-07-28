@@ -1,4 +1,8 @@
 #pragma once
+#include <fmt/core.h>
+
+#include <utility>
+
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -13,13 +17,11 @@
 #include "optim/analysis/cfg.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
-#include <fmt/core.h>
-#include <utility>
 
 namespace foptim::optim {
 
 class ArgPromotion final : public ModulePass {
-public:
+ public:
   bool are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
                                            fir::BBArgument /*barg*/,
                                            fir::Use use, CFG &cfg,
@@ -162,14 +164,14 @@ public:
       // fmt::println("RUNNING ON {}", f->func_ty);
       // fmt::println("RUNNING ON {}", *f.get());
       switch (f->linkage) {
-      case fir::Linkage::External:
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-      case fir::Linkage::WeakODR:
-        continue;
-      case fir::Linkage::LinkOnceODR:
-      case fir::Linkage::Internal:
-        break;
+        case fir::Linkage::External:
+        case fir::Linkage::Weak:
+        case fir::Linkage::LinkOnce:
+        case fir::Linkage::WeakODR:
+          continue;
+        case fir::Linkage::LinkOnceODR:
+        case fir::Linkage::Internal:
+          break;
       }
 
       if (f->is_decl() || f->variadic) {
@@ -197,4 +199,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

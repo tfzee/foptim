@@ -1,20 +1,21 @@
 #pragma once
+#include <cassert>
+#include <cstdlib>
+#include <cstring>
+#include <tracy/Tracy.hpp>
+#include <vector>
+
 #include "helpers.hpp"
 #include "stable_vec_ref.hpp"
 #include "stable_vec_slot.hpp"
 #include "todo.hpp"
 #include "types.hpp"
 #include "utils/mutex.hpp"
-#include <cassert>
-#include <cstdlib>
-#include <cstring>
-#include <vector>
-
-#include <tracy/Tracy.hpp>
 
 namespace foptim::utils {
 
-template <class T> struct FreeInfo {
+template <class T>
+struct FreeInfo {
   Slot<T> *ptr;
   u32 len;
 };
@@ -23,13 +24,12 @@ template <
     class T, u32 slot_slab_len = 128, class AllocFreeList = FAlloc<FreeInfo<T>>,
     class AllocSlabList = FAlloc<Slot<T> *>, class AllocSlabs = FAlloc<Slot<T>>>
 class StableVec {
-
 #ifdef SLOT_CHECK_GENERATION
   u32 curr_gen = 1;
 #endif
   foptim::Mutex<std::vector<FreeInfo<T>, AllocFreeList>> _free_list;
 
-public:
+ public:
   static constexpr u32 _slot_slab_len = slot_slab_len;
   std::vector<Slot<T> *, AllocSlabList> _slot_slab_starts;
 
@@ -162,4 +162,4 @@ public:
 //           class Alloc = IRAlloc<Slot<T>>>
 // using IRStableVec = StableVec<T, slot_slab_len, Alloc>;
 
-} // namespace foptim::utils
+}  // namespace foptim::utils

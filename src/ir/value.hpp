@@ -1,11 +1,12 @@
 #pragma once
+#include <cassert>
+
 #include "basic_block_ref.hpp"
 #include "instruction.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/use.hpp"
 #include "types_ref.hpp"
-#include <cassert>
 
 namespace foptim::fir {
 
@@ -18,7 +19,7 @@ enum class ValueType {
 };
 
 class ValueR {
-public:
+ public:
   ValueType ty;
   union {
     Instr instr;
@@ -92,24 +93,25 @@ public:
   }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct std::hash<foptim::fir::ValueR> {
+template <>
+struct std::hash<foptim::fir::ValueR> {
   std::size_t operator()(const foptim::fir::ValueR &k) const {
     using foptim::u32;
     using namespace foptim::fir;
     using std::hash;
     switch (k.ty) {
-    case foptim::fir::ValueType::InvalidValue:
-      return 0;
-    case foptim::fir::ValueType::Instr:
-      return std::hash<Instr>()(k.instr);
-    case foptim::fir::ValueType::BasicBlock:
-      return std::hash<BasicBlock>()(k.bb);
-    case foptim::fir::ValueType::BBArg:
-      return std::hash<BBArgument>()(k.bb_arg);
-    case foptim::fir::ValueType::ConstantValueR:
-      return std::hash<ConstantValueR>()(k.const_val);
+      case foptim::fir::ValueType::InvalidValue:
+        return 0;
+      case foptim::fir::ValueType::Instr:
+        return std::hash<Instr>()(k.instr);
+      case foptim::fir::ValueType::BasicBlock:
+        return std::hash<BasicBlock>()(k.bb);
+      case foptim::fir::ValueType::BBArg:
+        return std::hash<BBArgument>()(k.bb_arg);
+      case foptim::fir::ValueType::ConstantValueR:
+        return std::hash<ConstantValueR>()(k.const_val);
     }
   }
 };

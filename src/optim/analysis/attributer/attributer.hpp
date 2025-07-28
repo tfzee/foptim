@@ -1,10 +1,11 @@
 #pragma once
+#include <deque>
+#include <typeindex>
+
 #include "ir/context.hpp"
 #include "ir/value.hpp"
 #include "utils/map.hpp"
 #include "utils/vec.hpp"
-#include <deque>
-#include <typeindex>
 
 namespace foptim::optim {
 
@@ -13,7 +14,8 @@ class AttributerManager;
 using Worklist =
     std::deque<AttributeAnalysis *, utils::TempAlloc<AttributeAnalysis *>>;
 
-template <class Int, Int best, Int worst> struct IntegerLattice {
+template <class Int, Int best, Int worst>
+struct IntegerLattice {
   Int value;
 
   constexpr IntegerLattice() : value(worst) {}
@@ -43,7 +45,7 @@ struct PairLattice {
 };
 
 class AttributeAnalysis {
-public:
+ public:
   enum class Result {
     Changed,
     Fixed,
@@ -62,7 +64,7 @@ public:
 };
 
 class AttributerManager {
-public:
+ public:
   TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
   TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
   AttributeAnalysis *_currently_updating = nullptr;
@@ -149,4 +151,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

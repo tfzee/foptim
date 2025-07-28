@@ -1,13 +1,13 @@
 #include "pre.hpp"
+
 #include "ir/builder.hpp"
 #include "optim/analysis/cfg.hpp"
 
 namespace foptim::optim {
-static void
-init_transp_antloc(BBData &transp, BBData &antloc, BBData &comp,
-                   const fir::Function &func, const TVec<fir::Instr> &exprs,
-                   const TMap<fir::Instr, TVec<fir::Instr>> &expr_to_instrs) {
-
+static void init_transp_antloc(
+    BBData &transp, BBData &antloc, BBData &comp, const fir::Function &func,
+    const TVec<fir::Instr> &exprs,
+    const TMap<fir::Instr, TVec<fir::Instr>> &expr_to_instrs) {
   for (size_t expr_i = 0; expr_i < exprs.size(); expr_i++) {
     // transparency
     for (const auto &arg : exprs[expr_i]->get_args()) {
@@ -62,7 +62,6 @@ static inline void execute(const BBData &save, const BBData &insert_sin,
                          return v->eql_expr(*exprs[save_id].operator->());
                        });
       if (res_instr == cbb->instructions.end()) {
-
         // print << bbs[0]->get_parent() << "\n";
 
         // print << "INBB: " << bb_id << "\n";
@@ -295,7 +294,6 @@ void EPathPRE::apply(fir::Context & /*ctx*/, fir::Function &func) {
       insert_sin_new.mul_not(av_out[curr_bb]).mul_not(eps_out[curr_bb]);
 
       {
-
         // FOR TESTING CONVERGENCE
         {
           bool something_changed =
@@ -370,4 +368,4 @@ void EPathPRE::apply(fir::Context & /*ctx*/, fir::Function &func) {
     execute(save, insert_sin, insert_doub, redund, exprs, func.get_bbs());
   }
 }
-} // namespace foptim::optim
+}  // namespace foptim::optim

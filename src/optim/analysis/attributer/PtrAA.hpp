@@ -8,11 +8,11 @@
 namespace foptim::optim {
 
 class PtrAA final : public AttributeAnalysis {
-public:
+ public:
   IntegerLattice<bool, true, false> known_non_null;
 
   ~PtrAA() override = default;
-  void materialize_impl(fir::Context&) override {
+  void materialize_impl(fir::Context &) override {
     if (associatedValue.is_instr()) {
       associatedValue.as_instr()->add_attrib("nonull", "");
     } else if (associatedValue.is_bb_arg()) {
@@ -54,4 +54,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

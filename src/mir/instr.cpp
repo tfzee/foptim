@@ -1,7 +1,8 @@
+#include "instr.hpp"
+
 #include <fmt/color.h>
 #include <fmt/core.h>
 
-#include "instr.hpp"
 #include "mir/func.hpp"
 namespace foptim::fmir {
 

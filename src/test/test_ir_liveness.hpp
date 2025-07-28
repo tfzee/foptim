@@ -1,11 +1,13 @@
+#include <gtest/gtest.h>
+
+#include <optim/analysis/live_variables.hpp>
+#include <utils/stable_vec.hpp>
+
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/logging.hpp"
-#include <gtest/gtest.h>
-#include <optim/analysis/live_variables.hpp>
-#include <utils/stable_vec.hpp>
 
 using namespace foptim::utils;
 using namespace foptim::fir;
@@ -21,7 +23,8 @@ TEST(LivenessTest, SingleBB) {
   auto builder = func.builder();
   auto entry_bb = func.func->get_entry();
   builder.at_end(entry_bb);
-  auto x = builder.build_int_add(ValueR{entry_bb->args[0]}, ValueR{entry_bb->args[0]});
+  auto x = builder.build_int_add(ValueR{entry_bb->args[0]},
+                                 ValueR{entry_bb->args[0]});
   auto ret = builder.build_return(x);
 
   optim::CFG cfg{*func.func};
@@ -51,21 +54,23 @@ TEST(LivenessTest, AcrossBB) {
 
   auto func = ctx.data->create_function(
       "testFunc", ctx.data->get_func_ty(ctx.data->get_int_type(32),
-                                        {ctx.data->get_int_type(32), ctx.data->get_int_type(32)}));
+                                        {ctx.data->get_int_type(32),
+                                         ctx.data->get_int_type(32)}));
 
   auto builder = func.builder();
   auto entry_bb = func.func->get_entry();
   auto end_bb = builder.append_bb();
-  end_bb.add_arg(ctx.data->storage.insert_bb_arg(end_bb, ctx.data->get_int_type(32)));
+  end_bb.add_arg(
+      ctx.data->storage.insert_bb_arg(end_bb, ctx.data->get_int_type(32)));
 
   builder.at_end(entry_bb);
   auto branch = builder.build_branch(end_bb);
   branch.add_bb_arg(0, ValueR{entry_bb->args[0]});
   builder.at_end(end_bb);
-  auto x = builder.build_int_add(ValueR{entry_bb->args[0]}, ValueR{end_bb->args[0]});
+  auto x =
+      builder.build_int_add(ValueR{entry_bb->args[0]}, ValueR{end_bb->args[0]});
   auto y = builder.build_int_add(ValueR{entry_bb->args[1]}, x);
   auto ret = builder.build_return(y);
-
 
   optim::CFG cfg{*func.func};
   optim::Dominators dom{cfg};

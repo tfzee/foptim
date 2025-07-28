@@ -1,4 +1,9 @@
 #include "loop_analysis.hpp"
+
+#include <fmt/core.h>
+
+#include <algorithm>
+
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -9,8 +14,6 @@
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
 #include "utils/vec.hpp"
-#include <algorithm>
-#include <fmt/core.h>
 
 namespace foptim::optim {
 
@@ -465,17 +468,17 @@ void InductionVarAnalysis::update(CFG &cfg, LoopInfo &info) {
       IterationType itype = IterationType::Other;
 
       switch (subtype) {
-      case fir::BinaryInstrSubType::IntAdd:
-        itype = IterationType::PlusConst;
-        break;
-      case fir::BinaryInstrSubType::IntSub:
-        itype = IterationType::SubConst;
-        break;
-      case fir::BinaryInstrSubType::IntMul:
-        itype = IterationType::MulConst;
-        break;
-      default:
-        continue;
+        case fir::BinaryInstrSubType::IntAdd:
+          itype = IterationType::PlusConst;
+          break;
+        case fir::BinaryInstrSubType::IntSub:
+          itype = IterationType::SubConst;
+          break;
+        case fir::BinaryInstrSubType::IntMul:
+          itype = IterationType::MulConst;
+          break;
+        default:
+          continue;
       }
 
       fir::ValueR result{user};
@@ -496,35 +499,35 @@ void InductionVarAnalysis::dump() const {
   for (const auto &ind : direct_inductvars) {
     fmt::print("  {}", ind.def);
     switch (ind.type) {
-    case PlusConst:
-      fmt::println(" + {}", ind.consti);
-      break;
-    case SubConst:
-      fmt::println(" - {}", ind.consti);
-      break;
-    case MulConst:
-      fmt::println(" * {}", ind.consti);
-      break;
-    case Other:
-      fmt::println(" ?\n");
-      break;
+      case PlusConst:
+        fmt::println(" + {}", ind.consti);
+        break;
+      case SubConst:
+        fmt::println(" - {}", ind.consti);
+        break;
+      case MulConst:
+        fmt::println(" * {}", ind.consti);
+        break;
+      case Other:
+        fmt::println(" ?\n");
+        break;
     }
   }
   for (const auto &ind : indirect_inductvars) {
     fmt::print("  {} = ", ind.def);
     switch (ind.type) {
-    case PlusConst:
-      fmt::println("{} + {}", ind.arg1, ind.arg2);
-      break;
-    case SubConst:
-      fmt::println("{} - {}", ind.arg1, ind.arg2);
-      break;
-    case MulConst:
-      fmt::println("{} * {}", ind.arg1, ind.arg2);
-      break;
-    case Other:
-      fmt::println("{} ? {}", ind.arg1, ind.arg2);
-      break;
+      case PlusConst:
+        fmt::println("{} + {}", ind.arg1, ind.arg2);
+        break;
+      case SubConst:
+        fmt::println("{} - {}", ind.arg1, ind.arg2);
+        break;
+      case MulConst:
+        fmt::println("{} * {}", ind.arg1, ind.arg2);
+        break;
+      case Other:
+        fmt::println("{} ? {}", ind.arg1, ind.arg2);
+        break;
     }
   }
 }
@@ -535,9 +538,8 @@ std::optional<i128> get_constant(fir::ValueR v) {
                          : std::nullopt;
 }
 
-std::optional<InductionVarAnalysis::InductionVar>
-resolve_base_induction(const fir::ValueR &v, const InductionVarAnalysis &ianal,
-                       i128 &acc_offset) {
+std::optional<InductionVarAnalysis::InductionVar> resolve_base_induction(
+    const fir::ValueR &v, const InductionVarAnalysis &ianal, i128 &acc_offset) {
   auto current = std::ranges::find_if(
       ianal.indirect_inductvars, [&](const auto &iv) { return iv.def == v; });
 
@@ -571,10 +573,9 @@ resolve_base_induction(const fir::ValueR &v, const InductionVarAnalysis &ianal,
     current = neww;
   }
 
-  auto base =
-      std::ranges::find_if(ianal.direct_inductvars, [&](const auto &dv) {
-        return dv.def == current->arg1;
-      });
+  auto base = std::ranges::find_if(
+      ianal.direct_inductvars,
+      [&](const auto &dv) { return dv.def == current->arg1; });
 
   if (base != ianal.direct_inductvars.end()) {
     return *base;
@@ -582,7 +583,7 @@ resolve_base_induction(const fir::ValueR &v, const InductionVarAnalysis &ianal,
 
   return std::nullopt;
 }
-} // namespace
+}  // namespace
 
 void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
                                        InductionVarAnalysis &ianal) {
@@ -685,17 +686,17 @@ void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
         if (val1.has_value() && val2.has_value()) {
           i128 result;
           switch (iv.type) {
-          case InductionVarAnalysis::PlusConst:
-            result = *val1 + *val2;
-            break;
-          case InductionVarAnalysis::SubConst:
-            result = *val1 - *val2;
-            break;
-          case InductionVarAnalysis::MulConst:
-            result = *val1 * *val2;
-            break;
-          default:
-            continue;
+            case InductionVarAnalysis::PlusConst:
+              result = *val1 + *val2;
+              break;
+            case InductionVarAnalysis::SubConst:
+              result = *val1 - *val2;
+              break;
+            case InductionVarAnalysis::MulConst:
+              result = *val1 * *val2;
+              break;
+            default:
+              continue;
           }
           values.insert({iv.def, result});
           changed = true;
@@ -788,10 +789,10 @@ void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
         }
         continue;
       }
-      auto newi = make_expr(SCEVExpr{.t = is_signext ? SCEVExpr::Type::SExt
-                                                     : SCEVExpr::Type::ZExt,
-                                     .associated_val = fir::ValueR{instr},
-                                     .args = {lhs, rhs}});
+      auto newi = make_expr(SCEVExpr{
+          .t = is_signext ? SCEVExpr::Type::SExt : SCEVExpr::Type::ZExt,
+          .associated_val = fir::ValueR{instr},
+          .args = {lhs, rhs}});
       for (auto u : instr->get_uses()) {
         worklist.push_back(u.user);
       }
@@ -829,21 +830,21 @@ void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
 
       SCEVExpr::Type ty = SCEVExpr::Type::Invalid;
       switch ((fir::BinaryInstrSubType)instr->subtype) {
-      case fir::BinaryInstrSubType::IntAdd:
-        ty = SCEVExpr::Type::Add;
-        break;
-      case fir::BinaryInstrSubType::IntSub:
-        ty = SCEVExpr::Type::Sub;
-        break;
-      case fir::BinaryInstrSubType::IntMul:
-        ty = SCEVExpr::Type::Mul;
-        break;
-      default:
-        if constexpr (debug_print) {
-          fmt::println("IV2 missed binary {}", instr);
-        }
-        processed.insert(fir::ValueR{instr});
-        continue;
+        case fir::BinaryInstrSubType::IntAdd:
+          ty = SCEVExpr::Type::Add;
+          break;
+        case fir::BinaryInstrSubType::IntSub:
+          ty = SCEVExpr::Type::Sub;
+          break;
+        case fir::BinaryInstrSubType::IntMul:
+          ty = SCEVExpr::Type::Mul;
+          break;
+        default:
+          if constexpr (debug_print) {
+            fmt::println("IV2 missed binary {}", instr);
+          }
+          processed.insert(fir::ValueR{instr});
+          continue;
       }
 
       auto newi = make_expr(SCEVExpr{
@@ -864,19 +865,19 @@ void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
   auto is_direct_induct = [&](this const auto &self, const SCEVExpr &r,
                               fir::BBArgument &arg) -> bool {
     switch (r.t) {
-    case SCEVExpr::Type::Add:
-    case SCEVExpr::Type::Sub:
-    case SCEVExpr::Type::Mul:
-      return self(exprs[r.args[0] - 1], arg) &&
-             exprs[r.args[1] - 1].t == SCEVExpr::Type::Invariant;
-    case SCEVExpr::Type::SExt:
-    case SCEVExpr::Type::ZExt:
-      return self(exprs[r.args[0] - 1], arg);
-    case SCEVExpr::Type::Input:
-      return r.associated_val.as_bb_arg() == arg;
-    case SCEVExpr::Type::Invalid:
-    case SCEVExpr::Type::Invariant:
-      return false;
+      case SCEVExpr::Type::Add:
+      case SCEVExpr::Type::Sub:
+      case SCEVExpr::Type::Mul:
+        return self(exprs[r.args[0] - 1], arg) &&
+               exprs[r.args[1] - 1].t == SCEVExpr::Type::Invariant;
+      case SCEVExpr::Type::SExt:
+      case SCEVExpr::Type::ZExt:
+        return self(exprs[r.args[0] - 1], arg);
+      case SCEVExpr::Type::Input:
+        return r.associated_val.as_bb_arg() == arg;
+      case SCEVExpr::Type::Invalid:
+      case SCEVExpr::Type::Invariant:
+        return false;
     }
   };
 
@@ -902,30 +903,33 @@ void ScalarEvo::dump() const {
     fmt::print("Expr {}: ", i + 1);
     const auto &e = exprs[i];
     switch (e.t) {
-    case SCEVExpr::Type::Invalid:
-      fmt::print("INVALID\n");
-      break;
-    case SCEVExpr::Type::Input:
-      fmt::print("IN {}\n", e.associated_val);
-      break;
-    case SCEVExpr::Type::Add:
-      fmt::print("{} = Add({}, {})\n", e.associated_val, e.args[0], e.args[1]);
-      break;
-    case SCEVExpr::Type::Sub:
-      fmt::print("{} = Sub({}, {})\n", e.associated_val, e.args[0], e.args[1]);
-      break;
-    case SCEVExpr::Type::ZExt:
-      fmt::print("{} = ZExt({})\n", e.associated_val, e.args[0]);
-      break;
-    case SCEVExpr::Type::SExt:
-      fmt::print("{} = SExt({})\n", e.associated_val, e.args[0]);
-      break;
-    case SCEVExpr::Type::Mul:
-      fmt::print("{} = Mul({}, {})\n", e.associated_val, e.args[0], e.args[1]);
-      break;
-    case SCEVExpr::Type::Invariant:
-      fmt::print("Invariant({})\n", e.associated_val);
-      break;
+      case SCEVExpr::Type::Invalid:
+        fmt::print("INVALID\n");
+        break;
+      case SCEVExpr::Type::Input:
+        fmt::print("IN {}\n", e.associated_val);
+        break;
+      case SCEVExpr::Type::Add:
+        fmt::print("{} = Add({}, {})\n", e.associated_val, e.args[0],
+                   e.args[1]);
+        break;
+      case SCEVExpr::Type::Sub:
+        fmt::print("{} = Sub({}, {})\n", e.associated_val, e.args[0],
+                   e.args[1]);
+        break;
+      case SCEVExpr::Type::ZExt:
+        fmt::print("{} = ZExt({})\n", e.associated_val, e.args[0]);
+        break;
+      case SCEVExpr::Type::SExt:
+        fmt::print("{} = SExt({})\n", e.associated_val, e.args[0]);
+        break;
+      case SCEVExpr::Type::Mul:
+        fmt::print("{} = Mul({}, {})\n", e.associated_val, e.args[0],
+                   e.args[1]);
+        break;
+      case SCEVExpr::Type::Invariant:
+        fmt::print("Invariant({})\n", e.associated_val);
+        break;
     }
   }
 
@@ -1068,4 +1072,4 @@ void LoopBoundsAnalysis::dump() const {
   fmt::println("  End:{}({})", end_value, real_end_value);
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

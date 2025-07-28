@@ -5,7 +5,7 @@
 namespace foptim::fmir {
 
 class CallingConv {
-public:
+ public:
   // run before final  register alloc
   // sets up argument loading
   void first_stage(FVec<MFunc> &funcs);
@@ -15,4 +15,4 @@ public:
   void second_stage(FVec<MFunc> &funcs);
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

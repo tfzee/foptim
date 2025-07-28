@@ -1,4 +1,5 @@
 #include "helpers.hpp"
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -38,69 +39,69 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {
 void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
   (void)output;
   switch (val->ty) {
-  case ConstantType::PoisonValue:
-    return;
-  case ConstantType::FloatValue:
-    switch (val->type->as_float()) {
-    case 32:
-      *((f32 *)output) = (f32)val->float_u.v.data;
+    case ConstantType::PoisonValue:
       return;
-    case 64:
-      *((f64 *)output) = (f64)val->float_u.v.data;
+    case ConstantType::FloatValue:
+      switch (val->type->as_float()) {
+        case 32:
+          *((f32 *)output) = (f32)val->float_u.v.data;
+          return;
+        case 64:
+          *((f64 *)output) = (f64)val->float_u.v.data;
+          return;
+        default:
+          fmt::println("{}", val);
+          TODO("okakf");
+      }
+      break;
+    case ConstantType::NullPtr:
+      *((u64 *)output) = 0;
       return;
-    default:
-      fmt::println("{}", val);
-      TODO("okakf");
+    case ConstantType::IntValue:
+      switch (val->type->as_int()) {
+        case 8:
+          *output = (u8)val->int_u.v.data;
+          return;
+        case 16:
+          *((u16 *)output) = (u16)val->int_u.v.data;
+          return;
+        case 32:
+          *((u32 *)output) = (u32)val->int_u.v.data;
+          return;
+        case 64:
+          *((u64 *)output) = (u64)val->int_u.v.data;
+          return;
+        default:
+          fmt::println("{}", val);
+          TODO("okaka");
+      }
+      break;
+    case ConstantType::VectorValue: {
+      auto typee = val->type->as_vec();
+      auto width = typee.bitwidth;
+      size_t i = 0;
+      for (auto m : val->vec_u.v.members) {
+        convert_constant_init(output + (width + 7) / 8 * i, m, glob);
+        i++;
+      }
+      return;
     }
-    break;
-  case ConstantType::NullPtr:
-    *((u64 *)output) = 0;
-    return;
-  case ConstantType::IntValue:
-    switch (val->type->as_int()) {
-    case 8:
-      *output = (u8)val->int_u.v.data;
+    case ConstantType::GlobalPtr: {
+      glob->reloc_info.push_back(GlobalData::RelocationInfo{
+          (size_t)output - (size_t)glob->init_value, val, 0});
       return;
-    case 16:
-      *((u16 *)output) = (u16)val->int_u.v.data;
-      return;
-    case 32:
-      *((u32 *)output) = (u32)val->int_u.v.data;
-      return;
-    case 64:
-      *((u64 *)output) = (u64)val->int_u.v.data;
-      return;
-    default:
-      fmt::println("{}", val);
-      TODO("okaka");
     }
-    break;
-  case ConstantType::VectorValue: {
-    auto typee = val->type->as_vec();
-    auto width = typee.bitwidth;
-    size_t i = 0;
-    for (auto m : val->vec_u.v.members) {
-      convert_constant_init(output + (width + 7) / 8 * i, m, glob);
-      i++;
+    case ConstantType::FuncPtr: {
+      glob->reloc_info.push_back(GlobalData::RelocationInfo{
+          (size_t)output - (size_t)glob->init_value, val, 0});
+      return;
+      return;
     }
-    return;
-  }
-  case ConstantType::GlobalPtr: {
-    glob->reloc_info.push_back(GlobalData::RelocationInfo{
-        (size_t)output - (size_t)glob->init_value, val, 0});
-    return;
-  }
-  case ConstantType::FuncPtr: {
-    glob->reloc_info.push_back(GlobalData::RelocationInfo{
-        (size_t)output - (size_t)glob->init_value, val, 0});
-    return;
-    return;
-  }
-  case ConstantType::ConstantStruct:
-    break;
+    case ConstantType::ConstantStruct:
+      break;
   }
   fmt::println("{}", val);
   TODO("okaku");
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

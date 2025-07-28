@@ -145,7 +145,7 @@ class TailRecElim final : public FunctionPass {
     call.destroy();
   }
 
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     if (func.no_recurse || func.variadic) {
       return;
@@ -179,4 +179,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

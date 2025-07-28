@@ -1,8 +1,9 @@
+#include "register_joining.hpp"
+
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/optim/reg_alloc.hpp"
-#include "register_joining.hpp"
 
 namespace foptim::fmir {
 

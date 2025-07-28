@@ -5,9 +5,9 @@
 namespace foptim::fmir {
 
 class InstSimplify {
-public:
+ public:
   void apply(FVec<MFunc> &funcs);
   void early_apply(FVec<MFunc> &funcs);
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

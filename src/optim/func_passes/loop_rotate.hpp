@@ -1,4 +1,6 @@
 #pragma once
+#include <algorithm>
+
 #include "../function_pass.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -10,12 +12,11 @@
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/helper/helper.hpp"
 #include "utils/vec.hpp"
-#include <algorithm>
 
 namespace foptim::optim {
 
 class LoopRotate final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("LoopRotate");
     CFG cfg{func};
@@ -273,4 +274,4 @@ public:
     return true;
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -13,4 +13,4 @@ void arith_patterns(IRVec<Pattern> &pats);
 void intrin_patterns(IRVec<Pattern> &pats);
 
 IRVec<Pattern> get_pats();
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -1,9 +1,10 @@
 #pragma once
+#include <map>
+#include <unordered_map>
+
 #include "helpers.hpp"
 #include "utils/arena.hpp"
 #include "utils/logging.hpp"
-#include <map>
-#include <unordered_map>
 
 namespace foptim {
 
@@ -26,4 +27,4 @@ template <class Key, class Val,
 using IRMap =
     std::unordered_map<Key, Val, std::hash<Key>, std::equal_to<Key>, Alloc>;
 
-} // namespace foptim
+}  // namespace foptim

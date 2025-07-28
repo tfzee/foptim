@@ -5,9 +5,9 @@
 namespace foptim::fmir {
 
 class BBReordering {
-public:
+ public:
   void apply(MFunc &func);
   void apply(FVec<MFunc> &funcs);
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

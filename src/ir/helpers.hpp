@@ -39,4 +39,4 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to);
 
 void convert_constant_init(u8 *output, ConstantValueR val, Global glob);
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

@@ -189,7 +189,6 @@
 //   return *this;
 // }
 
-
 // Printer Printer::operator<<(const foptim::fir::ConstantValueR v) const {
 //   return *this << *v.get_raw_ptr();
 // }
@@ -370,8 +369,8 @@
 //     *this << (void *)loc.func.func;
 //     break;
 //   case fir::IRLocation::LocationType::Instruction:
-//     *this << (void *)loc.func.func << " @BB " << loc.bb << " @I " << loc.instr;
-//     break;
+//     *this << (void *)loc.func.func << " @BB " << loc.bb << " @I " <<
+//     loc.instr; break;
 //   case fir::IRLocation::LocationType::BasicBlock:
 //     *this << (void *)loc.func.func << " @BB " << loc.bb;
 //     break;

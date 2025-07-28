@@ -1,16 +1,16 @@
 #pragma once
+#include <fmt/core.h>
+
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/string.hpp"
-#include <fmt/core.h>
 
 namespace foptim::optim {
 
 class LegalizeStructs final : public FunctionPass {
-
   bool legalize(fir::Context &ctx, fir::Instr instr) {
     if (instr->get_type()->is_struct() &&
         instr->is(fir::InstrType::LoadInstr)) {
@@ -36,7 +36,7 @@ class LegalizeStructs final : public FunctionPass {
     return false;
   }
 
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     for (auto bb : func.basic_blocks) {
       for (size_t instr_id = 0; instr_id < bb->instructions.size();
@@ -48,4 +48,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

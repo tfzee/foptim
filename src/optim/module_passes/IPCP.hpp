@@ -1,10 +1,11 @@
 #pragma once
+#include <utility>
+
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/module_pass.hpp"
-#include <utility>
 
 namespace foptim::optim {
 static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx);
@@ -14,19 +15,19 @@ static bool kill_dead_args(fir::FunctionR func, fir::Context &ctx);
 // inter procedural constant propagation
 // replace arguments insideo of functions with constant args
 class IPCP final : public ModulePass {
-public:
+ public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("IPCP");
     for (auto &f : ctx.data->storage.functions) {
       switch (f.second->linkage) {
-      case fir::Linkage::External:
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-      case fir::Linkage::WeakODR:
-        continue;
-      case fir::Linkage::LinkOnceODR:
-      case fir::Linkage::Internal:
-        break;
+        case fir::Linkage::External:
+        case fir::Linkage::Weak:
+        case fir::Linkage::LinkOnce:
+        case fir::Linkage::WeakODR:
+          continue;
+        case fir::Linkage::LinkOnceODR:
+        case fir::Linkage::Internal:
+          break;
       }
 
       if (f.second->is_decl() || f.second->variadic) {
@@ -158,7 +159,6 @@ static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
 }
 
 static bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
-
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
@@ -204,4 +204,4 @@ static bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
   }
   return false;
 }
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -3,13 +3,14 @@
 
 namespace foptim::utils {
 
-enum class SlotState: u8 {
+enum class SlotState : u8 {
   FreeList = 0,
   Used = 1,
   Free = 2,
 };
 
-template <class T> struct Slot {
+template <class T>
+struct Slot {
 #ifdef SLOT_CHECK_GENERATION
   u32 generation;
 #endif
@@ -17,4 +18,4 @@ template <class T> struct Slot {
   T data;
 };
 
-} // namespace foptim::utils
+}  // namespace foptim::utils

@@ -1,6 +1,7 @@
+#include "legalization.hpp"
+
 #include <limits>
 
-#include "legalization.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 

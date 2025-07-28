@@ -7,8 +7,8 @@ std::string in_file_path;
 bool print_optimization_failure_reasons = true;
 u8 number_worker_threads = 0;
 
-//make 
+// make
 bool all_linkage_internal = false;
 bool assume_cstdlib_beheaviour = true;
 
-} // namespace foptim::utils
+}  // namespace foptim::utils

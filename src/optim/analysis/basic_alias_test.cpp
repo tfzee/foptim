@@ -1,4 +1,5 @@
 #include "basic_alias_test.hpp"
+
 #include "ir/instruction_data.hpp"
 
 namespace foptim::optim {
@@ -72,4 +73,4 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
   TODO("okak");
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

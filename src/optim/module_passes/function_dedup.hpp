@@ -1,4 +1,9 @@
 #pragma once
+#include <fmt/core.h>
+
+#include <algorithm>
+#include <tracy/Tracy.hpp>
+
 #include "ir/basic_block_arg.hpp"
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
@@ -9,10 +14,6 @@
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
 #include "utils/stats.hpp"
-#include <fmt/core.h>
-
-#include <algorithm>
-#include <tracy/Tracy.hpp>
 
 namespace foptim::optim {
 
@@ -22,10 +23,10 @@ struct DiffConst {
   u32 arg_id;
 };
 
-[[nodiscard]] inline bool
-check_args2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
-            TMap<fir::ValueR, fir::ValueR> &local_value_map,
-            TVec<DiffConst> &difference_values, bool onlySame) {
+[[nodiscard]] inline bool check_args2(
+    fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
+    TMap<fir::ValueR, fir::ValueR> &local_value_map,
+    TVec<DiffConst> &difference_values, bool onlySame) {
   // ZoneScopedN("CheckArgs2");
   for (u32 i = 0; i < i1->args.size(); i++) {
     auto &arg1 = i1->args[i];
@@ -60,10 +61,10 @@ check_args2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
   return true;
 }
 
-[[nodiscard]] inline bool
-match_term2(fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
-            TMap<fir::ValueR, fir::ValueR> &local_value_map,
-            TVec<DiffConst> &difference_values, bool onlySame) {
+[[nodiscard]] inline bool match_term2(
+    fir::Instr i1, fir::Instr i2, u32 bb_id, u32 instr_id,
+    TMap<fir::ValueR, fir::ValueR> &local_value_map,
+    TVec<DiffConst> &difference_values, bool onlySame) {
   // ZoneScopedN("MatchTerm2");
   if (i1 == i2) {
     return true;
@@ -329,8 +330,9 @@ inline bool merge_functions(MergableGroup &group, fir::Context &ctx) {
   return true;
 }
 
-template <bool onlySame> class FunctionDeDup final : public ModulePass {
-public:
+template <bool onlySame>
+class FunctionDeDup final : public ModulePass {
+ public:
   void apply(fir::Context &ctx) override {
     ZoneScopedN("FunctionDeDup");
     // TODO maybe run always onlysame before hand ??
@@ -542,4 +544,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

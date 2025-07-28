@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <mir/analysis/live_variables.hpp>
 #include <utils/bitset.hpp>
 

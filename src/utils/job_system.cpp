@@ -1,4 +1,5 @@
 #include "job_system.hpp"
+
 #include <mutex>
 #include <thread>
 
@@ -39,4 +40,4 @@ void Worker::work_func(std::stop_token stoken, JobSheduler *shed) {
   foptim::utils::TempAlloc<void *>::free();
 }
 
-} // namespace foptim
+}  // namespace foptim

@@ -10,7 +10,7 @@
 namespace foptim::optim {
 
 class GDCE final : public ModulePass {
-public:
+ public:
   bool is_intrinsic(const IRString &name) {
     return name.starts_with("llvm.") || name.starts_with("foptim.");
   }
@@ -55,14 +55,14 @@ public:
             continue;
           }
           switch (g->linkage) {
-          case fir::Linkage::External:
-          case fir::Linkage::WeakODR:
-          case fir::Linkage::Weak:
-            continue;
-          case fir::Linkage::Internal:
-          case fir::Linkage::LinkOnce:
-          case fir::Linkage::LinkOnceODR:
-            break;
+            case fir::Linkage::External:
+            case fir::Linkage::WeakODR:
+            case fir::Linkage::Weak:
+              continue;
+            case fir::Linkage::Internal:
+            case fir::Linkage::LinkOnce:
+            case fir::Linkage::LinkOnceODR:
+              break;
           }
           if (global_global_reffed.contains(g)) {
             continue;
@@ -101,14 +101,14 @@ public:
         continue;
       }
       switch (f->linkage) {
-      case fir::Linkage::External:
-      case fir::Linkage::WeakODR:
-      case fir::Linkage::Weak:
-        continue;
-      case fir::Linkage::Internal:
-      case fir::Linkage::LinkOnce:
-      case fir::Linkage::LinkOnceODR:
-        break;
+        case fir::Linkage::External:
+        case fir::Linkage::WeakODR:
+        case fir::Linkage::Weak:
+          continue;
+        case fir::Linkage::Internal:
+        case fir::Linkage::LinkOnce:
+        case fir::Linkage::LinkOnceODR:
+          break;
       }
       if (name.starts_with("_GLOBAL")) {
         continue;
@@ -132,4 +132,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

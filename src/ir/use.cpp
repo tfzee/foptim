@@ -1,4 +1,5 @@
 #include "use.hpp"
+
 #include "ir/instruction_data.hpp"
 #include "value.hpp"
 
@@ -6,37 +7,37 @@ namespace foptim::fir {
 
 TypeR Use::get_type() {
   switch (type) {
-  case UseType::NormalArg:
-    return user->args[argId].get_type();
-  case UseType::BB:
-    ASSERT(false);
-  case UseType::BBArg:
-    return user->bbs[argId].args[bbArgId].get_type();
+    case UseType::NormalArg:
+      return user->args[argId].get_type();
+    case UseType::BB:
+      ASSERT(false);
+    case UseType::BBArg:
+      return user->bbs[argId].args[bbArgId].get_type();
   }
 }
 
 ValueR Use::get_value() {
   switch (type) {
-  case UseType::NormalArg:
-    return user->args[argId];
-  case UseType::BB:
-    ASSERT(false);
-  case UseType::BBArg:
-    return user->bbs[argId].args[bbArgId];
+    case UseType::NormalArg:
+      return user->args[argId];
+    case UseType::BB:
+      ASSERT(false);
+    case UseType::BBArg:
+      return user->bbs[argId].args[bbArgId];
   }
 }
 
 void Use::replace_use(ValueR new_value) {
   switch (type) {
-  case UseType::NormalArg:
-    user.replace_arg(argId, new_value);
-    break;
-  case UseType::BBArg:
-    user.replace_bb_arg(argId, bbArgId, new_value);
-    break;
-  case UseType::BB:
-    user.replace_bb(argId, new_value.as_bb());
-    break;
+    case UseType::NormalArg:
+      user.replace_arg(argId, new_value);
+      break;
+    case UseType::BBArg:
+      user.replace_bb_arg(argId, bbArgId, new_value);
+      break;
+    case UseType::BB:
+      user.replace_bb(argId, new_value.as_bb());
+      break;
   }
 }
 
@@ -84,20 +85,19 @@ bool Use::operator==(const Use &other) const {
   return user == other.user && type == other.type && argId == other.argId &&
          bbArgId == other.bbArgId;
 }
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-fmt::appender
-fmt::formatter<foptim::fir::Use>::format(foptim::fir::Use const &v,
-                                         format_context &ctx) const {
+fmt::appender fmt::formatter<foptim::fir::Use>::format(
+    foptim::fir::Use const &v, format_context &ctx) const {
   auto out = ctx.out();
 
   out = fmt::format_to(out, "{:p}", (void *)v.user.get_raw_ptr());
   switch (v.type) {
-  case foptim::fir::UseType::NormalArg:
-    return fmt::format_to(out, "({})", v.argId);
-  case foptim::fir::UseType::BB:
-    return fmt::format_to(out, "<{}>", v.argId);
-  case foptim::fir::UseType::BBArg:
-    return fmt::format_to(out, "<{}>({})", v.argId, v.bbArgId);
+    case foptim::fir::UseType::NormalArg:
+      return fmt::format_to(out, "({})", v.argId);
+    case foptim::fir::UseType::BB:
+      return fmt::format_to(out, "<{}>", v.argId);
+    case foptim::fir::UseType::BBArg:
+      return fmt::format_to(out, "<{}>({})", v.argId, v.bbArgId);
   }
 }

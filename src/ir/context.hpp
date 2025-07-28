@@ -1,4 +1,6 @@
 #pragma once
+#include <fmt/format.h>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/value.hpp"
@@ -7,7 +9,6 @@
 #include "types_ref.hpp"
 #include "utils/logging.hpp"
 #include "utils/stable_vec.hpp"
-#include <fmt/format.h>
 
 namespace foptim::fir {
 
@@ -67,12 +68,11 @@ struct ContextData {
   // deleted
   bool delete_function(IRStringRef func);
   bool verify() const;
-  void dump_graph(const char* filename);
+  void dump_graph(const char *filename);
 };
 
 class Context {
-
-public:
+ public:
   ContextData *data;
   Context() { data = new ContextData{}; }
   // ~Context() { delete data; }
@@ -84,12 +84,11 @@ public:
   }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 template <>
 class fmt::formatter<foptim::fir::Context>
     : public BaseIRFormatter<foptim::fir::Context> {
-public:
-  appender format(foptim::fir::Context const &v,
-                  format_context &ctx) const;
+ public:
+  appender format(foptim::fir::Context const &v, format_context &ctx) const;
 };

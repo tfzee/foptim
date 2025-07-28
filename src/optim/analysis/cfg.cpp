@@ -34,4 +34,4 @@ void CFG::dump_graph() const {
   // print << "}\n";
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

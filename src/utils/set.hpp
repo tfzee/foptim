@@ -1,7 +1,8 @@
 #pragma once
+#include <unordered_set>
+
 #include "helpers.hpp"
 #include "utils/arena.hpp"
-#include <unordered_set>
 
 namespace foptim {
 
@@ -14,4 +15,4 @@ using TSet = std::unordered_set<Val, std::hash<Val>, std::equal_to<Val>, Alloc>;
 template <class Val, class Alloc = utils::IRAlloc<Val>>
 using IRSet =
     std::unordered_set<Val, std::hash<Val>, std::equal_to<Val>, Alloc>;
-} // namespace foptim
+}  // namespace foptim

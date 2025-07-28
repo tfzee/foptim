@@ -1,6 +1,7 @@
+#include "live_variables.hpp"
+
 #include <deque>
 
-#include "live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"

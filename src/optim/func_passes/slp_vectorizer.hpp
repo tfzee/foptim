@@ -1,4 +1,8 @@
 #pragma once
+#include <fmt/core.h>
+
+#include <algorithm>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -7,14 +11,11 @@
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/arena.hpp"
-#include <fmt/core.h>
-
-#include <algorithm>
 
 namespace foptim::optim {
 
 class SLPVectorizer final : public FunctionPass {
-public:
+ public:
   struct SeedInstrData {
     fir::Instr instr;
     fir::ValueR a;
@@ -27,9 +28,9 @@ public:
     TVec<SeedInstrData> data;
   };
 
-private:
-  std::pair<SeedInstrData, fir::ValueR>
-  get_storeload_data(fir::Instr storeload) {
+ private:
+  std::pair<SeedInstrData, fir::ValueR> get_storeload_data(
+      fir::Instr storeload) {
     SeedInstrData data;
     data.instr = storeload;
     if (!storeload->args[0].is_instr()) {
@@ -59,8 +60,9 @@ private:
     return {data, storeload->args[0]};
   }
 
-  std::optional<SeedBundle>
-  find_successive_loads(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa) {
+  std::optional<SeedBundle> find_successive_loads(fir::BasicBlock bb,
+                                                  size_t instr_id,
+                                                  AliasAnalyis &aa) {
     SeedBundle curr;
     auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
     curr.base = base;
@@ -436,7 +438,7 @@ private:
   bool tree_vectorize(fir::Context &ctx, SeedBundle &bundle,
                       const TVec<SeedBundle> &load_bundles);
 
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("SLPVectorizer");
     (void)ctx;
@@ -452,7 +454,8 @@ public:
     for (auto bb : func.basic_blocks) {
       find_seeds(bb, store_bundles, load_bundles, reduction_bundles, aa);
     }
-    // fmt::println("Stor {} Lod {}", store_bundles.size(), load_bundles.size());
+    // fmt::println("Stor {} Lod {}", store_bundles.size(),
+    // load_bundles.size());
 
     for (auto &b : store_bundles) {
       bool already_used = false;
@@ -481,4 +484,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

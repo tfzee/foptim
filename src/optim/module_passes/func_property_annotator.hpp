@@ -7,7 +7,7 @@
 namespace foptim::optim {
 
 class FuncPropAnnotator final : public ModulePass {
-public:
+ public:
   struct Result {
     bool does_read = false;
     bool does_write = false;
@@ -99,4 +99,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -1,8 +1,10 @@
 #pragma once
-#include "utils/types.hpp"
-#include <chrono>
 #include <fmt/core.h>
+
+#include <chrono>
 #include <unordered_map>
+
+#include "utils/types.hpp"
 
 namespace foptim::utils {
 
@@ -32,8 +34,9 @@ struct ScopedTimer {
   std::chrono::high_resolution_clock::time_point start;
 
   ScopedTimer(DumbTimer *t, const char *name)
-      : timer(t), name(name), start(std::chrono::high_resolution_clock::now()) {
-  }
+      : timer(t),
+        name(name),
+        start(std::chrono::high_resolution_clock::now()) {}
 
   ~ScopedTimer() {
     auto end = std::chrono::high_resolution_clock::now();
@@ -45,4 +48,4 @@ struct ScopedTimer {
 };
 
 ScopedTimer DumbTimer::scopedTimer(const char *name) { return {this, name}; }
-} // namespace foptim::utils
+}  // namespace foptim::utils

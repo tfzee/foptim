@@ -23,7 +23,7 @@ BBArgumentData::BBArgumentData(BasicBlock parent, TypeR type)
 //   TODO("idk didnt find that no good");
 // }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 fmt::appender fmt::formatter<foptim::fir::BBArgument>::format(
     foptim::fir::BBArgument const &v, format_context &ctx) const {

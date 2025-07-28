@@ -1,14 +1,15 @@
 #pragma once
+#include <cstdlib>
+
 #include "types_ref.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
-#include <cstdlib>
 
 namespace foptim::fir {
 
 class IntegerType {
-public:
+ public:
   u16 bitwidth;
   [[nodiscard]] constexpr u32 get_size() const { return (bitwidth + 7) / 8; }
   [[nodiscard]] constexpr u32 get_align() const { return (bitwidth + 7) / 8; }
@@ -18,7 +19,7 @@ public:
 };
 
 class FloatType {
-public:
+ public:
   u16 bitwidth;
   [[nodiscard]] constexpr u32 get_size() const { return (bitwidth + 7) / 8; }
   [[nodiscard]] constexpr u32 get_align() const { return (bitwidth + 7) / 8; }
@@ -28,7 +29,7 @@ public:
 };
 
 class StructType {
-public:
+ public:
   struct StructElem {
     u64 offset;
     TypeR ty;
@@ -52,7 +53,7 @@ public:
 };
 
 class FunctionType {
-public:
+ public:
   TypeR return_type;
   IRVec<TypeR> arg_types;
   [[nodiscard]] constexpr u32 get_size() const { return 8; }
@@ -62,7 +63,7 @@ public:
 };
 
 class VectorType {
-public:
+ public:
   enum class SubType : u8 {
     Integer,
     Floating,
@@ -95,7 +96,7 @@ enum class AnyTypeType : u8 {
 };
 
 class AnyType {
-public:
+ public:
   union {
     AnyTypeType ty;
     struct {
@@ -125,11 +126,16 @@ public:
   AnyType(const AnyType &);
   AnyType &operator=(const AnyType &);
   // constexpr AnyType(VoidType t) : ty(AnyTypeType::Void) {}
-  constexpr AnyType(IntegerType t) : int_u({._ty=AnyTypeType::Integer, .v=t}) {}
-  constexpr AnyType(FloatType t) : float_u({._ty=AnyTypeType::Float, .v=t}) {}
-  constexpr AnyType(FunctionType t) : func_u({._ty=AnyTypeType::Function, .v=t}) {}
-  constexpr AnyType(VectorType t) : vec_u({._ty=AnyTypeType::Vector, .v=t}) {}
-  constexpr AnyType(StructType t) : struct_u({._ty=AnyTypeType::Struct, .v=t}) {}
+  constexpr AnyType(IntegerType t)
+      : int_u({._ty = AnyTypeType::Integer, .v = t}) {}
+  constexpr AnyType(FloatType t)
+      : float_u({._ty = AnyTypeType::Float, .v = t}) {}
+  constexpr AnyType(FunctionType t)
+      : func_u({._ty = AnyTypeType::Function, .v = t}) {}
+  constexpr AnyType(VectorType t)
+      : vec_u({._ty = AnyTypeType::Vector, .v = t}) {}
+  constexpr AnyType(StructType t)
+      : struct_u({._ty = AnyTypeType::Struct, .v = t}) {}
 
   static AnyType Ptr() {
     auto out = AnyType();
@@ -177,4 +183,4 @@ public:
   }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

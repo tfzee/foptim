@@ -31,8 +31,8 @@ class Legalizer {
   // bool legalize_sub(MBB &bb, u32 indx);
   void apply(MFunc &funcs);
 
-public:
+ public:
   void apply(FVec<MFunc> &funcs);
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

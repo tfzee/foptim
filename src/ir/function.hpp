@@ -1,4 +1,6 @@
 #pragma once
+#include <utility>
+
 #include "basic_block.hpp"
 #include "basic_block_ref.hpp"
 #include "ir/attributable.hpp"
@@ -6,12 +8,11 @@
 #include "types_ref.hpp"
 #include "utils/string.hpp"
 #include "utils/todo.hpp"
-#include <utility>
 
 namespace foptim::fir {
 
 class Function : public Attributable, public LockedUsed {
-public:
+ public:
   enum class CallingConv { C, Dynamic };
 
   ContextData *ctx;
@@ -65,4 +66,4 @@ public:
   bool verify() const;
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

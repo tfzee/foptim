@@ -1,4 +1,5 @@
 #include "live_variables.hpp"
+
 #include "ir/basic_block_ref.hpp"
 #include "utils/arena.hpp"
 
@@ -149,10 +150,9 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
       bool val_defined = bb_defs[value_id];
       bool val_live = val_liveIn || val_liveOut || val_defined;
 
-      auto value_ref =
-          std::ranges::find_if(all_values, [value_id](const auto &v) {
-            return v.second == value_id;
-          });
+      auto value_ref = std::ranges::find_if(
+          all_values,
+          [value_id](const auto &v) { return v.second == value_id; });
       // is it live at all
       if (!val_live) {
         continue;
@@ -196,4 +196,4 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
   // std::abort();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -3,8 +3,8 @@
 namespace foptim::mir {
 
 // class DAG {
-//  FVec<InstructionR> refs; 
+//  FVec<InstructionR> refs;
 //  FVec<Edge> edges;
 // };
 
-} // namespace foptim::mir
+}  // namespace foptim::mir

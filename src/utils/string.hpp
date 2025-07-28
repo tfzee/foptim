@@ -1,6 +1,7 @@
 #pragma once
-#include "utils/arena.hpp"
 #include <string>
+
+#include "utils/arena.hpp"
 
 namespace foptim {
 using TString =
@@ -14,4 +15,4 @@ using IRString =
 
 using IRStringRef = const char*;
 
-} // namespace foptim
+}  // namespace foptim

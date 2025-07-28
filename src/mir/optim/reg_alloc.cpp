@@ -1,6 +1,7 @@
+#include "reg_alloc.hpp"
+
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
-#include "reg_alloc.hpp"
 #include "utils/set.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"

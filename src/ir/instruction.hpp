@@ -5,7 +5,7 @@
 namespace foptim::fir {
 
 class Instr : public utils::SRef<InstrData> {
-public:
+ public:
   constexpr explicit Instr(utils::SRef<InstrData> &&crtp) {
     this->data_ref = crtp.data_ref;
 #ifdef SLOT_CHECK_GENERATION
@@ -53,9 +53,10 @@ public:
   void destroy();
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct std::hash<foptim::fir::Instr> {
+template <>
+struct std::hash<foptim::fir::Instr> {
   std::size_t operator()(const foptim::fir::Instr &k) const {
     using foptim::u32;
     using std::hash;

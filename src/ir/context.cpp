@@ -1,4 +1,5 @@
 #include "context.hpp"
+
 #include "global.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/types.hpp"
@@ -491,11 +492,10 @@ void ContextData::dump_graph(const char *filename) {
   fclose(file);
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-fmt::appender
-fmt::formatter<foptim::fir::Context>::format(foptim::fir::Context const &v,
-                                             format_context &ctx) const {
+fmt::appender fmt::formatter<foptim::fir::Context>::format(
+    foptim::fir::Context const &v, format_context &ctx) const {
   auto app = ctx.out();
   for (const auto *slab_g : v->storage.storage_global._slot_slab_starts) {
     for (size_t i = 0; i < decltype(v->storage.storage_global)::_slot_slab_len;

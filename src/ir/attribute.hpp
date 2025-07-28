@@ -14,7 +14,7 @@ enum class AttributeType : u8 {
 };
 
 class Attribute {
-public:
+ public:
   union {
     AttributeType ty;
     struct {
@@ -95,18 +95,18 @@ public:
   }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 inline fmt::appender fmt::formatter<foptim::fir::Attribute>::format(
     foptim::fir::Attribute const &attrib, format_context &ctx) const {
   switch (attrib.ty) {
-  case foptim::fir::AttributeType::Void:
-    return fmt::format_to(ctx.out(), ": Void");
-  case foptim::fir::AttributeType::Constant:
-    return fmt::format_to(ctx.out(), ": TODO CONSTANT PRINTING");
-  case foptim::fir::AttributeType::Type:
-    return fmt::format_to(ctx.out(), ": {}", attrib.type_u.v);
-  case foptim::fir::AttributeType::String:
-    return fmt::format_to(ctx.out(), ": {}", attrib.str_u.v);
+    case foptim::fir::AttributeType::Void:
+      return fmt::format_to(ctx.out(), ": Void");
+    case foptim::fir::AttributeType::Constant:
+      return fmt::format_to(ctx.out(), ": TODO CONSTANT PRINTING");
+    case foptim::fir::AttributeType::Type:
+      return fmt::format_to(ctx.out(), ": {}", attrib.type_u.v);
+    case foptim::fir::AttributeType::String:
+      return fmt::format_to(ctx.out(), ": {}", attrib.str_u.v);
   }
 };

@@ -21,7 +21,7 @@ struct LoopInfo {
 };
 
 class LoopInfoAnalysis {
-public:
+ public:
   TVec<LoopInfo> info;
 
   LoopInfoAnalysis(Dominators &dom) { update(dom); }
@@ -48,7 +48,7 @@ struct SCEVExpr {
 };
 
 class ScalarEvo {
-public:
+ public:
   TVec<SCEVExpr> exprs;
   TVec<std::pair<u32, SCEVExpr::SCEVExprR>> direct_induct;
 
@@ -58,7 +58,7 @@ public:
 };
 
 class LoopBoundsAnalysis {
-public:
+ public:
   SCEVExpr::SCEVExprR induct;
   i128 start_value;
   i128 end_value;
@@ -72,7 +72,7 @@ public:
 };
 
 class LoopRangeAnalysis {
-public:
+ public:
   fir::BBArgument induction_var;
   fir::Use lower_bound_var;
   fir::Use upper_bound_var;
@@ -96,7 +96,7 @@ public:
 };
 
 class InductionVarAnalysis {
-public:
+ public:
   enum IterationType {
     PlusConst,
     SubConst,
@@ -115,10 +115,10 @@ public:
     IterationType type = IterationType::Other;
   };
 
-  std::optional<InductionVar>
-  _check_if_direct_induct(fir::BBArgument v, u32 arg_id,
-                          TVec<std::pair<fir::Instr, u32>> backwards_jumps,
-                          CFG &cfg, LoopInfo &info);
+  std::optional<InductionVar> _check_if_direct_induct(
+      fir::BBArgument v, u32 arg_id,
+      TVec<std::pair<fir::Instr, u32>> backwards_jumps, CFG &cfg,
+      LoopInfo &info);
   // do not depend on other induction vars
   TVec<InductionVar> direct_inductvars;
 
@@ -131,7 +131,7 @@ public:
 };
 
 class InductionEndValueAnalysis {
-public:
+ public:
   struct EndInfo {
     fir::BasicBlock from_bb;
     fir::BasicBlock to_bb;
@@ -147,4 +147,4 @@ public:
   void dump();
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

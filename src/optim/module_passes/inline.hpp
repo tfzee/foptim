@@ -13,7 +13,7 @@ class BaseInlineAdvisor {
 
   static constexpr bool debug_print = false;
 
-public:
+ public:
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr) {
     if (_should_be_inlined(instr)) {
       auto v = instr->get_arg(0).as_constant()->as_func();
@@ -54,17 +54,17 @@ public:
     }
 
     switch (v->linkage) {
-    case fir::Linkage::Weak:
-    case fir::Linkage::LinkOnce:
-      if (debug_print) {
-        fmt::println("N Bad linkage");
-      }
-      return false;
-    case fir::Linkage::Internal:
-    case fir::Linkage::External:
-    case fir::Linkage::WeakODR:
-    case fir::Linkage::LinkOnceODR:
-      break;
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+        if (debug_print) {
+          fmt::println("N Bad linkage");
+        }
+        return false;
+      case fir::Linkage::Internal:
+      case fir::Linkage::External:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::LinkOnceODR:
+        break;
     }
 
     // TODO: impl to hndle this correctly
@@ -167,8 +167,9 @@ public:
     if (all_args_are_constant_or_allocas && self_n_instrs < 50 &&
         called_n_instrs < 10) {
       if (debug_print) {
-        fmt::println("Y all args are constnat + allocs might allow for mem2reg "
-                     "and shit");
+        fmt::println(
+            "Y all args are constnat + allocs might allow for mem2reg "
+            "and shit");
       }
       return true;
     }
@@ -194,7 +195,7 @@ concept InlineAdvisor = requires(T v, fir::Instr instr) {
 
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {
-public:
+ public:
   void apply(fir::Context &ctx) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
     for (auto &f : ctx.data->storage.functions) {
@@ -233,4 +234,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

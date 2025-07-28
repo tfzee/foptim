@@ -1,6 +1,7 @@
 #pragma once
-#include "utils/types.hpp"
 #include <string>
+
+#include "utils/types.hpp"
 
 namespace foptim::utils {
 
@@ -16,4 +17,4 @@ extern bool all_linkage_internal;
 // beheave like in the cstdlib
 extern bool assume_cstdlib_beheaviour;
 
-} // namespace foptim::utils
+}  // namespace foptim::utils

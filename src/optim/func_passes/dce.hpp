@@ -1,11 +1,12 @@
 #pragma once
+#include <algorithm>
+
 #include "../function_pass.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
-#include <algorithm>
 
 namespace foptim::optim {
 
@@ -39,7 +40,7 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
 }
 
 class DCE final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("DCE", COLOR_OPTIMF);
     {
@@ -206,4 +207,4 @@ public:
     // }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

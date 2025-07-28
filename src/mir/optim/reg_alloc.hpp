@@ -7,10 +7,9 @@ namespace foptim::fmir {
 void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping);
 void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping);
 
-
 class RegAlloc {
-public:
+ public:
   void apply(FVec<MFunc> &funcs);
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -1,3 +1,5 @@
+#include "matcher_patterns.hpp"
+
 #include <fmt/core.h>
 
 #include <bit>
@@ -9,7 +11,6 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "matcher.hpp"
-#include "matcher_patterns.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "utils/helpers.hpp"

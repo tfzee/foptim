@@ -1,6 +1,7 @@
 #pragma once
-#include "types.hpp"
 #include <fmt/core.h>
+
+#include "types.hpp"
 
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
@@ -11,7 +12,7 @@ namespace foptim {
 #define UNREACH() foptim::todo_impl("REACHED UNREACH!", __FILE__, __LINE__)
 
 #define ASSERT(cond) foptim::ASSERT_HANDLE(cond, __FILE__, __LINE__, "");
-#define ASSERT_M(cond, message)                                                \
+#define ASSERT_M(cond, message) \
   foptim::ASSERT_HANDLE(cond, __FILE__, __LINE__, message);
 // void ASSERT_HANDLE(bool cond, const char *filename, const size_t lineNumber,
 //                    const char *message);
@@ -37,9 +38,9 @@ inline void ASSERT_HANDLE(bool cond, const char *filename, size_t lineNumber,
   }
 }
 #else
-[[clang::always_inline]] constexpr void
-ASSERT_HANDLE(bool /*cond*/, const char * /*filename*/, size_t /*lineNumber*/,
-              const char * /*message*/) {}
+[[clang::always_inline]] constexpr void ASSERT_HANDLE(
+    bool /*cond*/, const char * /*filename*/, size_t /*lineNumber*/,
+    const char * /*message*/) {}
 #endif
 
-} // namespace foptim
+}  // namespace foptim

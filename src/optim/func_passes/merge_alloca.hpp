@@ -12,7 +12,7 @@ namespace foptim::optim {
 // merges allocas for better codegen + less wasted stack space when allocating
 // them
 class MergeAllocaPass final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func, fir::BasicBlock bl) {
     (void)ctx;
     (void)func;
@@ -55,4 +55,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

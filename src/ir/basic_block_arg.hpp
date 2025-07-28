@@ -2,13 +2,13 @@
 #include "ir/attributable.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/types_ref.hpp"
-#include "utils/stable_vec_ref.hpp"
 #include "ir/use.hpp"
+#include "utils/stable_vec_ref.hpp"
 
 namespace foptim::fir {
 
 class BBArgumentData : public Used, public Attributable {
-public:
+ public:
   BasicBlock _parent;
   TypeR _type;
 
@@ -19,7 +19,7 @@ public:
 };
 
 class BBArgument : public utils::SRef<BBArgumentData> {
-public:
+ public:
   constexpr bool operator==(const BBArgument &other) const {
     return utils::SRef<BBArgumentData>::operator==(other);
   }
@@ -31,9 +31,10 @@ public:
   }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct std::hash<foptim::fir::BBArgument> {
+template <>
+struct std::hash<foptim::fir::BBArgument> {
   std::size_t operator()(const foptim::fir::BBArgument &k) const {
     using foptim::u32;
     using std::hash;

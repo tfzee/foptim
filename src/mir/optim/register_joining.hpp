@@ -7,7 +7,7 @@ class MFunc;
 class RegisterJoining {
   void apply(MFunc &func);
 
-public:
+ public:
   void apply(foptim::FVec<MFunc> &funcs);
 };
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

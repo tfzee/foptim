@@ -1,4 +1,5 @@
 #include "intrin_simplify.hpp"
+
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/helper/helper.hpp"
@@ -70,4 +71,4 @@ void IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) {
   }
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

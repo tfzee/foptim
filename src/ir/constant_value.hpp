@@ -11,8 +11,8 @@ namespace foptim::fir {
 
 struct IntValue {
   i128 data;
-  [[gnu::always_inline]] constexpr bool
-  operator==(const IntValue &other) const {
+  [[gnu::always_inline]] constexpr bool operator==(
+      const IntValue &other) const {
     return data == other.data;
   }
 };
@@ -23,16 +23,16 @@ struct FloatValue {
   constexpr FloatValue(f64 d) : data(d) {}
   constexpr FloatValue(f32 d)
       : data(std::bit_cast<f64>((u64)std::bit_cast<u32>(d))) {}
-  [[gnu::always_inline]] constexpr bool
-  operator==(const FloatValue &other) const {
+  [[gnu::always_inline]] constexpr bool operator==(
+      const FloatValue &other) const {
     return data == other.data;
   }
 };
 
 struct FunctionPtr {
   FunctionR func;
-  [[gnu::always_inline]] constexpr bool
-  operator==(const FunctionPtr &other) const {
+  [[gnu::always_inline]] constexpr bool operator==(
+      const FunctionPtr &other) const {
     return func == other.func;
   }
 };
@@ -44,8 +44,8 @@ struct ConstantStruct {
 
 struct GlobalPointer {
   Global glob;
-  [[gnu::always_inline]] constexpr bool
-  operator==(const GlobalPointer &other) const {
+  [[gnu::always_inline]] constexpr bool operator==(
+      const GlobalPointer &other) const {
     return glob == other.glob;
   }
 };
@@ -131,7 +131,8 @@ struct ConstantValue {
       : type(typee), stru_u({ConstantType::ConstantStruct, stru}) {}
 
   constexpr ConstantValue(IRVec<ConstantValueR> members, TypeR typee)
-      : type(typee), vec_u({ConstantType::VectorValue, VectorValue{std::move(members)}}) {}
+      : type(typee),
+        vec_u({ConstantType::VectorValue, VectorValue{std::move(members)}}) {}
 
   static ConstantValue null_ptr(TypeR typee) {
     auto c = ConstantValue(typee);
@@ -180,7 +181,7 @@ struct ConstantValue {
     return fup_u.v.func;
   }
 
-  [[nodiscard]] constexpr const VectorValue& as_vec() const {
+  [[nodiscard]] constexpr const VectorValue &as_vec() const {
     ASSERT(is_vec());
     return vec_u.v;
   }
@@ -217,4 +218,4 @@ struct ConstantValue {
   [[nodiscard]] bool eql(const ConstantValue &) const;
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

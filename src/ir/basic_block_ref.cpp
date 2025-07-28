@@ -1,11 +1,13 @@
 #include "basic_block_ref.hpp"
+
+#include <fmt/color.h>
+#include <fmt/core.h>
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "utils/logging.hpp"
-#include <fmt/color.h>
-#include <fmt/core.h>
 
 namespace foptim::fir {
 
@@ -36,11 +38,10 @@ BBArgument BasicBlock::add_arg(BBArgument arg) {
   return arg;
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
     foptim::fir::BasicBlock const &bb, format_context &ctx) const {
-
   auto colbb = color ? color_bb : text_style{};
   auto colv2 = color ? color_value2 : text_style{};
 

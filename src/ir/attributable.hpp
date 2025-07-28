@@ -10,7 +10,7 @@ namespace foptim::fir {
 class Attributable {
   IRMap<IRString, Attribute> attribs;
 
-public:
+ public:
   [[nodiscard]] constexpr const auto &get_attribs() const { return attribs; }
   [[nodiscard]] constexpr auto &get_attribs() { return attribs; }
 
@@ -18,7 +18,8 @@ public:
   [[nodiscard]] const Attribute &get_attrib(const IRString &key) const;
   [[nodiscard]] Attribute &get_attrib(const IRString &key);
 
-  template <class T> void clone_attribs(T &other) {
+  template <class T>
+  void clone_attribs(T &other) {
     attribs.reserve(other.attribs.size());
     attribs.insert(other.attribs.begin(), other.attribs.end());
   }
@@ -31,4 +32,4 @@ public:
   Attributable *set_attrib(IRString key, TypeR value);
   Attributable *set_attrib(IRString key, ConstantValueR value);
 };
-} // namespace foptim::fir
+}  // namespace foptim::fir

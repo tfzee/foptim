@@ -1,9 +1,11 @@
 #include "inline.hpp"
+
+#include <tracy/Tracy.hpp>
+
 #include "ir/basic_block.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
-#include <tracy/Tracy.hpp>
 
 namespace foptim::optim {
 
@@ -137,4 +139,4 @@ bool inline_call(fir::Instr call) {
   return true;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

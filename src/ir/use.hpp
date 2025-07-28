@@ -13,15 +13,15 @@ enum class UseType : u8 {
 };
 
 class Use {
-private:
+ private:
   constexpr Use(Instr user, UseType type, u16 argId, u16 bbArgId)
       : user(user), type(type), argId(argId), bbArgId(bbArgId) {}
 
-public:
+ public:
   Instr user;
   UseType type;
   u16 argId;
-  u16 bbArgId; // always 0 otherwise
+  u16 bbArgId;  // always 0 otherwise
 
   static constexpr Use norm(Instr r, u16 argId) {
     return {r, UseType::NormalArg, argId, 0};
@@ -41,7 +41,7 @@ public:
 };
 
 class Used {
-public:
+ public:
   IRVec<Use> uses;
 
   void add_usage(Use u) { uses.push_back(u); }
@@ -54,7 +54,7 @@ public:
 };
 
 class LockedUsed {
-public:
+ public:
   Mutex<Used> _uses;
 
   void add_usage(Use u) {
@@ -75,9 +75,10 @@ public:
   void remove_all_usages();
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct std::hash<foptim::fir::Use> {
+template <>
+struct std::hash<foptim::fir::Use> {
   std::size_t operator()(const foptim::fir::Use &k) const {
     using foptim::u16;
     using foptim::u8;

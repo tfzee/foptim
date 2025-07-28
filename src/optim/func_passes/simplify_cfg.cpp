@@ -1,4 +1,5 @@
 #include "simplify_cfg.hpp"
+
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -92,7 +93,7 @@ bool has_true_use(fir::BBArgument v) {
   }
   return false;
 }
-} // namespace
+}  // namespace
 
 bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
                                      fir::Function &func, size_t /*bb_id*/,
@@ -215,7 +216,7 @@ struct DiffConst {
   return res;
 }
 
-} // namespace
+}  // namespace
 
 bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
                                  size_t bb_id, bool is_entry) {
@@ -433,45 +434,45 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
   for (auto instr : curr.bb->instructions) {
     // just switching to make sure to update this
     switch (instr->instr_type) {
-    case fir::InstrType::CallInstr:
-      return false;
-    case fir::InstrType::Intrinsic:
-      switch ((fir::IntrinsicSubType)instr->subtype) {
-      case fir::IntrinsicSubType::INVALID:
-      case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::Abs:
-      case fir::IntrinsicSubType::FAbs:
-      case fir::IntrinsicSubType::VA_end:
-      case fir::IntrinsicSubType::VA_start:
-      case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::UMax:
-      case fir::IntrinsicSubType::SMin:
-      case fir::IntrinsicSubType::SMax:
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
+      case fir::InstrType::CallInstr:
+        return false;
+      case fir::InstrType::Intrinsic:
+        switch ((fir::IntrinsicSubType)instr->subtype) {
+          case fir::IntrinsicSubType::INVALID:
+          case fir::IntrinsicSubType::CTLZ:
+          case fir::IntrinsicSubType::Abs:
+          case fir::IntrinsicSubType::FAbs:
+          case fir::IntrinsicSubType::VA_end:
+          case fir::IntrinsicSubType::VA_start:
+          case fir::IntrinsicSubType::UMin:
+          case fir::IntrinsicSubType::UMax:
+          case fir::IntrinsicSubType::SMin:
+          case fir::IntrinsicSubType::SMax:
+          case fir::IntrinsicSubType::FMin:
+          case fir::IntrinsicSubType::FMax:
+            break;
+        }
+      case fir::InstrType::VectorInstr:
+      case fir::InstrType::ICmp:
+      case fir::InstrType::FCmp:
+      case fir::InstrType::BinaryInstr:
+      case fir::InstrType::UnaryInstr:
+      case fir::InstrType::AllocaInstr:
+      case fir::InstrType::ExtractValue:
+      case fir::InstrType::InsertValue:
+      case fir::InstrType::ITrunc:
+      case fir::InstrType::ZExt:
+      case fir::InstrType::SExt:
+      case fir::InstrType::Conversion:
+      case fir::InstrType::SelectInstr:
+      case fir::InstrType::ReturnInstr:
+      case fir::InstrType::BranchInstr:
+      case fir::InstrType::CondBranchInstr:
+      case fir::InstrType::SwitchInstr:
+      case fir::InstrType::Unreachable:
+      case fir::InstrType::LoadInstr:
+      case fir::InstrType::StoreInstr:
         break;
-      }
-    case fir::InstrType::VectorInstr:
-    case fir::InstrType::ICmp:
-    case fir::InstrType::FCmp:
-    case fir::InstrType::BinaryInstr:
-    case fir::InstrType::UnaryInstr:
-    case fir::InstrType::AllocaInstr:
-    case fir::InstrType::ExtractValue:
-    case fir::InstrType::InsertValue:
-    case fir::InstrType::ITrunc:
-    case fir::InstrType::ZExt:
-    case fir::InstrType::SExt:
-    case fir::InstrType::Conversion:
-    case fir::InstrType::SelectInstr:
-    case fir::InstrType::ReturnInstr:
-    case fir::InstrType::BranchInstr:
-    case fir::InstrType::CondBranchInstr:
-    case fir::InstrType::SwitchInstr:
-    case fir::InstrType::Unreachable:
-    case fir::InstrType::LoadInstr:
-    case fir::InstrType::StoreInstr:
-      break;
     }
   }
 
@@ -834,4 +835,4 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
   }
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

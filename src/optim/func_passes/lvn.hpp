@@ -1,4 +1,6 @@
 #pragma once
+#include <fmt/std.h>
+
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -6,14 +8,13 @@
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
-#include <fmt/std.h>
 
 namespace foptim::optim {
 
 // using BBData = TVec<BitSet>;
 
 class LVN final : public FunctionPass {
-public:
+ public:
   static bool lvn_applicable(fir::Instr instr) {
     return !instr->is(fir::InstrType::LoadInstr) &&
            !instr->is(fir::InstrType::StoreInstr) &&
@@ -162,4 +163,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

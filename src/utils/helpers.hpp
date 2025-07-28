@@ -1,12 +1,14 @@
 #pragma once
-#include "utils/types.hpp"
 #include <memory>
 #include <tracy/Tracy.hpp>
 
+#include "utils/types.hpp"
+
 namespace foptim::utils {
 
-template <class T> class TrackingAlloc : public std::allocator<T> {
-public:
+template <class T>
+class TrackingAlloc : public std::allocator<T> {
+ public:
   using pointer = T *;
 
   constexpr T *allocate(size_t count) {
@@ -22,9 +24,11 @@ public:
 };
 
 #if TRACY_ENABLE
-template <class T> using FAlloc = TrackingAlloc<T>;
+template <class T>
+using FAlloc = TrackingAlloc<T>;
 #else
-template <class T> using FAlloc = std::allocator<T>;
+template <class T>
+using FAlloc = std::allocator<T>;
 #endif
 
 __attribute__((const)) static inline bool is_pow2(u128 x) {
@@ -39,4 +43,4 @@ __attribute__((const)) static inline u128 npow2(u128 x) {
   return (128 - __builtin_clzg(x - 1));
 }
 
-} // namespace foptim::utils
+}  // namespace foptim::utils

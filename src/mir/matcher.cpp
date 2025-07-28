@@ -1,3 +1,5 @@
+#include "matcher.hpp"
+
 #include <algorithm>
 #include <ranges>
 #include <tracy/Tracy.hpp>
@@ -7,7 +9,6 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
-#include "matcher.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"

@@ -1,16 +1,17 @@
 #pragma once
+#include <deque>
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "utils/arena.hpp"
 #include "utils/bitset.hpp"
-#include <deque>
 
 namespace foptim::optim {
 
 class CFG {
-public:
+ public:
   struct Node {
     fir::BasicBlock bb;
     TVec<u32> pred;
@@ -87,7 +88,8 @@ public:
     }
   }
 
-  template <class T> constexpr void postorder(T &&functor) {
+  template <class T>
+  constexpr void postorder(T &&functor) {
     std::deque<u32, utils::TempAlloc<u32>> queue{entry};
     utils::BitSet set{bbrs.size(), false};
     set[entry].set(true);
@@ -117,4 +119,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

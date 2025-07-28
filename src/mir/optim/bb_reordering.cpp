@@ -1,4 +1,5 @@
 #include "bb_reordering.hpp"
+
 #include "mir/instr.hpp"
 
 namespace foptim::fmir {

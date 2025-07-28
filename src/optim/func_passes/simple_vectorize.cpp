@@ -1,4 +1,5 @@
 #include "simple_vectorize.hpp"
+
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 
@@ -22,8 +23,8 @@ bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   }
   ASSERT(range.type == LoopRangeAnalysis::IterationType::PlusA);
 
-  //figure out which instructions would be part of the vectorization
-  //that is all instructions that 
+  // figure out which instructions would be part of the vectorization
+  // that is all instructions that
 
   range.dump();
   TODO("okak");
@@ -45,4 +46,4 @@ void SimpleVectorizer::apply(fir::Context &ctx, fir::Function &func) {
   }
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

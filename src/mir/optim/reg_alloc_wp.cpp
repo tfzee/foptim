@@ -1,8 +1,10 @@
 #include "reg_alloc_wp.hpp"
+
+#include <algorithm>
+
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/set.hpp"
-#include <algorithm>
 
 namespace foptim::fmir {
 
@@ -30,42 +32,42 @@ void replace_vargs(IRVec<MBB> &bbs,
 void replace_vargs(MInstr &instr, const TMap<size_t, ColorData> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
-    case MArgument::ArgumentType::Imm:
-    case MArgument::ArgumentType::Label:
-    case MArgument::ArgumentType::MemLabel:
-    case MArgument::ArgumentType::MemImmLabel:
-    case MArgument::ArgumentType::MemImm:
-      break;
-    case MArgument::ArgumentType::VReg:
-    case MArgument::ArgumentType::MemImmVReg:
-    case MArgument::ArgumentType::MemVReg: {
-      auto reg = instr.args[i].reg;
-      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-        instr.args[i].reg.virt.id = reg_mapping.at(reg.virt_id()).vir_id;
+      case MArgument::ArgumentType::Imm:
+      case MArgument::ArgumentType::Label:
+      case MArgument::ArgumentType::MemLabel:
+      case MArgument::ArgumentType::MemImmLabel:
+      case MArgument::ArgumentType::MemImm:
+        break;
+      case MArgument::ArgumentType::VReg:
+      case MArgument::ArgumentType::MemImmVReg:
+      case MArgument::ArgumentType::MemVReg: {
+        auto reg = instr.args[i].reg;
+        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+          instr.args[i].reg.virt.id = reg_mapping.at(reg.virt_id()).vir_id;
+        }
+        break;
       }
-      break;
-    }
-    case MArgument::ArgumentType::MemVRegVRegScale:
-    case MArgument::ArgumentType::MemImmVRegVReg:
-    case MArgument::ArgumentType::MemVRegVReg:
-    case MArgument::ArgumentType::MemImmVRegVRegScale: {
-      auto reg = instr.args[i].reg;
-      auto indx = instr.args[i].indx;
-      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-        instr.args[i].reg.virt.id = reg_mapping.at(reg.virt_id()).vir_id;
+      case MArgument::ArgumentType::MemVRegVRegScale:
+      case MArgument::ArgumentType::MemImmVRegVReg:
+      case MArgument::ArgumentType::MemVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVRegScale: {
+        auto reg = instr.args[i].reg;
+        auto indx = instr.args[i].indx;
+        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+          instr.args[i].reg.virt.id = reg_mapping.at(reg.virt_id()).vir_id;
+        }
+        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+          instr.args[i].indx.virt.id = reg_mapping.at(indx.virt_id()).vir_id;
+        }
+        break;
       }
-      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-        instr.args[i].indx.virt.id = reg_mapping.at(indx.virt_id()).vir_id;
+      case MArgument::ArgumentType::MemImmVRegScale: {
+        auto indx = instr.args[i].indx;
+        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+          instr.args[i].indx.virt.id = reg_mapping.at(indx.virt_id()).vir_id;
+        }
+        break;
       }
-      break;
-    }
-    case MArgument::ArgumentType::MemImmVRegScale: {
-      auto indx = instr.args[i].indx;
-      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-        instr.args[i].indx.virt.id = reg_mapping.at(indx.virt_id()).vir_id;
-      }
-      break;
-    }
     }
   }
 }
@@ -194,4 +196,4 @@ void RegAllocWP::apply(FVec<MFunc> &funcs) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

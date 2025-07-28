@@ -50,7 +50,7 @@ class StackKnownBits final : public FunctionPass {
   void execute_sroa(TVec<fir::Instr> &load_stores, StackKnowCache &cache,
                     fir::BasicBlock entry_bb);
 
-public:
+ public:
   void apply(fir::Context &ctx, fir::Function &func) override;
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

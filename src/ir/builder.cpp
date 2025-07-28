@@ -1,4 +1,7 @@
 #include "builder.hpp"
+
+#include <algorithm>
+
 #include "basic_block.hpp"
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -6,7 +9,6 @@
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/vec.hpp"
-#include <algorithm>
 
 namespace foptim::fir {
 
@@ -16,7 +18,8 @@ Builder::Builder(BasicBlock bb)
     : ctx(bb->get_parent()->ctx), func(bb->get_parent()), bb(bb), indx(0) {}
 Builder::Builder(Instr instr)
     : ctx(instr->get_parent()->get_parent()->ctx),
-      func(instr->get_parent()->get_parent()), bb(instr->get_parent()),
+      func(instr->get_parent()->get_parent()),
+      bb(instr->get_parent()),
       indx(0) {
   indx = std::find(bb->instructions.begin(), bb->instructions.end(), instr) -
          bb->instructions.begin();
@@ -68,8 +71,9 @@ void Builder::at_penultimate(BasicBlock bbr) {
 }
 
 void Builder::check_bb_set() {
-  ASSERT_M(bb.is_valid(), "Need to set basicblock insert location first with "
-                          "funtions like at_end for exmaple");
+  ASSERT_M(bb.is_valid(),
+           "Need to set basicblock insert location first with "
+           "funtions like at_end for exmaple");
 }
 
 ValueR Builder::build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
@@ -204,7 +208,6 @@ ValueR Builder::build_extract_value(ValueR stru, std::span<ValueR> indicies,
 
 ValueR Builder::build_insert_value(ValueR stru, ValueR v,
                                    std::span<ValueR> indicies, TypeR out_ty) {
-
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_insert_value(out_ty));
   instr.add_arg(stru);
@@ -549,4 +552,4 @@ Instr Builder::insert_copy(Instr instr) {
   return res;
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

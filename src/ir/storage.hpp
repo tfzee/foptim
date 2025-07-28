@@ -12,12 +12,12 @@
 
 namespace foptim::fir {
 
-#define create_storage(Ty, name)                                               \
-  utils::StableVec<Ty> storage_##name = {};                                    \
+#define create_storage(Ty, name)            \
+  utils::StableVec<Ty> storage_##name = {}; \
   Ty##R insert_##name(Ty v) { return Ty##R(this->storage_##name.push_back(v)); }
 
 class IRStorage {
-public:
+ public:
   IRMap<IRString, std::unique_ptr<Function>> functions;
   utils::StableVec<std::unique_ptr<GlobalData>> storage_global;
   utils::StableVec<InstrData> storage_instr;
@@ -54,4 +54,4 @@ public:
   }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

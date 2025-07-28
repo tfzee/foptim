@@ -8,7 +8,7 @@
 namespace foptim::optim {
 
 class CallGraph {
-public:
+ public:
   struct Result {
     bool indirect_calls = false;
     TVec<fir::Function *> targets;
@@ -37,4 +37,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -6,8 +6,9 @@ namespace foptim::fmir {
 
 class DeadCodeElim {
   void apply(MFunc &func);
-public:
+
+ public:
   void apply(FVec<MFunc> &funcs);
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

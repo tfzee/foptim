@@ -1,4 +1,5 @@
 #include "attributable.hpp"
+
 #include "attribute.hpp"
 
 namespace foptim::fir {
@@ -51,4 +52,4 @@ Attributable *Attributable::set_attrib(IRString key, ConstantValueR value) {
   attribs[key] = Attribute(value);
   return this;
 }
-} // namespace foptim::fir
+}  // namespace foptim::fir

@@ -5,8 +5,6 @@
 namespace foptim::optim {
 void flip_cond_branch(fir::Instr cond_term);
 
-
-
 struct GuessTypeResult {
   bool typeless;
   fir::TypeR type;
@@ -14,4 +12,4 @@ struct GuessTypeResult {
 
 GuessTypeResult guessType(fir::ValueR ptr);
 
-}
+}  // namespace foptim::optim

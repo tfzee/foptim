@@ -1,4 +1,10 @@
 #include "inst_simplify.hpp"
+
+#include <fmt/core.h>
+
+#include <algorithm>
+#include <bit>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -14,9 +20,6 @@
 #include "optim/analysis/basic_alias_test.hpp"
 #include "utils/helpers.hpp"
 #include "utils/set.hpp"
-#include <algorithm>
-#include <bit>
-#include <fmt/core.h>
 
 namespace foptim::optim {
 
@@ -34,75 +37,75 @@ void swap_args(fir::Instr instr, u32 a1, u32 a2) {
 void swap_args_fcmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::FCmp))
   switch ((fir::FCmpInstrSubType)instr->subtype) {
-  case fir::FCmpInstrSubType::INVALID:
-  case fir::FCmpInstrSubType::AlwFalse:
-  case fir::FCmpInstrSubType::OEQ:
-  case fir::FCmpInstrSubType::UEQ:
-  case fir::FCmpInstrSubType::ONE:
-  case fir::FCmpInstrSubType::UNE:
-  case fir::FCmpInstrSubType::AlwTrue:
-    swap_args(instr, 0, 1);
-    break;
-  case fir::FCmpInstrSubType::OGT:
-  case fir::FCmpInstrSubType::OGE:
-  case fir::FCmpInstrSubType::OLT:
-  case fir::FCmpInstrSubType::OLE:
-  case fir::FCmpInstrSubType::ORD:
-  case fir::FCmpInstrSubType::UNO:
-  case fir::FCmpInstrSubType::UGT:
-  case fir::FCmpInstrSubType::UGE:
-  case fir::FCmpInstrSubType::ULT:
-  case fir::FCmpInstrSubType::ULE:
-  case fir::FCmpInstrSubType::IsNaN:
-    break;
+    case fir::FCmpInstrSubType::INVALID:
+    case fir::FCmpInstrSubType::AlwFalse:
+    case fir::FCmpInstrSubType::OEQ:
+    case fir::FCmpInstrSubType::UEQ:
+    case fir::FCmpInstrSubType::ONE:
+    case fir::FCmpInstrSubType::UNE:
+    case fir::FCmpInstrSubType::AlwTrue:
+      swap_args(instr, 0, 1);
+      break;
+    case fir::FCmpInstrSubType::OGT:
+    case fir::FCmpInstrSubType::OGE:
+    case fir::FCmpInstrSubType::OLT:
+    case fir::FCmpInstrSubType::OLE:
+    case fir::FCmpInstrSubType::ORD:
+    case fir::FCmpInstrSubType::UNO:
+    case fir::FCmpInstrSubType::UGT:
+    case fir::FCmpInstrSubType::UGE:
+    case fir::FCmpInstrSubType::ULT:
+    case fir::FCmpInstrSubType::ULE:
+    case fir::FCmpInstrSubType::IsNaN:
+      break;
   }
 }
 
 void swap_args_icmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::ICmp))
   switch ((fir::ICmpInstrSubType)instr->subtype) {
-  case fir::ICmpInstrSubType::NE:
-  case fir::ICmpInstrSubType::EQ:
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::SLT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::ULT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::SGT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::UGT:
-    instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::UGE:
-    instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::ULE:
-    instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::SGE:
-    instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::SLE:
-    instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
-    swap_args(instr, 0, 1);
-    return;
-  case fir::ICmpInstrSubType::AddOverflow:
-  case fir::ICmpInstrSubType::MulOverflow:
-    // TODO
-    return;
-  case fir::ICmpInstrSubType::INVALID:
-    UNREACH();
+    case fir::ICmpInstrSubType::NE:
+    case fir::ICmpInstrSubType::EQ:
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::SLT:
+      instr->subtype = (u32)fir::ICmpInstrSubType::SGT;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::ULT:
+      instr->subtype = (u32)fir::ICmpInstrSubType::UGT;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::SGT:
+      instr->subtype = (u32)fir::ICmpInstrSubType::SLT;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::UGT:
+      instr->subtype = (u32)fir::ICmpInstrSubType::ULT;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::UGE:
+      instr->subtype = (u32)fir::ICmpInstrSubType::ULE;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::ULE:
+      instr->subtype = (u32)fir::ICmpInstrSubType::UGE;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::SGE:
+      instr->subtype = (u32)fir::ICmpInstrSubType::SLE;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::SLE:
+      instr->subtype = (u32)fir::ICmpInstrSubType::SGE;
+      swap_args(instr, 0, 1);
+      return;
+    case fir::ICmpInstrSubType::AddOverflow:
+    case fir::ICmpInstrSubType::MulOverflow:
+      // TODO
+      return;
+    case fir::ICmpInstrSubType::INVALID:
+      UNREACH();
   }
 }
 
@@ -239,7 +242,6 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   // since both being constant would be handleded by constant folding we
   // just asume theres one and normalzie by putting it into the secodn arg
   {
-
     auto swap_const_back = instr->args[0].is_constant() &&
                            (!instr->args[0].as_constant()->is_global() &&
                             !instr->args[0].as_constant()->is_func());
@@ -423,7 +425,6 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   const bool has_const = (c0_val != nullptr) || (c1_val != nullptr);
   // const bool both_const = has_const && instr->args[0].is_constant();
   if (has_const) {
-
     if (((c0_val != nullptr) && c0_val->is_poison()) ||
         ((c1_val != nullptr) && c1_val->is_poison())) {
       push_all_uses(worklist, instr);
@@ -631,36 +632,36 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                                            c1_val->get_type()->as_int());
 
           switch ((BinaryInstrSubType)a0->subtype) {
-          case fir::BinaryInstrSubType::INVALID:
-          case fir::BinaryInstrSubType::FloatAdd:
-          case fir::BinaryInstrSubType::FloatSub:
-          case fir::BinaryInstrSubType::FloatMul:
-          case fir::BinaryInstrSubType::FloatDiv:
-            UNREACH();
-          case fir::BinaryInstrSubType::IntSDiv:
-          case fir::BinaryInstrSubType::IntUDiv:
-          case fir::BinaryInstrSubType::IntMul:
-            break;
-          case fir::BinaryInstrSubType::IntAdd: {
-            auto new_val = ctx->get_constant_int(
-                c1_val->as_int() + sec_constant, biggest_bitwidth);
-            instr.replace_arg(0, a0->args[0]);
-            instr.replace_arg(1, ValueR(new_val));
-            push_all_uses(worklist, instr);
-            break;
-          }
-          case fir::BinaryInstrSubType::IntSub: {
-            auto new_val = ctx->get_constant_int(
-                c1_val->as_int() - sec_constant, biggest_bitwidth);
-            instr.replace_arg(0, a0->args[0]);
-            instr.replace_arg(1, ValueR(new_val));
-            push_all_uses(worklist, instr);
-            break;
-          }
-          default:
-            break;
-            // fmt::println("Previous op {}", a0);
-            // UNREACH();
+            case fir::BinaryInstrSubType::INVALID:
+            case fir::BinaryInstrSubType::FloatAdd:
+            case fir::BinaryInstrSubType::FloatSub:
+            case fir::BinaryInstrSubType::FloatMul:
+            case fir::BinaryInstrSubType::FloatDiv:
+              UNREACH();
+            case fir::BinaryInstrSubType::IntSDiv:
+            case fir::BinaryInstrSubType::IntUDiv:
+            case fir::BinaryInstrSubType::IntMul:
+              break;
+            case fir::BinaryInstrSubType::IntAdd: {
+              auto new_val = ctx->get_constant_int(
+                  c1_val->as_int() + sec_constant, biggest_bitwidth);
+              instr.replace_arg(0, a0->args[0]);
+              instr.replace_arg(1, ValueR(new_val));
+              push_all_uses(worklist, instr);
+              break;
+            }
+            case fir::BinaryInstrSubType::IntSub: {
+              auto new_val = ctx->get_constant_int(
+                  c1_val->as_int() - sec_constant, biggest_bitwidth);
+              instr.replace_arg(0, a0->args[0]);
+              instr.replace_arg(1, ValueR(new_val));
+              push_all_uses(worklist, instr);
+              break;
+            }
+            default:
+              break;
+              // fmt::println("Previous op {}", a0);
+              // UNREACH();
           }
         }
       }
@@ -699,34 +700,34 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     auto is_redundant0 = false;
     auto is_redundant1 = false;
     switch ((BinaryInstrSubType)instr->get_instr_subtype()) {
-    case fir::BinaryInstrSubType::And:
-      is_redundant0 = (~arg0_known->known_zero & ~arg1_known->known_one) == 0;
-      is_redundant1 = (~arg1_known->known_zero & ~arg0_known->known_one) == 0;
-      break;
-    case fir::BinaryInstrSubType::Or:
-      is_redundant0 = (~arg0_known->known_one & ~arg1_known->known_zero) == 0;
-      is_redundant1 = (~arg1_known->known_one & ~arg0_known->known_zero) == 0;
-      break;
-    case fir::BinaryInstrSubType::Xor:
-      is_redundant0 = arg1_known->known_zero == ~0ULL;
-      is_redundant1 = arg0_known->known_zero == ~0ULL;
-      break;
-    case fir::BinaryInstrSubType::INVALID:
-    case fir::BinaryInstrSubType::IntAdd:
-    case fir::BinaryInstrSubType::IntSub:
-    case fir::BinaryInstrSubType::IntMul:
-    case fir::BinaryInstrSubType::IntSRem:
-    case fir::BinaryInstrSubType::IntURem:
-    case fir::BinaryInstrSubType::IntSDiv:
-    case fir::BinaryInstrSubType::IntUDiv:
-    case fir::BinaryInstrSubType::Shl:
-    case fir::BinaryInstrSubType::Shr:
-    case fir::BinaryInstrSubType::AShr:
-    case fir::BinaryInstrSubType::FloatAdd:
-    case fir::BinaryInstrSubType::FloatSub:
-    case fir::BinaryInstrSubType::FloatMul:
-    case fir::BinaryInstrSubType::FloatDiv:
-      break;
+      case fir::BinaryInstrSubType::And:
+        is_redundant0 = (~arg0_known->known_zero & ~arg1_known->known_one) == 0;
+        is_redundant1 = (~arg1_known->known_zero & ~arg0_known->known_one) == 0;
+        break;
+      case fir::BinaryInstrSubType::Or:
+        is_redundant0 = (~arg0_known->known_one & ~arg1_known->known_zero) == 0;
+        is_redundant1 = (~arg1_known->known_one & ~arg0_known->known_zero) == 0;
+        break;
+      case fir::BinaryInstrSubType::Xor:
+        is_redundant0 = arg1_known->known_zero == ~0ULL;
+        is_redundant1 = arg0_known->known_zero == ~0ULL;
+        break;
+      case fir::BinaryInstrSubType::INVALID:
+      case fir::BinaryInstrSubType::IntAdd:
+      case fir::BinaryInstrSubType::IntSub:
+      case fir::BinaryInstrSubType::IntMul:
+      case fir::BinaryInstrSubType::IntSRem:
+      case fir::BinaryInstrSubType::IntURem:
+      case fir::BinaryInstrSubType::IntSDiv:
+      case fir::BinaryInstrSubType::IntUDiv:
+      case fir::BinaryInstrSubType::Shl:
+      case fir::BinaryInstrSubType::Shr:
+      case fir::BinaryInstrSubType::AShr:
+      case fir::BinaryInstrSubType::FloatAdd:
+      case fir::BinaryInstrSubType::FloatSub:
+      case fir::BinaryInstrSubType::FloatMul:
+      case fir::BinaryInstrSubType::FloatDiv:
+        break;
     }
     if (is_redundant0) {
       push_all_uses(worklist, instr);
@@ -846,49 +847,49 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     v2 = ((v2 & mask) << rest_width) >> rest_width;
     bool is_true = false;
     switch ((ICmpInstrSubType)instr->get_instr_subtype()) {
-    case fir::ICmpInstrSubType::INVALID:
-      UNREACH();
-    case fir::ICmpInstrSubType::SLT:
-      is_true = (i64)v1 < (i64)v2;
-      break;
-    case fir::ICmpInstrSubType::ULT:
-      is_true = (u64)v1 < (u64)v2;
-      break;
-    case fir::ICmpInstrSubType::NE:
-      is_true = v1 != v2;
-      break;
-    case fir::ICmpInstrSubType::EQ:
-      is_true = v1 == v2;
-      break;
-    case fir::ICmpInstrSubType::SGT:
-      is_true = (i64)v1 > (i64)v2;
-      break;
-    case fir::ICmpInstrSubType::UGT:
-      is_true = (u64)v1 > (u64)v2;
-      break;
-    case fir::ICmpInstrSubType::UGE:
-      is_true = (u64)v1 >= (u64)v2;
-      break;
-    case fir::ICmpInstrSubType::ULE:
-      is_true = (u64)v1 <= (u64)v2;
-      break;
-    case fir::ICmpInstrSubType::SGE:
-      is_true = (i64)v1 >= (i64)v2;
-      break;
-    case fir::ICmpInstrSubType::SLE:
-      is_true = (i64)v1 <= (i64)v2;
-      break;
-    case fir::ICmpInstrSubType::MulOverflow: {
-      i128 output = v1 * v2;
-      i128 mask = ~(((i128)1 << bitwidth) - 1);
-      is_true = (output & mask) != 0;
-    } break;
+      case fir::ICmpInstrSubType::INVALID:
+        UNREACH();
+      case fir::ICmpInstrSubType::SLT:
+        is_true = (i64)v1 < (i64)v2;
+        break;
+      case fir::ICmpInstrSubType::ULT:
+        is_true = (u64)v1 < (u64)v2;
+        break;
+      case fir::ICmpInstrSubType::NE:
+        is_true = v1 != v2;
+        break;
+      case fir::ICmpInstrSubType::EQ:
+        is_true = v1 == v2;
+        break;
+      case fir::ICmpInstrSubType::SGT:
+        is_true = (i64)v1 > (i64)v2;
+        break;
+      case fir::ICmpInstrSubType::UGT:
+        is_true = (u64)v1 > (u64)v2;
+        break;
+      case fir::ICmpInstrSubType::UGE:
+        is_true = (u64)v1 >= (u64)v2;
+        break;
+      case fir::ICmpInstrSubType::ULE:
+        is_true = (u64)v1 <= (u64)v2;
+        break;
+      case fir::ICmpInstrSubType::SGE:
+        is_true = (i64)v1 >= (i64)v2;
+        break;
+      case fir::ICmpInstrSubType::SLE:
+        is_true = (i64)v1 <= (i64)v2;
+        break;
+      case fir::ICmpInstrSubType::MulOverflow: {
+        i128 output = v1 * v2;
+        i128 mask = ~(((i128)1 << bitwidth) - 1);
+        is_true = (output & mask) != 0;
+      } break;
 
-    case fir::ICmpInstrSubType::AddOverflow: {
-      i128 output = v1 + v2;
-      i128 mask = ~(((i128)1 << bitwidth) - 1);
-      is_true = (output & mask) != 0;
-    } break;
+      case fir::ICmpInstrSubType::AddOverflow: {
+        i128 output = v1 + v2;
+        i128 mask = ~(((i128)1 << bitwidth) - 1);
+        is_true = (output & mask) != 0;
+      } break;
     }
     auto new_const_value = ctx->get_constant_int((u64)is_true, 1);
     push_all_uses(worklist, instr);
@@ -1256,37 +1257,37 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       // TODO: this is iffy
       auto const_val = const1_i->as_f64();
       switch ((FCmpInstrSubType)instr->get_instr_subtype()) {
-      case fir::FCmpInstrSubType::OLT: {
-        auto r = b.build_int_cmp(
-            arg0_i->args[0],
-            fir::ValueR{ctx->get_constant_value((i128)ceil(const_val),
-                                                arg0_i->args[0].get_type())},
-            ICmpInstrSubType::SLT);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return;
-      }
-      case fir::FCmpInstrSubType::INVALID:
-      case fir::FCmpInstrSubType::AlwFalse:
-      case fir::FCmpInstrSubType::OEQ:
-      case fir::FCmpInstrSubType::OGT:
-      case fir::FCmpInstrSubType::OGE:
-      case fir::FCmpInstrSubType::OLE:
-      case fir::FCmpInstrSubType::ONE:
-      case fir::FCmpInstrSubType::ORD:
-      case fir::FCmpInstrSubType::UNO:
-      case fir::FCmpInstrSubType::UEQ:
-      case fir::FCmpInstrSubType::UGT:
-      case fir::FCmpInstrSubType::UGE:
-      case fir::FCmpInstrSubType::ULT:
-      case fir::FCmpInstrSubType::ULE:
-      case fir::FCmpInstrSubType::UNE:
-      case fir::FCmpInstrSubType::AlwTrue:
-      case fir::FCmpInstrSubType::IsNaN:
-        fmt::println("{}", instr);
-        TODO("impl");
-        break;
+        case fir::FCmpInstrSubType::OLT: {
+          auto r = b.build_int_cmp(
+              arg0_i->args[0],
+              fir::ValueR{ctx->get_constant_value((i128)ceil(const_val),
+                                                  arg0_i->args[0].get_type())},
+              ICmpInstrSubType::SLT);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(r);
+          instr.destroy();
+          return;
+        }
+        case fir::FCmpInstrSubType::INVALID:
+        case fir::FCmpInstrSubType::AlwFalse:
+        case fir::FCmpInstrSubType::OEQ:
+        case fir::FCmpInstrSubType::OGT:
+        case fir::FCmpInstrSubType::OGE:
+        case fir::FCmpInstrSubType::OLE:
+        case fir::FCmpInstrSubType::ONE:
+        case fir::FCmpInstrSubType::ORD:
+        case fir::FCmpInstrSubType::UNO:
+        case fir::FCmpInstrSubType::UEQ:
+        case fir::FCmpInstrSubType::UGT:
+        case fir::FCmpInstrSubType::UGE:
+        case fir::FCmpInstrSubType::ULT:
+        case fir::FCmpInstrSubType::ULE:
+        case fir::FCmpInstrSubType::UNE:
+        case fir::FCmpInstrSubType::AlwTrue:
+        case fir::FCmpInstrSubType::IsNaN:
+          fmt::println("{}", instr);
+          TODO("impl");
+          break;
       }
     }
   }
@@ -1309,66 +1310,74 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
     switch ((FCmpInstrSubType)instr->get_instr_subtype()) {
-    case fir::FCmpInstrSubType::IsNaN:
-      __asm__("vcomisd %2, %1\n\t"
-              "setp %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OEQ:
-      __asm__("vcomisd %2, %1\n\t"
-              "sete %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OGT:
-      __asm__("vcomisd %2, %1\n\t"
-              "seta %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OGE:
-      __asm__("vcomisd %2, %1\n\t"
-              "setae %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OLT:
-      __asm__("vcomisd %2, %1\n\t"
-              "setb %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OLE:
-      __asm__("vcomisd %2, %1\n\t"
-              "setbe %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::ONE:
-      __asm__("vcomisd %2, %1\n\t"
-              "setne %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::ORD:
-    case fir::FCmpInstrSubType::UNO:
-    case fir::FCmpInstrSubType::UEQ:
-    case fir::FCmpInstrSubType::UGT:
-    case fir::FCmpInstrSubType::UGE:
-    case fir::FCmpInstrSubType::ULT:
-    case fir::FCmpInstrSubType::ULE:
-      IMPL("implement");
-    case fir::FCmpInstrSubType::UNE:
-      __asm__("vucomisd %2, %1\n\t"
-              "setne %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::INVALID:
-    case fir::FCmpInstrSubType::AlwFalse:
-    case fir::FCmpInstrSubType::AlwTrue:
-      return;
+      case fir::FCmpInstrSubType::IsNaN:
+        __asm__(
+            "vcomisd %2, %1\n\t"
+            "setp %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::OEQ:
+        __asm__(
+            "vcomisd %2, %1\n\t"
+            "sete %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::OGT:
+        __asm__(
+            "vcomisd %2, %1\n\t"
+            "seta %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::OGE:
+        __asm__(
+            "vcomisd %2, %1\n\t"
+            "setae %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::OLT:
+        __asm__(
+            "vcomisd %2, %1\n\t"
+            "setb %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::OLE:
+        __asm__(
+            "vcomisd %2, %1\n\t"
+            "setbe %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::ONE:
+        __asm__(
+            "vcomisd %2, %1\n\t"
+            "setne %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::ORD:
+      case fir::FCmpInstrSubType::UNO:
+      case fir::FCmpInstrSubType::UEQ:
+      case fir::FCmpInstrSubType::UGT:
+      case fir::FCmpInstrSubType::UGE:
+      case fir::FCmpInstrSubType::ULT:
+      case fir::FCmpInstrSubType::ULE:
+        IMPL("implement");
+      case fir::FCmpInstrSubType::UNE:
+        __asm__(
+            "vucomisd %2, %1\n\t"
+            "setne %0"
+            : "=r"(is_true)
+            : "x"(v1), "x"(v2));
+        break;
+      case fir::FCmpInstrSubType::INVALID:
+      case fir::FCmpInstrSubType::AlwFalse:
+      case fir::FCmpInstrSubType::AlwTrue:
+        return;
     }
     auto new_const_value = ctx->get_constant_int((u64)is_true, 8);
     push_all_uses(worklist, instr);
@@ -1442,35 +1451,35 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       fir::Builder b{instr};
       fir::ValueR new_val;
       switch ((fir::ICmpInstrSubType)icmp->subtype) {
-      case fir::ICmpInstrSubType::UGT:
-      case fir::ICmpInstrSubType::UGE:
-        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
-                                    negated ? fir::IntrinsicSubType::UMax
-                                            : fir::IntrinsicSubType::UMin);
-        break;
-      case fir::ICmpInstrSubType::ULT:
-      case fir::ICmpInstrSubType::ULE:
-        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
-                                    negated ? fir::IntrinsicSubType::UMin
-                                            : fir::IntrinsicSubType::UMax);
-        break;
-      case fir::ICmpInstrSubType::SLT:
-      case fir::ICmpInstrSubType::SLE:
-        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
-                                    negated ? fir::IntrinsicSubType::SMin
-                                            : fir::IntrinsicSubType::SMax);
-        break;
-      case fir::ICmpInstrSubType::SGT:
-      case fir::ICmpInstrSubType::SGE:
-        new_val = b.build_intrinsic(instr->args[1], instr->args[2],
-                                    negated ? fir::IntrinsicSubType::SMax
-                                            : fir::IntrinsicSubType::SMin);
-        break;
-      default:
-        fmt::print("{}", icmp);
-        fmt::print("{}", instr);
-        TODO("okak");
-        break;
+        case fir::ICmpInstrSubType::UGT:
+        case fir::ICmpInstrSubType::UGE:
+          new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                      negated ? fir::IntrinsicSubType::UMax
+                                              : fir::IntrinsicSubType::UMin);
+          break;
+        case fir::ICmpInstrSubType::ULT:
+        case fir::ICmpInstrSubType::ULE:
+          new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                      negated ? fir::IntrinsicSubType::UMin
+                                              : fir::IntrinsicSubType::UMax);
+          break;
+        case fir::ICmpInstrSubType::SLT:
+        case fir::ICmpInstrSubType::SLE:
+          new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                      negated ? fir::IntrinsicSubType::SMin
+                                              : fir::IntrinsicSubType::SMax);
+          break;
+        case fir::ICmpInstrSubType::SGT:
+        case fir::ICmpInstrSubType::SGE:
+          new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                      negated ? fir::IntrinsicSubType::SMax
+                                              : fir::IntrinsicSubType::SMin);
+          break;
+        default:
+          fmt::print("{}", icmp);
+          fmt::print("{}", instr);
+          TODO("okak");
+          break;
       }
       if (!new_val.is_invalid()) {
         push_all_uses(worklist, instr);
@@ -1495,19 +1504,19 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       fir::Builder b{instr};
       fir::ValueR new_val;
       switch ((fir::FCmpInstrSubType)fcmp->subtype) {
-      case fir::FCmpInstrSubType::OGT:
-      case fir::FCmpInstrSubType::OGE:
-      case fir::FCmpInstrSubType::OLT:
-      case fir::FCmpInstrSubType::OLE:
-      case fir::FCmpInstrSubType::UGT:
-      case fir::FCmpInstrSubType::UGE:
-      case fir::FCmpInstrSubType::ULT:
-      case fir::FCmpInstrSubType::ULE:
-        fmt::print("{}", fcmp);
-        fmt::print("{}", instr);
-        TODO("okak");
-      default:
-        break;
+        case fir::FCmpInstrSubType::OGT:
+        case fir::FCmpInstrSubType::OGE:
+        case fir::FCmpInstrSubType::OLT:
+        case fir::FCmpInstrSubType::OLE:
+        case fir::FCmpInstrSubType::UGT:
+        case fir::FCmpInstrSubType::UGE:
+        case fir::FCmpInstrSubType::ULT:
+        case fir::FCmpInstrSubType::ULE:
+          fmt::print("{}", fcmp);
+          fmt::print("{}", instr);
+          TODO("okak");
+        default:
+          break;
       }
       if (!new_val.is_invalid()) {
         push_all_uses(worklist, instr);
@@ -1783,35 +1792,35 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     //   }
     // }
     switch (arg_i->instr_type) {
-    case fir::InstrType::BinaryInstr: {
-      auto i_arg0 = arg_i->args[0];
-      auto i_arg1 = arg_i->args[1];
-      fir::Builder b{instr};
-      switch ((fir::BinaryInstrSubType)arg_i->subtype) {
-      case fir::BinaryInstrSubType::Xor:
-      case fir::BinaryInstrSubType::And:
-      case fir::BinaryInstrSubType::Or:
-      case fir::BinaryInstrSubType::IntSub:
-      case fir::BinaryInstrSubType::IntMul:
-      case fir::BinaryInstrSubType::IntAdd: {
-        auto v0 = b.build_itrunc(i_arg0, out_type);
-        auto v1 = b.build_itrunc(i_arg1, out_type);
-        auto r =
-            b.build_binary_op(v0, v1, (fir::BinaryInstrSubType)arg_i->subtype);
-        worklist.push_back({v0.as_instr(), v0.as_instr()->get_parent()});
-        worklist.push_back({v1.as_instr(), v1.as_instr()->get_parent()});
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return;
+      case fir::InstrType::BinaryInstr: {
+        auto i_arg0 = arg_i->args[0];
+        auto i_arg1 = arg_i->args[1];
+        fir::Builder b{instr};
+        switch ((fir::BinaryInstrSubType)arg_i->subtype) {
+          case fir::BinaryInstrSubType::Xor:
+          case fir::BinaryInstrSubType::And:
+          case fir::BinaryInstrSubType::Or:
+          case fir::BinaryInstrSubType::IntSub:
+          case fir::BinaryInstrSubType::IntMul:
+          case fir::BinaryInstrSubType::IntAdd: {
+            auto v0 = b.build_itrunc(i_arg0, out_type);
+            auto v1 = b.build_itrunc(i_arg1, out_type);
+            auto r = b.build_binary_op(v0, v1,
+                                       (fir::BinaryInstrSubType)arg_i->subtype);
+            worklist.push_back({v0.as_instr(), v0.as_instr()->get_parent()});
+            worklist.push_back({v1.as_instr(), v1.as_instr()->get_parent()});
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(r);
+            instr.destroy();
+            return;
+          }
+          default:
+            break;
+        }
+        break;
       }
       default:
         break;
-      }
-      break;
-    }
-    default:
-      break;
     }
   }
 }
@@ -1861,42 +1870,42 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     auto old_icmp = instr->args[0].as_instr();
     auto new_subtype = fir::ICmpInstrSubType::INVALID;
     switch ((fir::ICmpInstrSubType)old_icmp->subtype) {
-    case fir::ICmpInstrSubType::INVALID:
-      break;
-    case fir::ICmpInstrSubType::ULT:
-      new_subtype = fir::ICmpInstrSubType::UGE;
-      break;
-    case fir::ICmpInstrSubType::SLT:
-      new_subtype = fir::ICmpInstrSubType::SGE;
-      break;
-    case fir::ICmpInstrSubType::NE:
-      new_subtype = fir::ICmpInstrSubType::EQ;
-      break;
-    case fir::ICmpInstrSubType::EQ:
-      new_subtype = fir::ICmpInstrSubType::NE;
-      break;
-    case fir::ICmpInstrSubType::SGT:
-      new_subtype = fir::ICmpInstrSubType::SLE;
-      break;
-    case fir::ICmpInstrSubType::UGT:
-      new_subtype = fir::ICmpInstrSubType::ULE;
-      break;
-    case fir::ICmpInstrSubType::UGE:
-      new_subtype = fir::ICmpInstrSubType::ULT;
-      break;
-    case fir::ICmpInstrSubType::ULE:
-      new_subtype = fir::ICmpInstrSubType::UGT;
-      break;
-    case fir::ICmpInstrSubType::SGE:
-      new_subtype = fir::ICmpInstrSubType::SLT;
-      break;
-    case fir::ICmpInstrSubType::SLE:
-      new_subtype = fir::ICmpInstrSubType::SGT;
-      break;
-    case fir::ICmpInstrSubType::MulOverflow:
-    case fir::ICmpInstrSubType::AddOverflow:
-      // TODO: impl
-      return;
+      case fir::ICmpInstrSubType::INVALID:
+        break;
+      case fir::ICmpInstrSubType::ULT:
+        new_subtype = fir::ICmpInstrSubType::UGE;
+        break;
+      case fir::ICmpInstrSubType::SLT:
+        new_subtype = fir::ICmpInstrSubType::SGE;
+        break;
+      case fir::ICmpInstrSubType::NE:
+        new_subtype = fir::ICmpInstrSubType::EQ;
+        break;
+      case fir::ICmpInstrSubType::EQ:
+        new_subtype = fir::ICmpInstrSubType::NE;
+        break;
+      case fir::ICmpInstrSubType::SGT:
+        new_subtype = fir::ICmpInstrSubType::SLE;
+        break;
+      case fir::ICmpInstrSubType::UGT:
+        new_subtype = fir::ICmpInstrSubType::ULE;
+        break;
+      case fir::ICmpInstrSubType::UGE:
+        new_subtype = fir::ICmpInstrSubType::ULT;
+        break;
+      case fir::ICmpInstrSubType::ULE:
+        new_subtype = fir::ICmpInstrSubType::UGT;
+        break;
+      case fir::ICmpInstrSubType::SGE:
+        new_subtype = fir::ICmpInstrSubType::SLT;
+        break;
+      case fir::ICmpInstrSubType::SLE:
+        new_subtype = fir::ICmpInstrSubType::SGT;
+        break;
+      case fir::ICmpInstrSubType::MulOverflow:
+      case fir::ICmpInstrSubType::AddOverflow:
+        // TODO: impl
+        return;
     }
     ASSERT(new_subtype != fir::ICmpInstrSubType::INVALID);
 
@@ -1929,106 +1938,106 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   (void)ctx;
   (void)worklist;
   switch ((fir::ConversionSubType)instr->subtype) {
-  case fir::ConversionSubType::INVALID:
-    TODO("unreach");
-  case fir::ConversionSubType::BitCast:
-    if (instr->args[0].is_instr()) {
-      auto iarg0 = instr->args[0].as_instr();
-      if (iarg0->is(fir::InstrType::Conversion) &&
-          iarg0->subtype == (u32)fir::ConversionSubType::BitCast &&
-          iarg0->args[0].get_type() == instr.get_type()) {
+    case fir::ConversionSubType::INVALID:
+      TODO("unreach");
+    case fir::ConversionSubType::BitCast:
+      if (instr->args[0].is_instr()) {
+        auto iarg0 = instr->args[0].as_instr();
+        if (iarg0->is(fir::InstrType::Conversion) &&
+            iarg0->subtype == (u32)fir::ConversionSubType::BitCast &&
+            iarg0->args[0].get_type() == instr.get_type()) {
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(iarg0->args[0]);
+          instr.destroy();
+          return;
+        }
+      }
+      if (instr->args[0].is_constant()) {
+        fmt::println("implc const bitcast instr {:cd}", instr);
+        return;
+        // TODO("todo");
+      }
+      break;
+    case fir::ConversionSubType::SITOFP:
+    case fir::ConversionSubType::UITOFP:
+      if (instr->args[0].is_constant() &&
+          instr->args[0].as_constant()->is_int()) {
+        auto val = instr->args[0].as_constant()->as_int();
         push_all_uses(worklist, instr);
-        instr->replace_all_uses(iarg0->args[0]);
+        auto out_width = instr->get_type()->as_float();
+        if (out_width == 32) {
+          instr->replace_all_uses(fir::ValueR{
+              ctx->get_constant_value((f32)val, instr->get_type())});
+        } else if (out_width == 64) {
+          instr->replace_all_uses(fir::ValueR{
+              ctx->get_constant_value((f64)val, instr->get_type())});
+        } else {
+          TODO("Not supported other float bitwidths");
+        }
         instr.destroy();
         return;
       }
-    }
-    if (instr->args[0].is_constant()) {
-      fmt::println("implc const bitcast instr {:cd}", instr);
-      return;
-      // TODO("todo");
-    }
-    break;
-  case fir::ConversionSubType::SITOFP:
-  case fir::ConversionSubType::UITOFP:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_int()) {
-      auto val = instr->args[0].as_constant()->as_int();
-      push_all_uses(worklist, instr);
-      auto out_width = instr->get_type()->as_float();
-      if (out_width == 32) {
+      break;
+    case fir::ConversionSubType::PtrToInt:
+    case fir::ConversionSubType::IntToPtr:
+      if (instr->args[0].is_constant()) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[0]);
+        instr.destroy();
+        return;
+      }
+      break;
+    case fir::ConversionSubType::FPTOSI:
+      if (instr->args[0].is_constant() &&
+          instr->args[0].as_constant()->is_float()) {
+        auto val = instr->args[0].as_constant()->as_float();
+        push_all_uses(worklist, instr);
         instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value((f32)val, instr->get_type())});
-      } else if (out_width == 64) {
+            fir::ValueR{ctx->get_constant_value((i128)val, instr->get_type())});
+        instr.destroy();
+        // TODO("OKAK IMPL");
+        return;
+      }
+      break;
+    case fir::ConversionSubType::FPTOUI:
+      if (instr->args[0].is_constant() &&
+          instr->args[0].as_constant()->is_float()) {
+        //   auto val = instr->args[0].as_constant()->as_float();
+        //   push_all_uses(worklist, instr);
+        //   instr->replace_all_uses(
+        //       fir::ValueR{ctx->get_constant_value((u64)val,
+        //       instr->get_type())});
+        //   instr.destroy();
+        TODO("OKAK IMPL");
+        return;
+      }
+      break;
+    case fir::ConversionSubType::FPEXT:
+      if (instr->args[0].is_constant() &&
+          instr->args[0].as_constant()->is_float()) {
+        ASSERT(instr->args[0].get_type()->as_float() == 32);
+        ASSERT(instr.get_type()->as_float() == 64);
+        auto val = instr->args[0].as_constant()->as_f32();
+        push_all_uses(worklist, instr);
         instr->replace_all_uses(
             fir::ValueR{ctx->get_constant_value((f64)val, instr->get_type())});
-      } else {
-        TODO("Not supported other float bitwidths");
+        instr.destroy();
+        return;
       }
-      instr.destroy();
-      return;
-    }
-    break;
-  case fir::ConversionSubType::PtrToInt:
-  case fir::ConversionSubType::IntToPtr:
-    if (instr->args[0].is_constant()) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
-      instr.destroy();
-      return;
-    }
-    break;
-  case fir::ConversionSubType::FPTOSI:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      auto val = instr->args[0].as_constant()->as_float();
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value((i128)val, instr->get_type())});
-      instr.destroy();
-      // TODO("OKAK IMPL");
-      return;
-    }
-    break;
-  case fir::ConversionSubType::FPTOUI:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      //   auto val = instr->args[0].as_constant()->as_float();
-      //   push_all_uses(worklist, instr);
-      //   instr->replace_all_uses(
-      //       fir::ValueR{ctx->get_constant_value((u64)val,
-      //       instr->get_type())});
-      //   instr.destroy();
-      TODO("OKAK IMPL");
-      return;
-    }
-    break;
-  case fir::ConversionSubType::FPEXT:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      ASSERT(instr->args[0].get_type()->as_float() == 32);
-      ASSERT(instr.get_type()->as_float() == 64);
-      auto val = instr->args[0].as_constant()->as_f32();
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value((f64)val, instr->get_type())});
-      instr.destroy();
-      return;
-    }
-    break;
-  case fir::ConversionSubType::FPTRUNC:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      ASSERT(instr->args[0].get_type()->as_float() == 64);
-      ASSERT(instr.get_type()->as_float() == 32);
-      auto val = instr->args[0].as_constant()->as_f64();
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value((f32)val, instr->get_type())});
-      instr.destroy();
-      return;
-    }
-    break;
+      break;
+    case fir::ConversionSubType::FPTRUNC:
+      if (instr->args[0].is_constant() &&
+          instr->args[0].as_constant()->is_float()) {
+        ASSERT(instr->args[0].get_type()->as_float() == 64);
+        ASSERT(instr.get_type()->as_float() == 32);
+        auto val = instr->args[0].as_constant()->as_f64();
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value((f32)val, instr->get_type())});
+        instr.destroy();
+        return;
+      }
+      break;
   }
 }
 
@@ -2216,24 +2225,24 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (instr->args[0].is_constant() && instr->args[1].is_constant()) {
       push_all_uses(worklist, instr);
       switch (sub_type) {
-      default:
-        TODO("UNREACH");
-      case fir::IntrinsicSubType::SMax: {
-        push_all_uses(worklist, instr);
-        auto val = std::max(instr->args[0].as_constant()->as_int(),
-                            instr->args[1].as_constant()->as_int());
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-        instr.destroy();
-        return;
-      }
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
-      case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::UMax:
-      case fir::IntrinsicSubType::SMin:
-        fmt::println("{}", instr);
-        TODO("impl");
+        default:
+          TODO("UNREACH");
+        case fir::IntrinsicSubType::SMax: {
+          push_all_uses(worklist, instr);
+          auto val = std::max(instr->args[0].as_constant()->as_int(),
+                              instr->args[1].as_constant()->as_int());
+          instr->replace_all_uses(
+              fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+          instr.destroy();
+          return;
+        }
+        case fir::IntrinsicSubType::FMin:
+        case fir::IntrinsicSubType::FMax:
+        case fir::IntrinsicSubType::UMin:
+        case fir::IntrinsicSubType::UMax:
+        case fir::IntrinsicSubType::SMin:
+          fmt::println("{}", instr);
+          TODO("impl");
       }
       return;
     }
@@ -2264,41 +2273,41 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   switch (sub_type) {
-  default:
-    break;
-  case fir::IntrinsicSubType::UMin:
-  case fir::IntrinsicSubType::UMax:
-  case fir::IntrinsicSubType::SMin:
-  case fir::IntrinsicSubType::FMin:
-  case fir::IntrinsicSubType::FMax:
-  case fir::IntrinsicSubType::SMax: {
-    // IDK if these are worth the effort
-    break;
-  }
+    default:
+      break;
+    case fir::IntrinsicSubType::UMin:
+    case fir::IntrinsicSubType::UMax:
+    case fir::IntrinsicSubType::SMin:
+    case fir::IntrinsicSubType::FMin:
+    case fir::IntrinsicSubType::FMax:
+    case fir::IntrinsicSubType::SMax: {
+      // IDK if these are worth the effort
+      break;
+    }
 
-  case fir::IntrinsicSubType::Abs: {
-    auto *a0 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
-    man.run();
-    auto r = a0->msb_info();
-    if (r == KnownBits::KnownZero) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
-      instr.destroy();
-      return;
+    case fir::IntrinsicSubType::Abs: {
+      auto *a0 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
+      man.run();
+      auto r = a0->msb_info();
+      if (r == KnownBits::KnownZero) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[0]);
+        instr.destroy();
+        return;
+      }
+      if (r == KnownBits::KnownOne) {
+        push_all_uses(worklist, instr);
+        fir::Builder b{instr};
+        auto negated_val =
+            b.build_unary_op(instr->args[0], fir::UnaryInstrSubType::IntNeg);
+        instr->replace_all_uses(negated_val);
+        instr.destroy();
+        return;
+      }
+      break;
     }
-    if (r == KnownBits::KnownOne) {
-      push_all_uses(worklist, instr);
-      fir::Builder b{instr};
-      auto negated_val =
-          b.build_unary_op(instr->args[0], fir::UnaryInstrSubType::IntNeg);
-      instr->replace_all_uses(negated_val);
-      instr.destroy();
-      return;
-    }
-    break;
-  }
-  case fir::IntrinsicSubType::FAbs:
-    break;
+    case fir::IntrinsicSubType::FAbs:
+      break;
   }
 }
 
@@ -2334,50 +2343,51 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto curr = alloca_worklist.back();
       alloca_worklist.pop_back();
       switch (curr.type) {
-      case fir::UseType::NormalArg:
-        if (curr.user->is(fir::InstrType::LoadInstr) && curr.argId == 0) {
-          is_read |= curr.user->get_n_uses() > 0;
-        } else if (curr.user->is(fir::InstrType::StoreInstr) &&
-                   curr.argId == 0) {
-          is_written = true;
-        } else if ((curr.user->is(fir::InstrType::BinaryInstr)) ||
-                   (curr.user->is(fir::InstrType::SelectInstr) &&
-                    curr.argId != 0)) {
-          if (curr.user->is(fir::InstrType::SelectInstr)) {
-            // binary_instrs we generally can fix by running sroa
+        case fir::UseType::NormalArg:
+          if (curr.user->is(fir::InstrType::LoadInstr) && curr.argId == 0) {
+            is_read |= curr.user->get_n_uses() > 0;
+          } else if (curr.user->is(fir::InstrType::StoreInstr) &&
+                     curr.argId == 0) {
+            is_written = true;
+          } else if ((curr.user->is(fir::InstrType::BinaryInstr)) ||
+                     (curr.user->is(fir::InstrType::SelectInstr) &&
+                      curr.argId != 0)) {
+            if (curr.user->is(fir::InstrType::SelectInstr)) {
+              // binary_instrs we generally can fix by running sroa
+              mem2reg_blockers.push_back(curr);
+            }
+            alloca_worklist.insert(alloca_worklist.end(),
+                                   curr.user->uses.begin(),
+                                   curr.user->uses.end());
+          } else if ((curr.user->is(fir::InstrType::StoreInstr) &&
+                      curr.argId == 1) ||
+                     curr.user->is(fir::InstrType::CallInstr) ||
+                     curr.user->is(fir::InstrType::Intrinsic) ||
+                     curr.user->is(fir::InstrType::ICmp)) {
             mem2reg_blockers.push_back(curr);
+            escapes = true;
+          } else {
+            fmt::println("{}", instr);
+            fmt::println("{}", curr.user);
+            TODO("IMPL");
           }
-          alloca_worklist.insert(alloca_worklist.end(), curr.user->uses.begin(),
-                                 curr.user->uses.end());
-        } else if ((curr.user->is(fir::InstrType::StoreInstr) &&
-                    curr.argId == 1) ||
-                   curr.user->is(fir::InstrType::CallInstr) ||
-                   curr.user->is(fir::InstrType::Intrinsic) ||
-                   curr.user->is(fir::InstrType::ICmp)) {
+          break;
+        case fir::UseType::BBArg: {
           mem2reg_blockers.push_back(curr);
-          escapes = true;
-        } else {
-          fmt::println("{}", instr);
-          fmt::println("{}", curr.user);
-          TODO("IMPL");
-        }
-        break;
-      case fir::UseType::BBArg: {
-        mem2reg_blockers.push_back(curr);
-        const auto &bb_uses =
-            curr.user->bbs[curr.argId].bb->args[curr.bbArgId]->uses;
-        for (auto bb_use : bb_uses) {
-          if (visited.contains(bb_use)) {
-            continue;
+          const auto &bb_uses =
+              curr.user->bbs[curr.argId].bb->args[curr.bbArgId]->uses;
+          for (auto bb_use : bb_uses) {
+            if (visited.contains(bb_use)) {
+              continue;
+            }
+            visited.insert(bb_use);
+            alloca_worklist.push_back(bb_use);
           }
-          visited.insert(bb_use);
-          alloca_worklist.push_back(bb_use);
-        }
-      } break;
-      case fir::UseType::BB:
-        fmt::println("{}", instr);
-        TODO("IMPL");
-        break;
+        } break;
+        case fir::UseType::BB:
+          fmt::println("{}", instr);
+          TODO("IMPL");
+          break;
       }
     }
 
@@ -2452,7 +2462,6 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
 void simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
                               WorkList &worklist, u32 extend_to,
                               u32 n_out_elems, fir::TypeR out_type) {
-
   if (instr->is(fir::InstrType::StoreInstr)) {
     auto out_type = ctx->get_int_type(extend_to * 8);
     fir::Builder bb{instr};
@@ -2608,7 +2617,7 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return;
   }
 }
-} // namespace
+}  // namespace
 
 void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   using namespace foptim::fir;
@@ -2634,4 +2643,4 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   }
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

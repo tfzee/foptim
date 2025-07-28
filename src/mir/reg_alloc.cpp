@@ -1,4 +1,5 @@
 #include "reg_alloc.hpp"
+
 #include "ir/value.hpp"
 #include "mir/instr.hpp"
 // #include "optim/analysis/cfg.hpp"
@@ -35,7 +36,8 @@ VReg DumbRegAlloc::get_register(fir::ValueR value) {
   return mapping.at({value, 0});
 }
 
-VReg DumbRegAlloc::get_struct_register(fir::ValueR value, fir::TypeR t, u32 id) {
+VReg DumbRegAlloc::get_struct_register(fir::ValueR value, fir::TypeR t,
+                                       u32 id) {
   if (!mapping.contains({value, id})) {
     auto new_reg = get_new_register(convert_type(t));
     mapping.insert({{.v = value, .id = id}, new_reg});
@@ -43,4 +45,4 @@ VReg DumbRegAlloc::get_struct_register(fir::ValueR value, fir::TypeR t, u32 id) 
   return mapping.at({value, id});
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

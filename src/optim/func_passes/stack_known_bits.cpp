@@ -1,21 +1,23 @@
 #include "stack_known_bits.hpp"
+
+#include <fmt/core.h>
+#include <llvm/ADT/STLExtras.h>
+#include <unistd.h>
+
+#include <deque>
+#include <map>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
-#include <deque>
-#include <fmt/core.h>
-#include <llvm/ADT/STLExtras.h>
-#include <map>
-#include <unistd.h>
 
 namespace foptim::optim {
 
 void StackKnownBits::update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
                                  utils::BitSet<> &new_in_zero,
                                  StackKnowCache &cache) {
-
   if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_func() &&
       (instr->args[0].as_constant()->as_func()->name == "foptim.memset") &&
       instr->args.size() == 4) {
@@ -284,8 +286,8 @@ void StackKnownBits::execute_sroa(TVec<fir::Instr> &load_stores,
     }
     auto *ctx = entry_bb->get_parent().func->ctx;
     auto bb = fir::Builder(entry_bb);
-    auto alloca = bb.build_alloca(
-        fir::ValueR(ctx->get_constant_int(res.size, 32)));
+    auto alloca =
+        bb.build_alloca(fir::ValueR(ctx->get_constant_int(res.size, 32)));
     alloca.as_instr()->add_attrib("alloca::type", res.type);
     for (auto &v : res.associated_values) {
       v.replace_use(alloca);
@@ -495,7 +497,6 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
     // ASSERT(!test.any());
 
     for (auto instr : cfg.bbrs[curr].bb->instructions) {
-
       if (instr->is(fir::InstrType::Conversion) &&
           (ConversionSubType)instr->subtype == ConversionSubType::PtrToInt) {
         // TODO: this can be improved depending on the usage
@@ -568,4 +569,4 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
   // execute_sroa(load_stores, cache, func.get_entry());
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -5,9 +5,9 @@
 
 namespace foptim::optim {
 class Print final : public FunctionPass {
-public:
+ public:
   void apply(fir::Context & /*ctx*/, fir::Function &func) override {
     fmt::println("{}", func);
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim
