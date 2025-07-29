@@ -2546,6 +2546,7 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   using namespace foptim::fir;
   (void)anal;
   auto instr_ty = instr->get_instr_type();
+  man.reset();
   if (instr_ty == InstrType::BinaryInstr) {
     simplify_binary(instr, bb, ctx, worklist, man);
     return;
