@@ -78,6 +78,7 @@ foptim::JobSheduler shed;
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
   foptim::utils::DumbTimer t;
+  shed.init(foptim::utils::number_worker_threads);
 
   {
     auto a1 = t.scopedTimer("CompileTime");
@@ -85,7 +86,6 @@ int main(int argc, char *argv[]) {
 
     foptim::fir::Context ctx;
     {
-      shed.init(foptim::utils::number_worker_threads);
       // fir
       {
         auto a1 = t.scopedTimer("ParseConvert");
@@ -95,8 +95,6 @@ int main(int argc, char *argv[]) {
         auto a1 = t.scopedTimer("Optimize");
         optimize_fir(ctx, &shed);
       }
-      // cleanup
-      shed.deinit();
     }
 
     // mir
@@ -125,6 +123,8 @@ int main(int argc, char *argv[]) {
   t.print();
   foptim::utils::TempAlloc<void *>::free();
   foptim::utils::IRAlloc<void *>::free();
+  // cleanup
+  shed.deinit();
   return 0;
 }
 
