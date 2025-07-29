@@ -22,7 +22,6 @@
 #include "mir/optim/register_joining.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
-#include "optim/func_passes/func_annotator.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
 #include "optim/func_passes/legalize_struct.hpp"
@@ -61,28 +60,26 @@
 namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx);
 void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed);
-void lower_to_mir(foptim::fir::Context &ctx,
-                  foptim::FVec<foptim::fmir::MFunc> &funcs,
-                  foptim::FVec<foptim::fmir::Global> &globals);
-void optimize_mir(foptim::fir::Context &ctx,
-                  foptim::FVec<foptim::fmir::MFunc> &funcs,
-                  foptim::FVec<foptim::fmir::Global> &globals);
+void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
+                               foptim::FVec<foptim::fmir::MFunc> &funcs,
+                               foptim::FVec<foptim::fmir::Global> &globals,
+                               foptim::JobSheduler *shed);
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::IRString> &decls,
              foptim::FVec<foptim::fmir::Global> &globals);
-
-foptim::JobSheduler shed;
 
 }  // namespace
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
+  parse_args(argc, argv);
   foptim::utils::DumbTimer t;
+  foptim::JobSheduler shed;
   shed.init(foptim::utils::number_worker_threads);
+  fmt::println("Running with {} Workers", foptim::utils::number_worker_threads);
 
   {
     auto a1 = t.scopedTimer("CompileTime");
-    parse_args(argc, argv);
 
     foptim::fir::Context ctx;
     {
@@ -108,8 +105,7 @@ int main(int argc, char *argv[]) {
           decls.push_back(decl);
         }
       }
-      lower_to_mir(ctx, funcs, globals);
-      optimize_mir(ctx, funcs, globals);
+      lower_to_mir_and_optimize(ctx, funcs, globals, &shed);
     }
     {
       auto a1 = t.scopedTimer("Codegen");
@@ -121,10 +117,10 @@ int main(int argc, char *argv[]) {
     ctx.free();
   }
   t.print();
-  foptim::utils::TempAlloc<void *>::free();
-  foptim::utils::IRAlloc<void *>::free();
   // cleanup
   shed.deinit();
+  foptim::utils::TempAlloc<void *>::free();
+  foptim::utils::IRAlloc<void *>::free();
   return 0;
 }
 
@@ -142,7 +138,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   fmt::print("================FIR====================\n");
   fmt::print("================FIR START====================\n");
   foptim::optim::StaticParallelFunctionPassManager<
-      LegalizeStructs, Mem2Reg, FuncAnnotator, InstSimplify, SimplifyCFG,
+      LegalizeStructs, Mem2Reg, InstSimplify, SimplifyCFG,
       LLVMInstrinsicLowering, LVN, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
@@ -150,38 +146,39 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       DCE, SimplifyCFG, TailRecElim, LICM, LoopRotate, LoopSimplify, DCE,
-      SLPVectorizer, LVN, SCCP, InstSimplify, DCE, FuncAnnotator, SimplifyCFG,
-      StackKnownBits, Mem2Reg, SimplifyCFG, DCE, LVN, InstSimplify,
-      ConstLoopEval, LoopSimplify, InstSimplify, SimplifyCFG>{}
+      SLPVectorizer, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, StackKnownBits,
+      Mem2Reg, SimplifyCFG, DCE, LVN, InstSimplify, ConstLoopEval, LoopSimplify,
+      InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
-                                         Inline<>, ArgPromotion, GDCE,
-                                         FunctionDeDup<true>, GDCE>{}
+  foptim::optim::StaticModulePassManager<
+      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>,
+      ArgPromotion, GDCE, FunctionDeDup<true>, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
-      InstSimplify, SimplifyCFG, LICM, DCE, FuncAnnotator, LoopSimplify,
-      LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, LVN, SCCP, IntrinSimplify,
-      InstSimplify, ConstLoopEval, InstSimplify, SimplifyCFG, DCE>{}
+      InstSimplify, SimplifyCFG, LICM, DCE, LoopSimplify, LoopUnroll,
+      SimplifyCFG, DCE, SLPVectorizer, LVN, SCCP, IntrinSimplify, InstSimplify,
+      ConstLoopEval, InstSimplify, SimplifyCFG, DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<IPCP, GlobalPromotion, Inline<>,
-                                         Inline<>, ArgPromotion,
-                                         FunctionDeDup<true>, GDCE>{}
+  foptim::optim::StaticModulePassManager<
+      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>,
+      ArgPromotion, FunctionDeDup<true>, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE, LoopSimplify,
-      FuncAnnotator, IntrinSimplify, InstSimplify, DCE>{}
+      IntrinSimplify, InstSimplify, DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg, DCE,
-                                                   FuncAnnotator>{}
+  foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg,
+                                                   DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<FunctionDeDup<false>, GDCE, IPCP,
+  foptim::optim::StaticModulePassManager<FuncPropAnnotator,
+                                         FunctionDeDup<false>, GDCE, IPCP,
                                          GlobalPromotion, Inline<>, GDCE>{}
       .apply(ctx);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, IntrinSimplify, SimplifyCFG, InstSimplify, SCCP, DCE,
-      FuncAnnotator, InstSimplify, ConstLoopEval, LoopSimplify, LoopUnroll,
-      SimplifyCFG, DCE, SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs,
-      SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
+      InstSimplify, ConstLoopEval, LoopSimplify, LoopUnroll, SimplifyCFG, DCE,
+      SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs, SCCP, LVN,
+      InstSimplify, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);
 
   // general cleanup / legalization / finalization
@@ -205,52 +202,55 @@ void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
                     });
 }
 
-void lower_to_mir(foptim::fir::Context &ctx,
-                  foptim::FVec<foptim::fmir::MFunc> &funcs,
-                  foptim::FVec<foptim::fmir::Global> &globals) {
-  ZoneScopedN("FIR to MIR lowering");
+void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
+                               foptim::FVec<foptim::fmir::MFunc> &funcs,
+                               foptim::FVec<foptim::fmir::Global> &globals,
+                               foptim::JobSheduler *shed) {
+  ZoneScopedN("MIR stuff");
   funcs.reserve(ctx->storage.functions.size());
   globals.reserve(ctx->storage.storage_global.n_used());
 
-  for (const auto *slab_g : ctx->storage.storage_global._slot_slab_starts) {
-    for (size_t i = 0;
-         i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
-      const auto *v = &slab_g[i];
-      if (v->used == foptim::utils::SlotState::Used) {
-        auto size = v->data->n_bytes;
-        foptim::fmir::Global glob = {.name = v->data->name.c_str(),
-                                     .data = {},
-                                     .size = 0,
-                                     .reloc_info = {},
-                                     .vis = v->data->linkvis};
-        for (const auto &rel_inf : v->data->reloc_info) {
-          if (rel_inf.ref->is_global()) {
-            glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
-                .insert_offset = rel_inf.insert_offset,
-                .name = rel_inf.ref->as_global()->name.c_str(),
-                .reloc_offset = rel_inf.reloc_offset,
-            });
-          } else if (rel_inf.ref->is_func()) {
-            glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
-                .insert_offset = rel_inf.insert_offset,
-                .name = rel_inf.ref->as_func()->name.c_str(),
-                .reloc_offset = rel_inf.reloc_offset,
-            });
-          } else {
-            TODO("dont think theeres any others");
+  {
+    auto slots = ctx->storage.storage_global._slot_slab_starts.scoped_lock();
+    for (const auto *slab_g : *slots) {
+      for (size_t i = 0;
+           i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
+        const auto *v = &slab_g[i];
+        if (v->used == foptim::utils::SlotState::Used) {
+          auto size = v->data->n_bytes;
+          foptim::fmir::Global glob = {.name = v->data->name.c_str(),
+                                       .data = {},
+                                       .size = 0,
+                                       .reloc_info = {},
+                                       .vis = v->data->linkvis};
+          for (const auto &rel_inf : v->data->reloc_info) {
+            if (rel_inf.ref->is_global()) {
+              glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
+                  .insert_offset = rel_inf.insert_offset,
+                  .name = rel_inf.ref->as_global()->name.c_str(),
+                  .reloc_offset = rel_inf.reloc_offset,
+              });
+            } else if (rel_inf.ref->is_func()) {
+              glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{
+                  .insert_offset = rel_inf.insert_offset,
+                  .name = rel_inf.ref->as_func()->name.c_str(),
+                  .reloc_offset = rel_inf.reloc_offset,
+              });
+            } else {
+              TODO("dont think theeres any others");
+            }
           }
+          glob.size = size;
+          if (v->data->init_value != nullptr) {
+            glob.data.resize(size, 0);
+            memcpy(glob.data.data(), v->data->init_value, size);
+          }
+          globals.push_back(glob);
         }
-        glob.size = size;
-        if (v->data->init_value != nullptr) {
-          glob.data.resize(size, 0);
-          memcpy(glob.data.data(), v->data->init_value, size);
-        }
-        globals.push_back(glob);
       }
     }
   }
 
-  auto matcher = foptim::fmir::GreedyMatcher{};
   foptim::TVec<foptim::fir::Function *> reordered_funcs;
   reordered_funcs.reserve(ctx->storage.functions.size());
   for (auto &[_, func] : ctx->storage.functions) {
@@ -260,65 +260,58 @@ void lower_to_mir(foptim::fir::Context &ctx,
   fmt::print("================MATCHING====================\n");
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
-  // ctx->dump_graph("out.dot");
   for (auto *func : reordered_funcs) {
-    // if (func->name == "_Z8WikiSortP4TestlPFbS_S_E") {
-    //   fmt::println("{:cd}", *func);
-    //   TODO("okaa");
-    // }
-    auto mark = foptim::utils::TempAlloc<void *>::save();
-
     if (func->is_decl()) {
       continue;
     }
-    auto res = matcher.apply(*func);
-    funcs.push_back(std::move(res));
-    foptim::utils::TempAlloc<void *>::restore(mark);
+    funcs.push_back({});
   }
-}
-
-void optimize_mir(foptim::fir::Context &ctx,
-                  foptim::FVec<foptim::fmir::MFunc> &funcs,
-                  foptim::FVec<foptim::fmir::Global> &globals) {
-  (void)globals;
-  fmt::print("================MIR START====================\n");
-  ZoneScopedN("MIR Optim");
-  ASSERT(foptim::fmir::verify(funcs));
-  // running dead to make inst simplify work better
-  foptim::fmir::LegalizeBBForm{}.apply(funcs);
-  foptim::fmir::DeadCodeElim{}.apply(funcs);
-  ASSERT(foptim::fmir::verify(funcs));
-  foptim::utils::TempAlloc<void *>::reset();
-  ctx.data->storage.storage_instr.collect_garbage();
-  foptim::fmir::InstSimplify{}.early_apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::LifetimeShortening{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::InstSimplify{}.early_apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::DeadCodeElim{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  ctx.data->storage.storage_instr.collect_garbage();
-  foptim::fmir::CallingConv{}.first_stage(funcs);
-  foptim::fmir::Legalizer{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::InstSimplify{}.early_apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::RegisterJoining{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::InstSimplify{}.early_apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  // foptim::fmir::RegAllocWP{}.apply(funcs);
-  // foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::RegAlloc{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::CallingConv{}.second_stage(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::InstSimplify{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  foptim::fmir::BBReordering{}.apply(funcs);
-  foptim::utils::TempAlloc<void *>::reset();
-  ASSERT(foptim::fmir::verify(funcs));
+  size_t i = 0;
+  for (auto *reord_func : reordered_funcs) {
+    if (reord_func->is_decl()) {
+      continue;
+    }
+    shed->push([i, &ctx, &funcs, reord_func]() {
+      auto &func = funcs.at(i);
+      auto matcher = foptim::fmir::GreedyMatcher{};
+      func = matcher.apply(*reord_func);
+      ASSERT(foptim::fmir::verify(func));
+      foptim::fmir::LegalizeBBForm{}.apply(func);
+      foptim::fmir::DeadCodeElim{}.apply(func);
+      ASSERT(foptim::fmir::verify(func));
+      foptim::utils::TempAlloc<void *>::reset();
+      ctx.data->storage.storage_instr.collect_garbage();
+      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::LifetimeShortening{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::DeadCodeElim{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      ctx.data->storage.storage_instr.collect_garbage();
+      foptim::fmir::CallingConv{}.first_stage(func);
+      foptim::fmir::Legalizer{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::RegisterJoining{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::RegAlloc{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::CallingConv{}.second_stage(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::InstSimplify{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::BBReordering{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      ASSERT(foptim::fmir::verify(func));
+    });
+    i++;
+  }
+  shed->wait_till_done();
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

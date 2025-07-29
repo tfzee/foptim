@@ -29,9 +29,10 @@ class Legalizer {
   bool legalize_cmoveXX(MBB &bb, u32 indx);
   // bool legalize_si2fl(MBB &bb, u32 indx);
   // bool legalize_sub(MBB &bb, u32 indx);
-  void apply(MFunc &funcs);
+  void apply_impl(MFunc &funcs);
 
  public:
+  void apply(MFunc &funcs);
   void apply(FVec<MFunc> &funcs);
 };
 

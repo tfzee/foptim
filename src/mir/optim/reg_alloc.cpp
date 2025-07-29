@@ -1,7 +1,6 @@
-#include "reg_alloc.hpp"
-
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
+#include "reg_alloc.hpp"
 #include "utils/set.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
@@ -224,13 +223,15 @@ void apply_func(MFunc &func) {
   }
 }
 
+void RegAlloc::apply(MFunc &func) { apply_func(func); }
+
 void RegAlloc::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("RegAlloc");
   // FVec<utils::BitSet> used_regs;
   // used_regs.resize(funcs.size(), utils::BitSet::empty(12));
 
   for (auto &func : funcs) {
-    apply_func(func);
+    apply(func);
   }
 }
 

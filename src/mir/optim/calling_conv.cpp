@@ -1,7 +1,6 @@
-#include "calling_conv.hpp"
-
 #include <ranges>
 
+#include "calling_conv.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
@@ -562,63 +561,46 @@ utils::BitSet<> calculate_used_regs(const MFunc &f) {
 
 }  // namespace
 
+void CallingConv::second_stage(MFunc &func) {
+  CFG cfg(func);
+  save_regs_callee(func, cfg);
+  TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
+  // fmt::println("\n=========\n{}", func);
+  // for (auto &[reg, ranges] : lives) {
+  //   fmt::print("  {}  ", reg);
+  //   ranges.dump();
+  // }
+
+  size_t bb_id = 0;
+  for (auto &bb : func.bbs) {
+    size_t n_instrs = bb.instrs.size();
+    for (size_t instr_idp1 = n_instrs; instr_idp1 > 0; instr_idp1--) {
+      size_t instr_end_id = instr_idp1 - 1;
+      if (!bb.instrs[instr_end_id].is(GBaseSubtype::invoke)) {
+        continue;
+      }
+      size_t instr_start_idp1 = instr_end_id + 1;
+      size_t instr_start_id = instr_end_id;
+      for (instr_start_idp1 = instr_end_id; instr_start_idp1 > 0;
+           instr_start_idp1--) {
+        instr_start_id = instr_start_idp1 - 1;
+        if (!bb.instrs[instr_start_id].is(GBaseSubtype::arg_setup)) {
+          instr_start_id++;
+          break;
+        }
+      }
+      transform_call(bb.instrs, instr_start_id, instr_end_id, bb_id, lives);
+      // update the n of instrs since the might have changed it
+      n_instrs = bb.instrs.size();
+    }
+    bb_id++;
+  }
+}
+
 void CallingConv::second_stage(FVec<MFunc> &funcs) {
   ZoneScopedN("CC 2nd Stage");
   for (auto &func : funcs) {
-    CFG cfg(func);
-
-    save_regs_callee(func, cfg);
-
-    TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
-    // fmt::println("\n=========\n{}", func);
-    // for (auto &[reg, ranges] : lives) {
-    //   fmt::print("  {}  ", reg);
-    //   ranges.dump();
-    // }
-
-    size_t bb_id = 0;
-    for (auto &bb : func.bbs) {
-      size_t n_instrs = bb.instrs.size();
-      for (size_t instr_idp1 = n_instrs; instr_idp1 > 0; instr_idp1--) {
-        size_t instr_end_id = instr_idp1 - 1;
-        if (!bb.instrs[instr_end_id].is(GBaseSubtype::invoke)) {
-          continue;
-        }
-        size_t instr_start_idp1 = instr_end_id + 1;
-        size_t instr_start_id = instr_end_id;
-        for (instr_start_idp1 = instr_end_id; instr_start_idp1 > 0;
-             instr_start_idp1--) {
-          instr_start_id = instr_start_idp1 - 1;
-          if (!bb.instrs[instr_start_id].is(GBaseSubtype::arg_setup)) {
-            instr_start_id++;
-            break;
-          }
-        }
-        transform_call(bb.instrs, instr_start_id, instr_end_id, bb_id, lives);
-        // update the n of instrs since the might have changed it
-        n_instrs = bb.instrs.size();
-      }
-      // for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
-      //   if (bb.instrs[instr_id].op != Opcode::arg_setup &&
-      //       bb.instrs[instr_id].op != Opcode::invoke) {
-      //     continue;
-      //   }
-      //   for (size_t instr_end_id = instr_id; instr_end_id < n_instrs;
-      //        instr_end_id++) {
-      //     if (bb.instrs[instr_end_id].op != Opcode::invoke) {
-      //       continue;
-      //     }
-      //     // FIXME: needs proper liveness analysis
-      //     transform_call(bb.instrs, instr_id, instr_end_id, bb_id, lives);
-      //     // update the n of instrs since the might have changed it
-      //     n_instrs = bb.instrs.size();
-      //     // number of elements
-      //     // instr_id = 0;
-      //     break;
-      //   }
-      // }
-      bb_id++;
-    }
+    second_stage(func);
   }
 }
 
@@ -695,30 +677,33 @@ void mark_arguments_with_regs(IRVec<MInstr> &instrs, size_t instr_start_id,
 }
 }  // namespace
 
-void CallingConv::first_stage(FVec<MFunc> &funcs) {
-  ZoneScopedN("CC 1st Stage");
-  for (auto &func : funcs) {
-    function_argument_loading(func);
-  }
-  for (auto &func : funcs) {
-    for (auto &bb : func.bbs) {
-      size_t n_instrs = bb.instrs.size();
-      for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
-        if (!bb.instrs[instr_id].is(GBaseSubtype::arg_setup) &&
-            !bb.instrs[instr_id].is(GBaseSubtype::invoke)) {
+void CallingConv::first_stage(MFunc &func) {
+  function_argument_loading(func);
+  for (auto &bb : func.bbs) {
+    size_t n_instrs = bb.instrs.size();
+    for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
+      if (!bb.instrs[instr_id].is(GBaseSubtype::arg_setup) &&
+          !bb.instrs[instr_id].is(GBaseSubtype::invoke)) {
+        continue;
+      }
+      for (size_t instr_end_id = instr_id; instr_end_id < n_instrs;
+           instr_end_id++) {
+        if (!bb.instrs[instr_end_id].is(GBaseSubtype::invoke)) {
           continue;
         }
-        for (size_t instr_end_id = instr_id; instr_end_id < n_instrs;
-             instr_end_id++) {
-          if (!bb.instrs[instr_end_id].is(GBaseSubtype::invoke)) {
-            continue;
-          }
-          mark_arguments_with_regs(bb.instrs, instr_id, instr_end_id);
-          instr_id = instr_end_id;
-          break;
-        }
+        mark_arguments_with_regs(bb.instrs, instr_id, instr_end_id);
+        instr_id = instr_end_id;
+        break;
       }
     }
+  }
+}
+void CallingConv::first_stage(FVec<MFunc> &funcs) {
+  ZoneScopedN("CC 1st Stage");
+  // for (auto &func : funcs) {
+  // }
+  for (auto &func : funcs) {
+    first_stage(func);
   }
 }
 

@@ -89,16 +89,18 @@ class StableVec {
         curr_gen.fetch_add(1);
       }
 #endif
-      auto slot_slab_starts = _slot_slab_starts.scoped_lock();
-      for (auto slot_alloc : *slot_slab_starts) {
-        for (u32 i = 0; i < slot_slab_len; i++) {
-          auto exp = SlotState::Free;
-          if (std::atomic_compare_exchange_strong(&slot_alloc[i].used, &exp,
-                                                  SlotState::FreeList)) {
-            temp_info.emplace_back(&slot_alloc[i], 1);
+      {
+        auto slot_slab_starts = _slot_slab_starts.scoped_lock();
+        for (auto slot_alloc : *slot_slab_starts) {
+          for (u32 i = 0; i < slot_slab_len; i++) {
+            auto exp = SlotState::Free;
+            if (std::atomic_compare_exchange_strong(&slot_alloc[i].used, &exp,
+                                                    SlotState::FreeList)) {
+              temp_info.emplace_back(&slot_alloc[i], 1);
 #ifdef SLOT_CHECK_GENERATION
-            slot_alloc[i].generation.store(0);
+              slot_alloc[i].generation.store(0);
 #endif
+            }
           }
         }
       }

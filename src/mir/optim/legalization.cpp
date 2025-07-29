@@ -1,7 +1,6 @@
-#include "legalization.hpp"
-
 #include <limits>
 
+#include "legalization.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 
@@ -593,7 +592,7 @@ bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   return false;
 }
 
-void Legalizer::apply(MFunc &func) {
+void Legalizer::apply_impl(MFunc &func) {
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {
@@ -810,6 +809,8 @@ void Legalizer::apply(MFunc &func) {
     }
   }
 }
+
+void Legalizer::apply(MFunc &func) { apply_impl(func); }
 
 void Legalizer::apply(FVec<MFunc> &funcs) {
   ZoneScopedN("MIR Legalizer");

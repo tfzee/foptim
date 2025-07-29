@@ -1,8 +1,7 @@
-#include "instr.hpp"
-
 #include <fmt/color.h>
 #include <fmt/core.h>
 
+#include "instr.hpp"
 #include "mir/func.hpp"
 namespace foptim::fmir {
 
@@ -596,7 +595,7 @@ bool MInstr::is_control_flow(GOpcode c, u32 sop) {
 }
 
 namespace {
-bool verify(MInstr &instr) {
+bool verify(const MInstr &instr) {
   if (instr.is(GCMovSubtype::cmov)) {
     if (instr.n_args != 3) {
       fmt::println("Cmov should have 3 args {}", instr);
@@ -605,14 +604,14 @@ bool verify(MInstr &instr) {
   }
   return true;
 }
-bool verify(MBB &bb) {
+bool verify(const MBB &bb) {
   auto back_instr = bb.instrs.back();
   if (!back_instr.is(GBaseSubtype::ret) && !back_instr.is(GJumpSubtype::jmp)) {
     fmt::println("Last instruction should be jmp or ret but is {}",
                  bb.instrs.back());
     return false;
   }
-  for (auto &instr : bb.instrs) {
+  for (const auto &instr : bb.instrs) {
     if (!verify(instr)) {
       fmt::println("In instr {}", instr);
       return false;
@@ -622,8 +621,9 @@ bool verify(MBB &bb) {
   return true;
 }
 
-bool verify(MFunc &func) {
-  for (auto &bb : func.bbs) {
+}  // namespace
+bool verify(const MFunc &func) {
+  for (const auto &bb : func.bbs) {
     if (!verify(bb)) {
       fmt::println("In bb {}", bb);
       return false;
@@ -631,10 +631,9 @@ bool verify(MFunc &func) {
   }
   return true;
 }
-}  // namespace
 
-bool verify(FVec<MFunc> &funcs) {
-  for (auto &func : funcs) {
+bool verify(const FVec<MFunc> &funcs) {
+  for (const auto &func : funcs) {
     if (!verify(func)) {
       fmt::println("In func {}", func);
       return false;

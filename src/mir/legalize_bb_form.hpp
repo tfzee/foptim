@@ -12,7 +12,7 @@ namespace foptim::fmir {
 //  haven no control flow in them
 
 class LegalizeBBForm {
-  void apply(MFunc &func) {
+  void apply_impl(MFunc &func) {
     u32 start_instr;
     // find instructions between controlflow instructions
     //  so we can move them into their own block and rewire the jump to that
@@ -71,6 +71,7 @@ class LegalizeBBForm {
   }
 
  public:
+  void apply(MFunc &func) { apply_impl(func); }
   void apply(FVec<MFunc> &funcs) {
     for (auto &f : funcs) {
       apply(f);

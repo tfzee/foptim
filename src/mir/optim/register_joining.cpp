@@ -1,13 +1,12 @@
-#include "register_joining.hpp"
-
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/optim/reg_alloc.hpp"
+#include "register_joining.hpp"
 
 namespace foptim::fmir {
 
-void RegisterJoining::apply(MFunc &func) {
+void RegisterJoining::apply_impl(MFunc &func) {
   auto colls = reg_coll(func);
   TMap<u64, CReg> reg_mapping;
 
@@ -72,6 +71,8 @@ void RegisterJoining::apply(MFunc &func) {
   }
   replace_vargs(func.bbs, reg_mapping);
 }
+
+void RegisterJoining::apply(MFunc &func) { apply_impl(func); }
 
 void RegisterJoining::apply(foptim::FVec<MFunc> &funcs) {
   ZoneScopedN("Register Joining");

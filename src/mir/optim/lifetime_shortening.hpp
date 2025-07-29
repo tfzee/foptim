@@ -117,11 +117,14 @@ class LifetimeShortening {
   }
 
  public:
+  void apply(MFunc &func) {
+    for (auto &bb : func.bbs) {
+      apply(bb);
+    }
+  }
   void apply(FVec<MFunc> &funcs) {
     for (auto &f : funcs) {
-      for (auto &bb : f.bbs) {
-        apply(bb);
-      }
+      apply(f);
     }
   }
 };

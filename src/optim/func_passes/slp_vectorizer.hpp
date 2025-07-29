@@ -286,7 +286,7 @@ class SLPVectorizer final : public FunctionPass {
           }
           if (failed) {
             load_bundles.erase(load_bundles.begin() + bi - 1);
-            fmt::println("skip constant");
+            // fmt::println("skip constant");
             continue;
           }
 
@@ -298,7 +298,7 @@ class SLPVectorizer final : public FunctionPass {
             }
           }
           if (failed) {
-            fmt::println("skip cont");
+            // fmt::println("skip cont");
             load_bundles.erase(load_bundles.begin() + bi - 1);
             continue;
           }

@@ -134,39 +134,46 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
 }
 }  // namespace
 
-void InstSimplify::apply(FVec<MFunc> &funcs) {
-  ZoneScopedN("InstSimplify");
-  for (auto &func : funcs) {
-    for (auto &bb : func.bbs) {
-      for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
-        if (simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
-          instr_id--;
-          continue;
-        }
-        if (multi_simplify(bb.instrs, instr_id)) {
-          instr_id--;
-          continue;
-        }
+void InstSimplify::apply(MFunc &func) {
+  for (auto &bb : func.bbs) {
+    for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
+      if (simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
+        instr_id--;
+        continue;
+      }
+      if (multi_simplify(bb.instrs, instr_id)) {
+        instr_id--;
+        continue;
       }
     }
   }
 }
 
+void InstSimplify::apply(FVec<MFunc> &funcs) {
+  ZoneScopedN("InstSimplify");
+  for (auto &func : funcs) {
+    apply(func);
+  }
+}
+
+void InstSimplify::early_apply(MFunc &func) {
+  for (auto &bb : func.bbs) {
+    for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
+      if (early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
+        instr_id--;
+        continue;
+      }
+      if (early_multi_simplify(bb.instrs, instr_id)) {
+        instr_id--;
+        continue;
+      }
+    }
+  }
+}
 void InstSimplify::early_apply(FVec<MFunc> &funcs) {
   ZoneScopedN("InstSimplifyEarly");
   for (auto &func : funcs) {
-    for (auto &bb : func.bbs) {
-      for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
-        if (early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
-          instr_id--;
-          continue;
-        }
-        if (early_multi_simplify(bb.instrs, instr_id)) {
-          instr_id--;
-          continue;
-        }
-      }
-    }
+    early_apply(func);
   }
 }
 

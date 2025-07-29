@@ -8,10 +8,12 @@ class CallingConv {
  public:
   // run before final  register alloc
   // sets up argument loading
+  void first_stage(MFunc &funcs);
   void first_stage(FVec<MFunc> &funcs);
 
   // run after final register alloc
   // lowers the invokes to calls and sets up their arguments
+  void second_stage(MFunc &funcs);
   void second_stage(FVec<MFunc> &funcs);
 };
 

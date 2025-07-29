@@ -829,7 +829,8 @@ struct ArgData {
 void written_args(const MInstr &instr, TVec<ArgData> &out);
 void read_args(const MInstr &instr, TVec<ArgData> &out);
 
-bool verify(FVec<MFunc> &funcs);
+bool verify(const FVec<MFunc> &funcs);
+bool verify(const MFunc &funcs);
 
 }  // namespace foptim::fmir
 

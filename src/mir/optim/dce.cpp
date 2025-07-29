@@ -1,5 +1,4 @@
 #include "dce.hpp"
-
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 
@@ -73,7 +72,7 @@ bool is_applicable(GOpcode op, u32 sop) {
 }
 }  // namespace
 
-void DeadCodeElim::apply(MFunc &func) {
+void DeadCodeElim::apply_impl(MFunc &func) {
   CFG cfg{func};
   LiveVariables live{cfg, func};
   TVec<ArgData> w_args;
@@ -126,6 +125,7 @@ void DeadCodeElim::apply(MFunc &func) {
   }
 }
 
+void DeadCodeElim::apply(MFunc &func) { apply_impl(func); }
 void DeadCodeElim::apply(FVec<MFunc> &funcs) {
   ZoneScopedNC("DCE", COLOR_OPTIMF);
   for (auto &func : funcs) {

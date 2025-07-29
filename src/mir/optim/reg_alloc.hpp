@@ -9,6 +9,7 @@ void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping);
 
 class RegAlloc {
  public:
+  void apply(MFunc &func);
   void apply(FVec<MFunc> &funcs);
 };
 
