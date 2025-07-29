@@ -1,6 +1,7 @@
 #pragma once
 #include <fmt/core.h>
 
+#include <mutex>
 #include <unordered_map>
 
 #include "types.hpp"
@@ -29,6 +30,7 @@ class StatCollector {
       f64 dv;
     };
   };
+  std::mutex access_mutex;
   std::unordered_map<const char *, Stat> stats;
 
   static StatCollector &get() {
@@ -37,6 +39,7 @@ class StatCollector {
   }
 
   void seti(i64 v, const char *name, StatType ty = StatOther) {
+    std::lock_guard<std::mutex> l{access_mutex};
     if (stats.contains(name)) {
       ASSERT(stats[name].ty == ty);
       ASSERT(stats[name].type == StatValType::I64);
@@ -47,6 +50,7 @@ class StatCollector {
     stats[name].iv = v;
   }
   void setf(f64 v, const char *name, StatType ty = StatOther) {
+    std::lock_guard<std::mutex> l{access_mutex};
     if (stats.contains(name)) {
       ASSERT(stats[name].ty == ty);
       ASSERT(stats[name].type == StatValType::F64);
@@ -57,6 +61,7 @@ class StatCollector {
     stats[name].dv = v;
   }
   void addi(i64 v, const char *name, StatType ty = StatOther) {
+    std::lock_guard<std::mutex> l{access_mutex};
     if (stats.contains(name)) {
       ASSERT(stats[name].ty == ty);
       ASSERT(stats[name].type == StatValType::I64);
@@ -68,6 +73,7 @@ class StatCollector {
     stats[name].iv += v;
   }
   void addf(f64 v, const char *name, StatType ty = StatOther) {
+    std::lock_guard<std::mutex> l{access_mutex};
     if (stats.contains(name)) {
       ASSERT(stats[name].ty == ty);
       ASSERT(stats[name].type == StatValType::F64);
@@ -79,6 +85,7 @@ class StatCollector {
     stats[name].dv += v;
   }
   void dump(StatType filter_ty = STAT_ANY) {
+    std::lock_guard<std::mutex> l{access_mutex};
     fmt::println("======STATS======");
     fmt::println("     {: <25}: {: >5}", "NStats", stats.size());
     for (const auto &[name, stat] : stats) {
