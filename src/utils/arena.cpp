@@ -18,8 +18,6 @@
 // LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#include "arena.hpp"
-
 #include <assert.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -30,6 +28,8 @@
 #include <cstddef>
 #include <mutex>
 #include <tracy/Tracy.hpp>
+
+#include "arena.hpp"
 #define ARENA_ASSERT assert
 #define ARENA_REGION_DEFAULT_CAPACITY (16 * 1024)
 #define MIN_ALIGN (alignof(std::max_align_t))
@@ -45,10 +45,8 @@ struct Region {
 
 thread_local Arena temp_arena = {};
 thread_local unsigned long temp_arena_size{};
-
-Arena ir_arena = {};
-TracyLockable(std ::mutex, ir_arena_mutex);
-std::atomic<unsigned long> temp_ir_size = {};
+thread_local Arena ir_arena = {};
+thread_local unsigned long ir_arena_size = {};
 
 Region *new_region(size_t capacity);
 void free_region(Region *r);
