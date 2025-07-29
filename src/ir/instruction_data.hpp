@@ -423,6 +423,10 @@ class InstrData : public Used, public Attributable {
     return ty == instr_type;
   }
 
+  [[nodiscard]] constexpr bool is(BinaryInstrSubType ty) const {
+    return instr_type == InstrType::BinaryInstr && subtype == (u32)ty;
+  }
+
   constexpr void verify() const {
     switch (instr_type) {
       case InstrType::BinaryInstr:

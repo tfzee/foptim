@@ -85,7 +85,6 @@ int main(int argc, char *argv[]) {
 
     foptim::fir::Context ctx;
     {
-      foptim::JobSheduler shed;
       shed.init(foptim::utils::number_worker_threads);
       // fir
       {

@@ -1,5 +1,5 @@
 {
-  description = "FoffEng";
+  description = "Foptim";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
@@ -26,12 +26,13 @@
             elfio
 
             #build tools
-            cmakeCurses
             cmake
             ninja
             llvmPackages_20.clang
+            gtest
 
-            #for testing stuff
+            #for testing stuff not real dependencies
+            cmakeCurses
             (pkgs.python312.withPackages (python-pkgs: [
                 python-pkgs.pandas
                 python-pkgs.matplotlib
@@ -39,7 +40,6 @@
               ]))
             graphviz
             cvise
-            gtest
             tracy
             gdb
             lit

@@ -8,11 +8,11 @@
 
 void parse_args(int argc, char *argv[]) {
   ZoneScopedN("Arg Parsing");
-  argparse::ArgumentParser program("FIR");
+  argparse::ArgumentParser program("foptim");
   program.add_argument("--workers")
       .help("N Workers")
       .scan<'i', int>()
-      .default_value(0);
+      .default_value(2);
   program.add_argument("input").required().help("specify the input .ll file.");
   program.add_argument("output").required().help(
       "specify the output .ss file.");

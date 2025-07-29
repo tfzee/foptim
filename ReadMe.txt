@@ -1,42 +1,66 @@
+# Foptim: A relatively simple optimizing backend
 
-Simple optimizing backend
+Currently taking in llvmir converting it to internal representation(FIR).
+Then it gets optimized by different passes.
+A tree matching is then applied to the FIR for instruction selection generating MIR.
+MIR then is further optimized + legalized.
+It then does the first stage of transforming calls to adhere to the Calling Convention then does
+basic register allocation and then finalizes the CC stuff.
+Finally doing some cleanup and then outputing it into a Object file.
+Currently and probably only ever supporting
+X86-64 and theres still many missing features and I dont give any guarantees on correctness.
 
+The tests are taken from
++ GCCs github repo
++ LLVMs github repo
++ embench github repo
++ Some handwritten
 
+## Build instructions
+Either use the flake devshell or need to install minimal dependencies manually
++ elfio
++ fmt
++ ninja
++ argparse
++ clang + llvm
++ gtest
++ ... prob missing something
+For running all the tests
+We also need lit and filecheck
 
-
+```
+mkdir build
+cd build
+cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+	-DCMAKE_EXPORT_COMPILE_COMMANDS=ON -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++
+ninja
+# Generate llvmir file from a c file
+clang -O1 -mllvm -disable-llvm-optzns -fno-exceptions -fno-stack-protector test.c -o test.ll -S -emit-llvm 
+# Generate the object file via foptim 
+./foptim_main ./test.ll ./test.o   
+clang ./test.o ./test.out   
+# To run all the tests(should all pass other then embench)
+ninja check
+```
 
 ## TODO
++ make flake.nix to actually be useful(or like it should be)
 + replace cond + select with specific cmovXX commands
 	+ missing for floatingpoint
-+ need recursive fucntion attribute attributer as a module pass
++ no register spilling rn
 + optimize llvm intrin lowering like memset/memcopy
 + 2 allocas without overlapping lifetimes could be merged to use same stack space
 + Add a proper compiler driver
 	+ Maybe allow passes to register compiler driver arguments
 + optimize sdiv
-	+ can convert into imul shifts and add 
-+ convert final fir legalization maybe into dedicated step with match style?
-+ verification
+	+ can convert into imul shifts and add (theres some formular for this)
++ add a custom frontend other then llvmir
 + serialize
 + deserialize
 + Abstract away graph based matcher (maybe a DSL)
+	+ Could be used in general like LLVMs matcher stuff in optimization passes
 + convert codegen into library
-+ Dont generate stack setup destruction if no stack usage
-	(need to make sure stack is still aligned iff thers call)
 + More Passes
-	+ Fix epath pre
-	+ rework sccp
-+ More Tests
-	+ GCC Tests
-
-
-
-
-######
-
-
-valgrind --tool=callgrind --dump-instr=yes --branch-sim=yes --cache-sim=yes --simulate-wb=yes --simulate-hwpref=yes --cacheuse=yes  ./a.out
-cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-	-DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=mold" -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=mold" \
-	-DCMAKE_EXPORT_COMPILE_COMMANDS=ON -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++     
+	+ Get SSAPRE
+	+ Rework sccp
 
