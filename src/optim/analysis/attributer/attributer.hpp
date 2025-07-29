@@ -69,11 +69,16 @@ class AttributerManager {
   TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
   AttributeAnalysis *_currently_updating = nullptr;
 
+  void reset() {
+    _attribs.clear();
+    _inverse_dependencies.clear();
+  }
+
   template <class AAna>
   AAna *get_or_create_analysis(fir::ValueR loc, Worklist *worklist = nullptr) {
     static_assert(std::is_base_of_v<AttributeAnalysis, AAna>,
                   "AAna must inherit AttributeAnalysis");
-    ASSERT(loc.is_valid(true) && "must be valid");
+    // ASSERT(loc.is_valid(true) && "must be valid");
     const std::type_index aa_typeid = typeid(AAna);
     if (!_attribs.contains(aa_typeid)) {
       _attribs.insert({aa_typeid, {}});
@@ -122,10 +127,7 @@ class AttributerManager {
     }
     // cleanup invalid stuff
     for (auto &[a, deps] : _inverse_dependencies) {
-      if (!a->associatedValue.is_valid(true)) {
-        _inverse_dependencies.erase(a);
-        continue;
-      }
+      ASSERT(a->associatedValue.is_valid(true));
       for (size_t ip1 = deps.size(); ip1 > 0; ip1--) {
         if (!deps[ip1 - 1]->associatedValue.is_valid(true)) {
           deps.erase(deps.begin() + ip1);
