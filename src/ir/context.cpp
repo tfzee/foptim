@@ -1,3 +1,5 @@
+#include <atomic>
+
 #include "context.hpp"
 #include "global.hpp"
 #include "ir/constant_value.hpp"
@@ -72,7 +74,8 @@ void ContextData::print_stats() const {
 }
 
 bool ContextData::has_global(IRString name) const {
-  for (const auto *slab_g : storage.storage_global._slot_slab_starts) {
+  auto slots = storage.storage_global._slot_slab_starts.scoped_lock();
+  for (const auto *slab_g : *slots) {
     for (size_t i = 0; i < decltype(storage.storage_global)::_slot_slab_len;
          i++) {
       const auto *v = &slab_g[i];
@@ -87,7 +90,8 @@ bool ContextData::has_global(IRString name) const {
 }
 
 Global ContextData::get_global(IRString name) {
-  for (auto *slab_g : storage.storage_global._slot_slab_starts) {
+  auto slots = storage.storage_global._slot_slab_starts.scoped_lock();
+  for (auto *slab_g : *slots) {
     for (size_t i = 0; i < decltype(storage.storage_global)::_slot_slab_len;
          i++) {
       auto *v = &slab_g[i];
@@ -260,11 +264,13 @@ ConstantValueR ContextData::get_poisson_value(TypeR type) {
 }
 
 ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
-  for (auto *constant_slab : storage.storage_constant._slot_slab_starts) {
+  auto slots = storage.storage_constant._slot_slab_starts.scoped_lock();
+  for (auto *constant_slab : *slots) {
     for (size_t i = 0; i < decltype(storage.storage_constant)::_slot_slab_len;
          i++) {
       auto *constant = &constant_slab[i];
-      if (constant->used == utils::SlotState::Used) {
+      if (constant->used.load(std::memory_order::acquire) ==
+          utils::SlotState::Used) {
         if (constant->data.ty == val.ty &&
             constant->data.get_type() == val.get_type() &&
             constant->data.eql(val)) {
@@ -281,11 +287,13 @@ ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
 }
 
 TypeR ContextData::try_reuse_type(const AnyType &val) {
-  for (auto *typee_slab : storage.storage_type._slot_slab_starts) {
+  auto slots = storage.storage_type._slot_slab_starts.scoped_lock();
+  for (auto *typee_slab : *slots) {
     for (size_t i = 0; i < decltype(storage.storage_type)::_slot_slab_len;
          i++) {
       auto *typee = &typee_slab[i];
-      if (typee->used == utils::SlotState::Used) {
+      if (typee->used.load(std::memory_order::acquire) ==
+          utils::SlotState::Used) {
         if (typee->data.eql(val)) {
 #ifdef SLOT_CHECK_GENERATION
           return TypeR{utils::SRef{typee, typee->generation}};
@@ -496,7 +504,8 @@ void ContextData::dump_graph(const char *filename) {
 fmt::appender fmt::formatter<foptim::fir::Context>::format(
     foptim::fir::Context const &v, format_context &ctx) const {
   auto app = ctx.out();
-  for (const auto *slab_g : v->storage.storage_global._slot_slab_starts) {
+  auto slots = v->storage.storage_global._slot_slab_starts.scoped_lock();
+  for (const auto *slab_g : *slots) {
     for (size_t i = 0; i < decltype(v->storage.storage_global)::_slot_slab_len;
          i++) {
       const auto *glob = &slab_g[i];
