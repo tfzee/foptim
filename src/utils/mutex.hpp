@@ -15,6 +15,7 @@ class MutMutexGuard {
   MutMutexGuard(Mutex<T> *cont) : mutex(cont) { mutex->_mutex.lock(); }
   ~MutMutexGuard() { mutex->_mutex.unlock(); }
   T *operator->() { return &mutex->_contained; }
+  T &operator*() { return mutex->_contained; }
 };
 
 template <class T>
@@ -25,6 +26,7 @@ class ConstMutexGuard {
   ConstMutexGuard(Mutex<T> *cont) : mutex(cont) { mutex->_mutex.lock_shared(); }
   ~ConstMutexGuard() { mutex->_mutex.unlock_shared(); }
   const T *operator->() { return &mutex->_contained; }
+  const T &operator*() { return mutex->_contained; }
 };
 
 template <class T>

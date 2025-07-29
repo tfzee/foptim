@@ -14,7 +14,7 @@ enum class SlotState : u8 {
 template <class T>
 struct Slot {
 #ifdef SLOT_CHECK_GENERATION
-  u32 generation;
+  std::atomic<u32> generation;
 #endif
   std::atomic<SlotState> used;
   static_assert(std::atomic<SlotState>::is_always_lock_free);

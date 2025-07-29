@@ -64,6 +64,10 @@ class SRef {
     ASSERT(data_ref != nullptr && data_ref->used == SlotState::Used);
 #ifdef SLOT_CHECK_GENERATION
     ASSERT(generation != 0);
+    if (data_ref->generation != generation) {
+      fmt::println("{} {}", data_ref->generation.load(), generation);
+      TODO("shite");
+    }
     ASSERT(data_ref->generation == generation);
 #endif
   }
