@@ -147,12 +147,6 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
         {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
     return false;
   }
-  // ensure loop is do while loop
-  if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
-    failure(
-        {.reason = "Need a do while loop", .loc = {cfg.bbrs[loop.head].bb}});
-    return false;
-  }
 
   size_t n_instrs = 0;
   for (auto i : loop.body_nodes) {
@@ -208,6 +202,12 @@ void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   LoopInfoAnalysis linfo{dom};
 
   for (auto &loop : linfo.info) {
+    // ensure loop is do while loop
+    if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
+      failure({.reason = "Need a simple do while loop",
+               .loc = {cfg.bbrs[loop.head].bb}});
+      continue;
+    }
     if (apply_it(cfg, loop, ctx, func)) {
       utils::StatCollector::get().addi(1, "loopUnrolled",
                                        utils::StatCollector::StatFOptim);
