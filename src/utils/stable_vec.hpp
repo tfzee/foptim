@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
@@ -11,6 +12,7 @@
 #include "todo.hpp"
 #include "types.hpp"
 #include "utils/mutex.hpp"
+#include "utils/vec.hpp"
 
 namespace foptim::utils {
 
@@ -57,7 +59,6 @@ class StableVec {
   constexpr void remove(SRef<T> s) {
     s.data_ref->used = SlotState::FreeList;
     {
-      auto free_list = _free_list.scoped_lock();
 #ifdef SLOT_CHECK_GENERATION
       s.data_ref->generation = 0;
       curr_gen++;
@@ -65,14 +66,15 @@ class StableVec {
         curr_gen++;
       }
 #endif
+      auto free_list = _free_list.scoped_lock();
       free_list->emplace_back(s.data_ref, 1);
     }
   }
 
   void collect_garbage() {
     ZoneScopedN("Collect Garbage");
+    TVec<FreeInfo<T>> temp_info;
     {
-      auto free_list = _free_list.scoped_lock();
 #ifdef SLOT_CHECK_GENERATION
       curr_gen++;
       if (curr_gen == 0) {
@@ -82,15 +84,21 @@ class StableVec {
 
       for (auto slot_alloc : _slot_slab_starts) {
         for (u32 i = 0; i < slot_slab_len; i++) {
-          if (slot_alloc[i].used == SlotState::Free) {
-            free_list->emplace_back(&slot_alloc[i], 1);
+          auto exp = SlotState::Free;
+          if (std::atomic_compare_exchange_strong(&slot_alloc[i].used, &exp,
+                                                  SlotState::FreeList)) {
+            temp_info.emplace_back(&slot_alloc[i], 1);
 #ifdef SLOT_CHECK_GENERATION
             slot_alloc[i].generation = 0;
 #endif
-            slot_alloc[i].used = SlotState::FreeList;
+            // slot_alloc[i].used = SlotState::FreeList;
           }
         }
       }
+    }
+    {
+      auto free_list = _free_list.scoped_lock();
+      free_list->insert(free_list->end(), temp_info.begin(), temp_info.end());
     }
   }
 

@@ -1,4 +1,6 @@
 #pragma once
+#include <atomic>
+
 #include "types.hpp"
 
 namespace foptim::utils {
@@ -14,7 +16,8 @@ struct Slot {
 #ifdef SLOT_CHECK_GENERATION
   u32 generation;
 #endif
-  SlotState used;
+  std::atomic<SlotState> used;
+  static_assert(std::atomic<SlotState>::is_always_lock_free);
   T data;
 };
 
