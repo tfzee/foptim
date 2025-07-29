@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <functional>
 #include <thread>
 
@@ -19,10 +20,10 @@ struct Job {
 
 struct Worker {
   u8 worker_id;
-  WorkerState state = WorkerState::Waiting;
+  std::atomic<WorkerState> state = WorkerState::Waiting;
   std::jthread thread;
 
-  Worker(JobSheduler *shed, u8 id)
+  Worker(JobSheduler *shed = nullptr, u8 id = 0)
       : worker_id(id), thread(&Worker::work_func, this, shed) {}
 
   void work_func(std::stop_token stoken, JobSheduler *shed);
@@ -34,27 +35,29 @@ class JobSheduler {
   std::mutex job_queue;
   foptim::IRVec<Job> jobs;
 
-  foptim::IRVec<Worker> threads;
+  Worker *threads;
+  u8 n_threads = 0;
 
   void init(u8 n_threads) {
     ZoneScopedN("InitThreads");
     jobs.reserve(32);
-    threads.reserve(n_threads);
-    for (u32 i = 0; i < n_threads; i++) {
-      threads.emplace_back(this, i + 1);
+    threads = (Worker *)malloc(sizeof(Worker) * n_threads);
+    this->n_threads = n_threads;
+    for (u8 i = 0; i < n_threads; i++) {
+      new (&threads[i]) Worker{this, (u8)(i + 1)};
     }
   }
 
   void deinit() {
     ZoneScopedN("DeinitThreads");
-    for (auto &t : threads) {
-      t.thread.request_stop();
+    for (u8 tid = 0; tid < n_threads; tid++) {
+      threads[tid].thread.request_stop();
     }
-    for (auto &t : threads) {
-      t.thread.join();
+    for (u8 tid = 0; tid < n_threads; tid++) {
+      threads[tid].thread.join();
     }
     jobs.clear();
-    threads.clear();
+    free(threads);
   }
 
   void push(std::function<void()> j) { push(Job{j}); }
@@ -65,16 +68,12 @@ class JobSheduler {
   }
 
   void wait_till_done() {
-    while (!jobs.empty()) {
+    while (true) {
       Job job;
       {
         std::lock_guard<std::mutex> queue_gard{job_queue};
         if (jobs.empty()) {
-          // kinda problematic we yield while holding the lock
-          //  but since jobs was empty here its unlikely to be full later
-          //  atleast in my usecase
-          std::this_thread::yield();
-          continue;
+          break;
         }
         job = jobs.back();
         jobs.pop_back();
@@ -85,8 +84,9 @@ class JobSheduler {
     bool done = false;
     while (!done) {
       done = true;
-      for (auto &thread : threads) {
-        if (thread.state == WorkerState::Running) {
+      for (u8 tid = 0; tid < n_threads; tid++) {
+        if (threads[tid].state.load(std::memory_order::acquire) ==
+            WorkerState::Running) {
           done = false;
           std::this_thread::yield();
           break;

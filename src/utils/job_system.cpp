@@ -1,7 +1,8 @@
-#include "job_system.hpp"
-
 #include <mutex>
 #include <thread>
+
+#include "job_system.hpp"
+#include "utils/arena.hpp"
 
 namespace foptim {
 
@@ -16,9 +17,12 @@ void Worker::work_func(std::stop_token stoken, JobSheduler *shed) {
   tracy::SetThreadName(thread_name);
 #endif
   while (!stoken.stop_requested()) {
-    if (shed->jobs.empty()) {
-      std::this_thread::yield();
-      continue;
+    {
+      std::lock_guard<std::mutex> queue_gard{shed->job_queue};
+      if (shed->jobs.empty()) {
+        std::this_thread::yield();
+        continue;
+      }
     }
 
     state = WorkerState::Running;
@@ -38,6 +42,7 @@ void Worker::work_func(std::stop_token stoken, JobSheduler *shed) {
   }
 
   foptim::utils::TempAlloc<void *>::free();
+  foptim::utils::IRAlloc<void *>::free();
 }
 
 }  // namespace foptim
