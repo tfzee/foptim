@@ -140,7 +140,7 @@ struct DiffConst {
 };
 
 [[nodiscard]] bool check_args(fir::Instr i1, fir::Instr i2,
-                              TMap<fir::ValueR, fir::ValueR> &local_value_map,
+                              TMap<fir::Instr, fir::Instr> &local_value_map,
                               size_t &cost,
                               TVec<DiffConst> &difference_values) {
   for (u32 i = 0; i < i1->args.size(); i++) {
@@ -151,14 +151,18 @@ struct DiffConst {
     }
     // if either is a local arg
     //  then both need to be and both need topoint to the same
-    if (local_value_map.contains(arg1)) {
-      if (local_value_map.at(arg1) == arg2) {
-        continue;
+    if (arg1.is_instr() && arg2.is_instr()) {
+      auto arg1I = arg1.as_instr();
+      auto arg2I = arg2.as_instr();
+      if (local_value_map.contains(arg1I)) {
+        if (local_value_map.at(arg1I) == arg2I) {
+          continue;
+        }
+        return false;
       }
-      return false;
-    }
-    if (local_value_map.contains(arg2)) {
-      return false;
+      if (local_value_map.contains(arg2I)) {
+        return false;
+      }
     }
 
     difference_values.push_back(
@@ -169,7 +173,7 @@ struct DiffConst {
 }
 
 [[nodiscard]] bool match_term(fir::Instr i1, fir::Instr i2,
-                              TMap<fir::ValueR, fir::ValueR> &local_value_map,
+                              TMap<fir::Instr, fir::Instr> &local_value_map,
                               size_t &cost,
                               TVec<DiffConst> &difference_values) {
   if (i1 == i2) {
@@ -194,14 +198,18 @@ struct DiffConst {
       if (a1 == a2) {
         continue;
       }
-      if (local_value_map.contains(a1)) {
-        if (local_value_map.at(a1) == a2) {
-          continue;
+      if (a1.is_instr() && a2.is_instr()) {
+        auto a1I = a1.as_instr();
+        auto a2I = a2.as_instr();
+        if (local_value_map.contains(a1I)) {
+          if (local_value_map.at(a1I) == a2I) {
+            continue;
+          }
+          return false;
         }
-        return false;
-      }
-      if (local_value_map.contains(a2)) {
-        return false;
+        if (local_value_map.contains(a2I)) {
+          return false;
+        }
       }
       difference_values.push_back({fir::Use::bb_arg(i1, bb_id, arg_id), a1,
                                    fir::Use::bb_arg(i2, bb_id, arg_id)});
@@ -223,21 +231,22 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     return false;
   }
 
-  if (bb1.bb->n_args() != 0 || bb1.bb->n_instrs() > 5) {
+  constexpr u32 N_INSTRS_UPPERBOUND = 5;
+  if (bb1.bb->n_args() != 0 || bb1.bb->n_instrs() > N_INSTRS_UPPERBOUND) {
     return false;
   }
-  // ZoneScopedN("dup bb to arg");
+  ZoneScopedN("dup bb to arg");
 
   auto *ctx = func.ctx;
   bool found = false;
   TVec<DiffConst> difference_values;
   fir::BasicBlock res_bb1 = fir::BasicBlock(fir::BasicBlock::invalid());
   fir::BasicBlock res_bb2 = fir::BasicBlock(fir::BasicBlock::invalid());
-  TMap<fir::ValueR, fir::ValueR> local_value_map;
+  TMap<fir::Instr, fir::Instr> local_value_map;
   size_t cost = 0;
 
   for (size_t bb2_id = 0; bb2_id < bb_id; bb2_id++) {
-    auto bb2 = cfg.bbrs[bb2_id];
+    auto &bb2 = cfg.bbrs[bb2_id];
     if (bb2.bb->n_args() != 0 ||
         bb1.bb->instructions.size() != bb2.bb->instructions.size()) {
       continue;
@@ -250,7 +259,6 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
         if (succ == bb2_id) {
           skip = true;
           break;
-          ;
         }
       }
       for (auto pred : bb1.pred) {
@@ -271,36 +279,33 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
 
     // setup local value map this allows us to check if it references the same
     // local instruction
-    for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
-      auto i1 = bb1.bb->instructions[i];
-      auto i2 = bb2.bb->instructions[i];
-      local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
-      local_value_map.insert({fir::ValueR(i2), fir::ValueR(i1)});
-    }
-
     if (!match_term(bb1.bb->get_terminator(), bb2.bb->get_terminator(),
                     local_value_map, cost, difference_values)) {
       found = false;
       continue;
     }
-    // fmt::println("======================CHECKING======================");
-    // fmt::println("{}", bb1.bb);
-    // fmt::println("{}", bb2.bb);
-
     for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
       auto i1 = bb1.bb->instructions[i];
       auto i2 = bb2.bb->instructions[i];
-
-      if (i1 == i2) {
-        continue;
-      }
-
       if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
           i1->args.size() != i2->args.size()) {
         found = false;
         break;
       }
+    }
+    if (!found) {
+      continue;
+    }
+    for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
+      auto i1 = bb1.bb->instructions[i];
+      auto i2 = bb2.bb->instructions[i];
+      local_value_map.insert({i1, i2});
+      local_value_map.insert({i2, i2});
+    }
 
+    for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
+      auto i1 = bb1.bb->instructions[i];
+      auto i2 = bb2.bb->instructions[i];
       if (!check_args(i1, i2, local_value_map, cost, difference_values)) {
         found = false;
         break;
@@ -312,16 +317,6 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
       break;
     }
   }
-
-  // if (found) {
-  //   fmt::println("======================FOUND======================");
-  //   fmt::println("{}", res_bb1);
-  //   fmt::println("{}", res_bb2);
-  //   fmt::println("{} {} | {}", difference_values.size(),
-  //                res_bb1->instructions.size(),
-  //                cost <= res_bb1->instructions.size());
-  //   fmt::println("======================STATS======================");
-  // }
 
   if (found && cost <= res_bb1->instructions.size()) {
     TVec<fir::BBArgument> new_bb_args;
@@ -553,7 +548,7 @@ bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
     return false;
   }
 
-  auto succ = cfg.bbrs[curr.succ[0]];
+  auto &succ = cfg.bbrs[curr.succ[0]];
   // TODO: this setup leads to infinite replcements
   //  0x5591b4d37910():
   //    0x5591b4db2948 : () = Branch<0x5591b4d379c0()>(){}
