@@ -23,9 +23,15 @@ struct FreeInfo {
   u32 len;
 };
 
-template <
-    class T, u32 slot_slab_len = 128, class AllocFreeList = FAlloc<FreeInfo<T>>,
-    class AllocSlabList = FAlloc<Slot<T> *>, class AllocSlabs = FAlloc<Slot<T>>>
+template <class T, u32 slot_slab_len = 128>
+struct Slab {
+  Slab *next = nullptr;
+  Slot<T> data[slot_slab_len];
+};
+
+template <class T, u32 slot_slab_len = 128,
+          class AllocFreeList = FAlloc<FreeInfo<T>>,
+          class AllocSlabs = FAlloc<Slab<T, slot_slab_len>>>
 class StableVec {
 #ifdef SLOT_CHECK_GENERATION
   std::atomic<u32> curr_gen = 1;
@@ -33,19 +39,35 @@ class StableVec {
   foptim::Mutex<std::vector<FreeInfo<T>, AllocFreeList>> _free_list;
 
  public:
+  using Slab = Slab<T, slot_slab_len>;
   static constexpr u32 _slot_slab_len = slot_slab_len;
-  foptim::Mutex<std::vector<Slot<T> *, AllocSlabList>> _slot_slab_starts;
+  std::atomic<Slab *> _slot_start;
+
+  void slap_append(Slab *new_slab) {
+    new_slab->next = _slot_start.load();
+    while (!_slot_start.compare_exchange_strong(new_slab->next, new_slab)) {
+    }
+  }
+
+  [[nodiscard]] u32 nslabs() const {
+    auto *start = _slot_start.load();
+    u32 n = 0;
+    while (start != nullptr) {
+      start = start->next;
+      n++;
+    }
+    return n;
+  }
 
   StableVec() {
-    Slot<T> *new_slab = AllocSlabs{}.allocate(slot_slab_len);
-    std::memset((void *)new_slab, 0, slot_slab_len * sizeof(Slot<T>));
+    Slab *new_slab = AllocSlabs{}.allocate(1);
+    std::memset((void *)&new_slab->data[0], 0, slot_slab_len * sizeof(Slot<T>));
     {
-      auto slot_slab_starts = _slot_slab_starts.scoped_lock();
-      slot_slab_starts->push_back(new_slab);
+      slap_append(new_slab);
     }
     {
       auto free_list = _free_list.scoped_lock();
-      free_list->push_back({new_slab, slot_slab_len});
+      free_list->push_back({&new_slab->data[0], slot_slab_len});
     }
   }
 
@@ -54,13 +76,15 @@ class StableVec {
       auto free_list = _free_list.scoped_lock();
       free_list->clear();
     }
-    auto slot_slab_starts = _slot_slab_starts.scoped_lock();
-    for (auto slot_alloc : *slot_slab_starts) {
+    Slab *start = _slot_start;
+    while (start != nullptr) {
       for (u32 i = 0; i < slot_slab_len; i++) {
-        slot_alloc[i].~Slot<T>();
+        start->data[i].~Slot<T>();
       }
       // TracyFree(slot_alloc);
-      AllocSlabs{}.deallocate(slot_alloc, slot_slab_len);
+      auto next = start->next;
+      AllocSlabs{}.deallocate(start, 1);
+      start = next;
       // free(slot_alloc);
     }
   }
@@ -84,7 +108,6 @@ class StableVec {
     ZoneScopedN("Collect Garbage");
     auto save_point = TempAlloc<void *>::save();
     TVec<FreeInfo<T>> temp_info;
-    TVec<Slot<T> *> temp_starts;
     {
 #ifdef SLOT_CHECK_GENERATION
       curr_gen.fetch_add(1);
@@ -92,23 +115,19 @@ class StableVec {
         curr_gen.fetch_add(1);
       }
 #endif
-      {
-        auto slot_slab_starts = _slot_slab_starts.scoped_lock();
-        for (auto slot_alloc : *slot_slab_starts) {
-          temp_starts.push_back(slot_alloc);
-        }
-      }
-      for (auto slot_alloc : temp_starts) {
+      Slab *slot_slab_start = _slot_start.load();
+      while (slot_slab_start) {
         for (u32 i = 0; i < slot_slab_len; i++) {
           auto exp = SlotState::Free;
-          if (std::atomic_compare_exchange_strong(&slot_alloc[i].used, &exp,
-                                                  SlotState::FreeList)) {
-            temp_info.emplace_back(&slot_alloc[i], 1);
+          if (std::atomic_compare_exchange_strong(
+                  &slot_slab_start->data[i].used, &exp, SlotState::FreeList)) {
+            temp_info.emplace_back(&slot_slab_start->data[i], 1);
 #ifdef SLOT_CHECK_GENERATION
-            slot_alloc[i].generation.store(0);
+            slot_slab_start->data[i].generation.store(0);
 #endif
           }
         }
+        slot_slab_start = slot_slab_start->next;
       }
     }
     {
@@ -119,18 +138,12 @@ class StableVec {
   }
 
   [[nodiscard]] constexpr size_t size_bytes() const {
-    return (_slot_slab_starts.scoped_lock()->size() * slot_slab_len *
-            sizeof(Slot<T>)) +
+    return (nslabs() * slot_slab_len * sizeof(Slot<T>)) +
            (_free_list.scoped_lock()->size() * sizeof(FreeInfo<T>));
   }
 
-  [[nodiscard]] constexpr size_t n_slabs() const {
-    return _slot_slab_starts.scoped_lock()->size();
-  }
-
   [[nodiscard]] constexpr size_t n_used() const {
-    const auto n_slots =
-        _slot_slab_starts.scoped_lock()->size() * slot_slab_len;
+    const auto n_slots = nslabs() * slot_slab_len;
     size_t free_size = 0;
     {
       auto free_list = _free_list.scoped_lock();
@@ -154,9 +167,9 @@ class StableVec {
           target = free_list->back();
           free_list->pop_back();
         } else {
-          auto slot_slab_starts = _slot_slab_starts.scoped_lock();
-          slot_slab_starts->push_back(AllocSlabs{}.allocate(slot_slab_len));
-          target.ptr = slot_slab_starts->back();
+          auto slab = AllocSlabs{}.allocate(1);
+          slap_append(slab);
+          target.ptr = &slab->data[0];
           target.len = slot_slab_len;
           is_new = true;
         }

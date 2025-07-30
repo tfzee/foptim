@@ -36,8 +36,8 @@ class Mutex {
 #ifdef TRACY_ENABLE
   tracy::SharedLockable<std::shared_mutex> _mutex = {
       []() -> const tracy::SourceLocationData * {
-        static constexpr tracy::SourceLocationData srcloc{
-            nullptr, "std::shared_mutex wrapper", __FILE__, __LINE__, 0};
+        static tracy::SourceLocationData srcloc{nullptr, typeid(T).name(),
+                                                __FILE__, __LINE__, 0};
         return &srcloc;
       }()};
 #else

@@ -30,7 +30,7 @@ struct ContextData {
 
   template <class T>
   static void print_stats_vec(const utils::StableVec<T> &vec) {
-    const auto n_slabs = vec.n_slabs();
+    const auto n_slabs = vec.nslabs();
     const auto slab_size = vec.slab_size();
     const auto size = vec.size_bytes();
     fmt::println("Vec NSlabs {} @ {} * {} = {} KB", n_slabs, slab_size,

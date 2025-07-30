@@ -114,11 +114,12 @@ int main(int argc, char *argv[]) {
     }
 
     foptim::utils::StatCollector::get().dump();
+    shed.wait_till_done();
     ctx.free();
+    shed.deinit();
   }
   t.print();
   // cleanup
-  shed.deinit();
   foptim::utils::TempAlloc<void *>::free();
   foptim::utils::IRAlloc<void *>::free();
   return 0;
@@ -211,11 +212,10 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
   globals.reserve(ctx->storage.storage_global.n_used());
 
   {
-    auto slots = ctx->storage.storage_global._slot_slab_starts.scoped_lock();
-    for (const auto *slab_g : *slots) {
-      for (size_t i = 0;
-           i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
-        const auto *v = &slab_g[i];
+    auto *slab = ctx->storage.storage_global._slot_start.load();
+    while (slab != nullptr) {
+      for (auto &i : slab->data) {
+        const auto *v = &i;
         if (v->used == foptim::utils::SlotState::Used) {
           auto size = v->data->n_bytes;
           foptim::fmir::Global glob = {.name = v->data->name.c_str(),
@@ -248,6 +248,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
           globals.push_back(glob);
         }
       }
+      slab = slab->next;
     }
   }
 
@@ -260,18 +261,21 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
   fmt::print("================MATCHING====================\n");
   fmt::println(" Got {} functions", reordered_funcs.size());
   ctx.data->print_stats();
+
+  size_t n_reordered_def_funcs = 0;
   for (auto *func : reordered_funcs) {
     if (func->is_decl()) {
       continue;
     }
-    funcs.push_back({});
+    n_reordered_def_funcs += 1;
   }
+  funcs.resize(n_reordered_def_funcs);
   size_t i = 0;
   for (auto *reord_func : reordered_funcs) {
     if (reord_func->is_decl()) {
       continue;
     }
-    shed->push([i, &ctx, &funcs, reord_func]() {
+    shed->push([i, &funcs, reord_func]() {
       auto &func = funcs.at(i);
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func);
@@ -280,7 +284,6 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::DeadCodeElim{}.apply(func);
       ASSERT(foptim::fmir::verify(func));
       foptim::utils::TempAlloc<void *>::reset();
-      ctx.data->storage.storage_instr.collect_garbage();
       foptim::fmir::InstSimplify{}.early_apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::LifetimeShortening{}.apply(func);
@@ -289,7 +292,6 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::DeadCodeElim{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
-      ctx.data->storage.storage_instr.collect_garbage();
       foptim::fmir::CallingConv{}.first_stage(func);
       foptim::fmir::Legalizer{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();

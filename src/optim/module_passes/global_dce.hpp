@@ -2,7 +2,6 @@
 #include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/global.hpp"
-#include "ir/instruction_data.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
@@ -21,11 +20,10 @@ class GDCE final : public ModulePass {
     TSet<const fir::Function *> func_global_reffed;
     TSet<fir::Global> global_global_reffed;
     {
-      auto slots = ctx->storage.storage_global._slot_slab_starts.scoped_lock();
-      for (const auto *slab_g : *slots) {
-        for (size_t i = 0;
-             i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
-          const auto *v = &slab_g[i];
+      auto *slab = ctx->storage.storage_global._slot_start.load();
+      while (slab != nullptr) {
+        for (auto &i : slab->data) {
+          const auto *v = &i;
           if (v->used == foptim::utils::SlotState::Used) {
             for (auto info : v->data->reloc_info) {
               if (info.ref->is_func()) {
@@ -37,15 +35,15 @@ class GDCE final : public ModulePass {
             }
           }
         }
+        slab = slab->next;
       }
     }
 
     {
-      auto slots = ctx->storage.storage_global._slot_slab_starts.scoped_lock();
-      for (auto *slab_g : *slots) {
-        for (size_t i = 0;
-             i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
-          auto *v = &slab_g[i];
+      auto *slab = ctx->storage.storage_global._slot_start.load();
+      while (slab != nullptr) {
+        for (auto &i : slab->data) {
+          auto *v = &i;
           if (v->used == foptim::utils::SlotState::Used) {
             auto g = fir::Global{
                 utils::SRef<std::unique_ptr<foptim::fir::GlobalData>>{
@@ -75,24 +73,23 @@ class GDCE final : public ModulePass {
             // if (name.starts_with("_GLOBAL")) {
             //   continue;
             // }
-            auto slots_c =
-                ctx->storage.storage_constant._slot_slab_starts.scoped_lock();
-            for (auto *slab_g : *slots_c) {
-              for (size_t i = 0;
-                   i < decltype(ctx->storage.storage_constant)::_slot_slab_len;
-                   i++) {
-                auto *v = &slab_g[i];
+            auto *slab = ctx->storage.storage_constant._slot_start.load();
+            while (slab != nullptr) {
+              for (auto &i : slab->data) {
+                auto *v = &i;
                 if (v->used == foptim::utils::SlotState::Used &&
                     v->data.is_global() && v->data.as_global() == g) {
                   auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
                   r._invalidate();
                 }
               }
+              slab = slab->next;
             }
 
             ctx->storage.storage_global.remove(g);
           }
         }
+        slab = slab->next;
       }
     }
 
@@ -126,19 +123,17 @@ class GDCE final : public ModulePass {
         f->basic_blocks.back()->remove_from_parent(true, true, true);
       }
       {
-        auto slots_c =
-            ctx->storage.storage_constant._slot_slab_starts.scoped_lock();
-        for (auto *slab_g : *slots_c) {
-          for (size_t i = 0;
-               i < decltype(ctx->storage.storage_constant)::_slot_slab_len;
-               i++) {
-            auto *v = &slab_g[i];
+        auto *slab = ctx->storage.storage_constant._slot_start.load();
+        while (slab != nullptr) {
+          for (auto &i : slab->data) {
+            auto *v = &i;
             if (v->used == foptim::utils::SlotState::Used &&
                 v->data.is_func() && v->data.as_func().func == f.get()) {
               auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
               r._invalidate();
             }
           }
+          slab = slab->next;
         }
       }
       ctx.data->storage.functions.erase(name);

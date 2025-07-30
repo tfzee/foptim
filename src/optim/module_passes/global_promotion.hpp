@@ -17,12 +17,11 @@ class GlobalPromotion final : public ModulePass {
     TSet<fir::Global> global_global_reffed;
 
     {
-      auto slots = ctx->storage.storage_global._slot_slab_starts.scoped_lock();
-      for (const auto *slab_g : *slots) {
-        for (size_t i = 0;
-             i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
-          const auto *v = &slab_g[i];
-          if (v->used == foptim::utils::SlotState::Used) {
+      auto *slab = ctx->storage.storage_global._slot_start.load();
+      while (slab != nullptr) {
+        for (auto &i : slab->data) {
+          const auto *v = &i;
+          if (v->used.load() == foptim::utils::SlotState::Used) {
             for (auto info : v->data->reloc_info) {
               if (info.ref->is_global()) {
                 global_global_reffed.insert(info.ref->as_global());
@@ -30,16 +29,16 @@ class GlobalPromotion final : public ModulePass {
             }
           }
         }
+        slab = slab->next;
       }
     }
 
     {
-      auto slots = ctx->storage.storage_global._slot_slab_starts.scoped_lock();
-      for (const auto *slab_g : *slots) {
-        for (size_t i = 0;
-             i < decltype(ctx->storage.storage_global)::_slot_slab_len; i++) {
-          const auto *v = &slab_g[i];
-          if (v->used == foptim::utils::SlotState::Used) {
+      auto *slab = ctx->storage.storage_global._slot_start.load();
+      while (slab != nullptr) {
+        for (auto &i : slab->data) {
+          const auto *v = &i;
+          if (v->used.load() == foptim::utils::SlotState::Used) {
             //! CANCER!
             auto sref = utils::SRef<std::unique_ptr<fir::GlobalData>>{
                 const_cast<utils::Slot<std::unique_ptr<fir::GlobalData>> *>(v),
@@ -128,6 +127,7 @@ class GlobalPromotion final : public ModulePass {
             }
           }
         }
+        slab = slab->next;
       }
     }
   }
