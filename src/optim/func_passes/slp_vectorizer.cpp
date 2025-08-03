@@ -226,13 +226,12 @@ class IntrinTreeOp final : public TreeElem {
       case fir::IntrinsicSubType::VA_end:
         return false;
       case fir::IntrinsicSubType::CTLZ:
+      case fir::IntrinsicSubType::FMin:
+      case fir::IntrinsicSubType::FMax:
       case fir::IntrinsicSubType::UMin:
       case fir::IntrinsicSubType::UMax:
       case fir::IntrinsicSubType::SMin:
       case fir::IntrinsicSubType::SMax:
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
-        TODO("impl?");
       case fir::IntrinsicSubType::Abs:
       case fir::IntrinsicSubType::FAbs:
         return true;
@@ -469,7 +468,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
           } else {
             fmt::println("Failed tree vectorize at something like {}",
                          curr.back().as_instr());
-            TODO("impl");
+            return false;
           }
           break;
         case fir::InstrType::AllocaInstr:
