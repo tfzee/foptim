@@ -1,5 +1,3 @@
-#include "matcher_patterns.hpp"
-
 #include <fmt/core.h>
 
 #include <bit>
@@ -11,6 +9,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "matcher.hpp"
+#include "matcher_patterns.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "utils/helpers.hpp"
@@ -1210,7 +1209,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
             selected_pow_v = upper_pow_v;
             selected_pow_i = upper_pow;
           }
-          multi_needed[multi_index] = (negated ? -(i128)(1 << selected_pow_i)
+          multi_needed[multi_index] = (negated ? -((i128)1 << selected_pow_i)
                                                : (i128)1 << selected_pow_i);
           multi_index++;
           consti_val = negated ? consti_val + selected_pow_v
@@ -1366,7 +1365,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           return false;
         }
 
-        auto size = (u64)alloca_instr->args[0].as_constant()->as_int();
+        auto orig_size = (u64)alloca_instr->args[0].as_constant()->as_int();
+        auto size = orig_size;
         // TODO: this is inefficient for many stack allocations
         // TODO: this also depends on the calling conv
         if (size % 16 != 0) {
@@ -1374,7 +1374,15 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
 
         res.result.emplace_back(GArithSubtype::sub2, rsp_arg, size);
+        // if (data.bb_id == 0 && data.static_alloca_size == orig_size) {
+        //   res.result.emplace_back(
+        //       X86Subtype::lea, res_reg,
+        //       //+8 for pushing the rbp
+        //       MArgument::MemOB(-(i32)(size + 8), VReg::RBP(), Type::Int64));
+        // } else {
         res.result.emplace_back(GBaseSubtype::mov, res_reg, rsp_arg);
+        // }
+
         return true;
       }});
   pats.push_back(Pattern{
@@ -2488,7 +2496,33 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                        (u32)fir::IntrinsicSubType::UMax};
   auto smaxNode = Node{NodeType::Instr, InstrType::Intrinsic,
                        (u32)fir::IntrinsicSubType::SMax};
+  auto fmaxNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                       (u32)fir::IntrinsicSubType::FMax};
+  auto fminNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                       (u32)fir::IntrinsicSubType::FMin};
 
+  pats.push_back(Pattern{
+      .nodes = {fminNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto a = valueToArg(instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        res.result.emplace_back(GVecSubtype::fMin, res_reg, a, b);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {fmaxNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto a = valueToArg(instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        res.result.emplace_back(GVecSubtype::fMax, res_reg, a, b);
+        return true;
+      }});
   pats.push_back(Pattern{
       .nodes = {smaxNode},
       .edges = {},
