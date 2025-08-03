@@ -132,7 +132,7 @@ class SCCP final : public FunctionPass {
                 ctx->get_constant_value(-a.value->as_int(), out_type));
           case fir::UnaryInstrSubType::Not: {
             // return ConstantValue::Bottom();
-            auto mask = (1 << out_type->as_int()) - 1;
+            auto mask = ((i128)1 << out_type->as_int()) - 1;
             return ConstantValue::Constant(
                 ctx->get_constant_value((~a.value->as_int()) & mask, out_type));
           }
@@ -186,7 +186,13 @@ class SCCP final : public FunctionPass {
           case fir::BinaryInstrSubType::Shl:
             return ConstantValue::Constant(ctx->get_constant_value(
                 (a.value->as_int() << b.value->as_int()) &
-                    ((2 << out_type->as_int()) - 1),
+                    (((i128)1 << out_type->as_int()) - 1),
+                out_type));
+          case fir::BinaryInstrSubType::Shr:
+            return ConstantValue::Constant(ctx->get_constant_value(
+                (std::bit_cast<i128>(std::bit_cast<u128>(a.value->as_int()) >>
+                                     std::bit_cast<u128>(b.value->as_int())) &
+                 (((i128)1 << out_type->as_int()) - 1)),
                 out_type));
           case fir::BinaryInstrSubType::IntSub:
             return ConstantValue::Constant(ctx->get_constant_value(
@@ -430,10 +436,10 @@ class SCCP final : public FunctionPass {
         }
         auto old_width = a.value->type->as_int();
         auto old_value = a.value->as_int();
-        auto is_negative = (old_value & (1 << (old_width - 1))) != 0;
+        auto is_negative = (old_value & ((i128)1 << (old_width - 1))) != 0;
         if (is_negative) {
           auto new_width = instr->get_type()->as_int();
-          auto mask = (1 << (new_width - old_width)) - 1;
+          auto mask = ((i128)1 << (new_width - old_width)) - 1;
           mask = mask << old_width;
           return ConstantValue::Constant(
               ctx->get_constant_value(old_value | mask, instr->get_type()));
