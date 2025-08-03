@@ -40,7 +40,8 @@ if __name__ == "__main__":
     if(len(tests_to_record) != 0):
         benches = [bench for bench in benches if bench in tests_to_record];
 
-    clang_options = "-fno-exceptions -fno-stack-protector -I../test/llvm_benchmark_adobe_cpp/"
+    clang_options = "-fno-exceptions -fno-stack-protector -I../test/llvm_benchmark_adobe_cpp/ -I../test/"
+    link_options = "-lm -static-libstdc++"
     
    
     if collect_compiletimes:
@@ -65,20 +66,21 @@ if __name__ == "__main__":
     else:
         for benchy in benches:
             clang_name = f"clang{'++' if benchy.endswith(".cpp") else ''}"
+            gcc_name = f"g{'++' if benchy.endswith(".cpp") else 'cc'}"
             clang_command = f"{clang_name} -mllvm -disable-llvm-optzns -O3 {clang_options} ../bench/{benchy} -o {out_dir}/{benchy}.tmp.ll -S -emit-llvm"
             os.system(clang_command)
             print(clang_command)
             os.system(f"../build/foptim_main {out_dir}/{benchy}.tmp.ll {out_dir}/{benchy}.tmp.o")
-            os.system(f"{clang_name} ../bench/{benchy} -static-libstdc++ -march=native -O1 {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
-            os.system(f"{clang_name} ../bench/{benchy} -static-libstdc++ -march=native -O3 {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
-            os.system(f"g++ ../bench/{benchy} -static-libstdc++ -march=native -O3 {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out")
+            os.system(f"{clang_name} ../bench/{benchy} -march=native -O1 {link_options} {clang_options} -o {out_dir}/{benchy}_clang_O1.tmp.out")
+            os.system(f"{clang_name} ../bench/{benchy} -march=native -O3 {link_options} {clang_options} -o {out_dir}/{benchy}_clang_O3.tmp.out")
+            os.system(f"{gcc_name} ../bench/{benchy} -march=native -O3 {link_options} {clang_options} -o {out_dir}/{benchy}_gcc_O3.tmp.out")
             
 
     # print(hyperfine_compile_command)
 
     hyperfine_run_command = f"hyperfine -i -N --export-json={perf_name}"
     for benchy in benches:
-        link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} -static-libstdc++ {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
+        link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} {link_options} {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
         os.system(link_command)
 
         name = ".".join(benchy.split(".")[:-1])
