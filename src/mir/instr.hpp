@@ -26,6 +26,8 @@ enum class GVecSubtype : u32 {
   fAnd,
   fOr,
   fShl,
+  fMax,
+  fMin,
 };
 
 enum class GJumpSubtype : u32 {

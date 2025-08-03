@@ -1,7 +1,6 @@
-#include "live_variables.hpp"
-
 #include <deque>
 
+#include "live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
@@ -230,6 +229,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
         case GVecSubtype::vadd:
         case GVecSubtype::vsub:
+        case GVecSubtype::fMax:
+        case GVecSubtype::fMin:
         case GVecSubtype::fmul:
         case GVecSubtype::fdiv:
         case GVecSubtype::ffmadd:
@@ -462,6 +463,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           update_uses(instr.args[2], uses);
           update_uses(instr.args[3], uses);
           return;
+        case GVecSubtype::fMax:
+        case GVecSubtype::fMin:
         case GVecSubtype::vadd:
         case GVecSubtype::vsub:
         case GVecSubtype::fmul:
