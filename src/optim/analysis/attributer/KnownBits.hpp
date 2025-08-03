@@ -490,7 +490,7 @@ class KnownBits final : public AttributeAnalysis {
     auto size = associatedValue.get_type()->get_bitwidth();
     if (msb == Unknown) {
       ASSERT(size <= 64);
-      u64 msb_mask = 0x1 << (size - 1);
+      u64 msb_mask = (u128)0x1 << (size - 1);
       result |= msb_mask;
     }
     u64 mask = (u64)(((u128)1 << size) - 1);
@@ -535,7 +535,7 @@ static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS) {
       auto res = KnownBits{};
       res.known_one = LHS.known_one << log2;
       res.known_zero = LHS.known_zero << log2;
-      res.known_zero |= (1 << log2) - 1;
+      res.known_zero |= ((u64)1 << log2) - 1;
       return res;
     }
   }
@@ -562,7 +562,7 @@ static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS) {
   }
   auto lowest_bit_id =
       llowest_bit_id > rlowest_bit_id ? llowest_bit_id : rlowest_bit_id;
-  res.known_zero = (1 << lowest_bit_id) - 1;
+  res.known_zero = ((u64)1 << lowest_bit_id) - 1;
   // TODO: impl properly
   return res;
 }
