@@ -1595,6 +1595,50 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     case fmir::GVecSubtype::INVALID:
       fmt::println("{:cd}", instr);
       TODO("impl");
+    case fmir::GVecSubtype::fMax:
+      switch (instr.args[0].ty) {
+        default:
+          fmt::println("{}", instr);
+          TODO("Impl");
+        case fmir::Type::Float32:
+          req.mnemonic = ZYDIS_MNEMONIC_VMAXSS;
+          break;
+        case fmir::Type::Float64:
+          req.mnemonic = ZYDIS_MNEMONIC_VMAXSD;
+          break;
+        case fmir::Type::Float32x2:
+        case fmir::Type::Float32x4:
+        case fmir::Type::Float32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VMAXPS;
+          break;
+        case fmir::Type::Float64x2:
+        case fmir::Type::Float64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VMAXPD;
+          break;
+      }
+      return emit(out_buff, 0, &req);
+    case fmir::GVecSubtype::fMin:
+      switch (instr.args[0].ty) {
+        default:
+          fmt::println("{}", instr);
+          TODO("Impl");
+        case fmir::Type::Float32:
+          req.mnemonic = ZYDIS_MNEMONIC_VMINSS;
+          break;
+        case fmir::Type::Float64:
+          req.mnemonic = ZYDIS_MNEMONIC_VMINSD;
+          break;
+        case fmir::Type::Float32x2:
+        case fmir::Type::Float32x4:
+        case fmir::Type::Float32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VMINPS;
+          break;
+        case fmir::Type::Float64x2:
+        case fmir::Type::Float64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VMINPD;
+          break;
+      }
+      return emit(out_buff, 0, &req);
   }
 }
 size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
