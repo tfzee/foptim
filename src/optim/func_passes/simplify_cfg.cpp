@@ -276,14 +276,6 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     local_value_map.clear();
     difference_values.clear();
     cost = 0;
-
-    // setup local value map this allows us to check if it references the same
-    // local instruction
-    if (!match_term(bb1.bb->get_terminator(), bb2.bb->get_terminator(),
-                    local_value_map, cost, difference_values)) {
-      found = false;
-      continue;
-    }
     for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
       auto i1 = bb1.bb->instructions[i];
       auto i2 = bb2.bb->instructions[i];
@@ -300,10 +292,21 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
       auto i1 = bb1.bb->instructions[i];
       auto i2 = bb2.bb->instructions[i];
       local_value_map.insert({i1, i2});
-      local_value_map.insert({i2, i2});
+      local_value_map.insert({i2, i1});
+    }
+    // setup local value map this allows us to check if it references the same
+    // local instruction
+    if (!match_term(bb1.bb->get_terminator(), bb2.bb->get_terminator(),
+                    local_value_map, cost, difference_values)) {
+      found = false;
+      continue;
     }
 
     for (size_t i = 0; i < bb1.bb->instructions.size(); i++) {
+      if (difference_values.size() > 1) {
+        found = false;
+        break;
+      }
       auto i1 = bb1.bb->instructions[i];
       auto i2 = bb2.bb->instructions[i];
       if (!check_args(i1, i2, local_value_map, cost, difference_values)) {
@@ -318,7 +321,7 @@ bool SimplifyCFG::dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
     }
   }
 
-  if (found && cost <= res_bb1->instructions.size()) {
+  if (found && cost <= 1) {
     TVec<fir::BBArgument> new_bb_args;
 
     for (auto &diff : difference_values) {
