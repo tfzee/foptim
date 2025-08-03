@@ -1,4 +1,6 @@
 #pragma once
+#include <type_traits>
+
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
@@ -85,9 +87,21 @@ bool try_constant_eval_binary(fir::Instr instr,
             fir::ValueR(ctx->get_constant_value(a << b, type)));
         return true;
       }
+    case fir::BinaryInstrSubType::Shr:
+      if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(a >> b, type)));
+        return true;
+      } else if constexpr (std::is_integral_v<T>) {
+        using unsigned_ty = std::make_unsigned_t<T>;
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            std::bit_cast<T>(std::bit_cast<unsigned_ty>(a)) >>
+                std::bit_cast<T>(std::bit_cast<unsigned_ty>(b)),
+            type)));
+        return true;
+      }
     case fir::BinaryInstrSubType::IntURem:
     case fir::BinaryInstrSubType::AShr:
-    case fir::BinaryInstrSubType::Shr:
       TODO("impl");
     case fir::BinaryInstrSubType::INVALID:
       return false;
