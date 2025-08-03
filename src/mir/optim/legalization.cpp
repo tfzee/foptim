@@ -68,9 +68,9 @@ u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
     case Type::INVALID:
     case Type::Int8:
     case Type::Int16:
-    case Type::Int32:
-    case Type::Int64:
+      fmt::println("{}", bb);
       TODO("UNREACH");
+    case Type::Int32:
     case Type::Int32x4:
     case Type::Float32x2:
     case Type::Float32x4:
@@ -79,6 +79,7 @@ u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
     case Type::Float32:
       int_version = Type::Int32;
       break;
+    case Type::Int64:
     case Type::Int64x2:
     case Type::Float64x2:
     case Type::Int64x4:
@@ -442,6 +443,19 @@ bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
 //   return modified;
 // }
 
+bool Legalizer::legalize_arith_op(MBB &bb, u32 indx) {
+  {
+    // 2nd arg cant be a 64bit constant
+    MInstr &instr = bb.instrs[indx];
+    if (instr.args[1].isImm() &&
+        instr.args[1].imm > std::numeric_limits<u32>::max()) {
+      indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+      return true;
+    }
+  }
+  return false;
+}
+
 bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
   {
     // 2nd arg cant be a constant
@@ -742,6 +756,11 @@ void Legalizer::apply_impl(MFunc &func) {
           break;
         case GOpcode::GArith:
           switch ((GArithSubtype)bb.instrs[i].sop) {
+            case GArithSubtype::land2:
+              if (legalize_arith_op(bb, i)) {
+                ioff = 0;
+              }
+              break;
             case GArithSubtype::udiv:
             case GArithSubtype::idiv:
               if (legalize_idiv(bb, i)) {
