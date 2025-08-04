@@ -54,7 +54,7 @@ class DCE final : public FunctionPass {
       // }
 
       TSet<fir::Instr> marked{};
-      std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
+      TVec<fir::Instr> worklist;
       for (auto &bb : func.get_bbs()) {
         for (auto &instr : bb->get_instrs()) {
           bool isCritical = instr->is_critical();
@@ -68,8 +68,8 @@ class DCE final : public FunctionPass {
 
       // then workoff the worklist
       while (!worklist.empty()) {
-        auto curr_i = worklist.front();
-        worklist.pop_front();
+        auto curr_i = worklist.back();
+        worklist.pop_back();
         // since worklist contains only crticial instructions we can mark all
         // arguments as cirtical and add them aswell to the worklist
         for (auto arg : curr_i->get_args()) {
@@ -183,7 +183,7 @@ class DCE final : public FunctionPass {
         }
       }
       // reverse so we run high ones first
-      std::reverse(dead_blocks.begin(), dead_blocks.end());
+      std::ranges::reverse(dead_blocks);
       for (auto dead_bb_id : dead_blocks) {
         for (auto instr : func.basic_blocks[dead_bb_id]->instructions) {
           instr->replace_all_uses(
