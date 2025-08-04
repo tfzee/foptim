@@ -22,9 +22,17 @@ class Dominators;
 // + [ ]
 
 class SimplifyCFG final : public FunctionPass {
+ public:
+  enum class Res : u8 {
+    NoChange,
+    Changed,
+    NeedUpdate,
+  };
+
+ private:
   // if not jumped to just delete
-  bool remove_dead_bb(CFG &cfg, Dominators &dom, CFG::Node &curr,
-                      fir::Function &func, size_t bb_id, bool is_entry);
+  Res remove_dead_bb(CFG &cfg, Dominators &dom, CFG::Node &curr,
+                     fir::Function &func, size_t bb_id, bool is_entry);
   // if we got a bb arg that got no use remove it
   bool remove_dead_bb_arg(CFG &cfg, CFG::Node &curr, fir::Function &func,
                           size_t bb_id, bool is_entry);
@@ -69,15 +77,18 @@ class SimplifyCFG final : public FunctionPass {
                             size_t bb_id, bool is_entry);
   // If we got 2 blocks that are identical but some constants/vars
   // we could merge them into 1 and replace differences by bb args
-  bool dup_bb_to_args(CFG &cfg, CFG::Node &bb1, fir::Function &func,
-                      size_t bb_id, bool is_entry);
+  // NOTE: moved to function handling it all for perofmance reasons
+  bool dup_bb_to_args(fir::Function &func);
   // if we have mustprogress + an infinite loop delete it
   bool eliminate_infinite_loop(CFG &cfg, CFG::Node &curr, fir::Function &func,
                                size_t bb_id, bool is_entry);
 
  public:
-  bool simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
-                    size_t bb_id);
+  // simplifications on the bbargs which
+  Res simplify_bb_args(CFG &cfg, Dominators &dom, fir::Function &func,
+                       size_t bb_id);
+  Res simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
+                   size_t bb_id);
   void apply(fir::Context & /*unused*/, fir::Function &func) override;
 };
 
