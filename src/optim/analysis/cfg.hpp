@@ -88,6 +88,26 @@ class CFG {
     }
   }
 
+  void update_delete(u32 bb_id) {
+    for (auto &bb : bbrs) {
+      for (size_t predip = bb.pred.size(); predip > 0; predip--) {
+        if (bb.pred[predip - 1] == bb_id) {
+          bb.pred.erase(bb.pred.begin() + predip - 1);
+        } else if (bb.pred[predip - 1] > bb_id) {
+          bb.pred[predip - 1]--;
+        }
+      }
+      for (size_t succip = bb.succ.size(); succip > 0; succip--) {
+        if (bb.succ[succip - 1] == bb_id) {
+          bb.succ.erase(bb.succ.begin() + succip - 1);
+        } else if (bb.succ[succip - 1] > bb_id) {
+          bb.succ[succip - 1]--;
+        }
+      }
+    }
+    bbrs.erase(bbrs.begin() + bb_id);
+  }
+
   template <class T>
   constexpr void postorder(T &&functor) {
     std::deque<u32, utils::TempAlloc<u32>> queue{entry};
