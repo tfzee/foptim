@@ -8,6 +8,7 @@
 #include "simplify_cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
+#include "utils/stats.hpp"
 
 namespace foptim::optim {
 
@@ -231,8 +232,9 @@ struct DiffConst {
 
 bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
                            size_t &bb_id, TVec<DiffConst> &difference_values,
-                           TMap<fir::Instr, fir::Instr> &local_value_map) {
-  constexpr u32 N_INSTRS_UPPERBOUND = 5;
+                           TMap<fir::Instr, fir::Instr> &local_value_map,
+                           TVec<fir::BBArgument> &new_bb_args_helper) {
+  constexpr u32 N_INSTRS_UPPERBOUND = 10;
   auto *ctx = func.ctx;
   bool modified = false;
 
@@ -247,9 +249,6 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       continue;
     }
     bool found = true;
-    local_value_map.clear();
-    difference_values.clear();
-    size_t cost = 0;
     for (size_t i = 0; i < bb1->instructions.size(); i++) {
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
@@ -262,6 +261,8 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     if (!found) {
       continue;
     }
+    size_t cost = 0;
+    local_value_map.clear();
     for (size_t i = 0; i < bb1->instructions.size(); i++) {
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
@@ -269,6 +270,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     }
     // setup local value map this allows us to check if it references the same
     // local instruction
+    difference_values.clear();
     if (!match_term(bb1->get_terminator(), bb2->get_terminator(),
                     local_value_map, cost, difference_values)) {
       found = false;
@@ -276,7 +278,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     }
 
     for (size_t i = 0; i < bb1->instructions.size(); i++) {
-      if (difference_values.size() > 1) {
+      if (difference_values.size() > 4) {
         found = false;
         break;
       }
@@ -287,10 +289,10 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
         break;
       }
     }
-    if (found && cost <= 1) {
+    if (found && cost <= 2) {
       fir::BasicBlock res_bb1 = bb1;
       fir::BasicBlock res_bb2 = bb2;
-      TVec<fir::BBArgument> new_bb_args;
+      new_bb_args_helper.clear();
 
       for (auto &diff : difference_values) {
         auto new_arg =
@@ -316,6 +318,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       res_bb2->replace_all_uses(fir::ValueR(res_bb1));
       ASSERT(res_bb2->get_n_uses() == 0);
       res_bb2->remove_from_parent(true, true, true);
+      utils::StatCollector::get().addi(1, "MergedBBBlocks");
       bb2_id--;
       bb_id--;
       modified = true;
@@ -333,9 +336,14 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
   bool modified = false;
   TVec<DiffConst> difference_values;
   TMap<fir::Instr, fir::Instr> local_value_map;
+  TVec<fir::BBArgument> new_bb_args_helper;
+  difference_values.reserve(32);
+  new_bb_args_helper.reserve(32);
+
   for (size_t bb_id = 1; bb_id < func.basic_blocks.size(); bb_id++) {
     modified |= dup_bb_to_args_per_bb(func.basic_blocks[bb_id], func, bb_id,
-                                      difference_values, local_value_map);
+                                      difference_values, local_value_map,
+                                      new_bb_args_helper);
   }
   return modified;
 }

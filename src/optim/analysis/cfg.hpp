@@ -49,16 +49,25 @@ class CFG {
 
   void update(fir::Function &func, bool reverse) {
     ZoneScopedNC("CFG UPDATE", COLOR_ANALY);
-    bbrs.clear();
+    auto n_bbs = func.n_bbs();
     entry = 0;
 
-    bbrs.reserve(func.n_bbs());
-
-    for (auto &bb : func.get_bbs()) {
-      if (bb == func.get_entry()) {
-        entry = bbrs.size();
+    if (bbrs.size() >= n_bbs) {
+      entry = 0;
+      for (size_t i = 0; i < n_bbs; i++) {
+        bbrs[i].bb = func.basic_blocks[i];
+        bbrs[i].pred.clear();
+        bbrs[i].succ.clear();
       }
-      bbrs.push_back(Node{.bb = bb, .pred = {}, .succ = {}});
+    } else {
+      bbrs.clear();
+      bbrs.reserve(func.n_bbs());
+      for (auto &bb : func.get_bbs()) {
+        if (bb == func.get_entry()) {
+          entry = bbrs.size();
+        }
+        bbrs.push_back(Node{.bb = bb, .pred = {}, .succ = {}});
+      }
     }
 
     const auto &bbs = func.get_bbs();

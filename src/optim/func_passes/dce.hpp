@@ -2,6 +2,7 @@
 #include <algorithm>
 
 #include "../function_pass.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -10,12 +11,7 @@
 
 namespace foptim::optim {
 
-static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
-  if (cfg.entry == bb_id) {
-    return true;
-  }
-
-  TSet<size_t> seen{};
+static void reachable_from_entry(CFG &cfg, TSet<size_t> &seen) {
   std::deque<size_t, utils::TempAlloc<size_t>> worklist;
   worklist.push_back(cfg.entry);
 
@@ -27,16 +23,12 @@ static bool reachable_from_entry(CFG &cfg, size_t bb_id) {
     }
     seen.insert(curr_id);
     for (auto succ : cfg.bbrs[curr_id].succ) {
-      if (bb_id == succ) {
-        return true;
-      }
       if (seen.contains(succ)) {
         continue;
       }
       worklist.push_back(succ);
     }
   }
-  return false;
 }
 
 class DCE final : public FunctionPass {
@@ -175,21 +167,18 @@ class DCE final : public FunctionPass {
 
     {
       CFG cfg{func};
-      TVec<size_t> dead_blocks;
-      for (size_t bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
-        if (func.basic_blocks[bb_id] != func.get_entry() &&
-            !reachable_from_entry(cfg, bb_id)) {
-          dead_blocks.push_back(bb_id);
+      TSet<size_t> seen;
+      reachable_from_entry(cfg, seen);
+      // reverse so we remove high ones first
+      for (size_t bb_idp1 = func.basic_blocks.size(); bb_idp1 > 0; bb_idp1--) {
+        if (func.basic_blocks[bb_idp1 - 1] != func.get_entry() &&
+            !seen.contains(bb_idp1 - 1)) {
+          // for (auto instr : func.basic_blocks[bb_idp1 - 1]->instructions) {
+          //   instr->replace_all_uses(
+          //       fir::ValueR{ctx->get_poisson_value(instr.get_type())});
+          // }
+          func.basic_blocks[bb_idp1 - 1]->remove_from_parent(true, true, true);
         }
-      }
-      // reverse so we run high ones first
-      std::ranges::reverse(dead_blocks);
-      for (auto dead_bb_id : dead_blocks) {
-        for (auto instr : func.basic_blocks[dead_bb_id]->instructions) {
-          instr->replace_all_uses(
-              fir::ValueR{ctx->get_poisson_value(instr.get_type())});
-        }
-        func.basic_blocks[dead_bb_id]->remove_from_parent(true, true, true);
       }
     }
   }
