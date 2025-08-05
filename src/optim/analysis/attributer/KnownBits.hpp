@@ -172,7 +172,8 @@ class KnownBits final : public AttributeAnalysis {
       const auto *known_arg2_bits =
           m.get_or_create_analysis<KnownBits>(instr->args[2], &worklist);
       new_known_one = known_arg1_bits->known_one & known_arg2_bits->known_one;
-      new_known_zero = known_arg1_bits->known_one & known_arg2_bits->known_one;
+      new_known_zero =
+          known_arg1_bits->known_zero & known_arg2_bits->known_zero;
     } else if (instr->is(fir::InstrType::SExt)) {
       auto old_bitwidth = instr->args[0].get_type()->get_size() * 8;
       const auto *known_arg_bits =
