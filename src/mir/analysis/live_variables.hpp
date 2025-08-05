@@ -1,3 +1,4 @@
+#pragma once
 #include "mir/analysis/cfg.hpp"
 #include "mir/func.hpp"
 #include "utils/bitset.hpp"

@@ -448,7 +448,7 @@ bool Legalizer::legalize_arith_op(MBB &bb, u32 indx) {
     // 2nd arg cant be a 64bit constant
     MInstr &instr = bb.instrs[indx];
     if (instr.args[1].isImm() &&
-        instr.args[1].imm > std::numeric_limits<u32>::max()) {
+        instr.args[1].imm > std::numeric_limits<i32>::max()) {
       indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
