@@ -1,5 +1,4 @@
 #include "helper.hpp"
-
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 
