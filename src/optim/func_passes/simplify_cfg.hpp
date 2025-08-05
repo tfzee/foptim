@@ -82,6 +82,9 @@ class SimplifyCFG final : public FunctionPass {
   // if we have mustprogress + an infinite loop delete it
   bool eliminate_infinite_loop(CFG &cfg, CFG::Node &curr, fir::Function &func,
                                size_t bb_id, bool is_entry);
+  // or merge 2 following conditions and combine them via && or ||
+  bool merge_term_cond(CFG &cfg, CFG::Node &curr, fir::Function &func,
+                       size_t bb_id, bool is_entry);
 
  public:
   // simplifications on the bbargs which

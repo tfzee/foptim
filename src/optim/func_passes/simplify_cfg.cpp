@@ -701,6 +701,153 @@ bool SimplifyCFG::eliminate_infinite_loop(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
+namespace {
+bool can_merge(const fir::BasicBlock bb1, u32 next_id, bool &sec_neg,
+               bool &can_rename, bool &needs_rename, const CFG &cfg) {
+  fir::BasicBlock bb2 = bb1->get_terminator()->bbs[next_id].bb;
+  auto &exp_other = bb1->get_terminator()->bbs[1 - next_id];
+  auto t2 = bb2->get_terminator();
+  needs_rename = false;
+  can_rename = cfg.bbrs[cfg.get_bb_id(bb2)].pred.size() == 1;
+  if (bb2 == bb1) {
+    return false;
+  }
+  if (!t2->is(fir::InstrType::CondBranchInstr)) {
+    return false;
+  }
+  if (t2->bbs[0].bb == exp_other.bb) {
+    for (size_t bb_arg_id = 0; bb_arg_id < t2->bbs[0].args.size();
+         bb_arg_id++) {
+      if (t2->bbs[0].args[bb_arg_id] != exp_other.args[bb_arg_id]) {
+        return false;
+      }
+    }
+    sec_neg = next_id != 1;
+  } else if (t2->bbs[1].bb == exp_other.bb) {
+    for (size_t bb_arg_id = 0; bb_arg_id < t2->bbs[1].args.size();
+         bb_arg_id++) {
+      if (t2->bbs[1].args[bb_arg_id] != exp_other.args[bb_arg_id]) {
+        return false;
+      }
+    }
+    sec_neg = next_id != 0;
+  } else {
+    return false;
+  }
+  if (bb2->instructions.size() > 5) {
+    return false;
+  }
+  for (auto i : bb2->instructions) {
+    for (auto u : i->get_uses()) {
+      if (u.user->parent != bb2) {
+        if (!can_rename) {
+          return false;
+        }
+        needs_rename = true;
+      }
+    }
+    if (i->has_pot_sideeffects() || i->pot_modifies_mem() ||
+        i->pot_reads_mem()) {
+      return false;
+    }
+  }
+  return true;
+}
+}  // namespace
+
+bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr,
+                                  fir::Function & /*func*/, size_t /*bb_id*/,
+                                  bool /*is_entry*/) {
+  auto terminator = curr.bb->get_terminator();
+  if (!terminator->is(fir::InstrType::CondBranchInstr)) {
+    return false;
+  }
+  u32 merge_num = 0;
+  bool sec_negated = false;
+  // rename meaning that it only has this incoming edge
+  //  and some of the values in the 2nd block are used afterwards
+  //  then we can ofcourse just replace them with our newly copied versions in
+  //  bb1
+  // TODO: check if rename avail
+  bool can_rename = false;
+  bool needs_rename = false;
+
+  fir::BasicBlock merge_target{fir::BasicBlock::invalid()};
+  // TODO: would need to check if they are used after
+  if (can_merge(curr.bb, 0, sec_negated, can_rename, needs_rename, cfg)) {
+    merge_target = terminator->bbs[0].bb;
+    merge_num = 0;
+  } else if (can_merge(curr.bb, 1, sec_negated, can_rename, needs_rename,
+                       cfg)) {
+    merge_target = terminator->bbs[1].bb;
+    merge_num = 1;
+  } else {
+    return false;
+  }
+
+  if (!merge_target->args.empty() && !can_rename) {
+    return false;
+  }
+
+  fmt::println("{:cd}", curr.bb);
+  fmt::println("{:cd}", merge_target);
+  auto term2 = merge_target->get_terminator();
+  fir::Builder buh{terminator};
+  TMap<fir::ValueR, fir::ValueR> subs;
+  // gotta substitute bbargs if there are any
+  if (!merge_target->args.empty()) {
+    TODO("fail fixme");
+  }
+  for (size_t merge_i = 0; merge_i < merge_target->instructions.size() - 1;
+       merge_i++) {
+    auto n_instr = buh.insert_copy(merge_target->instructions[merge_i]);
+    subs.insert({fir::ValueR{merge_target->instructions[merge_i]},
+                 fir::ValueR{n_instr}});
+    n_instr.substitute(subs);
+  }
+  auto &out_target =
+      sec_negated ? term2->bbs[1 - merge_num] : term2->bbs[merge_num];
+  terminator.replace_bb(merge_num, out_target.bb, false, false);
+  for (auto new_arg : out_target.args) {
+    if (subs.contains(new_arg)) {
+      terminator.add_bb_arg(merge_num, subs.at(new_arg));
+    } else {
+      terminator.add_bb_arg(merge_num, new_arg);
+    }
+  }
+  auto new_cond = term2->args[0];
+  if (subs.contains(term2->args[0])) {
+    new_cond = subs.at(term2->args[0]);
+  }
+  if (merge_num == 1) {
+    if (sec_negated) {
+      new_cond = buh.build_unary_op(new_cond, fir::UnaryInstrSubType::Not);
+    }
+    auto new_res_cond = buh.build_binary_op(terminator->args[0], new_cond,
+                                            fir::BinaryInstrSubType::Or);
+    terminator.replace_arg(0, new_res_cond);
+  } else if (merge_num == 0) {
+    auto c1 =
+        buh.build_unary_op(terminator->args[0], fir::UnaryInstrSubType::Not);
+    auto c2 = buh.build_unary_op(new_cond, fir::UnaryInstrSubType::Not);
+    auto new_res_cond =
+        buh.build_binary_op(c1, c2, fir::BinaryInstrSubType::And);
+    terminator.replace_arg(0, new_res_cond);
+    if (sec_negated) {
+      TODO("impl");
+    }
+  }
+
+  fmt::println("{}====================================", merge_num);
+  fmt::println("{:cd}", new_cond);
+  fmt::println("{:cd}", curr.bb);
+  // TODO("impl");
+  if (needs_rename) {
+    TODO("impl");
+  }
+  return false;
+}
+
 SimplifyCFG::Res SimplifyCFG::simplify_bb_args(CFG &cfg, Dominators &dom,
                                                fir::Function &func,
                                                size_t bb_id) {
@@ -790,6 +937,13 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   if (eliminate_infinite_loop(cfg, curr, func, bb_id, is_entry)) {
     if constexpr (debug) {
       fmt::println("12");
+    }
+    return Res::NeedUpdate;
+  }
+
+  if (merge_term_cond(cfg, curr, func, bb_id, is_entry)) {
+    if constexpr (debug) {
+      fmt::println("13");
     }
     return Res::NeedUpdate;
   }
