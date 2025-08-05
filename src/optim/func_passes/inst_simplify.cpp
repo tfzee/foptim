@@ -505,8 +505,8 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
          instr->is(BinaryInstrSubType::Shr)) &&
         instr->args[0].is_instr()) {
       auto argi = instr->args[0].as_instr();
-      if (instr->is(BinaryInstrSubType::Shl) ||
-          argi->is(fir::BinaryInstrSubType::Shr)) {
+      if (instr->is(BinaryInstrSubType::Shr) &&
+          argi->is(fir::BinaryInstrSubType::Shl)) {
         // TODO: could also do it without being exactly equal
         //  idk if worht then tho
         // since for x >> n << c

@@ -128,7 +128,7 @@ target_compile_options(foptim PRIVATE -fno-exceptions -Wall -Wextra -Werror -ggd
 target_include_directories(foptim PUBLIC ./src/)
 target_include_directories(foptim SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 target_link_libraries(foptim PRIVATE ${llvm_libs} Threads::Threads)
-
+set_target_properties(foptim PROPERTIES UNITY_BUILD ON UNITY_BUILD_MODE BATCH UNITY_BUILD_BATCH_SIZE 6)
 
 
 ###############################################
