@@ -5,7 +5,7 @@ test_file="min.cpp"
 
 foptim="$build_dir/foptim_main"
 flags="-fno-exceptions -fno-stack-protector"
-test_linkdir="-I/home/tim/programming/foptim/test/llvm_benchmark_adobe_cpp/"
+test_linkdir="-I/home/tim/programming/foptim/test/llvm_benchmark_adobe_cpp/ -I/home/tim/programming/foptim/test/embench/"
 compile_optim="-O3 -mllvm -disable-llvm-optzns"
 # compile_optim="-O0"
 
