@@ -275,7 +275,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     if (reord_func->is_decl()) {
       continue;
     }
-    shed->push([i, &funcs, reord_func]() {
+    shed->push(nullptr, nullptr, [i, &funcs, reord_func]() {
       auto &func = funcs.at(i);
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func);

@@ -39,7 +39,7 @@ class FunctionPass {
     return *this;
   }
 
-  inline void failure(FailureReason reason) {
+  void failure(FailureReason reason) {
 #ifdef OPTIM_STATS
     failures.push_back(reason);
 #else
@@ -74,7 +74,7 @@ class StaticParallelFunctionPassManager {
       if (func->is_decl()) {
         continue;
       }
-      shed->push([&ctx, &func]() {
+      shed->push(nullptr, nullptr, [&ctx, &func]() {
         if (utils::print_optimization_failure_reasons) {
           (Passes{}.apply_pass(ctx, *func).print_failures(), ...);
         } else {

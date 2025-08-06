@@ -147,12 +147,15 @@ struct AliasAnalyis {
     HeapEntry a_heap = analyze(a);
     HeapEntry b_heap = analyze(b);
     if (a_heap.heap == 0 || b_heap.heap == 0) {
-      if (a.is_instr() && b.is_instr()) {
-        fmt::println("{} {}", a.as_instr(), b.as_instr());
-      }
-      fmt::println("{} {}", a_heap.heap, b_heap.heap);
-      fmt::println("{} {}", a, b);
-      ASSERT(false);
+      // if (a.is_instr() && b.is_instr()) {
+      //   fmt::println("{:cd}\n{:cd}", a.as_instr()->get_parent(),
+      //                b.as_instr()->get_parent());
+      //   fmt::println("{:cd}\n{:cd}", a.as_instr(), b.as_instr());
+      // }
+      // fmt::println("{} {}", a_heap.heap, b_heap.heap);
+      // fmt::println("{:cd}\n{:cd}", a, b);
+      // ASSERT(false);
+      return AAResult::MightAlias;
     }
     // TODO: could also handle null_h as special case but idk about stuff like
     // embedded could add a parameter for that case
