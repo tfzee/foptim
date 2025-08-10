@@ -1,5 +1,3 @@
-#include "llir_loader.hpp"
-
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
@@ -25,6 +23,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
+#include "llir_loader.hpp"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -32,6 +31,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include "utils/arena.hpp"
+#include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
 #include "utils/set.hpp"
 
@@ -1594,7 +1594,8 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
   }
 }
 
-void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
+void convert(llvm::Module &mod, foptim::fir::Context &fctx,
+             foptim::JobSheduler &shed) {
   V2VMap valueToValue;
   {
     ZoneScopedN("Initializing Globals + Functions");
@@ -1611,14 +1612,22 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx) {
       convert(mod, globals, fctx, valueToValue);
     }
     for (auto &func : mod.functions()) {
-      convert(func, fctx, valueToValue);
+      shed.push(nullptr, nullptr, [&func, &fctx, &valueToValue]() {
+        auto v = foptim::utils::TempAlloc<void *>::save();
+        V2VMap v2v_map_copy = valueToValue;
+        convert(func, fctx, v2v_map_copy);
+        foptim::utils::TempAlloc<void *>::restore(v);
+      });
+      // convert(func, fctx, valueToValue);
     }
+    shed.wait_till_done();
   }
 }
 
 }  // namespace
 
-void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
+void load_llvm_ir(const char *filename, foptim::fir::Context &fctx,
+                  foptim::JobSheduler &shed) {
   llvm::LLVMContext context;
   llvm::SMDiagnostic error;
   std::unique_ptr<llvm::Module> module;
@@ -1628,7 +1637,7 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx) {
   }
   if (module) {
     // module->dump();
-    convert(*module, fctx);
+    convert(*module, fctx, shed);
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
                  << error.getMessage() << "\n";

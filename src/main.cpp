@@ -58,7 +58,7 @@
 #include "x86_codegen/backend.hpp"
 
 namespace {
-void parse_llvm_ir(foptim::fir::Context &ctx);
+void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed);
 void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed);
 void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
                                foptim::FVec<foptim::fmir::MFunc> &funcs,
@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
       // fir
       {
         auto a1 = t.scopedTimer("ParseConvert");
-        parse_llvm_ir(ctx);
+        parse_llvm_ir(ctx, shed);
       }
       {
         auto a1 = t.scopedTimer("Optimize");
@@ -126,9 +126,9 @@ int main(int argc, char *argv[]) {
 }
 
 namespace {
-void parse_llvm_ir(foptim::fir::Context &ctx) {
+void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
   ZoneScopedN("LLIR LOADING");
-  load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx);
+  load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx, shed);
   foptim::utils::TempAlloc<void *>::reset();
 }
 
