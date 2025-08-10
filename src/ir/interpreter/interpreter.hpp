@@ -1,6 +1,4 @@
 #pragma once
-#include "ir/basic_block.hpp"
-#include "ir/basic_block_ref.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/value.hpp"

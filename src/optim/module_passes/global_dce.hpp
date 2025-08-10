@@ -79,7 +79,11 @@ class GDCE final : public ModulePass {
                 auto *v = &i;
                 if (v->used == foptim::utils::SlotState::Used &&
                     v->data.is_global() && v->data.as_global() == g) {
+#ifdef SLOT_CHECK_GENERATION
                   auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
+#else
+                  auto r = utils::SRef<fir::ConstantValue>{v, 0};
+#endif
                   r._invalidate();
                 }
               }
@@ -129,7 +133,11 @@ class GDCE final : public ModulePass {
             auto *v = &i;
             if (v->used == foptim::utils::SlotState::Used &&
                 v->data.is_func() && v->data.as_func().func == f.get()) {
+#ifdef SLOT_CHECK_GENERATION
               auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
+#else
+              auto r = utils::SRef<fir::ConstantValue>{v, 0};
+#endif
               r._invalidate();
             }
           }

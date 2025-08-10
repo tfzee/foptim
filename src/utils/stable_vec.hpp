@@ -185,7 +185,9 @@ class StableVec {
         auto free_list = _free_list.scoped_lock();
         free_list->push_back(target);
       }
+#ifdef SLOT_CHECK_GENERATION
       res_ptr->generation = curr_gen.load(std::memory_order::acquire);
+#endif
       res_ptr->used.store(SlotState::Used, std::memory_order::release);
     }
 #ifdef SLOT_CHECK_GENERATION

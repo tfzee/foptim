@@ -40,9 +40,15 @@ class GlobalPromotion final : public ModulePass {
           const auto *v = &i;
           if (v->used.load() == foptim::utils::SlotState::Used) {
             //! CANCER!
+#ifdef SLOT_CHECK_GENERATION
             auto sref = utils::SRef<std::unique_ptr<fir::GlobalData>>{
                 const_cast<utils::Slot<std::unique_ptr<fir::GlobalData>> *>(v),
                 v->generation};
+#else
+            auto sref = utils::SRef<std::unique_ptr<fir::GlobalData>>{
+                const_cast<utils::Slot<std::unique_ptr<fir::GlobalData>> *>(v),
+                0};
+#endif
             auto global = fir::Global{std::move(sref)};
             switch (global->linkage) {
               case fir::Linkage::External:

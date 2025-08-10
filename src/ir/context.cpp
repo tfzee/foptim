@@ -96,7 +96,11 @@ Global ContextData::get_global(IRString name) {
       auto *v = &i;
       if (v->used == foptim::utils::SlotState::Used) {
         if (v->data->name == name) {
+#ifdef SLOT_CHECK_GENERATION
           return fir::Global{utils::SRef{v, v->generation}};
+#else
+          return fir::Global{utils::SRef{v, 0}};
+#endif
         }
       }
     }
