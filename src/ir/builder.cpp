@@ -1,8 +1,7 @@
-#include "builder.hpp"
-
 #include <algorithm>
 
 #include "basic_block.hpp"
+#include "builder.hpp"
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
@@ -503,7 +502,7 @@ Instr Builder::build_return(ValueR v) {
   return instr;
 }
 
-BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap &subs) {
+BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap& subs) {
   BasicBlock new_bb = ctx->copy(bb, subs);
   new_bb->func = func;
   func->append_bbr(new_bb);
@@ -534,12 +533,12 @@ Instr Builder::insert_copy(Instr instr) {
   // TODO: this is inneficient and should be clened up
   auto args = res->args;
   res->args.clear();
-  for (auto arg : args) {
+  for (auto& arg : args) {
     res.add_arg(arg);
   }
   auto bbs = res->bbs;
   res->bbs.clear();
-  for (auto bb : bbs) {
+  for (auto& bb : bbs) {
     res.add_bb(bb.bb);
     // this works but is weird
     for (size_t arg_id = 0; arg_id < bb.args.size(); arg_id++) {
