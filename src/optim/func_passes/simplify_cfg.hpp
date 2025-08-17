@@ -46,6 +46,11 @@ class SimplifyCFG final : public FunctionPass {
   // with the value itself
   bool remove_constant_bb_args(CFG &cfg, CFG::Node &curr, fir::Function &func,
                                size_t bb_id, bool is_entry);
+  // If we got bb args and multiple predecessors. If for 2 bb args
+  // all of the incoming got the same for both
+  // we can merge them both into 1 bbarg
+  bool remove_dup_bb_args(CFG &cfg, CFG::Node &curr, fir::Function &func,
+                          size_t bb_id, bool is_entry);
   // if a block only has a single return/unreachable we can move the
   // return/unreachable into all previous blocks that have a single jump
   bool distribute_return_unreach(CFG &cfg, CFG::Node &curr, fir::Function &func,
