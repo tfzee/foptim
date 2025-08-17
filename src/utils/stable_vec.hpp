@@ -160,6 +160,7 @@ class StableVec {
     Slot<T> *res_ptr = nullptr;
     {
       FreeInfo<T> target{nullptr, 0};
+      Slab *new_slab = nullptr;
       bool is_new = false;
       {
         auto free_list = _free_list.scoped_lock();
@@ -168,14 +169,17 @@ class StableVec {
           free_list->pop_back();
         } else {
           auto slab = AllocSlabs{}.allocate(1);
-          slap_append(slab);
-          target.ptr = &slab->data[0];
+          new_slab = slab;
+          target.ptr = slab->data;
           target.len = slot_slab_len;
           is_new = true;
         }
       }
       if (is_new) {
         std::memset((void *)target.ptr, 0, target.len * sizeof(Slot<T>));
+        // only append it after so we cant race if someone else accesses the
+        // slabs
+        slap_append(new_slab);
       }
       res_ptr = target.ptr;
       res_ptr->data = std::move(value);

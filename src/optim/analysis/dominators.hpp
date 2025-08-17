@@ -39,6 +39,9 @@ class Dominators {
 
   void update(const CFG &cfg) {
     ZoneScopedNC("DOM UPDATE", COLOR_ANALY);
+    ASSERT(cfg.bbrs.size() != 0 &&
+           "Cant have empty cfg prob running on a invalid function or a "
+           "declaration");
     dom_bbs.clear();
     this->cfg = &cfg;
 
