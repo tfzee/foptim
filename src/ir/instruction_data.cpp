@@ -1,6 +1,5 @@
-#include "instruction_data.hpp"
-
 #include "context.hpp"
+#include "instruction_data.hpp"
 #include "ir/basic_block_ref.hpp"
 
 namespace foptim::fir {
@@ -211,15 +210,15 @@ bool InstrData::is_commutative() const {
         case BinaryInstrSubType::Or:
         case BinaryInstrSubType::Xor:
         case BinaryInstrSubType::And:
+        case BinaryInstrSubType::FloatAdd:
+        case BinaryInstrSubType::FloatMul:
           return true;
         case BinaryInstrSubType::IntSub:
         case BinaryInstrSubType::IntSRem:
         case BinaryInstrSubType::IntURem:
         case BinaryInstrSubType::IntSDiv:
         case BinaryInstrSubType::IntUDiv:
-        case BinaryInstrSubType::FloatAdd:
         case BinaryInstrSubType::FloatSub:
-        case BinaryInstrSubType::FloatMul:
         case BinaryInstrSubType::FloatDiv:
         case BinaryInstrSubType::Shl:
         case BinaryInstrSubType::Shr:
