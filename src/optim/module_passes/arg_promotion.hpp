@@ -155,7 +155,7 @@ class ArgPromotion final : public ModulePass {
     return false;
   }
 
-  void apply(fir::Context &ctx) override {
+  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
     ZoneScopedNC("ArgumentPromoition", COLOR_OPTIMM);
     auto iter = ctx.data->storage.functions.begin();
     for (; iter != ctx.data->storage.functions.end(); iter++) {

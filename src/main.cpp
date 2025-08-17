@@ -2,6 +2,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <tracy/Tracy.hpp>
 
 #include "arg_parsing/parser.hpp"
@@ -144,7 +145,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
                                          ArgPromotion, GDCE>{}
-      .apply(ctx);
+      .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       DCE, SimplifyCFG, TailRecElim, LICM, LoopRotate, LoopSimplify, DCE,
       SLPVectorizer, LVN, SCCP, InstSimplify, DCE, SimplifyCFG, StackKnownBits,
@@ -152,18 +153,18 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<
-      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>,
+      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
       ArgPromotion, GDCE, FunctionDeDup<true>, GDCE>{}
-      .apply(ctx);
+      .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, LICM, DCE, LoopSimplify, LoopUnroll,
       SimplifyCFG, DCE, SLPVectorizer, LVN, SCCP, IntrinSimplify, InstSimplify,
       ConstLoopEval, InstSimplify, SimplifyCFG, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<
-      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>,
+      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
       ArgPromotion, FunctionDeDup<true>, GDCE>{}
-      .apply(ctx);
+      .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE, LoopSimplify,
       IntrinSimplify, InstSimplify, DCE>{}
@@ -171,10 +172,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, Mem2Reg,
                                                    DCE>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<FuncPropAnnotator,
-                                         FunctionDeDup<false>, GDCE, IPCP,
-                                         GlobalPromotion, Inline<>, GDCE>{}
-      .apply(ctx);
+  foptim::optim::StaticModulePassManager<
+      FuncPropAnnotator, FunctionDeDup<false>, GDCE, IPCP, GlobalPromotion,
+      Inline<>, Inline<>, GDCE>{}
+      .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DCE, IntrinSimplify, SimplifyCFG, InstSimplify, SCCP, DCE,
       InstSimplify, ConstLoopEval, LoopSimplify, LoopUnroll, SimplifyCFG, DCE,
@@ -190,7 +191,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LegalizeVecs>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FunctionDeDup<false>, GDCE>{}.apply(
-      ctx);
+      ctx, shed);
   ASSERT(ctx->verify());
   fmt::print("================FIR END====================\n");
 }
@@ -275,7 +276,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     if (reord_func->is_decl()) {
       continue;
     }
-    shed->push(nullptr, nullptr, [i, &funcs, reord_func]() {
+    shed->push(nullptr, [i, &funcs, reord_func]() {
       auto &func = funcs.at(i);
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func);

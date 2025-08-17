@@ -16,7 +16,7 @@ static bool kill_dead_args(fir::FunctionR func, fir::Context &ctx);
 // replace arguments insideo of functions with constant args
 class IPCP final : public ModulePass {
  public:
-  void apply(fir::Context &ctx) override {
+  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
     ZoneScopedN("IPCP");
     for (auto &f : ctx.data->storage.functions) {
       switch (f.second->linkage) {

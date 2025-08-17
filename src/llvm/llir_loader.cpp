@@ -1612,7 +1612,7 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
       convert(mod, globals, fctx, valueToValue);
     }
     for (auto &func : mod.functions()) {
-      shed.push(nullptr, nullptr, [&func, &fctx, &valueToValue]() {
+      shed.push(nullptr, [&func, &fctx, &valueToValue]() {
         auto v = foptim::utils::TempAlloc<void *>::save();
         V2VMap v2v_map_copy = valueToValue;
         convert(func, fctx, v2v_map_copy);

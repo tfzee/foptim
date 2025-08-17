@@ -14,7 +14,7 @@ class GDCE final : public ModulePass {
     return name.starts_with("llvm.") || name.starts_with("foptim.");
   }
 
-  void apply(fir::Context &ctx) override {
+  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
     ZoneScopedN("GDCE");
 
     TSet<const fir::Function *> func_global_reffed;

@@ -74,7 +74,7 @@ class StaticParallelFunctionPassManager {
       if (func->is_decl()) {
         continue;
       }
-      shed->push(nullptr, nullptr, [&ctx, &func]() {
+      shed->push(nullptr, [&ctx, &func]() {
         if (utils::print_optimization_failure_reasons) {
           (Passes{}.apply_pass(ctx, *func).print_failures(), ...);
         } else {

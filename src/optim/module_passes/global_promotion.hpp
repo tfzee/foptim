@@ -11,7 +11,7 @@ namespace foptim::optim {
 
 class GlobalPromotion final : public ModulePass {
  public:
-  void apply(fir::Context &ctx) override {
+  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
     // if we have a global thats linked internally
     //  and its only used in 1 function we can promote it to a local alloca
     TSet<fir::Global> global_global_reffed;

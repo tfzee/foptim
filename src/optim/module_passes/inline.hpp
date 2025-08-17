@@ -4,6 +4,7 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/inline.hpp"
+#include "utils/job_system.hpp"
 
 namespace foptim::optim {
 
@@ -14,8 +15,9 @@ class BaseInlineAdvisor {
   static constexpr bool debug_print = false;
 
  public:
-  [[nodiscard]] bool should_be_inlined(const fir::Instr instr) {
-    if (_should_be_inlined(instr)) {
+  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& cfg,
+                                       Dominators& dom) {
+    if (_should_be_inlined(instr, cfg, dom)) {
       auto v = instr->get_arg(0).as_constant()->as_func();
       n_inlined_calls += 1;
       n_inlined_instructions += v->n_instrs();
@@ -24,7 +26,8 @@ class BaseInlineAdvisor {
     return false;
   }
 
-  [[nodiscard]] bool _should_be_inlined(const fir::Instr instr) const {
+  [[nodiscard]] bool _should_be_inlined(const fir::Instr instr, CFG& cfg,
+                                        Dominators& dom) const {
     auto called_func = instr->get_arg(0);
     auto self_func = instr->get_parent()->get_parent();
     auto self_n_instrs = self_func->n_instrs();
@@ -37,7 +40,7 @@ class BaseInlineAdvisor {
       return false;
     }
     if (debug_print) {
-      fmt::println("Maybe inlining {}", v->name);
+      fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
     }
 
     if (v->no_inline) {
@@ -136,24 +139,39 @@ class BaseInlineAdvisor {
     // }
 
     bool is_in_straightline_section = true;
+    bool is_always_executed = true;
     {
       auto par_bb = instr->get_parent();
       auto par_func = par_bb->get_parent();
-      CFG cfg{*par_func.func};
-      Dominators dom{cfg};
       auto par_bb_id = par_func->bb_id(par_bb);
-      if (dom.dom_bbs[par_bb_id].dominators[par_bb_id]) {
-        is_in_straightline_section = false;
-      }
-      for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
-        if (!cfg.bbrs[bb_id].succ.empty()) {
-          continue;
-        }
-        if (!dom.dom_bbs[bb_id].dominators[par_bb_id]) {
+      for (auto pred : cfg.bbrs[par_bb_id].pred) {
+        if (dom.dom_bbs[pred].dominators[par_bb_id]) {
           is_in_straightline_section = false;
           break;
         }
       }
+      if (par_bb_id != cfg.entry) {
+        auto sub_bb_id = 0;
+        for (auto bb : par_func->basic_blocks) {
+          if (bb->get_terminator()->is(fir::InstrType::ReturnInstr) &&
+              !dom.dom_bbs[sub_bb_id].dominators[par_bb_id]) {
+            is_always_executed = false;
+            break;
+          }
+          sub_bb_id++;
+        }
+      }
+      // TODO need to check if dominates all exits
+    }
+
+    // fmt::println("{}, {}, {}, {}, {}", is_in_straightline_section,
+    //              is_always_executed, v.func->n_bbs(), self_n_instrs,
+    //              called_n_instrs);
+    if (is_always_executed && v.func->n_bbs() == 1) {
+      if (debug_print) {
+        fmt::println("Y straight so always on hot parth");
+      }
+      return true;
     }
 
     if (is_in_straightline_section &&
@@ -189,31 +207,38 @@ class BaseInlineAdvisor {
 };
 
 template <typename T>
-concept InlineAdvisor = requires(T v, fir::Instr instr) {
-  { v.should_be_inlined(instr) } -> std::same_as<bool>;
-};
+concept InlineAdvisor =
+    requires(T v, fir::Instr instr, CFG& cfg, Dominators& dom) {
+      { v.should_be_inlined(instr, cfg, dom) } -> std::same_as<bool>;
+    };
 
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {
  public:
-  void apply(fir::Context &ctx) override {
+  void apply(fir::Context& ctx, JobSheduler* /*unused*/) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
-    for (auto &f : ctx.data->storage.functions) {
+    for (auto& f : ctx.data->storage.functions) {
       apply(ctx, *f.second);
     }
   }
 
-  void apply(fir::Context & /*unused*/, fir::Function &func) {
+  void apply(fir::Context& /*unused*/, fir::Function& func) {
     Advisor adv;
     TVec<fir::Instr> calls;
 
     for (u8 trys = 0; trys < 4; trys++) {
       calls.clear();
+      if (func.is_decl()) {
+        continue;
+      }
+      CFG cfg{func};
+      Dominators dom{cfg};
+
       for (size_t bb_id = 0; bb_id < func.n_bbs(); bb_id++) {
         auto bb = func.basic_blocks[bb_id];
         for (size_t instr_id = 0; instr_id < bb->n_instrs(); instr_id++) {
           if (bb->instructions[instr_id]->is(fir::InstrType::CallInstr) &&
-              adv.should_be_inlined(bb->instructions[instr_id])) {
+              adv.should_be_inlined(bb->instructions[instr_id], cfg, dom)) {
             calls.push_back(bb->instructions[instr_id]);
             break;
           }

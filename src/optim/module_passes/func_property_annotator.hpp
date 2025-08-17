@@ -52,7 +52,7 @@ class FuncPropAnnotator final : public ModulePass {
     return r;
   }
 
-  void apply(fir::Context &ctx) override {
+  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
     ZoneScopedN("FuncPropAnnotator");
     CallGraph call_graph{ctx};
 

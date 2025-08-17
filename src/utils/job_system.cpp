@@ -7,6 +7,7 @@
 
 namespace foptim {
 
+thread_local u8 worker_id = 0;
 thread_local char thread_name[11] = {'W', 'o', 'r', 'k', 'e', 'r',
                                      ' ', '0', '0', '0', 0};
 
@@ -36,7 +37,7 @@ std::optional<Job> try_get_job(JobSheduler *shed, Worker *self) {
   {
     for (u8 other_thread_id = 0; other_thread_id < shed->n_threads;
          other_thread_id++) {
-      if ((self != nullptr) && (other_thread_id + 1) == self->worker_id) {
+      if ((self != nullptr) && (other_thread_id + 1) == worker_id) {
         continue;
       }
       auto &other_thread = shed->threads[other_thread_id];
@@ -69,7 +70,8 @@ void do_job(JobSheduler *shed, Worker *self) {
   }
 }
 
-void Worker::start_worker(std::stop_token stoken, JobSheduler *shed) {
+void Worker::start_worker(std::stop_token stoken, JobSheduler *shed, u8 id) {
+  worker_id = id;
 #ifdef TRACY_ENABLE
   thread_name[9] = '0' + worker_id % 10;
   thread_name[8] = '0' + (worker_id / 10) % 10;

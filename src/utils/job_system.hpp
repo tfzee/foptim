@@ -19,17 +19,17 @@ struct Job {
   std::function<void()> func = nullptr;
 };
 
+extern thread_local u8 worker_id;
 struct Worker {
-  u8 worker_id;
   std::atomic<WorkerState> state = WorkerState::Waiting;
   std::mutex job_queue;
   foptim::IRVec<Job> local_jobs;
   std::jthread thread;
 
-  Worker(JobSheduler *shed = nullptr, u8 id = 0)
-      : worker_id(id), thread(&Worker::start_worker, this, shed) {}
+  Worker(JobSheduler *shed, u8 id)
+      : thread(&Worker::start_worker, this, shed, id) {}
 
-  void start_worker(std::stop_token stoken, JobSheduler *shed);
+  void start_worker(std::stop_token stoken, JobSheduler *shed, u8 id);
 };
 
 std::optional<Job> try_get_job(JobSheduler *shed, Worker *self);
@@ -70,8 +70,21 @@ class JobSheduler {
     free(threads);
   }
 
-  void push(Worker *worker, std::atomic<bool> *res, std::function<void()> j) {
-    push(worker, Job{.notifier = res, .func = j});
+  void push(std::atomic<bool> *res, std::function<void()> j) {
+    if (worker_id == 0) {
+      push_base(Job{.notifier = res, .func = j});
+    } else {
+      push(&threads[worker_id], Job{.notifier = res, .func = j});
+    }
+  }
+
+  void push_base(Job j) {
+    if (!new_work_there.load(std::memory_order_relaxed)) {
+      new_work_there.store(true, std::memory_order_release);
+      new_work_there.notify_all();
+    }
+    std::lock_guard<std::mutex> queue(job_queue);
+    jobs.push_back(std::move(j));
   }
 
   void push(Worker *worker, Job j) {
@@ -79,12 +92,23 @@ class JobSheduler {
       new_work_there.store(true, std::memory_order_release);
       new_work_there.notify_all();
     }
-    if (worker != nullptr) {
-      std::lock_guard<std::mutex> queue(worker->job_queue);
-      worker->local_jobs.push_back(std::move(j));
-    } else {
-      std::lock_guard<std::mutex> queue(job_queue);
-      jobs.push_back(std::move(j));
+    std::lock_guard<std::mutex> queue(worker->job_queue);
+    worker->local_jobs.push_back(std::move(j));
+  }
+
+  void wait_for(std::atomic<bool> *res, std::memory_order order) {
+    while (!res->load(order)) {
+      auto new_job = try_get_job(this, nullptr);
+      if (!new_job.has_value()) {
+        std::this_thread::yield();
+        continue;
+      }
+      auto job = std::move(new_job.value());
+      job.func();
+      if (job.notifier != nullptr) {
+        job.notifier->store(true, std::memory_order::release);
+        job.notifier->notify_all();
+      }
     }
   }
 
