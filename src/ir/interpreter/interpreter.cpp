@@ -1,5 +1,4 @@
 #include "interpreter.hpp"
-
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value.hpp"
@@ -81,15 +80,22 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
                                                   instr.get_type()});
       }
       break;
+    case BinaryInstrSubType::And:
+      st.set_value(ValueR(instr), ConstantValue{v1->as_int() & v2->as_int(),
+                                                instr.get_type()});
+      break;
+    case BinaryInstrSubType::Or:
+      st.set_value(ValueR(instr), ConstantValue{v1->as_int() | v2->as_int(),
+                                                instr.get_type()});
+      break;
     case BinaryInstrSubType::IntSRem:
     case BinaryInstrSubType::IntSDiv:
     case BinaryInstrSubType::IntUDiv:
     case BinaryInstrSubType::Shl:
     case BinaryInstrSubType::Shr:
     case BinaryInstrSubType::AShr:
-    case BinaryInstrSubType::And:
-    case BinaryInstrSubType::Or:
     case BinaryInstrSubType::Xor:
+      fmt::println("{:cd}", instr);
       TODO("impl");
     default:
       return false;
