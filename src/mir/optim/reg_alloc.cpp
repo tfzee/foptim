@@ -61,6 +61,7 @@ void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
   }
 }
 
+namespace {
 bool reg_is_legal(const VReg &reg, CReg avail_reg) {
   ASSERT(!reg.is_concrete());
   ASSERT((u8)CReg::N_REGS == 33);
@@ -222,6 +223,7 @@ void apply_func(MFunc &func) {
     }
   }
 }
+}  // namespace
 
 void RegAlloc::apply(MFunc &func) { apply_func(func); }
 
