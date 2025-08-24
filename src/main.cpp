@@ -6,15 +6,19 @@
 #include <tracy/Tracy.hpp>
 
 #include "arg_parsing/parser.hpp"
+#include "ir/basic_block_arg.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
+#include "ir/instruction_data.hpp"
 #include "llvm/llir_loader.hpp"
 #include "mir/func.hpp"
 #include "mir/legalize_bb_form.hpp"
 #include "mir/matcher.hpp"
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/calling_conv.hpp"
+#include "mir/optim/copy_prop.hpp"
 #include "mir/optim/dce.hpp"
 #include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/legalization.hpp"
@@ -288,6 +292,8 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::InstSimplify{}.early_apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::LifetimeShortening{}.apply(func);
+      foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::CopyPropagation{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::InstSimplify{}.early_apply(func);
       foptim::utils::TempAlloc<void *>::reset();

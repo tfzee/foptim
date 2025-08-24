@@ -1864,9 +1864,8 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
-                     fir::Context &ctx, WorkList &worklist,
-                     AttributerManager &man) {
+void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                     WorkList &worklist, AttributerManager &man) {
   (void)instr;
   (void)worklist;
   // ext
@@ -1904,6 +1903,41 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return;
   }
+  if (instr->args[0].is_bb_arg()) {
+    auto arg = instr->args[0].as_bb_arg();
+    auto origin_bb = arg->get_parent();
+    // cant be entry basic block
+    if (origin_bb->get_parent().func->basic_blocks[0] != origin_bb) {
+      // fmt::println("Got hit {}", arg->get_n_uses());
+      // for (auto &u : arg->uses) {
+      //   fmt::println("  {:cd}", u.user);
+      // }
+      // if we have a bbarg as argument and its only used once
+      //  it prob makes sense to just propagate the itrunc through the
+      //  bb arg in the hope it optimizes better before that
+      // this could also backfire (should be safe if we also propagate the sext)
+      // but if the itrunc gets multiple uses it wont be propagated and we got
+      // issues then
+      if (arg->get_n_uses() == 1) {
+        auto arg_id = origin_bb->get_arg_id(arg);
+        for (auto &u : origin_bb->uses) {
+          auto user = u.user;
+          fir::Builder buh{user};
+          auto new_trunc_val = buh.build_itrunc(user->bbs[u.argId].args[arg_id],
+                                                instr->get_type());
+          user.replace_bb_arg(u.argId, arg_id, new_trunc_val);
+          fmt::println("{:cd}", user->get_parent());
+        }
+        arg->_type = instr.get_type();
+        instr->replace_all_uses(fir::ValueR{arg});
+        instr.destroy();
+        fmt::println("{:cd}", origin_bb);
+        fmt::println("{:cd}", bb);
+        TODO("okak");
+        return;
+      }
+    }
+  }
   if (instr->args[0].is_instr()) {
     auto arg_i = instr->args[0].as_instr();
     auto out_type = instr->get_type();
@@ -1924,13 +1958,30 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
         fir::Builder b{instr};
         switch ((fir::BinaryInstrSubType)arg_i->subtype) {
           case fir::BinaryInstrSubType::Shl: {
-            if (i_arg1.is_constant() &&
-                i_arg1.as_constant()->as_int() >= new_bitwidth) {
-              push_all_uses(worklist, instr);
-              instr->replace_all_uses(fir::ValueR{
-                  ctx->get_constant_value((i128)0, instr->get_type())});
-              instr.destroy();
-              return;
+            if (i_arg1.is_constant()) {
+              auto i_arg1c = i_arg1.as_constant()->as_int();
+              if (i_arg1c >= new_bitwidth) {
+                push_all_uses(worklist, instr);
+                instr->replace_all_uses(fir::ValueR{
+                    ctx->get_constant_value((i128)0, instr->get_type())});
+                instr.destroy();
+                return;
+              }
+              if (i_arg1c >= 0 && i_arg1c < ((i128)1 << new_bitwidth)) {
+                push_all_uses(worklist, instr);
+                auto v0 = b.build_itrunc(i_arg0, out_type);
+                auto v1 = b.build_itrunc(i_arg1, out_type);
+                auto r = b.build_binary_op(
+                    v0, v1, (fir::BinaryInstrSubType)arg_i->subtype);
+                push_all_uses(worklist, instr);
+                worklist.push_back(
+                    {v0.as_instr(), v0.as_instr()->get_parent()});
+                worklist.push_back(
+                    {v1.as_instr(), v1.as_instr()->get_parent()});
+                instr->replace_all_uses(r);
+                instr.destroy();
+                return;
+              }
             }
           } break;
           case fir::BinaryInstrSubType::Xor:
@@ -1945,7 +1996,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock /*bb*/,
                                        (fir::BinaryInstrSubType)arg_i->subtype);
             worklist.push_back({v0.as_instr(), v0.as_instr()->get_parent()});
             worklist.push_back({v1.as_instr(), v1.as_instr()->get_parent()});
-            push_all_uses(worklist, instr);
+            push_all_uses(worklist, r.as_instr());
             instr->replace_all_uses(r);
             instr.destroy();
             return;
