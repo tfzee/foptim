@@ -41,9 +41,8 @@ GuessTypeResult guessType(fir::ValueR ptr) {
   if (ptr.is_instr()) {
     auto ptr_instr = ptr.as_instr();
     if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
-      if (ptr_instr->has_attrib("alloca::type")) {
-        return {.typeless = false,
-                .type = *ptr_instr->get_attrib("alloca::type").try_type()};
+      if (ptr_instr->extra_type.is_valid()) {
+        return {.typeless = false, .type = ptr_instr->extra_type};
       }
       return {.typeless = true, .type = fir::TypeR{fir::TypeR::invalid()}};
     }

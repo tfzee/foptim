@@ -27,21 +27,22 @@ void CFG::dump() const {
   }
 }
 
-void CFG::dump_graph() const {
-  TODO("reimpl");
-  // print << "=================================================0\n";
-
-  // print << "digraph {";
-  // for (size_t i = 0; i < bbrs.size(); i++) {
-  //   print << i << "[label=\"" << bbrs[i].bb.get_raw_ptr() << "\"] ";
-  // }
-  // for (size_t i = 0; i < bbrs.size(); i++) {
-
-  //   for (const auto &succ : bbrs[i].succ) {
-  //     print << i << " -> " << succ << " ";
-  //   }
-  // }
-  // print << "}\n";
+void CFG::dump_graph(const char *filename) const {
+  auto *file = std::fopen(filename, "w");
+  fmt::println(file, "digraph G{{");
+  fmt::println(file,
+               "node [shape=box, fontname=\"monospace\", fontsize=10, "
+               "labeljust=l];");
+  for (size_t i = 0; i < bbrs.size(); i++) {
+    fmt::println(file, "{} [label=\"{}\"]", i, bbrs[i].bb);
+  }
+  for (size_t i = 0; i < bbrs.size(); i++) {
+    for (const auto &succ : bbrs[i].succ) {
+      fmt::println(file, "{} -> {}", i, succ);
+    }
+  }
+  fmt::print(file, "}}\n");
+  fclose(file);
 }
 
 }  // namespace foptim::optim

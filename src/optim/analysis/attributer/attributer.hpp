@@ -54,7 +54,7 @@ class AttributeAnalysis {
   bool force_update = false;
 
   AttributeAnalysis() = default;
-  virtual void materialize_impl(fir::Context &) = 0;
+  virtual void materialize_impl(fir::Context &, const AttributerManager &m) = 0;
   virtual Result update_impl(AttributerManager & /*unused*/,
                              Worklist & /*worklist*/) {
     TODO("IMPL");
@@ -72,6 +72,22 @@ class AttributerManager {
   void reset() {
     _attribs.clear();
     _inverse_dependencies.clear();
+  }
+
+  template <class AAna>
+  const AAna *get_analysis(fir::ValueR loc) const {
+    static_assert(std::is_base_of_v<AttributeAnalysis, AAna>,
+                  "AAna must inherit AttributeAnalysis");
+    // ASSERT(loc.is_valid(true) && "must be valid");
+    const std::type_index aa_typeid = typeid(AAna);
+    if (!_attribs.contains(aa_typeid)) {
+      return nullptr;
+    }
+    if (!_attribs.at(aa_typeid).contains(loc)) {
+      return nullptr;
+    }
+    AAna *analysis = (AAna *)_attribs.at(aa_typeid).at(loc);
+    return analysis;
   }
 
   template <class AAna>
@@ -109,12 +125,12 @@ class AttributerManager {
   void materialize(fir::Context &ctx) {
     for (auto [_, loc] : _attribs) {
       for (auto [_, att] : loc) {
-        att->materialize_impl(ctx);
+        att->materialize_impl(ctx, *this);
       }
     }
   }
 
-  void run() {
+  void run(fir::Context &ctx) {
     ZoneScopedNC("Attributer::run", COLOR_ANALY);
     Worklist worklist;
     for (auto &[_, loc] : _attribs) {
@@ -150,6 +166,7 @@ class AttributerManager {
       }
     }
     _currently_updating = nullptr;
+    materialize(ctx);
   }
 };
 

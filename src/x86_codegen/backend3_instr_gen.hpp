@@ -248,16 +248,12 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
       switch (arg.ty) {
         case fmir::Type::INVALID:
         case fmir::Type::Int8:
-          operand.imm.s = (i8)arg.imm;
-          break;
         case fmir::Type::Int16:
-          operand.imm.s = (i16)arg.imm;
-          break;
         case fmir::Type::Int32:
-          operand.imm.s = (i32)arg.imm;
-          break;
         case fmir::Type::Int64:
-          operand.imm.s = (i64)arg.imm;
+          operand.imm.s = std::bit_cast<i64>(arg.imm);
+          // fmt::println("{} => {} {}", arg, operand.imm.u, operand.imm.s);
+          // operand.imm.s = (i32)arg.imm;
           break;
         case fmir::Type::Float32: {
           f32 v = std::bit_cast<f32>((u32)std::bit_cast<u64>(arg.immf));
@@ -604,20 +600,27 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         u64 off = 0;
         auto real_arg = req.operands[0];
         auto size = get_size(instr.args[0].ty);
-        ASSERT(size == 4 || size == 8)
-        bool is_double = size == 8;
+        ASSERT(size == 4 || size == 8 || size == 32);
         req.mnemonic = ZYDIS_MNEMONIC_SUB;
         req.operand_count = 2;
         req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
         req.operands[0].reg.value = ZYDIS_REGISTER_RSP;
         req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
-        req.operands[1].imm.u = 8;
+        req.operands[1].imm.u = std::max(size, 8U);
         off = emit(out_buff, off, &req);
 
-        req.mnemonic = is_double ? ZYDIS_MNEMONIC_MOVSD : ZYDIS_MNEMONIC_MOVSS;
+        if (size == 32) {
+          req.mnemonic = ZYDIS_MNEMONIC_VMOVUPD;
+        } else if (size == 8) {
+          req.mnemonic = ZYDIS_MNEMONIC_MOVSD;
+        } else if (size == 4) {
+          req.mnemonic = ZYDIS_MNEMONIC_MOVSS;
+        } else {
+          TODO("okak");
+        }
         req.operands[0].type = ZYDIS_OPERAND_TYPE_MEMORY;
         req.operands[0].mem.base = ZYDIS_REGISTER_RSP;
-        req.operands[0].mem.size = is_double ? 8 : 4;
+        req.operands[0].mem.size = size;
         req.operands[1] = real_arg;
         return emit(out_buff, off, &req);
       }
@@ -665,22 +668,29 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         u64 off = 0;
         auto real_arg = req.operands[0];
         auto size = get_size(instr.args[0].ty);
-        ASSERT(size == 4 || size == 8)
-        bool is_double = size == 8;
+        ASSERT(size == 4 || size == 8 || size == 32)
 
-        req.mnemonic = is_double ? ZYDIS_MNEMONIC_MOVSD : ZYDIS_MNEMONIC_MOVSS;
+        if (size == 32) {
+          req.mnemonic = ZYDIS_MNEMONIC_VMOVUPD;
+        } else if (size == 8) {
+          req.mnemonic = ZYDIS_MNEMONIC_MOVSD;
+        } else if (size == 4) {
+          req.mnemonic = ZYDIS_MNEMONIC_MOVSS;
+        } else {
+          TODO("oka");
+        }
         req.operand_count = 2;
         req.operands[0] = real_arg;
         req.operands[1].type = ZYDIS_OPERAND_TYPE_MEMORY;
         req.operands[1].mem.base = ZYDIS_REGISTER_RSP;
-        req.operands[1].mem.size = is_double ? 8 : 4;
+        req.operands[1].mem.size = size;
         off = emit(out_buff, off, &req);
 
         req.mnemonic = ZYDIS_MNEMONIC_ADD;
         req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
         req.operands[0].reg.value = ZYDIS_REGISTER_RSP;
         req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
-        req.operands[1].imm.u = 8;
+        req.operands[1].imm.u = std::max(size, 8U);
         return emit(out_buff, off, &req);
       }
       req.mnemonic = ZYDIS_MNEMONIC_POP;

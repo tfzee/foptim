@@ -3,6 +3,7 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
@@ -772,6 +773,70 @@ bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
                                        fir::Function & /*func*/,
                                        size_t /*bb_id*/, bool /*is_entry*/) {
   auto terminator = curr.bb->get_terminator();
+  if (curr.succ.size() == 2 &&
+      terminator->is(fir::InstrType::CondBranchInstr) &&
+      terminator->bbs[0].args.empty() && terminator->bbs[1].args.empty()) {
+    auto t1 = terminator->bbs[0].bb;
+    auto t2 = terminator->bbs[1].bb;
+    bool matched = false;
+    fir::Instr extra_instr;
+    u8 extra_bb = 0;
+    // TODO: prob should ignore instrucitons that are part of both so get
+    // executed either way? but technically that should already be taken care by
+    // redundancy eliminiation or PRE
+    if (t1->n_instrs() == 1 &&
+        t1->instructions[0]->is(fir::InstrType::ReturnInstr) &&
+        t2->n_instrs() == 1 &&
+        t2->instructions[0]->is(fir::InstrType::ReturnInstr) &&
+        // need a return value
+        t2->instructions[1]->args.size() == 1) {
+      matched = true;
+    }
+    if (t1->n_instrs() == 1 &&
+        t1->instructions[0]->is(fir::InstrType::ReturnInstr) &&
+        t2->n_instrs() == 2 &&
+        t2->instructions[1]->is(fir::InstrType::ReturnInstr) &&
+        t2->instructions[1]->args.size() == 1 &&
+        t2->instructions[1]->args[0] == fir::ValueR{t2->instructions[0]}) {
+      extra_instr = t2->instructions[0];
+      matched = true;
+      extra_bb = 1;
+    }
+    if (t2->n_instrs() == 1 &&
+        t2->instructions[0]->is(fir::InstrType::ReturnInstr) &&
+        t1->n_instrs() == 2 &&
+        t1->instructions[1]->is(fir::InstrType::ReturnInstr) &&
+        t1->instructions[1]->args.size() == 1 &&
+        t1->instructions[1]->args[0] == fir::ValueR{t1->instructions[0]}) {
+      extra_instr = t1->instructions[0];
+      matched = true;
+      extra_bb = 0;
+    }
+    if (matched) {
+      fir::Builder bb{terminator};
+      auto res_t = t1->get_terminator()->get_type();
+      // fmt::println("{:cd}", *t1->get_parent().func);
+      ASSERT(!res_t->is_void());
+      fir::ValueR v1;
+      fir::ValueR v2;
+      if (!extra_instr.is_valid()) {
+        v1 = t1->get_terminator()->args[0];
+        v2 = t2->get_terminator()->args[0];
+      } else if (extra_bb == 1) {
+        v1 = t1->get_terminator()->args[0];
+        v2 = fir::ValueR{bb.insert_copy(extra_instr)};
+      } else if (extra_bb == 0) {
+        v1 = fir::ValueR{bb.insert_copy(extra_instr)};
+        v2 = t2->get_terminator()->args[0];
+      }
+      auto res_v = bb.build_select(res_t, terminator->args[0], v1, v2);
+      bb.build_return(res_v);
+      terminator.destroy();
+      // fmt::println("{:cd}", curr.bb);
+      // TODO("okak");
+      return true;
+    }
+  }
   if (curr.succ.size() == 2 && terminator->bbs[0].bb == terminator->bbs[1].bb) {
     // ZoneScopedN("COND TO CMOVE");
     // auto *ctx = curr.bb->get_parent()->ctx;
@@ -885,7 +950,6 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr,
   //  and some of the values in the 2nd block are used afterwards
   //  then we can ofcourse just replace them with our newly copied versions in
   //  bb1
-  // TODO: check if rename avail
   bool can_rename = false;
   bool needs_rename = false;
 
@@ -946,23 +1010,33 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr,
   } else if (merge_num == 0) {
     auto c1 = terminator->args[0];
     auto c2 = new_cond;
-    // auto c1 =
-    //     buh.build_unary_op(terminator->args[0], fir::UnaryInstrSubType::Not);
-    // auto c2 = buh.build_unary_op(new_cond, fir::UnaryInstrSubType::Not);
+    if (sec_negated) {
+      c2 = buh.build_unary_op(c2, fir::UnaryInstrSubType::Not);
+    }
     auto new_res_cond =
         buh.build_binary_op(c1, c2, fir::BinaryInstrSubType::And);
     terminator.replace_arg(0, new_res_cond);
-    if (sec_negated) {
-      TODO("impl");
-    }
   }
 
-  // fmt::println("{}====================================", merge_num);
-  // fmt::println("{:cd}", new_cond);
-  // fmt::println("{:cd}", curr.bb);
-  // TODO("impl");
   if (needs_rename) {
-    TODO("impl");
+    TVec<fir::Use> to_repl_uses;
+    for (auto instr : merge_target->instructions) {
+      if (!instr->has_result()) {
+        continue;
+      }
+      to_repl_uses.clear();
+      for (auto use : instr->get_uses()) {
+        if (use.user->get_parent() != merge_target) {
+          to_repl_uses.push_back(use);
+        }
+      }
+      if (!to_repl_uses.empty()) {
+        auto sub = subs.at(fir::ValueR{instr});
+        for (auto use : to_repl_uses) {
+          use.replace_use(sub);
+        }
+      }
+    }
   }
   return false;
 }

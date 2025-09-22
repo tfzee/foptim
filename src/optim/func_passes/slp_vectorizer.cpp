@@ -92,11 +92,13 @@ class BinaryTreeOp final : public TreeElem {
         continue;
       }
       if (!i_v.is_instr()) {
+        fmt::println("One arg isnt a binary op");
         return false;
       }
       auto i = i_v.as_instr();
       if (i->instr_type != base_v->instr_type ||
           i->subtype != base_v->subtype) {
+        fmt::println("One arg isnt the right instr");
         return false;
       }
     }
@@ -439,8 +441,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             }
             continue;
           } else {
-            fmt::println("Failed tree vectorize at binary {} {}", curr[0],
-                         curr[1]);
+            fmt::println("Failed tree vectorize at binary {} {} {}",
+                         test_i.as_instr(), curr[0], curr[1]);
             return false;
           }
         case fir::InstrType::LoadInstr:

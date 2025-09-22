@@ -1,3 +1,5 @@
+#include <typeinfo>
+
 #include "ir/basic_block_arg.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
@@ -154,15 +156,19 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     }
     switch (val.get_type()->as_int()) {
       case 1:
-        return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
       case 8:
-        return {(u8)std::bit_cast<u64>((i64)consti->as_int())};
+        return MArgument::Int(std::bit_cast<u64>((i64)(i8)consti->as_int()),
+                              Type::Int8);
       case 16:
-        return {(u16)std::bit_cast<u64>((i64)consti->as_int())};
+        return MArgument::Int(std::bit_cast<u64>((i64)(i16)consti->as_int()),
+                              Type::Int16);
+        return {};
       case 32:
-        return {(u32)std::bit_cast<u64>((i64)consti->as_int())};
+        return MArgument::Int(std::bit_cast<u64>((i64)(i32)consti->as_int()),
+                              Type::Int32);
       case 64:
-        return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
+        return MArgument::Int(std::bit_cast<u64>((i64)consti->as_int()),
+                              Type::Int64);
       default:
         fmt::println("{}", (i64)consti->as_int());
         TODO("impl");

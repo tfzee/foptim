@@ -777,7 +777,8 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
         if (value.ty == foptim::fmir::Type::Float64) {
           return fmt::format_to(app, color_number, "{}d", value.immf);
         }
-        return fmt::format_to(app, color_number, "{}:{}", value.imm, value.ty);
+        return fmt::format_to(app, color_number, "{}:{}",
+                              (foptim::i64)value.imm, value.ty);
       }
       case foptim::fmir::MArgument::ArgumentType::VReg:
         return fmt::format_to(app, "{}:{}", value.reg, value.ty);
@@ -813,8 +814,8 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
                               fmt::styled(value.label, color_func), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
         return fmt::format_to(app, "[{} + {}]: {:c}",
-                              fmt::styled(value.label, color_func), value.imm,
-                              value.ty);
+                              fmt::styled(value.label, color_func),
+                              (foptim::i64)value.imm, value.ty);
       case foptim::fmir::MArgument::ArgumentType::Label:
         return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
       case foptim::fmir::MArgument::ArgumentType::Imm: {
@@ -827,8 +828,8 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
         if (value.ty == foptim::fmir::Type::Float64) {
           return fmt::format_to(app, color_number, "{}d", value.immf);
         }
-        return fmt::format_to(app, color_number, "{}:{:c}", value.imm,
-                              value.ty);
+        return fmt::format_to(app, color_number, "{}:{:c}",
+                              (foptim::i64)value.imm, value.ty);
       }
       case foptim::fmir::MArgument::ArgumentType::VReg:
         return fmt::format_to(app, "{:c}:{:c}", value.reg, value.ty);

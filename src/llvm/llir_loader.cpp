@@ -193,7 +193,7 @@ void convert_alloca(const llvm::Instruction *any_instr,
 
   if (!llvm_type->isAggregateType()) {
     auto type = convert_type(llvm_type, fctx, mod);
-    alloca.as_instr()->add_attrib("alloca::type", type);
+    alloca.as_instr()->extra_type = type;
   }
   valueToValue.insert({any_instr, alloca});
 }
@@ -224,8 +224,9 @@ void convert_gep(const llvm::Instruction *any_instr,
       auto arg_mul_ptr_value =
           fctx->get_constant_int(arg_mul_ptr.getFixedValue(), 32);
       auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
-                                       foptim::fir::ValueR(arg_mul_ptr_value));
-      result_value = builder.build_int_add(result_value, mul);
+                                       foptim::fir::ValueR(arg_mul_ptr_value),
+                                       true, true);
+      result_value = builder.build_int_add(result_value, mul, true, true);
     }
     for (const auto *index_it = gep_instr->indices().begin() + 1;
          index_it != gep_instr->indices().end(); index_it++) {
@@ -242,7 +243,7 @@ void convert_gep(const llvm::Instruction *any_instr,
         auto arg_offset_foptim =
             fctx->get_constant_int(arg_offset.getFixedValue(), 32);
         result_value = builder.build_int_add(
-            result_value, foptim::fir::ValueR{arg_offset_foptim});
+            result_value, foptim::fir::ValueR{arg_offset_foptim}, true, true);
         indexed_type = struct_type->getElementType(offset_struct);
       } else if (indexed_type->isArrayTy()) {  // index into array
         auto *array_type =
@@ -255,9 +256,10 @@ void convert_gep(const llvm::Instruction *any_instr,
         ASSERT(arg_mul_ptr.isFixed())
         auto arg_mul_ptr_value =
             fctx->get_constant_int(arg_mul_ptr.getFixedValue(), 32);
-        auto mul = builder.build_int_mul(
-            offset_struct_ptr_foptim, foptim::fir::ValueR(arg_mul_ptr_value));
-        result_value = builder.build_int_add(result_value, mul);
+        auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
+                                         foptim::fir::ValueR(arg_mul_ptr_value),
+                                         true, true);
+        result_value = builder.build_int_add(result_value, mul, true, true);
         indexed_type = array_type->getElementType();
       }
     }
@@ -269,9 +271,9 @@ void convert_gep(const llvm::Instruction *any_instr,
     auto arg_mul = datalayout.getTypeAllocSize(indexed_type);
     ASSERT(arg_mul.isFixed())
     auto arg_mul_value = fctx->get_constant_int(arg_mul.getFixedValue(), 32);
-    auto mul =
-        builder.build_int_mul(arg_foptim, foptim::fir::ValueR(arg_mul_value));
-    result_value = builder.build_int_add(result_value, mul);
+    auto mul = builder.build_int_mul(
+        arg_foptim, foptim::fir::ValueR(arg_mul_value), true, true);
+    result_value = builder.build_int_add(result_value, mul, true, true);
   }
 
   valueToValue.insert({any_instr, result_value});
@@ -656,7 +658,9 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     if (any_instr->getType()->isIntegerTy()) {
-      auto add = builder.build_int_add(left, right);
+      auto add =
+          builder.build_int_add(left, right, any_instr->hasNoUnsignedWrap(),
+                                any_instr->hasNoSignedWrap());
       valueToValue.insert({any_instr, add});
       return;
     }
@@ -735,7 +739,9 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     if (any_instr->getType()->isIntegerTy()) {
-      auto add = builder.build_int_mul(left, right);
+      auto add =
+          builder.build_int_mul(left, right, any_instr->hasNoUnsignedWrap(),
+                                any_instr->hasNoSignedWrap());
       valueToValue.insert({any_instr, add});
       return;
     }
@@ -917,7 +923,7 @@ void generate_memset(foptim::fir::Context &fctx) {
   bb.at_end(ffunc->get_entry());
   // i = 0
   auto index = bb.build_alloca(constant_eight);
-  index.as_instr()->add_attrib("alloca::type", i64_ty);
+  index.as_instr()->extra_type = i64_ty;
   bb.build_store(index, constant_zero);
   // if(length != 0)
   auto loop_cond = bb.build_int_cmp(length_arg, constant_zero,
@@ -1055,7 +1061,7 @@ void generate_memcpy(foptim::fir::Context &fctx) {
   bb.at_end(ffunc->get_entry());
   // i = 0
   auto index = bb.build_alloca(constant_eight);
-  index.as_instr()->add_attrib("alloca::type", i64_ty);
+  index.as_instr()->extra_type = i64_ty;
   bb.build_store(index, constant_zero);
   // if(length != 0)
   auto loop_cond = bb.build_int_cmp(length_arg, constant_zero,
@@ -1067,13 +1073,14 @@ void generate_memcpy(foptim::fir::Context &fctx) {
     bb.at_end(loop_body);
     auto old_index_val = bb.build_load(i64_ty, index);
     // ptr+i = value
-    auto src_offset = bb.build_int_add(src_ptr_arg, old_index_val);
+    auto src_offset = bb.build_int_add(src_ptr_arg, old_index_val, true, true);
     auto val = bb.build_load(i8_ty, src_offset);
-    auto dst_offset = bb.build_int_add(dst_ptr_arg, old_index_val);
+    auto dst_offset = bb.build_int_add(dst_ptr_arg, old_index_val, true, true);
     bb.build_store(dst_offset, val);
 
     // i++
-    auto new_index_val = bb.build_int_add(old_index_val, constant_one);
+    auto new_index_val =
+        bb.build_int_add(old_index_val, constant_one, true, true);
     bb.build_store(index, new_index_val);
 
     // while(i+1 < length)

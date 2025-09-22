@@ -80,7 +80,7 @@ ValueR Builder::build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_call(ret_type));
   instr.add_arg(func_ptr);
-  instr->add_attrib("callee_type", func_type);
+  instr->extra_type = func_type;
   for (auto arg : args) {
     instr.add_arg(arg);
   }
@@ -160,6 +160,16 @@ ValueR Builder::build_abs(ValueR a) {
   return ValueR(instr);
 }
 
+ValueR Builder::build_intrinsic(ValueR a, IntrinsicSubType type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_intrinsic(a.get_type(), type));
+  instr.add_arg(a);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type) {
   check_bb_set();
   Instr instr =
@@ -170,6 +180,7 @@ ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type) {
   indx++;
   return ValueR(instr);
 }
+
 ValueR Builder::build_binary_op(ValueR a, ValueR b,
                                 BinaryInstrSubType sub_type) {
   check_bb_set();
@@ -230,11 +241,13 @@ ValueR Builder::build_conversion_op(ValueR a, TypeR res_type,
   return ValueR(instr);
 }
 
-ValueR Builder::build_int_add(ValueR a, ValueR b) {
+ValueR Builder::build_int_add(ValueR a, ValueR b, bool nuw, bool nsw) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_add(a.get_type()));
   instr.add_arg(a);
   instr.add_arg(b);
+  instr->NUW = nuw;
+  instr->NSW = nsw;
   bb.insert_instr(indx, instr);
   indx++;
   return ValueR(instr);
@@ -311,11 +324,13 @@ ValueR Builder::build_zext(ValueR a, TypeR ty) {
   return ValueR(instr);
 }
 
-ValueR Builder::build_int_mul(ValueR a, ValueR b) {
+ValueR Builder::build_int_mul(ValueR a, ValueR b, bool nuw, bool nsw) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_mul(a.get_type()));
   instr.add_arg(a);
   instr.add_arg(b);
+  instr->NUW = nuw;
+  instr->NSW = nsw;
   bb.insert_instr(indx, instr);
   indx++;
   return ValueR(instr);

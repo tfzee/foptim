@@ -1032,35 +1032,15 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
         auto add_arg2 = valueToArg(add_instr->args[1], res.result, data.alloc);
 
-        if (res_reg == add_arg2 && add_arg2.isReg() && mul_arg1.isReg() &&
-            (mul_arg2.isReg() || mul_arg2.isMem())) {
-          res.result.emplace_back(X86Subtype::ffmadd231, res_reg, mul_arg1,
-                                  mul_arg2);
-        } else if (res_reg == mul_arg1 && mul_arg1.isReg() &&
-                   mul_arg2.isReg() && (add_arg2.isReg() || add_arg2.isMem())) {
-          res.result.emplace_back(X86Subtype::ffmadd231, mul_arg1, mul_arg2,
-
-                                  add_arg2);
-        } else if (res_reg == mul_arg2 && mul_arg1.isReg() &&
-                   mul_arg2.isReg() && (add_arg2.isReg() || add_arg2.isMem())) {
-          res.result.emplace_back(X86Subtype::ffmadd231, mul_arg2, mul_arg1,
-
-                                  add_arg2);
-        } else if (res_reg == mul_arg1 && mul_arg1.isReg() &&
-                   add_arg2.isReg() && (mul_arg2.isReg() || mul_arg2.isMem())) {
-          res.result.emplace_back(X86Subtype::ffmadd132, mul_arg1, add_arg2,
-                                  mul_arg2);
-        } else if (res_reg == mul_arg2 && mul_arg2.isReg() &&
-                   add_arg2.isReg() && (mul_arg1.isReg() || mul_arg1.isMem())) {
-          res.result.emplace_back(X86Subtype::ffmadd132, mul_arg2, add_arg2,
-                                  mul_arg1);
-        } else {
-          // res.result.emplace_back(GBaseSubtype::mov, res_reg, add_arg2);
-          // res.result.emplace_back(Opcode::ffmadd231, res_reg, mul_arg1,
-          //                         mul_arg2);
-          // res.result.emplace_back(GBaseSubtype::mov, res_reg, mul_arg1);
-          // res.result.emplace_back(Opcode::ffmadd132, res_reg, add_arg2,
-          //                         mul_arg2);
+        // TODO: need a fpcontract or fastmath flag for this
+        //  if (mul_arg1.isReg() && mul_arg2.isReg() && add_arg2.isReg()) {
+        //    res.result.emplace_back(GBaseSubtype::mov, res_reg, mul_arg1);
+        //    res.result.emplace_back(X86Subtype::ffmadd132, res_reg, add_arg2,
+        //                            mul_arg2);
+        //    fmt::println("{:cd}\n{:cd}", mul_instr, add_instr);
+        //    fmt::println("{}", res.result);
+        //  } else
+        {
           res.result.emplace_back(GVecSubtype::fmul, res_reg, mul_arg1,
                                   mul_arg2);
           res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg,
@@ -1105,7 +1085,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GArithSubtype::add2, h32, arg);
             // and     h32, -2
             res.result.emplace_back(GArithSubtype::land2, h32,
-                                    MArgument(std::bit_cast<u32>((i32)-2)));
+                                    MArgument::Int(-2, Type::Int32));
             // sub     out32, h32
             res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
             return true;

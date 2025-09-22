@@ -1,9 +1,8 @@
-#include "ir/instruction.hpp"
-
 #include <fmt/color.h>
 
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
@@ -373,10 +372,20 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(
   }
   app = fmt::format_to(app, "){{");
 
-  const auto &attribs = instr->get_attribs();
-  for (auto [key, value] : attribs) {
-    app = fmt::format_to(app, "{}{}, ", key.c_str(), value);
+  if (instr->extra_type.is_valid()) {
+    app = fmt::format_to(app, "extTy: {}; ", instr->extra_type);
   }
+  if (instr->NSW) {
+    app = fmt::format_to(app, "NSW; ");
+  }
+  if (instr->NUW) {
+    app = fmt::format_to(app, "NUW; ");
+  }
+  // fmt::println("TODO print attribs");
+  // const auto &attribs = instr->get_attribs();
+  // for (auto [key, value] : attribs) {
+  //   app = fmt::format_to(app, "{}{}, ", key.c_str(), value);
+  // }
   app = fmt::format_to(app, "}}");
   if (debug) {
     app = fmt::format_to(app, color ? color_debug : text_style{}, " NUses:{}",

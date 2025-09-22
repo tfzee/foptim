@@ -402,6 +402,13 @@ class MArgument {
       : type(ArgumentType::VReg), ty(ty), reg(reg) {
     reg.ty = ty;
   }
+  constexpr static MArgument Int(u64 val, Type ty) {
+    MArgument res;
+    res.type = ArgumentType::Imm;
+    res.ty = ty;
+    res.imm = val;
+    return res;
+  }
   MArgument(u8 imm) : type(ArgumentType::Imm), ty(Type::Int8), imm(imm) {}
   MArgument(u16 imm) : type(ArgumentType::Imm), ty(Type::Int16), imm(imm) {}
   MArgument(u32 imm) : type(ArgumentType::Imm), ty(Type::Int32), imm(imm) {}

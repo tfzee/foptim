@@ -45,7 +45,7 @@ class CFG {
   }
 
   void dump() const;
-  void dump_graph() const;
+  void dump_graph(const char *filename = "out.dot") const;
 
   void update(fir::Function &func, bool reverse) {
     ZoneScopedNC("CFG UPDATE", COLOR_ANALY);

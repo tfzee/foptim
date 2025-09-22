@@ -1,5 +1,3 @@
-#include "mem2reg.hpp"
-
 #include <tuple>
 
 #include "ir/basic_block_ref.hpp"
@@ -7,6 +5,7 @@
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "mem2reg.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
@@ -15,7 +14,7 @@
 namespace foptim::optim {
 namespace {
 bool can_be_converted_into_phi(fir::Instr instr) {
-  if (!instr->has_attrib("alloca::type")) {
+  if (!instr->extra_type.is_valid()) {
     return false;
   }
   for (auto usage : instr->uses) {
@@ -78,7 +77,7 @@ void fix_types(fir::Function &func) {
       if (!instr->is(fir::InstrType::AllocaInstr)) {
         continue;
       }
-      if (instr->has_attrib("alloca::type")) {
+      if (instr->extra_type.is_valid()) {
         continue;
       }
       convertable_uses.clear();
@@ -138,7 +137,7 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
   }
 
   // if we dont have alloca::type we can try to guess it
-  if (!alloca_instr->has_attrib("alloca::type")) {
+  if (!alloca_instr->extra_type.is_valid()) {
     fir::TypeR guessed_type{fir::TypeR::invalid()};
     for (auto usage : alloca_instr->uses) {
       bool is_load = usage.user->is(fir::InstrType::LoadInstr);
@@ -173,7 +172,7 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
       }
     }
     if (guessed_type.is_valid()) {
-      alloca_instr->add_attrib("alloca::type", guessed_type);
+      alloca_instr->extra_type = guessed_type;
     }
   }
 
@@ -369,12 +368,11 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
         // before the next store
         auto *ctx = func.ctx;
         // TODO: should habe a uninit/poision value for these cases?
-        auto *result_type =
-            target_alloca.as_instr()->get_attrib("alloca::type").try_type();
-        if ((*result_type)->is_float()) {
-          var_val_res = fir::ValueR(ctx->get_constant_value(0.0, *result_type));
+        auto result_type = target_alloca.as_instr()->extra_type;
+        if ((result_type)->is_float()) {
+          var_val_res = fir::ValueR(ctx->get_constant_value(0.0, result_type));
         } else {
-          var_val_res = fir::ValueR(ctx->get_constant_value(0, *result_type));
+          var_val_res = fir::ValueR(ctx->get_constant_value(0, result_type));
         }
       }
       // then we update the arguemtns of the origin jump
@@ -425,6 +423,7 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("Mem2Reg");
 
   fix_types(func);
+  // fmt::println("{:cd}", func);
 
   CFG cfg{func};
   Dominators dom{cfg};
@@ -439,11 +438,10 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   auto insert_locations = phi_insert_locations(func, dom);
 
   for (auto &[instr, blocks] : insert_locations) {
-    if (instr->has_attrib("alloca::type") && instr->get_n_uses() > 0) {
+    if (instr->extra_type.is_valid() && instr->get_n_uses() > 0) {
       for (const auto &block : blocks) {
-        auto new_arg = ctx->storage.insert_bb_arg(
-            func.basic_blocks[block],
-            *instr->get_attrib("alloca::type").try_type());
+        auto new_arg = ctx->storage.insert_bb_arg(func.basic_blocks[block],
+                                                  instr->extra_type);
         cfg.bbrs[block].bb->args.emplace_back(new_arg);
         const auto key = fir::ValueR{new_arg};
         ASSERT(!bb_arg_to_alloca.contains(key));

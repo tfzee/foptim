@@ -186,7 +186,8 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
         reg_ty == CReg::SP || reg_ty == CReg::BP) {
       continue;
     }
-    auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
+    auto push_ty = reg_ty >= CReg::mm0 ? Type::Int64x4 : Type::Int64;
+    auto arg = MArgument{VReg{reg_ty, push_ty}, push_ty};
     instrs.insert(instrs.begin() + (i64)start, MInstr{GBaseSubtype::push, arg});
   }
   if (call.n_args >= 2 && !return_value_overwrites_ret_reg) {
@@ -207,11 +208,12 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
   }
 }
 
-uint32_t restore_locals(IRVec<MInstr> &instrs,
-                        TMap<VReg, LinearRangeSet> &lives, size_t start,
-                        size_t end, size_t bb_id,
-                        bool return_value_overwrites_ret_reg, MInstr &call) {
+std::pair<uint32_t, uint32_t> restore_locals(
+    IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives, size_t start,
+    size_t end, size_t bb_id, bool return_value_overwrites_ret_reg,
+    MInstr &call) {
   uint32_t n_locals_restored = 0;
+  uint32_t n_local_bytes_restored = 0;
 
   bool can_skip_a = false;
   bool can_skip_d = false;
@@ -280,11 +282,13 @@ uint32_t restore_locals(IRVec<MInstr> &instrs,
         reg_ty == CReg::BP) {
       continue;
     }
-    auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
+    auto push_ty = reg_ty >= CReg::mm0 ? Type::Int64x4 : Type::Int64;
+    n_locals_restored += 1;
+    n_local_bytes_restored += get_size(push_ty) / 8;
+    auto arg = MArgument{VReg{reg_ty, push_ty}, push_ty};
     instrs.insert(instrs.begin() + (i64)start, MInstr{GBaseSubtype::pop, arg});
-    n_locals_restored++;
   }
-  return n_locals_restored;
+  return {n_locals_restored, n_local_bytes_restored};
 }
 
 struct ArgPosition {
@@ -444,14 +448,14 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
     }
   }
 
-  const uint32_t n_locals_need_saving = restore_locals(
+  const auto [n_locals_saved, n_local_bytes_need_saving] = restore_locals(
       instrs, lives, start, end, bb_id, return_value_overwrites_ret_reg, call);
 
   TVec<ArgPosition> arg_pos;
   auto n_stack_args = calculate_arg_locations(args, arg_pos);
 
-  if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
-    instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_need_saving +
+  if ((n_local_bytes_need_saving + n_stack_args) % 2 != 0) {
+    instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_saved +
                       (call.n_args == 2 ? 1 : 0),
                   MInstr{GArithSubtype::add2,
                          MArgument{VReg::RSP(), Type::Int64}, MArgument{8U}});
@@ -495,7 +499,7 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   save_locals(instrs, lives, start, end, bb_id, call,
               return_value_overwrites_ret_reg);
 
-  if ((n_locals_need_saving + n_stack_args) % 2 != 0) {
+  if ((n_local_bytes_need_saving + n_stack_args) % 2 != 0) {
     instrs.insert(instrs.begin() + (i64)start,
                   MInstr{GArithSubtype::sub2,
                          MArgument{VReg::RSP(), Type::Int64}, MArgument{8U}});

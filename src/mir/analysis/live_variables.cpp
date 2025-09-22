@@ -537,13 +537,6 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::punpckl:
         case X86Subtype::vpshuf:
         case X86Subtype::vbroadcast:
-          if (!instr.args[0].isReg()) {
-            update_uses(instr.args[0], uses);
-          }
-          update_uses(instr.args[1], uses);
-          update_uses(instr.args[2], uses);
-          return;
-
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
@@ -552,7 +545,6 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           }
           update_uses(instr.args[1], uses);
           update_uses(instr.args[2], uses);
-          update_uses(instr.args[3], uses);
           return;
       }
   }

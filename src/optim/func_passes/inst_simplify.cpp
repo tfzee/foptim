@@ -810,7 +810,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         man.get_or_create_analysis<KnownBits>(instr->args[0]);
     const auto *arg1_known =
         man.get_or_create_analysis<KnownBits>(instr->args[1]);
-    man.run();
+    man.run(ctx);
 
     auto is_redundant0 = false;
     auto is_redundant1 = false;
@@ -1172,7 +1172,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
                      (sub_type == fir::ICmpInstrSubType::SGE && c_val == 1);
     if (check_positive || check_negative) {
       const auto *bits = man.get_or_create_analysis<KnownBits>(instr->args[0]);
-      man.run();
+      man.run(ctx);
       auto msb_res = bits->msb_info();
       bool value_known_negative = msb_res == KnownBits::KnownOne;
       bool value_known_positive = msb_res == KnownBits::KnownZero;
@@ -1224,7 +1224,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
   {
     const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
     const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
-    man.run();
+    man.run(ctx);
     if (sub_type == ICmpInstrSubType::UGT ||
         sub_type == ICmpInstrSubType::UGE ||
         sub_type == ICmpInstrSubType::ULT ||
@@ -1503,6 +1503,216 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
   }
 }
 
+bool is_constant_int_zero(fir::ValueR r) {
+  if (!r.is_constant()) {
+    return false;
+  }
+  auto c = r.as_constant();
+  if (!c->is_int()) {
+    return false;
+  }
+  return c->as_int() == 0;
+}
+
+bool is_constant_float_zero(fir::ValueR r) {
+  if (!r.is_constant()) {
+    return false;
+  }
+  auto c = r.as_constant();
+  if (!c->is_float()) {
+    return false;
+  }
+  return c->as_float() == 0;
+}
+
+bool select_to_abs(fir::Instr instr, WorkList &worklist) {
+  auto icmp = instr->args[0].as_instr();
+  bool negated = false;
+  bool positive = false;
+  // fmt::println("{:cd}", icmp);
+  // fmt::println("{:cd}", instr);
+  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
+      instr->args[2].as_instr()->args[0] == icmp->args[0]) {
+    positive = true;
+  }
+  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
+      is_constant_int_zero(instr->args[2].as_instr()->args[0]) &&
+      instr->args[2].as_instr()->args[1] == icmp->args[0]) {
+    positive = true;
+  }
+  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
+      instr->args[1].as_instr()->args[0] == icmp->args[0]) {
+    negated = true;
+  }
+  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
+      is_constant_int_zero(instr->args[1].as_instr()->args[0]) &&
+      instr->args[1].as_instr()->args[1] == icmp->args[0]) {
+    negated = true;
+  }
+  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
+      instr->args[2].as_instr()->args[0] == icmp->args[1]) {
+    negated = true;
+  }
+  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
+      is_constant_int_zero(instr->args[2].as_instr()->args[0]) &&
+      instr->args[2].as_instr()->args[1] == icmp->args[1]) {
+    negated = true;
+  }
+  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
+      instr->args[1].as_instr()->args[0] == icmp->args[1]) {
+    positive = true;
+  }
+  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
+      is_constant_int_zero(instr->args[1].as_instr()->args[0]) &&
+      instr->args[1].as_instr()->args[1] == icmp->args[1]) {
+    positive = true;
+  }
+  ASSERT(!negated || !positive);
+  if (negated || positive) {
+    fir::Builder b{instr};
+    fir::ValueR new_val;
+    switch ((fir::ICmpInstrSubType)icmp->subtype) {
+      case fir::ICmpInstrSubType::SGT:
+      case fir::ICmpInstrSubType::SGE:
+      case fir::ICmpInstrSubType::UGT:
+      case fir::ICmpInstrSubType::UGE:
+        if (positive) {
+          new_val =
+              b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::Abs);
+          break;
+        }
+      case fir::ICmpInstrSubType::SLT:
+      case fir::ICmpInstrSubType::SLE:
+      case fir::ICmpInstrSubType::ULT:
+      case fir::ICmpInstrSubType::ULE:
+        if (negated) {
+          new_val =
+              b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::Abs);
+          break;
+        }
+      default:
+        fmt::println("{:cd}", icmp);
+        fmt::println("{:cd}", instr);
+        TODO("okak");
+        break;
+    }
+    if (!new_val.is_invalid()) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(new_val);
+      instr.destroy();
+      return true;
+    }
+  }
+  return false;
+}
+
+bool select_to_fabs(fir::Instr instr, WorkList &worklist) {
+  auto icmp = instr->args[0].as_instr();
+  bool negated = false;
+  bool positive = false;
+  // fmt::println("{:cd}", icmp);
+  // fmt::println("{:cd}", instr);
+  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
+      instr->args[2].as_instr()->args[0] == icmp->args[0]) {
+    positive = true;
+  }
+  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
+      is_constant_float_zero(instr->args[2].as_instr()->args[0]) &&
+      instr->args[2].as_instr()->args[1] == icmp->args[0]) {
+    positive = true;
+  }
+  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
+      instr->args[1].as_instr()->args[0] == icmp->args[0]) {
+    negated = true;
+  }
+  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
+      is_constant_float_zero(instr->args[1].as_instr()->args[0]) &&
+      instr->args[1].as_instr()->args[1] == icmp->args[0]) {
+    negated = true;
+  }
+  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
+      instr->args[2].as_instr()->args[0] == icmp->args[1]) {
+    negated = true;
+  }
+  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
+      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
+      is_constant_float_zero(instr->args[2].as_instr()->args[0]) &&
+      instr->args[2].as_instr()->args[1] == icmp->args[1]) {
+    negated = true;
+  }
+  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
+      instr->args[1].as_instr()->args[0] == icmp->args[1]) {
+    positive = true;
+  }
+  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
+      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
+      is_constant_float_zero(instr->args[1].as_instr()->args[0]) &&
+      instr->args[1].as_instr()->args[1] == icmp->args[1]) {
+    positive = true;
+  }
+  ASSERT(!negated || !positive);
+  if (negated || positive) {
+    fir::Builder b{instr};
+    fir::ValueR new_val;
+    switch ((fir::FCmpInstrSubType)icmp->subtype) {
+      case fir::FCmpInstrSubType::OGE:
+        if (positive) {
+          new_val =
+              b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::FAbs);
+          break;
+        }
+      case fir::FCmpInstrSubType::OLT:
+        if (negated) {
+          new_val =
+              b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::FAbs);
+          break;
+        }
+      case fir::FCmpInstrSubType::OGT:
+      case fir::FCmpInstrSubType::AlwFalse:
+      case fir::FCmpInstrSubType::OEQ:
+      case fir::FCmpInstrSubType::OLE:
+      case fir::FCmpInstrSubType::ONE:
+      case fir::FCmpInstrSubType::ORD:
+      case fir::FCmpInstrSubType::UNO:
+      case fir::FCmpInstrSubType::UEQ:
+      case fir::FCmpInstrSubType::UGT:
+      case fir::FCmpInstrSubType::UGE:
+      case fir::FCmpInstrSubType::ULT:
+      case fir::FCmpInstrSubType::ULE:
+      case fir::FCmpInstrSubType::UNE:
+      case fir::FCmpInstrSubType::AlwTrue:
+      case fir::FCmpInstrSubType::IsNaN:
+      case fir::FCmpInstrSubType::INVALID:
+      default:
+        fmt::println("{:cd}", icmp);
+        fmt::println("{:cd}", instr);
+        TODO("okak");
+        break;
+    }
+    if (!new_val.is_invalid()) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(new_val);
+      instr.destroy();
+      return true;
+    }
+  }
+  return false;
+}
+
 void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context & /*ctx*/, WorkList &worklist) {
   if (instr->args[0].is_constant()) {
@@ -1548,6 +1758,20 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(new_val);
       instr.destroy();
+      return;
+    }
+  }
+  if (instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::ICmp) &&
+      is_constant_int_zero(instr->args[0].as_instr()->args[1])) {
+    if (select_to_abs(instr, worklist)) {
+      return;
+    }
+  }
+  if (instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::FCmp) &&
+      is_constant_float_zero(instr->args[0].as_instr()->args[1])) {
+    if (select_to_fabs(instr, worklist)) {
       return;
     }
   }
@@ -1829,9 +2053,12 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     }
     auto iszext = instr->is(fir::InstrType::ZExt);
+    auto is_non_overflowing = (argi->NSW && !iszext) || (argi->NUW && iszext);
     if (argi->is(fir::BinaryInstrSubType::And) ||
         argi->is(fir::BinaryInstrSubType::Or) ||
         argi->is(fir::BinaryInstrSubType::Xor) ||
+        (argi->is(fir::BinaryInstrSubType::IntAdd) && is_non_overflowing) ||
+        (argi->is(fir::BinaryInstrSubType::IntMul) && is_non_overflowing) ||
         (iszext && argi->is(fir::BinaryInstrSubType::Shr))) {
       fir::Builder buh{argi};
       auto ext_ty = instr->get_type();
@@ -1915,9 +2142,9 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       // if we have a bbarg as argument and its only used once
       //  it prob makes sense to just propagate the itrunc through the
       //  bb arg in the hope it optimizes better before that
-      // this could also backfire (should be safe if we also propagate the sext)
-      // but if the itrunc gets multiple uses it wont be propagated and we got
-      // issues then
+      // this could also backfire (should be safe if we also propagate the
+      // sext) but if the itrunc gets multiple uses it wont be propagated
+      // and we got issues then
       if (arg->get_n_uses() == 1) {
         auto arg_id = origin_bb->get_arg_id(arg);
         for (auto &u : origin_bb->uses) {
@@ -2287,7 +2514,8 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       //     auto puts_func = ctx->create_function(
       //         "write",
       //         ctx->get_func_ty(ctx->get_int_type(64),
-      //                          {ctx->get_int_type(32), ctx->get_ptr_type(),
+      //                          {ctx->get_int_type(32),
+      //                          ctx->get_ptr_type(),
       //                           ctx->get_int_type(64)}));
       //     puts_func->linkage = fir::Linkage::External;
       //     puts_func->basic_blocks.clear();
@@ -2308,7 +2536,8 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       //   //   stdout = fir::ValueR{ctx->get_constant_value(global)};
       //   // } else {
       //   //   stdout =
-      //   // fir::ValueR{ctx->get_constant_value(ctx->get_global("stdout"))};
+      //   //
+      //   fir::ValueR{ctx->get_constant_value(ctx->get_global("stdout"))};
       //   // }
 
       //   auto write_func = ctx->get_function("write");
@@ -2486,7 +2715,7 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
 
     case fir::IntrinsicSubType::Abs: {
       auto *a0 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
-      man.run();
+      man.run(ctx);
       auto r = a0->msb_info();
       if (r == KnownBits::KnownZero) {
         push_all_uses(worklist, instr);

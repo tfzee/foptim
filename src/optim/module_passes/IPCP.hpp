@@ -140,7 +140,7 @@ static bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
     func.func->func_ty =
         ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
     for (auto use : func.func->get_uses()) {
-      use.user->set_attrib("callee_type", func.func->func_ty);
+      use.user->extra_type = func.func->func_ty;
     }
     // we need renaming
     if (func->linkage == fir::Linkage::LinkOnceODR) {
@@ -187,7 +187,7 @@ static bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
     func.func->func_ty =
         ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
     for (auto use : func.func->get_uses()) {
-      use.user->set_attrib("callee_type", func.func->func_ty);
+      use.user->extra_type = func.func->func_ty;
     }
 
     if (func->linkage == fir::Linkage::LinkOnceODR) {

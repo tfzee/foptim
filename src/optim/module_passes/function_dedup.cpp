@@ -331,7 +331,7 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx) {
 void collect_group(
     const fir::Context &ctx,
     IRMap<IRString, std::unique_ptr<fir::Function>>::const_iterator iter1,
-    foptim::Mutex<TVec<MergableGroup>> &groups) {
+    foptim::Mutex<FVec<MergableGroup>> &groups) {
   TMap<fir::ValueR, fir::ValueR> local_value_map;
   TVec<DiffConst> difference_values;
 
@@ -471,7 +471,7 @@ void merge_func_dups_only_same(fir::Context &ctx) {
 }
 
 void merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
-  Mutex<TVec<MergableGroup>> prot_groups;
+  Mutex<FVec<MergableGroup>> prot_groups;
   // helpers
 
   {

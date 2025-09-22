@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <cassert>
+#include <compare>
 #include <cstdlib>
 #include <cstring>
 #include <tracy/Tracy.hpp>
@@ -118,6 +119,10 @@ class StableVec {
       Slab *slot_slab_start = _slot_start.load();
       while (slot_slab_start) {
         for (u32 i = 0; i < slot_slab_len; i++) {
+          if (slot_slab_start->data[i].used.load(std::memory_order_relaxed) !=
+              SlotState::Free) {
+            continue;
+          }
           auto exp = SlotState::Free;
           if (std::atomic_compare_exchange_strong(
                   &slot_slab_start->data[i].used, &exp, SlotState::FreeList)) {

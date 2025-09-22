@@ -57,6 +57,7 @@ class DCE final : public FunctionPass {
           }
         }
       }
+      // dump(func, marked);
 
       // then workoff the worklist
       while (!worklist.empty()) {
@@ -130,7 +131,7 @@ class DCE final : public FunctionPass {
             for (auto &use : instr->uses) {
               // TODO: could handle stuff like add and stuff here aswell to be
               // more precise read lower note for issue tho
-              if (use.user->is(fir::InstrType::StoreInstr)) {
+              if (use.user->is(fir::InstrType::StoreInstr) && use.argId == 0) {
                 continue;
               }
               kill = false;
@@ -184,16 +185,12 @@ class DCE final : public FunctionPass {
   }
 
   void dump(fir::Function &func, TSet<fir::Instr> &marked) {
-    (void)func;
-    (void)marked;
-    TODO("REIMPL");
-    // for (auto &bb : func.get_bbs()) {
-    //   print << "BB;\n";
-    //   for (auto &instr : bb->get_instrs()) {
-    //     print << (marked.contains(instr) ? " " : "X") << "    " << instr
-    //                  << "\n";
-    //   }
-    // }
+    for (auto &bb : func.get_bbs()) {
+      fmt::println("BB;\n");
+      for (auto &instr : bb->get_instrs()) {
+        fmt::println("{}    {:cd}", marked.contains(instr) ? "X" : " ", instr);
+      }
+    }
   }
 };
 }  // namespace foptim::optim

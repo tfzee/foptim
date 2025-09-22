@@ -29,7 +29,48 @@ class KnownBits final : public AttributeAnalysis {
   u64 known_zero = 0;
   u64 known_one = 0;
 
-  void materialize_impl(fir::Context &ctx) override { (void)ctx; }
+  void materialize_impl(fir::Context &ctx,
+                        const AttributerManager &m) override {
+    (void)ctx;
+    if (!associatedValue.is_instr()) {
+      return;
+    }
+    auto instr = associatedValue.as_instr();
+    if (instr->is(fir::BinaryInstrSubType::IntAdd)) {
+      const auto *known_arg0_bits = m.get_analysis<KnownBits>(instr->args[0]);
+      const auto *known_arg1_bits = m.get_analysis<KnownBits>(instr->args[1]);
+      if ((known_arg0_bits == nullptr) || (known_arg1_bits == nullptr)) {
+        return;
+      }
+      auto bitwidth =  // instr->get_type()->is_int()
+                       //  ? instr->get_type()->as_int() :
+          instr->get_type()->get_bitwidth();
+      {
+        auto biggest_val = (i128)known_arg0_bits->get_signed_max_value() +
+                           (i128)known_arg1_bits->get_signed_max_value();
+        auto smallest_val = (i128)known_arg0_bits->get_signed_min_value() +
+                            (i128)known_arg1_bits->get_signed_min_value();
+        // auto signed_max = ((i128)1 << bitwidth) - 1;
+        // auto signed_min = ((i128)1 << bitwidth) - 1;
+        auto signed_max = ((i128)1 << (bitwidth - 1)) - 1;
+        auto signed_min = ((i128)-2) << (bitwidth - 1);
+        if (biggest_val < signed_max && smallest_val > signed_min) {
+          instr->NSW = true;
+        }
+      }
+      {
+        auto biggest_val = (i128)known_arg0_bits->get_unsigned_max_value() +
+                           (i128)known_arg1_bits->get_unsigned_max_value();
+        auto smallest_val = (i128)known_arg0_bits->get_unsigned_min_value() +
+                            (i128)known_arg1_bits->get_unsigned_min_value();
+        auto unsigned_max = ((i128)1 << bitwidth) - 1;
+        auto unsigned_min = 0;
+        if (biggest_val < unsigned_max && smallest_val > unsigned_min) {
+          instr->NUW = true;
+        }
+      }
+    }
+  }
 
   enum BitInfo {
     Unknown = 0,
@@ -104,6 +145,27 @@ class KnownBits final : public AttributeAnalysis {
           }
           break;
         }
+        case fir::IntrinsicSubType::UMin: {
+          const auto *known_arg0_bits =
+              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+          const auto *known_arg1_bits =
+              m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+          if (known_arg0_bits->get_unsigned_min_value() <=
+              known_arg1_bits->get_unsigned_max_value()) {
+            new_known_one = known_arg0_bits->known_one;
+            new_known_zero = known_arg0_bits->known_zero;
+          } else if (known_arg1_bits->get_unsigned_min_value() <=
+                     known_arg0_bits->get_unsigned_max_value()) {
+            new_known_one = known_arg1_bits->known_one;
+            new_known_zero = known_arg1_bits->known_zero;
+          } else {
+            new_known_one =
+                known_arg0_bits->known_one & known_arg1_bits->known_one;
+            new_known_zero =
+                known_arg0_bits->known_zero & known_arg1_bits->known_zero;
+          }
+          break;
+        }
         case fir::IntrinsicSubType::SMax: {
           const auto *known_arg0_bits =
               m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
@@ -118,6 +180,33 @@ class KnownBits final : public AttributeAnalysis {
             new_known_one = known_arg1_bits->known_one;
             new_known_zero = known_arg1_bits->known_zero;
           } else {
+            new_known_one =
+                known_arg0_bits->known_one & known_arg1_bits->known_one;
+            new_known_zero =
+                known_arg0_bits->known_zero & known_arg1_bits->known_zero;
+          }
+          break;
+        }
+        case fir::IntrinsicSubType::SMin: {
+          const auto *known_arg0_bits =
+              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+          const auto *known_arg1_bits =
+              m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+
+          // If arg0 is always <= arg1, result must be arg0
+          if (known_arg0_bits->get_signed_max_value() <=
+              known_arg1_bits->get_signed_min_value()) {
+            new_known_one = known_arg0_bits->known_one;
+            new_known_zero = known_arg0_bits->known_zero;
+          }
+          // If arg1 is always <= arg0, result must be arg1
+          else if (known_arg1_bits->get_signed_max_value() <=
+                   known_arg0_bits->get_signed_min_value()) {
+            new_known_one = known_arg1_bits->known_one;
+            new_known_zero = known_arg1_bits->known_zero;
+          }
+          // Otherwise, conservatively intersect known bits
+          else {
             new_known_one =
                 known_arg0_bits->known_one & known_arg1_bits->known_one;
             new_known_zero =
@@ -141,8 +230,6 @@ class KnownBits final : public AttributeAnalysis {
           break;
         }
         case fir::IntrinsicSubType::FAbs:
-        case fir::IntrinsicSubType::UMin:
-        case fir::IntrinsicSubType::SMin:
         case fir::IntrinsicSubType::FMin:
         case fir::IntrinsicSubType::FMax:
           fmt::println("BITS KNOWN {}", *this);
@@ -549,7 +636,8 @@ static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS) {
     return res;
   }
   auto res = KnownBits{};
-  // IF we know the lowest set bit we know all lower bits in the result will be
+  // IF we know the lowest set bit we know all lower bits in the result will
+  // be
   // 0
   u32 llowest_bit_id = 0;
   u32 rlowest_bit_id = 0;

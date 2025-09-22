@@ -243,55 +243,12 @@ bool handle_arg(fir::ValueR arg, fir::Use use, fir::TypeR type,
         curr = curr++;
       }
       auto typee = overlapped ? fir::TypeR{fir::TypeR::invalid()} : type;
-      acceses.insert({r.offset, {typee, {use}, v_size}});
+      acceses.insert(
+          {r.offset,
+           {.type = typee, .associated_values = {use}, .size = v_size}});
     }
   }
   return true;
-}
-
-void StackKnownBits::execute_sroa(TVec<fir::Instr> &load_stores,
-                                  StackKnowCache &cache,
-                                  fir::BasicBlock entry_bb) {
-  // ensuring we know all accesses
-  TOMap<u32, SROARes> acceses;
-  // find all load/stores
-  // fmt::println("Number {}", load_stores.size());
-  for (auto &loadstore_instr : load_stores) {
-    if (loadstore_instr->is(fir::InstrType::LoadInstr) ||
-        loadstore_instr->is(fir::InstrType::StoreInstr)) {
-      auto instr_arg = loadstore_instr->args[0];
-      if (!handle_arg(instr_arg, fir::Use::norm(loadstore_instr, 0),
-                      loadstore_instr->get_type(), cache, acceses)) {
-        return;
-      }
-    } else if (loadstore_instr->is(fir::InstrType::CallInstr)) {
-      // TODO: improve
-      // for now it just escapes abort
-      return;
-    } else {
-      fmt::println("{}", loadstore_instr);
-      TODO("IMPL");
-    }
-  }
-
-  for (auto &[off, res] : acceses) {
-    // now insert new alloca for each var
-    // and then replace all uses to this new alloca
-    // fmt::println("{} N:{} T:{}@{}", off, res.associated_values.size(),
-    // res.type,
-    //              res.size);
-    if (!res.type.is_valid()) {
-      continue;
-    }
-    auto *ctx = entry_bb->get_parent().func->ctx;
-    auto bb = fir::Builder(entry_bb);
-    auto alloca =
-        bb.build_alloca(fir::ValueR(ctx->get_constant_int(res.size, 32)));
-    alloca.as_instr()->add_attrib("alloca::type", res.type);
-    for (auto &v : res.associated_values) {
-      v.replace_use(alloca);
-    }
-  }
 }
 
 StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
@@ -561,11 +518,6 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
       cache.erase(load);
     }
   }
-
-  // SROA
-  // at this point we know local pointers dont escape
-  // other then potentially through func calls
-  // execute_sroa(load_stores, cache, func.get_entry());
 }
 
 }  // namespace foptim::optim

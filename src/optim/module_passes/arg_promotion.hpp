@@ -136,7 +136,7 @@ class ArgPromotion final : public ModulePass {
       func.func->func_ty =
           ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
       for (auto use : func.func->get_uses()) {
-        use.user->set_attrib("callee_type", func.func->func_ty);
+        use.user->extra_type = func.func->func_ty;
       }
 
       // // we need renaming

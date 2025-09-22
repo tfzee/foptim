@@ -165,21 +165,33 @@ enum class BinaryInstrSubType : u32 {
   FloatDiv,
 };
 
-class InstrData : public Used, public Attributable {
+struct InstrAttribs {
+  fir::TypeR extra_type{fir::TypeR::invalid()};
+  u32 NSW : 1 = 0;
+  u32 NUW : 1 = 0;
+  // u32 padding;
+  // u32 padding1;
+  // u32 padding2;
+  // u32 padding3;
+  // u32 padding4;
+};
+
+class InstrData : public Used, public InstrAttribs {
  public:
   InstrType instr_type;
   u32 subtype;
   TypeR value_type;
+
+  IRVec<ValueR> args;
+  IRVec<BBRefWithArgs> bbs;
+  BasicBlock parent;
+
   InstrData(InstrType ty, TypeR vty, BasicBlock parent)
       : instr_type(ty), subtype(0), value_type(vty), parent(parent) {}
   InstrData(InstrType ty, u32 subtype, TypeR vty, BasicBlock parent)
       : instr_type(ty), subtype(subtype), value_type(vty), parent(parent) {}
 
   using Used::add_usage;
-  IRVec<ValueR> args;
-  IRVec<BBRefWithArgs> bbs;
-  BasicBlock parent;
-
   [[nodiscard]] constexpr InstrType get_instr_type() const {
     return instr_type;
   }
@@ -425,6 +437,10 @@ class InstrData : public Used, public Attributable {
 
   [[nodiscard]] constexpr bool is(BinaryInstrSubType ty) const {
     return instr_type == InstrType::BinaryInstr && subtype == (u32)ty;
+  }
+
+  [[nodiscard]] constexpr bool is(UnaryInstrSubType ty) const {
+    return instr_type == InstrType::UnaryInstr && subtype == (u32)ty;
   }
 
   constexpr void verify() const {

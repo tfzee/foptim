@@ -1,5 +1,6 @@
 #include "basic_alias_test.hpp"
-
+#include "ir/basic_block.hpp"
+#include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 
 namespace foptim::optim {
@@ -65,6 +66,10 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     }
     fmt::println("{}", v.as_instr());
   } else if (v.is_bb_arg()) {
+    auto arg = v.as_bb_arg();
+    if (arg->_parent == arg->_parent->get_parent()->get_entry()) {
+      return {.heap = argument_h, .offset = {}};
+    }
     // TODO: implement meet
     return {.heap = any_h, .offset = {}};
   } else {

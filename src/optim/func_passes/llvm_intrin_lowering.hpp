@@ -58,13 +58,12 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     }
 
     auto void_ty = ctx->get_void_type();
-    auto *func_ty = instr->get_attrib("callee_type").try_type();
-    assert(func_ty);
+    auto func_ty = instr->extra_type;
 
     fir::ValueR args[3] = {target_ptr, value, size};
     bb.build_call(fir::ValueR(ctx->get_constant_value(
                       ctx->get_function("foptim.memset"))),
-                  *func_ty, void_ty, args);
+                  func_ty, void_ty, args);
     instr.destroy();
   }
 
@@ -153,9 +152,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     }
 
     auto void_ty = ctx->get_void_type();
-    auto *old_func_ty = instr->get_attrib("callee_type").try_type();
-    assert(old_func_ty);
-    auto old_func_ty_f = (*old_func_ty)->as_func();
+    auto old_func_ty = instr->extra_type;
+    auto old_func_ty_f = old_func_ty->as_func();
     IRVec<fir::TypeR> arg_types = {old_func_ty_f.arg_types[0],
                                    old_func_ty_f.arg_types[1],
                                    old_func_ty_f.arg_types[2]};
