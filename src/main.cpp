@@ -185,21 +185,37 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       Inline<>, Inline<>, GDCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
+      LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, InstSimplify, SimplifyCFG,
+      SCCP, DCE, LVN, InstSimplify, DCE>{}
+      .apply(ctx, shed);
+  foptim::optim::StaticModulePassManager<
+      FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>, GDCE, IPCP>{}
+      .apply(ctx, shed);
+  foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, InstSimplify, ConstLoopEval, LoopSimplify, LoopUnroll,
       SimplifyCFG, DCE, SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs,
       SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);
-  // general cleanup / legalization / finalization
+  // // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, InstSimplify, SCCP, DCE, LVN, InstSimplify, SimplifyCFG, DCE,
       LegalizeVecs>{}
       .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<FunctionDeDup<false>, GDCE>{}.apply(
-      ctx, shed);
-  fmt::println("{:cd}", ctx);
+  // foptim::optim::StaticModulePassManager<FunctionDeDup<false>, GDCE>{}.apply(
+  //     ctx, shed);
+  // for (auto &[_, f] : ctx->storage.functions) {
+  //   if (f->name ==
+  //           "_ZN9benchmark10accumulateISt16reverse_iteratorIS1_IN9__gnu_cxx17__"
+  //           "normal_iteratorIPdSt6vectorIdSaIdEEEEEEdEET0_T_SC_SB_MODIPCP" ||
+  //       f->name ==
+  //           "_ZSteqISt16reverse_iteratorIN9__gnu_cxx17__normal_"
+  //           "iteratorIPdSt6vectorIdSaIdEEEEEEbRKS0_IT_ESC_") {
+  //     fmt::println("{:cd}", *f);
+  //   }
+  // }
   ASSERT(ctx->verify());
   // TODO("okak");
   fmt::print("================FIR END====================\n");
@@ -289,7 +305,6 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       auto &func = funcs.at(i);
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func);
-      fmt::println("{}", func);
       ASSERT(foptim::fmir::verify(func));
       foptim::fmir::LegalizeBBForm{}.apply(func);
       foptim::fmir::DeadCodeElim{}.apply(func);
@@ -327,11 +342,16 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     i++;
   }
   shed->wait_till_done();
-  for (auto &f : funcs) {
-    // if (f.name == "_ZN15loop_inner_bodyILi23EdE7do_workERdPKdi") {
-    fmt::println("{:cd}", f);
-    // }
-  }
+  // for (auto &f : funcs) {
+  //   if (f.name ==
+  //           "_ZN9benchmark10accumulateISt16reverse_iteratorIS1_IN9__gnu_cxx17__"
+  //           "normal_iteratorIPdSt6vectorIdSaIdEEEEEEdEET0_T_SC_SB_MODIPCP" ||
+  //       f.name ==
+  //           "_ZSteqISt16reverse_iteratorIN9__gnu_cxx17__normal_"
+  //           "iteratorIPdSt6vectorIdSaIdEEEEEEbRKS0_IT_ESC_") {
+  //     fmt::println("{:cd}", f);
+  //   }
+  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
