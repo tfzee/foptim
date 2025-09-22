@@ -12,7 +12,7 @@ class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
 
-  static constexpr bool debug_print = false;
+  static constexpr bool debug_print = true;
 
  public:
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& cfg,
@@ -37,6 +37,7 @@ class BaseInlineAdvisor {
     auto v = called_func.as_constant()->as_func();
     const auto called_n_instrs = v->n_instrs();
     if (v->is_decl() || v->variadic) {
+      ASSERT(!v->must_inline);
       return false;
     }
     if (debug_print) {
@@ -49,12 +50,6 @@ class BaseInlineAdvisor {
       }
       return false;
     }
-    if (v->must_inline) {
-      if (debug_print) {
-        fmt::println("Y Must inline");
-      }
-      return true;
-    }
 
     switch (v->linkage) {
       case fir::Linkage::Weak:
@@ -62,6 +57,7 @@ class BaseInlineAdvisor {
         if (debug_print) {
           fmt::println("N Bad linkage");
         }
+        ASSERT(!v->must_inline);
         return false;
       case fir::Linkage::Internal:
       case fir::Linkage::External:
@@ -74,10 +70,19 @@ class BaseInlineAdvisor {
     for (auto instr : v->basic_blocks[0]->instructions) {
       if (instr->is(fir::InstrType::AllocaInstr)) {
         if (debug_print) {
+          fmt::println("{:cd}", instr);
           fmt::println("N Alloca");
         }
+        ASSERT(!v->must_inline);
         return false;
       }
+    }
+
+    if (v->must_inline) {
+      if (debug_print) {
+        fmt::println("Y Must inline");
+      }
+      return true;
     }
 
     if (called_n_instrs <=

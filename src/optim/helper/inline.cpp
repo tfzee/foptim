@@ -1,7 +1,6 @@
-#include "inline.hpp"
-
 #include <tracy/Tracy.hpp>
 
+#include "inline.hpp"
 #include "ir/basic_block.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
@@ -71,7 +70,8 @@ bool inline_call(fir::Instr call) {
     for (auto bb : new_bbs) {
       if (bb->instructions.back()->is(fir::InstrType::ReturnInstr)) {
         if (!bb->instructions.back()->has_args()) {
-          // failure("Cant inline function with weird returns\n");
+          // TODO: why does this occur ?
+          //  failure("Cant inline function with weird returns\n");
           return false;
         }
       }
