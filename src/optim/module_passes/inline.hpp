@@ -12,7 +12,7 @@ class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
 
-  static constexpr bool debug_print = true;
+  static constexpr bool debug_print = false;
 
  public:
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& cfg,
