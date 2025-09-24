@@ -153,6 +153,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GJumpSubtype::cjmp_flt_ult:
         case GJumpSubtype::cjmp_flt_ule:
         case GJumpSubtype::cjmp_flt_une:
+        case GJumpSubtype::cjmp_and:
+        case GJumpSubtype::cjmp_or:
         case GJumpSubtype::cjmp:
         case GJumpSubtype::jmp:
           return;
@@ -353,6 +355,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case GJumpSubtype::cjmp_flt_ult:
         case GJumpSubtype::cjmp_flt_ule:
         case GJumpSubtype::cjmp_flt_une:
+        case GJumpSubtype::cjmp_and:
+        case GJumpSubtype::cjmp_or:
           update_uses(instr.args[0], uses);
           update_uses(instr.args[1], uses);
           return;

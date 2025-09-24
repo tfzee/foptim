@@ -1,5 +1,7 @@
 
 #pragma once
+#include <deque>
+
 #include "../function_pass.hpp"
 #include "ir/builder.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -25,8 +27,8 @@ class LICM final : public FunctionPass {
     (void)func;
 
     if (cfg.bbrs[info.head].pred.size() != info.tails.size() + 1) {
-      failure({"TODO: Cant apply licm without a preheader\n",
-               cfg.bbrs[info.head].bb});
+      failure({.reason = "TODO: Cant apply licm without a preheader\n",
+               .loc = cfg.bbrs[info.head].bb});
       return;
     }
 
@@ -45,8 +47,8 @@ class LICM final : public FunctionPass {
       // print << cfg.bbrs[info.head].bb->get_parent() << "\n";
       // print << cfg.bbrs[info.head].pred << "\n";
       ASSERT(false);
-      failure({"TODO: Cant apply licm without a preheader\n",
-               cfg.bbrs[info.head].bb});
+      failure({.reason = "TODO: Cant apply licm without a preheader\n",
+               .loc = cfg.bbrs[info.head].bb});
       return;
     }
 

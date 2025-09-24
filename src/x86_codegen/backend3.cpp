@@ -12,6 +12,7 @@
 #include "third_party/Zydis.h"
 #include "utils/arena.hpp"
 #include "utils/parameters.hpp"
+#include "utils/stats.hpp"
 #include "x86_codegen/backend3_instr_gen.hpp"
 
 namespace foptim::codegen {
@@ -29,6 +30,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
     emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
   }
 
+  utils::StatCollector::get().addi(1, "NUserInstrEmitted");
   switch (instr.bop) {
     case fmir::GOpcode::GBase:
       return emit_gbase(req, instr, out_buff, curr_bb_id, reloc_map,

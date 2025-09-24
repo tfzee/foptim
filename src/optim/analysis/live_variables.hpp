@@ -1,14 +1,12 @@
 #pragma once
 #include "ir/IRLocation.hpp"
 #include "ir/basic_block.hpp"
-#include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
-#include "utils/logging.hpp"
 
 namespace foptim::optim {
 

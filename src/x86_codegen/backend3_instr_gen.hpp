@@ -775,6 +775,36 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                  req);
       return length + len2;
     }
+    case fmir::GJumpSubtype::cjmp_and: {
+      req.mnemonic = ZYDIS_MNEMONIC_TEST;
+      req.operand_count = 2;
+      u64 off = 0;
+      off = emit(out_buff, off, &req);
+      ASSERT(instr.has_bb_ref);
+      req.mnemonic = ZYDIS_MNEMONIC_JNZ;
+      req.branch_type = ZYDIS_BRANCH_TYPE_NEAR;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[0].imm.s = 0;
+      req.operand_count = 1;
+      reloc_map.insert_bb_ref(instr.bb_ref, out_buff + off, 0,
+                              RelocSection::Text);
+      return emit(out_buff, off, &req);
+    }
+    case fmir::GJumpSubtype::cjmp_or: {
+      req.mnemonic = ZYDIS_MNEMONIC_OR;
+      req.operand_count = 2;
+      u64 off = 0;
+      off = emit(out_buff, off, &req);
+      ASSERT(instr.has_bb_ref);
+      req.mnemonic = ZYDIS_MNEMONIC_JNZ;
+      req.branch_type = ZYDIS_BRANCH_TYPE_NEAR;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[0].imm.s = 0;
+      req.operand_count = 1;
+      reloc_map.insert_bb_ref(instr.bb_ref, out_buff + off, 0,
+                              RelocSection::Text);
+      return emit(out_buff, off, &req);
+    }
     case fmir::GJumpSubtype::cjmp_int_slt:
     case fmir::GJumpSubtype::cjmp_int_sge:
     case fmir::GJumpSubtype::cjmp_int_sle:

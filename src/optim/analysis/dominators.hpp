@@ -1,7 +1,8 @@
 #pragma once
+#include <deque>
+
 #include "ir/basic_block_ref.hpp"
 #include "optim/analysis/cfg.hpp"
-#include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 
 namespace foptim::optim {

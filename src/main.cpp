@@ -6,12 +6,9 @@
 #include <tracy/Tracy.hpp>
 
 #include "arg_parsing/parser.hpp"
-#include "ir/basic_block_arg.hpp"
-#include "ir/basic_block_ref.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
-#include "ir/instruction_data.hpp"
 #include "llvm/llir_loader.hpp"
 #include "mir/func.hpp"
 #include "mir/legalize_bb_form.hpp"
@@ -23,6 +20,7 @@
 #include "mir/optim/inst_simplify.hpp"
 #include "mir/optim/legalization.hpp"
 #include "mir/optim/lifetime_shortening.hpp"
+#include "mir/optim/lvn.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
@@ -206,16 +204,17 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
   // foptim::optim::StaticModulePassManager<FunctionDeDup<false>, GDCE>{}.apply(
   //     ctx, shed);
-  // for (auto &[_, f] : ctx->storage.functions) {
-  //   if (f->name ==
-  //           "_ZN9benchmark10accumulateISt16reverse_iteratorIS1_IN9__gnu_cxx17__"
-  //           "normal_iteratorIPdSt6vectorIdSaIdEEEEEEdEET0_T_SC_SB_MODIPCP" ||
-  //       f->name ==
-  //           "_ZSteqISt16reverse_iteratorIN9__gnu_cxx17__normal_"
-  //           "iteratorIPdSt6vectorIdSaIdEEEEEEbRKS0_IT_ESC_") {
-  //     fmt::println("{:cd}", *f);
-  //   }
-  // }
+  for (auto &[_, f] : ctx->storage.functions) {
+    //   if (f->name ==
+    //           "_ZN9benchmark10accumulateISt16reverse_iteratorIS1_IN9__gnu_cxx17__"
+    //           "normal_iteratorIPdSt6vectorIdSaIdEEEEEEdEET0_T_SC_SB_MODIPCP"
+    //           ||
+    //       f->name ==
+    //           "_ZSteqISt16reverse_iteratorIN9__gnu_cxx17__normal_"
+    //           "iteratorIPdSt6vectorIdSaIdEEEEEEbRKS0_IT_ESC_") {
+    fmt::println("{:cd}", *f);
+    //   }
+  }
   ASSERT(ctx->verify());
   // TODO("okak");
   fmt::print("================FIR END====================\n");
@@ -309,7 +308,9 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::LegalizeBBForm{}.apply(func);
       foptim::fmir::DeadCodeElim{}.apply(func);
       ASSERT(foptim::fmir::verify(func));
+      foptim::fmir::LVN{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::CopyPropagation{}.apply(func);
       foptim::fmir::InstSimplify{}.early_apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::LifetimeShortening{}.apply(func);
@@ -342,16 +343,6 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     i++;
   }
   shed->wait_till_done();
-  // for (auto &f : funcs) {
-  //   if (f.name ==
-  //           "_ZN9benchmark10accumulateISt16reverse_iteratorIS1_IN9__gnu_cxx17__"
-  //           "normal_iteratorIPdSt6vectorIdSaIdEEEEEEdEET0_T_SC_SB_MODIPCP" ||
-  //       f.name ==
-  //           "_ZSteqISt16reverse_iteratorIN9__gnu_cxx17__normal_"
-  //           "iteratorIPdSt6vectorIdSaIdEEEEEEbRKS0_IT_ESC_") {
-  //     fmt::println("{:cd}", f);
-  //   }
-  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

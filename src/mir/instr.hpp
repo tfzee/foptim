@@ -61,6 +61,8 @@ enum class GJumpSubtype : u32 {
   fcmp_ule,
   fcmp_une,
 
+  cjmp_and,
+  cjmp_or,
   cjmp_int_slt,
   cjmp_int_sge,
   cjmp_int_sle,
@@ -685,6 +687,25 @@ class MInstr {
   u32 bb_ref;
   MArgument args[4];
 
+  constexpr bool operator==(const MInstr &other) const {
+    if (bop != other.bop || sop != other.sop) {
+      return false;
+    }
+    if (has_bb_ref != other.has_bb_ref ||
+        is_var_arg_call != other.is_var_arg_call || n_args != other.n_args) {
+      return false;
+    }
+    for (size_t arg_id = 0; arg_id < n_args; arg_id++) {
+      if (args[arg_id] != other.args[arg_id]) {
+        return false;
+      }
+    }
+    if (has_bb_ref && bb_ref != other.bb_ref) {
+      return false;
+    }
+    return true;
+  }
+
   CONSTR_REGN(GOpcode::GBase, GBaseSubtype);
   CONSTR_REGN(GOpcode::GJmp, GJumpSubtype);
   CONSTR_REGN(GOpcode::GArith, GArithSubtype);
@@ -764,6 +785,8 @@ class MInstr {
   COND_JUMP_GEN(cJmp_uge, GJumpSubtype::cjmp_int_uge)
   COND_JUMP_GEN(cJmp_eq, GJumpSubtype::cjmp_int_eq)
   COND_JUMP_GEN(cJmp_ne, GJumpSubtype::cjmp_int_ne)
+  COND_JUMP_GEN(cJmp_and, GJumpSubtype::cjmp_and)
+  COND_JUMP_GEN(cJmp_or, GJumpSubtype::cjmp_or)
 
   static MInstr cJmp_flt(MArgument v1, MArgument v2, u32 new_bb_ref,
                          fir::FCmpInstrSubType compare_type) {

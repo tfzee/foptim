@@ -1,5 +1,7 @@
 #include <fmt/std.h>
 
+#include <algorithm>
+
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -19,7 +21,6 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
                                              CFG::Node &curr,
                                              fir::Function &func, size_t bb_id,
                                              bool is_entry) {
-  // ZoneScopedN("rem dead bb");
   if (is_entry) {
     return Res::NoChange;
   }
@@ -41,6 +42,9 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
   }
 
   if (is_dead) {
+    if constexpr (debug_tracy) {
+      ZoneScopedN("rem dead bb");
+    }
     auto *ctx = func.ctx;
     for (auto i : func.basic_blocks[bb_id]->args) {
       if (i->get_n_uses() > 0) {
@@ -101,11 +105,12 @@ bool has_true_use(fir::BBArgument v) {
 }
 }  // namespace
 
-bool SimplifyCFG::remove_dead_bb_arg(CFG & /*cfg*/, CFG::Node &curr,
-                                     fir::Function &func, size_t /*bb_id*/,
+bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
                                      bool is_entry) {
-  // ZoneScopedN("rem dead bb arg");
   if (curr.bb->n_args() != 0 && !is_entry) {
+    if constexpr (debug_tracy) {
+      ZoneScopedN("rem dead bb arg");
+    }
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
@@ -336,7 +341,9 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
 }  // namespace
 
 bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
-  ZoneScopedN("dup bb to arg");
+  if constexpr (debug_tracy) {
+    ZoneScopedN("dup bb to arg");
+  }
   bool modified = false;
   TVec<DiffConst> difference_values;
   TMap<fir::Instr, fir::Instr> local_value_map;
@@ -352,10 +359,11 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
   return modified;
 }
 
-bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr,
-                                         fir::Function & /*func*/,
-                                         size_t /*bb_id*/, bool /*is_entry*/) {
+bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr) {
   if (curr.pred.size() == 1 && curr.bb->n_args() != 0) {
+    if constexpr (debug_tracy) {
+      ZoneScopedN("rem useless bb args");
+    }
     // ZoneScopedN("Rem useless bb arg");
     auto n_args = curr.bb->n_args();
     auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
@@ -371,17 +379,18 @@ bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr,
   return false;
 }
 
-bool SimplifyCFG::remove_dup_bb_args(CFG & /*cfg*/, CFG::Node &curr,
-                                     fir::Function & /*func*/, size_t /*bb_id*/,
-                                     bool is_entry) {
+bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
   if (curr.bb->n_args() < 2 || is_entry || curr.pred.size() == 0) {
     return false;
+  }
+  if constexpr (debug_tracy) {
+    ZoneScopedN("rem dup bb args");
   }
   TVec<std::pair<u32, u32>> dup_pairs;
   // go through one of the users and check its args
   //  if there are duplicates store them into dup_pairs
-  auto &use0 = curr.bb->uses[0];
-  auto &args_use0 = use0.user->bbs[use0.argId].args;
+  const auto &use0 = curr.bb->uses[0];
+  const auto &args_use0 = use0.user->bbs[use0.argId].args;
   for (u32 arg1_id = 0; arg1_id < args_use0.size(); arg1_id++) {
     for (u32 arg2_id = arg1_id + 1; arg2_id < args_use0.size(); arg2_id++) {
       if (args_use0[arg1_id] == args_use0[arg2_id]) {
@@ -434,11 +443,11 @@ bool SimplifyCFG::remove_dup_bb_args(CFG & /*cfg*/, CFG::Node &curr,
   // TODO("impl");
   return true;
 }
-bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
-                                          fir::Function & /*func*/,
-                                          size_t /*bb_id*/, bool is_entry) {
+bool SimplifyCFG::remove_constant_bb_args(CFG::Node &curr, bool is_entry) {
   if (curr.bb->n_args() != 0 && !is_entry) {
-    // ZoneScopedN("Rem Constant bb");
+    if constexpr (debug_tracy) {
+      ZoneScopedN("rem const bb args");
+    }
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
@@ -477,14 +486,15 @@ bool SimplifyCFG::remove_constant_bb_args(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
-bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
-                                 fir::Function & /*func*/, size_t /*bb_id*/,
-                                 bool is_entry) {
+bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
   if (is_entry) {
     return false;
   }
   if (!curr.bb->get_terminator()->is(fir::InstrType::Unreachable)) {
     return false;
+  }
+  if constexpr (debug_tracy) {
+    ZoneScopedN("rem unreach");
   }
   // TODO: right now if it can diverge we cancel the transformation
   //  but we could instead only delete everything after the last point at which
@@ -568,22 +578,25 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr,
   return applied;
 }
 
-bool SimplifyCFG::distribute_return_unreach(CFG &cfg, CFG::Node &curr,
-                                            fir::Function & /*func*/,
-                                            size_t /*bb_id*/,
-                                            bool /*is_entry*/) {
+SimplifyCFG::Res SimplifyCFG::distribute_return_unreach(CFG &cfg,
+                                                        CFG::Node &curr) {
   if (curr.bb->n_instrs() == 1 &&
       (curr.bb->get_terminator()->is(fir::InstrType::ReturnInstr) ||
        curr.bb->get_terminator()->is(fir::InstrType::Unreachable))) {
-    // ZoneScopedN("Distr return/unreach");
+    if constexpr (debug_tracy) {
+      ZoneScopedN("distr ret unreach");
+    }
     const auto n_args = curr.bb->n_args();
     const auto return_instr = curr.bb->get_terminator();
     TMap<fir::ValueR, fir::ValueR> subs{};
     bool modified_any = false;
+    // bool modified_all = true;
+    // TVec<u32> deleted;
     for (auto pred_id : curr.pred) {
       auto &pred = cfg.bbrs[pred_id];
       auto prev_term = pred.bb->get_terminator();
       if (pred.succ.size() != 1) {
+        // modified_all = false;
         continue;
       }
       modified_any = true;
@@ -600,16 +613,24 @@ bool SimplifyCFG::distribute_return_unreach(CFG &cfg, CFG::Node &curr,
       new_return.substitute(subs);
       prev_term.destroy();
     }
-    return modified_any;
+    // if (modified_all) {
+    // TODO("okak");
+    // }
+    if (modified_any) {
+      return Res::NeedUpdate;
+    }
+    return Res::NoChange;
   }
-  return false;
+  return Res::NoChange;
 }
 
-bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
-                                              fir::Function &func, size_t bb_id,
-                                              bool /*is_entry*/) {
+SimplifyCFG::Res SimplifyCFG::merge_empty_block_backwards(CFG &cfg,
+                                                          Dominators &dom,
+                                                          CFG::Node &curr,
+                                                          fir::Function &func,
+                                                          size_t bb_id) {
   if (curr.succ.size() != 1) {
-    return false;
+    return Res::NoChange;
   }
 
   auto &succ = cfg.bbrs[curr.succ[0]];
@@ -622,21 +643,29 @@ bool SimplifyCFG::merge_empty_block_backwards(CFG &cfg, CFG::Node &curr,
   //    0x5591b4d32998 : () = Branch<0x5591b4d37968()>(){}
 
   if (succ.bb->n_instrs() == 1 && succ.bb->n_args() == 0) {
-    // ZoneScopedN("BACKWARDS MERGE");
+    if constexpr (debug_tracy) {
+      ZoneScopedN("merge backw");
+    }
     auto old_term = func.basic_blocks[bb_id]->get_terminator();
 
     fir::Builder bb{curr.bb};
     bb.at_end(curr.bb);
-
     bb.insert_copy(succ.bb->get_terminator());
-
     old_term.remove_from_parent();
     if (succ.pred.size() == 1) {
       succ.bb->remove_from_parent(true, true, true);
+      auto succ_id = curr.succ[0];
+      cfg.update_merge_succ(bb_id, succ_id);
+      cfg.update_delete(succ_id);
+      dom.update(cfg);
+      return Res::Changed;
     }
-    return true;
+    cfg.update_delete_term(bb_id);
+    cfg.update_merge_succ(bb_id, curr.succ[0]);
+    dom.update(cfg);
+    return Res::Changed;
   }
-  return false;
+  return Res::NoChange;
 }
 
 bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
@@ -644,7 +673,9 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
                                              bool is_entry) {
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::BranchInstr)) {
-    // ZoneScopedN("FORWARD MERGE");
+    if constexpr (debug_tracy) {
+      ZoneScopedN("merge forw");
+    }
     ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     // if no bb args involved just replace
@@ -683,20 +714,24 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
   return false;
 }
 
-bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
-                                        fir::Function &func, size_t bb_id,
-                                        bool /*is_entry*/) {
+SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
+                                                    CFG::Node &curr,
+                                                    fir::Function &func,
+                                                    size_t bb_id) {
   if (curr.succ.size() != 1 || bb_id == curr.succ[0]) {
-    return false;
+    return Res::NoChange;
   }
   auto succ_id = curr.succ[0];
   u32 secon_n_args = func.basic_blocks.at(succ_id)->n_args();
   auto old_first_term = func.basic_blocks[bb_id]->get_terminator();
   if (!old_first_term->is(fir::InstrType::BranchInstr)) {
-    return false;
+    return Res::NoChange;
   }
 
   if (cfg.bbrs[curr.succ[0]].pred.size() == 1) {
+    if constexpr (debug_tracy) {
+      ZoneScopedN("merge linrel basic");
+    }
     bool secon_has_args = secon_n_args != 0;
 
     if (secon_has_args) {
@@ -718,11 +753,16 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
 
     old_first_term.remove_from_parent();
     func.basic_blocks[succ_id]->remove_from_parent(true, true, true);
-    return true;
+    cfg.update_merge_succ(bb_id, succ_id);
+    cfg.update_delete(succ_id);
+    dom.update(cfg);
+    return Res::Changed;
   }
   if (secon_n_args * 1UL + 1 >=
       func.basic_blocks[succ_id]->instructions.size()) {
-    // return false;
+    if constexpr (debug_tracy) {
+      ZoneScopedN("merge linrel adv");
+    }
     // TODO this can be improved for now
     //  we just check that all the bbargs and values inside the bb are *only*
     //  used within this bb to not destroy any indirect usages when copying the
@@ -732,14 +772,14 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
     for (auto arg : old_bb->args) {
       for (auto use : arg->uses) {
         if (use.user->get_parent() != old_bb) {
-          return false;
+          return Res::NoChange;
         }
       }
     }
     for (auto instr : old_bb->instructions) {
       for (auto use : instr->uses) {
         if (use.user->get_parent() != old_bb) {
-          return false;
+          return Res::NoChange;
         }
       }
     }
@@ -764,18 +804,19 @@ bool SimplifyCFG::merge_linear_relation(CFG &cfg, CFG::Node &curr,
     //              *curr.bb->get_parent().func);
     // fmt::println("applied");
     utils::StatCollector::get().addi(1, "MergedShort+ManyArgsIntoTerm");
-    return true;
+    return Res::NeedUpdate;
   }
-  return false;
+  return Res::NoChange;
 }
 
-bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
-                                       fir::Function & /*func*/,
-                                       size_t /*bb_id*/, bool /*is_entry*/) {
+bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
   auto terminator = curr.bb->get_terminator();
   if (curr.succ.size() == 2 &&
       terminator->is(fir::InstrType::CondBranchInstr) &&
       terminator->bbs[0].args.empty() && terminator->bbs[1].args.empty()) {
+    if constexpr (debug_tracy) {
+      ZoneScopedN("cond to cmove1");
+    }
     auto t1 = terminator->bbs[0].bb;
     auto t2 = terminator->bbs[1].bb;
     bool matched = false;
@@ -838,8 +879,9 @@ bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
     }
   }
   if (curr.succ.size() == 2 && terminator->bbs[0].bb == terminator->bbs[1].bb) {
-    // ZoneScopedN("COND TO CMOVE");
-    // auto *ctx = curr.bb->get_parent()->ctx;
+    if constexpr (debug_tracy) {
+      ZoneScopedN("cond to cmove2");
+    }
 
     auto &args1 = terminator->bbs[0].args;
     auto &args2 = terminator->bbs[1].args;
@@ -864,23 +906,30 @@ bool SimplifyCFG::conditional_to_cmove(CFG & /*cfg*/, CFG::Node &curr,
   return false;
 }
 
-bool SimplifyCFG::eliminate_infinite_loop(CFG & /*cfg*/, CFG::Node &curr,
-                                          fir::Function &func, size_t /*bb_id*/,
-                                          bool /*is_entry*/) {
+SimplifyCFG::Res SimplifyCFG::eliminate_infinite_loop(CFG &cfg, Dominators &dom,
+                                                      CFG::Node &curr,
+                                                      size_t bb_id,
+                                                      fir::Function &func) {
   if (!func.must_progress) {
-    return false;
+    return Res::NoChange;
   }
   auto terminator = curr.bb->get_terminator();
   // TODO: implement more complex infinite loop detection
   if (terminator->is(fir::InstrType::BranchInstr) &&
       terminator->bbs[0].bb == curr.bb) {
+    if constexpr (debug_tracy) {
+      ZoneScopedN("elim infinite loop");
+    }
     fir::Builder bb{curr.bb};
     bb.at_penultimate(curr.bb);
     bb.build_unreach();
     terminator.destroy();
-    return true;
+
+    cfg.update_delete_term(bb_id);
+    dom.update(cfg);
+    return Res::Changed;
   }
-  return false;
+  return Res::NoChange;
 }
 
 namespace {
@@ -937,9 +986,7 @@ bool can_merge(const fir::BasicBlock bb1, u32 next_id, bool &sec_neg,
 }
 }  // namespace
 
-bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr,
-                                  fir::Function & /*func*/, size_t /*bb_id*/,
-                                  bool /*is_entry*/) {
+bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
   auto terminator = curr.bb->get_terminator();
   if (!terminator->is(fir::InstrType::CondBranchInstr)) {
     return false;
@@ -955,6 +1002,9 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr,
 
   fir::BasicBlock merge_target{fir::BasicBlock::invalid()};
   // TODO: would need to check if they are used after
+  if constexpr (debug_tracy) {
+    ZoneScopedN("merge term cond");
+  }
   if (can_merge(curr.bb, 0, sec_negated, can_rename, needs_rename, cfg)) {
     merge_target = terminator->bbs[0].bb;
     merge_num = 0;
@@ -1047,29 +1097,28 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(CFG &cfg, Dominators &dom,
   (void)dom;
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
-  constexpr bool debug = false;
-  if (remove_dead_bb_arg(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  if (remove_dead_bb_arg(curr, func, is_entry)) {
+    if constexpr (debug_print) {
       fmt::println("2");
     }
     return Res::Changed;
   }
-  if (remove_dup_bb_args(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  if (remove_dup_bb_args(curr, is_entry)) {
+    if constexpr (debug_print) {
       fmt::println("3");
     }
     return Res::Changed;
   }
 
-  if (remove_constant_bb_args(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  if (remove_constant_bb_args(curr, is_entry)) {
+    if constexpr (debug_print) {
       fmt::println("4");
     }
     return Res::Changed;
   }
 
-  if (remove_useless_bb_args(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  if (remove_useless_bb_args(cfg, curr)) {
+    if constexpr (debug_print) {
       fmt::println("5");
     }
     return Res::Changed;
@@ -1081,67 +1130,70 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
                                            fir::Function &func, size_t bb_id) {
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
-  constexpr bool debug = false;
 
   auto r = remove_dead_bb(cfg, dom, curr, func, bb_id, is_entry);
   if (r != Res::NoChange) {
-    if constexpr (debug) {
+    if constexpr (debug_print) {
       fmt::println("1");
     }
     return r;
   }
 
-  if (merge_linear_relation(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  r = merge_linear_relation(cfg, dom, curr, func, bb_id);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
       fmt::println("3");
     }
-    return Res::NeedUpdate;
+    return r;
   }
 
-  if (merge_empty_block_backwards(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  r = merge_empty_block_backwards(cfg, dom, curr, func, bb_id);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
       fmt::println("6");
     }
-    return Res::NeedUpdate;
+    return r;
   }
 
   if (merge_empty_block_forwards(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+    if constexpr (debug_print) {
       fmt::println("7");
     }
     return Res::NeedUpdate;
   }
 
-  if (distribute_return_unreach(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  r = distribute_return_unreach(cfg, curr);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
       fmt::println("8");
     }
-    return Res::NeedUpdate;
+    return r;
   }
 
-  if (remove_unreach(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  if (remove_unreach(cfg, curr, is_entry)) {
+    if constexpr (debug_print) {
       fmt::println("9");
     }
     return Res::NeedUpdate;
   }
 
-  if (conditional_to_cmove(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  if (conditional_to_cmove(curr)) {
+    if constexpr (debug_print) {
       fmt::println("10");
     }
     return Res::NeedUpdate;
   }
 
-  if (eliminate_infinite_loop(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  r = eliminate_infinite_loop(cfg, dom, curr, bb_id, func);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
       fmt::println("12");
     }
-    return Res::NeedUpdate;
+    return r;
   }
 
-  if (merge_term_cond(cfg, curr, func, bb_id, is_entry)) {
-    if constexpr (debug) {
+  if (merge_term_cond(cfg, curr)) {
+    if constexpr (debug_print) {
       fmt::println("13");
     }
     return Res::NeedUpdate;
@@ -1189,10 +1241,6 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
       cfg = CFG(func, false);
       dom = Dominators(cfg);
     }
-    // if (!func.verify()) {
-    //   fmt::println("{:cd}", func);
-    //   TODO("fix");
-    // }
   }
   dup_bb_to_args(func);
 }

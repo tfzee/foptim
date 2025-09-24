@@ -1,6 +1,5 @@
 #pragma once
 #include "../func.hpp"
-#include "ir/instruction_data.hpp"
 #include "mir/analysis/cfg.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
@@ -11,16 +10,13 @@ namespace foptim::fmir {
 class CopyPropagation {
   void apply_impl(MFunc &func) {
     CFG cfg{func};
-    LiveVariables live{cfg, func};
     TVec<ArgData> w_args;
     TVec<ArgData> helper;
     helper.reserve(4);
     w_args.reserve(4);
-    TVec<size_t> dead_instrs;
 
     for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
       auto &bb = func.bbs[bb_id];
-      dead_instrs.clear();
 
       for (size_t instr_idp1 = bb.instrs.size(); instr_idp1 > 0; instr_idp1--) {
         const auto instr_id = instr_idp1 - 1;
@@ -36,13 +32,13 @@ class CopyPropagation {
         auto output_arg = bb.instrs[instr_id].args[0];
         auto input_arg = bb.instrs[instr_id].args[1];
         const auto target_uid = reg_to_uid(output_arg.reg);
-        const auto input_uid = reg_to_uid(input_arg.reg);
-        if (!live._liveOut[bb_id][input_uid]) {
-          // we only do it if the argument was live anyway so its free since
-          //  we dont extend its lifetime
-          // TODO: would also check other lifetime extensions stuff
-          continue;
-        }
+        // const auto input_uid = reg_to_uid(input_arg.reg);
+        // if (!live._liveOut[bb_id][input_uid]) {
+        // we only do it if the argument was live anyway so its free since
+        //  we dont extend its lifetime
+        // TODO: would also check other lifetime extensions stuff
+        // continue;
+        // }
 
         while (true) {
           // if we have some move we check each next use if we can propagate our
@@ -109,9 +105,11 @@ class CopyPropagation {
   }
 
  public:
-  void apply(MFunc &func) { apply_impl(func); }
-  void apply(FVec<MFunc> &funcs) {
+  void apply(MFunc &func) {
     ZoneScopedNC("CopyProp", COLOR_OPTIMF);
+    apply_impl(func);
+  }
+  void apply(FVec<MFunc> &funcs) {
     for (auto &func : funcs) {
       apply(func);
     }

@@ -1,7 +1,8 @@
-#include "live_variables.hpp"
+#include <deque>
 
 #include "ir/basic_block_ref.hpp"
-#include "utils/arena.hpp"
+#include "live_variables.hpp"
+#include "utils/bitset.hpp"
 
 namespace foptim::optim {
 

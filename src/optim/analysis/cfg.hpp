@@ -1,12 +1,10 @@
 #pragma once
-#include <deque>
+#include <algorithm>
 
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
-#include "utils/arena.hpp"
-#include "utils/bitset.hpp"
 
 namespace foptim::optim {
 
@@ -16,10 +14,6 @@ class CFG {
     fir::BasicBlock bb;
     TVec<u32> pred;
     TVec<u32> succ;
-  };
-  enum class IterRes {
-    None = 0,
-    Changed = 1,
   };
 
   TVec<Node> bbrs;
@@ -49,25 +43,15 @@ class CFG {
 
   void update(fir::Function &func, bool reverse) {
     ZoneScopedNC("CFG UPDATE", COLOR_ANALY);
-    auto n_bbs = func.n_bbs();
     entry = 0;
 
-    if (bbrs.size() >= n_bbs) {
-      entry = 0;
-      for (size_t i = 0; i < n_bbs; i++) {
-        bbrs[i].bb = func.basic_blocks[i];
-        bbrs[i].pred.clear();
-        bbrs[i].succ.clear();
+    bbrs.clear();
+    bbrs.reserve(func.n_bbs());
+    for (auto &bb : func.get_bbs()) {
+      if (bb == func.get_entry()) {
+        entry = bbrs.size();
       }
-    } else {
-      bbrs.clear();
-      bbrs.reserve(func.n_bbs());
-      for (auto &bb : func.get_bbs()) {
-        if (bb == func.get_entry()) {
-          entry = bbrs.size();
-        }
-        bbrs.push_back(Node{.bb = bb, .pred = {}, .succ = {}});
-      }
+      bbrs.push_back(Node{.bb = bb, .pred = {}, .succ = {}});
     }
 
     const auto &bbs = func.get_bbs();
@@ -97,6 +81,29 @@ class CFG {
     }
   }
 
+  /* updates bb_id so its succ points to its old succ + others succ aswell as
+  updating the blocks from other.succ so they have the bb as a pred */
+  void update_merge_succ(u32 bb_id, u32 other) {
+    for (auto s : bbrs[other].succ) {
+      if (std::ranges::contains(bbrs[bb_id].succ, s)) {
+        continue;
+      }
+      bbrs[bb_id].succ.push_back(s);
+      bbrs[s].pred.push_back(bb_id);
+    }
+  }
+  /* Removes all succ from the bb and all the pred from the bbs it previously
+  jumped too acting like the terminator got removed from this bb */
+  void update_delete_term(u32 bb_id) {
+    for (auto s : bbrs[bb_id].succ) {
+      for (size_t predip = bbrs[s].pred.size(); predip > 0; predip--) {
+        if (bbrs[s].pred[predip - 1] == bb_id) {
+          bbrs[s].pred.erase(bbrs[s].pred.begin() + predip - 1);
+        }
+      }
+    }
+  }
+
   void update_delete(u32 bb_id) {
     for (auto &bb : bbrs) {
       for (size_t predip = bb.pred.size(); predip > 0; predip--) {
@@ -115,36 +122,6 @@ class CFG {
       }
     }
     bbrs.erase(bbrs.begin() + bb_id);
-  }
-
-  template <class T>
-  constexpr void postorder(T &&functor) {
-    std::deque<u32, utils::TempAlloc<u32>> queue{entry};
-    utils::BitSet set{bbrs.size(), false};
-    set[entry].set(true);
-
-    while (!queue.empty()) {
-      auto next = queue.front();
-      for (auto child : bbrs[next].succ) {
-        if (!set[child]) {
-          queue.push_back(child);
-          set[child].set(true);
-        }
-      }
-      // skip if one got invalidated
-      if (next < bbrs.size() && bbrs[next].bb.is_valid()) {
-        auto res = functor(bbrs[next]);
-        // TODO: handle this
-        if (res == CFG::IterRes::Changed) {
-          update(*func, is_reversed);
-          set.reset(false);
-          queue.clear();
-          queue.push_back(entry);
-          continue;
-        }
-      }
-      queue.pop_front();
-    }
   }
 };
 

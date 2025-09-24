@@ -557,8 +557,65 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
   auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
+  auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                      (u32)fir::BinaryInstrSubType::And};
+  auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                     (u32)fir::BinaryInstrSubType::Or};
   auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
   auto CondBranchNode = Node{NodeType::Instr, InstrType::CondBranchInstr, 0};
+
+  pats.push_back(Pattern{
+      .nodes = {AndNode, CondBranchNode},
+      .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto and_instr = res.matched_instrs[0];
+        auto branch_instr = res.matched_instrs[1];
+        auto &bb_with_args = branch_instr->bbs[0];
+        auto target_bb = branch_instr->bbs[0].bb;
+        {
+          auto v1 = valueToArg(and_instr->args[0], res.result, data.alloc);
+          auto v2 = valueToArg(and_instr->args[1], res.result, data.alloc);
+          ASSERT(bb_with_args.args.size() == target_bb->args.size());
+          generate_bb_args(bb_with_args, res, data);
+          res.result.push_back(
+              MInstr::cJmp_and(v1, v2, data.bbs[bb_with_args.bb]));
+        }
+        {
+          auto bb2_with_args = branch_instr->bbs[1];
+          auto target_bb2 = branch_instr->bbs[1].bb;
+          ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
+          // ASSERT(bb2_with_args.args.size() == 0);
+          generate_bb_args(bb2_with_args, res, data);
+          res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {OrNode, CondBranchNode},
+      .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto or_instr = res.matched_instrs[0];
+        auto branch_instr = res.matched_instrs[1];
+        auto &bb_with_args = branch_instr->bbs[0];
+        auto target_bb = branch_instr->bbs[0].bb;
+        {
+          auto v1 = valueToArg(or_instr->args[0], res.result, data.alloc);
+          auto v2 = valueToArg(or_instr->args[1], res.result, data.alloc);
+          ASSERT(bb_with_args.args.size() == target_bb->args.size());
+          generate_bb_args(bb_with_args, res, data);
+          res.result.push_back(
+              MInstr::cJmp_or(v1, v2, data.bbs[bb_with_args.bb]));
+        }
+        {
+          auto bb2_with_args = branch_instr->bbs[1];
+          auto target_bb2 = branch_instr->bbs[1].bb;
+          ASSERT(bb2_with_args.args.size() == target_bb2->args.size());
+          // ASSERT(bb2_with_args.args.size() == 0);
+          generate_bb_args(bb2_with_args, res, data);
+          res.result.push_back(MInstr::jmp(data.bbs[bb2_with_args.bb]));
+        }
+        return true;
+      }});
 
   pats.push_back(Pattern{
       .nodes = {ICMPNode, CondBranchNode},

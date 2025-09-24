@@ -52,6 +52,8 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GJumpSubtype, fcmp_ult);
         ReturnString(GJumpSubtype, fcmp_ule);
         ReturnString(GJumpSubtype, fcmp_une);
+        ReturnString(GJumpSubtype, cjmp_and);
+        ReturnString(GJumpSubtype, cjmp_or);
         ReturnString(GJumpSubtype, cjmp_int_slt);
         ReturnString(GJumpSubtype, cjmp_int_sge);
         ReturnString(GJumpSubtype, cjmp_int_sle);
@@ -216,6 +218,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GJumpSubtype::cjmp_flt_ult:
         case GJumpSubtype::cjmp_flt_ule:
         case GJumpSubtype::cjmp_flt_une:
+        case GJumpSubtype::cjmp_and:
+        case GJumpSubtype::cjmp_or:
         case GJumpSubtype::cjmp:
         case GJumpSubtype::jmp:
           return;
@@ -427,6 +431,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GJumpSubtype::cjmp_flt_ult:
         case GJumpSubtype::cjmp_flt_ule:
         case GJumpSubtype::cjmp_flt_une:
+        case GJumpSubtype::cjmp_and:
+        case GJumpSubtype::cjmp_or:
           out.push_back({0, instr.args[0]});
           out.push_back({1, instr.args[1]});
           return;
@@ -591,6 +597,8 @@ bool MInstr::is_control_flow(GOpcode c, u32 sop) {
         case GJumpSubtype::cjmp_flt_ult:
         case GJumpSubtype::cjmp_flt_ule:
         case GJumpSubtype::cjmp_flt_une:
+        case GJumpSubtype::cjmp_and:
+        case GJumpSubtype::cjmp_or:
         case GJumpSubtype::cjmp:
         case GJumpSubtype::jmp:
           return true;

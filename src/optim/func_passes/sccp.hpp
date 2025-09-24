@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <deque>
 
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -11,7 +12,6 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
-#include "utils/arena.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
