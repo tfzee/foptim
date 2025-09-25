@@ -529,6 +529,22 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         return;
       }
     }
+    if (instr->subtype == (u32)BinaryInstrSubType::Xor && c_val->is_int() &&
+        c_val->as_int() == 1 && instr->args[v_idx].is_instr()) {
+      auto arg0 = instr->args[v_idx].as_instr();
+      if (arg0->is(InstrType::ZExt) && arg0->args[0].get_type()->is_int() &&
+          arg0->args[0].get_type()->as_int() == 1) {
+        fir::Builder bu{instr};
+        auto r = bu.build_unary_op(arg0->args[0], UnaryInstrSubType::Not);
+        auto res = bu.build_zext(r, arg0->get_type());
+        worklist.push_back({r.as_instr(), r.as_instr()->get_parent()});
+        worklist.push_back({res.as_instr(), res.as_instr()->get_parent()});
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+        instr.destroy();
+        return;
+      }
+    }
 
     if ((instr->is(BinaryInstrSubType::Shl) ||
          instr->is(BinaryInstrSubType::Shr)) &&
@@ -955,7 +971,8 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       TODO("IMPL");
     }
 
-    auto bitwidth = std::max(c1->type->as_int(), c2->type->as_int());
+    auto bitwidth =
+        std::max(c1->type->get_bitwidth(), c2->type->get_bitwidth());
     auto mask = ((i128)1 << bitwidth) - 1;
     auto rest_width = (128 - bitwidth);
     v1 = ((v1 & mask) << rest_width) >> rest_width;
@@ -1814,9 +1831,15 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                                       negated ? fir::IntrinsicSubType::SMax
                                               : fir::IntrinsicSubType::SMin);
           break;
+        case fir::ICmpInstrSubType::EQ:
+          if (positive && !icmp->args[0].is_constant()) {
+            new_val = icmp->args[0];
+            break;
+          }
         default:
-          fmt::print("{}", icmp);
-          fmt::print("{}", instr);
+          fmt::println("{:cd}", icmp);
+          fmt::println("{:cd}", instr);
+          fmt::println("POS:{}  NEG:{}", positive, negated);
           TODO("okak");
           break;
       }
@@ -1992,6 +2015,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   // TODO: could also maybe figure out cases where we can convert everything
   // into higher bitwidth
   (void)ctx;
+  auto iszext = instr->is(fir::InstrType::ZExt);
   if (instr->args[0].get_type() == instr.get_type()) {
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[0]);
@@ -2001,7 +2025,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant()->as_int();
     push_all_uses(worklist, instr);
-    if (instr->is(fir::InstrType::ZExt)) {
+    if (iszext) {
       auto mask = ((u128)1 << instr->args[0].get_type()->get_bitwidth()) - 1;
       instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
           std::bit_cast<i128>(c & mask), instr->get_type())});
@@ -2012,7 +2036,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return;
   }
-  if (instr->is(fir::InstrType::ZExt) && instr->args[0].is_instr() &&
+  if (iszext && instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::ITrunc)) {
     // a -> tr -> b
     auto trunc = instr->args[0].as_instr();
@@ -2038,7 +2062,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return;
   }
-  if ((instr->is(fir::InstrType::SExt) || instr->is(fir::InstrType::ZExt)) &&
+  if ((instr->is(fir::InstrType::SExt) || iszext) &&
       instr->args[0].is_instr()) {
     auto argi = instr->args[0].as_instr();
     if (argi->is(fir::InstrType::ZExt)) {
@@ -2052,7 +2076,6 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
         return;
       }
     }
-    auto iszext = instr->is(fir::InstrType::ZExt);
     auto is_non_overflowing = (argi->NSW && !iszext) || (argi->NUW && iszext);
     if (argi->is(fir::BinaryInstrSubType::And) ||
         argi->is(fir::BinaryInstrSubType::Or) ||
@@ -2338,6 +2361,71 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     auto bb = fir::Builder{instr};
     auto new_comp =
         bb.build_int_cmp(old_icmp->args[0], old_icmp->args[1], new_subtype);
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(new_comp);
+    instr.destroy();
+    return;
+  }
+  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
+      instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::InstrType::FCmp)) {
+    push_all_uses(worklist, instr);
+    auto old_fcmp = instr->args[0].as_instr();
+    auto new_subtype = fir::FCmpInstrSubType::INVALID;
+    switch ((fir::FCmpInstrSubType)old_fcmp->subtype) {
+      case fir::FCmpInstrSubType::OEQ:
+        new_subtype = fir::FCmpInstrSubType::ONE;
+        break;
+      case fir::FCmpInstrSubType::OGT:
+        new_subtype = fir::FCmpInstrSubType::OLE;
+        break;
+      case fir::FCmpInstrSubType::OGE:
+        new_subtype = fir::FCmpInstrSubType::OLT;
+        break;
+      case fir::FCmpInstrSubType::OLT:
+        new_subtype = fir::FCmpInstrSubType::OGE;
+        break;
+      case fir::FCmpInstrSubType::OLE:
+        new_subtype = fir::FCmpInstrSubType::OGT;
+        break;
+      case fir::FCmpInstrSubType::ONE:
+        new_subtype = fir::FCmpInstrSubType::OEQ;
+        break;
+      case fir::FCmpInstrSubType::UEQ:
+        new_subtype = fir::FCmpInstrSubType::UNE;
+        break;
+      case fir::FCmpInstrSubType::UGT:
+        new_subtype = fir::FCmpInstrSubType::ULE;
+        break;
+      case fir::FCmpInstrSubType::UGE:
+        new_subtype = fir::FCmpInstrSubType::ULT;
+        break;
+      case fir::FCmpInstrSubType::ULT:
+        new_subtype = fir::FCmpInstrSubType::UGE;
+        break;
+      case fir::FCmpInstrSubType::ULE:
+        new_subtype = fir::FCmpInstrSubType::UGT;
+        break;
+      case fir::FCmpInstrSubType::UNE:
+        new_subtype = fir::FCmpInstrSubType::UEQ;
+        break;
+      case fir::FCmpInstrSubType::AlwFalse:
+        new_subtype = fir::FCmpInstrSubType::AlwTrue;
+        break;
+      case fir::FCmpInstrSubType::AlwTrue:
+        new_subtype = fir::FCmpInstrSubType::AlwFalse;
+        break;
+      case fir::FCmpInstrSubType::ORD:
+      case fir::FCmpInstrSubType::UNO:
+      case fir::FCmpInstrSubType::IsNaN:
+      case fir::FCmpInstrSubType::INVALID:
+        break;
+    }
+    ASSERT(new_subtype != fir::FCmpInstrSubType::INVALID);
+
+    auto bb = fir::Builder{instr};
+    auto new_comp =
+        bb.build_float_cmp(old_fcmp->args[0], old_fcmp->args[1], new_subtype);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_comp);
     instr.destroy();

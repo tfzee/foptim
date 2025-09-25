@@ -1,8 +1,5 @@
 #pragma once
-#include <algorithm>
-
 #include "../function_pass.hpp"
-#include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"

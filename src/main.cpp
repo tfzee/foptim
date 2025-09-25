@@ -23,6 +23,7 @@
 #include "mir/optim/lvn.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
+#include "optim/func_passes/cmp_known_val_prop.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/double_load.hpp"
@@ -152,10 +153,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
                                          ArgPromotion, GDCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
-      DCE, SimplifyCFG, TailRecElim, LICM, LoopRotate, LoopSimplify, DCE,
-      SLPVectorizer, LVN, SCCP, InstSimplify, DoubleLoadElim, DCE, SimplifyCFG,
-      StackKnownBits, SORA, Mem2Reg, SimplifyCFG, DCE, LVN, InstSimplify,
-      ConstLoopEval, LoopSimplify, InstSimplify, SimplifyCFG>{}
+      DCE, CmpKnownValProp, SimplifyCFG, TailRecElim, LICM, LoopRotate,
+      LoopSimplify, DCE, SLPVectorizer, LVN, SCCP, InstSimplify, DoubleLoadElim,
+      DCE, SimplifyCFG, StackKnownBits, SORA, Mem2Reg, SimplifyCFG, DCE, LVN,
+      InstSimplify, ConstLoopEval, LoopSimplify, InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
   // fmt::println("{:cd}", ctx);
   foptim::optim::StaticModulePassManager<
@@ -163,9 +164,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       ArgPromotion, GDCE, FunctionDeDup<true>, GDCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
-      InstSimplify, SimplifyCFG, LICM, DCE, LoopSimplify, LoopUnroll,
-      SimplifyCFG, DCE, SLPVectorizer, LVN, SCCP, IntrinSimplify, InstSimplify,
-      ConstLoopEval, InstSimplify, SimplifyCFG, DCE>{}
+      CmpKnownValProp, InstSimplify, SimplifyCFG, LICM, DCE, LoopSimplify,
+      LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, LVN, SCCP, IntrinSimplify,
+      InstSimplify, ConstLoopEval, InstSimplify, CmpKnownValProp, SimplifyCFG,
+      DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<
       FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
@@ -183,8 +185,8 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       Inline<>, Inline<>, GDCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
-      LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, InstSimplify, SimplifyCFG,
-      SCCP, DCE, LVN, InstSimplify, DCE>{}
+      LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, InstSimplify,
+      CmpKnownValProp, SimplifyCFG, SCCP, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<
       FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>, GDCE, IPCP>{}
