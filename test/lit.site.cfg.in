@@ -7,15 +7,6 @@ for envvar in os.environ:
     config.environment[envvar] = os.environ[envvar]
     continue
 
-# LLVM toolchain:
-# config.clang_cpp = "@CUSAN_CLANGCXX_EXEC@"
-# config.clang = "@CUSAN_CLANG_EXEC@"
-# config.opt = "@CUSAN_OPT_EXEC@"
-# config.opt_args = "@CUSAN_OPT_ARGS@"
-# config.llc = "@CUSAN_LLC_EXEC@"
-# config.filecheck = "@CUSAN_FILECHECK_EXEC@"
-# config.mpiexec="@MPIEXEC@"
-
 config.foptim_bin_dir="@CMAKE_BINARY_DIR@"
 config.foptim_src_dir="@CMAKE_SOURCE_DIR@"
 

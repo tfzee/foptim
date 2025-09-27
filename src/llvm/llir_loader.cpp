@@ -335,6 +335,11 @@ void convert_call(const llvm::Instruction *any_instr,
                   foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
                   V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   foptim::TVec<foptim::fir::ValueR> args = {};
+  if (const auto *c = call_instr->getCalledFunction()) {
+    if (c->getName().starts_with("llvm.experimental.noalias.scope.decl")) {
+      return;
+    }
+  }
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {
     auto *arg = call_instr->getOperand(i);
     auto arg_foptim =
@@ -1127,7 +1132,7 @@ void generate_fexp(foptim::fir::Context &fctx) {
                                                       func_ty)});
 }
 
-void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
+bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
                   V2VMap &valueToValue, llvm::Module &mod) {
   if (func.getName().starts_with("llvm.memset")) {
     generate_memset(fctx);
@@ -1141,6 +1146,9 @@ void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     generate_fexp(fctx);
   } else if (func.getName().starts_with("llvm.memmove")) {
     generate_memmove(fctx);
+  } else if (func.getName().starts_with(
+                 "llvm.experimental.noalias.scope.decl")) {
+    return false;
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(
@@ -1151,6 +1159,7 @@ void convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
   const auto foff_func = fctx->get_function(func_name.c_str());
   const auto func_ptr = fctx->get_constant_value(foff_func);
   valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
+  return true;
 }
 
 void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
@@ -1162,7 +1171,9 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   foptim::IRString func_name = func.getName().str().c_str();
 
   if (func.empty()) {
-    convert_decl(func, fctx, valueToValue, mod);
+    if (!convert_decl(func, fctx, valueToValue, mod)) {
+      return;
+    }
   } else {
     auto foff_ftype = convert_type(func.getFunctionType(), fctx, mod);
     auto foff_func = fctx->create_function(func_name, foff_ftype);

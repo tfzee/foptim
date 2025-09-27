@@ -348,6 +348,10 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
         (ConversionSubType)ptr_instr->subtype == ConversionSubType::IntToPtr) {
       return StackOffsetResult::UnknownLocal;
     }
+    if (ptr_instr->is(fir::InstrType::ExtractValue)) {
+      return StackOffsetResult::UnknownLocal;
+    }
+
     if (ptr_instr->is(fir::InstrType::SelectInstr)) {
       u64 sub0_offset = 0;
       auto sub0_result =

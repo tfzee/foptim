@@ -158,7 +158,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       DCE, SimplifyCFG, StackKnownBits, SORA, Mem2Reg, SimplifyCFG, DCE, LVN,
       InstSimplify, ConstLoopEval, LoopSimplify, InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
-  // fmt::println("{:cd}", ctx);
   foptim::optim::StaticModulePassManager<
       FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
       ArgPromotion, GDCE, FunctionDeDup<true>, GDCE>{}
@@ -204,20 +203,12 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LVN, InstSimplify, SCCP, DCE, LVN, InstSimplify, SimplifyCFG, DCE,
       LegalizeVecs>{}
       .apply(ctx, shed);
-  // foptim::optim::StaticModulePassManager<FunctionDeDup<false>, GDCE>{}.apply(
-  //     ctx, shed);
-  for (auto &[_, f] : ctx->storage.functions) {
-    //   if (f->name ==
-    //           "_ZN9benchmark10accumulateISt16reverse_iteratorIS1_IN9__gnu_cxx17__"
-    //           "normal_iteratorIPdSt6vectorIdSaIdEEEEEEdEET0_T_SC_SB_MODIPCP"
-    //           ||
-    //       f->name ==
-    //           "_ZSteqISt16reverse_iteratorIN9__gnu_cxx17__normal_"
-    //           "iteratorIPdSt6vectorIdSaIdEEEEEEbRKS0_IT_ESC_") {
-    fmt::println("{:cd}", *f);
-    //   }
-  }
   ASSERT(ctx->verify());
+  // for (auto &[_, f] : ctx->storage.functions) {
+  // if (f->name == "_Z6actionv") {
+  // fmt::println("{:cd}", *f);
+  // }
+  // }
   // TODO("okak");
   fmt::print("================FIR END====================\n");
 }

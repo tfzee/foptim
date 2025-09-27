@@ -94,6 +94,7 @@ add_library (foptim OBJECT
                 ./src/optim/func_passes/stack_known_bits.cpp
                 ./src/optim/func_passes/simple_vectorize.cpp
                 ./src/optim/module_passes/function_dedup.cpp
+                ./src/optim/module_passes/IPCP.cpp
                 ./src/optim/helper/inline.cpp
                 ./src/optim/helper/helper.cpp
 

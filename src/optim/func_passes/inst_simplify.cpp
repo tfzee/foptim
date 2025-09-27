@@ -608,13 +608,6 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         instr.destroy();
         return;
       }
-      if (c_val->as_f64() == 0) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value((f64)0.0, instr->get_type())});
-        instr.destroy();
-        return;
-      }
       if (c_val->as_f64() == 1) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[v_idx]);
@@ -1871,6 +1864,12 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                                       negated ? fir::IntrinsicSubType::FMax
                                               : fir::IntrinsicSubType::FMin);
           break;
+        case fir::FCmpInstrSubType::OEQ:
+          if (positive && !fcmp->args[0].is_constant()) {
+            new_val = fcmp->args[0];
+            break;
+          }
+        case fir::FCmpInstrSubType::UEQ:
         case fir::FCmpInstrSubType::OGE:
         case fir::FCmpInstrSubType::OLT:
         case fir::FCmpInstrSubType::OLE:
@@ -1878,11 +1877,10 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         case fir::FCmpInstrSubType::UGE:
         case fir::FCmpInstrSubType::ULT:
         case fir::FCmpInstrSubType::ULE:
-          fmt::print("{:cd}", fcmp);
-          fmt::print("{:cd}", instr);
-          TODO("okak");
         default:
-          break;
+          fmt::println("{:cd}", fcmp);
+          fmt::println("{:cd}", instr);
+          TODO("okak");
       }
       if (!new_val.is_invalid()) {
         push_all_uses(worklist, instr);
@@ -2169,6 +2167,9 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       // sext) but if the itrunc gets multiple uses it wont be propagated
       // and we got issues then
       if (arg->get_n_uses() == 1) {
+        (void)bb;
+        // fmt::println("{:cd}", origin_bb);
+        // fmt::println("{:cd}", bb);
         auto arg_id = origin_bb->get_arg_id(arg);
         for (auto &u : origin_bb->uses) {
           auto user = u.user;
@@ -2176,14 +2177,14 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           auto new_trunc_val = buh.build_itrunc(user->bbs[u.argId].args[arg_id],
                                                 instr->get_type());
           user.replace_bb_arg(u.argId, arg_id, new_trunc_val);
-          fmt::println("{:cd}", user->get_parent());
+          // fmt::println("{:cd}", user->get_parent());
         }
         arg->_type = instr.get_type();
         instr->replace_all_uses(fir::ValueR{arg});
         instr.destroy();
-        fmt::println("{:cd}", origin_bb);
-        fmt::println("{:cd}", bb);
-        TODO("okak");
+        // fmt::println("{:cd}", origin_bb);
+        // fmt::println("{:cd}", bb);
+        // TODO("okak");
         return;
       }
     }

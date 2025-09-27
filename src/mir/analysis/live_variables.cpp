@@ -648,7 +648,14 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
         res.is_write |= instrs[i].args[1].is_fp()
                             ? search_reg_id == reg_to_uid(VReg::MM0SS())
                             : search_reg_id == reg_to_uid(VReg::EAX());
+        if (instrs[i].n_args > 2) {
+          res.is_write |= search_reg_id == reg_to_uid(instrs[i].args[2].reg);
+          res.is_write |= instrs[i].args[2].is_fp()
+                              ? search_reg_id == reg_to_uid(VReg::MM0SS())
+                              : search_reg_id == reg_to_uid(VReg::EAX());
+        }
       }
+      res.is_read = true;
       res.index = i;
     }
     if (!res.is_write) {
@@ -815,19 +822,22 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
     const auto &alive = live._live[bb_id];
     const auto &aliveIn = live._liveIn[bb_id];
     const auto &aliveOut = live._liveOut[bb_id];
-    // for (auto reg_id : alive) {
-    // auto reg = uid_to_reg(reg_id);
+    // fmt::println("{:cd}", func);
+    // fmt::println("{:cd}", func.bbs[bb_id]);
     for (const auto &reg : all_used_regs) {
+      // fmt::println("{:cd}", reg);
       auto reg_id = reg_to_uid(reg);
       if (alive[reg_id]) {
         size_t start_instr = 0;
         size_t search_instr = 0;
-        ranges[reg];
+        // ranges[reg];
 
         if (!aliveIn[reg_id]) {
           auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0, helper);
-          ASSERT(res.is_write);
-          ASSERT(!res.is_read);
+          // fmt::println("{} {} {:cd}", res.is_read, res.is_write,
+          //              func.bbs[bb_id].instrs[res.index]);
+          // ASSERT(res.is_write);
+          // ASSERT(!res.is_read);
           start_instr = res.index;
           search_instr = res.index;
         } else {

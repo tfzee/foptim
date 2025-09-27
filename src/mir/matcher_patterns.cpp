@@ -485,11 +485,12 @@ void memory_patterns(IRVec<Pattern> &pats) {
         // return false;
         auto add_instr = res.matched_instrs[0];
         auto add_ty = convert_type(add_instr.get_type());
-        if (add_ty >= Type::Float32) {
+        auto store_instr = res.matched_instrs[1];
+        if (add_ty >= Type::Float32 || store_instr.get_type()->is_struct()) {
           // cant do it on vector regs
+          // TODO: can do it for structs in theory
           return false;
         }
-        auto store_instr = res.matched_instrs[1];
 
         auto store_ty = convert_type(store_instr.get_type());
         auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
@@ -1444,12 +1445,43 @@ void base_patterns(IRVec<Pattern> &pats) {
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto store_instr = res.matched_instrs[0];
-        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
 
-        auto ptr_target =
-            valueToArgPtr(store_instr->args[0],
-                          convert_type(store_instr.get_type()), data.alloc);
-        ptr_target.ty = convert_type(store_instr.get_type());
+        auto store_ty = store_instr.get_type();
+
+        if (store_ty->is_struct()) {
+          auto ptr_target =
+              valueToArg(store_instr->args[0], res.result, data.alloc);
+          auto helper_indx = data.alloc.get_new_register(ptr_target.ty);
+          auto helper_indx_arg = MArgument{helper_indx, ptr_target.ty};
+          auto stru_ty = store_ty->as_struct();
+          auto args =
+              valueToArgStruct(store_instr->args[1], res.result, data.alloc);
+          res.result.emplace_back(GBaseSubtype::mov, helper_indx_arg,
+                                  ptr_target);
+          for (size_t i = 0; i < stru_ty.elems.size(); i++) {
+            // if (stru_ty.elems[i].offset != 0) {
+            //   res.result.emplace_back(GArithSubtype::add2, helper_indx_arg,
+            //                           stru_ty.elems[i].offset);
+            // }
+            res.result.emplace_back(
+                GBaseSubtype::mov,
+                MArgument::MemOB(stru_ty.elems[i].offset, helper_indx,
+                                 convert_type(stru_ty.elems[i].ty)),
+                args[i]);
+          }
+          // fmt::println("{}", store_instr);
+          // for (auto &b : res.result) {
+          //   fmt::println("{:cd}", b);
+          // }
+          // TODO("impl");
+          return true;
+        }
+        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
+        auto ptr_target = valueToArgPtr(
+            store_instr->args[0], convert_type(store_instr->args[0].get_type()),
+            data.alloc);
+
+        ptr_target.ty = convert_type(store_ty);
         res.result.emplace_back(GBaseSubtype::mov, ptr_target, value);
         return true;
       }});

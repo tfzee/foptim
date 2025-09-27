@@ -1,6 +1,7 @@
 build/
 compile_commands.json
 test/Output/
+__pycache__/
 .cache/
 .direnv/
 **/.lit_test_times.txt

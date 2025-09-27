@@ -47,11 +47,19 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
       int_version = Type::Int64;
       break;
   }
+  auto old_arg = bb.instrs[indx].args[arg_id];
+  auto new_float_reg = get_reg(ty);
+  ASSERT(old_arg.isImm());
+  if (std::bit_cast<u64>(old_arg.immf) == 0) {
+    bb.instrs[indx].args[arg_id] = new_float_reg;
+    bb.instrs.insert(
+        bb.instrs.begin() + indx,
+        MInstr{GVecSubtype::fxor, new_float_reg, new_float_reg, new_float_reg});
+    return indx + 1;
+  }
+
   ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
-  auto new_float_reg = get_reg(ty);
-  auto old_arg = bb.instrs[indx].args[arg_id];
-  ASSERT(old_arg.isImm());
   // Update the type since it is a constant and its type might be bigger
   old_arg.ty = ty;
   bb.instrs[indx].args[arg_id] = new_float_reg;
@@ -91,6 +99,9 @@ u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
   ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
   auto old_arg = bb.instrs[indx].args[arg_id];
+  if (old_arg.immf == 0) {
+    bb.instrs[indx].args[arg_id] = new_int_reg;
+  }
   ASSERT(old_arg.isImm());
   bb.instrs[indx].args[arg_id] = new_int_reg;
   bb.instrs.insert(bb.instrs.begin() + indx,
@@ -271,14 +282,15 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   if (instr.args[0].isReg() && instr.args[0].reg.is_vec_reg() &&
       instr.args[1].isImm()) {
     // cant jsut check on == 0 on a floating point
-    //  if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
-    //    instr.op = Opcode::fxor;
-    //    instr.args[1] = instr.args[0];
-    //    instr.args[2] = instr.args[0];
-    //    instr.n_args = 3;
-    //  } else {
-    move_fp_const_to_grp(bb, indx, 1, instr.args[1].ty);
-    // }
+    if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
+      instr.bop = GOpcode::GVec;
+      instr.sop = (u32)GVecSubtype::fxor;
+      instr.args[1] = instr.args[0];
+      instr.args[2] = instr.args[0];
+      instr.n_args = 3;
+    } else {
+      move_fp_const_to_grp(bb, indx, 1, instr.args[1].ty);
+    }
     return true;
   }
 

@@ -39,13 +39,15 @@ class CmpKnownValProp final : public FunctionPass {
       if (cond->args[1].is_instr()) {
         handle_cbranch(cond->args[1].as_instr(), term, cfg, dom, false, true);
       }
-    } else if (useEq && cond->is(fir::ICmpInstrSubType::EQ)) {
+    } else if (useEq && (cond->is(fir::ICmpInstrSubType::EQ) ||
+                         cond->is(fir::FCmpInstrSubType::OEQ))) {
       if (!cond->args[0].is_constant() && cond->args[1].is_constant() &&
           cfg.bbrs[cfg.get_bb_id(term->bbs[0].bb)].pred.size() == 1) {
         propagate(cond->args[0], cond->args[1], term->get_parent(),
                   term->bbs[0].bb, cfg, dom);
       }
-    } else if (useNe && cond->is(fir::ICmpInstrSubType::NE)) {
+    } else if (useNe && (cond->is(fir::ICmpInstrSubType::NE) ||
+                         cond->is(fir::FCmpInstrSubType::ONE))) {
       if (!cond->args[0].is_constant() && cond->args[1].is_constant() &&
           cfg.bbrs[cfg.get_bb_id(term->bbs[1].bb)].pred.size() == 1) {
         propagate(cond->args[0], cond->args[1], term->get_parent(),
