@@ -45,6 +45,8 @@ using B2BMap = foptim::TMap<llvm::BasicBlock *, foptim::fir::BasicBlock>;
 inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                     foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
                     V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b);
+foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
+                                llvm::Module &module);
 
 inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
                                              foptim::fir::Context &fctx,
@@ -97,6 +99,22 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
   if (nullptr != llvm::dyn_cast_or_null<llvm::Function>(value)) {
     return foptim::fir::ValueR(fctx->get_constant_value(
         fctx->get_function(value->getName().str().c_str())));
+  }
+  if (const auto *stru_const =
+          llvm::dyn_cast_or_null<llvm::ConstantStruct>(value)) {
+    stru_const->dump();
+    auto res_ty = convert_type(stru_const->getType(), fctx, mod);
+    auto res_ty_stru = res_ty->as_struct();
+    auto ress = foptim::fir::ValueR{fctx->get_poisson_value(res_ty)};
+    foptim::fir::ValueR index_v[1];
+    for (size_t arg_id = 0; arg_id < res_ty_stru.elems.size(); arg_id++) {
+      auto *v = stru_const->getOperand(arg_id);
+      auto v_res =
+          convert_instr_arg(v, fctx, ffunc, builder, valueToValue, mod, b2b);
+      index_v[0] = foptim::fir::ValueR{fctx->get_constant_int(arg_id, 32)};
+      ress = builder.build_insert_value(ress, v_res, index_v, res_ty);
+    }
+    return ress;
   }
   if (const auto *undef_constant =
           llvm::dyn_cast_or_null<llvm::UndefValue>(value)) {
