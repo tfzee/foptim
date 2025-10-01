@@ -794,14 +794,15 @@ void arith_patterns(IRVec<Pattern> &pats) {
 
         auto c = cc->as_int();
         auto out_type = convert_type(div_instr->get_type());
-        if (get_size(out_type) != 4) {
-          return false;
-        }
         switch (c) {
           default:
             fmt::println("OPTIMIZE SDIV ?? x/{}", c);
             return false;
           case 2: {
+            // TODO: is that right??
+            if (get_size(out_type) != 4) {
+              return false;
+            }
             auto res_reg =
                 valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
             auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
@@ -819,24 +820,34 @@ void arith_patterns(IRVec<Pattern> &pats) {
                                     MArgument((u8)1));
             break;
           }
-          case 8: {
+          case 4:
+          case 8:
+          case 16:
+          case 32:
+          case 64:
+          case 128: {
             auto res_reg =
                 valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
             auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
             // lea eax, [rdi + 7]
             ASSERT(base.isReg());
-            res.result.emplace_back(X86Subtype::lea, res_reg,
-                                    MArgument::MemOB(7, base.reg, out_type));
+            res.result.emplace_back(
+                X86Subtype::lea, res_reg,
+                MArgument::MemOB(c - 1, base.reg, out_type));
             // test edi, edi
             // cmovns eax, edi
             res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
                                     base);
             // sar eax, 3
             res.result.emplace_back(GArithSubtype::sar2, res_reg,
-                                    MArgument((u8)3));
+                                    MArgument((u8)utils::npow2(c)));
             break;
           }
           case 10: {
+            // TODO: is that rightt???
+            if (get_size(out_type) != 4) {
+              return false;
+            }
             auto res_reg32 =
                 valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
             auto res_reg64 = res_reg32;
