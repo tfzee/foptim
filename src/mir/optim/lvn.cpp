@@ -46,7 +46,7 @@ void LVN::apply_impl(MBB &bb) {
     }
     // TODO: just doing +10 to minimize the lifetime extension this causes
     // prob should try some different values (or a better solution)
-    for (size_t i2 = i1 + 1; i2 < i1 + 10; i2++) {
+    for (size_t i2 = i1 + 1; i2 < std::min(i1 + 10, bb.instrs.size()); i2++) {
       auto &in1 = bb.instrs[i1];
       auto &in2 = bb.instrs[i2];
       if (equal_enough(in1, in2)) {

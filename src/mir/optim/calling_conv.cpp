@@ -191,19 +191,19 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
     instrs.insert(instrs.begin() + (i64)start, MInstr{GBaseSubtype::push, arg});
   }
   if (call.n_args >= 2 && !return_value_overwrites_ret_reg) {
-    const auto reg1_ty = call.args[1].is_vec_reg() ? CReg::mm0 : CReg::A;
-    if (is_alive(VReg{reg1_ty}, lives, end, end + 1, bb_id)) {
-      auto arg = MArgument{VReg{reg1_ty, Type::Int64}, Type::Int64};
-      instrs.insert(instrs.begin() + (i64)start,
-                    MInstr{GBaseSubtype::push, arg});
-    }
     if (call.n_args > 2) {
-      const auto reg2_ty = call.args[1].is_vec_reg() ? CReg::mm1 : CReg::D;
+      const auto reg2_ty = call.args[2].is_vec_reg() ? CReg::mm1 : CReg::D;
       if (is_alive(VReg{reg2_ty}, lives, end, end + 1, bb_id)) {
         auto arg = MArgument{VReg{reg2_ty, Type::Int64}, Type::Int64};
         instrs.insert(instrs.begin() + (i64)start,
                       MInstr{GBaseSubtype::push, arg});
       }
+    }
+    const auto reg1_ty = call.args[1].is_vec_reg() ? CReg::mm0 : CReg::A;
+    if (is_alive(VReg{reg1_ty}, lives, end, end + 1, bb_id)) {
+      auto arg = MArgument{VReg{reg1_ty, Type::Int64}, Type::Int64};
+      instrs.insert(instrs.begin() + (i64)start,
+                    MInstr{GBaseSubtype::push, arg});
     }
   }
 }
@@ -265,10 +265,12 @@ std::pair<uint32_t, uint32_t> restore_locals(
     instrs.insert(instrs.begin() + (i64)start,
                   MInstr{GBaseSubtype::mov, call.args[1],
                          MArgument{VReg{ret1_reg_type, ret_type}, ret_type}});
+    n_locals_restored++;
     if (has_double_ret) {
       instrs.insert(instrs.begin() + (i64)start,
                     MInstr{GBaseSubtype::mov, call.args[2],
                            MArgument{VReg{ret2_reg_type, ret_type}, ret_type}});
+      n_locals_restored++;
     }
   }
 
@@ -455,8 +457,7 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   auto n_stack_args = calculate_arg_locations(args, arg_pos);
 
   if ((n_local_bytes_need_saving + n_stack_args) % 2 != 0) {
-    instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_saved +
-                      (call.n_args == 2 ? 1 : 0),
+    instrs.insert(instrs.begin() + (i64)start + (i64)n_locals_saved,
                   MInstr{GArithSubtype::add2,
                          MArgument{VReg::RSP(), Type::Int64}, MArgument{8U}});
   }
