@@ -8,6 +8,57 @@
 
 namespace foptim::optim {
 
+class AlwaysInlineAdvisor {
+  static constexpr bool debug_print = false;
+
+ public:
+  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& /*cfg*/,
+                                       Dominators& /*dom*/) {
+    auto called_func = instr->get_arg(0);
+    auto self_func = instr->get_parent()->get_parent();
+    if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
+      return false;
+    }
+    auto v = called_func.as_constant()->as_func();
+    if (v->is_decl() || v->variadic) {
+      ASSERT(!v->must_inline);
+      return false;
+    }
+    if (debug_print) {
+      fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
+    }
+    switch (v->linkage) {
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+        if (debug_print) {
+          fmt::println("N Bad linkage");
+        }
+        ASSERT(!v->must_inline);
+        return false;
+      case fir::Linkage::Internal:
+      case fir::Linkage::External:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::LinkOnceODR:
+        break;
+    }
+
+    // TODO: impl to hndle this correctly
+    for (auto instr : v->basic_blocks[0]->instructions) {
+      if (instr->is(fir::InstrType::AllocaInstr)) {
+        if (debug_print) {
+          fmt::println("{:cd}", instr);
+          fmt::println("N Alloca");
+        }
+        ASSERT(!v->must_inline);
+        return false;
+      }
+    }
+    if (debug_print) {
+      fmt::println("Y");
+    }
+    return true;
+  }
+};
 class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
