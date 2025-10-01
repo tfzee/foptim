@@ -5,7 +5,7 @@
 
 namespace foptim::fmir {
 
-enum class GOpcode : u32 {
+enum class GOpcode : u8 {
   GBase,
   GJmp,
   GConv,
@@ -391,7 +391,6 @@ class MArgument {
   union {
     u64 imm;
     f64 immf;
-    // f64 imm_d;
   };
   u64 scale;
   VReg reg;
@@ -679,12 +678,17 @@ class MArgument {
 
 class MInstr {
  public:
-  bool has_bb_ref : 1;
-  bool is_var_arg_call : 1 = false;
+  u8 has_bb_ref : 1;
+  u8 is_var_arg_call : 1 = false;
   u8 n_args;
   GOpcode bop;
   u32 sop;
   u32 bb_ref;
+  // TODO: this is quite huge consider moving this into a std::vector or
+  // something similar then
+  //  we could not only keep that instructions smoller but also could support
+  //  var args directly in the instruction + would get rid of extra n_args
+  //  member
   MArgument args[4];
 
   constexpr bool operator==(const MInstr &other) const {
