@@ -13,6 +13,7 @@
 #include "mir/func.hpp"
 #include "mir/legalize_bb_form.hpp"
 #include "mir/matcher.hpp"
+#include "mir/matcher_patterns.hpp"
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/calling_conv.hpp"
 #include "mir/optim/copy_prop.hpp"
@@ -147,16 +148,17 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<DCE>{}.apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeStructs, LLVMInstrinsicLowering, SORA, Mem2Reg, DoubleLoadElim,
-      DCE, InstSimplify, DCE, SimplifyCFG, LVN, DCE>{}
+      DCE, IntrinSimplify, InstSimplify, DCE, SimplifyCFG, LVN, DCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
                                          ArgPromotion, GDCE>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       DCE, CmpKnownValProp, SimplifyCFG, TailRecElim, LICM, LoopRotate,
-      LoopSimplify, DCE, SLPVectorizer, LVN, SCCP, InstSimplify, DoubleLoadElim,
-      DCE, SimplifyCFG, StackKnownBits, SORA, Mem2Reg, SimplifyCFG, DCE, LVN,
-      InstSimplify, ConstLoopEval, LoopSimplify, InstSimplify, SimplifyCFG>{}
+      LoopSimplify, DCE, SLPVectorizer, LVN, SCCP, IntrinSimplify, InstSimplify,
+      DoubleLoadElim, DCE, SimplifyCFG, StackKnownBits, SORA, Mem2Reg,
+      SimplifyCFG, DCE, LVN, InstSimplify, ConstLoopEval, LoopSimplify,
+      InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<
       FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
