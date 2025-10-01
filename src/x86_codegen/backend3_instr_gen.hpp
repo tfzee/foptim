@@ -1205,7 +1205,7 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       return emit(out_buff, 0, &req);
     }
     case fmir::GConvSubtype::UI2FL: {
-      bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+      bool is_f32 = instr.args[0].ty == fmir::Type::Float32;
       req.mnemonic =
           is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS : ZYDIS_MNEMONIC_VCVTUSI2SD;
       ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
