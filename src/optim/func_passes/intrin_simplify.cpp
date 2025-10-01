@@ -1,5 +1,4 @@
 #include "intrin_simplify.hpp"
-
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/helper/helper.hpp"
@@ -17,7 +16,7 @@ static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
   }
   auto size = instr->args[3].as_constant()->as_int();
   // TODO: support vector move
-  if (size > 8) {
+  if (size > 8 && size != 16 && size != 32) {
     return;
   }
   auto dst_ptr = instr->args[1];
@@ -25,22 +24,26 @@ static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
 
   auto input_ty = guessType(src_ptr);
   auto output_ty = guessType(dst_ptr);
-  // fmt::println("{}", instr->parent);
-  // fmt::println("{} {}", input_ty.typeless, output_ty.typeless);
   if ((input_ty.typeless || output_ty.typeless) ||
       (input_ty.type.is_valid() && output_ty.type.is_valid() &&
        input_ty.type->eql(*output_ty.type.get_raw_ptr()))) {
     fir::Builder b{instr};
 
-    auto selected_type =
-        input_ty.type.is_valid()
-            ? input_ty.type
-            : (output_ty.type.is_valid() ? output_ty.type
-                                         : ctx->get_int_type(size * 8));
+    fir::TypeR selected_type;
+    if (size == 32) {
+      selected_type = ctx->get_vec_type(ctx->get_int_type(64), 4);
+    } else if (size == 16) {
+      selected_type = ctx->get_vec_type(ctx->get_int_type(64), 2);
+    } else {
+      selected_type =
+          input_ty.type.is_valid()
+              ? input_ty.type
+              : (output_ty.type.is_valid() ? output_ty.type
+                                           : ctx->get_int_type(size * 8));
+    }
     auto input = b.build_load(selected_type, src_ptr);
     b.build_store(dst_ptr, input);
     instr.destroy();
-    // fmt::println("Simplify");
     return;
   }
 }
