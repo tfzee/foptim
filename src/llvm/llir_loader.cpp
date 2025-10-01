@@ -1515,8 +1515,8 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::Function>(val)) {
     size_t reloc_off = output - glob->init_value;
-    llvm::errs() << "getting func" << (int)valueToValue.contains(d) << " "
-                 << d->getName() << "\n";
+    // llvm::errs() << "getting func" << (int)valueToValue.contains(d) << " "
+    //              << d->getName() << "\n";
     foptim::fir::ConstantValueR reloc_ref = valueToValue.at(d).as_constant();
     glob->reloc_info.push_back({reloc_off, reloc_ref});
     return;

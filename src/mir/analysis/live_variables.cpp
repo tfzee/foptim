@@ -641,8 +641,6 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
   for (auto i = start_instr; i < instrs.size(); i++) {
     if (instrs[i].is(GBaseSubtype::call) ||
         instrs[i].is(GBaseSubtype::invoke)) {
-      // TODO: this could be more specific since certain CCs can only read/write
-      // certain args legaly
       if (instrs[i].n_args > 1) {
         res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
         res.is_write |= instrs[i].args[1].is_fp()
@@ -655,9 +653,34 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
                               : search_reg_id == reg_to_uid(VReg::EAX());
         }
       }
-      res.is_read = true;
-      res.index = i;
+      if (res.is_write) {
+        res.index = i;
+      }
+      if (instrs[i].args[0].isReg() &&
+          reg_to_uid(instrs[i].args[0].reg) == search_reg_id) {
+        res.is_read = true;
+        res.index = i;
+      }
     }
+    // if () {
+    //   // TODO: this could be more specific since certain CCs can only
+    //   // read/write
+    //   // certain args legaly
+    //   if (instrs[i].n_args > 1) {
+    //     res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
+    //     res.is_write |= instrs[i].args[1].is_fp()
+    //                         ? search_reg_id == reg_to_uid(VReg::MM0SS())
+    //                         : search_reg_id == reg_to_uid(VReg::EAX());
+    //     if (instrs[i].n_args > 2) {
+    //       res.is_write |= search_reg_id == reg_to_uid(instrs[i].args[2].reg);
+    //       res.is_write |= instrs[i].args[2].is_fp()
+    //                           ? search_reg_id == reg_to_uid(VReg::MM0SS())
+    //                           : search_reg_id == reg_to_uid(VReg::EAX());
+    //     }
+    //   }
+    //   res.is_read = true;
+    //   res.index = i;
+    // }
     if (!res.is_write) {
       args_temp.clear();
       written_args(instrs[i], args_temp);
