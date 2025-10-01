@@ -389,11 +389,17 @@ class SCCP final : public FunctionPass {
             return ConstantValue::Constant(ctx->get_constant_value(
                 static_cast<i64>(a.value->as_f64()), instr->get_type()));
           case fir::ConversionSubType::UITOFP:
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<f64>(a.value->as_int()), instr->get_type()));
           case fir::ConversionSubType::SITOFP:
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<f64>(a.value->as_int()), instr->get_type()));
+            switch (instr->get_type()->as_float()) {
+              case 32:
+                return ConstantValue::Constant(ctx->get_constant_value(
+                    static_cast<f32>(a.value->as_int()), instr->get_type()));
+              case 64:
+                return ConstantValue::Constant(ctx->get_constant_value(
+                    static_cast<f64>(a.value->as_int()), instr->get_type()));
+              default:
+                IMPL("dont suport other bitwidths");
+            }
           case fir::ConversionSubType::PtrToInt:
           case fir::ConversionSubType::IntToPtr:
             return ConstantValue::Constant(ctx->get_constant_value(
