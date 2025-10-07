@@ -21,8 +21,20 @@ class LiveVariables {
 };
 
 size_t max_vreg_id(const MFunc &func);
-VReg uid_to_reg(size_t id);
-size_t reg_to_uid(VReg r);
+constexpr size_t reg_to_uid(VReg r) {
+  if (r.is_concrete()) {
+    return (size_t)r.c_reg() - 1;
+  }
+  return (size_t)CReg::N_REGS + r.virt_id();
+}
+
+constexpr VReg uid_to_reg(size_t id) {
+  if (id + 1 < (size_t)CReg::N_REGS) {
+    return VReg{(CReg)(id + 1)};
+  }
+  return VReg{id - (size_t)CReg::N_REGS};
+}
+
 inline bool uid_is_concrete(size_t id) { return id + 1 < (size_t)CReg::N_REGS; }
 // VReg uid_to_reg(size_t r);
 void update_def(const MInstr &instr, utils::BitSet<> &def);
@@ -36,7 +48,8 @@ struct NextUseResult {
 // args_temp is just a helper to reduce number of number of allocations when
 // repeated calls to this function
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
-                            size_t start_inst, TVec<ArgData> &args_tempr);
+                            size_t start_inst, TVec<ArgData> &args_tempr,
+                            size_t max_search_index = 0);
 
 // LINEAR LIFETIMES AFTER
 

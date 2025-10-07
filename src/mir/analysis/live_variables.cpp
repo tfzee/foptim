@@ -44,20 +44,6 @@ size_t max_vreg_id(const MFunc &func) {
   return unique_reg_id;
 }
 
-size_t reg_to_uid(VReg r) {
-  if (r.is_concrete()) {
-    return (size_t)r.c_reg() - 1;
-  }
-  return (size_t)CReg::N_REGS + r.virt_id();
-}
-
-VReg uid_to_reg(size_t id) {
-  if (id + 1 < (size_t)CReg::N_REGS) {
-    return VReg{(CReg)(id + 1)};
-  }
-  return VReg{id - (size_t)CReg::N_REGS};
-}
-
 void update_def(const MInstr &instr, utils::BitSet<> &def) {
   switch (instr.bop) {
     case GOpcode::GBase:
@@ -65,12 +51,19 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GBaseSubtype::INVALID:
           return;
         case GBaseSubtype::mov:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          return;
         case GBaseSubtype::pop:
+          def[reg_to_uid(CReg::SP)].set(true);
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
           return;
         case GBaseSubtype::push:
+          def[reg_to_uid(CReg::SP)].set(true);
+          return;
         case GBaseSubtype::call:
         case GBaseSubtype::arg_setup:
         case GBaseSubtype::ret:
@@ -496,6 +489,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
         case GBaseSubtype::call:
         case GBaseSubtype::invoke:
+          uses[reg_to_uid(CReg::SP)].set(true);
           update_uses(instr.args[0], uses);
           if (instr.n_args > 1 && !instr.args[1].isReg()) {
             update_uses(instr.args[1], uses);
@@ -505,11 +499,13 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           }
           return;
         case GBaseSubtype::pop:
+          uses[reg_to_uid(CReg::SP)].set(true);
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }
           return;
         case GBaseSubtype::push:
+          uses[reg_to_uid(CReg::SP)].set(true);
           update_uses(instr.args[0], uses);
           return;
         case GBaseSubtype::ret:
@@ -634,13 +630,27 @@ bool LiveVariables::isAlive(const VReg &reg, size_t bb_id) {
 }
 
 NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
-                            size_t start_instr, TVec<ArgData> &args_temp) {
+                            size_t start_instr, TVec<ArgData> &args_temp,
+                            size_t max_search_index) {
   NextUseResult res{.is_write = false, .is_read = false, .index = 0};
   args_temp.clear();
 
-  for (auto i = start_instr; i < instrs.size(); i++) {
+  size_t end_inde = max_search_index == 0 ? instrs.size() : max_search_index;
+
+  for (auto i = start_instr; i < end_inde; i++) {
+    if (instrs[i].is(GBaseSubtype::push) || instrs[i].is(GBaseSubtype::pop)) {
+      if (search_reg_id == reg_to_uid(CReg::SP)) {
+        res.is_read = true;
+        res.is_write = true;
+        res.index = i;
+      }
+    }
     if (instrs[i].is(GBaseSubtype::call) ||
         instrs[i].is(GBaseSubtype::invoke)) {
+      if (search_reg_id == reg_to_uid(CReg::SP)) {
+        res.is_read = true;
+        res.index = i;
+      }
       if (instrs[i].n_args > 1) {
         res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
         res.is_write |= instrs[i].args[1].is_fp()
