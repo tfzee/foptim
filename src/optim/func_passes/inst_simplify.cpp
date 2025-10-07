@@ -2866,7 +2866,8 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
           } else if (curr.user->is(fir::InstrType::StoreInstr) &&
                      curr.argId == 0) {
             is_written = true;
-          } else if ((curr.user->is(fir::InstrType::BinaryInstr)) ||
+          } else if ((curr.user->is(fir::InstrType::VectorInstr)) ||
+                     (curr.user->is(fir::InstrType::BinaryInstr)) ||
                      (curr.user->is(fir::InstrType::SelectInstr) &&
                       curr.argId != 0)) {
             if (curr.user->is(fir::InstrType::SelectInstr)) {
