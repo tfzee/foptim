@@ -24,6 +24,7 @@
 #include "mir/optim/lvn.hpp"
 #include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
+#include "mir/optim/stack_optim.hpp"
 #include "optim/func_passes/cmp_known_val_prop.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
@@ -328,6 +329,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::RegAlloc{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::CallingConv{}.second_stage(func);
+      foptim::fmir::StackOptim{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::InstSimplify{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
@@ -338,6 +340,11 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     i++;
   }
   shed->wait_till_done();
+  // for (auto &f : funcs) {
+  //   if (f.name == "main") {
+  //     fmt::println("{:cd}", f);
+  //   }
+  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
