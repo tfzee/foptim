@@ -67,15 +67,22 @@ class StackOptim {
             auto has_any_use =
                 find_next_use(bb.instrs, reg_to_uid(i.args[0].reg), i_id + 1,
                               helper, next_use.index);
-            if (has_any_use.index != 0) {
+            bool gets_overwritten =
+                has_any_use.index != 0 && has_any_use.is_write;
+            if (has_any_use.index != 0 ||
+                (has_any_use.is_write && !has_any_use.is_read)) {
               continue;
             }
             utils::StatCollector::get().addi(
                 1, "NStackPopPushElim", utils::StatCollector::StatMirOptim);
             bb.instrs.erase(bb.instrs.begin() + next_use.index);
-            bb.instrs[i_id] =
-                MInstr{GBaseSubtype::mov, i.args[0],
-                       MArgument::MemB(VReg::RSP(), i.args[0].ty)};
+            if (gets_overwritten) {
+              bb.instrs.erase(bb.instrs.begin() + i_id);
+            } else {
+              bb.instrs[i_id] =
+                  MInstr{GBaseSubtype::mov, i.args[0],
+                         MArgument::MemB(VReg::RSP(), i.args[0].ty)};
+            }
             i_id = 0;
             continue;
           }
