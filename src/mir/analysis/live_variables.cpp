@@ -638,7 +638,8 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
   size_t end_inde = max_search_index == 0 ? instrs.size() : max_search_index;
 
   for (auto i = start_instr; i < end_inde; i++) {
-    if (instrs[i].is(GBaseSubtype::push) || instrs[i].is(GBaseSubtype::pop)) {
+    if (instrs[i].is(GBaseSubtype::push) || instrs[i].is(GBaseSubtype::pop) ||
+        instrs[i].is(GBaseSubtype::ret)) {
       if (search_reg_id == reg_to_uid(CReg::SP)) {
         res.is_read = true;
         res.is_write = true;
