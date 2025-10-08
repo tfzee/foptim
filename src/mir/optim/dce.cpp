@@ -58,6 +58,7 @@ bool is_applicable(GOpcode op, u32 sop) {
     case GOpcode::X86:
       switch ((X86Subtype)sop) {
         case X86Subtype::INVALID:
+        case X86Subtype::sqrt:
         case X86Subtype::lea:
         case X86Subtype::vpshuf:
         case X86Subtype::punpckl:

@@ -1693,6 +1693,12 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   (void)proepiloguetype;
   size_t length = 9999;
   switch ((fmir::X86Subtype)instr.sop) {
+    case fmir::X86Subtype::sqrt: {
+      bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+      req.mnemonic = is_f32 ? ZYDIS_MNEMONIC_SQRTSS : ZYDIS_MNEMONIC_SQRTSD;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
     case fmir::X86Subtype::lea:
       req.mnemonic = ZYDIS_MNEMONIC_LEA;
       return emit(out_buff, 0, &req);

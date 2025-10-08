@@ -306,6 +306,7 @@ class KnownBits final : public AttributeAnalysis {
       switch ((fir::UnaryInstrSubType)instr->subtype) {
         case fir::UnaryInstrSubType::INVALID:
           TODO("UNREACH");
+        case fir::UnaryInstrSubType::FloatSqrt:
         case fir::UnaryInstrSubType::FloatNeg:
         case fir::UnaryInstrSubType::IntNeg:
           break;

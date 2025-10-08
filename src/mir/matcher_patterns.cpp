@@ -1375,6 +1375,8 @@ void base_patterns(IRVec<Pattern> &pats) {
                       (u32)fir::BinaryInstrSubType::Shl};
   auto ShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                       (u32)fir::BinaryInstrSubType::Shr};
+  auto FSqrtNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                        (u32)fir::UnaryInstrSubType::FloatSqrt};
   auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::AShr};
   auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
@@ -1576,6 +1578,20 @@ void base_patterns(IRVec<Pattern> &pats) {
                       valueToArg(not_instr->args[0], res.result, data.alloc));
                   res.result.emplace_back(GArithSubtype::not1, res_reg);
                 }
+                return true;
+              }});
+  pats.push_back(
+      Pattern{.nodes = {FSqrtNode},
+              .edges = {},
+              .generator = [](MatchResult &res, ExtraMatchData &data) {
+                auto sqrt_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(sqrt_instr), res.result, data.alloc);
+
+                ASSERT(res_reg.is_fp());
+                res.result.emplace_back(
+                    X86Subtype::sqrt, res_reg,
+                    valueToArg(sqrt_instr->args[0], res.result, data.alloc));
                 return true;
               }});
   pats.push_back(Pattern{

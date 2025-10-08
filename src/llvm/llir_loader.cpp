@@ -357,6 +357,17 @@ void convert_call(const llvm::Instruction *any_instr,
     if (c->getName().starts_with("llvm.experimental.noalias.scope.decl")) {
       return;
     }
+    if (c->getName() == "sqrt") {
+      if (!c->hasFnAttribute(llvm::Attribute::NoBuiltin) ||
+          c->hasFnAttribute(llvm::Attribute::Builtin)) {
+        auto res = builder.build_unary_op(
+            convert_instr_arg(call_instr->getOperand(0), fctx, ffunc, builder,
+                              valueToValue, mod, b2b),
+            foptim::fir::UnaryInstrSubType::FloatSqrt);
+        valueToValue.insert({any_instr, res});
+        return;
+      }
+    }
   }
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {
     auto *arg = call_instr->getOperand(i);

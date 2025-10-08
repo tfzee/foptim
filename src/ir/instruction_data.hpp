@@ -140,6 +140,7 @@ enum class UnaryInstrSubType : u32 {
   FloatNeg,
   IntNeg,
   Not,
+  FloatSqrt,
 };
 
 enum class BinaryInstrSubType : u32 {
@@ -261,6 +262,8 @@ class InstrData : public Used, public InstrAttribs {
         switch ((UnaryInstrSubType)subtype) {
           case UnaryInstrSubType::INVALID:
             return "UNARYYOP_INVALID";
+          case UnaryInstrSubType::FloatSqrt:
+            return "FloatSqrt";
           case UnaryInstrSubType::FloatNeg:
             return "FloatNeg";
           case UnaryInstrSubType::IntNeg:
