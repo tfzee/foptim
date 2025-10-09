@@ -208,9 +208,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
   ASSERT(ctx->verify());
   // for (auto &[_, f] : ctx->storage.functions) {
-  // if (f->name == "_Z6actionv") {
-  // fmt::println("{:cd}", *f);
-  // }
+  //   fmt::println("{:cd}", *f);
   // }
   // TODO("okak");
   fmt::print("================FIR END====================\n");
@@ -341,9 +339,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
   }
   shed->wait_till_done();
   // for (auto &f : funcs) {
-  //   if (f.name == "main") {
-  //     fmt::println("{:cd}", f);
-  //   }
+  // fmt::println("{:cd}", f);
   // }
 }
 
