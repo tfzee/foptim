@@ -65,6 +65,7 @@ enum class VectorISubType : u32 {
   INVALID = 0,
   Broadcast,
   Shuffle,
+  HorizontalAdd,
 };
 
 enum class IntrinsicSubType : u32 {
@@ -226,6 +227,8 @@ class InstrData : public Used, public InstrAttribs {
             return "VECTORINSTR_INVALID";
           case VectorISubType::Broadcast:
             return "V.Broadcast";
+          case VectorISubType::HorizontalAdd:
+            return "V.HAdd";
           case VectorISubType::Shuffle:
             return "V.Shuffle";
         }

@@ -241,6 +241,17 @@ ValueR Builder::build_conversion_op(ValueR a, TypeR res_type,
   return ValueR(instr);
 }
 
+ValueR Builder::build_vector_op(ValueR val, TypeR res_type,
+                                VectorISubType sub_type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_vector(res_type, sub_type));
+  instr.add_arg(val);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 ValueR Builder::build_int_add(ValueR a, ValueR b, bool nuw, bool nsw) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_add(a.get_type()));

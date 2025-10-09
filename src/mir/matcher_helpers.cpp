@@ -221,7 +221,12 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
         return {(u64)0};
       case fir::AnyTypeType::Float:
         return {0.0F};
-      case fir::AnyTypeType::Vector:
+      case fir::AnyTypeType::Vector: {
+        Type type_id = convert_type(val.get_type());
+        auto arg = MArgument{VReg{CReg::mm0, type_id}, type_id};
+        res.emplace_back(GVecSubtype::fxor, arg, arg, arg);
+        return arg;
+      }
       case fir::AnyTypeType::Function:
       case fir::AnyTypeType::Void:
       case fir::AnyTypeType::Struct:

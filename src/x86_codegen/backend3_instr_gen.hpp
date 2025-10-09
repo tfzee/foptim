@@ -1702,6 +1702,33 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     case fmir::X86Subtype::lea:
       req.mnemonic = ZYDIS_MNEMONIC_LEA;
       return emit(out_buff, 0, &req);
+    case fmir::X86Subtype::HAdd:
+      switch (instr.args[1].ty) {
+        default:
+          TODO("unreach?");
+        case fmir::Type::Float64x2: {
+          req.mnemonic = ZYDIS_MNEMONIC_MOVAPD;
+          u64 off = 0;
+          off = emit(out_buff, off, &req);
+          req.mnemonic = ZYDIS_MNEMONIC_HADDPD;
+          req.operands[1] = req.operands[0];
+          return emit(out_buff, off, &req);
+        }
+        case fmir::Type::Float32x2: {
+          req.mnemonic = ZYDIS_MNEMONIC_MOVAPD;
+          u64 off = 0;
+          off = emit(out_buff, off, &req);
+          req.mnemonic = ZYDIS_MNEMONIC_HADDPS;
+          req.operands[1] = req.operands[0];
+          return emit(out_buff, off, &req);
+        }
+        case fmir::Type::Float32x4:
+        case fmir::Type::Float32x8:
+        case fmir::Type::Float64x4:
+          fmt::println("{:cd}", req);
+          fmt::println("{:cd}", instr);
+          TODO("impl");
+      }
     case fmir::X86Subtype::lzcnt:
       req.mnemonic = ZYDIS_MNEMONIC_LZCNT;
       return emit(out_buff, 0, &req);

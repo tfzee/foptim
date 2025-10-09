@@ -27,6 +27,20 @@ class SLPVectorizer final : public FunctionPass {
     //(base*a + b)
     TVec<SeedInstrData> data;
   };
+  class TreeElem {
+   public:
+    TVec<TreeElem *> children;
+    fir::Instr insert_loc;
+    u32 n_lanes;
+
+    TreeElem() = default;
+    virtual fir::ValueR generate(fir::Context & /*ctx*/,
+                                 SeedBundle & /*orig_bundle*/) {
+      TODO("UNREACH");
+    }
+    virtual void dump() { TODO("UNREACH"); }
+    virtual ~TreeElem() = default;
+  };
 
  private:
   std::pair<SeedInstrData, fir::ValueR> get_storeload_data(
@@ -111,12 +125,26 @@ class SLPVectorizer final : public FunctionPass {
     auto base_instr = bb->instructions[instr_id];
     auto subtype = base_instr->subtype;
     if (!base_instr->is(fir::InstrType::BinaryInstr) ||
-        (subtype != (u32)fir::BinaryInstrSubType::IntAdd &&
-         subtype != (u32)fir::BinaryInstrSubType::FloatAdd)) {
+        (
+            // subtype != (u32)fir::BinaryInstrSubType::IntAdd &&
+            subtype != (u32)fir::BinaryInstrSubType::FloatAdd)) {
       return {};
     }
-    // fmt::println("MAYBE REDUCTION BUNDLE {}", bb->instructions[instr_id]);
-    return {};
+    auto pot_target_red = bb->instructions[instr_id];
+    // TODO: find bigger ones
+    if (!pot_target_red->args[0].is_instr() ||
+        !pot_target_red->args[1].is_instr()) {
+      return {};
+    }
+    return SeedBundle{
+        .base = fir::ValueR{pot_target_red},
+        .type = pot_target_red.get_type(),
+        .data = {
+            SeedInstrData{
+                .instr = pot_target_red->args[0].as_instr(), .a = {}, .b = {}},
+            SeedInstrData{.instr = pot_target_red->args[1].as_instr(),
+                          .a = {},
+                          .b = {}}}};
   }
 
   std::optional<SeedBundle> find_successive_stores(fir::BasicBlock bb,
@@ -192,24 +220,26 @@ class SLPVectorizer final : public FunctionPass {
         if (res) {
           load_bundles.push_back(res.value());
         }
+      } else {
+        auto res = find_reduction(bb, i, aa);
+        if (res) {
+          // fmt::println("FOUND");
+          // fmt::println("LEN {} AT {} ", res.value().data.size(),
+          //              res.value().base);
+          // TODO("okak");
+          reduction_bundles.push_back(res.value());
+        }
       }
-      (void)reduction_bundles;
-      // } else {
-      //   auto res = find_reduction(bb, i, aa);
-      //   if (res) {
-      //     fmt::println("FOUND");
-      //     fmt::println("LEN {} AT {} ", res.value().data.size(),
-      //                  res.value().base);
-      //     TODO("okak");
-      //     reduction_bundles.push_back(res.value());
-      //   }
-      // }
     }
     std::ranges::sort(store_bundles,
                       [](const SeedBundle &b1, const SeedBundle &b2) {
                         return b1.data.size() > b2.data.size();
                       });
     std::ranges::sort(load_bundles,
+                      [](const SeedBundle &b1, const SeedBundle &b2) {
+                        return b1.data.size() > b2.data.size();
+                      });
+    std::ranges::sort(reduction_bundles,
                       [](const SeedBundle &b1, const SeedBundle &b2) {
                         return b1.data.size() > b2.data.size();
                       });
@@ -436,7 +466,10 @@ class SLPVectorizer final : public FunctionPass {
 
   void continious_vector_store(SeedBundle &bundle, fir::ValueR value);
   bool tree_vectorize(fir::Context &ctx, SeedBundle &bundle,
-                      const TVec<SeedBundle> &load_bundles);
+                      const TVec<SeedBundle> &load_bundles,
+                      TreeElem *default_parent = nullptr);
+  bool tree_vectorize_reduction(fir::Context &ctx, SeedBundle &bundle,
+                                const TVec<SeedBundle> &load_bundles);
 
  public:
   void apply(fir::Context &ctx, fir::Function &func) override {
@@ -476,7 +509,24 @@ class SLPVectorizer final : public FunctionPass {
         utils::TempAlloc<void *>::restore(stor);
         continue;
       }
-      // TODO("okak");
+    }
+    for (auto &b : reduction_bundles) {
+      bool already_used = false;
+      for (const auto &data : b.data) {
+        if (!data.instr.is_valid()) {
+          already_used = true;
+          break;
+        }
+      }
+      if (already_used) {
+        continue;
+      }
+      auto stor = utils::TempAlloc<void *>::save();
+      fmt::println("MAYBE REDUCTION BUNDLE {:cd}", b.base.as_instr());
+      if (tree_vectorize_reduction(ctx, b, load_bundles)) {
+        utils::TempAlloc<void *>::restore(stor);
+        continue;
+      }
     }
 
     // fmt::println("{}:", func);

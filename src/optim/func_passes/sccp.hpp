@@ -377,6 +377,9 @@ class SCCP final : public FunctionPass {
         if (a.is_const() && a.value->is_global()) {
           return ConstantValue::Bottom();
         }
+        if (a.is_const() && a.value->is_poison()) {
+          return ConstantValue::Constant(a.value);
+        }
         switch ((fir::ConversionSubType)instr->get_instr_subtype()) {
           case fir::ConversionSubType::INVALID:
             UNREACH();

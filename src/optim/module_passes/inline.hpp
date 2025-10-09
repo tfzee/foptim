@@ -164,7 +164,8 @@ class BaseInlineAdvisor {
     }
     // NOTE: this aint perfect it would also try to inlnie namespace std {
     // namespace min { void someFunc(); }}
-    if (v->name.starts_with("_ZSt3min") || v->name.starts_with("_ZSt3max")) {
+    if (v->name.starts_with("_ZSt3min") || v->name.starts_with("_ZSt3max") ||
+        v->name.starts_with("_ZSt3absf")) {
       if (debug_print) {
         fmt::println("Y Special");
       }

@@ -11,19 +11,7 @@
 
 namespace foptim::optim {
 
-class TreeElem {
- public:
-  TVec<TreeElem *> children;
-  fir::Instr insert_loc;
-  u32 n_lanes;
-
-  TreeElem() = default;
-  virtual fir::ValueR generate(fir::Context & /*ctx*/) { TODO("UNREACH"); }
-  virtual void dump() { TODO("UNREACH"); }
-  virtual ~TreeElem() = default;
-};
-
-class BroadcastTreeOp final : public TreeElem {
+class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
   fir::ValueR v;
 
  public:
@@ -53,7 +41,8 @@ class BroadcastTreeOp final : public TreeElem {
     return true;
   }
 
-  fir::ValueR generate(fir::Context &ctx) final {
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle & /*orig_bundle*/) final {
     fir::Builder bb{insert_loc};
     bb.after(insert_loc);
     return bb.build_vbroadcast(
@@ -61,7 +50,50 @@ class BroadcastTreeOp final : public TreeElem {
   }
 };
 
-class BinaryTreeOp final : public TreeElem {
+class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
+ public:
+  void dump() final {
+    fmt::print("RED(\n");
+    for (auto *c : children) {
+      fmt::print("  ");
+      c->dump();
+      fmt::print("\n");
+    }
+    fmt::print(")\n");
+  }
+
+  HorizRedTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
+    if (values.back().is_bb_arg()) {
+      insert_loc = values.back().as_bb_arg()->_parent->instructions[0];
+    } else {
+      insert_loc = values.back().as_instr();
+    }
+    return this;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    (void)values;
+    TODO("prob cant match this idk?");
+    return false;
+  }
+
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundle) final {
+    fir::Builder bb{insert_loc};
+    bb.after(insert_loc);
+    ASSERT(children.size() == 1);
+    auto orig_red = orig_bundle.base.as_instr();
+    auto vec = children.at(0)->generate(ctx, orig_bundle);
+    auto new_v = bb.build_vector_op(vec, orig_red->get_type(),
+                                    fir::VectorISubType::HorizontalAdd);
+    orig_red->replace_all_uses(new_v);
+    orig_red.destroy();
+    return new_v;
+  }
+};
+
+class BinaryTreeOp final : public SLPVectorizer::TreeElem {
  public:
   void dump() final {
     children.at(1)->dump();
@@ -70,8 +102,17 @@ class BinaryTreeOp final : public TreeElem {
       case fir::BinaryInstrSubType::IntAdd:
         fmt::print(" + ");
         break;
+      case fir::BinaryInstrSubType::FloatMul:
+      case fir::BinaryInstrSubType::IntMul:
+        fmt::print(" * ");
+        break;
+      case fir::BinaryInstrSubType::FloatDiv:
+      case fir::BinaryInstrSubType::IntSDiv:
+      case fir::BinaryInstrSubType::IntUDiv:
+        fmt::print(" / ");
+        break;
       default:
-        fmt::print(" B ");
+        fmt::print(" BinOp ");
         break;
     }
     children.at(0)->dump();
@@ -116,32 +157,35 @@ class BinaryTreeOp final : public TreeElem {
       case fir::BinaryInstrSubType::And:
       case fir::BinaryInstrSubType::Or:
       case fir::BinaryInstrSubType::Xor:
-        break;
-      case fir::BinaryInstrSubType::INVALID:
+        // we cant handle neutral elemtns for everything
+        return !potential_neutral_elem;
+        // TODO. this causes issues + technically there is a neutral element for
+        // div
+      case fir::BinaryInstrSubType::FloatDiv:
       case fir::BinaryInstrSubType::IntSRem:
       case fir::BinaryInstrSubType::IntURem:
+        return false;
+      case fir::BinaryInstrSubType::INVALID:
       case fir::BinaryInstrSubType::IntSDiv:
       case fir::BinaryInstrSubType::IntUDiv:
       case fir::BinaryInstrSubType::Shr:
       case fir::BinaryInstrSubType::AShr:
-      case fir::BinaryInstrSubType::FloatDiv:
         fmt::println("{}", base_v);
         TODO("impl");
         return false;
     }
-    // we cant handle neutral elemtns for everything
-    return !potential_neutral_elem;
   }
-  fir::ValueR generate(fir::Context &ctx) final {
-    auto av = children.at(1)->generate(ctx);
-    auto bv = children.at(0)->generate(ctx);
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
+    auto av = children.at(1)->generate(ctx, orig_bundl);
+    auto bv = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     return bb.build_binary_op(av, bv,
                               (fir::BinaryInstrSubType)insert_loc->subtype);
   }
 };
 
-class StoreTreeOp final : public TreeElem {
+class StoreTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr store_loc;
 
  public:
@@ -164,15 +208,16 @@ class StoreTreeOp final : public TreeElem {
     (void)values;
     return true;
   }
-  fir::ValueR generate(fir::Context &ctx) final {
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
     // TODO: assuming continious stores
-    auto val = children.at(0)->generate(ctx);
+    auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     return bb.build_store(store_loc->args[0], val);
   }
 };
 
-class IntrinTreeOp final : public TreeElem {
+class IntrinTreeOp final : public SLPVectorizer::TreeElem {
   fir::IntrinsicSubType type;
 
  public:
@@ -240,9 +285,10 @@ class IntrinTreeOp final : public TreeElem {
     }
   }
 
-  fir::ValueR generate(fir::Context &ctx) final {
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
     // TODO: assuming continious stores
-    auto val = children.at(0)->generate(ctx);
+    auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     switch (type) {
       default:
@@ -255,7 +301,7 @@ class IntrinTreeOp final : public TreeElem {
   }
 };
 
-class ConstantTreeOp final : public TreeElem {
+class ConstantTreeOp final : public SLPVectorizer::TreeElem {
   TVec<fir::ValueR> my_values;
 
  public:
@@ -267,7 +313,8 @@ class ConstantTreeOp final : public TreeElem {
     fmt::print(">");
   }
 
-  ConstantTreeOp *init(const TVec<fir::ValueR> &values, TreeElem *parent) {
+  ConstantTreeOp *init(const TVec<fir::ValueR> &values,
+                       SLPVectorizer::TreeElem *parent) {
     n_lanes = values.size();
     insert_loc = parent->insert_loc;
     my_values = values;
@@ -288,7 +335,8 @@ class ConstantTreeOp final : public TreeElem {
     return true;
   }
 
-  fir::ValueR generate(fir::Context &ctx) final {
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle & /*orig_bundl*/) final {
     auto n_elems = my_values.size();
     IRVec<fir::ConstantValueR> args;
 
@@ -312,7 +360,7 @@ class ConstantTreeOp final : public TreeElem {
   }
 };
 
-class LoadTreeOp final : public TreeElem {
+class LoadTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr base_load;
 
  public:
@@ -349,7 +397,8 @@ class LoadTreeOp final : public TreeElem {
     }
     return false;
   }
-  fir::ValueR generate(fir::Context &ctx) final {
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle & /*orig_bundl*/) final {
     // TODO: assuming continious loads
     //  auto a = children[0]->generate(ctx);
     fir::Builder bb{insert_loc};
@@ -358,8 +407,18 @@ class LoadTreeOp final : public TreeElem {
   }
 };
 
+bool SLPVectorizer::tree_vectorize_reduction(
+    fir::Context &ctx, SeedBundle &b, const TVec<SeedBundle> &load_bundles) {
+  using HorizRedAlloc = utils::TempAlloc<HorizRedTreeOp>;
+
+  auto *result_t = HorizRedAlloc{}.allocate(1);
+  (new (result_t) HorizRedTreeOp)->init({b.base});
+  return tree_vectorize(ctx, b, load_bundles, result_t);
+}
+
 bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
-                                   const TVec<SeedBundle> &load_bundles) {
+                                   const TVec<SeedBundle> &load_bundles,
+                                   SLPVectorizer::TreeElem *default_parent) {
   (void)ctx;
 
   using StoreAlloc = utils::TempAlloc<StoreTreeOp>;
@@ -369,13 +428,16 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   using IntrinAlloc = utils::TempAlloc<IntrinTreeOp>;
   using BroadcastAlloc = utils::TempAlloc<BroadcastTreeOp>;
   TVec<TreeElem *> tree;
+  if (default_parent != nullptr) {
+    tree.push_back(default_parent);
+  }
   TVec<std::pair<TreeElem *, TVec<fir::ValueR>>> worklist;
   {
     TVec<fir::ValueR> v;
     for (auto &va : b.data) {
       v.emplace_back(va.instr);
     }
-    worklist.emplace_back(nullptr, std::move(v));
+    worklist.emplace_back(default_parent, std::move(v));
   }
 
   while (!worklist.empty()) {
@@ -518,16 +580,17 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
     return false;
   }
 
-  // fmt::println("TreeSize {}", tree.size());
+  tree[0]->dump();
+  fmt::println("TreeSize {}", tree.size());
   if (!tree.empty()) {
-    tree[0]->generate(ctx);
+    tree[0]->generate(ctx, b);
   }
   utils::StatCollector::get().addi(1, "SLPVectorized",
                                    utils::StatCollector::StatFOptim);
   // auto par = b.data[0].instr->parent->get_parent();
-  for (auto &bu : b.data) {
-    bu.instr.destroy();
-  }
+  // for (auto &bu : b.data) {
+  //   bu.instr.destroy();
+  // }
   return true;
 }
 

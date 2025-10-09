@@ -170,6 +170,7 @@ enum class X86Subtype : u32 {
   ffmadd132,
   ffmadd213,
   ffmadd231,
+  HAdd,
   sqrt,
 };
 

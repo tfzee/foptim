@@ -45,6 +45,7 @@ class Builder {
   ValueR build_unary_op(ValueR a, UnaryInstrSubType sub_type);
   ValueR build_conversion_op(ValueR a, TypeR res_type,
                              ConversionSubType sub_type);
+  ValueR build_vector_op(ValueR val, TypeR res_type, VectorISubType sub_type);
   ValueR build_ctlz(ValueR a, ValueR b);
   ValueR build_va_start(ValueR a);
   ValueR build_va_end(ValueR a);

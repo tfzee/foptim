@@ -1232,6 +1232,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
 
   auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
   {
+    // fmt::println("{:cd}", instr->get_parent());
     const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
     const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
     man.run(ctx);
@@ -2661,7 +2662,7 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
 }
 
-void simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
   (void)bb;
   (void)ctx;
@@ -2673,16 +2674,16 @@ void simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       instr->replace_all_uses(
           fir::ValueR{ctx->get_poisson_value(instr->get_type())});
       instr.destroy();
-      return;
+      return true;
     }
-    if (arg0_const->is_null() ||
-        (arg0_const->is_int() && arg0_const->as_int() == 0)) {
-      push_all_uses(worklist, instr);
-      // TODO: in theory could just put an unreach here
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-      return;
-    }
+    // if (arg0_const->is_null() ||
+    //     (arg0_const->is_int() && arg0_const->as_int() == 0)) {
+    //   push_all_uses(worklist, instr);
+    //   // TODO: in theory could just put an unreach here
+    //   instr->replace_all_uses(
+    //       fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+    //   return;
+    // }
     if (arg0_const->is_global() && arg0_const->as_global()->is_constant) {
       // TOOD: can fix this i guess
       auto glob = arg0_const->as_global();
@@ -2713,12 +2714,13 @@ void simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             push_all_uses(worklist, instr);
             instr->replace_all_uses(fir::ValueR{reloc.ref});
             instr.destroy();
-            return;
+            return true;
           }
         }
       }
     }
   }
+  return false;
 }
 
 void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
@@ -2918,6 +2920,10 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       TVec<fir::Use> use_copy{instr->uses.begin(), instr->uses.end()};
       auto p_val = fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())};
+      // TODO: idk if replacing justany use with poision is always legal
+      // had issue before where replacing some arithmentics ended up with
+      // poision load later one with segfaultedcould be similar cases that cause
+      // bigger issues bool any_indirect_use = false;
       for (auto u : use_copy) {
         if (u.user->is(fir::InstrType::LoadInstr)) {
           push_all_uses(worklist, u.user);
@@ -2929,9 +2935,12 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
           u.user.destroy();
           continue;
         }
+        // any_indirect_use = true;
         u.replace_use(p_val);
       }
+      // if (!any_indirect_use) {
       instr.destroy();
+      // }
       return;
     }
 
@@ -3021,6 +3030,9 @@ void simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
 }
 void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
+  if (!instr->get_type()->is_vec()) {
+    return;
+  }
   const auto &v_t = instr->get_type()->as_vec();
   if (v_t.type == fir::VectorType::SubType::Integer && v_t.bitwidth == 8) {
     auto extend_to = v_t.member_number;
@@ -3081,6 +3093,10 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       return;
     }
   }
+  if (instr_ty == InstrType::LoadInstr &&
+      simplify_load(instr, bb, ctx, worklist)) {
+    return;
+  }
   if (instr_ty == InstrType::VectorInstr ||
       (instr_ty == InstrType::LoadInstr && instr->get_type()->is_vec()) ||
       (instr_ty == InstrType::StoreInstr && instr->get_type()->is_vec())) {
@@ -3113,10 +3129,6 @@ void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::Conversion) {
     simplify_conversion(instr, bb, ctx, worklist);
-    return;
-  }
-  if (instr_ty == InstrType::LoadInstr) {
-    simplify_load(instr, bb, ctx, worklist);
     return;
   }
   if (instr_ty == InstrType::CallInstr) {

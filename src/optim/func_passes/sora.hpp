@@ -57,8 +57,10 @@ class SORA final : public FunctionPass {
 
     // everything behind cutoff is dead
     u64 cutoff = std::numeric_limits<u64>::max();
+    // fmt::println("===================\n{:cd}", alloca);
     for (auto use : alloca->uses) {
       for (auto v : handle_use(use)) {
+        // fmt::println("{:cd} {}@{}s", v.user, v.offset, v.access_size);
         if (v.offset > cutoff) {
           continue;
         }
@@ -113,7 +115,7 @@ class SORA final : public FunctionPass {
       return;
     }
     std::erase_if(ress, [cutoff](const auto& x) {
-      return x.first > cutoff || x.second.size == 0;
+      return (x.first + x.second.size) > cutoff || x.second.size == 0;
     });
     if (ress.size() <= 1) {
       return;
@@ -122,9 +124,9 @@ class SORA final : public FunctionPass {
     // fmt::println("For alloca {} cutoff {}", alloca, cutoff);
     for (auto& [off, data] : ress) {
       fir::Builder bb{alloca};
+      // fmt::println("  @{} Size:{}", off, data.size);
       auto new_alloca =
           bb.build_alloca(fir::ValueR{ctx->get_constant_int(data.size, 32)});
-      // fmt::println("  @{} Size:{}", off, data.size);
       for (auto u : data.uses) {
         u.replace_use(new_alloca);
         // fmt::println("    USE: {}", u.user);

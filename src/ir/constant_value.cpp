@@ -1,7 +1,6 @@
-#include "constant_value.hpp"
-
 #include <fmt/color.h>
 
+#include "constant_value.hpp"
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/value.hpp"
@@ -188,10 +187,10 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
       fup_u = old.fup_u;
       return *this;
     case ConstantType::VectorValue:
-      vec_u = {old.ty, old.vec_u.v};
+      vec_u = {._ty = old.ty, .v = old.vec_u.v};
       return *this;
     case ConstantType::ConstantStruct:
-      stru_u = {old.ty, old.stru_u.v};
+      stru_u = {._ty = old.ty, .v = old.stru_u.v};
       return *this;
   }
 }
