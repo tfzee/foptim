@@ -27,6 +27,7 @@ struct ContextData {
   TypeR get_ptr_type();
   StructTypeR get_struct_type(IRVec<StructType::StructElem> elems);
   TypeR get_vec_type(fir::TypeR elem_ty, u16 n_lanes);
+  TypeR get_vec_type(fir::VectorType::SubType elem_ty, u16 width, u16 n_lanes);
 
   template <class T>
   static void print_stats_vec(const utils::StableVec<T> &vec) {

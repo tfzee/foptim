@@ -1699,6 +1699,16 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
+    case fmir::X86Subtype::movlhps: {
+      req.mnemonic = ZYDIS_MNEMONIC_VMOVLHPS;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::movhlps: {
+      req.mnemonic = ZYDIS_MNEMONIC_VMOVHLPS;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
     case fmir::X86Subtype::vpermil: {
       bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
       req.mnemonic =

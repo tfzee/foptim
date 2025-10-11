@@ -242,6 +242,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
       switch ((X86Subtype)instr.sop) {
         case X86Subtype::INVALID:
           return;
+        case X86Subtype::movlhps:
+        case X86Subtype::movhlps:
         case X86Subtype::lea:
         case X86Subtype::HAdd:
         case X86Subtype::sqrt:
@@ -566,6 +568,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           }
           update_uses(instr.args[1], uses);
           return;
+        case X86Subtype::movhlps:
+        case X86Subtype::movlhps:
         case X86Subtype::vpermil:
         case X86Subtype::punpckl:
         case X86Subtype::vpshuf:
@@ -687,14 +691,14 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
       }
       if (instrs[i].n_args > 1) {
         res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
-        res.is_write |= instrs[i].args[1].is_fp()
+        res.is_write |= instrs[i].args[1].is_vec_reg()
                             ? search_reg_id == reg_to_uid(VReg::MM0SS())
                             : search_reg_id == reg_to_uid(VReg::EAX());
         if (instrs[i].n_args > 2) {
           res.is_write |= search_reg_id == reg_to_uid(instrs[i].args[2].reg);
-          res.is_write |= instrs[i].args[2].is_fp()
-                              ? search_reg_id == reg_to_uid(VReg::MM0SS())
-                              : search_reg_id == reg_to_uid(VReg::EAX());
+          res.is_write |= instrs[i].args[2].is_vec_reg()
+                              ? search_reg_id == reg_to_uid(VReg::MM1SS())
+                              : search_reg_id == reg_to_uid(VReg::EDX());
         }
       }
       if (res.is_write) {

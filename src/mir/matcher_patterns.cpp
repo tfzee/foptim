@@ -1379,6 +1379,12 @@ void base_patterns(IRVec<Pattern> &pats) {
                         (u32)fir::UnaryInstrSubType::FloatSqrt};
   auto HAddNode = Node{NodeType::Instr, InstrType::VectorInstr,
                        (u32)fir::VectorISubType::HorizontalAdd};
+  auto ConcatNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                         (u32)fir::VectorISubType::Concat};
+  auto ExtractHighNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                              (u32)fir::VectorISubType::ExtractHigh};
+  auto ExtractLowNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                             (u32)fir::VectorISubType::ExtractLow};
   auto HMulNode = Node{NodeType::Instr, InstrType::VectorInstr,
                        (u32)fir::VectorISubType::HorizontalMul};
   auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -1650,13 +1656,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
 
         switch (a1.ty) {
-          case Type::INVALID:
-          case Type::Int8:
-          case Type::Int16:
-          case Type::Int32:
-          case Type::Int64:
-          case Type::Float32:
-          case Type::Float64:
+          default:
             TODO("invalid?");
           case Type::Float32x2:
             res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
@@ -1683,6 +1683,98 @@ void base_patterns(IRVec<Pattern> &pats) {
           case Type::Int64x4:
             fmt::println("{:cd}", hred_instr->args[0].get_type());
             fmt::println("{:cd}", hred_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {ConcatNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto concat_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(concat_instr), res.result, data.alloc);
+        auto a1 = valueToArg(concat_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArg(concat_instr->args[1], res.result, data.alloc);
+        ASSERT(a1.ty == a2.ty);
+        switch (a1.ty) {
+          default:
+            TODO("invalid?");
+          case Type::Float32x2:
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+            res.result.emplace_back(X86Subtype::movlhps, res_reg, res_reg, a2);
+            break;
+          case Type::Float32x4:
+          case Type::Float64x2:
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Int32x8:
+          case Type::Int64x2:
+          case Type::Int32x4:
+          case Type::Int64x4:
+            fmt::println("{:cd}", concat_instr->args[0].get_type());
+            fmt::println("{:cd}", concat_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {ExtractHighNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto extract_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
+        auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
+
+        switch (a1.ty) {
+          default:
+            TODO("invalid?");
+          case Type::Float32x4:
+            res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
+            break;
+          case Type::Float32x2:
+          case Type::Float64x2:
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Int32x8:
+          case Type::Int64x2:
+          case Type::Int32x4:
+          case Type::Int64x4:
+            fmt::println("{:cd}", extract_instr->args[0].get_type());
+            fmt::println("{:cd}", extract_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {ExtractLowNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto extract_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
+        auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
+
+        switch (a1.ty) {
+          default:
+            TODO("invalid?");
+          case Type::Float32x4:
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+            break;
+          case Type::Float32x2:
+          case Type::Float64x2:
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Int32x8:
+          case Type::Int64x2:
+          case Type::Int32x4:
+          case Type::Int64x4:
+            fmt::println("{:cd}", extract_instr->args[0].get_type());
+            fmt::println("{:cd}", extract_instr);
             TODO("impl");
             break;
         }

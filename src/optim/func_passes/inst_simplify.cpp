@@ -3047,6 +3047,18 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
                                out_type);
     }
   }
+  if (instr->subtype == (u32)fir::VectorISubType::Concat &&
+      instr->args[0].is_instr() && instr->args[1].is_instr()) {
+    auto a1 = instr->args[0].as_instr();
+    auto a2 = instr->args[1].as_instr();
+    if (a1->is(fir::VectorISubType::ExtractLow) &&
+        a2->is(fir::VectorISubType::ExtractHigh) &&
+        a1->args[0] == a2->args[0]) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(a1->args[0]);
+      instr.destroy();
+    }
+  }
 }
 
 void simplify_extract(fir::Instr instr, WorkList &worklist) {

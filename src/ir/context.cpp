@@ -204,6 +204,16 @@ TypeR ContextData::get_vec_type(fir::TypeR elem_ty, u16 n_lanes) {
   return storage.insert_type(AnyType(ty));
 }
 
+TypeR ContextData::get_vec_type(fir::VectorType::SubType elem_ty, u16 width,
+                                u16 n_lanes) {
+  auto ty = VectorType(elem_ty, width, n_lanes);
+  auto maybeT = try_reuse_type(ty);
+  if (maybeT.is_valid()) {
+    return maybeT;
+  }
+  return storage.insert_type(AnyType(ty));
+}
+
 IntTypeR ContextData::get_float_type(u16 bitwidth) {
   static auto f32_type = storage.insert_type(FloatType{32});
   static auto f64_type = storage.insert_type(FloatType{64});

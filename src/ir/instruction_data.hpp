@@ -1,5 +1,4 @@
 #pragma once
-#include "ir/attributable.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "use.hpp"
 #include "utils/todo.hpp"
@@ -65,6 +64,9 @@ enum class VectorISubType : u32 {
   INVALID = 0,
   Broadcast,
   Shuffle,
+  Concat,
+  ExtractHigh,
+  ExtractLow,
   HorizontalAdd,
   HorizontalMul,
 };
@@ -230,6 +232,12 @@ class InstrData : public Used, public InstrAttribs {
             return "V.Broadcast";
           case VectorISubType::HorizontalAdd:
             return "V.HAdd";
+          case VectorISubType::Concat:
+            return "V.Concat";
+          case VectorISubType::ExtractHigh:
+            return "V.ExtractHigh";
+          case VectorISubType::ExtractLow:
+            return "V.ExtractLow";
           case VectorISubType::HorizontalMul:
             return "V.HMul";
           case VectorISubType::Shuffle:
@@ -458,6 +466,10 @@ class InstrData : public Used, public InstrAttribs {
 
   [[nodiscard]] constexpr bool is(UnaryInstrSubType ty) const {
     return instr_type == InstrType::UnaryInstr && subtype == (u32)ty;
+  }
+
+  [[nodiscard]] constexpr bool is(VectorISubType ty) const {
+    return instr_type == InstrType::VectorInstr && subtype == (u32)ty;
   }
 
   constexpr void verify() const {

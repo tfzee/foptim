@@ -164,6 +164,8 @@ enum class X86Subtype : u32 {
   INVALID = 0,
   lea,
   vmovshdup,
+  movlhps,
+  movhlps,
   vpermil,
   vpshuf,
   punpckl,
@@ -683,7 +685,7 @@ class MArgument {
 class MInstr {
  public:
   u8 has_bb_ref : 1;
-  u8 is_var_arg_call : 1 = false;
+  u8 is_var_arg_call : 1 = 0U;
   u8 n_args;
   GOpcode bop;
   u32 sop;
@@ -708,10 +710,7 @@ class MInstr {
         return false;
       }
     }
-    if (has_bb_ref && bb_ref != other.bb_ref) {
-      return false;
-    }
-    return true;
+    return !has_bb_ref || bb_ref == other.bb_ref;
   }
 
   CONSTR_REGN(GOpcode::GBase, GBaseSubtype);

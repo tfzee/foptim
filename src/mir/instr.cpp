@@ -148,6 +148,8 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       switch ((X86Subtype)sop) {
         ReturnString(X86Subtype, INVALID);
         ReturnString(X86Subtype, lea);
+        ReturnString(X86Subtype, movlhps);
+        ReturnString(X86Subtype, movhlps);
         ReturnString(X86Subtype, vpermil);
         ReturnString(X86Subtype, sqrt);
         ReturnString(X86Subtype, vmovshdup);
@@ -314,6 +316,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpermil:
         case X86Subtype::sqrt:
         case X86Subtype::HAdd:
+        case X86Subtype::movlhps:
+        case X86Subtype::movhlps:
         case X86Subtype::vpshuf:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
@@ -554,6 +558,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::HAdd:
           out.push_back({1, instr.args[1]});
           return;
+        case X86Subtype::movlhps:
+        case X86Subtype::movhlps:
         case X86Subtype::vpshuf:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:

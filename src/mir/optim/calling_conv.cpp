@@ -172,12 +172,12 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
                  bool return_value_overwrites_ret_reg) {
   for (auto reg_ty : caller_saved | std::views::reverse) {
     if (call.n_args >= 2) {
-      bool is_float = call.args[1].is_fp();
-      if (!is_float &&
+      bool is_vec_reg = call.args[1].is_vec_reg();
+      if (!is_vec_reg &&
           (reg_ty == CReg::A || (call.n_args > 2 && reg_ty == CReg::D))) {
         continue;
       }
-      if (is_float &&
+      if (is_vec_reg &&
           (reg_ty == CReg::mm0 || (call.n_args > 2 && reg_ty == CReg::mm1))) {
         continue;
       }
@@ -223,10 +223,10 @@ std::pair<uint32_t, uint32_t> restore_locals(
   bool has_ret = call.n_args >= 2;
   bool has_double_ret = call.n_args > 2;
   if (has_ret) {
-    bool is_float = call.args[1].is_vec_reg();
-    auto ret1_reg_type = is_float ? CReg::mm0 : CReg::A;
-    auto ret2_reg_type = is_float ? CReg::mm1 : CReg::D;
-    if (is_float) {
+    bool is_vec_reg = call.args[1].is_vec_reg();
+    auto ret1_reg_type = is_vec_reg ? CReg::mm0 : CReg::A;
+    auto ret2_reg_type = is_vec_reg ? CReg::mm1 : CReg::D;
+    if (is_vec_reg) {
       can_skip_mm0 = true;
       if (has_double_ret) {
         can_skip_mm1 = true;
@@ -240,13 +240,13 @@ std::pair<uint32_t, uint32_t> restore_locals(
 
     if (!return_value_overwrites_ret_reg) {
       bool a_gets_overwritten =
-          (!is_float && is_alive(VReg{CReg::A}, lives, end, end + 1, bb_id));
+          (!is_vec_reg && is_alive(VReg{CReg::A}, lives, end, end + 1, bb_id));
       bool d_gets_overwritten =
-          (!is_float && is_alive(VReg{CReg::D}, lives, end, end + 1, bb_id));
+          (!is_vec_reg && is_alive(VReg{CReg::D}, lives, end, end + 1, bb_id));
       bool mm0_gets_overwritten =
-          (is_float && is_alive(VReg{CReg::mm0}, lives, end, end + 1, bb_id));
+          (is_vec_reg && is_alive(VReg{CReg::mm0}, lives, end, end + 1, bb_id));
       bool mm1_gets_overwritten =
-          (is_float && is_alive(VReg{CReg::mm1}, lives, end, end + 1, bb_id));
+          (is_vec_reg && is_alive(VReg{CReg::mm1}, lives, end, end + 1, bb_id));
       if (a_gets_overwritten || mm0_gets_overwritten) {
         auto arg = MArgument{VReg{ret1_reg_type, Type::Int64}, Type::Int64};
         instrs.insert(instrs.begin() + (i64)start,
@@ -279,9 +279,9 @@ std::pair<uint32_t, uint32_t> restore_locals(
     bool skip_mm0 = reg_ty == CReg::mm0 && can_skip_mm0;
     bool skip_d = reg_ty == CReg::D && can_skip_d;
     bool skip_mm1 = reg_ty == CReg::mm1 && can_skip_mm1;
-    if (!is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id) || skip_d ||
-        skip_a || skip_mm1 || skip_mm0 || reg_ty == CReg::SP ||
-        reg_ty == CReg::BP) {
+    if (skip_d || skip_a || skip_mm1 || skip_mm0 || reg_ty == CReg::SP ||
+        reg_ty == CReg::BP ||
+        !is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id)) {
       continue;
     }
     auto push_ty = reg_ty >= CReg::mm0 ? Type::Int64x4 : Type::Int64;
