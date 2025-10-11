@@ -2,7 +2,6 @@
 #include "ir/constant_value_ref.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/global.hpp"
-#include "ir/types.hpp"
 #include "types_ref.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
@@ -107,32 +106,37 @@ struct ConstantValue {
   ConstantValue &operator=(const ConstantValue &);
 
   constexpr ConstantValue(i128 v, TypeR typee)
-      : type(typee), int_u({ConstantType::IntValue, IntValue{v}}) {}
+      : type(typee), int_u({._ty = ConstantType::IntValue, .v = IntValue{v}}) {}
 
   constexpr ConstantValue(i64 v, TypeR typee)
-      : type(typee), int_u({ConstantType::IntValue, IntValue{v}}) {}
+      : type(typee), int_u({._ty = ConstantType::IntValue, .v = IntValue{v}}) {}
 
   constexpr ConstantValue(u64 v, TypeR typee)
-      : type(typee), int_u({ConstantType::IntValue, IntValue{v}}) {}
+      : type(typee), int_u({._ty = ConstantType::IntValue, .v = IntValue{v}}) {}
 
   constexpr ConstantValue(f64 v, TypeR typee)
-      : type(typee), float_u({ConstantType::FloatValue, FloatValue{v}}) {}
+      : type(typee),
+        float_u({._ty = ConstantType::FloatValue, .v = FloatValue{v}}) {}
 
   constexpr ConstantValue(f32 v, TypeR typee)
-      : type(typee), float_u({ConstantType::FloatValue, FloatValue{v}}) {}
+      : type(typee),
+        float_u({._ty = ConstantType::FloatValue, .v = FloatValue{v}}) {}
 
   constexpr ConstantValue(Global g, TypeR typee)
-      : type(typee), gp_u({ConstantType::GlobalPtr, GlobalPointer{g}}) {}
+      : type(typee),
+        gp_u({._ty = ConstantType::GlobalPtr, .v = GlobalPointer{g}}) {}
 
   constexpr ConstantValue(FunctionR f, TypeR typee)
-      : type(typee), fup_u({ConstantType::FuncPtr, FunctionPtr{f}}) {}
+      : type(typee),
+        fup_u({._ty = ConstantType::FuncPtr, .v = FunctionPtr{f}}) {}
 
   constexpr ConstantValue(ConstantStruct stru, TypeR typee)
-      : type(typee), stru_u({ConstantType::ConstantStruct, stru}) {}
+      : type(typee), stru_u({._ty = ConstantType::ConstantStruct, .v = stru}) {}
 
   constexpr ConstantValue(IRVec<ConstantValueR> members, TypeR typee)
       : type(typee),
-        vec_u({ConstantType::VectorValue, VectorValue{std::move(members)}}) {}
+        vec_u({._ty = ConstantType::VectorValue,
+               .v = VectorValue{std::move(members)}}) {}
 
   static ConstantValue null_ptr(TypeR typee) {
     auto c = ConstantValue(typee);

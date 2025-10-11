@@ -8,6 +8,7 @@
 #include "ir/basic_block.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "matcher.hpp"
 #include "matcher_patterns.hpp"
 #include "mir/instr.hpp"
