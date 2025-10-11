@@ -83,10 +83,20 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
     fir::Builder bb{insert_loc};
     bb.after(insert_loc);
     ASSERT(children.size() == 1);
+
+    auto subtype = orig_bundle.base.as_instr()->subtype;
+    bool isProd = subtype == (u32)fir::BinaryInstrSubType::FloatMul ||
+                  subtype == (u32)fir::BinaryInstrSubType::IntMul;
+    bool isSum = subtype == (u32)fir::BinaryInstrSubType::FloatAdd ||
+                 subtype == (u32)fir::BinaryInstrSubType::IntAdd;
+    ASSERT(isProd || isSum);
+
     auto orig_red = orig_bundle.base.as_instr();
     auto vec = children.at(0)->generate(ctx, orig_bundle);
-    auto new_v = bb.build_vector_op(vec, orig_red->get_type(),
-                                    fir::VectorISubType::HorizontalAdd);
+    auto new_v =
+        bb.build_vector_op(vec, orig_red->get_type(),
+                           isProd ? fir::VectorISubType::HorizontalMul
+                                  : fir::VectorISubType::HorizontalAdd);
     orig_red->replace_all_uses(new_v);
     orig_red.destroy();
     return new_v;
@@ -213,7 +223,11 @@ class StoreTreeOp final : public SLPVectorizer::TreeElem {
     // TODO: assuming continious stores
     auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
-    return bb.build_store(store_loc->args[0], val);
+    auto res = bb.build_store(store_loc->args[0], val);
+    for (auto o : orig_bundl.data) {
+      o.instr.destroy();
+    }
+    return res;
   }
 };
 

@@ -1379,6 +1379,8 @@ void base_patterns(IRVec<Pattern> &pats) {
                         (u32)fir::UnaryInstrSubType::FloatSqrt};
   auto HAddNode = Node{NodeType::Instr, InstrType::VectorInstr,
                        (u32)fir::VectorISubType::HorizontalAdd};
+  auto HMulNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                       (u32)fir::VectorISubType::HorizontalMul};
   auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        (u32)fir::BinaryInstrSubType::AShr};
   auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
@@ -1597,15 +1599,15 @@ void base_patterns(IRVec<Pattern> &pats) {
                 return true;
               }});
   pats.push_back(Pattern{
-      .nodes = {HAddNode},
+      .nodes = {HMulNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto sqrt_instr = res.matched_instrs[0];
+        auto hred_instr = res.matched_instrs[0];
         auto res_reg =
-            valueToArg(fir::ValueR(sqrt_instr), res.result, data.alloc);
-        auto a1 = valueToArg(sqrt_instr->args[0], res.result, data.alloc);
+            valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
+        auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
+        (void)res_reg;
 
-        ASSERT(res_reg.is_fp());
         switch (a1.ty) {
           case Type::INVALID:
           case Type::Int8:
@@ -1616,8 +1618,13 @@ void base_patterns(IRVec<Pattern> &pats) {
           case Type::Float64:
             TODO("invalid?");
           case Type::Float32x2:
+            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
+            res.result.emplace_back(GVecSubtype::fmul, res_reg, res_reg, a1);
+            break;
           case Type::Float64x2:
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
+            res.result.emplace_back(X86Subtype::vpermil, res_reg, a1,
+                                    MArgument::Int(1, Type::Int8));
+            res.result.emplace_back(GVecSubtype::fmul, res_reg, res_reg, a1);
             break;
           case Type::Int32x4:
           case Type::Int64x2:
@@ -1626,8 +1633,56 @@ void base_patterns(IRVec<Pattern> &pats) {
           case Type::Int64x4:
           case Type::Float32x8:
           case Type::Float64x4:
-            fmt::println("{:cd}", sqrt_instr->args[0].get_type());
-            fmt::println("{:cd}", sqrt_instr);
+            fmt::println("{:cd}", hred_instr->args[0].get_type());
+            fmt::println("{:cd}", hred_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {HAddNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto hred_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
+        auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
+
+        switch (a1.ty) {
+          case Type::INVALID:
+          case Type::Int8:
+          case Type::Int16:
+          case Type::Int32:
+          case Type::Int64:
+          case Type::Float32:
+          case Type::Float64:
+            TODO("invalid?");
+          case Type::Float32x2:
+            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
+            res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
+            break;
+          case Type::Float32x4: {
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
+            auto res_reg_exp = MArgument{res_reg.reg, Type::Float32x2};
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_reg_exp);
+            // res.result.emplace_back(X86Subtype::vpermil, res_reg, a1);
+            // res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
+            // res.result.emplace_back(X86Subtype::vpermil, res_reg, a1);
+            // res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
+            break;
+          }
+          case Type::Float64x2:
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
+            break;
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Int32x8:
+          case Type::Int64x2:
+          case Type::Int32x4:
+          case Type::Int64x4:
+            fmt::println("{:cd}", hred_instr->args[0].get_type());
+            fmt::println("{:cd}", hred_instr);
             TODO("impl");
             break;
         }

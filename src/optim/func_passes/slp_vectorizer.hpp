@@ -116,6 +116,22 @@ class SLPVectorizer final : public FunctionPass {
     return {};
   }
 
+  void red_search(TVec<fir::ValueR> &reduction_inputs, fir::ValueR curr_base,
+                  u32 exp_sub_type) {
+    if (!curr_base.is_instr()) {
+      return;
+    }
+    auto curr_i = curr_base.as_instr();
+    if (curr_i->instr_type != fir::InstrType::BinaryInstr ||
+        curr_i->subtype != exp_sub_type) {
+      reduction_inputs.push_back(curr_base);
+      return;
+    }
+
+    red_search(reduction_inputs, curr_i->args[0], exp_sub_type);
+    red_search(reduction_inputs, curr_i->args[1], exp_sub_type);
+  }
+
   std::optional<SeedBundle> find_reduction(fir::BasicBlock bb, size_t instr_id,
                                            AliasAnalyis &aa) {
     SeedBundle curr;
@@ -124,27 +140,46 @@ class SLPVectorizer final : public FunctionPass {
     (void)instr_id;
     auto base_instr = bb->instructions[instr_id];
     auto subtype = base_instr->subtype;
-    if (!base_instr->is(fir::InstrType::BinaryInstr) ||
-        (
-            // subtype != (u32)fir::BinaryInstrSubType::IntAdd &&
-            subtype != (u32)fir::BinaryInstrSubType::FloatAdd)) {
+
+    if (!base_instr->is(fir::InstrType::BinaryInstr)) {
       return {};
     }
-    auto pot_target_red = bb->instructions[instr_id];
+    bool isProd = subtype == (u32)fir::BinaryInstrSubType::FloatMul;
+    // subtype == (u32)fir::BinaryInstrSubType::IntMul;
+    bool isSum = subtype == (u32)fir::BinaryInstrSubType::FloatAdd;
+    // subtype == (u32)fir::BinaryInstrSubType::IntAdd;
+    if (!isProd && !isSum) {
+      return {};
+    }
+
     // TODO: find bigger ones
-    if (!pot_target_red->args[0].is_instr() ||
-        !pot_target_red->args[1].is_instr()) {
+    if (!base_instr->args[0].is_instr() || !base_instr->args[1].is_instr()) {
       return {};
     }
-    return SeedBundle{
-        .base = fir::ValueR{pot_target_red},
-        .type = pot_target_red.get_type(),
-        .data = {
-            SeedInstrData{
-                .instr = pot_target_red->args[0].as_instr(), .a = {}, .b = {}},
-            SeedInstrData{.instr = pot_target_red->args[1].as_instr(),
-                          .a = {},
-                          .b = {}}}};
+    {
+      TVec<fir::ValueR> res;
+      red_search(res, fir::ValueR{base_instr}, subtype);
+      if (res.size() != 2 || res.size() != 4 ||
+          (res.size() != 8 && base_instr.get_type()->get_bitwidth() == 4)) {
+        TVec<SeedInstrData> out;
+        for (auto r : res) {
+          out.push_back(SeedInstrData{.instr = r.as_instr(), .a = {}, .b = {}});
+        }
+        return SeedBundle{.base = fir::ValueR{base_instr},
+                          .type = base_instr.get_type(),
+                          .data = out};
+        // fmt::println("FOUND RED WITH SIZE {}", res.size());
+      }
+    }
+    return {};
+    // return SeedBundle{
+    //     .base = fir::ValueR{base_instr},
+    //     .type = base_instr.get_type(),
+    //     .data = {
+    //         SeedInstrData{
+    //             .instr = base_instr->args[0].as_instr(), .a = {}, .b = {}},
+    //         SeedInstrData{
+    //             .instr = base_instr->args[1].as_instr(), .a = {}, .b = {}}}};
   }
 
   std::optional<SeedBundle> find_successive_stores(fir::BasicBlock bb,

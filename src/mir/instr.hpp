@@ -163,6 +163,8 @@ enum class GBaseSubtype : u32 {
 enum class X86Subtype : u32 {
   INVALID = 0,
   lea,
+  vmovshdup,
+  vpermil,
   vpshuf,
   punpckl,
   vbroadcast,

@@ -249,6 +249,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
         case X86Subtype::lzcnt:
+        case X86Subtype::vpermil:
+        case X86Subtype::vmovshdup:
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
@@ -558,11 +560,13 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::lzcnt:
         case X86Subtype::HAdd:
         case X86Subtype::sqrt:
+        case X86Subtype::vmovshdup:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }
           update_uses(instr.args[1], uses);
           return;
+        case X86Subtype::vpermil:
         case X86Subtype::punpckl:
         case X86Subtype::vpshuf:
         case X86Subtype::vbroadcast:

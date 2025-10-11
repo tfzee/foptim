@@ -148,7 +148,9 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       switch ((X86Subtype)sop) {
         ReturnString(X86Subtype, INVALID);
         ReturnString(X86Subtype, lea);
+        ReturnString(X86Subtype, vpermil);
         ReturnString(X86Subtype, sqrt);
+        ReturnString(X86Subtype, vmovshdup);
         ReturnString(X86Subtype, HAdd);
         ReturnString(X86Subtype, vpshuf);
         ReturnString(X86Subtype, punpckl);
@@ -309,12 +311,14 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::INVALID:
           return;
         case X86Subtype::lea:
+        case X86Subtype::vpermil:
         case X86Subtype::sqrt:
         case X86Subtype::HAdd:
         case X86Subtype::vpshuf:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
         case X86Subtype::lzcnt:
+        case X86Subtype::vmovshdup:
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
@@ -545,6 +549,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
         case X86Subtype::lea:
         case X86Subtype::lzcnt:
+        case X86Subtype::vmovshdup:
         case X86Subtype::sqrt:
         case X86Subtype::HAdd:
           out.push_back({1, instr.args[1]});
@@ -552,6 +557,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpshuf:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
+        case X86Subtype::vpermil:
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
           return;

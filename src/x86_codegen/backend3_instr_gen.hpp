@@ -1699,6 +1699,16 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
+    case fmir::X86Subtype::vpermil: {
+      bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
+      req.mnemonic =
+          is_f32 ? ZYDIS_MNEMONIC_VPERMILPS : ZYDIS_MNEMONIC_VPERMILPD;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::vmovshdup:
+      req.mnemonic = ZYDIS_MNEMONIC_VMOVSHDUP;
+      return emit(out_buff, 0, &req);
     case fmir::X86Subtype::lea:
       req.mnemonic = ZYDIS_MNEMONIC_LEA;
       return emit(out_buff, 0, &req);
@@ -1706,28 +1716,29 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       switch (instr.args[1].ty) {
         default:
           TODO("unreach?");
+        case fmir::Type::Float64x4:
         case fmir::Type::Float64x2: {
-          req.mnemonic = ZYDIS_MNEMONIC_MOVAPD;
           u64 off = 0;
-          off = emit(out_buff, off, &req);
+          if (instr.args[0] != instr.args[1]) {
+            req.mnemonic = ZYDIS_MNEMONIC_MOVAPD;
+            off = emit(out_buff, off, &req);
+          }
           req.mnemonic = ZYDIS_MNEMONIC_HADDPD;
           req.operands[1] = req.operands[0];
           return emit(out_buff, off, &req);
         }
+        case fmir::Type::Float32x8:
+        case fmir::Type::Float32x4:
         case fmir::Type::Float32x2: {
-          req.mnemonic = ZYDIS_MNEMONIC_MOVAPD;
           u64 off = 0;
-          off = emit(out_buff, off, &req);
+          if (instr.args[0] != instr.args[1]) {
+            req.mnemonic = ZYDIS_MNEMONIC_MOVAPS;
+            off = emit(out_buff, off, &req);
+          }
           req.mnemonic = ZYDIS_MNEMONIC_HADDPS;
           req.operands[1] = req.operands[0];
           return emit(out_buff, off, &req);
         }
-        case fmir::Type::Float32x4:
-        case fmir::Type::Float32x8:
-        case fmir::Type::Float64x4:
-          fmt::println("{:cd}", req);
-          fmt::println("{:cd}", instr);
-          TODO("impl");
       }
     case fmir::X86Subtype::lzcnt:
       req.mnemonic = ZYDIS_MNEMONIC_LZCNT;

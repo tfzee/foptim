@@ -1,18 +1,16 @@
 #pragma once
-#include <algorithm>
-
 #include "ir/basic_block_ref.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
-#include "optim/analysis/dominators.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
 
+namespace {
 void intersection(TSet<fir::Instr> &curr, const TSet<fir::Instr> &remove_data) {
   for (auto it = curr.begin(); it != curr.end();) {
     if (!remove_data.contains(*it)) {
@@ -47,6 +45,7 @@ void cut(TSet<fir::Instr> &curr, AliasAnalyis &aa, bool all_overwritten,
     }
   }
 }
+}  // namespace
 
 class DoubleLoadElim final : public FunctionPass {
  public:
