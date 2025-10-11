@@ -13,7 +13,6 @@
 #include "mir/func.hpp"
 #include "mir/legalize_bb_form.hpp"
 #include "mir/matcher.hpp"
-#include "mir/matcher_patterns.hpp"
 #include "mir/optim/bb_reordering.hpp"
 #include "mir/optim/calling_conv.hpp"
 #include "mir/optim/copy_prop.hpp"
