@@ -1663,8 +1663,8 @@ void base_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
             break;
           case Type::Float32x4: {
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
             auto res_reg_exp = MArgument{res_reg.reg, Type::Float32x2};
+            res.result.emplace_back(X86Subtype::HAdd, res_reg_exp, a1);
             res.result.emplace_back(X86Subtype::HAdd, res_reg, res_reg_exp);
             // res.result.emplace_back(X86Subtype::vpermil, res_reg, a1);
             // res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
