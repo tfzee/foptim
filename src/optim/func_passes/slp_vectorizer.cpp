@@ -594,8 +594,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
     return false;
   }
 
-  tree[0]->dump();
-  fmt::println("TreeSize {}", tree.size());
+  // tree[0]->dump();
+  // fmt::println("TreeSize {}", tree.size());
   if (!tree.empty()) {
     tree[0]->generate(ctx, b);
   }

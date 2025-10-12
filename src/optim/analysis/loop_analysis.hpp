@@ -2,7 +2,6 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
-#include "ir/function.hpp"
 #include "optim/analysis/dominators.hpp"
 
 namespace foptim::optim {

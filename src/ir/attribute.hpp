@@ -105,7 +105,7 @@ inline fmt::appender fmt::formatter<foptim::fir::Attribute>::format(
     case foptim::fir::AttributeType::Constant:
       return fmt::format_to(ctx.out(), ": TODO CONSTANT PRINTING");
     case foptim::fir::AttributeType::Type:
-      return fmt::format_to(ctx.out(), ": {}", attrib.type_u.v);
+      return fmt::format_to(ctx.out(), ": TYPEATTRIB");
     case foptim::fir::AttributeType::String:
       return fmt::format_to(ctx.out(), ": {}", attrib.str_u.v);
   }

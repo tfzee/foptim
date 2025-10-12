@@ -1,5 +1,3 @@
-#include "loop_analysis.hpp"
-
 #include <fmt/core.h>
 
 #include <algorithm>
@@ -9,8 +7,10 @@
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "loop_analysis.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
 #include "utils/vec.hpp"

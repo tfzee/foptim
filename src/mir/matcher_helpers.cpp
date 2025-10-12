@@ -3,6 +3,7 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher.hpp"

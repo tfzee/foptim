@@ -1,5 +1,4 @@
 #include "helpers.hpp"
-
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -44,10 +43,10 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
     case ConstantType::FloatValue:
       switch (val->type->as_float()) {
         case 32:
-          *((f32 *)output) = (f32)val->float_u.v.data;
+          *((f32 *)output) = val->as_f32();
           return;
         case 64:
-          *((f64 *)output) = (f64)val->float_u.v.data;
+          *((f64 *)output) = val->as_f64();
           return;
         default:
           fmt::println("{}", val);
@@ -81,19 +80,23 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
       auto width = typee.bitwidth;
       size_t i = 0;
       for (auto m : val->vec_u.v.members) {
-        convert_constant_init(output + (width + 7) / 8 * i, m, glob);
+        convert_constant_init(output + (((width + 7) / 8) * i), m, glob);
         i++;
       }
       return;
     }
     case ConstantType::GlobalPtr: {
       glob->reloc_info.push_back(GlobalData::RelocationInfo{
-          (size_t)output - (size_t)glob->init_value, val, 0});
+          .insert_offset = (size_t)output - (size_t)glob->init_value,
+          .ref = val,
+          .reloc_offset = 0});
       return;
     }
     case ConstantType::FuncPtr: {
       glob->reloc_info.push_back(GlobalData::RelocationInfo{
-          (size_t)output - (size_t)glob->init_value, val, 0});
+          .insert_offset = (size_t)output - (size_t)glob->init_value,
+          .ref = val,
+          .reloc_offset = 0});
       return;
       return;
     }

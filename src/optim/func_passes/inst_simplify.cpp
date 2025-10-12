@@ -2457,6 +2457,24 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ConversionSubType::INVALID:
       TODO("unreach");
     case fir::ConversionSubType::BitCast:
+      if (instr->args[0].get_type() == instr->get_type()) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[0]);
+        instr.destroy();
+        return;
+      }
+      if (instr->args[0].is_instr()) {
+        auto a0 = instr->args[0].as_instr();
+        if (a0->is(fir::InstrType::LoadInstr) && a0->get_n_uses() == 1) {
+          fir::Builder buh{instr};
+          auto new_val = buh.build_load(instr->get_type(), a0->args[0]);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(new_val);
+          instr.destroy();
+          a0.destroy();
+          return;
+        }
+      }
       if (instr->args[0].is_instr()) {
         auto iarg0 = instr->args[0].as_instr();
         if (iarg0->is(fir::InstrType::Conversion) &&
@@ -2729,10 +2747,13 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   auto sub_type = (fir::IntrinsicSubType)instr->subtype;
   if (sub_type == fir::IntrinsicSubType::Abs && instr->args[0].is_constant()) {
     push_all_uses(worklist, instr);
-    auto val = std::abs(instr->args[0].as_constant()->as_int());
-    instr->replace_all_uses(
-        fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-    instr.destroy();
+    auto c = instr->args[0].as_constant();
+    if (c->is_int()) {
+      auto val = std::abs(c->as_int());
+      instr->replace_all_uses(
+          fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+      instr.destroy();
+    }
     return;
   }
   if (sub_type == fir::IntrinsicSubType::UMin ||
@@ -2775,20 +2796,22 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
   if (sub_type == fir::IntrinsicSubType::FAbs && instr->args[0].is_constant()) {
     auto ty = instr->get_type();
-    auto width = ty->as_float();
+    if (ty->is_float()) {
+      auto width = ty->as_float();
 
-    push_all_uses(worklist, instr);
-    if (width == 32) {
-      auto val = std::fabs(instr->args[0].as_constant()->as_f32());
-      instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
-    } else if (width == 64) {
-      auto val = std::fabs(instr->args[0].as_constant()->as_f64());
-      instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
-    } else {
-      TODO("IMPL");
+      push_all_uses(worklist, instr);
+      if (width == 32) {
+        auto val = std::fabs(instr->args[0].as_constant()->as_f32());
+        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
+      } else if (width == 64) {
+        auto val = std::fabs(instr->args[0].as_constant()->as_f64());
+        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
+      } else {
+        TODO("IMPL");
+      }
+      instr.destroy();
+      return;
     }
-    instr.destroy();
-    return;
   }
 
   switch (sub_type) {

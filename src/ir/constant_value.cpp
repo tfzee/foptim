@@ -3,6 +3,7 @@
 #include "constant_value.hpp"
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/types.hpp"
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
 

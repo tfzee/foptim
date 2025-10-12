@@ -290,7 +290,6 @@ class KnownBits final : public AttributeAnalysis {
           new_known_zero = a->known_zero;
         } break;
         case fir::ConversionSubType::BitCast:
-          TODO("impl");
         case fir::ConversionSubType::INVALID:
         case fir::ConversionSubType::FPEXT:
         case fir::ConversionSubType::FPTRUNC:

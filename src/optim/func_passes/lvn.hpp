@@ -144,16 +144,41 @@ class LVN final : public FunctionPass {
         //  replace the load(TOOD: unless its volatile)
         if (instr->is(fir::InstrType::StoreInstr) &&
             instr2->is(fir::InstrType::LoadInstr) &&
-            instr->get_arg(0) == instr2->get_arg(0) &&
-            instr->get_type() == instr2.get_type()) {
-          bool pot_store_between = is_pot_store_between(
-              bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
-          if (!pot_store_between) {
-            // fmt::println("No Store between {:cd}\n{:cd}", instr, instr2);
-            instr2->replace_all_uses(instr->get_arg(1));
-            instr2.destroy();
-            i2--;
-            continue;
+            instr->get_arg(0) == instr2->get_arg(0)) {
+          auto t1 = instr->get_type();
+          auto t2 = instr2->get_type();
+
+          if (t1->is_vec() && t2->is_vec() &&
+              t1->get_bitwidth() == t2->get_bitwidth()) {
+            bool pot_store_between = is_pot_store_between(
+                bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2,
+                aa);
+            if (!pot_store_between) {
+              if (t1 == t2) {
+                instr2->replace_all_uses(instr->get_arg(1));
+              } else {
+                fir::Builder buh{instr};
+                auto r = buh.build_conversion_op(
+                    instr->get_arg(1), instr2->get_type(),
+                    fir::ConversionSubType::BitCast);
+                instr2->replace_all_uses(r);
+              }
+              instr2.destroy();
+              i2--;
+              continue;
+            }
+          }
+          if (t1 == t2) {
+            bool pot_store_between = is_pot_store_between(
+                bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2,
+                aa);
+            if (!pot_store_between) {
+              // fmt::println("No Store between {:cd}\n{:cd}", instr, instr2);
+              instr2->replace_all_uses(instr->get_arg(1));
+              instr2.destroy();
+              i2--;
+              continue;
+            }
           }
         }
 
