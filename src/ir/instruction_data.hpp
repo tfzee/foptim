@@ -456,6 +456,10 @@ class InstrData : public Used, public InstrAttribs {
     return instr_type == InstrType::ICmp && subtype == (u32)ty;
   }
 
+  [[nodiscard]] constexpr bool is(ConversionSubType ty) const {
+    return instr_type == InstrType::Conversion && subtype == (u32)ty;
+  }
+
   [[nodiscard]] constexpr bool is(FCmpInstrSubType ty) const {
     return instr_type == InstrType::FCmp && subtype == (u32)ty;
   }
