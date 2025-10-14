@@ -209,6 +209,12 @@ class SCCP final : public FunctionPass {
             .vals = {{.i = std::bit_cast<i128>((u128)(*(u64 *)v))}},
             .vtype = c};
       }
+      if (c->is_int() && bitwidth == 32) {
+        return ConstantValue{
+            .type = ValueType::Int,
+            .vals = {{.i = std::bit_cast<i128>((u128)(*(u32 *)v))}},
+            .vtype = c};
+      }
       if (c->is_vec()) {
         const auto &vec = c->as_vec();
         auto n_lanes = vec.member_number;
@@ -251,6 +257,10 @@ class SCCP final : public FunctionPass {
       }
       if (c->is_float() && bitwidth == 64) {
         *((f64 *)v) = vals[0].f;
+        return true;
+      }
+      if (c->is_int() && bitwidth == 64) {
+        *((i64 *)v) = (i64)vals[0].i;
         return true;
       }
       if (c->is_vec()) {

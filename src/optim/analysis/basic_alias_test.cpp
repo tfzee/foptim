@@ -2,6 +2,7 @@
 #include "ir/basic_block.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 
 namespace foptim::optim {
 AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
@@ -41,6 +42,14 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
       return {.heap = any_h, .offset = {}};
     }
     if (i->is(fir::InstrType::CallInstr)) {
+      // TODO: prob can also optimize this
+      return {.heap = any_h, .offset = {}};
+    }
+    if (i->is(fir::ConversionSubType::BitCast)) {
+      // TODO: prob can also optimize this
+      return {.heap = any_h, .offset = {}};
+    }
+    if (i->is(fir::ConversionSubType::IntToPtr)) {
       // TODO: prob can also optimize this
       return {.heap = any_h, .offset = {}};
     }
