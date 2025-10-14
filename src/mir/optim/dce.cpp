@@ -106,15 +106,15 @@ void DeadCodeElim::apply_impl(MFunc &func) {
 
       const auto target_uid = reg_to_uid(w_args[0].arg.reg);
 
-      bool is_only_alive_in_this_bb = true;
-      for (size_t i = 0; i < func.bbs.size(); i++) {
-        if (i != bb_id && live._live[i][target_uid]) {
-          is_only_alive_in_this_bb = false;
-        }
-      }
-      if (!is_only_alive_in_this_bb) {
-        continue;
-      }
+      // bool is_only_alive_in_this_bb = true;
+      // for (size_t i = 0; i < func.bbs.size(); i++) {
+      //   if (i != bb_id && live._live[i][target_uid]) {
+      //     is_only_alive_in_this_bb = false;
+      //   }
+      // }
+      // if (!is_only_alive_in_this_bb) {
+      //   continue;
+      // }
       // FIXME: This is a bit too pesimistic
       bool is_read =
           live._liveIn[bb_id][target_uid] || live._liveOut[bb_id][target_uid];

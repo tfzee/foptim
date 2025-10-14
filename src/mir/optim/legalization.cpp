@@ -319,7 +319,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   }
   if (instr.is(GBaseSubtype::mov) && instr.args[0].isReg() &&
       instr.args[1].isReg() && !instr.args[0].is_vec_reg() &&
-      instr.args[0].ty != instr.args[1].ty) {
+      !instr.args[1].is_vec_reg() && instr.args[0].ty != instr.args[1].ty) {
     auto t0 = instr.args[0].ty;
     auto t1 = instr.args[1].ty;
     if (get_size(t0) > get_size(t1)) {

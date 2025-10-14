@@ -2457,6 +2457,24 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ConversionSubType::INVALID:
       TODO("unreach");
     case fir::ConversionSubType::BitCast:
+      if (instr->args[0].get_type()->is_int() && instr->get_type()->is_ptr()) {
+        fir::Builder buh{instr};
+        auto r = buh.build_conversion_op(instr->args[0], instr.get_type(),
+                                         fir::ConversionSubType::IntToPtr);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        return;
+      } else if (instr->get_type()->is_int() &&
+                 instr->args[0].get_type()->is_ptr()) {
+        fir::Builder buh{instr};
+        auto r = buh.build_conversion_op(instr->args[0], instr.get_type(),
+                                         fir::ConversionSubType::PtrToInt);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        return;
+      }
       if (instr->args[0].get_type() == instr->get_type()) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
@@ -2513,12 +2531,55 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
       break;
     case fir::ConversionSubType::PtrToInt:
-    case fir::ConversionSubType::IntToPtr:
-      if (instr->args[0].is_constant()) {
+      if (instr->args[0].is_constant() || instr->args[0].get_type()->is_int()) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
         instr.destroy();
         return;
+      }
+      if (instr->args[0].is_instr()) {
+        auto a0 = instr->args[0].as_instr();
+        if (a0->is(fir::InstrType::LoadInstr) && a0->get_n_uses() == 1) {
+          fir::Builder buh{instr};
+          auto new_val = buh.build_load(instr->get_type(), a0->args[0]);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(new_val);
+          instr.destroy();
+          a0.destroy();
+          return;
+        }
+        if (a0->is(fir::ConversionSubType::IntToPtr)) {
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(a0->args[0]);
+          instr.destroy();
+          return;
+        }
+      }
+      break;
+    case fir::ConversionSubType::IntToPtr:
+      if (instr->args[0].is_constant() || instr->args[0].get_type()->is_ptr()) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[0]);
+        instr.destroy();
+        return;
+      }
+      if (instr->args[0].is_instr()) {
+        auto a0 = instr->args[0].as_instr();
+        if (a0->is(fir::InstrType::LoadInstr) && a0->get_n_uses() == 1) {
+          fir::Builder buh{instr};
+          auto new_val = buh.build_load(instr->get_type(), a0->args[0]);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(new_val);
+          instr.destroy();
+          a0.destroy();
+          return;
+        }
+        if (a0->is(fir::ConversionSubType::PtrToInt)) {
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(a0->args[0]);
+          instr.destroy();
+          return;
+        }
       }
       break;
     case fir::ConversionSubType::FPTOSI:

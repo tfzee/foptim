@@ -109,6 +109,8 @@ class LVN final : public FunctionPass {
       }
 
       for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
+        ASSERT(i2 > i);
+        auto instr = bb->instructions[i];
         auto instr2 = bb->instructions[i2];
         if (lvn_applicable(instr2) && instr->get_type() == instr2.get_type()) {
           if (instr->eql_expr(*instr2.get_raw_ptr())) {
@@ -148,7 +150,8 @@ class LVN final : public FunctionPass {
           auto t1 = instr->get_type();
           auto t2 = instr2->get_type();
 
-          if (t1->is_vec() && t2->is_vec() &&
+          if (
+              // t1->is_vec() && t2->is_vec() &&
               t1->get_bitwidth() == t2->get_bitwidth()) {
             bool pot_store_between = is_pot_store_between(
                 bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2,
@@ -168,18 +171,17 @@ class LVN final : public FunctionPass {
               continue;
             }
           }
-          if (t1 == t2) {
-            bool pot_store_between = is_pot_store_between(
-                bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2,
-                aa);
-            if (!pot_store_between) {
-              // fmt::println("No Store between {:cd}\n{:cd}", instr, instr2);
-              instr2->replace_all_uses(instr->get_arg(1));
-              instr2.destroy();
-              i2--;
-              continue;
-            }
-          }
+          // if (t1 == t2) {
+          //   bool pot_store_between = is_pot_store_between(
+          //       bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2,
+          //       aa);
+          //   if (!pot_store_between) {
+          //     instr2->replace_all_uses(instr->get_arg(1));
+          //     instr2.destroy();
+          //     i2--;
+          //     continue;
+          //   }
+          // }
         }
 
         // if we store and afterwards store to the same address
@@ -193,7 +195,6 @@ class LVN final : public FunctionPass {
           bool pot_load_between = is_pot_load_between(
               bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
           if (!pot_load_between) {
-            // fmt::println("No Store between {} {}", instr, instr2);
             instr.destroy();
             i--;
             break;
@@ -249,9 +250,10 @@ class LVN final : public FunctionPass {
               // fmt::println("{:cd}", shift2_val.as_instr());
               // fmt::println("{:cd}", data.as_instr());
               // fmt::println("{:cd}", store.as_instr());
+              // fmt::println("{:cd} =SSM> {:cd}", instr, instr2);
               instr.destroy();
               instr2.destroy();
-              i -= 1;
+              i--;
               break;
             }
           }
@@ -283,9 +285,10 @@ class LVN final : public FunctionPass {
               // fmt::println("{:cd}", shift2_val.as_instr());
               // fmt::println("{:cd}", data.as_instr());
               // fmt::println("{:cd}", store.as_instr());
+              // fmt::println("{:cd} =SSM> {:cd}", instr, instr2);
               instr.destroy();
               instr2.destroy();
-              i -= 1;
+              i--;
               break;
             }
           }
@@ -354,7 +357,7 @@ class LVN final : public FunctionPass {
               instr2->replace_all_uses(data2);
               instr.destroy();
               instr2.destroy();
-              i -= 1;
+              i--;
               break;
             }
           }
