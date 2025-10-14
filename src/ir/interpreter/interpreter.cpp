@@ -4,6 +4,7 @@
 #include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 
 namespace foptim::fir::intepreter {
 
@@ -88,10 +89,13 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
       st.set_value(ValueR(instr), ConstantValue{v1->as_int() | v2->as_int(),
                                                 instr.get_type()});
       break;
+    case BinaryInstrSubType::Shl:
+      st.set_value(ValueR(instr), ConstantValue{v1->as_int() << v2->as_int(),
+                                                instr.get_type()});
+      break;
     case BinaryInstrSubType::IntSRem:
     case BinaryInstrSubType::IntSDiv:
     case BinaryInstrSubType::IntUDiv:
-    case BinaryInstrSubType::Shl:
     case BinaryInstrSubType::Shr:
     case BinaryInstrSubType::AShr:
     case BinaryInstrSubType::Xor:
