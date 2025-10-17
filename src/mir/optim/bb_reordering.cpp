@@ -1,5 +1,4 @@
 #include "bb_reordering.hpp"
-
 #include "mir/instr.hpp"
 
 namespace foptim::fmir {
@@ -29,6 +28,9 @@ void BBReordering::apply(MFunc &func) {
     for (size_t bb2_i = 0; bb2_i < func.bbs.size(); bb2_i++) {
       if (bb2_i != bb1_i && !func.bbs[bb2_i].instrs.empty()) {
         const auto &t2 = func.bbs[bb2_i].instrs.back();
+        if (t2.is(GBaseSubtype::ret)) {
+          continue;
+        }
         if (t2.bb_ref == target_bb) {
           is_fallthrough_elsewhere = true;
           break;

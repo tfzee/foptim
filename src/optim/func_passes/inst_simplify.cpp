@@ -245,7 +245,10 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     auto swap_const_back = instr->args[0].is_constant() &&
                            (!instr->args[0].as_constant()->is_global() &&
                             !instr->args[0].as_constant()->is_func());
-    if (instr->is_commutative() && swap_const_back) {
+    auto swap_bb_arg_back =
+        instr->args[0].is_bb_arg() &&
+        (!instr->args[1].is_constant() && !instr->args[1].is_bb_arg());
+    if (instr->is_commutative() && (swap_const_back || swap_bb_arg_back)) {
       swap_args(instr, 0, 1);
     }
   }
@@ -1202,6 +1205,20 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
 
   if (instr->args[0].is_instr()) {
     auto a1i = instr->args[0].as_instr();
+    if (instr->args[1].is_instr()) {
+      auto a2i = instr->args[1].as_instr();
+      if (a1i->instr_type == a2i->instr_type && a1i->subtype == a2i->subtype &&
+          (a1i->instr_type == InstrType::ZExt ||
+           a1i->instr_type == InstrType::SExt) &&
+          a1i->args[0].get_type() == a2i->args[0].get_type()) {
+        // TODO: technically this could also work if both are zext but different
+        // types cause then we still
+        //  could get rid of one of the zext
+        instr.replace_arg(0, a1i->args[0]);
+        instr.replace_arg(1, a1i->args[0]);
+        return;
+      }
+    }
     if (a1i->is(InstrType::BinaryInstr) &&
         a1i->subtype == (u32)BinaryInstrSubType::And &&
         a1i->args[1].is_constant()) {
@@ -2643,6 +2660,17 @@ bool simplify_store(fir::Instr instr) {
        instr->args[1].as_constant()->is_poison())) {
     instr.destroy();
     return true;
+  }
+  if (instr->args[1].is_instr()) {
+    auto val_i = instr->args[1].as_instr();
+    if (val_i->is(fir::ConversionSubType::PtrToInt) ||
+        val_i->is(fir::ConversionSubType::IntToPtr) ||
+        val_i->is(fir::ConversionSubType::BitCast)) {
+      fir::Builder buh{instr};
+      buh.build_store(instr->args[0], val_i->args[0]);
+      instr.destroy();
+      return true;
+    }
   }
   return false;
 }
