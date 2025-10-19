@@ -111,6 +111,10 @@ class SCCP final : public FunctionPass {
                              .vals = {{.fptr = v->as_func()}},
                              .vtype = v->get_type()};
       }
+      if (v->is_poison()) {
+        return ConstantValue{
+            .type = ValueType::Poison, .vals = {}, .vtype = v->get_type()};
+      }
       if (v->is_vec()) {
         const auto &tv = v->as_vec();
         auto r = ConstantValue{
@@ -213,6 +217,12 @@ class SCCP final : public FunctionPass {
         return ConstantValue{
             .type = ValueType::Int,
             .vals = {{.i = std::bit_cast<i128>((u128)(*(u32 *)v))}},
+            .vtype = c};
+      }
+      if (c->is_int() && bitwidth == 8) {
+        return ConstantValue{
+            .type = ValueType::Int,
+            .vals = {{.i = std::bit_cast<i128>((u128)(*(u8 *)v))}},
             .vtype = c};
       }
       if (c->is_vec()) {

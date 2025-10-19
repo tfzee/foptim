@@ -88,7 +88,11 @@ class BaseInlineAdvisor {
     auto v = called_func.as_constant()->as_func();
     const auto called_n_instrs = v->n_instrs();
     if (v->is_decl() || v->variadic) {
-      ASSERT(!v->must_inline);
+      if (v->must_inline) {
+        fmt::println("Had must_inline but is variadic or only decl {:cd}",
+                     instr);
+        TODO("okak?");
+      }
       return false;
     }
     if (debug_print) {

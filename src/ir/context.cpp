@@ -25,13 +25,7 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
   for (auto &instr : bb->instructions) {
     auto new_instr = copy(instr);
     new_instr->uses.clear();
-    if (apply_subs) {
-      new_instr.substitute(subs);
-    }
-    subs.insert({ValueR{instr}, ValueR{new_instr}});
     res.push_instr(new_instr);
-
-    new_instr->uses.clear();
     new_instr->args.clear();
     for (size_t i = 0; i < instr->args.size(); i++) {
       new_instr.add_arg(instr->args[i]);
@@ -43,6 +37,10 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
         new_instr.add_bb_arg(new_instr->bbs.size() - 1, arg);
       }
     }
+    if (apply_subs) {
+      new_instr.substitute(subs);
+    }
+    subs.insert({ValueR{instr}, ValueR{new_instr}});
   }
   return res;
 }

@@ -1215,7 +1215,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         // types cause then we still
         //  could get rid of one of the zext
         instr.replace_arg(0, a1i->args[0]);
-        instr.replace_arg(1, a1i->args[0]);
+        instr.replace_arg(1, a2i->args[0]);
         return;
       }
     }
@@ -2700,6 +2700,27 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           instr->replace_all_uses(fir::ValueR{len_constant});
           instr.destroy();
           return;
+        }
+      }
+      // void * __memset_chk(void * dest, int c, size_t len, size_t destlen);
+      if (funci->name == "__memset_chk" && instr->args[3].is_constant() &&
+          instr->args[4].is_constant() && instr->get_n_uses() == 0) {
+        auto len = std::bit_cast<u128>(instr->args[3].as_constant()->as_int());
+        auto destlen =
+            std::bit_cast<u128>(instr->args[4].as_constant()->as_int());
+        if (len <= destlen) {
+          fir::generate_memset(ctx);
+          fir::Builder buh{instr};
+          auto new_c = buh.build_itrunc(instr->args[2], ctx->get_int_type(8));
+          auto memset = ctx->get_function("foptim.memset");
+          instr.replace_arg(0, fir::ValueR{ctx->get_constant_value(memset)});
+          instr.replace_arg(2, new_c);
+          instr.remove_arg(4);
+          instr->value_type = ctx->get_void_type();
+          instr->extra_type = memset->func_ty;
+          return;
+        } else {
+          TODO("emit unreach");
         }
       }
       // NOTE: this current version does not work cause it does not append

@@ -6,6 +6,9 @@
 
 namespace foptim::optim {
 namespace {
+
+static u64 ipcp_unique_name_number = 0;
+
 void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
   auto ret_val = fir::ValueR();
   if (func->func_ty->as_func().return_type->is_void()) {
@@ -104,7 +107,10 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
     // we need renaming
     if (func->linkage == fir::Linkage::LinkOnceODR) {
       auto old_name = func->name;
+      ipcp_unique_name_number++;
       auto new_name = old_name + "MODIPCP";
+      new_name += std::to_string(ipcp_unique_name_number);
+      ASSERT(!ctx->storage.functions.contains(new_name));
       auto func_moved = std::move(ctx->storage.functions.at(old_name));
       ctx->storage.functions.erase(old_name);
       func_moved->name = new_name;
@@ -151,7 +157,10 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
 
     if (func->linkage == fir::Linkage::LinkOnceODR) {
       auto old_name = func->name;
+      ipcp_unique_name_number++;
       auto new_name = old_name + "MODIPCP";
+      new_name += std::to_string(ipcp_unique_name_number);
+      ASSERT(!ctx->storage.functions.contains(new_name));
       auto func_moved = std::move(ctx->storage.functions.at(old_name));
       ctx->storage.functions.erase(old_name);
       func_moved->name = new_name;

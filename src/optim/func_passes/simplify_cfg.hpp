@@ -23,7 +23,7 @@ class Dominators;
 
 class SimplifyCFG final : public FunctionPass {
  public:
-  static constexpr bool debug_tracy = true;
+  static constexpr bool debug_tracy = false;
   static constexpr bool debug_print = false;
   enum class Res : u8 {
     // No chagne
@@ -86,6 +86,9 @@ class SimplifyCFG final : public FunctionPass {
                               size_t bb_id, fir::Function &func);
   // or merge 2 following conditions and combine them via && or ||
   bool merge_term_cond(CFG &cfg, CFG::Node &curr);
+  // flip conditions which go to 'cold' bb so that the true branch goes to the
+  // cold bb and the fallthrough is the 'hot' path
+  SimplifyCFG::Res flip_cold_cond(CFG &cfg, CFG::Node &curr);
 
  public:
   // simplifications on the bbargs which

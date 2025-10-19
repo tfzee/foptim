@@ -72,6 +72,9 @@ bool inline_call(fir::Instr call) {
         if (!bb->instructions.back()->has_args()) {
           // TODO: why does this occur ?
           //  failure("Cant inline function with weird returns\n");
+          fmt::println("{:cd}", *called_func.func);
+          fmt::println("{:cd}", called_func->func_ty);
+          TODO("hit weird");
           return false;
         }
       }

@@ -10,12 +10,34 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/helper/helper.hpp"
 #include "simplify_cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
+SimplifyCFG::Res SimplifyCFG::flip_cold_cond(CFG &cfg, CFG::Node &curr) {
+  (void)cfg;
+  auto term = curr.bb->get_terminator();
+  if (!term->is(fir::InstrType::CondBranchInstr)) {
+    return SimplifyCFG::Res::NoChange;
+  }
+  auto &tru_target = term->bbs[0];
+  auto &fals_target = term->bbs[1];
+
+  // TODO: could detect other kinds of cold stuff(maybe just apply it on every
+  // return for now that atleast in loops shold be correct)
+  if (tru_target.bb->get_terminator()->is(fir::InstrType::Unreachable)) {
+    return SimplifyCFG::Res::NoChange;
+  }
+  if (!fals_target.bb->get_terminator()->is(fir::InstrType::Unreachable)) {
+    return SimplifyCFG::Res::NoChange;
+  }
+
+  flip_cond_branch(term);
+  return SimplifyCFG::Res::Changed;
+}
 
 SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
                                              CFG::Node &curr,
@@ -145,7 +167,7 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
 
 namespace {
 
-struct DiffConst {
+struct DiffValues {
   fir::Use use1;
   fir::ValueR old_val;
   fir::Use use2;
@@ -154,7 +176,7 @@ struct DiffConst {
 [[nodiscard]] bool check_args(fir::Instr i1, fir::Instr i2,
                               TMap<fir::Instr, fir::Instr> &local_value_map,
                               size_t &cost,
-                              TVec<DiffConst> &difference_values) {
+                              TVec<DiffValues> &difference_values) {
   for (u32 i = 0; i < i1->args.size(); i++) {
     auto &arg1 = i1->args[i];
     auto &arg2 = i2->args[i];
@@ -187,7 +209,7 @@ struct DiffConst {
 [[nodiscard]] bool match_term(fir::Instr i1, fir::Instr i2,
                               TMap<fir::Instr, fir::Instr> &local_value_map,
                               size_t &cost,
-                              TVec<DiffConst> &difference_values) {
+                              TVec<DiffValues> &difference_values) {
   if (i1 == i2) {
     return true;
   }
@@ -239,7 +261,7 @@ struct DiffConst {
 }
 
 bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
-                           size_t &bb_id, TVec<DiffConst> &difference_values,
+                           size_t &bb_id, TVec<DiffValues> &difference_values,
                            TMap<fir::Instr, fir::Instr> &local_value_map,
                            TVec<fir::BBArgument> &new_bb_args_helper) {
   constexpr u32 N_INSTRS_UPPERBOUND = 20;
@@ -345,7 +367,7 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
     ZoneScopedN("dup bb to arg");
   }
   bool modified = false;
-  TVec<DiffConst> difference_values;
+  TVec<DiffValues> difference_values;
   TMap<fir::Instr, fir::Instr> local_value_map;
   TVec<fir::BBArgument> new_bb_args_helper;
   difference_values.reserve(32);
@@ -1199,6 +1221,17 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
     return Res::NeedUpdate;
   }
 
+  r = flip_cold_cond(cfg, curr);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
+      fmt::println("14");
+    }
+    return r;
+  }
+
+  if constexpr (debug_print) {
+    fmt::println("nuffin");
+  }
   return Res::NoChange;
 }
 

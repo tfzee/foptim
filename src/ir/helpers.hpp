@@ -4,6 +4,7 @@
 namespace foptim::fir {
 
 class BasicBlock;
+class Context;
 class ConstantValueR;
 struct Global;
 
@@ -38,5 +39,11 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to);
 // BasicBlock split_block(BasicBlock a);
 
 void convert_constant_init(u8 *output, ConstantValueR val, Global glob);
+
+void generate_memset(fir::Context &fctx);
+void generate_memcpy(fir::Context &fctx);
+void generate_memmove(fir::Context &fctx);
+void generate_fexp(fir::Context &fctx);
+void generate_trap(fir::Context &fctx);
 
 }  // namespace foptim::fir

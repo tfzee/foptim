@@ -1026,8 +1026,10 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           mem = ZYDIS_MNEMONIC_JB;
           break;
         case fmir::GJumpSubtype::cjmp_flt_ule:
+          ordered = false;
         case fmir::GJumpSubtype::cjmp_flt_ole:
-          TODO("impl");
+          mem = ZYDIS_MNEMONIC_JBE;
+          break;
         case fmir::GJumpSubtype::cjmp_flt_une:
           ordered = false;
         case fmir::GJumpSubtype::cjmp_flt_one:

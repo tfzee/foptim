@@ -3,7 +3,6 @@
 #include "ir/instruction_data.hpp"
 
 namespace foptim::optim {
-
 void flip_cond_branch(fir::Instr cond_term) {
   ASSERT(cond_term->is(fir::InstrType::CondBranchInstr));
 

@@ -99,6 +99,21 @@ class LVN final : public FunctionPass {
     return false;
   }
 
+  bool eql_instr_expr(fir::Instr a, fir::Instr b) {
+    if (a->eql_expr(*b.get_raw_ptr()) && a->get_type() == b.get_type()) {
+      return true;
+    }
+    if (a->is(fir::InstrType::BinaryInstr) &&
+        b->is(fir::InstrType::BinaryInstr) && a->subtype == b->subtype &&
+        a->is_commutative() && a->args[0].eql(b->args[1]) &&
+        a->args[1].eql(b->args[0]) &&
+        a->get_type()->get_bitwidth() == a->get_type()->get_bitwidth()) {
+      return true;
+    }
+
+    return false;
+  }
+
   void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
                  AliasAnalyis &aa) {
     for (size_t i = 0; i < bb->instructions.size(); i++) {
@@ -112,8 +127,8 @@ class LVN final : public FunctionPass {
         ASSERT(i2 > i);
         auto instr = bb->instructions[i];
         auto instr2 = bb->instructions[i2];
-        if (lvn_applicable(instr2) && instr->get_type() == instr2.get_type()) {
-          if (instr->eql_expr(*instr2.get_raw_ptr())) {
+        if (lvn_applicable(instr2)) {
+          if (eql_instr_expr(instr, instr2)) {
             instr2->replace_all_uses(fir::ValueR{instr});
             ASSERT(instr2->get_n_uses() == 0);
             instr2.destroy();
@@ -327,12 +342,14 @@ class LVN final : public FunctionPass {
           i128 base2_off = 0;
 
           if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg1->args[1].is_constant()) {
+              arg1->args[1].is_constant() &&
+              arg1->args[1].as_constant()->is_int()) {
             base1_addr = arg1->args[0];
             base1_off = arg1->args[1].as_constant()->as_int();
           }
           if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg2->args[1].is_constant()) {
+              arg2->args[1].is_constant() &&
+              arg2->args[1].as_constant()->is_int()) {
             base2_addr = arg2->args[0];
             base2_off = arg2->args[1].as_constant()->as_int();
           }
