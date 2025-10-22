@@ -486,6 +486,7 @@ void merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
       if (!is_function_applicable(f1)) {
         continue;
       }
+      waits[i].store(false, std::memory_order_release);
       shed->push(&waits[i], [&ctx, iter1, &prot_groups]() {
         ZoneScopedN("CollectingGroup");
         collect_group(ctx, iter1, prot_groups);

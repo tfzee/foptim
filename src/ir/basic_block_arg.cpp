@@ -27,5 +27,27 @@ BBArgumentData::BBArgumentData(BasicBlock parent, TypeR type)
 
 fmt::appender fmt::formatter<foptim::fir::BBArgument>::format(
     foptim::fir::BBArgument const &v, format_context &ctx) const {
-  return fmt::format_to(ctx.out(), "{:p}", (void *)v.get_raw_ptr());
+  auto colv2 = color ? color_value2 : text_style{};
+  auto f = ctx.out();
+  if (!extended) {
+    return fmt::format_to(f, colv2, "{:p}", (void *)v.get_raw_ptr());
+  }
+  f = fmt::format_to(f, colv2, "{:p}", (void *)v.get_raw_ptr());
+  fmt::format_to(ctx.out(), "{{");
+  if (v->noalias) {
+    f = fmt::format_to(f, "noalias; ");
+  }
+  if (!v->get_attribs().empty()) {
+    const auto &attribs = v->get_attribs();
+    for (auto [key, value] : attribs) {
+      fmt::format_to(ctx.out(), "{}{}; ", key.c_str(), value);
+    }
+  }
+  fmt::format_to(ctx.out(), "}}");
+  if (color) {
+    f = fmt::format_to(f, ": {:c}", v->get_type());
+  } else {
+    f = fmt::format_to(f, ": {}", v->get_type());
+  }
+  return f;
 }

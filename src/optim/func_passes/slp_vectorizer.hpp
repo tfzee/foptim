@@ -557,7 +557,7 @@ class SLPVectorizer final : public FunctionPass {
         continue;
       }
       auto stor = utils::TempAlloc<void *>::save();
-      fmt::println("MAYBE REDUCTION BUNDLE {:cd}", b.base.as_instr());
+      // fmt::println("MAYBE REDUCTION BUNDLE {:cd}", b.base.as_instr());
       if (tree_vectorize_reduction(ctx, b, load_bundles)) {
         utils::TempAlloc<void *>::restore(stor);
         continue;

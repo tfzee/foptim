@@ -2,11 +2,19 @@
 #include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/global.hpp"
+#include "optim/analysis/access_analysis.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
 
 namespace foptim::optim {
+
+namespace {
+bool global_is_never_read(fir::Global g) {
+  auto r = ptr_access_analysis(g);
+  return !r.IsRead && !r.Escapes;
+}
+}  // namespace
 
 class GDCE final : public ModulePass {
  public:
@@ -54,9 +62,6 @@ class GDCE final : public ModulePass {
                     0
 #endif
                 }};
-            if (g->get_n_uses() > 0) {
-              continue;
-            }
             switch (g->linkage) {
               case fir::Linkage::External:
               case fir::Linkage::WeakODR:
@@ -67,13 +72,18 @@ class GDCE final : public ModulePass {
               case fir::Linkage::LinkOnceODR:
                 break;
             }
+            if (g->get_n_uses() > 0 &&
+                // assumes constannt is either escaping or read otherwise it
+                // should be 0 uses
+                (g->is_constant || !global_is_never_read(g))) {
+              continue;
+            }
             if (global_global_reffed.contains(g)) {
               continue;
             }
-            // if (name.starts_with("_GLOBAL")) {
-            //   continue;
-            // }
             auto *slab = ctx->storage.storage_constant._slot_start.load();
+            g->replace_all_uses(
+                fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())});
             while (slab != nullptr) {
               for (auto &i : slab->data) {
                 auto *v = &i;

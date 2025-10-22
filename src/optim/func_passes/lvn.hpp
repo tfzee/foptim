@@ -231,12 +231,14 @@ class LVN final : public FunctionPass {
           i128 base2_off = 0;
 
           if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg1->args[1].is_constant()) {
+              arg1->args[1].is_constant() &&
+              arg1->args[1].as_constant()->is_int()) {
             base1_addr = arg1->args[0];
             base1_off = arg1->args[1].as_constant()->as_int();
           }
           if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg2->args[1].is_constant()) {
+              arg2->args[1].is_constant() &&
+              arg2->args[1].as_constant()->is_int()) {
             base2_addr = arg2->args[0];
             base2_off = arg2->args[1].as_constant()->as_int();
           }

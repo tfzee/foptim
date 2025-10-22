@@ -77,6 +77,9 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
   } else if (v.is_bb_arg()) {
     auto arg = v.as_bb_arg();
     if (arg->_parent == arg->_parent->get_parent()->get_entry()) {
+      if (arg->noalias) {
+        return {.heap = createHeap(0), .offset = 0};
+      }
       return {.heap = argument_h, .offset = {}};
     }
     // TODO: implement meet

@@ -7,7 +7,7 @@
 namespace foptim::optim {
 namespace {
 
-static u64 ipcp_unique_name_number = 0;
+u64 ipcp_unique_name_number = 0;
 
 void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
   auto ret_val = fir::ValueR();
@@ -105,7 +105,8 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
       use.user->extra_type = func.func->func_ty;
     }
     // we need renaming
-    if (func->linkage == fir::Linkage::LinkOnceODR) {
+    if (func->linkage == fir::Linkage::LinkOnceODR ||
+        func->getName().starts_with("foptim.")) {
       auto old_name = func->name;
       ipcp_unique_name_number++;
       auto new_name = old_name + "MODIPCP";
@@ -155,7 +156,8 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
       use.user->extra_type = func.func->func_ty;
     }
 
-    if (func->linkage == fir::Linkage::LinkOnceODR) {
+    if (func->linkage == fir::Linkage::LinkOnceODR ||
+        func->getName().starts_with("foptim.")) {
       auto old_name = func->name;
       ipcp_unique_name_number++;
       auto new_name = old_name + "MODIPCP";
@@ -207,8 +209,6 @@ void IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
     if (constant_prop_args(fir::FunctionR(f.second.get()), ctx)) {
       continue;
     }
-    continue;
-
     if (kill_dead_args(f.second.get(), ctx)) {
       continue;
     }

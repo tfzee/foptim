@@ -1,6 +1,5 @@
-#include "use.hpp"
-
 #include "ir/instruction_data.hpp"
+#include "use.hpp"
 #include "value.hpp"
 
 namespace foptim::fir {
@@ -42,6 +41,7 @@ void Use::replace_use(ValueR new_value) {
 }
 
 void Used::replace_all_uses(ValueR new_value) {
+  // USE TVEC???
   auto uses_copy = uses;
   for (Use &u : uses_copy) {
     u.replace_use(new_value);
@@ -69,8 +69,18 @@ void Used::remove_all_usages() { replace_all_uses(ValueR()); }
 
 // Mutex<void *> FuncLockedUsed::lock = {};
 void LockedUsed::replace_all_uses(ValueR new_value) {
-  auto us = _uses.scoped_lock();
-  return us->replace_all_uses(new_value);
+  TVec<fir::Use> uses_copy;
+  {
+    auto us = _uses.scoped_lock();
+    uses_copy.insert(uses_copy.begin(), us->uses.begin(), us->uses.end());
+  }
+  for (Use &u : uses_copy) {
+    u.replace_use(new_value);
+  }
+  {
+    auto us = _uses.scoped_lock();
+    us->uses.clear();
+  }
 }
 void LockedUsed::remove_usage(const Use &use, bool verify) {
   auto us = _uses.scoped_lock();

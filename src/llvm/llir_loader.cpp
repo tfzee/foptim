@@ -973,6 +973,16 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     auto foff_func = fctx->create_function(func_name, foff_ftype);
     auto func_ptr = fctx->get_constant_value(foff_func);
     valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
+    {
+      auto entry = foff_func->get_entry();
+      for (size_t i = 0; i < func.arg_size(); i++) {
+        auto *const la = func.getArg(i);
+        auto fa = entry->args[i];
+        if (la->hasNoAliasAttr()) {
+          fa->noalias = true;
+        }
+      }
+    }
   }
 
   const auto foff_func = fctx->get_function(func.getName().str().c_str());

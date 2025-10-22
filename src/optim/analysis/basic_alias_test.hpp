@@ -29,6 +29,10 @@ struct AliasAnalyis {
  private:
   TMap<fir::ValueR, HeapEntry> mapping;
   TVec<Heap> heaps;
+  //                 Any_h top
+  // null | poision | argument         | local
+  //                | static,dynamic   |
+  //                 Any_h top
   HeapId any_h;
   HeapId null_h;
   HeapId poision_h;

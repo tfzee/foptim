@@ -534,8 +534,9 @@ void InductionVarAnalysis::dump() const {
 
 namespace {
 std::optional<i128> get_constant(fir::ValueR v) {
-  return v.is_constant() ? std::optional{i128(v.as_constant()->as_int())}
-                         : std::nullopt;
+  return (v.is_constant() && v.as_constant()->is_int())
+             ? std::optional{i128(v.as_constant()->as_int())}
+             : std::nullopt;
 }
 
 std::optional<InductionVarAnalysis::InductionVar> resolve_base_induction(

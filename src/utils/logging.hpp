@@ -9,6 +9,7 @@ class BaseIRFormatter {
  public:
   bool debug = false;
   bool color = false;
+  bool extended = false;
 
   constexpr auto parse(auto &ctx) {
     auto it = ctx.begin();
@@ -18,6 +19,9 @@ class BaseIRFormatter {
       switch (*it) {
         case 'd':
           debug = true;
+          break;
+        case 'e':
+          extended = true;
           break;
         case 'c':
           color = true;

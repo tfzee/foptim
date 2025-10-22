@@ -11,6 +11,7 @@ class BBArgumentData : public Used, public Attributable {
  public:
   BasicBlock _parent;
   TypeR _type;
+  u64 noalias : 1 = 0;
 
   BBArgumentData(BasicBlock parent, TypeR type);
   [[nodiscard]] BasicBlock get_parent() const;
