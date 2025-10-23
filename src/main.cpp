@@ -206,9 +206,29 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LegalizeVecs>{}
       .apply(ctx, shed);
   ASSERT(ctx->verify());
-  // for (auto &[_, f] : ctx->storage.functions) {
-  //   fmt::println("{:cd}", *f);
-  // }
+  {
+    auto *slab = ctx->storage.storage_global._slot_start.load();
+    while (slab != nullptr) {
+      for (auto &i : slab->data) {
+        const auto *v = &i;
+        if (v->used == foptim::utils::SlotState::Used) {
+          // auto size = v->data->n_bytes;
+          // foptim::fmir::Global glob = {.name = v->data->name.c_str(),
+          //                              .data = {},
+          //                              .size = 0,
+          //                              .reloc_info = {},
+          //                              .vis = v->data->linkvis};
+          fmt::println("{:cd}", *v->data);
+        }
+      }
+      slab = slab->next;
+    }
+  }
+  for (auto &[_, f] : ctx->storage.functions) {
+    if (f->get_n_uses() > 0 || f->getName() == "main") {
+      fmt::println("{:cd}", *f);
+    }
+  }
   // TODO("okak");
   fmt::print("================FIR END====================\n");
 }
@@ -338,7 +358,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
   }
   shed->wait_till_done();
   // for (auto &f : funcs) {
-  // fmt::println("{:cd}", f);
+  //   fmt::println("{:cd}", f);
   // }
 }
 

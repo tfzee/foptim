@@ -474,8 +474,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
 
     if ((c0_val != nullptr) && (c1_val != nullptr)) {
-      if ((c1_val->type->is_int() && c0_val->type->is_int()) ||
-          (c1_val->type->is_ptr() && c0_val->type->is_ptr())) {
+      if (c1_val->is_int() && c0_val->is_int()) {
         // TODO: this is annoying but idk how to handle it better
         push_all_uses(worklist, instr);
         if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
@@ -510,6 +509,14 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     const auto *c_val = (c1_val != nullptr) ? c1_val : c0_val;
     const u32 c_idx = (c0_val != nullptr) ? 0 : 1;
     const u32 v_idx = (c1_val != nullptr) ? 0 : 1;
+    if (c_val->is_int() && c_val->get_type()->is_int() &&
+        instr.get_type()->is_int() &&
+        c_val->get_type()->get_bitwidth() != instr.get_type()->get_bitwidth()) {
+      instr->args[c_idx] = fir::ValueR{
+          ctx->get_constant_value(c_val->as_int(), instr.get_type())};
+      worklist.push_back({instr, instr->get_parent()});
+      return;
+    }
 
     // (x+c1) +y => (x+y)+c1
     if (instr->subtype == (u32)BinaryInstrSubType::IntAdd &&
@@ -676,12 +683,27 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
     if (c_val->is_int() &&
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::And) {
-      if (std::bit_cast<u128>(c_val->as_int()) ==
-          (((u128)1 << c_val->get_type()->get_bitwidth()) - 1)) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(instr->args[1 - c_idx]);
-        instr.destroy();
-        return;
+      auto other_val = instr->args[v_idx];
+      if (other_val.is_instr()) {
+        auto other_i = other_val.as_instr();
+        auto input_mask =
+            (((u128)1 << other_i->args[0].get_type()->get_bitwidth()) - 1);
+        if (other_i->is(InstrType::ZExt) &&
+            (std::bit_cast<u128>(c_val->as_int()) & input_mask) == input_mask) {
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(fir::ValueR{other_i});
+          instr.destroy();
+          return;
+        }
+      }
+      {
+        auto input_mask = (((u128)1 << instr->get_type()->get_bitwidth()) - 1);
+        if ((std::bit_cast<u128>(c_val->as_int()) & input_mask) == input_mask) {
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(instr->args[1 - c_idx]);
+          instr.destroy();
+          return;
+        }
       }
       if (c_val->as_int() == 0) {
         push_all_uses(worklist, instr);
@@ -1029,6 +1051,14 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
   if (second_constant && instr->args[1].as_constant()->is_int()) {
     auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
     i128 c_val = instr->args[1].as_constant()->as_int();
+
+    if (instr->args[1].get_type()->get_bitwidth() >
+        instr->args[0].get_type()->get_bitwidth()) {
+      instr->args[1] = fir::ValueR{
+          ctx->get_constant_value(c_val, instr->args[0].get_type())};
+      worklist.push_back({instr, instr->get_parent()});
+      return;
+    }
 
     if (instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
@@ -2614,13 +2644,11 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ConversionSubType::FPTOUI:
       if (instr->args[0].is_constant() &&
           instr->args[0].as_constant()->is_float()) {
-        //   auto val = instr->args[0].as_constant()->as_float();
-        //   push_all_uses(worklist, instr);
-        //   instr->replace_all_uses(
-        //       fir::ValueR{ctx->get_constant_value((u64)val,
-        //       instr->get_type())});
-        //   instr.destroy();
-        TODO("OKAK IMPL");
+        auto val = instr->args[0].as_constant()->as_float();
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+        instr.destroy();
         return;
       }
       break;
@@ -2905,10 +2933,28 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr.destroy();
           return;
         }
+        case fir::IntrinsicSubType::UMin: {
+          push_all_uses(worklist, instr);
+          auto val = std::min(
+              std::bit_cast<u128>(instr->args[0].as_constant()->as_int()),
+              std::bit_cast<u128>(instr->args[1].as_constant()->as_int()));
+          instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+              std::bit_cast<i128>(val), instr->get_type())});
+          instr.destroy();
+          return;
+        }
+        case fir::IntrinsicSubType::UMax: {
+          push_all_uses(worklist, instr);
+          auto val = std::max(
+              std::bit_cast<u128>(instr->args[0].as_constant()->as_int()),
+              std::bit_cast<u128>(instr->args[1].as_constant()->as_int()));
+          instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+              std::bit_cast<i128>(val), instr->get_type())});
+          instr.destroy();
+          return;
+        }
         case fir::IntrinsicSubType::FMin:
         case fir::IntrinsicSubType::FMax:
-        case fir::IntrinsicSubType::UMin:
-        case fir::IntrinsicSubType::UMax:
         case fir::IntrinsicSubType::SMin:
           fmt::println("{}", instr);
           TODO("impl");

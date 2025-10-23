@@ -1,9 +1,44 @@
 #include "intrin_simplify.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/access_analysis.hpp"
 #include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
+
+/*If we memcpy into a local alloca and the len of the memcpy is equal to alloca
+length and afterwards we only read from it*/
+static bool delete_useless_memcpy(fir::Instr instr) {
+  auto target_ptr = instr->args[1];
+  auto copy_len = instr->args[3];
+  if (!target_ptr.is_instr() || !copy_len.is_constant()) {
+    return false;
+  }
+  auto target_ptr_instr = target_ptr.as_instr();
+  if (!target_ptr_instr->is(fir::InstrType::AllocaInstr)) {
+    return false;
+  }
+  auto alloca_len = target_ptr_instr->args[0];
+  if (!alloca_len.is_constant()) {
+    return false;
+  }
+  if (alloca_len.as_constant()->as_int() != copy_len.as_constant()->as_int()) {
+    return false;
+  }
+  for (auto u : target_ptr_instr->get_uses()) {
+    if (u.user == instr && u.argId == 1) {
+      continue;
+    }
+    AccessResult res;
+    useptr_access_analysis(u, res);
+    if (res.IsWriten || res.VolatileRead || res.VolatileWrite || res.Escapes) {
+      return false;
+    }
+  }
+  target_ptr_instr->replace_all_uses(instr->args[2]);
+  instr.destroy();
+  return true;
+}
 
 static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context &ctx) {
@@ -15,7 +50,12 @@ static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
     return;
   }
   auto size = instr->args[3].as_constant()->as_int();
-  // TODO: support vector move
+
+  // delete uselless memcpy
+  if (delete_useless_memcpy(instr)) {
+    return;
+  }
+
   if (size > 8 && size != 16 && size != 32) {
     return;
   }

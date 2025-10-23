@@ -49,5 +49,8 @@ fmt::appender fmt::formatter<foptim::fir::BBArgument>::format(
   } else {
     f = fmt::format_to(f, ": {}", v->get_type());
   }
+  if (debug) {
+    f = fmt::format_to(f, " NUSES: {}", v->get_n_uses());
+  }
   return f;
 }

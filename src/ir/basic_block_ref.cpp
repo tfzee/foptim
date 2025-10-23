@@ -47,13 +47,17 @@ fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
   fmt::format_to(ctx.out(), "(");
   const auto &args = bb->args;
   if (args.size() > 0) {
-    if (color) {
+    if (color && debug) {
+      fmt::format_to(ctx.out(), "{:ecd}", args[0]);
+    } else if (color) {
       fmt::format_to(ctx.out(), "{:ec}", args[0]);
     } else {
       fmt::format_to(ctx.out(), "{:e}", args[0]);
     }
     for (size_t i = 1; i < args.size(); i++) {
-      if (color) {
+      if (color && debug) {
+        fmt::format_to(ctx.out(), ", {:ecd}", args[i]);
+      } else if (color) {
         fmt::format_to(ctx.out(), ", {:ec}", args[i]);
       } else {
         fmt::format_to(ctx.out(), ", {:e}", args[i]);

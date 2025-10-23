@@ -91,7 +91,7 @@ class SCCP final : public FunctionPass {
                              .vals = {{.f = v->as_float()}},
                              .vtype = v->get_type()};
       }
-      if (c->is_int()) {
+      if (c->is_int() || (c->is_ptr() && v->is_int())) {
         return ConstantValue{.type = ValueType::Int,
                              .vals = {{.i = v->as_int()}},
                              .vtype = v->get_type()};

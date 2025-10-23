@@ -263,7 +263,8 @@ struct DiffValues {
 bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
                            size_t &bb_id, TVec<DiffValues> &difference_values,
                            TMap<fir::Instr, fir::Instr> &local_value_map,
-                           TVec<fir::BBArgument> &new_bb_args_helper) {
+                           TVec<fir::BBArgument> &new_bb_args_helper,
+                           CFG &cfg) {
   constexpr u32 N_INSTRS_UPPERBOUND = 20;
   auto *ctx = func.ctx;
   bool modified = false;
@@ -320,6 +321,12 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
         break;
       }
     }
+    if (std::ranges::equal(cfg.bbrs[cfg.get_bb_id(bb1)].pred,
+                           cfg.bbrs[cfg.get_bb_id(bb2)].pred)) {
+      // TODO: modify costs
+      auto p = cfg.bbrs[cfg.get_bb_id(bb1)].pred.size() * 2;
+      cost = std::max(cost, p) - p;
+    }
     if (found && cost * 4 <= bb1n_instr) {
       fir::BasicBlock res_bb1 = bb1;
       fir::BasicBlock res_bb2 = bb2;
@@ -373,10 +380,16 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
   difference_values.reserve(32);
   new_bb_args_helper.reserve(32);
 
+  CFG cfg{func};
+
   for (size_t bb_id = 1; bb_id < func.basic_blocks.size(); bb_id++) {
-    modified |= dup_bb_to_args_per_bb(func.basic_blocks[bb_id], func, bb_id,
-                                      difference_values, local_value_map,
-                                      new_bb_args_helper);
+    bool mod = dup_bb_to_args_per_bb(func.basic_blocks[bb_id], func, bb_id,
+                                     difference_values, local_value_map,
+                                     new_bb_args_helper, cfg);
+    if (mod) {
+      cfg = CFG{func};
+    }
+    modified |= mod;
   }
   return modified;
 }
@@ -386,7 +399,6 @@ bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr) {
     if constexpr (debug_tracy) {
       ZoneScopedN("rem useless bb args");
     }
-    // ZoneScopedN("Rem useless bb arg");
     auto n_args = curr.bb->n_args();
     auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
     auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
@@ -1131,13 +1143,12 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(CFG &cfg, Dominators &dom,
     }
     return Res::Changed;
   }
-
-  if (remove_constant_bb_args(curr, is_entry)) {
-    if constexpr (debug_print) {
-      fmt::println("4");
-    }
-    return Res::Changed;
-  }
+  // if (remove_constant_bb_args(curr, is_entry)) {
+  //   if constexpr (debug_print) {
+  //     fmt::println("4");
+  //   }
+  //   return Res::Changed;
+  // }
 
   if (remove_useless_bb_args(cfg, curr)) {
     if constexpr (debug_print) {
@@ -1164,7 +1175,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   r = merge_linear_relation(cfg, dom, curr, func, bb_id);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("3");
+      fmt::println("6");
     }
     return r;
   }
@@ -1172,14 +1183,14 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   r = merge_empty_block_backwards(cfg, dom, curr, func, bb_id);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("6");
+      fmt::println("7");
     }
     return r;
   }
 
   if (merge_empty_block_forwards(cfg, curr, func, bb_id, is_entry)) {
     if constexpr (debug_print) {
-      fmt::println("7");
+      fmt::println("8");
     }
     return Res::NeedUpdate;
   }
@@ -1187,21 +1198,21 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   r = distribute_return_unreach(cfg, curr);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("8");
+      fmt::println("9");
     }
     return r;
   }
 
   if (remove_unreach(cfg, curr, is_entry)) {
     if constexpr (debug_print) {
-      fmt::println("9");
+      fmt::println("10");
     }
     return Res::NeedUpdate;
   }
 
   if (conditional_to_cmove(curr)) {
     if constexpr (debug_print) {
-      fmt::println("10");
+      fmt::println("11");
     }
     return Res::NeedUpdate;
   }
@@ -1268,7 +1279,6 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
     if (!modified) {
       break;
     }
-
     if (needs_update) {
       foptim::utils::TempAlloc<void *>::reset();
       cfg = CFG(func, false);

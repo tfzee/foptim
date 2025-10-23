@@ -136,10 +136,13 @@ ValueR Instr::replace_arg(u16 indx, ValueR new_val, bool verify) {
     std::abort();
   }
   ValueR old_val = self->args[indx];
+  if (old_val == new_val) {
+    return old_val;
+  }
   self->args[indx] = new_val;
 
-  new_val.add_usage(Use::norm(*this, indx));
   old_val.remove_usage(Use::norm(*this, indx), verify);
+  new_val.add_usage(Use::norm(*this, indx));
 
   return old_val;
 }
@@ -149,10 +152,13 @@ BasicBlock Instr::replace_bb(u16 indx, BasicBlock new_val, bool keepArgs,
   InstrData *self = operator->();
   ASSERT(indx < self->bbs.size());
   BasicBlock old_val = self->bbs[indx].bb;
+  if (old_val == new_val) {
+    return old_val;
+  }
   self->bbs[indx].bb = new_val;
 
-  new_val->add_usage(Use::bb(*this, indx));
   old_val->remove_usage(Use::bb(*this, indx), verify);
+  new_val->add_usage(Use::bb(*this, indx));
   if (!keepArgs) {
     clear_bb_args(indx);
   }
@@ -174,12 +180,14 @@ ValueR Instr::replace_bb_arg(u16 bb_id, u16 indx, ValueR new_val, bool verify) {
   auto &bb_ref = self->bbs[bb_id];
   if (bb_ref.args.size() <= indx) {
     bb_ref.args.resize(indx + 1);
+  } else if (bb_ref.args[indx] == new_val) {
+    return bb_ref.args[indx];
   }
   ValueR old_val = bb_ref.args[indx];
   bb_ref.args[indx] = new_val;
 
-  new_val.add_usage(Use::bb_arg(*this, bb_id, indx));
   old_val.remove_usage(Use::bb_arg(*this, bb_id, indx), verify);
+  new_val.add_usage(Use::bb_arg(*this, bb_id, indx));
   // if (!old_val.is_constant()) {
   // }
 

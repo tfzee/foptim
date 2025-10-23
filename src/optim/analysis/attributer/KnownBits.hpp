@@ -150,12 +150,12 @@ class KnownBits final : public AttributeAnalysis {
               m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
           const auto *known_arg1_bits =
               m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
-          if (known_arg0_bits->get_unsigned_min_value() <=
-              known_arg1_bits->get_unsigned_max_value()) {
+          if (known_arg0_bits->get_unsigned_max_value() <=
+              known_arg1_bits->get_unsigned_min_value()) {
             new_known_one = known_arg0_bits->known_one;
             new_known_zero = known_arg0_bits->known_zero;
-          } else if (known_arg1_bits->get_unsigned_min_value() <=
-                     known_arg0_bits->get_unsigned_max_value()) {
+          } else if (known_arg1_bits->get_unsigned_max_value() <=
+                     known_arg0_bits->get_unsigned_min_value()) {
             new_known_one = known_arg1_bits->known_one;
             new_known_zero = known_arg1_bits->known_zero;
           } else {

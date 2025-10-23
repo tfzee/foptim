@@ -171,7 +171,15 @@ class LoopSimplify final : public FunctionPass {
         auto repls = cfg.bbrs[loop.head].bb->get_arg_id(
             ianal.direct_inductvars[repl].def.as_bb_arg());
         if (!prehead_bb_term->bbs[prehead_bb_id].args[keepes].is_constant() ||
-            !prehead_bb_term->bbs[prehead_bb_id].args[repls].is_constant()) {
+            !prehead_bb_term->bbs[prehead_bb_id].args[repls].is_constant() ||
+            !prehead_bb_term->bbs[prehead_bb_id]
+                 .args[keepes]
+                 .as_constant()
+                 ->is_int() ||
+            !prehead_bb_term->bbs[prehead_bb_id]
+                 .args[repls]
+                 .as_constant()
+                 ->is_int()) {
           continue;
         }
 

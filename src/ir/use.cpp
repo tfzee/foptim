@@ -1,3 +1,5 @@
+#include <fmt/core.h>
+
 #include "ir/instruction_data.hpp"
 #include "use.hpp"
 #include "value.hpp"
@@ -46,7 +48,6 @@ void Used::replace_all_uses(ValueR new_value) {
   for (Use &u : uses_copy) {
     u.replace_use(new_value);
   }
-  uses.clear();
 }
 
 void Used::remove_usage(const Use &u, bool verify) {
@@ -59,6 +60,10 @@ void Used::remove_usage(const Use &u, bool verify) {
   }
 
   if (verify) {
+    fmt::println(">NUSES: {}", uses.size());
+    for (auto u : uses) {
+      fmt::println("> {}", u);
+    }
     fmt::println("USE: {}", u);
     fmt::println("USER: {}", u.user);
     ASSERT_M(false, "Failed to find usage that was to be removed");

@@ -87,6 +87,7 @@ void generate_memset(foptim::fir::Context &fctx) {
   bb.at_end(exit);
   bb.build_return();
 }
+
 void generate_memcpy(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memcpy";
   if (fctx->has_function(name)) {
