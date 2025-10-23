@@ -20,6 +20,10 @@
 
 namespace foptim::optim {
 
+namespace {
+u64 arg_prom_unique_name_number = 0;
+}
+
 class ArgPromotion final : public ModulePass {
  public:
   bool are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
@@ -73,9 +77,12 @@ class ArgPromotion final : public ModulePass {
     const auto &func_ty = func->func_ty->as_func();
     auto n_args_original = func_ty.arg_types.size();
     auto entry_block = func->get_entry();
-    // for (auto use : func->get_uses()) {
-    //   fmt::println("USED {}", use.user->get_parent());
-    // }
+    for (auto use : func->get_uses()) {
+      if (use.type != fir::UseType::NormalArg ||
+          !use.user->is(fir::InstrType::CallInstr) || use.argId != 0) {
+        return false;
+      }
+    }
 
     // we can only do it tho iff the loads all have the same type
     //  we only load the value so no geps and similar stuff
@@ -142,7 +149,9 @@ class ArgPromotion final : public ModulePass {
       // // we need renaming
       if (func->linkage == fir::Linkage::LinkOnceODR) {
         auto old_name = func->name;
+        arg_prom_unique_name_number++;
         auto new_name = old_name + "MODArgProm";
+        new_name += std::to_string(arg_prom_unique_name_number);
         auto func_moved = std::move(ctx->storage.functions.at(old_name));
         ctx->storage.functions.erase(old_name);
         func_moved->name = new_name;
