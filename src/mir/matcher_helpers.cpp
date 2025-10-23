@@ -419,7 +419,7 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
     case 12: {
       auto helper_arg = MArgument(helper_reg, res_ty);
       result.emplace_back(GBaseSubtype::mov, helper_arg, base);
-      result.emplace_back(GArithSubtype::shl2, res_reg, MArgument((u8)2));
+      result.emplace_back(GArithSubtype::shl2, helper_arg, MArgument((u8)2));
       result.emplace_back(X86Subtype::lea, res_reg,
                           MArgument::MemBIS(helper_reg, helper_reg, 1, res_ty));
       return true;

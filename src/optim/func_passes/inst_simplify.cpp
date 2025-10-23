@@ -1877,6 +1877,11 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
             new_val = icmp->args[0];
             break;
           }
+        case fir::ICmpInstrSubType::NE:
+          if (negated && !icmp->args[0].is_constant()) {
+            new_val = icmp->args[0];
+            break;
+          }
         default:
           fmt::println("{:cd}", icmp);
           fmt::println("{:cd}", instr);
