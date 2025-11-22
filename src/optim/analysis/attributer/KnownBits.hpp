@@ -382,7 +382,8 @@ class KnownBits final : public AttributeAnalysis {
       } else if (instr->subtype == (u32)fir::BinaryInstrSubType::Shl) {
         if ((b->known_one | b->known_zero) == ~(u64)1) {
           new_known_one = a->known_one << b->known_one;
-          new_known_zero = a->known_zero << b->known_one;
+          new_known_zero =
+              (a->known_zero << b->known_one) | (((u128)1 << b->known_one) - 1);
         } else {
           // the top n bits are zero after the shift by atleast n
           auto min_shift = b->get_unsigned_min_value();
@@ -441,9 +442,9 @@ class KnownBits final : public AttributeAnalysis {
 
     // mask the result
     auto bitwidth = associatedValue.get_type()->get_bitwidth();
-    auto mask = ((u64)1 << bitwidth) - 1;
+    auto mask = ((u128)1 << bitwidth) - 1;
     new_known_one &= mask;
-    new_known_zero &= mask;
+    new_known_zero |= ~mask;
 
     if (new_known_one != known_one || new_known_zero != known_zero) {
       if ((new_known_zero & new_known_one) != 0) {
@@ -501,12 +502,10 @@ class KnownBits final : public AttributeAnalysis {
     }
 
     // mask the result
-    // TODO: should known zero just be filled up the top bits??
-    // nice english
     auto bitwidth = associatedValue.get_type()->get_bitwidth();
-    auto mask = ((u64)1 << bitwidth) - 1;
+    auto mask = ((u128)1 << bitwidth) - 1;
     new_known_one &= mask;
-    new_known_zero &= mask;
+    new_known_zero |= ~mask;
 
     if (new_known_one != known_one || new_known_zero != known_zero) {
       known_zero = new_known_zero;
@@ -565,7 +564,7 @@ class KnownBits final : public AttributeAnalysis {
       // but mask out the msb to 0 if it could be 0 since that will be a
       // positive ie greater number
       ASSERT(size <= 64);
-      u64 msb_mask = (u64)1 << (size - 1);
+      u128 msb_mask = (u128)1 << (size - 1);
       result &= ~msb_mask;
     }
     u64 mask = (u64)(((u128)1 << size) - 1);
@@ -578,7 +577,7 @@ class KnownBits final : public AttributeAnalysis {
     auto size = associatedValue.get_type()->get_bitwidth();
     if (msb == Unknown) {
       ASSERT(size <= 64);
-      u64 msb_mask = (u128)0x1 << (size - 1);
+      u128 msb_mask = (u128)0x1 << (size - 1);
       result |= msb_mask;
     }
     u64 mask = (u64)(((u128)1 << size) - 1);

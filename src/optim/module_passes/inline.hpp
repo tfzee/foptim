@@ -44,10 +44,11 @@ class AlwaysInlineAdvisor {
 
     // TODO: impl to hndle this correctly
     for (auto instr : v->basic_blocks[0]->instructions) {
-      if (instr->is(fir::InstrType::AllocaInstr)) {
+      if (instr->is(fir::InstrType::AllocaInstr) &&
+          !instr->args[0].is_constant()) {
         if (debug_print) {
           fmt::println("{:cd}", instr);
-          fmt::println("N Alloca");
+          fmt::println("N dyn Alloca");
         }
         ASSERT(!v->must_inline);
         return false;
@@ -59,6 +60,7 @@ class AlwaysInlineAdvisor {
     return true;
   }
 };
+
 class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
@@ -123,10 +125,11 @@ class BaseInlineAdvisor {
 
     // TODO: impl to hndle this correctly
     for (auto instr : v->basic_blocks[0]->instructions) {
-      if (instr->is(fir::InstrType::AllocaInstr)) {
+      if (instr->is(fir::InstrType::AllocaInstr) &&
+          !instr->args[0].is_constant()) {
         if (debug_print) {
           fmt::println("{:cd}", instr);
-          fmt::println("N Alloca");
+          fmt::println("N dyn Alloca");
         }
         ASSERT(!v->must_inline);
         return false;

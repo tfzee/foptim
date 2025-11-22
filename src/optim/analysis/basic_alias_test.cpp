@@ -3,6 +3,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
+#include "ir/use.hpp"
 
 namespace foptim::optim {
 AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
@@ -82,7 +83,21 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
       }
       return {.heap = argument_h, .offset = {}};
     }
-    // TODO: implement meet
+
+    // const auto& p_uses = arg->get_parent()->get_uses();
+    // const auto bb_arg_id = arg->get_parent()->get_arg_id(arg);
+    // if (!p_uses.empty()) {
+    //   ASSERT(p_uses[0].type == fir::UseType::BB);
+    //   auto out =
+    //       analyze(p_uses[0].user->bbs[p_uses[0].argId].args[bb_arg_id]).heap;
+    //   for (size_t i = 1; i < p_uses.size(); i++) {
+    //     ASSERT(p_uses[i].type == fir::UseType::BB);
+    //     auto new_out =
+    //         analyze(p_uses[i].user->bbs[p_uses[i].argId].args[bb_arg_id]).heap;
+    //     out = meet(out, new_out);
+    //   }
+    //   return {.heap = out, .offset = {}};
+    // }
     return {.heap = any_h, .offset = {}};
   } else {
     fmt::println("{}", v);

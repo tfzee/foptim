@@ -105,7 +105,9 @@ void generate_memcpy(foptim::fir::Context &fctx) {
   auto exit = bb.append_bb();
 
   // the arguments
+  entry_bb->args[0]->noalias = true;
   auto dst_ptr_arg = foptim::fir::ValueR{entry_bb->args[0]};
+  entry_bb->args[1]->noalias = true;
   auto src_ptr_arg = foptim::fir::ValueR{entry_bb->args[1]};
   auto length_arg = foptim::fir::ValueR{entry_bb->args[2]};
 

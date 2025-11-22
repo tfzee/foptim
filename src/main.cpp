@@ -229,7 +229,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       fmt::println("{:cd}", *f);
     }
   }
-  // TODO("okak");
   fmt::print("================FIR END====================\n");
 }
 
@@ -318,6 +317,9 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func);
       ASSERT(foptim::fmir::verify(func));
+      foptim::fmir::DeadCodeElim{}.apply(func);
+      foptim::fmir::CopyPropagation{}.apply(func);
+      foptim::fmir::DeadCodeElim{}.apply(func);
       foptim::fmir::LegalizeBBForm{}.apply(func);
       foptim::fmir::DeadCodeElim{}.apply(func);
       ASSERT(foptim::fmir::verify(func));

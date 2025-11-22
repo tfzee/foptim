@@ -1493,7 +1493,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                                  convert_type(stru_ty.elems[i].ty)),
                 args[i]);
           }
-          // fmt::println("{}", store_instr);
+          // fmt::println("<<<<\n{:cd}", store_instr);
           // for (auto &b : res.result) {
           //   fmt::println("{:cd}", b);
           // }
@@ -2409,31 +2409,33 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(GBaseSubtype::ret);
           return true;
         }
-        auto ret_vals =
-            valueToArgStruct(ret_instr->args[0], res.result, data.alloc);
-        if (ret_vals.size() > 1) {
-          ASSERT(ret_vals.size() == 2);
-          auto ret_val = ret_vals[0];
-          auto is_float_val = ret_val.is_vec_reg();
-          auto converted_type =
+        if (ret_instr->args.size() > 1) {
+          auto ret_val0 =
+              valueToArg(ret_instr->args[0], res.result, data.alloc);
+          auto ret_val1 =
+              valueToArg(ret_instr->args[1], res.result, data.alloc);
+          auto is_float_val = ret_val0.is_vec_reg();
+          auto converted_type0 =
               convert_type(ret_instr.get_type()->as_struct().elems[0].ty);
+          auto converted_type1 =
+              convert_type(ret_instr.get_type()->as_struct().elems[1].ty);
 
-          auto res1_reg = VReg{CReg::A, converted_type};
-          auto res2_reg = VReg{CReg::D, converted_type};
+          auto res1_reg = VReg{CReg::A, converted_type0};
+          auto res2_reg = VReg{CReg::D, converted_type1};
           if (is_float_val) {
-            res1_reg = VReg{CReg::mm0, converted_type};
-            res2_reg = VReg{CReg::mm1, converted_type};
+            res1_reg = VReg{CReg::mm0, converted_type0};
+            res2_reg = VReg{CReg::mm1, converted_type1};
           }
-          auto res1_arg = MArgument(res1_reg, converted_type);
-          auto res2_arg = MArgument(res2_reg, converted_type);
-          res.result.emplace_back(GBaseSubtype::mov, res1_arg, ret_vals[0]);
-          res.result.emplace_back(GBaseSubtype::mov, res2_arg, ret_vals[1]);
+          auto res1_arg = MArgument(res1_reg, converted_type0);
+          auto res2_arg = MArgument(res2_reg, converted_type1);
+          res.result.emplace_back(GBaseSubtype::mov, res1_arg, ret_val0);
+          res.result.emplace_back(GBaseSubtype::mov, res2_arg, ret_val1);
           res.result.emplace_back(GBaseSubtype::ret, res1_arg, res2_arg);
           return true;
         }
 
-        ASSERT(ret_vals.size() == 1);
-        auto ret_val = ret_vals[0];
+        ASSERT(ret_instr->args.size() == 1);
+        auto ret_val = valueToArg(ret_instr->args[0], res.result, data.alloc);
         auto is_float_val = ret_val.is_vec_reg();
 
         if (!is_float_val && (!ret_val.isReg() || !ret_val.reg.is_concrete() ||

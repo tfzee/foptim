@@ -52,9 +52,15 @@ bool inline_call(fir::Instr call) {
   }
 
   // TODO: impl to hndle this correctly
+  TVec<fir::Instr> entry_allocas;
   for (auto instr : called_func->basic_blocks[0]->instructions) {
     if (instr->is(fir::InstrType::AllocaInstr)) {
-      return false;
+      // only static onces for now
+      if (instr->args[0].is_constant()) {
+        entry_allocas.push_back(instr);
+      } else {
+        return false;
+      }
     }
   }
 
@@ -125,10 +131,36 @@ bool inline_call(fir::Instr call) {
         auto end_branch = ret_bb.build_branch(end_bb);
         if (has_ret_value) {
           ASSERT(bb->instructions[instr_id]->has_args());
-          end_branch.add_bb_arg(0, bb->instructions[instr_id]->get_arg(0));
+          if (bb->instructions[instr_id]->args.size() == 1) {
+            end_branch.add_bb_arg(0, bb->instructions[instr_id]->get_arg(0));
+          } else {
+            auto old_ret = bb->instructions[instr_id];
+            fir::Builder buh{end_branch};
+            auto res_typ = old_ret.get_type();
+            auto v = fir::ValueR{ctx->get_poisson_value(res_typ)};
+            u32 index = 0;
+            for (auto a : old_ret->args) {
+              fir::ValueR args[1] = {
+                  fir::ValueR{ctx->get_constant_int(index, 64)}};
+              v = buh.build_insert_value(v, a, args, res_typ);
+              index++;
+            }
+            end_branch.add_bb_arg(0, v);
+          }
         }
         bb->remove_instr(instr_id, true);
       }
+    }
+  }
+
+  if (!entry_allocas.empty()) {
+    for (auto old_alloca : entry_allocas) {
+      auto alloca = subs.at(fir::ValueR{old_alloca}).as_instr();
+      auto entry = call_func->get_entry();
+      fir::Builder buh{entry};
+      auto new_alloca = buh.build_alloca(alloca->args[0]);
+      alloca->replace_all_uses(new_alloca);
+      alloca.destroy();
     }
   }
 

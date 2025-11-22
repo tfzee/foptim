@@ -5,6 +5,7 @@
 #include <bit>
 
 #include "inst_simplify.hpp"
+#include "ir/IRLocation.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -838,8 +839,10 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   //  }
   // }
 
-  if (instr->get_instr_subtype() == (u32)BinaryInstrSubType::And ||
-      instr->get_instr_subtype() == (u32)BinaryInstrSubType::Or) {
+  auto res_ty = instr->get_type();
+  if (res_ty->get_bitwidth() <= 64 &&
+      (instr->get_instr_subtype() == (u32)BinaryInstrSubType::And ||
+       instr->get_instr_subtype() == (u32)BinaryInstrSubType::Or)) {
     const auto *arg0_known =
         man.get_or_create_analysis<KnownBits>(instr->args[0]);
     const auto *arg1_known =
@@ -1249,6 +1252,33 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         return;
       }
     }
+    // when we have a+b < b or a+b >= b then we can convert that to h = xor b 1
+    // + inverted test of a b
+    // TODO: might not be worth it if theres multiple uses of the intadd
+    // since we then dont save a instruction but it can potentially paralelize
+    // since we dont have a data dependency on the xor
+    if (a1i->is(BinaryInstrSubType::IntAdd) &&
+        (a1i->args[1] == instr->args[1] || a1i->args[0] == instr->args[1]) &&
+        (instr->get_instr_subtype() == (u32)ICmpInstrSubType::UGE ||
+         instr->get_instr_subtype() == (u32)ICmpInstrSubType::ULT)) {
+      fir::Builder buh{instr};
+      auto a = a1i->args[1] == instr->args[1] ? a1i->args[0] : a1i->args[1];
+      auto b = instr->args[1];
+      auto xord =
+          buh.build_binary_op(b,
+                              fir::ValueR{ctx->get_constant_value(
+                                  (i128)-1L, instr->args[1].get_type())},
+                              BinaryInstrSubType::Xor);
+      auto res = buh.build_int_cmp(
+          a, xord,
+          instr->get_instr_subtype() == (u32)ICmpInstrSubType::UGE
+              ? ICmpInstrSubType::ULE
+              : ICmpInstrSubType::UGT);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return;
+    }
     if (a1i->is(InstrType::BinaryInstr) &&
         a1i->subtype == (u32)BinaryInstrSubType::And &&
         a1i->args[1].is_constant()) {
@@ -1279,7 +1309,6 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
 
   auto sub_type = (ICmpInstrSubType)instr->get_instr_subtype();
   {
-    // fmt::println("{:cd}", instr->get_parent());
     const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
     const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
     man.run(ctx);
@@ -2704,6 +2733,29 @@ bool simplify_store(fir::Instr instr) {
       instr.destroy();
       return true;
     }
+    if (val_i->is(fir::InstrType::InsertValue)) {
+      fir::Builder buh{instr};
+      // skip if its a insert(posion ...)
+      if (!val_i->args[0].is_constant() ||
+          !val_i->args[0].as_constant()->is_poison()) {
+        buh.build_store(instr->args[0], val_i->args[0]);
+      }
+      auto stru_ty = val_i.get_type()->as_struct();
+      auto *ctx = instr->get_parent()->get_parent()->ctx;
+      auto offset = buh.build_int_add(
+          instr->args[0],
+          fir::ValueR{ctx->get_constant_int(
+              stru_ty.elems[val_i->args[2].as_constant()->as_int()].offset,
+              32)});
+      buh.build_store(offset, val_i->args[1]);
+      instr.destroy();
+      if (val_i->get_n_uses() == 0) {
+        val_i.destroy();
+      }
+      // fmt::println("{:cd}", buh.get_curr_bb());
+      // TODO("okak");
+      return true;
+    }
   }
   return false;
 }
@@ -3086,7 +3138,8 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                       curr.argId == 1) ||
                      curr.user->is(fir::InstrType::CallInstr) ||
                      curr.user->is(fir::InstrType::Intrinsic) ||
-                     curr.user->is(fir::InstrType::ICmp)) {
+                     curr.user->is(fir::InstrType::ICmp) ||
+                     curr.user->is(fir::InstrType::InsertValue)) {
             mem2reg_blockers.push_back(curr);
             escapes = true;
           } else {

@@ -22,8 +22,8 @@ class CopyPropagation {
         const auto instr_id = instr_idp1 - 1;
         if (!bb.instrs[instr_id].is(GBaseSubtype::mov) ||
             !bb.instrs[instr_id].args[0].isReg() ||
-            bb.instrs[instr_id].args[0].reg.is_concrete() ||
             !bb.instrs[instr_id].args[1].isReg() ||
+            bb.instrs[instr_id].args[0].reg.is_concrete() ||
             bb.instrs[instr_id].args[1].reg.is_concrete() ||
             bb.instrs[instr_id].args[0] == bb.instrs[instr_id].args[1] ||
             bb.instrs[instr_id].args[0].ty != bb.instrs[instr_id].args[1].ty) {

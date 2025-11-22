@@ -14,6 +14,7 @@ The tests are taken from
 + GCCs github repo
 + LLVMs github repo
 + embench github repo
++ fujitsu/compiler-test-suite github repo
 + Some handwritten
 
 ## Build instructions
@@ -49,9 +50,11 @@ ninja check
 	+ missing for floatingpoint
 + no register spilling rn
 + optimize llvm intrin lowering like memset/memcopy
+	+ partially done
 + 2 allocas without overlapping lifetimes could be merged to use same stack space
 + Add a proper compiler driver
 	+ Maybe allow passes to register compiler driver arguments
+	+ support consuming multiple files and merging them
 + optimize sdiv
 	+ can convert into imul shifts and add (theres some formular for this)
 + add a custom frontend other then llvmir
@@ -59,7 +62,6 @@ ninja check
 + deserialize
 + Abstract away graph based matcher (maybe a DSL)
 	+ Could be used in general like LLVMs matcher stuff in optimization passes
-+ convert codegen into library
 + More Passes
 	+ Get SSAPRE
 	+ Rework sccp

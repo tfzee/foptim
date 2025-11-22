@@ -94,6 +94,9 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
                                                 instr.get_type()});
       break;
     case BinaryInstrSubType::IntSRem:
+      st.set_value(ValueR(instr), ConstantValue{v1->as_int() % v2->as_int(),
+                                                instr.get_type()});
+      break;
     case BinaryInstrSubType::IntSDiv:
     case BinaryInstrSubType::IntUDiv:
     case BinaryInstrSubType::Shr:
@@ -151,6 +154,16 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
                                   std::bit_cast<u128>(v2->as_int()))
                                      ? ~(i128)0
                                      : 0,
+                                 instr->get_type()});
+      break;
+    case ICmpInstrSubType::EQ:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(v1->as_int() == v2->as_int()) ? ~(i128)0 : 0,
+                                 instr->get_type()});
+      break;
+    case ICmpInstrSubType::NE:
+      st.set_value(ValueR(instr),
+                   ConstantValue{(v1->as_int() != v2->as_int()) ? ~(i128)0 : 0,
                                  instr->get_type()});
       break;
     default:

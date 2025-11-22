@@ -1026,18 +1026,25 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
 
   ASSERT(change_val > 0);
   if (is_eql_cond) {
-    fmt::println("{}", end_value);
-    fmt::println("{}", change_val);
-    fmt::println("{}", start_value);
-    fmt::println("{}", condi);
-    TODO("impl eql cond");
-    if (loop_continue != 0) {
-      // means if the targets of the leaving cbranch are switched the
-      // condition
+    if (loop_continue == 0) {
+      // means if the targets of the leaving cbranch are switched the condition
       // is effectively also switched
       TODO("impl different continue");
       // return false;
     }
+    if ((change_val > 0 && start_value > end_value) ||
+        (change_val < 0 && start_value < end_value)) {
+      // it might overflow??
+      return false;
+    }
+    real_end_value = end_value;
+    i128 range = (end_value - start_value);
+    if (range % change_val != 0) {
+      // this would just cause garbage problems with overflow and shit right??
+      return false;
+      // real_end_value = end_value + (change_val - (range % change_val));
+    }
+    n_iter = (real_end_value - start_value) / change_val;
   } else {
     if (loop_continue != 0) {
       // means if the targets of the leaving cbranch are switched the condition

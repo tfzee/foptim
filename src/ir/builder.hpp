@@ -27,7 +27,8 @@ class Builder {
 
   BasicBlock get_curr_bb() { return bb; }
   /*
-    Sets the current insert location to the start of the new Basic Block
+    Sets the current insert location to the start of the new Basic Block if no
+    location is set
   */
   BasicBlock append_bb();
 

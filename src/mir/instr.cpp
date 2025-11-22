@@ -476,11 +476,17 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GArithSubtype::neg1:
           out.push_back({0, instr.args[0]});
           return;
+        case GArithSubtype::lor2:
+          if (instr.args[0] == instr.args[1]) {
+            return;
+          }
+          out.push_back({0, instr.args[0]});
+          out.push_back({1, instr.args[1]});
+          return;
         case GArithSubtype::shl2:
         case GArithSubtype::shr2:
         case GArithSubtype::sar2:
         case GArithSubtype::land2:
-        case GArithSubtype::lor2:
         case GArithSubtype::lxor2:
         case GArithSubtype::add2:
         case GArithSubtype::sub2:
@@ -528,13 +534,19 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
       switch ((GVecSubtype)instr.sop) {
         case GVecSubtype::INVALID:
           return;
+        case GVecSubtype::fxor:
+          if (instr.args[1] == instr.args[2]) {
+            return;
+          }
+          out.push_back({1, instr.args[1]});
+          out.push_back({2, instr.args[2]});
+          return;
         case GVecSubtype::vadd:
         case GVecSubtype::vsub:
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
         case GVecSubtype::fmul:
         case GVecSubtype::fdiv:
-        case GVecSubtype::fxor:
         case GVecSubtype::fAnd:
         case GVecSubtype::fOr:
         case GVecSubtype::fShl:

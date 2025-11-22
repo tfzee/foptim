@@ -33,6 +33,24 @@ class LegalizeStructs final : public FunctionPass {
       instr.destroy();
       return true;
     }
+    if (instr->get_type()->is_struct() &&
+        instr->is(fir::InstrType::ReturnInstr) && instr->args.size() == 1) {
+      auto ty = instr->get_type();
+      auto ty_stru = ty->as_struct();
+      ASSERT(ty_stru.elems.size() == 2);
+      fir::Builder buh{instr};
+
+      auto inp = instr->args[0];
+
+      instr.clear_args();
+
+      for (size_t index = 0; index < ty_stru.elems.size(); index++) {
+        fir::ValueR args[1] = {fir::ValueR{ctx->get_constant_int(index, 64)}};
+        instr.add_arg(
+            buh.build_extract_value(inp, args, ty_stru.elems[index].ty));
+      }
+      return true;
+    }
     return false;
   }
 

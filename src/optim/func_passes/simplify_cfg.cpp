@@ -1,7 +1,9 @@
+#include <fmt/core.h>
 #include <fmt/std.h>
 
 #include <algorithm>
 
+#include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -11,9 +13,11 @@
 #include "ir/value.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
+#include "optim/helper/inline.hpp"
 #include "simplify_cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
+#include "utils/stable_vec_ref.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
@@ -37,6 +41,129 @@ SimplifyCFG::Res SimplifyCFG::flip_cold_cond(CFG &cfg, CFG::Node &curr) {
 
   flip_cond_branch(term);
   return SimplifyCFG::Res::Changed;
+}
+
+SimplifyCFG::Res SimplifyCFG::remove_struct_bb_arg(CFG &cfg, CFG::Node &curr) {
+  (void)cfg;
+  auto *ctx = curr.bb->get_parent()->ctx;
+  TVec<fir::BBArgument> args{curr.bb->args.begin(), curr.bb->args.end()};
+  for (size_t arg_id = 0; arg_id < args.size(); arg_id++) {
+    auto arg = args[arg_id];
+    if (!arg->_type->is_struct()) {
+      continue;
+    }
+    auto res_ty = arg->_type;
+    auto stru_ty = res_ty->as_struct();
+    TVec<fir::ValueR> new_args;
+    for (auto &member : stru_ty.elems) {
+      auto new_arg = ctx->storage.insert_bb_arg({curr.bb, member.ty});
+      curr.bb.add_arg(new_arg);
+      new_args.emplace_back(new_arg);
+    }
+    // setup the destructuring at the branch sites
+    {
+      for (auto _use : curr.bb->get_uses()) {
+        auto user = _use.user;
+        auto bb_arg_id = user.get_bb_id(curr.bb);
+        fir::Builder buh{user->get_parent()};
+        buh.at_penultimate(user->get_parent());
+        for (size_t i = 0; i < stru_ty.elems.size(); i++) {
+          fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(i, 32)}};
+          auto extr_val =
+              buh.build_extract_value(user->bbs[bb_arg_id].args[arg_id],
+                                      {indicies}, stru_ty.elems[i].ty);
+          user.add_bb_arg(bb_arg_id, extr_val);
+        }
+        user.remove_bb_arg(bb_arg_id, arg_id);
+      }
+    }
+    // setup the constructing at the end
+    {
+      fir::Builder buh{curr.bb};
+      buh.at_start(curr.bb);
+      fir::ValueR curr_v = fir::ValueR{ctx->get_poisson_value(res_ty)};
+      for (size_t i = 0; i < stru_ty.elems.size(); i++) {
+        fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(i, 32)}};
+        curr_v =
+            buh.build_insert_value(curr_v, new_args[i], {indicies}, res_ty);
+      }
+      arg->replace_all_uses(curr_v);
+    }
+    curr.bb->remove_arg(arg_id);
+    // for (auto use : curr.bb->get_uses()) {
+    //   fmt::println("{:cd}", use.user->get_parent());
+    // }
+    // fmt::println("===================={:cd}", arg);
+    // fmt::println("{:cd}", curr.bb);
+    // TODO("okak");
+    return SimplifyCFG::Res::Changed;
+  }
+  return SimplifyCFG::Res::NoChange;
+}
+
+SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
+    fir::Function &func, CFG::Node &curr) {
+  auto *ctx = func.ctx;
+  for (auto i : curr.bb->instructions) {
+    if (!i->is(fir::InstrType::CallInstr) || !i->args[0].is_instr()) {
+      continue;
+    }
+    auto func_arg = i->args[0].as_instr();
+    if (!func_arg->is(fir::InstrType::SelectInstr) ||
+        !func_arg->args[1].is_constant() || !func_arg->args[2].is_constant() ||
+        func_arg->get_n_uses() != 1) {
+      continue;
+    }
+    auto ptr1 = func_arg->args[1].as_constant();
+    auto ptr2 = func_arg->args[2].as_constant();
+    if (!ptr1->is_func() || !ptr2->is_func() || ptr1->as_func()->is_decl() ||
+        ptr2->as_func()->is_decl()) {
+      continue;
+    }
+    auto call_res_used = i->get_n_uses() > 0;
+
+    fir::Builder buh{i};
+    auto start_bb = i->get_parent();
+    auto true_bb = buh.append_bb();
+    auto false_bb = buh.append_bb();
+    auto end_bb = split_block(i);
+
+    if (call_res_used) {
+      auto res_arg = ctx->storage.insert_bb_arg({end_bb, i->get_type()});
+      end_bb.add_arg(res_arg);
+      i->replace_all_uses(fir::ValueR{res_arg});
+    }
+
+    buh.at_end(start_bb);
+    buh.build_cond_branch(func_arg->args[0], true_bb, false_bb);
+
+    {
+      buh.at_end(true_bb);
+      auto call_res =
+          buh.build_call(func_arg->args[1], ptr1->as_func()->func_ty,
+                         i->get_type(), {++i->args.begin(), i->args.end()});
+      auto b = buh.build_branch(end_bb);
+      if (call_res_used) {
+        b.add_bb_arg(0, call_res);
+      }
+    }
+
+    {
+      buh.at_end(false_bb);
+      auto call_res =
+          buh.build_call(func_arg->args[2], ptr1->as_func()->func_ty,
+                         i->get_type(), {++i->args.begin(), i->args.end()});
+      auto b = buh.build_branch(end_bb);
+      if (call_res_used) {
+        b.add_bb_arg(0, call_res);
+      }
+    }
+
+    i.destroy();
+    func_arg.destroy();
+    return SimplifyCFG::Res::NeedUpdate;
+  }
+  return SimplifyCFG::Res::NoChange;
 }
 
 SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
@@ -275,6 +402,9 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     if (bb1->n_args() != 0 || bb1->n_instrs() > N_INSTRS_UPPERBOUND) {
       return modified;
     }
+    // if (bb1->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
+    //   continue;
+    // }
     auto &bb2 = func.basic_blocks[bb2_id];
     if (bb2->n_args() != 0 ||
         bb1->instructions.size() != bb2->instructions.size()) {
@@ -1149,12 +1279,18 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(CFG &cfg, Dominators &dom,
   //   }
   //   return Res::Changed;
   // }
-
   if (remove_useless_bb_args(cfg, curr)) {
     if constexpr (debug_print) {
       fmt::println("5");
     }
     return Res::Changed;
+  }
+  auto r = remove_struct_bb_arg(cfg, curr);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
+      fmt::println("6");
+    }
+    return r;
   }
   return Res::NoChange;
 }
@@ -1236,6 +1372,14 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
       fmt::println("14");
+    }
+    return r;
+  }
+
+  r = static_select_call_into_branch(func, curr);
+  if (r != Res::NoChange) {
+    if constexpr (debug_print) {
+      fmt::println("15");
     }
     return r;
   }

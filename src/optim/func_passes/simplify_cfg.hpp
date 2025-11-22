@@ -35,11 +35,20 @@ class SimplifyCFG final : public FunctionPass {
   };
 
  private:
+  // if we got a select(cond, f1, f2) with f1 and f2 statically known and only
+  // being used in a call in the same
+  //  BB then we should replace this select + call into a cbranch into 2 bbs
+  //  each with the static call allows for better optimziations down the line
+  //  like inlining for example.
+  Res static_select_call_into_branch(fir::Function &func, CFG::Node &curr);
   // if not jumped to just delete
   Res remove_dead_bb(CFG &cfg, Dominators &dom, CFG::Node &curr,
                      fir::Function &func, size_t bb_id, bool is_entry);
   // if we got a bb arg that got no use remove it
   bool remove_dead_bb_arg(CFG::Node &curr, fir::Function &func, bool is_entry);
+  // if we got a bb arg thats a struct just split them and do a destructuring
+  // and constructing before and after
+  Res remove_struct_bb_arg(CFG &cfg, CFG::Node &curr);
   // if only 1 pred we can replace all the bb args with just the values of
   // the pred
   bool remove_useless_bb_args(CFG &cfg, CFG::Node &curr);

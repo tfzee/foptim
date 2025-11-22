@@ -361,7 +361,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           void *buff_data = malloc(size);
           memset(buff_data, 0, size);
           data_sec->set_data((const char *)buff_data, size);
-          // IDK if i assume it copies it ??
+          // TODO: IDK if i assume it copies it ??
           free(buff_data);
         }
         continue;
