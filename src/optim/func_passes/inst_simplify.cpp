@@ -470,14 +470,6 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         auto a1 = b.build_binary_op(i10, i20, first_op);
         auto a2 = b.build_binary_op(i11, i21, first_op);
         auto res = b.build_binary_op(a1, a2, fin_op);
-        fmt::println("{:cd}", inner1);
-        fmt::println("{:cd}", inner2);
-        fmt::println("{:cd}", instr);
-
-        fmt::println("{:cd}", a1.as_instr());
-        fmt::println("{:cd}", a2.as_instr());
-        fmt::println("{:cd}", res.as_instr());
-        fmt::println("============");
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
         instr.destroy();
