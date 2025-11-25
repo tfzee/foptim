@@ -256,7 +256,8 @@ class BaseInlineAdvisor {
       return true;
     }
 
-    if ((v.func->n_bbs() == 1 && called_n_instrs < 20) || called_n_instrs < 5) {
+    if ((v.func->n_bbs() == 1 && called_n_instrs < 20) || called_n_instrs < 5 ||
+        (self_func->name == "main" && called_n_instrs < 10)) {
       if (debug_print) {
         fmt::println("Y short");
       }
