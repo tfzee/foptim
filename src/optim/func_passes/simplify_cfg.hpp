@@ -95,6 +95,9 @@ class SimplifyCFG final : public FunctionPass {
                               size_t bb_id, fir::Function &func);
   // or merge 2 following conditions and combine them via && or ||
   bool merge_term_cond(CFG &cfg, CFG::Node &curr);
+  // if cond(bool1) into another bb with cond(bool1) we can forward the block
+  // used to get to second bb there
+  bool backpull_term_cond(CFG &cfg, CFG::Node &curr, Dominators &dom);
   // flip conditions which go to 'cold' bb so that the true branch goes to the
   // cold bb and the fallthrough is the 'hot' path
   SimplifyCFG::Res flip_cold_cond(CFG &cfg, CFG::Node &curr);

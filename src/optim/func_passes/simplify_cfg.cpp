@@ -16,6 +16,7 @@
 #include "optim/helper/inline.hpp"
 #include "simplify_cfg.hpp"
 #include "utils/arena.hpp"
+#include "utils/bitset.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/stats.hpp"
@@ -1255,6 +1256,83 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
   return false;
 }
 
+bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
+                                     Dominators &dom) {
+  (void)dom;
+  (void)cfg;
+  // auto curr_id = cfg.get_bb_id(curr.bb);
+  auto term1 = curr.bb->get_terminator();
+  if (!term1->is(fir::InstrType::CondBranchInstr)) {
+    return false;
+  }
+  for (u16 ti = 0; ti < 2; ti++) {
+    auto target = term1->bbs[ti].bb;
+    if (target->n_instrs() != 1) {
+      continue;
+    }
+    auto term2 = target->get_terminator();
+    if (!term2->is(fir::InstrType::CondBranchInstr)) {
+      continue;
+    }
+    if (term1->args[0] != term2->args[0]) {
+      continue;
+    }
+    // so cant do the backwarding iff the arguments of the target block are used
+    // after the target block. Since then it would be uninitialized
+    //
+    // It only matters tho if we actually can reach this code from the branch we
+    // will pull backwards
+    if (!target->args.empty()) {
+      bool any_args_used_later = false;
+      auto next_bb = cfg.get_bb_id(term2->bbs[ti].bb);
+      utils::BitSet reachable_bbs(cfg.bbrs.size(), false);
+      reachable_bbs[next_bb].set(true);
+      TVec<u32> worklist;
+      worklist.push_back(next_bb);
+      while (!worklist.empty()) {
+        u32 c = worklist.back();
+        worklist.pop_back();
+        for (auto n : cfg.bbrs[c].succ) {
+          if (!reachable_bbs[n]) {
+            reachable_bbs[c].set(true);
+            worklist.push_back(n);
+          }
+        }
+      }
+
+      for (auto arg : target->args) {
+        for (auto usi : arg->get_uses()) {
+          auto user_bb = usi.user->get_parent();
+          if (user_bb != target && reachable_bbs[cfg.get_bb_id(user_bb)]) {
+            any_args_used_later = true;
+            break;
+          }
+        }
+      }
+      if (any_args_used_later) {
+        continue;
+      }
+    }
+    term1.replace_bb(ti, term2->bbs[ti].bb, false, false);
+    for (auto arg : term2->bbs[ti].args) {
+      // need to substitute bb args
+      if (arg.is_bb_arg()) {
+        auto a = arg.as_bb_arg();
+        if (a->_parent == target) {
+          term1.add_bb_arg(ti, term1->bbs[ti].args[target->get_arg_id(a)]);
+        } else {
+          term1.add_bb_arg(ti, arg);
+        }
+      } else {
+        term1.add_bb_arg(ti, arg);
+      }
+    }
+    return true;
+  }
+
+  return false;
+}
+
 SimplifyCFG::Res SimplifyCFG::simplify_bb_args(CFG &cfg, Dominators &dom,
                                                fir::Function &func,
                                                size_t bb_id) {
@@ -1368,10 +1446,17 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
     return Res::NeedUpdate;
   }
 
+  if (backpull_term_cond(cfg, curr, dom)) {
+    if constexpr (debug_print) {
+      fmt::println("14");
+    }
+    return Res::NeedUpdate;
+  }
+
   r = flip_cold_cond(cfg, curr);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("14");
+      fmt::println("15");
     }
     return r;
   }
@@ -1379,7 +1464,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   r = static_select_call_into_branch(func, curr);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("15");
+      fmt::println("16");
     }
     return r;
   }
