@@ -4,6 +4,7 @@
 
 #include "ir/context.hpp"
 #include "ir/value.hpp"
+#include "utils/arena.hpp"
 #include "utils/map.hpp"
 #include "utils/vec.hpp"
 
@@ -13,6 +14,7 @@ class AttributeAnalysis;
 class AttributerManager;
 using Worklist =
     std::deque<AttributeAnalysis *, utils::TempAlloc<AttributeAnalysis *>>;
+// using Worklist = TVec<AttributeAnalysis *>;
 
 template <class Int, Int best, Int worst>
 struct IntegerLattice {
@@ -65,8 +67,11 @@ class AttributeAnalysis {
 
 class AttributerManager {
  public:
-  TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
-  TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
+  TUnordDense<std::type_index, TUnordDense<fir::ValueR, AttributeAnalysis *>>
+      _attribs;
+  // TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
+  TUnordDense<AttributeAnalysis *, TVec<AttributeAnalysis *>>
+      _inverse_dependencies;
   AttributeAnalysis *_currently_updating = nullptr;
 
   void reset() {
@@ -152,6 +157,8 @@ class AttributerManager {
     }
     while (!worklist.empty()) {
       auto *curr_ptr = worklist.front();
+      // auto *curr_ptr = worklist.back();
+      // worklist.pop_back();
       worklist.pop_front();
       _currently_updating = curr_ptr;
       ASSERT(curr_ptr->associatedValue.is_valid(true));

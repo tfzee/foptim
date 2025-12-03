@@ -22,6 +22,7 @@
             llvmPackages_20.libllvm
             argparse
             fmt
+            unordered_dense
             #for codegen
             elfio
 

@@ -1,4 +1,6 @@
 #pragma once
+#include <ankerl/unordered_dense.h>
+
 #include <cassert>
 
 #include "basic_block_ref.hpp"
@@ -94,6 +96,28 @@ class ValueR {
 };
 
 }  // namespace foptim::fir
+
+template <>
+struct ankerl::unordered_dense::hash<foptim::fir::ValueR> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::fir::ValueR &k) const noexcept
+      -> uint64_t {
+    using namespace foptim::fir;
+    switch (k.ty) {
+      case foptim::fir::ValueType::InvalidValue:
+        return 0;
+      case foptim::fir::ValueType::Instr:
+        return hash<Instr>()(k.instr);
+      case foptim::fir::ValueType::BasicBlock:
+        return hash<BasicBlock>()(k.bb);
+      case foptim::fir::ValueType::BBArg:
+        return hash<BBArgument>()(k.bb_arg);
+      case foptim::fir::ValueType::ConstantValueR:
+        return hash<ConstantValueR>()(k.const_val);
+    }
+  }
+};
 
 template <>
 struct std::hash<foptim::fir::ValueR> {

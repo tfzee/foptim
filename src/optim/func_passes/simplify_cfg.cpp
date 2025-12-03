@@ -579,6 +579,9 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
       }
     }
   }
+  if (dup_pairs.empty()) {
+    return false;
+  }
   // since the ordering is not really nice since we could have duplicates
   //  that are sorounded by another duplicate pair
   //  we first do cleanup and set the duplicates to only use the second of the
@@ -1477,6 +1480,10 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
 
 void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("SimplifyCFG", COLOR_OPTIMF);
+  // Cant really simplify the cfg if theres just 1 node
+  if (func.basic_blocks.size() == 1) {
+    return;
+  }
   CFG cfg{func};
   Dominators dom{cfg};
 

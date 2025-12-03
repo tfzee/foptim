@@ -53,7 +53,7 @@ class FuncPropAnnotator final : public ModulePass {
   }
 
   void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
-    ZoneScopedN("FuncPropAnnotator");
+    ZoneScopedNC("FuncPropAnnotator", COLOR_OPTIMF);
     CallGraph call_graph{ctx};
 
     TVec<fir::Function *> worklist;

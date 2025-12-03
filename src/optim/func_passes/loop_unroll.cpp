@@ -288,7 +288,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
 }
 
 void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
-  ZoneScopedN("unroll");
+  ZoneScopedNC("LoopUnroll", COLOR_OPTIMF);
   CFG cfg{func};
   Dominators dom{cfg};
   LoopInfoAnalysis linfo{dom};

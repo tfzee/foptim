@@ -124,7 +124,7 @@ class ConstLoopEval final : public FunctionPass {
 
  public:
   void apply(fir::Context &ctx, fir::Function &func) override {
-    ZoneScopedN("ConstLoopEval");
+    ZoneScopedNC("ConstLoopEval", COLOR_OPTIMF);
     // if a loop only contains 'pure' instrutions that can be evaluated at
     // compile time and all the input dependencies are constant + we have a
     // mustprogress attribute(no infinite loops) we should constant evaluate

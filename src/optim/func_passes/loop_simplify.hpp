@@ -276,6 +276,7 @@ class LoopSimplify final : public FunctionPass {
   }
 
   void apply(fir::Context &ctx, fir::Function &func) override {
+    ZoneScopedNC("LoopSimplify", COLOR_OPTIMF);
     (void)ctx;
     CFG cfg{func};
     Dominators dom{cfg};

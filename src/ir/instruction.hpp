@@ -56,6 +56,16 @@ class Instr : public utils::SRef<InstrData> {
 }  // namespace foptim::fir
 
 template <>
+struct ankerl::unordered_dense::hash<foptim::fir::Instr> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::fir::Instr &k) const noexcept
+      -> uint64_t {
+    return hash<foptim::utils::SRef<foptim::fir::InstrData>>()(k);
+  }
+};
+
+template <>
 struct std::hash<foptim::fir::Instr> {
   std::size_t operator()(const foptim::fir::Instr &k) const {
     using foptim::u32;

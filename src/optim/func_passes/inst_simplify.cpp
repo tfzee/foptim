@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <bit>
+#include <tracy/Tracy.hpp>
 
 #include "inst_simplify.hpp"
 #include "ir/IRLocation.hpp"
@@ -25,6 +26,9 @@
 namespace foptim::optim {
 
 namespace {
+
+constexpr bool TRACY_DEBUG = false;
+
 using WorkList = TVec<InstSimplify::WorkItem>;
 
 void swap_args(fir::Instr instr, u32 a1, u32 a2) {
@@ -118,6 +122,9 @@ void push_all_uses(WorkList &worklist, fir::Instr instr) {
 bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
                         fir::Context &ctx, WorkList &worklist,
                         AttributerManager &man) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyRed");
+  }
   // detect reductions
   //  and try to simplify it
   //  for example merging constants on different leaves of the reduction if
@@ -135,7 +142,10 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   TVec<fir::ValueR> red_args;
+
   TVec<fir::ValueR> red_worklist{fir::ValueR{instr}};
+  u32 n_const = 0;
+  i128 constval = neutral_val;
   while (!red_worklist.empty()) {
     auto c = red_worklist.back();
     red_worklist.pop_back();
@@ -147,16 +157,25 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
           red_worklist.push_back(arg);
         }
       } else {
-        red_args.push_back(c);
+        if (c.is_constant() && c.as_constant()->is_int()) {
+          n_const++;
+          constval += c.as_constant()->as_int();
+        } else {
+          red_args.push_back(c);
+        }
       }
     } else {
-      red_args.push_back(c);
+      if (c.is_constant() && c.as_constant()->is_int()) {
+        n_const++;
+        constval += c.as_constant()->as_int();
+      } else {
+        red_args.push_back(c);
+      }
     }
   }
-  if (red_args.size() <= 2) {
+  if (red_args.size() <= 3 || n_const < 2) {
     return false;
   }
-  i128 constval = neutral_val;
   std::ranges::sort(red_args, [](const auto &a, const auto &b) {
     if (a.is_constant()) {
       if (b.is_constant()) {
@@ -173,24 +192,23 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
     return false;
   });
   {
-    u32 n_const = 0;
     size_t max_group_size = 0;
     for (size_t i = 0; i < red_args.size(); i++) {
-      if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
-        n_const++;
-        constval += red_args[i].as_constant()->as_int();
-      } else {
-        size_t endgroup = i + 1;
-        for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
-          if (red_args[i] != red_args[i2]) {
-            endgroup = i2;
-            break;
-          }
+      // if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
+      //   n_const++;
+      //   constval += red_args[i].as_constant()->as_int();
+      // } else {
+      size_t endgroup = i + 1;
+      for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
+        if (red_args[i] != red_args[i2]) {
+          endgroup = i2;
+          break;
         }
-        max_group_size = std::max(max_group_size, endgroup - i);
       }
+      max_group_size = std::max(max_group_size, endgroup - i);
+      // }
     }
-    if (max_group_size <= 2 || n_const <= 2) {
+    if (max_group_size <= 3) {
       return false;
     }
   }
@@ -237,8 +255,11 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
   return true;
 }
 
-void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist, AttributerManager &man) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyBinary");
+  }
   using namespace foptim::fir;
   // since both being constant would be handleded by constant folding we
   // just asume theres one and normalzie by putting it into the secodn arg
@@ -324,7 +345,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         instr->replace_all_uses(res);
       }
       instr.destroy();
-      return;
+      return true;
     }
   }
   // (x +- constant1) +- constant2
@@ -396,14 +417,14 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         auto inner_add_sub = instr->args[0].as_instr();
         auto const2 = instr->args[1];
         if (f(inner_add_sub, const2)) {
-          return;
+          return true;
         }
       }
       if (instr->args[1].is_instr()) {
         auto inner_add_sub = instr->args[1].as_instr();
         auto const2 = instr->args[0];
         if (f(inner_add_sub, const2)) {
-          return;
+          return true;
         }
       }
     }
@@ -442,7 +463,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           }
         }
         instr.destroy();
-        return;
+        return true;
       }
     }
     if ((instr->is(BinaryInstrSubType::And) ||
@@ -473,7 +494,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
         instr.destroy();
-        return;
+        return true;
       }
     }
   }
@@ -494,7 +515,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR{ctx->get_poisson_value(instr.get_type())});
       instr.destroy();
-      return;
+      return true;
     }
     if (((c0_val != nullptr) && c0_val->is_null()) ||
         ((c1_val != nullptr) && c1_val->is_null())) {
@@ -502,7 +523,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(instr->args[index]);
       instr.destroy();
-      return;
+      return true;
     }
 
     if ((c0_val != nullptr) && (c1_val != nullptr)) {
@@ -513,7 +534,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                                      c0_val->as_int(), c1_val->as_int(),
                                      c1_val->type, ctx)) {
           instr.destroy();
-          return;
+          return true;
         }
       } else if (c1_val->type->is_float() && c1_val->type->as_float() == 32 &&
                  c0_val->type->is_float() && c0_val->type->as_float() == 32) {
@@ -523,7 +544,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                                      c0_val->as_f32(), c1_val->as_f32(),
                                      c1_val->type, ctx)) {
           instr.destroy();
-          return;
+          return true;
         }
       } else if (c1_val->type->is_float() && c1_val->type->as_float() == 64 &&
                  c0_val->type->is_float() && c0_val->type->as_float() == 64) {
@@ -533,7 +554,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                                      c0_val->as_f64(), c1_val->as_f64(),
                                      c1_val->type, ctx)) {
           instr.destroy();
-          return;
+          return true;
         }
       }
     }
@@ -547,7 +568,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       instr->args[c_idx] = fir::ValueR{
           ctx->get_constant_value(c_val->as_int(), instr.get_type())};
       worklist.push_back({instr, instr->get_parent()});
-      return;
+      return true;
     }
 
     // (x+c1) +y => (x+y)+c1
@@ -568,7 +589,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
         instr.destroy();
-        return;
+        return true;
       }
     }
     if (instr->subtype == (u32)BinaryInstrSubType::Xor && c_val->is_int() &&
@@ -584,7 +605,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
         instr.destroy();
-        return;
+        return true;
       }
     }
 
@@ -614,7 +635,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
           instr.destroy();
-          return;
+          return true;
         }
       }
       if (instr->is(BinaryInstrSubType::Shl) &&
@@ -634,7 +655,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
           instr.destroy();
-          return;
+          return true;
         }
       }
       if (argi->is(fir::BinaryInstrSubType::And) ||
@@ -655,7 +676,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
         instr.destroy();
-        return;
+        return true;
       }
     }
 
@@ -668,13 +689,13 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_neg);
         instr.destroy();
-        return;
+        return true;
       }
       if (c_val->as_f64() == 1) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[v_idx]);
         instr.destroy();
-        return;
+        return true;
       }
     }
     if (c_val->is_int() &&
@@ -690,7 +711,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_res);
         instr.destroy();
-        return;
+        return true;
       }
     }
     if (c_val->is_int() &&
@@ -700,7 +721,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[v_idx]);
         instr.destroy();
-        return;
+        return true;
       }
       i128 all_one_mask = ~(i128)0;
       auto shift_width = (128 - instr->get_type()->as_int());
@@ -712,7 +733,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_res);
         instr.destroy();
-        return;
+        return true;
       }
     }
     if (c_val->is_int() &&
@@ -721,7 +742,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[1 - c_idx]);
         instr.destroy();
-        return;
+        return true;
       }
       auto max_unsigend_val =
           (((u128)1 << c_val->get_type()->get_bitwidth()) - 1);
@@ -730,7 +751,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
             std::bit_cast<i128>(max_unsigend_val), instr->get_type())});
         instr.destroy();
-        return;
+        return true;
       }
     }
     if (c_val->is_int() &&
@@ -745,7 +766,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(fir::ValueR{other_i});
           instr.destroy();
-          return;
+          return true;
         }
       }
       {
@@ -754,7 +775,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(instr->args[1 - c_idx]);
           instr.destroy();
-          return;
+          return true;
         }
       }
       if (c_val->as_int() == 0) {
@@ -762,7 +783,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         instr->replace_all_uses(
             fir::ValueR{ctx->get_constant_value(0, instr.get_type())});
         instr.destroy();
-        return;
+        return true;
       }
     }
     if (c_idx == 1 && c_val->is_int() &&
@@ -771,7 +792,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
         instr.destroy();
-        return;
+        return true;
       }
     }
     if (c_val->is_int() &&
@@ -781,14 +802,14 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[v_idx]);
         instr.destroy();
-        return;
+        return true;
       }
       if (c_vali == 0) {
         auto zero_const = ctx.data->get_constant_value(0, c_val->get_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR{zero_const});
         instr.destroy();
-        return;
+        return true;
       }
       if (instr->args[v_idx].is_instr()) {
         auto v_i = instr->args[v_idx].as_instr();
@@ -809,7 +830,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
           instr.destroy();
-          return;
+          return true;
         }
       }
     }
@@ -819,7 +840,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[v_idx]);
         instr.destroy();
-        return;
+        return true;
       }
       if (instr->args[0].is_instr() && c1_val->get_type()->is_int()) {
         ASSERT(c0_val == nullptr);
@@ -849,7 +870,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               instr.replace_arg(0, a0->args[0]);
               instr.replace_arg(1, ValueR(new_val));
               push_all_uses(worklist, instr);
-              break;
+              return true;
             }
             case fir::BinaryInstrSubType::IntSub: {
               auto new_val = ctx->get_constant_int(
@@ -857,7 +878,7 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               instr.replace_arg(0, a0->args[0]);
               instr.replace_arg(1, ValueR(new_val));
               push_all_uses(worklist, instr);
-              break;
+              return true;
             }
             default:
               break;
@@ -936,23 +957,27 @@ void simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(instr->args[0]);
       instr.destroy();
-      return;
+      return true;
     }
     if (is_redundant1) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(instr->args[1]);
       instr.destroy();
-      return;
+      return true;
     }
   }
 
   if (simplify_reduction(instr, bb, ctx, worklist, man)) {
-    return;
+    return true;
   }
+  return false;
 }
 
-void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
+bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
                    WorkList &worklist, AttributerManager &man) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyICMP");
+  }
   using namespace foptim::fir;
   {
     if ((instr->args[0].is_constant() &&
@@ -978,7 +1003,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       instr->replace_all_uses(ValueR(new_const_value));
       ASSERT(instr->bbs.size() == 0);
       instr.destroy();
-      return;
+      return true;
     }
 
     {
@@ -1017,12 +1042,12 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(ValueR(new_const_value));
           instr.destroy();
-          return;
+          return true;
         }
       }
     }
     if (c1->is_global() || c1->is_func() || c2->is_global() || c2->is_func()) {
-      return;
+      return false;
     }
     i128 v1 = 0;
     i128 v2 = 0;
@@ -1099,7 +1124,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
     instr.destroy();
-    return;
+    return true;
   }
 
   if (second_constant && instr->args[1].as_constant()->is_int()) {
@@ -1111,7 +1136,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       instr->args[1] = fir::ValueR{
           ctx->get_constant_value(c_val, instr->args[0].get_type())};
       worklist.push_back({instr, instr->get_parent()});
-      return;
+      return true;
     }
 
     if (instr->args[0].is_instr()) {
@@ -1132,7 +1157,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(ValueR(new_val));
           instr.destroy();
-          return;
+          return true;
         }
       }
 
@@ -1153,7 +1178,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR(new_val));
         instr.destroy();
-        return;
+        return true;
       }
       if ((sub_type == ICmpInstrSubType::SGE ||
            sub_type == ICmpInstrSubType::SGT) &&
@@ -1172,7 +1197,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR(new_val));
         instr.destroy();
-        return;
+        return true;
       }
     }
 
@@ -1189,7 +1214,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR(new_val));
         instr.destroy();
-        return;
+        return true;
       }
     }
 
@@ -1208,7 +1233,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(ValueR(new_val));
         instr.destroy();
-        return;
+        return true;
       }
     }
 
@@ -1223,7 +1248,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_cmp);
         instr.destroy();
-        return;
+        return true;
       }
       if (arg0->get_type()->as_int() == 1 && c_val == 0) {
         bool needs_negation = sub_type == ICmpInstrSubType::EQ;
@@ -1236,12 +1261,12 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
               {negated.as_instr(), negated.as_instr()->get_parent()});
           instr->replace_all_uses(negated);
           instr.destroy();
-          return;
+          return true;
         }
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
         instr.destroy();
-        return;
+        return true;
       }
       if (arg0->is(InstrType::ZExt) ||
           (arg0->is(InstrType::SExt) && c_val == 0)) {
@@ -1255,7 +1280,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         instr.replace_arg(
             1, fir::ValueR{ctx->get_constant_value(c_val, x.get_type())});
         worklist.emplace_back(instr, instr->get_parent());
-        return;
+        return true;
       }
     }
 
@@ -1282,7 +1307,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         instr->replace_all_uses(
             ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
         instr.destroy();
-        return;
+        return true;
       }
     }
   }
@@ -1300,7 +1325,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         //  could get rid of one of the zext
         instr.replace_arg(0, a1i->args[0]);
         instr.replace_arg(1, a2i->args[0]);
-        return;
+        return true;
       }
     }
     // when we have a+b < b or a+b >= b then we can convert that to h = xor b 1
@@ -1328,7 +1353,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
       instr.destroy();
-      return;
+      return true;
     }
     if (a1i->is(InstrType::BinaryInstr) &&
         a1i->subtype == (u32)BinaryInstrSubType::And &&
@@ -1352,7 +1377,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
           worklist.push_back(
               {truncated_o.as_instr(), truncated_o.as_instr()->get_parent()});
           instr.replace_arg(1, truncated_o);
-          return;
+          return true;
         }
       }
     }
@@ -1397,7 +1422,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         instr->replace_all_uses(
             ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
         instr.destroy();
-        return;
+        return true;
       }
     }
 
@@ -1435,7 +1460,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         instr->replace_all_uses(
             ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
         instr.destroy();
-        return;
+        return true;
       }
     }
 
@@ -1455,7 +1480,7 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         instr->replace_all_uses(
             ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
         instr.destroy();
-        return;
+        return true;
       }
     }
   }
@@ -1481,10 +1506,14 @@ void simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
   //     return;
   //   }
   // }
+  return false;
 }
 
-void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
+bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
                    WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyFCMP");
+  }
   using namespace foptim::fir;
   {
     if ((instr->args[0].is_constant() &&
@@ -1519,7 +1548,7 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(r);
           instr.destroy();
-          return;
+          return true;
         }
         case fir::FCmpInstrSubType::INVALID:
         case fir::FCmpInstrSubType::AlwFalse:
@@ -1553,7 +1582,7 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(ValueR(new_const_value));
       instr.destroy();
-      return;
+      return true;
     }
     ASSERT(c1->is_float());
     const auto v1 = c1->as_float();
@@ -1630,15 +1659,16 @@ void simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       case fir::FCmpInstrSubType::INVALID:
       case fir::FCmpInstrSubType::AlwFalse:
       case fir::FCmpInstrSubType::AlwTrue:
-        return;
+        return true;
     }
     auto new_const_value = ctx->get_constant_int((u64)is_true, 8);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(ValueR(new_const_value));
     ASSERT(instr->bbs.size() == 0);
     instr.destroy();
-    return;
+    return true;
   }
+  return false;
 }
 
 bool is_constant_int_zero(fir::ValueR r) {
@@ -1851,8 +1881,11 @@ bool select_to_fabs(fir::Instr instr, WorkList &worklist) {
   return false;
 }
 
-void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
+bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context & /*ctx*/, WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifySelect");
+  }
   if (instr->args[0].is_constant()) {
     auto v1 = instr->args[0].as_constant()->as_int();
     push_all_uses(worklist, instr);
@@ -1862,13 +1895,13 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr->replace_all_uses(instr->args[1]);
     }
     instr.destroy();
-    return;
+    return true;
   }
   if (instr->args[1] == instr->args[2]) {
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[1]);
     instr.destroy();
-    return;
+    return true;
   }
   if (instr->args[1].is_constant() && instr->args[2].is_constant() &&
       instr->get_type()->is_int()) {
@@ -1884,7 +1917,7 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(new_val);
       instr.destroy();
-      return;
+      return true;
     }
     if (arg1 == 0 && (arg2 == 1 || (output_width == 1 && arg2 != 0))) {
       fir::Builder b(instr);
@@ -1896,21 +1929,21 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(new_val);
       instr.destroy();
-      return;
+      return true;
     }
   }
   if (instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::ICmp) &&
       is_constant_int_zero(instr->args[0].as_instr()->args[1])) {
     if (select_to_abs(instr, worklist)) {
-      return;
+      return true;
     }
   }
   if (instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::FCmp) &&
       is_constant_float_zero(instr->args[0].as_instr()->args[1])) {
     if (select_to_fabs(instr, worklist)) {
-      return;
+      return true;
     }
   }
   if (instr->args[0].is_instr() &&
@@ -1973,7 +2006,7 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_val);
         instr.destroy();
-        return;
+        return true;
       }
     }
   }
@@ -2019,13 +2052,17 @@ void simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_val);
         instr.destroy();
-        return;
+        return true;
       }
     }
   }
+  return false;
 }
-void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
+bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
                           fir::Context & /*ctx*/, WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyCondBranch");
+  }
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant();
     fir::Builder b(bb);
@@ -2047,7 +2084,7 @@ void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
       new_branch.add_bb_arg(0, old_arg);
     }
     instr.remove_from_parent();
-    return;
+    return true;
   }
   if (instr->args[0].is_instr()) {
     auto cond = instr->args[0].as_instr();
@@ -2072,12 +2109,17 @@ void simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
       }
       instr.replace_arg(0, cond->args[0]);
       worklist.push_back({instr, instr->get_parent()});
+      return true;
     }
   }
+  return false;
 }
 
 void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context & /*ctx*/, WorkList & /*worklist*/) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifySwitch");
+  }
   if (!instr->args.empty() && instr->args.back().is_constant()) {
     fir::Builder b(bb);
     b.at_end(bb);
@@ -2141,8 +2183,11 @@ void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
   }
 }
 
-void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
+bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyExtend");
+  }
   // TODO: could also maybe figure out cases where we can convert everything
   // into higher bitwidth
   (void)ctx;
@@ -2151,7 +2196,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[0]);
     instr.destroy();
-    return;
+    return true;
   }
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant()->as_int();
@@ -2165,7 +2210,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
           ctx->get_constant_value(std::bit_cast<i128>(c), instr->get_type())});
     }
     instr.destroy();
-    return;
+    return true;
   }
   if (iszext && instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::ITrunc)) {
@@ -2191,7 +2236,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr->replace_all_uses(end_res);
     }
     instr.destroy();
-    return;
+    return true;
   }
   if ((instr->is(fir::InstrType::SExt) || iszext) &&
       instr->args[0].is_instr()) {
@@ -2204,7 +2249,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_result);
         instr.destroy();
-        return;
+        return true;
       }
     }
     auto is_non_overflowing = (argi->NSW && !iszext) || (argi->NUW && iszext);
@@ -2230,7 +2275,7 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
       instr.destroy();
-      return;
+      return true;
     }
   }
   if (instr->is(fir::InstrType::SExt) && instr->args[0].is_instr() &&
@@ -2241,12 +2286,16 @@ void simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_result);
     instr.destroy();
-    return;
+    return true;
   }
+  return false;
 }
 
-void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist, AttributerManager &man) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyITrunc");
+  }
   (void)instr;
   (void)worklist;
   // ext
@@ -2262,7 +2311,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(instr->args[0]);
     instr.destroy();
-    return;
+    return true;
   }
   if (instr->args[0].is_constant()) {
     auto c = instr->args[0].as_constant();
@@ -2271,7 +2320,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       instr->replace_all_uses(
           fir::ValueR{ctx->get_poisson_value(instr->get_type())});
       instr.destroy();
-      return;
+      return true;
     }
     auto v = c->as_int();
 
@@ -2282,7 +2331,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(fir::ValueR{new_v});
     instr.destroy();
-    return;
+    return true;
   }
   if (instr->args[0].is_bb_arg()) {
     auto arg = instr->args[0].as_bb_arg();
@@ -2318,7 +2367,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         // fmt::println("{:cd}", origin_bb);
         // fmt::println("{:cd}", bb);
         // TODO("okak");
-        return;
+        return true;
       }
     }
   }
@@ -2332,7 +2381,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(arg_i->args[0]);
       instr.destroy();
-      return;
+      return true;
     }
 
     switch (arg_i->instr_type) {
@@ -2349,7 +2398,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                 instr->replace_all_uses(fir::ValueR{
                     ctx->get_constant_value((i128)0, instr->get_type())});
                 instr.destroy();
-                return;
+                return true;
               }
               if (i_arg1c >= 0 && i_arg1c < ((i128)1 << new_bitwidth)) {
                 push_all_uses(worklist, instr);
@@ -2364,7 +2413,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                     {v1.as_instr(), v1.as_instr()->get_parent()});
                 instr->replace_all_uses(r);
                 instr.destroy();
-                return;
+                return true;
               }
             }
           } break;
@@ -2383,7 +2432,7 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             push_all_uses(worklist, r.as_instr());
             instr->replace_all_uses(r);
             instr.destroy();
-            return;
+            return true;
           }
           default:
             break;
@@ -2396,27 +2445,31 @@ void simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
 
   auto *arg_known_bits = man.get_or_create_analysis<KnownBits>(instr->args[0]);
+  man.run(ctx);
   if (((arg_known_bits->known_one ^ arg_known_bits->known_zero) & mask) ==
       mask) {
-    auto val = ctx->get_constant_int((arg_known_bits->known_one & mask) |
-                                         (arg_known_bits->known_zero & mask),
-                                     new_bitwidth);
+    auto val =
+        ctx->get_constant_int((arg_known_bits->known_one & mask), new_bitwidth);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(fir::ValueR{val});
     instr.destroy();
-    return;
+    return true;
   }
+  return false;
 }
 
-void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
+bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
                     WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyUnary");
+  }
   if (instr->args[0].is_constant() &&
       instr->args[0].as_constant()->is_poison()) {
     push_all_uses(worklist, instr);
     instr->replace_all_uses(
         fir::ValueR{ctx->get_poisson_value(instr.get_type())});
     instr.destroy();
-    return;
+    return true;
   }
   if ((fir::UnaryInstrSubType)instr->subtype ==
           fir::UnaryInstrSubType::IntNeg &&
@@ -2424,7 +2477,7 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     instr->subtype = (u32)fir::UnaryInstrSubType::Not;
     worklist.push_back(
         InstSimplify::WorkItem{.instr = instr, .b = instr->get_parent()});
-    return;
+    return true;
   }
   if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
       instr->args[0].is_instr()) {
@@ -2435,7 +2488,7 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(input_instr->args[0]);
       instr.destroy();
-      return;
+      return true;
     }
     if (input_instr->is(fir::InstrType::UnaryInstr) &&
         (fir::UnaryInstrSubType)input_instr->subtype ==
@@ -2443,7 +2496,7 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(input_instr->args[0]);
       instr.destroy();
-      return;
+      return true;
     }
   }
   if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
@@ -2488,7 +2541,7 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       case fir::ICmpInstrSubType::MulOverflow:
       case fir::ICmpInstrSubType::AddOverflow:
         // TODO: impl
-        return;
+        return true;
     }
     ASSERT(new_subtype != fir::ICmpInstrSubType::INVALID);
 
@@ -2498,7 +2551,7 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_comp);
     instr.destroy();
-    return;
+    return true;
   }
   if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
       instr->args[0].is_instr() &&
@@ -2563,26 +2616,29 @@ void simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_comp);
     instr.destroy();
-    return;
+    return true;
   }
-  if (!instr->args[0].is_constant()) {
-    return;
+  if (instr->args[0].is_constant()) {
+    if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not) {
+      push_all_uses(worklist, instr);
+      auto out_type = instr.get_type();
+      ASSERT(out_type->is_int());
+      auto mask = ((i128)1 << out_type->as_int()) - 1;
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+          (~instr->args[0].as_constant()->as_int()) & mask, out_type)});
+      instr.destroy();
+      return true;
+    }
   }
-  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not) {
-    push_all_uses(worklist, instr);
-    auto out_type = instr.get_type();
-    ASSERT(out_type->is_int());
-    auto mask = ((i128)1 << out_type->as_int()) - 1;
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-        (~instr->args[0].as_constant()->as_int()) & mask, out_type)});
-    instr.destroy();
-    return;
-  }
+  return false;
 }
 
-void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
+bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
                          fir::Context &ctx, WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyConversion");
+  }
   (void)ctx;
   (void)worklist;
   switch ((fir::ConversionSubType)instr->subtype) {
@@ -2596,7 +2652,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(r);
         instr.destroy();
-        return;
+        return true;
       } else if (instr->get_type()->is_int() &&
                  instr->args[0].get_type()->is_ptr()) {
         fir::Builder buh{instr};
@@ -2605,13 +2661,13 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(r);
         instr.destroy();
-        return;
+        return true;
       }
       if (instr->args[0].get_type() == instr->get_type()) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
         instr.destroy();
-        return;
+        return true;
       }
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
@@ -2622,7 +2678,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->replace_all_uses(new_val);
           instr.destroy();
           a0.destroy();
-          return;
+          return true;
         }
       }
       if (instr->args[0].is_instr()) {
@@ -2633,12 +2689,12 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(iarg0->args[0]);
           instr.destroy();
-          return;
+          return true;
         }
       }
       if (instr->args[0].is_constant()) {
         fmt::println("implc const bitcast instr {:cd}", instr);
-        return;
+        return true;
         // TODO("todo");
       }
       break;
@@ -2659,7 +2715,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
           TODO("Not supported other float bitwidths");
         }
         instr.destroy();
-        return;
+        return true;
       }
       break;
     case fir::ConversionSubType::PtrToInt:
@@ -2667,7 +2723,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
         instr.destroy();
-        return;
+        return true;
       }
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
@@ -2678,13 +2734,13 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->replace_all_uses(new_val);
           instr.destroy();
           a0.destroy();
-          return;
+          return true;
         }
         if (a0->is(fir::ConversionSubType::IntToPtr)) {
           push_all_uses(worklist, instr);
           instr->replace_all_uses(a0->args[0]);
           instr.destroy();
-          return;
+          return true;
         }
       }
       break;
@@ -2693,7 +2749,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
         instr.destroy();
-        return;
+        return true;
       }
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
@@ -2704,13 +2760,13 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->replace_all_uses(new_val);
           instr.destroy();
           a0.destroy();
-          return;
+          return true;
         }
         if (a0->is(fir::ConversionSubType::PtrToInt)) {
           push_all_uses(worklist, instr);
           instr->replace_all_uses(a0->args[0]);
           instr.destroy();
-          return;
+          return true;
         }
       }
       break;
@@ -2723,7 +2779,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
             fir::ValueR{ctx->get_constant_value((i128)val, instr->get_type())});
         instr.destroy();
         // TODO("OKAK IMPL");
-        return;
+        return true;
       }
       break;
     case fir::ConversionSubType::FPTOUI:
@@ -2734,7 +2790,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr->replace_all_uses(
             fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
         instr.destroy();
-        return;
+        return true;
       }
       break;
     case fir::ConversionSubType::FPEXT:
@@ -2747,7 +2803,7 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr->replace_all_uses(
             fir::ValueR{ctx->get_constant_value((f64)val, instr->get_type())});
         instr.destroy();
-        return;
+        return true;
       }
       break;
     case fir::ConversionSubType::FPTRUNC:
@@ -2760,13 +2816,17 @@ void simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr->replace_all_uses(
             fir::ValueR{ctx->get_constant_value((f32)val, instr->get_type())});
         instr.destroy();
-        return;
+        return true;
       }
       break;
   }
+  return false;
 }
 
 bool simplify_store(fir::Instr instr) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyStore");
+  }
   if ((instr->args[0].is_constant() &&
        instr->args[0].as_constant()->is_poison()) ||
       (instr->args[1].is_constant() &&
@@ -2811,8 +2871,11 @@ bool simplify_store(fir::Instr instr) {
   return false;
 }
 
-void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyCall");
+  }
   (void)bb;
   (void)ctx;
   (void)worklist;
@@ -2821,7 +2884,7 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     if (instr->get_n_uses() == 0 &&
         (funci->mem_read_none || funci->mem_read_only)) {
       instr.destroy();
-      return;
+      return true;
     }
 
     if (foptim::utils::assume_cstdlib_beheaviour) {
@@ -2835,7 +2898,7 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(fir::ValueR{len_constant});
           instr.destroy();
-          return;
+          return true;
         }
       }
       // void * __memset_chk(void * dest, int c, size_t len, size_t destlen);
@@ -2854,7 +2917,7 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           instr.remove_arg(4);
           instr->value_type = ctx->get_void_type();
           instr->extra_type = memset->func_ty;
-          return;
+          return true;
         }
         TODO("emit unreach");
       }
@@ -2873,7 +2936,7 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           instr.remove_arg(4);
           instr->value_type = ctx->get_void_type();
           instr->extra_type = memcpy->func_ty;
-          return;
+          return true;
         }
         TODO("emit unreach");
       }
@@ -2943,10 +3006,14 @@ void simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       // }
     }
   }
+  return false;
 }
 
 bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyLoad");
+  }
   (void)bb;
   (void)ctx;
   (void)worklist;
@@ -3006,9 +3073,12 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   return false;
 }
 
-void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
+bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
                         fir::Context &ctx, WorkList &worklist,
                         AttributerManager &man) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyIntrin");
+  }
   auto sub_type = (fir::IntrinsicSubType)instr->subtype;
   if (sub_type == fir::IntrinsicSubType::Abs && instr->args[0].is_constant()) {
     push_all_uses(worklist, instr);
@@ -3019,7 +3089,7 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
           fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
       instr.destroy();
     }
-    return;
+    return true;
   }
   if (sub_type == fir::IntrinsicSubType::UMin ||
       sub_type == fir::IntrinsicSubType::UMax ||
@@ -3039,7 +3109,7 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->replace_all_uses(
               fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
           instr.destroy();
-          return;
+          return true;
         }
         case fir::IntrinsicSubType::UMin: {
           push_all_uses(worklist, instr);
@@ -3049,7 +3119,7 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
               std::bit_cast<i128>(val), instr->get_type())});
           instr.destroy();
-          return;
+          return true;
         }
         case fir::IntrinsicSubType::UMax: {
           push_all_uses(worklist, instr);
@@ -3059,7 +3129,7 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
               std::bit_cast<i128>(val), instr->get_type())});
           instr.destroy();
-          return;
+          return true;
         }
         case fir::IntrinsicSubType::FMin:
         case fir::IntrinsicSubType::FMax:
@@ -3067,14 +3137,14 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
           fmt::println("{}", instr);
           TODO("impl");
       }
-      return;
+      return true;
     }
     if (instr->args[0].is_constant() && !instr->args[1].is_constant()) {
       auto old0 = instr->args[0];
       auto old1 = instr->args[1];
       instr.replace_arg(0, old1);
       instr.replace_arg(1, old0);
-      return;
+      return true;
     }
   }
   if (sub_type == fir::IntrinsicSubType::FAbs && instr->args[0].is_constant()) {
@@ -3093,7 +3163,7 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
         TODO("IMPL");
       }
       instr.destroy();
-      return;
+      return true;
     }
   }
 
@@ -3118,7 +3188,7 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(instr->args[0]);
         instr.destroy();
-        return;
+        return true;
       }
       if (r == KnownBits::KnownOne) {
         push_all_uses(worklist, instr);
@@ -3127,13 +3197,14 @@ void simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
             b.build_unary_op(instr->args[0], fir::UnaryInstrSubType::IntNeg);
         instr->replace_all_uses(negated_val);
         instr.destroy();
-        return;
+        return true;
       }
       break;
     }
     case fir::IntrinsicSubType::FAbs:
       break;
   }
+  return false;
 }
 
 fir::ValueR propagate_load_through_select(fir::Instr select) {
@@ -3150,8 +3221,11 @@ fir::ValueR propagate_load_through_select(fir::Instr select) {
   return r;
 }
 
-void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
+bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist, AliasAnalyis &aa) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyAlloca");
+  }
   {
     // check if only read or written
     //  then we can delete
@@ -3221,7 +3295,7 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
     // if alloca is only read then all reads are poision
     // if alloca is only written then we can discard
     if (escapes) {
-      return;
+      return false;
     }
     if ((!is_written && is_read) || (is_written && !is_read)) {
       push_all_uses(worklist, instr);
@@ -3248,7 +3322,7 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
       // if (!any_indirect_use) {
       instr.destroy();
       // }
-      return;
+      return true;
     }
 
     // if the mem2reg blockers all can be transformed we should definetly do
@@ -3283,14 +3357,15 @@ void simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
             push_all_uses(worklist, load);
             propagate_load_through_select(b.user);
             // load.destroy();
+            return true;
           }
         }
         // fmt::println("{}", *instr->get_parent()->get_parent().func);
         // TODO("okey");
       }
-      // fmt::println("=======================");
     }
   }
+  return false;
 }
 
 void simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
@@ -3337,6 +3412,9 @@ void simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
 }
 void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyVector");
+  }
   if (!instr->get_type()->is_vec()) {
     return;
   }
@@ -3368,7 +3446,10 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 }
 
-void simplify_extract(fir::Instr instr, WorkList &worklist) {
+bool simplify_extract(fir::Instr instr, WorkList &worklist) {
+  if (TRACY_DEBUG) {
+    ZoneScopedN("SimplifyExtract");
+  }
   if (instr->args[0].is_instr()) {
     auto argi = instr->args[0].as_instr();
     if (argi->is(fir::InstrType::InsertValue)) {
@@ -3376,7 +3457,7 @@ void simplify_extract(fir::Instr instr, WorkList &worklist) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(argi->args[1]);
         instr.destroy();
-        return;
+        return true;
       }
       fir::Builder bb{instr};
       fir::ValueR v[1] = {instr->args[1]};
@@ -3384,92 +3465,82 @@ void simplify_extract(fir::Instr instr, WorkList &worklist) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
       instr.destroy();
-      return;
+      return true;
     }
   }
+  return false;
 }
 
-void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
+  ZoneScopedN("SimplifyInstr");
   using namespace foptim::fir;
   (void)anal;
   auto instr_ty = instr->get_instr_type();
-  man.reset();
   if (instr_ty == InstrType::BinaryInstr) {
-    simplify_binary(instr, bb, ctx, worklist, man);
-    return;
+    return simplify_binary(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::UnaryInstr) {
-    simplify_unary(instr, bb, ctx, worklist);
-    return;
+    return simplify_unary(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::ICmp) {
-    simplify_icmp(instr, bb, ctx, worklist, man);
-    return;
+    return simplify_icmp(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::StoreInstr) {
     if (simplify_store(instr)) {
-      return;
+      return true;
     }
   }
   if (instr_ty == InstrType::LoadInstr &&
       simplify_load(instr, bb, ctx, worklist)) {
-    return;
+    return true;
   }
   if (instr_ty == InstrType::VectorInstr ||
       (instr_ty == InstrType::LoadInstr && instr->get_type()->is_vec()) ||
       (instr_ty == InstrType::StoreInstr && instr->get_type()->is_vec())) {
     simplify_vector(instr, bb, ctx, worklist);
-    return;
+    return true;
   }
   if (instr_ty == InstrType::FCmp) {
-    simplify_fcmp(instr, bb, ctx, worklist);
-    return;
+    return simplify_fcmp(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::SelectInstr) {
-    simplify_select(instr, bb, ctx, worklist);
-    return;
+    return simplify_select(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::CondBranchInstr) {
-    simplify_cond_branch(instr, bb, ctx, worklist);
-    return;
+    return simplify_cond_branch(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::SwitchInstr) {
     simplify_switch_branch(instr, bb, ctx, worklist);
-    return;
+    return true;
   }
   if (instr_ty == InstrType::SExt || instr_ty == InstrType::ZExt) {
-    simplify_extend(instr, bb, ctx, worklist);
-    return;
+    return simplify_extend(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::ITrunc) {
-    simplify_itrunc(instr, bb, ctx, worklist, man);
-    return;
+    return simplify_itrunc(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::Conversion) {
-    simplify_conversion(instr, bb, ctx, worklist);
-    return;
+    return simplify_conversion(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::CallInstr) {
-    simplify_call(instr, bb, ctx, worklist);
-    return;
+    return simplify_call(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::Intrinsic) {
-    simplify_intrinsic(instr, bb, ctx, worklist, man);
-    return;
+    return simplify_intrinsic(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::ExtractValue) {
-    simplify_extract(instr, worklist);
-    return;
+    return simplify_extract(instr, worklist);
   }
   if (instr_ty == InstrType::AllocaInstr) {
-    simplify_alloca(instr, bb, ctx, worklist, anal);
-    return;
+    return simplify_alloca(instr, bb, ctx, worklist, anal);
   }
+  return false;
 }
 }  // namespace
 
 void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
+  ZoneScopedNC("InstSimplify", COLOR_OPTIMF);
   using namespace foptim::fir;
   AttributerManager man;
   AliasAnalyis anal{};
@@ -3489,7 +3560,9 @@ void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     if (!instr.is_valid() || !instr->parent.is_valid()) {
       continue;
     }
-    simplify(instr, bb, ctx, worklist, man, anal);
+    if (simplify(instr, bb, ctx, worklist, man, anal)) {
+      man.reset();
+    }
   }
 }
 

@@ -1,4 +1,6 @@
 #pragma once
+#include <ankerl/unordered_dense.h>
+
 #include "stable_vec_slot.hpp"
 #include "types.hpp"
 #include "utils/todo.hpp"
@@ -111,6 +113,21 @@ constexpr inline bool operator==(const SRef<T> &self, const SRef<T> &other) {
 }
 
 }  // namespace foptim::utils
+
+template <class T>
+struct ankerl::unordered_dense::hash<foptim::utils::SRef<T>> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::utils::SRef<T> &k) const noexcept
+      -> uint64_t {
+    using foptim::u32;
+#ifdef SLOT_CHECK_GENERATION
+    return hash<void *>()((void *)k.data_ref) ^ hash<u32>()(k.generation);
+#else
+    return hash<void *>()((void *)k.data_ref);
+#endif
+  }
+};
 
 template <class T>
 struct std::hash<foptim::utils::SRef<T>> {

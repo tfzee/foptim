@@ -104,6 +104,7 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx) {
 
 void IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) {
   using namespace foptim::fir;
+  ZoneScopedNC("IntrinSimplify", COLOR_OPTIMF);
 
   for (BasicBlock bb : func.basic_blocks) {
     auto &instrs = bb->get_instrs();
