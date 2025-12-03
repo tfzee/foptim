@@ -46,15 +46,13 @@ ninja check
 
 ## TODO
 + make flake.nix to actually be useful(or like it should be)
++ replace std::hash with the ankerl version + replace std::map/set with ankerl
 + replace cond + select with specific cmovXX commands
 	+ missing for floatingpoint
 + no register spilling rn
 + optimize llvm intrin lowering like memset/memcopy
 	+ partially done
 + 2 allocas without overlapping lifetimes could be merged to use same stack space
-+ Add a proper compiler driver
-	+ Maybe allow passes to register compiler driver arguments
-	+ support consuming multiple files and merging them
 + optimize sdiv
 	+ can convert into imul shifts and add (theres some formular for this)
 + add a custom frontend other then llvmir
