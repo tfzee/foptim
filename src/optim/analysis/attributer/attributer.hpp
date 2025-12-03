@@ -67,11 +67,9 @@ class AttributeAnalysis {
 
 class AttributerManager {
  public:
-  TUnordDense<std::type_index, TUnordDense<fir::ValueR, AttributeAnalysis *>>
-      _attribs;
+  TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
   // TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
-  TUnordDense<AttributeAnalysis *, TVec<AttributeAnalysis *>>
-      _inverse_dependencies;
+  TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
   AttributeAnalysis *_currently_updating = nullptr;
 
   void reset() {

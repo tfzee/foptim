@@ -16,9 +16,10 @@ using FMap =
     std::unordered_map<Key, Val, std::hash<Key>, std::equal_to<Key>, Alloc>;
 
 template <class Key, class Val,
-          class Alloc = utils::TempAlloc<std::pair<const Key, Val>>>
+          class Alloc = utils::TempAlloc<std::pair<Key, Val>>>
 using TMap =
-    std::unordered_map<Key, Val, std::hash<Key>, std::equal_to<Key>, Alloc>;
+    ankerl::unordered_dense::map<Key, Val, ankerl::unordered_dense::hash<Key>,
+                                 std::equal_to<Key>, Alloc>;
 
 template <class Key, class Val,
           class Alloc = utils::TempAlloc<std::pair<const Key, Val>>>
@@ -29,9 +30,4 @@ template <class Key, class Val,
 using IRMap =
     std::unordered_map<Key, Val, std::hash<Key>, std::equal_to<Key>, Alloc>;
 
-template <class K, class V>
-using TUnordDense =
-    ankerl::unordered_dense::map<K, V, ankerl::unordered_dense::hash<K>,
-                                 std::equal_to<K>,
-                                 utils::TempAlloc<std::pair<K, V>>>;
 }  // namespace foptim
