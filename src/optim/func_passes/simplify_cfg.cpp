@@ -1,3 +1,4 @@
+#include <fmt/base.h>
 #include <fmt/core.h>
 #include <fmt/std.h>
 
@@ -1077,6 +1078,10 @@ bool can_merge(const fir::BasicBlock bb1, u32 next_id, bool &sec_neg,
   auto &exp_other = bb1->get_terminator()->bbs[1 - next_id];
   auto t2 = bb2->get_terminator();
   needs_rename = false;
+  // TODO: either we are the only one calling the bb then we can do sbustitution
+  // or they are
+  //  only used within the same bb then we can just substitue our new
+  //  instructions
   can_rename = cfg.bbrs[cfg.get_bb_id(bb2)].pred.size() == 1;
   if (bb2 == bb1) {
     return false;
@@ -1105,6 +1110,16 @@ bool can_merge(const fir::BasicBlock bb1, u32 next_id, bool &sec_neg,
   }
   if (bb2->instructions.size() > 5) {
     return false;
+  }
+  for (auto i : bb2->args) {
+    for (auto u : i->get_uses()) {
+      if (u.user->parent != bb2) {
+        if (!can_rename) {
+          return false;
+        }
+        needs_rename = true;
+      }
+    }
   }
   for (auto i : bb2->instructions) {
     for (auto u : i->get_uses()) {
@@ -1163,7 +1178,17 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
   TMap<fir::ValueR, fir::ValueR> subs;
   // gotta substitute bbargs if there are any
   if (!merge_target->args.empty()) {
-    TODO("fail fixme");
+    ASSERT(can_rename);
+    ASSERT(needs_rename);
+
+    for (size_t arg_id = 0; arg_id < merge_target->args.size(); arg_id++) {
+      subs.insert({fir::ValueR{merge_target->args[arg_id]},
+                   fir::ValueR{terminator->bbs[merge_num].args[arg_id]}});
+    }
+    // fmt::println("{:cd}", terminator->get_parent());
+    // fmt::println("{:cd}", term2->get_parent());
+    // fmt::println("{} {}", can_rename, needs_rename);
+    // TODO("fail fixme");
   }
   for (size_t merge_i = 0; merge_i < merge_target->instructions.size() - 1;
        merge_i++) {
@@ -1206,6 +1231,20 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
 
   if (needs_rename) {
     TVec<fir::Use> to_repl_uses;
+    for (auto arg : merge_target->args) {
+      to_repl_uses.clear();
+      for (auto use : arg->get_uses()) {
+        if (use.user->get_parent() != merge_target) {
+          to_repl_uses.push_back(use);
+        }
+      }
+      if (!to_repl_uses.empty()) {
+        auto sub = subs.at(fir::ValueR{arg});
+        for (auto use : to_repl_uses) {
+          use.replace_use(sub);
+        }
+      }
+    }
     for (auto instr : merge_target->instructions) {
       if (!instr->has_result()) {
         continue;
@@ -1224,7 +1263,7 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
       }
     }
   }
-  return false;
+  return true;
 }
 
 bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
