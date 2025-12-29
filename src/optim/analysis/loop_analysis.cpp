@@ -981,7 +981,16 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
   if (!condi->args[1].is_constant()) {
     return false;
   }
-  end_value = condi->args[1].as_constant()->as_int() + (isle ? 1 : 0);
+  auto condi_const = condi->args[1].as_constant();
+  i128 condi_const_val = 0;
+  if (condi_const->is_int()) {
+    condi_const_val = condi_const->as_int();
+  } else if (condi_const->is_null()) {
+    condi_const_val = 0;
+  } else {
+    return false;
+  }
+  end_value = condi_const_val + (isle ? 1 : 0);
   auto induct_id =
       std::ranges::find_if(evo.direct_induct, [&](const auto &a) -> bool {
         const SCEVExpr &expr = evo.exprs[a.second - 1];
