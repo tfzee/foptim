@@ -42,6 +42,7 @@
             graphviz
             cvise
             tracy
+            nnd
             gdb
             lit
             hyperfine
@@ -49,7 +50,7 @@
             valgrind
             kdePackages.kcachegrind
 
-            linuxKernel.packages.linux_6_6.perf
+            perf
             hotspot
           ];
 
