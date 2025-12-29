@@ -192,9 +192,7 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
   }
 
   if (is_dead) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("rem dead bb");
-    }
+    ZoneScopedN("rem dead bb");
     auto *ctx = func.ctx;
     for (auto i : func.basic_blocks[bb_id]->args) {
       if (i->get_n_uses() > 0) {
@@ -258,9 +256,7 @@ bool has_true_use(fir::BBArgument v) {
 bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
                                      bool is_entry) {
   if (curr.bb->n_args() != 0 && !is_entry) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("rem dead bb arg");
-    }
+    ZoneScopedN("rem dead bb arg");
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
@@ -501,9 +497,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
 }  // namespace
 
 bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
-  if constexpr (debug_tracy) {
-    ZoneScopedN("dup bb to arg");
-  }
+  ZoneScopedN("dup bb to arg");
   bool modified = false;
   TVec<DiffValues> difference_values;
   TMap<fir::Instr, fir::Instr> local_value_map;
@@ -527,9 +521,7 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
 
 bool SimplifyCFG::remove_useless_bb_args(CFG &cfg, CFG::Node &curr) {
   if (curr.pred.size() == 1 && curr.bb->n_args() != 0) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("rem useless bb args");
-    }
+    ZoneScopedN("rem useless bb args");
     auto n_args = curr.bb->n_args();
     auto pred_term = cfg.bbrs[curr.pred[0]].bb->get_terminator();
     auto pred_term_bb_id = pred_term.get_bb_id(curr.bb);
@@ -548,9 +540,7 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
   if (curr.bb->n_args() < 2 || is_entry || curr.pred.size() == 0) {
     return false;
   }
-  if constexpr (debug_tracy) {
-    ZoneScopedN("rem dup bb args");
-  }
+  ZoneScopedN("rem dup bb args");
   TVec<std::pair<u32, u32>> dup_pairs;
   // go through one of the users and check its args
   //  if there are duplicates store them into dup_pairs
@@ -613,9 +603,7 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
 }
 bool SimplifyCFG::remove_constant_bb_args(CFG::Node &curr, bool is_entry) {
   if (curr.bb->n_args() != 0 && !is_entry) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("rem const bb args");
-    }
+    ZoneScopedN("rem const bb args");
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
@@ -661,9 +649,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
   if (!curr.bb->get_terminator()->is(fir::InstrType::Unreachable)) {
     return false;
   }
-  if constexpr (debug_tracy) {
-    ZoneScopedN("rem unreach");
-  }
+  ZoneScopedN("rem unreach");
   // TODO: right now if it can diverge we cancel the transformation
   //  but we could instead only delete everything after the last point at which
   //  it could diverge
@@ -751,9 +737,7 @@ SimplifyCFG::Res SimplifyCFG::distribute_return_unreach(CFG &cfg,
   if (curr.bb->n_instrs() == 1 &&
       (curr.bb->get_terminator()->is(fir::InstrType::ReturnInstr) ||
        curr.bb->get_terminator()->is(fir::InstrType::Unreachable))) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("distr ret unreach");
-    }
+    ZoneScopedN("distr ret unreach");
     const auto n_args = curr.bb->n_args();
     const auto return_instr = curr.bb->get_terminator();
     TMap<fir::ValueR, fir::ValueR> subs{};
@@ -811,9 +795,7 @@ SimplifyCFG::Res SimplifyCFG::merge_empty_block_backwards(CFG &cfg,
   //    0x5591b4d32998 : () = Branch<0x5591b4d37968()>(){}
 
   if (succ.bb->n_instrs() == 1 && succ.bb->n_args() == 0) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("merge backw");
-    }
+    ZoneScopedN("merge backw");
     auto old_term = func.basic_blocks[bb_id]->get_terminator();
 
     fir::Builder bb{curr.bb};
@@ -841,9 +823,7 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
                                              bool is_entry) {
   if (curr.bb->n_instrs() == 1 &&
       curr.bb->get_terminator()->is(fir::InstrType::BranchInstr)) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("merge forw");
-    }
+    ZoneScopedN("merge forw");
     ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
     // if no bb args involved just replace
@@ -897,9 +877,7 @@ SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
   }
 
   if (cfg.bbrs[curr.succ[0]].pred.size() == 1) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("merge linrel basic");
-    }
+    ZoneScopedN("merge linrel basic");
     bool secon_has_args = secon_n_args != 0;
 
     if (secon_has_args) {
@@ -928,9 +906,7 @@ SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
   }
   if (secon_n_args * 1UL + 1 >=
       func.basic_blocks[succ_id]->instructions.size()) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("merge linrel adv");
-    }
+    ZoneScopedN("merge linrel adv");
     // TODO this can be improved for now
     //  we just check that all the bbargs and values inside the bb are *only*
     //  used within this bb to not destroy any indirect usages when copying the
@@ -982,9 +958,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
   if (curr.succ.size() == 2 &&
       terminator->is(fir::InstrType::CondBranchInstr) &&
       terminator->bbs[0].args.empty() && terminator->bbs[1].args.empty()) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("cond to cmove1");
-    }
+    ZoneScopedN("cond to cmove1");
     auto t1 = terminator->bbs[0].bb;
     auto t2 = terminator->bbs[1].bb;
     bool matched = false;
@@ -1047,9 +1021,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
     }
   }
   if (curr.succ.size() == 2 && terminator->bbs[0].bb == terminator->bbs[1].bb) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("cond to cmove2");
-    }
+    ZoneScopedN("cond to cmove2");
 
     auto &args1 = terminator->bbs[0].args;
     auto &args2 = terminator->bbs[1].args;
@@ -1085,9 +1057,7 @@ SimplifyCFG::Res SimplifyCFG::eliminate_infinite_loop(CFG &cfg, Dominators &dom,
   // TODO: implement more complex infinite loop detection
   if (terminator->is(fir::InstrType::BranchInstr) &&
       terminator->bbs[0].bb == curr.bb) {
-    if constexpr (debug_tracy) {
-      ZoneScopedN("elim infinite loop");
-    }
+    ZoneScopedN("elim infinite loop");
     fir::Builder bb{curr.bb};
     bb.at_penultimate(curr.bb);
     bb.build_unreach();
@@ -1170,9 +1140,7 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
 
   fir::BasicBlock merge_target{fir::BasicBlock::invalid()};
   // TODO: would need to check if they are used after
-  if constexpr (debug_tracy) {
-    ZoneScopedN("merge term cond");
-  }
+  ZoneScopedN("merge term cond");
   if (can_merge(curr.bb, 0, sec_negated, can_rename, needs_rename, cfg)) {
     merge_target = terminator->bbs[0].bb;
     merge_num = 0;

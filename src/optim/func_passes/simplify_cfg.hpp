@@ -23,7 +23,6 @@ class Dominators;
 
 class SimplifyCFG final : public FunctionPass {
  public:
-  static constexpr bool debug_tracy = false;
   static constexpr bool debug_print = false;
   enum class Res : u8 {
     // No chagne
