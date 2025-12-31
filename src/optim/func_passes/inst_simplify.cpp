@@ -1,3 +1,4 @@
+#include <fmt/base.h>
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
@@ -610,38 +611,48 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
 
     if ((instr->is(BinaryInstrSubType::Shl) ||
-         instr->is(BinaryInstrSubType::Shr)) &&
+         instr->is(BinaryInstrSubType::Shr) ||
+         instr->is(BinaryInstrSubType::AShr)) &&
         instr->args[0].is_instr()) {
       auto argi = instr->args[0].as_instr();
       if (instr->is(BinaryInstrSubType::Shr) &&
-          argi->is(fir::BinaryInstrSubType::Shl)) {
-        // TODO: could also do it without being exactly equal
-        //  idk if worht then tho
-        // since for x >> n << c
-        // it would need still a (x & c1) << c2
-        // which would be (x & ((1 << n) - 1)) << (n-c)
-        // c2/(n-c) only cancels out if the width is the same
-        // or if you propagate it through it would be
-        // ((x << (n-c)) & (((1 << n) - 1) << (n-c)))
-        if (instr->args[1].is_constant() && instr->args[1] == argi->args[1]) {
-          fir::Builder buh{argi};
+          argi->is(fir::BinaryInstrSubType::Shl) &&
+          instr->args[1].is_constant() && argi->args[1].is_constant()) {
+        auto shiftl_amount = argi->args[1].as_constant()->as_int();
+        auto shiftr_amount = instr->args[1].as_constant()->as_int();
+        fir::Builder buh{argi};
+        fir::ValueR res;
+        if (shiftl_amount == shiftr_amount) {
           // (x & ((1 << n) - 1))
-          auto shift_amount = instr->args[1].as_constant()->as_int();
-          auto res = buh.build_binary_op(
+          res = buh.build_binary_op(
               argi->args[0],
-              fir::ValueR{ctx->get_constant_value(((i128)1 << shift_amount) - 1,
-                                                  instr->get_type())},
+              fir::ValueR{ctx->get_constant_value(
+                  ((i128)1 << shiftr_amount) - 1, instr->get_type())},
               BinaryInstrSubType::And);
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(res);
-          instr.destroy();
-          return true;
+        } else if (shiftl_amount > shiftr_amount) {
+          // ((1 << (32-20)) -1) << 18
+          auto new_shift = buh.build_binary_op(
+              argi->args[0],
+              fir::ValueR{ctx->get_constant_value(shiftl_amount - shiftr_amount,
+                                                  instr->get_type())},
+              BinaryInstrSubType::Shl);
+          res = buh.build_binary_op(
+              new_shift,
+              fir::ValueR{ctx->get_constant_value(
+                  (((i128)1
+                    << (instr->get_type()->get_bitwidth() - shiftl_amount)) -
+                   1) << (shiftl_amount - shiftr_amount),
+                  instr->get_type())},
+              BinaryInstrSubType::And);
         }
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+        instr.destroy();
+        return true;
       }
       if (instr->is(BinaryInstrSubType::Shl) &&
-          argi->is(fir::BinaryInstrSubType::Shr)) {
-        // TODO: could also do it without being exactly equal
-        //  idk if worht then tho
+          (argi->is(BinaryInstrSubType::Shr) ||
+           argi->is(BinaryInstrSubType::AShr))) {
         if (instr->args[1].is_constant() && instr->args[1] == argi->args[1]) {
           fir::Builder buh{argi};
           // (x & ((1 << n) - 1))
@@ -655,6 +666,11 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           push_all_uses(worklist, instr);
           instr->replace_all_uses(res);
           instr.destroy();
+          return true;
+        }
+        if (instr->args[1].is_constant() && argi->args[1].is_constant() &&
+            argi->is(BinaryInstrSubType::AShr)) {
+          TODO("impl");
           return true;
         }
       }
@@ -2198,7 +2214,15 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return true;
   }
-  if (instr->args[0].is_constant()) {
+  if (instr->args[0].is_constant() &&
+      instr->args[0].as_constant()->is_poison()) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+    instr.destroy();
+    return true;
+  }
+  if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_int()) {
     auto c = instr->args[0].as_constant()->as_int();
     push_all_uses(worklist, instr);
     if (iszext) {
@@ -2208,6 +2232,26 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     } else {
       instr->replace_all_uses(fir::ValueR{
           ctx->get_constant_value(std::bit_cast<i128>(c), instr->get_type())});
+    }
+    instr.destroy();
+    return true;
+  }
+  if (instr->args[0].is_instr() &&
+      instr->args[0].as_instr()->is(fir::VectorISubType::Broadcast)) {
+    auto arg = instr->args[0].as_instr();
+    auto res_subty = ctx->get_int_type(instr->get_type()->as_vec().bitwidth);
+    fir::Builder b(instr);
+    fir::ValueR extended;
+    if (iszext) {
+      extended = b.build_zext(arg->args[0], res_subty);
+    } else {
+      extended = b.build_sext(arg->args[0], res_subty);
+    }
+    auto new_res = b.build_vbroadcast(extended, instr->get_type());
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(new_res);
+    if (arg->get_n_uses() == 1) {
+      arg.destroy();
     }
     instr.destroy();
     return true;
@@ -2225,8 +2269,8 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto mask = ctx->get_constant_value(((u64)1 << bitwidth) - 1, input_ty);
     auto new_result = b.build_binary_op(trunc->args[0], fir::ValueR{mask},
                                         fir::BinaryInstrSubType::And);
+    push_all_uses(worklist, instr);
     if (input_width == output_width) {
-      push_all_uses(worklist, instr);
       instr->replace_all_uses(new_result);
     } else if (input_width < output_width) {
       auto end_res = b.build_zext(new_result, output_type);

@@ -5,9 +5,8 @@
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Result:0
+#include <stdlib.h>
 
-void abort (void);
-void exit (int);
 
 static inline long
 g1 (double x)

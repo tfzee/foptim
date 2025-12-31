@@ -3,12 +3,13 @@
 #include "ir/instruction_data.hpp"
 #include "loop_unroll.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/analysis/loop_analysis.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
 
 void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
-             fir::Function &func) {
+             fir::Function &func, bool known_to_iterate_more) {
   // get which id in the new_bbs as wel as in the body notes matches the head
   // this then we use to redirect the backwards edges to the next part of the
   // loop
@@ -51,15 +52,17 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
       }
       func.append_bbr(bb);
     }
-    auto old_term = first_bb->get_terminator();
-    auto bb = fir::Builder(first_bb);
-    bb.at_end(first_bb);
-    auto new_branch = bb.build_branch(sec_bb);
-    auto id = old_term.get_bb_id(sec_bb);
-    for (auto arg : old_term->bbs[id].args) {
-      new_branch.add_bb_arg(0, arg);
+    if (known_to_iterate_more) {
+      auto old_term = first_bb->get_terminator();
+      auto bb = fir::Builder(first_bb);
+      bb.at_end(first_bb);
+      auto new_branch = bb.build_branch(sec_bb);
+      auto id = old_term.get_bb_id(sec_bb);
+      for (auto arg : old_term->bbs[id].args) {
+        new_branch.add_bb_arg(0, arg);
+      }
+      old_term.remove_from_parent();
     }
-    old_term.remove_from_parent();
     // TODO("okak");
   }
 
@@ -69,6 +72,7 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
     subs.clear();
     auto first_bb = new_bbs[peel_factor - 1][head_id];
     auto sec_bb = cfg.bbrs[loop.body_nodes[head_id]].bb;
+
     subs.insert({fir::ValueR(first_bb), fir::ValueR(sec_bb)});
     for (auto bb : new_bbs[peel_factor - 1]) {
       for (auto instr : bb->instructions) {
@@ -77,15 +81,17 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
       func.append_bbr(bb);
     }
 
-    auto old_term = first_bb->get_terminator();
-    auto bb = fir::Builder(first_bb);
-    bb.at_end(first_bb);
-    auto new_branch = bb.build_branch(sec_bb);
-    auto id = old_term.get_bb_id(sec_bb);
-    for (auto arg : old_term->bbs[id].args) {
-      new_branch.add_bb_arg(0, arg);
+    if (known_to_iterate_more) {
+      auto old_term = first_bb->get_terminator();
+      auto bb = fir::Builder(first_bb);
+      bb.at_end(first_bb);
+      auto new_branch = bb.build_branch(sec_bb);
+      auto id = old_term.get_bb_id(sec_bb);
+      for (auto arg : old_term->bbs[id].args) {
+        new_branch.add_bb_arg(0, arg);
+      }
+      old_term.remove_from_parent();
     }
-    old_term.remove_from_parent();
 
     // and also update the original incoming edges (but not the original
     // backwards edges)
@@ -218,19 +224,128 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
   // TODO("okka");
 }
 
+/*IF we have a i==0 condition it might make sense to peel first iteration since
+ * this now elimenates the else part in the peeled part and the if guarded part
+ * inside the loop*/
+bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
+                    fir::Function &func, ScalarEvo &evo) {
+  if (loop.body_nodes.size() < 2) {
+    return false;
+  }
+  auto peel_count = 0;
+  bool can_delete_cond = true;
+  for (auto x : loop.body_nodes) {
+    bool found = false;
+    for (auto y : loop.tails) {
+      if (x == y) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      for (auto y : loop.leaving_nodes) {
+        if (x == y) {
+          found = true;
+          break;
+        }
+      }
+    }
+    if (found) {
+      continue;
+    }
+    auto term = cfg.bbrs[x].bb->get_terminator();
+    if (!term->is(fir::InstrType::CondBranchInstr)) {
+      continue;
+    }
+    if (!term->args[0].is_instr()) {
+      continue;
+    }
+    auto cond = term->args[0].as_instr();
+    if (!cond->is(fir::InstrType::ICmp)) {
+      continue;
+    }
+    if (!cond->args[0].is_bb_arg()) {
+      continue;
+    }
+    auto evo_var = cond->args[0].as_bb_arg();
+    if (evo_var->get_parent() != cfg.bbrs[loop.head].bb) {
+      continue;
+    }
+    u32 evo_id = evo_var->get_parent()->get_arg_id(evo_var);
+    found = false;
+    for (const auto &x : evo.direct_induct) {
+      if (x.first == evo_id) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      continue;
+    }
+
+    if (cond->is(fir::ICmpInstrSubType::EQ)) {
+      auto cond_target = cond->args[1];
+      if (cfg.bbrs[loop.head].pred.size() != 1 + loop.tails.size()) {
+        continue;
+      }
+      auto pred_term = fir::Instr(fir::Instr::invalid());
+      for (auto pred : cfg.bbrs[loop.head].pred) {
+        if (!std::ranges::contains(loop.tails, pred)) {
+          pred_term = cfg.bbrs[pred].bb->get_terminator();
+          break;
+        }
+      }
+      bool found = false;
+      for (const auto &pred_bb_target : pred_term->bbs) {
+        if (pred_bb_target.bb == cfg.bbrs[loop.head].bb &&
+            pred_bb_target.args[evo_id].eql(cond_target)) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        continue;
+      }
+      peel_count = std::max(peel_count, 1);
+      can_delete_cond = false;
+    }
+  }
+  if (peel_count == 0) {
+    return false;
+  }
+
+  if (can_delete_cond) {
+    IMPL("implement deleting the cond inside the loop?");
+  }
+
+  // loop.dump();
+  // evo.dump();
+  // fmt::println("Should prob peel {} X times", peel_count);
+  ASSERT(peel_count == 1);
+  peel_it(cfg, loop, 1, ctx, func, false);
+  // fmt::println("{:cd}", func);
+
+  (void)cfg;
+  (void)loop;
+  (void)ctx;
+  (void)func;
+  return false;
+}
+
 bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
-                          fir::Function &func) {
+                          fir::Function &func, LoopBoundsAnalysis &lb) {
   (void)loop;
   (void)ctx;
   (void)func;
   // loop.dump();
-  ScalarEvo evo{cfg, loop};
-  LoopBoundsAnalysis lb{};
-  if (!lb.update(evo, cfg, loop)) {
-    failure(
-        {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
-    return false;
-  }
+  // ScalarEvo evo{cfg, loop};
+  // LoopBoundsAnalysis lb{};
+  // if (!lb.update(evo, cfg, loop)) {
+  //   failure(
+  //       {.reason = "Didnt find loop range", .loc =
+  //       {cfg.bbrs[loop.head].bb}});
+  //   return peel_condition(cfg, loop, ctx, func, evo);
+  // }
 
   size_t n_instrs = 0;
   for (auto i : loop.body_nodes) {
@@ -242,7 +357,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   u8 unroll_factor = 2;
   bool is_full_unroll = false;
   if (iteration_count > 2 && ((iteration_count - 1) % 2) == 0) {
-    peel_it(cfg, loop, 1, ctx, func);
+    peel_it(cfg, loop, 1, ctx, func, true);
     iteration_count--;
     cfg.update(func, false);
   }
@@ -295,12 +410,21 @@ void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
 
   for (auto &loop : linfo.info) {
     // ensure loop is do while loop
+    ScalarEvo evo{cfg, loop};
+    LoopBoundsAnalysis lb{};
+    if (!lb.update(evo, cfg, loop)) {
+      failure(
+          {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
+      peel_condition(cfg, loop, ctx, func, evo);
+      return;
+    }
     if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
       failure({.reason = "Need a simple do while loop",
                .loc = {cfg.bbrs[loop.head].bb}});
       continue;
     }
-    if (apply_it(cfg, loop, ctx, func)) {
+
+    if (apply_it(cfg, loop, ctx, func, lb)) {
       utils::StatCollector::get().addi(1, "loopUnrolled",
                                        utils::StatCollector::StatFOptim);
       // TODO: impl to do multiple loops

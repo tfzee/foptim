@@ -10,7 +10,7 @@ class LoopUnroll final : public FunctionPass {
  public:
   void apply(fir::Context &ctx, fir::Function &func) override;
   bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
-                fir::Function &func);
+                fir::Function &func, LoopBoundsAnalysis &lb);
 };
 
 void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,

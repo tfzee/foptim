@@ -195,6 +195,97 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
   }
 };
 
+class ZextTreeOp final : public SLPVectorizer::TreeElem {
+ public:
+  fir::TypeR res_ty;
+  void dump() final {
+    children.at(1)->dump();
+    fmt::print(" = ");
+    children.at(0)->dump();
+    fmt::println("\n");
+  }
+
+  ZextTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
+    insert_loc = values.back().as_instr();
+    res_ty = values.back().get_type();
+    return this;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    auto base_v = values.back().as_instr();
+    for (auto i_v : values) {
+      if (!i_v.is_instr()) {
+        return false;
+      }
+      auto i = i_v.as_instr();
+      if (i->instr_type != base_v->instr_type ||
+          i->subtype != base_v->subtype) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
+    auto val = children.at(0)->generate(ctx, orig_bundl);
+    fir::Builder bb{insert_loc};
+    return bb.build_zext(val, ctx->get_vec_type(res_ty, n_lanes));
+  }
+};
+
+class UnaryTreeOp final : public SLPVectorizer::TreeElem {
+ public:
+  fir::UnaryInstrSubType sub_ty;
+  void dump() final {
+    children.at(1)->dump();
+    fmt::print(" = ");
+    children.at(0)->dump();
+    fmt::println("\n");
+  }
+
+  UnaryTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
+    insert_loc = values.back().as_instr();
+    sub_ty = (fir::UnaryInstrSubType)values.back().as_instr()->subtype;
+    return this;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    auto base_v = values.back().as_instr();
+    for (auto i_v : values) {
+      if (!i_v.is_instr()) {
+        return false;
+      }
+      auto i = i_v.as_instr();
+      if (i->instr_type != base_v->instr_type ||
+          i->subtype != base_v->subtype) {
+        return false;
+      }
+    }
+    switch ((fir::UnaryInstrSubType)values.back().as_instr()->subtype) {
+      case fir::UnaryInstrSubType::INVALID:
+        return false;
+      case fir::UnaryInstrSubType::FloatNeg:
+      case fir::UnaryInstrSubType::IntNeg:
+      case fir::UnaryInstrSubType::Not:
+        fmt::println("{}", values.back().as_instr());
+        TODO("impl it?");
+      case fir::UnaryInstrSubType::FloatSqrt:
+        break;
+    }
+    return true;
+  }
+
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
+    auto val = children.at(0)->generate(ctx, orig_bundl);
+    fir::Builder bb{insert_loc};
+    return bb.build_unary_op(val, fir::UnaryInstrSubType::FloatSqrt);
+  }
+};
+
 class StoreTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr store_loc;
 
@@ -441,6 +532,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   using ConstAlloc = utils::TempAlloc<ConstantTreeOp>;
   using IntrinAlloc = utils::TempAlloc<IntrinTreeOp>;
   using BroadcastAlloc = utils::TempAlloc<BroadcastTreeOp>;
+  using ZextTreeAlloc = utils::TempAlloc<ZextTreeOp>;
+  using UnaryTreeAlloc = utils::TempAlloc<UnaryTreeOp>;
   TVec<TreeElem *> tree;
   if (default_parent != nullptr) {
     tree.push_back(default_parent);
@@ -533,9 +626,6 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             return false;
           }
           break;
-        case fir::InstrType::ICmp:
-        case fir::InstrType::FCmp:
-        case fir::InstrType::UnaryInstr:
         case fir::InstrType::Intrinsic:
           if (IntrinTreeOp::match(curr)) {
             auto *result_t = IntrinAlloc{}.allocate(1);
@@ -549,21 +639,50 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             return false;
           }
           break;
+        case fir::InstrType::ZExt:
+          if (ZextTreeOp::match(curr)) {
+            auto *result_t = ZextTreeAlloc{}.allocate(1);
+            (new (result_t) ZextTreeOp)->init(curr);
+            result = result_t;
+            n_args = 1;
+            parent->children.push_back(result);
+          } else {
+            fmt::println("Failed tree vectorize at something like {}",
+                         curr.back().as_instr());
+            return false;
+          }
+          break;
+        case fir::InstrType::UnaryInstr:
+          if (UnaryTreeOp::match(curr)) {
+            auto *result_t = UnaryTreeAlloc{}.allocate(1);
+            (new (result_t) UnaryTreeOp)->init(curr);
+            result = result_t;
+            n_args = 1;
+            parent->children.push_back(result);
+          } else {
+            fmt::println("Failed tree vectorize at something like {}",
+                         curr.back().as_instr());
+            return false;
+          }
+          break;
+        case fir::InstrType::ITrunc:
+        case fir::InstrType::ICmp:
+        case fir::InstrType::FCmp:
+          fmt::println("{}", curr.back().as_instr());
+          TODO("Should be implementable");
+        case fir::InstrType::SelectInstr:
+        case fir::InstrType::VectorInstr:
+        case fir::InstrType::SExt:
         case fir::InstrType::AllocaInstr:
         case fir::InstrType::ExtractValue:
         case fir::InstrType::InsertValue:
-        case fir::InstrType::ITrunc:
-        case fir::InstrType::ZExt:
-        case fir::InstrType::SExt:
         case fir::InstrType::Conversion:
-        case fir::InstrType::SelectInstr:
         case fir::InstrType::CallInstr:
         case fir::InstrType::ReturnInstr:
         case fir::InstrType::BranchInstr:
         case fir::InstrType::CondBranchInstr:
         case fir::InstrType::SwitchInstr:
         case fir::InstrType::Unreachable:
-        case fir::InstrType::VectorInstr:
           fmt::println("Failed tree vectorize at something like {}",
                        curr.back().as_instr());
           return false;

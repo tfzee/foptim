@@ -14,6 +14,7 @@
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "utils/helpers.hpp"
+#include "utils/parameters.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::fmir {
@@ -1808,8 +1809,41 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(GVecSubtype::fxor, res_reg, res_reg, res_reg);
           return true;
         }
-        // TODO: better to use if we know that its the n lowest bits that are
-        // set pcmpeqd       xmm0, xmm0 psrld xmm0, 32-n
+        // TODO: better way to generate if the lowest or the upper n bits set
+        //  if (arg.isImm() && !arg.is_fp() && arg.imm == 1) {
+        //    res.result.emplace_back(X86Subtype::vpcmpeq, res_reg, res_reg,
+        //                            res_reg);
+        //    res.result.emplace_back(GVecSubtype::fShr, res_reg, width-1);
+        //    return true;
+        //  }
+        //  TODO: better to use if we know that its the n lowest bits that are
+        //  set pcmpeqd       xmm0, xmm0 psrld xmm0, 32-n
+        if (utils::enable_avx512vl) {
+          switch (res_reg.ty) {
+            case Type::Int32x4:
+            case Type::Int32x8:
+            case Type::Int64x2: {
+              auto helper_reg =
+                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
+              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
+              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                      helper_reg);
+              return true;
+            }
+            case Type::Float64x2: {
+              res_reg.ty = Type::Float64x4;
+              res_reg.reg.ty = Type::Float64x4;
+              auto helper_reg =
+                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
+              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
+              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                      helper_reg);
+              return true;
+            }
+            default:
+              break;
+          }
+        }
 
         auto res_reg_smoll = res_reg;
         bool can_pshuf = false;
@@ -1824,7 +1858,6 @@ void base_patterns(IRVec<Pattern> &pats) {
             can_pshuf = true;
             res_reg_smoll.ty = Type::Float32;
             res_reg_smoll.reg.ty = Type::Float32;
-            break;
           case Type::Int64x2:
           case Type::Float64x2:
             can_punpckl = true;
@@ -1854,8 +1887,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
         if (can_vbroadcast) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
-          res.result.emplace_back(X86Subtype::vbroadcast, res_reg, res_reg,
-                                  res_reg);
+          res.result.emplace_back(X86Subtype::vbroadcast, res_reg, res_reg);
           return true;
         }
         TODO("IMPL broadcast");
@@ -1913,10 +1945,10 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (res_reg.is_vec_reg()) {
           switch (shift_instr->get_type()->as_vec().bitwidth) {
             case 32:
+            case 64:
               // vpsllvd ymm0, ymm1, ymm2
               res.result.emplace_back(GVecSubtype::fShl, res_reg, a, b);
               return true;
-            case 64:
               // idk this seems not very easy for avx2
             default:
               fmt::println("{}", shift_instr);
@@ -2043,7 +2075,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 auto res_reg =
                     valueToArg(fir::ValueR(or_instr), res.result, data.alloc);
 
-                if (res_reg.is_fp()) {
+                if (res_reg.is_vec_reg()) {
                   res.result.emplace_back(
                       GVecSubtype::fOr, res_reg,
                       valueToArg(or_instr->args[0], res.result, data.alloc),

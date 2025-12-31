@@ -17,6 +17,7 @@
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
+#include "utils/vec.hpp"
 
 namespace foptim::optim {
 
@@ -180,10 +181,12 @@ class SCCP final : public FunctionPass {
           fmt::println("FPTR TODO {:cd}", t);
           TODO("impl");
         case ValueType::Gptr:
-          fmt::println("GPTR TODO {:cd}", t);
-          TODO("impl");
+          ASSERT(vals.size() == 1);
+          return ctx->get_constant_value(vals[0].gptr);
       }
+      TODO("unreach?");
     }
+
     static ConstantValue Constant(f32 v, fir::TypeR t) {
       return ConstantValue{
           .type = ValueType::Float,
@@ -803,7 +806,6 @@ class SCCP final : public FunctionPass {
         return ConstantValue::Bottom();
       case fir::InstrType::ZExt: {
         auto a = eval(instr->get_arg(0));
-        ASSERT(a.vals.size() <= 1);
         if (a.is_bottom()) {
           return ConstantValue::Bottom();
         }
@@ -814,8 +816,17 @@ class SCCP final : public FunctionPass {
           return ConstantValue::Constant(
               ctx->get_poisson_value(instr->get_type()));
         }
+        if (a.vals.size() == 1) {
+          return ConstantValue::Constant(
+              ctx->get_constant_value(a.as_int(), instr->get_type()));
+        }
+        IRVec<fir::ConstantValueR> args;
+        for (const auto &v : a.vals) {
+          args.push_back(ctx->get_constant_value(
+              v.i, ctx->get_int_type(instr->get_type()->as_vec().bitwidth)));
+        }
         return ConstantValue::Constant(
-            ctx->get_constant_value(a.as_int(), instr->get_type()));
+            ctx->get_constant_value(args, instr.get_type()));
       }
       case fir::InstrType::SExt: {
         auto a = eval(instr->get_arg(0));
