@@ -141,6 +141,13 @@ class DoubleLoadElim final : public FunctionPass {
             if (l->args[0] != instr->args[0]) {
               continue;
             }
+            auto ity = instr->get_type();
+            auto lty = l->get_type();
+            if (lty != ity && ((!lty->is_int() && !lty->is_ptr()) ||
+                               (!ity->is_int() && !ity->is_ptr()) ||
+                               ity->get_bitwidth() != lty->get_bitwidth())) {
+              continue;
+            }
             // if (!dom.dom_bbs[b].dominators[cfg.get_bb_id(l->parent)]) {
             //   continue;
             // }

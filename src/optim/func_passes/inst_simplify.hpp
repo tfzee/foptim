@@ -100,9 +100,18 @@ bool try_constant_eval_binary(fir::Instr instr,
             type)));
         return true;
       }
-    case fir::BinaryInstrSubType::IntURem:
     case fir::BinaryInstrSubType::AShr:
-      TODO("impl");
+      if constexpr (std::is_integral_v<T>) {
+        auto width = type->get_bitwidth();
+        auto invwidth = (128 + 1 - width);
+        auto extended_a = ((a << invwidth) >> invwidth);
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(extended_a >> b, type)));
+        return true;
+      }
+    case fir::BinaryInstrSubType::IntURem:
+      fmt::println("{:cd}", instr);
+      TODO("impl urem");
     case fir::BinaryInstrSubType::INVALID:
       return false;
   }

@@ -321,6 +321,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::CopyPropagation{}.apply(func);
       foptim::fmir::DeadCodeElim{}.apply(func);
       foptim::fmir::LegalizeBBForm{}.apply(func);
+      foptim::fmir::BBReordering{}.apply(func);
       foptim::fmir::DeadCodeElim{}.apply(func);
       ASSERT(foptim::fmir::verify(func));
       foptim::fmir::LVN{}.apply(func);
