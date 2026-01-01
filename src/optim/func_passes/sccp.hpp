@@ -87,6 +87,15 @@ class SCCP final : public FunctionPass {
     }
     static ConstantValue Constant(fir::ConstantValueR v) {
       auto c = v->get_type();
+      if (v->is_poison()) {
+        return ConstantValue{
+            .type = ValueType::Poison, .vals = {}, .vtype = v->get_type()};
+      }
+      if (v->is_null()) {
+        return ConstantValue{.type = ValueType::NullPtr,
+                             .vals = {{.i = 0}},
+                             .vtype = v->get_type()};
+      }
       if (c->is_float()) {
         return ConstantValue{.type = ValueType::Float,
                              .vals = {{.f = v->as_float()}},
@@ -102,19 +111,10 @@ class SCCP final : public FunctionPass {
                              .vals = {{.gptr = v->as_global()}},
                              .vtype = v->get_type()};
       }
-      if (v->is_null()) {
-        return ConstantValue{.type = ValueType::NullPtr,
-                             .vals = {{.i = 0}},
-                             .vtype = v->get_type()};
-      }
       if (v->is_func()) {
         return ConstantValue{.type = ValueType::Fptr,
                              .vals = {{.fptr = v->as_func()}},
                              .vtype = v->get_type()};
-      }
-      if (v->is_poison()) {
-        return ConstantValue{
-            .type = ValueType::Poison, .vals = {}, .vtype = v->get_type()};
       }
       if (v->is_vec()) {
         const auto &tv = v->as_vec();

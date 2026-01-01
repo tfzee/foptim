@@ -142,6 +142,7 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
                                 llvm::Module &module) {
   if (auto *v = llvm::dyn_cast_or_null<llvm::IntegerType>(any_ty)) {
     u32 width = v->getBitWidth();
+    ASSERT_M(width <= 64, "only support 64 bit max width for integers");
     return ctx->get_int_type(width);
   }
   if (any_ty->isFloatTy()) {
