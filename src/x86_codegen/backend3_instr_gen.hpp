@@ -2,6 +2,7 @@
 #include "backend3.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
+#include "utils/parameters.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
 
@@ -1207,19 +1208,38 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       return emit(out_buff, 0, &req);
     }
     case fmir::GConvSubtype::UI2FL: {
-      bool is_f32 = instr.args[0].ty == fmir::Type::Float32;
-      req.mnemonic =
-          is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS : ZYDIS_MNEMONIC_VCVTUSI2SD;
-      ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
-      ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
-      ASSERT(get_size(instr.args[1].ty) == 4 ||
-             get_size(instr.args[1].ty) == 8);
-      // Weird instruction just gonna do this
-      req.operand_count = 3;
-      req.operands[2] = req.operands[1];
-      req.operands[1] = req.operands[0];
-      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-      return length;
+      if (utils::enable_avx512f) {
+        bool is_f32 = instr.args[0].ty == fmir::Type::Float32;
+        req.mnemonic =
+            is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS : ZYDIS_MNEMONIC_VCVTUSI2SD;
+        ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
+        ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
+        ASSERT(get_size(instr.args[1].ty) == 4 ||
+               get_size(instr.args[1].ty) == 8);
+        // Weird instruction just gonna do this
+        req.operand_count = 3;
+        req.operands[2] = req.operands[1];
+        req.operands[1] = req.operands[0];
+        ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+        return length;
+      }
+      // .LCPI1_0:
+      //         .long   1127219200
+      //         .long   1160773632
+      //         .long   0
+      //         .long   0
+      // .LCPI1_1:
+      //         .quad   0x4330000000000000
+      //         .quad   0x4530000000000000
+      // test2(unsigned long):
+      //         movq    xmm1, rdi
+      //         punpckldq       xmm1, xmmword ptr [rip + .LCPI1_0]
+      //         subpd   xmm1, xmmword ptr [rip + .LCPI1_1]
+      //         movapd  xmm0, xmm1
+      //         unpckhpd        xmm0, xmm1
+      //         addsd   xmm0, xmm1
+      //         ret
+      TODO("impl ");
     }
     case fmir::GConvSubtype::INVALID:
       fmt::println("{:cd}", instr);

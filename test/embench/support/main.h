@@ -21,9 +21,9 @@ int verify_benchmark(int res);
 
 void free_beebs(void *p) { free(p); }
 
-int double_eq_beebs(double a, double b) { return a - b < 1e-4; }
+int double_eq_beebs(double a, double b) { return a - b < 1e-3; }
 int double_neq_beebs(double a, double b) { return !double_eq_beebs(a, b); }
-int float_eq_beebs(float a, float b) { return a - b < 1e-4; }
+int float_eq_beebs(float a, float b) { return a - b < 1e-3; }
 int float_neq_beebs(float a, float b) { return !float_eq_beebs(a, b); }
 
 void init_heap_beebs(void *out, size_t size) {

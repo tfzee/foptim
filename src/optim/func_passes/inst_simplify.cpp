@@ -713,6 +713,25 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         instr.destroy();
         return true;
       }
+      if (c_val->as_f64() == 2) {
+        fir::Builder buh{instr};
+        auto res = buh.build_binary_op(instr->args[0], instr->args[0],
+                                       BinaryInstrSubType::FloatAdd);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+        instr.destroy();
+        return true;
+      }
+    }
+    if (c_val->is_float() &&
+        instr->get_instr_subtype() == (u32)BinaryInstrSubType::FloatAdd) {
+      Builder bb{instr};
+      if (c_val->as_f64() == 0) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.destroy();
+        return true;
+      }
     }
     if (c_val->is_int() &&
         instr->get_instr_subtype() == (u32)BinaryInstrSubType::IntURem) {
@@ -1525,6 +1544,58 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
   return false;
 }
 
+// can drop cast from float to double with some less/greater  if we dont cross
+// decision boundaries
+bool canNarrowFpCompare(double C, fir::FCmpInstrSubType op) {
+  // idk if this would be legal to check
+  if (std::isnan(C)) {
+    return false;
+  }
+
+  if (!std::isfinite(C)) {
+    return false;
+  }
+
+  auto Cf = static_cast<f32>(C);
+
+  // get da next and previous float so we can check fi its still in teh same
+  // boundaries
+  f32 prev_f = std::nextafterf(Cf, -std::numeric_limits<f32>::infinity());
+  f32 next_f = std::nextafterf(Cf, std::numeric_limits<f32>::infinity());
+  auto p = static_cast<f64>(prev_f);
+  auto n = static_cast<f64>(next_f);
+
+  switch (op) {
+    case fir::FCmpInstrSubType::OGT:
+    case fir::FCmpInstrSubType::OLT:
+      return p < C && C < n;
+    case fir::FCmpInstrSubType::OLE:
+      return p < C && C <= static_cast<double>(Cf);
+    case fir::FCmpInstrSubType::OGE:
+      return static_cast<double>(Cf) <= C && C < n;
+    case fir::FCmpInstrSubType::UGT:
+    case fir::FCmpInstrSubType::ULT:
+      return p < C && C < n;
+    case fir::FCmpInstrSubType::ULE:
+      return p < C && C <= static_cast<double>(Cf);
+    case fir::FCmpInstrSubType::UGE:
+      return static_cast<double>(Cf) <= C && C < n;
+    case fir::FCmpInstrSubType::OEQ:
+    case fir::FCmpInstrSubType::UEQ:
+    case fir::FCmpInstrSubType::ONE:
+    case fir::FCmpInstrSubType::UNE:
+      return static_cast<double>(Cf) == C;
+    case fir::FCmpInstrSubType::ORD:
+    case fir::FCmpInstrSubType::UNO:
+    case fir::FCmpInstrSubType::INVALID:
+    case fir::FCmpInstrSubType::AlwFalse:
+    case fir::FCmpInstrSubType::AlwTrue:
+    case fir::FCmpInstrSubType::IsNaN:
+      return false;
+  }
+
+  TODO("UNREACH");
+}
 bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
                    WorkList &worklist) {
   if (TRACY_DEBUG) {
@@ -1544,17 +1615,36 @@ bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
 
   bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
+  auto fcmp_subtype = (FCmpInstrSubType)instr->get_instr_subtype();
 
   // conert to integer comparison
   if (instr->args[0].is_instr() && second_constant) {
     auto arg0_i = instr->args[0].as_instr();
     auto const1_i = instr->args[1].as_constant();
-    if (const1_i->is_float() && arg0_i->is(InstrType::Conversion) &&
-        arg0_i->subtype == (u32)ConversionSubType::SITOFP) {
+    if (const1_i->is_float() && arg0_i->is(ConversionSubType::FPEXT)) {
+      auto const_val = const1_i->as_f64();
+      if (arg0_i->args[0].get_type()->as_float() == 32 &&
+          arg0_i.get_type()->as_float() == 64 &&
+          canNarrowFpCompare(const_val, fcmp_subtype)) {
+        fir::Builder buh{instr};
+        auto new_cmp =
+            buh.build_float_cmp(arg0_i->args[0],
+                                fir::ValueR{ctx->get_constant_value(
+                                    (f32)const_val, ctx->get_float_type(32))},
+                                fcmp_subtype);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_cmp);
+        instr.destroy();
+        if (arg0_i->get_n_uses() == 1) {
+          arg0_i.destroy();
+        }
+        return true;
+      }
+    } else if (const1_i->is_float() && arg0_i->is(ConversionSubType::SITOFP)) {
       fir::Builder b{instr};
       // TODO: this is iffy
       auto const_val = const1_i->as_f64();
-      switch ((FCmpInstrSubType)instr->get_instr_subtype()) {
+      switch (fcmp_subtype) {
         case fir::FCmpInstrSubType::OLT: {
           auto r = b.build_int_cmp(
               arg0_i->args[0],
@@ -1607,7 +1697,7 @@ bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     bool is_true = false;
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
     // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
-    switch ((FCmpInstrSubType)instr->get_instr_subtype()) {
+    switch (fcmp_subtype) {
       case fir::FCmpInstrSubType::IsNaN:
         __asm__(
             "vcomisd %2, %1\n\t"
