@@ -407,8 +407,11 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
     }
   }
 
-  if (stack_size == 0 || stack_size > 4096) {
-    failure({.reason = "Failed cause either none or too much stack space",
+  if (stack_size == 0) {
+    return;
+  }
+  if (stack_size > 4096) {
+    failure({.reason = "Failed cause too much stack space",
              .loc = func.get_entry()});
     return;
   }
