@@ -72,6 +72,8 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
+        case X86Subtype::vgatherq:
+        case X86Subtype::vpcmpeq:
           return true;
       }
   }

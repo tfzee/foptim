@@ -17,15 +17,15 @@
 namespace foptim::fmir {
 
 namespace {
-MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
-                     ExtraMatchData &data) {
-  // ASSERT(get_size(reg_type) <= 255);
+// MArgument imm_to_reg(MArgument val, Type reg_type, MatchResult &res,
+//                      ExtraMatchData &data) {
+//   // ASSERT(get_size(reg_type) <= 255);
 
-  VReg helper = data.alloc.get_new_register(reg_type);
-  auto helper_arg = MArgument(helper, reg_type);
-  res.result.emplace_back(GBaseSubtype::mov, helper_arg, val);
-  return helper_arg;
-}
+//   VReg helper = data.alloc.get_new_register(reg_type);
+//   auto helper_arg = MArgument(helper, reg_type);
+//   res.result.emplace_back(GBaseSubtype::mov, helper_arg, val);
+//   return helper_arg;
+// }
 
 // struct Edge {
 //   fir::Instr from;

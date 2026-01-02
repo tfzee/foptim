@@ -161,6 +161,8 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, ffmadd132);
         ReturnString(X86Subtype, ffmadd213);
         ReturnString(X86Subtype, ffmadd231);
+        ReturnString(X86Subtype, vgatherq);
+        ReturnString(X86Subtype, vpcmpeq);
       }
   }
 }
@@ -326,6 +328,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
+        case X86Subtype::vgatherq:
+        case X86Subtype::vpcmpeq:
           out.push_back({0, instr.args[0]});
           return;
       }
@@ -582,6 +586,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
+        case X86Subtype::vgatherq:
+        case X86Subtype::vpcmpeq:
           out.push_back({0, instr.args[0]});
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
@@ -751,6 +757,13 @@ fmt::appender fmt::formatter<foptim::fmir::MInstr>::format(
       return fmt::format_to(app, "clear {:c}", v.args[0]);
     }
     return fmt::format_to(app, "{:c} ^= {:c}", v.args[0], v.args[1]);
+  }
+  if (v.is(foptim::fmir::GVecSubtype::fxor)) {
+    if (v.args[0] == v.args[1] && v.args[0] == v.args[2]) {
+      return fmt::format_to(app, "clear {:c}", v.args[0]);
+    }
+    return fmt::format_to(app, "{:c} = {:cd} ^ {:c}", v.args[0], v.args[1],
+                          v.args[2]);
   }
   if (v.is(foptim::fmir::GVecSubtype::vsub)) {
     return fmt::format_to(app, "{:c} = {:c} - {:c}", v.args[0], v.args[1],

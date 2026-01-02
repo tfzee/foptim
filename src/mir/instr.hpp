@@ -170,6 +170,8 @@ enum class X86Subtype : u32 {
   vpshuf,
   punpckl,
   vbroadcast,
+  vgatherq,
+  vpcmpeq,
   lzcnt,
   ffmadd132,
   ffmadd213,

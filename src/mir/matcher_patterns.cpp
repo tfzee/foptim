@@ -496,7 +496,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
 
         auto store_ty = convert_type(store_instr.get_type());
         auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
-
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
         if (add_instr->args[1].is_constant() && a0.isImm()) {
           auto c1 = add_instr->args[1].as_constant();
@@ -1458,6 +1457,20 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
         auto res_reg =
             valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+        if (load_instr->args[0].get_type()->is_vec()) {
+          auto base_reg = data.alloc.get_new_register(Type::Int64);
+          auto base_arg = MArgument{base_reg, Type::Int64};
+          auto mask_reg = data.alloc.get_new_register(res_reg.ty);
+          auto mask = MArgument{mask_reg, res_reg.ty};
+          auto arg = valueToArg(load_instr->args[0], res.result, data.alloc);
+          ASSERT(arg.isReg());
+          res.result.emplace_back(GArithSubtype::lxor2, base_arg, base_arg);
+          res.result.emplace_back(X86Subtype::vpcmpeq, mask, mask, mask);
+          res.result.emplace_back(
+              X86Subtype::vgatherq, res_reg,
+              MArgument::MemOIS(0, arg.reg, 0, Type::Int32x4), mask);
+          return true;
+        }
         auto arg =
             valueToArgPtr(load_instr->args[0],
                           convert_type(load_instr.get_type()), data.alloc);
@@ -1887,7 +1900,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
         if (can_vbroadcast) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
-          res.result.emplace_back(X86Subtype::vbroadcast, res_reg, res_reg);
+          res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                  res_reg_smoll);
           return true;
         }
         TODO("IMPL broadcast");
@@ -2059,12 +2073,19 @@ void base_patterns(IRVec<Pattern> &pats) {
           return true;
         }
 
-        res.result.emplace_back(
-            GBaseSubtype::mov, res_reg,
-            valueToArg(add_instr->args[0], res.result, data.alloc));
-        res.result.emplace_back(
-            GArithSubtype::mul2, res_reg,
-            valueToArg(add_instr->args[1], res.result, data.alloc));
+        if (res_reg.is_vec_reg()) {
+          res.result.emplace_back(
+              GVecSubtype::fmul, res_reg,
+              valueToArg(add_instr->args[0], res.result, data.alloc),
+              valueToArg(add_instr->args[1], res.result, data.alloc));
+        } else {
+          res.result.emplace_back(
+              GBaseSubtype::mov, res_reg,
+              valueToArg(add_instr->args[0], res.result, data.alloc));
+          res.result.emplace_back(
+              GArithSubtype::mul2, res_reg,
+              valueToArg(add_instr->args[1], res.result, data.alloc));
+        }
         return true;
       }});
   pats.push_back(
