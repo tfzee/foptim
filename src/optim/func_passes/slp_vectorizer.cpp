@@ -1,9 +1,11 @@
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "ir/value.hpp"
 #include "slp_vectorizer.hpp"
 #include "utils/arena.hpp"
@@ -105,6 +107,7 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
 
 class BinaryTreeOp final : public SLPVectorizer::TreeElem {
  public:
+  bool is_signed = false;
   void dump() final {
     children.at(1)->dump();
     switch ((fir::BinaryInstrSubType)insert_loc->subtype) {
@@ -153,8 +156,10 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
         return false;
       }
     }
-    // auto v_width = base_v->get_type()->get_bitwidth();
-
+    if (base_v->args[1].get_type()->get_bitwidth() !=
+        base_v->args[0].get_type()->get_bitwidth()) {
+      return false;
+    }
     switch ((fir::BinaryInstrSubType)base_v->subtype) {
       case fir::BinaryInstrSubType::FloatAdd:
       case fir::BinaryInstrSubType::IntAdd:
@@ -167,11 +172,11 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
       case fir::BinaryInstrSubType::And:
       case fir::BinaryInstrSubType::Or:
       case fir::BinaryInstrSubType::Xor:
+      case fir::BinaryInstrSubType::FloatDiv:
         // we cant handle neutral elemtns for everything
         return !potential_neutral_elem;
         // TODO. this causes issues + technically there is a neutral element for
         // div
-      case fir::BinaryInstrSubType::FloatDiv:
       case fir::BinaryInstrSubType::IntSRem:
       case fir::BinaryInstrSubType::IntURem:
         return false;
@@ -485,6 +490,15 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
   static bool match(const TVec<fir::ValueR> &values,
                     const TVec<SLPVectorizer::SeedBundle> &load_bundles) {
     auto base_v = values.back().as_instr();
+    auto base_t = base_v->get_type();
+    if (base_t->is_vec()) {
+      // auto vec_loads = base_t->as_vec();
+      // auto sub_data_size = vec_loads.bitwidth * vec_loads.member_number;
+      // if (sub_data_size != 64 && sub_data_size != 32) {
+      return false;
+      // }
+    }
+
     for (auto i_v : values) {
       if (!i_v.is_instr()) {
         return false;
@@ -496,19 +510,49 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
       }
     }
     for (const auto &load_bundle : load_bundles) {
-      if (load_bundle.data[0].instr == values[0].as_instr()) {
+      bool found_all = true;
+      for (const auto &value : values) {
+        bool inside_bundle = false;
+        for (const auto &bundle_vals : load_bundle.data) {
+          if (bundle_vals.instr == value.as_instr()) {
+            inside_bundle = true;
+            break;
+          }
+        }
+        if (!inside_bundle) {
+          found_all = false;
+          break;
+        }
+      }
+      if (found_all) {
         return true;
       }
     }
     return false;
   }
+
   fir::ValueR generate(fir::Context &ctx,
-                       SLPVectorizer::SeedBundle & /*orig_bundl*/) final {
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
     // TODO: assuming continious loads
     //  auto a = children[0]->generate(ctx);
+    auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
+    if (val.is_instr()) {
+      bb.after(val.as_instr());
+    }
+    if (insert_loc->get_type()->is_vec()) {
+      auto vec_loads = insert_loc->get_type()->as_vec();
+      auto vec_ty = ctx->get_vec_type(
+          vec_loads.type, vec_loads.bitwidth * vec_loads.member_number,
+          n_lanes);
+      // auto real_vec_ty = ctx->get_vec_type(vec_loads.type,
+      // vec_loads.bitwidth,
+      //                                      n_lanes *
+      //                                      vec_loads.member_number);
+      return bb.build_load(vec_ty, val);
+    }
     auto vec_ty = ctx->get_vec_type(insert_loc->get_type(), n_lanes);
-    return bb.build_load(vec_ty, base_load->args[0]);
+    return bb.build_load(vec_ty, val);
   }
 };
 
@@ -516,6 +560,7 @@ bool SLPVectorizer::tree_vectorize_reduction(
     fir::Context &ctx, SeedBundle &b, const TVec<SeedBundle> &load_bundles) {
   using HorizRedAlloc = utils::TempAlloc<HorizRedTreeOp>;
 
+  ASSERT(b.data.size() % 2 == 0);
   auto *result_t = HorizRedAlloc{}.allocate(1);
   (new (result_t) HorizRedTreeOp)->init({b.base});
   return tree_vectorize(ctx, b, load_bundles, result_t);
@@ -634,7 +679,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            fmt::println("Failed tree vectorize at something like {}",
+            fmt::println("Failed tree vectorize at intrinsic like {}",
                          curr.back().as_instr());
             return false;
           }
@@ -647,7 +692,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            fmt::println("Failed tree vectorize at something like {}",
+            fmt::println("Failed tree vectorize at zext like {}",
                          curr.back().as_instr());
             return false;
           }
@@ -660,7 +705,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            fmt::println("Failed tree vectorize at something like {}",
+            fmt::println("Failed tree vectorize at unary like {}",
                          curr.back().as_instr());
             return false;
           }
@@ -683,7 +728,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         case fir::InstrType::CondBranchInstr:
         case fir::InstrType::SwitchInstr:
         case fir::InstrType::Unreachable:
-          fmt::println("Failed tree vectorize at something like {}",
+          fmt::println("Failed tree vectorize at instruction like {}",
                        curr.back().as_instr());
           return false;
       }
@@ -709,13 +754,14 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
       }
       continue;
     }
-    fmt::println("Failed tree vectorize at something like {}", curr[0]);
+    fmt::println("Failed tree vectorize at something like {:cd}", curr[0]);
     return false;
   }
 
   // tree[0]->dump();
-  // fmt::println("TreeSize {}", tree.size());
   if (!tree.empty()) {
+    // tree[0]->dump();
+    // fmt::println("TreeSize {}", tree.size());
     tree[0]->generate(ctx, b);
   }
   utils::StatCollector::get().addi(1, "SLPVectorized",

@@ -413,10 +413,12 @@ void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
     ScalarEvo evo{cfg, loop};
     LoopBoundsAnalysis lb{};
     if (!lb.update(evo, cfg, loop)) {
+      if (peel_condition(cfg, loop, ctx, func, evo)) {
+        return;
+      }
       failure(
           {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
-      peel_condition(cfg, loop, ctx, func, evo);
-      return;
+      continue;
     }
     if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
       failure({.reason = "Need a simple do while loop",

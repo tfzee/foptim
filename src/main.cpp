@@ -195,8 +195,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, SimplifyCFG, InstSimplify,
       SCCP, DCE, InstSimplify, ConstLoopEval, LoopSimplify, LoopUnroll,
-      SimplifyCFG, DCE, SLPVectorizer, InstSimplify, SimplifyCFG, LegalizeVecs,
-      SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
+      SimplifyCFG, DCE, SLPVectorizer, InstSimplify, SimplifyCFG>{}
+      .apply(ctx, shed);
+  foptim::optim::StaticParallelFunctionPassManager<
+      LegalizeVecs, SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);
   // // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
@@ -222,11 +224,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
         }
       }
       slab = slab->next;
-    }
-  }
-  for (auto &[_, f] : ctx->storage.functions) {
-    if (f->get_n_uses() > 0 || f->getName() == "main") {
-      fmt::println("{:cd}", *f);
     }
   }
   fmt::print("================FIR END====================\n");

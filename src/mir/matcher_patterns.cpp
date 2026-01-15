@@ -1,3 +1,4 @@
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <bit>
@@ -2797,11 +2798,37 @@ void base_patterns(IRVec<Pattern> &pats) {
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto extract_instr = res.matched_instrs[0];
         ASSERT(extract_instr->args.size() == 2);
+        auto indx = extract_instr->args[1].as_constant()->as_int();
+        if (extract_instr->args[0].get_type()->is_vec()) {
+          auto input =
+              valueToArg(extract_instr->args[0], res.result, data.alloc);
+          ASSERT(extract_instr->args[1].is_constant() &&
+                 extract_instr->args[1].as_constant()->is_int());
+          auto target =
+              valueToArg(fir::ValueR{extract_instr}, res.result, data.alloc);
+          auto vec_ty = extract_instr->args[0].get_type()->as_vec();
+          if (indx + 1 == vec_ty.member_number) {
+            res.result.emplace_back(GBaseSubtype::mov, target, input);
+          }
+          if (target.is_fp()) {
+            // TODO implement properly
+            auto helper_ty =
+                target.ty == Type::Float32 ? Type::Int32 : Type::Int64;
+            auto helper_reg = data.alloc.get_new_register(helper_ty);
+            auto helper_arg = MArgument(helper_reg, helper_ty);
+            res.result.emplace_back(X86Subtype::vpextr, helper_arg, input,
+                                    MArgument((u8)indx));
+            res.result.emplace_back(GBaseSubtype::mov, target, helper_arg);
+          } else {
+            res.result.emplace_back(X86Subtype::vpextr, target, input,
+                                    MArgument((u8)indx));
+          }
+          return true;
+        }
         auto input =
             valueToArgStruct(extract_instr->args[0], res.result, data.alloc);
         ASSERT(extract_instr->args[1].is_constant() &&
                extract_instr->args[1].as_constant()->is_int());
-        auto indx = extract_instr->args[1].as_constant()->as_int();
 
         auto target =
             valueToArg(fir::ValueR{extract_instr}, res.result, data.alloc);

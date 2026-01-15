@@ -1,4 +1,6 @@
 #pragma once
+#include <fmt/base.h>
+
 #include "backend3.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
@@ -241,8 +243,9 @@ ZydisRegister reg_with_type(fmir::VReg reg, fmir::Type new_type) {
   return convert_reg(reg);
 }
 
-void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
-                  TLabelUsageMap &reloc_map, u8 *instr_ptr, u8 arg_id) {
+inline void emit_operand(const fmir::MArgument &arg,
+                         ZydisEncoderOperand &operand,
+                         TLabelUsageMap &reloc_map, u8 *instr_ptr, u8 arg_id) {
   switch (arg.type) {
     case fmir::MArgument::ArgumentType::Imm:
       operand.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
@@ -432,8 +435,8 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
   bool target_isfloat32 = target_is_fp_reg && instr.args[0].reg.size() == 4;
   bool target_is_vec =
       target_is_fp_reg && instr.args[0].ty > fmir::Type::Float64;
-  bool input_isfloat64 = input_is_fp_reg && instr.args[1].reg.size() == 8;
-  bool input_isfloat32 = input_is_fp_reg && instr.args[1].reg.size() == 4;
+  // bool input_isfloat64 = input_is_fp_reg && instr.args[1].reg.size() == 8;
+  // bool input_isfloat32 = input_is_fp_reg && instr.args[1].reg.size() == 4;
   bool input_is_vec = input_is_fp_reg && instr.args[1].ty > fmir::Type::Float64;
   req.mnemonic = ZYDIS_MNEMONIC_MOV;
 
@@ -467,11 +470,15 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
     req.mnemonic = ZYDIS_MNEMONIC_VMOVSD;
   } else if (instr.args[1].isMem() && target_isfloat32) {
     req.mnemonic = ZYDIS_MNEMONIC_VMOVSS;
-  } else if ((!input_is_fp_reg && target_isfloat32) ||
-             (!target_is_fp_reg && input_isfloat32)) {
+  } else if ((!input_is_fp_reg && target_is_fp_reg &&
+              instr.args[0].reg.size() == 4) ||
+             (!target_is_fp_reg && input_is_fp_reg &&
+              instr.args[1].reg.size() == 4)) {
     req.mnemonic = ZYDIS_MNEMONIC_MOVD;
-  } else if ((!input_is_fp_reg && target_isfloat64) ||
-             (!target_is_fp_reg && input_isfloat64)) {
+  } else if ((!input_is_fp_reg && target_is_fp_reg &&
+              instr.args[0].reg.size() == 8) ||
+             (!target_is_fp_reg && input_is_fp_reg &&
+              instr.args[1].reg.size() == 8)) {
     if (instr.args[1].isReg() && instr.args[1].reg.size() < 8) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int64);
@@ -584,9 +591,10 @@ size_t emit_div(const fmir::MInstr &instr, ZydisEncoderRequest &req,
   return length + out_len;
 }
 
-size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                  u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
-                  ProEpilogueType proepiloguetype) {
+inline size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+                         u8 *const out_buff, u8 curr_bb_id,
+                         TLabelUsageMap &reloc_map,
+                         ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -704,9 +712,10 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   }
 }
 
-size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                 u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
-                 ProEpilogueType proepiloguetype) {
+inline size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+                        u8 *const out_buff, u8 curr_bb_id,
+                        TLabelUsageMap &reloc_map,
+                        ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -1091,9 +1100,10 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   }
 }
 
-size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                  u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
-                  ProEpilogueType proepiloguetype) {
+inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+                         u8 *const out_buff, u8 curr_bb_id,
+                         TLabelUsageMap &reloc_map,
+                         ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -1247,9 +1257,10 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   }
 }
 
-size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                   u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
-                   ProEpilogueType proepiloguetype) {
+inline size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+                          u8 *const out_buff, u8 curr_bb_id,
+                          TLabelUsageMap &reloc_map,
+                          ProEpilogueType proepiloguetype) {
   size_t length = 9999;
   (void)req;
   (void)instr;
@@ -1347,9 +1358,10 @@ size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       TODO("impl");
   }
 }
-size_t emit_gcmov(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                  u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
-                  ProEpilogueType proepiloguetype) {
+inline size_t emit_gcmov(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+                         u8 *const out_buff, u8 curr_bb_id,
+                         TLabelUsageMap &reloc_map,
+                         ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -1511,9 +1523,10 @@ size_t emit_gcmov(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       TODO("impl");
   }
 }
-size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                 u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
-                 ProEpilogueType proepiloguetype) {
+inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+                        u8 *const out_buff, u8 curr_bb_id,
+                        TLabelUsageMap &reloc_map,
+                        ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -1539,6 +1552,14 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64x4:
         case fmir::Type::Float64x2:
           req.mnemonic = ZYDIS_MNEMONIC_VMULPD;
+          break;
+        case fmir::Type::Int32x4:
+        case fmir::Type::Int32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPMULLD;
+          break;
+        case fmir::Type::Int64x2:
+        case fmir::Type::Int64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VPMULLQ;
           break;
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
@@ -1704,9 +1725,10 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       return emit(out_buff, 0, &req);
   }
 }
-size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
-                ProEpilogueType proepiloguetype) {
+inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+                       u8 *const out_buff, u8 curr_bb_id,
+                       TLabelUsageMap &reloc_map,
+                       ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -1717,27 +1739,67 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   switch ((fmir::X86Subtype)instr.sop) {
     case fmir::X86Subtype::sqrt: {
       switch (instr.args[0].ty) {
-        case fmir::Type::INVALID:
-        case fmir::Type::Int8:
-        case fmir::Type::Int16:
-        case fmir::Type::Int32:
-        case fmir::Type::Int64:
-        case fmir::Type::Int32x4:
-        case fmir::Type::Int64x2:
-        case fmir::Type::Int32x8:
-        case fmir::Type::Int64x4:
+        default:
           TODO("UNREACH");
         case fmir::Type::Float32x2:
         case fmir::Type::Float32x4:
         case fmir::Type::Float32x8:
           req.mnemonic = ZYDIS_MNEMONIC_SQRTPS;
+          break;
         case fmir::Type::Float64x2:
         case fmir::Type::Float64x4:
           req.mnemonic = ZYDIS_MNEMONIC_SQRTPD;
+          break;
         case fmir::Type::Float32:
           req.mnemonic = ZYDIS_MNEMONIC_SQRTSS;
+          break;
         case fmir::Type::Float64:
           req.mnemonic = ZYDIS_MNEMONIC_SQRTSD;
+          break;
+      }
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::vpcmpeq: {
+      switch (instr.args[0].ty) {
+        default:
+          TODO("UNREACH");
+        case fmir::Type::Int32x4:
+        case fmir::Type::Float32x2:
+        case fmir::Type::Float32x4:
+        case fmir::Type::Int32x8:
+        case fmir::Type::Float32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPCMPEQD;
+          break;
+        case fmir::Type::Int64x2:
+        case fmir::Type::Int64x4:
+        case fmir::Type::Float64x2:
+        case fmir::Type::Float64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VPCMPEQQ;
+          break;
+      }
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::vgatherq: {
+      switch (instr.args[0].ty) {
+        default:
+          TODO("UNREACH");
+        case fmir::Type::Int32x4:
+        case fmir::Type::Float32x2:
+        case fmir::Type::Float32x4:
+        case fmir::Type::Int32x8:
+        case fmir::Type::Float32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VGATHERQPS;
+          req.operands[1].mem.size = 4;
+          break;
+        case fmir::Type::Int64x2:
+        case fmir::Type::Int64x4:
+        case fmir::Type::Float64x2:
+        case fmir::Type::Float64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VGATHERQPD;
+          req.operands[1].mem.size = 8;
+          break;
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
@@ -1870,6 +1932,28 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Int64x4:
         case fmir::Type::Float64x4:
           TODO("UNREACH");
+          break;
+      }
+      return emit(out_buff, 0, &req);
+    }
+    case fmir::X86Subtype::vpextr: {
+      assert(req.operand_count == 3);
+      switch (instr.args[1].ty) {
+        default:
+          fmt::println("{:cd}", instr);
+          TODO("impl");
+        case fmir::Type::Int32x4:
+        case fmir::Type::Float32x4:
+        case fmir::Type::Int32x8:
+        case fmir::Type::Float32x2:
+        case fmir::Type::Float32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPEXTRD;
+          break;
+        case fmir::Type::Int64x2:
+        case fmir::Type::Float64x2:
+        case fmir::Type::Int64x4:
+        case fmir::Type::Float64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VPEXTRQ;
           break;
       }
       return emit(out_buff, 0, &req);

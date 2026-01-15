@@ -1,3 +1,6 @@
+#include "llir_loader.hpp"
+
+#include <fmt/base.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
@@ -21,9 +24,9 @@
 #include "ir/global.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
-#include "llir_loader.hpp"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -100,6 +103,48 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
     return foptim::fir::ValueR(fctx->get_constant_value(
         fctx->get_function(value->getName().str().c_str())));
   }
+  if (const auto *vec_const =
+          llvm::dyn_cast_or_null<llvm::ConstantDataVector>(value)) {
+    auto num_elem = vec_const->getNumElements();
+    auto *elemty = vec_const->getElementType();
+    if (elemty->isFloatTy()) {
+      foptim::IRVec<foptim::fir::ConstantValueR> vals;
+      for (size_t i = 0; i < num_elem; i++) {
+        vals.push_back(fctx->get_constant_value(vec_const->getElementAsFloat(i),
+                                                fctx->get_float_type(32)));
+      }
+      return foptim::fir::ValueR(fctx->get_constant_value(
+          std::move(vals),
+          fctx->get_vec_type(foptim::fir::VectorType::SubType::Floating, 32,
+                             num_elem)));
+    }
+    if (elemty->isDoubleTy()) {
+      foptim::IRVec<foptim::fir::ConstantValueR> vals;
+      for (size_t i = 0; i < num_elem; i++) {
+        vals.push_back(fctx->get_constant_value(
+            vec_const->getElementAsDouble(i), fctx->get_float_type(64)));
+      }
+      return foptim::fir::ValueR(fctx->get_constant_value(
+          std::move(vals),
+          fctx->get_vec_type(foptim::fir::VectorType::SubType::Floating, 64,
+                             num_elem)));
+    }
+    if (elemty->isIntegerTy()) {
+      auto width = elemty->getIntegerBitWidth();
+      foptim::IRVec<foptim::fir::ConstantValueR> vals;
+      for (size_t i = 0; i < num_elem; i++) {
+        vals.push_back(fctx->get_constant_value(
+            vec_const->getElementAsAPInt(i).getSExtValue(),
+            fctx->get_int_type(width)));
+      }
+      return foptim::fir::ValueR(fctx->get_constant_value(
+          std::move(vals),
+          fctx->get_vec_type(foptim::fir::VectorType::SubType::Integer, width,
+                             num_elem)));
+    }
+    llvm::errs() << *vec_const << "\n";
+    TODO("impl");
+  }
   if (const auto *stru_const =
           llvm::dyn_cast_or_null<llvm::ConstantStruct>(value)) {
     stru_const->dump();
@@ -115,6 +160,13 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
       ress = builder.build_insert_value(ress, v_res, index_v, res_ty);
     }
     return ress;
+  }
+  if (const auto *constant =
+          llvm::dyn_cast_or_null<llvm::ConstantAggregateZero>(value)) {
+    llvm::errs() << constant << " " << typeid(constant).name() << "\n";
+    llvm::errs() << *constant << "\n";
+    (void)constant;
+    TODO("impl const aggr zero");
   }
   if (const auto *undef_constant =
           llvm::dyn_cast_or_null<llvm::UndefValue>(value)) {
@@ -902,6 +954,19 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     valueToValue.insert({any_instr, add});
     return;
   } else if (auto *instr =
+                 llvm::dyn_cast_or_null<llvm::ExtractElementInst>(any_instr)) {
+    auto indx = convert_instr_arg(instr->getIndexOperand(), fctx, ffunc,
+                                  builder, valueToValue, mod, b2b);
+    auto val = convert_instr_arg(instr->getVectorOperand(), fctx, ffunc,
+                                 builder, valueToValue, mod, b2b);
+    auto *out_type = instr->getType();
+    foptim::TVec<foptim::fir::ValueR> args;
+    args.emplace_back(indx);
+    auto add = builder.build_extract_value(val, args,
+                                           convert_type(out_type, fctx, mod));
+    valueToValue.insert({any_instr, add});
+    return;
+  } else if (auto *instr =
                  llvm::dyn_cast_or_null<llvm::InsertValueInst>(any_instr)) {
     auto stru = convert_instr_arg(instr->getAggregateOperand(), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
@@ -1298,7 +1363,8 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     llvm::errs() << *d << "\n";
     TODO("IMPL CONSTANT EXPR");
     // size_t reloc_off = output - glob->init_value;
-    // foptim::fir::ConstantValueR reloc_ref = valueToValue.at(d).as_constant();
+    // foptim::fir::ConstantValueR reloc_ref =
+    // valueToValue.at(d).as_constant();
     // glob->reloc_info.push_back({reloc_off, reloc_ref});
     return;
   }

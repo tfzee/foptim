@@ -63,6 +63,7 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
         case X86Subtype::vmovshdup:
+        case X86Subtype::vpextr:
         case X86Subtype::HAdd:
         case X86Subtype::lea:
         case X86Subtype::vpshuf:

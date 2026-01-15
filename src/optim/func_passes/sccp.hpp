@@ -1,4 +1,6 @@
 #pragma once
+#include <fmt/base.h>
+
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -197,6 +199,10 @@ class SCCP final : public FunctionPass {
       return ConstantValue{
           .type = ValueType::Float, .vals = {{.f = v}}, .vtype = t};
     }
+    static ConstantValue Constant(i128 v, fir::TypeR t) {
+      return ConstantValue{
+          .type = ValueType::Int, .vals = {{.i = v}}, .vtype = t};
+    }
     static std::optional<ConstantValue> loadConstant(u8 *v, fir::TypeR c,
                                                      fir::Context &ctx) {
       auto bitwidth = c->get_bitwidth();
@@ -270,6 +276,10 @@ class SCCP final : public FunctionPass {
       }
       if (c->is_float() && bitwidth == 64) {
         *((f64 *)v) = vals[0].f;
+        return true;
+      }
+      if (c->is_int() && bitwidth == 8) {
+        *((i8 *)v) = (i8)vals[0].i;
         return true;
       }
       if (c->is_int() && bitwidth == 64) {
@@ -801,7 +811,34 @@ class SCCP final : public FunctionPass {
                 ctx->get_constant_value((f32)a.as_f64(), instr->get_type()));
         }
       }
-      case fir::InstrType::ExtractValue:
+      case fir::InstrType::ExtractValue: {
+        auto v = eval(instr->get_arg(0));
+        auto indx = eval(instr->get_arg(1));
+        if (v.is_bottom() || indx.is_bottom()) {
+          return ConstantValue::Bottom();
+        }
+        if (v.is_top() || indx.is_top()) {
+          return ConstantValue::Top();
+        }
+        if (v.is_poison() || indx.is_poison()) {
+          return ConstantValue::Constant(
+              ctx->get_poisson_value(instr->get_type()));
+        }
+        ASSERT(v.is_const());
+        ASSERT(indx.is_int());
+        if (v.vtype->is_vec()) {
+          ASSERT(v.vals.size() > 1);
+          ASSERT(v.vals.size() > indx.as_int());
+          auto r = v.vals[indx.as_int()];
+          auto t = v.vtype->as_vec();
+          if (t.type == fir::VectorType::SubType::Floating) {
+            return ConstantValue::Constant(r.f,
+                                           ctx->get_float_type(t.bitwidth));
+          }
+          return ConstantValue::Constant(r.i, ctx->get_int_type(t.bitwidth));
+        }
+        return ConstantValue::Bottom();
+      }
       case fir::InstrType::InsertValue:
         return ConstantValue::Bottom();
       case fir::InstrType::ZExt: {

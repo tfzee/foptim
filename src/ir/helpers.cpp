@@ -217,7 +217,7 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
       *((u64 *)output) = 0;
       return;
     case ConstantType::IntValue:
-      switch (val->type->as_int()) {
+      switch (val->type->get_bitwidth()) {
         case 8:
           *output = (u8)val->int_u.v.data;
           return;

@@ -174,11 +174,7 @@ struct InstrAttribs {
   fir::TypeR extra_type{fir::TypeR::invalid()};
   u32 NSW : 1 = 0;
   u32 NUW : 1 = 0;
-  // u32 padding;
-  // u32 padding1;
-  // u32 padding2;
-  // u32 padding3;
-  // u32 padding4;
+  u32 Volatile : 1 = 0;
 };
 
 class InstrData : public Used, public InstrAttribs {

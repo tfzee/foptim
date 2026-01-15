@@ -167,6 +167,7 @@ enum class X86Subtype : u32 {
   movlhps,
   movhlps,
   vpermil,
+  vpextr,
   vpshuf,
   punpckl,
   vbroadcast,

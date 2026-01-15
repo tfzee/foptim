@@ -111,6 +111,12 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       return false;
     }
   }
+  if (is(ConversionSubType::BitCast)) {
+    if (get_type()->get_bitwidth() != args[0].get_type()->get_bitwidth()) {
+      fmt::print("Trying to bitcast value with wrong size\n");
+      return false;
+    }
+  }
   if (is(InstrType::ExtractValue)) {
     if (!args[0].get_type()->is_struct() && !args[0].get_type()->is_vec()) {
       fmt::print("ExtractValue only works on a vec/struct argument\n");

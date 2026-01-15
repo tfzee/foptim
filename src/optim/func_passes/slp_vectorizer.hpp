@@ -90,10 +90,21 @@ class SLPVectorizer final : public FunctionPass {
       if (instr->is(fir::InstrType::LoadInstr) &&
           curr.type == instr.get_type()) {
         auto [sdata, sbase] = get_storeload_data(instr);
-        if (curr.base == sbase) {
-          curr.data.push_back(sdata);
-        }
+        // if (curr.base == sbase) {
+        curr.data.push_back(sdata);
+        // }
       } else if (instr->is(fir::InstrType::StoreInstr)) {
+        bool might_alias = false;
+        for (const auto &load : curr.data) {
+          if (aa.alias(instr->args[0], load.instr->args[0]) !=
+              AliasAnalyis::AAResult::NoAlias) {
+            might_alias = true;
+            break;
+          }
+        }
+        if (might_alias) {
+          break;
+        }
         pot_aliasing_stores.push_back(instr);
       } else if (instr->pot_modifies_mem()) {
         // TODO if it writes we could use aliasing to still apply this
@@ -102,14 +113,14 @@ class SLPVectorizer final : public FunctionPass {
     }
     // if we alias with anything just abort for now
     // TODO: could just remove the aliasing loads from the set
-    for (auto pot_stor : pot_aliasing_stores) {
-      for (auto &load : curr.data) {
-        if (aa.alias(pot_stor->args[0], load.instr->args[0]) !=
-            AliasAnalyis::AAResult::NoAlias) {
-          return {};
-        }
-      }
-    }
+    // for (auto pot_stor : pot_aliasing_stores) {
+    //   for (u32 lid = curr.data.size(); lid > 0; lid--) {
+    //     if (aa.alias(pot_stor->args[0], curr.data[lid - 1].instr->args[0]) !=
+    //         AliasAnalyis::AAResult::NoAlias) {
+    //       curr.data.erase(curr.data.begin() + lid);
+    //     }
+    //   }
+    // }
     if (curr.data.size() > 1) {
       return curr;
     }
@@ -318,7 +329,7 @@ class SLPVectorizer final : public FunctionPass {
           load_bundles.erase(load_bundles.begin() + bi - 1);
           continue;
         }
-        // sort the stores
+        // sort the loads
         std::ranges::sort(b.data, [](const auto &a, const auto &b) {
           i128 av = 0;
           i128 bv = 0;
@@ -330,47 +341,62 @@ class SLPVectorizer final : public FunctionPass {
           }
           return av < bv;
         });
-        // check if continious
-        {
-          TVec<i128> offsets;
-          // collect constant offsets
-          bool failed = false;
-          for (const auto &data : b.data) {
-            // fmt::println("GOT {} => {} {}", data.instr, data.a, data.b);
-            if (!data.a.is_invalid() ||
-                (!data.b.is_invalid() &&
-                 (!data.b.is_constant() || !data.b.as_constant()->is_int()))) {
-              failed = true;
-              break;
-            }
-            i128 consti = 0;
-            if (data.b.is_constant()) {
-              consti = data.b.as_constant()->as_int();
-            }
-            offsets.push_back(consti);
-          }
-          if (failed) {
-            load_bundles.erase(load_bundles.begin() + bi - 1);
-            // fmt::println("skip constant");
-            continue;
-          }
-
-          // check they are continious
-          for (size_t i = 1; i < offsets.size(); i++) {
-            if (offsets[i] - offsets[i - 1] != b.type->get_size()) {
-              failed = true;
-              break;
-            }
-          }
-          if (failed) {
-            // fmt::println("skip cont");
-            load_bundles.erase(load_bundles.begin() + bi - 1);
-            continue;
-          }
-        }
       }
     }
     // fmt::println("F1 {}  {}", store_bundles.size(), load_bundles.size());
+
+    for (auto bi = reduction_bundles.size(); bi > 0; bi--) {
+      auto &b = reduction_bundles[bi - 1];
+      {
+        auto n_load = b.data.size();
+        if (n_load != 2 && n_load != 4 && n_load != 8 && n_load != 16 &&
+            n_load != 32) {
+          if (n_load > 32) {
+            b.data.resize(32);
+          } else if (n_load > 16) {
+            b.data.resize(16);
+          } else if (n_load > 8) {
+            b.data.resize(8);
+          } else if (n_load > 4) {
+            b.data.resize(4);
+          } else if (n_load > 2) {
+            b.data.resize(2);
+          } else {
+            reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+            continue;
+          }
+        }
+        if (b.type->get_size() == 1 &&
+            (n_load % 8 != 0 && n_load % 16 != 0 && n_load % 32 != 0)) {
+          reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+          continue;
+        }
+        if (b.type->get_size() == 2 && (n_load % 8 != 0 && n_load % 16 != 0)) {
+          reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+          continue;
+        }
+        if (b.type->get_size() == 4 && (n_load % 4 != 0 && n_load % 8 != 0)) {
+          reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+          continue;
+        }
+        if (b.type->get_size() == 8 && (n_load % 2 != 0 && n_load % 4 != 0)) {
+          reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+          continue;
+        }
+        // sort the loads
+        std::ranges::sort(b.data, [](const auto &a, const auto &b) {
+          i128 av = 0;
+          i128 bv = 0;
+          if (a.b.is_constant() && a.b.as_constant()->is_int()) {
+            av = a.b.as_constant()->as_int();
+          }
+          if (b.b.is_constant() && b.b.as_constant()->is_int()) {
+            bv = b.b.as_constant()->as_int();
+          }
+          return av < bv;
+        });
+      }
+    }
 
     for (auto bi = store_bundles.size(); bi > 0; bi--) {
       auto &b = store_bundles[bi - 1];
@@ -394,8 +420,7 @@ class SLPVectorizer final : public FunctionPass {
             continue;
           }
         }
-        if (b.type->get_size() == 1 &&
-            (n_stor % 8 != 0 && n_stor % 16 != 0 && n_stor % 32 != 0)) {
+        if (b.type->get_size() == 1 && (n_stor % 16 != 0 && n_stor % 32 != 0)) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
@@ -460,7 +485,6 @@ class SLPVectorizer final : public FunctionPass {
         }
       }
     }
-    // fmt::println("F{}  {}", store_bundles.size(), load_bundles.size());
 
     // // TODO: improve
     // //  any store set thats a subset of another can be deleted
@@ -522,8 +546,10 @@ class SLPVectorizer final : public FunctionPass {
     for (auto bb : func.basic_blocks) {
       find_seeds(bb, store_bundles, load_bundles, reduction_bundles, aa);
     }
-    // fmt::println("Stor {} Lod {}", store_bundles.size(),
-    // load_bundles.size());
+    if (store_bundles.empty() && reduction_bundles.empty()) {
+      return;
+    }
+    fmt::println("Stor {} Lod {}", store_bundles.size(), load_bundles.size());
 
     for (auto &b : store_bundles) {
       bool already_used = false;

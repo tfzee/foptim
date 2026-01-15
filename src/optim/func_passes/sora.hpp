@@ -69,17 +69,19 @@ class SORA final : public FunctionPass {
           continue;
         }
         auto lb = ress.lower_bound(v.offset);
-        if (lb == ress.end()) {
-          // need to check if the previous one doesnt overlap into this one
-          if (!ress.empty()) {
-            auto prev = std::prev(lb);
-            if (prev->first + prev->second.size > v.offset) {
-              cutoff = prev->first;
-              prev->second.size = 0;
-              prev->second.uses.clear();
-              continue;
-            }
+
+        // need to check if the previous one doesnt overlap into this one
+        if (lb != std::begin(ress)) {
+          auto prev = std::prev(lb);
+          if (prev->first + prev->second.size > v.offset) {
+            cutoff = prev->first;
+            prev->second.size = 0;
+            prev->second.uses.clear();
+            continue;
           }
+        }
+        // if we dont overlap with previous + were at the end just insert
+        if (lb == ress.end()) {
           ress.insert({v.offset, {.size = v.access_size, .uses = {v.user}}});
           continue;
         }

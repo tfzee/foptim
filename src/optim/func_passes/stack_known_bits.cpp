@@ -519,7 +519,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
         load.replace_all_uses(fir::ValueR(val));
         cache.erase(load);
       }
-    } else {
+    } else if (l.get_type()->is_int()) {
       auto val = ctx->get_constant_value(v, l.get_type());
       load.replace_all_uses(fir::ValueR(val));
       cache.erase(load);

@@ -165,22 +165,33 @@ class LVN final : public FunctionPass {
           auto t1 = instr->get_type();
           auto t2 = instr2->get_type();
 
-          if (
-              // t1->is_vec() && t2->is_vec() &&
-              t1->get_bitwidth() == t2->get_bitwidth()) {
-            bool pot_store_between = is_pot_store_between(
-                bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2,
-                aa);
-            if (!pot_store_between) {
-              if (t1 == t2) {
-                instr2->replace_all_uses(instr->get_arg(1));
-              } else {
-                fir::Builder buh{instr};
-                auto r = buh.build_conversion_op(
-                    instr->get_arg(1), instr2->get_type(),
-                    fir::ConversionSubType::BitCast);
-                instr2->replace_all_uses(r);
-              }
+          bool pot_store_between = is_pot_store_between(
+              bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
+          if (!pot_store_between) {
+            if (t1 == t2) {
+              instr2->replace_all_uses(instr->get_arg(1));
+              instr2.destroy();
+              i2--;
+              continue;
+            }
+            if (t1->get_bitwidth() == t2->get_bitwidth()) {
+              fir::Builder buh{instr};
+              auto r =
+                  buh.build_conversion_op(instr->get_arg(1), instr2->get_type(),
+                                          fir::ConversionSubType::BitCast);
+              instr2->replace_all_uses(r);
+              instr2.destroy();
+              i2--;
+              continue;
+            }
+            if (t1->is_vec() && !t2->is_vec()) {
+              fir::Builder buh{instr};
+              auto *ctx = instr->get_parent()->get_parent()->ctx;
+              std::array<fir::ValueR, 1> indicies(
+                  {fir::ValueR{ctx->get_constant_int(0, 32)}});
+              auto r = buh.build_extract_value(instr->get_arg(1), indicies,
+                                               instr2->get_type());
+              instr2->replace_all_uses(r);
               instr2.destroy();
               i2--;
               continue;
@@ -217,99 +228,100 @@ class LVN final : public FunctionPass {
         }
 
         // merge two stores of for example i8 into 1 i16 store
-        if (instr->is(fir::InstrType::StoreInstr) &&
-            instr2->is(fir::InstrType::StoreInstr) &&
-            instr->get_type()->get_bitwidth() ==
-                instr2.get_type()->get_bitwidth() &&
-            instr->args[0].is_instr() && instr2->args[0].is_instr()) {
-          auto arg1 = instr->args[0].as_instr();
-          auto arg2 = instr2->args[0].as_instr();
-          auto old_width = instr->get_type()->get_size();
-          fir::ValueR base1_addr = fir::ValueR{arg1};
-          i128 base1_off = 0;
-          fir::ValueR base2_addr = fir::ValueR{arg2};
-          i128 base2_off = 0;
-
-          if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg1->args[1].is_constant() &&
-              arg1->args[1].as_constant()->is_int()) {
-            base1_addr = arg1->args[0];
-            base1_off = arg1->args[1].as_constant()->as_int();
-          }
-          if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg2->args[1].is_constant() &&
-              arg2->args[1].as_constant()->is_int()) {
-            base2_addr = arg2->args[0];
-            base2_off = arg2->args[1].as_constant()->as_int();
-          }
-          if (instr->get_type()->is_vec() && old_width <= 16 &&
-              base1_addr == base2_addr && base1_off + old_width == base2_off &&
-              instr->get_type() == instr2->get_type()) {
-            auto v1_type = instr->get_type()->as_vec();
-            bool pot_load_between = is_pot_loadstore_between(
-                bb, instr->args[0], old_width * 2, i + 1, i2, aa);
-            if (!pot_load_between) {
-              fir::Builder buh{instr2};
-              auto *ctx = bb->get_parent()->ctx;
-              auto new_type = ctx->get_vec_type(v1_type.type, v1_type.bitwidth,
-                                                v1_type.member_number * 2);
-              auto v1 = instr->args[1];
-              auto v2 = instr2->args[1];
-              auto data = buh.build_vector_op(v1, v2, new_type,
-                                              fir::VectorISubType::Concat);
-              buh.build_store(instr->args[0], data);
-              // fmt::println("===========MERGED=========0");
-              // fmt::println("{:cd}", instr);
-              // fmt::println("{:cd}", instr2);
-              // fmt::println("==");
-              // fmt::println("{:cd}", v1_ext.as_instr());
-              // fmt::println("{:cd}", v2_ext.as_instr());
-              // fmt::println("{:cd}", shift2_val.as_instr());
-              // fmt::println("{:cd}", data.as_instr());
-              // fmt::println("{:cd}", store.as_instr());
-              // fmt::println("{:cd} =SSM> {:cd}", instr, instr2);
-              instr.destroy();
-              instr2.destroy();
-              i--;
-              break;
-            }
-          }
-          if (instr->get_type()->is_int() && old_width <= 4 &&
-              base1_addr == base2_addr && base1_off + old_width == base2_off) {
-            bool pot_load_between = is_pot_loadstore_between(
-                bb, instr->args[0], old_width * 2, i + 1, i2, aa);
-            if (!pot_load_between) {
-              fir::Builder buh{instr2};
-              auto *ctx = bb->get_parent()->ctx;
-              auto new_type = ctx->get_int_type(2 * old_width * 8);
-              auto v1 = instr->args[1];
-              auto v2 = instr2->args[1];
-              auto v1_ext = buh.build_zext(v1, new_type);
-              auto v2_ext = buh.build_zext(v2, new_type);
-              auto shift2_val = buh.build_binary_op(
-                  v2_ext,
-                  fir::ValueR{ctx->get_constant_value(old_width * 8, new_type)},
-                  fir::BinaryInstrSubType::Shl);
-              auto data = buh.build_binary_op(v1_ext, shift2_val,
-                                              fir::BinaryInstrSubType::Or);
-              buh.build_store(instr->args[0], data);
-              // fmt::println("===========MERGED=========0");
-              // fmt::println("{:cd}", instr);
-              // fmt::println("{:cd}", instr2);
-              // fmt::println("==");
-              // fmt::println("{:cd}", v1_ext.as_instr());
-              // fmt::println("{:cd}", v2_ext.as_instr());
-              // fmt::println("{:cd}", shift2_val.as_instr());
-              // fmt::println("{:cd}", data.as_instr());
-              // fmt::println("{:cd}", store.as_instr());
-              // fmt::println("{:cd} =SSM> {:cd}", instr, instr2);
-              instr.destroy();
-              instr2.destroy();
-              i--;
-              break;
-            }
-          }
-        }
+        // if (instr->is(fir::InstrType::StoreInstr) &&
+        //     instr2->is(fir::InstrType::StoreInstr) &&
+        //     instr->get_type()->get_bitwidth() ==
+        //         instr2.get_type()->get_bitwidth() &&
+        //     instr->args[0].is_instr() && instr2->args[0].is_instr()) {
+        //   auto arg1 = instr->args[0].as_instr();
+        //   auto arg2 = instr2->args[0].as_instr();
+        //   auto old_width = instr->get_type()->get_size();
+        //   fir::ValueR base1_addr = fir::ValueR{arg1};
+        //   i128 base1_off = 0;
+        //   fir::ValueR base2_addr = fir::ValueR{arg2};
+        //   i128 base2_off = 0;
+        //   if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
+        //       arg1->args[1].is_constant() &&
+        //       arg1->args[1].as_constant()->is_int()) {
+        //     base1_addr = arg1->args[0];
+        //     base1_off = arg1->args[1].as_constant()->as_int();
+        //   }
+        //   if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
+        //       arg2->args[1].is_constant() &&
+        //       arg2->args[1].as_constant()->is_int()) {
+        //     base2_addr = arg2->args[0];
+        //     base2_off = arg2->args[1].as_constant()->as_int();
+        //   }
+        //   if (instr->get_type()->is_vec() && old_width <= 16 &&
+        //       base1_addr == base2_addr && base1_off + old_width == base2_off
+        //       && instr->get_type() == instr2->get_type()) {
+        //     auto v1_type = instr->get_type()->as_vec();
+        //     bool pot_load_between = is_pot_loadstore_between(
+        //         bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+        //     if (!pot_load_between) {
+        //       fir::Builder buh{instr2};
+        //       auto *ctx = bb->get_parent()->ctx;
+        //       auto new_type = ctx->get_vec_type(v1_type.type,
+        //       v1_type.bitwidth,
+        //                                         v1_type.member_number * 2);
+        //       auto v1 = instr->args[1];
+        //       auto v2 = instr2->args[1];
+        //       auto data = buh.build_vector_op(v1, v2, new_type,
+        //                                       fir::VectorISubType::Concat);
+        //       buh.build_store(instr->args[0], data);
+        //       // fmt::println("===========MERGED=========0");
+        //       // fmt::println("{:cd}", instr);
+        //       // fmt::println("{:cd}", instr2);
+        //       // fmt::println("==");
+        //       // fmt::println("{:cd}", v1_ext.as_instr());
+        //       // fmt::println("{:cd}", v2_ext.as_instr());
+        //       // fmt::println("{:cd}", shift2_val.as_instr());
+        //       // fmt::println("{:cd}", data.as_instr());
+        //       // fmt::println("{:cd}", store.as_instr());
+        //       // fmt::println("{:cd} =SSM> {:cd}", instr, instr2);
+        //       instr.destroy();
+        //       instr2.destroy();
+        //       i--;
+        //       break;
+        //     }
+        //   }
+        //   if (instr->get_type()->is_int() && old_width <= 4 &&
+        //       base1_addr == base2_addr && base1_off + old_width == base2_off)
+        //       {
+        //     bool pot_load_between = is_pot_loadstore_between(
+        //         bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+        //     if (!pot_load_between) {
+        //       fir::Builder buh{instr2};
+        //       auto *ctx = bb->get_parent()->ctx;
+        //       auto new_type = ctx->get_int_type(2 * old_width * 8);
+        //       auto v1 = instr->args[1];
+        //       auto v2 = instr2->args[1];
+        //       auto v1_ext = buh.build_zext(v1, new_type);
+        //       auto v2_ext = buh.build_zext(v2, new_type);
+        //       auto shift2_val = buh.build_binary_op(
+        //           v2_ext,
+        //           fir::ValueR{ctx->get_constant_value(old_width * 8,
+        //           new_type)}, fir::BinaryInstrSubType::Shl);
+        //       auto data = buh.build_binary_op(v1_ext, shift2_val,
+        //                                       fir::BinaryInstrSubType::Or);
+        //       buh.build_store(instr->args[0], data);
+        //       // fmt::println("===========MERGED=========0");
+        //       // fmt::println("{:cd}", instr);
+        //       // fmt::println("{:cd}", instr2);
+        //       // fmt::println("==");
+        //       // fmt::println("{:cd}", v1_ext.as_instr());
+        //       // fmt::println("{:cd}", v2_ext.as_instr());
+        //       // fmt::println("{:cd}", shift2_val.as_instr());
+        //       // fmt::println("{:cd}", data.as_instr());
+        //       // fmt::println("{:cd}", store.as_instr());
+        //       // fmt::println("{:cd} =SSM> {:cd}", instr, instr2);
+        //       instr.destroy();
+        //       instr2.destroy();
+        //       i--;
+        //       break;
+        //     }
+        //   }
+        // }
 
         // if we load and afterwards load form the same address
         //  and there is nobody storing that memory inbetween we can
@@ -330,84 +342,86 @@ class LVN final : public FunctionPass {
         }
 
         // merge 2 loads
-        if (instr->is(fir::InstrType::LoadInstr) &&
-            instr2->is(fir::InstrType::LoadInstr) &&
-            instr->get_type()->get_bitwidth() ==
-                instr2.get_type()->get_bitwidth() &&
-            instr->args[0].is_instr() && instr2->args[0].is_instr()) {
-          auto arg1 = instr->args[0].as_instr();
-          auto arg2 = instr2->args[0].as_instr();
-          auto old_width = instr->get_type()->get_size();
-          fir::ValueR base1_addr = fir::ValueR{arg1};
-          i128 base1_off = 0;
-          fir::ValueR base2_addr = fir::ValueR{arg2};
-          i128 base2_off = 0;
-
-          if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg1->args[1].is_constant() &&
-              arg1->args[1].as_constant()->is_int()) {
-            base1_addr = arg1->args[0];
-            base1_off = arg1->args[1].as_constant()->as_int();
-          }
-          if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
-              arg2->args[1].is_constant() &&
-              arg2->args[1].as_constant()->is_int()) {
-            base2_addr = arg2->args[0];
-            base2_off = arg2->args[1].as_constant()->as_int();
-          }
-          if (instr->get_type()->is_vec() && old_width <= 16 &&
-              base1_addr == base2_addr && base1_off + old_width == base2_off &&
-              instr->get_type() == instr2->get_type()) {
-            auto v1_type = instr->get_type()->as_vec();
-            bool pot_store_between = is_pot_store_between(
-                bb, instr->args[0], old_width * 2, i + 1, i2, aa);
-            if (!pot_store_between) {
-              fir::Builder buh{instr};
-              auto *ctx = bb->get_parent()->ctx;
-              auto new_type = ctx->get_vec_type(v1_type.type, v1_type.bitwidth,
-                                                v1_type.member_number * 2);
-              auto loaded_data = buh.build_load(new_type, fir::ValueR{arg1});
-              auto data1 = buh.build_vector_op(loaded_data, instr->get_type(),
-                                               fir::VectorISubType::ExtractLow);
-              auto data2 =
-                  buh.build_vector_op(loaded_data, instr->get_type(),
-                                      fir::VectorISubType::ExtractHigh);
-              instr->replace_all_uses(data1);
-              instr2->replace_all_uses(data2);
-              instr.destroy();
-              instr2.destroy();
-              i--;
-              break;
-            }
-          }
-          if (instr->get_type()->is_int() && old_width <= 4 &&
-              base1_addr == base2_addr && base1_off + old_width == base2_off) {
-            bool pot_store_between = is_pot_store_between(
-                bb, instr->args[0], old_width * 2, i + 1, i2, aa);
-            if (!pot_store_between) {
-              // fmt::println("{:cd}", bb);
-              fir::Builder buh{instr};
-              auto *ctx = bb->get_parent()->ctx;
-              auto new_type = ctx->get_int_type(2 * old_width * 8);
-              auto loaded_data = buh.build_load(new_type, fir::ValueR{arg1});
-              auto v1_val = buh.build_itrunc(loaded_data, instr->get_type());
-              auto shift2_val = buh.build_binary_op(
-                  loaded_data,
-                  fir::ValueR{ctx->get_constant_value(old_width * 8, new_type)},
-                  fir::BinaryInstrSubType::Shr);
-              auto v2_val = buh.build_itrunc(shift2_val, instr->get_type());
-              instr->replace_all_uses(v1_val);
-              instr2->replace_all_uses(v2_val);
-              instr.destroy();
-              instr2.destroy();
-              // fmt::println("{:cd}", bb);
-              // fmt::println("==========================");
-              // TODO("merge load==");
-              i--;
-              break;
-            }
-          }
-        }
+        // if (instr->is(fir::InstrType::LoadInstr) &&
+        //     instr2->is(fir::InstrType::LoadInstr) &&
+        //     instr->get_type()->get_bitwidth() ==
+        //         instr2.get_type()->get_bitwidth() &&
+        //     instr->args[0].is_instr() && instr2->args[0].is_instr()) {
+        //   auto arg1 = instr->args[0].as_instr();
+        //   auto arg2 = instr2->args[0].as_instr();
+        //   auto old_width = instr->get_type()->get_size();
+        //   fir::ValueR base1_addr = fir::ValueR{arg1};
+        //   i128 base1_off = 0;
+        //   fir::ValueR base2_addr = fir::ValueR{arg2};
+        //   i128 base2_off = 0;
+        //   if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
+        //       arg1->args[1].is_constant() &&
+        //       arg1->args[1].as_constant()->is_int()) {
+        //     base1_addr = arg1->args[0];
+        //     base1_off = arg1->args[1].as_constant()->as_int();
+        //   }
+        //   if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
+        //       arg2->args[1].is_constant() &&
+        //       arg2->args[1].as_constant()->is_int()) {
+        //     base2_addr = arg2->args[0];
+        //     base2_off = arg2->args[1].as_constant()->as_int();
+        //   }
+        //   if (instr->get_type()->is_vec() && old_width <= 16 &&
+        //       base1_addr == base2_addr && base1_off + old_width == base2_off
+        //       && instr->get_type() == instr2->get_type()) {
+        //     auto v1_type = instr->get_type()->as_vec();
+        //     bool pot_store_between = is_pot_store_between(
+        //         bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+        //     if (!pot_store_between) {
+        //       fir::Builder buh{instr};
+        //       auto *ctx = bb->get_parent()->ctx;
+        //       auto new_type = ctx->get_vec_type(v1_type.type,
+        //       v1_type.bitwidth,
+        //                                         v1_type.member_number * 2);
+        //       auto loaded_data = buh.build_load(new_type, fir::ValueR{arg1});
+        //       auto data1 = buh.build_vector_op(loaded_data,
+        //       instr->get_type(),
+        //                                        fir::VectorISubType::ExtractLow);
+        //       auto data2 =
+        //           buh.build_vector_op(loaded_data, instr->get_type(),
+        //                               fir::VectorISubType::ExtractHigh);
+        //       instr->replace_all_uses(data1);
+        //       instr2->replace_all_uses(data2);
+        //       instr.destroy();
+        //       instr2.destroy();
+        //       i--;
+        //       break;
+        //     }
+        //   }
+        //   if (instr->get_type()->is_int() && old_width <= 4 &&
+        //       base1_addr == base2_addr && base1_off + old_width == base2_off)
+        //       {
+        //     bool pot_store_between = is_pot_store_between(
+        //         bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+        //     if (!pot_store_between) {
+        //       // fmt::println("{:cd}", bb);
+        //       fir::Builder buh{instr};
+        //       auto *ctx = bb->get_parent()->ctx;
+        //       auto new_type = ctx->get_int_type(2 * old_width * 8);
+        //       auto loaded_data = buh.build_load(new_type, fir::ValueR{arg1});
+        //       auto v1_val = buh.build_itrunc(loaded_data, instr->get_type());
+        //       auto shift2_val = buh.build_binary_op(
+        //           loaded_data,
+        //           fir::ValueR{ctx->get_constant_value(old_width * 8,
+        //           new_type)}, fir::BinaryInstrSubType::Shr);
+        //       auto v2_val = buh.build_itrunc(shift2_val, instr->get_type());
+        //       instr->replace_all_uses(v1_val);
+        //       instr2->replace_all_uses(v2_val);
+        //       instr.destroy();
+        //       instr2.destroy();
+        //       // fmt::println("{:cd}", bb);
+        //       // fmt::println("==========================");
+        //       // TODO("merge load==");
+        //       i--;
+        //       break;
+        //     }
+        //   }
+        // }
       }
     }
   }
