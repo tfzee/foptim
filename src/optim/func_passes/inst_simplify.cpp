@@ -309,230 +309,66 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr->args[1].is_constant() &&
       instr->args[0].get_type() != instr->args[1].get_type()) {
-    promote_constant_type(ctx, instr, 1, instr->args[0].get_type());
+    auto t1 = instr->args[0].get_type();
+    auto t2 = instr->args[1].get_type();
+    // skip converting integer constants to ptr type instead extend to same
+    // sized integer
+    if (t1->is_ptr() && t2->is_int() &&
+        t1->get_bitwidth() != t2->get_bitwidth()) {
+      promote_constant_type(ctx, instr, 1,
+                            ctx->get_int_type(t1->get_bitwidth()));
+    } else {
+      promote_constant_type(ctx, instr, 1, instr->args[0].get_type());
+    }
   }
 
-  // (x &|^<<>> constant1) &|^<<>> constant2
-  // x &|^<<>> (constant1 &|^<<>> constant2)
-  // ONLY if the operator matches
-  if ((instr->subtype == (u32)BinaryInstrSubType::And ||
-       instr->subtype == (u32)BinaryInstrSubType::Or ||
-       instr->subtype == (u32)BinaryInstrSubType::Xor ||
-       instr->subtype == (u32)BinaryInstrSubType::Shl ||
-       instr->subtype == (u32)BinaryInstrSubType::Shr ||
-       instr->subtype == (u32)BinaryInstrSubType::IntMul ||
-       instr->subtype == (u32)BinaryInstrSubType::IntSDiv ||
-       instr->subtype == (u32)BinaryInstrSubType::IntUDiv) &&
-      instr->args[1].is_constant() && instr->args[0].is_instr()) {
-    auto inner_add_sub = instr->args[0].as_instr();
-    if (inner_add_sub->is(InstrType::BinaryInstr) &&
-        inner_add_sub->subtype == instr->subtype &&
-        inner_add_sub->args[1].is_constant()) {
+  if (instr->is(BinaryInstrSubType::IntAdd) && instr->args[0].is_instr()) {
+    auto inner = instr->args[0].as_instr();
+    if (inner->is(BinaryInstrSubType::IntAdd) &&
+        inner->args[1] == instr->args[1]) {
       fir::Builder b(instr);
-      auto x = inner_add_sub->args[0];
-      auto const1 = inner_add_sub->args[1];
-      auto const2 = instr->args[1];
-      if (instr->subtype == (u32)BinaryInstrSubType::IntMul) {
-        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntMul);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      } else if (instr->subtype == (u32)BinaryInstrSubType::IntSDiv) {
-        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntSDiv);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      } else if (instr->subtype == (u32)BinaryInstrSubType::IntUDiv) {
-        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntUDiv);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      } else if (instr->subtype == (u32)BinaryInstrSubType::And) {
-        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::And);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::And);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      } else if (instr->subtype == (u32)BinaryInstrSubType::Or) {
-        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Or);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Or);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      } else if (instr->subtype == (u32)BinaryInstrSubType::Xor) {
-        auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Xor);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Xor);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      } else if (instr->subtype == (u32)BinaryInstrSubType::Shl) {
-        auto a1 = b.build_int_add(const1, const2);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shl);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      } else if (instr->subtype == (u32)BinaryInstrSubType::Shr) {
-        auto a1 = b.build_int_add(const1, const2);
-        auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shr);
-        worklist.emplace_back(a1.as_instr(), bb);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-      }
+      auto c2 = fir::ValueR{
+          ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
+      auto a1 =
+          b.build_binary_op(inner->args[1], c2, BinaryInstrSubType::IntMul);
+      auto res =
+          b.build_binary_op(a1, inner->args[0], BinaryInstrSubType::IntAdd);
+      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
       instr.destroy();
       return true;
     }
-  }
-  // (x +- constant1) +- constant2
-  // x +- (constant1 +- constant2)
-  // and
-  // (x +- constant1) +- y
-  // x +- y) +- constant1
-  {
-    if ((instr->subtype == (u32)BinaryInstrSubType::IntAdd ||
-         instr->subtype == (u32)BinaryInstrSubType::IntSub) &&
-        instr->args[0].is_instr()) {
-      auto f = [&worklist, &bb, &instr](fir::Instr inner_add_sub,
-                                        fir::ValueR v2) {
-        if (inner_add_sub->is(InstrType::BinaryInstr) &&
-            (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd ||
-             inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub) &&
-            inner_add_sub->args[1].is_constant()) {
-          fir::Builder b(instr);
-          auto x = inner_add_sub->args[0];
-          auto const1 = inner_add_sub->args[1];
-          if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
-              instr->subtype == (u32)BinaryInstrSubType::IntAdd) {
-            fir::ValueR res;
-            if (v2.is_constant()) {
-              auto a1 = b.build_int_add(const1, v2);
-              worklist.emplace_back(a1.as_instr(), bb);
-              res = b.build_int_add(x, a1);
-            } else {
-              auto a1 = b.build_int_add(x, v2);
-              worklist.emplace_back(a1.as_instr(), bb);
-              res = b.build_int_add(a1, const1);
-            }
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(res);
-          } else if ((inner_add_sub->subtype ==
-                          (u32)BinaryInstrSubType::IntSub &&
-                      instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
-            fir::ValueR res;
-            auto a1 = b.build_int_sub(const1, v2);
-            res = b.build_int_sub(x, a1);
-            worklist.emplace_back(a1.as_instr(), bb);
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(res);
-          } else if ((inner_add_sub->subtype ==
-                          (u32)BinaryInstrSubType::IntAdd &&
-                      instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
-            auto a1 = b.build_int_sub(const1, v2);
-            auto res = b.build_int_add(x, a1);
-            worklist.emplace_back(a1.as_instr(), bb);
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(res);
-          } else if ((inner_add_sub->subtype ==
-                          (u32)BinaryInstrSubType::IntSub &&
-                      instr->subtype == (u32)BinaryInstrSubType::IntAdd)) {
-            auto a1 = b.build_int_sub(v2, const1);
-            auto res = b.build_int_add(x, a1);
-            worklist.emplace_back(a1.as_instr(), bb);
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(res);
-          } else {
-            UNREACH();
-          }
-          instr.destroy();
-          return true;
-        }
-        return false;
-      };
-      if (instr->args[0].is_instr()) {
-        auto inner_add_sub = instr->args[0].as_instr();
-        auto const2 = instr->args[1];
-        if (f(inner_add_sub, const2)) {
-          return true;
-        }
-      }
-      if (instr->args[1].is_instr()) {
-        auto inner_add_sub = instr->args[1].as_instr();
-        auto const2 = instr->args[0];
-        if (f(inner_add_sub, const2)) {
-          return true;
-        }
-      }
+    if (inner->is(BinaryInstrSubType::IntAdd) &&
+        inner->args[0] == instr->args[1]) {
+      fir::Builder b(instr);
+      auto c2 = fir::ValueR{
+          ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
+      auto a1 =
+          b.build_binary_op(inner->args[0], c2, BinaryInstrSubType::IntMul);
+      auto res =
+          b.build_binary_op(a1, inner->args[1], BinaryInstrSubType::IntAdd);
+      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
     }
-  }
-  // (x +- constant1) * constant2
-  // (x*constant2 +- constant1*constant2)
-  {
-    if (instr->is(BinaryInstrSubType::IntMul) && instr->args[1].is_constant() &&
-        instr->args[0].is_instr()) {
-      auto inner_add_sub = instr->args[0].as_instr();
-      if (inner_add_sub->is(InstrType::BinaryInstr) &&
-          (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd ||
-           inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub ||
-           inner_add_sub->subtype == (u32)BinaryInstrSubType::IntMul) &&
-          inner_add_sub->args[1].is_constant()) {
-        fir::Builder b(instr);
-        auto const2 = instr->args[1];
-        auto x = inner_add_sub->args[0];
-        auto const1 = inner_add_sub->args[1];
-        if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntMul) {
-          auto a1 = b.build_int_mul(const1, const2);
-          auto a2 = b.build_int_mul(x, a1);
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(a2);
-        } else {
-          auto a1 = b.build_int_mul(x, const2);
-          auto a2 = b.build_int_mul(const1, const2);
-          if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd) {
-            auto res = b.build_int_add(a1, a2);
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(res);
-          } else {
-            auto res = b.build_int_sub(a1, a2);
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(res);
-          }
-        }
-        instr.destroy();
-        return true;
-      }
-    }
-    if ((instr->is(BinaryInstrSubType::And) ||
-         instr->is(BinaryInstrSubType::Or)) &&
-        instr->args[0].is_instr() && instr->args[1].is_instr()) {
-      bool is_base_and = instr->is(BinaryInstrSubType::And);
-      auto inner1 = instr->args[0].as_instr();
-      auto inner2 = instr->args[1].as_instr();
-      if (((!is_base_and && inner1->is(BinaryInstrSubType::And) &&
-            inner2->is(BinaryInstrSubType::And)) ||
-           (is_base_and && inner1->is(BinaryInstrSubType::Or) &&
-            inner2->is(BinaryInstrSubType::Or))) &&
-          ((inner1->args[1].is_constant() && inner2->args[1].is_constant()) ||
-           inner1->args[0] == inner2->args[0] ||
-           inner1->args[1] == inner2->args[1])) {
-        fir::Builder b(instr);
-        auto i10 = inner1->args[0];
-        auto i11 = inner1->args[1];
-        auto i20 = inner2->args[0];
-        auto i21 = inner2->args[1];
-        auto first_op =
-            is_base_and ? BinaryInstrSubType::And : BinaryInstrSubType::Or;
-        auto fin_op =
-            is_base_and ? BinaryInstrSubType::Or : BinaryInstrSubType::And;
-        auto a1 = b.build_binary_op(i10, i20, first_op);
-        auto a2 = b.build_binary_op(i11, i21, first_op);
-        auto res = b.build_binary_op(a1, a2, fin_op);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(res);
-        instr.destroy();
-        return true;
-      }
+    if (inner->is(BinaryInstrSubType::IntMul) &&
+        inner->args[1].is_constant_int() && inner->args[0] == instr->args[1]) {
+      fir::Builder b(instr);
+      auto c2 = fir::ValueR{
+          ctx->get_constant_int(inner->args[1].as_constant()->as_int() + 1,
+                                inner->get_type()->get_bitwidth())};
+      auto a1 =
+          b.build_binary_op(inner->args[0], c2, BinaryInstrSubType::IntMul);
+      auto res =
+          b.build_binary_op(a1, inner->args[1], BinaryInstrSubType::IntAdd);
+      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
     }
   }
 
@@ -590,6 +426,245 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
                                      c0_val->as_f64(), c1_val->as_f64(),
                                      c1_val->type, ctx)) {
+          instr.destroy();
+          return true;
+        }
+      }
+    }
+
+    // (x &|^<<>> constant1) &|^<<>> constant2
+    // x &|^<<>> (constant1 &|^<<>> constant2)
+    // ONLY if the operator matches
+    if ((instr->subtype == (u32)BinaryInstrSubType::And ||
+         instr->subtype == (u32)BinaryInstrSubType::Or ||
+         instr->subtype == (u32)BinaryInstrSubType::Xor ||
+         instr->subtype == (u32)BinaryInstrSubType::Shl ||
+         instr->subtype == (u32)BinaryInstrSubType::Shr ||
+         instr->subtype == (u32)BinaryInstrSubType::IntMul ||
+         instr->subtype == (u32)BinaryInstrSubType::IntSDiv ||
+         instr->subtype == (u32)BinaryInstrSubType::IntUDiv) &&
+        instr->args[1].is_constant() && instr->args[0].is_instr()) {
+      auto inner_add_sub = instr->args[0].as_instr();
+      if (inner_add_sub->is(InstrType::BinaryInstr) &&
+          inner_add_sub->subtype == instr->subtype &&
+          inner_add_sub->args[1].is_constant()) {
+        fir::Builder b(instr);
+        auto x = inner_add_sub->args[0];
+        auto const1 = inner_add_sub->args[1];
+        auto const2 = instr->args[1];
+        if (instr->subtype == (u32)BinaryInstrSubType::IntMul) {
+          auto a1 =
+              b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntMul);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        } else if (instr->subtype == (u32)BinaryInstrSubType::IntSDiv) {
+          auto a1 =
+              b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntSDiv);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        } else if (instr->subtype == (u32)BinaryInstrSubType::IntUDiv) {
+          auto a1 =
+              b.build_binary_op(const1, const2, BinaryInstrSubType::IntMul);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::IntUDiv);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        } else if (instr->subtype == (u32)BinaryInstrSubType::And) {
+          auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::And);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::And);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        } else if (instr->subtype == (u32)BinaryInstrSubType::Or) {
+          auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Or);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Or);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        } else if (instr->subtype == (u32)BinaryInstrSubType::Xor) {
+          auto a1 = b.build_binary_op(const1, const2, BinaryInstrSubType::Xor);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Xor);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        } else if (instr->subtype == (u32)BinaryInstrSubType::Shl) {
+          auto a1 = b.build_int_add(const1, const2);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shl);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        } else if (instr->subtype == (u32)BinaryInstrSubType::Shr) {
+          auto a1 = b.build_int_add(const1, const2);
+          auto res = b.build_binary_op(x, a1, BinaryInstrSubType::Shr);
+          worklist.emplace_back(a1.as_instr(), bb);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
+        }
+        instr.destroy();
+        return true;
+      }
+    }
+    // (x +- constant1) +- constant2
+    // x +- (constant1 +- constant2)
+    // and
+    // (x +- constant1) +- y
+    // x +- y) +- constant1
+    if (instr->subtype == (u32)BinaryInstrSubType::IntAdd &&
+        instr->args[0] == instr->args[1]) {
+      fir::Builder b(instr);
+      auto res = b.build_int_mul(instr->args[0],
+                                 fir::ValueR{ctx->get_constant_int(
+                                     2, instr->get_type()->get_bitwidth())});
+      worklist.emplace_back(res.as_instr(), bb);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
+    {
+      if ((instr->subtype == (u32)BinaryInstrSubType::IntAdd ||
+           instr->subtype == (u32)BinaryInstrSubType::IntSub) &&
+          instr->args[0].is_instr()) {
+        auto f = [&worklist, &bb, &instr](fir::Instr inner_add_sub,
+                                          fir::ValueR v2) {
+          if (inner_add_sub->is(InstrType::BinaryInstr) &&
+              (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd ||
+               inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub) &&
+              inner_add_sub->args[1].is_constant()) {
+            fir::Builder b(instr);
+            auto x = inner_add_sub->args[0];
+            auto const1 = inner_add_sub->args[1];
+            if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
+                instr->subtype == (u32)BinaryInstrSubType::IntAdd) {
+              fir::ValueR res;
+              if (v2.is_constant()) {
+                auto a1 = b.build_int_add(const1, v2);
+                worklist.emplace_back(a1.as_instr(), bb);
+                res = b.build_int_add(x, a1);
+              } else {
+                auto a1 = b.build_int_add(x, v2);
+                worklist.emplace_back(a1.as_instr(), bb);
+                res = b.build_int_add(a1, const1);
+              }
+              push_all_uses(worklist, instr);
+              instr->replace_all_uses(res);
+            } else if ((inner_add_sub->subtype ==
+                            (u32)BinaryInstrSubType::IntSub &&
+                        instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
+              fir::ValueR res;
+              auto a1 = b.build_int_sub(const1, v2);
+              res = b.build_int_sub(x, a1);
+              worklist.emplace_back(a1.as_instr(), bb);
+              push_all_uses(worklist, instr);
+              instr->replace_all_uses(res);
+            } else if ((inner_add_sub->subtype ==
+                            (u32)BinaryInstrSubType::IntAdd &&
+                        instr->subtype == (u32)BinaryInstrSubType::IntSub)) {
+              auto a1 = b.build_int_sub(const1, v2);
+              auto res = b.build_int_add(x, a1);
+              worklist.emplace_back(a1.as_instr(), bb);
+              push_all_uses(worklist, instr);
+              instr->replace_all_uses(res);
+            } else if ((inner_add_sub->subtype ==
+                            (u32)BinaryInstrSubType::IntSub &&
+                        instr->subtype == (u32)BinaryInstrSubType::IntAdd)) {
+              auto a1 = b.build_int_sub(v2, const1);
+              auto res = b.build_int_add(x, a1);
+              worklist.emplace_back(a1.as_instr(), bb);
+              push_all_uses(worklist, instr);
+              instr->replace_all_uses(res);
+            } else {
+              UNREACH();
+            }
+            instr.destroy();
+            return true;
+          }
+          return false;
+        };
+        if (instr->args[0].is_instr()) {
+          auto inner_add_sub = instr->args[0].as_instr();
+          auto const2 = instr->args[1];
+          if (f(inner_add_sub, const2)) {
+            return true;
+          }
+        }
+        if (instr->args[1].is_instr()) {
+          auto inner_add_sub = instr->args[1].as_instr();
+          auto const2 = instr->args[0];
+          if (f(inner_add_sub, const2)) {
+            return true;
+          }
+        }
+      }
+    }
+    // (x +- constant1) * constant2
+    // (x*constant2 +- constant1*constant2)
+    {
+      if (instr->is(BinaryInstrSubType::IntMul) &&
+          instr->args[1].is_constant() && instr->args[0].is_instr()) {
+        auto inner_add_sub = instr->args[0].as_instr();
+        if (inner_add_sub->is(InstrType::BinaryInstr) &&
+            (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd ||
+             inner_add_sub->subtype == (u32)BinaryInstrSubType::IntSub ||
+             inner_add_sub->subtype == (u32)BinaryInstrSubType::IntMul) &&
+            inner_add_sub->args[1].is_constant()) {
+          fir::Builder b(instr);
+          auto const2 = instr->args[1];
+          auto x = inner_add_sub->args[0];
+          auto const1 = inner_add_sub->args[1];
+          if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntMul) {
+            auto a1 = b.build_int_mul(const1, const2);
+            auto a2 = b.build_int_mul(x, a1);
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(a2);
+          } else {
+            auto a1 = b.build_int_mul(x, const2);
+            auto a2 = b.build_int_mul(const1, const2);
+            if (inner_add_sub->subtype == (u32)BinaryInstrSubType::IntAdd) {
+              auto res = b.build_int_add(a1, a2);
+              push_all_uses(worklist, instr);
+              instr->replace_all_uses(res);
+            } else {
+              auto res = b.build_int_sub(a1, a2);
+              push_all_uses(worklist, instr);
+              instr->replace_all_uses(res);
+            }
+          }
+          instr.destroy();
+          return true;
+        }
+      }
+      if ((instr->is(BinaryInstrSubType::And) ||
+           instr->is(BinaryInstrSubType::Or)) &&
+          instr->args[0].is_instr() && instr->args[1].is_instr()) {
+        bool is_base_and = instr->is(BinaryInstrSubType::And);
+        auto inner1 = instr->args[0].as_instr();
+        auto inner2 = instr->args[1].as_instr();
+        if (((!is_base_and && inner1->is(BinaryInstrSubType::And) &&
+              inner2->is(BinaryInstrSubType::And)) ||
+             (is_base_and && inner1->is(BinaryInstrSubType::Or) &&
+              inner2->is(BinaryInstrSubType::Or))) &&
+            ((inner1->args[1].is_constant() && inner2->args[1].is_constant()) ||
+             inner1->args[0] == inner2->args[0] ||
+             inner1->args[1] == inner2->args[1])) {
+          fir::Builder b(instr);
+          auto i10 = inner1->args[0];
+          auto i11 = inner1->args[1];
+          auto i20 = inner2->args[0];
+          auto i21 = inner2->args[1];
+          auto first_op =
+              is_base_and ? BinaryInstrSubType::And : BinaryInstrSubType::Or;
+          auto fin_op =
+              is_base_and ? BinaryInstrSubType::Or : BinaryInstrSubType::And;
+          auto a1 = b.build_binary_op(i10, i20, first_op);
+          auto a2 = b.build_binary_op(i11, i21, first_op);
+          auto res = b.build_binary_op(a1, a2, fin_op);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(res);
           instr.destroy();
           return true;
         }
@@ -1322,7 +1397,8 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         instr.destroy();
         return true;
       }
-      if (arg0->get_type()->as_int() == 1 && c_val == 0) {
+      auto arg0Ty = arg0->get_type();
+      if (arg0Ty->is_int() && arg0Ty->as_int() == 1 && c_val == 0) {
         bool needs_negation = sub_type == ICmpInstrSubType::EQ;
         if (needs_negation) {
           fir::Builder b{instr};
@@ -3199,7 +3275,8 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   (void)worklist;
   if (instr->args[0].is_constant()) {
     auto arg0_const = instr->args[0].as_constant();
-    if (arg0_const->is_poison()) {
+    if (arg0_const->is_poison() || arg0_const->is_null() ||
+        (arg0_const->is_int() && arg0_const->as_int() <= 0)) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(
           fir::ValueR{ctx->get_poisson_value(instr->get_type())});

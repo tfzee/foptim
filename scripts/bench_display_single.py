@@ -173,7 +173,7 @@ def plot_benchmark_performance_single(performance_data):
         inset_ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
         inset_ax.grid(True)
 
-        plt.tight_layout()
+        # plt.tight_layout()
         plt.show()
 
 def plot_benchmark_performance(performance_data):
@@ -265,7 +265,7 @@ def plot_benchmark_performance(performance_data):
     by_label = dict(zip(labels, handles))
     ax_bar.legend(by_label.values(), by_label.keys())
 
-    plt.tight_layout()
+    # plt.tight_layout()
     plt.show()
 
 
