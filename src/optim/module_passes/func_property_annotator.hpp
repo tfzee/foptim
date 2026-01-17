@@ -30,7 +30,16 @@ class FuncPropAnnotator final : public ModulePass {
           if (instr->args[0].is_constant() &&
               instr->args[0].as_constant()->is_func()) {
             auto f = instr->args[0].as_constant()->as_func();
+            if (f == func) {
+              r.wont_recurse = false;
+              // can skip r/w analysis since if we hit it otherwise in this run
+              // then we know its written otherwise we know it wont
+              continue;
+            }
             if (!f->no_recurse) {
+              // this is not quite true
+              // subfunction can recurse aslong as this recursion does not go
+              // through the current function
               r.wont_recurse = false;
             }
             if (f->mem_read_none) {

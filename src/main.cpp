@@ -150,6 +150,11 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LegalizeStructs, LLVMInstrinsicLowering, SORA, Mem2Reg, DoubleLoadElim,
       DCE, IntrinSimplify, InstSimplify, DCE, SimplifyCFG, LVN, DCE>{}
       .apply(ctx, shed);
+  for (auto &[_, f] : ctx->storage.functions) {
+    // if (f->get_n_uses() > 0 || f->getName() == "main") {
+    fmt::println("{:cd}", *f);
+    // }
+  }
   foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
                                          ArgPromotion, GDCE>{}
       .apply(ctx, shed);
@@ -225,6 +230,11 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       }
       slab = slab->next;
     }
+  }
+  for (auto &[_, f] : ctx->storage.functions) {
+    // if (f->get_n_uses() > 0 || f->getName() == "main") {
+    fmt::println("{:cd}", *f);
+    // }
   }
   fmt::print("================FIR END====================\n");
 }
@@ -357,9 +367,9 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     i++;
   }
   shed->wait_till_done();
-  // for (auto &f : funcs) {
-  //   fmt::println("{:cd}", f);
-  // }
+  for (auto &f : funcs) {
+    fmt::println("{:cd}", f);
+  }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,

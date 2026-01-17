@@ -56,6 +56,9 @@ class ValueR {
     return ty == ValueType::ConstantValueR && const_val->is_int() &&
            const_val->as_int() == v;
   }
+  [[nodiscard]] constexpr bool is_constant_int() const {
+    return ty == ValueType::ConstantValueR && const_val->is_int();
+  }
   [[nodiscard]] constexpr bool is_instr() const {
     return ty == ValueType::Instr;
   }

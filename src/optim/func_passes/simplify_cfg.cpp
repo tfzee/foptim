@@ -973,7 +973,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
         t2->n_instrs() == 1 &&
         t2->instructions[0]->is(fir::InstrType::ReturnInstr) &&
         // need a return value
-        t2->instructions[1]->args.size() == 1) {
+        t2->instructions[0]->args.size() == 1) {
       matched = true;
     }
     if (t1->n_instrs() == 1 &&

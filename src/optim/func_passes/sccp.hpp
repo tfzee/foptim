@@ -69,6 +69,9 @@ class SCCP final : public FunctionPass {
     [[nodiscard]] constexpr bool is_global() const {
       return type == ValueType::Gptr;
     }
+    [[nodiscard]] constexpr bool is_null() const {
+      return type == ValueType::NullPtr;
+    }
     [[nodiscard]] constexpr bool is_int() const {
       return type == ValueType::Int;
     }
@@ -79,7 +82,13 @@ class SCCP final : public FunctionPass {
       return std::bit_cast<f32>((u32)std::bit_cast<u64>(vals.at(0).f));
     }
     [[nodiscard]] constexpr f64 as_f64() const { return vals.at(0).f; }
-    [[nodiscard]] constexpr i128 as_int() const { return vals.at(0).i; }
+    [[nodiscard]] constexpr i128 as_int() const {
+      if (type == ValueType::NullPtr) {
+        return 0;
+      } else {
+        return vals.at(0).i;
+      }
+    }
 
     static ConstantValue Top() {
       return ConstantValue{.type = ValueType::Top, .vals = {}, .vtype = {}};
@@ -282,7 +291,7 @@ class SCCP final : public FunctionPass {
         *((i8 *)v) = (i8)vals[0].i;
         return true;
       }
-      if (c->is_int() && bitwidth == 64) {
+      if ((c->is_ptr() || c->is_int()) && bitwidth == 64) {
         *((i64 *)v) = (i64)vals[0].i;
         return true;
       }
@@ -467,7 +476,8 @@ class SCCP final : public FunctionPass {
             UNREACH();
         }
       }
-      case fir::InstrType::Intrinsic:
+      case fir::InstrType::Intrinsic: {
+        bool is_signed = false;
         // TODO: implement constant propagation
         switch ((fir::IntrinsicSubType)instr->get_instr_subtype()) {
           case fir::IntrinsicSubType::FAbs: {
@@ -475,20 +485,15 @@ class SCCP final : public FunctionPass {
             if (a.is_bottom()) {
               return ConstantValue::Bottom();
             }
-            if (!a.is_const() && (!a.is_int() && !a.is_float())) {
+            if (!a.is_const() && (!a.is_float())) {
               return ConstantValue::Top();
             }
             for (auto &m : a.vals) {
-              if (a.is_int()) {
-                TODO("need to handle widths??");
-              } else if (a.is_float() &&
-                         ((a.vtype->is_float() && a.vtype->as_float() == 64) ||
-                          (a.is_float() && a.vtype->is_vec() &&
-                           a.vtype->as_vec().bitwidth == 64))) {
+              if (((a.vtype->is_float() && a.vtype->as_float() == 64) ||
+                   (a.vtype->is_vec() && a.vtype->as_vec().bitwidth == 64))) {
                 m.f = std::abs(m.f);
-              } else if (a.is_float() &&
-                         ((a.vtype->is_float() && a.vtype->as_float() == 32) ||
-                          (a.is_float() && a.vtype->is_vec() &&
+              } else if (((a.vtype->is_float() && a.vtype->as_float() == 32) ||
+                          (a.vtype->is_vec() &&
                            a.vtype->as_vec().bitwidth == 32))) {
                 m.f = std::bit_cast<f64>((u64)std::bit_cast<u32>(std::abs(
                     std::bit_cast<f32>((u32)std::bit_cast<u64>(m.f)))));
@@ -496,20 +501,65 @@ class SCCP final : public FunctionPass {
             }
             return a;
           }
-          case fir::IntrinsicSubType::INVALID:
-          case fir::IntrinsicSubType::CTLZ:
-          case fir::IntrinsicSubType::VA_start:
-          case fir::IntrinsicSubType::VA_end:
-          case fir::IntrinsicSubType::Abs:
-          case fir::IntrinsicSubType::UMin:
-          case fir::IntrinsicSubType::UMax:
-          case fir::IntrinsicSubType::SMin:
           case fir::IntrinsicSubType::SMax:
+            is_signed = true;
+          case fir::IntrinsicSubType::UMax: {
+            auto a = eval(instr->get_arg(0));
+            auto b = eval(instr->get_arg(1));
+            if (a.is_bottom() || b.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if ((!a.is_const() && !a.is_int()) ||
+                (!b.is_const() && !b.is_int())) {
+              return ConstantValue::Top();
+            }
+            for (size_t i = 0; i < a.vals.size(); i++) {
+              if (is_signed) {
+                a.vals[i].i = std::max(std::bit_cast<i128>(a.vals[i].i),
+                                       std::bit_cast<i128>(b.vals[i].i));
+              } else {
+                a.vals[i].i = std::max(std::bit_cast<u128>(a.vals[i].i),
+                                       std::bit_cast<u128>(b.vals[i].i));
+              }
+            }
+            return a;
+          }
+          case fir::IntrinsicSubType::SMin:
+            is_signed = true;
+          case fir::IntrinsicSubType::UMin: {
+            auto a = eval(instr->get_arg(0));
+            auto b = eval(instr->get_arg(1));
+            if (a.is_bottom() || b.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if ((!a.is_const() && !a.is_int()) ||
+                (!b.is_const() && !b.is_int())) {
+              return ConstantValue::Top();
+            }
+            for (size_t i = 0; i < a.vals.size(); i++) {
+              if (is_signed) {
+                a.vals[i].i = std::min(std::bit_cast<i128>(a.vals[i].i),
+                                       std::bit_cast<i128>(b.vals[i].i));
+              } else {
+                a.vals[i].i = std::min(std::bit_cast<u128>(a.vals[i].i),
+                                       std::bit_cast<u128>(b.vals[i].i));
+              }
+            }
+            return a;
+          }
+          case fir::IntrinsicSubType::Abs:
           case fir::IntrinsicSubType::FMin:
           case fir::IntrinsicSubType::FMax:
+          case fir::IntrinsicSubType::CTLZ:
+            fmt::println("{:cd}", instr);
+            TODO("impl sccp intrinsics");
+          case fir::IntrinsicSubType::INVALID:
+          case fir::IntrinsicSubType::VA_start:
+          case fir::IntrinsicSubType::VA_end:
             break;
         }
         return ConstantValue::Bottom();
+      }
       case fir::InstrType::BinaryInstr: {
         auto a = eval(instr->get_arg(0));
         auto b = eval(instr->get_arg(1));
@@ -521,7 +571,8 @@ class SCCP final : public FunctionPass {
           return ConstantValue::Top();
         }
 
-        if ((!a.is_int() && !a.is_float()) || (!b.is_int() && !b.is_float())) {
+        if ((!a.is_int() && !a.is_float() && !a.is_null()) ||
+            (!b.is_int() && !b.is_float() && !b.is_null())) {
           failure(
               {.reason =
                    "Cannot do SCCP on binary expr using non integers/floats",

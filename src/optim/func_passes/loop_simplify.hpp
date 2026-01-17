@@ -143,7 +143,8 @@ class LoopSimplify final : public FunctionPass {
             ianal.direct_inductvars[i2].type) {
           continue;
         }
-        if (!ianal.direct_inductvars[i1].consti->is_int() ||
+        if (!ianal.direct_inductvars[i1].consti.is_valid() ||
+            !ianal.direct_inductvars[i2].consti.is_valid() || !ianal.direct_inductvars[i1].consti->is_int() ||
             !ianal.direct_inductvars[i2].consti->is_int()) {
           continue;
         }

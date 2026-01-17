@@ -5,6 +5,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -196,6 +197,23 @@ class LVN final : public FunctionPass {
               i2--;
               continue;
             }
+          } else if (t1->is_vec() &&
+                     t1->as_vec().bitwidth == t2->get_bitwidth() &&
+                     ((t2->is_float() &&
+                       t1->as_vec().type ==
+                           fir::VectorType::SubType::Floating) ||
+                      (t2->is_int() &&
+                       t1->as_vec().type ==
+                           fir::VectorType::SubType::Integer))) {
+            fir::Builder buh{instr2};
+            fir::ValueR index0[1] = {
+                fir::ValueR{cfg.func->ctx->get_constant_int(0, 32)},
+            };
+            auto res = buh.build_extract_value(instr->args[1], index0, t2);
+            instr2->replace_all_uses(res);
+            instr2.destroy();
+            i2--;
+            continue;
           }
           // if (t1 == t2) {
           //   bool pot_store_between = is_pot_store_between(
