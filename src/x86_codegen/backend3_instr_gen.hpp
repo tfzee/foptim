@@ -1233,23 +1233,106 @@ inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
         return length;
       }
-      // .LCPI1_0:
-      //         .long   1127219200
-      //         .long   1160773632
-      //         .long   0
-      //         .long   0
-      // .LCPI1_1:
-      //         .quad   0x4330000000000000
-      //         .quad   0x4530000000000000
-      // test2(unsigned long):
-      //         movq    xmm1, rdi
-      //         punpckldq       xmm1, xmmword ptr [rip + .LCPI1_0]
-      //         subpd   xmm1, xmmword ptr [rip + .LCPI1_1]
-      //         movapd  xmm0, xmm1
-      //         unpckhpd        xmm0, xmm1
-      //         addsd   xmm0, xmm1
-      //         ret
-      TODO("impl ");
+      if (instr.args[0].ty == fmir::Type::Float64 &&
+          instr.args[1].ty == fmir::Type::Int32) {
+        auto out_arg = req.operands[0];
+        auto inp_arg = req.operands[1];
+        u32 off = 0;
+        req.mnemonic = ZYDIS_MNEMONIC_VXORPD;
+        req.operand_count = 3;
+        req.operands[0] = out_arg;
+        req.operands[1] = out_arg;
+        req.operands[2] = out_arg;
+        off = emit(out_buff, off, &req);
+        req.mnemonic = ZYDIS_MNEMONIC_VCVTSI2SD;
+        req.operand_count = 3;
+        req.operands[0] = out_arg;
+        req.operands[1] = out_arg;
+        req.operands[2] = inp_arg;
+        return emit(out_buff, off, &req);
+      } else if (instr.args[1].ty == fmir::Type::Int64) {
+        auto inp_arg = req.operands[1];
+        auto out_arg = req.operands[0];
+
+        ZydisEncoderRequest req_shr;
+        memset(&req_shr, 0, sizeof(req_shr));
+        req_shr.mnemonic = ZYDIS_MNEMONIC_SHR;
+        req_shr.operand_count = 2;
+        req_shr.operands[0] = inp_arg;
+        req_shr.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        req_shr.operands[1].imm.u = 1;
+
+        ZydisEncoderRequest req_adc;
+        memset(&req_adc, 0, sizeof(req_adc));
+        req_adc.mnemonic = ZYDIS_MNEMONIC_ADC;
+        req_adc.operand_count = 2;
+        req_adc.operands[0] = inp_arg;
+        req_adc.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        req_adc.operands[1].imm.u = 0;
+
+        ZydisEncoderRequest req_vcvt;
+        memset(&req_vcvt, 0, sizeof(req_vcvt));
+        req_vcvt.mnemonic = ZYDIS_MNEMONIC_VCVTSI2SD;
+        req_vcvt.operand_count = 3;
+        req_vcvt.operands[0] = out_arg;
+        req_vcvt.operands[1] = out_arg;
+        req_vcvt.operands[2] = inp_arg;
+
+        ZydisEncoderRequest req_vadd;
+        memset(&req_vadd, 0, sizeof(req_vadd));
+        req_vadd.mnemonic = ZYDIS_MNEMONIC_VADDSD;
+        req_vadd.operand_count = 3;
+        req_vadd.operands[0] = out_arg;
+        req_vadd.operands[1] = out_arg;
+        req_vadd.operands[2] = out_arg;
+
+        // 2. Measure lengths
+        ZyanU8 tmp[15];
+        ZyanUSize len_shr, len_adc, len_vcvt, len_vadd;
+        ZydisEncoderEncodeInstruction(&req_shr, tmp, &(len_shr = sizeof(tmp)));
+        ZydisEncoderEncodeInstruction(&req_adc, tmp, &(len_adc = sizeof(tmp)));
+        ZydisEncoderEncodeInstruction(&req_vcvt, tmp,
+                                      &(len_vcvt = sizeof(tmp)));
+        ZydisEncoderEncodeInstruction(&req_vadd, tmp,
+                                      &(len_vadd = sizeof(tmp)));
+        const ZyanU8 len_jmp = 2;
+        // A. TEST inp, inp
+        req.mnemonic = ZYDIS_MNEMONIC_TEST;
+        req.operand_count = 2;
+        req.operands[0] = inp_arg;
+        req.operands[1] = inp_arg;
+        u32 off = 0;
+        off = emit(out_buff, off, &req);
+
+        // B. JNS (Jump to the "Fits Signed" VCVT)
+        // Offset = Length of (SHR + ADC + VCVT + VADD + JMP)
+        req.mnemonic = ZYDIS_MNEMONIC_JNS;
+        req.operand_count = 1;
+        req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        req.operands[0].imm.s =
+            len_shr + len_adc + len_vcvt + len_vadd + len_jmp;
+        off = emit(out_buff, off, &req);
+        // C. SHR inp, 1
+        off = emit(out_buff, off, &req_shr);
+        // D. ADC inp, 0 (Round-to-odd)
+        off = emit(out_buff, off, &req_adc);
+        // E. VCVTSI2SD out, out, inp
+        off = emit(out_buff, off, &req_vcvt);
+        // F. VADDSD out, out, out (Scale back)
+        off = emit(out_buff, off, &req_vadd);
+        // G. JMP (Jump over the alternative VCVT)
+        // Offset = Length of (Single VCVT)
+        req.mnemonic = ZYDIS_MNEMONIC_JMP;
+        req.operand_count = 1;
+        req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+        req.operands[0].imm.s = len_vcvt;
+        off = emit(out_buff, off, &req);
+        // H. VCVTSI2SD out, out, inp (The "Fits Signed" Path)
+        off = emit(out_buff, off, &req_vcvt);
+        // fmt::println("{:cd}", instr);
+        // TODO("impl ");
+        return off;
+      }
     }
     case fmir::GConvSubtype::INVALID:
       fmt::println("{:cd}", instr);
