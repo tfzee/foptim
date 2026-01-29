@@ -1,3 +1,5 @@
+#include "slp_vectorizer.hpp"
+
 #include <fmt/base.h>
 #include <fmt/core.h>
 
@@ -7,7 +9,6 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
 #include "ir/value.hpp"
-#include "slp_vectorizer.hpp"
 #include "utils/arena.hpp"
 #include "utils/stats.hpp"
 
@@ -47,8 +48,9 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
                        SLPVectorizer::SeedBundle & /*orig_bundle*/) final {
     fir::Builder bb{insert_loc};
     bb.after(insert_loc);
-    return bb.build_vbroadcast(
+    auto res = bb.build_vbroadcast(
         v, ctx->get_vec_type(insert_loc->get_type(), n_lanes));
+    return res;
   }
 };
 
@@ -195,8 +197,9 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
     auto av = children.at(1)->generate(ctx, orig_bundl);
     auto bv = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
-    return bb.build_binary_op(av, bv,
-                              (fir::BinaryInstrSubType)insert_loc->subtype);
+    auto res = bb.build_binary_op(av, bv,
+                                  (fir::BinaryInstrSubType)insert_loc->subtype);
+    return res;
   }
 };
 
@@ -316,9 +319,14 @@ class StoreTreeOp final : public SLPVectorizer::TreeElem {
   }
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle &orig_bundl) final {
-    // TODO: assuming continious stores
+    fmt::println("Gen Store slp");
+    children.at(0)->dump();
+    // auto *func = orig_bundl.data[0].instr->get_parent()->get_parent().func;
+    // fmt::println(">>>>>>>>> {:cd}", *func);
     auto val = children.at(0)->generate(ctx, orig_bundl);
+    // fmt::println("======== {:cd}", *func);
     fir::Builder bb{insert_loc};
+    // TODO: assuming continious stores
     auto res = bb.build_store(store_loc->args[0], val);
     for (auto o : orig_bundl.data) {
       o.instr.destroy();
@@ -549,10 +557,12 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
       // vec_loads.bitwidth,
       //                                      n_lanes *
       //                                      vec_loads.member_number);
-      return bb.build_load(vec_ty, val);
+      auto res = bb.build_load(vec_ty, val);
+      return res;
     }
     auto vec_ty = ctx->get_vec_type(insert_loc->get_type(), n_lanes);
-    return bb.build_load(vec_ty, val);
+    auto res = bb.build_load(vec_ty, val);
+    return res;
   }
 };
 

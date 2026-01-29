@@ -767,6 +767,9 @@ class MInstr {
   [[nodiscard]] bool is(GBaseSubtype sub) const {
     return bop == GOpcode::GBase && sop == (u32)sub;
   }
+  [[nodiscard]] bool is(X86Subtype sub) const {
+    return bop == GOpcode::X86 && sop == (u32)sub;
+  }
   [[nodiscard]] bool is(GCMovSubtype sub) const {
     return bop == GOpcode::GCMov && sop == (u32)sub;
   }

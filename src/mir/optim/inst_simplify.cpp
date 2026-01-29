@@ -1,8 +1,10 @@
+#include "inst_simplify.hpp"
+
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <cmath>
 
-#include "inst_simplify.hpp"
 #include "mir/instr.hpp"
 
 namespace foptim::fmir {
@@ -138,6 +140,32 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
       writeback.bop = op.bop;
       writeback.sop = op.sop;
       writeback.args[1] = op.args[1];
+    }
+  }
+  if (instr_id + 1 < instrs.size() &&
+      instrs[instr_id + 0].is(X86Subtype::lea) &&
+      instrs[instr_id + 1].is(GArithSubtype::add2)) {
+    auto &lea = instrs[instr_id + 0];
+    auto &add = instrs[instr_id + 1];
+    // x = lea(a*b + c1)
+    // x += c2
+    // =>  x = lea(a*b + c1+c2)
+    bool lea_can_use_imm =
+        MArgument::ArgumentType::MemImm == lea.args[1].type ||
+        MArgument::ArgumentType::MemImmVReg == lea.args[1].type ||
+        MArgument::ArgumentType::MemImmVRegVReg == lea.args[1].type ||
+        MArgument::ArgumentType::MemImmVRegScale == lea.args[1].type ||
+        MArgument::ArgumentType::MemImmVRegVRegScale == lea.args[1].type ||
+        MArgument::ArgumentType::MemImmLabel == lea.args[1].type;
+    if (lea.args[0] == add.args[0] && add.args[1].isImm() && lea_can_use_imm) {
+      assert(lea.args[1].isMem());
+      u64 res_val = lea.args[1].imm + add.args[1].imm;
+      if (std::in_range<std::uint32_t>(res_val)) {
+        lea.args[1].imm = res_val;
+        instrs.erase(instrs.begin() + instr_id + 1,
+                     instrs.begin() + instr_id + 2);
+        return true;
+      }
     }
   }
   return false;

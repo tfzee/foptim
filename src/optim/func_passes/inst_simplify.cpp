@@ -322,56 +322,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
   }
 
-  if (instr->is(BinaryInstrSubType::IntAdd) && instr->args[0].is_instr()) {
-    auto inner = instr->args[0].as_instr();
-    if (inner->is(BinaryInstrSubType::IntAdd) &&
-        inner->args[1] == instr->args[1]) {
-      fir::Builder b(instr);
-      auto c2 = fir::ValueR{
-          ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
-      auto a1 =
-          b.build_binary_op(inner->args[1], c2, BinaryInstrSubType::IntMul);
-      auto res =
-          b.build_binary_op(a1, inner->args[0], BinaryInstrSubType::IntAdd);
-      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(res);
-      instr.destroy();
-      return true;
-    }
-    if (inner->is(BinaryInstrSubType::IntAdd) &&
-        inner->args[0] == instr->args[1]) {
-      fir::Builder b(instr);
-      auto c2 = fir::ValueR{
-          ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
-      auto a1 =
-          b.build_binary_op(inner->args[0], c2, BinaryInstrSubType::IntMul);
-      auto res =
-          b.build_binary_op(a1, inner->args[1], BinaryInstrSubType::IntAdd);
-      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(res);
-      instr.destroy();
-      return true;
-    }
-    if (inner->is(BinaryInstrSubType::IntMul) &&
-        inner->args[1].is_constant_int() && inner->args[0] == instr->args[1]) {
-      fir::Builder b(instr);
-      auto c2 = fir::ValueR{
-          ctx->get_constant_int(inner->args[1].as_constant()->as_int() + 1,
-                                inner->get_type()->get_bitwidth())};
-      auto a1 =
-          b.build_binary_op(inner->args[0], c2, BinaryInstrSubType::IntMul);
-      auto res =
-          b.build_binary_op(a1, inner->args[1], BinaryInstrSubType::IntAdd);
-      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(res);
-      instr.destroy();
-      return true;
-    }
-  }
-
+  // CONSTANT EVAL
   const ConstantValue *c0_val = nullptr;
   const ConstantValue *c1_val = nullptr;
   if (instr->args[0].is_constant()) {
@@ -431,7 +382,57 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         }
       }
     }
+  }
 
+  if (instr->is(BinaryInstrSubType::IntAdd) && instr->args[0].is_instr()) {
+    auto inner = instr->args[0].as_instr();
+    if (inner->is(BinaryInstrSubType::IntAdd) &&
+        inner->args[1] == instr->args[1]) {
+      fir::Builder b(instr);
+      auto c2 = fir::ValueR{
+          ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
+      auto a1 =
+          b.build_binary_op(inner->args[1], c2, BinaryInstrSubType::IntMul);
+      auto res =
+          b.build_binary_op(a1, inner->args[0], BinaryInstrSubType::IntAdd);
+      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
+    if (inner->is(BinaryInstrSubType::IntAdd) &&
+        inner->args[0] == instr->args[1]) {
+      fir::Builder b(instr);
+      auto c2 = fir::ValueR{
+          ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
+      auto a1 =
+          b.build_binary_op(inner->args[0], c2, BinaryInstrSubType::IntMul);
+      auto res =
+          b.build_binary_op(a1, inner->args[1], BinaryInstrSubType::IntAdd);
+      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
+    if (inner->is(BinaryInstrSubType::IntMul) &&
+        inner->args[1].is_constant_int() && inner->args[0] == instr->args[1]) {
+      fir::Builder b(instr);
+      auto c2 = fir::ValueR{
+          ctx->get_constant_int(inner->args[1].as_constant()->as_int() + 1,
+                                inner->get_type()->get_bitwidth())};
+      auto res =
+          b.build_binary_op(inner->args[0], c2, BinaryInstrSubType::IntMul);
+      worklist.push_back({res.as_instr(), res.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
+  }
+
+  if (has_const) {
     // (x &|^<<>> constant1) &|^<<>> constant2
     // x &|^<<>> (constant1 &|^<<>> constant2)
     // ONLY if the operator matches

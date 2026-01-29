@@ -150,11 +150,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LegalizeStructs, LLVMInstrinsicLowering, SORA, Mem2Reg, DoubleLoadElim,
       DCE, IntrinSimplify, InstSimplify, DCE, SimplifyCFG, LVN, DCE>{}
       .apply(ctx, shed);
-  for (auto &[_, f] : ctx->storage.functions) {
-    // if (f->get_n_uses() > 0 || f->getName() == "main") {
-    fmt::println("{:cd}", *f);
-    // }
-  }
   foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
                                          ArgPromotion, GDCE>{}
       .apply(ctx, shed);
@@ -358,6 +353,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::CallingConv{}.second_stage(func);
       foptim::fmir::StackOptim{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
+      foptim::fmir::InstSimplify{}.apply(func);
       foptim::fmir::InstSimplify{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::BBReordering{}.apply(func);
