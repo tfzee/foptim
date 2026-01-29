@@ -1,7 +1,8 @@
+#include "builder.hpp"
+
 #include <algorithm>
 
 #include "basic_block.hpp"
-#include "builder.hpp"
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
@@ -44,8 +45,13 @@ BasicBlock Builder::append_bb() {
 // }
 
 void Builder::after(fir::Instr i) {
-  indx = std::find(bb->instructions.begin(), bb->instructions.end(), i) -
-         bb->instructions.begin() + 1;
+  if (i->get_parent() != bb) {
+    bb = i->get_parent();
+    func = bb->get_parent();
+  }
+  auto r = std::ranges::find(bb->instructions, i);
+  ASSERT(r != bb->instructions.end());
+  indx = r - bb->instructions.begin() + 1;
   bb = i->get_parent();
   func = bb->get_parent();
 }
@@ -552,10 +558,14 @@ Instr Builder::move_instr(Instr instr) {
 
   size_t instr_id = 0;
   auto parent = instr->parent;
-  while (parent->instructions[instr_id] != instr) {
-    instr_id++;
-    ASSERT(instr_id < parent->instructions.size());
+  auto r = std::ranges::find(parent->instructions, instr);
+  if (r == parent->instructions.end()) {
+    ASSERT_M(false, "Failed to find instruction in bb it is supposedly in")
   }
+  // while (parent->instructions[instr_id] != instr) {
+  //   instr_id++;
+  //   ASSERT(instr_id < parent->instructions.size());
+  // }
   parent->instructions.erase(parent->instructions.begin() + (i64)instr_id);
 
   bb.insert_instr(indx, instr);
