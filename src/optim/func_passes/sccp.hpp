@@ -501,6 +501,19 @@ class SCCP final : public FunctionPass {
             }
             return a;
           }
+          case fir::IntrinsicSubType::Abs: {
+            auto a = eval(instr->get_arg(0));
+            if (a.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if (!a.is_const() && (!a.is_float())) {
+              return ConstantValue::Top();
+            }
+            for (auto &m : a.vals) {
+              m.i = std::abs(m.i);
+            }
+            return a;
+          }
           case fir::IntrinsicSubType::SMax:
             is_signed = true;
           case fir::IntrinsicSubType::UMax: {
@@ -547,7 +560,6 @@ class SCCP final : public FunctionPass {
             }
             return a;
           }
-          case fir::IntrinsicSubType::Abs:
           case fir::IntrinsicSubType::FMin:
           case fir::IntrinsicSubType::FMax:
           case fir::IntrinsicSubType::CTLZ:
