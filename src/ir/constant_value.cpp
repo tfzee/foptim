@@ -180,15 +180,19 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
       return *this;
     case ConstantType::IntValue:
       int_u = old.int_u;
+      int_u._ty = old.int_u._ty;
       return *this;
     case ConstantType::FloatValue:
       float_u = old.float_u;
+      float_u._ty = old.float_u._ty;
       return *this;
     case ConstantType::GlobalPtr:
       gp_u = old.gp_u;
+      gp_u._ty = old.gp_u._ty;
       return *this;
     case ConstantType::FuncPtr:
       fup_u = old.fup_u;
+      fup_u._ty = old.fup_u._ty;
       return *this;
     case ConstantType::VectorValue:
       new (&vec_u.v) VectorValue(old.vec_u.v);
@@ -204,6 +208,7 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
 }
 
 ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
+  type = old.type;
   switch (old.ty) {
     case ConstantType::NullPtr:
     case ConstantType::PoisonValue:
@@ -211,15 +216,19 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
       return;
     case ConstantType::IntValue:
       int_u = old.int_u;
+      int_u._ty = old.int_u._ty;
       return;
     case ConstantType::FloatValue:
       float_u = old.float_u;
+      float_u._ty = old.float_u._ty;
       return;
     case ConstantType::GlobalPtr:
       gp_u = old.gp_u;
+      gp_u._ty = old.gp_u._ty;
       return;
     case ConstantType::FuncPtr:
       fup_u = old.fup_u;
+      fup_u._ty = old.fup_u._ty;
       return;
     case ConstantType::VectorValue:
       new (&vec_u.v) VectorValue(old.vec_u.v);
