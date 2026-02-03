@@ -1,7 +1,10 @@
+#include "context.hpp"
+
 #include <atomic>
 
-#include "context.hpp"
 #include "global.hpp"
+#include "ir/basic_block.hpp"
+#include "ir/basic_block_arg.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/types.hpp"
 #include "utils/stable_vec_ref.hpp"
@@ -47,7 +50,7 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
 
 BBArgument ContextData::copy(BBArgument bb_arg) {
   auto res =
-      storage.insert_bb_arg({BasicBlock{BasicBlock::invalid()}, bb_arg->_type});
+      storage.insert_bb_arg(BBArgumentData{BasicBlock{BasicBlock::invalid()}, bb_arg->_type});
   res->uses.clear();
   return res;
 }

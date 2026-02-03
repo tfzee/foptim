@@ -1,6 +1,7 @@
 #include "llir_loader.hpp"
 
 #include <fmt/base.h>
+#include <llvm/Config/llvm-config.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
@@ -147,7 +148,7 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
   }
   if (const auto *stru_const =
           llvm::dyn_cast_or_null<llvm::ConstantStruct>(value)) {
-    stru_const->dump();
+    // stru_const->dump();
     auto res_ty = convert_type(stru_const->getType(), fctx, mod);
     auto res_ty_stru = res_ty->as_struct();
     auto ress = foptim::fir::ValueR{fctx->get_poisson_value(res_ty)};
@@ -373,12 +374,15 @@ void convert_branch(const llvm::BranchInst *branch_instr,
 void convert_switch(llvm::SwitchInst *switch_instr, foptim::fir::Context &fctx,
                     foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
                     V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
+#if LLVM_VERSION_MAJOR < 21
   auto defaultDest =
       foptim::fir::BasicBlock{foptim::fir::BasicBlock::invalid()};
   if (!switch_instr->defaultDestUndefined()) {
     defaultDest = b2b.at(switch_instr->getDefaultDest());
   }
-  // auto *defaultDest = switch_instr->getDefaultDest();
+#else
+  auto defaultDest = b2b.at(switch_instr->getDefaultDest());
+#endif
 
   foptim::TVec<std::pair<foptim::fir::ConstantValueR, foptim::fir::BasicBlock>>
       cases;
@@ -1527,7 +1531,6 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx,
     module = llvm::parseIRFile(filename, error, context);
   }
   if (module) {
-    // module->dump();
     convert(*module, fctx, shed);
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
