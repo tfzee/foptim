@@ -54,7 +54,8 @@ class Builder {
   ValueR build_va_end(ValueR a);
   ValueR build_fabs(ValueR a);
   ValueR build_abs(ValueR a);
-  ValueR build_intrinsic(ValueR a, IntrinsicSubType type);
+  ValueR build_intrinsic(ValueR a, IntrinsicSubType type,
+                         TypeR opt_type = TypeR{TypeR::invalid()});
   ValueR build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type);
   ValueR build_int_add(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
   ValueR build_float_add(ValueR a, ValueR b);

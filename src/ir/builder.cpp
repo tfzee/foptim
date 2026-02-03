@@ -166,10 +166,14 @@ ValueR Builder::build_abs(ValueR a) {
   return ValueR(instr);
 }
 
-ValueR Builder::build_intrinsic(ValueR a, IntrinsicSubType type) {
+ValueR Builder::build_intrinsic(ValueR a, IntrinsicSubType type,
+                                TypeR opt_type) {
   check_bb_set();
+  if (!opt_type.is_valid()) {
+    opt_type = a.get_type();
+  }
   Instr instr =
-      ctx->storage.insert_instr(InstrData::get_intrinsic(a.get_type(), type));
+      ctx->storage.insert_instr(InstrData::get_intrinsic(opt_type, type));
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;

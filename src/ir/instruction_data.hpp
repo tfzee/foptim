@@ -85,6 +85,8 @@ enum class IntrinsicSubType : u32 {
   SMax,
   FMin,
   FMax,
+
+  IsConstant,
 };
 
 enum class ConversionSubType : u32 {
@@ -265,6 +267,8 @@ class InstrData : public Used, public InstrAttribs {
             return "INTRIN:FMin";
           case IntrinsicSubType::FMax:
             return "INTRIN:FMax";
+          case IntrinsicSubType::IsConstant:
+            return "INTRIN:IsConstant";
         }
       case InstrType::Unreachable:
         return "unreachable";

@@ -189,8 +189,8 @@ class SCCP final : public FunctionPass {
             return ctx->get_constant_value(args, t);
           }
         case ValueType::Fptr:
-          fmt::println("FPTR TODO {:cd}", t);
-          TODO("impl");
+          ASSERT(vals.size() == 1);
+          return ctx->get_constant_value(vals[0].fptr);
         case ValueType::Gptr:
           ASSERT(vals.size() == 1);
           return ctx->get_constant_value(vals[0].gptr);
@@ -511,6 +511,20 @@ class SCCP final : public FunctionPass {
             }
             for (auto &m : a.vals) {
               m.i = std::abs(m.i);
+            }
+            return a;
+          }
+          case fir::IntrinsicSubType::IsConstant: {
+            auto a = eval(instr->get_arg(0));
+            a.vtype = ctx->get_int_type(1);
+            if (a.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if (!a.is_const()) {
+              return ConstantValue::Top();
+            }
+            for (auto &m : a.vals) {
+              m.i = 1;
             }
             return a;
           }
@@ -1254,7 +1268,6 @@ class SCCP final : public FunctionPass {
       if (new_value.is_const() && value.get_n_uses() > 0) {
         auto res_co = new_value.toConstantValue(ctx, value.get_type());
         if (res_co) {
-          // fmt::println("sccp> {:cd}", res_co.value());
           value.replace_all_uses(fir::ValueR{res_co.value()});
         }
         // value.replace_all_uses(fir::ValueR{new_value.value});

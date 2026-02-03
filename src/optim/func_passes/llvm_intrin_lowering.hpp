@@ -251,6 +251,16 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
+  void handle_is_constant(fir::Instr instr, fir::Function &funcy,
+                          fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res =
+        bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::IsConstant,
+                           funcy.ctx->get_int_type(1));
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
   void handle_umul_with_overflow(fir::Instr instr, fir::Function & /*funcy*/,
                                  fir::FunctionR /*callee*/) {
     auto width = instr.get_type()->as_struct().elems[0].ty->as_int();
@@ -283,6 +293,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
       TODO("IMPL");
     }
   }
+
   void handle_expect(fir::Instr instr, fir::Function & /*funcy*/,
                      fir::FunctionR /*callee*/) {
     instr->replace_all_uses(instr->args[1]);
@@ -377,6 +388,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
           handle_memmove(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.ctlz")) {
           handle_ctlz(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.is.constant")) {
+          handle_is_constant(instr, func, callee);
         }
       }
     }

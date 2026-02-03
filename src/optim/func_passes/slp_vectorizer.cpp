@@ -341,16 +341,7 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
  public:
   void dump() final {
     switch (type) {
-      case fir::IntrinsicSubType::INVALID:
-      case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::VA_start:
-      case fir::IntrinsicSubType::VA_end:
-      case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::UMax:
-      case fir::IntrinsicSubType::SMin:
-      case fir::IntrinsicSubType::SMax:
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
+      default:
         TODO("UNREACH");
       case fir::IntrinsicSubType::Abs:
         fmt::print("abs(");
@@ -389,6 +380,7 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
       case fir::IntrinsicSubType::INVALID:
       case fir::IntrinsicSubType::VA_start:
       case fir::IntrinsicSubType::VA_end:
+      case fir::IntrinsicSubType::IsConstant:
         return false;
       case fir::IntrinsicSubType::CTLZ:
       case fir::IntrinsicSubType::FMin:
