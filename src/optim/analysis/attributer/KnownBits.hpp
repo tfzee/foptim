@@ -117,6 +117,16 @@ class KnownBits final : public AttributeAnalysis {
       new_known_zero = (~(u64)0) - 1;
     } else if (instr->is(fir::InstrType::Intrinsic)) {
       switch ((fir::IntrinsicSubType)instr->subtype) {
+        case fir::IntrinsicSubType::IsConstant: {
+          const auto *known_arg_bits =
+              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+          const auto known_bits =
+              known_arg_bits->known_one | known_arg_bits->known_zero;
+          const bool all_known = (known_bits & (known_bits + 1)) == 0;
+          new_known_one = all_known ? 1 : 0;
+          new_known_zero = all_known ? 0 : 0;
+          break;
+        }
         case fir::IntrinsicSubType::Abs: {
           const auto *known_arg_bits =
               m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
