@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include "utils/tracy.hpp"
 
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
@@ -62,6 +61,7 @@
 #include "utils/stats.hpp"
 #include "utils/timer.hpp"
 #include "utils/todo.hpp"
+#include "utils/tracy.hpp"
 #include "x86_codegen/backend.hpp"
 
 namespace {

@@ -22,6 +22,7 @@ class Dominators {
   TVec<Node> dom_bbs;
   const CFG *cfg;
 
+  Dominators() : cfg(nullptr) {}
   Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
 
   void dump() const {

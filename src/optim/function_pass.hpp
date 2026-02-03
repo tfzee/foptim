@@ -23,11 +23,11 @@ class FunctionPass {
     TODO("impl");
   }
 
-  FunctionPass &apply_pass(fir::Context &ctx, fir::Function &f) {
-    apply(ctx, f);
-    utils::TempAlloc<void *>::reset();
-    return *this;
-  }
+  // FunctionPass &apply_pass(fir::Context &ctx, fir::Function &f) {
+  //   apply(ctx, f);
+  //   utils::TempAlloc<void *>::reset();
+  //   return *this;
+  // }
 
   FunctionPass &print_failures() {
 #ifdef OPTIM_STATS
@@ -50,17 +50,28 @@ class FunctionPass {
 
 template <class... Passes>
 class StaticFunctionPassManager {
+  template <class Pass>
+  static void apply_pass(fir::Context &ctx, fir::Function &f,
+                         bool print_failure) {
+    {
+      auto p = Pass{};
+      p.apply(ctx, f);
+      if (print_failure) {
+        p.print_failures();
+      }
+    }
+    utils::TempAlloc<void *>::reset();
+  }
+
  public:
   void apply(fir::Context &ctx) {
     for (auto &[name, func] : ctx->storage.functions) {
       if (func->is_decl()) {
         continue;
       }
-      if (utils::print_optimization_failure_reasons) {
-        (Passes{}.apply_pass(ctx, *func).print_failures(), ...);
-      } else {
-        (Passes{}.apply_pass(ctx, *func), ...);
-      }
+      (apply_pass<Passes>(ctx, *func,
+                          utils::print_optimization_failure_reasons),
+       ...);
     }
     ctx.data->storage.storage_instr.collect_garbage();
   }
@@ -68,6 +79,19 @@ class StaticFunctionPassManager {
 
 template <class... Passes>
 class StaticParallelFunctionPassManager {
+  template <class Pass>
+  static void apply_pass(fir::Context &ctx, fir::Function &f,
+                         bool print_failure) {
+    {
+      auto p = Pass{};
+      p.apply(ctx, f);
+      if (print_failure) {
+        p.print_failures();
+      }
+    }
+    utils::TempAlloc<void *>::reset();
+  }
+
  public:
   void apply(fir::Context &ctx, JobSheduler *shed) {
     for (auto &[name, func] : ctx->storage.functions) {
@@ -75,11 +99,9 @@ class StaticParallelFunctionPassManager {
         continue;
       }
       shed->push(nullptr, [&ctx, &func]() {
-        if (utils::print_optimization_failure_reasons) {
-          (Passes{}.apply_pass(ctx, *func).print_failures(), ...);
-        } else {
-          (Passes{}.apply_pass(ctx, *func), ...);
-        }
+        (apply_pass<Passes>(ctx, *func,
+                            utils::print_optimization_failure_reasons),
+         ...);
         ctx.data->storage.storage_instr.collect_garbage();
       });
     }

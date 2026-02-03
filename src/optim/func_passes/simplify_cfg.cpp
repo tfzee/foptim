@@ -59,7 +59,8 @@ SimplifyCFG::Res SimplifyCFG::remove_struct_bb_arg(CFG &cfg, CFG::Node &curr) {
     auto stru_ty = res_ty->as_struct();
     TVec<fir::ValueR> new_args;
     for (auto &member : stru_ty.elems) {
-      auto new_arg = ctx->storage.insert_bb_arg({curr.bb, member.ty});
+      auto new_arg =
+          ctx->storage.insert_bb_arg(fir::BBArgumentData{curr.bb, member.ty});
       curr.bb.add_arg(new_arg);
       new_args.emplace_back(new_arg);
     }
@@ -132,7 +133,8 @@ SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
     auto end_bb = split_block(i);
 
     if (call_res_used) {
-      auto res_arg = ctx->storage.insert_bb_arg({end_bb, i->get_type()});
+      auto res_arg = ctx->storage.insert_bb_arg(
+          fir::BBArgumentData{end_bb, i->get_type()});
       end_bb.add_arg(res_arg);
       i->replace_all_uses(fir::ValueR{res_arg});
     }
@@ -470,8 +472,8 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       new_bb_args_helper.clear();
 
       for (auto &diff : difference_values) {
-        auto new_arg =
-            ctx->storage.insert_bb_arg({res_bb1, diff.use1.get_type()});
+        auto new_arg = ctx->storage.insert_bb_arg(
+            fir::BBArgumentData{res_bb1, diff.use1.get_type()});
         res_bb1.add_arg(new_arg);
         diff.use1.replace_use(fir::ValueR{new_arg});
       }
@@ -1532,6 +1534,8 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
       break;
     }
     if (needs_update) {
+      cfg = {};
+      dom = {};
       foptim::utils::TempAlloc<void *>::reset();
       cfg = CFG(func, false);
       dom = Dominators(cfg);
