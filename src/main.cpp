@@ -3,7 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
-#include <tracy/Tracy.hpp>
+#include "utils/tracy.hpp"
 
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"

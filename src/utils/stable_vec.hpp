@@ -4,7 +4,6 @@
 #include <compare>
 #include <cstdlib>
 #include <cstring>
-#include <tracy/Tracy.hpp>
 #include <vector>
 
 #include "helpers.hpp"
@@ -14,6 +13,7 @@
 #include "types.hpp"
 #include "utils/arena.hpp"
 #include "utils/mutex.hpp"
+#include "utils/tracy.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::utils {

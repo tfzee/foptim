@@ -1,7 +1,7 @@
 #pragma once
 #include <fmt/core.h>
 
-#include <tracy/Tracy.hpp>
+#include "utils/tracy.hpp"
 
 #include "optim/module_pass.hpp"
 

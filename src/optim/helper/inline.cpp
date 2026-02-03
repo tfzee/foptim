@@ -1,10 +1,10 @@
-#include <tracy/Tracy.hpp>
-
 #include "inline.hpp"
+
 #include "ir/basic_block.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "utils/tracy.hpp"
 
 namespace foptim::optim {
 

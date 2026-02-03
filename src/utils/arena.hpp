@@ -3,8 +3,8 @@
 
 #include <atomic>
 #include <cstddef>
-#include <tracy/Tracy.hpp>
 
+#include "utils/tracy.hpp"
 #include "utils/types.hpp"
 
 struct Region;

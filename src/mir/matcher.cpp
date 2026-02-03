@@ -1,18 +1,19 @@
+#include "matcher.hpp"
+
 #include <algorithm>
 #include <ranges>
-#include <tracy/Tracy.hpp>
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
-#include "matcher.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "mir/matcher_patterns.hpp"
 #include "mir/reg_alloc.hpp"
+#include "utils/tracy.hpp"
 
 namespace foptim::fmir {
 

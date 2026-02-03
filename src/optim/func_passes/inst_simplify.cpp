@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <bit>
 #include <cerrno>
-#include <tracy/Tracy.hpp>
 
 #include "ir/IRLocation.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -25,6 +24,7 @@
 #include "optim/analysis/basic_alias_test.hpp"
 #include "utils/helpers.hpp"
 #include "utils/set.hpp"
+#include "utils/tracy.hpp"
 
 namespace foptim::optim {
 

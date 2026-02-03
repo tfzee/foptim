@@ -18,6 +18,8 @@
 // LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#include "arena.hpp"
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -27,9 +29,8 @@
 #include <atomic>
 #include <cstddef>
 #include <mutex>
-#include <tracy/Tracy.hpp>
 
-#include "arena.hpp"
+#include "utils/tracy.hpp"
 #define ARENA_ASSERT assert
 #define ARENA_REGION_DEFAULT_CAPACITY (16 * 1024)
 #define MIN_ALIGN (alignof(std::max_align_t))

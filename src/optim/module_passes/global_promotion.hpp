@@ -1,6 +1,4 @@
 #pragma once
-#include <tracy/Tracy.hpp>
-
 #include "ir/builder.hpp"
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
@@ -8,6 +6,7 @@
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
+#include "utils/tracy.hpp"
 
 namespace foptim::optim {
 

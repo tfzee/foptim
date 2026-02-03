@@ -2,8 +2,7 @@
 
 #include <argparse/argparse.hpp>
 #include <cassert>
-#include <tracy/Tracy.hpp>
-
+#include "utils/tracy.hpp"
 #include "utils/parameters.hpp"
 
 void parse_args(int argc, char *argv[]) {

@@ -1,6 +1,6 @@
 #pragma once
 #include <memory>
-#include <tracy/Tracy.hpp>
+#include "utils/tracy.hpp"
 
 #include "utils/types.hpp"
 

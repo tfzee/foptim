@@ -1,6 +1,7 @@
 #pragma once
 #include <shared_mutex>
-#include <tracy/Tracy.hpp>
+
+#include "utils/tracy.hpp"
 
 namespace foptim {
 
