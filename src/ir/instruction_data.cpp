@@ -119,7 +119,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   }
   if (is(InstrType::ExtractValue)) {
     if (!args[0].get_type()->is_struct() && !args[0].get_type()->is_vec()) {
-      fmt::print("ExtractValue only works on a vec/struct argument\n");
+      fmt::print("ExtractValue only works on a vec/struct argument not on {}\n", args[0].get_type());
       return false;
     }
   }
