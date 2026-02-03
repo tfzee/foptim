@@ -689,7 +689,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     if (instr->subtype == (u32)BinaryInstrSubType::IntAdd &&
         instr->args[v_idx].is_instr()) {
       auto sub = instr->args[v_idx].as_instr();
-      if (sub->subtype == (u32)BinaryInstrSubType::IntAdd &&
+      if (sub->is(BinaryInstrSubType::IntAdd) &&
           (sub->args[1].is_constant() &&
            sub->args[1].as_constant()->is_int())) {
         auto x = instr->args[1 - v_idx];
@@ -998,8 +998,8 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           auto sec_constant = a0->args[1].as_constant()->as_int();
           // fmt::println("{}", instr);
           // FIXME: fix potential issue with overflow
-          auto biggest_bitwidth = std::max(a0->args[1].get_type()->as_int(),
-                                           c1_val->get_type()->as_int());
+          auto biggest_bitwidth = std::max(a0->args[1].get_type()->get_bitwidth(),
+                                           c1_val->get_type()->get_bitwidth());
 
           switch ((BinaryInstrSubType)a0->subtype) {
             case fir::BinaryInstrSubType::INVALID:
