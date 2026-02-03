@@ -51,6 +51,11 @@ class SimplifyCFG final : public FunctionPass {
   // if only 1 pred we can replace all the bb args with just the values of
   // the pred
   bool remove_useless_bb_args(CFG &cfg, CFG::Node &curr);
+  // TOOD: idk if if this is necessary if bb1 calls bb2 and bb3 and they have
+  // the same initial instructions we can
+  // pull them out into bb1
+  // bool pullout_instruction(CFG &cfg, CFG::Node &curr);
+
   // If we got bb args and multiple predecessors. If all incoming edges either
   // have the same value or are the bb arg itsself(a loop in which the bb arg
   // value doesnt change), then we can remove the bb arg and replace all uses

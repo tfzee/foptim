@@ -1,4 +1,5 @@
 #pragma once
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include "ir/constant_value_ref.hpp"

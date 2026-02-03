@@ -1,4 +1,5 @@
 #include "IPCP.hpp"
+
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
@@ -10,7 +11,7 @@ namespace {
 u64 ipcp_unique_name_number = 0;
 
 void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
-  auto ret_val = fir::ValueR();
+  TVec<fir::ValueR> ret_vals;
   if (func->func_ty->as_func().return_type->is_void()) {
     return;
   }
@@ -20,28 +21,39 @@ void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
         continue;
       }
       ASSERT(!instr->args.empty());
-      if (ret_val.is_invalid()) {
-        ret_val = instr->args[0];
-        if (!ret_val.is_constant() && !ret_val.is_bb_arg()) {
+      if (ret_vals.empty()) {
+        for (auto ret_val : instr->args) {
+          ret_vals.push_back(ret_val);
+          if (!ret_val.is_constant() && !ret_val.is_bb_arg()) {
+            return;
+          }
+        }
+      } else {
+        if (instr->args.size() != ret_vals.size()) {
           return;
         }
-      } else if (ret_val != instr->args[0]) {
-        return;
+        for (size_t i = 0; i < ret_vals.size(); i++) {
+          if (ret_vals[i] != instr->args[i]) {
+            return;
+          }
+        }
       }
     }
   }
-  if (ret_val.is_constant()) {
-    for (auto use : func->get_uses()) {
-      use.user->replace_all_uses(ret_val);
+  for (auto ret_val : ret_vals) {
+    if (ret_val.is_constant()) {
+      for (auto use : func->get_uses()) {
+        use.user->replace_all_uses(ret_val);
+      }
     }
-  }
-  if ((ret_val.is_bb_arg() &&
-       ret_val.as_bb_arg()->get_parent() == func->get_entry())) {
-    auto id =
-        ret_val.as_bb_arg()->get_parent()->get_arg_id(ret_val.as_bb_arg());
+    if ((ret_val.is_bb_arg() &&
+         ret_val.as_bb_arg()->get_parent() == func->get_entry())) {
+      auto id =
+          ret_val.as_bb_arg()->get_parent()->get_arg_id(ret_val.as_bb_arg());
 
-    for (auto use : func->get_uses()) {
-      use.user->replace_all_uses(use.user->args[id + 1]);
+      for (auto use : func->get_uses()) {
+        use.user->replace_all_uses(use.user->args[id + 1]);
+      }
     }
   }
 }
@@ -206,9 +218,9 @@ void IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
       continue;
     }
 
-    if (constant_prop_args(fir::FunctionR(f.second.get()), ctx)) {
-      continue;
-    }
+    // if (constant_prop_args(fir::FunctionR(f.second.get()), ctx)) {
+    //   continue;
+    // }
     if (kill_dead_args(f.second.get(), ctx)) {
       continue;
     }

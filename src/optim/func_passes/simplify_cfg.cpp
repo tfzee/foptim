@@ -1,3 +1,5 @@
+#include "simplify_cfg.hpp"
+
 #include <fmt/base.h>
 #include <fmt/core.h>
 #include <fmt/std.h>
@@ -15,7 +17,6 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "optim/helper/inline.hpp"
-#include "simplify_cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
@@ -360,6 +361,12 @@ struct DiffValues {
       if (a1 == a2) {
         continue;
       }
+      if ((!a1.is_constant() &&
+           (a1.is_instr() && a1.as_instr()->get_parent() == i1->parent)) ||
+          (!a2.is_constant() &&
+           (a2.is_instr() && a2.as_instr()->get_parent() == i2->parent))) {
+        return false;
+      }
       if (a1.is_instr() && a2.is_instr()) {
         auto a1I = a1.as_instr();
         auto a2I = a2.as_instr();
@@ -395,11 +402,12 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
   bool modified = false;
   const auto bb1n_instr = bb1->instructions.size();
 
+  // TODO: SUPPORT old bbargs!
+  if (bb1->n_args() != 0 || bb1->n_instrs() > N_INSTRS_UPPERBOUND) {
+    return modified;
+  }
+
   for (size_t bb2_id = 0; bb2_id < bb_id; bb2_id++) {
-    // TODO: SUPPORT old bbargs!
-    if (bb1->n_args() != 0 || bb1->n_instrs() > N_INSTRS_UPPERBOUND) {
-      return modified;
-    }
     // if (bb1->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
     //   continue;
     // }
@@ -431,8 +439,9 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     // setup local value map this allows us to check if it references the same
     // local instruction
     difference_values.clear();
-    if (!match_term(bb1->get_terminator(), bb2->get_terminator(),
-                    local_value_map, cost, difference_values)) {
+    auto term1 = bb1->get_terminator();
+    auto term2 = bb2->get_terminator();
+    if (!match_term(term1, term2, local_value_map, cost, difference_values)) {
       found = false;
       continue;
     }
