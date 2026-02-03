@@ -26,9 +26,20 @@ find_package(Threads REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+option(LINK_STATIC_LLVM "Link against individual LLVM static libraries" OFF)
+#cause different linux distros handle it differently
+if(LINK_STATIC_LLVM)
+    message(STATUS "LLVM Mode: Split (Static component libraries)")
+    link_directories(${LLVM_LIBRARY_DIRS})
+    llvm_map_components_to_libnames(llvm_libs support core irreader)
+else()
+    message(STATUS "LLVM Mode: Monolithic (Shared libLLVM)")
+    set(LLVM_LINK_LLVM_DYLIB ON)
+    set(llvm_libs LLVM)
+endif()
+
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
-llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 ###############################################
 find_package(unordered_dense CONFIG REQUIRED)
@@ -140,7 +151,7 @@ add_library (foptim OBJECT
 target_compile_options(foptim PRIVATE -fno-exceptions -Wall -Wextra -Werror -ggdb -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_include_directories(foptim PUBLIC ./src/)
 target_include_directories(foptim SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
-target_link_libraries(foptim PRIVATE ${llvm_libs} Threads::Threads unordered_dense::unordered_dense)
+target_link_libraries(foptim PUBLIC ${llvm_libs} Threads::Threads unordered_dense::unordered_dense)
 set_target_properties(foptim PROPERTIES UNITY_BUILD ON UNITY_BUILD_MODE BATCH UNITY_BUILD_BATCH_SIZE 4)
 
 

@@ -1,6 +1,7 @@
+#include "constant_value.hpp"
+
 #include <fmt/color.h>
 
-#include "constant_value.hpp"
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/types.hpp"
@@ -169,6 +170,8 @@ ConstantValue::~ConstantValue() {
 }
 
 ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
+  if (this == &old) return *this;
+  this->~ConstantValue();
   type = old.type;
   switch (old.ty) {
     case ConstantType::NullPtr:
@@ -188,10 +191,14 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
       fup_u = old.fup_u;
       return *this;
     case ConstantType::VectorValue:
-      vec_u = {._ty = old.ty, .v = old.vec_u.v};
+      new (&vec_u.v) VectorValue(old.vec_u.v);
+      vec_u._ty = old.ty;
+      // vec_u = {._ty = old.ty, .v = old.vec_u.v};
       return *this;
     case ConstantType::ConstantStruct:
-      stru_u = {._ty = old.ty, .v = old.stru_u.v};
+      new (&stru_u.v) ConstantStruct(old.stru_u.v);
+      stru_u._ty = old.ty;
+      // stru_u = {._ty = old.ty, .v = old.stru_u.v};
       return *this;
   }
 }
@@ -215,10 +222,14 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
       fup_u = old.fup_u;
       return;
     case ConstantType::VectorValue:
-      vec_u = {old.ty, old.vec_u.v};
+      new (&vec_u.v) VectorValue(old.vec_u.v);
+      vec_u._ty = old.ty;
+      // vec_u = {old.ty, old.vec_u.v};
       return;
     case ConstantType::ConstantStruct:
-      stru_u = {old.ty, old.stru_u.v};
+      new (&stru_u.v) ConstantStruct(old.stru_u.v);
+      stru_u._ty = old.ty;
+      // stru_u = {old.ty, old.stru_u.v};
       return;
   }
 }
