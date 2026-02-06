@@ -98,6 +98,7 @@ class CmpKnownValProp final : public FunctionPass {
     // paths
     auto overlap = reachable_bbs_true;
     overlap.mul(reachable_bbs_false);
+    overlap[cfg.get_bb_id(term->get_parent())].set(true);
     reachable_bbs_true.mul_not(overlap);
     reachable_bbs_false.mul_not(overlap);
     TVec<fir::Use> uses_copy{term->args[0].get_uses()->begin(),
