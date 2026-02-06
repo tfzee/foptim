@@ -815,7 +815,7 @@ SimplifyCFG::Res SimplifyCFG::merge_empty_block_backwards(CFG &cfg,
     bb.at_end(curr.bb);
     bb.insert_copy(succ.bb->get_terminator());
     old_term.remove_from_parent();
-    if (succ.pred.size() == 1) {
+    if (succ.pred.size() == 1 && succ.bb != curr.bb) {
       succ.bb->remove_from_parent(true, true, true);
       auto succ_id = curr.succ[0];
       cfg.update_merge_succ(bb_id, succ_id);

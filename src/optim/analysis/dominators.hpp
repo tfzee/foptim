@@ -88,6 +88,7 @@ class Dominators {
         }
       }
     }
+    dom_bbs[cfg.entry].dominators = BitSet(n_bbs, false);
 
     BitSet doms{n_bbs, false};
     // BitSet strict_dom{n_bbs, false};
