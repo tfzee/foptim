@@ -25,8 +25,8 @@ bool S::action() {
   }
   
   for (int i=0; i<vec1.size(); ++i) {
-    func1();
     m += vec1[i];
+    func1();
   }
   if (m != Answer) {
     flg = true;
