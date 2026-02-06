@@ -757,6 +757,21 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    1) << (shiftl_amount - shiftr_amount),
                   instr->get_type())},
               BinaryInstrSubType::And);
+        } else {
+          auto net_rshift = shiftr_amount - shiftl_amount;
+          auto bitwidth = instr->get_type()->get_bitwidth();
+
+          auto rshift_instr =
+              buh.build_binary_op(argi->args[0],
+                                  fir::ValueR{ctx->get_constant_value(
+                                      net_rshift, instr->get_type())},
+                                  BinaryInstrSubType::Shr);
+          i128 mask_val =
+              (((i128)1 << (bitwidth - shiftl_amount)) - 1) >> net_rshift;
+          res = buh.build_binary_op(
+              rshift_instr,
+              fir::ValueR{ctx->get_constant_value(mask_val, instr->get_type())},
+              BinaryInstrSubType::And);
         }
         push_all_uses(worklist, instr);
         instr->replace_all_uses(res);
@@ -998,8 +1013,9 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           auto sec_constant = a0->args[1].as_constant()->as_int();
           // fmt::println("{}", instr);
           // FIXME: fix potential issue with overflow
-          auto biggest_bitwidth = std::max(a0->args[1].get_type()->get_bitwidth(),
-                                           c1_val->get_type()->get_bitwidth());
+          auto biggest_bitwidth =
+              std::max(a0->args[1].get_type()->get_bitwidth(),
+                       c1_val->get_type()->get_bitwidth());
 
           switch ((BinaryInstrSubType)a0->subtype) {
             case fir::BinaryInstrSubType::INVALID:
