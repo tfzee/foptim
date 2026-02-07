@@ -1,6 +1,7 @@
 #include "llir_loader.hpp"
 
 #include <fmt/base.h>
+#include <fmt/color.h>
 #include <llvm/Config/llvm-config.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/InstrTypes.h>
@@ -204,6 +205,12 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
   if (any_ty->isDoubleTy()) {
     return ctx->get_float_type(64);
   }
+  if (any_ty->isX86_FP80Ty()) {
+    fmt::print(fg(fmt::color::red),
+               "[WARNING] Unsupported x86_fp80 ty will still try to run with "
+               "f64 type instead\n");
+    return ctx->get_float_type(64);
+  }
   if (llvm::dyn_cast_or_null<llvm::PointerType>(any_ty) != nullptr) {
     return ctx->get_ptr_type();
   }
@@ -211,14 +218,15 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
     return ctx->get_void_type();
   }
   if (auto *stru = llvm::dyn_cast_or_null<llvm::StructType>(any_ty)) {
-    foptim::IRVec<foptim::fir::StructType::StructElem> elems;
+    foptim::IRVec<foptim::fir::StructType::StructElem> elems(
+        stru->getStructNumElements());
+    const auto *struct_layout = module.getDataLayout().getStructLayout(stru);
     for (u32 member_id = 0; member_id < stru->getStructNumElements();
          member_id++) {
-      const auto *struct_layout = module.getDataLayout().getStructLayout(stru);
       auto offset = struct_layout->getElementOffset(member_id);
       auto ty =
           convert_type(stru->getStructElementType(member_id), ctx, module);
-      elems.push_back({offset, ty});
+      elems[member_id] = {offset, ty};
     }
     return ctx->get_struct_type(std::move(elems));
   }
@@ -1061,6 +1069,10 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   }
 
   switch (func.getCallingConv()) {
+    case llvm::CallingConv::Fast:
+      fmt::print(
+          fg(fmt::color::red),
+          "[WARNING] Unsupported cc fast cc will still try to run with C cc\n");
     case llvm::CallingConv::C:
       foff_func->cc = foptim::fir::Function::CallingConv::C;
       break;
@@ -1344,7 +1356,6 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
         }
         ASSERT(val > 0 && val < std::numeric_limits<u64>::max());
 
-        llvm::errs() << (u64)val << "\n";
         size_t reloc_off = output - glob->init_value;
         foptim::fir::ConstantValueR reloc_ref =
             foptim::fir::ConstantValueR{foptim::fir::ConstantValueR::invalid()};
