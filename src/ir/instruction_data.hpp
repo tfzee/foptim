@@ -174,9 +174,10 @@ enum class BinaryInstrSubType : u32 {
 
 struct InstrAttribs {
   fir::TypeR extra_type{fir::TypeR::invalid()};
-  u32 NSW : 1 = 0;
-  u32 NUW : 1 = 0;
-  u32 Volatile : 1 = 0;
+  u64 NSW : 1 = 0;
+  u64 NUW : 1 = 0;
+  u64 Volatile : 1 = 0;
+  u64 Atomic : 1 = 0;
 };
 
 class InstrData : public Used, public InstrAttribs {

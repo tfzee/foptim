@@ -97,7 +97,7 @@ class ArgPromotion final : public ModulePass {
       fir::TypeR load_type = fir::TypeR();
       for (auto use : arg->uses) {
         // TODO there might be others??
-        if (!use.user->is(fir::InstrType::LoadInstr)) {
+        if (!use.user->is(fir::InstrType::LoadInstr) || use.user->Atomic) {
           can_promote = false;
           break;
         }
@@ -132,7 +132,9 @@ class ArgPromotion final : public ModulePass {
       }
       for (auto use : func->get_uses()) {
         fir::Builder b{use.user};
-        auto load_result = b.build_load(load_type, use.user->args[1 + i - 1]);
+        auto load_result =
+            b.build_load(load_type, use.user->args[1 + i - 1],
+                         use.user->Atomic, use.user->Volatile);
         use.user.replace_arg(1 + i - 1, load_result);
       }
       arg->_type = load_type;

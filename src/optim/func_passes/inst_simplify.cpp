@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <bit>
-#include <cerrno>
 
 #include "ir/IRLocation.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -122,6 +121,27 @@ void push_all_uses(WorkList &worklist, fir::Instr instr) {
     worklist.emplace_back(use.user, use.user->parent);
   }
 }
+
+// if we got convert(load(v as x) to y) so loading v as type x and then
+// converting to y. If the conversion preserves the bitwise representation
+// (forexample bitcast ptrtoint intopt...r)
+//  then we can use this to just create a load of the type y
+bool load_into_conversion_simpl(fir::Instr instr, fir::Instr a0,
+                                WorkList &worklist) {
+  if (a0->get_n_uses() == 1 || (!a0->Volatile && !a0->Atomic)) {
+    fir::Builder buh{instr};
+    auto new_val = buh.build_load(instr->get_type(), a0->args[0], a0->Atomic, a0->Volatile);
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(new_val);
+    instr.destroy();
+    if (a0->get_n_uses() == 0) {
+      a0.destroy();
+    }
+    return true;
+  }
+  return false;
+}
+
 bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
                         fir::Context &ctx, WorkList &worklist,
                         AttributerManager &man) {
@@ -2939,18 +2959,8 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
-        fmt::println(">> {:cd}", a0);
-        fmt::println("{:cd}", instr);
         if (a0->is(fir::InstrType::LoadInstr) &&
-            (a0->get_n_uses() == 1 || !a0->Volatile)) {
-          fir::Builder buh{instr};
-          auto new_val = buh.build_load(instr->get_type(), a0->args[0]);
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(new_val);
-          instr.destroy();
-          if (a0->get_n_uses() == 0) {
-            a0.destroy();
-          }
+            load_into_conversion_simpl(instr, a0, worklist)) {
           return true;
         }
         if (a0->is(fir::InstrType::Conversion) &&
@@ -2997,13 +3007,8 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
-        if (a0->is(fir::InstrType::LoadInstr) && a0->get_n_uses() == 1) {
-          fir::Builder buh{instr};
-          auto new_val = buh.build_load(instr->get_type(), a0->args[0]);
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(new_val);
-          instr.destroy();
-          a0.destroy();
+        if (a0->is(fir::InstrType::LoadInstr) &&
+            load_into_conversion_simpl(instr, a0, worklist)) {
           return true;
         }
         if (a0->is(fir::ConversionSubType::IntToPtr)) {
@@ -3023,13 +3028,8 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
-        if (a0->is(fir::InstrType::LoadInstr) && a0->get_n_uses() == 1) {
-          fir::Builder buh{instr};
-          auto new_val = buh.build_load(instr->get_type(), a0->args[0]);
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(new_val);
-          instr.destroy();
-          a0.destroy();
+        if (a0->is(fir::InstrType::LoadInstr) &&
+            load_into_conversion_simpl(instr, a0, worklist)) {
           return true;
         }
         if (a0->is(fir::ConversionSubType::PtrToInt)) {
@@ -3109,37 +3109,40 @@ bool simplify_store(fir::Instr instr) {
     if (val_i->is(fir::ConversionSubType::PtrToInt) ||
         val_i->is(fir::ConversionSubType::IntToPtr) ||
         val_i->is(fir::ConversionSubType::BitCast)) {
-      fir::Builder buh{instr};
-      buh.build_store(instr->args[0], val_i->args[0]);
-      instr.destroy();
-      if (val_i->get_n_uses() == 0) {
-        val_i.destroy();
+      if (instr->get_n_uses() == 1 || (!instr->Volatile && !instr->Atomic)) {
+        fir::Builder buh{instr};
+        buh.build_store(instr->args[0], val_i->args[0], instr->Atomic, instr->Volatile);
+        instr.destroy();
+        if (val_i->get_n_uses() == 0) {
+          val_i.destroy();
+        }
+        return true;
       }
-      return true;
     }
-    if (val_i->is(fir::InstrType::InsertValue)) {
-      fir::Builder buh{instr};
-      // skip if its a insert(posion ...)
-      if (!val_i->args[0].is_constant() ||
-          !val_i->args[0].as_constant()->is_poison()) {
-        buh.build_store(instr->args[0], val_i->args[0]);
-      }
-      auto stru_ty = val_i.get_type()->as_struct();
-      auto *ctx = instr->get_parent()->get_parent()->ctx;
-      auto offset = buh.build_int_add(
-          instr->args[0],
-          fir::ValueR{ctx->get_constant_int(
-              stru_ty.elems[val_i->args[2].as_constant()->as_int()].offset,
-              32)});
-      buh.build_store(offset, val_i->args[1]);
-      instr.destroy();
-      if (val_i->get_n_uses() == 0) {
-        val_i.destroy();
-      }
-      // fmt::println("{:cd}", buh.get_curr_bb());
-      // TODO("okak");
-      return true;
-    }
+    // TODO: is this correct double check
+    // if (val_i->is(fir::InstrType::InsertValue)) {
+    //   fir::Builder buh{instr};
+    //   // skip if its a insert(posion ...)
+    //   if (!val_i->args[0].is_constant() ||
+    //       !val_i->args[0].as_constant()->is_poison()) {
+    //     buh.build_store(instr->args[0], val_i->args[0]);
+    //   }
+    //   auto stru_ty = val_i.get_type()->as_struct();
+    //   auto *ctx = instr->get_parent()->get_parent()->ctx;
+    //   auto offset = buh.build_int_add(
+    //       instr->args[0],
+    //       fir::ValueR{ctx->get_constant_int(
+    //           stru_ty.elems[val_i->args[2].as_constant()->as_int()].offset,
+    //           32)});
+    //   buh.build_store(offset, val_i->args[1]);
+    //   instr.destroy();
+    //   if (val_i->get_n_uses() == 0) {
+    //     val_i.destroy();
+    //   }
+    //   // fmt::println("{:cd}", buh.get_curr_bb());
+    //   // TODO("okak");
+    //   return true;
+    // }
   }
   return false;
 }
@@ -3488,8 +3491,8 @@ fir::ValueR propagate_load_through_select(fir::Instr select) {
   auto load = select->uses[0];
   fir::Builder bu{select};
   auto n_type = load.user.get_type();
-  auto a = bu.build_load(n_type, select->args[1]);
-  auto b = bu.build_load(n_type, select->args[2]);
+  auto a = bu.build_load(n_type, select->args[1], false, false);
+  auto b = bu.build_load(n_type, select->args[2], false, false);
   auto r = bu.build_select(n_type, select->args[0], a, b);
   load.user->replace_all_uses(r);
   return r;
@@ -3628,6 +3631,9 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
         for (auto b : mem2reg_blockers) {
           if (b.user->is(fir::InstrType::SelectInstr)) {
             auto load = b.user->uses[0].user;
+            if(load->Atomic || load->Volatile){
+              continue;
+            }
             push_all_uses(worklist, load);
             propagate_load_through_select(b.user);
             // load.destroy();
@@ -3654,7 +3660,7 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
         in_val,
         n_out_elems == 1 ? out_type : ctx->get_vec_type(out_type, n_out_elems),
         fir::ConversionSubType::BitCast);
-    auto res = bb.build_store(in_addr, casted_val);
+    auto res = bb.build_store(in_addr, casted_val, false, false);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(res);
     instr.destroy();

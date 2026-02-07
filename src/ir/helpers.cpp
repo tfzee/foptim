@@ -60,7 +60,7 @@ void generate_memset(foptim::fir::Context &fctx) {
   // i = 0
   auto index = bb.build_alloca(constant_eight);
   index.as_instr()->extra_type = i64_ty;
-  bb.build_store(index, constant_zero);
+  bb.build_store(index, constant_zero, false, false);
   // if(length != 0)
   auto loop_cond = bb.build_int_cmp(length_arg, constant_zero,
                                     foptim::fir::ICmpInstrSubType::NE);
@@ -69,14 +69,14 @@ void generate_memset(foptim::fir::Context &fctx) {
   // === loop
   {
     bb.at_end(loop_body);
-    auto old_index_val = bb.build_load(i64_ty, index);
+    auto old_index_val = bb.build_load(i64_ty, index, false, false);
     // ptr+i = value
     auto target_offset = bb.build_int_add(ptr_arg, old_index_val);
-    bb.build_store(target_offset, value_arg);
+    bb.build_store(target_offset, value_arg, false, false);
 
     // i++
     auto new_index_val = bb.build_int_add(old_index_val, constant_one);
-    bb.build_store(index, new_index_val);
+    bb.build_store(index, new_index_val, false, false);
     // while(i+1 < length)
     auto loop_cond = bb.build_int_cmp(new_index_val, length_arg,
                                       foptim::fir::ICmpInstrSubType::ULT);
@@ -88,6 +88,7 @@ void generate_memset(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
+//TODO: technically need two versions depending if its volatile or not
 void generate_memcpy(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memcpy";
   if (fctx->has_function(name)) {
@@ -123,7 +124,7 @@ void generate_memcpy(foptim::fir::Context &fctx) {
   // i = 0
   auto index = bb.build_alloca(constant_eight);
   index.as_instr()->extra_type = i64_ty;
-  bb.build_store(index, constant_zero);
+  bb.build_store(index, constant_zero, false, false);
   // if(length != 0)
   auto loop_cond = bb.build_int_cmp(length_arg, constant_zero,
                                     foptim::fir::ICmpInstrSubType::NE);
@@ -132,17 +133,17 @@ void generate_memcpy(foptim::fir::Context &fctx) {
   // === loop
   {
     bb.at_end(loop_body);
-    auto old_index_val = bb.build_load(i64_ty, index);
+    auto old_index_val = bb.build_load(i64_ty, index, false, false);
     // ptr+i = value
     auto src_offset = bb.build_int_add(src_ptr_arg, old_index_val, true, true);
-    auto val = bb.build_load(i8_ty, src_offset);
+    auto val = bb.build_load(i8_ty, src_offset, false, false);
     auto dst_offset = bb.build_int_add(dst_ptr_arg, old_index_val, true, true);
-    bb.build_store(dst_offset, val);
+    bb.build_store(dst_offset, val, false, false);
 
     // i++
     auto new_index_val =
         bb.build_int_add(old_index_val, constant_one, true, true);
-    bb.build_store(index, new_index_val);
+    bb.build_store(index, new_index_val, false, false);
 
     // while(i+1 < length)
     auto loop_cond = bb.build_int_cmp(new_index_val, length_arg,

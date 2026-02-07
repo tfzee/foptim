@@ -6,7 +6,6 @@
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
-#include "utils/string.hpp"
 
 namespace foptim::optim {
 
@@ -24,7 +23,7 @@ class LegalizeStructs final : public FunctionPass {
       for (auto member : ty.elems) {
         auto in_off = b.build_int_add(
             in_ptr, fir::ValueR{ctx->get_constant_int(member.offset, 64)});
-        auto loaded = b.build_load(member.ty, in_off);
+        auto loaded = b.build_load(member.ty, in_off, false, false);
         fir::ValueR args[1] = {fir::ValueR{ctx->get_constant_int(index, 64)}};
         v = b.build_insert_value(v, loaded, args, instr->get_type());
         index++;

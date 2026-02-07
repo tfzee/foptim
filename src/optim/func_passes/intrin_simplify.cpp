@@ -1,4 +1,5 @@
 #include "intrin_simplify.hpp"
+
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/access_analysis.hpp"
@@ -81,8 +82,8 @@ static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
               : (output_ty.type.is_valid() ? output_ty.type
                                            : ctx->get_int_type(size * 8));
     }
-    auto input = b.build_load(selected_type, src_ptr);
-    b.build_store(dst_ptr, input);
+    auto input = b.build_load(selected_type, src_ptr, false, instr->Volatile);
+    b.build_store(dst_ptr, input, false, instr->Volatile);
     instr.destroy();
     return;
   }

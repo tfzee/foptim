@@ -88,7 +88,7 @@ class SLPVectorizer final : public FunctionPass {
     for (auto i = instr_id + 1; i < bb->instructions.size(); i++) {
       auto instr = bb->instructions[i];
       if (instr->is(fir::InstrType::LoadInstr) &&
-          curr.type == instr.get_type()) {
+          curr.type == instr.get_type() && !instr->Atomic) {
         auto [sdata, sbase] = get_storeload_data(instr);
         // if (curr.base == sbase) {
         curr.data.push_back(sdata);
@@ -207,7 +207,7 @@ class SLPVectorizer final : public FunctionPass {
     for (auto i = instr_id + 1; i < bb->instructions.size(); i++) {
       auto instr = bb->instructions[i];
       if (instr->is(fir::InstrType::StoreInstr) &&
-          curr.type == instr.get_type()) {
+          curr.type == instr.get_type() && !instr->Atomic) {
         auto [sdata, sbase] = get_storeload_data(instr);
         // fmt::println("{} =?= {} => {}\n", curr.base, sbase, curr.base ==
         // sbase);

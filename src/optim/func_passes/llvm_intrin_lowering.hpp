@@ -32,7 +32,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         }
         bb.build_store(target_ptr,
                        fir::ValueR{ctx->get_constant_value(
-                           value, ctx->get_int_type(8 * out_size))});
+                           value, ctx->get_int_type(8 * out_size))}, false, false);
         instr.destroy();
         return;
       }
@@ -50,7 +50,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
               target_ptr, fir::ValueR{ctx->get_constant_int(i, 64)});
           bb.build_store(ptr,
                          fir::ValueR{ctx->get_constant_value(
-                             value, ctx->get_int_type(is_mod8 ? 64 : 32))});
+                             value, ctx->get_int_type(is_mod8 ? 64 : 32))}, false, false);
         }
         instr.destroy();
         return;
@@ -137,8 +137,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                                       input_ty.type->get_size() == copy_size
                                   ? input_ty.type
                                   : ctx->get_int_type(copy_size * 8),
-                              in_off);
-            bb.build_store(out_off, input);
+                              in_off, false, false);
+            bb.build_store(out_off, input, false, instr->Volatile);
             csize -= copy_size;
             off += copy_size;
           }

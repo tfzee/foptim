@@ -389,6 +389,12 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(
   if (instr->NUW) {
     app = fmt::format_to(app, "NUW; ");
   }
+  if (instr->Atomic) {
+    app = fmt::format_to(app, "ATOMIC; ");
+  }
+  if (instr->Volatile) {
+    app = fmt::format_to(app, "VOLATILE; ");
+  }
   // fmt::println("TODO print attribs");
   // const auto &attribs = instr->get_attribs();
   // for (auto [key, value] : attribs) {

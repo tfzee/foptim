@@ -327,7 +327,7 @@ class StoreTreeOp final : public SLPVectorizer::TreeElem {
     // fmt::println("======== {:cd}", *func);
     fir::Builder bb{insert_loc};
     // TODO: assuming continious stores
-    auto res = bb.build_store(store_loc->args[0], val);
+    auto res = bb.build_store(store_loc->args[0], val, false, false);
     for (auto o : orig_bundl.data) {
       o.instr.destroy();
     }
@@ -549,11 +549,11 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
       // vec_loads.bitwidth,
       //                                      n_lanes *
       //                                      vec_loads.member_number);
-      auto res = bb.build_load(vec_ty, val);
+      auto res = bb.build_load(vec_ty, val, false, false);
       return res;
     }
     auto vec_ty = ctx->get_vec_type(insert_loc->get_type(), n_lanes);
-    auto res = bb.build_load(vec_ty, val);
+    auto res = bb.build_load(vec_ty, val, false, false);
     return res;
   }
 };
@@ -818,7 +818,7 @@ void SLPVectorizer::continious_vector_store(SeedBundle &bundle,
   }
 
   fir::Builder bb{last_instr};
-  bb.build_store(bundle.data[0].instr->args[0], value);
+  bb.build_store(bundle.data[0].instr->args[0], value, false, false);
   for (auto &b : bundle.data) {
     b.instr.destroy();
   }

@@ -593,12 +593,11 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::StoreInst>(any_instr)) {
     assert(instr->getNumOperands() == 2);
-    assert(!instr->isAtomic());
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto ptr = convert_instr_arg(instr->getOperand(1), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
-    auto store = builder.build_store(ptr, value);
+    auto store = builder.build_store(ptr, value, instr->isAtomic(), instr->isVolatile());
     valueToValue.insert({any_instr, store});
     return;
   }
@@ -627,11 +626,10 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::LoadInst>(any_instr)) {
     assert(instr->getNumOperands() == 1);
-    assert(!instr->isAtomic());
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto type = convert_type(instr->getAccessType(), fctx, mod);
-    auto load = builder.build_load(type, value);
+    auto load = builder.build_load(type, value, instr->isAtomic(), instr->isVolatile());
     ASSERT(std::get<1>(valueToValue.insert({any_instr, load})));
     return;
   }

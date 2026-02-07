@@ -492,15 +492,6 @@ Instr Builder::build_switch(
   return instr;
 }
 
-ValueR Builder::build_load(TypeR type, ValueR ptr) {
-  check_bb_set();
-  Instr instr = ctx->storage.insert_instr(InstrData::get_load(type));
-  instr.add_arg(ptr);
-  bb.insert_instr(indx, instr);
-  indx++;
-  return ValueR(instr);
-}
-
 ValueR Builder::build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_select(type));
@@ -512,10 +503,23 @@ ValueR Builder::build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2) {
   return ValueR(instr);
 }
 
-ValueR Builder::build_store(ValueR ptr, ValueR value) {
+ValueR Builder::build_load(TypeR type, ValueR ptr, bool is_atomic, bool is_volatile) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(InstrData::get_load(type));
+  instr->Atomic = is_atomic;
+  instr->Volatile = is_volatile;
+  instr.add_arg(ptr);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_store(ValueR ptr, ValueR value, bool is_atomic, bool is_volatile) {
   check_bb_set();
   Instr instr =
       ctx->storage.insert_instr(InstrData::get_store(value.get_type()));
+  instr->Atomic = is_atomic;
+  instr->Volatile = is_volatile;
   instr.add_arg(ptr);
   instr.add_arg(value);
   bb.insert_instr(indx, instr);

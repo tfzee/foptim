@@ -82,7 +82,7 @@ class GlobalPromotion final : public ModulePass {
               if (u.type == fir::UseType::NormalArg) {
                 if ((u.user->is(fir::InstrType::StoreInstr) ||
                      u.user->is(fir::InstrType::LoadInstr)) &&
-                    u.argId == 0) {
+                    u.argId == 0 && !u.user->Atomic && !u.user->Volatile) {
                 } else {
                   target_f = nullptr;
                   break;
@@ -112,7 +112,8 @@ class GlobalPromotion final : public ModulePass {
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
                 b.build_store(ptr,
                               fir::ValueR{ctx->get_constant_int(
-                                  *((u64 *)(global->init_value + i)), 64)});
+                                  *((u64 *)(global->init_value + i)), 64)},
+                              false, false);
               }
             } else if (global->n_bytes % 4 == 0) {
               for (size_t i = 0; i < global->n_bytes; i += 4) {
@@ -120,14 +121,17 @@ class GlobalPromotion final : public ModulePass {
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
                 b.build_store(ptr,
                               fir::ValueR{ctx->get_constant_int(
-                                  *((u32 *)(global->init_value + i)), 32)});
+                                  *((u32 *)(global->init_value + i)), 32)},
+                              false, false);
               }
             } else {
               for (size_t i = 0; i < global->n_bytes; i += 1) {
                 auto ptr = b.build_int_add(
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
-                b.build_store(ptr, fir::ValueR{ctx->get_constant_int(
-                                       *((u8 *)(global->init_value + i)), 8)});
+                b.build_store(ptr,
+                              fir::ValueR{ctx->get_constant_int(
+                                  *((u8 *)(global->init_value + i)), 8)},
+                              false, false);
               }
             }
             for (auto use : uses) {

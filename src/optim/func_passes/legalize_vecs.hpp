@@ -35,7 +35,7 @@ class LegalizeVecs final : public FunctionPass {
 
         fir::Builder bb{instr};
         auto load_val = bb.build_load(
-            constant->type, fir::ValueR{ctx->get_constant_value(global)});
+            constant->type, fir::ValueR{ctx->get_constant_value(global)}, false, false);
         instr.replace_arg(arg_id, load_val);
       }
     }

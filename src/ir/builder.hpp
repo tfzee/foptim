@@ -84,9 +84,9 @@ class Builder {
       ValueR value,
       std::span<std::pair<fir::ConstantValueR, fir::BasicBlock>> targets,
       BasicBlock default_bb);
-  ValueR build_load(TypeR type, ValueR ptr);
   ValueR build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2);
-  ValueR build_store(ValueR ptr, ValueR value);
+  ValueR build_load(TypeR type, ValueR ptr, bool is_atomic, bool is_volatile);
+  ValueR build_store(ValueR ptr, ValueR value, bool is_atomic, bool is_volatile);
   Instr build_unreach();
   Instr build_return();
   Instr build_return(ValueR v);
