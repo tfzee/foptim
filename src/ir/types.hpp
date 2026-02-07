@@ -124,7 +124,9 @@ class AnyType {
   consteval AnyType() : ty(AnyTypeType::Void) {}
   ~AnyType();
   AnyType(const AnyType &);
+  AnyType(AnyType &&) noexcept;
   AnyType &operator=(const AnyType &);
+  AnyType &operator=(AnyType &&) noexcept;
   // constexpr AnyType(VoidType t) : ty(AnyTypeType::Void) {}
   constexpr AnyType(IntegerType t)
       : int_u({._ty = AnyTypeType::Integer, .v = t}) {}

@@ -147,6 +147,59 @@ AnyType::AnyType(const AnyType &old) : ty(old.ty) {
   }
 }
 
+AnyType::AnyType(AnyType &&old) noexcept : ty(old.ty) {
+  switch (old.ty) {
+    case AnyTypeType::Integer:
+      int_u = old.int_u;
+      break;
+    case AnyTypeType::Float:
+      float_u = old.float_u;
+      break;
+    case AnyTypeType::Vector:
+      vec_u = old.vec_u;
+      break;
+    case AnyTypeType::Function:
+      new (&func_u.v) auto(std::move(old.func_u.v));
+      break;
+    case AnyTypeType::Struct:
+      new (&struct_u.v) auto(std::move(old.struct_u.v));
+      break;
+    default:
+      break;
+  }
+
+  old.ty = AnyTypeType::Void;
+}
+
+AnyType &AnyType::operator=(AnyType &&old) noexcept {
+  if (this == &old) return *this;
+  this->~AnyType();
+  this->ty = old.ty;
+
+  switch (old.ty) {
+    case AnyTypeType::Integer:
+      int_u = old.int_u;
+      break;
+    case AnyTypeType::Float:
+      float_u = old.float_u;
+      break;
+    case AnyTypeType::Vector:
+      vec_u = old.vec_u;
+      break;
+    case AnyTypeType::Function:
+      new (&func_u.v) auto(std::move(old.func_u.v));
+      break;
+    case AnyTypeType::Struct:
+      new (&struct_u.v) auto(std::move(old.struct_u.v));
+      break;
+    default:
+      break;
+  }
+
+  old.ty = AnyTypeType::Void;
+  return *this;
+}
+
 AnyType::~AnyType() {
   switch (ty) {
     case AnyTypeType::Void:
