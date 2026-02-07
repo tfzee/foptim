@@ -145,7 +145,7 @@ void LoopRangeAnalysis::dump() const {
 
 bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   fir::BasicBlock head = cfg.bbrs[info.head].bb;
-  constexpr bool debug_print = true;
+  constexpr bool debug_print = false;
   // info.dump();
   // need 1 induction var
   if (head->args.empty()) {
