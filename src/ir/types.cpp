@@ -96,14 +96,13 @@ u32 AnyType::get_align() const {
 }
 
 AnyType &AnyType::operator=(const AnyType &old) {
-  if (this == &old) {
-    return *this;
-  }
+  if (this == &old) return *this;
+  this->~AnyType();
+  this->ty = old.ty;
 
   switch (old.ty) {
     case AnyTypeType::Ptr:
     case AnyTypeType::Void:
-      ty = old.ty;
       return *this;
     case AnyTypeType::Integer:
       int_u = old.int_u;
@@ -111,42 +110,40 @@ AnyType &AnyType::operator=(const AnyType &old) {
     case AnyTypeType::Float:
       float_u = old.float_u;
       return *this;
-    case AnyTypeType::Function:
-      func_u = {old.ty, old.func_u.v};
-      // func_u.v.arg_types = old.func_u.v.arg_types;
-      return *this;
-    case AnyTypeType::Struct:
-      struct_u = {old.ty, old.struct_u.v};
-      return *this;
     case AnyTypeType::Vector:
       vec_u = old.vec_u;
+      return *this;
+    case AnyTypeType::Function:
+      new (&func_u.v) auto(old.func_u.v);
+      return *this;
+    case AnyTypeType::Struct:
+      new (&struct_u.v) auto(old.struct_u.v);
+      return *this;
+    default:
       return *this;
   }
 }
 
-AnyType::AnyType(const AnyType &old) {
+AnyType::AnyType(const AnyType &old) : ty(old.ty) {
   switch (old.ty) {
     case AnyTypeType::Void:
     case AnyTypeType::Ptr:
-      ty = old.ty;
       return;
     case AnyTypeType::Integer:
       int_u = old.int_u;
-      return;
+      break;
     case AnyTypeType::Float:
       float_u = old.float_u;
-      return;
-    case AnyTypeType::Function:
-      func_u = {old.ty, old.func_u.v};
-      // func_u.v.arg_types = old.func_u.v.arg_types;
-      return;
-    case AnyTypeType::Struct:
-      struct_u = {old.ty, old.struct_u.v};
-      // struct_u.v.elems = old.struct_u.v.elems;
-      return;
+      break;
     case AnyTypeType::Vector:
       vec_u = old.vec_u;
-      return;
+      break;
+    case AnyTypeType::Function:
+      new (&func_u.v) auto(old.func_u.v);
+      break;
+    case AnyTypeType::Struct:
+      new (&struct_u.v) auto(old.struct_u.v);
+      break;
   }
 }
 
