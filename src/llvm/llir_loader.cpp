@@ -4,6 +4,7 @@
 #include <fmt/color.h>
 #include <llvm/Config/llvm-config.h>
 #include <llvm/IR/Attributes.h>
+#include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/GlobalAlias.h>
 #include <llvm/IR/InstrTypes.h>
@@ -45,6 +46,22 @@
 #include "utils/vec.hpp"
 
 namespace {
+// keep track of which warnings we have done so we dont spam them too much
+bool warned_f16_ty = false;
+bool warned_f80_ty = false;
+bool warned_f16_const = false;
+bool warned_f80_const = false;
+bool warned_landing_pad = false;
+bool warned_invoke = false;
+bool warned_resume = false;
+bool warned_fastcc = false;
+
+#define WARN_UNSUPPORTED_O(name, warning)     \
+  if (!name) {                                \
+    name = true;                              \
+    fmt::print(fg(fmt::color::red), warning); \
+  }
+
 using foptim::u32;
 using foptim::u64;
 
@@ -125,16 +142,18 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
           value.convertToDouble(), fctx->get_float_type(64)));
     }
     if (ty->isHalfTy()) {
-      fmt::print(fg(fmt::color::red),
-                 "[WARNING] Unsupported f16 ty will still try to run with "
-                 "f32 type instead\n");
+      WARN_UNSUPPORTED_O(
+          warned_f16_const,
+          "[WARNING] Unsupported f16 const will still try to run with "
+          "f32 const instead\n");
       return foptim::fir::ValueR(fctx->get_constant_value(
           value.convertToFloat(), fctx->get_float_type(32)));
     }
     if (ty->isX86_FP80Ty()) {
-      fmt::print(fg(fmt::color::red),
-                 "[WARNING] Unsupported x86_fp80 ty will still try to run with "
-                 "f64 type instead\n");
+      WARN_UNSUPPORTED_O(
+          warned_f80_const,
+          "[WARNING] Unsupported x86_fp80 const will still try to run with "
+          "f64 const instead\n");
       return foptim::fir::ValueR(fctx->get_constant_value(
           value.convertToDouble(), fctx->get_float_type(64)));
     }
@@ -303,15 +322,17 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
     return ctx->get_float_type(64);
   }
   if (any_ty->isHalfTy()) {
-    fmt::print(fg(fmt::color::red),
-               "[WARNING] Unsupported f16 ty will still try to run with "
-               "f32 type instead\n");
+    WARN_UNSUPPORTED_O(
+        warned_f16_ty,
+        "[WARNING] Unsupported f16 ty will still try to run with "
+        "f32 type instead\n");
     return ctx->get_float_type(32);
   }
   if (any_ty->isX86_FP80Ty()) {
-    fmt::print(fg(fmt::color::red),
-               "[WARNING] Unsupported x86_fp80 ty will still try to run with "
-               "f64 type instead\n");
+    WARN_UNSUPPORTED_O(
+        warned_f80_ty,
+        "[WARNING] Unsupported f16 ty will still try to run with "
+        "f32 type instead\n");
     return ctx->get_float_type(64);
   }
   if (llvm::dyn_cast_or_null<llvm::PointerType>(any_ty) != nullptr) {
@@ -613,9 +634,9 @@ void convert_invoke(const llvm::Instruction *any_instr,
 
   auto function_ptr = convert_instr_arg(invoke_instr->getCalledOperand(), fctx,
                                         ffunc, builder, valueToValue, mod, b2b);
-  fmt::print(fg(fmt::color::red),
-             "[WARNING] Unsupported invoke instruction will try to run "
-             "with it as normal call\n");
+  WARN_UNSUPPORTED_O(warned_invoke,
+                     "[WARNING] Unsupported invoke instruction will try to run "
+                     "with it as normal call\n");
   res =
       builder.build_call(function_ptr, func_type_foptim, ret_type_foptim, args);
   valueToValue.insert({any_instr, res});
@@ -635,9 +656,10 @@ void convert_landingpad(const llvm::Instruction *any_instr,
                         llvm::Module &mod) {
   generate_trap(fctx);
   auto target_func = fctx->get_function("abort");
-  fmt::print(fg(fmt::color::red),
-             "[WARNING] Unsupported landingpad instruction will try to run "
-             "with just aborting\n");
+  WARN_UNSUPPORTED_O(
+      warned_landing_pad,
+      "[WARNING] Unsupported landingpad instruction will try to run "
+      "with just aborting\n");
   auto ret_type = target_func->func_ty->as_func().return_type;
   builder.build_call(foptim::fir::ValueR{fctx->get_constant_value(target_func)},
                      target_func->func_ty, ret_type, {});
@@ -650,9 +672,9 @@ void convert_landingpad(const llvm::Instruction *any_instr,
 void convert_resume(foptim::fir::Context &fctx, foptim::fir::Builder &builder) {
   generate_trap(fctx);
   auto target_func = fctx->get_function("abort");
-  fmt::print(fg(fmt::color::red),
-             "[WARNING] Unsupported resume instruction will try to run "
-             "with just aborting\n");
+  WARN_UNSUPPORTED_O(warned_resume,
+                     "[WARNING] Unsupported resume instruction will try to run "
+                     "with just aborting\n");
   builder.build_call(foptim::fir::ValueR{fctx->get_constant_value(target_func)},
                      target_func->func_ty,
                      target_func->func_ty->as_func().return_type, {});
@@ -1381,9 +1403,10 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
 
   switch (func.getCallingConv()) {
     case llvm::CallingConv::Fast:
-      fmt::print(fg(fmt::color::red),
-                 "[WARNING] Unsupported cc fast cc will still try to run "
-                 "with C cc\n");
+      WARN_UNSUPPORTED_O(
+          warned_fastcc,
+          "[WARNING] Unsupported cc fast cc will still try to run "
+          "with C cc\n");
     case llvm::CallingConv::C:
       foff_func->cc = foptim::fir::Function::CallingConv::C;
       break;
@@ -1531,11 +1554,24 @@ void convert(llvm::Function &func, foptim::fir::Context &fctx,
       if (!b2b.contains(&bb)) {
         continue;
       }
+      // NOTE: for some reason sometimes llvmir can contain a phi with duplicate
+      // incoming bbs this seems to be legal aslong as they all take the same
+      // incoming value as such we will just ignore the duplicates
+      // TODO(PERF): idk if set makes sense here it only should be a max of like a
+      // dozen bbs so maybe better if we would use a TVec
+      foptim::TSet<llvm::BasicBlock *> already_seen_bbs;
       auto to_fbb = b2b.at(&bb);
       for (auto &phi : bb.phis()) {
+        already_seen_bbs.clear();
         for (size_t phi_arg_id = 0; phi_arg_id < phi.getNumIncomingValues();
              ++phi_arg_id) {
-          auto from_fbb = b2b.at(phi.getIncomingBlock(phi_arg_id));
+          auto *incoming_llvm_bb = phi.getIncomingBlock(phi_arg_id);
+          if (already_seen_bbs.contains(incoming_llvm_bb)) {
+            continue;
+          }
+          already_seen_bbs.insert(incoming_llvm_bb);
+
+          auto from_fbb = b2b.at(incoming_llvm_bb);
           build.at_penultimate(from_fbb);
 
           auto value =
@@ -1544,8 +1580,11 @@ void convert(llvm::Function &func, foptim::fir::Context &fctx,
           // auto value = valueToValue.at(phi.getIncomingValue(phi_arg_id));
 
           auto term = from_fbb->get_terminator();
-          auto to_bb_id = term.get_bb_id(to_fbb);
-          term.add_bb_arg(to_bb_id, value);
+          for (size_t i = 0; i < term->bbs.size(); i++) {
+            if (term->bbs[i].bb == to_fbb) {
+              term.add_bb_arg(i, value);
+            }
+          }
         }
       }
     }
