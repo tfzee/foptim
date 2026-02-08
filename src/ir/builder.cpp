@@ -6,6 +6,7 @@
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "utils/vec.hpp"
@@ -385,7 +386,8 @@ ValueR Builder::build_atomic_rmw(ValueR ptr, ValueR val,
 
 ValueR Builder::build_fence(Ordering ordering) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(InstrData::get_fence(ctx->get_void_type()));
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_fence(ctx->get_void_type()));
   instr->Ordering = (u64)ordering;
   bb.insert_instr(indx, instr);
   indx++;
@@ -446,8 +448,14 @@ ValueR Builder::build_lshr(ValueR a, ValueR b) {
 
 ValueR Builder::build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(
-      InstrData::get_int_cmp(ctx->get_int_type(1), ty));
+  auto out_type = ctx->get_int_type(1);
+  auto inp_ty = a.get_type();
+  if (inp_ty->is_vec()) {
+    out_type = ctx->get_vec_type(fir::VectorType::SubType::Integer, 1,
+                                 inp_ty->as_vec().member_number);
+  }
+
+  Instr instr = ctx->storage.insert_instr(InstrData::get_int_cmp(out_type, ty));
   instr.add_arg(a);
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
