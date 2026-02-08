@@ -707,6 +707,8 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
       case fir::InstrType::Unreachable:
       case fir::InstrType::LoadInstr:
       case fir::InstrType::StoreInstr:
+      case fir::InstrType::AtomicRMW:
+      case fir::InstrType::Fence:
         break;
     }
   }

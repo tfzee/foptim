@@ -718,6 +718,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
           fmt::println("{}", curr.back().as_instr());
           TODO("Should be implementable");
         case fir::InstrType::SelectInstr:
+        case fir::InstrType::AtomicRMW:
+        case fir::InstrType::Fence:
         case fir::InstrType::VectorInstr:
         case fir::InstrType::SExt:
         case fir::InstrType::AllocaInstr:

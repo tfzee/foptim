@@ -384,6 +384,12 @@ class SCCP final : public FunctionPass {
 
   ConstantValue eval_instr(fir::Context &ctx, fir::Instr instr) {
     switch (instr->get_instr_type()) {
+      case fir::InstrType::Fence: {
+        return ConstantValue::Bottom();
+      }
+      case fir::InstrType::AtomicRMW: {
+        return ConstantValue::Top();
+      }
       case fir::InstrType::VectorInstr: {
         switch ((fir::VectorISubType)instr->get_instr_subtype()) {
           case fir::VectorISubType::HorizontalAdd: {

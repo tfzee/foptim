@@ -38,6 +38,8 @@ enum class InstrType : u8 {
   AllocaInstr,
   LoadInstr,
   StoreInstr,
+  AtomicRMW,
+  Fence,
 
   // Intrinsic
   Intrinsic,
@@ -58,6 +60,13 @@ struct BBRefWithArgs {
     }
     return true;
   }
+};
+
+enum class AtomicRMWSubType : u32 {
+  INVALID = 0,
+  Add,
+  Xchg,
+  Or,
 };
 
 enum class VectorISubType : u32 {
@@ -172,12 +181,23 @@ enum class BinaryInstrSubType : u32 {
   FloatDiv,
 };
 
+enum Ordering : u8 {
+  NonAtomic = 0,
+  Unorderd = 1,
+  Monotone = 2,
+  Acquire = 3,
+  Release = 4,
+  Acq_Rel = 5,
+  Seq_Cst = 6,
+};
+
 struct InstrAttribs {
   fir::TypeR extra_type{fir::TypeR::invalid()};
   u64 NSW : 1 = 0;
   u64 NUW : 1 = 0;
   u64 Volatile : 1 = 0;
   u64 Atomic : 1 = 0;
+  u64 Ordering : 3 = 0;
 };
 
 class InstrData : public Used, public InstrAttribs {
@@ -223,6 +243,19 @@ class InstrData : public Used, public InstrAttribs {
 
   [[nodiscard]] constexpr const char *get_name() const {
     switch (instr_type) {
+      case InstrType::Fence:
+        return "Fence";
+      case InstrType::AtomicRMW:
+        switch ((AtomicRMWSubType)subtype) {
+          case AtomicRMWSubType::INVALID:
+            return "ATOMICRMW_INVALID";
+          case AtomicRMWSubType::Add:
+            return "AtomicRMW.Add";
+          case AtomicRMWSubType::Xchg:
+            return "AtomicRMW.Xchg";
+          case AtomicRMWSubType::Or:
+            return "AtomicRMW.Xchg";
+        }
       case InstrType::VectorInstr:
         switch ((VectorISubType)subtype) {
           case VectorISubType::INVALID:
@@ -527,6 +560,8 @@ class InstrData : public Used, public InstrAttribs {
   static InstrData get_sext(TypeR ty);
   static InstrData get_itrunc(TypeR ty);
   static InstrData get_zext(TypeR ty);
+  static InstrData get_atomic_rmw(TypeR ty, AtomicRMWSubType sub_ty);
+  static InstrData get_fence(TypeR ty);
   static InstrData get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty);
   static InstrData get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty);
   // only give void  type

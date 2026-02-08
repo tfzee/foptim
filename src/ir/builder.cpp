@@ -274,6 +274,19 @@ ValueR Builder::build_vector_op(ValueR v1, ValueR v2, TypeR res_type,
   return ValueR(instr);
 }
 
+ValueR Builder::build_vector_op(ValueR v1, ValueR v2, ValueR v3, TypeR res_type,
+                                VectorISubType sub_type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_vector(res_type, sub_type));
+  instr.add_arg(v1);
+  instr.add_arg(v2);
+  instr.add_arg(v3);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 ValueR Builder::build_int_add(ValueR a, ValueR b, bool nuw, bool nsw) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_add(a.get_type()));
@@ -352,6 +365,28 @@ ValueR Builder::build_zext(ValueR a, TypeR ty) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_zext(ty));
   instr.add_arg(a);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_atomic_rmw(ValueR ptr, ValueR val,
+                                 AtomicRMWSubType sub_type, Ordering ordering) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_atomic_rmw(val.get_type(), sub_type));
+  instr->Ordering = (u64)ordering;
+  instr.add_arg(ptr);
+  instr.add_arg(val);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_fence(Ordering ordering) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(InstrData::get_fence(ctx->get_void_type()));
+  instr->Ordering = (u64)ordering;
   bb.insert_instr(indx, instr);
   indx++;
   return ValueR(instr);
@@ -503,7 +538,8 @@ ValueR Builder::build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2) {
   return ValueR(instr);
 }
 
-ValueR Builder::build_load(TypeR type, ValueR ptr, bool is_atomic, bool is_volatile) {
+ValueR Builder::build_load(TypeR type, ValueR ptr, bool is_atomic,
+                           bool is_volatile) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_load(type));
   instr->Atomic = is_atomic;
@@ -514,7 +550,8 @@ ValueR Builder::build_load(TypeR type, ValueR ptr, bool is_atomic, bool is_volat
   return ValueR(instr);
 }
 
-ValueR Builder::build_store(ValueR ptr, ValueR value, bool is_atomic, bool is_volatile) {
+ValueR Builder::build_store(ValueR ptr, ValueR value, bool is_atomic,
+                            bool is_volatile) {
   check_bb_set();
   Instr instr =
       ctx->storage.insert_instr(InstrData::get_store(value.get_type()));

@@ -1,5 +1,6 @@
-#include "context.hpp"
 #include "instruction_data.hpp"
+
+#include "context.hpp"
 #include "ir/basic_block_ref.hpp"
 
 namespace foptim::fir {
@@ -119,7 +120,8 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   }
   if (is(InstrType::ExtractValue)) {
     if (!args[0].get_type()->is_struct() && !args[0].get_type()->is_vec()) {
-      fmt::print("ExtractValue only works on a vec/struct argument not on {}\n", args[0].get_type());
+      fmt::print("ExtractValue only works on a vec/struct argument not on {}\n",
+                 args[0].get_type());
       return false;
     }
   }
@@ -146,6 +148,7 @@ bool InstrData::has_result() const {
     case InstrType::ZExt:
     case InstrType::Conversion:
     case InstrType::VectorInstr:
+    case InstrType::AtomicRMW:
       return true;
     case InstrType::CallInstr:
       return !this->get_type()->is_void();
@@ -156,6 +159,7 @@ bool InstrData::has_result() const {
     case InstrType::SwitchInstr:
     case InstrType::CondBranchInstr:
     case InstrType::StoreInstr:
+    case InstrType::Fence:
       return false;
     case InstrType::Intrinsic:
       return !this->get_type()->is_void();
@@ -170,6 +174,8 @@ bool InstrData::is_critical() const {
     case InstrType::SwitchInstr:
     case InstrType::CondBranchInstr:
     case InstrType::StoreInstr:
+    case InstrType::AtomicRMW:
+    case InstrType::Fence:
       return true;
     case InstrType::CallInstr:
       if (args[0].is_constant() && args[0].as_constant()->is_func()) {
@@ -215,6 +221,9 @@ bool InstrData::is_critical() const {
 
 bool InstrData::is_commutative() const {
   switch (instr_type) {
+    case InstrType::AtomicRMW:
+    case InstrType::Fence:
+      return false;
     case InstrType::BinaryInstr:
       switch ((BinaryInstrSubType)subtype) {
         case BinaryInstrSubType::INVALID:
@@ -311,6 +320,10 @@ bool InstrData::pot_modifies_mem() const {
         return !f->mem_read_none && !f->mem_read_only;
       }
       return true;
+      // TODO: not sure fences kinda dont do this but can kinda kinda lead to
+      // stuff being "updated" afterwards
+    case InstrType::Fence:
+    case InstrType::AtomicRMW:
     case InstrType::StoreInstr:
       return true;
     case InstrType::Intrinsic:
@@ -380,6 +393,10 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::VA_end:
           return true;
       }
+      // TODO: not sure fences kinda dont do this but can kinda kinda lead to
+      // stuff needing to be there to be "read" afterwards
+    case InstrType::Fence:
+    case InstrType::AtomicRMW:
     case InstrType::LoadInstr:
       return true;
     case InstrType::StoreInstr:
@@ -410,6 +427,8 @@ bool InstrData::has_pot_sideeffects() const {
     case InstrType::CallInstr:
     case InstrType::StoreInstr:
     case InstrType::AllocaInstr:
+    case InstrType::AtomicRMW:
+    case InstrType::Fence:
       return true;
     case InstrType::Intrinsic:
       switch ((IntrinsicSubType)subtype) {
@@ -586,6 +605,20 @@ InstrData InstrData::get_itrunc(TypeR ty) {
 InstrData InstrData::get_zext(TypeR ty) {
   auto res =
       InstrData{InstrType::ZExt, 0, ty, BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(1);
+  return res;
+}
+
+InstrData InstrData::get_atomic_rmw(TypeR ty, AtomicRMWSubType sub_type) {
+  auto res = InstrData{InstrType::AtomicRMW, (u32)sub_type, ty,
+                       BasicBlock(BasicBlock::invalid())};
+  // res.args.reserve(1);
+  return res;
+}
+
+InstrData InstrData::get_fence(TypeR ty) {
+  auto res = InstrData{InstrType::Fence, 0, ty,
+                       BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(1);
   return res;
 }

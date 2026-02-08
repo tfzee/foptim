@@ -49,6 +49,10 @@ class Builder {
   ValueR build_vector_op(ValueR val, TypeR res_type, VectorISubType sub_type);
   ValueR build_vector_op(ValueR v1, ValueR v2, TypeR res_type,
                          VectorISubType sub_type);
+  ValueR build_vector_op(ValueR v1, ValueR v2, ValueR v3, TypeR res_type,
+                         VectorISubType sub_type);
+  ValueR build_atomic_rmw(ValueR ptr, ValueR val, AtomicRMWSubType sub_type, Ordering ordering);
+  ValueR build_fence(Ordering ordering);
   ValueR build_ctlz(ValueR a, ValueR b);
   ValueR build_va_start(ValueR a);
   ValueR build_va_end(ValueR a);

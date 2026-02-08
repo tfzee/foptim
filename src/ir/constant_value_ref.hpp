@@ -12,6 +12,8 @@ class ConstantValueR : public utils::SRef<ConstantValue> {
     this->generation = crtp.generation;
 #endif
   }
+  consteval ConstantValueR()
+      : utils::SRef<ConstantValue>(utils::SRef<ConstantValue>::invalid()) {}
 };
 }  // namespace foptim::fir
 

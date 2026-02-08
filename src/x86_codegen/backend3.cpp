@@ -57,16 +57,16 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   }
 }
 
-void diss_print(u8 *buff) {
-  ZydisDisassembledInstruction instruction;
-  ZY_ASS(ZydisDisassembleIntel(
-      /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
-      /* runtime_address: */ 0,
-      /* buffer:          */ buff,
-      /* length:          */ 999,
-      /* instruction:     */ &instruction));
-  fmt::println("DEBUG: {}", instruction.text);
-}
+// void diss_print(u8 *buff) {
+//   ZydisDisassembledInstruction instruction;
+//   ZY_ASS(ZydisDisassembleIntel(
+//       /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
+//       /* runtime_address: */ 0,
+//       /* buffer:          */ buff,
+//       /* length:          */ 999,
+//       /* instruction:     */ &instruction));
+//   fmt::println("DEBUG: {}", instruction.text);
+// }
 
 struct OpData {
   u8 *op_addr;
