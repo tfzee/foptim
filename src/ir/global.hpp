@@ -33,7 +33,6 @@ struct Global : public utils::SRef<std::unique_ptr<GlobalData>> {
   }
 };
 
-// TODO: should be locked used
 struct GlobalData : public LockedUsed {
   struct RelocationInfo {
     size_t insert_offset;

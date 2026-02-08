@@ -114,7 +114,8 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   }
   if (is(ConversionSubType::BitCast)) {
     if (get_type()->get_bitwidth() != args[0].get_type()->get_bitwidth()) {
-      fmt::print("Trying to bitcast value with wrong size\n");
+      fmt::print("Trying to bitcast value with wrong size {} != {}\n",
+                 get_type()->get_bitwidth(), args[0].get_type()->get_bitwidth());
       return false;
     }
   }
@@ -617,8 +618,8 @@ InstrData InstrData::get_atomic_rmw(TypeR ty, AtomicRMWSubType sub_type) {
 }
 
 InstrData InstrData::get_fence(TypeR ty) {
-  auto res = InstrData{InstrType::Fence, 0, ty,
-                       BasicBlock(BasicBlock::invalid())};
+  auto res =
+      InstrData{InstrType::Fence, 0, ty, BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(1);
   return res;
 }
