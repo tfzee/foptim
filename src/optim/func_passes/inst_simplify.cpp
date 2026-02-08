@@ -130,7 +130,8 @@ bool load_into_conversion_simpl(fir::Instr instr, fir::Instr a0,
                                 WorkList &worklist) {
   if (a0->get_n_uses() == 1 || (!a0->Volatile && !a0->Atomic)) {
     fir::Builder buh{instr};
-    auto new_val = buh.build_load(instr->get_type(), a0->args[0], a0->Atomic, a0->Volatile);
+    auto new_val = buh.build_load(instr->get_type(), a0->args[0], a0->Atomic,
+                                  a0->Volatile);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_val);
     instr.destroy();
@@ -2013,6 +2014,7 @@ bool select_to_abs(fir::Instr instr, WorkList &worklist) {
               b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::Abs);
           break;
         }
+        break;
       case fir::ICmpInstrSubType::SLT:
       case fir::ICmpInstrSubType::SLE:
       case fir::ICmpInstrSubType::ULT:
@@ -2022,6 +2024,7 @@ bool select_to_abs(fir::Instr instr, WorkList &worklist) {
               b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::Abs);
           break;
         }
+        break;
       default:
         fmt::println("{:cd}", icmp);
         fmt::println("{:cd}", instr);
@@ -2094,33 +2097,29 @@ bool select_to_fabs(fir::Instr instr, WorkList &worklist) {
     fir::ValueR new_val;
     switch ((fir::FCmpInstrSubType)icmp->subtype) {
       case fir::FCmpInstrSubType::OGE:
+      case fir::FCmpInstrSubType::UGT:
+      case fir::FCmpInstrSubType::UGE:
+      case fir::FCmpInstrSubType::OGT:
         if (positive) {
           new_val =
               b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::FAbs);
           break;
         }
+        break;
+      case fir::FCmpInstrSubType::ULT:
+      case fir::FCmpInstrSubType::ULE:
       case fir::FCmpInstrSubType::OLT:
+      case fir::FCmpInstrSubType::OLE:
         if (negated) {
           new_val =
               b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::FAbs);
           break;
         }
-      case fir::FCmpInstrSubType::OGT:
-      case fir::FCmpInstrSubType::AlwFalse:
+        break;
       case fir::FCmpInstrSubType::OEQ:
-      case fir::FCmpInstrSubType::OLE:
       case fir::FCmpInstrSubType::ONE:
-      case fir::FCmpInstrSubType::ORD:
-      case fir::FCmpInstrSubType::UNO:
       case fir::FCmpInstrSubType::UEQ:
-      case fir::FCmpInstrSubType::UGT:
-      case fir::FCmpInstrSubType::UGE:
-      case fir::FCmpInstrSubType::ULT:
-      case fir::FCmpInstrSubType::ULE:
       case fir::FCmpInstrSubType::UNE:
-      case fir::FCmpInstrSubType::AlwTrue:
-      case fir::FCmpInstrSubType::IsNaN:
-      case fir::FCmpInstrSubType::INVALID:
       default:
         fmt::println("{:cd}", icmp);
         fmt::println("{:cd}", instr);
@@ -2250,11 +2249,13 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
             new_val = icmp->args[0];
             break;
           }
+          break;
         case fir::ICmpInstrSubType::NE:
           if (negated && !icmp->args[0].is_constant()) {
             new_val = icmp->args[0];
             break;
           }
+          break;
         default:
           fmt::println("{:cd}", icmp);
           fmt::println("{:cd}", instr);
@@ -2285,24 +2286,38 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
       fir::Builder b{instr};
       fir::ValueR new_val;
       switch ((fir::FCmpInstrSubType)fcmp->subtype) {
+        // TODO(CORRECTNESS): idk  if both unordered and ordered can just be
+        // converted
         case fir::FCmpInstrSubType::OGT:
+        case fir::FCmpInstrSubType::UGT:
+        case fir::FCmpInstrSubType::OGE:
+        case fir::FCmpInstrSubType::UGE:
           new_val = b.build_intrinsic(instr->args[1], instr->args[2],
                                       negated ? fir::IntrinsicSubType::FMax
                                               : fir::IntrinsicSubType::FMin);
           break;
+        case fir::FCmpInstrSubType::ULT:
+        case fir::FCmpInstrSubType::OLT:
+        case fir::FCmpInstrSubType::OLE:
+        case fir::FCmpInstrSubType::ULE:
+          new_val = b.build_intrinsic(instr->args[1], instr->args[2],
+                                      negated ? fir::IntrinsicSubType::FMin
+                                              : fir::IntrinsicSubType::FMax);
+          break;
+        case fir::FCmpInstrSubType::UEQ:
         case fir::FCmpInstrSubType::OEQ:
           if (positive && !fcmp->args[0].is_constant()) {
             new_val = fcmp->args[0];
             break;
           }
-        case fir::FCmpInstrSubType::UEQ:
-        case fir::FCmpInstrSubType::OGE:
-        case fir::FCmpInstrSubType::OLT:
-        case fir::FCmpInstrSubType::OLE:
-        case fir::FCmpInstrSubType::UGT:
-        case fir::FCmpInstrSubType::UGE:
-        case fir::FCmpInstrSubType::ULT:
-        case fir::FCmpInstrSubType::ULE:
+          break;
+        case fir::FCmpInstrSubType::ONE:
+        case fir::FCmpInstrSubType::UNE:
+          if (negated && !fcmp->args[0].is_constant()) {
+            new_val = fcmp->args[0];
+            break;
+          }
+          break;
         default:
           fmt::println("{:cd}", fcmp);
           fmt::println("{:cd}", instr);
@@ -3111,7 +3126,8 @@ bool simplify_store(fir::Instr instr) {
         val_i->is(fir::ConversionSubType::BitCast)) {
       if (instr->get_n_uses() == 1 || (!instr->Volatile && !instr->Atomic)) {
         fir::Builder buh{instr};
-        buh.build_store(instr->args[0], val_i->args[0], instr->Atomic, instr->Volatile);
+        buh.build_store(instr->args[0], val_i->args[0], instr->Atomic,
+                        instr->Volatile);
         instr.destroy();
         if (val_i->get_n_uses() == 0) {
           val_i.destroy();
@@ -3293,7 +3309,7 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   (void)bb;
   (void)ctx;
   (void)worklist;
-  if (instr->args[0].is_constant()) {
+  if (instr->args[0].is_constant() && !instr->Volatile) {
     auto arg0_const = instr->args[0].as_constant();
     if (arg0_const->is_poison() || arg0_const->is_null() ||
         (arg0_const->is_int() && arg0_const->as_int() <= 0)) {
@@ -3311,17 +3327,55 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     //       fir::ValueR{ctx->get_poisson_value(instr->get_type())});
     //   return;
     // }
-    if (arg0_const->is_global() && arg0_const->as_global()->is_constant) {
-      // TOOD: can fix this i guess
+    if (arg0_const->is_global()) {
       auto glob = arg0_const->as_global();
-      if (!glob->reloc_info.empty()) {
-        fmt::println("HIT");
-        TODO("okak implement global constant loading");
-        // push_all_uses(worklist, instr);
-        // instr->replace_all_uses(
-        //     fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-        // instr.destroy();
-        // return;
+      if (glob->reloc_info.empty() && glob->is_constant &&
+          (glob->linkage == fir::Linkage::Internal ||
+           glob->linkage == fir::Linkage::LinkOnceODR)) {
+        auto load_type = instr->get_type();
+        auto out_bitwidth = load_type->get_bitwidth();
+        if (load_type->is_int()) {
+          if (out_bitwidth <= 64) {
+            i128 val = 0;
+            if (out_bitwidth < 8) {
+              val = *glob->init_value & ((1 << out_bitwidth) - 1);
+            } else if (out_bitwidth == 8) {
+              val = *glob->init_value;
+            } else if (out_bitwidth < 16) {
+              val = (*(u16 *)glob->init_value) & ((1 << out_bitwidth) - 1);
+            } else if (out_bitwidth == 16) {
+              val = (*(u16 *)glob->init_value);
+            } else if (out_bitwidth < 32) {
+              val = (*(u32 *)glob->init_value) & ((1 << out_bitwidth) - 1);
+            } else if (out_bitwidth == 32) {
+              val = (*(u32 *)glob->init_value);
+            } else if (out_bitwidth < 64) {
+              val = (*(u64 *)glob->init_value) & ((1 << out_bitwidth) - 1);
+            } else if (out_bitwidth == 64) {
+              val = (*(u64 *)glob->init_value);
+            } else {
+              UNREACH();
+            }
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(
+                fir::ValueR{ctx->get_constant_int(val, out_bitwidth)});
+            instr.destroy();
+            return true;
+          }
+        } else if (load_type->is_vec()) {
+          // TODO: implement
+        } else if (load_type->is_ptr()) {
+          i128 val = 0;
+          val = (*(u64 *)glob->init_value);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(
+              fir::ValueR{ctx->get_constant_int(val, out_bitwidth)});
+          instr.destroy();
+          return true;
+        } else {
+          fmt::println("{:cd}", instr);
+          TODO("implement global constant loading");
+        }
       }
     }
   }
@@ -3580,8 +3634,8 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto p_val = fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())};
       // TODO: idk if replacing justany use with poision is always legal
       // had issue before where replacing some arithmentics ended up with
-      // poision load later one with segfaultedcould be similar cases that cause
-      // bigger issues bool any_indirect_use = false;
+      // poision load later one with segfaultedcould be similar cases that
+      // cause bigger issues bool any_indirect_use = false;
       for (auto u : use_copy) {
         if (u.user->is(fir::InstrType::LoadInstr)) {
           push_all_uses(worklist, u.user);
@@ -3631,7 +3685,7 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
         for (auto b : mem2reg_blockers) {
           if (b.user->is(fir::InstrType::SelectInstr)) {
             auto load = b.user->uses[0].user;
-            if(load->Atomic || load->Volatile){
+            if (load->Atomic || load->Volatile) {
               continue;
             }
             push_all_uses(worklist, load);
