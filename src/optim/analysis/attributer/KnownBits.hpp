@@ -80,7 +80,7 @@ class KnownBits final : public AttributeAnalysis {
   };
 
   [[nodiscard]] BitInfo msb_info() const {
-    auto size = associatedValue.get_type()->get_size() * 8;
+    auto size = associatedValue.get_type()->get_bitwidth();
     ASSERT(size <= 64);
     u64 mask = ((u64)0x1) << (size - 1);
     u64 is_one = known_one & mask;
@@ -549,6 +549,10 @@ class KnownBits final : public AttributeAnalysis {
               m.get_or_create_analysis<KnownBits>(input_value, &worklist);
           new_known_one = new_known_one & known_arg_bits->known_one;
           new_known_zero = new_known_zero & known_arg_bits->known_zero;
+          // early break since its dynamic value anyway
+          if (new_known_zero == 0 && new_known_one == 0) {
+            break;
+          }
         }
         ASSERT((new_known_one & new_known_zero) == 0);
       }
