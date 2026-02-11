@@ -5,7 +5,6 @@
 // RUN: echo $result | FileCheck %s
 
 // CHECK: Result:0
-// XFAIL: *
 
 int a[10] = {};
 extern int b[10] __attribute__((alias("a")));

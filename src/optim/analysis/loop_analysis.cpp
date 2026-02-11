@@ -1038,8 +1038,7 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
     if (loop_continue == 0) {
       // means if the targets of the leaving cbranch are switched the condition
       // is effectively also switched
-      TODO("impl different continue");
-      // return false;
+      return false;
     }
     if ((change_val > 0 && start_value > end_value) ||
         (change_val < 0 && start_value < end_value)) {

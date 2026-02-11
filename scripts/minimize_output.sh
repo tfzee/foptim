@@ -1,11 +1,12 @@
 #!/usr/bin/env bash 
 
-build_dir="/home/tim/programming/foptim/build"
-test_file="min.cpp"
+cd ..
+build_dir="./build"
 
+test_file="$build_dir/min.cpp"
 foptim="$build_dir/foptim_main"
 flags="-U__SIZEOF_INT128__ -std=c++26 -fno-exceptions -fno-stack-protector"
-test_linkdir="-I/home/tim/programming/foptim/test/llvm_benchmark_adobe_cpp/ -I/home/tim/programming/foptim/test/embench/"
+test_linkdir="-I./test/llvm_benchmark_adobe_cpp/ -I./test/embench/"
 # compile_optim="-O3 -mllvm -disable-llvm-optzns"
 compile_optim="-O0"
 
