@@ -194,8 +194,8 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
   }
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle &orig_bundl) final {
-    auto av = children.at(1)->generate(ctx, orig_bundl);
-    auto bv = children.at(0)->generate(ctx, orig_bundl);
+    auto av = children.at(0)->generate(ctx, orig_bundl);
+    auto bv = children.at(1)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     auto res = bb.build_binary_op(av, bv,
                                   (fir::BinaryInstrSubType)insert_loc->subtype);
@@ -275,11 +275,11 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
     switch ((fir::UnaryInstrSubType)values.back().as_instr()->subtype) {
       case fir::UnaryInstrSubType::INVALID:
         return false;
-      case fir::UnaryInstrSubType::FloatNeg:
       case fir::UnaryInstrSubType::IntNeg:
       case fir::UnaryInstrSubType::Not:
         fmt::println("{}", values.back().as_instr());
         TODO("impl it?");
+      case fir::UnaryInstrSubType::FloatNeg:
       case fir::UnaryInstrSubType::FloatSqrt:
         break;
     }
@@ -290,7 +290,7 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
                        SLPVectorizer::SeedBundle &orig_bundl) final {
     auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
-    return bb.build_unary_op(val, fir::UnaryInstrSubType::FloatSqrt);
+    return bb.build_unary_op(val, sub_ty);
   }
 };
 
