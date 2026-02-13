@@ -1,3 +1,5 @@
+#include "stack_known_bits.hpp"
+
 #include <fmt/core.h>
 #include <llvm/ADT/STLExtras.h>
 #include <unistd.h>
@@ -9,7 +11,6 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/cfg.hpp"
-#include "stack_known_bits.hpp"
 #include "utils/arena.hpp"
 
 namespace foptim::optim {
@@ -104,6 +105,9 @@ void StackKnownBits::update_load(fir::Instr instr, utils::BitSet<> &new_in_one,
     return;
     // TODO: impl;
   }
+  if (offset * 8 >= new_in_one.bit_size()) {
+    return;
+  }
   u64 in_zero = new_in_zero.get(offset * 8, load_width);
   u64 in_one = new_in_one.get(offset * 8, load_width);
 
@@ -187,7 +191,9 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
   if (result == StackOffsetResult::KnownLocal) {
     auto size = instr->get_type()->get_size() * 8;
     // TOOD: impl
-    if (size > 64) {
+    if (offset * 8 >= new_in_one.bit_size()) {
+      return false;
+    } else if (size > 64) {
       new_in_one.reset(0);
       new_in_zero.reset(0);
     } else {
