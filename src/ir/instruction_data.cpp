@@ -126,6 +126,13 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       return false;
     }
   }
+  if (is(BinaryInstrSubType::IntAdd)) {
+    if (get_type()->get_bitwidth() < args[0].get_type()->get_bitwidth() || get_type()->get_bitwidth() < args[1].get_type()->get_bitwidth()) {
+      fmt::print("Result of add cant be smaller then the inputs {:c} vs {:c} + {:c}\n",
+                 get_type(), args[0].get_type(), args[1].get_type());
+      return false;
+    }
+  }
   if (!parent.is_valid() || parent.get_raw_ptr() != exp_parent) {
     fmt::print(
         "Instructions parent does not match with basic block it is in\n");
