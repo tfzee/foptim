@@ -329,6 +329,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
   }
   if (instr->args[1].is_constant() &&
+      instr.get_type() != instr->args[0].get_type() &&
       instr->args[0].get_type() != instr->args[1].get_type()) {
     auto t1 = instr->args[0].get_type();
     auto t2 = instr->args[1].get_type();
@@ -404,7 +405,6 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       }
     }
   }
-
   if (instr->is(BinaryInstrSubType::IntAdd) && instr->args[0].is_instr()) {
     auto inner = instr->args[0].as_instr();
     if (inner->is(BinaryInstrSubType::IntAdd) &&
@@ -413,12 +413,13 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       auto c2 = fir::ValueR{
           ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
       auto a1 =
-          b.build_binary_op(inner->args[1], c2, BinaryInstrSubType::IntMul);
+          b.build_binary_op(c2, inner->args[1], BinaryInstrSubType::IntMul);
       auto res =
-          b.build_binary_op(a1, inner->args[0], BinaryInstrSubType::IntAdd);
+          b.build_binary_op(inner->args[0], a1, BinaryInstrSubType::IntAdd);
       worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
+      ASSERT(instr->get_type() == res.get_type());
       instr.destroy();
       return true;
     }
@@ -428,9 +429,9 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       auto c2 = fir::ValueR{
           ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
       auto a1 =
-          b.build_binary_op(inner->args[0], c2, BinaryInstrSubType::IntMul);
+          b.build_binary_op(c2, inner->args[0], BinaryInstrSubType::IntMul);
       auto res =
-          b.build_binary_op(a1, inner->args[1], BinaryInstrSubType::IntAdd);
+          b.build_binary_op(inner->args[1], a1, BinaryInstrSubType::IntAdd);
       worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
@@ -3337,6 +3338,8 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         if (load_type->is_int()) {
           if (out_bitwidth <= 64) {
             i128 val = 0;
+            // TODO: kinda iffy with the loading oversize - prob not a problem
+            // since the pages prob >8 byte aligned anyway :)
             if (out_bitwidth < 8) {
               val = *glob->init_value & ((1 << out_bitwidth) - 1);
             } else if (out_bitwidth == 8) {
@@ -3362,6 +3365,23 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             instr.destroy();
             return true;
           }
+        } else if (load_type->is_float()) {
+          fir::ValueR new_val;
+          if (out_bitwidth == 32) {
+            f32 val = *(f32 *)glob->init_value;
+            new_val = fir::ValueR{
+                ctx->get_constant_value(val, ctx->get_float_type(32))};
+          } else if (out_bitwidth == 64) {
+            f64 val = *(f64 *)glob->init_value;
+            new_val = fir::ValueR{
+                ctx->get_constant_value(val, ctx->get_float_type(64))};
+          } else {
+            TODO("prob unsupported");
+          }
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(new_val);
+          instr.destroy();
+          return true;
         } else if (load_type->is_vec()) {
           // TODO: implement
         } else if (load_type->is_ptr()) {
