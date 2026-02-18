@@ -1,5 +1,7 @@
 #include "IPCP.hpp"
 
+#include "ir/builder.hpp"
+#include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
@@ -10,7 +12,7 @@ namespace {
 
 u64 ipcp_unique_name_number = 0;
 
-void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
+void constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
   TVec<fir::ValueR> ret_vals;
   if (func->func_ty->as_func().return_type->is_void()) {
     return;
@@ -23,10 +25,10 @@ void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
       ASSERT(!instr->args.empty());
       if (ret_vals.empty()) {
         for (auto ret_val : instr->args) {
-          ret_vals.push_back(ret_val);
           if (!ret_val.is_constant() && !ret_val.is_bb_arg()) {
             return;
           }
+          ret_vals.push_back(ret_val);
         }
       } else {
         if (instr->args.size() != ret_vals.size()) {
@@ -40,20 +42,42 @@ void constant_prop_return(fir::FunctionR func, fir::Context & /*ctx*/) {
       }
     }
   }
-  for (auto ret_val : ret_vals) {
-    if (ret_val.is_constant()) {
-      for (auto use : func->get_uses()) {
-        use.user->replace_all_uses(ret_val);
+
+  if (ret_vals.size() == 1) {
+    for (auto use : func->get_uses()) {
+      if (ret_vals[0].is_constant()) {
+        use.user->replace_all_uses(ret_vals[0]);
+      } else if ((ret_vals[0].is_bb_arg() &&
+                  ret_vals[0].as_bb_arg()->get_parent() == func->get_entry())) {
+        auto id = ret_vals[0].as_bb_arg()->get_parent()->get_arg_id(
+            ret_vals[0].as_bb_arg());
+        use.user->replace_all_uses(use.user->args[id + 1]);
+      } else {
+        TODO("unreach?");
       }
     }
-    if ((ret_val.is_bb_arg() &&
-         ret_val.as_bb_arg()->get_parent() == func->get_entry())) {
-      auto id =
-          ret_val.as_bb_arg()->get_parent()->get_arg_id(ret_val.as_bb_arg());
-
-      for (auto use : func->get_uses()) {
-        use.user->replace_all_uses(use.user->args[id + 1]);
+  } else {
+    auto res_ty = func->func_ty->as_func().return_type;
+    for (auto use : func->get_uses()) {
+      fir::Builder buh(use.user);
+      auto res_val = fir::ValueR{ctx->get_poisson_value(res_ty)};
+      auto i = 0;
+      for (auto ret_val : ret_vals) {
+        fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(i, 32)}};
+        i++;
+        if (ret_val.is_constant()) {
+          res_val = buh.build_insert_value(res_val, ret_val, indicies, res_ty);
+        } else if ((ret_val.is_bb_arg() &&
+                    ret_val.as_bb_arg()->get_parent() == func->get_entry())) {
+          auto id = ret_val.as_bb_arg()->get_parent()->get_arg_id(
+              ret_val.as_bb_arg());
+          res_val = buh.build_insert_value(res_val, use.user->args[id + 1],
+                                           indicies, res_ty);
+        } else {
+          TODO("unreach?");
+        }
       }
+      use.user->replace_all_uses(res_val);
     }
   }
 }
