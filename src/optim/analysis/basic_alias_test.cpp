@@ -1,4 +1,5 @@
 #include "basic_alias_test.hpp"
+
 #include "ir/basic_block.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
@@ -48,10 +49,16 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     }
     if (i->is(fir::ConversionSubType::BitCast)) {
       // TODO: prob can also optimize this
+      //return analyze(i->args[0]);
       return {.heap = any_h, .offset = {}};
     }
     if (i->is(fir::ConversionSubType::IntToPtr)) {
       // TODO: prob can also optimize this
+      //return analyze(i->args[0]);
+      return {.heap = any_h, .offset = {}};
+    }
+    if (i->is(fir::InstrType::ExtractValue)) {
+      // TODO: need to analyze through this ?
       return {.heap = any_h, .offset = {}};
     }
     if (i->is(fir::InstrType::BinaryInstr)) {
