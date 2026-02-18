@@ -101,5 +101,6 @@ if __name__ == "__main__":
     with open(perf_name, "r") as read_data:
         d = json.load(read_data)
     d["processor"] = get_processor_name()
+    d["timestamp"] = datetime.today().strftime('%Y_%m_%d_%H_%M')
     with open(perf_name, "w") as write_data:
         json.dump(d, write_data, indent=4)

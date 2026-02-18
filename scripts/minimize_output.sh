@@ -1,17 +1,18 @@
 #!/usr/bin/env bash 
 
-cd ..
-build_dir="./build"
 
-test_file="$build_dir/min.cpp"
-foptim="$build_dir/foptim_main"
+FOLDER="$HOME/programming/foptim"
+BUILD_DIR="$FOLDER/build"
+
+test_file="min.cpp"
+foptim="$BUILD_DIR/foptim_main"
 flags="-U__SIZEOF_INT128__ -std=c++26 -fno-exceptions -fno-stack-protector"
-test_linkdir="-I./test/llvm_benchmark_adobe_cpp/ -I./test/embench/"
+test_linkdir="-I$FOLDER/test/llvm_benchmark_adobe_cpp/ -I$FOLDER/test/embench/"
 # compile_optim="-O3 -mllvm -disable-llvm-optzns"
 compile_optim="-O0"
 
 clang++ $compile_optim $flags $test_linkdir $test_file -o min.ll -S -emit-llvm || exit 1
-clang++ -static-libstdc++ -O2 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o clang_min.out || exit 1
+clang++ -static-libstdc++ -O3 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o clang_min.out || exit 1
 g++ -static-libstdc++ -O0 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o gcc_min.out || exit 1
 
 $foptim min.ll min.o || exit 0
@@ -35,7 +36,7 @@ echo "$OUT_exp2"
 echo $stats_exp2
 
 if [[ "$stats_got" != "$stats_exp" ]] || [[ "$OUT_got" != "$OUT_exp" ]]; then
-if [[ "$stats_exp" != "$stats_exp2" ]] || [[ "$OUT_exp" != "$OUT_exp2" ]] || [[ "$stats_exp" != "0" ]]; then
+if [[ "$stats_exp" != "$stats_exp2" ]] || [[ "$OUT_exp" != "$OUT_exp2" ]] || [[ "$stats_exp" != "1" ]]; then
 # if [[ "$stats_got" != "$stats_exp" ]]; then
 # if [[ "$stats_exp" != "$stats_exp2" ]]; then
   echo "Bad Failed"
