@@ -414,12 +414,19 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
       auto a1 =
           b.build_binary_op(c2, inner->args[1], BinaryInstrSubType::IntMul);
+      auto a1i = a1.as_instr();
+      a1i->NUW = instr->NUW && inner->NUW;
+      a1i->NSW = instr->NSW && inner->NSW;
       auto res =
           b.build_binary_op(inner->args[0], a1, BinaryInstrSubType::IntAdd);
+      auto resi = res.as_instr();
+      resi->NUW = instr->NUW && inner->NUW;
+      resi->NSW = instr->NSW && inner->NSW;
       worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
-      ASSERT(instr->get_type() == res.get_type());
+      ASSERT(instr->get_type()->get_bitwidth() ==
+             res.get_type()->get_bitwidth());
       instr.destroy();
       return true;
     }
@@ -430,8 +437,14 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           ctx->get_constant_int(2, inner->get_type()->get_bitwidth())};
       auto a1 =
           b.build_binary_op(c2, inner->args[0], BinaryInstrSubType::IntMul);
+      auto a1i = a1.as_instr();
+      a1i->NUW = instr->NUW && inner->NUW;
+      a1i->NSW = instr->NSW && inner->NSW;
       auto res =
           b.build_binary_op(inner->args[1], a1, BinaryInstrSubType::IntAdd);
+      auto resi = res.as_instr();
+      resi->NUW = instr->NUW && inner->NUW;
+      resi->NSW = instr->NSW && inner->NSW;
       worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
@@ -1191,6 +1204,26 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       instr.destroy();
       return true;
     }
+    if (c1->is_global() && c2->is_global()) {
+      bool are_equal = c1->as_global() == c2->as_global();
+      if ((are_equal && instr->is(ICmpInstrSubType::EQ)) ||
+          (!are_equal && instr->is(ICmpInstrSubType::NE))) {
+        auto new_const_value = ctx->get_constant_int(1, 8);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR(new_const_value));
+        ASSERT(instr->bbs.size() == 0);
+        instr.destroy();
+        return true;
+      } else if ((!are_equal && instr->is(ICmpInstrSubType::EQ)) ||
+                 (are_equal && instr->is(ICmpInstrSubType::NE))) {
+        auto new_const_value = ctx->get_constant_int(0, 8);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(ValueR(new_const_value));
+        ASSERT(instr->bbs.size() == 0);
+        instr.destroy();
+        return true;
+      }
+    }
 
     {
       bool is_eq =
@@ -1212,10 +1245,6 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
         }
         if (first_known_null && second_known_non_null) {
           is_true = is_neq;
-          is_known = true;
-        }
-        if (first_known_non_null && second_known_non_null) {
-          is_true = is_eq;
           is_known = true;
         }
         if (first_known_null && second_known_null) {
@@ -3610,10 +3639,16 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
             alloca_worklist.insert(alloca_worklist.end(),
                                    curr.user->uses.begin(),
                                    curr.user->uses.end());
+          } else if (curr.user->is(fir::ConversionSubType::PtrToInt) ||
+                     curr.user->is(fir::ConversionSubType::IntToPtr)) {
+            alloca_worklist.insert(alloca_worklist.end(),
+                                   curr.user->uses.begin(),
+                                   curr.user->uses.end());
           } else if ((curr.user->is(fir::InstrType::StoreInstr) &&
                       curr.argId == 1) ||
                      curr.user->is(fir::InstrType::CallInstr) ||
                      curr.user->is(fir::InstrType::Intrinsic) ||
+                     curr.user->is(fir::InstrType::ReturnInstr) ||
                      curr.user->is(fir::InstrType::ICmp) ||
                      curr.user->is(fir::InstrType::InsertValue)) {
             mem2reg_blockers.push_back(curr);
