@@ -325,6 +325,16 @@ struct DiffValues {
       if (arg2I->get_parent() == i2->get_parent()) {
         return false;
       }
+    } else if (arg1.is_instr() && !arg2.is_instr()) {
+      auto arg1I = arg1.as_instr();
+      if (arg1I->get_parent() == i1->get_parent()) {
+        return false;
+      }
+    } else if (!arg1.is_instr() && arg2.is_instr()) {
+      auto arg2I = arg2.as_instr();
+      if (arg2I->get_parent() == i2->get_parent()) {
+        return false;
+      }
     }
 
     difference_values.push_back(
@@ -1499,7 +1509,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   return Res::NoChange;
 }
 
-void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
+void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
   ZoneScopedNC("SimplifyCFG", COLOR_OPTIMF);
   // Cant really simplify the cfg if theres just 1 node
   if (func.basic_blocks.size() == 1) {
