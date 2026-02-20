@@ -543,8 +543,8 @@ class SCCP final : public FunctionPass {
             if (a.is_bottom() || b.is_bottom()) {
               return ConstantValue::Bottom();
             }
-            if ((!a.is_const() && !a.is_int()) ||
-                (!b.is_const() && !b.is_int())) {
+            if ((!a.is_const() || !a.is_int()) ||
+                (!b.is_const() || !b.is_int())) {
               return ConstantValue::Top();
             }
             for (size_t i = 0; i < a.vals.size(); i++) {
@@ -566,8 +566,8 @@ class SCCP final : public FunctionPass {
             if (a.is_bottom() || b.is_bottom()) {
               return ConstantValue::Bottom();
             }
-            if ((!a.is_const() && !a.is_int()) ||
-                (!b.is_const() && !b.is_int())) {
+            if ((!a.is_const() || !a.is_int()) ||
+                (!b.is_const() || !b.is_int())) {
               return ConstantValue::Top();
             }
             for (size_t i = 0; i < a.vals.size(); i++) {
@@ -581,8 +581,42 @@ class SCCP final : public FunctionPass {
             }
             return a;
           }
-          case fir::IntrinsicSubType::FMin:
-          case fir::IntrinsicSubType::FMax:
+          case fir::IntrinsicSubType::FMin: {
+            auto a = eval(instr->get_arg(0));
+            auto b = eval(instr->get_arg(1));
+            if (a.is_bottom() || b.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if (!a.is_const() || !b.is_const()) {
+              return ConstantValue::Top();
+            }
+            for (size_t i = 0; i < a.vals.size(); i++) {
+              a.vals[i].i = std::min(a.vals[i].f, b.vals[i].f);
+              // if (a.vtype->as_float() == 32) {
+              // } else {
+              //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
+              // }
+            }
+            return a;
+          }
+          case fir::IntrinsicSubType::FMax: {
+            auto a = eval(instr->get_arg(0));
+            auto b = eval(instr->get_arg(1));
+            if (a.is_bottom() || b.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if (!a.is_const() || !b.is_const()) {
+              return ConstantValue::Top();
+            }
+            for (size_t i = 0; i < a.vals.size(); i++) {
+              a.vals[i].i = std::max(a.vals[i].f, b.vals[i].f);
+              // if (a.vtype->as_float() == 32) {
+              // } else {
+              //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
+              // }
+            }
+            return a;
+          }
           case fir::IntrinsicSubType::CTLZ:
             fmt::println("{:cd}", instr);
             TODO("impl sccp intrinsics");
@@ -672,8 +706,10 @@ class SCCP final : public FunctionPass {
           case fir::BinaryInstrSubType::IntURem: {
             auto a_width = (128 - a.get_type()->get_bitwidth());
             auto b_width = (128 - a.get_type()->get_bitwidth());
-            auto zexta = (std::bit_cast<u128>(a.as_int()) << a_width) >> a_width;
-            auto zextb = (std::bit_cast<u128>(b.as_int()) << b_width) >> b_width;
+            auto zexta =
+                (std::bit_cast<u128>(a.as_int()) << a_width) >> a_width;
+            auto zextb =
+                (std::bit_cast<u128>(b.as_int()) << b_width) >> b_width;
             return ConstantValue::Constant(ctx->get_constant_value(
                 std::bit_cast<i128>(zexta % zextb), out_type));
           }

@@ -403,6 +403,14 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
     switch (type) {
       default:
         TODO("UNREACH");
+      case fir::IntrinsicSubType::CTLZ:
+      case fir::IntrinsicSubType::FMin:
+      case fir::IntrinsicSubType::FMax:
+      case fir::IntrinsicSubType::UMin:
+      case fir::IntrinsicSubType::UMax:
+      case fir::IntrinsicSubType::SMin:
+      case fir::IntrinsicSubType::SMax:
+        TODO("impl");
       case fir::IntrinsicSubType::Abs:
         return bb.build_abs(val);
       case fir::IntrinsicSubType::FAbs:

@@ -7,6 +7,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "optim/helper/helper.hpp"
+#include "utils/todo.hpp"
 
 namespace foptim::optim {
 
@@ -32,7 +33,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         }
         bb.build_store(target_ptr,
                        fir::ValueR{ctx->get_constant_value(
-                           value, ctx->get_int_type(8 * out_size))}, false, false);
+                           value, ctx->get_int_type(8 * out_size))},
+                       false, false);
         instr.destroy();
         return;
       }
@@ -50,7 +52,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
               target_ptr, fir::ValueR{ctx->get_constant_int(i, 64)});
           bb.build_store(ptr,
                          fir::ValueR{ctx->get_constant_value(
-                             value, ctx->get_int_type(is_mod8 ? 64 : 32))}, false, false);
+                             value, ctx->get_int_type(is_mod8 ? 64 : 32))},
+                         false, false);
         }
         instr.destroy();
         return;
@@ -67,24 +70,161 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
-  void handle_is_fpclass(fir::Instr instr, fir::Function & /*func*/,
+  void handle_is_fpclass(fir::Instr instr, fir::Function &func,
                          fir::FunctionR /*callee*/) {
     fir::Builder bb{instr};
+    auto ctx = func.ctx;
     auto val = instr->args[1];
     auto mode_a = instr->args[2];
     ASSERT(mode_a.is_constant());
     auto mode_c = mode_a.as_constant();
     ASSERT(mode_c->is_int());
     auto mode = mode_c->as_int();
-
-    if (mode == 3) {
-      auto result = bb.build_float_cmp(val, val, fir::FCmpInstrSubType::IsNaN);
-      instr->replace_all_uses(result);
+    if (mode == 0) {
+      instr->replace_all_uses(fir::ValueR{ctx->get_constant_int(0, 8)});
       instr.destroy();
-    } else {
-      // print << instr << "\n";
-      TODO("impl");
+      return;
     }
+
+    // some setup
+    auto float_type = val.get_type();
+    uint32_t width = float_type->get_bitwidth();
+    auto int_val = bb.build_conversion_op(
+        val, ctx->get_int_type(float_type->get_bitwidth()),
+        fir::ConversionSubType::BitCast);
+    uint32_t mant_bits = (width == 32) ? 23 : 52;
+    uint32_t exp_bits = (width == 32) ? 8 : 11;
+    uint64_t exp_mask = (1ULL << exp_bits) - 1;
+    uint64_t mant_mask = (1ULL << mant_bits) - 1;
+    auto mant = bb.build_binary_op(
+        int_val, fir::ValueR{ctx->get_constant_int(mant_mask, width)},
+        fir::BinaryInstrSubType::And);
+    auto exp = bb.build_binary_op(
+        bb.build_binary_op(int_val,
+                           fir::ValueR{ctx->get_constant_int(mant_bits, width)},
+                           fir::BinaryInstrSubType::Shr),
+        fir::ValueR{ctx->get_constant_int(exp_mask, width)},
+        fir::BinaryInstrSubType::And);
+    auto zero = fir::ValueR{ctx->get_constant_int(0, width)};
+    auto exp_is_zero = bb.build_int_cmp(exp, zero, fir::ICmpInstrSubType::EQ);
+    auto max_exp = fir::ValueR{ctx->get_constant_int(exp_mask, width)};
+
+    // Subnormal: Exponent is all 0s AND Mantissa is NOT 0
+    auto mant_not_zero =
+        bb.build_int_cmp(mant, zero, fir::ICmpInstrSubType::NE);
+
+    // 0 Signaling NaN
+    // 1 Quiet NaN
+    // 2 Negative infinity
+    // 3 Negative normal
+    // 4 Negative subnormal
+    // 5 Negative zero
+    // 6 Positive zero
+    // 7 Positive subnormal
+    // 8 Positive normal
+    // 9 Positive infinity
+
+    // 2. get components (Sign, Exponent, Mantissa)
+    auto mant_is_zero = bb.build_int_cmp(mant, zero, fir::ICmpInstrSubType::EQ);
+    auto exp_is_max = bb.build_int_cmp(exp, max_exp, fir::ICmpInstrSubType::EQ);
+    auto is_zero = bb.build_binary_op(exp_is_zero, mant_is_zero,
+                                      fir::BinaryInstrSubType::And);
+    auto is_inf = bb.build_binary_op(exp_is_max, mant_is_zero,
+                                     fir::BinaryInstrSubType::And);
+    auto is_nan = bb.build_binary_op(exp_is_max, mant_not_zero,
+                                     fir::BinaryInstrSubType::And);
+    auto sign_bit = bb.build_binary_op(
+        int_val, fir::ValueR{ctx->get_constant_int(width - 1, 32)},
+        fir::BinaryInstrSubType::Shr);
+    auto is_neg =
+        bb.build_int_cmp(sign_bit, fir::ValueR{ctx->get_constant_int(0, width)},
+                         fir::ICmpInstrSubType::NE);
+    auto is_pos =
+        bb.build_int_cmp(sign_bit, fir::ValueR{ctx->get_constant_int(0, width)},
+                         fir::ICmpInstrSubType::EQ);
+
+    // To distinguish +0/-0 and signs of Inf/Normal, we check the sign
+    // bit
+
+    foptim::TVec<fir::ValueR> checks;
+
+    auto add_check = [&](bool condition, fir::ValueR v) {
+      if (condition) checks.push_back(v);
+    };
+
+    // NaN Checks (Bit 0 1)
+    auto qnan_bit =
+        fir::ValueR{ctx->get_constant_int(1ULL << (mant_bits - 1), width)};
+    auto is_qnan_bit_set =
+        bb.build_binary_op(mant, qnan_bit, fir::BinaryInstrSubType::And);
+    auto is_qnan_bit_set_bool =
+        bb.build_int_cmp(is_qnan_bit_set, zero, fir::ICmpInstrSubType::NE);
+    auto is_snan = bb.build_binary_op(
+        is_nan,
+        bb.build_unary_op(is_qnan_bit_set_bool, fir::UnaryInstrSubType::Not),
+        fir::BinaryInstrSubType::And);
+    auto is_qnan = bb.build_binary_op(is_nan, is_qnan_bit_set_bool,
+                                      fir::BinaryInstrSubType::And);
+
+    if (mode & 0x001) add_check(true, is_snan);
+    if (mode & 0x002) add_check(true, is_qnan);
+
+    // Infinity Checks (Bit 2 9)
+    if (mode & 0x004)
+      add_check(true,
+                bb.build_binary_op(is_inf, sign_bit,
+                                   fir::BinaryInstrSubType::And));  // -Inf
+    if (mode & 0x200)
+      add_check(true,
+                bb.build_binary_op(is_inf, is_pos,
+                                   fir::BinaryInstrSubType::And));  // +Inf
+
+    // Zero Checks (Bit 5 6)
+    if (mode & 0x020)
+      add_check(true, bb.build_binary_op(is_zero, is_neg,
+                                         fir::BinaryInstrSubType::And));  // -0
+    if (mode & 0x040)
+      add_check(true, bb.build_binary_op(is_zero, is_pos,
+                                         fir::BinaryInstrSubType::And));  // +0
+
+    // normal and subnormal (Bits 3 4 7 8)
+    // aavalue is "normal" if it's not zero, nan, inf, or subnormal.
+    auto is_subnormal = bb.build_binary_op(exp_is_zero, mant_not_zero,
+                                           fir::BinaryInstrSubType::And);
+
+    // Normal: Exponent is NOT all 0s AND Exponent is NOT all 1s (max)
+    auto exp_not_zero = bb.build_int_cmp(exp, zero, fir::ICmpInstrSubType::NE);
+    auto exp_not_max =
+        bb.build_int_cmp(exp, max_exp, fir::ICmpInstrSubType::NE);
+    auto is_normal = bb.build_binary_op(exp_not_zero, exp_not_max,
+                                        fir::BinaryInstrSubType::And);
+
+    if (mode & 0x008)
+      add_check(true,
+                bb.build_binary_op(is_normal, is_neg,
+                                   fir::BinaryInstrSubType::And));  // -Normal
+    if (mode & 0x100)
+      add_check(true,
+                bb.build_binary_op(is_normal, is_pos,
+                                   fir::BinaryInstrSubType::And));  // +Normal
+    if (mode & 0x010)
+      add_check(true, bb.build_binary_op(
+                          is_subnormal, is_neg,
+                          fir::BinaryInstrSubType::And));  // -Subnormal
+    if (mode & 0x080)
+      add_check(true, bb.build_binary_op(
+                          is_subnormal, is_pos,
+                          fir::BinaryInstrSubType::And));  // +Subnormal
+
+    // 4. Combine all active checks with logical OR
+    ASSERT(!checks.empty());
+    fir::ValueR final_res = checks[0];
+    for (size_t i = 1; i < checks.size(); ++i) {
+      final_res =
+          bb.build_binary_op(final_res, checks[i], fir::BinaryInstrSubType::Or);
+    }
+    instr->replace_all_uses(final_res);
+    instr.destroy();
   }
 
   void handle_fmuladd(fir::Instr instr, fir::Function & /*func*/,
@@ -218,7 +358,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     // auto func = ctx->get_function(func_name);
     // auto ret_type = instr.get_type();
     // foptim::fir::ValueR args[1] = {instr->args[1]};
-    // auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
+    // auto res =
+    // bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
     //                          func->func_ty, ret_type, args);
     auto res = bb.build_fabs(instr->args[1]);
     instr->replace_all_uses(res);
@@ -244,7 +385,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     // auto func = ctx->get_function(func_name);
     // auto ret_type = instr.get_type();
     // foptim::fir::ValueR args[1] = {instr->args[1]};
-    // auto res = bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
+    // auto res =
+    // bb.build_call(fir::ValueR{ctx->get_constant_value(func)},
     //                          func->func_ty, ret_type, args);
     auto res = bb.build_abs(instr->args[1]);
     instr->replace_all_uses(res);
@@ -350,7 +492,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         continue;
       }
       if (instr->is(fir::InstrType::CallInstr)) {
-        // const auto *callee = instr->get_attrib("callee").try_string();
+        // const auto *callee =
+        // instr->get_attrib("callee").try_string();
         if (!instr->args[0].is_constant()) {
           continue;
         }
