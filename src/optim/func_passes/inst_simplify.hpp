@@ -75,18 +75,27 @@ bool try_constant_eval_binary(fir::Instr instr,
       if constexpr (std::is_integral_v<T>) {
         auto width = type->get_bitwidth();
         auto invwidth = (128 + 1 - width);
-        auto extended_a = ((a << invwidth) >> invwidth);
-        auto extended_b = ((b << invwidth) >> invwidth);
+        auto extended_a = (((i128)a << invwidth) >> invwidth);
+        auto extended_b = (((i128)b << invwidth) >> invwidth);
         instr->replace_all_uses(fir::ValueR(
             ctx->get_constant_value(extended_a % extended_b, type)));
         return true;
       }
+      TODO("impl");
+    case fir::BinaryInstrSubType::IntURem:
+      if constexpr (std::is_integral_v<T>) {
+        instr->replace_all_uses(fir::ValueR(
+            ctx->get_constant_value((i128)((u128)a % (u128)b), type)));
+        return true;
+      }
+      TODO("impl");
     case fir::BinaryInstrSubType::Shl:
       if constexpr (std::is_integral_v<T>) {
         instr->replace_all_uses(
             fir::ValueR(ctx->get_constant_value(a << b, type)));
         return true;
       }
+      TODO("impl");
     case fir::BinaryInstrSubType::Shr:
       if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
         instr->replace_all_uses(
@@ -100,6 +109,7 @@ bool try_constant_eval_binary(fir::Instr instr,
             type)));
         return true;
       }
+      TODO("impl");
     case fir::BinaryInstrSubType::AShr:
       if constexpr (std::is_integral_v<T>) {
         auto width = type->get_bitwidth();
@@ -109,9 +119,7 @@ bool try_constant_eval_binary(fir::Instr instr,
             fir::ValueR(ctx->get_constant_value(extended_a >> b, type)));
         return true;
       }
-    case fir::BinaryInstrSubType::IntURem:
-      fmt::println("{:cd}", instr);
-      TODO("impl urem");
+      TODO("impl");
     case fir::BinaryInstrSubType::INVALID:
       return false;
   }

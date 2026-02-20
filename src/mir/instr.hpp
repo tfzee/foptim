@@ -168,6 +168,7 @@ enum class X86Subtype : u32 {
   movhlps,
   vpermil,
   vpextr,
+  vextractf128,
   vpshuf,
   punpckl,
   vbroadcast,
@@ -179,6 +180,10 @@ enum class X86Subtype : u32 {
   ffmadd231,
   HAdd,
   sqrt,
+
+  //avx512
+  vextractf64x2,
+  vextractf64x4,
 };
 
 const char *getNameFromOpcode(GOpcode code, u32 sop);
@@ -206,7 +211,9 @@ enum class Type : u16 {
   Int32x8 = 12,
   Int64x4 = 13,
   Float32x8 = 14,
-  Float64x4 = 15,
+  Float32x16 = 15,
+  Float64x4 = 16,
+  Float64x8 = 17,
 };
 
 /*Returns the size in bytes of the given type*/
@@ -240,8 +247,12 @@ static constexpr u32 get_size(fmir::Type type) {
       return 8 * 4;
     case Type::Float32x8:
       return 4 * 8;
+    case Type::Float32x16:
+      return 4 * 16;
     case Type::Float64x4:
       return 8 * 4;
+    case Type::Float64x8:
+      return 8 * 8;
     case fmir::Type::INVALID:
       TODO("INVALID TYPE");
   }
@@ -314,6 +325,12 @@ class VReg {
   constexpr VReg(u64 id, Type ty) : virt(RegType::Virtual, ty, id) {}
   constexpr VReg(CReg reg_ty, Type ty = Type::Int64)
       : conc(RegType::Concrete, ty, reg_ty) {}
+
+  constexpr VReg retype(Type new_ty){
+    VReg res = *this;
+    res.ty = new_ty;
+    return res;
+  }
 
   [[nodiscard]] constexpr bool is_concrete() const {
     return rty == RegType::Concrete;

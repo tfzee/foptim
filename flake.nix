@@ -38,6 +38,9 @@
                 python-pkgs.pandas
                 python-pkgs.matplotlib
                 python-pkgs.z3-solver
+                python-pkgs.streamlit
+                python-pkgs.pandas
+                python-pkgs.plotly
               ]))
             graphviz
             cvise

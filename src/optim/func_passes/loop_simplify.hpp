@@ -85,7 +85,10 @@ class LoopSimplify final : public FunctionPass {
     }
     for (auto b_id : loop.body_nodes) {
       for (auto instr : cfg.bbrs[b_id].bb->instructions) {
-        if (instr->has_pot_sideeffects() || instr->is_critical()) {
+        // TODO(PERF): could move loads but only if theres no interfering writes
+        // before this instruction and any potential exit
+        if (instr->has_pot_sideeffects() || instr->pot_reads_mem() ||
+            instr->pot_modifies_mem() || instr->is_critical()) {
           continue;
         }
         TVec<fir::Use> uses;
@@ -144,7 +147,8 @@ class LoopSimplify final : public FunctionPass {
           continue;
         }
         if (!ianal.direct_inductvars[i1].consti.is_valid() ||
-            !ianal.direct_inductvars[i2].consti.is_valid() || !ianal.direct_inductvars[i1].consti->is_int() ||
+            !ianal.direct_inductvars[i2].consti.is_valid() ||
+            !ianal.direct_inductvars[i1].consti->is_int() ||
             !ianal.direct_inductvars[i2].consti->is_int()) {
           continue;
         }

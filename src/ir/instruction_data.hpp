@@ -510,6 +510,10 @@ class InstrData : public Used, public InstrAttribs {
     return instr_type == InstrType::VectorInstr && subtype == (u32)ty;
   }
 
+  [[nodiscard]] constexpr bool is(IntrinsicSubType ty) const {
+    return instr_type == InstrType::Intrinsic && subtype == (u32)ty;
+  }
+
   constexpr void verify() const {
     switch (instr_type) {
       case InstrType::BinaryInstr:

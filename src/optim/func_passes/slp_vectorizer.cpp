@@ -181,10 +181,10 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
         // div
       case fir::BinaryInstrSubType::IntSRem:
       case fir::BinaryInstrSubType::IntURem:
-        return false;
-      case fir::BinaryInstrSubType::INVALID:
       case fir::BinaryInstrSubType::IntSDiv:
       case fir::BinaryInstrSubType::IntUDiv:
+        return false;
+      case fir::BinaryInstrSubType::INVALID:
       case fir::BinaryInstrSubType::Shr:
       case fir::BinaryInstrSubType::AShr:
         fmt::println("{}", base_v);

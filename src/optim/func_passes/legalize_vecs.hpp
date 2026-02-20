@@ -6,12 +6,20 @@
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
+#include "utils/parameters.hpp"
 #include "utils/string.hpp"
 
 namespace foptim::optim {
 
 class LegalizeVecs final : public FunctionPass {
-  bool legalize(fir::Context &ctx, fir::Instr instr) {
+  static void push_all_uses(TVec<fir::Instr> &worklist, fir::Instr instr) {
+    for (auto u : instr->get_uses()) {
+      worklist.push_back(u.user);
+    }
+  }
+
+  bool legalize(fir::Context &ctx, fir::Instr instr,
+                TVec<fir::Instr> &worklist) {
     for (size_t arg_id = 0; arg_id < instr->args.size(); arg_id++) {
       auto arg = instr->args[arg_id];
       // replace vec with reference to global variable
@@ -35,13 +43,13 @@ class LegalizeVecs final : public FunctionPass {
 
         fir::Builder bb{instr};
         auto load_val = bb.build_load(
-            constant->type, fir::ValueR{ctx->get_constant_value(global)}, false, false);
+            constant->type, fir::ValueR{ctx->get_constant_value(global)}, false,
+            false);
         instr.replace_arg(arg_id, load_val);
+        return true;
       }
     }
-    if (instr->is(fir::InstrType::Intrinsic) &&
-        instr->subtype == (u32)fir::IntrinsicSubType::FAbs &&
-        instr->get_type()->is_vec()) {
+    if (instr->is(fir::IntrinsicSubType::FAbs) && instr->get_type()->is_vec()) {
       fir::Builder b{instr};
       auto width = instr->get_type()->as_vec().bitwidth;
       auto f_type = ctx->get_float_type(width);
@@ -60,6 +68,51 @@ class LegalizeVecs final : public FunctionPass {
       }
       auto r = b.build_binary_op(instr->args[0], broad,
                                  fir::BinaryInstrSubType::And);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(r);
+      instr.destroy();
+      return true;
+    }
+    // TODO: is this check for avx512 sufficient/correct?
+    if (instr->is(fir::VectorISubType::Broadcast) && !utils::enable_avx512f &&
+        instr->get_type()->get_bitwidth() >= 512) {
+      // auto funcy = instr->get_parent()->get_parent().func;
+      // fmt::println("{:cd}", *funcy);
+      // fmt::println("{}", instr);
+      fir::Builder buh{instr};
+      auto old_type = instr->get_type()->as_vec();
+      auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
+                                        old_type.member_number / 2);
+      auto a1 = buh.build_vbroadcast(instr->args[0], new_type);
+      auto a2 = buh.build_vbroadcast(instr->args[0], new_type);
+      auto r = buh.build_vector_op(a1, a2, instr->get_type(),
+                                   fir::VectorISubType::Concat);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(r);
+      instr.destroy();
+      // fmt::println("{:cd}", *funcy);
+      // TODO("split");
+      return true;
+    }
+    // TODO: is this check for avx512 sufficient/correct?
+    if (instr->is(fir::VectorISubType::HorizontalAdd) &&
+        !utils::enable_avx512f && instr->args[0].get_type()->get_bitwidth() >= 512) {
+      fir::Builder buh{instr};
+      auto out_type = instr->get_type();
+      auto old_type = instr->args[0].get_type()->as_vec();
+      auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
+                                        old_type.member_number / 2);
+      auto al = buh.build_vector_op(instr->args[0], new_type,
+                                    fir::VectorISubType::ExtractLow);
+      auto ah = buh.build_vector_op(instr->args[0], new_type,
+                                    fir::VectorISubType::ExtractHigh);
+      auto a1 =
+          buh.build_vector_op(al, out_type, fir::VectorISubType::HorizontalAdd);
+      auto a2 =
+          buh.build_vector_op(ah, out_type, fir::VectorISubType::HorizontalAdd);
+      ASSERT(out_type->is_float());  // TODO: impl for int
+      auto r = buh.build_float_add(a1, a2);
+      push_all_uses(worklist, instr);
       instr->replace_all_uses(r);
       instr.destroy();
       return true;
@@ -69,13 +122,19 @@ class LegalizeVecs final : public FunctionPass {
 
  public:
   void apply(fir::Context &ctx, fir::Function &func) override {
+    TVec<fir::Instr> worklist;
+    // TODO(PERF): do prefiltering
     for (auto bb : func.basic_blocks) {
       for (size_t instr_id = 0; instr_id < bb->instructions.size();
            instr_id++) {
-        if (legalize(ctx, bb->instructions[instr_id])) {
-          instr_id = 0;
-        }
+        worklist.push_back(bb->instructions[instr_id]);
       }
+    }
+
+    while (!worklist.empty()) {
+      auto curr = worklist.back();
+      worklist.pop_back();
+      legalize(ctx, curr, worklist);
     }
   }
 };

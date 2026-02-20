@@ -263,11 +263,17 @@ Type convert_type(fir::TypeR type) {
         if (d.bitwidth == 32 && d.member_number == 8) {
           return Type::Float32x8;
         }
+        if (d.bitwidth == 32 && d.member_number == 16) {
+          return Type::Float32x16;
+        }
         if (d.bitwidth == 64 && d.member_number == 2) {
           return Type::Float64x2;
         }
         if (d.bitwidth == 64 && d.member_number == 4) {
           return Type::Float64x4;
+        }
+        if (d.bitwidth == 64 && d.member_number == 8) {
+          return Type::Float64x8;
         }
         fmt::println("{}", type);
         ASSERT(false);

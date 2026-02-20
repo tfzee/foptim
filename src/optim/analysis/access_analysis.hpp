@@ -44,6 +44,20 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
     }
     return;
   }
+  if (i->is(fir::InstrType::SelectInstr)) {
+    if (u.argId == 1 || u.argId == 2) {
+      if (worklist) {
+        for (auto u : i->get_uses()) {
+          worklist->push_back(u);
+        }
+      } else {
+        res = ptr_access_analysis(i);
+      }
+      return;
+    } else {
+      TODO("unreach?");
+    }
+  }
   if (i->is(fir::InstrType::StoreInstr)) {
     // TODO: volatile
     if (u.argId == 0) {

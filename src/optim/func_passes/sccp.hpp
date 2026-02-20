@@ -130,7 +130,8 @@ class SCCP final : public FunctionPass {
       if (v->is_vec()) {
         const auto &tv = v->as_vec();
         auto r = ConstantValue{
-            .type = ValueType::Fptr, .vals = {}, .vtype = v->get_type()};
+            .type = ValueType::Poison, .vals = {}, .vtype = v->get_type()};
+
         if (tv.members[0]->is_float()) {
           r.type = ValueType::Float;
         } else {
@@ -667,6 +668,14 @@ class SCCP final : public FunctionPass {
             auto sextb = (b.as_int() << b_width) >> b_width;
             return ConstantValue::Constant(
                 ctx->get_constant_value(sexta % sextb, out_type));
+          }
+          case fir::BinaryInstrSubType::IntURem: {
+            auto a_width = (128 - a.get_type()->get_bitwidth());
+            auto b_width = (128 - a.get_type()->get_bitwidth());
+            auto zexta = (std::bit_cast<u128>(a.as_int()) << a_width) >> a_width;
+            auto zextb = (std::bit_cast<u128>(b.as_int()) << b_width) >> b_width;
+            return ConstantValue::Constant(ctx->get_constant_value(
+                std::bit_cast<i128>(zexta % zextb), out_type));
           }
           case fir::BinaryInstrSubType::IntMul:
             return ConstantValue::Constant(

@@ -373,6 +373,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     // }
 
     if ((c0_val != nullptr) && (c1_val != nullptr)) {
+      // fmt::println("{:cd}", instr);
       if (c1_val->is_int() && c0_val->is_int()) {
         // TODO: this is annoying but idk how to handle it better
         push_all_uses(worklist, instr);
@@ -3836,6 +3837,31 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(a1->args[0]);
       instr.destroy();
+      return;
+    }
+  }
+  if (instr->subtype == (u32)fir::VectorISubType::ExtractHigh &&
+      instr->args[0].is_instr()) {
+    auto a1 = instr->args[0].as_instr();
+    if (a1->is(fir::VectorISubType::Concat)) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(a1->args[0]);
+      instr.destroy();
+      if (a1->get_n_uses() == 0) {
+        a1.destroy();
+      }
+      return;
+    }
+  } else if (instr->subtype == (u32)fir::VectorISubType::ExtractLow &&
+             instr->args[0].is_instr()) {
+    auto a1 = instr->args[0].as_instr();
+    if (a1->is(fir::VectorISubType::Concat)) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(a1->args[1]);
+      instr.destroy();
+      if (a1->get_n_uses() == 0) {
+        a1.destroy();
+      }
       return;
     }
   }

@@ -25,7 +25,9 @@ void constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
       ASSERT(!instr->args.empty());
       if (ret_vals.empty()) {
         for (auto ret_val : instr->args) {
-          if (!ret_val.is_constant() && !ret_val.is_bb_arg()) {
+          if (!ret_val.is_constant() &&
+              (!ret_val.is_bb_arg() ||
+               ret_val.as_bb_arg()->get_parent() != func->get_entry())) {
             return;
           }
           ret_vals.push_back(ret_val);
@@ -47,8 +49,7 @@ void constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
     for (auto use : func->get_uses()) {
       if (ret_vals[0].is_constant()) {
         use.user->replace_all_uses(ret_vals[0]);
-      } else if ((ret_vals[0].is_bb_arg() &&
-                  ret_vals[0].as_bb_arg()->get_parent() == func->get_entry())) {
+      } else if (ret_vals[0].is_bb_arg()) {
         auto id = ret_vals[0].as_bb_arg()->get_parent()->get_arg_id(
             ret_vals[0].as_bb_arg());
         use.user->replace_all_uses(use.user->args[id + 1]);
@@ -67,8 +68,7 @@ void constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
         i++;
         if (ret_val.is_constant()) {
           res_val = buh.build_insert_value(res_val, ret_val, indicies, res_ty);
-        } else if ((ret_val.is_bb_arg() &&
-                    ret_val.as_bb_arg()->get_parent() == func->get_entry())) {
+        } else if (ret_val.is_bb_arg()) {
           auto id = ret_val.as_bb_arg()->get_parent()->get_arg_id(
               ret_val.as_bb_arg());
           res_val = buh.build_insert_value(res_val, use.user->args[id + 1],

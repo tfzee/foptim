@@ -148,6 +148,9 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       switch ((X86Subtype)sop) {
         ReturnString(X86Subtype, INVALID);
         ReturnString(X86Subtype, lea);
+        ReturnString(X86Subtype, vextractf128);
+        ReturnString(X86Subtype, vextractf64x2);
+        ReturnString(X86Subtype, vextractf64x4);
         ReturnString(X86Subtype, movlhps);
         ReturnString(X86Subtype, movhlps);
         ReturnString(X86Subtype, vpermil);
@@ -316,6 +319,9 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::INVALID:
           return;
         case X86Subtype::lea:
+        case X86Subtype::vextractf128:
+        case X86Subtype::vextractf64x4:
+        case X86Subtype::vextractf64x2:
         case X86Subtype::vpermil:
         case X86Subtype::sqrt:
         case X86Subtype::HAdd:
@@ -579,6 +585,9 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
         case X86Subtype::vpshuf:
+        case X86Subtype::vextractf64x2:
+        case X86Subtype::vextractf64x4:
+        case X86Subtype::vextractf128:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
         case X86Subtype::vpermil:
@@ -951,8 +960,12 @@ fmt::appender fmt::formatter<foptim::fmir::Type>::format(
       return fmt::format_to(app, col, "i64x4");
     case foptim::fmir::Type::Float32x8:
       return fmt::format_to(app, col, "f32x8");
+    case foptim::fmir::Type::Float32x16:
+      return fmt::format_to(app, col, "f32x16");
     case foptim::fmir::Type::Float64x4:
       return fmt::format_to(app, col, "f64x4");
+    case foptim::fmir::Type::Float64x8:
+      return fmt::format_to(app, col, "f64x8");
   }
 }
 
