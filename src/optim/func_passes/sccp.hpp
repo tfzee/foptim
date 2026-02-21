@@ -487,6 +487,20 @@ class SCCP final : public FunctionPass {
         bool is_signed = false;
         // TODO: implement constant propagation
         switch ((fir::IntrinsicSubType)instr->get_instr_subtype()) {
+          case fir::IntrinsicSubType::FCeil:
+          case fir::IntrinsicSubType::FFloor:
+          case fir::IntrinsicSubType::FTrunc:
+          case fir::IntrinsicSubType::FRound: {
+            auto a = eval(instr->get_arg(0));
+            if (a.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if (!a.is_const() && (!a.is_float())) {
+              return ConstantValue::Top();
+            }
+            fmt::println("{:cd}", instr);
+            TODO("Impl");
+          }
           case fir::IntrinsicSubType::FAbs: {
             auto a = eval(instr->get_arg(0));
             if (a.is_bottom()) {

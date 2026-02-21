@@ -1050,7 +1050,8 @@ inline size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::GJumpSubtype::cjmp_flt_ord:
           TODO("impl");
         case fmir::GJumpSubtype::cjmp_flt_uno:
-          TODO("impl");
+          mem = ZYDIS_MNEMONIC_JP;
+          break;
         default:
           UNREACH();
       }
@@ -1847,6 +1848,33 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
+    case fmir::X86Subtype::vround: {
+      switch (instr.args[0].ty) {
+        default:
+        case fmir::Type::INVALID:
+          UNREACH();
+        case fmir::Type::Float32:
+          req.mnemonic = ZYDIS_MNEMONIC_VROUNDSS;
+          break;
+        case fmir::Type::Float64:
+          req.mnemonic = ZYDIS_MNEMONIC_VROUNDSD;
+          break;
+        case fmir::Type::Float32x2:
+        case fmir::Type::Float32x4:
+        case fmir::Type::Float32x8:
+        case fmir::Type::Float32x16:
+          req.mnemonic = ZYDIS_MNEMONIC_VROUNDPS;
+          break;
+        case fmir::Type::Float64x4:
+        case fmir::Type::Float64x8:
+        case fmir::Type::Float64x2:
+          req.mnemonic = ZYDIS_MNEMONIC_VROUNDPD;
+          break;
+          break;
+      }
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
     case fmir::X86Subtype::vextractf128: {
       req.mnemonic = ZYDIS_MNEMONIC_VEXTRACTF128;
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
@@ -1866,6 +1894,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       switch (instr.args[0].ty) {
         default:
           TODO("UNREACH");
+        case fmir::Type::Float32:
         case fmir::Type::Int32x4:
         case fmir::Type::Float32x2:
         case fmir::Type::Float32x4:
@@ -1873,6 +1902,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VPCMPEQD;
           break;
+        case fmir::Type::Float64:
         case fmir::Type::Int64x2:
         case fmir::Type::Int64x4:
         case fmir::Type::Float64x2:

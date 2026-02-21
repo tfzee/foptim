@@ -276,9 +276,9 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
       case fir::UnaryInstrSubType::INVALID:
         return false;
       case fir::UnaryInstrSubType::IntNeg:
-      case fir::UnaryInstrSubType::Not:
         fmt::println("{}", values.back().as_instr());
         TODO("impl it?");
+      case fir::UnaryInstrSubType::Not:
       case fir::UnaryInstrSubType::FloatNeg:
       case fir::UnaryInstrSubType::FloatSqrt:
         break;
@@ -391,7 +391,12 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
       case fir::IntrinsicSubType::SMax:
       case fir::IntrinsicSubType::Abs:
       case fir::IntrinsicSubType::FAbs:
+      case fir::IntrinsicSubType::FRound:
+      case fir::IntrinsicSubType::FCeil:
+      case fir::IntrinsicSubType::FFloor:
+      case fir::IntrinsicSubType::FTrunc:
         return true;
+        break;
     }
   }
 
@@ -404,13 +409,21 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
       default:
         TODO("UNREACH");
       case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
       case fir::IntrinsicSubType::UMin:
       case fir::IntrinsicSubType::UMax:
       case fir::IntrinsicSubType::SMin:
       case fir::IntrinsicSubType::SMax:
         TODO("impl");
+      case fir::IntrinsicSubType::FMin:
+        return bb.build_intrinsic(val, children.at(1)->generate(ctx, orig_bundl), fir::IntrinsicSubType::FMin);
+      case fir::IntrinsicSubType::FMax:
+        return bb.build_intrinsic(val, children.at(1)->generate(ctx, orig_bundl), fir::IntrinsicSubType::FMax);
+      case fir::IntrinsicSubType::FRound:
+        return bb.build_intrinsic(val, fir::IntrinsicSubType::FRound);
+      case fir::IntrinsicSubType::FCeil:
+        return bb.build_intrinsic(val, fir::IntrinsicSubType::FCeil);
+      case fir::IntrinsicSubType::FFloor:
+        return bb.build_intrinsic(val, fir::IntrinsicSubType::FFloor);
       case fir::IntrinsicSubType::Abs:
         return bb.build_abs(val);
       case fir::IntrinsicSubType::FAbs:
@@ -686,7 +699,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             auto *result_t = IntrinAlloc{}.allocate(1);
             (new (result_t) IntrinTreeOp)->init(curr);
             result = result_t;
-            n_args = 1;
+            n_args = curr[0].as_instr()->get_n_args();
             parent->children.push_back(result);
           } else {
             fmt::println("Failed tree vectorize at intrinsic like {}",

@@ -203,6 +203,10 @@ bool InstrData::is_critical() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:
@@ -264,6 +268,10 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::Abs:
         case IntrinsicSubType::FAbs:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
           return false;
         case IntrinsicSubType::UMin:
         case IntrinsicSubType::UMax:
@@ -347,6 +355,10 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:
@@ -396,6 +408,10 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:
@@ -451,6 +467,10 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:

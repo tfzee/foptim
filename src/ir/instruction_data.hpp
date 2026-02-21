@@ -95,6 +95,11 @@ enum class IntrinsicSubType : u32 {
   FMin,
   FMax,
 
+  FRound,
+  FCeil,
+  FFloor,
+  FTrunc,
+
   IsConstant,
 };
 
@@ -225,6 +230,7 @@ class InstrData : public Used, public InstrAttribs {
 
   [[nodiscard]] constexpr const auto &get_uses() const { return uses; }
   [[nodiscard]] constexpr const auto &get_args() const { return args; }
+  [[nodiscard]] constexpr size_t get_n_args() const { return args.size(); }
   [[nodiscard]] constexpr const ValueR &get_arg(size_t indx) const {
     return args.at(indx);
   }
@@ -301,6 +307,14 @@ class InstrData : public Used, public InstrAttribs {
             return "INTRIN:FMin";
           case IntrinsicSubType::FMax:
             return "INTRIN:FMax";
+          case IntrinsicSubType::FRound:
+            return "INTRIN:FFloor";
+          case IntrinsicSubType::FFloor:
+            return "INTRIN:FFloor";
+          case IntrinsicSubType::FCeil:
+            return "INTRIN:FCeil";
+          case IntrinsicSubType::FTrunc:
+            return "INTRIN:FTrunc";
           case IntrinsicSubType::IsConstant:
             return "INTRIN:IsConstant";
         }

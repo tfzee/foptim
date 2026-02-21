@@ -181,6 +181,8 @@ enum class X86Subtype : u32 {
   HAdd,
   sqrt,
 
+  vround,
+
   //avx512
   vextractf64x2,
   vextractf64x4,

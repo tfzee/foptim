@@ -243,6 +243,10 @@ class KnownBits final : public AttributeAnalysis {
         case fir::IntrinsicSubType::FAbs:
         case fir::IntrinsicSubType::FMin:
         case fir::IntrinsicSubType::FMax:
+        case fir::IntrinsicSubType::FRound:
+        case fir::IntrinsicSubType::FCeil:
+        case fir::IntrinsicSubType::FFloor:
+        case fir::IntrinsicSubType::FTrunc:
           fmt::println("BITS KNOWN {}", *this);
           fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
                        associatedValue.as_instr());

@@ -262,6 +262,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vgatherq:
         case X86Subtype::vpextr:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vround:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
@@ -589,6 +590,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vpextr:
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vround:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }

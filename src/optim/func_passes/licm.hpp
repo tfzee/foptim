@@ -1,5 +1,6 @@
 
 #pragma once
+#include <fmt/base.h>
 #include <deque>
 
 #include "../function_pass.hpp"

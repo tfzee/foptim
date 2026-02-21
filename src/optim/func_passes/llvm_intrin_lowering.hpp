@@ -1,4 +1,6 @@
 #pragma once
+#include <fmt/base.h>
+
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -109,7 +111,6 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     auto exp_is_zero = bb.build_int_cmp(exp, zero, fir::ICmpInstrSubType::EQ);
     auto max_exp = fir::ValueR{ctx->get_constant_int(exp_mask, width)};
 
-    // Subnormal: Exponent is all 0s AND Mantissa is NOT 0
     auto mant_not_zero =
         bb.build_int_cmp(mant, zero, fir::ICmpInstrSubType::NE);
 
@@ -124,7 +125,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     // 8 Positive normal
     // 9 Positive infinity
 
-    // 2. get components (Sign, Exponent, Mantissa)
+    // get components (Sign, Exponent, Mantissa)
     auto mant_is_zero = bb.build_int_cmp(mant, zero, fir::ICmpInstrSubType::EQ);
     auto exp_is_max = bb.build_int_cmp(exp, max_exp, fir::ICmpInstrSubType::EQ);
     auto is_zero = bb.build_binary_op(exp_is_zero, mant_is_zero,
@@ -143,7 +144,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
         bb.build_int_cmp(sign_bit, fir::ValueR{ctx->get_constant_int(0, width)},
                          fir::ICmpInstrSubType::EQ);
 
-    // To distinguish +0/-0 and signs of Inf/Normal, we check the sign
+    // to distinguish +0/-0 and signs of Inf/Normal, we check the sign
     // bit
 
     foptim::TVec<fir::ValueR> checks;
@@ -152,7 +153,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
       if (condition) checks.push_back(v);
     };
 
-    // NaN Checks (Bit 0 1)
+    // NaN checks (Bit 0 1)
     auto qnan_bit =
         fir::ValueR{ctx->get_constant_int(1ULL << (mant_bits - 1), width)};
     auto is_qnan_bit_set =
@@ -169,7 +170,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     if (mode & 0x001) add_check(true, is_snan);
     if (mode & 0x002) add_check(true, is_qnan);
 
-    // Infinity Checks (Bit 2 9)
+    // infinity (Bit 2 9)
     if (mode & 0x004)
       add_check(true,
                 bb.build_binary_op(is_inf, sign_bit,
@@ -179,7 +180,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                 bb.build_binary_op(is_inf, is_pos,
                                    fir::BinaryInstrSubType::And));  // +Inf
 
-    // Zero Checks (Bit 5 6)
+    // zero (Bit 5 6)
     if (mode & 0x020)
       add_check(true, bb.build_binary_op(is_zero, is_neg,
                                          fir::BinaryInstrSubType::And));  // -0
@@ -192,7 +193,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     auto is_subnormal = bb.build_binary_op(exp_is_zero, mant_not_zero,
                                            fir::BinaryInstrSubType::And);
 
-    // Normal: Exponent is NOT all 0s AND Exponent is NOT all 1s (max)
+    // normal: exponent is NOT all 0s and exponent is not all 1
     auto exp_not_zero = bb.build_int_cmp(exp, zero, fir::ICmpInstrSubType::NE);
     auto exp_not_max =
         bb.build_int_cmp(exp, max_exp, fir::ICmpInstrSubType::NE);
@@ -216,7 +217,6 @@ class LLVMInstrinsicLowering final : public FunctionPass {
                           is_subnormal, is_pos,
                           fir::BinaryInstrSubType::And));  // +Subnormal
 
-    // 4. Combine all active checks with logical OR
     ASSERT(!checks.empty());
     fir::ValueR final_res = checks[0];
     for (size_t i = 1; i < checks.size(); ++i) {
@@ -479,6 +479,104 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
+  void handle_minmaxnum(fir::Instr instr, fir::Function & /*funcy*/,
+                        fir::FunctionR /*callee*/, bool is_min) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    // TODO: this has not the quite corret beheaviour in some edgecases
+    res = bb.build_intrinsic(
+        instr->args[1], instr->args[2],
+        is_min ? fir::IntrinsicSubType::FMin : fir::IntrinsicSubType::FMax);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_round(fir::Instr instr, fir::Function & /*funcy*/,
+                    fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    // TODO: NOT RIGHT SINCE ROUND I THINK GOES TORWARDS EVEN WHICH IT SHOULDNT
+    res = bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::FRound);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_ceil(fir::Instr instr, fir::Function & /*funcy*/,
+                   fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    res = bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::FCeil);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_floor(fir::Instr instr, fir::Function & /*funcy*/,
+                    fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    res = bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::FFloor);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_trunc(fir::Instr instr, fir::Function & /*funcy*/,
+                    fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    res = bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::FTrunc);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_rint(fir::Instr instr, fir::Function & /*funcy*/,
+                   fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    // TODO: NOT EXACT
+    res = bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::FRound);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_nearbyint(fir::Instr instr, fir::Function & /*funcy*/,
+                        fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    // TODO: NOT EXACT
+    res = bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::FRound);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_copysign(fir::Instr instr, fir::Function &funcy,
+                       fir::FunctionR /*callee*/) {
+    fir::Builder buh{instr};
+    auto ctx = funcy.ctx;
+    auto ty = instr->get_type();
+    auto mag_inp = instr->args[1];
+    auto sign_inp = instr->args[2];
+
+    fir::ValueR neg0Mask;
+    if (ty->is_float() && ty->get_bitwidth() == 32) {
+      neg0Mask =
+          fir::ValueR{ctx->get_constant_value(-0.0f, ctx->get_float_type(32))};
+    } else if (ty->is_float() && ty->get_bitwidth() == 64) {
+      neg0Mask =
+          fir::ValueR{ctx->get_constant_value(-0.0, ctx->get_float_type(64))};
+    } else {
+      fmt::println("impl copysing for {:cd}", instr);
+    }
+    auto sign =
+        buh.build_binary_op(sign_inp, neg0Mask, fir::BinaryInstrSubType::And);
+    auto mag = buh.build_binary_op(
+        neg0Mask, buh.build_unary_op(mag_inp, fir::UnaryInstrSubType::Not),
+        fir::BinaryInstrSubType::And);
+    auto res = buh.build_binary_op(sign, mag, fir::BinaryInstrSubType::Or);
+
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
   void apply(fir::BasicBlock bb, fir::Function &func) {
     // annoying copy
     //
@@ -533,6 +631,24 @@ class LLVMInstrinsicLowering final : public FunctionPass {
           handle_ctlz(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.is.constant")) {
           handle_is_constant(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.minnum")) {
+          handle_minmaxnum(instr, func, callee, true);
+        } else if (callee.func->name.starts_with("llvm.maxnum")) {
+          handle_minmaxnum(instr, func, callee, false);
+        } else if (callee.func->name.starts_with("llvm.trunc.")) {
+          handle_trunc(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.round.")) {
+          handle_round(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.ceil.")) {
+          handle_ceil(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.floor.")) {
+          handle_floor(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.rint.")) {
+          handle_rint(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.nearbyint.")) {
+          handle_nearbyint(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.copysign.")) {
+          handle_copysign(instr, func, callee);
         }
       }
     }

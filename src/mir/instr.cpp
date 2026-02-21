@@ -167,6 +167,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, ffmadd231);
         ReturnString(X86Subtype, vgatherq);
         ReturnString(X86Subtype, vpcmpeq);
+        ReturnString(X86Subtype, vround);
       }
   }
 }
@@ -333,6 +334,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vbroadcast:
         case X86Subtype::lzcnt:
         case X86Subtype::vmovshdup:
+        case X86Subtype::vround:
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
@@ -591,6 +593,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
         case X86Subtype::vpermil:
+        case X86Subtype::vround:
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
           return;
