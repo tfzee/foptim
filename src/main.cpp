@@ -145,6 +145,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   using namespace foptim::optim;
   fmt::print("================FIR====================\n");
   fmt::print("================FIR START====================\n");
+  ASSERT(ctx->verify());
   foptim::optim::StaticParallelFunctionPassManager<DCE>{}.apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeStructs, LLVMInstrinsicLowering, SORA, Mem2Reg, DoubleLoadElim,
@@ -205,7 +206,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, InstSimplify, SCCP, DCE, LVN, InstSimplify, SimplifyCFG, DCE,
-      LegalizeVecs>{}
+      LegalizeVecs, InstSimplify>{}
       .apply(ctx, shed);
   ASSERT(ctx->verify());
   {
@@ -363,9 +364,9 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     i++;
   }
   shed->wait_till_done();
-  for (auto &f : funcs) {
-    fmt::println("{:cd}", f);
-  }
+  // for (auto &f : funcs) {
+  //   fmt::println("{:cd}", f);
+  // }
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
