@@ -44,6 +44,7 @@ void generate_memset(fir::Context &fctx);
 void generate_memcpy(fir::Context &fctx);
 void generate_memmove(fir::Context &fctx);
 void generate_fexp(fir::Context &fctx);
+void generate_trunc(fir::Context &fctx);
 void generate_trap(fir::Context &fctx);
 
 }  // namespace foptim::fir

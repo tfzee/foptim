@@ -1,4 +1,5 @@
 #include "helpers.hpp"
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -14,6 +15,23 @@ void generate_fexp(foptim::fir::Context &fctx) {
   fctx.data->storage.functions.insert(
       {"exp", std::make_unique<foptim::fir::Function>(fctx.operator->(), "exp",
                                                       func_ty)});
+}
+
+void generate_trunc(foptim::fir::Context &fctx) {
+  if (!fctx->has_function("trunc")) {
+    auto func_ty =
+        fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
+    fctx.data->storage.functions.insert(
+        {"trunc", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                          "trunc", func_ty)});
+  }
+  if (!fctx->has_function("truncf")) {
+    auto func_ty =
+        fctx->get_func_ty(fctx->get_float_type(32), {fctx->get_float_type(32)});
+    fctx.data->storage.functions.insert(
+        {"truncf", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                           "truncf", func_ty)});
+  }
 }
 
 void generate_memmove(foptim::fir::Context &fctx) {
@@ -88,7 +106,7 @@ void generate_memset(foptim::fir::Context &fctx) {
   bb.build_return();
 }
 
-//TODO: technically need two versions depending if its volatile or not
+// TODO: technically need two versions depending if its volatile or not
 void generate_memcpy(foptim::fir::Context &fctx) {
   const auto *name = "foptim.memcpy";
   if (fctx->has_function(name)) {
