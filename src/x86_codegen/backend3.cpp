@@ -1,3 +1,6 @@
+#include "backend3.hpp"
+
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <cmath>
@@ -5,7 +8,6 @@
 #include <elfio/elfio.hpp>
 
 #include "backend.hpp"
-#include "backend3.hpp"
 #include "ir/helpers.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
@@ -26,9 +28,6 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
   memset(&req, 0, sizeof(req));
   req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
   req.operand_count = instr.n_args;
-  for (auto i = 0; i < req.operand_count; i++) {
-    emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
-  }
 
   utils::StatCollector::get().addi(1, "NUserInstrEmitted");
   switch (instr.bop) {
@@ -74,6 +73,23 @@ struct OpData {
   i64 op_val;
 };
 
+void print_instruction(u8* buff, ZydisDecodedInstruction* instruction, ZydisDecodedOperand* operands) {
+    ZydisFormatter formatter;
+    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+    char buffer[256];
+    ZydisFormatterFormatInstruction(
+        &formatter, 
+        instruction, 
+        operands, 
+        instruction->operand_count_visible, 
+        buffer, 
+        sizeof(buffer), 
+        (ZyanU64)buff,
+        ZYAN_NULL
+    );
+    printf("%016llX  %s\n", (unsigned long long)buff, buffer);
+}
+
 // returns the address of the operand + the offset till end of instruction
 OpData get_op_addr(u8 *buff, u8 op_num) {
   ZydisDecoder decoder;
@@ -82,30 +98,45 @@ OpData get_op_addr(u8 *buff, u8 op_num) {
   ZydisDecodedInstruction instruction;
   memset(&instruction, 0, sizeof(ZydisDecodedInstruction));
   ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
-  memset(operands, 0, sizeof(ZydisDecodedOperand));
+  memset(operands, 0, sizeof(ZydisDecodedOperand) * ZYDIS_MAX_OPERAND_COUNT);
 
   // diss_print(buff_instr);
   ZY_ASS(ZydisDecoderDecodeFull(&decoder, buff, 999, &instruction, operands));
 
   assert(op_num < instruction.operand_count_visible);
-  assert(operands[op_num].type == ZYDIS_OPERAND_TYPE_IMMEDIATE ||
-         operands[op_num].type == ZYDIS_OPERAND_TYPE_MEMORY);
+  auto& op = operands[op_num];
+  assert(op.type == ZYDIS_OPERAND_TYPE_IMMEDIATE ||
+         op.type == ZYDIS_OPERAND_TYPE_MEMORY);
 
   bool is_imm = operands[op_num].type == ZYDIS_OPERAND_TYPE_IMMEDIATE;
   ZydisInstructionSegments segments;
   ZY_ASS(ZydisGetInstructionSegments(&instruction, &segments));
 
   u8 op_off = 0;
-
-  for (auto i = 0; i < segments.count; i++) {
-    auto &segment = segments.segments[i];
-    if (!is_imm && segment.type == ZYDIS_INSTR_SEGMENT_DISPLACEMENT) {
-      op_off = segment.offset;
-    }
-    if (is_imm && segment.type == ZYDIS_INSTR_SEGMENT_IMMEDIATE) {
-      op_off = segment.offset;
+  ZydisInstructionSegment target_type;
+  if (op.type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
+    target_type = ZYDIS_INSTR_SEGMENT_IMMEDIATE;
+  } else if (op.type == ZYDIS_OPERAND_TYPE_MEMORY &&
+             op.mem.disp.has_displacement) {
+    target_type = ZYDIS_INSTR_SEGMENT_DISPLACEMENT;
+  } else {
+    ASSERT(false);
+  }
+  for (int i = 0; i < segments.count; ++i) {
+    if (segments.segments[i].type == target_type) {
+      op_off = segments.segments[i].offset;
+      break;
     }
   }
+  // for (auto i = 0; i < segments.count; i++) {
+  //   auto &segment = segments.segments[i];
+  //   if (!is_imm && segment.type == ZYDIS_INSTR_SEGMENT_DISPLACEMENT) {
+  //     op_off = segment.offset;
+  //   }
+  //   if (is_imm && segment.type == ZYDIS_INSTR_SEGMENT_IMMEDIATE) {
+  //     op_off = segment.offset;
+  //   }
+  // }
 
   auto old_val =
       is_imm ? operands[op_num].imm.value.s : operands[op_num].mem.disp.value;
