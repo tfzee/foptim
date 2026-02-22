@@ -631,9 +631,29 @@ class SCCP final : public FunctionPass {
             }
             return a;
           }
-          case fir::IntrinsicSubType::CTLZ:
-            fmt::println("{:cd}", instr);
-            TODO("impl sccp intrinsics");
+          case fir::IntrinsicSubType::CTLZ: {
+            auto a = eval(instr->get_arg(0));
+            auto b = eval(instr->get_arg(1));
+            if (a.is_bottom() || b.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if (!a.is_const()) {
+              return ConstantValue::Top();
+            }
+            ASSERT(a.is_int());
+            // if b is not known we dont know how to handle 0
+            if (!b.is_const()) {
+              for (size_t i = 0; i < a.vals.size(); i++) {
+                if (a.vals[0].i == 0) {
+                  return ConstantValue::Top();
+                }
+              }
+            }
+            for (size_t i = 0; i < a.vals.size(); i++) {
+              a.vals[i].i = __builtin_clzg(std::bit_cast<u128>(a.vals[i].i));
+            }
+            return a;
+          }
           case fir::IntrinsicSubType::INVALID:
           case fir::IntrinsicSubType::VA_start:
           case fir::IntrinsicSubType::VA_end:
