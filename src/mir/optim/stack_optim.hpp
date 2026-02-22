@@ -50,9 +50,13 @@ class StackOptim {
           }
           auto& i2 = bb.instrs[next_use.index];
           if (i2.is(GBaseSubtype::pop) && i2.args[0] == i.args[0]) {
-            fmt::println("{:cd}", i);
-            fmt::println("{:cd}", i2);
-            TODO("idk1 if relaly possbile");
+            // fmt::println("{:cd}", i);
+            // for (size_t i = i_id; i < next_use.index; i++) {
+            //   fmt::println(">{:cd}", bb.instrs[i]);
+            // }
+            // fmt::println("{:cd}", i2);
+            fmt::println("TODO: can forward push/pop here prob implement it dont be lazy ");
+            // TODO("idk1 if really possbile");
           }
         }
         if (i.is(GBaseSubtype::pop) && i.args[0].isReg()) {

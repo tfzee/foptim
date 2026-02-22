@@ -183,6 +183,8 @@ enum class X86Subtype : u32 {
 
   vround,
 
+  LockXAdd2,
+
   //avx512
   vextractf64x2,
   vextractf64x4,

@@ -44,6 +44,8 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
     return true;
   }
 
+  i64 cost() const final { return n_lanes == 2 ? -2 : -1; }
+
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle & /*orig_bundle*/) final {
     fir::Builder bb{insert_loc};
@@ -64,6 +66,10 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
       fmt::print("\n");
     }
     fmt::print(")\n");
+  }
+
+  i64 cost() const final {
+    return children.at(0)->cost() + n_lanes <= 2 ? -2 : -1;
   }
 
   HorizRedTreeOp *init(const TVec<fir::ValueR> &values) {
@@ -131,6 +137,10 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
         break;
     }
     children.at(0)->dump();
+  }
+
+  i64 cost() const final {
+    return children.at(0)->cost() + children.at(1)->cost() + n_lanes * 2;
   }
 
   BinaryTreeOp *init(const TVec<fir::ValueR> &values) {
@@ -207,11 +217,13 @@ class ZextTreeOp final : public SLPVectorizer::TreeElem {
  public:
   fir::TypeR res_ty;
   void dump() final {
-    children.at(1)->dump();
-    fmt::print(" = ");
+    // children.at(1)->dump();
+    // fmt::print(" = ");
     children.at(0)->dump();
     fmt::println("\n");
   }
+
+  i64 cost() const final { return children.at(0)->cost() + n_lanes * 1; }
 
   ZextTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -247,8 +259,8 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
  public:
   fir::UnaryInstrSubType sub_ty;
   void dump() final {
-    children.at(1)->dump();
-    fmt::print(" = ");
+    // children.at(1)->dump();
+    // fmt::print(" = ");
     children.at(0)->dump();
     fmt::println("\n");
   }
@@ -259,6 +271,8 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
     sub_ty = (fir::UnaryInstrSubType)values.back().as_instr()->subtype;
     return this;
   }
+
+  i64 cost() const final { return children.at(0)->cost() + n_lanes * 2; }
 
   static bool match(const TVec<fir::ValueR> &values) {
     auto base_v = values.back().as_instr();
@@ -299,11 +313,13 @@ class StoreTreeOp final : public SLPVectorizer::TreeElem {
 
  public:
   void dump() final {
-    children.at(1)->dump();
-    fmt::print(" = ");
+    // children.at(1)->dump();
+    // fmt::print(" = ");
     children.at(0)->dump();
     fmt::println("\n");
   }
+
+  i64 cost() const final { return children.at(0)->cost() + n_lanes * 2; }
 
   StoreTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -353,6 +369,14 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
         children.at(0)->dump();
         fmt::print(")");
         break;
+    }
+  }
+
+  i64 cost() const final {
+    if (children.size() == 2) {
+      return children.at(0)->cost() + children.at(1)->cost() + n_lanes * 2;
+    } else {
+      return children.at(0)->cost() + n_lanes * 1;
     }
   }
 
@@ -415,9 +439,13 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
       case fir::IntrinsicSubType::SMax:
         TODO("impl");
       case fir::IntrinsicSubType::FMin:
-        return bb.build_intrinsic(val, children.at(1)->generate(ctx, orig_bundl), fir::IntrinsicSubType::FMin);
+        return bb.build_intrinsic(val,
+                                  children.at(1)->generate(ctx, orig_bundl),
+                                  fir::IntrinsicSubType::FMin);
       case fir::IntrinsicSubType::FMax:
-        return bb.build_intrinsic(val, children.at(1)->generate(ctx, orig_bundl), fir::IntrinsicSubType::FMax);
+        return bb.build_intrinsic(val,
+                                  children.at(1)->generate(ctx, orig_bundl),
+                                  fir::IntrinsicSubType::FMax);
       case fir::IntrinsicSubType::FRound:
         return bb.build_intrinsic(val, fir::IntrinsicSubType::FRound);
       case fir::IntrinsicSubType::FCeil:
@@ -443,6 +471,8 @@ class ConstantTreeOp final : public SLPVectorizer::TreeElem {
     }
     fmt::print(">");
   }
+
+  i64 cost() const final { return n_lanes * 1; }
 
   ConstantTreeOp *init(const TVec<fir::ValueR> &values,
                        SLPVectorizer::TreeElem *parent) {
@@ -500,6 +530,8 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
     children.at(0)->dump();
     fmt::print(")");
   }
+
+  i64 cost() const final { return children.at(0)->cost() + n_lanes * 1; }
 
   LoadTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -642,7 +674,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 2;
             ASSERT(parent == nullptr);
           } else {
-            fmt::println("Failed tree vectorize at store {}", curr[0]);
+            // fmt::println("Failed tree vectorize at store {}", curr[0]);
             return false;
           }
           break;
@@ -678,8 +710,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             }
             continue;
           } else {
-            fmt::println("Failed tree vectorize at binary {} {} {}",
-                         test_i.as_instr(), curr[0], curr[1]);
+            // fmt::println("Failed tree vectorize at binary {} {} {}",
+            //              test_i.as_instr(), curr[0], curr[1]);
             return false;
           }
         case fir::InstrType::LoadInstr:
@@ -690,7 +722,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            fmt::println("Failed tree vectorize at load {}", curr[0]);
+            // fmt::println("Failed tree vectorize at load {}", curr[0]);
             return false;
           }
           break;
@@ -702,8 +734,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = curr[0].as_instr()->get_n_args();
             parent->children.push_back(result);
           } else {
-            fmt::println("Failed tree vectorize at intrinsic like {}",
-                         curr.back().as_instr());
+            // fmt::println("Failed tree vectorize at intrinsic like {}",
+            //              curr.back().as_instr());
             return false;
           }
           break;
@@ -715,8 +747,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            fmt::println("Failed tree vectorize at zext like {}",
-                         curr.back().as_instr());
+            // fmt::println("Failed tree vectorize at zext like {}",
+            //              curr.back().as_instr());
             return false;
           }
           break;
@@ -728,8 +760,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            fmt::println("Failed tree vectorize at unary like {}",
-                         curr.back().as_instr());
+            // fmt::println("Failed tree vectorize at unary like {}",
+            //              curr.back().as_instr());
             return false;
           }
           break;
@@ -753,8 +785,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         case fir::InstrType::CondBranchInstr:
         case fir::InstrType::SwitchInstr:
         case fir::InstrType::Unreachable:
-          fmt::println("Failed tree vectorize at instruction like {}",
-                       curr.back().as_instr());
+          // fmt::println("Failed tree vectorize at instruction like {}",
+          //              curr.back().as_instr());
           return false;
       }
       tree.push_back(result);
@@ -774,20 +806,24 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         parent->children.push_back(result);
         tree.push_back(result);
       } else {
-        fmt::println("constant tree op no match");
+        // fmt::println("constant tree op no match");
         return false;
       }
       continue;
     }
-    fmt::println("Failed tree vectorize at something like {:cd}", curr[0]);
+    // fmt::println("Failed tree vectorize at something like {:cd}", curr[0]);
     return false;
   }
 
-  // tree[0]->dump();
   if (!tree.empty()) {
-    // tree[0]->dump();
-    // fmt::println("TreeSize {}", tree.size());
-    tree[0]->generate(ctx, b);
+    auto tree_cost = tree[0]->cost();
+    if (tree_cost > 0) {
+      tree[0]->generate(ctx, b);
+    } else {
+      // fmt::println("Failed vectorize -> not worth");
+      // tree[0]->dump();
+      // fmt::println("Cost tree {}", tree_cost);
+    }
   }
   utils::StatCollector::get().addi(1, "SLPVectorized",
                                    utils::StatCollector::StatFOptim);

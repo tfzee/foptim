@@ -1,4 +1,5 @@
 #include "dce.hpp"
+
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 
@@ -57,6 +58,9 @@ bool is_applicable(GOpcode op, u32 sop) {
       }
     case GOpcode::X86:
       switch ((X86Subtype)sop) {
+        case X86Subtype::LockXAdd2:
+          // TOOD: if we knew it was reg-reg args then we could set it to true
+          return false;
         case X86Subtype::INVALID:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:

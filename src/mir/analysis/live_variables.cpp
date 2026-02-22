@@ -1,6 +1,7 @@
+#include "live_variables.hpp"
+
 #include <deque>
 
-#include "live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
@@ -241,6 +242,12 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     case GOpcode::X86:
       switch ((X86Subtype)instr.sop) {
         case X86Subtype::INVALID:
+          return;
+        case X86Subtype::LockXAdd2:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
+          }
+          def[reg_to_uid(instr.args[1].reg)].set(true);
           return;
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
@@ -564,6 +571,10 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     case GOpcode::X86:
       switch ((X86Subtype)instr.sop) {
         case X86Subtype::INVALID:
+          return;
+        case X86Subtype::LockXAdd2:
+          update_uses(instr.args[0], uses);
+          update_uses(instr.args[1], uses);
           return;
         case X86Subtype::lea:
         case X86Subtype::lzcnt:

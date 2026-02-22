@@ -59,6 +59,9 @@ class ValueR {
   [[nodiscard]] constexpr bool is_constant_int() const {
     return ty == ValueType::ConstantValueR && const_val->is_int();
   }
+  [[nodiscard]] constexpr bool is_constant_float() const {
+    return ty == ValueType::ConstantValueR && const_val->is_float();
+  }
   [[nodiscard]] constexpr bool is_instr() const {
     return ty == ValueType::Instr;
   }

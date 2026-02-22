@@ -49,6 +49,30 @@ class LegalizeVecs final : public FunctionPass {
         return true;
       }
     }
+
+    if (instr->is(fir::InstrType::FCmp) && instr->args[1].is_constant_float()) {
+      auto constant = instr->args[1].as_constant();
+      IRString name;
+      fmt::format_to(std::back_inserter(name), "global_float_const_{}",
+                     (void *)constant.get_raw_ptr());
+      const auto size = constant->type->as_float();
+      // TODO assert that this doesnt actually already exists
+      auto global = ctx->insert_global(name, size);
+      global->is_constant = true;
+      global->linkage = fir::Linkage::Internal;
+      global->init_value = foptim::utils::IRAlloc<uint8_t>{}.allocate(size);
+      memset(global->init_value, 0, size);
+
+      convert_constant_init(global->init_value, constant, global);
+
+      fir::Builder bb{instr};
+      auto load_val = bb.build_load(
+          constant->type, fir::ValueR{ctx->get_constant_value(global)}, false,
+          false);
+      instr.replace_arg(1, load_val);
+      return true;
+    }
+
     if (instr->is(fir::IntrinsicSubType::FAbs) && instr->get_type()->is_vec()) {
       fir::Builder b{instr};
       auto width = instr->get_type()->as_vec().bitwidth;
@@ -96,7 +120,8 @@ class LegalizeVecs final : public FunctionPass {
     }
     // TODO: is this check for avx512 sufficient/correct?
     if (instr->is(fir::VectorISubType::HorizontalAdd) &&
-        !utils::enable_avx512f && instr->args[0].get_type()->get_bitwidth() >= 512) {
+        !utils::enable_avx512f &&
+        instr->args[0].get_type()->get_bitwidth() >= 512) {
       fir::Builder buh{instr};
       auto out_type = instr->get_type();
       auto old_type = instr->args[0].get_type()->as_vec();

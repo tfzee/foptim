@@ -148,6 +148,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       switch ((X86Subtype)sop) {
         ReturnString(X86Subtype, INVALID);
         ReturnString(X86Subtype, lea);
+        ReturnString(X86Subtype, LockXAdd2);
         ReturnString(X86Subtype, vextractf128);
         ReturnString(X86Subtype, vextractf64x2);
         ReturnString(X86Subtype, vextractf64x4);
@@ -341,6 +342,10 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
           out.push_back({0, instr.args[0]});
+          return;
+        case X86Subtype::LockXAdd2:
+          out.push_back({0, instr.args[0]});
+          out.push_back({1, instr.args[1]});
           return;
       }
     case GOpcode::GBase:
@@ -594,6 +599,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vbroadcast:
         case X86Subtype::vpermil:
         case X86Subtype::vround:
+        case X86Subtype::LockXAdd2:
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
           return;

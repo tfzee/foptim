@@ -39,6 +39,7 @@ class SLPVectorizer final : public FunctionPass {
       TODO("UNREACH");
     }
     virtual void dump() { TODO("UNREACH"); }
+    virtual i64 cost() const { TODO("UNREACH"); }
     virtual ~TreeElem() = default;
   };
 

@@ -1,6 +1,7 @@
 
 #pragma once
 #include <fmt/base.h>
+
 #include <deque>
 
 #include "../function_pass.hpp"
@@ -104,6 +105,8 @@ class LICM final : public FunctionPass {
     if (invariant.empty()) {
       return;
     }
+
+    std::reverse(invariant.begin(), invariant.end());
 
     fir::Builder bb{pre_header};
     bb.at_penultimate(pre_header);
