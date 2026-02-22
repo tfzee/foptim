@@ -185,7 +185,7 @@ enum class X86Subtype : u32 {
 
   LockXAdd2,
 
-  //avx512
+  // avx512
   vextractf64x2,
   vextractf64x4,
 };
@@ -330,7 +330,7 @@ class VReg {
   constexpr VReg(CReg reg_ty, Type ty = Type::Int64)
       : conc(RegType::Concrete, ty, reg_ty) {}
 
-  constexpr VReg retype(Type new_ty){
+  constexpr VReg retype(Type new_ty) {
     VReg res = *this;
     res.ty = new_ty;
     return res;
@@ -509,6 +509,7 @@ class MArgument {
   // reg + indx * scale
   [[nodiscard]] static constexpr MArgument MemBIS(VReg reg, VReg indx,
                                                   u32 scale, Type ty) {
+    ASSERT(scale <= 3);
     MArgument arg;
     arg.type = ArgumentType::MemVRegVRegScale;
     arg.ty = ty;
@@ -530,8 +531,23 @@ class MArgument {
     return arg;
   }
 
+  // reg + indx*scale + off
+  [[nodiscard]] static constexpr MArgument MemOBIS(i32 off, VReg reg, VReg indx,
+                                                   u32 scale, Type ty) {
+    ASSERT(scale <= 3);
+    MArgument arg;
+    arg.type = ArgumentType::MemImmVRegVRegScale;
+    arg.ty = ty;
+    arg.reg = reg;
+    arg.indx = indx;
+    arg.scale = scale;
+    arg.imm = std::bit_cast<u64>((i64)off);
+    return arg;
+  }
+
   [[nodiscard]] static constexpr MArgument MemOIS(i32 off, VReg indx, u32 scale,
                                                   Type ty) {
+    ASSERT(scale <= 3);
     MArgument arg;
     arg.type = ArgumentType::MemImmVRegScale;
     arg.ty = ty;

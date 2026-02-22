@@ -1,13 +1,15 @@
+#include "mir/matcher_helpers.hpp"
+
 #include <typeinfo>
 
 #include "ir/basic_block_arg.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/matcher.hpp"
-#include "mir/matcher_helpers.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::fmir {
@@ -251,6 +253,23 @@ MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc) {
   return {alloc.get_register(val), type_id};
 }
 
+MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
+                           DumbRegAlloc &alloc, fir::BasicBlock curr_bb) {
+  if (val.is_constant()) {
+    return valueToArgConst(val, res, alloc);
+  }
+  if (val.is_instr() && val.as_instr()->is(fir::InstrType::LoadInstr)) {
+    auto load = val.as_instr();
+    if (curr_bb == load->get_parent()) {
+      auto ptr = valueToArgPtrSmart(load->args[0],
+                                    convert_type(load.get_type()), res, alloc);
+      return ptr;
+    }
+  }
+  Type type_id = convert_type(val.get_type());
+  return {alloc.get_register(val), type_id};
+}
+
 TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
                                  DumbRegAlloc &alloc) {
   if (!val.get_type()->is_struct()) {
@@ -295,6 +314,154 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
     fmt::println("{}", constant);
     TODO("unreach?");
     // return {(u64)0, :wype_id};
+  } else {
+    return MArgument::MemB(alloc.get_register(val), type_id);
+  }
+  fmt::println("{}", val);
+  ASSERT(false);
+  std::abort();
+}
+
+MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
+                             DumbRegAlloc &alloc) {
+  if (val.is_constant()) {
+    auto constant = val.as_constant();
+    if (constant->is_global()) {
+      auto global = constant->as_global();
+      // Type type_id = convert_type(val.get_type());
+      return MArgument::MemL(global->name.c_str(), type_id);
+    }
+    if (constant->is_func()) {
+      auto funcy = constant->as_func();
+      return {funcy->getName().c_str()};
+    }
+    if (constant->is_int()) {
+      auto constant_ptr = constant->as_int();
+      return MArgument::MemO((u64)constant_ptr, type_id);
+    }
+    if (constant->is_null() || constant->is_poison()) {
+      return MArgument::MemO((u64)0, type_id);
+    }
+    fmt::println("{}", constant);
+    TODO("unreach?");
+    // return {(u64)0, :wype_id};
+  } else if (val.is_instr()) {
+    auto i = val.as_instr();
+    if (i->is(fir::BinaryInstrSubType::IntAdd)) {
+      if (i->args[0].is_instr() &&
+          i->args[0].as_instr()->is(fir::BinaryInstrSubType::IntAdd)) {
+        auto i2 = i->args[0].as_instr();
+        auto arg1 = valueToArg(i2->args[0], res, alloc);
+        auto arg2 = valueToArg(i2->args[1], res, alloc);
+        auto arg3 = valueToArg(i->args[1], res, alloc);
+        // does order matter here ?
+        if (arg1.isReg() && arg2.isReg() && arg3.isImm()) {
+          return MArgument::MemOBI(arg3.imm, arg1.reg, arg2.reg, type_id);
+        } else if (arg1.isReg() && arg3.isReg() && arg2.isImm()) {
+          return MArgument::MemOBI(arg2.imm, arg1.reg, arg3.reg, type_id);
+        } else if (arg2.isReg() && arg3.isReg() && arg1.isImm()) {
+          return MArgument::MemOBI(arg1.imm, arg2.reg, arg3.reg, type_id);
+        }
+      }
+      if (i->args[1].is_instr() &&
+          i->args[1].as_instr()->is(fir::BinaryInstrSubType::IntAdd)) {
+        auto i2 = i->args[1].as_instr();
+        auto arg1 = valueToArg(i2->args[0], res, alloc);
+        auto arg2 = valueToArg(i2->args[1], res, alloc);
+        auto arg3 = valueToArg(i->args[0], res, alloc);
+        // does order matter here ?
+        if (arg1.isReg() && arg2.isReg() && arg3.isImm()) {
+          return MArgument::MemOBI(arg3.imm, arg1.reg, arg2.reg, type_id);
+        } else if (arg1.isReg() && arg3.isReg() && arg2.isImm()) {
+          return MArgument::MemOBI(arg2.imm, arg1.reg, arg3.reg, type_id);
+        } else if (arg2.isReg() && arg3.isReg() && arg1.isImm()) {
+          return MArgument::MemOBI(arg1.imm, arg2.reg, arg3.reg, type_id);
+        }
+      }
+      if (i->args[0].is_instr() &&
+          i->args[0].as_instr()->is(fir::BinaryInstrSubType::IntMul)) {
+        auto i2 = i->args[0].as_instr();
+        if (i2->args[1].is_const_int(1) || i2->args[1].is_const_int(2) ||
+            i2->args[1].is_const_int(4) || i2->args[1].is_const_int(8)) {
+          auto arg1 = valueToArg(i2->args[0], res, alloc);
+          auto scale = valueToArg(i2->args[1], res, alloc);
+          auto off = valueToArg(i->args[1], res, alloc);
+
+          ASSERT(scale.isImm());
+
+          u8 log_scale = 0;
+          switch (scale.imm) {
+            default:
+              UNREACH();
+            case 1:
+              log_scale = 0;
+              break;
+            case 2:
+              log_scale = 1;
+              break;
+            case 4:
+              log_scale = 2;
+              break;
+            case 8:
+              log_scale = 3;
+              break;
+          }
+          // does order matter here ?
+          if (arg1.isReg() && off.isReg()) {
+            return MArgument::MemBIS(off.reg, arg1.reg, log_scale, type_id);
+          } else if (arg1.isReg() && off.isImm()) {
+            return MArgument::MemOIS(off.imm, arg1.reg, log_scale, type_id);
+          }
+        }
+      }
+      if (i->args[1].is_instr() &&
+          i->args[1].as_instr()->is(fir::BinaryInstrSubType::IntMul)) {
+        auto i2 = i->args[1].as_instr();
+        if (i2->args[1].is_const_int(1) || i2->args[1].is_const_int(2) ||
+            i2->args[1].is_const_int(4) || i2->args[1].is_const_int(8)) {
+          auto arg1 = valueToArg(i2->args[0], res, alloc);
+          auto scale = valueToArg(i2->args[1], res, alloc);
+          auto off = valueToArg(i->args[0], res, alloc);
+          ASSERT(scale.isImm());
+          u8 log_scale = 0;
+          switch (scale.imm) {
+            default:
+              UNREACH();
+            case 1:
+              log_scale = 0;
+              break;
+            case 2:
+              log_scale = 1;
+              break;
+            case 4:
+              log_scale = 2;
+              break;
+            case 8:
+              log_scale = 3;
+              break;
+          }
+          // does order matter here ?
+          if (arg1.isReg() && off.isReg()) {
+            return MArgument::MemBIS(off.reg, arg1.reg, log_scale, type_id);
+          } else if (arg1.isReg() && off.isImm()) {
+            return MArgument::MemOIS(off.imm, arg1.reg, log_scale, type_id);
+          }
+        }
+      }
+      auto arg1 = valueToArg(i->args[0], res, alloc);
+      auto arg2 = valueToArg(i->args[1], res, alloc);
+      if (arg1.isLabel() && arg2.isImm()) {
+        return MArgument::MemLO(arg1.label, arg2.imm, type_id);
+      }
+      if (arg1.isReg() && arg2.isReg()) {
+        return MArgument::MemBI(arg1.reg, arg2.reg, type_id);
+      }
+      if (arg1.isReg() && arg2.isReg()) {
+        return MArgument::MemBI(arg1.reg, arg2.reg, type_id);
+      }
+    }
+    return MArgument::MemB(alloc.get_register(val), type_id);
+
   } else {
     return MArgument::MemB(alloc.get_register(val), type_id);
   }

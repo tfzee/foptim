@@ -59,8 +59,6 @@ class GreedyMatcher : public Matcher {
   MFunc apply(fir::Function &func);
 };
 
-MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc);
-MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
 Type convert_type(fir::TypeR type);
 void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
                       ExtraMatchData &data);

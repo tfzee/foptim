@@ -14,8 +14,18 @@ struct ExtraMatchData;
 
 MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
                                       ExtraMatchData &data);
+// tries to get arg as a mem operand
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc);
+// tries to get arg as a mem operand but is smart and does stuff like [reg+reg]
+MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
+                             DumbRegAlloc &alloc);
 MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
+// converts value to an operand argument but it also allows memory references
+// like [reg+reg]
+MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
+                           DumbRegAlloc &alloc, fir::BasicBlock curr_bb);
+// converts value to an operand argument but it handles structs which are split
+// over multiple registers
 TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
                                  DumbRegAlloc &alloc);
 MArgument valueToArgConst(fir::ValueR val, IRVec<MInstr> &res,
