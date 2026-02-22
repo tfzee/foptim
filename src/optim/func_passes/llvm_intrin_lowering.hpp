@@ -405,35 +405,31 @@ class LLVMInstrinsicLowering final : public FunctionPass {
 
   void handle_umul_with_overflow(fir::Instr instr, fir::Function & /*funcy*/,
                                  fir::FunctionR /*callee*/) {
-    auto width = instr.get_type()->as_struct().elems[0].ty->as_int();
-    if (width == 64) {
-      fir::Builder bb{instr};
+    // auto width = instr.get_type()->as_struct().elems[0].ty->as_int();
+    fir::Builder bb{instr};
 
-      auto mul_result = bb.build_int_mul(instr->args[1], instr->args[2]);
-      auto overflow_result = bb.build_int_cmp(
-          instr->args[1], instr->args[2], fir::ICmpInstrSubType::MulOverflow);
+    auto mul_result = bb.build_int_mul(instr->args[1], instr->args[2]);
+    auto overflow_result = bb.build_int_cmp(instr->args[1], instr->args[2],
+                                            fir::ICmpInstrSubType::MulOverflow);
 
-      // annoying copy
-      auto uses = instr->uses;
-      for (auto use : uses) {
-        ASSERT(use.user->is(fir::InstrType::ExtractValue));
-        ASSERT(use.user->args.size() == 2);
-        ASSERT(use.argId == 0);
-        auto index = use.user->args[1].as_constant()->as_int();
-        if (index == 0) {
-          use.user->replace_all_uses(mul_result);
-          use.user.destroy();
-        } else if (index == 1) {
-          use.user->replace_all_uses(overflow_result);
-          use.user.destroy();
-        } else {
-          UNREACH();
-        }
+    // annoying copy
+    auto uses = instr->uses;
+    for (auto use : uses) {
+      ASSERT(use.user->is(fir::InstrType::ExtractValue));
+      ASSERT(use.user->args.size() == 2);
+      ASSERT(use.argId == 0);
+      auto index = use.user->args[1].as_constant()->as_int();
+      if (index == 0) {
+        use.user->replace_all_uses(mul_result);
+        use.user.destroy();
+      } else if (index == 1) {
+        use.user->replace_all_uses(overflow_result);
+        use.user.destroy();
+      } else {
+        UNREACH();
       }
-      instr.destroy();
-    } else {
-      TODO("IMPL");
     }
+    instr.destroy();
   }
 
   void handle_expect(fir::Instr instr, fir::Function & /*funcy*/,
