@@ -6,8 +6,9 @@ BUILD_DIR="$FOLDER/build"
 
 test_file="min.cpp"
 foptim="$BUILD_DIR/foptim_main"
-flags="-U__SIZEOF_INT128__ -std=c++26 -fno-exceptions -fno-stack-protector"
-test_linkdir="-I$FOLDER/test/llvm_benchmark_adobe_cpp/ -I$FOLDER/test/embench/"
+# flags="-U__SIZEOF_INT128__ -std=c++26 -fno-exceptions -fno-stack-protector"
+flags="-U__SIZEOF_INT128__ -std=c++26 -fno-stack-protector"
+test_linkdir="-I$FOLDER/test/CppPerformanceBenchmarks/ -I$FOLDER/test/embench/"
 # compile_optim="-O3 -mllvm -disable-llvm-optzns"
 compile_optim="-O0"
 
@@ -36,7 +37,7 @@ echo "$OUT_exp2"
 echo $stats_exp2
 
 if [[ "$stats_got" != "$stats_exp" ]] || [[ "$OUT_got" != "$OUT_exp" ]]; then
-if [[ "$stats_exp" != "$stats_exp2" ]] || [[ "$OUT_exp" != "$OUT_exp2" ]] || [[ "$stats_exp" != "1" ]]; then
+if [[ "$stats_exp" != "$stats_exp2" ]] || [[ "$OUT_exp" != "$OUT_exp2" ]] || [[ "$stats_exp" != "0" ]]; then
 # if [[ "$stats_got" != "$stats_exp" ]]; then
 # if [[ "$stats_exp" != "$stats_exp2" ]]; then
   echo "Bad Failed"

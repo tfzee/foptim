@@ -40,7 +40,7 @@ if __name__ == "__main__":
     if(len(tests_to_record) != 0):
         benches = [bench for bench in benches if bench in tests_to_record];
 
-    clang_options = "-fno-exceptions -fno-stack-protector -I../test/llvm_benchmark_adobe_cpp/ -I../test/"
+    clang_options = "-fno-exceptions -fno-stack-protector -I../test/CppPerformanceBenchmarks/ -I../test/"
     link_options = "-lm -static-libstdc++"
     
    
@@ -78,10 +78,12 @@ if __name__ == "__main__":
 
     # print(hyperfine_compile_command)
 
-    hyperfine_run_command = f"hyperfine -i -N --export-json={perf_name}"
+    hyperfine_run_command = f"hyperfine --ignore-failure -N --export-json={perf_name}"
     for benchy in benches:
         link_command = f"clang{'++' if benchy.endswith(".cpp") else ''} {link_options} {out_dir}/{benchy}.tmp.o -o {out_dir}/{benchy}.tmp.out"
-        os.system(link_command)
+        if os.system(link_command) != 0:
+            print(f"Skipping test {benchy} cause it failed to compile")
+            continue
 
         name = ".".join(benchy.split(".")[:-1])
         hyperfine_run_command += f" -n {name}_run"
