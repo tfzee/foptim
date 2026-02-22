@@ -674,7 +674,9 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 2;
             ASSERT(parent == nullptr);
           } else {
-            // fmt::println("Failed tree vectorize at store {}", curr[0]);
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at store {}", curr[0]);
+            }
             return false;
           }
           break;
@@ -710,8 +712,10 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             }
             continue;
           } else {
-            // fmt::println("Failed tree vectorize at binary {} {} {}",
-            //              test_i.as_instr(), curr[0], curr[1]);
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at binary {} {} {}",
+                           test_i.as_instr(), curr[0], curr[1]);
+            }
             return false;
           }
         case fir::InstrType::LoadInstr:
@@ -722,7 +726,9 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            // fmt::println("Failed tree vectorize at load {}", curr[0]);
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at load {}", curr[0]);
+            }
             return false;
           }
           break;
@@ -734,8 +740,10 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = curr[0].as_instr()->get_n_args();
             parent->children.push_back(result);
           } else {
-            // fmt::println("Failed tree vectorize at intrinsic like {}",
-            //              curr.back().as_instr());
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at intrinsic like {}",
+                           curr.back().as_instr());
+            }
             return false;
           }
           break;
@@ -747,8 +755,10 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            // fmt::println("Failed tree vectorize at zext like {}",
-            //              curr.back().as_instr());
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at zext like {}",
+                           curr.back().as_instr());
+            }
             return false;
           }
           break;
@@ -760,8 +770,10 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             n_args = 1;
             parent->children.push_back(result);
           } else {
-            // fmt::println("Failed tree vectorize at unary like {}",
-            //              curr.back().as_instr());
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at unary like {}",
+                           curr.back().as_instr());
+            }
             return false;
           }
           break;
@@ -785,8 +797,10 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         case fir::InstrType::CondBranchInstr:
         case fir::InstrType::SwitchInstr:
         case fir::InstrType::Unreachable:
-          // fmt::println("Failed tree vectorize at instruction like {}",
-          //              curr.back().as_instr());
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at instruction like {}",
+                         curr.back().as_instr());
+          }
           return false;
       }
       tree.push_back(result);
@@ -806,12 +820,16 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         parent->children.push_back(result);
         tree.push_back(result);
       } else {
-        // fmt::println("constant tree op no match");
+        if constexpr (debug_print) {
+          fmt::println("constant tree op no match");
+        }
         return false;
       }
       continue;
     }
-    // fmt::println("Failed tree vectorize at something like {:cd}", curr[0]);
+    if constexpr (debug_print) {
+      fmt::println("Failed tree vectorize at something like {:cd}", curr[0]);
+    }
     return false;
   }
 
@@ -820,9 +838,11 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
     if (tree_cost > 0) {
       tree[0]->generate(ctx, b);
     } else {
-      // fmt::println("Failed vectorize -> not worth");
-      // tree[0]->dump();
-      // fmt::println("Cost tree {}", tree_cost);
+      if constexpr (debug_print) {
+        fmt::println("Failed vectorize -> not worth");
+        tree[0]->dump();
+        fmt::println("Cost tree {}", tree_cost);
+      }
     }
   }
   utils::StatCollector::get().addi(1, "SLPVectorized",
