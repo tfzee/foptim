@@ -379,7 +379,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
     return false;
   }
 
-  while (!is_full_unroll && unroll_factor * n_instrs > 64 &&
+  while (!is_full_unroll && unroll_factor * n_instrs > 32 &&
          unroll_factor > 1) {
     unroll_factor = unroll_factor / 2;
   }
