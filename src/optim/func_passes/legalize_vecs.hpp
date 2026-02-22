@@ -50,7 +50,12 @@ class LegalizeVecs final : public FunctionPass {
       }
     }
 
-    if (instr->is(fir::InstrType::FCmp) && instr->args[1].is_constant_float()) {
+    if ((instr->is(fir::BinaryInstrSubType::FloatAdd) ||
+         instr->is(fir::BinaryInstrSubType::FloatSub) ||
+         instr->is(fir::BinaryInstrSubType::FloatMul) ||
+         instr->is(fir::BinaryInstrSubType::FloatDiv) ||
+         instr->is(fir::InstrType::FCmp)) &&
+        instr->args[1].is_constant_float()) {
       auto constant = instr->args[1].as_constant();
       IRString name;
       fmt::format_to(std::back_inserter(name), "global_float_const_{}",
