@@ -106,8 +106,6 @@ class LICM final : public FunctionPass {
       return;
     }
 
-    std::reverse(invariant.begin(), invariant.end());
-
     fir::Builder bb{pre_header};
     bb.at_penultimate(pre_header);
     for (auto inv : invariant) {
