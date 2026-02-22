@@ -1,6 +1,7 @@
 #pragma once
 #include <fmt/base.h>
 #include <fmt/core.h>
+#include <limits>
 
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
@@ -228,16 +229,14 @@ class KnownBits final : public AttributeAnalysis {
         case fir::IntrinsicSubType::CTLZ: {
           const auto *known_arg0_bits =
               m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          if (known_arg0_bits->known_zero == 0) {
-            // could loook at max value
-            new_known_one = 0;
-            new_known_zero = 0;
-            break;
+          if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) == std::numeric_limits<u64>::max()) {
+              auto pre = __builtin_clzg(known_arg0_bits->known_one);
+              new_known_one = pre;
+              new_known_zero = ~pre;
+              break;
           }
-          auto pre = __builtin_clzg(known_arg0_bits->known_zero);
-          fmt::println(" {}\n{}", instr, *known_arg0_bits);
-          fmt::println(" clz {} {}", pre, 128 - pre);
-          std::abort();
+          new_known_one = 0;
+          new_known_zero = ~(u64)0b111111;
           break;
         }
         case fir::IntrinsicSubType::FAbs:
