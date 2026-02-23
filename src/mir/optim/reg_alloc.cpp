@@ -128,7 +128,8 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
 
 void spill_one(MFunc &func, TVec<VReg> &spillers,
                const TMap<VReg, TSet<size_t>> &reg_coll) {
-  fmt::println("========================\n{:c}", func);
+  (void)func;
+  // fmt::println("========================\n{:c}", func);
   fmt::println("========================\n{}", spillers);
   TODO("spill it ?");
   ASSERT(false);

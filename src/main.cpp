@@ -206,27 +206,28 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, InstSimplify, SCCP, DCE, LVN, InstSimplify, SimplifyCFG, DCE,
-      LegalizeVecs, InstSimplify>{}
+      LegalizeVecs, InstSimplify, LegalizeVecs>{}
       .apply(ctx, shed);
+
   ASSERT(ctx->verify());
-  {
-    auto *slab = ctx->storage.storage_global._slot_start.load();
-    while (slab != nullptr) {
-      for (auto &i : slab->data) {
-        const auto *v = &i;
-        if (v->used == foptim::utils::SlotState::Used) {
-          // auto size = v->data->n_bytes;
-          // foptim::fmir::Global glob = {.name = v->data->name.c_str(),
-          //                              .data = {},
-          //                              .size = 0,
-          //                              .reloc_info = {},
-          //                              .vis = v->data->linkvis};
-          fmt::println("{:cd}", *v->data);
-        }
-      }
-      slab = slab->next;
-    }
-  }
+  // {
+  //   auto *slab = ctx->storage.storage_global._slot_start.load();
+  //   while (slab != nullptr) {
+  //     for (auto &i : slab->data) {
+  //       const auto *v = &i;
+  //       if (v->used == foptim::utils::SlotState::Used) {
+  //         // auto size = v->data->n_bytes;
+  //         // foptim::fmir::Global glob = {.name = v->data->name.c_str(),
+  //         //                              .data = {},
+  //         //                              .size = 0,
+  //         //                              .reloc_info = {},
+  //         //                              .vis = v->data->linkvis};
+  //         fmt::println("{:cd}", *v->data);
+  //       }
+  //     }
+  //     slab = slab->next;
+  //   }
+  // }
   for (auto &[_, f] : ctx->storage.functions) {
     // if (f->get_n_uses() > 0 || f->getName() == "main") {
     fmt::println("{:cd}", *f);
