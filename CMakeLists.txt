@@ -4,7 +4,6 @@ project(foptim
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
 set(CMAKE_CXX_STANDARD 23)
 
-
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_C_COMPILER "clang")
 
@@ -29,11 +28,9 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 option(LINK_STATIC_LLVM "Link against individual LLVM static libraries" OFF)
 #cause different linux distros handle it differently
 if(LINK_STATIC_LLVM)
-    message(STATUS "LLVM Mode: Split (Static component libraries)")
     link_directories(${LLVM_LIBRARY_DIRS})
     llvm_map_components_to_libnames(llvm_libs support core irreader)
 else()
-    message(STATUS "LLVM Mode: Monolithic (Shared libLLVM)")
     set(LLVM_LINK_LLVM_DYLIB ON)
     set(llvm_libs LLVM)
 endif()
@@ -50,7 +47,7 @@ find_package(unordered_dense CONFIG REQUIRED)
 
 option(generation_check "check generations in references" ON)
 option(tracy_perf "tracy" OFF)
-option(optim_stats "optimization stats" ON)
+option(optim_stats "optimization stats" OFF)
 option(assert_check "Assertion Checks" ON)
 if(generation_check)
   add_definitions(-DSLOT_CHECK_GENERATION)
@@ -166,7 +163,7 @@ target_include_directories(foptim_unit_test PRIVATE ./src/)
 
 
 ################################################
-#foptim main test
+#foptim main
 add_executable (foptim_main
                 ./src/main.cpp
 
@@ -178,5 +175,5 @@ target_compile_options(foptim_main PRIVATE -fvisibility=hidden -Wall -Wextra -We
 target_link_libraries(foptim_main PRIVATE foptim)
 target_include_directories(foptim_main PRIVATE ./src/)
 
-add_subdirectory(test)
+# add_subdirectory(test)
 

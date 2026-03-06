@@ -1,1 +1,0 @@
-set -o pipefail;set -x;{ { set +x; } 2>/dev/null && echo 'RUN: at line 1': 'SIGNAL MACHINE:mips OPTIONS: */' >&2 && { set -x; } 2>/dev/null && {  SIGNAL MACHINE:mips OPTIONS: */; }; }
