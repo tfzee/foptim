@@ -801,6 +801,15 @@ class MInstr {
     return res;
   }
 
+  [[nodiscard]] constexpr bool uses_vreg(VReg reg) const {
+    for (size_t i = 0; i < n_args; i++) {
+      if (args[i].uses_same_vreg(reg)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   [[nodiscard]] bool is(GBaseSubtype sub) const {
     return bop == GOpcode::GBase && sop == (u32)sub;
   }
