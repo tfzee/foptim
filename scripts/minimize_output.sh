@@ -1,6 +1,7 @@
 #!/usr/bin/env bash 
 
 
+TEST_FOLDER="$HOME/programming/foptim_test"
 FOLDER="$HOME/programming/foptim"
 BUILD_DIR="$FOLDER/build"
 
@@ -8,7 +9,7 @@ test_file="min.cpp"
 foptim="$BUILD_DIR/foptim_main"
 # flags="-U__SIZEOF_INT128__ -std=c++26 -fno-exceptions -fno-stack-protector"
 flags="-U__SIZEOF_INT128__ -std=c++26 -fno-stack-protector"
-test_linkdir="-I$FOLDER/test/CppPerformanceBenchmarks/ -I$FOLDER/test/embench/"
+test_linkdir="-I$TEST_FOLDER/test/CppPerformanceBenchmarks/ -I$TEST_FOLDER/test/embench/"
 # compile_optim="-O3 -mllvm -disable-llvm-optzns"
 compile_optim="-O0"
 
