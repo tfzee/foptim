@@ -16,7 +16,7 @@ namespace foptim::optim {
 
 class SLPVectorizer final : public FunctionPass {
  public:
-  static constexpr bool debug_print = true;
+  static constexpr bool debug_print = false;
 
  public:
   struct SeedInstrData {
