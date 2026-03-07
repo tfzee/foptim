@@ -58,6 +58,9 @@ The tests are taken from
 ## Bench
 Some bench results and perfomance overtime the alst regression in perfomance was from the removal of the current SLP pass to add a newer one. And maybe some other fixes causing slowdowns.
 
+<img width="5006" height="3568" alt="bench_result" src="https://github.com/user-attachments/assets/0a381f19-a658-4f86-9cf7-5a73c76c77d8" />
+
+
 ## TODO
 + make flake.nix to actually be useful(or like it should be)
 + replace std::hash with the ankerl version + replace std::map/set with ankerl
