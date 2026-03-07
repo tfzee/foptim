@@ -16,7 +16,7 @@ namespace foptim::optim {
 
 class SLPVectorizer final : public FunctionPass {
  public:
-  static constexpr bool debug_print = false;
+  static constexpr bool debug_print = true;
 
  public:
   struct SeedInstrData {
@@ -537,6 +537,7 @@ class SLPVectorizer final : public FunctionPass {
  public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("SLPVectorizer");
+    return;
     (void)ctx;
     (void)func;
     AliasAnalyis aa{};
@@ -553,7 +554,7 @@ class SLPVectorizer final : public FunctionPass {
     if (store_bundles.empty() && reduction_bundles.empty()) {
       return;
     }
-    fmt::println("Stor {} Lod {}", store_bundles.size(), load_bundles.size());
+    fmt::println("Stor {} Lod {} Red {}", store_bundles.size(), load_bundles.size(), reduction_bundles.size());
 
     for (auto &b : store_bundles) {
       bool already_used = false;
@@ -587,7 +588,6 @@ class SLPVectorizer final : public FunctionPass {
         continue;
       }
       auto stor = utils::TempAlloc<void *>::save();
-      // fmt::println("MAYBE REDUCTION BUNDLE {:cd}", b.base.as_instr());
       if (tree_vectorize_reduction(ctx, b, load_bundles)) {
         utils::TempAlloc<void *>::restore(stor);
         continue;

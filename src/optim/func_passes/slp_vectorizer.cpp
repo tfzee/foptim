@@ -44,14 +44,13 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
     return true;
   }
 
-  i64 cost() const final { return n_lanes == 2 ? -2 : -1; }
+  i64 cost() const final { return -1; }
 
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle & /*orig_bundle*/) final {
     fir::Builder bb{insert_loc};
     bb.after(insert_loc);
-    auto res = bb.build_vbroadcast(
-        v, ctx->get_vec_type(insert_loc->get_type(), n_lanes));
+    auto res = bb.build_vbroadcast(v, ctx->get_vec_type(v.get_type(), n_lanes));
     return res;
   }
 };
@@ -68,9 +67,7 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
     fmt::print(")\n");
   }
 
-  i64 cost() const final {
-    return children.at(0)->cost() + n_lanes <= 2 ? -2 : -1;
-  }
+  i64 cost() const final { return children.at(0)->cost() + -(n_lanes / 2); }
 
   HorizRedTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -90,25 +87,25 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
 
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle &orig_bundle) final {
-    fir::Builder bb{insert_loc};
-    bb.after(insert_loc);
+    auto orig_instr = orig_bundle.base.as_instr();
+    auto subtype = orig_instr->subtype;
     ASSERT(children.size() == 1);
 
-    auto subtype = orig_bundle.base.as_instr()->subtype;
     bool isProd = subtype == (u32)fir::BinaryInstrSubType::FloatMul ||
                   subtype == (u32)fir::BinaryInstrSubType::IntMul;
     bool isSum = subtype == (u32)fir::BinaryInstrSubType::FloatAdd ||
                  subtype == (u32)fir::BinaryInstrSubType::IntAdd;
     ASSERT(isProd || isSum);
 
-    auto orig_red = orig_bundle.base.as_instr();
     auto vec = children.at(0)->generate(ctx, orig_bundle);
+    fir::Builder bb{orig_instr};
+    bb.after(orig_instr);
     auto new_v =
-        bb.build_vector_op(vec, orig_red->get_type(),
+        bb.build_vector_op(vec, orig_instr->get_type(),
                            isProd ? fir::VectorISubType::HorizontalMul
                                   : fir::VectorISubType::HorizontalAdd);
-    orig_red->replace_all_uses(new_v);
-    orig_red.destroy();
+    orig_instr->replace_all_uses(new_v);
+    orig_instr.destroy();
     return new_v;
   }
 };
@@ -170,6 +167,7 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
     }
     if (base_v->args[1].get_type()->get_bitwidth() !=
         base_v->args[0].get_type()->get_bitwidth()) {
+      fmt::println("Wrong bitwidth");
       return false;
     }
     switch ((fir::BinaryInstrSubType)base_v->subtype) {
@@ -335,13 +333,14 @@ class StoreTreeOp final : public SLPVectorizer::TreeElem {
   }
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle &orig_bundl) final {
-    fmt::println("Gen Store slp");
-    children.at(0)->dump();
+    // fmt::println("Gen Store slp");
+    // children.at(0)->dump();
     // auto *func = orig_bundl.data[0].instr->get_parent()->get_parent().func;
     // fmt::println(">>>>>>>>> {:cd}", *func);
     auto val = children.at(0)->generate(ctx, orig_bundl);
     // fmt::println("======== {:cd}", *func);
     fir::Builder bb{insert_loc};
+    bb.after(insert_loc);
     // TODO: assuming continious stores
     auto res = bb.build_store(store_loc->args[0], val, false, false);
     for (auto o : orig_bundl.data) {
@@ -586,22 +585,16 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
 
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle &orig_bundl) final {
-    // TODO: assuming continious loads
-    //  auto a = children[0]->generate(ctx);
     auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
-    if (val.is_instr()) {
-      bb.after(val.as_instr());
-    }
+    bb.after(insert_loc);
+    fmt::println("====> {}\n{}\n====================", insert_loc,
+                 insert_loc->get_parent());
     if (insert_loc->get_type()->is_vec()) {
       auto vec_loads = insert_loc->get_type()->as_vec();
       auto vec_ty = ctx->get_vec_type(
           vec_loads.type, vec_loads.bitwidth * vec_loads.member_number,
           n_lanes);
-      // auto real_vec_ty = ctx->get_vec_type(vec_loads.type,
-      // vec_loads.bitwidth,
-      //                                      n_lanes *
-      //                                      vec_loads.member_number);
       auto res = bb.build_load(vec_ty, val, false, false);
       return res;
     }
