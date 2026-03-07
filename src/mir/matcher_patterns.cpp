@@ -210,41 +210,45 @@ void memory_patterns(IRVec<Pattern> &pats) {
   auto StoreNode = Node{NodeType::Instr, InstrType::StoreInstr, 0};
   auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
 
-  pats.push_back(Pattern{
-      .nodes = {LoadNode, IntAddNode, StoreNode},
-      .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0},
-                {.from_instr = 1, .to_instr = 2, .to_arg = 1}},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto load_instr = res.matched_instrs[0];
-        auto add_instr = res.matched_instrs[1];
-        auto store_instr = res.matched_instrs[2];
-        auto add_ty = convert_type(add_instr.get_type());
-        if (add_ty >= Type::Float32) {
-          // cant do it on vector regs
-          return false;
-        }
-        if (!add_instr->args[1].is_constant()) {
-          return false;
-        }
-        auto consti = add_instr->args[1].as_constant();
-        if (!consti->is_int()) {
-          return false;
-        }
-        if (load_instr->args[0] != store_instr->args[0]) {
-          return false;
-        }
-        auto store_ty = convert_type(store_instr->get_type());
-        if (convert_type(load_instr->get_type()) != store_ty) {
-          return false;
-        }
-        auto consti_val = consti->as_int();
-        auto ptr = valueToArg(load_instr->args[0], res.result, data.alloc);
-        assert(ptr.isReg());
-        res.result.emplace_back(
-            GArithSubtype::add2, MArgument::MemB(ptr.reg, store_ty),
-            MArgument{(u64)std::bit_cast<u128>(consti_val)});
-        return true;
-      }});
+  // pats.push_back(Pattern{
+  //     .nodes = {LoadNode, IntAddNode, StoreNode},
+  //     .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0},
+  //               {.from_instr = 1, .to_instr = 2, .to_arg = 1}},
+  //     .generator = [](MatchResult &res, ExtraMatchData &data) {
+  //       auto load_instr = res.matched_instrs[0];
+  //       auto add_instr = res.matched_instrs[1];
+  //       auto store_instr = res.matched_instrs[2];
+  //       auto add_ty = convert_type(add_instr.get_type());
+  //       if (store_instr->args[0].get_type()->is_vec()) {
+  //         return false;
+  //       }
+  //       if (add_ty >= Type::Float32) {
+  //         // cant do it on vector regs
+  //         return false;
+  //       }
+  //       if (!add_instr->args[1].is_constant()) {
+  //         return false;
+  //       }
+  //       auto consti = add_instr->args[1].as_constant();
+  //       if (!consti->is_int()) {
+  //         return false;
+  //       }
+  //       if (load_instr->args[0] != store_instr->args[0]) {
+  //         return false;
+  //       }
+  //       auto store_ty = convert_type(store_instr->get_type());
+  //       if (convert_type(load_instr->get_type()) != store_ty) {
+  //         return false;
+  //       }
+  //       auto consti_val = consti->as_int();
+  //       auto ptr = valueToArg(load_instr->args[0], res.result, data.alloc);
+  //       assert(ptr.isReg());
+  //       res.result.emplace_back(
+  //           GArithSubtype::add2, MArgument::MemB(ptr.reg, store_ty),
+  //           MArgument{(u64)std::bit_cast<u128>(consti_val)});
+  //       return true;
+  //     }});
+  // 
   pats.push_back(Pattern{
       .nodes = {IntMulNode, IntAddNode, LoadNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 1},
@@ -255,6 +259,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto load_instr = res.matched_instrs[2];
         auto load_ty = convert_type(load_instr.get_type());
         auto add_ty = convert_type(add_instr.get_type());
+        if (load_instr->args[0].get_type()->is_vec()) {
+          return false;
+        }
         if (add_ty >= Type::Float32) {
           // cant do it on vector regs
           return false;
@@ -315,6 +322,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto store_instr = res.matched_instrs[2];
         auto store_ty = convert_type(store_instr.get_type());
         auto add_ty = convert_type(add_instr.get_type());
+        if (store_instr->args[0].get_type()->is_vec()) {
+          return false;
+        }
         if (add_ty >= Type::Float32) {
           // cant do it on vector regs
           return false;
@@ -381,29 +391,33 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto load_instr = res.matched_instrs[2];
 
         auto add_ty = convert_type(add1_instr.get_type());
+        if (load_instr->args[0].get_type()->is_vec()) {
+          return false;
+        }
         if (add_ty >= Type::Float32) {
           // cant do it on vector regs
           return false;
         }
-        auto store_ty = convert_type(load_instr.get_type());
+        auto load_ty = convert_type(load_instr.get_type());
         auto a00 = valueToArg(add0_instr->args[0], res.result, data.alloc);
         auto a01 = valueToArg(add0_instr->args[1], res.result, data.alloc);
 
         auto a11 = valueToArg(add1_instr->args[1], res.result, data.alloc);
-        auto ptr = valueToArg(load_instr->args[0], res.result, data.alloc);
+        auto res_reg =
+            valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
 
         if (a00.isReg() && a01.isImm() && a11.isReg()) {
           res.result.emplace_back(
-              GBaseSubtype::mov, ptr,
-              MArgument::MemOBI(a01.imm, a00.reg, a11.reg, store_ty));
+              GBaseSubtype::mov, res_reg,
+              MArgument::MemOBI(a01.imm, a00.reg, a11.reg, load_ty));
         } else if (a00.isImm() && a01.isReg() && a11.isReg()) {
           res.result.emplace_back(
-              GBaseSubtype::mov, ptr,
-              MArgument::MemOBI(a00.imm, a01.reg, a11.reg, store_ty));
+              GBaseSubtype::mov, res_reg,
+              MArgument::MemOBI(a00.imm, a01.reg, a11.reg, load_ty));
         } else if (a00.isReg() && a01.isReg() && a11.isImm()) {
           res.result.emplace_back(
-              GBaseSubtype::mov, ptr,
-              MArgument::MemOBI(a11.imm, a00.reg, a01.reg, store_ty));
+              GBaseSubtype::mov, res_reg,
+              MArgument::MemOBI(a11.imm, a00.reg, a01.reg, load_ty));
         } else {
           return false;
         }
@@ -419,6 +433,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto add_instr = res.matched_instrs[0];
         auto load_instr = res.matched_instrs[1];
 
+        if (load_instr->args[0].get_type()->is_vec()) {
+          return false;
+        }
         auto res_reg =
             valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
         auto load_ty = convert_type(load_instr.get_type());
@@ -496,6 +513,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto add1_instr = res.matched_instrs[1];
         auto store_instr = res.matched_instrs[2];
 
+        if (store_instr->args[0].get_type()->is_vec()) {
+          return false;
+        }
         auto add_ty = convert_type(add1_instr.get_type());
         if (add_ty >= Type::Float32) {
           // cant do it on vector regs
@@ -535,6 +555,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_ty >= Type::Float32 || store_instr.get_type()->is_struct()) {
           // cant do it on vector regs
           // TODO: can do it for structs in theory
+          return false;
+        }
+        if (store_instr->args[0].get_type()->is_vec()) {
           return false;
         }
 
@@ -764,7 +787,8 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         auto &bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
         auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-        auto v2 = valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc, cmp_instr->get_parent());
+        auto v2 = valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc,
+                                   cmp_instr->get_parent());
 
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
         generate_bb_args(bb_with_args, res, data);
@@ -1376,6 +1400,31 @@ void arith_patterns(IRVec<Pattern> &pats) {
       }});
 }
 
+void vec_patterns(IRVec<Pattern> &pats) {
+  using Node = Pattern::Node;
+  using InstrType = fir::InstrType;
+  using NodeType = Pattern::NodeType;
+
+  auto BroadNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                        (u32)fir::VectorISubType::Broadcast};
+  auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, (u32)0};
+
+  pats.push_back(Pattern{
+      .nodes = {LoadNode, BroadNode},
+      .edges = {{0, 1, 0}},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto broad_instr = res.matched_instrs[1];
+        auto res_reg =
+            valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
+        fmt::println("================================================");
+        auto arg = valueToArgPosMem(broad_instr->args[0], res.result,
+                                    data.alloc, broad_instr->get_parent());
+        fmt::println("{}", res.result);
+        fmt::println("================================================");
+        res.result.emplace_back(X86Subtype::vbroadcast, res_reg, arg);
+        return true;
+      }});
+}
 void base_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
   using InstrType = fir::InstrType;
@@ -1614,13 +1663,14 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (res_ty >= Type::Float32) {
           // int vector add has different 3 oeprand operation
           auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
-          auto a1 =
-              valueToArgPosMem(add_instr->args[1], res.result, data.alloc, add_instr->get_parent());
+          auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
+                                     add_instr->get_parent());
           res.result.emplace_back(GVecSubtype::vadd, res_reg, a0, a1);
           return true;
         }
 
-        auto a0 = valueToArgPosMem(add_instr->args[0], res.result, data.alloc, add_instr->get_parent());
+        auto a0 = valueToArgPosMem(add_instr->args[0], res.result, data.alloc,
+                                   add_instr->get_parent());
         if (res_reg.ty != a0.ty) {
           if (a0.isMem()) {
             a0.ty = res_reg.ty;
@@ -1633,7 +1683,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           }
         }
 
-        auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc, add_instr->get_parent());
+        auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
+                                   add_instr->get_parent());
         if (a1.isImm()) {
           // then we gucci
         } else if (res_reg.ty != a1.ty) {
@@ -2202,7 +2253,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           ASSERT(res_reg16.isReg());
           res_reg16.ty = Type::Int16;
           res_reg16.reg.ty = Type::Int16;
-          auto arg1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc, add_instr->get_parent());
+          auto arg1 = valueToArgPosMem(add_instr->args[1], res.result,
+                                       data.alloc, add_instr->get_parent());
           if (arg1.isReg()) {
             arg1.ty = Type::Int16;
             arg1.reg.ty = Type::Int16;
@@ -2221,14 +2273,17 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(
               GVecSubtype::fmul, res_reg,
               valueToArg(add_instr->args[0], res.result, data.alloc),
-              valueToArgPosMem(add_instr->args[1], res.result, data.alloc, add_instr->get_parent()));
+              valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
+                               add_instr->get_parent()));
         } else {
           res.result.emplace_back(
               GBaseSubtype::mov, res_reg,
-              valueToArgPosMem(add_instr->args[0], res.result, data.alloc, add_instr->get_parent()));
+              valueToArgPosMem(add_instr->args[0], res.result, data.alloc,
+                               add_instr->get_parent()));
           res.result.emplace_back(
               GArithSubtype::mul2, res_reg,
-              valueToArgPosMem(add_instr->args[1], res.result, data.alloc, add_instr->get_parent()));
+              valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
+                               add_instr->get_parent()));
         }
         return true;
       }});
@@ -2400,8 +2455,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_arg = MArgument(res_reg, convert_type(cmp_instr.get_type()));
 
         auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-        auto arg2 =
-            valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc, cmp_instr->get_parent());
+        auto arg2 = valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc,
+                                     cmp_instr->get_parent());
         // auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
         GJumpSubtype op = GJumpSubtype::fcmp_oeq;
@@ -2832,8 +2887,8 @@ void base_patterns(IRVec<Pattern> &pats) {
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto f_add_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_add_instr->args[0], res.result, data.alloc);
-        auto a2 =
-            valueToArgPosMem(f_add_instr->args[1], res.result, data.alloc, f_add_instr->get_parent());
+        auto a2 = valueToArgPosMem(f_add_instr->args[1], res.result, data.alloc,
+                                   f_add_instr->get_parent());
         auto res_reg =
             valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
 
@@ -2870,8 +2925,8 @@ void base_patterns(IRVec<Pattern> &pats) {
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto f_sub_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_sub_instr->args[0], res.result, data.alloc);
-        auto a2 =
-            valueToArgPosMem(f_sub_instr->args[1], res.result, data.alloc, f_sub_instr->get_parent());
+        auto a2 = valueToArgPosMem(f_sub_instr->args[1], res.result, data.alloc,
+                                   f_sub_instr->get_parent());
         auto res_reg =
             valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
 
@@ -2884,8 +2939,8 @@ void base_patterns(IRVec<Pattern> &pats) {
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto f_mul_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
-        auto a2 =
-            valueToArgPosMem(f_mul_instr->args[1], res.result, data.alloc, f_mul_instr->get_parent());
+        auto a2 = valueToArgPosMem(f_mul_instr->args[1], res.result, data.alloc,
+                                   f_mul_instr->get_parent());
         auto res_reg =
             valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
 
@@ -2898,8 +2953,8 @@ void base_patterns(IRVec<Pattern> &pats) {
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto f_div_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_div_instr->args[0], res.result, data.alloc);
-        auto a2 =
-            valueToArgPosMem(f_div_instr->args[1], res.result, data.alloc, f_div_instr->get_parent());
+        auto a2 = valueToArgPosMem(f_div_instr->args[1], res.result, data.alloc,
+                                   f_div_instr->get_parent());
         auto res_reg =
             valueToArg(fir::ValueR(f_div_instr), res.result, data.alloc);
 
@@ -3206,6 +3261,7 @@ IRVec<Pattern> get_pats() {
   move_patterns(res);
   arith_patterns(res);
   intrin_patterns(res);
+  vec_patterns(res);
   base_patterns(res);
 
   return res;

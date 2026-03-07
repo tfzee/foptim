@@ -1359,7 +1359,7 @@ inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         ZydisEncoderEncodeInstruction(&req_vadd, tmp,
                                       &(len_vadd = sizeof(tmp)));
         const ZyanU8 len_jmp = 2;
-        // A. TEST inp, inp
+        // TEST inp, inp
         req.mnemonic = ZYDIS_MNEMONIC_TEST;
         req.operand_count = 2;
         req.operands[0] = inp_arg;
@@ -1367,7 +1367,7 @@ inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         u32 off = 0;
         off = emit(out_buff, off, &req);
 
-        // B. JNS (Jump to the "Fits Signed" VCVT)
+        // JNS (Jump to the "Fits Signed" VCVT)
         // Offset = Length of (SHR + ADC + VCVT + VADD + JMP)
         req.mnemonic = ZYDIS_MNEMONIC_JNS;
         req.operand_count = 1;
@@ -1375,22 +1375,22 @@ inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         req.operands[0].imm.s =
             len_shr + len_adc + len_vcvt + len_vadd + len_jmp;
         off = emit(out_buff, off, &req);
-        // C. SHR inp, 1
+        // SHR inp, 1
         off = emit(out_buff, off, &req_shr);
-        // D. ADC inp, 0 (Round-to-odd)
+        // ADC inp, 0 (Round-to-odd)
         off = emit(out_buff, off, &req_adc);
-        // E. VCVTSI2SD out, out, inp
+        // VCVTSI2SD out, out, inp
         off = emit(out_buff, off, &req_vcvt);
-        // F. VADDSD out, out, out (Scale back)
+        // VADDSD out, out, out (Scale back)
         off = emit(out_buff, off, &req_vadd);
-        // G. JMP (Jump over the alternative VCVT)
+        // JMP (Jump over the alternative VCVT)
         // Offset = Length of (Single VCVT)
         req.mnemonic = ZYDIS_MNEMONIC_JMP;
         req.operand_count = 1;
         req.operands[0].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
         req.operands[0].imm.s = len_vcvt;
         off = emit(out_buff, off, &req);
-        // H. VCVTSI2SD out, out, inp (The "Fits Signed" Path)
+        // VCVTSI2SD out, out, inp (The "Fits Signed" Path)
         off = emit(out_buff, off, &req_vcvt);
         // fmt::println("{:cd}", instr);
         // TODO("impl ");
