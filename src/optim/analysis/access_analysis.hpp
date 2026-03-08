@@ -94,6 +94,9 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
     res.Escapes = true;
     return;
   }
+  if (i->is(fir::InstrType::ICmp)) {
+    return;
+  }
   fmt::println("{:cd}", u);
   fmt::println("{:cd}", u.user);
   TODO("okak");

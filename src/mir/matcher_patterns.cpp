@@ -248,7 +248,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
   //           MArgument{(u64)std::bit_cast<u128>(consti_val)});
   //       return true;
   //     }});
-  // 
+  //
   pats.push_back(Pattern{
       .nodes = {IntMulNode, IntAddNode, LoadNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 1},
@@ -3079,6 +3079,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                          (u32)fir::IntrinsicSubType::FFloor};
   auto ftruncNode = Node{NodeType::Instr, InstrType::Intrinsic,
                          (u32)fir::IntrinsicSubType::FTrunc};
+  auto is_const = Node{NodeType::Instr, InstrType::Intrinsic,
+                       (u32)fir::IntrinsicSubType::IsConstant};
 
   pats.push_back(Pattern{
       .nodes = {froundNode},
@@ -3089,6 +3091,15 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
                                 MArgument((u8)0b00));
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {is_const},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        res.result.emplace_back(GArithSubtype::lxor2, res_reg, res_reg);
         return true;
       }});
   pats.push_back(Pattern{

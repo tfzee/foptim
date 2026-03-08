@@ -98,6 +98,7 @@ class SCCP final : public FunctionPass {
     }
     static ConstantValue Constant(fir::ConstantValueR v) {
       auto c = v->get_type();
+
       if (v->is_poison()) {
         return ConstantValue{
             .type = ValueType::Poison, .vals = {}, .vtype = v->get_type()};
@@ -229,9 +230,8 @@ class SCCP final : public FunctionPass {
       if ((c->is_int() && bitwidth == 64) || c->is_ptr()) {
         auto val = (*(u64 *)v);
         if (c->is_ptr() && val == 0) {
-          return ConstantValue{.type = ValueType::NullPtr,
-                               .vals = {{.i = 0}},
-                               .vtype = c};
+          return ConstantValue{
+              .type = ValueType::NullPtr, .vals = {{.i = 0}}, .vtype = c};
         }
         return ConstantValue{.type = ValueType::Int,
                              .vals = {{.i = std::bit_cast<i128>((u128)val)}},

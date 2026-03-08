@@ -5,6 +5,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
 #include "ir/use.hpp"
+#include "fmt/std.h"
 
 namespace foptim::optim {
 AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
@@ -78,8 +79,8 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
       if (a.heap == 0 && b.heap == 0) {
         return {.heap = 0, .offset = {}};
       }
-      fmt::println("{}", i);
-      TODO("seems illegal");
+      //adding two pointers is giga sus so we just gonna assume the worst
+      return {.heap = any_h, .offset = {}};
     }
     fmt::println("{}", v.as_instr());
   } else if (v.is_bb_arg()) {

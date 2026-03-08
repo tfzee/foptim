@@ -775,6 +775,8 @@ void Legalizer::apply_impl(MFunc &func) {
           switch ((GArithSubtype)bb.instrs[i].sop) {
             case GArithSubtype::land2:
             case GArithSubtype::lor2:
+            case GArithSubtype::mul2:
+            case GArithSubtype::add2:
               if (legalize_arith_op(bb, i)) {
                 ioff = 0;
               }
