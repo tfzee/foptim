@@ -35,19 +35,13 @@
             #for testing stuff not real dependencies
             cmakeCurses
             (pkgs.python312.withPackages (python-pkgs: [
-                python-pkgs.pandas
-                python-pkgs.matplotlib
                 python-pkgs.z3-solver
-                python-pkgs.streamlit
-                python-pkgs.pandas
-                python-pkgs.plotly
               ]))
             graphviz
             cvise
             tracy
             nnd
             gdb
-            lit
             hyperfine
             (cutter.withPlugins (ps: with ps; [ rz-ghidra ]))
             valgrind
