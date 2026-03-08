@@ -1531,7 +1531,6 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
   }
   CFG cfg{func};
   Dominators dom{cfg};
-  fmt::println("{:cd}", func);
 
   auto iter = 0;
   bool modified = true;
@@ -1568,7 +1567,6 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
       cfg = CFG(func, false);
       dom = Dominators(cfg);
     }
-    fmt::println("{:cd}", func);
   }
   dup_bb_to_args(func);
 }
