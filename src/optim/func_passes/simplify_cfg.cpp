@@ -810,7 +810,7 @@ SimplifyCFG::Res SimplifyCFG::merge_empty_block_backwards(CFG &cfg,
                                                           CFG::Node &curr,
                                                           fir::Function &func,
                                                           size_t bb_id) {
-  if (curr.succ.size() != 1) {
+  if (curr.succ.size() != 1 || curr.succ[0] == bb_id) {
     return Res::NoChange;
   }
 
@@ -822,6 +822,13 @@ SimplifyCFG::Res SimplifyCFG::merge_empty_block_backwards(CFG &cfg,
   //    0x5591b4d32ba8 : () = Branch<0x5591b4d379c0()>(){}
   //  0x5591b4d379c0():
   //    0x5591b4d32998 : () = Branch<0x5591b4d37968()>(){}
+
+  // cant call itself
+  for (auto sucsuc : succ.succ) {
+    if (sucsuc == curr.succ[0]) {
+      return Res::NoChange;
+    }
+  }
 
   if (succ.bb->n_instrs() == 1 && succ.bb->n_args() == 0) {
     ZoneScopedN("merge backw");
@@ -855,6 +862,9 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
     ZoneScopedN("merge forw");
     ASSERT(curr.succ.size() == 1);
     auto succ = cfg.bbrs[curr.succ[0]].bb;
+    if (curr.succ[0] == bb_id) {
+      return false;
+    }
     // if no bb args involved just replace
     if (curr.bb->n_args() == 0 && succ->n_args() == 0 &&
         (!is_entry ||
@@ -1521,6 +1531,7 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
   }
   CFG cfg{func};
   Dominators dom{cfg};
+  fmt::println("{:cd}", func);
 
   auto iter = 0;
   bool modified = true;
@@ -1557,6 +1568,7 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
       cfg = CFG(func, false);
       dom = Dominators(cfg);
     }
+    fmt::println("{:cd}", func);
   }
   dup_bb_to_args(func);
 }
