@@ -1,6 +1,8 @@
+#include "reg_alloc.hpp"
+#include <fmt/base.h>
+
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
-#include "reg_alloc.hpp"
 #include "utils/set.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
@@ -128,9 +130,29 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
 
 void spill_one(MFunc &func, TVec<VReg> &spillers,
                const TMap<VReg, TSet<size_t>> &reg_coll) {
-  (void)func;
+  VReg worst_spiller = spillers[0];
+  u32 worst_amount = 0;
+  for (auto spiller : spillers) {
+    if (reg_coll.at(spiller).size() > worst_amount) {
+      worst_amount = reg_coll.at(spiller).size();
+      worst_spiller = spiller;
+    }
+  }
+
+  fmt::println("{}", func);
+  u64 num_uses = 0;
+  // bool gets_written = false;
+  for (auto &bb : func.bbs) {
+    for (auto &i : bb.instrs) {
+      if (i.uses_vreg(worst_spiller)) {
+        num_uses++;
+      }
+    }
+  }
+
   // fmt::println("========================\n{:c}", func);
   fmt::println("========================\n{}", spillers);
+  fmt::println("{}: {} @ {}", worst_spiller, worst_amount, num_uses);
   TODO("spill it ?");
   ASSERT(false);
   (void)reg_coll;

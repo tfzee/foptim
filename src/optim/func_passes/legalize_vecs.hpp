@@ -2,6 +2,7 @@
 #include <fmt/core.h>
 
 #include "ir/builder.hpp"
+#include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
@@ -12,6 +13,27 @@
 namespace foptim::optim {
 
 class LegalizeVecs final : public FunctionPass {
+  void make_constant_global(fir::Context &ctx, fir::Instr instr, u32 arg_indx) {
+    auto constant = instr->args[arg_indx].as_constant();
+    IRString name;
+    fmt::format_to(std::back_inserter(name), "global_const_{}",
+                   (void *)constant.get_raw_ptr());
+    const auto size = constant->type->get_bitwidth();
+    auto global = ctx->insert_global(name, size);
+    global->is_constant = true;
+    global->linkage = fir::Linkage::Internal;
+    global->init_value = foptim::utils::IRAlloc<uint8_t>{}.allocate(size);
+    memset(global->init_value, 0, size);
+
+    convert_constant_init(global->init_value, constant, global);
+
+    fir::Builder bb{instr};
+    auto load_val = bb.build_load(constant->type,
+                                  fir::ValueR{ctx->get_constant_value(global)},
+                                  false, false);
+    instr.replace_arg(arg_indx, load_val);
+  }
+
   static void push_all_uses(TVec<fir::Instr> &worklist, fir::Instr instr) {
     for (auto u : instr->get_uses()) {
       worklist.push_back(u.user);
@@ -20,32 +42,11 @@ class LegalizeVecs final : public FunctionPass {
 
   bool legalize(fir::Context &ctx, fir::Instr instr,
                 TVec<fir::Instr> &worklist) {
-    for (size_t arg_id = 0; arg_id < instr->args.size(); arg_id++) {
-      auto arg = instr->args[arg_id];
+    for (size_t arg_indx = 0; arg_indx < instr->args.size(); arg_indx++) {
+      auto arg = instr->args[arg_indx];
       // replace vec with reference to global variable
       if (arg.is_constant() && arg.as_constant()->is_vec()) {
-        // TODO: prob should check for duplicates here
-        auto constant = arg.as_constant();
-        IRString name;
-        fmt::format_to(std::back_inserter(name), "global_vec_const_{}",
-                       (void *)constant.get_raw_ptr());
-        const auto &typ = constant->type->as_vec();
-        const auto actual_size = typ.get_size();
-        // TODO assert that this doesnt actually already exists
-        auto global = ctx->insert_global(name, actual_size);
-        global->is_constant = true;
-        global->linkage = fir::Linkage::Internal;
-        global->init_value =
-            foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
-        memset(global->init_value, 0, actual_size);
-
-        convert_constant_init(global->init_value, constant, global);
-
-        fir::Builder bb{instr};
-        auto load_val = bb.build_load(
-            constant->type, fir::ValueR{ctx->get_constant_value(global)}, false,
-            false);
-        instr.replace_arg(arg_id, load_val);
+        make_constant_global(ctx, instr, arg_indx);
         return true;
       }
     }
@@ -56,25 +57,7 @@ class LegalizeVecs final : public FunctionPass {
          instr->is(fir::BinaryInstrSubType::FloatDiv) ||
          instr->is(fir::InstrType::FCmp)) &&
         instr->args[1].is_constant_float()) {
-      auto constant = instr->args[1].as_constant();
-      IRString name;
-      fmt::format_to(std::back_inserter(name), "global_float_const_{}",
-                     (void *)constant.get_raw_ptr());
-      const auto size = constant->type->as_float();
-      // TODO assert that this doesnt actually already exists
-      auto global = ctx->insert_global(name, size);
-      global->is_constant = true;
-      global->linkage = fir::Linkage::Internal;
-      global->init_value = foptim::utils::IRAlloc<uint8_t>{}.allocate(size);
-      memset(global->init_value, 0, size);
-
-      convert_constant_init(global->init_value, constant, global);
-
-      fir::Builder bb{instr};
-      auto load_val = bb.build_load(
-          constant->type, fir::ValueR{ctx->get_constant_value(global)}, false,
-          false);
-      instr.replace_arg(1, load_val);
+      make_constant_global(ctx, instr, 1);
       return true;
     }
 
@@ -103,25 +86,31 @@ class LegalizeVecs final : public FunctionPass {
       return true;
     }
     // TODO: is this check for avx512 sufficient/correct?
-    if (instr->is(fir::VectorISubType::Broadcast) && !utils::enable_avx512f &&
-        instr->get_type()->get_bitwidth() >= 512) {
-      // auto funcy = instr->get_parent()->get_parent().func;
-      // fmt::println("{:cd}", *funcy);
-      // fmt::println("{}", instr);
-      fir::Builder buh{instr};
-      auto old_type = instr->get_type()->as_vec();
-      auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
-                                        old_type.member_number / 2);
-      auto a1 = buh.build_vbroadcast(instr->args[0], new_type);
-      auto a2 = buh.build_vbroadcast(instr->args[0], new_type);
-      auto r = buh.build_vector_op(a1, a2, instr->get_type(),
-                                   fir::VectorISubType::Concat);
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(r);
-      instr.destroy();
-      // fmt::println("{:cd}", *funcy);
-      // TODO("split");
-      return true;
+    if (instr->is(fir::VectorISubType::Broadcast)) {
+      // TODO: this shouldnt realy be a thing ??
+      if (instr->args[0].is_constant_float()) {
+        make_constant_global(ctx, instr, 0);
+        return true;
+      }
+      if (!utils::enable_avx512f && instr->get_type()->get_bitwidth() >= 512) {
+        // auto funcy = instr->get_parent()->get_parent().func;
+        // fmt::println("{:cd}", *funcy);
+        // fmt::println("{}", instr);
+        fir::Builder buh{instr};
+        auto old_type = instr->get_type()->as_vec();
+        auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
+                                          old_type.member_number / 2);
+        auto a1 = buh.build_vbroadcast(instr->args[0], new_type);
+        auto a2 = buh.build_vbroadcast(instr->args[0], new_type);
+        auto r = buh.build_vector_op(a1, a2, instr->get_type(),
+                                     fir::VectorISubType::Concat);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        // fmt::println("{:cd}", *funcy);
+        // TODO("split");
+        return true;
+      }
     }
     // TODO: is this check for avx512 sufficient/correct?
     if (instr->is(fir::VectorISubType::HorizontalAdd) &&

@@ -329,7 +329,6 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
   }
   if (instr->args[1].is_constant() &&
-      instr.get_type() != instr->args[0].get_type() &&
       instr->args[0].get_type() != instr->args[1].get_type()) {
     auto t1 = instr->args[0].get_type();
     auto t2 = instr->args[1].get_type();
@@ -339,6 +338,16 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         t1->get_bitwidth() != t2->get_bitwidth()) {
       promote_constant_type(ctx, instr, 1,
                             ctx->get_int_type(t1->get_bitwidth()));
+    } else if (t1->is_vec() && t2->is_vec()) {
+      auto v1 = t1->as_vec();
+      auto v2 = t2->as_vec();
+      if (v1.member_number == v2.member_number && v1.bitwidth > v2.bitwidth) {
+        promote_constant_type(ctx, instr, 1,
+                              ctx->get_int_type(t1->get_bitwidth()));
+      } else if (v1.member_number == v2.member_number &&
+                 v1.bitwidth == v2.bitwidth && v1.type != v2.type) {
+        TODO("impl");
+      }
     } else {
       promote_constant_type(ctx, instr, 1, instr->args[0].get_type());
     }
@@ -3823,6 +3832,46 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto out_type = ctx->get_int_type(extend_to * 8);
       if (simplify_ext_byte_vector(instr, ctx, worklist, extend_to, n_out_elems,
                                    out_type)) {
+        return;
+      }
+    }
+  }
+  if (instr->is(fir::InstrType::LoadInstr) &&
+      instr->args[0].get_type()->is_vec() && instr->args[0].is_instr()) {
+    auto argi = instr->args[0].as_instr();
+    if (argi->is(fir::BinaryInstrSubType::IntAdd) &&
+        argi->args[1].is_constant() && argi->args[0].is_instr() &&
+        argi->args[0].as_instr()->is(fir::VectorISubType::Broadcast)) {
+      auto broad_cast = argi->args[0].as_instr();
+      auto arg_broad = broad_cast->args[0];
+      auto arg_argc = argi->args[1].as_constant()->as_vec();
+      auto expected_spacing = instr->get_type()->as_vec().bitwidth;
+      bool spacing_matches = true;
+
+      for (size_t i = 1; i < arg_argc.members.size(); i++) {
+        auto v1 = arg_argc.members[i - 1];
+        auto v2 = arg_argc.members[i];
+        ASSERT(v1->is_int());
+        ASSERT(v2->is_int());
+        auto v1i = v1->as_int();
+        auto v2i = v2->as_int();
+        if (v2i <= v1i || (v2i - v1i) * 8 != expected_spacing) {
+          spacing_matches = false;
+        }
+      }
+
+      if (spacing_matches) {
+        fir::Builder buh{instr};
+        auto r = buh.build_load(instr->get_type(), arg_broad, instr->Atomic,
+                                instr->Volatile);
+        instr->replace_all_uses(r);
+        instr.destroy();
+        if (argi->get_n_uses() == 0) {
+          argi.destroy();
+        }
+        if (broad_cast->get_n_uses() == 0) {
+          broad_cast.destroy();
+        }
         return;
       }
     }

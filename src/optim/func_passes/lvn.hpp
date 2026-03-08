@@ -1,4 +1,5 @@
 #pragma once
+#include <fmt/base.h>
 #include <fmt/std.h>
 
 #include "../function_pass.hpp"
@@ -169,6 +170,23 @@ class LVN final : public FunctionPass {
           bool pot_store_between = is_pot_store_between(
               bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
           if (!pot_store_between) {
+            // fmt::println("=========");
+            // auto a = aa.analyze(instr->args[0]);
+            // for (size_t idx = i; idx < i2 + 1; idx++) {
+            //   if (bb->instructions[idx]->is(fir::InstrType::StoreInstr)) {
+            //     auto b = aa.analyze(bb->instructions[idx]->args[0]);
+            //     auto res =
+            //         aa.alias(instr->args[0], bb->instructions[idx]->args[0]);
+            //     auto res2 = aa.alias(
+            //         bb->instructions[idx]->args[0], instr->args[0],
+            //         bb->instructions[idx]->args[0].get_type()->get_size(),
+            //         instr->args[0].get_type()->get_size());
+            //     fmt::println("{}", bb->instructions[idx]);
+            //     fmt::println("{}@{} {}@{}  ===> {}/{}", a.heap, a.offset,
+            //                  b.heap, b.offset, (u8)res, (u8)res2);
+            //   }
+            //   fmt::println("{}", bb->instructions[idx]);
+            // }
             if (t1 == t2) {
               instr2->replace_all_uses(instr->get_arg(1));
               instr2.destroy();
@@ -197,35 +215,22 @@ class LVN final : public FunctionPass {
               i2--;
               continue;
             }
-          } else if (t1->is_vec() &&
-                     t1->as_vec().bitwidth == t2->get_bitwidth() &&
-                     ((t2->is_float() &&
-                       t1->as_vec().type ==
-                           fir::VectorType::SubType::Floating) ||
-                      (t2->is_int() &&
-                       t1->as_vec().type ==
-                           fir::VectorType::SubType::Integer))) {
-            fir::Builder buh{instr2};
-            fir::ValueR index0[1] = {
-                fir::ValueR{cfg.func->ctx->get_constant_int(0, 32)},
-            };
-            auto res = buh.build_extract_value(instr->args[1], index0, t2);
-            instr2->replace_all_uses(res);
-            instr2.destroy();
-            i2--;
-            continue;
+            if (t1->is_vec() && t1->as_vec().bitwidth == t2->get_bitwidth() &&
+                ((t2->is_float() &&
+                  t1->as_vec().type == fir::VectorType::SubType::Floating) ||
+                 (t2->is_int() &&
+                  t1->as_vec().type == fir::VectorType::SubType::Integer))) {
+              fir::Builder buh{instr2};
+              fir::ValueR index0[1] = {
+                  fir::ValueR{cfg.func->ctx->get_constant_int(0, 32)},
+              };
+              auto res = buh.build_extract_value(instr->args[1], index0, t2);
+              instr2->replace_all_uses(res);
+              instr2.destroy();
+              i2--;
+              continue;
+            }
           }
-          // if (t1 == t2) {
-          //   bool pot_store_between = is_pot_store_between(
-          //       bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2,
-          //       aa);
-          //   if (!pot_store_between) {
-          //     instr2->replace_all_uses(instr->get_arg(1));
-          //     instr2.destroy();
-          //     i2--;
-          //     continue;
-          //   }
-          // }
         }
 
         // if we store and afterwards store to the same address

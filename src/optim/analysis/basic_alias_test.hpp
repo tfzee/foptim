@@ -91,13 +91,13 @@ struct AliasAnalyis {
 
   // gets the smallest heap that includes both of these heaps
   HeapId meet(HeapId a, HeapId b) {
-    if (is_desc_eql(a, b)) {
-      return b;
+    if (a == any_h || b == any_h) return any_h;
+
+    while (a != 0) {
+        if (is_desc_eql(b, a)) return a;
+        a = heaps[a - 1].parent;
     }
-    if (is_desc_eql(b, a)) {
-      return a;
-    }
-    return meet(heaps[a - 1].parent, heaps[b - 1].parent);
+    return any_h;
   }
 
  public:
@@ -151,14 +151,6 @@ struct AliasAnalyis {
     HeapEntry a_heap = analyze(a);
     HeapEntry b_heap = analyze(b);
     if (a_heap.heap == 0 || b_heap.heap == 0) {
-      // if (a.is_instr() && b.is_instr()) {
-      //   fmt::println("{:cd}\n{:cd}", a.as_instr()->get_parent(),
-      //                b.as_instr()->get_parent());
-      //   fmt::println("{:cd}\n{:cd}", a.as_instr(), b.as_instr());
-      // }
-      // fmt::println("{} {}", a_heap.heap, b_heap.heap);
-      // fmt::println("{:cd}\n{:cd}", a, b);
-      // ASSERT(false);
       return AAResult::MightAlias;
     }
     // TODO: could also handle null_h as special case but idk about stuff like
@@ -167,10 +159,8 @@ struct AliasAnalyis {
       return AAResult::NoAlias;
     }
     if (a_heap.heap == b_heap.heap) {
-      if (a_size == 0 || b_size == 0) {
-        return AAResult::MightAlias;
-      }
-      if (!a_heap.offset.has_value() || !b_heap.offset.has_value()) {
+      if (a_size == 0 || b_size == 0 || !a_heap.offset.has_value() ||
+          !b_heap.offset.has_value()) {
         return AAResult::MightAlias;
       }
       bool a_smaller_nooverlap =
@@ -180,7 +170,7 @@ struct AliasAnalyis {
       if (a_smaller_nooverlap || b_smaller_nooverlap) {
         return AAResult::NoAlias;
       }
-      return AAResult::Alias;
+      return AAResult::MightAlias;
     }
     // TODO: techincally only need to run it if they werent cached
     if (is_desc_eql(b_heap.heap, a_heap.heap) ||

@@ -1,8 +1,11 @@
+#include "instr.hpp"
+
 #include <fmt/color.h>
 #include <fmt/core.h>
 
-#include "instr.hpp"
+#include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
+#include "utils/set.hpp"
 namespace foptim::fmir {
 
 #define ReturnString(sop, name) \
@@ -675,6 +678,7 @@ bool verify(const MInstr &instr) {
   }
   return true;
 }
+
 bool verify(const MBB &bb) {
   auto back_instr = bb.instrs.back();
   if (!back_instr.is(GBaseSubtype::ret) && !back_instr.is(GJumpSubtype::jmp)) {
@@ -699,6 +703,95 @@ bool verify(const MFunc &func) {
       fmt::println("In bb {}", bb);
       return false;
     }
+  }
+  TSet<u64> writes;
+  TSet<u64> reads;
+
+  auto insertw = [&](auto arg) {
+    if (!arg.is_concrete()) {
+      writes.insert(reg_to_uid(arg));
+    }
+  };
+  auto insertr = [&](auto arg) {
+    if (!arg.is_concrete()) {
+      reads.insert(reg_to_uid(arg));
+    }
+  };
+  for (auto arg : func.args) {
+    insertw(arg);
+  }
+
+  TVec<ArgData> args;
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      args.clear();
+      written_args(instr, args);
+      for (auto arg : args) {
+        switch (arg.arg.type) {
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::MemImm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+            break;
+          case MArgument::ArgumentType::VReg:
+            insertw(arg.arg.reg);
+            break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            insertr(arg.arg.reg);
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            insertr(arg.arg.indx);
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            insertr(arg.arg.reg);
+            insertr(arg.arg.indx);
+            break;
+        }
+      }
+      args.clear();
+      read_args(instr, args);
+      for (auto arg : args) {
+        switch (arg.arg.type) {
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::MemImm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+            break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+            insertr(arg.arg.reg);
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+            insertr(arg.arg.indx);
+            break;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            insertr(arg.arg.reg);
+            insertr(arg.arg.indx);
+            break;
+        }
+      }
+    }
+  }
+  bool any_missing = false;
+  for (auto read : reads) {
+    if (!writes.contains(read)) {
+      fmt::println("Register {} was read but not written", uid_to_reg(read));
+      any_missing = true;
+    }
+  }
+  if (any_missing) {
+    fmt::println("In func {}", func);
+    return false;
   }
   return true;
 }
