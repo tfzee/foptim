@@ -1,7 +1,8 @@
 # Foptim
 
-A relatively simple optimizing compiler backend.\\
-Currently only frontend takes LLVM IR as input and compiles it down to a native elf object file through several intermediate stages.
+A relatively simple optimizing compiler backend.
+
+Currently the only frontend takes LLVM IR as input and compiles it down to a native elf object file through several intermediate stages.
 
 ## Pipeline
 
