@@ -91,13 +91,13 @@ struct AliasAnalyis {
 
   // gets the smallest heap that includes both of these heaps
   HeapId meet(HeapId a, HeapId b) {
-    if (a == any_h || b == any_h) return any_h;
-
-    while (a != 0) {
-        if (is_desc_eql(b, a)) return a;
-        a = heaps[a - 1].parent;
+    if (is_desc_eql(a, b)) {
+      return b;
     }
-    return any_h;
+    if (is_desc_eql(b, a)) {
+      return a;
+    }
+    return meet(heaps[a - 1].parent, heaps[b - 1].parent);
   }
 
  public:

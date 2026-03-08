@@ -226,11 +226,16 @@ class SCCP final : public FunctionPass {
         return ConstantValue{
             .type = ValueType::Float, .vals = {{.f = *(f64 *)v}}, .vtype = c};
       }
-      if (c->is_int() && bitwidth == 64) {
-        return ConstantValue{
-            .type = ValueType::Int,
-            .vals = {{.i = std::bit_cast<i128>((u128)(*(u64 *)v))}},
-            .vtype = c};
+      if ((c->is_int() && bitwidth == 64) || c->is_ptr()) {
+        auto val = (*(u64 *)v);
+        if (c->is_ptr() && val == 0) {
+          return ConstantValue{.type = ValueType::NullPtr,
+                               .vals = {{.i = 0}},
+                               .vtype = c};
+        }
+        return ConstantValue{.type = ValueType::Int,
+                             .vals = {{.i = std::bit_cast<i128>((u128)val)}},
+                             .vtype = c};
       }
       if (c->is_int() && bitwidth == 32) {
         return ConstantValue{
