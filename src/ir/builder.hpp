@@ -43,6 +43,7 @@ class Builder {
   ValueR build_int_srem(ValueR a, ValueR b);
   ValueR build_int_urem(ValueR a, ValueR b);
   ValueR build_binary_op(ValueR a, ValueR b, BinaryInstrSubType sub_type);
+  ValueR build_binary_op(ValueR a, ValueR b, fir::TypeR res_type, BinaryInstrSubType sub_type);
   ValueR build_unary_op(ValueR a, UnaryInstrSubType sub_type);
   ValueR build_conversion_op(ValueR a, TypeR res_type,
                              ConversionSubType sub_type);

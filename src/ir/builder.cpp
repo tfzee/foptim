@@ -204,6 +204,18 @@ ValueR Builder::build_binary_op(ValueR a, ValueR b,
   return ValueR(instr);
 }
 
+ValueR Builder::build_binary_op(ValueR a, ValueR b, fir::TypeR res_type,
+                                BinaryInstrSubType sub_type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_binary(res_type, sub_type));
+  instr.add_arg(a);
+  instr.add_arg(b);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 ValueR Builder::build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
   check_bb_set();
   Instr instr =
