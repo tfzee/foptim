@@ -4,6 +4,7 @@
 
 #include "function.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/context.hpp"
 #include "ir/types.hpp"
 #include "ir/value.hpp"
 #include "utils/logging.hpp"
@@ -277,6 +278,39 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
     return false;
   }
   return true;
+}
+std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
+    Context &ctx, fir::TypeR target_type) {
+  auto old_ty = get_type();
+  if (old_ty->get_bitwidth() != target_type->get_bitwidth()) {
+    return {};
+  }
+
+  if (old_ty->is_float() && target_type->is_int()) {
+    if (old_ty->get_bitwidth() == 32) {
+      return {
+          ctx->get_constant_value(std::bit_cast<u32>(as_f32()), target_type)};
+    }
+    if (old_ty->get_bitwidth() == 64) {
+      return {
+          ctx->get_constant_value(std::bit_cast<u64>(as_f64()), target_type)};
+    }
+  }
+  if (old_ty->is_int() && target_type->is_float()) {
+    if (old_ty->get_bitwidth() == 32) {
+      return {ctx->get_constant_value(
+          std::bit_cast<f32>((u32)std::bit_cast<u128>(as_int())), target_type)};
+    }
+    if (old_ty->get_bitwidth() == 64) {
+      return {ctx->get_constant_value(
+          std::bit_cast<f64>((u64)std::bit_cast<u128>(as_int())), target_type)};
+    }
+  }
+
+  (void)ctx;
+  fmt::println("{:cd}", *this);
+  fmt::println("{:cd}", target_type);
+  TODO("impl");
 }
 
 }  // namespace foptim::fir

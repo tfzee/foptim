@@ -153,6 +153,8 @@ class AnyType {
   [[nodiscard]] bool is_func() const { return ty == AnyTypeType::Function; }
   [[nodiscard]] bool is_int() const { return ty == AnyTypeType::Integer; }
   [[nodiscard]] bool is_float() const { return ty == AnyTypeType::Float; }
+  [[nodiscard]] bool is_f32() const { return ty == AnyTypeType::Float && get_bitwidth() == 32; }
+  [[nodiscard]] bool is_f64() const { return ty == AnyTypeType::Float && get_bitwidth() == 64; }
   [[nodiscard]] bool is_void() const { return ty == AnyTypeType::Void; }
   [[nodiscard]] bool is_ptr() const { return ty == AnyTypeType::Ptr; }
   [[nodiscard]] bool is_vec() const { return ty == AnyTypeType::Vector; }

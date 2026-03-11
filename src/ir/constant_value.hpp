@@ -144,6 +144,8 @@ struct ConstantValue {
     return c;
   }
 
+  std::optional<fir::ConstantValueR> bit_cast(Context& ctx, fir::TypeR target_type);
+
   void add_usage(Use u);
   [[nodiscard]] size_t get_n_uses() const;
   void remove_usage(Use u, bool verify = true);
