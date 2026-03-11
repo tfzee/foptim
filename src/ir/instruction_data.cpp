@@ -112,10 +112,34 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       return false;
     }
   }
+  if (is(BinaryInstrSubType::FloatAdd) || is(BinaryInstrSubType::FloatDiv) ||
+      is(BinaryInstrSubType::FloatMul) || is(BinaryInstrSubType::FloatSub)) {
+    auto t1 = args[0].get_type();
+    auto t2 = args[1].get_type();
+    if ((!t1->is_float() && !t1->is_vec()) ||
+        (!t2->is_float() && !t2->is_vec())) {
+      fmt::print("Float operation with non float type\n");
+      return false;
+    }
+  }
+  if (is(BinaryInstrSubType::And) || is(BinaryInstrSubType::Or) ||
+      is(BinaryInstrSubType::Xor)) {
+    auto t0 = get_type();
+    auto t1 = args[0].get_type();
+    auto t2 = args[1].get_type();
+    if (!(t0->is_float() && t1->is_float() && t2->is_float()) &&
+        !(t0->is_int() && t1->is_int() && t2->is_int()) &&
+        !(t0->is_vec() && t1->is_vec() && t2->is_vec())) {
+      fmt::println("{} {} {}", t0, t1, t2);
+      fmt::print("And/Or/Xor operation type missmatch\n");
+      return false;
+    }
+  }
   if (is(ConversionSubType::BitCast)) {
     if (get_type()->get_bitwidth() != args[0].get_type()->get_bitwidth()) {
       fmt::print("Trying to bitcast value with wrong size {} != {}\n",
-                 get_type()->get_bitwidth(), args[0].get_type()->get_bitwidth());
+                 get_type()->get_bitwidth(),
+                 args[0].get_type()->get_bitwidth());
       return false;
     }
   }
@@ -127,9 +151,11 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
     }
   }
   if (is(BinaryInstrSubType::IntAdd)) {
-    if (get_type()->get_bitwidth() < args[0].get_type()->get_bitwidth() || get_type()->get_bitwidth() < args[1].get_type()->get_bitwidth()) {
-      fmt::print("Result of add cant be smaller then the inputs {:c} vs {:c} + {:c}\n",
-                 get_type(), args[0].get_type(), args[1].get_type());
+    if (get_type()->get_bitwidth() < args[0].get_type()->get_bitwidth() ||
+        get_type()->get_bitwidth() < args[1].get_type()->get_bitwidth()) {
+      fmt::print(
+          "Result of add cant be smaller then the inputs {:c} vs {:c} + {:c}\n",
+          get_type(), args[0].get_type(), args[1].get_type());
       return false;
     }
   }
