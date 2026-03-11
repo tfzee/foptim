@@ -1,11 +1,13 @@
+#include "mem2reg.hpp"
+
 #include <tuple>
 
 #include "ir/basic_block_ref.hpp"
+#include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
-#include "mem2reg.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
@@ -339,6 +341,11 @@ void decide_value_load(fir::Instr instr, size_t &i,
       fmt::println("{} != {}", instr, load_val);
       fmt::println("{} != {}", instr.get_type(), load_val.get_type());
       TODO("wrong typein alloca?");
+    } else {
+      fir::Builder buh{instr};
+      buh.after(instr);
+      load_val = fir::ValueR{buh.build_conversion_op(
+          load_val, instr->get_type(), fir::ConversionSubType::BitCast)};
     }
   }
 
