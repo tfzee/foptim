@@ -1,4 +1,5 @@
 #pragma once
+#include <concepts>
 #include <type_traits>
 
 #include "../function_pass.hpp"
@@ -55,6 +56,14 @@ bool try_constant_eval_binary(fir::Instr instr,
         instr->replace_all_uses(
             fir::ValueR(ctx->get_constant_value(a | b, type)));
         return true;
+      } else if constexpr (std::is_same_v<T, float>) {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(std::bit_cast<f32>(std::bit_cast<u32>(a) | std::bit_cast<u32>(b)), type)));
+        return true;
+      } else if constexpr (std::is_same_v<T, double>) {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(std::bit_cast<f64>(std::bit_cast<u64>(a) | std::bit_cast<u64>(b)), type)));
+        return true;
       }
       TODO("impl");
     case fir::BinaryInstrSubType::And:
@@ -62,12 +71,28 @@ bool try_constant_eval_binary(fir::Instr instr,
         instr->replace_all_uses(
             fir::ValueR(ctx->get_constant_value(a & b, type)));
         return true;
+      } else if constexpr (std::is_same_v<T, float>) {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(std::bit_cast<f32>(std::bit_cast<u32>(a) & std::bit_cast<u32>(b)), type)));
+        return true;
+      } else if constexpr (std::is_same_v<T, double>) {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(std::bit_cast<f64>(std::bit_cast<u64>(a) & std::bit_cast<u64>(b)), type)));
+        return true;
       }
       TODO("impl");
     case fir::BinaryInstrSubType::Xor:
       if constexpr (std::is_integral_v<T>) {
         instr->replace_all_uses(
             fir::ValueR(ctx->get_constant_value(a ^ b, type)));
+        return true;
+      } else if constexpr (std::is_same_v<T, float>) {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(std::bit_cast<f32>(std::bit_cast<u32>(a) ^ std::bit_cast<u32>(b)), type)));
+        return true;
+      } else if constexpr (std::is_same_v<T, double>) {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(std::bit_cast<f64>(std::bit_cast<u64>(a) ^ std::bit_cast<u64>(b)), type)));
         return true;
       }
       TODO("impl");
