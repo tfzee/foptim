@@ -78,6 +78,12 @@ class SCCP final : public FunctionPass {
     [[nodiscard]] constexpr bool is_float() const {
       return type == ValueType::Float;
     }
+    // [[nodiscard]] constexpr bool is_f32() const {
+    //   return type == ValueType::Float && vtype->as_float() == 32;
+    // }
+    // [[nodiscard]] constexpr bool is_f64() const {
+    //   return type == ValueType::Float && vtype->as_float() == 64;
+    // }
     [[nodiscard]] constexpr f32 as_f32() const {
       return std::bit_cast<f32>((u32)std::bit_cast<u64>(vals.at(0).f));
     }
@@ -698,6 +704,17 @@ class SCCP final : public FunctionPass {
           case fir::BinaryInstrSubType::INVALID:
             UNREACH();
           case fir::BinaryInstrSubType::And:
+            if (out_type->is_f32()) {
+              return ConstantValue::Constant(ctx->get_constant_value(
+                  std::bit_cast<f32>(std::bit_cast<u32>(a.as_f32()) &
+                                     std::bit_cast<u32>(b.as_f32())),
+                  out_type));
+            } else if (out_type->is_f64()) {
+              return ConstantValue::Constant(ctx->get_constant_value(
+                  std::bit_cast<f64>(std::bit_cast<u64>(a.as_f64()) &
+                                     std::bit_cast<u64>(b.as_f64())),
+                  out_type));
+            }
             return ConstantValue::Constant(
                 ctx->get_constant_value(a.as_int() & b.as_int(), out_type));
           case fir::BinaryInstrSubType::Xor:
@@ -717,15 +734,22 @@ class SCCP final : public FunctionPass {
                                      std::bit_cast<u128>(b.as_int())) &
                  (((i128)1 << out_type->as_int()) - 1)),
                 out_type));
+          case fir::BinaryInstrSubType::AShr: {
+            auto res =
+                ctx->get_constant_value(a.as_int() >> b.as_int(), out_type);
+            return ConstantValue::Constant(res);
+          }
           case fir::BinaryInstrSubType::IntSub:
             return ConstantValue::Constant(
                 ctx->get_constant_value(a.as_int() - b.as_int(), out_type));
           case fir::BinaryInstrSubType::IntAdd:
             return ConstantValue::Constant(
                 ctx->get_constant_value(a.as_int() + b.as_int(), out_type));
-          case fir::BinaryInstrSubType::IntUDiv:
-            return ConstantValue::Constant(ctx->get_constant_value(
-                (u64)a.as_int() / (u64)b.as_int(), out_type));
+          case fir::BinaryInstrSubType::IntUDiv: {
+            auto res = ctx->get_constant_value(
+                (u64)a.as_int() / (u64)b.as_int(), out_type);
+            return ConstantValue::Constant(res);
+          }
           case fir::BinaryInstrSubType::IntSDiv: {
             auto a_width = (128 - a.get_type()->get_bitwidth());
             auto b_width = (128 - a.get_type()->get_bitwidth());
