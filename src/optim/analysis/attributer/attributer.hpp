@@ -102,8 +102,9 @@ class AttributerManager {
     if (!_attribs.contains(aa_typeid)) {
       _attribs.insert({aa_typeid, {}});
     }
+    AAna *analysis = nullptr;
     if (!_attribs.at(aa_typeid).contains(loc)) {
-      AAna *analysis = utils::TempAlloc<AAna>{}.allocate(1);
+      analysis = utils::TempAlloc<AAna>{}.allocate(1);
       ASSERT(analysis);
       // ASSERT(((size_t)analysis) % alignof(AAna) == 0);
       // std::construct_at(analysis);
@@ -112,10 +113,10 @@ class AttributerManager {
       }
       new (analysis) AAna();
       analysis->associatedValue = loc;
-      auto &help = _attribs.at(aa_typeid);
-      help.insert({loc, analysis});
+      _attribs.at(aa_typeid).insert({loc, analysis});
+    } else {
+      analysis = (AAna *)_attribs.at(aa_typeid).at(loc);
     }
-    AAna *analysis = (AAna *)_attribs.at(aa_typeid).at(loc);
     if (_currently_updating) {
       _inverse_dependencies[analysis].push_back(_currently_updating);
     } else {

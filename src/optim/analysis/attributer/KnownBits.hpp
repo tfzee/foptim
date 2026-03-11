@@ -1,6 +1,7 @@
 #pragma once
 #include <fmt/base.h>
 #include <fmt/core.h>
+
 #include <limits>
 
 #include "ir/constant_value_ref.hpp"
@@ -30,6 +31,13 @@ class KnownBits final : public AttributeAnalysis {
 
   u64 known_zero = 0;
   u64 known_one = 0;
+
+  static KnownBits get(u64 known_one, u64 known_zero) {
+    KnownBits res;
+    res.known_one = known_one;
+    res.known_zero = known_zero;
+    return res;
+  }
 
   void materialize_impl(fir::Context &ctx,
                         const AttributerManager &m) override {
@@ -229,11 +237,12 @@ class KnownBits final : public AttributeAnalysis {
         case fir::IntrinsicSubType::CTLZ: {
           const auto *known_arg0_bits =
               m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) == std::numeric_limits<u64>::max()) {
-              auto pre = __builtin_clzg(known_arg0_bits->known_one);
-              new_known_one = pre;
-              new_known_zero = ~pre;
-              break;
+          if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
+              std::numeric_limits<u64>::max()) {
+            auto pre = __builtin_clzg(known_arg0_bits->known_one);
+            new_known_one = pre;
+            new_known_zero = ~pre;
+            break;
           }
           new_known_one = 0;
           new_known_zero = ~(u64)0b111111;
@@ -348,6 +357,30 @@ class KnownBits final : public AttributeAnalysis {
         auto res = computeForAddCarry(*a, flippedB, false, true);
         new_known_one = res.known_one;
         new_known_zero = res.known_zero;
+      } else if (instr->subtype == (u32)fir::BinaryInstrSubType::IntURem) {
+        new_known_one = 0;
+        new_known_zero = 0;
+        if ((b->known_zero & b->known_one) == ~(u64)0) {
+          auto mask_upper =
+              (u64)(((u128)1 << (utils::npow2(b->known_one) + 1)) - 1);
+          fmt::println("okak {}", *a);
+          fmt::println("okak {}", *b);
+          fmt::println("okak {}", b->known_one);
+          fmt::println("okak {}", mask_upper);
+          TODO("impl");
+        }
+        // if a always smolller then b then we dont need to apply urem
+        if (b->get_unsigned_min_value() > a->get_unsigned_max_value()) {
+          new_known_one = a->known_one;
+          new_known_zero = a->known_zero;
+        }
+        // TODO: could also restrict it based on teh upper bound of the second
+        // value
+        // if (b->get_unsigned_max_value() < a->get_unsigned_max_value())
+        // {
+        //   new_known_one = a->known_one;
+        //   new_known_zero = a->known_zero;
+        // }
       } else if (instr->subtype == (u32)fir::BinaryInstrSubType::IntUDiv) {
         auto b_mask = (b->known_zero | b->known_one);
         auto b_const = b->known_one;
@@ -408,21 +441,24 @@ class KnownBits final : public AttributeAnalysis {
         if ((b->known_one | b->known_zero) == ~(u64)0) {
           // shift amount is known
           u64 shift = b->known_one;
+          u64 bitwidth = instr->get_type()->get_bitwidth();
           auto a_msb = a->msb_info();
           bool msb_known_one = a_msb == KnownOne;
           bool msb_known_zero = a_msb == KnownZero;
 
-          new_known_one = a->known_one >> shift;
-          new_known_zero = a->known_zero >> shift;
+          new_known_one = (a->known_one >> shift);
+          new_known_zero = (a->known_zero >> shift);
 
-          // Sign extension for known MSB
           if (msb_known_one) {
-            u64 sign_extension = ~(~(u64)0 >> shift);  // top 'shift' bits set
+            u64 sign_extension = ~((~(u64)0) >> ((64 - (bitwidth)) + shift));
             new_known_one |= sign_extension;
+            new_known_zero &= ~sign_extension;
           } else if (msb_known_zero) {
-            u64 sign_extension =
-                ~(~(u64)0 >> shift);  // top 'shift' bits cleared
-            new_known_zero |= sign_extension;
+          } else {
+            u64 pot_sign_extension =
+                ~((~(u64)0) >> ((64 - (bitwidth)) + shift));
+            new_known_one &= ~pot_sign_extension;
+            new_known_zero &= ~pot_sign_extension;
           }
         } else {
           // shift amount is not fully known
