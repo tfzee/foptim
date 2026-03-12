@@ -1525,12 +1525,12 @@ inline size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
       u64 off = 0;
-      // auto target = req.operands[0];
-      // auto arg = req.operands[1];
       //  mov     eax, edi
       //  neg     eax
       //  cmovs   eax, edi
       //  ret
+      ASSERT(instr.args[0] != instr.args[1]);
+      req.operand_count = 2;
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
       off = emit(out_buff, off, &req);
       req.mnemonic = ZYDIS_MNEMONIC_NEG;

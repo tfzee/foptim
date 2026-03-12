@@ -1,5 +1,7 @@
 #include "live_variables.hpp"
 
+#include <fmt/base.h>
+
 #include <deque>
 
 #include "mir/instr.hpp"
@@ -1141,6 +1143,13 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
             curr_live[reg_to_uid(arg_instr.args[1].reg)].set(true);
           }
         }
+      }
+      // special case cant have both be the same
+      //  TODO: should have a more general purpose constraint system on
+      //  instructions
+      if (instr.is(GArithSubtype::abs)) {
+        curr_live[reg_to_uid(instr.args[0].reg)].set(true);
+        // curr_live[reg_to_uid(instr.args[1].reg)].set(true);
       }
 
       // find all uses
