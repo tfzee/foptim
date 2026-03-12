@@ -152,6 +152,15 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
 
   if (consti->is_global()) {
     auto global = consti->as_global();
+    if (global->init_value == nullptr) {
+      if (global->is_extern_decl()) {
+        Type type_id = convert_type(val.get_type());
+        auto helper = alloc.get_new_register(Type::Int64);
+        res.emplace_back(GBaseSubtype::mov, MArgument(helper, Type::Int64),
+                         MArgument::MemL(global->name.c_str(), type_id));
+        return MArgument(helper, Type::Int64);
+      }
+    }
     // TODO: idk if i64 is right here
     Type type_id = convert_type(val.get_type());
     auto arg = MArgument::MemL(global->name.c_str(), type_id);
@@ -260,11 +269,19 @@ TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
   return result;
 }
 
-MArgument valueToArgPtr(fir::ValueR val, Type type_id, DumbRegAlloc &alloc) {
+MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,
+                        DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     auto constant = val.as_constant();
     if (constant->is_global()) {
       auto global = constant->as_global();
+      if (global->is_extern_decl()) {
+        Type type_id = convert_type(val.get_type());
+        auto helper = alloc.get_new_register(Type::Int64);
+        res.emplace_back(GBaseSubtype::mov, MArgument(helper, Type::Int64),
+                         MArgument::MemL(global->name.c_str(), type_id));
+        return MArgument::MemB(helper, type_id);
+      }
       Type type_id = convert_type(val.get_type());
       // TODO: idk if i64 is right here
       return MArgument::MemL(global->name.c_str(), type_id);
@@ -297,6 +314,15 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
     auto constant = val.as_constant();
     if (constant->is_global()) {
       auto global = constant->as_global();
+      if (global->init_value == nullptr) {
+        if (global->is_extern_decl()) {
+          Type type_id = convert_type(val.get_type());
+          auto helper = alloc.get_new_register(Type::Int64);
+          res.emplace_back(GBaseSubtype::mov, MArgument(helper, Type::Int64),
+                           MArgument::MemL(global->name.c_str(), type_id));
+          return MArgument::MemB(helper, type_id);
+        }
+      }
       // Type type_id = convert_type(val.get_type());
       return MArgument::MemL(global->name.c_str(), type_id);
     }

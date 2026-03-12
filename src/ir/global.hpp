@@ -60,6 +60,11 @@ struct GlobalData : public LockedUsed {
   IRVec<RelocationInfo> reloc_info;
   Linkage linkage = Linkage::External;
   LinkVisibility linkvis = LinkVisibility::Default;
+
+
+  bool is_extern_decl(){
+    return init_value == nullptr && linkage == Linkage::External;
+  }
 };
 
 };  // namespace foptim::fir
