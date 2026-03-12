@@ -73,21 +73,15 @@ struct OpData {
   i64 op_val;
 };
 
-void print_instruction(u8* buff, ZydisDecodedInstruction* instruction, ZydisDecodedOperand* operands) {
-    ZydisFormatter formatter;
-    ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
-    char buffer[256];
-    ZydisFormatterFormatInstruction(
-        &formatter, 
-        instruction, 
-        operands, 
-        instruction->operand_count_visible, 
-        buffer, 
-        sizeof(buffer), 
-        (ZyanU64)buff,
-        ZYAN_NULL
-    );
-    printf("%016llX  %s\n", (unsigned long long)buff, buffer);
+void print_instruction(u8 *buff, ZydisDecodedInstruction *instruction,
+                       ZydisDecodedOperand *operands) {
+  ZydisFormatter formatter;
+  ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
+  char buffer[256];
+  ZydisFormatterFormatInstruction(&formatter, instruction, operands,
+                                  instruction->operand_count_visible, buffer,
+                                  sizeof(buffer), (ZyanU64)buff, ZYAN_NULL);
+  printf("%016llX  %s\n", (unsigned long long)buff, buffer);
 }
 
 // returns the address of the operand + the offset till end of instruction
@@ -104,7 +98,7 @@ OpData get_op_addr(u8 *buff, u8 op_num) {
   ZY_ASS(ZydisDecoderDecodeFull(&decoder, buff, 999, &instruction, operands));
 
   assert(op_num < instruction.operand_count_visible);
-  auto& op = operands[op_num];
+  auto &op = operands[op_num];
   assert(op.type == ZYDIS_OPERAND_TYPE_IMMEDIATE ||
          op.type == ZYDIS_OPERAND_TYPE_MEMORY);
 
@@ -530,6 +524,18 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                                   -data.op_off + data.op_val + loc.addent);
               break;
             case RelocSection::Extern:
+              if (label_data.kind == RelocKind::Func) {
+                text_rela.add_entry(data.op_addr - start_txt, symbol,
+                                    (unsigned char)R_X86_64_PLT32,
+                                    -data.op_off + data.op_val + loc.addent);
+              } else if (label_data.kind == RelocKind::Data) {
+                text_rela.add_entry(data.op_addr - start_txt, symbol,
+                                    (unsigned char)R_X86_64_GOTPCREL,
+                                    -data.op_off + data.op_val + loc.addent);
+              } else {
+                TODO("UNREACH?");
+              }
+              break;
             case RelocSection::Text:
               text_rela.add_entry(data.op_addr - start_txt, symbol,
                                   (unsigned char)R_X86_64_PLT32,
