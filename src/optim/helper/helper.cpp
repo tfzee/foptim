@@ -1,8 +1,18 @@
 #include "helper.hpp"
+
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 
 namespace foptim::optim {
+
+void swap_args(fir::Instr instr, u32 a1, u32 a2) {
+  using namespace foptim::fir;
+  auto v1 = instr->args[a1];
+  auto v2 = instr->args[a2];
+  instr.replace_arg(a1, v2);
+  instr.replace_arg(a2, v1);
+}
+
 void flip_cond_branch(fir::Instr cond_term) {
   ASSERT(cond_term->is(fir::InstrType::CondBranchInstr));
 

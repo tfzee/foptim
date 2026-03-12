@@ -12,4 +12,5 @@ struct GuessTypeResult {
 
 GuessTypeResult guessType(fir::ValueR ptr);
 
+void swap_args(fir::Instr instr, u32 a1, u32 a2);
 }  // namespace foptim::optim
