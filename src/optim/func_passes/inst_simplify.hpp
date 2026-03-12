@@ -1,5 +1,4 @@
 #pragma once
-#include <concepts>
 #include <type_traits>
 
 #include "../function_pass.hpp"
@@ -8,6 +7,8 @@
 #include "ir/value.hpp"
 
 namespace foptim::optim {
+
+constexpr bool TRACY_DEBUG_INST_SIMPLIFY = false;
 
 class InstSimplify final : public FunctionPass {
  public:
@@ -18,6 +19,16 @@ class InstSimplify final : public FunctionPass {
 
   void apply(fir::Context &ctx, fir::Function &func) override;
 };
+
+namespace InstSimp {
+
+using WorkList = TVec<InstSimplify::WorkItem>;
+
+inline void push_all_uses(WorkList &worklist, fir::Instr instr) {
+  for (auto &use : instr->uses) {
+    worklist.emplace_back(use.user, use.user->parent);
+  }
+}
 
 template <class T>
 bool try_constant_eval_binary(fir::Instr instr,
@@ -57,12 +68,14 @@ bool try_constant_eval_binary(fir::Instr instr,
             fir::ValueR(ctx->get_constant_value(a | b, type)));
         return true;
       } else if constexpr (std::is_same_v<T, float>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(std::bit_cast<f32>(std::bit_cast<u32>(a) | std::bit_cast<u32>(b)), type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            std::bit_cast<f32>(std::bit_cast<u32>(a) | std::bit_cast<u32>(b)),
+            type)));
         return true;
       } else if constexpr (std::is_same_v<T, double>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(std::bit_cast<f64>(std::bit_cast<u64>(a) | std::bit_cast<u64>(b)), type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            std::bit_cast<f64>(std::bit_cast<u64>(a) | std::bit_cast<u64>(b)),
+            type)));
         return true;
       }
       TODO("impl");
@@ -72,12 +85,14 @@ bool try_constant_eval_binary(fir::Instr instr,
             fir::ValueR(ctx->get_constant_value(a & b, type)));
         return true;
       } else if constexpr (std::is_same_v<T, float>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(std::bit_cast<f32>(std::bit_cast<u32>(a) & std::bit_cast<u32>(b)), type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            std::bit_cast<f32>(std::bit_cast<u32>(a) & std::bit_cast<u32>(b)),
+            type)));
         return true;
       } else if constexpr (std::is_same_v<T, double>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(std::bit_cast<f64>(std::bit_cast<u64>(a) & std::bit_cast<u64>(b)), type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            std::bit_cast<f64>(std::bit_cast<u64>(a) & std::bit_cast<u64>(b)),
+            type)));
         return true;
       }
       TODO("impl");
@@ -87,12 +102,14 @@ bool try_constant_eval_binary(fir::Instr instr,
             fir::ValueR(ctx->get_constant_value(a ^ b, type)));
         return true;
       } else if constexpr (std::is_same_v<T, float>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(std::bit_cast<f32>(std::bit_cast<u32>(a) ^ std::bit_cast<u32>(b)), type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            std::bit_cast<f32>(std::bit_cast<u32>(a) ^ std::bit_cast<u32>(b)),
+            type)));
         return true;
       } else if constexpr (std::is_same_v<T, double>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(std::bit_cast<f64>(std::bit_cast<u64>(a) ^ std::bit_cast<u64>(b)), type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            std::bit_cast<f64>(std::bit_cast<u64>(a) ^ std::bit_cast<u64>(b)),
+            type)));
         return true;
       }
       TODO("impl");
@@ -150,4 +167,5 @@ bool try_constant_eval_binary(fir::Instr instr,
   }
 }
 
+}  // namespace InstSimp
 }  // namespace foptim::optim
