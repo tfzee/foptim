@@ -482,7 +482,11 @@ class KnownBits final : public AttributeAnalysis {
         fmt::println("TODO: ATTRIB KNOWN BITS BIINARY OP {}",
                      associatedValue.as_instr());
       }
+    } else if (instr->is(fir::InstrType::ExtractValue)) {
+      //TODO: can propagate in certain conditions (but then we prob removing this extract value later one hm)
     } else if (instr->is(fir::InstrType::LoadInstr)) {
+    } else if (instr->is(fir::InstrType::AtomicRMW)) {
+      //returns old value so same as load
     } else if (instr->is(fir::InstrType::CallInstr)) {
       // TODO: handle special builtin call instrs
     } else {
