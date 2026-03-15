@@ -51,16 +51,28 @@ bool try_constant_eval_binary(fir::Instr instr,
           fir::ValueR(ctx->get_constant_value(a - b, type)));
       return true;
     case fir::BinaryInstrSubType::FloatDiv:
-      instr->replace_all_uses(
-          fir::ValueR(ctx->get_constant_value(a / b, type)));
+      if (b == 0) {
+        instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
+      } else {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(a / b, type)));
+      }
       return true;
     case fir::BinaryInstrSubType::IntSDiv:
-      instr->replace_all_uses(
-          fir::ValueR(ctx->get_constant_value((i64)a / (i64)b, type)));
+      if (b == 0) {
+        instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
+      } else {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value((i64)a / (i64)b, type)));
+      }
       return true;
     case fir::BinaryInstrSubType::IntUDiv:
-      instr->replace_all_uses(
-          fir::ValueR(ctx->get_constant_value(a / b, type)));
+      if (b == 0) {
+        instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
+      } else {
+        instr->replace_all_uses(
+            fir::ValueR(ctx->get_constant_value(a / b, type)));
+      }
       return true;
     case fir::BinaryInstrSubType::Or:
       if constexpr (std::is_integral_v<T>) {
