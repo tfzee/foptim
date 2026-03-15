@@ -286,7 +286,7 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
     return {};
   }
 
-  if (old_ty->is_float() && target_type->is_int()) {
+  if (old_ty->is_float() && (target_type->is_int() || target_type->is_ptr())) {
     if (old_ty->get_bitwidth() == 32) {
       return {
           ctx->get_constant_value(std::bit_cast<u32>(as_f32()), target_type)};
@@ -296,7 +296,8 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
           ctx->get_constant_value(std::bit_cast<u64>(as_f64()), target_type)};
     }
   }
-  if (old_ty->is_int() && target_type->is_float()) {
+  if ((old_ty->is_int() || old_ty->is_ptr()) &&
+      target_type->is_float()) {
     if (old_ty->get_bitwidth() == 32) {
       return {ctx->get_constant_value(
           std::bit_cast<f32>((u32)std::bit_cast<u128>(as_int())), target_type)};
