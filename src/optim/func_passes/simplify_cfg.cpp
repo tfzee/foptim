@@ -419,7 +419,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     return modified;
   }
 
-  for (size_t bb2_id = 0; bb2_id < bb_id; bb2_id++) {
+  for (size_t bb2_id = 1; bb2_id < bb_id; bb2_id++) {
     // if (bb1->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
     //   continue;
     // }
