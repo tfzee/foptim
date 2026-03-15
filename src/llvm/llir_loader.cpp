@@ -1155,7 +1155,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     auto res_type = any_instr->getType();
-    if (res_type->isIntegerTy() || res_type->isVectorTy()) {
+    if (res_type->isIntegerTy() || res_type->isVectorTy() ||
+        res_type->isFloatTy()) {
       auto add = builder.build_binary_op(left, right,
                                          foptim::fir::BinaryInstrSubType::And);
       valueToValue.insert({any_instr, add});
@@ -1168,7 +1169,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     auto res_type = any_instr->getType();
-    if (res_type->isIntegerTy() || res_type->isVectorTy()) {
+    if (res_type->isIntegerTy() || res_type->isVectorTy()||
+        res_type->isFloatTy()) {
       auto add = builder.build_binary_op(left, right,
                                          foptim::fir::BinaryInstrSubType::Or);
       valueToValue.insert({any_instr, add});
@@ -1181,7 +1183,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     auto res_type = any_instr->getType();
-    if (res_type->isIntegerTy() || res_type->isVectorTy()) {
+    if (res_type->isIntegerTy() || res_type->isVectorTy()||
+        res_type->isFloatTy()) {
       auto add = builder.build_binary_op(left, right,
                                          foptim::fir::BinaryInstrSubType::Xor);
       valueToValue.insert({any_instr, add});
@@ -1557,8 +1560,8 @@ void convert(llvm::Function &func, foptim::fir::Context &fctx,
       // NOTE: for some reason sometimes llvmir can contain a phi with duplicate
       // incoming bbs this seems to be legal aslong as they all take the same
       // incoming value as such we will just ignore the duplicates
-      // TODO(PERF): idk if set makes sense here it only should be a max of like a
-      // dozen bbs so maybe better if we would use a TVec
+      // TODO(PERF): idk if set makes sense here it only should be a max of like
+      // a dozen bbs so maybe better if we would use a TVec
       foptim::TSet<llvm::BasicBlock *> already_seen_bbs;
       auto to_fbb = b2b.at(&bb);
       for (auto &phi : bb.phis()) {
