@@ -20,19 +20,16 @@
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
-#include "utils/set.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
+#include "optim/func_passes/inst_simplify/simplify_binary.hpp"
 #include "optim/func_passes/inst_simplify/simplify_fcmp.hpp"
 #include "optim/func_passes/inst_simplify/simplify_icmp.hpp"
-#include "optim/func_passes/inst_simplify/simplify_binary.hpp"
+#include "utils/set.hpp"
 #include "utils/tracy.hpp"
 
 namespace foptim::optim {
 namespace InstSimp {
 namespace {
-
-
-
 
 // if we got convert(load(v as x) to y) so loading v as type x and then
 // converting to y. If the conversion preserves the bitwise representation
@@ -54,9 +51,6 @@ bool load_into_conversion_simpl(fir::Instr instr, fir::Instr a0,
   }
   return false;
 }
-
-
-
 
 bool is_constant_int_zero(fir::ValueR r) {
   if (!r.is_constant()) {
@@ -1161,9 +1155,10 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         }
       }
       if (instr->args[0].is_constant()) {
-        fmt::println("implc const bitcast instr {:cd}", instr);
+        auto r = instr->args[0].as_constant()->bit_cast(ctx, instr->get_type());
+        ASSERT(r.has_value());
+        instr->replace_all_uses(fir::ValueR{r.value()});
         return true;
-        // TODO("todo");
       }
       break;
     case fir::ConversionSubType::SITOFP:
@@ -2169,7 +2164,7 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   return false;
 }
 }  // namespace
-}
+}  // namespace InstSimp
 
 void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("InstSimplify", COLOR_OPTIMF);
