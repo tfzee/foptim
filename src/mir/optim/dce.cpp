@@ -1,5 +1,7 @@
 #include "dce.hpp"
 
+#include <fmt/base.h>
+
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 
@@ -47,6 +49,7 @@ bool is_applicable(GOpcode op, u32 sop) {
       switch ((GBaseSubtype)sop) {
         case GBaseSubtype::INVALID:
         case GBaseSubtype::mov:
+        case GBaseSubtype::stack_arg_load:
           return true;
         case GBaseSubtype::push:
         case GBaseSubtype::pop:
@@ -96,20 +99,20 @@ void DeadCodeElim::apply_impl(MFunc &func) {
   TVec<ArgData> helper;
   helper.reserve(4);
   w_args.reserve(4);
-  TVec<size_t> dead_instrs;
+  // TVec<size_t> dead_instrs;
 
   for (size_t bb_id = 0; bb_id < func.bbs.size(); bb_id++) {
     auto &bb = func.bbs[bb_id];
-    dead_instrs.clear();
+    // dead_instrs.clear();
 
     for (size_t instr_idp1 = bb.instrs.size(); instr_idp1 > 0; instr_idp1--) {
       const auto instr_id = instr_idp1 - 1;
-      w_args.clear();
-      written_args(bb.instrs[instr_id], w_args);
-
       if (!is_applicable(bb.instrs[instr_id].bop, bb.instrs[instr_id].sop)) {
         continue;
       }
+
+      w_args.clear();
+      written_args(bb.instrs[instr_id], w_args);
 
       if (w_args.size() != 1 || !w_args[0].arg.isReg()) {
         continue;

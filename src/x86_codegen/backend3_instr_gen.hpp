@@ -723,6 +723,7 @@ inline size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       return emit(out_buff, 0, &req);
     case fmir::GBaseSubtype::arg_setup:
     case fmir::GBaseSubtype::invoke:
+    case fmir::GBaseSubtype::stack_arg_load:
     case fmir::GBaseSubtype::INVALID:
       fmt::println("{:cd}", instr);
       TODO("impl");

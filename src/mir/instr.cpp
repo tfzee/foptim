@@ -20,6 +20,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GBaseSubtype, mov);
         ReturnString(GBaseSubtype, push);
         ReturnString(GBaseSubtype, pop);
+        ReturnString(GBaseSubtype, stack_arg_load);
         ReturnString(GBaseSubtype, call);
         ReturnString(GBaseSubtype, ret);
         ReturnString(GBaseSubtype, arg_setup);
@@ -356,6 +357,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GBaseSubtype::INVALID:
           return;
         case GBaseSubtype::mov:
+        case GBaseSubtype::stack_arg_load:
         case GBaseSubtype::pop:
           out.push_back({0, instr.args[0]});
           return;
@@ -383,6 +385,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
       switch ((GBaseSubtype)instr.sop) {
         case GBaseSubtype::INVALID:
           return;
+        case GBaseSubtype::stack_arg_load:
         case GBaseSubtype::mov:
           out.push_back({1, instr.args[1]});
           return;

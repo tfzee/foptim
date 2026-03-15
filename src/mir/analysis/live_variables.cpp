@@ -54,6 +54,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GBaseSubtype::INVALID:
           return;
         case GBaseSubtype::mov:
+        case GBaseSubtype::stack_arg_load:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
@@ -528,6 +529,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       switch ((GBaseSubtype)instr.sop) {
         case GBaseSubtype::INVALID:
           return;
+        case GBaseSubtype::stack_arg_load:
         case GBaseSubtype::mov:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);

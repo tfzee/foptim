@@ -150,6 +150,8 @@ enum class GBaseSubtype : u32 {
   call,
   ret,
 
+  stack_arg_load,
+
   // special purpose helper instructions
   //  that *cant* be generated and *need* to be lowered
   // used for each arg for a function call

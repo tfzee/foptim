@@ -122,6 +122,18 @@ void save_regs_callee(MFunc &func, CFG &cfg) {
         MInstr{GArithSubtype::sub2, MArgument{VReg::RSP(), Type::Int64},
                MArgument{176U}});
   }
+  //after we push poped stuff to save em we then need to updated our stack arguments so we actually use the right offsets.
+  u32 additional_offset = 8*(2 + n_regs_saved + n_regs_saved % 2) + (func.needs_register_save_area ? 176 : 0);
+  //NOTE: Assuming we got a full pro/epilogue because we reference SP
+
+  for(auto& instr: first_bb.instrs){
+    if(instr.is(GBaseSubtype::stack_arg_load)){
+      instr.sop = (u32)GBaseSubtype::mov;
+      instr.args[1].imm += additional_offset;
+    }
+  }
+  
+
 
   // restore in *every* exiting basic block we first need to find these
   // should be all cfg blocks without any successors??
@@ -610,7 +622,7 @@ void CallingConv::second_stage(FVec<MFunc> &funcs) {
 }
 
 namespace {
-void gen_arg_mapping(MFunc &func) {
+void gen_arg_mapping_reg(MFunc &func) {
   u32 int_arg_id = 0;
   u32 float_arg_id = 0;
   u32 n_stack_args = 0;
@@ -637,15 +649,15 @@ void gen_arg_mapping(MFunc &func) {
       int_arg_id++;
     } else {
       instr =
-          MInstr(GBaseSubtype::mov, MArgument{func.args[arg_i], arg_ty},
-                 MArgument::MemOB(8 * (n_stack_args + 2), VReg::RSP(), arg_ty));
+          MInstr(GBaseSubtype::stack_arg_load, MArgument{func.args[arg_i], arg_ty},
+                 MArgument::MemOB(8 * (n_stack_args), VReg::RSP(), arg_ty));
       n_stack_args++;
     }
     func.bbs[0].instrs.insert(func.bbs[0].instrs.begin(), instr);
   }
 }
 
-void function_argument_loading(MFunc &func) { gen_arg_mapping(func); }
+void function_argument_loading(MFunc &func) { gen_arg_mapping_reg(func); }
 
 void mark_arguments_with_regs(IRVec<MInstr> &instrs, size_t instr_start_id,
                               size_t instr_end_id) {
