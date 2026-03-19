@@ -83,6 +83,12 @@ struct AliasAnalyis {
     if (ids_need_update) {
       update_heap_ids();
     }
+    if (parent == 0) {
+      return true;
+    }
+    if (desc == 0) {
+      return false;
+    }
     return (desc == parent) ||
            (heaps[desc - 1].id > heaps[parent - 1].id &&
             heaps[desc - 1].id <=
