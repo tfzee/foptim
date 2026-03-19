@@ -209,9 +209,6 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
         break;
     }
   }
-  // if (consti->is_vec()) {
-  //   const auto& v = consti->as_vec();
-  // }
   fmt::println("{}", consti);
   UNREACH();
 }

@@ -450,8 +450,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_instr->args[1].is_constant() && a0.isImm()) {
           auto c1 = add_instr->args[1].as_constant();
           if (c1->is_global() && !c1->as_global()->is_extern_decl()) {
-            auto repl =
-                valueToArgPtr(add_instr->args[1], Type::Int64, res.result, data.alloc);
+            auto repl = valueToArgPtr(add_instr->args[1], Type::Int64,
+                                      res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
                 GBaseSubtype::mov, res_reg,
@@ -463,8 +463,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_instr->args[0].is_constant() && a1.isImm()) {
           auto c1 = add_instr->args[0].as_constant();
           if (c1->is_global() && !c1->as_global()->is_extern_decl()) {
-            auto repl =
-                valueToArgPtr(add_instr->args[0], Type::Int64, res.result, data.alloc);
+            auto repl = valueToArgPtr(add_instr->args[0], Type::Int64,
+                                      res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
                 GBaseSubtype::mov, res_reg,
@@ -567,8 +567,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_instr->args[1].is_constant() && a0.isImm()) {
           auto c1 = add_instr->args[1].as_constant();
           if (c1->is_global() && !c1->as_global()->is_extern_decl()) {
-            auto repl =
-                valueToArgPtr(add_instr->args[1], Type::Int64, res.result, data.alloc);
+            auto repl = valueToArgPtr(add_instr->args[1], Type::Int64,
+                                      res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
                 GBaseSubtype::mov,
@@ -584,8 +584,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_instr->args[0].is_constant() && a1.isImm()) {
           auto c1 = add_instr->args[0].as_constant();
           if (c1->is_global() && !c1->as_global()->is_extern_decl()) {
-            auto repl =
-                valueToArgPtr(add_instr->args[0], Type::Int64, res.result, data.alloc);
+            auto repl = valueToArgPtr(add_instr->args[0], Type::Int64,
+                                      res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(
                 GBaseSubtype::mov,
@@ -1598,9 +1598,9 @@ void base_patterns(IRVec<Pattern> &pats) {
               MArgument::MemOIS(0, arg.reg, 0, Type::Int32x4), mask);
           return true;
         }
-        auto arg =
-            valueToArgPtr(load_instr->args[0],
-                          convert_type(load_instr.get_type()), res.result, data.alloc);
+        auto arg = valueToArgPtr(load_instr->args[0],
+                                 convert_type(load_instr.get_type()),
+                                 res.result, data.alloc);
         arg.ty = convert_type(load_instr.get_type());
         res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
         return true;
@@ -1644,8 +1644,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
         auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
         auto ptr_target = valueToArgPtr(
-            store_instr->args[0], convert_type(store_instr->args[0].get_type()), res.result,
-            data.alloc);
+            store_instr->args[0], convert_type(store_instr->args[0].get_type()),
+            res.result, data.alloc);
 
         ptr_target.ty = convert_type(store_ty);
         res.result.emplace_back(GBaseSubtype::mov, ptr_target, value);
@@ -2831,7 +2831,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         MArgument calee;
         bool is_var_arg = false;
         if (call_instr->args[0].is_constant()) {
-          calee = valueToArgPtr(call_instr->args[0], Type::Int64, res.result, data.alloc);
+          calee = valueToArgPtr(call_instr->args[0], Type::Int64, res.result,
+                                data.alloc);
           is_var_arg = call_instr->args[0].as_constant()->as_func()->variadic;
         } else {
           calee = valueToArg(call_instr->args[0], res.result, data.alloc);
@@ -2864,7 +2865,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           }
           return true;
         }
-        if (res_type->is_float()) {
+        if (res_type->is_float() || res_type->is_vec()) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
           res.result.emplace_back(GBaseSubtype::invoke, calee, res_reg);
