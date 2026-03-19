@@ -198,6 +198,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       InstSimplify, SCCP, DCE, InstSimplify, ConstLoopEval, LoopSimplify,
       LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, InstSimplify, SimplifyCFG>{}
       .apply(ctx, shed);
+  for (auto &[_, f] : ctx->storage.functions) {
+    fmt::println("{:cd}", *f);
+  }
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeVecs, SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);
@@ -206,7 +209,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, InstSimplify, SCCP, DCE, LVN, InstSimplify, SimplifyCFG, DCE,
-      LegalizeVecs, InstSimplify, LegalizeVecs, DCE>{}
+      LegalizeVecs, InstSimplify, SCCP, LegalizeVecs, DCE>{}
       .apply(ctx, shed);
 
   ASSERT(ctx->verify());
