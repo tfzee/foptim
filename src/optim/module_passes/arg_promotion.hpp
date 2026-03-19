@@ -1,4 +1,5 @@
 #pragma once
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <utility>
@@ -11,11 +12,13 @@
 #include "ir/helpers.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/module_pass.hpp"
+#include "utils/parameters.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
@@ -62,6 +65,180 @@ class ArgPromotion final : public ModulePass {
         if (i->pot_modifies_mem()) {
           return true;
         }
+      }
+    }
+    return false;
+  }
+
+  // if we return 2 vectors and then instant concat them we can also concat them
+  // inside of the function
+  bool return_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx) {
+    const auto &func_ty = func->func_ty->as_func();
+    if (!func_ty.return_type->is_struct()) {
+      return false;
+    }
+    auto &elems = func_ty.return_type->as_struct().elems;
+    if (elems.size() != 2 || !elems[0].ty->is_vec() ||
+        elems[0].ty != elems[1].ty) {
+      return false;
+    }
+    auto &inp_vec_ty = elems[0].ty->as_vec();
+    if (inp_vec_ty.get_size() >= 64 ||
+        (!utils::enable_avx512f && inp_vec_ty.get_size() >= 32)) {
+      return false;
+    }
+
+    for (auto use : func->get_uses()) {
+      if (use.type != fir::UseType::NormalArg ||
+          !use.user->is(fir::InstrType::CallInstr) || use.argId != 0) {
+        // fmt::println("FailCall");
+        return false;
+      }
+      // if all uses are Extract values which are only used in concats
+      for (auto suse : use.user->get_uses()) {
+        if (!suse.user->is(fir::InstrType::ExtractValue)) {
+          // fmt::println("FailExtract");
+          return false;
+        }
+        auto exp_index = suse.user->args[1].as_constant()->as_int();
+        for (auto ssuse : suse.user->get_uses()) {
+          // TODO: could also handle shuffles
+          if (!ssuse.user->is(fir::VectorISubType::Concat) ||
+              ssuse.argId != exp_index) {
+            // fmt::println("FailCOncat");
+            return false;
+          }
+        }
+      }
+    }
+    fir::TypeR res_type = ctx->get_vec_type(
+        inp_vec_ty.type, inp_vec_ty.bitwidth, inp_vec_ty.member_number * 2);
+    for (auto bb : func->basic_blocks) {
+      auto term = bb->get_terminator();
+      if (term->is(fir::InstrType::ReturnInstr)) {
+        fir::Builder buh{term};
+        ASSERT(term->args.size() == 2);
+        auto res = buh.build_vector_op(term->args[0], term->args[1], res_type,
+                                       fir::VectorISubType::Concat);
+        term.remove_arg(1);
+        term.replace_arg(0, res);
+        term->value_type = res_type;
+      }
+    }
+    fmt::println("Found");
+    fmt::println("{:cd}", *func.func);
+    for (auto use : func->get_uses()) {
+      auto call_instr = use.user;
+      for (auto suse : use.user->get_uses()) {
+        for (auto ssuse : suse.user->get_uses()) {
+          // replace the concat with the new return value
+          ssuse.user->replace_all_uses(fir::ValueR{call_instr});
+          ssuse.user.destroy();
+        }
+        suse.user.destroy();
+      }
+    }
+
+    {  // type cleanup
+      func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
+      for (auto use : func.func->get_uses()) {
+        use.user->extra_type = func.func->func_ty;
+        use.user->value_type = res_type;
+      }
+    }
+    if (func->linkage == fir::Linkage::LinkOnceODR) {
+      auto old_name = func->name;
+      arg_prom_unique_name_number++;
+      auto new_name = old_name + "MODArgProm";
+      new_name += std::to_string(arg_prom_unique_name_number);
+      auto func_moved = std::move(ctx->storage.functions.at(old_name));
+      ctx->storage.functions.erase(old_name);
+      func_moved->name = new_name;
+      func_moved->linkage = fir::Linkage::Internal;
+      func_moved->no_inline = false;
+      ctx->storage.functions.insert({new_name, std::move(func_moved)});
+    }
+    // fmt::println("Found");
+    // fmt::println("{:cd}", *func.func);
+    // for (auto use : func->get_uses()) {
+    //   auto call_instr = use.user;
+    //   fmt::println("{:cd}", call_instr->get_parent());
+    // }
+    // TODO("impl");
+    // TODO("impl cleanup");
+    return true;
+  }
+
+  // if we get vector args and all we do is concat them concat them prior and
+  // only give in 1 arg
+  bool promote_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx) {
+    const auto &func_ty = func->func_ty->as_func();
+    auto n_args_original = func_ty.arg_types.size();
+    auto entry_block = func->get_entry();
+    // CFG cfg{*func.func};
+    for (auto use : func->get_uses()) {
+      if (use.type != fir::UseType::NormalArg ||
+          !use.user->is(fir::InstrType::CallInstr) || use.argId != 0) {
+        return false;
+      }
+    }
+    bool modified = false;
+    IRVec<fir::TypeR> arg_tys;
+    TVec<fir::BBArgument> args;
+    for (u64 i = n_args_original; i > 0; i--) {
+      auto arg = entry_block->args[i - 1];
+      if (arg->get_n_uses() == 0 || !arg->get_type()->is_vec()) {
+        continue;
+      }
+      bool can_promote = false;
+      fir::BBArgument other_arg = fir::BBArgument{fir::BBArgument::invalid()};
+      for (auto use : arg->uses) {
+        if (use.type != fir::UseType::NormalArg ||
+            !use.user->is(fir::VectorISubType::Concat)) {
+          can_promote = false;
+          break;
+        }
+        auto other_arg_id = 1 - use.argId;
+        if (use.user->args[other_arg_id].is_bb_arg() &&
+            use.user->args[other_arg_id].as_bb_arg()->get_parent() ==
+                entry_block &&
+            (!other_arg.is_valid() ||
+             use.user->args[other_arg_id].as_bb_arg() == other_arg)) {
+          other_arg = use.user->args[other_arg_id].as_bb_arg();
+        } else {
+          can_promote = false;
+          break;
+        }
+      }
+      if (!can_promote) {
+        continue;
+      }
+
+      fmt::println("{:cd}", arg);
+      fmt::println("{:cd}", other_arg);
+      TODO("Impl");
+      modified = true;
+    }
+    if (modified) {
+      func.func->func_ty =
+          ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+      for (auto use : func.func->get_uses()) {
+        use.user->extra_type = func.func->func_ty;
+      }
+
+      // // we need renaming
+      if (func->linkage == fir::Linkage::LinkOnceODR) {
+        auto old_name = func->name;
+        arg_prom_unique_name_number++;
+        auto new_name = old_name + "MODArgProm";
+        new_name += std::to_string(arg_prom_unique_name_number);
+        auto func_moved = std::move(ctx->storage.functions.at(old_name));
+        ctx->storage.functions.erase(old_name);
+        func_moved->name = new_name;
+        func_moved->linkage = fir::Linkage::Internal;
+        func_moved->no_inline = false;
+        ctx->storage.functions.insert({new_name, std::move(func_moved)});
+        return true;
       }
     }
     return false;
@@ -132,9 +309,8 @@ class ArgPromotion final : public ModulePass {
       }
       for (auto use : func->get_uses()) {
         fir::Builder b{use.user};
-        auto load_result =
-            b.build_load(load_type, use.user->args[1 + i - 1],
-                         use.user->Atomic, use.user->Volatile);
+        auto load_result = b.build_load(load_type, use.user->args[1 + i - 1],
+                                        use.user->Atomic, use.user->Volatile);
         use.user.replace_arg(1 + i - 1, load_result);
       }
       arg->_type = load_type;
@@ -205,6 +381,15 @@ class ArgPromotion final : public ModulePass {
       }
       if (promote_ptr_to_value_args(f.get(), ctx)) {
         iter = ctx.data->storage.functions.begin();
+        continue;
+      }
+      if (promote_vecvec_to_concat_vec(f.get(), ctx)) {
+        iter = ctx.data->storage.functions.begin();
+        continue;
+      }
+      if (return_vecvec_to_concat_vec(f.get(), ctx)) {
+        iter = ctx.data->storage.functions.begin();
+        continue;
       }
     }
   }
