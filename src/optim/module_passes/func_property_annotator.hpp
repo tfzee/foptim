@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/callgraph.hpp"
 #include "optim/module_pass.hpp"
 
@@ -14,7 +15,7 @@ class FuncPropAnnotator final : public ModulePass {
     bool wont_recurse = true;
   };
 
-  Result apply(fir::Function *func, CallGraph &cg) {
+  Result apply(fir::Function *func, CallGraph &cg, AliasAnalyis &aa) {
     Result r{};
     if (cg.call_graph[func].indirect_calls) {
       return {.does_read = true, .does_write = true, .wont_recurse = false};
@@ -22,11 +23,22 @@ class FuncPropAnnotator final : public ModulePass {
 
     for (auto bb : func->basic_blocks) {
       for (auto instr : bb->instructions) {
+        // would need to do a proper AA to see if its local
         if (instr->is(fir::InstrType::StoreInstr)) {
-          r.does_write = true;
+          if (!aa.is_known_local_stack(instr->args[0])) {
+            r.does_write = true;
+          }
         } else if (instr->is(fir::InstrType::LoadInstr)) {
-          r.does_read = true;
+          if (!aa.is_known_local_stack(instr->args[0])) {
+            r.does_read = true;
+          }
+        } else if (instr->is(fir::InstrType::AtomicRMW)) {
+          if (!aa.is_known_local_stack(instr->args[0])) {
+            r.does_write = true;
+            r.does_read = true;
+          }
         } else if (instr->is(fir::InstrType::CallInstr)) {
+          // indirect calls already handled
           if (instr->args[0].is_constant() &&
               instr->args[0].as_constant()->is_func()) {
             auto f = instr->args[0].as_constant()->as_func();
@@ -64,6 +76,7 @@ class FuncPropAnnotator final : public ModulePass {
   void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
     ZoneScopedNC("FuncPropAnnotator", COLOR_OPTIMF);
     CallGraph call_graph{ctx};
+    AliasAnalyis aa;
 
     TVec<fir::Function *> worklist;
     for (auto &f : ctx->storage.functions) {
@@ -77,7 +90,8 @@ class FuncPropAnnotator final : public ModulePass {
     while (!worklist.empty()) {
       auto *v = worklist.back();
       worklist.pop_back();
-      auto r = apply(v, call_graph);
+      aa.reset();
+      auto r = apply(v, call_graph, aa);
       bool modified = false;
       if (r.wont_recurse && !v->no_recurse) {
         v->no_recurse = true;
@@ -101,7 +115,7 @@ class FuncPropAnnotator final : public ModulePass {
       }
       if (modified) {
         // fmt::println("MODIFIED {:d}", *v);
-        for (auto *v : call_graph.call_graph[v].targets) {
+        for (auto *v : call_graph.call_graph[v].targeted_by) {
           worklist.push_back(v);
         }
       }
