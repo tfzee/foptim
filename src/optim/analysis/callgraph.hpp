@@ -12,6 +12,7 @@ class CallGraph {
   struct Result {
     bool indirect_calls = false;
     TVec<fir::Function *> targets;
+    TVec<fir::Function *> targeted_by;
   };
   TMap<fir::Function *, Result> call_graph;
 
@@ -27,6 +28,7 @@ class CallGraph {
             if (instr->args[0].is_constant() &&
                 instr->args[0].as_constant()->is_func()) {
               auto target_f = instr->args[0].as_constant()->as_func();
+              call_graph[target_f.func].targeted_by.push_back(f.second.get());
               call_graph[f.second.get()].targets.push_back(target_f.func);
             } else {
               call_graph[f.second.get()].indirect_calls = true;
