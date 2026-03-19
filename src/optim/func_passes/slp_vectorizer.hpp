@@ -298,41 +298,6 @@ class SLPVectorizer final : public FunctionPass {
     for (auto bi = load_bundles.size(); bi > 0; bi--) {
       auto &b = load_bundles[bi - 1];
       {
-        auto n_load = b.data.size();
-        if (n_load != 2 && n_load != 4 && n_load != 8 && n_load != 16 &&
-            n_load != 32) {
-          if (n_load > 32) {
-            b.data.resize(32);
-          } else if (n_load > 16) {
-            b.data.resize(16);
-          } else if (n_load > 8) {
-            b.data.resize(8);
-          } else if (n_load > 4) {
-            b.data.resize(4);
-          } else if (n_load > 2) {
-            b.data.resize(2);
-          } else {
-            load_bundles.erase(load_bundles.begin() + bi - 1);
-            continue;
-          }
-        }
-        if (b.type->get_size() == 1 &&
-            (n_load % 8 != 0 && n_load % 16 != 0 && n_load % 32 != 0)) {
-          load_bundles.erase(load_bundles.begin() + bi - 1);
-          continue;
-        }
-        if (b.type->get_size() == 2 && (n_load % 8 != 0 && n_load % 16 != 0)) {
-          load_bundles.erase(load_bundles.begin() + bi - 1);
-          continue;
-        }
-        if (b.type->get_size() == 4 && (n_load % 4 != 0 && n_load % 8 != 0)) {
-          load_bundles.erase(load_bundles.begin() + bi - 1);
-          continue;
-        }
-        if (b.type->get_size() == 8 && (n_load % 2 != 0 && n_load % 4 != 0)) {
-          load_bundles.erase(load_bundles.begin() + bi - 1);
-          continue;
-        }
         // sort the loads
         std::ranges::sort(b.data, [](const auto &a, const auto &b) {
           i128 av = 0;
@@ -537,7 +502,6 @@ class SLPVectorizer final : public FunctionPass {
  public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("SLPVectorizer");
-    return;
     (void)ctx;
     (void)func;
     AliasAnalyis aa{};
