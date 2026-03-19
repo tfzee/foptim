@@ -28,6 +28,21 @@ bool BasicBlockData::verify(const Function *exp_parent) const {
     fmt::println(" BasicBlocks parent does not match the function it is in");
     return false;
   }
+
+  if (instructions.size() == 0) {
+    fmt::println(" BasicBlocks needs atleast a terminator");
+    return false;
+  }
+  {
+    auto term = instructions.back();
+    for (auto &bb_target : term->bbs) {
+      if (bb_target.bb == exp_parent->get_entry()) {
+        fmt::println(" cant branch to entry block");
+        return false;
+      }
+    }
+  }
+
   // TODO args
 
   for (const auto &instr : instructions) {

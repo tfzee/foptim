@@ -296,8 +296,7 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
           ctx->get_constant_value(std::bit_cast<u64>(as_f64()), target_type)};
     }
   }
-  if ((old_ty->is_int() || old_ty->is_ptr()) &&
-      target_type->is_float()) {
+  if ((old_ty->is_int() || old_ty->is_ptr()) && target_type->is_float()) {
     if (old_ty->get_bitwidth() == 32) {
       return {ctx->get_constant_value(
           std::bit_cast<f32>((u32)std::bit_cast<u128>(as_int())), target_type)};
@@ -306,6 +305,40 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
       return {ctx->get_constant_value(
           std::bit_cast<f64>((u64)std::bit_cast<u128>(as_int())), target_type)};
     }
+  }
+  if (!old_ty->is_vec() && target_type->is_vec()) {
+    auto target = target_type->as_vec();
+    u128 value;
+    if (old_ty->is_int() || old_ty->is_ptr()) {
+      value = as_int();
+    } else if (old_ty->is_f32()){
+      value = std::bit_cast<u32>(as_f32());
+    } else if (old_ty->is_f64()){
+      value = std::bit_cast<u64>(as_f64());
+    }else{
+      TODO("UNREACH?");
+    }
+    IRVec<ConstantValueR> values;
+
+    for (u32 i = 0; i < target.member_number; i++) {
+      i128 curr_val = value & utils::get_mask(target.bitwidth);
+      value = value >> target.bitwidth;
+      if (target.type == VectorType::SubType::Integer) {
+        values.push_back(ctx->get_constant_int(curr_val, target.bitwidth));
+      } else if (target.type == VectorType::SubType::Floating &&
+                 target.bitwidth == 32) {
+        values.push_back(
+            ctx->get_constant_value(std::bit_cast<f32>((u32)curr_val),
+                                    ctx->get_float_type(target.bitwidth)));
+      } else if (target.type == VectorType::SubType::Floating &&
+                 target.bitwidth == 64) {
+        values.push_back(
+            ctx->get_constant_value(std::bit_cast<f64>((u64)curr_val),
+                                    ctx->get_float_type(target.bitwidth)));
+      }
+    }
+
+    return {ctx->get_constant_value(std::move(values), target_type)};
   }
 
   (void)ctx;
