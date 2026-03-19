@@ -1314,6 +1314,55 @@ inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         req.operands[1] = out_arg;
         req.operands[2] = inp_arg;
         return emit(out_buff, off, &req);
+      } else if (instr.args[0].ty == fmir::Type::Float32 &&
+                 instr.args[1].ty == fmir::Type::Int32) {
+        auto inp_arg = req.operands[1];
+        auto out_arg = req.operands[0];
+
+        // zero extend
+        ZydisEncoderRequest req_mov;
+        memset(&req_mov, 0, sizeof(req_mov));
+        req_mov.mnemonic = ZYDIS_MNEMONIC_MOV;
+        req_mov.operand_count = 2;
+        req_mov.operands[0] = inp_arg;
+        req_mov.operands[0].reg.value =
+            reg_with_type(instr.args[1].reg, fmir::Type::Int32);
+        req_mov.operands[1] = inp_arg;
+        req_mov.operands[1].reg.value =
+            reg_with_type(instr.args[1].reg, fmir::Type::Int32);
+
+        ZydisEncoderRequest req_vcvt;
+        memset(&req_vcvt, 0, sizeof(req_vcvt));
+        req_vcvt.mnemonic = ZYDIS_MNEMONIC_VCVTSI2SS;
+        req_vcvt.operand_count = 3;
+        req_vcvt.operands[0] = out_arg;
+        req_vcvt.operands[1] = out_arg;
+        req_vcvt.operands[2] = inp_arg;
+        req_vcvt.operands[2].reg.value =
+            reg_with_type(instr.args[1].reg, fmir::Type::Int64);
+
+        u32 off = 0;
+        off = emit(out_buff, off, &req_mov);
+        off = emit(out_buff, off, &req_vcvt);
+        return off;
+      } else if (instr.args[0].ty == fmir::Type::Float32 &&
+                 instr.args[1].ty == fmir::Type::Int64) {
+        auto inp_arg = req.operands[1];
+        auto out_arg = req.operands[0];
+
+        ZydisEncoderRequest req_vcvt;
+        memset(&req_vcvt, 0, sizeof(req_vcvt));
+        req_vcvt.mnemonic = ZYDIS_MNEMONIC_VCVTSI2SS;
+        req_vcvt.operand_count = 3;
+        req_vcvt.operands[0] = out_arg;
+        req_vcvt.operands[1] = out_arg;
+        req_vcvt.operands[2] = inp_arg;
+        req_vcvt.operands[2].reg.value =
+            reg_with_type(instr.args[1].reg, fmir::Type::Int64);
+
+        u32 off = 0;
+        off = emit(out_buff, off, &req_vcvt);
+        return off;
       } else if (instr.args[1].ty == fmir::Type::Int64) {
         auto inp_arg = req.operands[1];
         auto out_arg = req.operands[0];
@@ -2321,17 +2370,21 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           TODO("UNREACH");
         case fmir::Type::Int32x4:
           req.mnemonic = ZYDIS_MNEMONIC_VPBROADCASTD;
-          req.operand_count = 3;
-          req.operands[2] = req.operands[1];
-          req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
-          req.operands[1].reg.value = ZYDIS_REGISTER_K0;
+          if (utils::enable_avx512f || utils::enable_avx512vl) {
+            req.operand_count = 3;
+            req.operands[2] = req.operands[1];
+            req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
+            req.operands[1].reg.value = ZYDIS_REGISTER_K0;
+          }
           break;
         case fmir::Type::Int64x2:
           req.mnemonic = ZYDIS_MNEMONIC_VPBROADCASTQ;
-          req.operand_count = 3;
-          req.operands[2] = req.operands[1];
-          req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
-          req.operands[1].reg.value = ZYDIS_REGISTER_K0;
+          if (utils::enable_avx512f || utils::enable_avx512vl) {
+            req.operand_count = 3;
+            req.operands[2] = req.operands[1];
+            req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
+            req.operands[1].reg.value = ZYDIS_REGISTER_K0;
+          }
           break;
         case fmir::Type::Float32x2:
         case fmir::Type::Float32x4:
