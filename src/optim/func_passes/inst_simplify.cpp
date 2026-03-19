@@ -1061,6 +1061,13 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
   (void)ctx;
   (void)worklist;
+  if (instr->get_n_args() == 1 && instr->args[0].is_poison()) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+    instr.destroy();
+    return true;
+  }
   switch ((fir::ConversionSubType)instr->subtype) {
     case fir::ConversionSubType::INVALID:
       TODO("unreach");
@@ -1574,13 +1581,55 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         arg_instr->args[0].is_constant() && arg_instr->args[1].is_constant()) {
       auto base_global = arg_instr->args[0].as_constant();
       auto offset = arg_instr->args[1].as_constant();
+      auto res_ty = instr->get_type();
+      auto load_size = res_ty->get_size();
+      auto load_width = res_ty->get_bitwidth();
       if (base_global->is_global() && offset->is_int()) {
         auto offset_v = offset->as_int();
         auto global_v = base_global->as_global();
-        for (auto reloc : global_v->reloc_info) {
-          if (reloc.insert_offset == offset_v) {
+        if (global_v->is_constant) {
+          bool any_reloc_overlap = false;
+          for (auto reloc : global_v->reloc_info) {
+            if ((reloc.insert_offset <= (offset_v + load_size) &&
+                 reloc.insert_offset + load_size >= offset_v)) {
+              any_reloc_overlap = true;
+            }
+            if (reloc.insert_offset == offset_v &&
+                instr->get_type()->is_ptr()) {
+              push_all_uses(worklist, instr);
+              instr->replace_all_uses(fir::ValueR{reloc.ref});
+              instr.destroy();
+              return true;
+            }
+          }
+          // TODO: cant do it easily if we have relocs in there
+          // BUT could do it
+          if (!any_reloc_overlap) {
+            auto *data_ptr = &global_v->init_value[offset_v];
+            fir::ValueR v;
+            if (res_ty->is_int() || res_ty->is_ptr()) {
+              if (load_width == 8) {
+                v = fir::ValueR{
+                    ctx->get_constant_value((i128) * (i8 *)data_ptr, res_ty)};
+              } else if (load_width == 16) {
+                v = fir::ValueR{
+                    ctx->get_constant_value((i128) * (i16 *)data_ptr, res_ty)};
+              } else if (load_width == 32) {
+                v = fir::ValueR{
+                    ctx->get_constant_value((i128) * (i32 *)data_ptr, res_ty)};
+              } else if (load_width == 64) {
+                v = fir::ValueR{
+                    ctx->get_constant_value((i128) * (i64 *)data_ptr, res_ty)};
+              } else {
+                TODO("UNREACH?");
+              }
+            } else {
+              fmt::println("{:cd}", instr);
+              fmt::println("{:cd}", arg_instr);
+              TODO("IMPL?");
+            }
             push_all_uses(worklist, instr);
-            instr->replace_all_uses(fir::ValueR{reloc.ref});
+            instr->replace_all_uses(v);
             instr.destroy();
             return true;
           }
@@ -1985,6 +2034,20 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
         return;
       }
     }
+  }
+  if (instr->is(fir::VectorISubType::Concat) && instr->args[0].is_constant() &&
+      instr->args[1].is_constant()) {
+    IRVec<fir::ConstantValueR> elems;
+    auto &a1 = instr->args[0].as_constant()->as_vec().members;
+    auto &a2 = instr->args[1].as_constant()->as_vec().members;
+    elems.insert(elems.end(), a1.begin(), a1.end());
+    elems.insert(elems.end(), a2.begin(), a2.end());
+
+    auto res = fir::ValueR{ctx->get_constant_value(elems, instr->get_type())};
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return;
   }
   if (instr->is(fir::InstrType::LoadInstr) &&
       instr->args[0].get_type()->is_vec() && instr->args[0].is_instr()) {
