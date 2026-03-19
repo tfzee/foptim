@@ -2393,6 +2393,8 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           req.mnemonic = ZYDIS_MNEMONIC_VBROADCASTSS;
           break;
         case fmir::Type::Float64x2:
+          req.operands[0].reg.value =
+              reg_with_type(instr.args[0].reg, fmir::Type::Float64x4);
         case fmir::Type::Int64x4:
         case fmir::Type::Float64x4:
           req.mnemonic = ZYDIS_MNEMONIC_VBROADCASTSD;
