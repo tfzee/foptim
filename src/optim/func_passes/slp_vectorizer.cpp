@@ -306,6 +306,49 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
   }
 };
 
+class ExtractTreeOp final : public SLPVectorizer::TreeElem {
+ public:
+  void dump() final {
+    fmt::println("\n");
+  }
+
+  ExtractTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
+    insert_loc = values.back().as_instr();
+    return this;
+  }
+
+  i64 cost() const final { return -2; }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    auto base_v = values.back().as_instr();
+    auto exp_off = 0;
+    auto input_val = base_v->args[0];
+    for (auto i_v : values) {
+      if (!i_v.is_instr()) {
+        return false;
+      }
+      auto i = i_v.as_instr();
+      if (i->instr_type != base_v->instr_type ||
+          i->subtype != base_v->subtype) {
+        return false;
+      }
+      if (!i->args[1].is_const_int(exp_off) || i->args[0] != input_val) {
+        return false;
+      }
+      exp_off++;
+    }
+    return true;
+  }
+
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
+    (void)ctx;
+    (void)orig_bundl;
+    return insert_loc->args[0];
+  }
+};
+
 class StoreTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr store_loc;
 
@@ -390,11 +433,17 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
     auto base_v = values.back().as_instr();
     for (auto i_v : values) {
       if (!i_v.is_instr()) {
+        if (SLPVectorizer::debug_print) {
+          fmt::println("intrin constant fail");
+        }
         return false;
       }
       auto i = i_v.as_instr();
       if (i->instr_type != base_v->instr_type ||
           i->subtype != base_v->subtype) {
+        if (SLPVectorizer::debug_print) {
+          fmt::println("intrin instr type fail");
+        }
         return false;
       }
     }
@@ -419,7 +468,6 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
       case fir::IntrinsicSubType::FFloor:
       case fir::IntrinsicSubType::FTrunc:
         return true;
-        break;
     }
   }
 
@@ -547,17 +595,26 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
       // auto vec_loads = base_t->as_vec();
       // auto sub_data_size = vec_loads.bitwidth * vec_loads.member_number;
       // if (sub_data_size != 64 && sub_data_size != 32) {
+      if (SLPVectorizer::debug_print) {
+        fmt::println("failed load already vec");
+      }
       return false;
       // }
     }
 
     for (auto i_v : values) {
       if (!i_v.is_instr()) {
+        if (SLPVectorizer::debug_print) {
+          fmt::println("failed load missing instr {}", i_v);
+        }
         return false;
       }
       auto i = i_v.as_instr();
       if (i->instr_type != base_v->instr_type ||
           i->subtype != base_v->subtype) {
+        if (SLPVectorizer::debug_print) {
+          fmt::println("failed load missmatched instr type {}", i);
+        }
         return false;
       }
     }
@@ -580,6 +637,9 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
         return true;
       }
     }
+    if (SLPVectorizer::debug_print) {
+      fmt::println("failed load didnt find bundle");
+    }
     return false;
   }
 
@@ -588,8 +648,8 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
     auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     bb.after(insert_loc);
-    fmt::println("====> {}\n{}\n====================", insert_loc,
-                 insert_loc->get_parent());
+    // fmt::println("====> {}\n{}\n====================", insert_loc,
+    //              insert_loc->get_parent());
     if (insert_loc->get_type()->is_vec()) {
       auto vec_loads = insert_loc->get_type()->as_vec();
       auto vec_ty = ctx->get_vec_type(
@@ -627,6 +687,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   using BroadcastAlloc = utils::TempAlloc<BroadcastTreeOp>;
   using ZextTreeAlloc = utils::TempAlloc<ZextTreeOp>;
   using UnaryTreeAlloc = utils::TempAlloc<UnaryTreeOp>;
+  using ExtractTreeAlloc = utils::TempAlloc<ExtractTreeOp>;
   TVec<TreeElem *> tree;
   if (default_parent != nullptr) {
     tree.push_back(default_parent);
@@ -770,6 +831,21 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             return false;
           }
           break;
+        case fir::InstrType::ExtractValue:
+          if (ExtractTreeOp::match(curr)) {
+            auto *result_t = ExtractTreeAlloc{}.allocate(1);
+            (new (result_t) ExtractTreeOp)->init(curr);
+            result = result_t;
+            n_args = 0;
+            parent->children.push_back(result);
+          } else {
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at extract value like {}",
+                           curr.back().as_instr());
+            }
+            return false;
+          }
+          break;
         case fir::InstrType::ITrunc:
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
@@ -781,7 +857,6 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         case fir::InstrType::VectorInstr:
         case fir::InstrType::SExt:
         case fir::InstrType::AllocaInstr:
-        case fir::InstrType::ExtractValue:
         case fir::InstrType::InsertValue:
         case fir::InstrType::Conversion:
         case fir::InstrType::CallInstr:
