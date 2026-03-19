@@ -47,7 +47,6 @@ class LegalizeVecs final : public FunctionPass {
       // replace vec with reference to global variable
       if (arg.is_constant() && arg.as_constant()->is_vec()) {
         make_constant_global(ctx, instr, arg_indx);
-        return true;
       }
     }
 
