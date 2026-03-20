@@ -88,28 +88,32 @@ The last regression in perfomance was from the removal of the current SLP pass t
 
 
 ## TODO
-+ make flake.nix to actually be useful for building fully
-+ replace std::hash with the ankerl version + replace std::map/set with ankerl
-+ replace cond + select with specific cmovXX commands
-	+ missing for floatingpoint
-+ no register spilling rn
-+ 2 allocas without overlapping lifetimes could be merged to use same stack space
-+ optimize sdiv
-	+ can convert into imul shifts and add (theres some formular for this)
-	+ only have some dumb cases
-+ Abstract away graph based matcher (maybe a DSL)
-	+ Could be used in general like LLVMs matcher stuff in optimization passes
-+ Parallelize Module Passes
-	+ inlining
-	+ IPCP
-	+ argpromotion
-	+funcprop annotator
-+ Add a proper analysis caching system 
-+ Support more CCs
-+ More Passes
-	+ Get SSAPRE
-	+ Rework sccp
-+ add a custom frontend other then llvmir
-+ serialize
-+ deserialize
++ Compiler Stuff
+	+ make flake.nix to actually be useful for building fully
+	+ no register spilling rn
+	+ Parallelize Module Passes
+		+ inlining
+		+ IPCP
+		+ argpromotion
+		+ funcprop annotator
+	+ Support more CCs
+	+ Abstract away graph based matcher (maybe a DSL)
+		+ Could be used in general like LLVMs matcher stuff in optimization passes
+	+ replace std::hash with the ankerl version + replace std::map/set with ankerl
+	+ add a custom frontend other then llvmir
+	+ serialize
+	+ deserialize
++ Optimization Stuff
+	+ backwards constant prop (when transformation is applied to for example a buffer constant prop it backwards so its already applied to the constant values)
+		+ sometimes already done in trivial cases
+	+ replace cond + select with specific cmovXX commands
+		+ missing for floatingpoint
+	+ 2 allocas without overlapping lifetimes could be merged to use same stack space
+	+ optimize sdiv
+		+ can convert into imul shifts and add (theres some formular for this)
+		+ only have some dumb cases
+	+ Add a proper analysis caching system 
+	+ More Passes
+		+ Get SSAPRE
+		+ Rework sccp
 
