@@ -1218,8 +1218,9 @@ class SCCP final : public FunctionPass {
 
         size_t bit_width = 0;
         if (a.vals.size() == 1) {
-          bit_width = std::max(instr->args[0].get_type()->as_int(),
-                               instr->args[1].get_type()->as_int());
+          ASSERT(instr.get_type()->is_int() || instr.get_type()->is_ptr());
+          bit_width = std::max(instr->args[0].get_type()->get_bitwidth(),
+                               instr->args[1].get_type()->get_bitwidth());
         } else {
           ASSERT(instr.get_type()->is_vec());
           bit_width = std::max(instr->args[0].get_type()->as_vec().bitwidth,
