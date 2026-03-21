@@ -16,6 +16,7 @@ namespace foptim::optim {
 
 class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
   fir::ValueR v;
+  bool after;
 
  public:
   void dump() final { fmt::print("BROAD({})", v); }
@@ -24,8 +25,10 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
     n_lanes = values.size();
     if (values.back().is_bb_arg()) {
       insert_loc = values.back().as_bb_arg()->_parent->instructions[0];
+      after = false;
     } else {
       insert_loc = values.back().as_instr();
+      after = true;
     }
     v = values.back();
     return this;
@@ -49,7 +52,9 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle & /*orig_bundle*/) final {
     fir::Builder bb{insert_loc};
-    bb.after(insert_loc);
+    if (after) {
+      bb.after(insert_loc);
+    }
     auto res = bb.build_vbroadcast(v, ctx->get_vec_type(v.get_type(), n_lanes));
     return res;
   }
@@ -308,9 +313,7 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
 
 class ExtractTreeOp final : public SLPVectorizer::TreeElem {
  public:
-  void dump() final {
-    fmt::println("\n");
-  }
+  void dump() final { fmt::println("\n"); }
 
   ExtractTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
