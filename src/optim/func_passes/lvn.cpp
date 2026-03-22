@@ -123,14 +123,14 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   // we load a offseted version of the store especially interesting
   // when the store is already vectorized
   auto offset = a0->args[1].as_constant()->as_int();
-  if (offset * 8 % store_ty.bitwidth != 0) {
+  auto index = offset / (((store_ty.bitwidth + 7) / 8));
+  if (offset * 8 % store_ty.bitwidth != 0 || index >= store_ty.member_number) {
     return false;
   }
 
   auto *ctx = load_instr->get_parent()->get_parent()->ctx;
   fir::Builder buh{load_instr};
-  fir::ValueR indicies[1] = {fir::ValueR{
-      ctx->get_constant_int(offset / (((store_ty.bitwidth + 7) / 8)), 32)}};
+  fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(index, 32)}};
   auto res = buh.build_extract_value(store_instr->args[1], indicies, load_ty);
   load_instr->replace_all_uses(res);
   load_instr.destroy();
@@ -240,8 +240,10 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           }
         } else if (instr2->args[0].is_instr() && instr->get_type()->is_vec() &&
                    !instr2->get_type()->is_vec()) {
+          bool pot_store_between = is_pot_store_between(
+              bb, instr2->args[0], instr2->get_type()->get_size(), i + 1, i2, aa);
           // TODO: for now only for vector
-          if (vstore_sload_forwarding(instr, instr2)) {
+          if (!pot_store_between && vstore_sload_forwarding(instr, instr2)) {
             i2--;
             continue;
           }
