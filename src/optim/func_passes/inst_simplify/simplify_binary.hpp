@@ -271,7 +271,8 @@ inline bool simplify_binary(fir::Instr instr, fir::BasicBlock bb,
 
     if ((c0_val != nullptr) && (c1_val != nullptr)) {
       // fmt::println("{:cd}", instr);
-      if (c1_val->is_int() && c0_val->is_int()) {
+      if ((c1_val->is_int() || c1_val->is_null()) &&
+          (c0_val->is_int() || c0_val->is_null())) {
         // TODO: this is annoying but idk how to handle it better
         push_all_uses(worklist, instr);
         if (try_constant_eval_binary(instr, (BinaryInstrSubType)instr->subtype,
