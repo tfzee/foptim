@@ -39,6 +39,10 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
     if (base_v.is_constant()) {
       return false;
     }
+    auto ty = base_v.get_type();
+    if (!ty->is_int() && !ty->is_ptr() && !ty->is_float()) {
+      return false;
+    }
     for (auto v : values) {
       if (v != base_v) {
         return false;
@@ -906,8 +910,14 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
 
   if (!tree.empty()) {
     auto tree_cost = tree[0]->cost();
+    // auto funccy = tree[0]->insert_loc->get_parent()->get_parent();
+    // fmt::print("===================Generated START=================\n{:cd}",
+    //            *funccy.func);
+    tree[0]->dump();
     if (tree_cost > 0) {
       tree[0]->generate(ctx, b);
+      // fmt::print("{:cd}\n===================Generated END=================\n",
+      //            *funccy.func);
     } else {
       if constexpr (debug_print) {
         fmt::println("Failed vectorize -> not worth");
