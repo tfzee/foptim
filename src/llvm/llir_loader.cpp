@@ -1169,7 +1169,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     auto res_type = any_instr->getType();
-    if (res_type->isIntegerTy() || res_type->isVectorTy()||
+    if (res_type->isIntegerTy() || res_type->isVectorTy() ||
         res_type->isFloatTy()) {
       auto add = builder.build_binary_op(left, right,
                                          foptim::fir::BinaryInstrSubType::Or);
@@ -1183,7 +1183,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    builder, valueToValue, mod, b2b);
 
     auto res_type = any_instr->getType();
-    if (res_type->isIntegerTy() || res_type->isVectorTy()||
+    if (res_type->isIntegerTy() || res_type->isVectorTy() ||
         res_type->isFloatTy()) {
       auto add = builder.build_binary_op(left, right,
                                          foptim::fir::BinaryInstrSubType::Xor);
@@ -1645,6 +1645,13 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
       auto val = (u32)d->getValue().bitcastToAPInt().getZExtValue();
       *((uint32_t *)output) = (uint32_t)val;
     } else if (ty_id == llvm::Type::DoubleTyID) {
+      auto val = (u64)d->getValue().bitcastToAPInt().getZExtValue();
+      *((u64 *)output) = val;
+    } else if (ty_id == llvm::Type::X86_FP80TyID) {
+      WARN_UNSUPPORTED_O(
+          warned_f80_const,
+          "[WARNING] Unsupported x86_fp80 const will still try to run with "
+          "f64 const instead\n");
       auto val = (u64)d->getValue().bitcastToAPInt().getZExtValue();
       *((u64 *)output) = val;
     } else {
