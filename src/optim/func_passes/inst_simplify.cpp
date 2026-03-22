@@ -262,7 +262,7 @@ bool select_to_fabs(fir::Instr instr, WorkList &worklist) {
 
 bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context & /*ctx*/, WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifySelect");
   }
   if (instr->args[0].is_constant()) {
@@ -459,7 +459,7 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
 }
 bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
                           fir::Context & /*ctx*/, WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyCondBranch");
   }
   if (instr->args[0].is_constant()) {
@@ -516,7 +516,7 @@ bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
 
 void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context & /*ctx*/, WorkList & /*worklist*/) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifySwitch");
   }
   if (!instr->args.empty() && instr->args.back().is_constant()) {
@@ -584,7 +584,7 @@ void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
 
 bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyExtend");
   }
   // TODO: could also maybe figure out cases where we can convert everything
@@ -720,7 +720,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
 
 bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist, AttributerManager &man) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyITrunc");
   }
   (void)instr;
@@ -887,7 +887,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 
 bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
                     WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyUnary");
   }
   if (instr->args[0].is_constant() &&
@@ -1056,7 +1056,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
 
 bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
                          fir::Context &ctx, WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyConversion");
   }
   (void)ctx;
@@ -1284,7 +1284,7 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
 }
 
 bool simplify_store(fir::Instr instr) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyStore");
   }
   if ((instr->args[0].is_constant() &&
@@ -1340,7 +1340,7 @@ bool simplify_store(fir::Instr instr) {
 
 bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyCall");
   }
   (void)bb;
@@ -1478,7 +1478,7 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 
 bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyLoad");
   }
   (void)bb;
@@ -1643,7 +1643,7 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
                         fir::Context &ctx, WorkList &worklist,
                         AttributerManager &man) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyIntrin");
   }
   auto sub_type = (fir::IntrinsicSubType)instr->subtype;
@@ -1812,7 +1812,7 @@ fir::ValueR propagate_load_through_select(fir::Instr select) {
 
 bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist, AliasAnalyis &aa) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyAlloca");
   }
   {
@@ -2013,7 +2013,7 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
 }
 void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyVector");
   }
   if (!instr->get_type()->is_vec()) {
@@ -2130,7 +2130,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
 }
 
 bool simplify_extract(fir::Instr instr, WorkList &worklist) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyExtract");
   }
   if (instr->args[0].is_instr()) {
