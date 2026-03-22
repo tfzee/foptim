@@ -475,12 +475,12 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
   } else if ((!input_is_fp_reg && target_is_fp_reg &&
               instr.args[0].reg.size() == 4) ||
              (!target_is_fp_reg && input_is_fp_reg &&
-              instr.args[1].reg.size() == 4)) {
+              instr.args[0].reg.size() == 4)) {
     req.mnemonic = ZYDIS_MNEMONIC_MOVD;
   } else if ((!input_is_fp_reg && target_is_fp_reg &&
               instr.args[0].reg.size() == 8) ||
              (!target_is_fp_reg && input_is_fp_reg &&
-              instr.args[1].reg.size() == 8)) {
+              instr.args[0].reg.size() == 8)) {
     if (instr.args[1].isReg() && instr.args[1].reg.size() < 8) {
       req.operands[1].reg.value =
           reg_with_type(instr.args[1].reg, fmir::Type::Int64);
@@ -2078,7 +2078,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
-    case fmir::X86Subtype::vextractf128: {
+    case fmir::X86Subtype::vextract128: {
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
@@ -2159,6 +2159,18 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
       req.mnemonic = ZYDIS_MNEMONIC_VMOVLHPS;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::vinsert128: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      if (instr.args[0].is_fp()) {
+        req.mnemonic = ZYDIS_MNEMONIC_VINSERTF128;
+      } else {
+        req.mnemonic = ZYDIS_MNEMONIC_VINSERTI128;
+      }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
