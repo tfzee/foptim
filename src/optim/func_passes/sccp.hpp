@@ -101,6 +101,9 @@ class SCCP final : public FunctionPass {
     static ConstantValue Bottom() {
       return ConstantValue{.type = ValueType::Bottom, .vals = {}, .vtype = {}};
     }
+    static ConstantValue Poision(fir::TypeR t) {
+      return ConstantValue{.type = ValueType::Poison, .vals = {}, .vtype = t};
+    }
     static ConstantValue Constant(fir::ConstantValueR v) {
       auto c = v->get_type();
 
@@ -146,8 +149,11 @@ class SCCP final : public FunctionPass {
         for (auto m : tv.members) {
           if (m->is_float()) {
             r.vals.push_back({.f = m->as_float()});
-          } else if (m->is_int()) {
+          } else if (m->is_int() || m->is_null()) {
             r.vals.push_back({.i = m->as_int()});
+          }else{
+            fmt::println("{}", m);
+            TODO("impl dufus");
           }
         }
         return r;
@@ -1214,6 +1220,9 @@ class SCCP final : public FunctionPass {
         }
         if (!a.is_const() || !b.is_const()) {
           return ConstantValue::Top();
+        }
+        if (a.is_poison() || b.is_poison()) {
+          return ConstantValue::Poision(instr->get_type());
         }
 
         size_t bit_width = 0;
