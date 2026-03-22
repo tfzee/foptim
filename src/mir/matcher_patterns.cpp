@@ -1837,7 +1837,7 @@ void base_patterns(IRVec<Pattern> &pats) {
             auto res_64 =
                 MArgument{res_reg.reg.retype(Type::Float32x2), Type::Float32x2};
 
-            res.result.emplace_back(X86Subtype::vextractf128, res_128, a1,
+            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
                                     MArgument((u8)1));
             res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
                                     a1_128);
@@ -1855,7 +1855,7 @@ void base_patterns(IRVec<Pattern> &pats) {
             auto a1_128 =
                 MArgument{a1.reg.retype(Type::Float64x2), Type::Float64x2};
 
-            res.result.emplace_back(X86Subtype::vextractf128, res_128, a1,
+            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
                                     MArgument((u8)1));
             res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
                                     a1_128);
@@ -1878,7 +1878,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
             // 128 red
             auto res_256_low_128 = MArgument{res_reg.reg, Type::Float64x2};
-            res.result.emplace_back(X86Subtype::vextractf128, res_128, res_256,
+            res.result.emplace_back(X86Subtype::vextract128, res_128, res_256,
                                     MArgument((u8)1));
             res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
                                     res_256_low_128);
@@ -1914,13 +1914,19 @@ void base_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
             res.result.emplace_back(X86Subtype::movlhps, res_reg, res_reg, a2);
             break;
-          case Type::Float32x4:
-          case Type::Float64x2:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Int32x8:
           case Type::Int64x2:
+          case Type::Float64x2:
+            ASSERT(a1.isReg());
+            res.result.emplace_back(
+                X86Subtype::vinsert128, res_reg,
+                MArgument(a1.reg.retype(res_reg.ty), res_reg.ty), a2,
+                MArgument((u8)1));
+            break;
+          case Type::Float32x4:
+          case Type::Float32x8:
+          case Type::Int32x8:
           case Type::Int32x4:
+          case Type::Float64x4:
           case Type::Int64x4:
             fmt::println("{:cd}", concat_instr->args[0].get_type());
             fmt::println("{:cd}", concat_instr);
@@ -2977,6 +2983,9 @@ void base_patterns(IRVec<Pattern> &pats) {
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto insert_instr = res.matched_instrs[0];
+        if (insert_instr->args[0].get_type()->is_vec()) {
+          TODO("impl");
+        }
         ASSERT(insert_instr->args.size() == 3);
         auto input =
             valueToArgStruct(insert_instr->args[0], res.result, data.alloc);
@@ -3012,23 +3021,68 @@ void base_patterns(IRVec<Pattern> &pats) {
                  extract_instr->args[1].as_constant()->is_int());
           auto target =
               valueToArg(fir::ValueR{extract_instr}, res.result, data.alloc);
+          auto get_xmm_version_ty = [](Type t) {
+            if (t == Type::Float32) {
+              return Type::Float32x4;
+            } else if (t == Type::Int32) {
+              return Type::Int32x4;
+            } else if (t == Type::Float64) {
+              return Type::Float64x2;
+            } else if (t == Type::Int64) {
+              return Type::Int64x2;
+            }
+            TODO("unreach?");
+          };
           auto vec_ty = extract_instr->args[0].get_type()->as_vec();
-          if (indx + 1 == vec_ty.member_number) {
-            res.result.emplace_back(GBaseSubtype::mov, target, input);
-          }
-          if (target.is_fp()) {
-            // TODO implement properly
-            auto helper_ty =
-                target.ty == Type::Float32 ? Type::Int32 : Type::Int64;
+          auto rev_indx = vec_ty.member_number - indx - 1;
+          auto helper_ty = get_xmm_version_ty(target.ty);
+          if (rev_indx == 0) {
+            ASSERT(input.isReg())
+            // last can just be moved
+            res.result.emplace_back(
+                GBaseSubtype::mov, target,
+                MArgument(input.reg.retype(helper_ty), helper_ty));
+          } else if (rev_indx == 1) {
+            ASSERT(input.isReg())
+            // seoncd to last can just be vpextr
+            res.result.emplace_back(
+                X86Subtype::vpextr, target,
+                MArgument(input.reg.retype(helper_ty), helper_ty),
+                MArgument((u8)1));
+          } else if (rev_indx == 2) {
+            auto helper_ty = get_xmm_version_ty(target.ty);
             auto helper_reg = data.alloc.get_new_register(helper_ty);
             auto helper_arg = MArgument(helper_reg, helper_ty);
-            res.result.emplace_back(X86Subtype::vpextr, helper_arg, input,
-                                    MArgument((u8)indx));
+            res.result.emplace_back(X86Subtype::vextract128, helper_arg, input,
+                                    MArgument((u8)1));
             res.result.emplace_back(GBaseSubtype::mov, target, helper_arg);
-          } else {
+          } else if (rev_indx == 3) {
+            auto helper_ty = get_xmm_version_ty(target.ty);
+            auto helper_reg = data.alloc.get_new_register(helper_ty);
+            auto helper_arg = MArgument(helper_reg, helper_ty);
+            res.result.emplace_back(X86Subtype::vextract128, helper_arg, input,
+                                    MArgument((u8)1));
             res.result.emplace_back(X86Subtype::vpextr, target, input,
-                                    MArgument((u8)indx));
+                                    MArgument((u8)1));
+          } else {
+            fmt::println("{}", extract_instr);
+            TODO("Impl");
           }
+          // if (target.is_fp()) {
+          //   // TODO implement properly
+          //   auto helper_ty =
+          //       target.ty == Type::Float32 ? Type::Int32 : Type::Int64;
+          //   auto helper_reg = data.alloc.get_new_register(helper_ty);
+          //   auto helper_arg = MArgument(helper_reg, helper_ty);
+          //   res.result.emplace_back(X86Subtype::vpextr, helper_arg, input,
+          //                           MArgument((u8)indx));
+          //   res.result.emplace_back(GBaseSubtype::mov, target, helper_arg);
+          //   return true;
+          // } else {
+          //   res.result.emplace_back(X86Subtype::vpextr, target, input,
+          //                           MArgument((u8)indx));
+          //   return true;
+          // }
           return true;
         }
         auto input =

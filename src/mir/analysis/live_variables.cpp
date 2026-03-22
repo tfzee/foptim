@@ -254,7 +254,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
-        case X86Subtype::vextractf128:
+        case X86Subtype::vextract128:
+        case X86Subtype::vinsert128:
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
         case X86Subtype::lea:
@@ -596,7 +597,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::punpckl:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
-        case X86Subtype::vextractf128:
+        case X86Subtype::vextract128:
+        case X86Subtype::vinsert128:
         case X86Subtype::vpshuf:
         case X86Subtype::vbroadcast:
         case X86Subtype::ffmadd132:

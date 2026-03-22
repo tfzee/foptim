@@ -67,7 +67,8 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::INVALID:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
-        case X86Subtype::vextractf128:
+        case X86Subtype::vextract128:
+        case X86Subtype::vinsert128:
         case X86Subtype::sqrt:
         case X86Subtype::vpermil:
         case X86Subtype::movlhps:

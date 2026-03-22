@@ -153,7 +153,8 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, INVALID);
         ReturnString(X86Subtype, lea);
         ReturnString(X86Subtype, LockXAdd2);
-        ReturnString(X86Subtype, vextractf128);
+        ReturnString(X86Subtype, vextract128);
+        ReturnString(X86Subtype, vinsert128);
         ReturnString(X86Subtype, vextractf64x2);
         ReturnString(X86Subtype, vextractf64x4);
         ReturnString(X86Subtype, movlhps);
@@ -325,7 +326,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::INVALID:
           return;
         case X86Subtype::lea:
-        case X86Subtype::vextractf128:
+        case X86Subtype::vextract128:
+        case X86Subtype::vinsert128:
         case X86Subtype::vextractf64x4:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vpermil:
@@ -600,7 +602,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpshuf:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
-        case X86Subtype::vextractf128:
+        case X86Subtype::vextract128:
+        case X86Subtype::vinsert128:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:
         case X86Subtype::vpermil:
