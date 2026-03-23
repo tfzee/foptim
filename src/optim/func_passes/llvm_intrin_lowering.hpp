@@ -573,6 +573,15 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
+  void handle_cntpop(fir::Instr instr, fir::Function & /*funcy*/,
+                     fir::FunctionR /*callee*/) {
+    fir::Builder buh{instr};
+    auto inp = instr->args[1];
+    auto res = buh.build_intrinsic(inp, fir::IntrinsicSubType::PopCnt);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
   void apply(fir::BasicBlock bb, fir::Function &func) {
     // annoying copy
     //
@@ -633,6 +642,8 @@ class LLVMInstrinsicLowering final : public FunctionPass {
           handle_minmaxnum(instr, func, callee, false);
         } else if (callee.func->name.starts_with("llvm.trunc.")) {
           handle_trunc(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.ctpop.")) {
+          handle_cntpop(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.round.")) {
           handle_round(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.ceil.")) {
