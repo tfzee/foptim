@@ -437,8 +437,8 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
   bool target_isfloat32 = target_is_fp_reg && instr.args[0].reg.size() == 4;
   bool target_is_vec =
       target_is_fp_reg && instr.args[0].ty > fmir::Type::Float64;
-  // bool input_isfloat64 = input_is_fp_reg && instr.args[1].reg.size() == 8;
-  // bool input_isfloat32 = input_is_fp_reg && instr.args[1].reg.size() == 4;
+  bool input_isfloat64 = input_is_fp_reg && instr.args[1].reg.size() == 8;
+  bool input_isfloat32 = input_is_fp_reg && instr.args[1].reg.size() == 4;
   bool input_is_vec = input_is_fp_reg && instr.args[1].ty > fmir::Type::Float64;
   req.mnemonic = ZYDIS_MNEMONIC_MOV;
 
@@ -468,9 +468,11 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
       default:
         TODO("UNREACH?");
     }
-  } else if (instr.args[1].isMem() && target_isfloat64) {
+  } else if ((instr.args[1].isMem() && target_isfloat64) ||
+             (instr.args[0].isMem() && input_isfloat64)) {
     req.mnemonic = ZYDIS_MNEMONIC_VMOVSD;
-  } else if (instr.args[1].isMem() && target_isfloat32) {
+  } else if ((instr.args[1].isMem() && target_isfloat32) ||
+             (instr.args[0].isMem() && input_isfloat32)) {
     req.mnemonic = ZYDIS_MNEMONIC_VMOVSS;
   } else if ((!input_is_fp_reg && target_is_fp_reg &&
               instr.args[0].reg.size() == 4) ||
@@ -2240,6 +2242,12 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
       req.mnemonic = ZYDIS_MNEMONIC_LZCNT;
+      return emit(out_buff, 0, &req);
+    case fmir::X86Subtype::popcnt:
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      req.mnemonic = ZYDIS_MNEMONIC_POPCNT;
       return emit(out_buff, 0, &req);
     case fmir::X86Subtype::ffmadd231: {
       for (auto i = 0; i < req.operand_count; i++) {
