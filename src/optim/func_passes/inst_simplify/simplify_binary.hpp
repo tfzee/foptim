@@ -5,6 +5,7 @@
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction.hpp"
+#include "ir/instruction_data.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
@@ -326,6 +327,47 @@ inline bool simplify_binary(fir::Instr instr, fir::BasicBlock bb,
       instr->replace_all_uses(res);
       ASSERT(instr->get_type()->get_bitwidth() ==
              res.get_type()->get_bitwidth());
+      instr.destroy();
+      return true;
+    }
+    // if we got add(add(i1, c), i2) -> add(add(i1, i2), c)
+    if (inner->is(BinaryInstrSubType::IntAdd) && inner->args[1].is_constant() &&
+        !instr->args[1].is_constant()) {
+      fir::Builder b(instr);
+      auto a1 = b.build_binary_op(inner->args[0], instr->args[1],
+                                  BinaryInstrSubType::IntAdd);
+      auto a1i = a1.as_instr();
+      a1i->NUW = instr->NUW && inner->NUW;
+      a1i->NSW = instr->NSW && inner->NSW;
+      auto res =
+          b.build_binary_op(a1, inner->args[1], BinaryInstrSubType::IntAdd);
+      auto resi = res.as_instr();
+      resi->NUW = instr->NUW && inner->NUW;
+      resi->NSW = instr->NSW && inner->NSW;
+      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
+    // if both inputs are broadcast first add then broadcast
+    if (inner->is(VectorISubType::Broadcast) && instr->args[1].is_instr() &&
+        instr->args[1].as_instr()->is(VectorISubType::Broadcast)) {
+      fir::Builder b(instr);
+      auto a1 =
+          b.build_binary_op(inner->args[0], instr->args[1].as_instr()->args[0],
+                            BinaryInstrSubType::IntAdd);
+      auto a1i = a1.as_instr();
+      a1i->NUW = instr->NUW && inner->NUW;
+      a1i->NSW = instr->NSW && inner->NSW;
+      auto res =
+          b.build_vector_op(a1, instr.get_type(), VectorISubType::Broadcast);
+      auto resi = res.as_instr();
+      resi->NUW = instr->NUW && inner->NUW;
+      resi->NSW = instr->NSW && inner->NSW;
+      worklist.push_back({a1.as_instr(), a1.as_instr()->parent});
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
       instr.destroy();
       return true;
     }
