@@ -35,6 +35,9 @@ bool ValueR::eql(const ValueR &other) const {
   if (ty != other.ty) {
     return false;
   }
+  if (!is_valid(false) || !other.is_valid(false)) {
+    return false;
+  }
   switch (ty) {
     case ValueType::InvalidValue:
       return true;
