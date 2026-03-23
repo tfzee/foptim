@@ -178,6 +178,7 @@ enum class X86Subtype : u32 {
   vgatherq,
   vpcmpeq,
   lzcnt,
+  popcnt,
   ffmadd132,
   ffmadd213,
   ffmadd231,
@@ -209,17 +210,17 @@ enum class Type : u16 {
 
   // NOTE: ORDER matters then vec smallest to biggest
   // xmm
+  Float32x2 = 9,
   Int32x4 = 7,
   Int64x2 = 8,
-  Float32x2 = 9,
   Float32x4 = 10,
   Float64x2 = 11,
   // ymm
   Int32x8 = 12,
   Int64x4 = 13,
   Float32x8 = 14,
-  Float32x16 = 15,
   Float64x4 = 16,
+  Float32x16 = 15,
   Float64x8 = 17,
 };
 

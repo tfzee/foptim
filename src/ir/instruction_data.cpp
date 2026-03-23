@@ -239,6 +239,7 @@ bool InstrData::is_critical() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
         case IntrinsicSubType::FRound:
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
@@ -304,6 +305,7 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::Abs:
         case IntrinsicSubType::FAbs:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
         case IntrinsicSubType::FRound:
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
@@ -391,6 +393,7 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
         case IntrinsicSubType::FRound:
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
@@ -444,6 +447,7 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
         case IntrinsicSubType::FRound:
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
@@ -503,6 +507,7 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::FMin:
         case IntrinsicSubType::FMax:
         case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
         case IntrinsicSubType::FRound:
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:

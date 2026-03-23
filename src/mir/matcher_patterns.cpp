@@ -1416,11 +1416,8 @@ void vec_patterns(IRVec<Pattern> &pats) {
         auto broad_instr = res.matched_instrs[1];
         auto res_reg =
             valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
-        fmt::println("================================================");
         auto arg = valueToArgPosMem(broad_instr->args[0], res.result,
                                     data.alloc, broad_instr->get_parent());
-        fmt::println("{}", res.result);
-        fmt::println("================================================");
         res.result.emplace_back(X86Subtype::vbroadcast, res_reg, arg);
         return true;
       }});
@@ -3106,6 +3103,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
 
   auto ctlzNode = Node{NodeType::Instr, InstrType::Intrinsic,
                        (u32)fir::IntrinsicSubType::CTLZ};
+  auto popCntNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                         (u32)fir::IntrinsicSubType::PopCnt};
   auto va_endNode = Node{NodeType::Instr, InstrType::Intrinsic,
                          (u32)fir::IntrinsicSubType::VA_end};
   auto va_startNode = Node{NodeType::Instr, InstrType::Intrinsic,
@@ -3268,6 +3267,17 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {popCntNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto arg = valueToArgPosMem(instr->args[0], res.result, data.alloc,
+                                    instr->get_parent());
+        res.result.emplace_back(X86Subtype::popcnt, res_reg, arg);
         return true;
       }});
   pats.push_back(Pattern{

@@ -95,6 +95,8 @@ enum class IntrinsicSubType : u32 {
   FMin,
   FMax,
 
+  PopCnt,
+
   FRound,
   FCeil,
   FFloor,
@@ -317,6 +319,8 @@ class InstrData : public Used, public InstrAttribs {
             return "INTRIN:FTrunc";
           case IntrinsicSubType::IsConstant:
             return "INTRIN:IsConstant";
+          case IntrinsicSubType::PopCnt:
+            return "INTRIN:PopCnt";
         }
       case InstrType::Unreachable:
         return "unreachable";
