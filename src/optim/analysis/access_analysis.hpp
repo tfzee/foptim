@@ -72,6 +72,10 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
     res.IsRead = true;
     return;
   }
+  if (i->is(fir::VectorISubType::Broadcast)) {
+    res.Escapes = true;
+    return;
+  }
   if (i->is(fir::InstrType::CallInstr)) {
     if (i->args[0].is_constant()) {
       auto fun_ptr = i->args[0].as_constant();

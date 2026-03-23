@@ -32,11 +32,27 @@ class KnownBits final : public AttributeAnalysis {
   u64 known_zero = 0;
   u64 known_one = 0;
 
-  static KnownBits get(u64 known_one, u64 known_zero) {
+  [[nodiscard]] static KnownBits get(u64 known_one, u64 known_zero) {
     KnownBits res;
     res.known_one = known_one;
     res.known_zero = known_zero;
     return res;
+  }
+  [[nodiscard]] static KnownBits from_umin_umax(u64 umin, u64 umax) {
+    KnownBits bits;
+    u64 diff = umin ^ umax;
+
+    if (diff == 0) {
+      bits.known_one = umin;
+      bits.known_zero = ~umin;
+    } else {
+      int shift = 64 - __builtin_clzg(diff);
+      u64 mask = (shift == 64) ? (u64)0 : ((~(u64)0) << shift);
+
+      bits.known_one = umin & mask;
+      bits.known_zero = (~umin) & mask;
+    }
+    return bits;
   }
 
   void materialize_impl(fir::Context &ctx,
@@ -246,6 +262,24 @@ class KnownBits final : public AttributeAnalysis {
           }
           new_known_one = 0;
           new_known_zero = ~(u64)0b111111;
+          break;
+        }
+        case fir::IntrinsicSubType::PopCnt: {
+          const auto *known_arg0_bits =
+              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+          if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
+              std::numeric_limits<u64>::max()) {
+            auto pre = __builtin_popcountg(known_arg0_bits->known_one);
+            new_known_one = pre;
+            new_known_zero = ~pre;
+            break;
+          }
+          KnownBits res = KnownBits::from_umin_umax(
+              __builtin_popcountg(known_arg0_bits->known_one),
+              instr->args[0].get_type()->get_bitwidth() -
+                  __builtin_popcountg(known_arg0_bits->known_zero));
+          new_known_zero = res.known_zero;
+          new_known_one = res.known_one;
           break;
         }
         case fir::IntrinsicSubType::FAbs:
@@ -483,10 +517,11 @@ class KnownBits final : public AttributeAnalysis {
                      associatedValue.as_instr());
       }
     } else if (instr->is(fir::InstrType::ExtractValue)) {
-      //TODO: can propagate in certain conditions (but then we prob removing this extract value later one hm)
+      // TODO: can propagate in certain conditions (but then we prob removing
+      // this extract value later one hm)
     } else if (instr->is(fir::InstrType::LoadInstr)) {
     } else if (instr->is(fir::InstrType::AtomicRMW)) {
-      //returns old value so same as load
+      // returns old value so same as load
     } else if (instr->is(fir::InstrType::CallInstr)) {
       // TODO: handle special builtin call instrs
     } else {
