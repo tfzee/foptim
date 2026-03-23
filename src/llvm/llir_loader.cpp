@@ -1692,8 +1692,16 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     return;
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantExpr>(val)) {
-    if (const auto *gep = llvm::dyn_cast_or_null<llvm::GetElementPtrInst>(
-            d->getAsInstruction())) {
+    if (const auto *ptrToI =
+            llvm::dyn_cast_or_null<llvm::PtrToIntInst>(d->getAsInstruction())) {
+      auto inp = ptrToI->getPointerOperand();
+      if (const auto *inp_const = llvm::dyn_cast_or_null<llvm::Constant>(inp)) {
+        return convert_constant_init(output, inp_const, fctx, glob, layout,
+                                     valueToValue);
+      }
+    } else if (const auto *gep =
+                   llvm::dyn_cast_or_null<llvm::GetElementPtrInst>(
+                       d->getAsInstruction())) {
       foptim::TVec<llvm::Value *> args = {};
       auto *indexed_type = llvm::GetElementPtrInst::getIndexedType(
           gep->getSourceElementType(), args);
