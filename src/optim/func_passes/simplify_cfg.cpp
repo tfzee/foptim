@@ -696,6 +696,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::FMax:
           case fir::IntrinsicSubType::FRound:
           case fir::IntrinsicSubType::FFloor:
+          case fir::IntrinsicSubType::PopCnt:
           case fir::IntrinsicSubType::FCeil:
           case fir::IntrinsicSubType::FTrunc:
           case fir::IntrinsicSubType::IsConstant:
@@ -830,28 +831,29 @@ SimplifyCFG::Res SimplifyCFG::merge_empty_block_backwards(CFG &cfg,
     }
   }
 
-  if (succ.bb->n_instrs() == 1 && succ.bb->n_args() == 0) {
-    ZoneScopedN("merge backw");
-    auto old_term = func.basic_blocks[bb_id]->get_terminator();
-
-    fir::Builder bb{curr.bb};
-    bb.at_end(curr.bb);
-    bb.insert_copy(succ.bb->get_terminator());
-    old_term.remove_from_parent();
-    if (succ.pred.size() == 1 && succ.bb != curr.bb) {
-      succ.bb->remove_from_parent(true, true, true);
-      auto succ_id = curr.succ[0];
-      cfg.update_merge_succ(bb_id, succ_id);
-      cfg.update_delete(succ_id);
-      dom.update(cfg);
-      return Res::Changed;
-    }
-    cfg.update_delete_term(bb_id);
-    cfg.update_merge_succ(bb_id, curr.succ[0]);
-    dom.update(cfg);
-    return Res::Changed;
+  if (succ.bb->n_instrs() != 1 || succ.bb->n_args() != 0) {
+    return Res::NoChange;
   }
-  return Res::NoChange;
+  ZoneScopedN("merge backw");
+  auto old_term = func.basic_blocks[bb_id]->get_terminator();
+
+  fir::Builder bb{curr.bb};
+  bb.at_end(curr.bb);
+  bb.insert_copy(succ.bb->get_terminator());
+  old_term.remove_from_parent();
+  if (succ.pred.size() == 1 && succ.bb != curr.bb) {
+    succ.bb->remove_from_parent(true, true, true);
+    (void)dom;
+    // auto succ_id = curr.succ[0];
+    // cfg.update_merge_succ(bb_id, succ_id);
+    // cfg.update_delete(succ_id);
+    // dom.update(cfg);
+    return Res::NeedUpdate;
+  }
+  // cfg.update_delete_term(bb_id);
+  // cfg.update_merge_succ(bb_id, curr.succ[0]);
+  // dom.update(cfg);
+  return Res::NeedUpdate;
 }
 
 bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
@@ -938,10 +940,11 @@ SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
 
     old_first_term.remove_from_parent();
     func.basic_blocks[succ_id]->remove_from_parent(true, true, true);
-    cfg.update_merge_succ(bb_id, succ_id);
-    cfg.update_delete(succ_id);
-    dom.update(cfg);
-    return Res::Changed;
+    (void)dom;
+    // cfg.update_merge_succ(bb_id, succ_id);
+    // cfg.update_delete(succ_id);
+    // dom.update(cfg);
+    return Res::NeedUpdate;
   }
   if (secon_n_args * 1UL + 1 >=
       func.basic_blocks[succ_id]->instructions.size()) {
@@ -1437,7 +1440,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   r = merge_linear_relation(cfg, dom, curr, func, bb_id);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("6");
+      fmt::println("15");
     }
     return r;
   }

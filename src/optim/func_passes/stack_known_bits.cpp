@@ -350,6 +350,12 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
       // just assume the worst
       return StackOffsetResult::UnknownLocal;
     }
+    if (ptr_instr->is(fir::VectorISubType::Broadcast)) {
+      u64 sub_offset = 0;
+      auto sub_result = get_stack_offset(sub_offset, ptr_instr->args[0], cache);
+      offset += sub_offset;
+      return sub_result;
+    }
     if (ptr_instr->is(fir::InstrType::Conversion) &&
         (ConversionSubType)ptr_instr->subtype == ConversionSubType::IntToPtr) {
       return StackOffsetResult::UnknownLocal;

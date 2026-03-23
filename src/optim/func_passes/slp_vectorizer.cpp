@@ -164,13 +164,17 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
         continue;
       }
       if (!i_v.is_instr()) {
-        fmt::println("One arg isnt a binary op");
+        if constexpr (SLPVectorizer::debug_print) {
+          fmt::println("One arg isnt a binary op");
+        }
         return false;
       }
       auto i = i_v.as_instr();
       if (i->instr_type != base_v->instr_type ||
           i->subtype != base_v->subtype) {
-        fmt::println("One arg isnt the right instr");
+        if constexpr (SLPVectorizer::debug_print) {
+          fmt::println("One arg isnt the right instr");
+        }
         return false;
       }
     }
@@ -461,6 +465,7 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
       case fir::IntrinsicSubType::VA_end:
       case fir::IntrinsicSubType::IsConstant:
         return false;
+      case fir::IntrinsicSubType::PopCnt:
       case fir::IntrinsicSubType::CTLZ:
       case fir::IntrinsicSubType::FMin:
       case fir::IntrinsicSubType::FMax:
@@ -913,10 +918,11 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
     // auto funccy = tree[0]->insert_loc->get_parent()->get_parent();
     // fmt::print("===================Generated START=================\n{:cd}",
     //            *funccy.func);
-    tree[0]->dump();
+    // tree[0]->dump();
     if (tree_cost > 0) {
       tree[0]->generate(ctx, b);
-      // fmt::print("{:cd}\n===================Generated END=================\n",
+      // fmt::print("{:cd}\n===================Generated
+      // END=================\n",
       //            *funccy.func);
     } else {
       if constexpr (debug_print) {

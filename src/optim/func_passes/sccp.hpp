@@ -151,7 +151,7 @@ class SCCP final : public FunctionPass {
             r.vals.push_back({.f = m->as_float()});
           } else if (m->is_int() || m->is_null()) {
             r.vals.push_back({.i = m->as_int()});
-          }else{
+          } else {
             fmt::println("{}", m);
             TODO("impl dufus");
           }
@@ -669,6 +669,16 @@ class SCCP final : public FunctionPass {
               a.vals[i].i = __builtin_clzg(std::bit_cast<u128>(a.vals[i].i));
             }
             return a;
+          }
+          case fir::IntrinsicSubType::PopCnt: {
+            auto a = eval(instr->get_arg(0));
+            if (a.is_bottom()) {
+              return ConstantValue::Bottom();
+            }
+            if (!a.is_const()) {
+              return ConstantValue::Top();
+            }
+            TODO("popcnt impl sccp");
           }
           case fir::IntrinsicSubType::INVALID:
           case fir::IntrinsicSubType::VA_start:

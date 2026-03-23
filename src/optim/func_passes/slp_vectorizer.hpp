@@ -11,6 +11,7 @@
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/arena.hpp"
+#include "utils/parameters.hpp"
 
 namespace foptim::optim {
 
@@ -389,22 +390,53 @@ class SLPVectorizer final : public FunctionPass {
             continue;
           }
         }
-        if (b.type->get_size() == 1 && (n_stor % 16 != 0 && n_stor % 32 != 0)) {
+        auto overall_width = n_stor * b.type->get_bitwidth();
+        while (overall_width > 512 ||
+               (!utils::enable_avx512f && overall_width > 256)) {
+          b.data.erase(b.data.end());
+          n_stor = b.data.size();
+          overall_width = n_stor * b.type->get_bitwidth();
+        }
+
+        while (b.type->get_size() == 1 &&
+               (n_stor % 16 != 0 && n_stor % 32 != 0)) {
+          b.data.erase(b.data.end());
+          n_stor = b.data.size();
+          overall_width = n_stor * b.type->get_bitwidth();
+        }
+        while (b.type->get_size() == 2 &&
+               (n_stor % 8 != 0 && n_stor % 16 != 0)) {
+          b.data.erase(b.data.end());
+          n_stor = b.data.size();
+          overall_width = n_stor * b.type->get_bitwidth();
+        }
+        while (b.type->get_size() == 4 &&
+               (n_stor % 4 != 0 && n_stor % 8 != 0)) {
+          b.data.erase(b.data.end());
+          n_stor = b.data.size();
+          overall_width = n_stor * b.type->get_bitwidth();
+        }
+        while (b.type->get_size() == 8 &&
+               (n_stor % 2 != 0 && n_stor % 4 != 0)) {
+          b.data.erase(b.data.end());
+          n_stor = b.data.size();
+          overall_width = n_stor * b.type->get_bitwidth();
+        }
+
+        if (b.type->get_size() == 1 && n_stor < 16) {
+          store_bundles.erase(store_bundles.begin() + bi - 1);
+          continue;
+        } else if (b.type->get_size() == 2 && n_stor < 8) {
+          store_bundles.erase(store_bundles.begin() + bi - 1);
+          continue;
+        } else if (b.type->get_size() == 4 && n_stor < 4) {
+          store_bundles.erase(store_bundles.begin() + bi - 1);
+          continue;
+        } else if (b.type->get_size() == 8 && n_stor < 2) {
           store_bundles.erase(store_bundles.begin() + bi - 1);
           continue;
         }
-        if (b.type->get_size() == 2 && (n_stor % 8 != 0 && n_stor % 16 != 0)) {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
-          continue;
-        }
-        if (b.type->get_size() == 4 && (n_stor % 4 != 0 && n_stor % 8 != 0)) {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
-          continue;
-        }
-        if (b.type->get_size() == 8 && (n_stor % 2 != 0 && n_stor % 4 != 0)) {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
-          continue;
-        }
+
         // sort the stores
         std::ranges::sort(b.data, [](const auto &a, const auto &b) {
           i128 av = 0;
@@ -518,7 +550,10 @@ class SLPVectorizer final : public FunctionPass {
     if (store_bundles.empty() && reduction_bundles.empty()) {
       return;
     }
-    fmt::println("Stor {} Lod {} Red {}", store_bundles.size(), load_bundles.size(), reduction_bundles.size());
+    if constexpr (debug_print) {
+      fmt::println("Stor {} Lod {} Red {}", store_bundles.size(),
+                   load_bundles.size(), reduction_bundles.size());
+    }
 
     for (auto &b : store_bundles) {
       bool already_used = false;
