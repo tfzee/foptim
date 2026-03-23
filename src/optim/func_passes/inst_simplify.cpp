@@ -1862,9 +1862,14 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                      curr.user->is(fir::InstrType::InsertValue)) {
             mem2reg_blockers.push_back(curr);
             escapes = true;
+          } else if (curr.user->is(fir::BinaryInstrSubType::IntSDiv) ||
+                     curr.user->is(fir::UnaryInstrSubType::Not)) {
+            mem2reg_blockers.push_back(curr);
+            escapes = true;
           } else {
             fmt::println("{}", instr);
             fmt::println("{}", curr.user);
+            fmt::println("{:cd}", *curr.user->get_parent()->get_parent().func);
             TODO("IMPL");
           }
           break;
@@ -2060,7 +2065,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto arg_argc = argi->args[1].as_constant()->as_vec();
       auto expected_spacing = instr->get_type()->as_vec().bitwidth;
       bool spacing_matches = true;
-
+      u32 base_offset = arg_argc.members[0]->as_int();
       for (size_t i = 1; i < arg_argc.members.size(); i++) {
         auto v1 = arg_argc.members[i - 1];
         auto v2 = arg_argc.members[i];
@@ -2075,7 +2080,9 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
 
       if (spacing_matches) {
         fir::Builder buh{instr};
-        auto r = buh.build_load(instr->get_type(), arg_broad, instr->Atomic,
+        auto ptr = buh.build_int_add(
+            arg_broad, fir::ValueR{ctx->get_constant_int(base_offset, 64)});
+        auto r = buh.build_load(instr->get_type(), ptr, instr->Atomic,
                                 instr->Volatile);
         instr->replace_all_uses(r);
         instr.destroy();
@@ -2160,6 +2167,20 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
   return false;
 }
 
+bool simplify_insert(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
+  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
+    ZoneScopedN("SimplifyInsert");
+  }
+  if (instr->args[0].is_poison() && instr->args[1].is_poison()) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+    instr.destroy();
+    return true;
+  }
+  return false;
+}
+
 bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
   ZoneScopedN("SimplifyInstr");
@@ -2220,6 +2241,9 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::ExtractValue) {
     return simplify_extract(instr, worklist);
+  }
+  if (instr_ty == InstrType::InsertValue) {
+    return simplify_insert(instr, ctx, worklist);
   }
   if (instr_ty == InstrType::AllocaInstr) {
     return simplify_alloca(instr, bb, ctx, worklist, anal);
