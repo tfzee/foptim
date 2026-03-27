@@ -1296,6 +1296,44 @@ bool simplify_store(fir::Instr instr) {
   }
   if (instr->args[1].is_instr()) {
     auto val_i = instr->args[1].as_instr();
+    if (instr->get_type()->is_struct() &&
+        (!instr->Volatile && !instr->Atomic) &&
+        val_i->is(fir::InstrType::InsertValue)) {
+      const auto &out_ty = instr->get_type()->as_struct();
+      fir::Builder buh{instr};
+      TVec<fir::Instr> maybe_destory;
+      buh.after(instr);
+      auto *ctx = buh.get_curr_bb()->get_parent()->ctx;
+      while (true) {
+        auto offset = val_i->args[2].as_constant()->as_int();
+        if (offset != 0) {
+          auto b = ctx->get_constant_int(out_ty.elems[offset].offset, 64);
+          auto off = buh.build_binary_op(instr->args[0], fir::ValueR{b},
+                                         fir::BinaryInstrSubType::IntAdd);
+          buh.build_store(off, val_i->args[1], instr->Atomic, instr->Volatile);
+        } else {
+          buh.build_store(instr->args[0], val_i->args[1], instr->Atomic,
+                          instr->Volatile);
+        }
+        instr.replace_arg(1, val_i->args[0]);
+        if (!val_i->args[0].is_instr()) {
+          //then we got the whole thingy no point  in storing a poision
+          if (val_i->args[0].is_poison()) {
+            maybe_destory.push_back(instr);
+          }
+          maybe_destory.push_back(val_i);
+          break;
+        }
+        maybe_destory.push_back(val_i);
+        val_i = val_i->args[0].as_instr();
+      }
+      for (auto &instr : maybe_destory) {
+        if (instr->get_n_uses() == 0) {
+          instr.destroy();
+        }
+      }
+      return true;
+    }
     if (val_i->is(fir::ConversionSubType::PtrToInt) ||
         val_i->is(fir::ConversionSubType::IntToPtr) ||
         val_i->is(fir::ConversionSubType::BitCast)) {
