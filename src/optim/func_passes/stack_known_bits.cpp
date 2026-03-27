@@ -105,7 +105,7 @@ void StackKnownBits::update_load(fir::Instr instr, utils::BitSet<> &new_in_one,
     return;
     // TODO: impl;
   }
-  if (offset * 8 >= new_in_one.bit_size()) {
+  if (offset * 8 + load_width >= new_in_one.bit_size()) {
     return;
   }
   u64 in_zero = new_in_zero.get(offset * 8, load_width);
