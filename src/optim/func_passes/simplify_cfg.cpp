@@ -1318,11 +1318,14 @@ bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
   }
   for (u16 ti = 0; ti < 2; ti++) {
     auto target = term1->bbs[ti].bb;
-    if (target->n_instrs() != 1) {
+    if (target->n_instrs() != 1 || target == curr.bb) {
       continue;
     }
     auto term2 = target->get_terminator();
     if (!term2->is(fir::InstrType::CondBranchInstr)) {
+      continue;
+    }
+    if (term2->bbs[ti].bb == target) {
       continue;
     }
     if (term1->args[0] != term2->args[0]) {

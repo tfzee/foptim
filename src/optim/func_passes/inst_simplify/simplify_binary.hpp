@@ -1,5 +1,7 @@
 
 #pragma once
+#include <fmt/base.h>
+
 #include <algorithm>
 
 #include "ir/builder.hpp"
@@ -31,9 +33,22 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
   auto instr_sty = instr->subtype;
   i128 neutral_val = 0;
   if (!instr->is(fir::InstrType::BinaryInstr) ||
-      instr->subtype != (u32)BinaryInstrSubType::IntAdd) {
+      (instr->subtype != (u32)BinaryInstrSubType::IntAdd &&
+       instr->subtype != (u32)BinaryInstrSubType::And &&
+       instr->subtype != (u32)BinaryInstrSubType::Or)) {
     // TODO: support stuff like min/max reductions
     return false;
+  }
+  switch ((BinaryInstrSubType)instr->subtype) {
+    case BinaryInstrSubType::IntAdd:
+    case BinaryInstrSubType::Or:
+      neutral_val = 0;
+      break;
+    case BinaryInstrSubType::And:
+      neutral_val = ~(i128)0;
+      break;
+    default:
+      UNREACH();
   }
 
   TVec<fir::ValueR> red_args;
@@ -52,47 +67,74 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
           red_worklist.push_back(arg);
         }
       } else {
-        if (c.is_constant() && c.as_constant()->is_int()) {
-          n_const++;
-          constval += c.as_constant()->as_int();
-        } else {
-          red_args.push_back(c);
-        }
+        red_args.push_back(c);
       }
     } else {
       if (c.is_constant() && c.as_constant()->is_int()) {
         n_const++;
-        constval += c.as_constant()->as_int();
+        if (instr->subtype == (u32)BinaryInstrSubType::IntAdd) {
+          constval += c.as_constant()->as_int();
+        } else if (instr->subtype == (u32)BinaryInstrSubType::Or) {
+          constval |= c.as_constant()->as_int();
+        } else if (instr->subtype == (u32)BinaryInstrSubType::And) {
+          constval &= c.as_constant()->as_int();
+        }
       } else {
         red_args.push_back(c);
       }
     }
   }
-  if (red_args.size() <= 3 || n_const < 2) {
-    return false;
-  }
-  std::ranges::sort(red_args, [](const auto &a, const auto &b) {
-    if (a.is_constant()) {
-      if (b.is_constant()) {
-        return a.as_constant().get_raw_ptr() < b.as_constant().get_raw_ptr();
+  // remove duplicates
+  if (instr->subtype == (u32)BinaryInstrSubType::And ||
+      instr->subtype == (u32)BinaryInstrSubType::Or) {
+    size_t n_dupls = 0;
+    for (size_t i0 = red_args.size(); i0 > 0; i0--) {
+      for (size_t i1 = red_args.size(); i1 > i0; i1--) {
+        if (red_args[i0 - 1] == red_args[i1 - 1]) {
+          red_args.erase(red_args.begin() + i1 - 1);
+          n_dupls++;
+          break;
+        }
       }
-      return true;
     }
-    if (a.is_instr() && b.is_instr()) {
-      return a.as_instr().get_raw_ptr() < b.as_instr().get_raw_ptr();
+    if (red_args.size() <= 3 || n_dupls < 2) {
+      return false;
     }
-    if (a.is_bb_arg() && b.is_bb_arg()) {
-      return a.as_bb_arg().get_raw_ptr() < b.as_bb_arg().get_raw_ptr();
+    fir::Builder b{instr};
+    auto out_bitwidth = instr->get_type()->get_bitwidth();
+    auto red_v = fir::ValueR{ctx->get_constant_int(constval, out_bitwidth)};
+
+    for (size_t i = 0; i < red_args.size(); i++) {
+      red_v = b.build_binary_op(red_v, red_args[i],
+                                (BinaryInstrSubType)instr->subtype);
+      worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
     }
-    return false;
-  });
-  {
+    worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(red_v);
+    fmt::print("{:cd}", *instr->get_parent()->get_parent().func);
+    instr.destroy();
+  } else if (instr->subtype == (u32)BinaryInstrSubType::IntAdd) {
+    if (red_args.size() <= 3 || n_const < 2) {
+      return false;
+    }
+    std::ranges::sort(red_args, [](const auto &a, const auto &b) {
+      if (a.is_constant()) {
+        if (b.is_constant()) {
+          return a.as_constant().get_raw_ptr() < b.as_constant().get_raw_ptr();
+        }
+        return true;
+      }
+      if (a.is_instr() && b.is_instr()) {
+        return a.as_instr().get_raw_ptr() < b.as_instr().get_raw_ptr();
+      }
+      if (a.is_bb_arg() && b.is_bb_arg()) {
+        return a.as_bb_arg().get_raw_ptr() < b.as_bb_arg().get_raw_ptr();
+      }
+      return false;
+    });
     size_t max_group_size = 0;
     for (size_t i = 0; i < red_args.size(); i++) {
-      // if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
-      //   n_const++;
-      //   constval += red_args[i].as_constant()->as_int();
-      // } else {
       size_t endgroup = i + 1;
       for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
         if (red_args[i] != red_args[i2]) {
@@ -106,47 +148,44 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (max_group_size <= 3) {
       return false;
     }
-  }
 
-  fir::Builder b{instr};
-  auto out_bitwidth = instr->get_type()->get_bitwidth();
-  auto red_v = fir::ValueR{ctx->get_constant_int(constval, out_bitwidth)};
+    fir::Builder b{instr};
+    auto out_bitwidth = instr->get_type()->get_bitwidth();
+    auto red_v = fir::ValueR{ctx->get_constant_int(constval, out_bitwidth)};
 
-  for (size_t i = 0; i < red_args.size(); i++) {
-    if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
-      continue;
-    }
-    size_t endgroup = i + 1;
-    for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
-      if (red_args[i] != red_args[i2]) {
-        endgroup = i2;
-        break;
+    for (size_t i = 0; i < red_args.size(); i++) {
+      if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
+        continue;
+      }
+      size_t endgroup = i + 1;
+      for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
+        if (red_args[i] != red_args[i2]) {
+          endgroup = i2;
+          break;
+        }
+      }
+      if (i + 1 != endgroup) {
+        auto group_size = endgroup - i;
+        auto mul_res = b.build_int_mul(
+            red_args[i],
+            fir::ValueR{ctx->get_constant_int(group_size, out_bitwidth)});
+        worklist.push_back(
+            {mul_res.as_instr(), mul_res.as_instr()->get_parent()});
+        red_v = b.build_int_add(red_v, mul_res);
+        worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
+        i = endgroup - 1;
+      } else {
+        red_v = b.build_int_add(red_v, red_args[i]);
+        worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
       }
     }
-    if (i + 1 != endgroup) {
-      auto group_size = endgroup - i;
-      auto mul_res = b.build_int_mul(
-          red_args[i],
-          fir::ValueR{ctx->get_constant_int(group_size, out_bitwidth)});
-      worklist.push_back(
-          {mul_res.as_instr(), mul_res.as_instr()->get_parent()});
-      red_v = b.build_int_add(red_v, mul_res);
-      worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
-      i = endgroup - 1;
-    } else {
-      red_v = b.build_int_add(red_v, red_args[i]);
-      worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
-    }
+    worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(red_v);
+    instr.destroy();
+  } else {
+    TODO("unreach?");
   }
-  worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
-  push_all_uses(worklist, instr);
-  instr->replace_all_uses(red_v);
-  instr.destroy();
-  // for (auto arg : red_args) {
-  //   fmt::println("   {}", arg);
-  // }
-  // fmt::println("Const {}", constval);
-  // fmt::println("CONVERTED");
   return true;
 }
 

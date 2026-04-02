@@ -179,6 +179,8 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     switch (consti->type->ty) {
       case fir::AnyTypeType::Integer:
         switch (consti->type->as_int()) {
+          case 1:
+            return {(u8)0};
           case 8:
             return {(u8)0};
           case 16:
