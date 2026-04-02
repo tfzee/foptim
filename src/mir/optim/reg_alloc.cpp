@@ -153,6 +153,7 @@ void spill_one(MFunc &func, TVec<VReg> &spillers,
   // fmt::println("========================\n{:c}", func);
   fmt::println("========================\n{}", spillers);
   fmt::println("{}: {} @ {}", worst_spiller, worst_amount, num_uses);
+  fmt::println("{}", func.name);
   //important is used in test to check for spill errors
   fmt::println("FAILED SPILL");
   TODO("spill it ?");
