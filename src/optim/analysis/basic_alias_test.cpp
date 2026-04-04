@@ -1,11 +1,11 @@
 #include "basic_alias_test.hpp"
 
+#include "fmt/std.h"
 #include "ir/basic_block.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
 #include "ir/use.hpp"
-#include "fmt/std.h"
 
 namespace foptim::optim {
 AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
@@ -36,6 +36,8 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     if (i->is(fir::InstrType::SelectInstr)) {
       auto a = analyze(i->args[1]);
       auto b = analyze(i->args[2]);
+      if (a.heap == 0) return {.heap = b.heap, .offset = {}};
+      if (b.heap == 0) return {.heap = a.heap, .offset = {}};
       return {.heap = meet(a.heap, b.heap), .offset = {}};
     }
     if (i->is(fir::InstrType::LoadInstr)) {
@@ -50,12 +52,12 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     }
     if (i->is(fir::ConversionSubType::BitCast)) {
       // TODO: prob can also optimize this
-      //return analyze(i->args[0]);
+      // return analyze(i->args[0]);
       return {.heap = any_h, .offset = {}};
     }
     if (i->is(fir::ConversionSubType::IntToPtr)) {
       // TODO: prob can also optimize this
-      //return analyze(i->args[0]);
+      // return analyze(i->args[0]);
       return {.heap = any_h, .offset = {}};
     }
     if (i->is(fir::InstrType::ExtractValue)) {
@@ -66,20 +68,24 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
       auto a = analyze(i->args[0]);
       if (i->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
           i->args[1].is_constant() && i->args[1].as_constant()->is_int()) {
-        return {.heap = a.heap, .offset = i->args[1].as_constant()->as_int()};
+        u32 new_offset = i->args[1].as_constant()->as_int();
+        if (a.offset.has_value()) {
+          new_offset = a.offset.value() + new_offset;
+        }
+        return {.heap = a.heap, .offset = new_offset};
       }
       auto b = analyze(i->args[1]);
       // TOOD: implement binary instr stuff like add for offset
+      if (a.heap == 0 && b.heap == 0) {
+        return {.heap = 0, .offset = {}};
+      }
       if (b.heap == 0) {
         return {.heap = a.heap, .offset = {}};
       }
       if (a.heap == 0) {
         return {.heap = b.heap, .offset = {}};
       }
-      if (a.heap == 0 && b.heap == 0) {
-        return {.heap = 0, .offset = {}};
-      }
-      //adding two pointers is giga sus so we just gonna assume the worst
+      // adding two pointers is giga sus so we just gonna assume the worst
       return {.heap = any_h, .offset = {}};
     }
     fmt::println("{}", v.as_instr());
@@ -87,25 +93,10 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     auto arg = v.as_bb_arg();
     if (arg->_parent == arg->_parent->get_parent()->get_entry()) {
       if (arg->noalias) {
-        return {.heap = createHeap(0), .offset = 0};
+        return {.heap = createHeap(any_h), .offset = 0};
       }
       return {.heap = argument_h, .offset = {}};
     }
-
-    // const auto& p_uses = arg->get_parent()->get_uses();
-    // const auto bb_arg_id = arg->get_parent()->get_arg_id(arg);
-    // if (!p_uses.empty()) {
-    //   ASSERT(p_uses[0].type == fir::UseType::BB);
-    //   auto out =
-    //       analyze(p_uses[0].user->bbs[p_uses[0].argId].args[bb_arg_id]).heap;
-    //   for (size_t i = 1; i < p_uses.size(); i++) {
-    //     ASSERT(p_uses[i].type == fir::UseType::BB);
-    //     auto new_out =
-    //         analyze(p_uses[i].user->bbs[p_uses[i].argId].args[bb_arg_id]).heap;
-    //     out = meet(out, new_out);
-    //   }
-    //   return {.heap = out, .offset = {}};
-    // }
     return {.heap = any_h, .offset = {}};
   } else {
     fmt::println("{}", v);
