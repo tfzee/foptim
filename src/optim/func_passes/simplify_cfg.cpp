@@ -565,23 +565,30 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
   ZoneScopedN("rem dup bb args");
   TVec<std::pair<u32, u32>> dup_pairs;
   // go through one of the users and check its args
-  //  if there are duplicates store them into dup_pairs
+  //  if there are duplicates, store them into dup_pairs as potential duplicates
+  // we first find any dups one one input and then later verify that its true
+  // duplicateas
   const auto &use0 = curr.bb->uses[0];
   const auto &args_use0 = use0.user->bbs[use0.argId].args;
   for (u32 arg1_id = 0; arg1_id < args_use0.size(); arg1_id++) {
+    u32 latest_dup = 0;
     for (u32 arg2_id = arg1_id + 1; arg2_id < args_use0.size(); arg2_id++) {
       if (args_use0[arg1_id] == args_use0[arg2_id]) {
-        dup_pairs.emplace_back(arg1_id, arg2_id);
+        latest_dup = arg2_id;
       }
+    }
+    // we store the latest dup so we have only every dup once in here instead of
+    // multiple times
+    if (latest_dup != 0) {
+      dup_pairs.emplace_back(latest_dup, arg1_id);
     }
   }
   if (dup_pairs.empty()) {
     return false;
   }
   // now we need to verify if these are duplicates in all uses
-  // TODO now we doulbbe check the first use but idgf right now to bother with
-  // iterators
-  for (auto &use : curr.bb->uses) {
+  for (size_t usei = 1; usei < curr.bb->uses.size(); usei++) {
+    auto &use = curr.bb->uses[usei];
     auto &args_use = use.user->bbs[use.argId].args;
     for (size_t ip1 = dup_pairs.size(); ip1 > 0; ip1--) {
       auto &p = dup_pairs[ip1 - 1];
@@ -603,13 +610,19 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
     curr.bb->args[a]->replace_all_uses(fir::ValueR{curr.bb->args[b]});
   }
   // then cleanup all the inputs and a itself
+  // since we can have multiple thingies that we need to remove we need to
+  // deduplicate them
+  TSet<u32> dupls;
+  for (auto &[a, _] : dup_pairs) {
+    dupls.insert(a);
+  }
   for (auto &use : curr.bb->uses) {
-    for (size_t ip1 = dup_pairs.size(); ip1 > 0; ip1--) {
-      use.user.remove_bb_arg(use.argId, dup_pairs[ip1 - 1].first);
+    for (auto d : dupls) {
+      use.user.remove_bb_arg(use.argId, d);
     }
   }
-  for (size_t ip1 = dup_pairs.size(); ip1 > 0; ip1--) {
-    curr.bb->remove_arg(dup_pairs[ip1 - 1].first);
+  for (auto d : dupls) {
+    curr.bb->remove_arg(d);
   }
 
   // for (auto [a, b] : dup_pairs) {
@@ -1551,11 +1564,15 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
         needs_update = true;
         break;
       }
-      auto r2 = simplify_cfg(cfg, dom, func, bb_id - 1);
-      modified |= (r2 == Res::Changed || r2 == Res::NeedUpdate);
-      if (r2 == Res::NeedUpdate) {
-        needs_update = true;
-        break;
+    }
+    if (!needs_update) {
+      for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
+        auto r2 = simplify_cfg(cfg, dom, func, bb_id - 1);
+        modified |= (r2 == Res::Changed || r2 == Res::NeedUpdate);
+        if (r2 == Res::NeedUpdate) {
+          needs_update = true;
+          break;
+        }
       }
     }
     if (iter++ > 100) {
@@ -1573,6 +1590,7 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
       cfg = CFG(func, false);
       dom = Dominators(cfg);
     }
+    ASSERT(func.verify());
   }
   dup_bb_to_args(func);
 }
