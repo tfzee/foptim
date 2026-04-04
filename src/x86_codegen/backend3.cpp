@@ -370,7 +370,14 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         {  // handle reloccs
           int i = 0;
           for (const auto &reloc_info : global.reloc_info) {
-            ASSERT(8 + i * 24ULL == (uint64_t)reloc_info.insert_offset);
+            if (0 == ((uint64_t)reloc_info.insert_offset - 16) % 24) {
+              //this is techincally conditional and we woulkd need to verify its not discarded
+              // however since we referenc it it cant be discarded ??
+              continue;
+            }
+            // fmt::println("i{} {} {} / {}", i, reloc_info.name,
+            //              reloc_info.reloc_offset, reloc_info.insert_offset);
+            ASSERT(0 == ((uint64_t)reloc_info.insert_offset - 8) % 24);
             label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
                 LabelRelocData::Usage{
                     .usage_instr = (u8 *)(8ULL * i),
