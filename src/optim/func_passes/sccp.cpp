@@ -353,15 +353,11 @@ SCCP::ConstantValue SCCP::eval_binary_instr(fir::Context &ctx,
                       (a.vtype->is_vec() && a.vtype->as_vec().bitwidth == 64);
       if (is_32bit) {
         auto v = const_eval_bin(instr, out_type, a.as_f32(i), b.as_f32(i));
-        fmt::println("32 {}", instr);
-        fmt::println("{} {}  {}", a.as_f32(i), b.as_f32(i), v);
         auto c = ConstantValue::Value{
             .f = std::bit_cast<f64>((u64)std::bit_cast<u32>(v))};
         v_outs.push_back(c);
       } else if (is_64bit) {
         auto v = const_eval_bin(instr, out_type, a.as_f64(i), b.as_f64(i));
-        fmt::println("64 {}", instr);
-        fmt::println("{} {}  {}", a.as_f64(i), b.as_f64(i), v);
         auto c = ConstantValue::Value{.f = v};
         v_outs.push_back(c);
       } else {
