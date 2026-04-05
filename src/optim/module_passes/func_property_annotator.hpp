@@ -3,6 +3,7 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/callgraph.hpp"
+#include "optim/helper/WFVector.hpp"
 #include "optim/module_pass.hpp"
 
 namespace foptim::optim {
@@ -91,8 +92,13 @@ class FuncPropAnnotator final : public ModulePass {
       auto *v = worklist.back();
       worklist.pop_back();
       aa.reset();
-      auto r = apply(v, call_graph, aa);
       bool modified = false;
+      auto new_wfvec = can_whole_function_vectorize(*v);
+      if (new_wfvec.has_value() != v->maybe_can_wfvec) {
+        v->maybe_can_wfvec = new_wfvec.has_value();
+        modified = true;
+      }
+      auto r = apply(v, call_graph, aa);
       if (r.wont_recurse && !v->no_recurse) {
         v->no_recurse = true;
         modified = true;
