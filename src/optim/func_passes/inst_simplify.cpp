@@ -3,6 +3,7 @@
 #include <fmt/base.h>
 #include <fmt/core.h>
 #include <fmt/ostream.h>
+#include <llvm/IR/Instructions.h>
 
 #include <algorithm>
 #include <bit>
@@ -2207,6 +2208,39 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
       instr.destroy();
       return true;
     }
+    if (instr->is(fir::InstrType::ExtractValue) && instr->args[0].is_instr()) {
+      auto* ctx = instr->get_parent()->get_parent()->ctx;
+      auto a1 = instr->args[0].as_instr();
+      auto index = instr->args[1].as_constant()->as_int();
+      if (a1->is(fir::VectorISubType::Concat) && (index == 0 || index == 1)) {
+        fir::Builder buh{instr};
+        fir::ValueR indicies[1] = {
+            fir::ValueR{ctx->get_constant_int(index, 32)}};
+        auto new_v =
+            buh.build_extract_value(a1->args[1], indicies, instr->get_type());
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_v);
+        instr.destroy();
+        if (a1->get_n_uses() == 0) {
+          a1.destroy();
+        }
+        return true;
+      }
+      if (a1->is(fir::VectorISubType::Concat) && (index == 2 || index == 3)) {
+        fir::Builder buh{instr};
+        fir::ValueR indicies[1] = {
+            fir::ValueR{ctx->get_constant_int(index - 2, 32)}};
+        auto new_v =
+            buh.build_extract_value(a1->args[0], indicies, instr->get_type());
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(new_v);
+        instr.destroy();
+        if (a1->get_n_uses() == 0) {
+          a1.destroy();
+        }
+        return true;
+      }
+    }
   }
   return false;
 }
@@ -2249,6 +2283,14 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       simplify_load(instr, bb, ctx, worklist)) {
     return true;
   }
+  if (instr_ty == InstrType::ExtractValue &&
+      simplify_extract(instr, worklist)) {
+    return true;
+  }
+  if (instr_ty == InstrType::InsertValue &&
+      simplify_insert(instr, ctx, worklist)) {
+    return true;
+  }
   if (instr_ty == InstrType::VectorInstr ||
       (instr_ty == InstrType::LoadInstr && instr->get_type()->is_vec()) ||
       (instr_ty == InstrType::StoreInstr && instr->get_type()->is_vec())) {
@@ -2282,12 +2324,6 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr_ty == InstrType::Intrinsic) {
     return simplify_intrinsic(instr, bb, ctx, worklist, man);
-  }
-  if (instr_ty == InstrType::ExtractValue) {
-    return simplify_extract(instr, worklist);
-  }
-  if (instr_ty == InstrType::InsertValue) {
-    return simplify_insert(instr, ctx, worklist);
   }
   if (instr_ty == InstrType::AllocaInstr) {
     return simplify_alloca(instr, bb, ctx, worklist, anal);
