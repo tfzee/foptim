@@ -110,11 +110,13 @@ add_library (foptim OBJECT
                 ./src/optim/func_passes/intrin_simplify.cpp
                 ./src/optim/func_passes/inst_simplify.cpp
                 ./src/optim/func_passes/lvn.cpp
+                ./src/optim/func_passes/sccp.cpp
                 ./src/optim/func_passes/stack_known_bits.cpp
                 ./src/optim/func_passes/simple_vectorize.cpp
                 ./src/optim/module_passes/function_dedup.cpp
                 ./src/optim/module_passes/IPCP.cpp
                 ./src/optim/helper/inline.cpp
+                ./src/optim/helper/WFVector.cpp
                 ./src/optim/helper/helper.cpp
 
                 #mir
