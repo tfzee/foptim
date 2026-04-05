@@ -261,8 +261,8 @@ TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
     Type type_id = convert_type(m.ty);
     auto new_reg = alloc.get_struct_register(val, m.ty, id);
     result.emplace_back(new_reg, type_id);
-    res.emplace_back(GBaseSubtype::mov, MArgument{new_reg, type_id},
-                     MArgument::Int(0, type_id));
+    // res.emplace_back(GBaseSubtype::mov, MArgument{new_reg, type_id},
+    //                  MArgument::Int(0, type_id));
     id++;
   }
   return result;
