@@ -3032,6 +3032,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           };
           auto vec_ty = extract_instr->args[0].get_type()->as_vec();
           auto rev_indx = vec_ty.member_number - indx - 1;
+          // auto rev_indx = indx;
           auto helper_ty = get_xmm_version_ty(target.ty);
           if (rev_indx == 0) {
             ASSERT(input.isReg())
@@ -3039,47 +3040,57 @@ void base_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(
                 GBaseSubtype::mov, target,
                 MArgument(input.reg.retype(helper_ty), helper_ty));
-          } else if (rev_indx == 1) {
-            ASSERT(input.isReg())
-            // seoncd to last can just be vpextr
-            res.result.emplace_back(
-                X86Subtype::vpextr, target,
-                MArgument(input.reg.retype(helper_ty), helper_ty),
-                MArgument((u8)1));
-          } else if (rev_indx == 2) {
-            auto helper_ty = get_xmm_version_ty(target.ty);
-            auto helper_reg = data.alloc.get_new_register(helper_ty);
-            auto helper_arg = MArgument(helper_reg, helper_ty);
-            res.result.emplace_back(X86Subtype::vextract128, helper_arg, input,
-                                    MArgument((u8)1));
-            res.result.emplace_back(GBaseSubtype::mov, target, helper_arg);
-          } else if (rev_indx == 3) {
-            auto helper_ty = get_xmm_version_ty(target.ty);
-            auto helper_reg = data.alloc.get_new_register(helper_ty);
-            auto helper_arg = MArgument(helper_reg, helper_ty);
-            res.result.emplace_back(X86Subtype::vextract128, helper_arg, input,
-                                    MArgument((u8)1));
-            res.result.emplace_back(X86Subtype::vpextr, target, input,
-                                    MArgument((u8)1));
+          } else if (target.ty == Type::Float64 || target.ty == Type::Int64) {
+            if (rev_indx == 0) {
+              UNREACH();
+            } else if (rev_indx == 1) {
+              ASSERT(input.isReg())
+              // seoncd to last can just be vpextr
+              res.result.emplace_back(
+                  X86Subtype::vpextr, target,
+                  MArgument(input.reg.retype(helper_ty), helper_ty),
+                  MArgument((u8)1));
+            } else if (rev_indx == 2) {
+              auto helper_ty = get_xmm_version_ty(target.ty);
+              auto helper_reg = data.alloc.get_new_register(helper_ty);
+              auto helper_arg = MArgument(helper_reg, helper_ty);
+              res.result.emplace_back(X86Subtype::vextract128, helper_arg,
+                                      input, MArgument((u8)1));
+              res.result.emplace_back(GBaseSubtype::mov, target, helper_arg);
+            } else if (rev_indx == 3) {
+              auto helper_ty = get_xmm_version_ty(target.ty);
+              auto helper_reg = data.alloc.get_new_register(helper_ty);
+              auto helper_arg = MArgument(helper_reg, helper_ty);
+              res.result.emplace_back(X86Subtype::vextract128, helper_arg,
+                                      input, MArgument((u8)1));
+              res.result.emplace_back(X86Subtype::vpextr, target, input,
+                                      MArgument((u8)1));
+            } else {
+              fmt::println("{}", extract_instr);
+              TODO("Impl");
+            }
+          } else if (target.ty == Type::Float32) {
+            auto ext_out = MArgument{target.reg.retype(input.ty), input.ty};
+            u8 mapp = 0;
+            switch (rev_indx) {
+              case 1:
+                mapp = 0b01'00'1110;
+                break;
+              case 2:
+                mapp = 0b10'00'1110;
+                break;
+              case 3:
+                mapp = 0b11'00'1110;
+                break;
+              default:
+                fmt::print("{} {}", rev_indx, extract_instr);
+                UNREACH();
+            }
+            res.result.emplace_back(X86Subtype::vinsertps, ext_out, ext_out,
+                                    input, MArgument{mapp});
           } else {
-            fmt::println("{}", extract_instr);
-            TODO("Impl");
+            TODO("impl");
           }
-          // if (target.is_fp()) {
-          //   // TODO implement properly
-          //   auto helper_ty =
-          //       target.ty == Type::Float32 ? Type::Int32 : Type::Int64;
-          //   auto helper_reg = data.alloc.get_new_register(helper_ty);
-          //   auto helper_arg = MArgument(helper_reg, helper_ty);
-          //   res.result.emplace_back(X86Subtype::vpextr, helper_arg, input,
-          //                           MArgument((u8)indx));
-          //   res.result.emplace_back(GBaseSubtype::mov, target, helper_arg);
-          //   return true;
-          // } else {
-          //   res.result.emplace_back(X86Subtype::vpextr, target, input,
-          //                           MArgument((u8)indx));
-          //   return true;
-          // }
           return true;
         }
         auto input =
