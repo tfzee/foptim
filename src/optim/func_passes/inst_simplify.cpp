@@ -1233,7 +1233,13 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ConversionSubType::FPTOSI:
       if (instr->args[0].is_constant() &&
           instr->args[0].as_constant()->is_float()) {
-        auto val = instr->args[0].as_constant()->as_float();
+        auto cval = instr->args[0].as_constant();
+        auto val = (i128)0;
+        if (instr->args[0].get_type()->get_bitwidth() == 32) {
+          val = cval->as_f32();
+        } else {
+          val = cval->as_f64();
+        }
         push_all_uses(worklist, instr);
         instr->replace_all_uses(
             fir::ValueR{ctx->get_constant_value((i128)val, instr->get_type())});
@@ -1317,7 +1323,7 @@ bool simplify_store(fir::Instr instr) {
         }
         instr.replace_arg(1, val_i->args[0]);
         if (!val_i->args[0].is_instr()) {
-          //then we got the whole thingy no point  in storing a poision
+          // then we got the whole thingy no point  in storing a poision
           if (val_i->args[0].is_poison()) {
             maybe_destory.push_back(instr);
           }
