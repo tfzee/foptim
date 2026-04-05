@@ -110,6 +110,9 @@ fmt::appender fmt::formatter<foptim::fir::Function>::format(
   if (func.mem_read_only) {
     app = fmt::format_to(app, "MEM(READ), ");
   }
+  if (func.maybe_can_wfvec) {
+    app = fmt::format_to(app, "WFVEC, ");
+  }
   auto colfunc = color ? color_func : text_style{};
   app = fmt::format_to(app, "\nfunc {}",
                        fmt::styled(func.getName().c_str(), colfunc));

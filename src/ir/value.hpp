@@ -52,6 +52,9 @@ class ValueR {
   [[nodiscard]] constexpr bool is_constant() const {
     return ty == ValueType::ConstantValueR;
   }
+  [[nodiscard]] constexpr bool is_constant_func() const {
+    return ty == ValueType::ConstantValueR && const_val->is_func();
+  }
   [[nodiscard]] constexpr bool is_const_int(i128 v) const {
     return ty == ValueType::ConstantValueR && const_val->is_int() &&
            const_val->as_int() == v;
