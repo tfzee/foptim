@@ -9,6 +9,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
 #include "ir/value.hpp"
+#include "optim/helper/WFVector.hpp"
 #include "utils/arena.hpp"
 #include "utils/stats.hpp"
 
@@ -215,8 +216,8 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
   }
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle &orig_bundl) final {
-    auto av = children.at(0)->generate(ctx, orig_bundl);
-    auto bv = children.at(1)->generate(ctx, orig_bundl);
+    auto bv = children.at(0)->generate(ctx, orig_bundl);
+    auto av = children.at(1)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     auto res = bb.build_binary_op(av, bv,
                                   (fir::BinaryInstrSubType)insert_loc->subtype);
@@ -263,6 +264,85 @@ class ZextTreeOp final : public SLPVectorizer::TreeElem {
     auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     return bb.build_zext(val, ctx->get_vec_type(res_ty, n_lanes));
+  }
+};
+
+class CallTreeOp final : public SLPVectorizer::TreeElem {
+ public:
+  fir::ValueR func_ref;
+  void dump() final {
+    fmt::print("call {} ", func_ref);
+    for (auto &child : children) {
+      child->dump();
+    }
+    fmt::println("\n");
+  }
+
+  CallTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
+    insert_loc = values.back().as_instr();
+    func_ref = values.back().as_instr()->args[0];
+    return this;
+  }
+
+  i64 cost() const final {
+    i64 cost = 0;
+    for (auto &child : children) {
+      cost += child->cost();
+    }
+    return cost;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    auto base_v = values.back().as_instr();
+    if (!base_v->args[0].is_constant_func()) {
+      return false;
+    }
+    auto called_func = base_v->args[0].as_constant()->as_func();
+    if (!called_func->maybe_can_wfvec) {
+      return false;
+    }
+    for (auto i_v : values) {
+      if (!i_v.is_instr()) {
+        return false;
+      }
+      auto i = i_v.as_instr();
+      if (!i->args[0].is_constant_func()) {
+        return false;
+      }
+      if (i->args[0] != base_v->args[0]) {
+        return false;
+      }
+      if (i->instr_type != base_v->instr_type ||
+          i->subtype != base_v->subtype) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
+    TVec<fir::ValueR> args;
+    args.resize(children.size() - 1);
+    // get args other then function parameter
+    for (size_t i = 0; i < children.size() - 1; i++) {
+      args[children.size() - 2 - i] = children.at(i)->generate(ctx, orig_bundl);
+    }
+    fir::Builder bb{insert_loc};
+    auto *funcy = func_ref.as_constant()->as_func().func;
+    auto new_func = whole_function_vectorize(*funcy, n_lanes);
+    ASSERT(new_func.has_value())
+    auto ftype = new_func.value()->func_ty;
+    auto res =
+        bb.build_call(fir::ValueR{ctx->get_constant_value(new_func.value())},
+                      ftype, ftype->as_func().return_type, args);
+    // for(auto b : orig_bundl.data){
+    //   b.instr.destroy();
+    // }
+    // fmt::println("{:cd}", res.as_instr()->get_parent());
+    // TODO("impl call tree op generate");
+    return res;
   }
 };
 
@@ -700,6 +780,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   using ZextTreeAlloc = utils::TempAlloc<ZextTreeOp>;
   using UnaryTreeAlloc = utils::TempAlloc<UnaryTreeOp>;
   using ExtractTreeAlloc = utils::TempAlloc<ExtractTreeOp>;
+  using CallTreeAlloc = utils::TempAlloc<CallTreeOp>;
   TVec<TreeElem *> tree;
   if (default_parent != nullptr) {
     tree.push_back(default_parent);
@@ -858,6 +939,21 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             return false;
           }
           break;
+        case fir::InstrType::CallInstr:
+          if (CallTreeOp::match(curr)) {
+            auto *result_t = CallTreeAlloc{}.allocate(1);
+            (new (result_t) CallTreeOp)->init(curr);
+            result = result_t;
+            n_args = curr[0].as_instr()->get_n_args();
+            parent->children.push_back(result);
+          } else {
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at call value like {}",
+                           curr.back().as_instr());
+            }
+            return false;
+          }
+          break;
         case fir::InstrType::ITrunc:
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
@@ -871,7 +967,6 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         case fir::InstrType::AllocaInstr:
         case fir::InstrType::InsertValue:
         case fir::InstrType::Conversion:
-        case fir::InstrType::CallInstr:
         case fir::InstrType::ReturnInstr:
         case fir::InstrType::BranchInstr:
         case fir::InstrType::CondBranchInstr:
