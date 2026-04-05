@@ -172,6 +172,7 @@ enum class X86Subtype : u32 {
   vpextr,
   vextract128,
   vinsert128,
+  vinsertps,
   vpshuf,
   punpckl,
   vbroadcast,

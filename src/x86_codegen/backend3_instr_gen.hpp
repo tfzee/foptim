@@ -2,6 +2,7 @@
 #include <fmt/base.h>
 
 #include "backend3.hpp"
+#include "ir/types_ref.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
 #include "utils/parameters.hpp"
@@ -2164,6 +2165,14 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
+    case fmir::X86Subtype::vinsertps: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      req.mnemonic = ZYDIS_MNEMONIC_VINSERTPS;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
     case fmir::X86Subtype::vinsert128: {
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -2351,23 +2360,36 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
       assert(req.operand_count == 3);
-      switch (instr.args[1].ty) {
-        default:
-          fmt::println("{:cd}", instr);
-          TODO("impl");
-        case fmir::Type::Int32x4:
-        case fmir::Type::Float32x4:
-        case fmir::Type::Int32x8:
-        case fmir::Type::Float32x2:
-        case fmir::Type::Float32x8:
-          req.mnemonic = ZYDIS_MNEMONIC_VPEXTRD;
-          break;
-        case fmir::Type::Int64x2:
-        case fmir::Type::Float64x2:
-        case fmir::Type::Int64x4:
-        case fmir::Type::Float64x4:
-          req.mnemonic = ZYDIS_MNEMONIC_VPEXTRQ;
-          break;
+      if (instr.args[0].is_fp() && instr.args[0].ty == fmir::Type::Float32 &&
+          instr.args[1].is_vec_reg()) {
+        req.mnemonic = ZYDIS_MNEMONIC_VINSERTPS;
+        req.operand_count = 4;
+        req.operands[3] = req.operands[2];
+        req.operands[2] = req.operands[1];
+        req.operands[1] = req.operands[0];
+        auto inp_off = req.operands[3].imm.u;
+        auto out_off = 0;
+        req.operands[3].imm.u = (inp_off << 6) | (out_off << 4) | (0b1110);
+      } else {
+        switch (instr.args[1].ty) {
+          default:
+            fmt::println("{:cd}", instr);
+            TODO("impl");
+          case fmir::Type::Int32x4:
+          case fmir::Type::Int32x8:
+            req.mnemonic = ZYDIS_MNEMONIC_VPEXTRD;
+          case fmir::Type::Float32x4:
+          case fmir::Type::Float32x2:
+          case fmir::Type::Float32x8:
+            req.mnemonic = ZYDIS_MNEMONIC_VEXTRACTPS;
+            break;
+          case fmir::Type::Int64x2:
+          case fmir::Type::Float64x2:
+          case fmir::Type::Int64x4:
+          case fmir::Type::Float64x4:
+            req.mnemonic = ZYDIS_MNEMONIC_VPEXTRQ;
+            break;
+        }
       }
       return emit(out_buff, 0, &req);
     }
