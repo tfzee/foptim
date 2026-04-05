@@ -1468,7 +1468,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   // readNone: 0, readOnly: 0,
   // noInline: 0, alwaysInline:
   foff_func->no_recurse = func.doesNotRecurse();
-  foff_func->no_inline =
+  foff_func->no_return =
       func.hasFnAttribute(llvm::Attribute::AttrKind::NoReturn);
 
   if (func.doesNotAccessMemory()) {
