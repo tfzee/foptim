@@ -54,6 +54,7 @@ bool substitute_impl(Instr &t, const T &repl) {
     auto &bb = self->bbs[bb_id];
     if (repl.contains(ValueR{bb.bb})) {
       t.replace_bb(bb_id, repl.at(ValueR{bb.bb}).as_bb(), true, false);
+      replaced = true;
     }
     const auto n_args = bb.args.size();
     for (size_t i = 0; i < n_args; i++) {
