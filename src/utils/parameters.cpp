@@ -7,6 +7,8 @@ std::string in_file_path;
 bool print_optimization_failure_reasons = true;
 u8 number_worker_threads = 0;
 
+u8 verbosity = 255;
+
 bool enable_avx512f = false;
 bool enable_avx512bw = false;
 bool enable_avx512cd = false;

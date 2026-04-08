@@ -226,6 +226,7 @@ struct BitSet {
     return out_val;
   }
 
+  /*Assigns the values of other to this copying the data leaving other unchanged and returning this*/
   constexpr BitSet &assign(const BitSet &other) {
     assert(_size_bits == other._size_bits);
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;

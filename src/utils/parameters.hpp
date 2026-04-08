@@ -10,6 +10,8 @@ extern std::string in_file_path;
 extern bool print_optimization_failure_reasons;
 extern u8 number_worker_threads;
 
+extern u8 verbosity;
+
 extern bool enable_avx512f;
 extern bool enable_avx512bw;
 extern bool enable_avx512cd;
