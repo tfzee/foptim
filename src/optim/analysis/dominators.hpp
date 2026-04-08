@@ -12,8 +12,6 @@ class Dominators {
  public:
   struct Node {
     fir::BasicBlock bb;
-    i64 im_dom;
-
     BitSet<> dominators;
     // BitSet postdominators;
     BitSet<> frontier;
@@ -24,6 +22,26 @@ class Dominators {
 
   Dominators() : cfg(nullptr) {}
   Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
+
+  bool dominates(fir::BasicBlock a, fir::BasicBlock b) const {
+    return dom_bbs[cfg->get_bb_id(b)].dominators[cfg->get_bb_id(a)];
+  }
+
+  bool dominates(u32 bb1, u32 bb2) const {
+    return dom_bbs[bb1].dominators[bb2];
+  }
+
+  const BitSet<> &get_frontier(fir::BasicBlock a) const {
+    return dom_bbs[cfg->get_bb_id(a)].frontier;
+  }
+
+  const BitSet<> &dominators(fir::BasicBlock a) const {
+    return dom_bbs[cfg->get_bb_id(a)].dominators;
+  }
+
+  const BitSet<> &dominators(u32 bb_id) const {
+    return dom_bbs[bb_id].dominators;
+  }
 
   void dump() const {
     fmt::println("DUMP DOM");
@@ -56,10 +74,8 @@ class Dominators {
     BitSet emptyBitSet{n_bbs, false};
 
     for (const auto &bbr : cfg.bbrs) {
-      dom_bbs.push_back(Node{.bb = bbr.bb,
-                             .im_dom = -1,
-                             .dominators = fullBitSet,
-                             .frontier = emptyBitSet});
+      dom_bbs.push_back(Node{
+          .bb = bbr.bb, .dominators = fullBitSet, .frontier = emptyBitSet});
     }
 
     std::deque<u32, utils::TempAlloc<u32>> worklist{cfg.entry};

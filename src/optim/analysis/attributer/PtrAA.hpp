@@ -43,7 +43,7 @@ class PtrAA final : public AttributeAnalysis {
           use.user->is(fir::InstrType::StoreInstr)) {
         auto target_bb = use.user->get_parent();
         auto target_bb_id = cfg.get_bb_id(target_bb);
-        if (dom.dom_bbs[target_bb_id].dominators[value_bb_id]) {
+        if (dom.dominates(target_bb_id, value_bb_id)) {
           known_non_null = true;
           return Result::Changed;
         }

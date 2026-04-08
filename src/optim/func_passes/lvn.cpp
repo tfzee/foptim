@@ -92,7 +92,7 @@ bool eql_instr_expr(fir::Instr a, fir::Instr b) {
 bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
                const Dominators &dom) {
   auto bb_id = cfg.get_bb_id(bb);
-  for (auto d : dom.dom_bbs[bb_id].dominators) {
+  for (auto d : dom.dominators(bb_id)) {
     if (d == bb_id) {
       // lvn handles this case
       continue;
@@ -241,7 +241,8 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
         } else if (instr2->args[0].is_instr() && instr->get_type()->is_vec() &&
                    !instr2->get_type()->is_vec()) {
           bool pot_store_between = is_pot_store_between(
-              bb, instr2->args[0], instr2->get_type()->get_size(), i + 1, i2, aa);
+              bb, instr2->args[0], instr2->get_type()->get_size(), i + 1, i2,
+              aa);
           // TODO: for now only for vector
           if (!pot_store_between && vstore_sload_forwarding(instr, instr2)) {
             i2--;

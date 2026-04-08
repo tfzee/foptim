@@ -34,7 +34,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
   for (u32 bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
     tails.clear();
     for (auto pred : cfg.bbrs[bb_id].pred) {
-      if (dom.dom_bbs[pred].dominators[bb_id]) {
+      if (dom.dominates(pred, bb_id)) {
         tails.push_back(pred);
       }
     }
@@ -80,7 +80,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
       deq.pop_back();
       for (auto pred : cfg.bbrs[curr].pred) {
         if (forward[pred] && !backward[pred] &&
-            dom.dom_bbs[pred].dominators[bb_id]) {
+            dom.dominates(pred, bb_id)) {
           backward[pred].set(true);
           // if () {
           //   fmt::println(" INVALID {}", pred);

@@ -16,7 +16,7 @@ class CmpKnownValProp final : public FunctionPass {
       TVec old_uses = *old_use_ref;
       for (auto u : old_uses) {
         auto use_bb = u.user->get_parent();
-        if (dom.dom_bbs[cfg.get_bb_id(use_bb)].dominators[targetbb_id]) {
+        if (dom.dominates(cfg.get_bb_id(use_bb), targetbb_id)) {
           u.replace_use(val);
         }
       }
