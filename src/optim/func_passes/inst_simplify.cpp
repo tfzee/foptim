@@ -2209,7 +2209,7 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
       return true;
     }
     if (instr->is(fir::InstrType::ExtractValue) && instr->args[0].is_instr()) {
-      auto* ctx = instr->get_parent()->get_parent()->ctx;
+      auto *ctx = instr->get_parent()->get_parent()->ctx;
       auto a1 = instr->args[0].as_instr();
       auto index = instr->args[1].as_constant()->as_int();
       if (a1->is(fir::VectorISubType::Concat) && (index == 0 || index == 1)) {
