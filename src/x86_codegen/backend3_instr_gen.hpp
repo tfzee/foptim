@@ -2225,7 +2225,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64x4:
         case fmir::Type::Float64x2: {
           u64 off = 0;
-          if (instr.args[0] != instr.args[1]) {
+          if (instr.args[0].reg.c_reg() != instr.args[1].reg.c_reg()) {
             req.mnemonic = ZYDIS_MNEMONIC_MOVAPD;
             off = emit(out_buff, off, &req);
           }
@@ -2237,7 +2237,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float32x4:
         case fmir::Type::Float32x2: {
           u64 off = 0;
-          if (instr.args[0] != instr.args[1]) {
+          if (instr.args[0].reg.c_reg() != instr.args[1].reg.c_reg()) {
             req.mnemonic = ZYDIS_MNEMONIC_MOVAPS;
             off = emit(out_buff, off, &req);
           }
