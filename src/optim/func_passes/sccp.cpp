@@ -4,7 +4,6 @@
 
 #include <type_traits>
 
-#include "ir/constant_value.hpp"
 #include "utils/todo.hpp"
 
 namespace foptim::optim {

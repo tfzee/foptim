@@ -119,7 +119,7 @@ class GDCE final : public ModulePass {
         ctx.data->storage.functions.erase(name);
         continue;
       }
-      switch (f->linkage) {
+      switch (f->attribs.linkage) {
         case fir::Linkage::External:
         case fir::Linkage::WeakODR:
         case fir::Linkage::Weak:

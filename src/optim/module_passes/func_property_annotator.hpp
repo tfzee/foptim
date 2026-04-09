@@ -49,16 +49,16 @@ class FuncPropAnnotator final : public ModulePass {
               // then we know its written otherwise we know it wont
               continue;
             }
-            if (!f->no_recurse) {
+            if (!f->attribs.no_recurse) {
               // this is not quite true
               // subfunction can recurse aslong as this recursion does not go
               // through the current function
               r.wont_recurse = false;
             }
-            if (f->mem_read_none) {
-            } else if (f->mem_read_only) {
+            if (f->attribs.mem_read_none) {
+            } else if (f->attribs.mem_read_only) {
               r.does_read = true;
-            } else if (f->mem_write_only) {
+            } else if (f->attribs.mem_write_only) {
               r.does_write = true;
             } else {
               r.does_read = true;
@@ -94,30 +94,30 @@ class FuncPropAnnotator final : public ModulePass {
       aa.reset();
       bool modified = false;
       auto new_wfvec = can_whole_function_vectorize(*v);
-      if (new_wfvec.has_value() != v->maybe_can_wfvec) {
-        v->maybe_can_wfvec = new_wfvec.has_value();
+      if (new_wfvec.has_value() != v->attribs.maybe_can_wfvec) {
+        v->attribs.maybe_can_wfvec = new_wfvec.has_value();
         modified = true;
       }
       auto r = apply(v, call_graph, aa);
-      if (r.wont_recurse && !v->no_recurse) {
-        v->no_recurse = true;
+      if (r.wont_recurse && !v->attribs.no_recurse) {
+        v->attribs.no_recurse = true;
         modified = true;
       }
-      if (r.does_read && !r.does_write && !v->mem_read_only) {
+      if (r.does_read && !r.does_write && !v->attribs.mem_read_only) {
         modified = true;
-        v->mem_read_none = false;
-        v->mem_read_only = true;
-        v->mem_write_only = false;
-      } else if (!r.does_read && r.does_write && !v->mem_write_only) {
+        v->attribs.mem_read_none = false;
+        v->attribs.mem_read_only = true;
+        v->attribs.mem_write_only = false;
+      } else if (!r.does_read && r.does_write && !v->attribs.mem_write_only) {
         modified = true;
-        v->mem_read_none = false;
-        v->mem_read_only = false;
-        v->mem_write_only = true;
-      } else if (!r.does_read && !r.does_write && !v->mem_read_none) {
+        v->attribs.mem_read_none = false;
+        v->attribs.mem_read_only = false;
+        v->attribs.mem_write_only = true;
+      } else if (!r.does_read && !r.does_write && !v->attribs.mem_read_none) {
         modified = true;
-        v->mem_read_none = true;
-        v->mem_read_only = false;
-        v->mem_write_only = false;
+        v->attribs.mem_read_none = true;
+        v->attribs.mem_read_only = false;
+        v->attribs.mem_write_only = false;
       }
       if (modified) {
         // fmt::println("MODIFIED {:d}", *v);

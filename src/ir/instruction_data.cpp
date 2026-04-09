@@ -100,7 +100,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   if (is(InstrType::CallInstr) && args[0].is_constant() &&
       args[0].as_constant()->is_func()) {
     auto funcy = args[0].as_constant()->as_func();
-    if (!funcy.func->variadic &&
+    if (!funcy.func->attribs.variadic &&
         funcy.func->func_ty->as_func().arg_types.size() + 1 != args.size()) {
       fmt::print("Call instr has wrong number of arguments\n");
       return false;
@@ -223,7 +223,7 @@ bool InstrData::is_critical() const {
       return true;
     case InstrType::CallInstr:
       if (args[0].is_constant() && args[0].as_constant()->is_func()) {
-        return !args[0].as_constant()->as_func()->mem_read_none;
+        return !args[0].as_constant()->as_func()->attribs.mem_read_none;
       }
       return true;
     case InstrType::Intrinsic:
@@ -371,7 +371,7 @@ bool InstrData::pot_modifies_mem() const {
     case InstrType::CallInstr:
       if (args[0].is_constant() && args[0].as_constant()->is_func()) {
         auto f = args[0].as_constant()->as_func();
-        return !f->mem_read_none && !f->mem_read_only;
+        return !f->attribs.mem_read_none && !f->attribs.mem_read_only;
       }
       return true;
       // TODO: not sure fences kinda dont do this but can kinda kinda lead to
@@ -431,7 +431,7 @@ bool InstrData::pot_reads_mem() const {
     case InstrType::CallInstr:
       if (args[0].is_constant() && args[0].as_constant()->is_func()) {
         auto f = args[0].as_constant()->as_func();
-        return !f->mem_read_none;
+        return !f->attribs.mem_read_none;
       }
       return true;
     case InstrType::Intrinsic:

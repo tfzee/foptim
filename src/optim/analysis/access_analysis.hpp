@@ -81,14 +81,14 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
       auto fun_ptr = i->args[0].as_constant();
       if (fun_ptr->is_func()) {
         auto fun = fun_ptr->as_func();
-        if (fun.func->mem_read_none) {
+        if (fun.func->attribs.mem_read_none) {
           return;
         }
-        if (fun.func->mem_read_only) {
+        if (fun.func->attribs.mem_read_only) {
           res.IsRead = true;
           return;
         }
-        if (fun.func->mem_write_only) {
+        if (fun.func->attribs.mem_write_only) {
           res.IsWriten = true;
           res.Escapes = true;
           return;

@@ -146,7 +146,7 @@ class ArgPromotion final : public ModulePass {
         use.user->value_type = res_type;
       }
     }
-    if (func->linkage == fir::Linkage::LinkOnceODR) {
+    if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
       auto old_name = func->name;
       arg_prom_unique_name_number++;
       auto new_name = old_name + "MODArgProm";
@@ -154,8 +154,8 @@ class ArgPromotion final : public ModulePass {
       auto func_moved = std::move(ctx->storage.functions.at(old_name));
       ctx->storage.functions.erase(old_name);
       func_moved->name = new_name;
-      func_moved->linkage = fir::Linkage::Internal;
-      func_moved->no_inline = false;
+      func_moved->attribs.linkage = fir::Linkage::Internal;
+      func_moved->attribs.no_inline = false;
       ctx->storage.functions.insert({new_name, std::move(func_moved)});
     }
     // fmt::println("Found");
@@ -227,7 +227,7 @@ class ArgPromotion final : public ModulePass {
       }
 
       // // we need renaming
-      if (func->linkage == fir::Linkage::LinkOnceODR) {
+      if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
         auto old_name = func->name;
         arg_prom_unique_name_number++;
         auto new_name = old_name + "MODArgProm";
@@ -235,8 +235,8 @@ class ArgPromotion final : public ModulePass {
         auto func_moved = std::move(ctx->storage.functions.at(old_name));
         ctx->storage.functions.erase(old_name);
         func_moved->name = new_name;
-        func_moved->linkage = fir::Linkage::Internal;
-        func_moved->no_inline = false;
+        func_moved->attribs.linkage = fir::Linkage::Internal;
+        func_moved->attribs.no_inline = false;
         ctx->storage.functions.insert({new_name, std::move(func_moved)});
         return true;
       }
@@ -284,7 +284,7 @@ class ArgPromotion final : public ModulePass {
           can_promote = false;
           break;
         }
-        if (!func->mem_read_none && !func->mem_read_only &&
+        if (!func->attribs.mem_read_none && !func->attribs.mem_read_only &&
             are_there_potential_aliasing_stores(func, arg, use, cfg, aa)) {
           can_promote = false;
           break;
@@ -325,7 +325,7 @@ class ArgPromotion final : public ModulePass {
       }
 
       // // we need renaming
-      if (func->linkage == fir::Linkage::LinkOnceODR) {
+      if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
         auto old_name = func->name;
         arg_prom_unique_name_number++;
         auto new_name = old_name + "MODArgProm";
@@ -333,8 +333,8 @@ class ArgPromotion final : public ModulePass {
         auto func_moved = std::move(ctx->storage.functions.at(old_name));
         ctx->storage.functions.erase(old_name);
         func_moved->name = new_name;
-        func_moved->linkage = fir::Linkage::Internal;
-        func_moved->no_inline = false;
+        func_moved->attribs.linkage = fir::Linkage::Internal;
+        func_moved->attribs.no_inline = false;
         ctx->storage.functions.insert({new_name, std::move(func_moved)});
         return true;
       }
@@ -350,7 +350,7 @@ class ArgPromotion final : public ModulePass {
       // fmt::println("RUNNING ON {}", f->name);
       // fmt::println("RUNNING ON {}", f->func_ty);
       // fmt::println("RUNNING ON {}", *f.get());
-      switch (f->linkage) {
+      switch (f->attribs.linkage) {
         case fir::Linkage::External:
         case fir::Linkage::Weak:
         case fir::Linkage::LinkOnce:
@@ -361,7 +361,7 @@ class ArgPromotion final : public ModulePass {
           break;
       }
 
-      if (f->is_decl() || f->variadic) {
+      if (f->is_decl() || f->attribs.variadic) {
         continue;
       }
 

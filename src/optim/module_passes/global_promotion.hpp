@@ -98,7 +98,7 @@ class GlobalPromotion final : public ModulePass {
                 break;
               }
             }
-            if (target_f == nullptr || !target_f->no_recurse) {
+            if (target_f == nullptr || !target_f->attribs.no_recurse) {
               continue;
             }
             fir::Builder b{target_f};

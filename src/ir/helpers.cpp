@@ -55,7 +55,7 @@ void generate_memset(foptim::fir::Context &fctx) {
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_int_type(8), fctx->get_int_type(64)});
   auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Linkage::LinkOnceODR;
+  ffunc.func->attribs.linkage = foptim::fir::Linkage::LinkOnceODR;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();
@@ -116,7 +116,7 @@ void generate_memcpy(foptim::fir::Context &fctx) {
       fctx->get_void_type(),
       {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
   auto ffunc = fctx->create_function(name, func_ty);
-  ffunc.func->linkage = foptim::fir::Linkage::Internal;
+  ffunc.func->attribs.linkage = foptim::fir::Linkage::Internal;
 
   auto bb = ffunc.builder();
   auto entry_bb = ffunc->get_entry();

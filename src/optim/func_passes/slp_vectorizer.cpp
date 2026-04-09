@@ -320,7 +320,7 @@ class CallTreeOp final : public SLPVectorizer::TreeElem {
       return false;
     }
     auto called_func = base_v->args[0].as_constant()->as_func();
-    if (!called_func->maybe_can_wfvec) {
+    if (!called_func->attribs.maybe_can_wfvec) {
       return false;
     }
     for (auto i_v : values) {

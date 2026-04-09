@@ -2836,7 +2836,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (call_instr->args[0].is_constant()) {
           calee = valueToArgPtr(call_instr->args[0], Type::Int64, res.result,
                                 data.alloc);
-          is_var_arg = call_instr->args[0].as_constant()->as_func()->variadic;
+          is_var_arg = call_instr->args[0].as_constant()->as_func()->attribs.variadic;
         } else {
           calee = valueToArg(call_instr->args[0], res.result, data.alloc);
         }

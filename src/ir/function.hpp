@@ -14,28 +14,31 @@ namespace foptim::fir {
 class Function : public Attributable, public LockedUsed {
  public:
   enum class CallingConv { C, Dynamic };
+  struct Attribs {
+    CallingConv cc = CallingConv::C;
+    Linkage linkage = Linkage::Internal;
+    LinkVisibility linkvis = LinkVisibility::Default;
+    u8 variadic : 1 = 0;
+    u8 must_progress : 1 = 0;
+    u8 no_recurse : 1 = 0;
+    u8 no_inline : 1 = 0;
+    u8 no_return : 1 = 0;
+    u8 must_inline : 1 = 0;
+    u8 mem_write_only : 1 = 0;
+    u8 mem_read_only : 1 = 0;
+    u8 mem_read_none : 1 = 0;
+
+    // mark as potentially be able to be whole function vectorized (but verify
+    // before applying since it can easliy be invalidated)
+    u8 maybe_can_wfvec : 1 = 0;
+  };
 
   ContextData *ctx;
   IRString name;
   FunctionTypeR func_ty;
   IRVec<BasicBlock> basic_blocks;
   // metadata
-  CallingConv cc = CallingConv::C;
-  Linkage linkage = Linkage::Internal;
-  LinkVisibility linkvis = LinkVisibility::Default;
-  u8 variadic : 1 = 0;
-  u8 must_progress : 1 = 0;
-  u8 no_recurse : 1 = 0;
-  u8 no_inline : 1 = 0;
-  u8 no_return : 1 = 0;
-  u8 must_inline : 1 = 0;
-  u8 mem_write_only : 1 = 0;
-  u8 mem_read_only : 1 = 0;
-  u8 mem_read_none : 1 = 0;
-
-  // mark as potentially be able to be whole function vectorized (but verify
-  // before applying since it can easliy be invalidated)
-  u8 maybe_can_wfvec : 1 = 0;
+  Attribs attribs;
 
   Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}

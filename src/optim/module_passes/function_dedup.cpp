@@ -190,14 +190,14 @@ bool check_match(fir::Function *f1, fir::Function *f2,
 }
 
 bool is_function_applicable(const fir::Function *f) {
-  if (f->is_decl() || f->variadic || f->get_n_uses() == 0 ||
+  if (f->is_decl() || f->attribs.variadic || f->get_n_uses() == 0 ||
       f->get_entry()->n_args() > 4) {
     return false;
   }
   // TODO: should work for linkonce odr aswell
-  if (f->linkage == fir::Linkage::Weak || f->linkage == fir::Linkage::WeakODR ||
-      f->linkage == fir::Linkage::LinkOnce ||
-      f->linkage == fir::Linkage::External) {
+  if (f->attribs.linkage == fir::Linkage::Weak || f->attribs.linkage == fir::Linkage::WeakODR ||
+      f->attribs.linkage == fir::Linkage::LinkOnce ||
+      f->attribs.linkage == fir::Linkage::External) {
     return false;
   }
   return true;
@@ -446,12 +446,12 @@ void merge_func_dups_only_same(fir::Context &ctx) {
           // really affect stuff
           fir::Function *target = f2;
           fir::Function *other = f1;
-          if (f1->linkage == fir::Linkage::Internal) {
+          if (f1->attribs.linkage == fir::Linkage::Internal) {
             target = f1;
             other = f2;
           }
-          if (target->linkage != fir::Linkage::Internal &&
-              target->linkage != fir::Linkage::LinkOnceODR) {
+          if (target->attribs.linkage != fir::Linkage::Internal &&
+              target->attribs.linkage != fir::Linkage::LinkOnceODR) {
             continue;
           }
           auto target_ref = ctx->get_constant_value(fir::FunctionR{target});

@@ -89,28 +89,28 @@ fmt::appender fmt::formatter<foptim::fir::Function>::format(
     foptim::fir::Function const &func, format_context &ctx) const {
   auto app = ctx.out();
   app = fmt::format_to(app, "\n; ");
-  if (func.variadic) {
+  if (func.attribs.variadic) {
     app = fmt::format_to(app, "VARIADIC, ");
   }
-  if (func.must_progress) {
+  if (func.attribs.must_progress) {
     app = fmt::format_to(app, "MUST_PROGRESS, ");
   }
-  if (func.no_inline) {
+  if (func.attribs.no_inline) {
     app = fmt::format_to(app, "NO_INLINE, ");
   }
-  if (func.must_inline) {
+  if (func.attribs.must_inline) {
     app = fmt::format_to(app, "MUST_INLINE, ");
   }
-  if (func.no_recurse) {
+  if (func.attribs.no_recurse) {
     app = fmt::format_to(app, "NO_RECURSE, ");
   }
-  if (func.mem_read_none) {
+  if (func.attribs.mem_read_none) {
     app = fmt::format_to(app, "MEM(NONE), ");
   }
-  if (func.mem_read_only) {
+  if (func.attribs.mem_read_only) {
     app = fmt::format_to(app, "MEM(READ), ");
   }
-  if (func.maybe_can_wfvec) {
+  if (func.attribs.maybe_can_wfvec) {
     app = fmt::format_to(app, "WFVEC, ");
   }
   auto colfunc = color ? color_func : text_style{};
@@ -118,7 +118,7 @@ fmt::appender fmt::formatter<foptim::fir::Function>::format(
                        fmt::styled(func.getName().c_str(), colfunc));
 
   app = fmt::format_to(app, "<CC: ");
-  switch (func.cc) {
+  switch (func.attribs.cc) {
     case foptim::fir::Function::CallingConv::C:
       app = fmt::format_to(app, "C");
       break;
@@ -127,7 +127,7 @@ fmt::appender fmt::formatter<foptim::fir::Function>::format(
       break;
   }
   app = fmt::format_to(app, ", LINK: ");
-  switch (func.linkage) {
+  switch (func.attribs.linkage) {
     case foptim::fir::Linkage::Internal:
       app = fmt::format_to(app, "internal");
       break;

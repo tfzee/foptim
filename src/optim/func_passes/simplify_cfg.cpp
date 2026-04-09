@@ -1105,7 +1105,7 @@ SimplifyCFG::Res SimplifyCFG::eliminate_infinite_loop(CFG &cfg, Dominators &dom,
                                                       CFG::Node &curr,
                                                       size_t bb_id,
                                                       fir::Function &func) {
-  if (!func.must_progress) {
+  if (!func.attribs.must_progress) {
     return Res::NoChange;
   }
   auto terminator = curr.bb->get_terminator();

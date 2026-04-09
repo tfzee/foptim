@@ -141,7 +141,7 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
       use.user->extra_type = func.func->func_ty;
     }
     // we need renaming
-    if (func->linkage == fir::Linkage::LinkOnceODR ||
+    if (func->attribs.linkage == fir::Linkage::LinkOnceODR ||
         func->getName().starts_with("foptim.")) {
       auto old_name = func->name;
       ipcp_unique_name_number++;
@@ -151,8 +151,8 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
       auto func_moved = std::move(ctx->storage.functions.at(old_name));
       ctx->storage.functions.erase(old_name);
       func_moved->name = new_name;
-      func_moved->linkage = fir::Linkage::Internal;
-      func_moved->no_inline = false;
+      func_moved->attribs.linkage = fir::Linkage::Internal;
+      func_moved->attribs.no_inline = false;
       ctx->storage.functions.insert({new_name, std::move(func_moved)});
       return true;
     }
@@ -192,7 +192,7 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
       use.user->extra_type = func.func->func_ty;
     }
 
-    if (func->linkage == fir::Linkage::LinkOnceODR ||
+    if (func->attribs.linkage == fir::Linkage::LinkOnceODR ||
         func->getName().starts_with("foptim.")) {
       auto old_name = func->name;
       ipcp_unique_name_number++;
@@ -202,9 +202,9 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
       auto func_moved = std::move(ctx->storage.functions.at(old_name));
       ctx->storage.functions.erase(old_name);
       func_moved->name = new_name;
-      func_moved->linkage = fir::Linkage::Internal;
+      func_moved->attribs.linkage = fir::Linkage::Internal;
       // TODO: Technically legal but might be counter productive
-      func_moved->no_inline = false;
+      func_moved->attribs.no_inline = false;
       ctx->storage.functions.insert({new_name, std::move(func_moved)});
       return true;
     }
@@ -216,7 +216,7 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
 void IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
   ZoneScopedN("IPCP");
   for (auto &f : ctx.data->storage.functions) {
-    switch (f.second->linkage) {
+    switch (f.second->attribs.linkage) {
       case fir::Linkage::External:
       case fir::Linkage::Weak:
       case fir::Linkage::LinkOnce:
@@ -227,7 +227,7 @@ void IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
         break;
     }
 
-    if (f.second->is_decl() || f.second->variadic) {
+    if (f.second->is_decl() || f.second->attribs.variadic) {
       continue;
     }
     bool skip = false;

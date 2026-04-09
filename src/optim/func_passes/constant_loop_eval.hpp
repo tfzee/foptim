@@ -8,7 +8,6 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"
-#include "utils/bitset.hpp"
 
 namespace foptim::optim {
 class ConstLoopEval final : public FunctionPass {
@@ -131,7 +130,7 @@ class ConstLoopEval final : public FunctionPass {
     // compile time and all the input dependencies are constant + we have a
     // mustprogress attribute(no infinite loops) we should constant evaluate
     // the loop
-    if (!func.must_progress) {
+    if (!func.attribs.must_progress) {
       return;
     }
     CFG cfg{func};

@@ -16,11 +16,11 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
                                                 u64 lanes) {
   // just ignore control flow for now
   // also ignore memory stuff for now
-  if (func.basic_blocks.size() > 1 || !func.mem_read_none || func.variadic ||
-      func.no_return) {
+  if (func.basic_blocks.size() > 1 || !func.attribs.mem_read_none || func.attribs.variadic ||
+      func.attribs.no_return) {
     return {};
   }
-  switch (func.linkage) {
+  switch (func.attribs.linkage) {
     case fir::Linkage::Weak:
     case fir::Linkage::WeakODR:
     case fir::Linkage::LinkOnce:
@@ -39,7 +39,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             if (!instr->args[0]
                      .as_constant()
                      ->as_func()
-                     .func->maybe_can_wfvec) {
+                     .func->attribs.maybe_can_wfvec) {
               return {};
             }
           }
@@ -77,6 +77,31 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             return {};
           }
           break;
+        case fir::InstrType::Intrinsic:
+          switch ((fir::IntrinsicSubType)instr->subtype) {
+            case fir::IntrinsicSubType::FAbs:
+              cost -= lanes;
+              break;
+            case fir::IntrinsicSubType::INVALID:
+            case fir::IntrinsicSubType::CTLZ:
+            case fir::IntrinsicSubType::VA_start:
+            case fir::IntrinsicSubType::VA_end:
+            case fir::IntrinsicSubType::Abs:
+            case fir::IntrinsicSubType::UMin:
+            case fir::IntrinsicSubType::UMax:
+            case fir::IntrinsicSubType::SMin:
+            case fir::IntrinsicSubType::SMax:
+            case fir::IntrinsicSubType::FMin:
+            case fir::IntrinsicSubType::FMax:
+            case fir::IntrinsicSubType::PopCnt:
+            case fir::IntrinsicSubType::FRound:
+            case fir::IntrinsicSubType::FCeil:
+            case fir::IntrinsicSubType::FFloor:
+            case fir::IntrinsicSubType::FTrunc:
+            case fir::IntrinsicSubType::IsConstant:
+              break;
+          }
+          break;
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
         case fir::InstrType::UnaryInstr:
@@ -97,7 +122,6 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
         case fir::InstrType::StoreInstr:
         case fir::InstrType::AtomicRMW:
         case fir::InstrType::Fence:
-        case fir::InstrType::Intrinsic:
           if (debug_print) {
             fmt::println("FAILED {}", instr);
           }
@@ -134,6 +158,8 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
   auto new_name = fmt::format("{}_wfvec_{}", func.getName(), n_lanes);
 
   auto new_f = ctx->create_function(new_name.c_str(), new_func_type);
+  new_f.func->attribs = func.attribs;
+  new_f.func->attribs.maybe_can_wfvec = false;
   fir::ContextData::V2VMap subs;
   // for now
   ASSERT(func.n_bbs() == 1);
@@ -186,6 +212,34 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
             TODO("impl");
           }
         } break;
+        case fir::InstrType::Intrinsic:
+          switch ((fir::IntrinsicSubType)instr->subtype) {
+            case fir::IntrinsicSubType::FAbs: {
+              auto new_i = buh.build_intrinsic(
+                  convert_value(ctx, buh, instr->args[0], n_lanes, subs),
+                  fir::IntrinsicSubType::FAbs);
+              subs.insert({fir::ValueR{instr}, new_i});
+            } break;
+            case fir::IntrinsicSubType::INVALID:
+            case fir::IntrinsicSubType::CTLZ:
+            case fir::IntrinsicSubType::VA_start:
+            case fir::IntrinsicSubType::VA_end:
+            case fir::IntrinsicSubType::Abs:
+            case fir::IntrinsicSubType::UMin:
+            case fir::IntrinsicSubType::UMax:
+            case fir::IntrinsicSubType::SMin:
+            case fir::IntrinsicSubType::SMax:
+            case fir::IntrinsicSubType::FMin:
+            case fir::IntrinsicSubType::FMax:
+            case fir::IntrinsicSubType::PopCnt:
+            case fir::IntrinsicSubType::FRound:
+            case fir::IntrinsicSubType::FCeil:
+            case fir::IntrinsicSubType::FFloor:
+            case fir::IntrinsicSubType::FTrunc:
+            case fir::IntrinsicSubType::IsConstant:
+              break;
+          }
+          break;
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
         case fir::InstrType::UnaryInstr:
@@ -207,7 +261,6 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
         case fir::InstrType::StoreInstr:
         case fir::InstrType::AtomicRMW:
         case fir::InstrType::Fence:
-        case fir::InstrType::Intrinsic:
           fmt::println("{}", instr);
           TODO("impl");
       }

@@ -147,7 +147,7 @@ class TailRecElim final : public FunctionPass {
 
  public:
   void apply(fir::Context &ctx, fir::Function &func) override {
-    if (func.no_recurse || func.variadic) {
+    if (func.attribs.no_recurse || func.attribs.variadic) {
       return;
     }
     for (auto bb : func.basic_blocks) {

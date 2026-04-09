@@ -1401,7 +1401,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
 
   const auto foff_func = fctx->get_function(func.getName().str().c_str());
   if (func.isVarArg()) {
-    foff_func->variadic = true;
+    foff_func->attribs.variadic = true;
   }
 
   switch (func.getCallingConv()) {
@@ -1411,7 +1411,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
           "[WARNING] Unsupported cc fast cc will still try to run "
           "with C cc\n");
     case llvm::CallingConv::C:
-      foff_func->cc = foptim::fir::Function::CallingConv::C;
+      foff_func->attribs.cc = foptim::fir::Function::CallingConv::C;
       break;
     default:
       llvm::errs() << "Not supporting calling convention:"
@@ -1422,59 +1422,58 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   switch (func.getLinkage()) {
     case llvm::GlobalValue::InternalLinkage:
     case llvm::GlobalValue::PrivateLinkage:
-      foff_func->linkage = foptim::fir::Linkage::Internal;
+      foff_func->attribs.linkage = foptim::fir::Linkage::Internal;
       break;
     case llvm::GlobalValue::LinkOnceAnyLinkage:
-      foff_func->linkage = foptim::fir::Linkage::LinkOnce;
+      foff_func->attribs.linkage = foptim::fir::Linkage::LinkOnce;
       break;
     case llvm::GlobalValue::LinkOnceODRLinkage:
-      foff_func->linkage = foptim::fir::Linkage::LinkOnceODR;
+      foff_func->attribs.linkage = foptim::fir::Linkage::LinkOnceODR;
       break;
     case llvm::GlobalValue::WeakAnyLinkage:
-      foff_func->linkage = foptim::fir::Linkage::Weak;
+      foff_func->attribs.linkage = foptim::fir::Linkage::Weak;
       break;
     case llvm::GlobalValue::WeakODRLinkage:
-      foff_func->linkage = foptim::fir::Linkage::WeakODR;
+      foff_func->attribs.linkage = foptim::fir::Linkage::WeakODR;
       break;
     case llvm::GlobalValue::ExternalLinkage:
     case llvm::GlobalValue::AvailableExternallyLinkage:
     case llvm::GlobalValue::AppendingLinkage:
     case llvm::GlobalValue::ExternalWeakLinkage:
     case llvm::GlobalValue::CommonLinkage:
-      foff_func->linkage = foptim::fir::Linkage::External;
+      foff_func->attribs.linkage = foptim::fir::Linkage::External;
       break;
   }
   switch (func.getVisibility()) {
     case llvm::GlobalValue::DefaultVisibility:
-      foff_func->linkvis = foptim::fir::LinkVisibility::Default;
+      foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Default;
       break;
     case llvm::GlobalValue::HiddenVisibility:
-      foff_func->linkvis = foptim::fir::LinkVisibility::Hidden;
+      foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Hidden;
       break;
     case llvm::GlobalValue::ProtectedVisibility:
-      foff_func->linkvis = foptim::fir::LinkVisibility::Protected;
+      foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Protected;
       break;
   }
   if (foptim::utils::all_linkage_internal && func_name != "main" &&
       !func.empty()) {
-    foff_func->linkage = foptim::fir::Linkage::Internal;
-  }
+    foff_func->attribs.linkage = foptim::fir::Linkage::Internal; }
 
-  foff_func->no_inline =
+  foff_func->attribs.no_inline =
       func.hasFnAttribute(llvm::Attribute::AttrKind::NoInline);
-  foff_func->must_inline =
+  foff_func->attribs.must_inline =
       func.hasFnAttribute(llvm::Attribute::AttrKind::AlwaysInline);
-  foff_func->must_progress = func.mustProgress();
+  foff_func->attribs.must_progress = func.mustProgress();
   // readNone: 0, readOnly: 0,
   // noInline: 0, alwaysInline:
-  foff_func->no_recurse = func.doesNotRecurse();
-  foff_func->no_return =
+  foff_func->attribs.no_recurse = func.doesNotRecurse();
+  foff_func->attribs.no_return =
       func.hasFnAttribute(llvm::Attribute::AttrKind::NoReturn);
 
   if (func.doesNotAccessMemory()) {
-    foff_func->mem_read_none = true;
+    foff_func->attribs.mem_read_none = true;
   } else if (func.onlyReadsMemory()) {
-    foff_func->mem_read_only = true;
+    foff_func->attribs.mem_read_only = true;
   }
 }
 

@@ -292,7 +292,7 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
   res_func.bbs.reserve(func.n_bbs());
   DumbRegAlloc alloc{};
 
-  if (func.variadic) {
+  if (func.attribs.variadic) {
     res_func.variadic = true;
     bool found = false;
     for (auto bb : func.get_bbs()) {

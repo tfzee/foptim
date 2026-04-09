@@ -20,20 +20,20 @@ class AlwaysInlineAdvisor {
       return false;
     }
     auto v = called_func.as_constant()->as_func();
-    if (v->is_decl() || v->variadic) {
-      ASSERT(!v->must_inline);
+    if (v->is_decl() || v->attribs.variadic) {
+      ASSERT(!v->attribs.must_inline);
       return false;
     }
     if (debug_print) {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
     }
-    switch (v->linkage) {
+    switch (v->attribs.linkage) {
       case fir::Linkage::Weak:
       case fir::Linkage::LinkOnce:
         if (debug_print) {
           fmt::println("N Bad linkage");
         }
-        ASSERT(!v->must_inline);
+        ASSERT(!v->attribs.must_inline);
         return false;
       case fir::Linkage::Internal:
       case fir::Linkage::External:
@@ -50,7 +50,7 @@ class AlwaysInlineAdvisor {
           fmt::println("{:cd}", instr);
           fmt::println("N dyn Alloca");
         }
-        ASSERT(!v->must_inline);
+        ASSERT(!v->attribs.must_inline);
         return false;
       }
     }
@@ -89,8 +89,8 @@ class BaseInlineAdvisor {
     }
     auto v = called_func.as_constant()->as_func();
     const auto called_n_instrs = v->n_instrs();
-    if (v->is_decl() || v->variadic) {
-      if (v->must_inline) {
+    if (v->is_decl() || v->attribs.variadic) {
+      if (v->attribs.must_inline) {
         fmt::println("Had must_inline but is variadic or only decl {:cd}",
                      instr);
         TODO("okak?");
@@ -101,20 +101,20 @@ class BaseInlineAdvisor {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
     }
 
-    if (v->no_inline) {
+    if (v->attribs.no_inline) {
       if (debug_print) {
         fmt::println("N No inline");
       }
       return false;
     }
 
-    switch (v->linkage) {
+    switch (v->attribs.linkage) {
       case fir::Linkage::Weak:
       case fir::Linkage::LinkOnce:
         if (debug_print) {
           fmt::println("N Bad linkage");
         }
-        ASSERT(!v->must_inline);
+        ASSERT(!v->attribs.must_inline);
         return false;
       case fir::Linkage::Internal:
       case fir::Linkage::External:
@@ -131,12 +131,12 @@ class BaseInlineAdvisor {
           fmt::println("{:cd}", instr);
           fmt::println("N dyn Alloca");
         }
-        ASSERT(!v->must_inline);
+        ASSERT(!v->attribs.must_inline);
         return false;
       }
     }
 
-    if (v->must_inline) {
+    if (v->attribs.must_inline) {
       if (debug_print) {
         fmt::println("Y Must inline");
       }
