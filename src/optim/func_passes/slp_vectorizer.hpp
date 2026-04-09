@@ -132,20 +132,69 @@ class SLPVectorizer final : public FunctionPass {
     return {};
   }
 
-  void red_search(TVec<fir::ValueR> &reduction_inputs, fir::ValueR curr_base,
-                  u32 exp_sub_type) {
+  /*
+    To have proper and consistent order and not accidentially causing the order
+    to be flipped by collecting them wrongly i decided to just do left and right
+    reduction so add(x, add(x, ...)) and add(add(x, ...), x) and not other tree
+    like structures.
+  */
+  void left_red_search(TVec<fir::ValueR> &reduction_inputs,
+                       fir::ValueR curr_base, u32 exp_sub_type) {
     if (!curr_base.is_instr()) {
       return;
     }
     auto curr_i = curr_base.as_instr();
+
     if (curr_i->instr_type != fir::InstrType::BinaryInstr ||
         curr_i->subtype != exp_sub_type) {
       reduction_inputs.push_back(curr_base);
       return;
     }
+    if ((curr_i->args[0].is_instr() &&
+         curr_i->args[0].as_instr()->instr_type ==
+             fir::InstrType::BinaryInstr &&
+         curr_i->args[0].as_instr()->subtype == exp_sub_type)) {
+      left_red_search(reduction_inputs, curr_i->args[0], exp_sub_type);
+      reduction_inputs.push_back(curr_i->args[1]);
+      return;
+    } else {
+      if (curr_i->args[0].is_instr()) {
+        reduction_inputs.push_back(curr_i->args[0]);
+      }
+      if (curr_i->args[1].is_instr()) {
+        reduction_inputs.push_back(curr_i->args[1]);
+      }
+      return;
+    }
+  }
+  void right_red_search(TVec<fir::ValueR> &reduction_inputs,
+                        fir::ValueR curr_base, u32 exp_sub_type) {
+    if (!curr_base.is_instr()) {
+      return;
+    }
+    auto curr_i = curr_base.as_instr();
 
-    red_search(reduction_inputs, curr_i->args[0], exp_sub_type);
-    red_search(reduction_inputs, curr_i->args[1], exp_sub_type);
+    if (curr_i->instr_type != fir::InstrType::BinaryInstr ||
+        curr_i->subtype != exp_sub_type) {
+      reduction_inputs.push_back(curr_base);
+      return;
+    }
+    if ((curr_i->args[1].is_instr() &&
+         curr_i->args[1].as_instr()->instr_type ==
+             fir::InstrType::BinaryInstr &&
+         curr_i->args[1].as_instr()->subtype == exp_sub_type)) {
+      right_red_search(reduction_inputs, curr_i->args[1], exp_sub_type);
+      reduction_inputs.push_back(curr_i->args[0]);
+      return;
+    } else {
+      if (curr_i->args[1].is_instr()) {
+        reduction_inputs.push_back(curr_i->args[1]);
+      }
+      if (curr_i->args[0].is_instr()) {
+        reduction_inputs.push_back(curr_i->args[0]);
+      }
+      return;
+    }
   }
 
   std::optional<SeedBundle> find_reduction(fir::BasicBlock bb, size_t instr_id,
@@ -173,13 +222,26 @@ class SLPVectorizer final : public FunctionPass {
       return {};
     }
     {
-      TVec<fir::ValueR> res;
-      red_search(res, fir::ValueR{base_instr}, subtype);
-      if (res.size() != 2 || res.size() != 4 ||
-          (res.size() != 8 && base_instr.get_type()->get_bitwidth() == 4)) {
+      TVec<fir::ValueR> res1;
+      TVec<fir::ValueR> res2;
+      left_red_search(res1, fir::ValueR{base_instr}, subtype);
+      right_red_search(res2, fir::ValueR{base_instr}, subtype);
+
+      auto max_size = std::max(res1.size(), res2.size());
+
+      if (max_size == 2 || max_size == 4 ||
+          (max_size == 8 && base_instr.get_type()->get_bitwidth() == 4)) {
         TVec<SeedInstrData> out;
-        for (auto r : res) {
-          out.push_back(SeedInstrData{.instr = r.as_instr(), .a = {}, .b = {}});
+        if (max_size == res1.size()) {
+          for (auto r : res1) {
+            out.push_back(
+                SeedInstrData{.instr = r.as_instr(), .a = {}, .b = {}});
+          }
+        } else {
+          for (auto r : res2) {
+            out.push_back(
+                SeedInstrData{.instr = r.as_instr(), .a = {}, .b = {}});
+          }
         }
         return SeedBundle{.base = fir::ValueR{base_instr},
                           .type = base_instr.get_type(),

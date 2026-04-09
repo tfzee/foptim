@@ -123,9 +123,11 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
 class BinaryTreeOp final : public SLPVectorizer::TreeElem {
  public:
   bool is_signed = false;
+  fir::BinaryInstrSubType binary_op = fir::BinaryInstrSubType::INVALID;
+
   void dump() final {
     children.at(1)->dump();
-    switch ((fir::BinaryInstrSubType)insert_loc->subtype) {
+    switch (binary_op) {
       case fir::BinaryInstrSubType::FloatAdd:
       case fir::BinaryInstrSubType::IntAdd:
         fmt::print(" + ");
@@ -152,12 +154,26 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
 
   BinaryTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
-    insert_loc = values.back().as_instr();
+    if (values.back().is_instr()) {
+      insert_loc = values.back().as_instr();
+      binary_op = (fir::BinaryInstrSubType)insert_loc->subtype;
+    } else if (values.back().is_bb_arg()) {
+      insert_loc = values.back().as_bb_arg()->get_parent()->instructions[0];
+      binary_op = (fir::BinaryInstrSubType)values.front().as_instr()->subtype;
+    } else {
+      insert_loc = values.front().as_instr();
+      binary_op = (fir::BinaryInstrSubType)insert_loc->subtype;
+    }
     return this;
   }
 
   static bool match(const TVec<fir::ValueR> &values) {
-    auto base_v = values.back().as_instr();
+    fir::Instr base_v{fir::Instr::invalid()};
+    if (values.back().is_instr()) {
+      base_v = values.back().as_instr();
+    } else {
+      base_v = values.front().as_instr();
+    }
     bool potential_neutral_elem = false;
     for (auto i_v : values) {
       if (i_v == base_v->args[0]) {
@@ -181,7 +197,9 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
     }
     if (base_v->args[1].get_type()->get_bitwidth() !=
         base_v->args[0].get_type()->get_bitwidth()) {
-      fmt::println("Wrong bitwidth");
+      if constexpr (SLPVectorizer::debug_print) {
+        fmt::println("Wrong bitwidth");
+      }
       return false;
     }
     switch ((fir::BinaryInstrSubType)base_v->subtype) {
@@ -197,6 +215,10 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
       case fir::BinaryInstrSubType::Or:
       case fir::BinaryInstrSubType::Xor:
       case fir::BinaryInstrSubType::FloatDiv:
+        if (SLPVectorizer::debug_print && potential_neutral_elem) {
+          fmt::println(
+              "Failed with op that doesnt support neutral but needs it");
+        }
         // we cant handle neutral elemtns for everything
         return !potential_neutral_elem;
         // TODO. this causes issues + technically there is a neutral element for
@@ -219,8 +241,7 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
     auto bv = children.at(0)->generate(ctx, orig_bundl);
     auto av = children.at(1)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
-    auto res = bb.build_binary_op(av, bv,
-                                  (fir::BinaryInstrSubType)insert_loc->subtype);
+    auto res = bb.build_binary_op(av, bv, binary_op);
     return res;
   }
 };
@@ -808,6 +829,9 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
       tree.push_back(result);
       continue;
     }
+    if (!test_i.is_instr() && curr.front().is_instr()) {
+      test_i = curr.front();
+    }
 
     if (test_i.is_instr()) {
       TreeElem *result;
@@ -1003,18 +1027,19 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
       continue;
     }
     if constexpr (debug_print) {
-      fmt::println("Failed tree vectorize at something like {:cd}", curr[0]);
+      fmt::println("Failed tree vectorize at something like-> {:cd}",
+                   curr.back());
     }
     return false;
   }
 
   if (!tree.empty()) {
     auto tree_cost = tree[0]->cost();
-    // auto funccy = tree[0]->insert_loc->get_parent()->get_parent();
-    // fmt::print("===================Generated START=================\n{:cd}",
-    //            *funccy.func);
-    // tree[0]->dump();
     if (tree_cost > 0) {
+      // auto funccy = tree[0]->insert_loc->get_parent()->get_parent();
+      // fmt::print("===================Generated START=================\n{:cd}",
+      //            *funccy.func);
+      // tree[0]->dump();
       tree[0]->generate(ctx, b);
       // fmt::print("{:cd}\n===================Generated
       // END=================\n",
