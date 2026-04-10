@@ -208,6 +208,14 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       LoopUnswitch, LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, InstSimplify,
       SimplifyCFG>{}
       .apply(ctx, shed);
+  foptim::optim::StaticModulePassManager<
+      ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>,
+      GDCE, IPCP, FuncPropAnnotator>{}
+      .apply(ctx, shed);
+  foptim::optim::StaticParallelFunctionPassManager<
+      SimplifyCFG, LVN, SCCP, DCE, IntrinSimplify, InstSimplify, DCE,
+      SLPVectorizer, InstSimplify, SimplifyCFG>{}
+      .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeVecs, SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);

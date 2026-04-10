@@ -16,8 +16,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
                                                 u64 lanes) {
   // just ignore control flow for now
   // also ignore memory stuff for now
-  if (func.basic_blocks.size() > 1 || !func.attribs.mem_read_none ||
-      func.attribs.variadic || func.attribs.no_return) {
+  if (!func.attribs.mem_read_none || func.attribs.variadic ||
+      func.attribs.no_return) {
     return {};
   }
   switch (func.attribs.linkage) {

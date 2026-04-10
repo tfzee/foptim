@@ -1,6 +1,7 @@
+#include "calling_conv.hpp"
+
 #include <ranges>
 
-#include "calling_conv.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
 #include "utils/bitset.hpp"
@@ -10,6 +11,7 @@ namespace foptim::fmir {
 
 namespace {
 utils::BitSet<> calculate_used_regs(const MFunc &f);
+TMap<CReg, Type> compute_max_reg_types(const MFunc &f);
 
 constexpr CReg caller_saved[] = {
     CReg::A,    CReg::C,    CReg::D,    CReg::SI,   CReg::DI,
@@ -122,18 +124,18 @@ void save_regs_callee(MFunc &func, CFG &cfg) {
         MInstr{GArithSubtype::sub2, MArgument{VReg::RSP(), Type::Int64},
                MArgument{176U}});
   }
-  //after we push poped stuff to save em we then need to updated our stack arguments so we actually use the right offsets.
-  u32 additional_offset = 8*(2 + n_regs_saved + n_regs_saved % 2) + (func.needs_register_save_area ? 176 : 0);
-  //NOTE: Assuming we got a full pro/epilogue because we reference SP
+  // after we push poped stuff to save em we then need to updated our stack
+  // arguments so we actually use the right offsets.
+  u32 additional_offset = 8 * (2 + n_regs_saved + n_regs_saved % 2) +
+                          (func.needs_register_save_area ? 176 : 0);
+  // NOTE: Assuming we got a full pro/epilogue because we reference SP
 
-  for(auto& instr: first_bb.instrs){
-    if(instr.is(GBaseSubtype::stack_arg_load)){
+  for (auto &instr : first_bb.instrs) {
+    if (instr.is(GBaseSubtype::stack_arg_load)) {
       instr.sop = (u32)GBaseSubtype::mov;
       instr.args[1].imm += additional_offset;
     }
   }
-  
-
 
   // restore in *every* exiting basic block we first need to find these
   // should be all cfg blocks without any successors??
@@ -179,9 +181,25 @@ bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives, size_t start,
   return lives.at(reg_ty).collide(LinearRange::inBB(bb_id, start, end + 1));
 }
 
+Type get_save_type(CReg reg_ty, const TMap<CReg, Type> &max_types) {
+  if (reg_ty >= CReg::mm0) {
+    auto it = max_types.find(reg_ty);
+    Type max_ty = it != max_types.end() ? it->second : Type::Float64;
+    if (max_ty == Type::Float32) {
+      return Type::Float32;
+    }
+    if (max_ty == Type::Float64) {
+      return Type::Float64;
+    }
+    return Type::Int64x4;
+  }
+  return Type::Int64;
+}
+
 void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
                  size_t start, size_t end, size_t bb_id, MInstr &call,
-                 bool return_value_overwrites_ret_reg) {
+                 bool return_value_overwrites_ret_reg,
+                 const TMap<CReg, Type> &max_types) {
   for (auto reg_ty : caller_saved | std::views::reverse) {
     if (call.n_args >= 2) {
       bool is_vec_reg = call.args[1].is_vec_reg();
@@ -198,7 +216,7 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
         reg_ty == CReg::SP || reg_ty == CReg::BP) {
       continue;
     }
-    auto push_ty = reg_ty >= CReg::mm0 ? Type::Int64x4 : Type::Int64;
+    auto push_ty = get_save_type(reg_ty, max_types);
     auto arg = MArgument{VReg{reg_ty, push_ty}, push_ty};
     instrs.insert(instrs.begin() + (i64)start, MInstr{GBaseSubtype::push, arg});
   }
@@ -206,14 +224,16 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
     if (call.n_args > 2) {
       const auto reg2_ty = call.args[2].is_vec_reg() ? CReg::mm1 : CReg::D;
       if (is_alive(VReg{reg2_ty}, lives, end, end + 1, bb_id)) {
-        auto arg = MArgument{VReg{reg2_ty, Type::Int64}, Type::Int64};
+        auto save_ty = get_save_type(reg2_ty, max_types);
+        auto arg = MArgument{VReg{reg2_ty, save_ty}, save_ty};
         instrs.insert(instrs.begin() + (i64)start,
                       MInstr{GBaseSubtype::push, arg});
       }
     }
     const auto reg1_ty = call.args[1].is_vec_reg() ? CReg::mm0 : CReg::A;
     if (is_alive(VReg{reg1_ty}, lives, end, end + 1, bb_id)) {
-      auto arg = MArgument{VReg{reg1_ty, Type::Int64}, Type::Int64};
+      auto save_ty = get_save_type(reg1_ty, max_types);
+      auto arg = MArgument{VReg{reg1_ty, save_ty}, save_ty};
       instrs.insert(instrs.begin() + (i64)start,
                     MInstr{GBaseSubtype::push, arg});
     }
@@ -223,7 +243,7 @@ void save_locals(IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives,
 std::pair<uint32_t, uint32_t> restore_locals(
     IRVec<MInstr> &instrs, TMap<VReg, LinearRangeSet> &lives, size_t start,
     size_t end, size_t bb_id, bool return_value_overwrites_ret_reg,
-    MInstr &call) {
+    MInstr &call, const TMap<CReg, Type> &max_types) {
   uint32_t n_locals_restored = 0;
   uint32_t n_local_bytes_restored = 0;
 
@@ -260,13 +280,15 @@ std::pair<uint32_t, uint32_t> restore_locals(
       bool mm1_gets_overwritten =
           (is_vec_reg && is_alive(VReg{CReg::mm1}, lives, end, end + 1, bb_id));
       if (a_gets_overwritten || mm0_gets_overwritten) {
-        auto arg = MArgument{VReg{ret1_reg_type, Type::Int64}, Type::Int64};
+        auto save_ty = get_save_type(ret1_reg_type, max_types);
+        auto arg = MArgument{VReg{ret1_reg_type, save_ty}, save_ty};
         instrs.insert(instrs.begin() + (i64)start,
                       MInstr{GBaseSubtype::pop, arg});
         n_locals_restored++;
       }
       if ((d_gets_overwritten || mm1_gets_overwritten) && has_double_ret) {
-        auto arg = MArgument{VReg{ret2_reg_type, Type::Int64}, Type::Int64};
+        auto save_ty = get_save_type(ret2_reg_type, max_types);
+        auto arg = MArgument{VReg{ret2_reg_type, save_ty}, save_ty};
         instrs.insert(instrs.begin() + (i64)start,
                       MInstr{GBaseSubtype::pop, arg});
         n_locals_restored++;
@@ -296,7 +318,7 @@ std::pair<uint32_t, uint32_t> restore_locals(
         !is_alive(VReg{reg_ty}, lives, end, end + 1, bb_id)) {
       continue;
     }
-    auto push_ty = reg_ty >= CReg::mm0 ? Type::Int64x4 : Type::Int64;
+    auto push_ty = get_save_type(reg_ty, max_types);
     n_locals_restored += 1;
     n_local_bytes_restored += get_size(push_ty) / 8;
     auto arg = MArgument{VReg{reg_ty, push_ty}, push_ty};
@@ -438,7 +460,8 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs, const TVec<MInstr> &args,
 }
 
 void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
-                    size_t bb_id, TMap<VReg, LinearRangeSet> &lives) {
+                    size_t bb_id, TMap<VReg, LinearRangeSet> &lives,
+                    const TMap<CReg, Type> &max_types) {
   size_t n_args = end - start;
 
   TVec<MInstr> args;
@@ -462,8 +485,9 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
     }
   }
 
-  const auto [n_locals_saved, n_local_bytes_need_saving] = restore_locals(
-      instrs, lives, start, end, bb_id, return_value_overwrites_ret_reg, call);
+  const auto [n_locals_saved, n_local_bytes_need_saving] =
+      restore_locals(instrs, lives, start, end, bb_id,
+                     return_value_overwrites_ret_reg, call, max_types);
 
   TVec<ArgPosition> arg_pos;
   auto n_stack_args = calculate_arg_locations(args, arg_pos);
@@ -510,7 +534,7 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
   // }
   // save locals
   save_locals(instrs, lives, start, end, bb_id, call,
-              return_value_overwrites_ret_reg);
+              return_value_overwrites_ret_reg, max_types);
 
   if ((n_local_bytes_need_saving + n_stack_args) % 2 != 0) {
     instrs.insert(instrs.begin() + (i64)start,
@@ -521,6 +545,68 @@ void transform_call(IRVec<MInstr> &instrs, size_t start, size_t end,
 
 static_assert((u8)CReg::R15 == 16);
 static_assert((u8)CReg::A == 1);
+
+TMap<CReg, Type> compute_max_reg_types(const MFunc &f) {
+  TMap<CReg, Type> max_types;
+  for (const auto &bb : f.bbs) {
+    for (const auto &instr : bb.instrs) {
+      for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
+        const auto &arg = instr.args[arg_id];
+        switch (arg.type) {
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+          case MArgument::ArgumentType::VReg: {
+            if (arg.reg.is_concrete()) {
+              auto creg = arg.reg.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
+            }
+            break;
+          }
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+          case MArgument::ArgumentType::MemVRegVRegScale: {
+            if (arg.reg.is_concrete()) {
+              auto creg = arg.reg.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
+            }
+            if (arg.indx.is_concrete()) {
+              auto creg = arg.indx.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
+            }
+            break;
+          }
+          case MArgument::ArgumentType::MemImmVRegScale: {
+            if (arg.indx.is_concrete()) {
+              auto creg = arg.indx.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
+  return max_types;
+}
 
 utils::BitSet<> calculate_used_regs(const MFunc &f) {
   utils::BitSet<> res{(u8)CReg::N_REGS, false};
@@ -582,6 +668,7 @@ void CallingConv::second_stage(MFunc &func) {
   CFG cfg(func);
   save_regs_callee(func, cfg);
   TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
+  TMap<CReg, Type> max_types = compute_max_reg_types(func);
   // fmt::println("\n=========\n{}", func);
   // for (auto &[reg, ranges] : lives) {
   //   fmt::print("  {}  ", reg);
@@ -606,7 +693,8 @@ void CallingConv::second_stage(MFunc &func) {
           break;
         }
       }
-      transform_call(bb.instrs, instr_start_id, instr_end_id, bb_id, lives);
+      transform_call(bb.instrs, instr_start_id, instr_end_id, bb_id, lives,
+                     max_types);
       // update the n of instrs since the might have changed it
       n_instrs = bb.instrs.size();
     }
@@ -648,9 +736,9 @@ void gen_arg_mapping_reg(MFunc &func) {
       // func.args[arg_i].info = VRegInfo{int_arg_reg[int_arg_id], arg_ty};
       int_arg_id++;
     } else {
-      instr =
-          MInstr(GBaseSubtype::stack_arg_load, MArgument{func.args[arg_i], arg_ty},
-                 MArgument::MemOB(8 * (n_stack_args), VReg::RSP(), arg_ty));
+      instr = MInstr(GBaseSubtype::stack_arg_load,
+                     MArgument{func.args[arg_i], arg_ty},
+                     MArgument::MemOB(8 * (n_stack_args), VReg::RSP(), arg_ty));
       n_stack_args++;
     }
     func.bbs[0].instrs.insert(func.bbs[0].instrs.begin(), instr);

@@ -1,3 +1,5 @@
+#include "loop_analysis.hpp"
+
 #include <fmt/core.h>
 
 #include <algorithm>
@@ -10,7 +12,6 @@
 #include "ir/types.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
-#include "loop_analysis.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
 #include "utils/vec.hpp"
@@ -1033,11 +1034,11 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
   }
   start_value = lowwer_boundv.as_constant()->as_int();
 
-  ASSERT(change_val > 0);
-  if (is_eql_cond) {
+  if (is_eql_cond && change_val > 0) {
     if (loop_continue == 0) {
-      // means if the targets of the leaving cbranch are switched the condition
-      // is effectively also switched
+      // TODO: can atleast add it for cahnge_val < 0
+      //  means if the targets of the leaving cbranch are switched the condition
+      //  is effectively also switched
       return false;
     }
     if ((change_val > 0 && start_value > end_value) ||
@@ -1053,12 +1054,12 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
       // real_end_value = end_value + (change_val - (range % change_val));
     }
     n_iter = (real_end_value - start_value) / change_val;
-  } else {
+  } else if (change_val > 0) {
     if (loop_continue != 0) {
       // means if the targets of the leaving cbranch are switched the condition
       // is effectively also switched
-      TODO("impl different continue");
-      // return false;
+      // TODO("impl different continue");
+      return false;
     }
     if ((change_val > 0 && start_value > end_value) ||
         (change_val < 0 && start_value < end_value)) {
@@ -1075,6 +1076,8 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
       real_end_value = end_value + (change_val - (range % change_val));
     }
     n_iter = (real_end_value - start_value) / change_val;
+  } else {
+    return false;
   }
   return true;
 }
