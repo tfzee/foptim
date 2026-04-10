@@ -16,8 +16,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
                                                 u64 lanes) {
   // just ignore control flow for now
   // also ignore memory stuff for now
-  if (func.basic_blocks.size() > 1 || !func.attribs.mem_read_none || func.attribs.variadic ||
-      func.attribs.no_return) {
+  if (func.basic_blocks.size() > 1 || !func.attribs.mem_read_none ||
+      func.attribs.variadic || func.attribs.no_return) {
     return {};
   }
   switch (func.attribs.linkage) {
@@ -51,9 +51,12 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::IntAdd:
             case fir::BinaryInstrSubType::IntSub:
             case fir::BinaryInstrSubType::IntMul:
+            case fir::BinaryInstrSubType::FloatSub:
+            case fir::BinaryInstrSubType::And:
+            case fir::BinaryInstrSubType::Or:
+            case fir::BinaryInstrSubType::Xor:
               cost -= lanes;
               break;
-            case fir::BinaryInstrSubType::FloatSub:
             case fir::BinaryInstrSubType::FloatDiv:
             case fir::BinaryInstrSubType::INVALID:
             case fir::BinaryInstrSubType::IntSRem:
@@ -63,9 +66,6 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::Shl:
             case fir::BinaryInstrSubType::Shr:
             case fir::BinaryInstrSubType::AShr:
-            case fir::BinaryInstrSubType::And:
-            case fir::BinaryInstrSubType::Or:
-            case fir::BinaryInstrSubType::Xor:
               if (debug_print) {
                 fmt::println("FAILED {}", instr);
               }
@@ -80,12 +80,6 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
         case fir::InstrType::Intrinsic:
           switch ((fir::IntrinsicSubType)instr->subtype) {
             case fir::IntrinsicSubType::FAbs:
-              cost -= lanes;
-              break;
-            case fir::IntrinsicSubType::INVALID:
-            case fir::IntrinsicSubType::CTLZ:
-            case fir::IntrinsicSubType::VA_start:
-            case fir::IntrinsicSubType::VA_end:
             case fir::IntrinsicSubType::Abs:
             case fir::IntrinsicSubType::UMin:
             case fir::IntrinsicSubType::UMax:
@@ -93,6 +87,12 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::IntrinsicSubType::SMax:
             case fir::IntrinsicSubType::FMin:
             case fir::IntrinsicSubType::FMax:
+              cost -= lanes;
+              break;
+            case fir::IntrinsicSubType::INVALID:
+            case fir::IntrinsicSubType::CTLZ:
+            case fir::IntrinsicSubType::VA_start:
+            case fir::IntrinsicSubType::VA_end:
             case fir::IntrinsicSubType::PopCnt:
             case fir::IntrinsicSubType::FRound:
             case fir::IntrinsicSubType::FCeil:
@@ -101,6 +101,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::IntrinsicSubType::IsConstant:
               break;
           }
+          break;
+        case fir::InstrType::BranchInstr:
           break;
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
@@ -113,7 +115,6 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
         case fir::InstrType::SExt:
         case fir::InstrType::Conversion:
         case fir::InstrType::SelectInstr:
-        case fir::InstrType::BranchInstr:
         case fir::InstrType::CondBranchInstr:
         case fir::InstrType::SwitchInstr:
         case fir::InstrType::Unreachable:
@@ -140,6 +141,14 @@ fir::ValueR convert_value(fir::ContextData* ctx, fir::Builder& buh,
   if (v.is_constant()) {
     return buh.build_vbroadcast(v, ctx->get_vec_type(v.get_type(), n_lanes));
   } else {
+    // if (!subs.contains(v)) {
+    //   if (v.is_instr()) {
+    //     fmt::println("Didnt find {:cd}", v.as_instr());
+    //   } else {
+    //     fmt::println("Didnt find {:cd}", v);
+    //   }
+    //   ASSERT(false);
+    // }
     return subs.at(v);
   }
 }
@@ -214,30 +223,37 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
         } break;
         case fir::InstrType::Intrinsic:
           switch ((fir::IntrinsicSubType)instr->subtype) {
+            case fir::IntrinsicSubType::Abs:
             case fir::IntrinsicSubType::FAbs: {
               auto new_i = buh.build_intrinsic(
                   convert_value(ctx, buh, instr->args[0], n_lanes, subs),
-                  fir::IntrinsicSubType::FAbs);
+                  (fir::IntrinsicSubType)instr->subtype);
+              subs.insert({fir::ValueR{instr}, new_i});
+            } break;
+            case fir::IntrinsicSubType::UMin:
+            case fir::IntrinsicSubType::UMax:
+            case fir::IntrinsicSubType::SMin:
+            case fir::IntrinsicSubType::SMax:
+            case fir::IntrinsicSubType::FMin:
+            case fir::IntrinsicSubType::FMax: {
+              auto new_i = buh.build_intrinsic(
+                  convert_value(ctx, buh, instr->args[0], n_lanes, subs),
+                  convert_value(ctx, buh, instr->args[1], n_lanes, subs),
+                  (fir::IntrinsicSubType)instr->subtype);
               subs.insert({fir::ValueR{instr}, new_i});
             } break;
             case fir::IntrinsicSubType::INVALID:
             case fir::IntrinsicSubType::CTLZ:
             case fir::IntrinsicSubType::VA_start:
             case fir::IntrinsicSubType::VA_end:
-            case fir::IntrinsicSubType::Abs:
-            case fir::IntrinsicSubType::UMin:
-            case fir::IntrinsicSubType::UMax:
-            case fir::IntrinsicSubType::SMin:
-            case fir::IntrinsicSubType::SMax:
-            case fir::IntrinsicSubType::FMin:
-            case fir::IntrinsicSubType::FMax:
             case fir::IntrinsicSubType::PopCnt:
             case fir::IntrinsicSubType::FRound:
             case fir::IntrinsicSubType::FCeil:
             case fir::IntrinsicSubType::FFloor:
             case fir::IntrinsicSubType::FTrunc:
             case fir::IntrinsicSubType::IsConstant:
-              break;
+              fmt::println("{}", instr);
+              TODO("impl");
           }
           break;
         case fir::InstrType::ICmp:
