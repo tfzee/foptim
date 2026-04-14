@@ -251,7 +251,7 @@ static constexpr u32 get_size(fmir::Type type) {
     case Type::Float64x2:
       return 8 * 2;
     case Type::Int32x8:
-      return 2 * 8;
+      return 4 * 8;
     case Type::Int64x4:
       return 8 * 4;
     case Type::Float32x8:
@@ -686,9 +686,39 @@ class MArgument {
     }
   }
 
+  /* *not* including vector registers*/
   [[nodiscard]] constexpr bool is_fp() const {
     return ty == Type::Float32 || ty == Type::Float64;
   }
+
+  /*including vector registers if they are typed integer*/
+  [[nodiscard]] constexpr bool is_int() const {
+    switch (ty) {
+      case Type::INVALID:
+      case Type::Float32:
+      case Type::Float64:
+      case Type::Float32x2:
+      case Type::Float32x4:
+      case Type::Float64x2:
+      case Type::Float32x8:
+      case Type::Float64x4:
+      case Type::Float32x16:
+      case Type::Float64x8:
+        return false;
+      case Type::Int8:
+      case Type::Int16:
+      case Type::Int32:
+      case Type::Int64:
+      case Type::Int32x4:
+      case Type::Int64x2:
+      case Type::Int32x8:
+      case Type::Int64x4:
+        return true;
+    }
+    return ty == Type::Float32 || ty == Type::Float64;
+  }
+
+  /* any vector register so both floating point or integer typed */
   [[nodiscard]] constexpr bool is_vec_reg() const {
     return ty >= Type::Float32;
   }

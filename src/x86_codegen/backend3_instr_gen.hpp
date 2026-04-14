@@ -87,6 +87,8 @@ ZydisRegister get_reg_sized_vec(const ZydisRegister *regs, u32 size) {
     case 32:
       return regs[1];
     case 64:
+      //TODO: i think avx512f is always included
+      ASSERT_M(utils::enable_avx512f, "Tried using avx512 types but didn't enable avx512 support");
       return regs[2];
     default:
   }
@@ -457,7 +459,7 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
       case fmir::Type::Int32x4:
       case fmir::Type::Float32x8:
       case fmir::Type::Int32x8:
-        req.mnemonic = ZYDIS_MNEMONIC_MOVUPS;
+        req.mnemonic = ZYDIS_MNEMONIC_VMOVUPS;
         break;
       case fmir::Type::Int64x2:
       case fmir::Type::Float64x2:
@@ -2084,7 +2086,11 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
-      req.mnemonic = ZYDIS_MNEMONIC_VEXTRACTF128;
+      if (instr.args[0].is_int()) {
+        req.mnemonic = ZYDIS_MNEMONIC_VEXTRACTI128;
+      } else {
+        req.mnemonic = ZYDIS_MNEMONIC_VEXTRACTF128;
+      }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
