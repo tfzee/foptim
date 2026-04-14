@@ -18,6 +18,7 @@
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
+#include "utils/helpers.hpp"
 #include "utils/set.hpp"
 #include "utils/vec.hpp"
 
@@ -271,7 +272,13 @@ class SCCP final : public FunctionPass {
             }
 
             if (a.is_int()) {
-              TODO("need to handle widths??");
+              i128 sum = 0;
+              for (auto &m : a.vals) {
+                sum += m.i;
+              }
+              i128 mask = utils::get_mask(instr->get_type()->get_bitwidth());
+              sum = sum & mask;
+              return ConstantValue::Constant(sum, instr->get_type());
             } else if (a.is_float() &&
                        ((a.vtype->is_float() && a.vtype->as_float() == 64) ||
                         (a.is_float() && a.vtype->is_vec() &&
