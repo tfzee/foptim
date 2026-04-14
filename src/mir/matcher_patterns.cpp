@@ -1883,8 +1883,16 @@ void base_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
             break;
           }
+          case Type::Int64x2: {
+            auto helper = data.alloc.get_new_register(Type::Int64);
+            auto helper_arg = MArgument{helper, Type::Int64};
+            res.result.emplace_back(GBaseSubtype::mov, helper_arg, a1);
+            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
+                                    MArgument((u8)1));
+            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
+            break;
+          }
           case Type::Int32x8:
-          case Type::Int64x2:
           case Type::Int64x4:
           case Type::Int32x4:
             fmt::println("{:cd}", hred_instr->args[0].get_type());
@@ -1947,14 +1955,20 @@ void base_patterns(IRVec<Pattern> &pats) {
           case Type::Float32x4:
             res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
             break;
+          case Type::Int64x2:
+            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
+                                    MArgument((u8)1));
+            break;
+          case Type::Int64x4:
+            res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
+                                    MArgument((u8)1));
+            break;
           case Type::Float32x2:
           case Type::Float64x2:
           case Type::Float32x8:
           case Type::Float64x4:
           case Type::Int32x8:
-          case Type::Int64x2:
           case Type::Int32x4:
-          case Type::Int64x4:
             fmt::println("{:cd}", extract_instr->args[0].get_type());
             fmt::println("{:cd}", extract_instr);
             TODO("impl");
@@ -1975,6 +1989,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           default:
             TODO("invalid?");
           case Type::Float32x4:
+          case Type::Int64x4:
             res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
             break;
           case Type::Float32x2:
@@ -1984,7 +1999,6 @@ void base_patterns(IRVec<Pattern> &pats) {
           case Type::Int32x8:
           case Type::Int64x2:
           case Type::Int32x4:
-          case Type::Int64x4:
             fmt::println("{:cd}", extract_instr->args[0].get_type());
             fmt::println("{:cd}", extract_instr);
             TODO("impl");
@@ -2836,7 +2850,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         if (call_instr->args[0].is_constant()) {
           calee = valueToArgPtr(call_instr->args[0], Type::Int64, res.result,
                                 data.alloc);
-          is_var_arg = call_instr->args[0].as_constant()->as_func()->attribs.variadic;
+          is_var_arg =
+              call_instr->args[0].as_constant()->as_func()->attribs.variadic;
         } else {
           calee = valueToArg(call_instr->args[0], res.result, data.alloc);
         }
