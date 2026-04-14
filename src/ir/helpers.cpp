@@ -258,8 +258,10 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
       auto typee = val->type->as_vec();
       auto width = typee.bitwidth;
       size_t i = 0;
+      ASSERT(width % 8 == 0);
+      auto width_byte = (width / 8);
       for (auto m : val->vec_u.v.members) {
-        convert_constant_init(output + (((width + 7) / 8) * i), m, glob);
+        convert_constant_init(output + (width_byte * i), m, glob);
         i++;
       }
       return;
