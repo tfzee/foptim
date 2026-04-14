@@ -516,6 +516,20 @@ class KnownBits final : public AttributeAnalysis {
         fmt::println("TODO: ATTRIB KNOWN BITS BIINARY OP {}",
                      associatedValue.as_instr());
       }
+    } else if (instr->is(fir::InstrType::VectorInstr)) {
+      switch ((fir::VectorISubType)instr->subtype) {
+        case fir::VectorISubType::INVALID:
+        case fir::VectorISubType::Broadcast:
+        case fir::VectorISubType::Shuffle:
+        case fir::VectorISubType::Concat:
+        case fir::VectorISubType::ExtractHigh:
+        case fir::VectorISubType::ExtractLow:
+        case fir::VectorISubType::HorizontalAdd:
+        case fir::VectorISubType::HorizontalMul:
+          new_known_one = 0;
+          new_known_zero = 0;
+          break;
+      }
     } else if (instr->is(fir::InstrType::ExtractValue)) {
       // TODO: can propagate in certain conditions (but then we prob removing
       // this extract value later one hm)
