@@ -102,8 +102,8 @@ class StaticParallelFunctionPassManager {
         (apply_pass<Passes>(ctx, *func,
                             utils::print_optimization_failure_reasons),
          ...);
-        ctx.data->storage.storage_instr.collect_garbage();
       });
+      ctx.data->storage.storage_instr.collect_garbage();
     }
     shed->wait_till_done();
     // ctx.data->storage.storage_instr.collect_garbage();
