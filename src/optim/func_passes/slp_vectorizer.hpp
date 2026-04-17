@@ -1,4 +1,5 @@
 #pragma once
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <algorithm>
@@ -43,6 +44,7 @@ class SLPVectorizer final : public FunctionPass {
       TODO("UNREACH");
     }
     virtual void dump() { TODO("UNREACH"); }
+    // higher = better
     virtual i64 cost() const { TODO("UNREACH"); }
     virtual ~TreeElem() = default;
   };
@@ -141,6 +143,7 @@ class SLPVectorizer final : public FunctionPass {
   void left_red_search(TVec<fir::ValueR> &reduction_inputs,
                        fir::ValueR curr_base, u32 exp_sub_type) {
     if (!curr_base.is_instr()) {
+      reduction_inputs.clear();
       return;
     }
     auto curr_i = curr_base.as_instr();
@@ -170,6 +173,7 @@ class SLPVectorizer final : public FunctionPass {
   void right_red_search(TVec<fir::ValueR> &reduction_inputs,
                         fir::ValueR curr_base, u32 exp_sub_type) {
     if (!curr_base.is_instr()) {
+      reduction_inputs.clear();
       return;
     }
     auto curr_i = curr_base.as_instr();
@@ -197,6 +201,27 @@ class SLPVectorizer final : public FunctionPass {
     }
   }
 
+  /*when the operation is associative we can just collect them in any order*/
+  // TODO: however we dont just want any order best case we would want to
+  // reorder them to improve chances for stuff like loads to be contininous
+  void red_search_assoc(TVec<fir::ValueR> &reduction_inputs,
+                        fir::ValueR curr_base, u32 exp_sub_type) {
+    ASSERT(curr_base.is_instr());
+    auto curr_i = curr_base.as_instr();
+
+    if (curr_i->instr_type != fir::InstrType::BinaryInstr ||
+        curr_i->subtype != exp_sub_type) {
+      reduction_inputs.push_back(curr_base);
+      return;
+    }
+    if (curr_i->args[0].is_instr() || curr_i->args[1].is_instr()) {
+      reduction_inputs.push_back(curr_base);
+      return;
+    }
+    red_search_assoc(reduction_inputs, curr_i->args[0], exp_sub_type);
+    red_search_assoc(reduction_inputs, curr_i->args[1], exp_sub_type);
+  }
+
   std::optional<SeedBundle> find_reduction(fir::BasicBlock bb, size_t instr_id,
                                            AliasAnalyis &aa) {
     SeedBundle curr;
@@ -209,11 +234,17 @@ class SLPVectorizer final : public FunctionPass {
     if (!base_instr->is(fir::InstrType::BinaryInstr)) {
       return {};
     }
-    bool isProd = subtype == (u32)fir::BinaryInstrSubType::FloatMul;
-    // subtype == (u32)fir::BinaryInstrSubType::IntMul;
-    bool isSum = subtype == (u32)fir::BinaryInstrSubType::FloatAdd;
-    // subtype == (u32)fir::BinaryInstrSubType::IntAdd;
-    if (!isProd && !isSum) {
+    bool isProd = subtype == (u32)fir::BinaryInstrSubType::FloatMul ||
+                  subtype == (u32)fir::BinaryInstrSubType::IntMul;
+    bool isSum = subtype == (u32)fir::BinaryInstrSubType::FloatAdd ||
+                 subtype == (u32)fir::BinaryInstrSubType::IntAdd;
+    bool isBool = subtype == (u32)fir::BinaryInstrSubType::Or ||
+                  subtype == (u32)fir::BinaryInstrSubType::And ||
+                  subtype == (u32)fir::BinaryInstrSubType::Xor;
+    bool is_associative = subtype == (u32)fir::BinaryInstrSubType::IntMul ||
+                          subtype == (u32)fir::BinaryInstrSubType::IntAdd ||
+                          isBool;
+    if (!isProd && !isSum && !isBool) {
       return {};
     }
 
@@ -224,9 +255,12 @@ class SLPVectorizer final : public FunctionPass {
     {
       TVec<fir::ValueR> res1;
       TVec<fir::ValueR> res2;
-      left_red_search(res1, fir::ValueR{base_instr}, subtype);
-      right_red_search(res2, fir::ValueR{base_instr}, subtype);
-
+      if (is_associative) {
+        red_search_assoc(res1, fir::ValueR{base_instr}, subtype);
+      } else {
+        left_red_search(res1, fir::ValueR{base_instr}, subtype);
+        right_red_search(res2, fir::ValueR{base_instr}, subtype);
+      }
       auto max_size = std::max(res1.size(), res2.size());
 
       if (max_size == 2 || max_size == 4 ||
