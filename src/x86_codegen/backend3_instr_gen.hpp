@@ -87,8 +87,9 @@ ZydisRegister get_reg_sized_vec(const ZydisRegister *regs, u32 size) {
     case 32:
       return regs[1];
     case 64:
-      //TODO: i think avx512f is always included
-      ASSERT_M(utils::enable_avx512f, "Tried using avx512 types but didn't enable avx512 support");
+      // TODO: i think avx512f is always included
+      ASSERT_M(utils::enable_avx512f,
+               "Tried using avx512 types but didn't enable avx512 support");
       return regs[2];
     default:
   }
@@ -1783,7 +1784,7 @@ inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   (void)proepiloguetype;
   size_t length = 9999;
   switch ((fmir::GVecSubtype)instr.sop) {
-    case fmir::GVecSubtype::fmul:
+    case fmir::GVecSubtype::vmul:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
@@ -1815,7 +1816,7 @@ inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
-    case fmir::GVecSubtype::fdiv:
+    case fmir::GVecSubtype::vdiv:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
@@ -1892,7 +1893,7 @@ inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
-    case fmir::GVecSubtype::fOr:
+    case fmir::GVecSubtype::vOr:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
@@ -1900,7 +1901,7 @@ inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                          ? ZYDIS_MNEMONIC_VORPS
                          : ZYDIS_MNEMONIC_VORPD;
       return emit(out_buff, 0, &req);
-    case fmir::GVecSubtype::fAnd:
+    case fmir::GVecSubtype::vAnd:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
@@ -1908,7 +1909,7 @@ inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                          ? ZYDIS_MNEMONIC_VANDPS
                          : ZYDIS_MNEMONIC_VANDPD;
       return emit(out_buff, 0, &req);
-    case fmir::GVecSubtype::fxor:
+    case fmir::GVecSubtype::vXor:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
@@ -1916,7 +1917,7 @@ inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                          ? ZYDIS_MNEMONIC_VXORPS
                          : ZYDIS_MNEMONIC_VXORPD;
       return emit(out_buff, 0, &req);
-    case fmir::GVecSubtype::fShl:
+    case fmir::GVecSubtype::vShl:
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
@@ -2038,6 +2039,74 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           break;
         case fmir::Type::Float64:
           req.mnemonic = ZYDIS_MNEMONIC_SQRTSD;
+          break;
+      }
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::psrl: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      switch (instr.args[0].ty) {
+        default:
+        case fmir::Type::INVALID:
+          UNREACH();
+        case fmir::Type::Int32x4:
+        case fmir::Type::Int32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPSRLD;
+          break;
+        case fmir::Type::Int64x2:
+        case fmir::Type::Int64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VPSRLQ;
+          break;
+      }
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::psll: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      switch (instr.args[0].ty) {
+        default:
+        case fmir::Type::INVALID:
+          UNREACH();
+        case fmir::Type::Int32x4:
+        case fmir::Type::Int32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPSLLD;
+          break;
+        case fmir::Type::Int64x2:
+        case fmir::Type::Int64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VPSLLQ;
+          break;
+      }
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::pmuludq: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      req.mnemonic = ZYDIS_MNEMONIC_VPMULUDQ;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::padd: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      switch (instr.args[0].ty) {
+        default:
+        case fmir::Type::INVALID:
+          UNREACH();
+        case fmir::Type::Int32x4:
+        case fmir::Type::Int32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPADDW;
+          break;
+        case fmir::Type::Int64x2:
+        case fmir::Type::Int64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VPADDQ;
           break;
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
