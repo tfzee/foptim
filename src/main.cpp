@@ -195,8 +195,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, InstSimplify,
-      CmpKnownValProp, SimplifyCFG, SCCP, SLPVectorizer, DCE, LVN, InstSimplify,
-      DCE>{}
+      CmpKnownValProp, SimplifyCFG, SCCP>{}
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<
       ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>,

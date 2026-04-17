@@ -244,6 +244,97 @@ class ArgPromotion final : public ModulePass {
     return false;
   }
 
+  // if we return a pointer and its just loaded once just load on the inside so
+  // we dont have pointers getting handed arround
+  //  allos will allows for further optimizations possibly on the pointer that
+  //  would otherwise escape
+  bool promote_ptr_to_value_return(fir::FunctionR func, fir::Context &ctx) {
+    if (!func->func_ty->as_func().return_type->is_ptr()) {
+      return false;
+    }
+
+    fir::TypeR res_type{};
+    for (auto use : func->get_uses()) {
+      // check if used outside of direct calls
+      if (use.type != fir::UseType::NormalArg ||
+          !use.user->is(fir::InstrType::CallInstr) || use.argId != 0) {
+        return false;
+      }
+      // check if return value is only loaded
+      for (auto ret_use : use.user->uses) {
+        const auto load_i = ret_use.user;
+        if (!load_i->is(fir::InstrType::LoadInstr)) {
+          return false;
+        }
+        // TODO: could handle this however there are some issues
+        //  when for example multiple volatiles get joined or atomics would need
+        //  to check some ordering
+        if (load_i->Atomic || load_i->Volatile) {
+          return false;
+        }
+        // needs consistent typing
+        if (!res_type.is_valid()) {
+          res_type = load_i.get_type();
+        } else if (res_type != load_i.get_type()) {
+          return false;
+        }
+        // need to verify no writes inbetween
+        // TODO: for now just most basic approach should do AA analysis
+        {
+          // for basic appraoch just check if same bb + no potential writes
+          // between
+          if (load_i->get_parent() != use.user->get_parent()) {
+            return false;
+          }
+          auto bb = use.user->get_parent();
+          bool found_write = false;
+          for (size_t i = 0; i < bb->instructions.size(); i++) {
+            if (bb->instructions[i] == use.user) {
+              found_write = false;
+            } else if (bb->instructions[i]->pot_modifies_mem()) {
+              found_write = true;
+            } else if (bb->instructions[i] == load_i) {
+              break;
+            }
+          }
+          if (found_write) {
+            return false;
+          }
+        }
+      }
+    }
+    if (!res_type.is_valid()) {
+      return false;
+    }
+    // return false;
+
+    // remove the loads from the function calls
+    for (auto use : func->get_uses()) {
+      for (auto ret_use : use.user->uses) {
+        ret_use.user->replace_all_uses(fir::ValueR{use.user});
+      }
+    }
+
+    for (auto bb : func->basic_blocks) {
+      auto term = bb->get_terminator();
+      if (!term->is(fir::InstrType::ReturnInstr)) {
+        continue;
+      }
+      fir::Builder buh(term);
+      auto new_loaded_val =
+          buh.build_load(res_type, term->args[0], false, false);
+      term.replace_arg(0, new_loaded_val);
+    }
+    (void)ctx;
+    // fmt::print("{:cd}", *func.func);
+    // for (auto use : func->get_uses()) {
+    //   fmt::print("{:cd}", use.user->get_parent());
+    // }
+    // TODO("impl");
+
+    return true;
+  }
+
   // if we have ptr arguments and all we do is a load of its value and its not a
   // massive value (<= ptrsize also good cause CC)
   //  we can isntead do the load before the call allowing potentialy more
@@ -273,19 +364,53 @@ class ArgPromotion final : public ModulePass {
       bool can_promote = arg->get_type()->is_ptr();
       fir::TypeR load_type = fir::TypeR();
       for (auto use : arg->uses) {
+        if (!can_promote) {
+          break;
+        }
         // TODO there might be others??
-        if (!use.user->is(fir::InstrType::LoadInstr) || use.user->Atomic) {
-          can_promote = false;
-          break;
-        }
-        if (!load_type.is_valid()) {
-          load_type = use.user.get_type();
-        } else if (load_type != use.user.get_type()) {
-          can_promote = false;
-          break;
-        }
-        if (!func->attribs.mem_read_none && !func->attribs.mem_read_only &&
-            are_there_potential_aliasing_stores(func, arg, use, cfg, aa)) {
+        if (use.user->is(fir::InstrType::LoadInstr)) {
+          if (use.user->Atomic) {
+            can_promote = false;
+            break;
+          }
+          if (!load_type.is_valid()) {
+            load_type = use.user.get_type();
+          } else if (load_type != use.user.get_type()) {
+            can_promote = false;
+            break;
+          }
+          if (!func->attribs.mem_read_none && !func->attribs.mem_read_only &&
+              are_there_potential_aliasing_stores(func, arg, use, cfg, aa)) {
+            can_promote = false;
+            break;
+          }
+        } else if (use.user->is(fir::InstrType::SelectInstr)) {
+          // can also handle the select instr just need to ensure we can load
+          // prior so no aliasing issues.
+          //  but this needs some more cleanup later
+          for (auto sub_use : use.user->uses) {
+            if (!sub_use.user->is(fir::InstrType::LoadInstr) ||
+                sub_use.user->Atomic) {
+              can_promote = false;
+              break;
+            }
+            if (!load_type.is_valid()) {
+              load_type = sub_use.user.get_type();
+            } else if (load_type != sub_use.user.get_type()) {
+              can_promote = false;
+              break;
+            }
+            if (!func->attribs.mem_read_none && !func->attribs.mem_read_only &&
+                are_there_potential_aliasing_stores(func, arg, sub_use, cfg,
+                                                    aa)) {
+              can_promote = false;
+              break;
+            }
+          }
+          if (!can_promote) {
+            break;
+          }
+        } else {
           can_promote = false;
           break;
         }
@@ -302,7 +427,21 @@ class ArgPromotion final : public ModulePass {
       TVec<fir::Use> uses =
           TVec<fir::Use>{arg->get_uses().begin(), arg->get_uses().end()};
       for (auto use : uses) {
-        use.user->replace_all_uses(fir::ValueR{arg});
+        if (use.user->is(fir::InstrType::LoadInstr)) {
+          use.user->replace_all_uses(fir::ValueR{arg});
+        } else {
+          fir::Builder buh{use.user};
+          auto load1 =
+              buh.build_load(load_type, use.user->args[1], false, false);
+          auto load2 =
+              buh.build_load(load_type, use.user->args[2], false, false);
+          auto res =
+              buh.build_select(load_type, use.user->args[0], load1, load2);
+          for (auto subuse : use.user->uses) {
+            subuse.user->replace_all_uses(res);
+            subuse.user.destroy();
+          }
+        }
       }
       for (auto use : uses) {
         use.user.destroy();
@@ -378,6 +517,10 @@ class ArgPromotion final : public ModulePass {
             use.type != fir::UseType::NormalArg || use.argId != 0) {
           continue;
         }
+      }
+      if (promote_ptr_to_value_return(f.get(), ctx)) {
+        iter = ctx.data->storage.functions.begin();
+        continue;
       }
       if (promote_ptr_to_value_args(f.get(), ctx)) {
         iter = ctx.data->storage.functions.begin();
