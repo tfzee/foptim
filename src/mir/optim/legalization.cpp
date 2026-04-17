@@ -1,9 +1,12 @@
 #include "legalization.hpp"
 
+#include <fmt/base.h>
+
 #include <limits>
 
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
+#include "utils/parameters.hpp"
 
 namespace foptim::fmir {
 
@@ -57,7 +60,7 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
     bb.instrs[indx].args[arg_id] = new_float_reg;
     bb.instrs.insert(
         bb.instrs.begin() + indx,
-        MInstr{GVecSubtype::fxor, new_float_reg, new_float_reg, new_float_reg});
+        MInstr{GVecSubtype::vXor, new_float_reg, new_float_reg, new_float_reg});
     return indx + 1;
   }
 
@@ -289,7 +292,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
     // cant jsut check on == 0 on a floating point
     if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
       instr.bop = GOpcode::GVec;
-      instr.sop = (u32)GVecSubtype::fxor;
+      instr.sop = (u32)GVecSubtype::vXor;
       instr.args[1] = instr.args[0];
       instr.args[2] = instr.args[0];
       instr.n_args = 3;
@@ -443,6 +446,63 @@ bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
   }
   if (instr.args[2].isImm()) {
     indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
+    return true;
+  }
+  // cant do 64 bit mul without avx512
+  if (!utils::enable_avx512dq && instr.is(GVecSubtype::vmul) &&
+      (instr.args[0].ty == Type::Int64x2 ||
+       instr.args[0].ty == Type::Int64x4)) {
+    auto out = instr.args[0];
+    auto arg0 = instr.args[1];
+    auto arg1 = instr.args[2];
+    auto ty = out.ty;
+
+    bb.instrs.erase(bb.instrs.begin() + indx);
+
+    u32 offset = 0;
+
+    if (arg0.isImm() || arg0.isMem()) {
+      auto hArg = get_reg(arg0.ty);
+      bb.instrs.insert(bb.instrs.begin() + indx + (offset++),
+                       {GBaseSubtype::mov, hArg, arg0});
+      arg0 = hArg;
+    }
+    if (arg1.isImm() || arg1.isMem()) {
+      auto hArg = get_reg(arg1.ty);
+      bb.instrs.insert(bb.instrs.begin() + indx + (offset++),
+                       {GBaseSubtype::mov, hArg, arg1});
+      arg1 = hArg;
+    }
+
+    auto h2 = get_reg(ty);
+    auto h3 = get_reg(ty);
+    // vpsrlq   h2, arg1, 32
+    bb.instrs.insert(
+        bb.instrs.begin() + indx + (offset++),
+        {X86Subtype::psrl, h2, arg1, MArgument::Int(32, Type::Int8)});
+    // vpmuludq h2, h2, arg0
+    bb.instrs.insert(bb.instrs.begin() + indx + (offset++),
+                     {X86Subtype::pmuludq, h2, h2, arg0});
+    // vpsrlq   h3, arg0, 32
+    bb.instrs.insert(
+        bb.instrs.begin() + indx + (offset++),
+        {X86Subtype::psrl, h3, arg0, MArgument::Int(32, Type::Int8)});
+    // vpmuludq h3, arg1, h3
+    bb.instrs.insert(bb.instrs.begin() + indx + (offset++),
+                     {X86Subtype::pmuludq, h3, arg1, h3});
+    // vpaddq   h2, h3, h2
+    bb.instrs.insert(bb.instrs.begin() + indx + (offset++),
+                     {X86Subtype::padd, h2, h3, h2});
+    // vpsllq   h2, h2, 32
+    bb.instrs.insert(
+        bb.instrs.begin() + indx + (offset++),
+        {X86Subtype::psll, h2, h2, MArgument::Int(32, Type::Int8)});
+    // vpmuludq out, arg1, arg0
+    bb.instrs.insert(bb.instrs.begin() + indx + (offset++),
+                     {X86Subtype::pmuludq, out, arg1, arg0});
+    // vpaddq   out, out, h2
+    bb.instrs.insert(bb.instrs.begin() + indx + (offset++),
+                     {X86Subtype::padd, out, out, h2});
     return true;
   }
   return false;
@@ -818,13 +878,13 @@ void Legalizer::apply_impl(MFunc &func) {
           break;
         case GOpcode::GVec:
           switch ((GVecSubtype)bb.instrs[i].sop) {
-            case GVecSubtype::fmul:
-            case GVecSubtype::fdiv:
+            case GVecSubtype::vmul:
+            case GVecSubtype::vdiv:
             case GVecSubtype::vsub:
-            case GVecSubtype::fxor:
+            case GVecSubtype::vXor:
             case GVecSubtype::vadd:
-            case GVecSubtype::fAnd:
-            case GVecSubtype::fOr:
+            case GVecSubtype::vAnd:
+            case GVecSubtype::vOr:
               if (legalize_floating_binary_ops(bb, i)) {
                 ioff = 0;
               }

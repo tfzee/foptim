@@ -230,13 +230,13 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GVecSubtype::vsub:
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
-        case GVecSubtype::fmul:
-        case GVecSubtype::fdiv:
+        case GVecSubtype::vmul:
+        case GVecSubtype::vdiv:
         case GVecSubtype::ffmadd:
-        case GVecSubtype::fxor:
-        case GVecSubtype::fAnd:
-        case GVecSubtype::fOr:
-        case GVecSubtype::fShl:
+        case GVecSubtype::vXor:
+        case GVecSubtype::vAnd:
+        case GVecSubtype::vOr:
+        case GVecSubtype::vShl:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
@@ -276,10 +276,15 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vpextr:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vround:
+        case X86Subtype::psrl:
+        case X86Subtype::psll:
+        case X86Subtype::pmuludq:
+        case X86Subtype::padd:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
           return;
+          break;
       }
   }
 }
@@ -494,7 +499,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           update_uses(instr.args[2], uses);
           update_uses(instr.args[3], uses);
           return;
-        case GVecSubtype::fxor: {
+        case GVecSubtype::vXor: {
           // Handle xor xmm0, xmm0, xmm0
           //  since it doesnt actually 'read' from the previous value
           //  similar how it cancels dependencies in the cpu
@@ -516,11 +521,11 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case GVecSubtype::fMin:
         case GVecSubtype::vadd:
         case GVecSubtype::vsub:
-        case GVecSubtype::fmul:
-        case GVecSubtype::fdiv:
-        case GVecSubtype::fAnd:
-        case GVecSubtype::fOr:
-        case GVecSubtype::fShl:
+        case GVecSubtype::vmul:
+        case GVecSubtype::vdiv:
+        case GVecSubtype::vAnd:
+        case GVecSubtype::vOr:
+        case GVecSubtype::vShl:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }
@@ -612,6 +617,10 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vround:
+        case X86Subtype::psrl:
+        case X86Subtype::psll:
+        case X86Subtype::pmuludq:
+        case X86Subtype::padd:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }
@@ -824,7 +833,7 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
     }
     if (res.is_read) {
       auto instr = instrs[i];
-      if (instrs[i].is(GVecSubtype::fxor) && instr.args[1].isReg() &&
+      if (instrs[i].is(GVecSubtype::vXor) && instr.args[1].isReg() &&
           reg_to_uid(instr.args[1].reg) == search_reg_id &&
           instr.args[1] == instr.args[2]) {
         res.is_read = false;

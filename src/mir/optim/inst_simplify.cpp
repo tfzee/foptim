@@ -34,7 +34,7 @@ bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       }
       if (is_zero && instr.args[0].reg.is_vec_reg()) {
         instr.bop = GOpcode::GVec;
-        instr.sop = (u32)GVecSubtype::fxor;
+        instr.sop = (u32)GVecSubtype::vXor;
         instr.n_args = 3;
         instr.args[1] = instr.args[0];
         instr.args[2] = instr.args[0];

@@ -1179,7 +1179,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         //    fmt::println("{}", res.result);
         //  } else
         {
-          res.result.emplace_back(GVecSubtype::fmul, res_reg, mul_arg1,
+          res.result.emplace_back(GVecSubtype::vmul, res_reg, mul_arg1,
                                   mul_arg2);
           res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg,
                                   add_arg2);
@@ -1723,7 +1723,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                   res.result.emplace_back(X86Subtype::vpcmpeq, res_reg, res_reg,
                                           res_reg);
                   res.result.emplace_back(
-                      GVecSubtype::fxor, res_reg, res_reg,
+                      GVecSubtype::vXor, res_reg, res_reg,
                       valueToArg(not_instr->args[0], res.result, data.alloc));
                 } else if (res_reg.is_vec_reg()) {
                   fmt::print("{:cd}", not_instr);
@@ -1781,12 +1781,12 @@ void base_patterns(IRVec<Pattern> &pats) {
             TODO("invalid?");
           case Type::Float32x2:
             res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
-            res.result.emplace_back(GVecSubtype::fmul, res_reg, res_reg, a1);
+            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
             break;
           case Type::Float64x2:
             res.result.emplace_back(X86Subtype::vpermil, res_reg, a1,
                                     MArgument::Int(1, Type::Int8));
-            res.result.emplace_back(GVecSubtype::fmul, res_reg, res_reg, a1);
+            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
             break;
           case Type::Int32x4:
           case Type::Int64x2:
@@ -1892,8 +1892,27 @@ void base_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
             break;
           }
+          case Type::Int64x4: {
+            auto helper_vec = data.alloc.get_new_register(Type::Int64x2);
+            auto helper_vec_arg = MArgument{helper_vec, Type::Int64x2};
+
+            auto helper = data.alloc.get_new_register(Type::Int64);
+            auto helper_arg = MArgument{helper, Type::Int64};
+            res.result.emplace_back(X86Subtype::vextract128, helper_vec_arg, a1,
+                                    MArgument((u8)1));
+            ASSERT(a1.isReg());
+            res.result.emplace_back(
+                GVecSubtype::vadd, helper_vec_arg, helper_vec_arg,
+                MArgument{a1.reg.retype(Type::Int64x2), Type::Int64x2});
+
+            res.result.emplace_back(GBaseSubtype::mov, helper_arg,
+                                    helper_vec_arg);
+            res.result.emplace_back(X86Subtype::vpextr, res_reg, helper_vec_arg,
+                                    MArgument((u8)1));
+            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
+            break;
+          }
           case Type::Int32x8:
-          case Type::Int64x4:
           case Type::Int32x4:
             fmt::println("{:cd}", hred_instr->args[0].get_type());
             fmt::println("{:cd}", hred_instr);
@@ -2030,7 +2049,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto arg = valueToArg(broad_instr->args[0], res.result, data.alloc);
         if (arg.isImm() && ((!arg.is_fp() && arg.imm == 0) ||
                             (arg.is_fp() && arg.immf == 0))) {
-          res.result.emplace_back(GVecSubtype::fxor, res_reg, res_reg, res_reg);
+          res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg, res_reg);
           return true;
         }
         // TODO: better way to generate if the lowest or the upper n bits
@@ -2173,7 +2192,7 @@ void base_patterns(IRVec<Pattern> &pats) {
             case 32:
             case 64:
               // vpsllvd ymm0, ymm1, ymm2
-              res.result.emplace_back(GVecSubtype::fShl, res_reg, a, b);
+              res.result.emplace_back(GVecSubtype::vShl, res_reg, a, b);
               return true;
               // idk this seems not very easy for avx2
             default:
@@ -2288,7 +2307,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         if (res_reg.is_vec_reg()) {
           res.result.emplace_back(
-              GVecSubtype::fmul, res_reg,
+              GVecSubtype::vmul, res_reg,
               valueToArg(add_instr->args[0], res.result, data.alloc),
               valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
                                add_instr->get_parent()));
@@ -2314,7 +2333,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 if (res_reg.is_vec_reg()) {
                   res.result.emplace_back(
-                      GVecSubtype::fOr, res_reg,
+                      GVecSubtype::vOr, res_reg,
                       valueToArg(or_instr->args[0], res.result, data.alloc),
                       valueToArg(or_instr->args[1], res.result, data.alloc));
                 } else {
@@ -2337,7 +2356,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 if (res_reg.is_vec_reg()) {
                   res.result.emplace_back(
-                      GVecSubtype::fAnd, res_reg,
+                      GVecSubtype::vAnd, res_reg,
                       valueToArg(and_instr->args[0], res.result, data.alloc),
                       valueToArg(and_instr->args[1], res.result, data.alloc));
                 } else {
@@ -2361,7 +2380,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
                 if (res_reg.is_fp()) {
                   res.result.emplace_back(
-                      GVecSubtype::fxor, res_reg,
+                      GVecSubtype::vXor, res_reg,
                       valueToArg(xor_instr->args[0], res.result, data.alloc),
                       valueToArg(xor_instr->args[1], res.result, data.alloc));
                 } else {
@@ -2935,7 +2954,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           std::memcpy(&v, &val, sizeof(f32));
           a2 = MArgument{v};
         }
-        res.result.emplace_back(GVecSubtype::fxor, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::vXor, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2963,7 +2982,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
 
-        res.result.emplace_back(GVecSubtype::fmul, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::vmul, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -2977,7 +2996,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_div_instr), res.result, data.alloc);
 
-        res.result.emplace_back(GVecSubtype::fdiv, res_reg, a1, a2);
+        res.result.emplace_back(GVecSubtype::vdiv, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(
@@ -3326,12 +3345,12 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         if (arg.ty == Type::Float32) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
           res.result.emplace_back(
-              GVecSubtype::fAnd, res_reg, res_reg,
+              GVecSubtype::vAnd, res_reg, res_reg,
               MArgument(std::bit_cast<f32>((u32)0x7fffffff)));
         } else if (arg.ty == Type::Float64) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
           res.result.emplace_back(
-              GVecSubtype::fAnd, res_reg, res_reg,
+              GVecSubtype::vAnd, res_reg, res_reg,
               MArgument(std::bit_cast<f64>((u64)0x7fffffffffffffff)));
         } else {
           TODO("impl");

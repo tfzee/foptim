@@ -138,19 +138,23 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GVecSubtype, INVALID);
         ReturnString(GVecSubtype, vadd);
         ReturnString(GVecSubtype, vsub);
-        ReturnString(GVecSubtype, fmul);
-        ReturnString(GVecSubtype, fdiv);
+        ReturnString(GVecSubtype, vmul);
+        ReturnString(GVecSubtype, vdiv);
         ReturnString(GVecSubtype, ffmadd);
-        ReturnString(GVecSubtype, fxor);
-        ReturnString(GVecSubtype, fAnd);
-        ReturnString(GVecSubtype, fOr);
-        ReturnString(GVecSubtype, fShl);
+        ReturnString(GVecSubtype, vXor);
+        ReturnString(GVecSubtype, vAnd);
+        ReturnString(GVecSubtype, vOr);
+        ReturnString(GVecSubtype, vShl);
         ReturnString(GVecSubtype, fMax);
         ReturnString(GVecSubtype, fMin);
       }
     case GOpcode::X86:
       switch ((X86Subtype)sop) {
         ReturnString(X86Subtype, INVALID);
+        ReturnString(X86Subtype, psrl);
+        ReturnString(X86Subtype, psll);
+        ReturnString(X86Subtype, pmuludq);
+        ReturnString(X86Subtype, padd);
         ReturnString(X86Subtype, lea);
         ReturnString(X86Subtype, LockXAdd2);
         ReturnString(X86Subtype, vextract128);
@@ -313,13 +317,13 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
         case GVecSubtype::vsub:
-        case GVecSubtype::fmul:
-        case GVecSubtype::fdiv:
+        case GVecSubtype::vmul:
+        case GVecSubtype::vdiv:
         case GVecSubtype::ffmadd:
-        case GVecSubtype::fxor:
-        case GVecSubtype::fAnd:
-        case GVecSubtype::fOr:
-        case GVecSubtype::fShl:
+        case GVecSubtype::vXor:
+        case GVecSubtype::vAnd:
+        case GVecSubtype::vOr:
+        case GVecSubtype::vShl:
           out.push_back({0, instr.args[0]});
           return;
       }
@@ -351,6 +355,10 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::ffmadd231:
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::psrl:
+        case X86Subtype::psll:
+        case X86Subtype::pmuludq:
+        case X86Subtype::padd:
           out.push_back({0, instr.args[0]});
           return;
         case X86Subtype::LockXAdd2:
@@ -565,7 +573,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
       switch ((GVecSubtype)instr.sop) {
         case GVecSubtype::INVALID:
           return;
-        case GVecSubtype::fxor:
+        case GVecSubtype::vXor:
           if (instr.args[1] == instr.args[2]) {
             return;
           }
@@ -576,11 +584,11 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GVecSubtype::vsub:
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
-        case GVecSubtype::fmul:
-        case GVecSubtype::fdiv:
-        case GVecSubtype::fAnd:
-        case GVecSubtype::fOr:
-        case GVecSubtype::fShl:
+        case GVecSubtype::vmul:
+        case GVecSubtype::vdiv:
+        case GVecSubtype::vAnd:
+        case GVecSubtype::vOr:
+        case GVecSubtype::vShl:
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
           return;
@@ -615,6 +623,10 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpermil:
         case X86Subtype::vround:
         case X86Subtype::LockXAdd2:
+        case X86Subtype::psrl:
+        case X86Subtype::psll:
+        case X86Subtype::pmuludq:
+        case X86Subtype::padd:
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
           return;
@@ -884,7 +896,7 @@ fmt::appender fmt::formatter<foptim::fmir::MInstr>::format(
     }
     return fmt::format_to(app, "{:c} ^= {:c}", v.args[0], v.args[1]);
   }
-  if (v.is(foptim::fmir::GVecSubtype::fxor)) {
+  if (v.is(foptim::fmir::GVecSubtype::vXor)) {
     if (v.args[0] == v.args[1] && v.args[0] == v.args[2]) {
       return fmt::format_to(app, "clear {:c}", v.args[0]);
     }
@@ -899,11 +911,11 @@ fmt::appender fmt::formatter<foptim::fmir::MInstr>::format(
     return fmt::format_to(app, "{:c} = {:c} + {:c}", v.args[0], v.args[1],
                           v.args[2]);
   }
-  if (v.is(foptim::fmir::GVecSubtype::fmul)) {
+  if (v.is(foptim::fmir::GVecSubtype::vmul)) {
     return fmt::format_to(app, "{:c} = {:c} * {:c}", v.args[0], v.args[1],
                           v.args[2]);
   }
-  if (v.is(foptim::fmir::GVecSubtype::fdiv)) {
+  if (v.is(foptim::fmir::GVecSubtype::vdiv)) {
     return fmt::format_to(app, "{:c} = {:c} / {:c}", v.args[0], v.args[1],
                           v.args[2]);
   }

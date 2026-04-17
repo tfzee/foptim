@@ -19,13 +19,13 @@ enum class GVecSubtype : u32 {
   INVALID = 0,
   vadd,
   vsub,
-  fmul,
-  fdiv,
+  vmul,
+  vdiv,
   ffmadd,
-  fxor,
-  fAnd,
-  fOr,
-  fShl,
+  vXor,
+  vAnd,
+  vOr,
+  vShl,
   fMax,
   fMin,
 };
@@ -187,6 +187,10 @@ enum class X86Subtype : u32 {
   sqrt,
 
   vround,
+  psrl,
+  psll,
+  pmuludq,
+  padd,
 
   LockXAdd2,
 

@@ -89,6 +89,10 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
         case X86Subtype::vround:
+        case X86Subtype::psrl:
+        case X86Subtype::psll:
+        case X86Subtype::pmuludq:
+        case X86Subtype::padd:
           return true;
       }
   }
