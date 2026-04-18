@@ -105,15 +105,20 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/basic_alias_test.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/loop_unroll.cpp
+                ./src/optim/func_passes/loop_unswitch.cpp
+                ./src/optim/func_passes/loop_rotate.cpp
                 ./src/optim/func_passes/slp_vectorizer.cpp
                 ./src/optim/func_passes/simplify_cfg.cpp
+                ./src/optim/func_passes/double_load.cpp
                 ./src/optim/func_passes/intrin_simplify.cpp
                 ./src/optim/func_passes/inst_simplify.cpp
                 ./src/optim/func_passes/lvn.cpp
                 ./src/optim/func_passes/sccp.cpp
                 ./src/optim/func_passes/stack_known_bits.cpp
                 ./src/optim/func_passes/simple_vectorize.cpp
+                ./src/optim/func_passes/inst_simplify/simplify_binary.cpp
                 ./src/optim/module_passes/function_dedup.cpp
+                ./src/optim/module_passes/arg_promotion.cpp
                 ./src/optim/module_passes/IPCP.cpp
                 ./src/optim/helper/inline.cpp
                 ./src/optim/helper/WFVector.cpp
