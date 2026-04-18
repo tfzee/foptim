@@ -187,7 +187,7 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
   if (!is_dead) {
     is_dead = true;
     for (auto pred : curr.pred) {
-      if (dom.dominates(pred, bb_id)) {
+      if (dom.dominates(bb_id, pred)) {
         continue;
       }
       is_dead = false;

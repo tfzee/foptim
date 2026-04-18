@@ -209,7 +209,7 @@ class BaseInlineAdvisor {
       auto par_func = par_bb->get_parent();
       auto par_bb_id = par_func->bb_id(par_bb);
       for (auto pred : cfg.bbrs[par_bb_id].pred) {
-        if (dom.dominates(pred, par_bb_id)) {
+        if (dom.dominates(par_bb_id, pred)) {
           is_in_straightline_section = false;
           break;
         }
@@ -218,7 +218,7 @@ class BaseInlineAdvisor {
         auto sub_bb_id = 0;
         for (auto bb : par_func->basic_blocks) {
           if (bb->get_terminator()->is(fir::InstrType::ReturnInstr) &&
-              !dom.dominates(sub_bb_id, par_bb_id)) {
+              !dom.dominates(par_bb_id, sub_bb_id)) {
             is_always_executed = false;
             break;
           }

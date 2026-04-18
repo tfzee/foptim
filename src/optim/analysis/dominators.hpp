@@ -23,12 +23,14 @@ class Dominators {
   Dominators() : cfg(nullptr) {}
   Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
 
+  // a dominates b
   bool dominates(fir::BasicBlock a, fir::BasicBlock b) const {
     return dom_bbs[cfg->get_bb_id(b)].dominators[cfg->get_bb_id(a)];
   }
 
+  // bb1 dominates bb2
   bool dominates(u32 bb1, u32 bb2) const {
-    return dom_bbs[bb1].dominators[bb2];
+    return dom_bbs[bb2].dominators[bb1];
   }
 
   const BitSet<> &get_frontier(fir::BasicBlock a) const {
