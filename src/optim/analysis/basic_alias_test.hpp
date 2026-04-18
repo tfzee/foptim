@@ -1,8 +1,6 @@
 #pragma once
 #include <functional>
 
-#include "ir/function_ref.hpp"
-#include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "utils/types.hpp"
 
