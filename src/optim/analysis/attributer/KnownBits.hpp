@@ -10,7 +10,6 @@
 #include "ir/use.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "utils/APInt.hpp"
-#include "utils/bitset.hpp"
 #include "utils/logging.hpp"
 
 namespace foptim::optim {
@@ -829,7 +828,7 @@ static KnownBits abs_known_bits(const KnownBits &input) {
 
 }  // namespace foptim::optim
 
-fmt::appender fmt::formatter<foptim::optim::KnownBits>::format(
+inline fmt::appender fmt::formatter<foptim::optim::KnownBits>::format(
     foptim::optim::KnownBits const &v, format_context &ctx) const {
   auto app = ctx.out();
   auto o = v.known_one;
