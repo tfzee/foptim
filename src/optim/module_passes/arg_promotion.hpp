@@ -17,9 +17,11 @@
 #include "ir/value.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/parameters.hpp"
 #include "utils/set.hpp"
+#include "utils/vec.hpp"
 
 namespace foptim::optim {
 
@@ -335,16 +337,43 @@ class ArgPromotion final : public ModulePass {
     return true;
   }
 
+  // if *some* load of the value *always* executes.
+  // (dominates all exits)
+  bool all_exits_are_dominated(const CFG &cfg, const Dominators &dom,
+                               const TVec<u32> &direct_load_bbs) {
+    // for now just assume every block that has no successor is terminator
+    //  this isnt quite true with unreach but shouldnt affect many cases
+
+    for (size_t exit_bb_id = 0; exit_bb_id < cfg.bbrs.size(); exit_bb_id++) {
+      if (!cfg.bbrs[exit_bb_id].succ.empty()) {
+        continue;
+      }
+      bool any_dom = false;
+      for (auto bb_id : direct_load_bbs) {
+        if (dom.dominates(bb_id, exit_bb_id)) {
+          any_dom = true;
+          break;
+        }
+      }
+      if (!any_dom) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   // if we have ptr arguments and all we do is a load of its value and its not a
   // massive value (<= ptrsize also good cause CC)
   //  we can isntead do the load before the call allowing potentialy more
   //  optimizations on that side like mem2reg
   bool promote_ptr_to_value_args(fir::FunctionR func, fir::Context &ctx) {
     CFG cfg{*func.func};
+    Dominators dom{cfg};
     AliasAnalyis aa;
     const auto &func_ty = func->func_ty->as_func();
     auto n_args_original = func_ty.arg_types.size();
     auto entry_block = func->get_entry();
+    // only if we know all call sites
     for (auto use : func->get_uses()) {
       if (use.type != fir::UseType::NormalArg ||
           !use.user->is(fir::InstrType::CallInstr) || use.argId != 0) {
@@ -356,11 +385,13 @@ class ArgPromotion final : public ModulePass {
     //  we only load the value so no geps and similar stuff
     bool modified = false;
     IRVec<fir::TypeR> arg_tys;
+    TVec<u32> direct_load_bbs;
     for (u64 i = n_args_original; i > 0; i--) {
       auto arg = entry_block->args[i - 1];
       if (arg->get_n_uses() == 0) {
         continue;
       }
+      direct_load_bbs.clear();
       bool can_promote = arg->get_type()->is_ptr();
       fir::TypeR load_type = fir::TypeR();
       for (auto use : arg->uses) {
@@ -384,6 +415,7 @@ class ArgPromotion final : public ModulePass {
             can_promote = false;
             break;
           }
+          direct_load_bbs.push_back(cfg.get_bb_id(use.user->get_parent()));
         } else if (use.user->is(fir::InstrType::SelectInstr)) {
           // can also handle the select instr just need to ensure we can load
           // prior so no aliasing issues.
@@ -416,6 +448,12 @@ class ArgPromotion final : public ModulePass {
         }
       }
       if (!can_promote || !load_type.is_valid()) {
+        continue;
+      }
+      // if we think we can promote we gotta ensure that all exists are
+      // dominated by atleast one load
+      //  so the value is *always* loaded and not behind some guard/select.
+      if (!all_exits_are_dominated(cfg, dom, direct_load_bbs)) {
         continue;
       }
 
