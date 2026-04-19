@@ -167,7 +167,7 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
              MatchResult &match_result, ExtraMatchData &data) {
   ZoneScopedN("Apply BB");
   MBB result_bb;
-  result_bb.instrs.reserve(bb->n_instrs());
+  result_bb.instrs.reserve(bb->n_instrs() + bb->n_args());
 
   // generate each instruction
   for (auto cur_instr : bb->instructions | std::views::reverse) {
@@ -186,10 +186,11 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
   }
 
   if (bb->get_parent()->get_entry() != bb) {
+    TVec<MInstr> res;
     for (auto &bb_arg : bb->args) {
       auto transfer_reg =
           get_or_insert_bbarg_mapping(bb_arg, match_result, data);
-      TVec<MInstr> res;
+      res.clear();
       auto real_reg = valueToArg(fir::ValueR(bb_arg), res, data.alloc);
       if (transfer_reg == real_reg) {
         continue;
@@ -320,7 +321,6 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
     for (u32 i = 0; i < entry_bb->args.size(); i++) {
       auto arg_reg = alloc.get_register(fir::ValueR{entry_bb->args[i]});
       // auto arg_type = entry_bb->args[i]->get_type();
-
       res_func.args.push_back(arg_reg);
       // res_func.arg_tys.push_back(convert_type(arg_type));
     }
