@@ -18,6 +18,11 @@ class Use {
       : user(user), type(type), argId(argId), bbArgId(bbArgId) {}
 
  public:
+  constexpr Use(Use &&) noexcept = default;
+  constexpr Use &operator=(Use &&) noexcept = default;
+  constexpr Use(const Use &) noexcept = default;
+  constexpr Use &operator=(const Use &) noexcept = default;
+
   Instr user;
   UseType type;
   u16 argId;

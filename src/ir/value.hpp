@@ -30,6 +30,11 @@ class ValueR {
     ConstantValueR const_val;
   };
 
+  constexpr ValueR(const ValueR &) noexcept = default;
+  constexpr ValueR(ValueR &&) noexcept = default;
+  constexpr ValueR &operator=(const ValueR &) noexcept = default;
+  constexpr ValueR &operator=(ValueR &&) noexcept = default;
+
   void add_usage(Use u);
   [[nodiscard]] size_t get_n_uses() const;
   void remove_usage(Use u, bool verify = true);

@@ -6,13 +6,13 @@ namespace foptim::fir {
 
 class Instr : public utils::SRef<InstrData> {
  public:
-  constexpr explicit Instr(utils::SRef<InstrData> &&crtp) {
+  constexpr explicit Instr(utils::SRef<InstrData> &&crtp) noexcept {
     this->data_ref = crtp.data_ref;
 #ifdef SLOT_CHECK_GENERATION
     this->generation = crtp.generation;
 #endif
   }
-  consteval Instr()
+  consteval Instr() noexcept
       : utils::SRef<InstrData>(utils::SRef<InstrData>::invalid()) {}
 
   [[nodiscard]] TypeR get_type() const;
