@@ -92,13 +92,14 @@ class SRef {
   // constexpr SRef(SRef<T> &old)
   //     : data_ref(old.data_ref), generation(old.generation) {}
 #ifdef SLOT_CHECK_GENERATION
-  constexpr SRef(std::nullptr_t) : data_ref(nullptr), generation(0) {}
-  constexpr SRef() : data_ref(nullptr), generation(0) {}
-  constexpr SRef(Slot<T> *ref, u32 gen) : data_ref(ref), generation(gen) {}
+  constexpr SRef(std::nullptr_t) noexcept : data_ref(nullptr), generation(0) {}
+  constexpr SRef() noexcept : data_ref(nullptr), generation(0) {}
+  constexpr SRef(Slot<T> *ref, u32 gen) noexcept
+      : data_ref(ref), generation(gen) {}
 #else
-  constexpr SRef(std::nullptr_t) : data_ref(nullptr) {}
-  constexpr SRef() : data_ref(nullptr) {}
-  constexpr SRef(Slot<T> *ref, u32) : data_ref(ref) {}
+  constexpr SRef(std::nullptr_t) noexcept : data_ref(nullptr) {}
+  constexpr SRef() : data_ref(nullptr) noexcept {}
+  constexpr SRef(Slot<T> *ref, u32) noexcept : data_ref(ref) {}
 #endif
   constexpr static SRef<T> invalid() { return SRef{nullptr, 0}; }
 };
