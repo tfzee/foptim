@@ -98,7 +98,7 @@ class SRef {
       : data_ref(ref), generation(gen) {}
 #else
   constexpr SRef(std::nullptr_t) noexcept : data_ref(nullptr) {}
-  constexpr SRef() : data_ref(nullptr) noexcept {}
+  constexpr SRef() noexcept : data_ref(nullptr) {}
   constexpr SRef(Slot<T> *ref, u32) noexcept : data_ref(ref) {}
 #endif
   constexpr static SRef<T> invalid() { return SRef{nullptr, 0}; }
