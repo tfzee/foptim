@@ -292,6 +292,7 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
   for (auto use : func->get_uses()) {
     for (auto ret_use : use.user->uses) {
       ret_use.user->replace_all_uses(fir::ValueR{use.user});
+      ret_use.user.destroy();
     }
   }
 
@@ -310,6 +311,27 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
   //   fmt::print("{:cd}", use.user->get_parent());
   // }
   // TODO("impl");
+  auto &func_ty = func.func->func_ty->as_func();
+  func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
+  for (auto use : func.func->get_uses()) {
+    use.user->extra_type = func.func->func_ty;
+    use.user->value_type = res_type;
+  }
+
+  // we need renaming
+  if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
+    auto old_name = func->name;
+    arg_prom_unique_name_number++;
+    auto new_name = old_name + "MODArgProm";
+    new_name += std::to_string(arg_prom_unique_name_number);
+    auto func_moved = std::move(ctx->storage.functions.at(old_name));
+    ctx->storage.functions.erase(old_name);
+    func_moved->name = new_name;
+    func_moved->attribs.linkage = fir::Linkage::Internal;
+    func_moved->attribs.no_inline = false;
+    ctx->storage.functions.insert({new_name, std::move(func_moved)});
+    return true;
+  }
 
   return true;
 }
