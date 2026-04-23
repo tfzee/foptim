@@ -122,11 +122,30 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
           }
         case fir::InstrType::ZExt:
           break;
+        case fir::InstrType::Conversion: {
+          switch ((fir::ConversionSubType)instr->subtype) {
+            case fir::ConversionSubType::BitCast:
+            case fir::ConversionSubType::SITOFP:
+              cost += 1;
+              break;
+            case fir::ConversionSubType::PtrToInt:
+            case fir::ConversionSubType::IntToPtr:
+              break;
+            case fir::ConversionSubType::INVALID:
+            case fir::ConversionSubType::FPEXT:
+            case fir::ConversionSubType::FPTRUNC:
+            case fir::ConversionSubType::FPTOUI:
+            case fir::ConversionSubType::FPTOSI:
+            case fir::ConversionSubType::UITOFP:
+              fmt::println("{}", instr);
+              IMPL("impl wfvector conversion");
+              return {};
+          }
+          break;
+        }
         case fir::InstrType::ITrunc:
         case fir::InstrType::SExt:
-        case fir::InstrType::Conversion:
         case fir::InstrType::SelectInstr:
-        case fir::InstrType::AllocaInstr:
           fmt::println("{}", instr);
           IMPL("impl wfvector conversion");
           return {};
@@ -137,6 +156,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
         case fir::InstrType::Unreachable:
         case fir::InstrType::BranchInstr:
           break;
+        case fir::InstrType::AllocaInstr:
         case fir::InstrType::ExtractValue:
         case fir::InstrType::InsertValue:
         case fir::InstrType::VectorInstr:

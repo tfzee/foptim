@@ -741,6 +741,77 @@ class ConstantTreeOp final : public SLPVectorizer::TreeElem {
   }
 };
 
+class ConversionTreeOp final : public SLPVectorizer::TreeElem {
+  fir::ConversionSubType sub_type;
+  fir::TypeR orig_type;
+
+ public:
+  void dump() final {
+    fmt::print("CONV(");
+    fmt::print(")");
+  }
+
+  i64 cost() const final {
+    // TODO switch on type of cast
+    return 1;
+  }
+
+  ConversionTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
+    if (values.back().is_instr()) {
+      insert_loc = values.back().as_instr();
+      sub_type = (fir::ConversionSubType)insert_loc->subtype;
+      orig_type = insert_loc->get_type();
+    } else if (values.back().is_bb_arg()) {
+      insert_loc = values.back().as_bb_arg()->get_parent()->instructions[0];
+      sub_type = (fir::ConversionSubType)values.front().as_instr()->subtype;
+      orig_type = values.front().as_instr()->get_type();
+    } else {
+      insert_loc = values.front().as_instr();
+      sub_type = (fir::ConversionSubType)insert_loc->subtype;
+      orig_type = insert_loc->get_type();
+    }
+    return this;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    fir::Instr base_v{fir::Instr::invalid()};
+    if (values.back().is_instr()) {
+      base_v = values.back().as_instr();
+    } else {
+      base_v = values.front().as_instr();
+    }
+    for (auto i_v : values) {
+      if (!i_v.is_instr()) {
+        if constexpr (SLPVectorizer::debug_print) {
+          fmt::println("One arg isnt a binary op");
+        }
+        return false;
+      }
+      auto i = i_v.as_instr();
+      if (i->instr_type != base_v->instr_type ||
+          i->subtype != base_v->subtype) {
+        if constexpr (SLPVectorizer::debug_print) {
+          fmt::println("One arg isnt the right instr");
+        }
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
+    auto av = children.at(0)->generate(ctx, orig_bundl);
+    fir::Builder bb{insert_loc};
+
+    auto res = bb.build_conversion_op(av, ctx->get_vec_type(orig_type, n_lanes),
+                                      sub_type);
+    return res;
+  }
+};
+
 class LoadTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr base_load;
 
@@ -863,6 +934,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   using UnaryTreeAlloc = utils::TempAlloc<UnaryTreeOp>;
   using ExtractTreeAlloc = utils::TempAlloc<ExtractTreeOp>;
   using CallTreeAlloc = utils::TempAlloc<CallTreeOp>;
+  using ConversionTreeAlloc = utils::TempAlloc<ConversionTreeOp>;
+
   TVec<TreeElem *> tree;
   if (default_parent != nullptr) {
     tree.push_back(default_parent);
@@ -1092,18 +1165,32 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             return false;
           }
           break;
+        case fir::InstrType::Conversion:
+          if (ConversionTreeOp::match(curr)) {
+            auto *result_t = ConversionTreeAlloc{}.allocate(1);
+            (new (result_t) ConversionTreeOp)->init(curr);
+            result = result_t;
+            n_args = 1;
+            parent->children.push_back(result);
+          } else {
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at conversion value like {}",
+                           curr.back().as_instr());
+            }
+            return false;
+          }
+          break;
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
+        case fir::InstrType::SelectInstr:
           fmt::println("{}", test_i.as_instr());
           TODO("Should be implementable");
-        case fir::InstrType::SelectInstr:
         case fir::InstrType::AtomicRMW:
         case fir::InstrType::Fence:
         case fir::InstrType::VectorInstr:
         case fir::InstrType::SExt:
         case fir::InstrType::AllocaInstr:
         case fir::InstrType::InsertValue:
-        case fir::InstrType::Conversion:
         case fir::InstrType::ReturnInstr:
         case fir::InstrType::BranchInstr:
         case fir::InstrType::CondBranchInstr:
