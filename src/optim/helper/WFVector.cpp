@@ -120,8 +120,9 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
               IMPL("impl wfvector unary");
               return {};
           }
-        case fir::InstrType::ITrunc:
         case fir::InstrType::ZExt:
+          break;
+        case fir::InstrType::ITrunc:
         case fir::InstrType::SExt:
         case fir::InstrType::Conversion:
         case fir::InstrType::SelectInstr:
@@ -129,11 +130,13 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
           fmt::println("{}", instr);
           IMPL("impl wfvector conversion");
           return {};
+        case fir::InstrType::ICmp:
+        case fir::InstrType::FCmp:
+          cost -= lanes;
+          break;
         case fir::InstrType::Unreachable:
         case fir::InstrType::BranchInstr:
           break;
-        case fir::InstrType::ICmp:
-        case fir::InstrType::FCmp:
         case fir::InstrType::ExtractValue:
         case fir::InstrType::InsertValue:
         case fir::InstrType::VectorInstr:
@@ -176,6 +179,11 @@ fir::ValueR convert_value(fir::ContextData* ctx, fir::Builder& buh,
 std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
                                                        u64 n_lanes) {
   auto* ctx = func.ctx;
+  auto new_name = fmt::format("{}_wfvec_{}", func.getName(), n_lanes);
+  if (ctx->has_function(new_name.c_str())) {
+    return ctx->get_function(new_name.c_str());
+  }
+
   IRVec<fir::TypeR> new_args;
   for (auto arg : func.func_ty->as_func().arg_types) {
     new_args.push_back(ctx->get_vec_type(arg, n_lanes));
@@ -184,7 +192,6 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
   auto new_func_type = ctx->get_func_ty(
       ctx->get_vec_type(func.func_ty->as_func().return_type, n_lanes),
       std::move(new_args));
-  auto new_name = fmt::format("{}_wfvec_{}", func.getName(), n_lanes);
 
   auto new_f = ctx->create_function(new_name.c_str(), new_func_type);
   new_f.func->attribs = func.attribs;
