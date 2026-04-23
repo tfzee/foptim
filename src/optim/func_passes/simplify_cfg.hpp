@@ -93,7 +93,7 @@ class SimplifyCFG final : public FunctionPass {
   // If we got 2 blocks that are identical but some constants/vars
   // we could merge them into 1 and replace differences by bb args
   // NOTE: moved to function handling it all for perofmance reasons
-  bool dup_bb_to_args(fir::Function &func);
+  bool dup_bb_to_args(fir::Function &func, CFG &cfg);
   // if we have mustprogress + an infinite loop delete it
   Res eliminate_infinite_loop(CFG &cfg, Dominators &dom, CFG::Node &curr,
                               size_t bb_id, fir::Function &func);

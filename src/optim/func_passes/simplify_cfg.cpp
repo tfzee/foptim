@@ -416,7 +416,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
 
   // TODO: SUPPORT old bbargs!
   if (bb1->n_args() != 0 || bb1->n_instrs() > N_INSTRS_UPPERBOUND) {
-    return modified;
+    return false;
   }
 
   for (size_t bb2_id = 1; bb2_id < bb_id; bb2_id++) {
@@ -433,7 +433,8 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
       if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
-          i1->args.size() != i2->args.size()) {
+          i1->args.size() != i2->args.size() ||
+          i1->get_type() != i2->get_type()) {
         found = false;
         break;
       }
@@ -518,16 +519,14 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
 }
 }  // namespace
 
-bool SimplifyCFG::dup_bb_to_args(fir::Function &func) {
+bool SimplifyCFG::dup_bb_to_args(fir::Function &func, CFG &cfg) {
   ZoneScopedN("dup bb to arg");
   bool modified = false;
   TVec<DiffValues> difference_values;
   TMap<fir::Instr, fir::Instr> local_value_map;
   TVec<fir::BBArgument> new_bb_args_helper;
-  difference_values.reserve(32);
-  new_bb_args_helper.reserve(32);
-
-  CFG cfg{func};
+  // difference_values.reserve(32);
+  // new_bb_args_helper.reserve(32);
 
   for (size_t bb_id = 1; bb_id < func.basic_blocks.size(); bb_id++) {
     bool mod = dup_bb_to_args_per_bb(func.basic_blocks[bb_id], func, bb_id,
@@ -1591,7 +1590,7 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
       dom = Dominators(cfg);
     }
   }
-  dup_bb_to_args(func);
+  dup_bb_to_args(func, cfg);
 }
 
 }  // namespace foptim::optim
