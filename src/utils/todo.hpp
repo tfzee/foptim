@@ -20,6 +20,7 @@ namespace foptim {
 [[noreturn, gnu::cold]] inline void todo_impl(const char *text,
                                               const char *filename, u64 line) {
   fmt::println("[TODO] @ {}:{} : {}\n", filename, line, text);
+  fflush(stdout);
   std::abort();
 }
 
@@ -32,6 +33,7 @@ namespace foptim {
 inline void impl_impl(const char *text, const char *filename, u64 line) {
   fmt::println("[IMPL] @ {}:{} : {}\n", filename, line, text);
 #ifdef IMPL_ABORT
+  fflush(stdout);
   std::abort();
 #endif
 }
@@ -41,6 +43,7 @@ inline void ASSERT_HANDLE(bool cond, const char *filename, size_t lineNumber,
                           const char *message) {
   if (unlikely(!cond)) {
     fmt::println("{}:{} Failed Assert! {}\n", filename, lineNumber, message);
+    fflush(stdout);
     std::abort();
   }
 }
