@@ -85,14 +85,17 @@ std::optional<SCCP::ConstantValue> SCCP::ConstantValue::loadConstant(
     return ConstantValue{.type = ValueType::Int,
                          .vals = {{.i = std::bit_cast<i128>((u128)val)}},
                          .vtype = c};
-  }
-  if (c->is_int() && bitwidth == 32) {
+  } else if (c->is_int() && bitwidth == 32) {
     return ConstantValue{
         .type = ValueType::Int,
         .vals = {{.i = std::bit_cast<i128>((u128)(*(u32 *)v))}},
         .vtype = c};
-  }
-  if (c->is_int() && bitwidth == 8) {
+  } else if (c->is_int() && bitwidth == 16) {
+    return ConstantValue{
+        .type = ValueType::Int,
+        .vals = {{.i = std::bit_cast<i128>((u128)(*(u16 *)v))}},
+        .vtype = c};
+  } else if (c->is_int() && bitwidth == 8) {
     return ConstantValue{.type = ValueType::Int,
                          .vals = {{.i = std::bit_cast<i128>((u128)(*(u8 *)v))}},
                          .vtype = c};
