@@ -199,7 +199,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
   foptim::optim::StaticModulePassManager<
       ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>,
-      GDCE, IPCP, FuncPropAnnotator>{}
+      Inline<>, GDCE, IPCP, FuncPropAnnotator>{}
       .apply(ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
       SimplifyCFG, LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, SimplifyCFG,
@@ -218,9 +218,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeVecs, SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);
-  for (const auto &[_, func] : ctx->storage.functions) {
-    fmt::println("{:cd}", *func);
-  }
   // // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
@@ -230,6 +227,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
 
   ASSERT(ctx->verify());
+  for (const auto &[_, func] : ctx->storage.functions) {
+    fmt::println("{:cd}", *func);
+  }
   // {
   //   auto *slab = ctx->storage.storage_global._slot_start.load();
   //   while (slab != nullptr) {

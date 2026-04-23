@@ -2546,7 +2546,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           case fir::FCmpInstrSubType::INVALID:
           case fir::FCmpInstrSubType::AlwFalse:
           case fir::FCmpInstrSubType::AlwTrue:
-            IMPL("");
+            TODO("");
             break;
         }
         res.result.emplace_back(op, res_arg, arg1, arg2);
@@ -2650,7 +2650,7 @@ void base_patterns(IRVec<Pattern> &pats) {
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto branch_instr = res.matched_instrs[0];
-        fmt::println("{}", branch_instr);
+        // fmt::println("{}", branch_instr);
         auto value =
             valueToArg(branch_instr->args.back(), res.result, data.alloc);
         for (size_t instr_id = 0; instr_id < branch_instr->bbs.size() - 1;

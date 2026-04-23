@@ -315,7 +315,7 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   }
 
   if (can_delete_cond) {
-    IMPL("implement deleting the cond inside the loop?");
+    TODO("implement deleting the cond inside the loop?");
   }
 
   // loop.dump();

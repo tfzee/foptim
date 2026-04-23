@@ -57,15 +57,18 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::Xor:
               cost -= lanes;
               break;
+            case fir::BinaryInstrSubType::Shl:
+            case fir::BinaryInstrSubType::Shr:
+            case fir::BinaryInstrSubType::AShr:
             case fir::BinaryInstrSubType::FloatDiv:
+              fmt::println("{}", instr);
+              IMPL("impl wfvector binary");
+              return {};
             case fir::BinaryInstrSubType::INVALID:
             case fir::BinaryInstrSubType::IntSRem:
             case fir::BinaryInstrSubType::IntURem:
             case fir::BinaryInstrSubType::IntSDiv:
             case fir::BinaryInstrSubType::IntUDiv:
-            case fir::BinaryInstrSubType::Shl:
-            case fir::BinaryInstrSubType::Shr:
-            case fir::BinaryInstrSubType::AShr:
               if (debug_print) {
                 fmt::println("FAILED {}", instr);
               }
@@ -89,36 +92,53 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::IntrinsicSubType::FMax:
               cost -= lanes;
               break;
-            case fir::IntrinsicSubType::INVALID:
-            case fir::IntrinsicSubType::CTLZ:
-            case fir::IntrinsicSubType::VA_start:
-            case fir::IntrinsicSubType::VA_end:
             case fir::IntrinsicSubType::PopCnt:
             case fir::IntrinsicSubType::FRound:
             case fir::IntrinsicSubType::FCeil:
             case fir::IntrinsicSubType::FFloor:
             case fir::IntrinsicSubType::FTrunc:
+            case fir::IntrinsicSubType::CTLZ:
+              fmt::println("{}", instr);
+              IMPL("impl wfvector intrinsic");
+              return {};
+            case fir::IntrinsicSubType::INVALID:
+            case fir::IntrinsicSubType::VA_start:
+            case fir::IntrinsicSubType::VA_end:
             case fir::IntrinsicSubType::IsConstant:
-              break;
+              return {};
           }
           break;
-        case fir::InstrType::BranchInstr:
-          break;
-        case fir::InstrType::ICmp:
-        case fir::InstrType::FCmp:
         case fir::InstrType::UnaryInstr:
-        case fir::InstrType::ExtractValue:
-        case fir::InstrType::InsertValue:
-        case fir::InstrType::VectorInstr:
+          switch ((fir::UnaryInstrSubType)instr->subtype) {
+            case fir::UnaryInstrSubType::INVALID:
+              return {};
+            case fir::UnaryInstrSubType::FloatNeg:
+            case fir::UnaryInstrSubType::IntNeg:
+            case fir::UnaryInstrSubType::Not:
+            case fir::UnaryInstrSubType::FloatSqrt:
+              fmt::println("{}", instr);
+              IMPL("impl wfvector unary");
+              return {};
+          }
         case fir::InstrType::ITrunc:
         case fir::InstrType::ZExt:
         case fir::InstrType::SExt:
         case fir::InstrType::Conversion:
         case fir::InstrType::SelectInstr:
+        case fir::InstrType::AllocaInstr:
+          fmt::println("{}", instr);
+          IMPL("impl wfvector conversion");
+          return {};
+        case fir::InstrType::Unreachable:
+        case fir::InstrType::BranchInstr:
+          break;
+        case fir::InstrType::ICmp:
+        case fir::InstrType::FCmp:
+        case fir::InstrType::ExtractValue:
+        case fir::InstrType::InsertValue:
+        case fir::InstrType::VectorInstr:
         case fir::InstrType::CondBranchInstr:
         case fir::InstrType::SwitchInstr:
-        case fir::InstrType::Unreachable:
-        case fir::InstrType::AllocaInstr:
         case fir::InstrType::LoadInstr:
         case fir::InstrType::StoreInstr:
         case fir::InstrType::AtomicRMW:

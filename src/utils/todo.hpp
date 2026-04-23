@@ -23,10 +23,17 @@ namespace foptim {
   std::abort();
 }
 
-[[noreturn, gnu::cold]] inline void impl_impl(const char *text,
-                                              const char *filename, u64 line) {
-  fmt::println("[TODO] @ {}:{} : {}\n", filename, line, text);
+[[
+#ifdef IMPL_ABORT
+    noreturn
+#endif
+    ,
+    gnu::cold]]
+inline void impl_impl(const char *text, const char *filename, u64 line) {
+  fmt::println("[IMPL] @ {}:{} : {}\n", filename, line, text);
+#ifdef IMPL_ABORT
   std::abort();
+#endif
 }
 
 #ifdef ASSERT_ENABLED

@@ -345,74 +345,71 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
         // }
       }
 
-      // if we load and afterwards load form the same address
-      //  and there is nobody storing that memory inbetween we can
-      //  delete the first load(TOOD: unless its volatile)
       if (instr->is(fir::InstrType::LoadInstr) &&
           instr2->is(fir::InstrType::LoadInstr) &&
           instr->get_type()->get_bitwidth() ==
-              instr2.get_type()->get_bitwidth() &&
-          instr->get_arg(0) == instr2->get_arg(0)) {
-        bool pot_store_between = is_pot_store_between(
-            bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
-        if (!pot_store_between) {
-          instr2->replace_all_uses(fir::ValueR{instr});
-          instr2.destroy();
-          i2--;
-          continue;
-        }
-      }
-
-      // merge 2 loads
-      if (instr->is(fir::InstrType::LoadInstr) &&
-          instr2->is(fir::InstrType::LoadInstr) &&
-          instr->get_type()->get_bitwidth() ==
-              instr2.get_type()->get_bitwidth() &&
-          instr->args[0].is_instr() && instr2->args[0].is_instr() &&
-          !instr->Volatile && !instr2->Volatile) {
-        auto arg1 = instr->args[0].as_instr();
-        auto arg2 = instr2->args[0].as_instr();
-        auto old_width = instr->get_type()->get_size();
-        fir::ValueR base1_addr = fir::ValueR{arg1};
-        i128 base1_off = 0;
-        fir::ValueR base2_addr = fir::ValueR{arg2};
-        i128 base2_off = 0;
-        if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
-            arg1->args[1].is_constant() &&
-            arg1->args[1].as_constant()->is_int()) {
-          base1_addr = arg1->args[0];
-          base1_off = arg1->args[1].as_constant()->as_int();
-        }
-        if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
-            arg2->args[1].is_constant() &&
-            arg2->args[1].as_constant()->is_int()) {
-          base2_addr = arg2->args[0];
-          base2_off = arg2->args[1].as_constant()->as_int();
-        }
-        if (instr->get_type()->is_vec() && old_width <= 16 &&
-            base1_addr == base2_addr && base1_off + old_width == base2_off &&
-            instr->get_type() == instr2->get_type()) {
-          auto v1_type = instr->get_type()->as_vec();
+              instr2.get_type()->get_bitwidth()) {
+        // if we load and afterwards load form the same address
+        //  and there is nobody storing that memory inbetween we can
+        //  delete the first load(TOOD: unless its volatile)
+        if (instr->get_arg(0) == instr2->get_arg(0)) {
           bool pot_store_between = is_pot_store_between(
-              bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+              bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
           if (!pot_store_between) {
-            fir::Builder buh{instr};
-            auto *ctx = bb->get_parent()->ctx;
-            auto new_type = ctx->get_vec_type(v1_type.type, v1_type.bitwidth,
-                                              v1_type.member_number * 2);
-            auto loaded_data =
-                buh.build_load(new_type, fir::ValueR{arg1},
-                               instr->Atomic || instr2->Atomic, false);
-            auto data1 = buh.build_vector_op(loaded_data, instr->get_type(),
-                                             fir::VectorISubType::ExtractLow);
-            auto data2 = buh.build_vector_op(loaded_data, instr->get_type(),
-                                             fir::VectorISubType::ExtractHigh);
-            instr->replace_all_uses(data1);
-            instr2->replace_all_uses(data2);
-            instr.destroy();
+            instr2->replace_all_uses(fir::ValueR{instr});
             instr2.destroy();
-            i--;
-            break;
+            i2--;
+            continue;
+          }
+        }
+        // merge 2 loads
+        if (instr->args[0].is_instr() && instr2->args[0].is_instr() &&
+            !instr->Volatile && !instr2->Volatile) {
+          auto arg1 = instr->args[0].as_instr();
+          auto arg2 = instr2->args[0].as_instr();
+          auto old_width = instr->get_type()->get_size();
+          fir::ValueR base1_addr = fir::ValueR{arg1};
+          i128 base1_off = 0;
+          fir::ValueR base2_addr = fir::ValueR{arg2};
+          i128 base2_off = 0;
+          if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
+              arg1->args[1].is_constant() &&
+              arg1->args[1].as_constant()->is_int()) {
+            base1_addr = arg1->args[0];
+            base1_off = arg1->args[1].as_constant()->as_int();
+          }
+          if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
+              arg2->args[1].is_constant() &&
+              arg2->args[1].as_constant()->is_int()) {
+            base2_addr = arg2->args[0];
+            base2_off = arg2->args[1].as_constant()->as_int();
+          }
+          if (instr->get_type()->is_vec() && old_width <= 16 &&
+              base1_addr == base2_addr && base1_off + old_width == base2_off &&
+              instr->get_type() == instr2->get_type()) {
+            auto v1_type = instr->get_type()->as_vec();
+            bool pot_store_between = is_pot_store_between(
+                bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+            if (!pot_store_between) {
+              fir::Builder buh{instr};
+              auto *ctx = bb->get_parent()->ctx;
+              auto new_type = ctx->get_vec_type(v1_type.type, v1_type.bitwidth,
+                                                v1_type.member_number * 2);
+              auto loaded_data =
+                  buh.build_load(new_type, fir::ValueR{arg1},
+                                 instr->Atomic || instr2->Atomic, false);
+              auto data1 = buh.build_vector_op(loaded_data, instr->get_type(),
+                                               fir::VectorISubType::ExtractLow);
+              auto data2 =
+                  buh.build_vector_op(loaded_data, instr->get_type(),
+                                      fir::VectorISubType::ExtractHigh);
+              instr->replace_all_uses(data1);
+              instr2->replace_all_uses(data2);
+              instr.destroy();
+              instr2.destroy();
+              i--;
+              break;
+            }
           }
         }
         // if (instr->get_type()->is_int() && old_width <= 4 &&

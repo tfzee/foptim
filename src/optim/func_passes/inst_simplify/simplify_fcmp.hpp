@@ -271,7 +271,7 @@ inline bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context
       case fir::FCmpInstrSubType::UGE:
       case fir::FCmpInstrSubType::ULT:
       case fir::FCmpInstrSubType::ULE:
-        IMPL("implement");
+        TODO("implement");
       case fir::FCmpInstrSubType::UNE:
         __asm__(
             "vucomisd %2, %1\n\t"

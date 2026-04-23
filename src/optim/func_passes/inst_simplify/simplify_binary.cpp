@@ -228,9 +228,8 @@ void promote_constant_type(fir::Context &ctx, fir::Instr instr, u32 arg_id,
 }
 }  // namespace
 
-bool simplify_binary(fir::Instr instr, fir::BasicBlock bb,
-                            fir::Context &ctx, WorkList &worklist,
-                            AttributerManager &man) {
+bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                     WorkList &worklist, AttributerManager &man) {
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyBinary");
   }

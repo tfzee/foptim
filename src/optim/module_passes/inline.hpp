@@ -193,6 +193,14 @@ class BaseInlineAdvisor {
       return false;
     }
 
+    if (self_func->basic_blocks.size() == 1 && v->basic_blocks.size() == 1 &&
+        self_n_instrs <= 5 && called_n_instrs <= 5) {
+      if (debug_print) {
+        fmt::println("Y self really small");
+      }
+      return true;
+    }
+
     // if (v.func->get_n_uses() == 1 &&
     //     (v.func->linkage == fir::Linkage::Internal ||
     //      v.func->linkage == fir::Linkage::LinkOnceODR)) {

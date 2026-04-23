@@ -177,7 +177,7 @@ T const_eval_bin(fir::Instr instr, fir::TypeR out_type, T a, T b) {
   switch ((fir::BinaryInstrSubType)instr->get_instr_subtype()) {
     default:
       fmt::println("{}", instr);
-      IMPL("implement instr");
+      TODO("implement instr");
       UNREACH();
     case fir::BinaryInstrSubType::INVALID:
       UNREACH();
@@ -493,7 +493,7 @@ void SCCP::eval_and_update(fir::Context &ctx, fir::ValueR value) {
   ConstantValue new_value = ConstantValue::Top();
 
   if (value.is_constant()) {
-    IMPL("constant\n");
+    TODO("constant\n");
   } else if (value.is_instr()) {
     new_value = eval_instr(ctx, value.as_instr());
     if (value.is_valid(true) && values.at(value) != new_value) {
@@ -649,7 +649,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         }
         default:
           fmt::println("{}", instr);
-          IMPL("implement instr");
+          TODO("implement instr");
           UNREACH();
       }
     }
@@ -1006,7 +1006,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
               return ConstantValue::Constant(ctx->get_constant_value(
                   static_cast<f64>(a.as_int()), instr->get_type()));
             default:
-              IMPL("dont suport other bitwidths");
+              TODO("dont suport other bitwidths");
           }
         case fir::ConversionSubType::PtrToInt:
         case fir::ConversionSubType::IntToPtr:

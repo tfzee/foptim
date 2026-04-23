@@ -897,7 +897,7 @@ class MInstr {
       case fir::FCmpInstrSubType::AlwFalse:
       case fir::FCmpInstrSubType::AlwTrue:
       case fir::FCmpInstrSubType::IsNaN:
-        IMPL("IMPL");
+        TODO("IMPL");
         break;
       case fir::FCmpInstrSubType::OEQ:
         sopcode_type = GJumpSubtype::cjmp_flt_oeq;

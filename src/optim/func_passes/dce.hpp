@@ -152,7 +152,7 @@ class DCE final : public FunctionPass {
           }
 
           if (instr->is(fir::InstrType::CondBranchInstr)) {
-            IMPL("handle dce cond branch simplification");
+            TODO("handle dce cond branch simplification");
           }
 
           instr->replace_all_uses(
