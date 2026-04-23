@@ -55,12 +55,12 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::And:
             case fir::BinaryInstrSubType::Or:
             case fir::BinaryInstrSubType::Xor:
+            case fir::BinaryInstrSubType::FloatDiv:
               cost -= lanes;
               break;
             case fir::BinaryInstrSubType::Shl:
             case fir::BinaryInstrSubType::Shr:
             case fir::BinaryInstrSubType::AShr:
-            case fir::BinaryInstrSubType::FloatDiv:
               fmt::println("{}", instr);
               IMPL("impl wfvector binary");
               return {};
@@ -115,6 +115,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::UnaryInstrSubType::FloatNeg:
             case fir::UnaryInstrSubType::IntNeg:
             case fir::UnaryInstrSubType::Not:
+              cost -= lanes;
+              break;
             case fir::UnaryInstrSubType::FloatSqrt:
               fmt::println("{}", instr);
               IMPL("impl wfvector unary");
@@ -143,9 +145,10 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
           }
           break;
         }
-        case fir::InstrType::ITrunc:
-        case fir::InstrType::SExt:
         case fir::InstrType::SelectInstr:
+        case fir::InstrType::ITrunc:
+          break;
+        case fir::InstrType::SExt:
           fmt::println("{}", instr);
           IMPL("impl wfvector conversion");
           return {};
