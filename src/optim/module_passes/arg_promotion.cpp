@@ -109,8 +109,6 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
       term->value_type = res_type;
     }
   }
-  fmt::println("Found");
-  fmt::println("{:cd}", *func.func);
   for (auto use : func->get_uses()) {
     auto call_instr = use.user;
     for (auto suse : use.user->get_uses()) {

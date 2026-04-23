@@ -1236,13 +1236,13 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   if (!tree.empty()) {
     auto tree_cost = tree[0]->cost();
     if (tree_cost > 0) {
-      auto funccy = tree[0]->insert_loc->get_parent()->get_parent();
-      fmt::print("===================Generate START=================\n{:cd}",
-                 *funccy.func);
-      tree[0]->dump();
+      // auto funccy = tree[0]->insert_loc->get_parent()->get_parent();
+      // fmt::print("===================Generate START=================\n{:cd}",
+      //            *funccy.func);
+      // tree[0]->dump();
       tree[0]->generate(ctx, b);
-      fmt::print("{:cd}\n===================Generated END=================\n",
-                 *funccy.func);
+      // fmt::print("{:cd}\n===================Generated END=================\n",
+      //            *funccy.func);
     } else {
       if constexpr (debug_print) {
         fmt::println("Failed vectorize -> not worth");
