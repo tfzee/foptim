@@ -633,14 +633,18 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       switch ((fir::UnaryInstrSubType)instr->get_instr_subtype()) {
         case fir::UnaryInstrSubType::INVALID:
           UNREACH();
-        case fir::UnaryInstrSubType::FloatNeg:
-          if (out_type->as_float() == 32) {
+        case fir::UnaryInstrSubType::FloatNeg: {
+          auto width = out_type->as_float();
+          if (width == 32) {
             return ConstantValue::Constant(
                 ctx->get_constant_value(-a.as_f32(), out_type));
-          } else {
+          } else if (width == 64) {
             return ConstantValue::Constant(
                 ctx->get_constant_value(-a.as_f64(), out_type));
+          } else {
+            TODO("UNREACH?");
           }
+        }
         case fir::UnaryInstrSubType::IntNeg:
           return ConstantValue::Constant(
               ctx->get_constant_value(-a.as_int(), out_type));
@@ -650,6 +654,19 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           return ConstantValue::Constant(
               ctx->get_constant_value((~a.as_int()) & mask, out_type));
         }
+        case fir::UnaryInstrSubType::FloatSqrt: {
+          auto width = out_type->as_float();
+          if (width == 32) {
+            return ConstantValue::Constant(
+                ctx->get_constant_value(std::sqrt(a.as_f32()), out_type));
+          } else if (width == 64) {
+            return ConstantValue::Constant(
+                ctx->get_constant_value(std::sqrt(a.as_f64()), out_type));
+          } else {
+            TODO("UNREACH?");
+          }
+        }
+
         default:
           fmt::println("{}", instr);
           TODO("implement instr");
