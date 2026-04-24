@@ -1793,6 +1793,11 @@ bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
   if (sub_type == fir::IntrinsicSubType::FAbs && instr->args[0].is_constant()) {
     auto ty = instr->get_type();
+    if (instr->args[0].is_poison()) {
+      instr->replace_all_uses(fir::ValueR{ctx->get_poisson_value(ty)});
+      instr.destroy();
+      return true;
+    }
     if (ty->is_float()) {
       auto width = ty->as_float();
 
