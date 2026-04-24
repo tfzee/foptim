@@ -93,8 +93,11 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::IntrinsicSubType::FTrunc:
               cost -= lanes;
               break;
-            case fir::IntrinsicSubType::PopCnt:
             case fir::IntrinsicSubType::CTLZ:
+              // TODO: expensive but how expensive
+              cost += 10;
+              break;
+            case fir::IntrinsicSubType::PopCnt:
               fmt::println("{}", instr);
               IMPL("impl wfvector intrinsic");
               return {};
@@ -232,6 +235,12 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::IntSub:
             case fir::BinaryInstrSubType::IntMul:
             case fir::BinaryInstrSubType::FloatAdd:
+            case fir::BinaryInstrSubType::FloatDiv:
+            case fir::BinaryInstrSubType::And:
+            case fir::BinaryInstrSubType::Or:
+            case fir::BinaryInstrSubType::Xor:
+            case fir::BinaryInstrSubType::Shr:
+            case fir::BinaryInstrSubType::Shl:
             case fir::BinaryInstrSubType::FloatMul: {
               auto new_i = buh.build_binary_op(
                   convert_value(ctx, buh, instr->args[0], n_lanes, subs),
@@ -245,14 +254,8 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::IntURem:
             case fir::BinaryInstrSubType::IntSDiv:
             case fir::BinaryInstrSubType::IntUDiv:
-            case fir::BinaryInstrSubType::Shl:
-            case fir::BinaryInstrSubType::Shr:
             case fir::BinaryInstrSubType::AShr:
-            case fir::BinaryInstrSubType::And:
-            case fir::BinaryInstrSubType::Or:
-            case fir::BinaryInstrSubType::Xor:
             case fir::BinaryInstrSubType::FloatSub:
-            case fir::BinaryInstrSubType::FloatDiv:
               fmt::println("{}", instr);
               TODO("impl");
           }
