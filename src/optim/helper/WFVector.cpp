@@ -58,12 +58,9 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::FloatDiv:
             case fir::BinaryInstrSubType::Shl:
             case fir::BinaryInstrSubType::Shr:
+            case fir::BinaryInstrSubType::AShr:
               cost -= lanes;
               break;
-            case fir::BinaryInstrSubType::AShr:
-              fmt::println("{}", instr);
-              IMPL("impl wfvector binary");
-              return {};
             case fir::BinaryInstrSubType::INVALID:
             case fir::BinaryInstrSubType::IntSRem:
             case fir::BinaryInstrSubType::IntURem:
@@ -90,13 +87,13 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::IntrinsicSubType::SMax:
             case fir::IntrinsicSubType::FMin:
             case fir::IntrinsicSubType::FMax:
-              cost -= lanes;
-              break;
-            case fir::IntrinsicSubType::PopCnt:
             case fir::IntrinsicSubType::FRound:
             case fir::IntrinsicSubType::FCeil:
             case fir::IntrinsicSubType::FFloor:
             case fir::IntrinsicSubType::FTrunc:
+              cost -= lanes;
+              break;
+            case fir::IntrinsicSubType::PopCnt:
             case fir::IntrinsicSubType::CTLZ:
               fmt::println("{}", instr);
               IMPL("impl wfvector intrinsic");
@@ -131,14 +128,14 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::ConversionSubType::FPTOUI:
             case fir::ConversionSubType::FPTOSI:
             case fir::ConversionSubType::UITOFP:
+            case fir::ConversionSubType::FPEXT:
+            case fir::ConversionSubType::FPTRUNC:
               cost += 1;
               break;
             case fir::ConversionSubType::PtrToInt:
             case fir::ConversionSubType::IntToPtr:
               break;
             case fir::ConversionSubType::INVALID:
-            case fir::ConversionSubType::FPEXT:
-            case fir::ConversionSubType::FPTRUNC:
               fmt::println("{}", instr);
               IMPL("impl wfvector conversion");
               return {};
@@ -147,11 +144,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
         }
         case fir::InstrType::SelectInstr:
         case fir::InstrType::ITrunc:
-          break;
         case fir::InstrType::SExt:
-          fmt::println("{}", instr);
-          IMPL("impl wfvector conversion");
-          return {};
+          break;
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
           cost -= lanes;

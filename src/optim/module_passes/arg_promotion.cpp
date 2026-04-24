@@ -61,12 +61,12 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
   if (!func_ty.return_type->is_struct()) {
     return false;
   }
-  auto &elems = func_ty.return_type->as_struct().elems;
+  const auto &elems = func_ty.return_type->as_struct().elems;
   if (elems.size() != 2 || !elems[0].ty->is_vec() ||
       elems[0].ty != elems[1].ty) {
     return false;
   }
-  auto &inp_vec_ty = elems[0].ty->as_vec();
+  const auto &inp_vec_ty = elems[0].ty->as_vec();
   if (inp_vec_ty.get_size() >= 64 ||
       (!utils::enable_avx512f && inp_vec_ty.get_size() >= 32)) {
     return false;

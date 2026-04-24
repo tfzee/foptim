@@ -15,7 +15,6 @@ class SLPVectorizer final : public FunctionPass {
  public:
   static constexpr bool debug_print = false;
 
- public:
   struct SeedInstrData {
     fir::Instr instr;
     fir::ValueR a;

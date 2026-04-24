@@ -1668,6 +1668,16 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               } else {
                 TODO("UNREACH?");
               }
+            } else if (res_ty->is_float()) {
+              if (load_width == 32) {
+                v = fir::ValueR{
+                    ctx->get_constant_value(*(f32 *)data_ptr, res_ty)};
+              } else if (load_width == 64) {
+                v = fir::ValueR{
+                    ctx->get_constant_value(*(f64 *)data_ptr, res_ty)};
+              } else {
+                TODO("UNREACH?");
+              }
             } else {
               fmt::println("{:cd}", instr);
               fmt::println("{:cd}", arg_instr);
@@ -2110,17 +2120,22 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto arg_argc = argi->args[1].as_constant()->as_vec();
       auto expected_spacing = instr->get_type()->as_vec().bitwidth;
       bool spacing_matches = true;
-      u32 base_offset = arg_argc.members[0]->as_int();
-      for (size_t i = 1; i < arg_argc.members.size(); i++) {
-        auto v1 = arg_argc.members[i - 1];
-        auto v2 = arg_argc.members[i];
-        ASSERT(v1->is_int());
-        ASSERT(v2->is_int());
-        auto v1i = v1->as_int();
-        auto v2i = v2->as_int();
-        if (v2i <= v1i || (v2i - v1i) * 8 != expected_spacing) {
-          spacing_matches = false;
+      u32 base_offset = 0;
+      if (arg_argc.members[0]->is_int()) {
+        base_offset = arg_argc.members[0]->as_int();
+        for (size_t i = 1; i < arg_argc.members.size(); i++) {
+          auto v1 = arg_argc.members[i - 1];
+          auto v2 = arg_argc.members[i];
+          ASSERT(v1->is_int());
+          ASSERT(v2->is_int());
+          auto v1i = v1->as_int();
+          auto v2i = v2->as_int();
+          if (v2i <= v1i || (v2i - v1i) * 8 != expected_spacing) {
+            spacing_matches = false;
+          }
         }
+      } else {
+        spacing_matches = false;
       }
 
       if (spacing_matches) {

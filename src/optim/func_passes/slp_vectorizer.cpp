@@ -56,7 +56,7 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
     return true;
   }
 
-  i64 cost() const final { return -1; }
+  [[nodiscard]] i64 cost() const final { return -1; }
 
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle & /*orig_bundle*/) final {
@@ -222,6 +222,7 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
       case fir::BinaryInstrSubType::IntSub:
       case fir::BinaryInstrSubType::Xor:
       case fir::BinaryInstrSubType::Or:
+      case fir::BinaryInstrSubType::Shr:
         return true;
       case fir::BinaryInstrSubType::FloatSub:
       case fir::BinaryInstrSubType::FloatMul:
@@ -242,7 +243,6 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
       case fir::BinaryInstrSubType::IntUDiv:
         return false;
       case fir::BinaryInstrSubType::INVALID:
-      case fir::BinaryInstrSubType::Shr:
       case fir::BinaryInstrSubType::AShr:
         fmt::println("{}", base_v);
         TODO("impl");
@@ -269,7 +269,9 @@ class ZextTreeOp final : public SLPVectorizer::TreeElem {
     fmt::println("\n");
   }
 
-  i64 cost() const final { return children.at(0)->cost() + n_lanes * 1; }
+  [[nodiscard]] i64 cost() const final {
+    return children.at(0)->cost() + (static_cast<i64>(n_lanes * 1));
+  }
 
   ZextTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -311,7 +313,9 @@ class ITruncTreeOp final : public SLPVectorizer::TreeElem {
     fmt::println(")");
   }
 
-  i64 cost() const final { return children.at(0)->cost() + n_lanes * 1; }
+  [[nodiscard]] i64 cost() const final {
+    return children.at(0)->cost() + static_cast<i64>(n_lanes * 1);
+  }
 
   ITruncTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -361,9 +365,9 @@ class CallTreeOp final : public SLPVectorizer::TreeElem {
     return this;
   }
 
-  i64 cost() const final {
+  [[nodiscard]] i64 cost() const final {
     i64 cost = 0;
-    for (auto &child : children) {
+    for (const auto &child : children) {
       cost += child->cost();
     }
     return cost;
@@ -444,7 +448,9 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
     return this;
   }
 
-  i64 cost() const final { return children.at(0)->cost() + n_lanes * 2; }
+  [[nodiscard]] i64 cost() const final {
+    return children.at(0)->cost() + static_cast<i64>(n_lanes * 2);
+  }
 
   static bool match(const TVec<fir::ValueR> &values) {
     auto base_v = values.back().as_instr();
@@ -490,12 +496,15 @@ class ExtractTreeOp final : public SLPVectorizer::TreeElem {
     return this;
   }
 
-  i64 cost() const final { return -2; }
+  [[nodiscard]] i64 cost() const final { return -2; }
 
   static bool match(const TVec<fir::ValueR> &values) {
     auto base_v = values.back().as_instr();
     auto exp_off = 0;
     auto input_val = base_v->args[0];
+    if (!input_val.get_type()->is_vec()) {
+      return false;
+    }
     for (auto i_v : values) {
       if (!i_v.is_instr()) {
         return false;
@@ -532,7 +541,9 @@ class StoreTreeOp final : public SLPVectorizer::TreeElem {
     fmt::println("\n");
   }
 
-  i64 cost() const final { return children.at(0)->cost() + n_lanes * 2; }
+  [[nodiscard]] i64 cost() const final {
+    return children.at(0)->cost() + static_cast<i64>(n_lanes * 2);
+  }
 
   StoreTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -586,12 +597,12 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
     }
   }
 
-  i64 cost() const final {
+  [[nodiscard]] i64 cost() const final {
     if (children.size() == 2) {
-      return children.at(0)->cost() + children.at(1)->cost() + n_lanes * 2;
-    } else {
-      return children.at(0)->cost() + n_lanes * 1;
+      return children.at(0)->cost() + children.at(1)->cost() +
+             static_cast<i64>(n_lanes * 2);
     }
+    return children.at(0)->cost() + (static_cast<i64>(n_lanes * 1));
   }
 
   IntrinTreeOp *init(const TVec<fir::ValueR> &values) {
@@ -692,7 +703,7 @@ class ConstantTreeOp final : public SLPVectorizer::TreeElem {
     fmt::print(">");
   }
 
-  i64 cost() const final { return n_lanes * 1; }
+  [[nodiscard]] i64 cost() const final { return static_cast<i64>(n_lanes) * 1; }
 
   ConstantTreeOp *init(const TVec<fir::ValueR> &values,
                        SLPVectorizer::TreeElem *parent) {
@@ -822,7 +833,9 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
     fmt::print(")");
   }
 
-  i64 cost() const final { return children.at(0)->cost() + n_lanes * 1; }
+  [[nodiscard]] i64 cost() const final {
+    return children.at(0)->cost() + static_cast<i64>(n_lanes * 1);
+  }
 
   LoadTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
@@ -1053,13 +1066,12 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
               worklist.emplace_back(result, std::move(data));
             }
             continue;
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at binary {} {} {}",
-                           test_i.as_instr(), curr[0], curr[1]);
-            }
-            return false;
           }
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at binary {} {} {}",
+                         test_i.as_instr(), curr[0], curr[1]);
+          }
+          return false;
         }
         case fir::InstrType::LoadInstr:
           if (LoadTreeOp::match(curr, load_bundles)) {
@@ -1241,7 +1253,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
       //            *funccy.func);
       // tree[0]->dump();
       tree[0]->generate(ctx, b);
-      // fmt::print("{:cd}\n===================Generated END=================\n",
+      // fmt::print("{:cd}\n===================Generated
+      // END=================\n",
       //            *funccy.func);
     } else {
       if constexpr (debug_print) {
@@ -1418,14 +1431,12 @@ void left_red_search(TVec<fir::ValueR> &reduction_inputs, fir::ValueR curr_base,
     left_red_search(reduction_inputs, curr_i->args[0], exp_sub_type);
     reduction_inputs.push_back(curr_i->args[1]);
     return;
-  } else {
-    if (curr_i->args[0].is_instr()) {
-      reduction_inputs.push_back(curr_i->args[0]);
-    }
-    if (curr_i->args[1].is_instr()) {
-      reduction_inputs.push_back(curr_i->args[1]);
-    }
-    return;
+  }
+  if (curr_i->args[0].is_instr()) {
+    reduction_inputs.push_back(curr_i->args[0]);
+  }
+  if (curr_i->args[1].is_instr()) {
+    reduction_inputs.push_back(curr_i->args[1]);
   }
 }
 void right_red_search(TVec<fir::ValueR> &reduction_inputs,
@@ -1447,14 +1458,12 @@ void right_red_search(TVec<fir::ValueR> &reduction_inputs,
     right_red_search(reduction_inputs, curr_i->args[1], exp_sub_type);
     reduction_inputs.push_back(curr_i->args[0]);
     return;
-  } else {
-    if (curr_i->args[1].is_instr()) {
-      reduction_inputs.push_back(curr_i->args[1]);
-    }
-    if (curr_i->args[0].is_instr()) {
-      reduction_inputs.push_back(curr_i->args[0]);
-    }
-    return;
+  }
+  if (curr_i->args[1].is_instr()) {
+    reduction_inputs.push_back(curr_i->args[1]);
+  }
+  if (curr_i->args[0].is_instr()) {
+    reduction_inputs.push_back(curr_i->args[0]);
   }
 }
 
