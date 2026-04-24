@@ -846,6 +846,14 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
 
   static bool match(const TVec<fir::ValueR> &values,
                     const TVec<SLPVectorizer::SeedBundle> &load_bundles) {
+    for (auto v : values) {
+      if (!v.is_instr()) {
+        if (SLPVectorizer::debug_print) {
+          fmt::println("failed load missing instr {}", v);
+        }
+        return false;
+      }
+    }
     auto base_v = values.back().as_instr();
     auto base_t = base_v->get_type();
     if (base_t->is_vec()) {
@@ -860,12 +868,6 @@ class LoadTreeOp final : public SLPVectorizer::TreeElem {
     }
 
     for (auto i_v : values) {
-      if (!i_v.is_instr()) {
-        if (SLPVectorizer::debug_print) {
-          fmt::println("failed load missing instr {}", i_v);
-        }
-        return false;
-      }
       auto i = i_v.as_instr();
       if (i->instr_type != base_v->instr_type ||
           i->subtype != base_v->subtype) {
