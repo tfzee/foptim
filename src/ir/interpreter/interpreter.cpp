@@ -1,4 +1,5 @@
 #include "interpreter.hpp"
+
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value.hpp"
@@ -78,6 +79,15 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
                                                   instr.get_type()});
       } else {
         st.set_value(ValueR(instr), ConstantValue{v1->as_f64() + v2->as_f64(),
+                                                  instr.get_type()});
+      }
+      break;
+    case BinaryInstrSubType::FloatMul:
+      if (instr.get_type()->as_float() == 32) {
+        st.set_value(ValueR(instr), ConstantValue{v1->as_f32() * v2->as_f32(),
+                                                  instr.get_type()});
+      } else {
+        st.set_value(ValueR(instr), ConstantValue{v1->as_f64() * v2->as_f64(),
                                                   instr.get_type()});
       }
       break;
