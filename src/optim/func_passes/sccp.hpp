@@ -185,19 +185,28 @@ class SCCP final : public FunctionPass {
     bool storeConstant(u8 *v, fir::TypeR c) {
       auto bitwidth = c->get_bitwidth();
       if (c->is_float() && bitwidth == 32) {
-        *((f32 *)v) = (f32)vals[0].f;
+        auto val = (f32)vals[0].f;
+        std::memcpy(v, &val, sizeof(f32));
         return true;
       }
       if (c->is_float() && bitwidth == 64) {
-        *((f64 *)v) = vals[0].f;
+        auto val = (f64)vals[0].f;
+        std::memcpy(v, &val, sizeof(f64));
         return true;
       }
+
       if (c->is_int() && bitwidth == 8) {
         *((i8 *)v) = (i8)vals[0].i;
         return true;
       }
+      if (c->is_int() && bitwidth == 32) {
+        auto val = (i32)vals[0].i;
+        std::memcpy(v, &val, sizeof(i32));
+        return true;
+      }
       if ((c->is_ptr() || c->is_int()) && bitwidth == 64) {
-        *((i64 *)v) = (i64)vals[0].i;
+        auto val = (i64)vals[0].i;
+        std::memcpy(v, &val, sizeof(i64));
         return true;
       }
       if (c->is_vec()) {
@@ -205,13 +214,19 @@ class SCCP final : public FunctionPass {
         for (size_t i = 0; i < vals.size(); i++) {
           if (cv.type == fir::VectorType::SubType::Floating &&
               cv.bitwidth == 32) {
-            *(((f32 *)(v + (i * cv.bitwidth / 8)))) = (f32)vals[i].f;
+            auto val = (f32)vals[0].f;
+            std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(f32));
+            // *(((f32 *)(v + (i * cv.bitwidth / 8)))) = (f32)vals[i].f;
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 32) {
-            *(((i32 *)(v + (i * cv.bitwidth / 8)))) = (i32)vals[i].i;
+            auto val = (i32)vals[0].i;
+            std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i32));
+            // *(((i32 *)(v + (i * cv.bitwidth / 8)))) = (i32)vals[i].i;
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 64) {
-            *(((u64 *)(v + (i * cv.bitwidth / 8)))) = (i64)vals[i].i;
+            auto val = (i64)vals[0].i;
+            std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i64));
+            // *(((u64 *)(v + (i * cv.bitwidth / 8)))) = (i64)vals[i].i;
           } else {
             fmt::println("Data store {:cd}", c);
             TODO("impl");
