@@ -1940,16 +1940,16 @@ void base_patterns(IRVec<Pattern> &pats) {
             break;
           case Type::Int64x2:
           case Type::Float64x2:
+          case Type::Int32x4:
+          case Type::Float32x4:
             ASSERT(a1.isReg());
             res.result.emplace_back(
                 X86Subtype::vinsert128, res_reg,
                 MArgument(a1.reg.retype(res_reg.ty), res_reg.ty), a2,
                 MArgument((u8)1));
             break;
-          case Type::Float32x4:
           case Type::Float32x8:
           case Type::Int32x8:
-          case Type::Int32x4:
           case Type::Float64x4:
           case Type::Int64x4:
             fmt::println("{:cd}", concat_instr->args[0].get_type());
