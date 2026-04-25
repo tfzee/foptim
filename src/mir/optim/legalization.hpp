@@ -17,6 +17,7 @@ class Legalizer {
 
   // legalizing
   bool legalize_punpckl(MBB &bb, u32 indx);
+  bool legalize_sqrt(MBB &bb, u32 indx);
   bool legalize_icmp(MBB &bb, u32 indx);
   bool legalize_arith_op(MBB &bb, u32 indx);
   bool legalize_fcmp(MBB &bb, u32 indx);

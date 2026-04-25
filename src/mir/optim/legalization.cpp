@@ -652,6 +652,21 @@ bool Legalizer::legalize_punpckl(MBB &bb, u32 indx) {
   return false;
 }
 
+bool Legalizer::legalize_sqrt(MBB &bb, u32 indx) {
+  {
+    MInstr &instr = bb.instrs[indx];
+    if (instr.args[1].isImm()) {
+      if (instr.args[1].ty >= Type::Float32) {
+        indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+      } else {
+        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
   if (instr.is(GConvSubtype::SI2FL) && instr.args[1].isReg() &&
@@ -895,6 +910,11 @@ void Legalizer::apply_impl(MFunc &func) {
           break;
         case GOpcode::X86:
           switch ((X86Subtype)bb.instrs[i].sop) {
+            case X86Subtype::sqrt:
+              if (legalize_sqrt(bb, i)) {
+                ioff = 0;
+              }
+              break;
             case X86Subtype::punpckl:
               if (legalize_punpckl(bb, i)) {
                 ioff = 0;
