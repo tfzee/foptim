@@ -1,7 +1,8 @@
+#include "function_dedup.hpp"
+
 #include <algorithm>
 #include <atomic>
 
-#include "function_dedup.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
@@ -195,7 +196,8 @@ bool is_function_applicable(const fir::Function *f) {
     return false;
   }
   // TODO: should work for linkonce odr aswell
-  if (f->attribs.linkage == fir::Linkage::Weak || f->attribs.linkage == fir::Linkage::WeakODR ||
+  if (f->attribs.linkage == fir::Linkage::Weak ||
+      f->attribs.linkage == fir::Linkage::WeakODR ||
       f->attribs.linkage == fir::Linkage::LinkOnce ||
       f->attribs.linkage == fir::Linkage::External) {
     return false;
@@ -350,7 +352,8 @@ void collect_group(
 
     if (f1->basic_blocks.size() != f2->basic_blocks.size() ||
         f1->get_entry()->n_args() != f2->get_entry()->n_args() ||
-        f1_ninstrs != f2->n_instrs()) {
+        f1_ninstrs != f2->n_instrs() ||
+        f1->func_ty != f2->func_ty) {
       continue;
     }
 
