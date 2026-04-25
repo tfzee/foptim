@@ -115,9 +115,9 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
             case fir::UnaryInstrSubType::FloatNeg:
             case fir::UnaryInstrSubType::IntNeg:
             case fir::UnaryInstrSubType::Not:
+            case fir::UnaryInstrSubType::FloatSqrt:
               cost -= lanes;
               break;
-            case fir::UnaryInstrSubType::FloatSqrt:
               fmt::println("{}", instr);
               IMPL("impl wfvector unary");
               return {};
