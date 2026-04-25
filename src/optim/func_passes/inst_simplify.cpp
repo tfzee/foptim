@@ -899,16 +899,14 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     instr.destroy();
     return true;
   }
-  if ((fir::UnaryInstrSubType)instr->subtype ==
-          fir::UnaryInstrSubType::IntNeg &&
+  if (instr->is(fir::UnaryInstrSubType::IntNeg) &&
       instr->get_type()->get_bitwidth() == 1) {
     instr->subtype = (u32)fir::UnaryInstrSubType::Not;
     worklist.push_back(
         InstSimplify::WorkItem{.instr = instr, .b = instr->get_parent()});
     return true;
   }
-  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
-      instr->args[0].is_instr()) {
+  if (instr->is(fir::UnaryInstrSubType::Not) && instr->args[0].is_instr()) {
     auto input_instr = instr->args[0].as_instr();
     if (input_instr->is(fir::UnaryInstrSubType::Not)) {
       push_all_uses(worklist, instr);
@@ -917,8 +915,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       return true;
     }
   }
-  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
-      instr->args[0].is_instr() &&
+  if (instr->is(fir::UnaryInstrSubType::Not) && instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::ICmp)) {
     push_all_uses(worklist, instr);
     auto old_icmp = instr->args[0].as_instr();
@@ -971,8 +968,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     instr.destroy();
     return true;
   }
-  if ((fir::UnaryInstrSubType)instr->subtype == fir::UnaryInstrSubType::Not &&
-      instr->args[0].is_instr() &&
+  if (instr->is(fir::UnaryInstrSubType::Not) && instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::FCmp)) {
     push_all_uses(worklist, instr);
     auto old_fcmp = instr->args[0].as_instr();
@@ -1048,6 +1044,25 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(
           fir::ValueR{ctx->get_constant_value(res_v, out_type)});
+      instr.destroy();
+      return true;
+    }
+    if (instr->is(fir::UnaryInstrSubType::FloatNeg)) {
+      push_all_uses(worklist, instr);
+      auto out_type = instr.get_type();
+      ASSERT(out_type->is_float());
+      auto width = out_type->as_float();
+
+      push_all_uses(worklist, instr);
+      if (width == 32) {
+        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+            -instr->args[0].as_constant()->as_f32(), out_type)});
+      } else if (width == 64) {
+        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+            -instr->args[0].as_constant()->as_f32(), out_type)});
+      } else {
+        TODO("UNREACH?");
+      }
       instr.destroy();
       return true;
     }
