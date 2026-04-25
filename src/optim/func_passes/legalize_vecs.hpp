@@ -60,7 +60,8 @@ class LegalizeVecs final : public FunctionPass {
          instr->is(fir::BinaryInstrSubType::FloatSub) ||
          instr->is(fir::BinaryInstrSubType::FloatMul) ||
          instr->is(fir::BinaryInstrSubType::FloatDiv) ||
-         instr->is(fir::InstrType::FCmp))) {
+         instr->is(fir::InstrType::FCmp)) &&
+        instr->get_type()->is_vec()) {
       if (instr->args[0].is_constant_float()) {
         make_constant_global(ctx, instr, 0);
         return true;
