@@ -80,6 +80,7 @@ class SmallVec {
   constexpr T& operator[](size_t i) noexcept { return data[i]; }
   constexpr const T& operator[](size_t i) const noexcept { return data[i]; }
   constexpr SizeTy size() const noexcept { return _size; }
+  constexpr bool empty() const noexcept { return _size == 0; }
   constexpr SizeTy capacity() const noexcept {
     return is_heap() ? _heap.capacity : N;
   }
@@ -128,6 +129,68 @@ class SmallVec {
     }
     data = new_data;
     _heap.capacity = actual_new_size;
+  }
+
+  // reserves the exact size requested by the user
+  constexpr void reserve_exact(SizeTy wanted_new_size) {
+    if (capacity() >= wanted_new_size) {
+      return;
+    }
+    u64 actual_new_size = static_cast<u64>(wanted_new_size);
+    ASSERT(actual_new_size <= max_size() &&
+           "SmallVec: Capacity exceeds SizeTy limit!");
+
+    bool was_on_heap = is_heap();
+    auto alloc = Allocator{};
+    T* new_data = alloc.allocate(static_cast<SizeTy>(actual_new_size));
+    if constexpr (std::is_trivially_copyable_v<T>) {
+      std::memcpy(new_data, data, _size * sizeof(T));
+    } else {
+      std::uninitialized_move_n(data, _size, new_data);
+      if constexpr (!std::is_trivially_destructible_v<T>) {
+        std::destroy_n(data, _size);
+      }
+    }
+    if (was_on_heap) {
+      alloc.deallocate(data, _heap.capacity);
+    }
+    data = new_data;
+    _heap.capacity = actual_new_size;
+  }
+
+  constexpr void reserve(SizeTy wanted_new_size) {
+    reserve_at_least(wanted_new_size);
+  }
+
+  // will delete the element but worst case O(N-1) when deleting first element
+  // but preserves order
+  constexpr T* erase(T* iter) {
+    ASSERT(iter >= data && iter < data + _size);
+    if constexpr (std::is_trivially_copyable_v<T>) {
+      size_t elems_after = _size - 1 - (iter - data);
+      std::memmove(iter, iter + 1, elems_after * sizeof(T));
+    } else {
+      // move rest and cleanup the last thats now gone
+      T* last = data + _size - 1;
+      if (iter != last) {
+        std::move(iter + 1, last + 1, iter + 1);
+      }
+      std::destroy_at(last);
+    }
+    _size--;
+    return iter;
+  }
+
+  // will delete the element in O(1) but doesnt preserve order
+  constexpr T* erase_unordered(T* iter) {
+    ASSERT(iter >= data && iter < data + _size);
+    T* last = data + _size - 1;
+    if (iter != last) {
+      *iter = std::move(*last);
+    }
+    std::destroy_at(last);
+    _size--;
+    return iter;
   }
 
   constexpr void push_back(T&& v) {
