@@ -56,6 +56,18 @@ class LegalizeVecs final : public FunctionPass {
       }
     }
 
+    // fmax can never take immediate even for singular values
+    if (instr->is(fir::IntrinsicSubType::FMax) || instr->is(fir::IntrinsicSubType::FMin)) {
+      if (instr->args[0].is_constant_float()) {
+        make_constant_global(ctx, instr, 0);
+        return true;
+      }
+      if (instr->args[1].is_constant_float()) {
+        make_constant_global(ctx, instr, 1);
+        return true;
+      }
+    }
+
     if ((instr->is(fir::BinaryInstrSubType::FloatAdd) ||
          instr->is(fir::BinaryInstrSubType::FloatSub) ||
          instr->is(fir::BinaryInstrSubType::FloatMul) ||
