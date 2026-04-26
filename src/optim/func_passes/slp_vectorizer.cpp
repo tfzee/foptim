@@ -823,6 +823,69 @@ class ConversionTreeOp final : public SLPVectorizer::TreeElem {
   }
 };
 
+class SelectTreeOp final : public SLPVectorizer::TreeElem {
+  fir::TypeR orig_type;
+
+ public:
+  void dump() final {
+    fmt::print("SELECT(");
+    fmt::print(")");
+  }
+
+  i64 cost() const final {
+    // TODO switch on type of cast
+    return 1;
+  }
+
+  SelectTreeOp *init(const TVec<fir::ValueR> &values) {
+    n_lanes = values.size();
+    if (values.back().is_instr()) {
+      insert_loc = values.back().as_instr();
+      orig_type = insert_loc->get_type();
+    } else if (values.back().is_bb_arg()) {
+      insert_loc = values.back().as_bb_arg()->get_parent()->instructions[0];
+      orig_type = values.front().as_instr()->get_type();
+    } else {
+      insert_loc = values.front().as_instr();
+      orig_type = insert_loc->get_type();
+    }
+    return this;
+  }
+
+  static bool match(const TVec<fir::ValueR> &values) {
+    fir::Instr base_v{fir::Instr::invalid()};
+    if (values.back().is_instr()) {
+      base_v = values.back().as_instr();
+    } else {
+      base_v = values.front().as_instr();
+    }
+    for (auto i_v : values) {
+      if (!i_v.is_instr()) {
+        return false;
+      }
+      auto i = i_v.as_instr();
+      if (i->instr_type != base_v->instr_type ||
+          i->subtype != base_v->subtype) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  fir::ValueR generate(fir::Context &ctx,
+                       SLPVectorizer::SeedBundle &orig_bundl) final {
+    auto cond = children.at(0)->generate(ctx, orig_bundl);
+    auto av = children.at(0)->generate(ctx, orig_bundl);
+    auto bv = children.at(0)->generate(ctx, orig_bundl);
+    fir::Builder bb{insert_loc};
+
+    auto res =
+        bb.build_select(ctx->get_vec_type(orig_type, n_lanes), cond, av, bv);
+    return res;
+  }
+};
+
 class LoadTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr base_load;
 
@@ -950,6 +1013,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
   using ExtractTreeAlloc = utils::TempAlloc<ExtractTreeOp>;
   using CallTreeAlloc = utils::TempAlloc<CallTreeOp>;
   using ConversionTreeAlloc = utils::TempAlloc<ConversionTreeOp>;
+  using SelectTreeAlloc = utils::TempAlloc<SelectTreeOp>;
 
   TVec<TreeElem *> tree;
   if (default_parent != nullptr) {
@@ -1194,9 +1258,23 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             return false;
           }
           break;
+        case fir::InstrType::SelectInstr:
+          if (SelectTreeOp::match(curr)) {
+            auto *result_t = SelectTreeAlloc{}.allocate(1);
+            (new (result_t) SelectTreeOp)->init(curr);
+            result = result_t;
+            n_args = 3;
+            parent->children.push_back(result);
+          } else {
+            if constexpr (debug_print) {
+              fmt::println("Failed tree vectorize at select value like {}",
+                           curr.back().as_instr());
+            }
+            return false;
+          }
+          break;
         case fir::InstrType::ICmp:
         case fir::InstrType::FCmp:
-        case fir::InstrType::SelectInstr:
           fmt::println("{}", test_i.as_instr());
           TODO("Should be implementable");
         case fir::InstrType::AtomicRMW:
