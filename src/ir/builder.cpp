@@ -477,8 +477,14 @@ ValueR Builder::build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty) {
 
 ValueR Builder::build_float_cmp(ValueR a, ValueR b, FCmpInstrSubType ty) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(
-      InstrData::get_float_cmp(ctx->get_int_type(1), ty));
+  auto out_type = ctx->get_int_type(1);
+  auto inp_ty = a.get_type();
+  if (inp_ty->is_vec()) {
+    out_type = ctx->get_vec_type(fir::VectorType::SubType::Integer, 1,
+                                 inp_ty->as_vec().member_number);
+  }
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_float_cmp(out_type, ty));
   instr.add_arg(a);
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
