@@ -6,6 +6,8 @@
 #include <type_traits>
 
 #include "ir/instruction_data.hpp"
+#include "ir/types.hpp"
+#include "ir/value.hpp"
 #include "utils/helpers.hpp"
 #include "utils/todo.hpp"
 
@@ -1137,8 +1139,6 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     case fir::InstrType::FCmp: {
       auto a = eval(instr->get_arg(0));
       auto b = eval(instr->get_arg(1));
-      ASSERT(a.vals.size() <= 1);
-      ASSERT(b.vals.size() <= 1);
       if (a.is_bottom() || b.is_bottom()) {
         return ConstantValue::Bottom();
       }
@@ -1149,85 +1149,109 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         return ConstantValue::Constant(
             ctx->get_poisson_value(instr->get_type()));
       }
-      const auto res_type = ctx->get_int_type(1);
-
-      switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
-        case fir::FCmpInstrSubType::IsNaN:
-          if (a.get_type()->as_float() == 32) {
-            return ConstantValue::Constant(
-                ctx->get_constant_value((i32)std::isnan(a.as_f32()), res_type));
-          } else {
-            return ConstantValue::Constant(
-                ctx->get_constant_value((i32)std::isnan(a.as_f64()), res_type));
-          }
-        case fir::FCmpInstrSubType::OGT:
-          if (a.get_type()->as_float() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f32() > b.as_f32()), res_type));
-          } else {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f64() > b.as_f64()), res_type));
-          }
-        case fir::FCmpInstrSubType::OLT:
-          if (a.get_type()->as_float() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f32() < b.as_f32()), res_type));
-          } else {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f64() < b.as_f64()), res_type));
-          }
-        case fir::FCmpInstrSubType::OEQ:
-          if (a.get_type()->as_float() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f32() == b.as_f32()), res_type));
-          } else {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f64() == b.as_f64()), res_type));
-          }
-        case fir::FCmpInstrSubType::OGE:
-          if (a.get_type()->as_float() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f32() >= b.as_f32()), res_type));
-          } else {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f64() >= b.as_f64()), res_type));
-          }
-        case fir::FCmpInstrSubType::OLE:
-          if (a.get_type()->as_float() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f32() <= b.as_f32()), res_type));
-          } else {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f64() <= b.as_f64()), res_type));
-          }
-        case fir::FCmpInstrSubType::ONE:
-          if (a.get_type()->as_float() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f32() != b.as_f32()), res_type));
-          } else {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f64() != b.as_f64()), res_type));
-          }
-        case fir::FCmpInstrSubType::UEQ:
-        case fir::FCmpInstrSubType::UGT:
-        case fir::FCmpInstrSubType::UGE:
-        case fir::FCmpInstrSubType::ULT:
-        case fir::FCmpInstrSubType::ULE:
-        case fir::FCmpInstrSubType::UNE:
-        case fir::FCmpInstrSubType::ORD:
-        case fir::FCmpInstrSubType::UNO:
-          return ConstantValue::Bottom();
-        case fir::FCmpInstrSubType::AlwFalse:
-          return ConstantValue::Constant(
-              ctx->get_constant_value(static_cast<i32>(false), res_type));
-        case fir::FCmpInstrSubType::AlwTrue:
-          return ConstantValue::Constant(
-              ctx->get_constant_value(static_cast<i32>(true), res_type));
-        case fir::FCmpInstrSubType::INVALID:
-          break;
+      ASSERT(a.vals.size() == b.vals.size());
+      auto res_type = ctx->get_int_type(1);
+      if (a.vals.size() != 1) {
+        res_type = ctx->get_vec_type(fir::VectorType::SubType::Integer, 1,
+                                     a.vals.size());
       }
-      failure({.reason = "Imply fcmp", .loc = instr});
-      return ConstantValue::Bottom();
+
+      TVec<ConstantValue::Value> res_vals;
+
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        switch ((fir::FCmpInstrSubType)instr->get_instr_subtype()) {
+          case fir::FCmpInstrSubType::IsNaN:
+            if (a.get_type()->as_float() == 32) {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(std::isnan(a.as_f32(i)))});
+              break;
+            } else {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(std::isnan(a.as_f64(i)))});
+              break;
+            }
+          case fir::FCmpInstrSubType::OGT:
+            if (a.get_type()->as_float() == 32) {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f32(i) > b.as_f32(i))});
+              break;
+            } else {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f64(i) > b.as_f64(i))});
+              break;
+            }
+          case fir::FCmpInstrSubType::OLT:
+            if (a.get_type()->as_float() == 32) {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f32(i) < b.as_f32(i))});
+              break;
+            } else {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f64(i) < b.as_f64(i))});
+              break;
+            }
+          case fir::FCmpInstrSubType::OEQ:
+            if (a.get_type()->as_float() == 32) {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f32(i) == b.as_f32(i))});
+              break;
+            } else {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f64(i) == b.as_f64(i))});
+              break;
+            }
+          case fir::FCmpInstrSubType::OGE:
+            if (a.get_type()->as_float() == 32) {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f32(i) >= b.as_f32(i))});
+              break;
+            } else {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f64(i) >= b.as_f64(i))});
+              break;
+            }
+          case fir::FCmpInstrSubType::OLE:
+            if (a.get_type()->as_float() == 32) {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f32(i) <= b.as_f32(i))});
+              break;
+            } else {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f64(i) <= b.as_f64(i))});
+              break;
+            }
+          case fir::FCmpInstrSubType::ONE:
+            if (a.get_type()->as_float() == 32) {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f32(i) != b.as_f32(i))});
+              break;
+            } else {
+              res_vals.push_back(ConstantValue::Value{
+                  .i = static_cast<i32>(a.as_f64(i) != b.as_f64(i))});
+              break;
+            }
+          case fir::FCmpInstrSubType::UEQ:
+          case fir::FCmpInstrSubType::UGT:
+          case fir::FCmpInstrSubType::UGE:
+          case fir::FCmpInstrSubType::ULT:
+          case fir::FCmpInstrSubType::ULE:
+          case fir::FCmpInstrSubType::UNE:
+          case fir::FCmpInstrSubType::ORD:
+          case fir::FCmpInstrSubType::UNO:
+            TODO("IMPL");
+          case fir::FCmpInstrSubType::AlwFalse:
+            res_vals.push_back(
+                ConstantValue::Value{.i = static_cast<i32>(false)});
+            break;
+          case fir::FCmpInstrSubType::AlwTrue:
+            res_vals.push_back(
+                ConstantValue::Value{.i = static_cast<i32>(true)});
+            break;
+          case fir::FCmpInstrSubType::INVALID:
+            UNREACH();
+        }
+      }
+      return ConstantValue{ConstantValue::ValueType::Int, res_vals, res_type};
     }
     case fir::InstrType::ICmp: {
       auto a = eval(instr->get_arg(0));

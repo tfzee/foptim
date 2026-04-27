@@ -234,6 +234,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::IntAdd:
             case fir::BinaryInstrSubType::IntSub:
             case fir::BinaryInstrSubType::IntMul:
+            case fir::BinaryInstrSubType::FloatSub:
             case fir::BinaryInstrSubType::FloatAdd:
             case fir::BinaryInstrSubType::FloatDiv:
             case fir::BinaryInstrSubType::And:
@@ -255,7 +256,6 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
             case fir::BinaryInstrSubType::IntSDiv:
             case fir::BinaryInstrSubType::IntUDiv:
             case fir::BinaryInstrSubType::AShr:
-            case fir::BinaryInstrSubType::FloatSub:
               fmt::println("{}", instr);
               TODO("impl");
           }
@@ -303,8 +303,23 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
               TODO("impl");
           }
           break;
+        case fir::InstrType::FCmp: {
+          auto new_i = buh.build_float_cmp(
+              convert_value(ctx, buh, instr->args[0], n_lanes, subs),
+              convert_value(ctx, buh, instr->args[1], n_lanes, subs),
+              (fir::FCmpInstrSubType)instr->subtype);
+          subs.insert({fir::ValueR{instr}, new_i});
+          break;
+        }
+        case fir::InstrType::SelectInstr: {
+          auto cond = convert_value(ctx, buh, instr->args[0], n_lanes, subs);
+          auto a = convert_value(ctx, buh, instr->args[1], n_lanes, subs);
+          auto b = convert_value(ctx, buh, instr->args[2], n_lanes, subs);
+          auto new_i = buh.build_select(a.get_type(), cond, a, b);
+          subs.insert({fir::ValueR{instr}, new_i});
+          break;
+        }
         case fir::InstrType::ICmp:
-        case fir::InstrType::FCmp:
         case fir::InstrType::UnaryInstr:
         case fir::InstrType::ExtractValue:
         case fir::InstrType::InsertValue:
@@ -313,7 +328,6 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
         case fir::InstrType::ZExt:
         case fir::InstrType::SExt:
         case fir::InstrType::Conversion:
-        case fir::InstrType::SelectInstr:
         case fir::InstrType::CallInstr:
         case fir::InstrType::BranchInstr:
         case fir::InstrType::CondBranchInstr:

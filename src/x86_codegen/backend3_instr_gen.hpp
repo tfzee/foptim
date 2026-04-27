@@ -2467,6 +2467,22 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       return emit(out_buff, 0, &req);
     }
+    case fmir::X86Subtype::vblendv: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 4);
+      fmt::println("{:cd}", instr);
+      TODO("Impl");
+    }
+    case fmir::X86Subtype::vcmp: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 4);
+      fmt::println("{:cd}", instr);
+      TODO("Impl");
+    }
     case fmir::X86Subtype::vbroadcast: {
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);

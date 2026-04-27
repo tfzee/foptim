@@ -280,6 +280,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::psll:
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
+        case X86Subtype::vblendv:
+        case X86Subtype::vcmp:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
@@ -626,6 +628,15 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           }
           update_uses(instr.args[1], uses);
           update_uses(instr.args[2], uses);
+          return;
+        case X86Subtype::vblendv:
+        case X86Subtype::vcmp:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
+          }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          update_uses(instr.args[3], uses);
           return;
       }
   }

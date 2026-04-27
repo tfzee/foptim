@@ -64,6 +64,8 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::LockXAdd2:
           // TOOD: if we knew it was reg-reg args then we could set it to true
           return false;
+        case X86Subtype::vblendv:
+        case X86Subtype::vcmp:
         case X86Subtype::INVALID:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:

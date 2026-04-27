@@ -49,8 +49,92 @@ void move_patterns(IRVec<Pattern> &pats) {
   using NodeType = Pattern::NodeType;
 
   auto IntCmpNode = Node{NodeType::Instr, InstrType::ICmp, (u32)0};
+  auto FloatCmpNode = Node{NodeType::Instr, InstrType::FCmp, (u32)0};
   auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, (u32)0};
 
+  pats.push_back(Pattern{
+      .nodes = {FloatCmpNode, SelectNode},
+      .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        fir::Instr cmp_instr = res.matched_instrs[0];
+        fir::Instr slct_instr = res.matched_instrs[1];
+
+        auto res_arg =
+            valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+        auto c1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto c2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+        auto arg1 = valueToArg(slct_instr->args[1], res.result, data.alloc);
+        auto arg2 = valueToArg(slct_instr->args[2], res.result, data.alloc);
+
+        auto condition =
+            MArgument(data.alloc.get_new_register(res_arg.ty), res_arg.ty);
+
+        u8 vcmp_condition = 0;
+
+        switch ((fir::FCmpInstrSubType)cmp_instr->get_instr_subtype()) {
+          case fir::FCmpInstrSubType::OEQ:
+            vcmp_condition = 0x00;
+            break;
+          case fir::FCmpInstrSubType::OLT:
+            vcmp_condition = 0x01;
+            break;
+          case fir::FCmpInstrSubType::OLE:
+            vcmp_condition = 0x02;
+            break;
+          case fir::FCmpInstrSubType::UNO:
+            vcmp_condition = 0x03;
+            break;
+          case fir::FCmpInstrSubType::UNE:
+            vcmp_condition = 0x04;
+            break;
+          case fir::FCmpInstrSubType::ULT:
+            vcmp_condition = 0x05;
+            break;
+          case fir::FCmpInstrSubType::ULE:
+            vcmp_condition = 0x06;
+            break;
+          case fir::FCmpInstrSubType::ORD:
+            vcmp_condition = 0x07;
+            break;
+          case fir::FCmpInstrSubType::UEQ:
+            vcmp_condition = 0x08;
+            break;
+          case fir::FCmpInstrSubType::AlwFalse:
+            vcmp_condition = 0x0B;
+            break;
+          case fir::FCmpInstrSubType::ONE:
+            vcmp_condition = 0x0C;
+            break;
+          case fir::FCmpInstrSubType::OGE:
+            vcmp_condition = 0x0D;
+            break;
+          case fir::FCmpInstrSubType::OGT:
+            vcmp_condition = 0x0E;
+            break;
+          case fir::FCmpInstrSubType::AlwTrue:
+            vcmp_condition = 0x0F;
+            break;
+          case fir::FCmpInstrSubType::UGT:
+            vcmp_condition = 0x16;
+            break;
+          case fir::FCmpInstrSubType::UGE:
+            vcmp_condition = 0x15;
+            break;
+          case fir::FCmpInstrSubType::IsNaN:
+            vcmp_condition = 0x03;
+            break;
+          case fir::FCmpInstrSubType::INVALID:
+            fmt::println("{}", cmp_instr);
+            fmt::println("{}", slct_instr);
+            TODO("TODO");
+        }
+
+        res.result.emplace_back(X86Subtype::vcmp, condition, c1, c2,
+                                MArgument(vcmp_condition));
+        res.result.emplace_back(X86Subtype::vblendv, res_arg, arg1, arg2,
+                                condition);
+        return true;
+      }});
   pats.push_back(Pattern{
       .nodes = {IntCmpNode, SelectNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
