@@ -89,7 +89,9 @@ class StaticParallelFunctionPassManager {
         p.print_failures();
       }
     }
-    utils::TempAlloc<void *>::reset();
+    if (utils::number_worker_threads > 0) {
+      utils::TempAlloc<void *>::reset();
+    }
   }
 
  public:
@@ -103,9 +105,12 @@ class StaticParallelFunctionPassManager {
                             utils::print_optimization_failure_reasons),
          ...);
       });
-      ctx.data->storage.storage_instr.collect_garbage();
     }
     shed->wait_till_done();
+    ctx.data->storage.storage_instr.collect_garbage();
+    if (utils::number_worker_threads == 0) {
+      utils::TempAlloc<void *>::reset();
+    }
     // ctx.data->storage.storage_instr.collect_garbage();
   }
 };

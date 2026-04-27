@@ -160,7 +160,7 @@ class DCE final : public FunctionPass {
           bb->remove_instr(instr_id_p1 - 1, true);
         }
       }
-      utils::TempAlloc<void>::reset();
+      // utils::TempAlloc<void>::reset();
     }
 
     {

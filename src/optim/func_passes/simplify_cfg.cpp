@@ -1585,7 +1585,6 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
     if (needs_update) {
       cfg = {};
       dom = {};
-      foptim::utils::TempAlloc<void *>::reset();
       cfg = CFG(func, false);
       dom = Dominators(cfg);
     }
