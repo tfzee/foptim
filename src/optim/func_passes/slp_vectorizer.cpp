@@ -1524,16 +1524,17 @@ void left_red_search(TVec<fir::ValueR> &reduction_inputs, fir::ValueR curr_base,
   }
   if ((curr_i->args[0].is_instr() &&
        curr_i->args[0].as_instr()->instr_type == fir::InstrType::BinaryInstr &&
-       curr_i->args[0].as_instr()->subtype == exp_sub_type)) {
+       curr_i->args[0].as_instr()->subtype == exp_sub_type) &&
+      curr_i->args[1].is_instr()) {
     left_red_search(reduction_inputs, curr_i->args[0], exp_sub_type);
     reduction_inputs.push_back(curr_i->args[1]);
     return;
   }
-  if (curr_i->args[0].is_instr()) {
+  if (curr_i->args[0].is_instr() && curr_i->args[1].is_instr()) {
     reduction_inputs.push_back(curr_i->args[0]);
-  }
-  if (curr_i->args[1].is_instr()) {
     reduction_inputs.push_back(curr_i->args[1]);
+  } else {
+    reduction_inputs.push_back(curr_base);
   }
 }
 void right_red_search(TVec<fir::ValueR> &reduction_inputs,
@@ -1551,16 +1552,17 @@ void right_red_search(TVec<fir::ValueR> &reduction_inputs,
   }
   if ((curr_i->args[1].is_instr() &&
        curr_i->args[1].as_instr()->instr_type == fir::InstrType::BinaryInstr &&
-       curr_i->args[1].as_instr()->subtype == exp_sub_type)) {
+       curr_i->args[1].as_instr()->subtype == exp_sub_type) &&
+      curr_i->args[0].is_instr()) {
     right_red_search(reduction_inputs, curr_i->args[1], exp_sub_type);
     reduction_inputs.push_back(curr_i->args[0]);
     return;
   }
-  if (curr_i->args[1].is_instr()) {
+  if (curr_i->args[0].is_instr() && curr_i->args[1].is_instr()) {
     reduction_inputs.push_back(curr_i->args[1]);
-  }
-  if (curr_i->args[0].is_instr()) {
     reduction_inputs.push_back(curr_i->args[0]);
+  } else {
+    reduction_inputs.push_back(curr_base);
   }
 }
 
