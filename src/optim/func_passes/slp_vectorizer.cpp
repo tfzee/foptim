@@ -719,6 +719,10 @@ class ConstantTreeOp final : public SLPVectorizer::TreeElem {
       if (!i_v.is_constant()) {
         return false;
       }
+      // TODO: this wont work cause of tracking the value uses will break
+      if (i_v.as_constant()->is_func() || i_v.as_constant()->is_global()) {
+        return false;
+      }
       if (i_v.get_type() != base_v->get_type()) {
         return false;
       }
