@@ -770,7 +770,14 @@ inline size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.operands[1] = b;
       req.operand_count = 2;
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-      size_t len2 = 32;
+
+      // we need to clear the full reg if we want to be safe
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+      req.operands[0].reg.value = ZydisRegisterGetLargestEnclosing(req.machine_mode, targ.reg.value);
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[1].imm.u = 0;
+      req.operand_count = 2;
+      length = emit(out_buff, length, &req);
       req.mnemonic = ZYDIS_MNEMONIC_INVALID;
 
       switch ((fmir::GJumpSubtype)instr.sop) {
@@ -809,9 +816,7 @@ inline size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       req.operands[0] = targ;
       req.operand_count = 1;
-      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff + length, &len2),
-                 req);
-      return length + len2;
+      return emit(out_buff, length, &req);
     }
     case fmir::GJumpSubtype::cjmp_and: {
       for (auto i = 0; i < req.operand_count; i++) {
