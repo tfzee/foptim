@@ -127,10 +127,12 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
     auto t0 = get_type();
     auto t1 = args[0].get_type();
     auto t2 = args[1].get_type();
-    if (!(t0->is_float() && t1->is_float() && t2->is_float()) &&
+    bool type_missmatch =
+        !(t0->is_float() && t1->is_float() && t2->is_float()) &&
         !((t0->is_ptr() || t0->is_int()) && (t1->is_ptr() || t1->is_int()) &&
           (t2->is_ptr() || t2->is_int())) &&
-        !(t0->is_vec() && t1->is_vec() && t2->is_vec())) {
+        !(t0->is_vec() && t1->is_vec() && t2->is_vec());
+    if (t1->get_bitwidth() != t2->get_bitwidth() || type_missmatch) {
       fmt::println("{} {} {}", t0, t1, t2);
       fmt::print("And/Or/Xor operation type missmatch\n");
       return false;

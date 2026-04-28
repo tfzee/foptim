@@ -371,8 +371,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           int i = 0;
           for (const auto &reloc_info : global.reloc_info) {
             if (0 == ((uint64_t)reloc_info.insert_offset - 16) % 24) {
-              //this is techincally conditional and we woulkd need to verify its not discarded
-              // however since we referenc it it cant be discarded ??
+              // this is techincally conditional and we woulkd need to verify
+              // its not discarded
+              //  however since we referenc it it cant be discarded ??
               continue;
             }
             // fmt::println("i{} {} {} / {}", i, reloc_info.name,
