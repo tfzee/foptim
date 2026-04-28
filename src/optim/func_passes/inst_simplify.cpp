@@ -1278,6 +1278,14 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ConversionSubType::FPEXT:
       if (instr->args[0].is_constant() &&
           instr->args[0].as_constant()->is_float()) {
+        if (instr->args[0].get_type() == instr.get_type()) {
+          auto val = instr->args[0].as_constant()->as_f64();
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(
+              fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+          instr.destroy();
+          return true;
+        }
         ASSERT(instr->args[0].get_type()->as_float() == 32);
         ASSERT(instr.get_type()->as_float() == 64);
         auto val = instr->args[0].as_constant()->as_f32();
