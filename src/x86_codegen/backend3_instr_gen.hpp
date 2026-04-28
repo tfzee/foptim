@@ -2471,6 +2471,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
+      req.mnemonic = ZYDIS_MNEMONIC_VBLENDVPS;
       assert(req.operand_count == 4);
       fmt::println("{:cd}", instr);
       TODO("Impl");
@@ -2479,6 +2480,30 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
+      switch (instr.args[1].ty) {
+        case fmir::Type::INVALID:
+        case fmir::Type::Int8:
+        case fmir::Type::Int16:
+        case fmir::Type::Int32:
+        case fmir::Type::Int64:
+        case fmir::Type::Float32:
+        case fmir::Type::Float64:
+        case fmir::Type::Float32x2:
+        case fmir::Type::Int32x4:
+        case fmir::Type::Int64x2:
+        case fmir::Type::Float32x4:
+        case fmir::Type::Float64x2:
+        case fmir::Type::Int32x8:
+        case fmir::Type::Int64x4:
+        case fmir::Type::Float32x8:
+        case fmir::Type::Float64x4:
+        case fmir::Type::Float32x16:
+        case fmir::Type::Float64x8:
+          fmt::println("{}", instr);
+          TODO("UNREACH?");
+          break;
+      }
+      req.mnemonic = ZYDIS_MNEMONIC_VCMPSD;
       assert(req.operand_count == 4);
       fmt::println("{:cd}", instr);
       TODO("Impl");
