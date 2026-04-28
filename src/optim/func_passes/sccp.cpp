@@ -22,6 +22,7 @@ std::optional<fir::ConstantValueR> SCCP::ConstantValue::toConstantValue(
     case ValueType::Poison:
       return ctx->get_poisson_value(t);
     case ValueType::NullPtr:
+      ASSERT(vals.size() == 1);
       return ctx->get_constant_null();
     case ValueType::Float:
       if (vals.size() == 1) {
@@ -515,7 +516,6 @@ void SCCP::eval_and_update(fir::Context &ctx, fir::ValueR value) {
       if (res_co) {
         value.replace_all_uses(fir::ValueR{res_co.value()});
       }
-      // value.replace_all_uses(fir::ValueR{new_value.value});
     }
   } else if (value.is_bb_arg()) {
     UNREACH();
@@ -1398,7 +1398,6 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     }
     case fir::InstrType::LoadInstr: {
       auto c = eval(instr->get_arg(0));
-      ASSERT(c.vals.size() <= 1);
       if (c.is_bottom()) {
         return ConstantValue::Bottom();
       }
@@ -1410,6 +1409,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
            c.vals[0].gptr->linkage != fir::Linkage::LinkOnceODR)) {
         return ConstantValue::Top();
       }
+      ASSERT(c.vals.size() <= 1);
       auto ty = instr->get_type();
       auto glob = c.vals[0].gptr;
       auto res = ConstantValue::loadConstant(glob->init_value, ty, ctx);

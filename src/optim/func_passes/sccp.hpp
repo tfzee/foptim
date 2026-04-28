@@ -151,6 +151,8 @@ class SCCP final : public FunctionPass {
             r.vals.push_back({.f = m->as_float()});
           } else if (m->is_int() || m->is_null()) {
             r.vals.push_back({.i = m->as_int()});
+          } else if (m->is_global()) {
+            r.vals.push_back({.gptr = m->as_global()});
           } else {
             fmt::println("{}", m);
             TODO("impl dufus");
