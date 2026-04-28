@@ -636,16 +636,25 @@ bool Legalizer::legalize_cmoveXX(MBB &bb, u32 indx) {
   return false;
 }
 
+std::optional<u32> Legalizer::legalize_imm(MBB &bb, u32 indx, u8 arg_id,
+                                           Type ty) {
+  MInstr &instr = bb.instrs[indx];
+  if (instr.args[arg_id].isImm()) {
+    if (instr.args[arg_id].ty >= Type::Float32) {
+      indx = move_fp_const_to_reg(bb, indx, arg_id, ty);
+    } else {
+      indx = move_arg_to_reg(bb, indx, arg_id, ty);
+    }
+    return {indx};
+  }
+  return {};
+}
+
 bool Legalizer::legalize_punpckl(MBB &bb, u32 indx) {
   {
     // 2nd arg cant be a constant
     MInstr &instr = bb.instrs[indx];
-    if (instr.args[2].isImm()) {
-      if (instr.args[2].ty >= Type::Float32) {
-        indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
-      } else {
-        indx = move_arg_to_reg(bb, indx, 2, instr.args[0].ty);
-      }
+    if (legalize_imm(bb, indx, 2, instr.args[0].ty).has_value()) {
       return true;
     }
   }
@@ -655,12 +664,21 @@ bool Legalizer::legalize_punpckl(MBB &bb, u32 indx) {
 bool Legalizer::legalize_sqrt(MBB &bb, u32 indx) {
   {
     MInstr &instr = bb.instrs[indx];
-    if (instr.args[1].isImm()) {
-      if (instr.args[1].ty >= Type::Float32) {
-        indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
-      } else {
-        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
-      }
+    if (legalize_imm(bb, indx, 1, instr.args[0].ty).has_value()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+
+bool Legalizer::legalize_three_op_imm(MBB &bb, u32 indx) {
+  {
+    MInstr &instr = bb.instrs[indx];
+    if (legalize_imm(bb, indx, 1, instr.args[2].ty).has_value()) {
+      return true;
+    }
+    if (legalize_imm(bb, indx, 2, instr.args[1].ty).has_value()) {
       return true;
     }
   }
@@ -917,6 +935,12 @@ void Legalizer::apply_impl(MFunc &func) {
               break;
             case X86Subtype::punpckl:
               if (legalize_punpckl(bb, i)) {
+                ioff = 0;
+              }
+              break;
+            case X86Subtype::vcmp:
+            case X86Subtype::vblendv:
+              if (legalize_three_op_imm(bb, i)) {
                 ioff = 0;
               }
               break;

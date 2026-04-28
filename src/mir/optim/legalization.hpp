@@ -14,11 +14,13 @@ class Legalizer {
                              CReg vreg_ty);
   u32 move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty);
   u32 move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty);
+  std::optional<u32> legalize_imm(MBB &bb, u32 indx, u8 arg_id, Type ty);
 
   // legalizing
   bool legalize_punpckl(MBB &bb, u32 indx);
   bool legalize_sqrt(MBB &bb, u32 indx);
   bool legalize_icmp(MBB &bb, u32 indx);
+  bool legalize_three_op_imm(MBB &bb, u32 indx);
   bool legalize_arith_op(MBB &bb, u32 indx);
   bool legalize_fcmp(MBB &bb, u32 indx);
   bool legalize_idiv(MBB &bb, u32 indx);
