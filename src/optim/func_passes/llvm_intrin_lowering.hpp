@@ -137,6 +137,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     auto sign_bit = bb.build_binary_op(
         int_val, fir::ValueR{ctx->get_constant_int(width - 1, 32)},
         fir::BinaryInstrSubType::Shr);
+    sign_bit = bb.build_itrunc(sign_bit, ctx->get_int_type(1));
     auto is_neg =
         bb.build_int_cmp(sign_bit, fir::ValueR{ctx->get_constant_int(0, width)},
                          fir::ICmpInstrSubType::NE);
