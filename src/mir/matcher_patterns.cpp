@@ -73,8 +73,8 @@ void move_patterns(IRVec<Pattern> &pats) {
         auto dir2 = (c1 == 0 && c2 != 0);
         // no direct imul on i8
         if (slct_instr->get_type()->as_int() == 8 &&
-            ((dir1 && !foptim::utils::is_pow2(c1)) ||
-             (dir2 && !foptim::utils::is_pow2(c2)))) {
+            ((!dir1 || !foptim::utils::is_pow2(c1)) &&
+             (!dir2 || !foptim::utils::is_pow2(c2)))) {
           return false;
         }
         if (!dir1 && !dir2) {
@@ -133,8 +133,9 @@ void move_patterns(IRVec<Pattern> &pats) {
             break;
         }
         // Do a little cheating
-        res_arg.reg.ty = Type::Int8;
-        res.result.emplace_back(op, res_arg, arg1, arg2);
+        auto res_arg_smol = res_arg;
+        res_arg_smol.reg.ty = Type::Int8;
+        res.result.emplace_back(op, res_arg_smol, arg1, arg2);
         // scale by c1/c2
         u64 v = dir1 ? static_cast<u64>(c1) : static_cast<u64>(c2);
         if (v > 1) {
