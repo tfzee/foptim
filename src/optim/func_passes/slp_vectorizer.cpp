@@ -275,13 +275,26 @@ class ZextTreeOp final : public SLPVectorizer::TreeElem {
 
   ZextTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
-    insert_loc = values.back().as_instr();
-    res_ty = values.back().get_type();
+    if (values.back().is_instr()) {
+      insert_loc = values.back().as_instr();
+      res_ty = insert_loc->get_type();
+    } else if (values.back().is_bb_arg()) {
+      insert_loc = values.back().as_bb_arg()->get_parent()->instructions[0];
+      res_ty = values.front().as_instr()->get_type();
+    } else {
+      insert_loc = values.front().as_instr();
+      res_ty = insert_loc->get_type();
+    }
     return this;
   }
 
   static bool match(const TVec<fir::ValueR> &values) {
-    auto base_v = values.back().as_instr();
+    fir::Instr base_v{fir::Instr::invalid()};
+    if (values.back().is_instr()) {
+      base_v = values.back().as_instr();
+    } else {
+      base_v = values.front().as_instr();
+    }
     for (auto i_v : values) {
       if (!i_v.is_instr()) {
         return false;
