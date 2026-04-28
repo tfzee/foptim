@@ -606,11 +606,13 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
       return true;
     }
     case 15: {
+      // z = a + a*4
+      // z = z + z * 2
       result.emplace_back(X86Subtype::lea, res_reg,
-                          MArgument::MemBIS(base.reg, base.reg, 4, res_ty));
+                          MArgument::MemBIS(base.reg, base.reg, 2, res_ty));
       result.emplace_back(
           X86Subtype::lea, res_reg,
-          MArgument::MemBIS(res_reg.reg, res_reg.reg, 2, res_ty));
+          MArgument::MemBIS(res_reg.reg, res_reg.reg, 1, res_ty));
       return true;
     }
     case 16: {
