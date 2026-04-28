@@ -53,89 +53,6 @@ void move_patterns(IRVec<Pattern> &pats) {
   auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, (u32)0};
 
   pats.push_back(Pattern{
-      .nodes = {FloatCmpNode, SelectNode},
-      .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        fir::Instr cmp_instr = res.matched_instrs[0];
-        fir::Instr slct_instr = res.matched_instrs[1];
-
-        auto res_arg =
-            valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
-        auto c1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
-        auto c2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
-        auto arg1 = valueToArg(slct_instr->args[1], res.result, data.alloc);
-        auto arg2 = valueToArg(slct_instr->args[2], res.result, data.alloc);
-
-        auto condition =
-            MArgument(data.alloc.get_new_register(res_arg.ty), res_arg.ty);
-
-        u8 vcmp_condition = 0;
-
-        switch ((fir::FCmpInstrSubType)cmp_instr->get_instr_subtype()) {
-          case fir::FCmpInstrSubType::OEQ:
-            vcmp_condition = 0x00;
-            break;
-          case fir::FCmpInstrSubType::OLT:
-            vcmp_condition = 0x01;
-            break;
-          case fir::FCmpInstrSubType::OLE:
-            vcmp_condition = 0x02;
-            break;
-          case fir::FCmpInstrSubType::UNO:
-            vcmp_condition = 0x03;
-            break;
-          case fir::FCmpInstrSubType::UNE:
-            vcmp_condition = 0x04;
-            break;
-          case fir::FCmpInstrSubType::ULT:
-            vcmp_condition = 0x05;
-            break;
-          case fir::FCmpInstrSubType::ULE:
-            vcmp_condition = 0x06;
-            break;
-          case fir::FCmpInstrSubType::ORD:
-            vcmp_condition = 0x07;
-            break;
-          case fir::FCmpInstrSubType::UEQ:
-            vcmp_condition = 0x08;
-            break;
-          case fir::FCmpInstrSubType::AlwFalse:
-            vcmp_condition = 0x0B;
-            break;
-          case fir::FCmpInstrSubType::ONE:
-            vcmp_condition = 0x0C;
-            break;
-          case fir::FCmpInstrSubType::OGE:
-            vcmp_condition = 0x0D;
-            break;
-          case fir::FCmpInstrSubType::OGT:
-            vcmp_condition = 0x0E;
-            break;
-          case fir::FCmpInstrSubType::AlwTrue:
-            vcmp_condition = 0x0F;
-            break;
-          case fir::FCmpInstrSubType::UGT:
-            vcmp_condition = 0x16;
-            break;
-          case fir::FCmpInstrSubType::UGE:
-            vcmp_condition = 0x15;
-            break;
-          case fir::FCmpInstrSubType::IsNaN:
-            vcmp_condition = 0x03;
-            break;
-          case fir::FCmpInstrSubType::INVALID:
-            fmt::println("{}", cmp_instr);
-            fmt::println("{}", slct_instr);
-            TODO("TODO");
-        }
-
-        res.result.emplace_back(X86Subtype::vcmp, condition, c1, c2,
-                                MArgument(vcmp_condition));
-        res.result.emplace_back(X86Subtype::vblendv, res_arg, arg1, arg2,
-                                condition);
-        return true;
-      }});
-  pats.push_back(Pattern{
       .nodes = {IntCmpNode, SelectNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
@@ -152,8 +69,14 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         auto c1 = slct_instr->args[1].as_constant()->as_int();
         auto c2 = slct_instr->args[2].as_constant()->as_int();
-        auto dir1 = (c1 == 1 && c2 == 0);
-        auto dir2 = (c1 == 0 && c2 == 1);
+        auto dir1 = (c1 != 0 && c2 == 0);
+        auto dir2 = (c1 == 0 && c2 != 0);
+        // no direct imul on i8
+        if (slct_instr->get_type()->as_int() == 8 &&
+            ((dir1 && !foptim::utils::is_pow2(c1)) ||
+             (dir2 && !foptim::utils::is_pow2(c2)))) {
+          return false;
+        }
         if (!dir1 && !dir2) {
           return false;
         }
@@ -212,6 +135,17 @@ void move_patterns(IRVec<Pattern> &pats) {
         // Do a little cheating
         res_arg.reg.ty = Type::Int8;
         res.result.emplace_back(op, res_arg, arg1, arg2);
+        // scale by c1/c2
+        u64 v = dir1 ? static_cast<u64>(c1) : static_cast<u64>(c2);
+        if (v > 1) {
+          if (foptim::utils::is_pow2(v)) {
+            res.result.emplace_back(
+                GArithSubtype::shl2, res_arg,
+                MArgument(static_cast<u64>(64 - __builtin_clzg(v - 1))));
+          } else {
+            res.result.emplace_back(GArithSubtype::mul2, res_arg, MArgument(v));
+          }
+        }
 
         return true;
       }});
@@ -279,6 +213,120 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         res.result.emplace_back(GBaseSubtype::mov, res_arg, arg2);
         res.result.emplace_back(op, res_arg, arg1, c1, c2);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {FloatCmpNode, SelectNode},
+      .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        fir::Instr cmp_instr = res.matched_instrs[0];
+        fir::Instr slct_instr = res.matched_instrs[1];
+
+        auto res_arg =
+            valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+        auto c1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+        auto c2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+        auto arg1 = valueToArg(slct_instr->args[1], res.result, data.alloc);
+        auto arg2 = valueToArg(slct_instr->args[2], res.result, data.alloc);
+
+        auto cond_ty = Type::INVALID;
+        switch (res_arg.ty) {
+          case Type::Float32:
+            cond_ty = Type::Int32x4;
+            break;
+          case Type::Float64:
+            cond_ty = Type::Int64x2;
+            break;
+          case Type::Int8:
+          case Type::Int16:
+          case Type::Int32:
+          case Type::Int64:
+            // TOOD: prob cant do it efficiently?
+            return false;
+          case Type::INVALID:
+          case Type::Float32x2:
+          case Type::Int32x4:
+          case Type::Int64x2:
+          case Type::Float32x4:
+          case Type::Float64x2:
+          case Type::Int32x8:
+          case Type::Int64x4:
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Float32x16:
+          case Type::Float64x8:
+            fmt::println("{}", cmp_instr);
+            fmt::println("{}", slct_instr);
+            fmt::println("{}", res_arg);
+            TODO("Impl");
+        }
+        auto condition =
+            MArgument(data.alloc.get_new_register(cond_ty), cond_ty);
+
+        u8 vcmp_condition = 0;
+
+        switch ((fir::FCmpInstrSubType)cmp_instr->get_instr_subtype()) {
+          case fir::FCmpInstrSubType::OEQ:
+            vcmp_condition = 0x00;
+            break;
+          case fir::FCmpInstrSubType::OLT:
+            vcmp_condition = 0x01;
+            break;
+          case fir::FCmpInstrSubType::OLE:
+            vcmp_condition = 0x02;
+            break;
+          case fir::FCmpInstrSubType::UNO:
+            vcmp_condition = 0x03;
+            break;
+          case fir::FCmpInstrSubType::UNE:
+            vcmp_condition = 0x04;
+            break;
+          case fir::FCmpInstrSubType::ULT:
+            vcmp_condition = 0x05;
+            break;
+          case fir::FCmpInstrSubType::ULE:
+            vcmp_condition = 0x06;
+            break;
+          case fir::FCmpInstrSubType::ORD:
+            vcmp_condition = 0x07;
+            break;
+          case fir::FCmpInstrSubType::UEQ:
+            vcmp_condition = 0x08;
+            break;
+          case fir::FCmpInstrSubType::AlwFalse:
+            vcmp_condition = 0x0B;
+            break;
+          case fir::FCmpInstrSubType::ONE:
+            vcmp_condition = 0x0C;
+            break;
+          case fir::FCmpInstrSubType::OGE:
+            vcmp_condition = 0x0D;
+            break;
+          case fir::FCmpInstrSubType::OGT:
+            vcmp_condition = 0x0E;
+            break;
+          case fir::FCmpInstrSubType::AlwTrue:
+            vcmp_condition = 0x0F;
+            break;
+          case fir::FCmpInstrSubType::UGT:
+            vcmp_condition = 0x16;
+            break;
+          case fir::FCmpInstrSubType::UGE:
+            vcmp_condition = 0x15;
+            break;
+          case fir::FCmpInstrSubType::IsNaN:
+            vcmp_condition = 0x03;
+            break;
+          case fir::FCmpInstrSubType::INVALID:
+            fmt::println("{}", cmp_instr);
+            fmt::println("{}", slct_instr);
+            TODO("TODO");
+        }
+
+        res.result.emplace_back(X86Subtype::vcmp, condition, c1, c2,
+                                MArgument(vcmp_condition));
+        res.result.emplace_back(X86Subtype::vblendv, res_arg, arg1, arg2,
+                                condition);
         return true;
       }});
 }
