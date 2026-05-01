@@ -5,6 +5,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "utils/SmallVec.hpp"
 
 namespace foptim::optim {
 
@@ -12,8 +13,10 @@ class CFG {
  public:
   struct Node {
     fir::BasicBlock bb;
-    TVec<u32> pred;
-    TVec<u32> succ;
+    // TVec<u32> pred;
+    // TVec<u32> succ;
+    SmallTVec<u32, 8> pred;
+    SmallTVec<u32, 8> succ;
   };
 
   TVec<Node> bbrs;
