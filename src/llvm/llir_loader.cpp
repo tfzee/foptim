@@ -1457,7 +1457,8 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   }
   if (foptim::utils::all_linkage_internal && func_name != "main" &&
       !func.empty()) {
-    foff_func->attribs.linkage = foptim::fir::Linkage::Internal; }
+    foff_func->attribs.linkage = foptim::fir::Linkage::Internal;
+  }
 
   foff_func->attribs.no_inline =
       func.hasFnAttribute(llvm::Attribute::AttrKind::NoInline);
@@ -1851,16 +1852,19 @@ inline void setup_globals(llvm::Module &mod, foptim::fir::Context &fctx,
   for (const auto &gval : mod.global_values()) {
     if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
       auto data_layout = mod.getDataLayout();
-      auto global_size = data_layout.getTypeAllocSize(val->getValueType());
-      ASSERT(!global_size.isScalable());
-
-      auto actual_size = global_size.getFixedValue();
 
       foptim::IRString name;
       if (gval.hasName()) {
         name = gval.getName().str().c_str();
       } else {
         name = "it didnt have a name??";
+      }
+
+      size_t actual_size = 0;
+      if (val->getValueType()->isSized()) {
+        auto global_size = data_layout.getTypeAllocSize(val->getValueType());
+        ASSERT(!global_size.isScalable());
+        actual_size = global_size.getFixedValue();
       }
 
       auto global = fctx->insert_global(name, actual_size);
