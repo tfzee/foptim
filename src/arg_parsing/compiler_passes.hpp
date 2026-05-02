@@ -215,8 +215,12 @@ struct ConstLoopEvalConf : public FunctionPassConf<ConstLoopEvalConf> {
 struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf> {
   static constexpr const char* Name = "SLPVectorizer";
   using Pass = optim::SLPVectorizer;
-  bool pass_parse(toml::table&) { return true; }
-  void construct_function_pass(Pass&) {};
+  bool reductions = true;
+  bool pass_parse(toml::table& tbl) {
+    reductions = tbl["reductions"].value_or(reductions);
+    return true;
+  }
+  void construct_function_pass(Pass& p) { p.config.reductions = reductions; };
 };
 struct MergeAllocaConf : public FunctionPassConf<MergeAllocaConf> {
   static constexpr const char* Name = "MergeAlloca";
@@ -239,8 +243,13 @@ struct LoopUnswitchConf : public FunctionPassConf<LoopUnswitchConf> {
 struct LoopUnrollConf : public FunctionPassConf<LoopUnrollConf> {
   static constexpr const char* Name = "LoopUnroll";
   using Pass = optim::LoopUnroll;
-  bool pass_parse(toml::table&) { return true; }
-  void construct_function_pass(Pass&) {};
+
+  u32 maxUnroll = 1024;
+  bool pass_parse(toml::table& tbl) {
+    maxUnroll = tbl["maxUnroll"].value_or(maxUnroll);
+    return true;
+  }
+  void construct_function_pass(Pass& p) { p.max_unroll = maxUnroll; };
 };
 
 // #########################################################################################

@@ -1735,7 +1735,7 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb, T
       if (res) {
         load_bundles.push_back(res.value());
       }
-    } else {
+    } else if(config.reductions){
       auto res = find_reduction(bb, i, aa);
       if (res) {
         // fmt::println("FOUND");

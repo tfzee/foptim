@@ -1,7 +1,8 @@
+#include "loop_unroll.hpp"
+
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
-#include "loop_unroll.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "utils/stats.hpp"
@@ -377,6 +378,11 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
     unroll_factor = 4;
   } else {
     return false;
+  }
+
+  if (unroll_factor > max_unroll) {
+    unroll_factor = max_unroll;
+    is_full_unroll = false;
   }
 
   while (!is_full_unroll && unroll_factor * n_instrs > 32 &&

@@ -68,6 +68,8 @@ fir_passes = [
 #module
 [pass.Inline]
 recursive = true
+[pass.LoopUnroll]
+maxUnroll = 32
 [pass.FuncPropAnnotator]
 [pass.GlobalPromotion]
 [pass.ArgPromotion]
@@ -76,9 +78,10 @@ recursive = true
 [pass.FunctionDedupSame]
 [pass.FunctionDedupDiff]
 [pass.LoopUnswitch]
-[pass.LoopUnroll]
 
 #func
+[pass.SLPVectorizer]
+reductions = true
 [pass.DCE]
 [pass.LegalizeStructs]
 [pass.LLVMIntrinsicLowering]
@@ -97,7 +100,6 @@ recursive = true
 [pass.SCCP]
 [pass.StackKnownBits]
 [pass.ConstLoopEval]
-[pass.SLPVectorizer]
 [pass.MergeAlloca]
 [pass.LegalizeVecs]
 

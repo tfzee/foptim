@@ -14,6 +14,9 @@ namespace foptim::optim {
 
 class SLPVectorizer final : public FunctionPass {
  public:
+  struct Config {
+    bool reductions = true;
+  } config;
   static constexpr bool debug_print = false;
 
   struct SeedInstrData {
@@ -85,7 +88,8 @@ class SLPVectorizer final : public FunctionPass {
     TVec<SeedBundle> load_bundles;
     TVec<SeedBundle> reduction_bundles;
     for (auto bb : func.basic_blocks) {
-      find_seeds(*ctx.config, bb, store_bundles, load_bundles, reduction_bundles, aa);
+      find_seeds(*ctx.config, bb, store_bundles, load_bundles,
+                 reduction_bundles, aa);
     }
     if (store_bundles.empty() && reduction_bundles.empty()) {
       return;
