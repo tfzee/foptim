@@ -291,7 +291,6 @@ class Inline final : public ModulePass {
  public:
   void apply(fir::Context& ctx, JobSheduler* /*unused*/) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
-  fmt::println("Inline");
     for (auto& f : ctx.data->storage.functions) {
       apply(ctx, *f.second);
     }
