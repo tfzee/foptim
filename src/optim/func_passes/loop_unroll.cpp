@@ -380,12 +380,12 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
     return false;
   }
 
-  if (unroll_factor > max_unroll) {
-    unroll_factor = max_unroll;
+  if (unroll_factor > config.max_unroll) {
+    unroll_factor = config.max_unroll;
     is_full_unroll = false;
   }
 
-  while (!is_full_unroll && unroll_factor * n_instrs > 32 &&
+  while (!is_full_unroll && unroll_factor * n_instrs > config.max_instr &&
          unroll_factor > 1) {
     unroll_factor = unroll_factor / 2;
   }

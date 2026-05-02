@@ -165,14 +165,13 @@ bool pipeline_parse(PipelineRef pipeline, CompConf& conf,
 }
 
 bool pipelines_parse(CompConf& conf, toml::table& tbl) {
+  TVec<std::pair<std::string_view, toml::node_view<toml::node>>> overwrites;
   for (auto&& [name, data] : tbl) {
     auto str_name = name.str();
     auto end = conf.pipelines.end();
     for (auto i = conf.pipelines.begin(); i != end; ++i) {
       if (i->name == str_name) {
-        if (!pipeline_parse({*i}, conf, toml::node_view(data))) {
-          return false;
-        }
+        overwrites.push_back({str_name, toml::node_view(data)});
       }
     }
     Pipeline p;
@@ -180,6 +179,14 @@ bool pipelines_parse(CompConf& conf, toml::table& tbl) {
     auto ref = conf.pipelines.push_back(p);
     if (!pipeline_parse({ref}, conf, toml::node_view(data))) {
       return false;
+    }
+  }
+  for (auto&& [str_name, data] : overwrites) {
+    auto end = conf.pipelines.end();
+    for (auto i = conf.pipelines.begin(); i != end; ++i) {
+      if (i->name == str_name) {
+        overwrites.push_back({str_name, toml::node_view(data)});
+      }
     }
   }
   return true;

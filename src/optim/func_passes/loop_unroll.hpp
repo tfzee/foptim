@@ -8,7 +8,10 @@ class CFG;
 
 class LoopUnroll final : public FunctionPass {
  public:
-  u32 max_unroll = 1024;
+  struct Config {
+    u32 max_unroll = 1024;
+    u32 max_instr = 32;
+  } config;
   void apply(fir::Context &ctx, fir::Function &func) override;
   bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
                 fir::Function &func, LoopBoundsAnalysis &lb);

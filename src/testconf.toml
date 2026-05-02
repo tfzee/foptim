@@ -11,10 +11,7 @@ pipeline = "standard"
 
 [pipeline.standard]
 fir_passes = [
-  "pipeline:default_release_early",
-  "pipeline:default_release_middle",
-  "pipeline:default_release_late",
-  "pipeline:default_release_cleanup",
+  "pipeline:default_release",
 ]
 # mir_passes = []
 
@@ -22,6 +19,10 @@ fir_passes = [
 #########
 # TOOD potential futures stuff
 
+# like include but gets applied afterwards
+# overwrite = [
+#   "default",
+# ]
 # [debug]
 # color = true
 # print_missed_optim = true

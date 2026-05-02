@@ -62,6 +62,14 @@ fir_passes = [
   "SCCP", "LegalizeVecs", "DCE",
 ]
 
+[pipeline.default_release]
+fir_passes = [
+  "pipeline:default_release_early",
+  "pipeline:default_release_middle",
+  "pipeline:default_release_late",
+  "pipeline:default_release_cleanup",
+]
+
 # ------------------------------------------------------------------------------------------------
 # Passes
 
@@ -70,6 +78,7 @@ fir_passes = [
 recursive = true
 [pass.LoopUnroll]
 maxUnroll = 32
+maxInstr = 32
 [pass.FuncPropAnnotator]
 [pass.GlobalPromotion]
 [pass.ArgPromotion]

@@ -212,15 +212,17 @@ struct ConstLoopEvalConf : public FunctionPassConf<ConstLoopEvalConf> {
   bool pass_parse(toml::table&) { return true; }
   void construct_function_pass(Pass&) {};
 };
-struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf> {
+struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf>,
+                           optim::SLPVectorizer::Config {
   static constexpr const char* Name = "SLPVectorizer";
   using Pass = optim::SLPVectorizer;
-  bool reductions = true;
   bool pass_parse(toml::table& tbl) {
     reductions = tbl["reductions"].value_or(reductions);
     return true;
   }
-  void construct_function_pass(Pass& p) { p.config.reductions = reductions; };
+  void construct_function_pass(Pass& p) {
+    p.config = static_cast<Pass::Config>(*this);
+  };
 };
 struct MergeAllocaConf : public FunctionPassConf<MergeAllocaConf> {
   static constexpr const char* Name = "MergeAlloca";
@@ -240,30 +242,35 @@ struct LoopUnswitchConf : public FunctionPassConf<LoopUnswitchConf> {
   bool pass_parse(toml::table&) { return true; }
   void construct_function_pass(Pass&) {};
 };
-struct LoopUnrollConf : public FunctionPassConf<LoopUnrollConf> {
+struct LoopUnrollConf : public FunctionPassConf<LoopUnrollConf>,
+                        optim::LoopUnroll::Config {
   static constexpr const char* Name = "LoopUnroll";
   using Pass = optim::LoopUnroll;
 
-  u32 maxUnroll = 1024;
   bool pass_parse(toml::table& tbl) {
-    maxUnroll = tbl["maxUnroll"].value_or(maxUnroll);
+    max_unroll = tbl["maxUnroll"].value_or(max_unroll);
+    max_instr = tbl["maxInstr"].value_or(max_instr);
     return true;
   }
-  void construct_function_pass(Pass& p) { p.max_unroll = maxUnroll; };
+  void construct_function_pass(Pass& p) {
+    p.config = *static_cast<Pass::Config*>(this);
+  };
 };
 
 // #########################################################################################
 
-struct InlineConf : public ModulePassConf<InlineConf> {
+struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
   static constexpr const char* Name = "Inline";
   using Pass = optim::Inline<>;
-  bool recursive = false;
+
   bool pass_parse(toml::table& tbl) {
     recursive = tbl["recursive"].value_or(recursive);
     return true;
   }
 
-  void construct_module_pass(Pass& p) { p.conf.recurisve = recursive; };
+  void construct_module_pass(Pass& p) {
+    p.config = *static_cast<Pass::Config*>(this);
+  };
 };
 
 struct FuncPropAnnotatorConf : public ModulePassConf<FuncPropAnnotatorConf> {

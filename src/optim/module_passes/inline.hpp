@@ -11,7 +11,7 @@
 
 namespace foptim::optim {
 struct InlineConfig {
-  bool recurisve = true;
+  bool recursive = true;
 };
 
 class AlwaysInlineAdvisor {
@@ -34,7 +34,7 @@ class AlwaysInlineAdvisor {
     if (debug_print) {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
     }
-    if (self_func == v && !conf.recurisve) {
+    if (self_func == v && !conf.recursive) {
       return false;
     }
     switch (v->attribs.linkage) {
@@ -111,7 +111,7 @@ class BaseInlineAdvisor {
     if (debug_print) {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
     }
-    if (self_func == v && !conf.recurisve) {
+    if (self_func == v && !conf.recursive) {
       return false;
     }
 
@@ -302,7 +302,8 @@ concept InlineAdvisor = requires(T v, fir::Instr instr, CFG& cfg,
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {
  public:
-  InlineConfig conf;
+  using Config = InlineConfig;
+  Config config;
 
   void apply(fir::Context& ctx, JobSheduler* /*unused*/) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
@@ -328,7 +329,7 @@ class Inline final : public ModulePass {
         for (size_t instr_id = 0; instr_id < bb->n_instrs(); instr_id++) {
           if (bb->instructions[instr_id]->is(fir::InstrType::CallInstr) &&
               adv.should_be_inlined(bb->instructions[instr_id], cfg, dom,
-                                    conf)) {
+                                    config)) {
             calls.push_back(bb->instructions[instr_id]);
             break;
           }
