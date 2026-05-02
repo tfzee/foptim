@@ -4,8 +4,9 @@
 #include <cassert>
 #include "utils/tracy.hpp"
 #include "utils/parameters.hpp"
+#include "compiler_config.hpp"
 
-void parse_args(int argc, char *argv[]) {
+void parse_args(int argc, char *argv[], foptim::conf::CompConf& conf) {
   ZoneScopedN("Arg Parsing");
   argparse::ArgumentParser program("foptim");
   program.add_argument("--workers")
@@ -34,4 +35,7 @@ void parse_args(int argc, char *argv[]) {
   foptim::utils::verbosity = (foptim::u8)program.get<int>("verbosity");
   foptim::utils::in_file_path = program.get<std::string>("input");
   foptim::utils::out_file_path = program.get<std::string>("output");
+
+  ASSERT(conf.parse("../src/testconf.toml"));
+
 }

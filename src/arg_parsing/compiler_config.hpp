@@ -1,0 +1,90 @@
+#pragma once
+#include <string_view>
+
+#include "utils/stable_vec.hpp"
+#include "utils/string.hpp"
+#include "utils/types.hpp"
+#include "utils/vec.hpp"
+
+namespace foptim::conf {
+
+struct Target {
+  FString name;
+  struct Features {
+    bool avx512f;
+    bool avx512bw;
+    bool avx512cd;
+    bool avx512dq;
+    bool avx512vl;
+
+    bool bmi2;
+  } features;
+};
+
+struct PassConfig;
+struct PassRef : utils::SRef<PassConfig*> {};
+struct Pipeline;
+struct PipelineRef : utils::SRef<Pipeline> {};
+
+struct PassConfig {
+  enum PassType {
+    Function,
+    Module,
+  };
+  virtual std::string_view get_name() const { TODO("IMPL"); };
+  virtual PassType pass_type() const { TODO("IMPL"); };
+  virtual bool _pass_parse(void*) { TODO("IMPL"); };
+  virtual optim::ModulePass* _construct_module_pass() { TODO("IMPL"); };
+  virtual optim::FunctionPass* _construct_function_pass() { TODO("IMPL"); };
+};
+
+struct PipelineElem {
+  enum Type {
+    Pipeline,
+    Pass,
+  } type;
+  union {
+    PipelineRef pipeline;
+    PassRef pass;
+  };
+
+  PipelineElem(PassRef r) : type(Type::Pass), pass(r) {}
+  PipelineElem(PipelineRef r) : type(Type::Pipeline), pipeline(r) {}
+};
+
+struct Pipeline {
+  FString name;
+  FVec<PipelineElem> fir_passes;
+};
+
+struct Optimize {
+  PipelineRef pipeline;
+};
+
+struct Debug {};
+
+struct Remarks {};
+
+struct BasePassesData {
+  const char* name;
+  PassConfig config;
+};
+
+struct CompConf {
+  Target target;
+  Debug debug;
+  Optimize optim;
+  Remarks remarks;
+
+  utils::StableVec<Pipeline> pipelines;
+  utils::StableVec<PassConfig*> passes;
+
+  CompConf() {}
+
+  PipelineRef find_pipeline(std::string_view);
+  PassRef find_pass(std::string_view);
+
+  bool parse(const char* filename);
+};
+
+}  // namespace foptim::conf
