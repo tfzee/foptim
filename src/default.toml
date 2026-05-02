@@ -67,6 +67,7 @@ fir_passes = [
 
 #module
 [pass.Inline]
+recursive = true
 [pass.FuncPropAnnotator]
 [pass.GlobalPromotion]
 [pass.ArgPromotion]

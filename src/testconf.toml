@@ -18,10 +18,6 @@ fir_passes = [
 ]
 # mir_passes = []
 
-[pass.Inline]
-recursive = true
-
-
 
 #########
 # TOOD potential futures stuff

@@ -1,4 +1,6 @@
 #pragma once
+#include <fmt/base.h>
+
 #include "../module_pass.hpp"
 #include "arg_parsing/compiler_config.hpp"
 #include "ir/context.hpp"
@@ -8,13 +10,17 @@
 #include "utils/job_system.hpp"
 
 namespace foptim::optim {
+struct InlineConfig {
+  bool recurisve = true;
+};
 
 class AlwaysInlineAdvisor {
   static constexpr bool debug_print = false;
 
  public:
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& /*cfg*/,
-                                       Dominators& /*dom*/) {
+                                       Dominators& /*dom*/,
+                                       InlineConfig& conf) {
     auto called_func = instr->get_arg(0);
     auto self_func = instr->get_parent()->get_parent();
     if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
@@ -27,6 +33,9 @@ class AlwaysInlineAdvisor {
     }
     if (debug_print) {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
+    }
+    if (self_func == v && !conf.recurisve) {
+      return false;
     }
     switch (v->attribs.linkage) {
       case fir::Linkage::Weak:
@@ -70,8 +79,8 @@ class BaseInlineAdvisor {
 
  public:
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& cfg,
-                                       Dominators& dom) {
-    if (_should_be_inlined(instr, cfg, dom)) {
+                                       Dominators& dom, InlineConfig& conf) {
+    if (_should_be_inlined(instr, cfg, dom, conf)) {
       auto v = instr->get_arg(0).as_constant()->as_func();
       n_inlined_calls += 1;
       n_inlined_instructions += v->n_instrs();
@@ -81,7 +90,8 @@ class BaseInlineAdvisor {
   }
 
   [[nodiscard]] bool _should_be_inlined(const fir::Instr instr, CFG& cfg,
-                                        Dominators& dom) const {
+                                        Dominators& dom,
+                                        InlineConfig& conf) const {
     auto called_func = instr->get_arg(0);
     auto self_func = instr->get_parent()->get_parent();
     auto self_n_instrs = self_func->n_instrs();
@@ -100,6 +110,9 @@ class BaseInlineAdvisor {
     }
     if (debug_print) {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
+    }
+    if (self_func == v && !conf.recurisve) {
+      return false;
     }
 
     if (v->attribs.no_inline) {
@@ -281,14 +294,16 @@ class BaseInlineAdvisor {
 };
 
 template <typename T>
-concept InlineAdvisor =
-    requires(T v, fir::Instr instr, CFG& cfg, Dominators& dom) {
-      { v.should_be_inlined(instr, cfg, dom) } -> std::same_as<bool>;
-    };
+concept InlineAdvisor = requires(T v, fir::Instr instr, CFG& cfg,
+                                 Dominators& dom, InlineConfig& conf) {
+  { v.should_be_inlined(instr, cfg, dom, conf) } -> std::same_as<bool>;
+};
 
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {
  public:
+  InlineConfig conf;
+
   void apply(fir::Context& ctx, JobSheduler* /*unused*/) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
     for (auto& f : ctx.data->storage.functions) {
@@ -312,7 +327,8 @@ class Inline final : public ModulePass {
         auto bb = func.basic_blocks[bb_id];
         for (size_t instr_id = 0; instr_id < bb->n_instrs(); instr_id++) {
           if (bb->instructions[instr_id]->is(fir::InstrType::CallInstr) &&
-              adv.should_be_inlined(bb->instructions[instr_id], cfg, dom)) {
+              adv.should_be_inlined(bb->instructions[instr_id], cfg, dom,
+                                    conf)) {
             calls.push_back(bb->instructions[instr_id]);
             break;
           }

@@ -92,8 +92,9 @@ struct FunctionPassConf : public PassConfig {
   virtual optim::FunctionPass* _construct_function_pass() override {
     auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
     new (alloc) T::Pass{};
-  static_assert(std::is_convertible<typename T::Pass*, optim::FunctionPass*>::value,
-                "The pass must inherit from module pass from public");
+    static_assert(
+        std::is_convertible<typename T::Pass*, optim::FunctionPass*>::value,
+        "The pass must inherit from module pass from public");
     static_assert(has_construct_function_pass_func<T>,
                   "When inheriting from FunctionPassConfig you gotta implement "
                   "the construct_function_pass function");
@@ -253,7 +254,7 @@ struct InlineConf : public ModulePassConf<InlineConf> {
     return true;
   }
 
-  void construct_module_pass(Pass&) {};
+  void construct_module_pass(Pass& p) { p.conf.recurisve = recursive; };
 };
 
 struct FuncPropAnnotatorConf : public ModulePassConf<FuncPropAnnotatorConf> {
