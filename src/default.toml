@@ -1,5 +1,18 @@
 config_version = 1
 
+# ------------------------------------------------------------------------------------------------
+# Target setup
+
+[target]
+name = "x86_64-linux"
+
+[target.features]
+avx512 = false
+bmi2 = true
+
+# ------------------------------------------------------------------------------------------------
+# Optimizations
+
 [pipeline.default_release_early]
 fir_passes = [
         "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
@@ -49,6 +62,8 @@ fir_passes = [
   "SCCP", "LegalizeVecs", "DCE",
 ]
 
+# ------------------------------------------------------------------------------------------------
+# Passes
 
 #module
 [pass.Inline]

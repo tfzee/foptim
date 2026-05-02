@@ -61,6 +61,10 @@ clang ./test.o ./test.out
 > [!TIP]
 > Theres also a driver.sh script to simplify it and make it more like using clang. Also other scripts for specific usages in the scripts folder.
 
+> [!TIP]
+> The whole pipeline and many settings can be configured through a toml compiler configuration file instead of command line args
+> look at default.toml or testconf.toml for some examples
+
 
 ## Tests
 > [!IMPORTANT]
