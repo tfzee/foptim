@@ -183,6 +183,8 @@ add_executable (foptim_main
 
                 #arg parsing
                 ./src/arg_parsing/parser.cpp
+                #config parsing
+                ./src/arg_parsing/compiler_config.cpp
                )
 
 target_compile_options(foptim_main PRIVATE -fvisibility=hidden -Wall -Wextra -Werror -ggdb -Wno-unused-private-field -Wno-implicit-fallthrough)

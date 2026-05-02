@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
@@ -9,7 +10,6 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
-#include "utils/parameters.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
@@ -68,7 +68,7 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
   }
   const auto &inp_vec_ty = elems[0].ty->as_vec();
   if (inp_vec_ty.get_size() >= 64 ||
-      (!utils::enable_avx512f && inp_vec_ty.get_size() >= 32)) {
+      (!ctx.config->target.features.avx512f && inp_vec_ty.get_size() >= 32)) {
     return false;
   }
 

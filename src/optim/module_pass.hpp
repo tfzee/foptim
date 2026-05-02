@@ -1,4 +1,7 @@
 #pragma once
+#include <fmt/base.h>
+
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
 #include "utils/arena.hpp"
@@ -61,13 +64,16 @@ class StaticModulePassManager {
 };
 
 class ModulePassManager {
+  FVec<ModulePass *> dyn_passes;
+
  public:
-  FVec<ModulePass> dyn_passes;
+  void push_pass(ModulePass *pass) { dyn_passes.push_back(pass); }
 
   void apply(fir::Context &ctx, JobSheduler *shed) {
-    for (auto pass : dyn_passes) {
-      pass.apply(ctx, shed);
+    for (auto *pass : dyn_passes) {
+      pass->apply_pass(ctx, shed);
     }
+    ctx.data->storage.storage_instr.collect_garbage();
   }
 };
 }  // namespace foptim::optim

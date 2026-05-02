@@ -16,7 +16,6 @@
 #include "mir/instr.hpp"
 #include "mir/matcher_helpers.hpp"
 #include "utils/helpers.hpp"
-#include "utils/parameters.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::fmir {
@@ -2195,7 +2194,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         //  }
         //  TODO: better to use if we know that its the n lowest bits that
         //  are set pcmpeqd       xmm0, xmm0 psrld xmm0, 32-n
-        if (utils::enable_avx512vl) {
+        if (data.config.target.features.avx512vl) {
           switch (res_reg.ty) {
             case Type::Int32x4:
             case Type::Int32x8:

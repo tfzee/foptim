@@ -1,10 +1,10 @@
 #pragma once
 #include <fmt/base.h>
 
+#include "arg_parsing/compiler_config.hpp"
 #include "backend3.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
-#include "utils/parameters.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
 
@@ -88,8 +88,8 @@ ZydisRegister get_reg_sized_vec(const ZydisRegister *regs, u32 size) {
       return regs[1];
     case 64:
       // TODO: i think avx512f is always included
-      ASSERT_M(utils::enable_avx512f,
-               "Tried using avx512 types but didn't enable avx512 support");
+      // ASSERT_M(utils::enable_avx512f,
+      //          "Tried using avx512 types but didn't enable avx512 support");
       return regs[2];
     default:
   }
@@ -773,7 +773,8 @@ inline size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 
       // we need to clear the full reg if we want to be safe
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
-      req.operands[0].reg.value = ZydisRegisterGetLargestEnclosing(req.machine_mode, targ.reg.value);
+      req.operands[0].reg.value =
+          ZydisRegisterGetLargestEnclosing(req.machine_mode, targ.reg.value);
       req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
       req.operands[1].imm.u = 0;
       req.operand_count = 2;
@@ -1155,7 +1156,8 @@ inline size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                          u8 *const out_buff, u8 curr_bb_id,
                          TLabelUsageMap &reloc_map,
-                         ProEpilogueType proepiloguetype) {
+                         ProEpilogueType proepiloguetype,
+                         const conf::CompConf &conf) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -1294,7 +1296,7 @@ inline size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
-      if (utils::enable_avx512f) {
+      if (conf.target.features.avx512f) {
         bool is_f32 = instr.args[0].ty == fmir::Type::Float32;
         req.mnemonic =
             is_f32 ? ZYDIS_MNEMONIC_VCVTUSI2SS : ZYDIS_MNEMONIC_VCVTUSI2SD;
@@ -2016,7 +2018,8 @@ inline size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                        u8 *const out_buff, u8 curr_bb_id,
                        TLabelUsageMap &reloc_map,
-                       ProEpilogueType proepiloguetype) {
+                       ProEpilogueType proepiloguetype,
+                       const foptim::conf::CompConf &conf) {
   (void)req;
   (void)instr;
   (void)out_buff;
@@ -2567,7 +2570,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           TODO("UNREACH");
         case fmir::Type::Int32x4:
           req.mnemonic = ZYDIS_MNEMONIC_VPBROADCASTD;
-          if (utils::enable_avx512f || utils::enable_avx512vl) {
+          if (conf.target.features.avx512f || conf.target.features.avx512vl) {
             req.operand_count = 3;
             req.operands[2] = req.operands[1];
             req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;
@@ -2576,7 +2579,7 @@ inline size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           break;
         case fmir::Type::Int64x2:
           req.mnemonic = ZYDIS_MNEMONIC_VPBROADCASTQ;
-          if (utils::enable_avx512f || utils::enable_avx512vl) {
+          if (conf.target.features.avx512f || conf.target.features.avx512vl) {
             req.operand_count = 3;
             req.operands[2] = req.operands[1];
             req.operands[1].type = ZYDIS_OPERAND_TYPE_REGISTER;

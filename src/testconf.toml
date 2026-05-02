@@ -1,0 +1,67 @@
+config_version = 1
+include = [
+  "default",
+]
+
+# ------------------------------------------------------------------------------------------------
+# Target setup
+
+[target]
+name = "x86_64-linux"
+
+[target.features]
+avx512 = false
+bmi2 = true
+
+[optimize]
+pipeline = "standard"
+
+# ------------------------------------------------------------------------------------------------
+# Output
+
+# [debug]
+# color = true
+# print_missed_optim = true
+
+# [remarks]
+# output = "remarks.yaml"
+# passes = ["SLPVectorizer"]
+# filter = "hot"
+# missed = true   
+
+# ------------------------------------------------------------------------------------------------
+# Optimizations
+
+[pipeline.standard]
+fir_passes = [
+  "pipeline:default_release_early",
+  "pipeline:default_release_middle",
+  "pipeline:default_release_late",
+  "pipeline:default_release_cleanup",
+]
+# mir_passes = []
+
+[pass.Inline]
+recursive = true
+
+# [pass.Unroll]
+# max_unroll = 8
+
+# [pass.UnrollEarly]
+# extends = "unroll"
+# max_unroll = 2
+
+# [pass.FuncDedup]
+# merge_partial_matches = false
+
+# [pass.FuncDedupLate]
+# extends = "func_dedup"
+# when = "is_hot"
+# merge_partial_matches = true
+
+# [[pass_override]]
+# filter = "annotation:always_inline"
+# pass = "inline"
+# always_inline = true
+
+

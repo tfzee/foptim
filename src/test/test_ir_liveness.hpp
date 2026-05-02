@@ -7,14 +7,13 @@
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "optim/analysis/dominators.hpp"
-#include "utils/logging.hpp"
 
 using namespace foptim::utils;
 using namespace foptim::fir;
 using namespace foptim;
 
 TEST(LivenessTest, SingleBB) {
-  foptim::fir::Context ctx;
+  foptim::fir::Context ctx{nullptr};
 
   auto func = ctx.data->create_function(
       "testFunc", ctx.data->get_func_ty(ctx.data->get_int_type(32),
@@ -50,7 +49,7 @@ TEST(LivenessTest, SingleBB) {
 }
 
 TEST(LivenessTest, AcrossBB) {
-  foptim::fir::Context ctx;
+  foptim::fir::Context ctx{nullptr};
 
   auto func = ctx.data->create_function(
       "testFunc", ctx.data->get_func_ty(ctx.data->get_int_type(32),

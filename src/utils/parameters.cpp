@@ -9,11 +9,6 @@ u8 number_worker_threads = 0;
 
 u8 verbosity = 255;
 
-bool enable_avx512f = false;
-bool enable_avx512bw = false;
-bool enable_avx512cd = false;
-bool enable_avx512dq = false;
-bool enable_avx512vl = false;
 bool all_linkage_internal = false;
 bool assume_cstdlib_beheaviour = true;
 

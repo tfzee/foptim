@@ -1,14 +1,13 @@
 #pragma once
 #include <fmt/format.h>
 
+#include "utils/types.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
-#include "ir/value.hpp"
 #include "storage.hpp"
 #include "types.hpp"
 #include "types_ref.hpp"
 #include "utils/logging.hpp"
-#include "utils/stable_vec.hpp"
 
 namespace foptim::fir {
 
@@ -75,7 +74,8 @@ struct ContextData {
 class Context {
  public:
   ContextData *data;
-  Context() { data = new ContextData{}; }
+  const conf::CompConf *config;
+  Context(conf::CompConf *config) : config(config) { data = new ContextData{}; }
   // ~Context() { delete data; }
 
   ContextData *operator->() const { return data; }

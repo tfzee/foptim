@@ -1,8 +1,6 @@
 #pragma once
 #include <atomic>
 #include <cassert>
-#include <compare>
-#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -30,6 +28,40 @@ struct Slab {
   Slot<T> data[slot_slab_len];
 };
 
+template <class T, u32 slot_slab_len = 128>
+struct SlabIter {
+  Slab<T, slot_slab_len> *slab;
+  u32 offset;
+  constexpr bool operator==(const SlabIter &other) {
+    return (void *)slab == (void *)other.slab && offset == other.offset;
+  }
+  constexpr bool operator!=(const SlabIter &other) {
+    return (void *)slab != (void *)other.slab || offset != other.offset;
+  }
+
+  constexpr SRef<T> operator*() {
+    auto *res_ptr = &slab->data[offset];
+    return SRef{res_ptr, res_ptr->generation};
+  }
+
+  constexpr T *operator->() { return &slab->data[offset].data; }
+  constexpr SlabIter &operator++() {
+    offset++;
+    if (offset >= slot_slab_len) {
+      slab = slab->next;
+      offset = 0;
+    }
+    while (slab != nullptr && slab->data[offset].used != SlotState::Used) {
+      offset++;
+      if (offset >= slot_slab_len) {
+        slab = slab->next;
+        offset = 0;
+      }
+    }
+    return *this;
+  }
+};
+
 template <class T, u32 slot_slab_len = 128,
           class AllocFreeList = FAlloc<FreeInfo<T>>,
           class AllocSlabs = FAlloc<Slab<T, slot_slab_len>>>
@@ -42,11 +74,23 @@ class StableVec {
  public:
   using Slab = Slab<T, slot_slab_len>;
   static constexpr u32 _slot_slab_len = slot_slab_len;
-  std::atomic<Slab *> _slot_start;
+  std::atomic<Slab *> _slot_start = nullptr;
+
+  SlabIter<T, slot_slab_len> begin() {
+    auto r = SlabIter<T, slot_slab_len>{_slot_start, 0};
+    Slab *n = _slot_start;
+    if (n != nullptr && n->data[0].used != SlotState::Used) {
+      ++r;
+    }
+    return r;
+  }
+
+  SlabIter<T, slot_slab_len> end() { return {nullptr, 0}; }
 
   void slap_append(Slab *new_slab) {
     new_slab->next = _slot_start.load();
     while (!_slot_start.compare_exchange_strong(new_slab->next, new_slab)) {
+      new_slab->next = _slot_start.load();
     }
   }
 
@@ -91,7 +135,6 @@ class StableVec {
   }
 
   constexpr void remove(SRef<T> s) {
-    s.data_ref->used = SlotState::FreeList;
     {
 #ifdef SLOT_CHECK_GENERATION
       s.data_ref->generation = 0;
@@ -100,6 +143,8 @@ class StableVec {
         curr_gen++;
       }
 #endif
+      s.data_ref->data.~T();
+      s.data_ref->used = SlotState::FreeList;
       auto free_list = _free_list.scoped_lock();
       free_list->emplace_back(s.data_ref, 1);
     }
@@ -187,7 +232,7 @@ class StableVec {
         slap_append(new_slab);
       }
       res_ptr = target.ptr;
-      res_ptr->data = std::move(value);
+      std::construct_at(&res_ptr->data, std::move(value));
       target.ptr++;
       target.len--;
       if (target.len != 0) {

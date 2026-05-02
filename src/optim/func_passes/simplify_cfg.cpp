@@ -1543,6 +1543,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
 
 void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
   ZoneScopedNC("SimplifyCFG", COLOR_OPTIMF);
+  fmt::println("Simplify");
   // Cant really simplify the cfg if theres just 1 node
   if (func.basic_blocks.size() == 1) {
     return;

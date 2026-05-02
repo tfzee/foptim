@@ -1,4 +1,5 @@
 #pragma once
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/instruction_data.hpp"
@@ -14,6 +15,7 @@ struct ExtraMatchData {
   TMap<fir::BBArgument, MArgument> &bb_arg_mapping;
   MFunc &func;
   u32 static_alloca_size;
+  const conf::CompConf &config;
 };
 
 struct MatchResult {
@@ -56,7 +58,7 @@ class Matcher {
 class GreedyMatcher : public Matcher {
  public:
   GreedyMatcher();
-  MFunc apply(fir::Function &func);
+  MFunc apply(fir::Function &func, const conf::CompConf &config);
 };
 
 Type convert_type(fir::TypeR type);

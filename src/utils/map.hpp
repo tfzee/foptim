@@ -6,7 +6,6 @@
 
 #include "helpers.hpp"
 #include "utils/arena.hpp"
-#include "utils/logging.hpp"
 
 namespace foptim {
 

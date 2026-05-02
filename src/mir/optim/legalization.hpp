@@ -1,4 +1,5 @@
 #pragma once
+#include "arg_parsing/compiler_config.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
 
@@ -25,7 +26,8 @@ class Legalizer {
   bool legalize_fcmp(MBB &bb, u32 indx);
   bool legalize_idiv(MBB &bb, u32 indx);
   bool legalize_conversion(MBB &bb, u32 indx);
-  bool legalize_floating_binary_ops(MBB &bb, u32 indx);
+  bool legalize_floating_binary_ops(MBB &bb, u32 indx,
+                                    const foptim::conf::CompConf &conf);
   bool legalize_push(MBB &bb, u32 indx);
   bool legalize_arg_setup(MBB &bb, u32 indx);
   bool legalize_move(MBB &bb, u32 indx);
@@ -33,11 +35,11 @@ class Legalizer {
   bool legalize_cmoveXX(MBB &bb, u32 indx);
   // bool legalize_si2fl(MBB &bb, u32 indx);
   // bool legalize_sub(MBB &bb, u32 indx);
-  void apply_impl(MFunc &funcs);
+  void apply_impl(MFunc &funcs, const foptim::conf::CompConf& conf);
 
  public:
-  void apply(MFunc &funcs);
-  void apply(FVec<MFunc> &funcs);
+  void apply(MFunc &funcs, const foptim::conf::CompConf& conf);
+  void apply(FVec<MFunc> &funcs, const foptim::conf::CompConf& conf);
 };
 
 }  // namespace foptim::fmir

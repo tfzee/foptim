@@ -4,6 +4,7 @@
 
 #include <limits>
 
+#include "arg_parsing/compiler_config.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "utils/parameters.hpp"
@@ -438,7 +439,7 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
   return modified;
 }
 
-bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
+bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx, const foptim::conf::CompConf& conf) {
   MInstr &instr = bb.instrs[indx];
   if (instr.args[1].isImm()) {
     indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
@@ -449,7 +450,7 @@ bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx) {
     return true;
   }
   // cant do 64 bit mul without avx512
-  if (!utils::enable_avx512dq && instr.is(GVecSubtype::vmul) &&
+  if (!conf.target.features.avx512dq && instr.is(GVecSubtype::vmul) &&
       (instr.args[0].ty == Type::Int64x2 ||
        instr.args[0].ty == Type::Int64x4)) {
     auto out = instr.args[0];
@@ -716,7 +717,7 @@ bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   return false;
 }
 
-void Legalizer::apply_impl(MFunc &func) {
+void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf& conf) {
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {
@@ -918,7 +919,7 @@ void Legalizer::apply_impl(MFunc &func) {
             case GVecSubtype::vadd:
             case GVecSubtype::vAnd:
             case GVecSubtype::vOr:
-              if (legalize_floating_binary_ops(bb, i)) {
+              if (legalize_floating_binary_ops(bb, i, conf)) {
                 ioff = 0;
               }
               break;
@@ -953,12 +954,12 @@ void Legalizer::apply_impl(MFunc &func) {
   }
 }
 
-void Legalizer::apply(MFunc &func) { apply_impl(func); }
+void Legalizer::apply(MFunc &func, const foptim::conf::CompConf& conf) { apply_impl(func, conf); }
 
-void Legalizer::apply(FVec<MFunc> &funcs) {
+void Legalizer::apply(FVec<MFunc> &funcs, const foptim::conf::CompConf& conf) {
   ZoneScopedN("MIR Legalizer");
   for (auto &func : funcs) {
-    apply(func);
+    apply(func, conf);
   }
 }
 

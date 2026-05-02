@@ -13,9 +13,16 @@ class MFunc;
 enum class Type : uint16_t;
 }  // namespace fmir
 
+namespace optim {
+class ModulePass;
+class FunctionPass;
+}  // namespace optim
 extern thread_local char thread_name[11];
 namespace utils {}
 
+namespace conf {
+struct CompConf;
+}  // namespace conf
 namespace optim {
 struct LiveRange;
 class KnownBits;

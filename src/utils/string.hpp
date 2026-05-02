@@ -2,8 +2,11 @@
 #include <string>
 
 #include "utils/arena.hpp"
+#include "utils/helpers.hpp"
 
 namespace foptim {
+using FString =
+    std::basic_string<char, std::char_traits<char>, utils::FAlloc<char>>;
 using TString =
     std::basic_string<char, std::char_traits<char>, utils::TempAlloc<char>>;
 

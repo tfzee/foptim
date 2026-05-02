@@ -1,5 +1,6 @@
 #pragma once
 #include "../module_pass.hpp"
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -290,6 +291,7 @@ class Inline final : public ModulePass {
  public:
   void apply(fir::Context& ctx, JobSheduler* /*unused*/) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
+  fmt::println("Inline");
     for (auto& f : ctx.data->storage.functions) {
       apply(ctx, *f.second);
     }

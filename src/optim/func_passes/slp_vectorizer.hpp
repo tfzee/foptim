@@ -2,6 +2,7 @@
 #include <fmt/base.h>
 #include <fmt/core.h>
 
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
@@ -39,7 +40,7 @@ class SLPVectorizer final : public FunctionPass {
     }
     virtual void dump() { TODO("UNREACH"); }
     // higher = better
-    virtual i64 cost() const { TODO("UNREACH"); }
+    virtual i64 cost(const conf::CompConf &) const { TODO("UNREACH"); }
     virtual ~TreeElem() = default;
   };
 
@@ -58,7 +59,8 @@ class SLPVectorizer final : public FunctionPass {
                                                    size_t instr_id,
                                                    AliasAnalyis &aa);
 
-  void find_seeds(fir::BasicBlock bb, TVec<SeedBundle> &store_bundles,
+  void find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
+                  TVec<SeedBundle> &store_bundles,
                   TVec<SeedBundle> &load_bundles,
                   TVec<SeedBundle> &reduction_bundles, AliasAnalyis &aa);
 
@@ -83,7 +85,7 @@ class SLPVectorizer final : public FunctionPass {
     TVec<SeedBundle> load_bundles;
     TVec<SeedBundle> reduction_bundles;
     for (auto bb : func.basic_blocks) {
-      find_seeds(bb, store_bundles, load_bundles, reduction_bundles, aa);
+      find_seeds(*ctx.config, bb, store_bundles, load_bundles, reduction_bundles, aa);
     }
     if (store_bundles.empty() && reduction_bundles.empty()) {
       return;

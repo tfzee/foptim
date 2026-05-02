@@ -8,7 +8,7 @@
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
-#include "utils/parameters.hpp"
+#include "arg_parsing/compiler_config.hpp"
 #include "utils/string.hpp"
 
 namespace foptim::optim {
@@ -115,7 +115,7 @@ class LegalizeVecs final : public FunctionPass {
         make_constant_global(ctx, instr, 0);
         return true;
       }
-      if (!utils::enable_avx512f && instr->get_type()->get_bitwidth() >= 512) {
+      if (!ctx.config->target.features.avx512f && instr->get_type()->get_bitwidth() >= 512) {
         // auto funcy = instr->get_parent()->get_parent().func;
         // fmt::println("{:cd}", *funcy);
         // fmt::println("{}", instr);
@@ -137,7 +137,7 @@ class LegalizeVecs final : public FunctionPass {
     }
     // TODO: is this check for avx512 sufficient/correct?
     if (instr->is(fir::VectorISubType::HorizontalAdd) &&
-        !utils::enable_avx512f &&
+        !ctx.config->target.features.avx512f  &&
         instr->args[0].get_type()->get_bitwidth() >= 512) {
       fir::Builder buh{instr};
       auto out_type = instr->get_type();

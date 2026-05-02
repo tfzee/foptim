@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <atomic>
 
+#include "arg_parsing/compiler_config.hpp"
+#include "arg_parsing/fir_pipeline.hpp"
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
@@ -75,13 +77,15 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
                                foptim::JobSheduler *shed);
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::IRString> &decls,
-             foptim::FVec<foptim::fmir::Global> &globals);
+             foptim::FVec<foptim::fmir::Global> &globals,
+             const foptim::conf::CompConf &conf);
 
 }  // namespace
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
-  parse_args(argc, argv);
+  foptim::conf::CompConf conf;
+  parse_args(argc, argv, conf);
   foptim::utils::DumbTimer t;
   foptim::JobSheduler shed;
   shed.init(foptim::utils::number_worker_threads);
@@ -93,7 +97,7 @@ int main(int argc, char *argv[]) {
   {
     auto a1 = t.scopedTimer("CompileTime");
 
-    foptim::fir::Context ctx;
+    foptim::fir::Context ctx(&conf);
     {
       // fir
       {
@@ -102,7 +106,8 @@ int main(int argc, char *argv[]) {
       }
       {
         auto a1 = t.scopedTimer("Optimize");
-        optimize_fir(ctx, &shed);
+        foptim::conf::pipeline::optimize_fir(ctx, &shed);
+        // optimize_fir(ctx, &shed);
       }
     }
 
@@ -122,7 +127,7 @@ int main(int argc, char *argv[]) {
     {
       auto a1 = t.scopedTimer("Codegen");
       // asm
-      codegen(funcs, decls, globals);
+      codegen(funcs, decls, globals, conf);
     }
 
     foptim::utils::StatCollector::get().dump();
@@ -144,7 +149,7 @@ void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
   foptim::utils::TempAlloc<void *>::reset();
 }
 
-void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
+[[maybe_unused]] void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   (void)shed;
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
@@ -161,6 +166,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
                                          ArgPromotion, GDCE>{}
       .apply(ctx, shed);
+
   foptim::optim::StaticParallelFunctionPassManager<
       DCE, CmpKnownValProp, SimplifyCFG, TailRecElim, LICM, LoopRotate,
       LoopSimplify, DCE, LVN, SCCP, IntrinSimplify, InstSimplify,
@@ -189,6 +195,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, SORA,
                                                    Mem2Reg, SimplifyCFG, DCE>{}
       .apply(ctx, shed);
+
   foptim::optim::StaticModulePassManager<
       ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, GDCE, IPCP,
       GlobalPromotion, Inline<>, Inline<>, GDCE, FuncPropAnnotator>{}
@@ -218,7 +225,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   foptim::optim::StaticParallelFunctionPassManager<
       LegalizeVecs, SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
       .apply(ctx, shed);
-  // // general cleanup / legalization / finalization
+  // for (const auto &[_, func] : ctx->storage.functions) {
+  //   fmt::println("{:cd}", *func);
+  // }
+  // general cleanup / legalization / finalization
   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
       ctx, shed);
   foptim::optim::StaticParallelFunctionPassManager<
@@ -227,9 +237,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       .apply(ctx, shed);
 
   ASSERT(ctx->verify());
-  for (const auto &[_, func] : ctx->storage.functions) {
-    fmt::println("{:cd}", *func);
-  }
   // {
   //   auto *slab = ctx->storage.storage_global._slot_start.load();
   //   while (slab != nullptr) {
@@ -335,10 +342,11 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     if (reord_func->is_decl()) {
       continue;
     }
-    shed->push(nullptr, [i, &funcs, reord_func]() {
+    const auto *config = ctx.config;
+    shed->push(nullptr, [i, &funcs, reord_func, config]() {
       auto &func = funcs.at(i);
       auto matcher = foptim::fmir::GreedyMatcher{};
-      func = matcher.apply(*reord_func);
+      func = matcher.apply(*reord_func, *config);
       ASSERT(foptim::fmir::verify(func));
       foptim::fmir::LegalizeBBForm{}.apply(func);
       foptim::fmir::DeadCodeElim{}.apply(func);
@@ -361,7 +369,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::utils::TempAlloc<void *>::reset();
       ASSERT(foptim::fmir::verify(func));
       foptim::fmir::CallingConv{}.first_stage(func);
-      foptim::fmir::Legalizer{}.apply(func);
+      foptim::fmir::Legalizer{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::InstSimplify{}.early_apply(func);
       foptim::utils::TempAlloc<void *>::reset();
@@ -391,9 +399,10 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::IRString> &decls,
-             foptim::FVec<foptim::fmir::Global> &globals) {
+             foptim::FVec<foptim::fmir::Global> &globals,
+             const foptim::conf::CompConf &conf) {
   ZoneScopedN("Codegen");
-  foptim::codegen::run(funcs, decls, globals);
+  foptim::codegen::run(funcs, decls, globals, conf);
   fmt::println("Done!");
 }
 }  // namespace

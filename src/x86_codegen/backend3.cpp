@@ -3,13 +3,13 @@
 #include <fmt/base.h>
 #include <fmt/core.h>
 
-#include <cmath>
 #include <elfio/elf_types.hpp>
 #include <elfio/elfio.hpp>
 
-#include "backend.hpp"
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/helpers.hpp"
 #include "mir/func.hpp"
+#include "mir/global.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
 #include "utils/arena.hpp"
@@ -22,7 +22,8 @@ namespace foptim::codegen {
 namespace {
 
 size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
-                  TLabelUsageMap &reloc_map, ProEpilogueType proepiloguetype) {
+                  TLabelUsageMap &reloc_map, ProEpilogueType proepiloguetype,
+                  const foptim::conf::CompConf &conf) {
   // size_t length = 999;
   ZydisEncoderRequest req;
   memset(&req, 0, sizeof(req));
@@ -39,7 +40,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                        proepiloguetype);
     case fmir::GOpcode::GConv:
       return emit_gconv(req, instr, out_buff, curr_bb_id, reloc_map,
-                        proepiloguetype);
+                        proepiloguetype, conf);
     case fmir::GOpcode::GArith:
       return emit_garith(req, instr, out_buff, curr_bb_id, reloc_map,
                          proepiloguetype);
@@ -51,7 +52,7 @@ size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
                        proepiloguetype);
     case fmir::GOpcode::X86:
       return emit_x86(req, instr, out_buff, curr_bb_id, reloc_map,
-                      proepiloguetype);
+                      proepiloguetype, conf);
       break;
   }
 }
@@ -176,7 +177,7 @@ void reloc_bbs(TLabelUsageMap &reloc_map, u8 *buff_start) {
 }
 
 u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
-             TLabelUsageMap &reloc_map) {
+             TLabelUsageMap &reloc_map, const conf::CompConf &conf) {
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
@@ -254,7 +255,8 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
       reloc_map.bb_map[bb_id].kind = RelocKind::BB;
 
       for (const auto &instr : bb.instrs) {
-        curr_loc += emit_instr(instr, curr_loc, bb_id, reloc_map, proepilogue);
+        curr_loc +=
+            emit_instr(instr, curr_loc, bb_id, reloc_map, proepilogue, conf);
       }
       bb_id++;
     }
@@ -584,7 +586,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
 }  // namespace
 
 void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
-         std::span<const fmir::Global> globals) {
+         std::span<const fmir::Global> globals, const conf::CompConf &conf) {
   size_t n_instrs = 0;
   for (const auto &func : funcs) {
     for (const auto &bb : func.bbs) {
@@ -597,7 +599,7 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   auto *output_buffer = utils::TempAlloc<u8>{}.allocate(n_instrs * 16);
   memset(output_buffer, 0xFF, n_instrs * 16);
   TLabelUsageMap label_usages;
-  auto *end_buff_ptr = assemble(funcs, output_buffer, label_usages);
+  auto *end_buff_ptr = assemble(funcs, output_buffer, label_usages, conf);
 
   fmt::println(" Needs {} Relocations\n Generated {} Bytes\n",
                label_usages.label_map.size(), end_buff_ptr - output_buffer);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <ranges>
 
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"
@@ -294,7 +295,7 @@ Type convert_type(fir::TypeR type) {
   std::abort();
 }
 
-MFunc GreedyMatcher::apply(fir::Function &func) {
+MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
   ZoneScopedN("Greedy Matcher");
   MFunc res_func;
   res_func.name = func.name;
@@ -355,7 +356,8 @@ MFunc GreedyMatcher::apply(fir::Function &func) {
                                .bbs = bbs,
                                .bb_arg_mapping = bb_arg_mapping,
                                .func = res_func,
-                               .static_alloca_size = static_alloca_size};
+                               .static_alloca_size = static_alloca_size,
+                               .config = conf};
 
   // so we dont need to realloc
   MatchResult match_result{};

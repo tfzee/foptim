@@ -1,0 +1,87 @@
+config_version = 1
+
+[pipeline.default_release_early]
+fir_passes = [
+        "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
+        "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DCE",
+        "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE"
+]
+
+[pipeline.default_release_middle]
+fir_passes = [
+      "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
+      "LoopSimplify", "DCE", "LVN", "SCCP", "IntrinSimplify", "InstSimplify",
+      "DoubleLoadElim", "DCE", "SimplifyCFG", "StackKnownBits", "SORA", "Mem2Reg",
+      "SimplifyCFG", "DCE", "LVN", "InstSimplify", "ConstLoopEval", "LoopSimplify",
+      "InstSimplify", "SimplifyCFG", "FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline", "Inline", "Inline",
+      "ArgPromotion", "GDCE", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "CmpKnownValProp",
+      "InstSimplify", "SimplifyCFG", "LICM", "DCE", "LoopSimplify", "LoopUnswitch", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer",
+      "LVN", "SCCP", "IntrinSimplify", "InstSimplify", "ConstLoopEval", "InstSimplify",
+      "CmpKnownValProp", "SimplifyCFG", "DCE","FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline", "Inline", "Inline",
+      "ArgPromotion", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "InstSimplify",
+      "SimplifyCFG", "TailRecElim", "SimplifyCFG", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinSimplify", "InstSimplify", "DCE",
+  		"StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DCE",
+]
+
+[pipeline.default_release_late]
+fir_passes = [
+      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "GDCE", "IPCP",
+      "GlobalPromotion", "Inline", "Inline", "GDCE", "FuncPropAnnotator",
+      "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "InstSimplify",
+      "CmpKnownValProp", "SimplifyCFG", "SCCP",
+      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "Inline", "Inline",
+      "Inline", "GDCE", "IPCP", "FuncPropAnnotator",
+      "SimplifyCFG", "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "SimplifyCFG",
+      "InstSimplify", "SCCP", "DCE", "InstSimplify", "ConstLoopEval", "LoopSimplify",
+      "LoopUnswitch", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer", "InstSimplify",
+      "SimplifyCFG",
+      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "Inline", "Inline",
+      "GDCE", "IPCP", "FuncPropAnnotator",
+      "SimplifyCFG", "LVN", "SCCP", "DCE", "IntrinSimplify", "InstSimplify", "DCE",
+      "SLPVectorizer", "InstSimplify", "SimplifyCFG",
+      "LegalizeVecs", "SCCP", "LVN", "InstSimplify", "DCE", "LVN", "InstSimplify", "DCE",  
+]
+
+[pipeline.default_release_cleanup]
+fir_passes = [
+  "MergeAlloca", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
+  "InstSimplify", "SimplifyCFG", "DCE", "LegalizeVecs", "InstSimplify",
+  "SCCP", "LegalizeVecs", "DCE",
+]
+
+
+#module
+[pass.Inline]
+[pass.FuncPropAnnotator]
+[pass.GlobalPromotion]
+[pass.ArgPromotion]
+[pass.GDCE]
+[pass.IPCP]
+[pass.FunctionDedupSame]
+[pass.FunctionDedupDiff]
+[pass.LoopUnswitch]
+[pass.LoopUnroll]
+
+#func
+[pass.DCE]
+[pass.LegalizeStructs]
+[pass.LLVMIntrinsicLowering]
+[pass.SORA]
+[pass.Mem2Reg]
+[pass.DoubleLoadElim]
+[pass.IntrinSimplify]
+[pass.InstSimplify]
+[pass.SimplifyCFG]
+[pass.LVN]
+[pass.CmpKnownValProp]
+[pass.TailRecElim]
+[pass.LICM]
+[pass.LoopRotate]
+[pass.LoopSimplify]
+[pass.SCCP]
+[pass.StackKnownBits]
+[pass.ConstLoopEval]
+[pass.SLPVectorizer]
+[pass.MergeAlloca]
+[pass.LegalizeVecs]
+
