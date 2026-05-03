@@ -105,8 +105,8 @@ class StaticParallelFunctionPassManager {
         continue;
       }
       shed->push(nullptr, [&ctx, &func]() {
-        (apply_pass<Passes>(ctx, *func,
-                            utils::print_optimization_failure_reasons),
+        (apply_pass<Passes>(
+             ctx, *func, ctx.config->debug.print_optimization_failure_reasons),
          ...);
       });
     }
@@ -148,7 +148,7 @@ class ParallelFunctionPassManager {
       shed->push(nullptr, [this, &ctx, &func]() {
         for (auto *pass : dyn_passes) {
           apply_pass(ctx, pass, *func,
-                     utils::print_optimization_failure_reasons);
+                     ctx.config->debug.print_optimization_failure_reasons);
         }
       });
     }

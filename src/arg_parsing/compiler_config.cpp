@@ -35,6 +35,10 @@ bool optimize_parse(Optimize& optim, CompConf& conf,
   if (v.has_value()) {
     optim.pipeline = conf.find_pipeline(v.value());
   }
+  optim.all_linkage_internal =
+      cnf["all_linkage_internal"].value_or(optim.all_linkage_internal);
+  optim.assume_cstdlib_beheaviour = cnf["assume_cstdlib_beheaviour"].value_or(
+      optim.assume_cstdlib_beheaviour);
   return true;
 }
 
@@ -207,6 +211,9 @@ bool pipelines_parse(CompConf& conf, toml::table& tbl) {
 bool debug_parse(Debug& conf, toml::table& tbl) {
   conf.bisect = tbl["bisect"].value_or(conf.bisect);
   conf.print_color = tbl["print_color"].value_or(conf.print_color);
+  conf.print_optimization_failure_reasons =
+      tbl["print_optimization_failure_reasons"].value_or(
+          conf.print_optimization_failure_reasons);
   conf.print_between_passes =
       tbl["print_between_passes"].value_or(conf.print_between_passes);
   conf.verify_between_passes =

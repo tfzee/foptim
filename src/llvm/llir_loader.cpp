@@ -21,6 +21,7 @@
 #include <limits>
 #include <memory>
 
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -41,7 +42,6 @@
 #include "llvm/Support/Casting.h"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
-#include "utils/parameters.hpp"
 #include "utils/set.hpp"
 #include "utils/vec.hpp"
 
@@ -1455,7 +1455,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
       foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Protected;
       break;
   }
-  if (foptim::utils::all_linkage_internal && func_name != "main" &&
+  if (fctx.config->optim.all_linkage_internal && func_name != "main" &&
       !func.empty()) {
     foff_func->attribs.linkage = foptim::fir::Linkage::Internal;
   }

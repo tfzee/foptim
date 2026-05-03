@@ -15,6 +15,11 @@ bmi2 = true
 
 [optimize]
 pipeline = "default_release"
+# makes everything interal if possible
+all_linkage_internal = false
+# assumes that calls to functions named like strlen and other cstdlib function
+# beheave like in the cstdlib
+assume_cstdlib_beheaviour = true
 
 [pipeline.default_release_early]
 fir_passes = [
@@ -122,6 +127,7 @@ reductions = true
 
 [debug]
 print_between_passes = false
+print_optimization_failure_reasons = true
 print_color = true
 verify_between_passes = false
 bisect = 0

@@ -59,11 +59,14 @@ struct Pipeline {
 
 struct Optimize {
   PipelineRef pipeline;
+  bool all_linkage_internal;
+  bool assume_cstdlib_beheaviour;
 };
 
 struct Debug {
   u32 bisect;
   bool print_between_passes;
+  bool print_optimization_failure_reasons;
   bool verify_between_passes;
   bool print_color;
 };

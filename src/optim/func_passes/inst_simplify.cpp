@@ -1422,7 +1422,7 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       return true;
     }
 
-    if (foptim::utils::assume_cstdlib_beheaviour) {
+    if (ctx.config->optim.assume_cstdlib_beheaviour) {
       // constant propagate strlen of string literals
       if (funci->name == "strlen" && instr->args[1].is_constant() &&
           instr->args[1].as_constant()->is_global()) {

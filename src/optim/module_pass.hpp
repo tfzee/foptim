@@ -6,7 +6,6 @@
 #include "ir/context.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
-#include "utils/parameters.hpp"
 
 namespace foptim::optim {
 
@@ -55,7 +54,7 @@ template <class... Passes>
 class StaticModulePassManager {
  public:
   void apply(fir::Context &ctx, JobSheduler *shed) {
-    if (utils::print_optimization_failure_reasons) {
+    if (ctx.config->debug.print_optimization_failure_reasons) {
       (Passes{}.apply_pass(ctx, shed).print_failures(), ...);
     } else {
       (Passes{}.apply_pass(ctx, shed), ...);
@@ -71,7 +70,10 @@ class ModulePassManager {
 
   void apply(fir::Context &ctx, JobSheduler *shed) {
     for (auto *pass : dyn_passes) {
-      pass->apply_pass(ctx, shed);
+      auto p = pass->apply_pass(ctx, shed);
+      if (ctx.config->debug.print_optimization_failure_reasons) {
+        p.print_failures();
+      }
     }
     ctx.data->storage.storage_instr.collect_garbage();
   }
