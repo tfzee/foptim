@@ -3,6 +3,7 @@ project(foptim
         LANGUAGES CXX C)
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_C_EXTENSIONS ON)
 
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_C_COMPILER "clang")
@@ -79,7 +80,7 @@ endif()
 
 
 link_libraries(fmt)
-# add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+add_compile_options(-Wno-c23-extensions)
 # add_link_options(-fsanitize=thread -fPIE -pie)
 
 add_library (foptim OBJECT
@@ -105,6 +106,7 @@ add_library (foptim OBJECT
                 ./src/ir/interpreter/interpreter.cpp
 
                 #optim
+                ./src/optim/fir_pipeline.cpp
                 ./src/optim/analysis/live_variables.cpp
                 ./src/optim/analysis/loop_analysis.cpp
                 ./src/optim/analysis/cfg.cpp
