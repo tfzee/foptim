@@ -474,22 +474,29 @@ void SCCP::eval_meets(fir::BasicBlock bb, size_t bb_id) {
 }
 
 void SCCP::dump() {
-  TODO("REIMPL");
-  // print << "DUMP SCCP: ";
-  // for (auto &[val, consta] : values) {
-  //   print << val << ": ";
-  //   switch (consta.type) {
-  //   case ConstantValue::ValueType::Top:
-  //     print << "TOP\n";
-  //     break;
-  //   case ConstantValue::ValueType::Constant:
-  //     print << consta.value << "\n";
-  //     break;
-  //   case ConstantValue::ValueType::Bottom:
-  //     print << "BOT\n";
-  //     break;
-  //   }
-  // }
+  fmt::println("DUMP SCCP: ");
+  for (auto &[val, consta] : values) {
+    fmt::println("{}: ", (void *)val.instr.get_raw_ptr());
+    ASSERT(val.is_valid(false));
+    fmt::println("{}: ", val);
+    switch (consta.type) {
+      case ConstantValue::ValueType::Top:
+        fmt::println("TOP\n");
+        break;
+      case ConstantValue::ValueType::Bottom:
+        fmt::println("BOT\n");
+        break;
+      case ConstantValue::ValueType::Float:
+      case ConstantValue::ValueType::Int:
+      case ConstantValue::ValueType::Gptr:
+      case ConstantValue::ValueType::Fptr:
+      case ConstantValue::ValueType::NullPtr:
+      case ConstantValue::ValueType::Poison:
+        ASSERT(consta.get_type().is_valid());
+        fmt::println("VAL {}\n", consta.get_type().is_valid());
+        break;
+    }
+  }
 }
 
 void SCCP::eval_and_update(fir::Context &ctx, fir::ValueR value) {
@@ -959,6 +966,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         replacement_term.add_bb_arg(0, bb_arg);
       }
 
+      values.erase(fir::ValueR{instr});
       instr.clear_bbs();
       instr.clear_args();
       instr.destroy();
