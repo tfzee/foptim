@@ -29,6 +29,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
 
   pipeline_worklist.push_back(ctx.config->optim.pipeline);
 
+  // construct full pipeline
   while (!pipeline_worklist.empty()) {
     auto curr_pipe = pipeline_worklist.front();
     pipeline_worklist.pop_front();
@@ -44,6 +45,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     }
   }
 
+  // reduce when bisecting
   const auto n_actual_run =
       ctx.config->debug.bisect != 0
           ? std::min((u64)ctx.config->debug.bisect, passes_worklist.size())
@@ -55,9 +57,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   conf::VerifyFuncConf verify_debug_func{};
   while (curr_pass < n_actual_run) {
     auto *pass = passes_worklist[curr_pass];
-    // fmt::println("Constructing at {}", curr_pass);
     curr_pass++;
     switch (pass->pass_type()) {
+        // merge function passes so we can run them in parralel
       case PassConfig::Function: {
         foptim::optim::ParallelFunctionPassManager man{};
         man.push_pass(pass);
@@ -79,7 +81,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
           }
           curr_pass++;
         }
-        // fmt::println("Func end at {}", curr_pass);
         man.apply(ctx, shed);
         break;
       }
@@ -92,7 +93,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
           man.push_pass(passes_worklist[curr_pass]->_construct_module_pass());
           curr_pass++;
         }
-        // fmt::println("Mod end at {}", curr_pass);
         man.apply(ctx, shed);
         break;
       }
