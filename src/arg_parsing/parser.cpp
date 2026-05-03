@@ -1,13 +1,18 @@
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <argparse/argparse.hpp>
 #include <cassert>
-#include "utils/tracy.hpp"
-#include "utils/parameters.hpp"
-#include "compiler_config.hpp"
+#include <string_view>
 
-void parse_args(int argc, char *argv[], foptim::conf::CompConf& conf) {
+#include "compiler_config.hpp"
+#include "utils/parameters.hpp"
+#include "utils/tracy.hpp"
+
+void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   ZoneScopedN("Arg Parsing");
+  std::string config = "default";
+
   argparse::ArgumentParser program("foptim");
   program.add_argument("--workers")
       .help("N Workers")
@@ -17,6 +22,11 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf& conf) {
       .help("verbosity")
       .scan<'i', int>()
       .default_value(254);
+  program.add_argument("--cconffile")
+      .store_into(config)
+      .default_value("default")
+      .help("where the cconf.toml is located at")
+      .default_value("default");
   program.add_argument("input").required().help("specify the input .ll file.");
   program.add_argument("output").required().help(
       "specify the output .ss file.");
@@ -36,6 +46,6 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf& conf) {
   foptim::utils::in_file_path = program.get<std::string>("input");
   foptim::utils::out_file_path = program.get<std::string>("output");
 
-  ASSERT(conf.parse("../src/testconf.toml"));
-
+  fmt::println("Using config '{}'", config);
+  ASSERT(conf.parse(config));
 }

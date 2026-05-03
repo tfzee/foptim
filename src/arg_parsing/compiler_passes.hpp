@@ -21,12 +21,14 @@
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/mem2reg.hpp"
 #include "optim/func_passes/merge_alloca.hpp"
+#include "optim/func_passes/print.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
 #include "optim/func_passes/slp_vectorizer.hpp"
 #include "optim/func_passes/sora.hpp"
 #include "optim/func_passes/stack_known_bits.hpp"
 #include "optim/func_passes/tail_rec_elim.hpp"
+#include "optim/func_passes/verify_pass.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_pass.hpp"
 #include "optim/module_passes/IPCP.hpp"
@@ -61,16 +63,16 @@ struct ModulePassConf : public PassConfig {
     return ((T*)this)->pass_parse(*(toml::table*)arg);
   }
   virtual optim::ModulePass* _construct_module_pass() override {
-    auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
-    new (alloc) T::Pass{};
     static_assert(
         std::is_convertible<typename T::Pass*, optim::ModulePass*>::value,
         "The pass must inherit from module pass from public");
     static_assert(has_construct_module_pass_func<T>,
                   "When inheriting from ModulePassConfig you gotta implement "
                   "the construct_module_pass function");
+    auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
+    new (alloc) T::Pass{};
     ((T*)this)->construct_module_pass(*alloc);
-    return (optim::ModulePass*)alloc;
+    return static_cast<optim::ModulePass*>(alloc);
   };
   virtual optim::FunctionPass* _construct_function_pass() override {
     TODO("INVALID TYPE OF PASS");
@@ -90,19 +92,31 @@ struct FunctionPassConf : public PassConfig {
     TODO("INVALID TYPE OF PASS");
   };
   virtual optim::FunctionPass* _construct_function_pass() override {
-    auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
-    new (alloc) T::Pass{};
     static_assert(
         std::is_convertible<typename T::Pass*, optim::FunctionPass*>::value,
         "The pass must inherit from module pass from public");
     static_assert(has_construct_function_pass_func<T>,
                   "When inheriting from FunctionPassConfig you gotta implement "
                   "the construct_function_pass function");
+    auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
+    new (alloc) T::Pass{};
     ((T*)this)->construct_function_pass(*alloc);
-    return (optim::FunctionPass*)alloc;
+    return static_cast<optim::FunctionPass*>(alloc);
   };
 };
 
+struct PrintFuncConf : public FunctionPassConf<PrintFuncConf> {
+  static constexpr const char* Name = "PrintFunc";
+  using Pass = optim::PrintFunc;
+  bool pass_parse(toml::table&) { return true; }
+  void construct_function_pass(Pass&) {};
+};
+struct VerifyFuncConf : public FunctionPassConf<VerifyFuncConf> {
+  static constexpr const char* Name = "VerifyFunc";
+  using Pass = optim::VerifyFunc;
+  bool pass_parse(toml::table&) { return true; }
+  void construct_function_pass(Pass&) {};
+};
 struct DCEConf : public FunctionPassConf<DCEConf> {
   static constexpr const char* Name = "DCE";
   using Pass = optim::DCE;

@@ -61,7 +61,12 @@ struct Optimize {
   PipelineRef pipeline;
 };
 
-struct Debug {};
+struct Debug {
+  u32 bisect;
+  bool print_between_passes;
+  bool verify_between_passes;
+  bool print_color;
+};
 
 struct Remarks {};
 
@@ -84,7 +89,7 @@ struct CompConf {
   PipelineRef find_pipeline(std::string_view);
   PassRef find_pass(std::string_view);
 
-  bool parse(const char* filename);
+  bool parse(std::string_view filename);
 };
 
 }  // namespace foptim::conf

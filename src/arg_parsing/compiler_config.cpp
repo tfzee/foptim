@@ -113,6 +113,10 @@ std::optional<PassConfig*> setup_pass(std::string_view name, toml::table* cnf) {
     pass = new LoopUnswitchConf{};
   } else if (name == "LoopUnroll") {
     pass = new LoopUnrollConf{};
+  } else if (name == "PrintFunc") {
+    pass = new PrintFuncConf{};
+  } else if (name == "VerifyFunc") {
+    pass = new VerifyFuncConf{};
   } else {
     fmt::println("Dont know any pass with the name '{}'", name);
     TODO("Dont know this pass name");
@@ -166,44 +170,57 @@ bool pipeline_parse(PipelineRef pipeline, CompConf& conf,
 
 bool pipelines_parse(CompConf& conf, toml::table& tbl) {
   TVec<std::pair<std::string_view, toml::node_view<toml::node>>> overwrites;
+  // first push them all back and make sure there all in
+  for (auto&& [name, data] : tbl) {
+    auto str_name = name.str();
+    auto end = conf.pipelines.end();
+    bool found = false;
+    for (auto i = conf.pipelines.begin(); i != end; ++i) {
+      if (i->name == str_name) {
+        found = true;
+        break;
+      }
+    }
+    if (found) {
+      continue;
+    }
+    Pipeline p;
+    p.name = str_name;
+    conf.pipelines.push_back(p);
+  }
+
   for (auto&& [name, data] : tbl) {
     auto str_name = name.str();
     auto end = conf.pipelines.end();
     for (auto i = conf.pipelines.begin(); i != end; ++i) {
       if (i->name == str_name) {
-        overwrites.push_back({str_name, toml::node_view(data)});
-      }
-    }
-    Pipeline p;
-    p.name = str_name;
-    auto ref = conf.pipelines.push_back(p);
-    if (!pipeline_parse({ref}, conf, toml::node_view(data))) {
-      return false;
-    }
-  }
-  for (auto&& [str_name, data] : overwrites) {
-    auto end = conf.pipelines.end();
-    for (auto i = conf.pipelines.begin(); i != end; ++i) {
-      if (i->name == str_name) {
-        overwrites.push_back({str_name, toml::node_view(data)});
+        if (!pipeline_parse({*i}, conf, toml::node_view(data))) {
+          return false;
+        }
+        break;
       }
     }
   }
   return true;
 }
 
-void setup_default(CompConf& conf) { conf.parse("../src/default.toml"); }
+bool debug_parse(Debug& conf, toml::table& tbl) {
+  conf.bisect = tbl["bisect"].value_or(conf.bisect);
+  conf.print_color = tbl["print_color"].value_or(conf.print_color);
+  conf.print_between_passes =
+      tbl["print_between_passes"].value_or(conf.print_between_passes);
+  conf.verify_between_passes =
+      tbl["verify_between_passes"].value_or(conf.verify_between_passes);
+
+  return true;
+}
 
 bool include_parse(CompConf& conf, toml::array& arr) {
   for (auto&& include : arr) {
     auto maybe_name = include.value<std::string_view>();
     ASSERT(maybe_name.has_value());
     auto name = maybe_name.value();
-    if (name == "default") {
-      setup_default(conf);
-    } else {
-      conf.parse(name.begin());
-    }
+    conf.parse(name.begin());
   }
   return true;
 }
@@ -227,9 +244,36 @@ bool config_parse(CompConf& conf, toml::table& tbl) {
       return false;
     }
   }
-  optimize_parse(conf.optim, conf, tbl["optimize"]);
+  if (tbl["debug"].is_table()) {
+    if (!debug_parse(conf.debug, *tbl["debug"].as_table())) {
+      return false;
+    }
+  }
+  if (tbl["optimize"].is_table()) {
+    if (!optimize_parse(conf.optim, conf, tbl["optimize"])) {
+      return false;
+    }
+  }
   return true;
 }
+
+static const char default_toml[] = {
+#embed "../default.toml"
+};
+
+void setup_default(CompConf& conf) {
+  toml::table tbl;
+  try {
+    auto view = std::string_view{&default_toml[0]};
+    tbl = toml::parse(view);
+  } catch (const toml::parse_error& err) {
+    std::cerr << "Error parsing default file:\n" << err << "\n";
+    TODO("FAILED PARSE");
+  }
+  config_parse(conf, tbl);
+  // conf.parse("../src/default.toml");
+}
+
 }  // namespace
 
 PipelineRef CompConf::find_pipeline(std::string_view name) {
@@ -252,10 +296,14 @@ PassRef CompConf::find_pass(std::string_view name) {
   TODO("Failed to find pass with that name");
 }
 
-bool CompConf::parse(const char* filename) {
+bool CompConf::parse(std::string_view filename) {
   using namespace std::literals;
 
   toml::table tbl;
+  if (filename == "default") {
+    setup_default(*this);
+    return true;
+  }
   try {
     tbl = toml::parse_file(filename);
   } catch (const toml::parse_error& err) {
