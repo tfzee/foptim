@@ -1,5 +1,7 @@
 #pragma once
 #include <fmt/base.h>
+
+#include "arg_parsing/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
 #include "utils/arena.hpp"
@@ -118,14 +120,15 @@ class StaticParallelFunctionPassManager {
 };
 
 class ParallelFunctionPassManager {
-  FVec<FunctionPass *> dyn_passes;
+  FVec<conf::PassConfig *> dyn_passes;
 
-  static void apply_pass(fir::Context &ctx, FunctionPass *p, fir::Function &f,
-                         bool print_failure) {
+  static void apply_pass(fir::Context &ctx, conf::PassConfig *conf,
+                         fir::Function &f, bool print_failure) {
     {
-      p->apply(ctx, f);
+      auto pass = conf->_construct_function_pass();
+      pass->apply(ctx, f);
       if (print_failure) {
-        p->print_failures();
+        pass->print_failures();
       }
     }
     if (utils::number_worker_threads > 0) {
@@ -134,7 +137,7 @@ class ParallelFunctionPassManager {
   }
 
  public:
-  void push_pass(FunctionPass *pass) { dyn_passes.push_back(pass); }
+  void push_pass(conf::PassConfig *pass) { dyn_passes.push_back(pass); }
 
   void apply(fir::Context &ctx, JobSheduler *shed) {
     // fmt::println("FUNC: {}", dyn_passes.size());

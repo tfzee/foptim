@@ -1,13 +1,17 @@
 #pragma once
 #include "ir/function.hpp"
 #include "optim/function_pass.hpp"
-#include "utils/bitset.hpp"
+#include "arg_parsing/compiler_config.hpp"
 
 namespace foptim::optim {
-class Print final : public FunctionPass {
+class PrintFunc final : public FunctionPass {
  public:
-  void apply(fir::Context & /*ctx*/, fir::Function &func) override {
-    fmt::println("{}", func);
+  void apply(fir::Context &ctx, fir::Function &func) override {
+    if (ctx.config->debug.print_color) {
+      fmt::println("{:cd}", func);
+    } else {
+      fmt::println("{:d}", func);
+    }
   }
 };
 }  // namespace foptim::optim

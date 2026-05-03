@@ -6,7 +6,6 @@
 #include <atomic>
 
 #include "arg_parsing/compiler_config.hpp"
-#include "arg_parsing/fir_pipeline.hpp"
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
@@ -26,6 +25,7 @@
 #include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
 #include "mir/optim/stack_optim.hpp"
+#include "optim/fir_pipeline.hpp"
 #include "optim/func_passes/cmp_known_val_prop.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
@@ -149,7 +149,8 @@ void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
   foptim::utils::TempAlloc<void *>::reset();
 }
 
-[[maybe_unused]] void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
+[[maybe_unused]] void optimize_fir(foptim::fir::Context &ctx,
+                                   foptim::JobSheduler *shed) {
   (void)shed;
   ZoneScopedN("Optim FIR");
   using namespace foptim::optim;
