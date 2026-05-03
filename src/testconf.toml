@@ -3,16 +3,9 @@ include = [
   "default",
 ]
 
-[optimize]
-pipeline = "standard"
-
 # ------------------------------------------------------------------------------------------------
 # Optimizations
 
-[pipeline.standard]
-fir_passes = [
-  "pipeline:default_release",
-]
 # mir_passes = []
 
 

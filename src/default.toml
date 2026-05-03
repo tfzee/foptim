@@ -13,6 +13,9 @@ bmi2 = true
 # ------------------------------------------------------------------------------------------------
 # Optimizations
 
+[optimize]
+pipeline = "default_release"
+
 [pipeline.default_release_early]
 fir_passes = [
         "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
@@ -111,4 +114,14 @@ reductions = true
 [pass.ConstLoopEval]
 [pass.MergeAlloca]
 [pass.LegalizeVecs]
+[pass.PrintFunc]
+[pass.VerifyFunc]
 
+# ------------------------------------------------------------------------------------------------
+# Debug
+
+[debug]
+print_between_passes = false
+print_color = true
+verify_between_passes = false
+bisect = 0
