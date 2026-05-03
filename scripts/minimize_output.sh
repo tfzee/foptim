@@ -18,7 +18,7 @@ clang++ $compile_optim $flags $test_linkdir $test_file -o min.ll -S -emit-llvm |
 clang++ -static-libstdc++ -O3 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -Wall -Wextra -o clang_min.out || exit 1
 g++ -static-libstdc++ -O0 $flags $test_linkdir $test_file -Werror=return-type -Werror=uninitialized -fsanitize=undefined -Wall -Wextra -o gcc_min.out || exit 1
 
-$foptim min.ll min.o || exit 0
+$foptim --cconffile "../src/testconf.toml" min.ll min.o || exit 0
 clang++ min.o -o min.out -static-libstdc++ || exit 1
 
 echo "Running Mine"
