@@ -3,6 +3,7 @@
 #include <fmt/base.h>
 
 #include <iostream>
+#include <ostream>
 #include <string_view>
 #include <third_party/toml.hpp>
 
@@ -274,7 +275,7 @@ void setup_default(CompConf& conf) {
     auto view = std::string_view{&default_toml[0]};
     tbl = toml::parse(view);
   } catch (const toml::parse_error& err) {
-    std::cerr << "Error parsing default file:\n" << err << "\n";
+    fmt::println("{}", err);
     TODO("FAILED PARSE");
   }
   config_parse(conf, tbl);

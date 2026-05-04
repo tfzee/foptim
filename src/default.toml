@@ -7,7 +7,11 @@ config_version = 1
 name = "x86_64-linux"
 
 [target.features]
-avx512 = false
+avx512f = false
+avx512bw = false
+avx512cd = false
+avx512dq = false
+avx512vl = false
 bmi2 = true
 
 # ------------------------------------------------------------------------------------------------
