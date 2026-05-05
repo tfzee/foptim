@@ -30,6 +30,24 @@ bool target_parse(Target& target, toml::node_view<toml::node> cnf) {
   return true;
 }
 
+bool optimize_float_parse(Optimize::FloatOptions& flt,
+                          toml::node_view<toml::node> cnf) {
+  flt.no_rounding_math = cnf["no_rounding_math"].value_or(flt.no_rounding_math);
+  flt.no_nans =
+      cnf["no_nans"].value_or(flt.no_nans);
+  flt.no_infinites =
+      cnf["no_infinites"].value_or(flt.no_infinites);
+  flt.associative_math = cnf["associative_math"].value_or(flt.associative_math);
+  flt.reciprocal_math = cnf["reciprocal_math"].value_or(flt.reciprocal_math);
+  flt.no_signed_zeros = cnf["no_signed_zeros"].value_or(flt.no_signed_zeros);
+  flt.no_math_errno = cnf["no_math_errno"].value_or(flt.no_math_errno);
+  flt.no_trapping_math = cnf["no_trapping_math"].value_or(flt.no_trapping_math);
+  flt.no_rounding_mode = cnf["no_rounding_mode"].value_or(flt.no_rounding_mode);
+  flt.contract = cnf["contract"].value_or(flt.contract);
+  flt.approx_func = cnf["approx_func"].value_or(flt.approx_func);
+  return true;
+}
+
 bool optimize_parse(Optimize& optim, CompConf& conf,
                     toml::node_view<toml::node> cnf) {
   auto v = cnf["pipeline"].value<std::string_view>();
@@ -40,6 +58,9 @@ bool optimize_parse(Optimize& optim, CompConf& conf,
       cnf["all_linkage_internal"].value_or(optim.all_linkage_internal);
   optim.assume_cstdlib_beheaviour = cnf["assume_cstdlib_beheaviour"].value_or(
       optim.assume_cstdlib_beheaviour);
+  if (cnf["float"].is_table()) {
+    optimize_float_parse(optim.fltOpt, cnf["float"]);
+  }
   return true;
 }
 

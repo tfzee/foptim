@@ -61,6 +61,21 @@ struct Optimize {
   PipelineRef pipeline;
   bool all_linkage_internal;
   bool assume_cstdlib_beheaviour;
+
+  struct FloatOptions{
+      bool no_rounding_math;
+      bool no_nans;
+      bool no_infinites;
+      bool associative_math;
+      bool reciprocal_math;
+      bool no_signed_zeros;
+      bool no_math_errno;
+      bool no_trapping_math;
+      bool no_rounding_mode;
+      bool contract;
+      bool approx_func;
+  };
+  FloatOptions fltOpt;
 };
 
 struct Debug {

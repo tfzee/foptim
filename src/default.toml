@@ -25,6 +25,20 @@ all_linkage_internal = false
 # beheave like in the cstdlib
 assume_cstdlib_beheaviour = true
 
+[optimize.float]
+no_rounding_math = false
+no_infinites = false
+no_nans = false
+associative_math = false
+reciprocal_math = false
+no_signed_zeros = false
+no_math_errno = false
+no_trapping_math = false
+no_rounding_mode = false  #equiv of fno-rounding-math
+contract = false          #equiv to ffp-contract=fast
+approx_func = false       #equiv to fapprox-func
+
+
 [pipeline.default_release_early]
 fir_passes = [
         "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
