@@ -1,7 +1,7 @@
 #pragma once
 #include <span>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "mir/global.hpp"
 #include "utils/string.hpp"
 #include "utils/types.hpp"

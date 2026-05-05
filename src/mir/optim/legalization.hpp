@@ -1,5 +1,5 @@
 #pragma once
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
 

@@ -1,7 +1,7 @@
 #pragma once
 #include "ir/function.hpp"
 #include "optim/function_pass.hpp"
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 
 namespace foptim::optim {
 class PrintFunc final : public FunctionPass {

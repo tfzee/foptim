@@ -1,0 +1,11 @@
+[optimize.float]
+no_nans = true
+no_infinites = true
+associative_math = true
+reciprocal_math = true
+no_signed_zeros = true
+no_math_errno = true
+no_trapping_math = true
+no_rounding_mode = true
+contract = true
+approx_func = true

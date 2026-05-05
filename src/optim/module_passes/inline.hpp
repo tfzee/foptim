@@ -1,8 +1,7 @@
 #pragma once
 #include <fmt/base.h>
 
-#include "../module_pass.hpp"
-#include "arg_parsing/compiler_config.hpp"
+#include "optim/module_pass.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/dominators.hpp"

@@ -5,7 +5,7 @@
 
 #include <algorithm>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"

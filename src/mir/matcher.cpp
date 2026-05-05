@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <ranges>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"

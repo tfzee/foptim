@@ -6,8 +6,8 @@
 
 #include <deque>
 
-#include "arg_parsing/compiler_config.hpp"
-#include "arg_parsing/compiler_passes.hpp"
+#include "config/compiler_config.hpp"
+#include "config/compiler_passes.hpp"
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "ir/helpers.hpp"

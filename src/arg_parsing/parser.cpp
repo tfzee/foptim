@@ -5,7 +5,7 @@
 #include <cassert>
 #include <string_view>
 
-#include "compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "utils/parameters.hpp"
 #include "utils/tracy.hpp"
 

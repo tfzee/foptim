@@ -3,7 +3,6 @@
 #include <fmt/base.h>
 
 #include <iostream>
-#include <ostream>
 #include <string_view>
 #include <third_party/toml.hpp>
 
@@ -32,18 +31,15 @@ bool target_parse(Target& target, toml::node_view<toml::node> cnf) {
 
 bool optimize_float_parse(Optimize::FloatOptions& flt,
                           toml::node_view<toml::node> cnf) {
-  flt.no_rounding_math = cnf["no_rounding_math"].value_or(flt.no_rounding_math);
-  flt.no_nans =
-      cnf["no_nans"].value_or(flt.no_nans);
-  flt.no_infinites =
-      cnf["no_infinites"].value_or(flt.no_infinites);
+  flt.no_nans = cnf["no_nans"].value_or(flt.no_nans);
+  flt.no_infinites = cnf["no_infinites"].value_or(flt.no_infinites);
   flt.associative_math = cnf["associative_math"].value_or(flt.associative_math);
   flt.reciprocal_math = cnf["reciprocal_math"].value_or(flt.reciprocal_math);
   flt.no_signed_zeros = cnf["no_signed_zeros"].value_or(flt.no_signed_zeros);
   flt.no_math_errno = cnf["no_math_errno"].value_or(flt.no_math_errno);
   flt.no_trapping_math = cnf["no_trapping_math"].value_or(flt.no_trapping_math);
   flt.no_rounding_mode = cnf["no_rounding_mode"].value_or(flt.no_rounding_mode);
-  flt.contract = cnf["contract"].value_or(flt.contract);
+  flt.fast_contract = cnf["fast_contract"].value_or(flt.fast_contract);
   flt.approx_func = cnf["approx_func"].value_or(flt.approx_func);
   return true;
 }
@@ -287,17 +283,31 @@ bool config_parse(CompConf& conf, toml::table& tbl) {
 }
 
 static const char default_toml[] = {
-#embed "../default.toml"
+#embed "default.toml"
+    , 0};
+static const char fast_math_toml[] = {
+#embed "fast_math.toml"
+    , 0};
+
+static constexpr const char* builtin_configs[] = {
+    &default_toml[0],
+    &fast_math_toml[0],
 };
 
-void setup_default(CompConf& conf) {
+enum class BuiltinConfig {
+  Default = 0,
+  FastMath = 1,
+};
+
+void setup_builtin(CompConf& conf, BuiltinConfig config) {
   toml::table tbl;
   try {
-    auto view = std::string_view{&default_toml[0]};
+    const char* config_ptr = builtin_configs[(u32)config];
+    auto view = std::string_view{config_ptr};
     tbl = toml::parse(view);
   } catch (const toml::parse_error& err) {
-    fmt::println("{}", err);
-    TODO("FAILED PARSE");
+    fmt::println("{};  of default {}", err, (u32)config);
+    TODO("FAILED PARSE Default {}");
   }
   config_parse(conf, tbl);
   // conf.parse("../src/default.toml");
@@ -329,8 +339,12 @@ bool CompConf::parse(std::string_view filename) {
   using namespace std::literals;
 
   toml::table tbl;
-  if (filename == "default") {
-    setup_default(*this);
+  if (filename == "Default") {
+    setup_builtin(*this, BuiltinConfig::Default);
+    return true;
+  }
+  if (filename == "FastMath") {
+    setup_builtin(*this, BuiltinConfig::FastMath);
     return true;
   }
   try {

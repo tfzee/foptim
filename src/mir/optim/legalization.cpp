@@ -4,10 +4,9 @@
 
 #include <limits>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
-#include "utils/parameters.hpp"
 
 namespace foptim::fmir {
 

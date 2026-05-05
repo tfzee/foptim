@@ -26,17 +26,19 @@ all_linkage_internal = false
 assume_cstdlib_beheaviour = true
 
 [optimize.float]
-no_rounding_math = false
-no_infinites = false
 no_nans = false
+no_infinites = false
 associative_math = false
 reciprocal_math = false
 no_signed_zeros = false
 no_math_errno = false
 no_trapping_math = false
-no_rounding_mode = false  #equiv of fno-rounding-math
-contract = false          #equiv to ffp-contract=fast
-approx_func = false       #equiv to fapprox-func
+#equiv of fno-rounding-math
+no_rounding_mode = false
+#equiv to ffp-contract=fast
+fast_contract = false
+#equiv to fapprox-func
+approx_func = false
 
 
 [pipeline.default_release_early]
@@ -59,7 +61,7 @@ fir_passes = [
       "CmpKnownValProp", "SimplifyCFG", "DCE","FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline", "Inline", "Inline",
       "ArgPromotion", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "InstSimplify",
       "SimplifyCFG", "TailRecElim", "SimplifyCFG", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinSimplify", "InstSimplify", "DCE",
-  		"StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DCE",
+      "StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DCE",
 ]
 
 [pipeline.default_release_late]
@@ -149,3 +151,4 @@ print_optimization_failure_reasons = true
 print_color = true
 verify_between_passes = false
 bisect = 0
+

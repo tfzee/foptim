@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <atomic>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"

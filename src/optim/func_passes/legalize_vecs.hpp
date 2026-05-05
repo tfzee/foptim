@@ -8,7 +8,7 @@
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "utils/string.hpp"
 
 namespace foptim::optim {

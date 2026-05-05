@@ -1,7 +1,7 @@
 #pragma once
 #include <fmt/base.h>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "backend3.hpp"
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"

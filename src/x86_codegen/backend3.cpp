@@ -6,7 +6,7 @@
 #include <elfio/elf_types.hpp>
 #include <elfio/elfio.hpp>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "ir/helpers.hpp"
 #include "mir/func.hpp"
 #include "mir/global.hpp"

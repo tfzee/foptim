@@ -2,7 +2,7 @@
 #include <fmt/base.h>
 #include <fmt/core.h>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"

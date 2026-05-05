@@ -1,5 +1,5 @@
 #pragma once
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/instruction_data.hpp"

@@ -1,5 +1,3 @@
-
-#include "arg_parsing/compiler_config.hpp"
 namespace foptim::conf{
   struct CompConf;
 }

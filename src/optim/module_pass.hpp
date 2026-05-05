@@ -1,7 +1,7 @@
 #pragma once
 #include <fmt/base.h>
 
-#include "arg_parsing/compiler_config.hpp"
+#include "config/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
 #include "utils/arena.hpp"
