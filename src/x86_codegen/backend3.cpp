@@ -74,8 +74,9 @@ struct OpData {
   i64 op_val;
 };
 
-void print_instruction(u8 *buff, ZydisDecodedInstruction *instruction,
-                       ZydisDecodedOperand *operands) {
+[[maybe_unused]] void print_instruction(u8 *buff,
+                                        ZydisDecodedInstruction *instruction,
+                                        ZydisDecodedOperand *operands) {
   ZydisFormatter formatter;
   ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
   char buffer[256];
