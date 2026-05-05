@@ -6,12 +6,14 @@
 #include <string_view>
 #include <third_party/toml.hpp>
 
+#include "compiler_mir_passes.hpp"
 #include "compiler_passes.hpp"
 #include "utils/string.hpp"
 #include "utils/todo.hpp"
 namespace foptim::conf {
 
 namespace {
+
 bool target_parse(Target& target, toml::node_view<toml::node> cnf) {
   target.name = cnf["name"].value_or(target.name);
   auto features = cnf["features"];
@@ -46,9 +48,13 @@ bool optimize_float_parse(Optimize::FloatOptions& flt,
 
 bool optimize_parse(Optimize& optim, CompConf& conf,
                     toml::node_view<toml::node> cnf) {
-  auto v = cnf["pipeline"].value<std::string_view>();
-  if (v.has_value()) {
-    optim.pipeline = conf.find_pipeline(v.value());
+  auto v_fir = cnf["fir_pipeline"].value<std::string_view>();
+  if (v_fir.has_value()) {
+    optim.fir_pipeline = conf.find_pipeline<IRType::FIR>(v_fir.value());
+  }
+  auto v_mir = cnf["mir_pipeline"].value<std::string_view>();
+  if (v_mir.has_value()) {
+    optim.mir_pipeline = conf.find_pipeline<IRType::MIR>(v_mir.value());
   }
   optim.all_linkage_internal =
       cnf["all_linkage_internal"].value_or(optim.all_linkage_internal);
@@ -65,94 +71,110 @@ struct PassesArray {
   PassConfig config;
 };
 
+template <IRType Ty>
 std::optional<PassConfig*> setup_pass(std::string_view name, toml::table* cnf) {
   PassConfig* pass = nullptr;
-  // TODO: cleanup of these
-  // TODO: really shouldnt allocate here
-  if (name == "Inline") {
-    pass = new InlineConf{};
-  } else if (name == "DCE") {
-    pass = new DCEConf{};
-  } else if (name == "LegalizeStructs") {
-    pass = new LegalizeStructsConf{};
-  } else if (name == "LLVMIntrinsicLowering") {
-    pass = new LLVMIntrinsicLoweringConf{};
-  } else if (name == "SORA") {
-    pass = new SORAConf{};
-  } else if (name == "Mem2Reg") {
-    pass = new Mem2RegConf{};
-  } else if (name == "DoubleLoadElim") {
-    pass = new DoubleLoadElimConf{};
-  } else if (name == "IntrinSimplify") {
-    pass = new IntrinSimplifyConf{};
-  } else if (name == "InstSimplify") {
-    pass = new InstSimplifyConf{};
-  } else if (name == "SimplifyCFG") {
-    pass = new SimplifyCFGConf{};
-  } else if (name == "LVN") {
-    pass = new LVNConf{};
-  } else if (name == "CmpKnownValProp") {
-    pass = new CmpKnownValPropConf{};
-  } else if (name == "TailRecElim") {
-    pass = new TailRecElimConf{};
-  } else if (name == "LICM") {
-    pass = new LICMConf{};
-  } else if (name == "LoopRotate") {
-    pass = new LoopRotateConf{};
-  } else if (name == "LoopSimplify") {
-    pass = new LoopSimplifyConf{};
-  } else if (name == "LVN") {
-    pass = new LVNConf{};
-  } else if (name == "LegalizeVecs") {
-    pass = new LegalizeVecsConf{};
-  } else if (name == "MergeAlloca") {
-    pass = new MergeAllocaConf{};
-  } else if (name == "SCCP") {
-    pass = new SCCPConf{};
-  } else if (name == "StackKnownBits") {
-    pass = new StackKnownBitsConf{};
-  } else if (name == "SLPVectorizer") {
-    pass = new SLPVectorizerConf{};
-  } else if (name == "SCCP") {
-    pass = new SCCPConf{};
-  } else if (name == "ConstLoopEval") {
-    pass = new ConstLoopEvalConf{};
-  } else if (name == "FuncPropAnnotator") {
-    pass = new FuncPropAnnotatorConf{};
-  } else if (name == "GlobalPromotion") {
-    pass = new GlobalPromotionConf{};
-  } else if (name == "ArgPromotion") {
-    pass = new ArgPromotionConf{};
-  } else if (name == "GDCE") {
-    pass = new GDCEConf{};
-  } else if (name == "IPCP") {
-    pass = new IPCPConf{};
-  } else if (name == "FunctionDedupSame") {
-    pass = new FunctionDedupSameConf{};
-  } else if (name == "FunctionDedupDiff") {
-    pass = new FunctionDedupDiffConf{};
-  } else if (name == "LoopUnswitch") {
-    pass = new LoopUnswitchConf{};
-  } else if (name == "LoopUnroll") {
-    pass = new LoopUnrollConf{};
-  } else if (name == "PrintFunc") {
-    pass = new PrintFuncConf{};
-  } else if (name == "VerifyFunc") {
-    pass = new VerifyFuncConf{};
+  if constexpr (Ty == IRType::FIR) {
+    // TODO: cleanup of these
+    // TODO: really shouldnt allocate here
+    if (name == "Inline") {
+      pass = new InlineConf{};
+    } else if (name == "DCE") {
+      pass = new DCEConf{};
+    } else if (name == "LegalizeStructs") {
+      pass = new LegalizeStructsConf{};
+    } else if (name == "LLVMIntrinsicLowering") {
+      pass = new LLVMIntrinsicLoweringConf{};
+    } else if (name == "SORA") {
+      pass = new SORAConf{};
+    } else if (name == "Mem2Reg") {
+      pass = new Mem2RegConf{};
+    } else if (name == "DoubleLoadElim") {
+      pass = new DoubleLoadElimConf{};
+    } else if (name == "IntrinSimplify") {
+      pass = new IntrinSimplifyConf{};
+    } else if (name == "InstSimplify") {
+      pass = new InstSimplifyConf{};
+    } else if (name == "SimplifyCFG") {
+      pass = new SimplifyCFGConf{};
+    } else if (name == "LVN") {
+      pass = new LVNConf{};
+    } else if (name == "CmpKnownValProp") {
+      pass = new CmpKnownValPropConf{};
+    } else if (name == "TailRecElim") {
+      pass = new TailRecElimConf{};
+    } else if (name == "LICM") {
+      pass = new LICMConf{};
+    } else if (name == "LoopRotate") {
+      pass = new LoopRotateConf{};
+    } else if (name == "LoopSimplify") {
+      pass = new LoopSimplifyConf{};
+    } else if (name == "LVN") {
+      pass = new LVNConf{};
+    } else if (name == "LegalizeVecs") {
+      pass = new LegalizeVecsConf{};
+    } else if (name == "MergeAlloca") {
+      pass = new MergeAllocaConf{};
+    } else if (name == "SCCP") {
+      pass = new SCCPConf{};
+    } else if (name == "StackKnownBits") {
+      pass = new StackKnownBitsConf{};
+    } else if (name == "SLPVectorizer") {
+      pass = new SLPVectorizerConf{};
+    } else if (name == "SCCP") {
+      pass = new SCCPConf{};
+    } else if (name == "ConstLoopEval") {
+      pass = new ConstLoopEvalConf{};
+    } else if (name == "FuncPropAnnotator") {
+      pass = new FuncPropAnnotatorConf{};
+    } else if (name == "GlobalPromotion") {
+      pass = new GlobalPromotionConf{};
+    } else if (name == "ArgPromotion") {
+      pass = new ArgPromotionConf{};
+    } else if (name == "GDCE") {
+      pass = new GDCEConf{};
+    } else if (name == "IPCP") {
+      pass = new IPCPConf{};
+    } else if (name == "FunctionDedupSame") {
+      pass = new FunctionDedupSameConf{};
+    } else if (name == "FunctionDedupDiff") {
+      pass = new FunctionDedupDiffConf{};
+    } else if (name == "LoopUnswitch") {
+      pass = new LoopUnswitchConf{};
+    } else if (name == "LoopUnroll") {
+      pass = new LoopUnrollConf{};
+    } else if (name == "PrintFunc") {
+      pass = new PrintFuncConf{};
+    } else if (name == "VerifyFunc") {
+      pass = new VerifyFuncConf{};
+    } else {
+      fmt::println("Dont know any fir pass with the name '{}'", name);
+      TODO("Dont know this pass name");
+    }
   } else {
-    fmt::println("Dont know any pass with the name '{}'", name);
-    TODO("Dont know this pass name");
+    if (name == "DCE") {
+      pass = new fmir::DCEConf{};
+    } else if (name == "LegalizeBBForm") {
+      pass = new fmir::LegalizeBBConf{};
+    } else if (name == "BBReordering") {
+      pass = new fmir::BBReorderingConf{};
+    } else {
+      fmt::println("Dont know any mir pass with the name '{}'", name);
+      TODO("Dont know this pass name");
+    }
   }
   ASSERT(pass != nullptr);
   pass->_pass_parse(cnf);
   return pass;
 }
 
+template <IRType Ty>
 bool passes_parse(CompConf& conf, toml::table& tbl) {
+  auto& target_arr = Ty == IRType::FIR ? conf.fir_passes : conf.mir_passes;
   for (auto&& [name, data] : tbl) {
     auto str_name = name.str();
-    auto end = conf.passes.end();
-    for (auto i = conf.passes.begin(); i != end; ++i) {
+    auto end = target_arr.end();
+    for (auto i = target_arr.begin(); i != end; ++i) {
       auto pass_ptr = *(*i).get_raw_ptr();
       if (pass_ptr->get_name() == str_name) {
         if (!pass_ptr->_pass_parse(&data)) {
@@ -160,44 +182,48 @@ bool passes_parse(CompConf& conf, toml::table& tbl) {
         }
       }
     }
-    auto p = setup_pass(name.str(), data.as_table());
+    auto p = setup_pass<Ty>(name.str(), data.as_table());
     if (!p) {
       return false;
     }
-    conf.passes.push_back(p.value());
+    target_arr.push_back(p.value());
   }
   return true;
 }
 
+template <IRType Ty>
 bool pipeline_parse(PipelineRef pipeline, CompConf& conf,
                     toml::node_view<toml::node> cnf) {
-  if (cnf["fir_passes"].is_array()) {
-    pipeline->fir_passes.clear();
-    for (auto&& pass_name_val : *cnf["fir_passes"].as_array()) {
+  if (cnf["passes"].is_array()) {
+    pipeline->passes.clear();
+    for (auto&& pass_name_val : *cnf["passes"].as_array()) {
       auto maybe_pass_name = pass_name_val.value<std::string_view>();
       ASSERT(maybe_pass_name.has_value());
       auto pass_name = maybe_pass_name.value();
       if (pass_name.starts_with("pipeline:")) {
         auto real_name = pass_name.substr(9);
-        auto found_pass = conf.find_pipeline(real_name);
-        pipeline->fir_passes.push_back({found_pass});
+        auto found_pass = conf.find_pipeline<Ty>(real_name);
+        pipeline->passes.push_back({found_pass});
       } else {
-        auto found_pass = conf.find_pass(pass_name);
-        pipeline->fir_passes.push_back({found_pass});
+        auto found_pass = conf.find_pass<Ty>(pass_name);
+        pipeline->passes.push_back({found_pass});
       }
     }
   }
   return true;
 }
 
+template <IRType Ty>
 bool pipelines_parse(CompConf& conf, toml::table& tbl) {
   TVec<std::pair<std::string_view, toml::node_view<toml::node>>> overwrites;
+  auto& target_arr =
+      Ty == IRType::FIR ? conf.fir_pipelines : conf.mir_pipelines;
   // first push them all back and make sure there all in
   for (auto&& [name, data] : tbl) {
     auto str_name = name.str();
-    auto end = conf.pipelines.end();
+    auto end = target_arr.end();
     bool found = false;
-    for (auto i = conf.pipelines.begin(); i != end; ++i) {
+    for (auto i = target_arr.begin(); i != end; ++i) {
       if (i->name == str_name) {
         found = true;
         break;
@@ -208,15 +234,15 @@ bool pipelines_parse(CompConf& conf, toml::table& tbl) {
     }
     Pipeline p;
     p.name = str_name;
-    conf.pipelines.push_back(p);
+    target_arr.push_back(p);
   }
 
   for (auto&& [name, data] : tbl) {
     auto str_name = name.str();
-    auto end = conf.pipelines.end();
-    for (auto i = conf.pipelines.begin(); i != end; ++i) {
+    auto end = target_arr.end();
+    for (auto i = target_arr.begin(); i != end; ++i) {
       if (i->name == str_name) {
-        if (!pipeline_parse({*i}, conf, toml::node_view(data))) {
+        if (!pipeline_parse<Ty>({*i}, conf, toml::node_view(data))) {
           return false;
         }
         break;
@@ -259,13 +285,25 @@ bool config_parse(CompConf& conf, toml::table& tbl) {
       return false;
     }
   }
-  if (tbl["pass"].is_table()) {
-    if (!passes_parse(conf, *tbl["pass"].as_table())) {
+  if (tbl["pass"]["fir"].is_table()) {
+    if (!passes_parse<IRType::FIR>(conf, *tbl["pass"]["fir"].as_table())) {
       return false;
     }
   }
-  if (tbl["pipeline"].is_table()) {
-    if (!pipelines_parse(conf, *tbl["pipeline"].as_table())) {
+  if (tbl["pass"]["mir"].is_table()) {
+    if (!passes_parse<IRType::MIR>(conf, *tbl["pass"]["mir"].as_table())) {
+      return false;
+    }
+  }
+  if (tbl["pipeline"]["fir"].is_table()) {
+    if (!pipelines_parse<IRType::FIR>(conf,
+                                      *tbl["pipeline"]["fir"].as_table())) {
+      return false;
+    }
+  }
+  if (tbl["pipeline"]["mir"].is_table()) {
+    if (!pipelines_parse<IRType::MIR>(conf,
+                                      *tbl["pipeline"]["mir"].as_table())) {
       return false;
     }
   }
@@ -314,26 +352,6 @@ void setup_builtin(CompConf& conf, BuiltinConfig config) {
 }
 
 }  // namespace
-
-PipelineRef CompConf::find_pipeline(std::string_view name) {
-  for (auto pipe : pipelines) {
-    if (pipe->name == name) {
-      return {pipe};
-    }
-  }
-  fmt::println("Searched for pipeline with name '{}'", name);
-  TODO("Failed to find pipeline with that name");
-}
-
-PassRef CompConf::find_pass(std::string_view name) {
-  for (auto pass : passes) {
-    if (name == (*pass.get_raw_ptr())->get_name()) {
-      return {pass};
-    }
-  }
-  fmt::println("Searched for pass with name '{}'", name);
-  TODO("Failed to find pass with that name");
-}
 
 bool CompConf::parse(std::string_view filename) {
   using namespace std::literals;

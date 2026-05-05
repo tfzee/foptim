@@ -28,15 +28,14 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   std::vector<PassConfig *> passes_worklist;
   std::deque<PipelineElem> pipeline_worklist;
 
-  pipeline_worklist.push_back(PipelineElem{ctx.config->optim.pipeline});
+  pipeline_worklist.push_back(PipelineElem{ctx.config->optim.fir_pipeline});
 
   // construct full pipeline
   while (!pipeline_worklist.empty()) {
     auto curr_pipe = pipeline_worklist.back();
     pipeline_worklist.pop_back();
     if (curr_pipe.type == PipelineElem::Pipeline) {
-      for (auto elem :
-           std::ranges::reverse_view(curr_pipe.pipeline->fir_passes)) {
+      for (auto elem : std::ranges::reverse_view(curr_pipe.pipeline->passes)) {
         pipeline_worklist.push_back(elem);
       }
     } else {
@@ -59,7 +58,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     curr_pass++;
     switch (pass->pass_type()) {
         // merge function passes so we can run them in parralel
-      case PassConfig::Function: {
+      case PassConfig::FIR_Function: {
         foptim::optim::ParallelFunctionPassManager man{};
         man.push_pass(pass);
         if (ctx.config->debug.print_between_passes) {
@@ -70,7 +69,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
         }
         while (curr_pass < n_actual_run &&
                passes_worklist[curr_pass]->pass_type() ==
-                   PassConfig::PassType::Function) {
+                   PassConfig::PassType::FIR_Function) {
           man.push_pass(passes_worklist[curr_pass]);
           if (ctx.config->debug.print_between_passes) {
             man.push_pass(&print_debug_func);
@@ -83,17 +82,22 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
         man.apply(ctx, shed);
         break;
       }
-      case PassConfig::Module: {
+      case PassConfig::FIR_Module: {
         foptim::optim::ModulePassManager man{};
         man.push_pass(pass->_construct_module_pass());
         while (curr_pass < n_actual_run &&
                passes_worklist[curr_pass]->pass_type() ==
-                   PassConfig::PassType::Module) {
+                   PassConfig::PassType::FIR_Module) {
           man.push_pass(passes_worklist[curr_pass]->_construct_module_pass());
           curr_pass++;
         }
         man.apply(ctx, shed);
         break;
+      }
+      default: {
+        fmt::println("Cant run the pass '{}' in the FIR pipeline",
+                     pass->get_name());
+        ASSERT(false);
       }
     }
   }

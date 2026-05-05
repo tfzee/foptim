@@ -18,7 +18,8 @@ bmi2 = true
 # Optimizations
 
 [optimize]
-pipeline = "default_release"
+fir_pipeline = "default_release"
+mir_pipeline = "default_release"
 # makes everything interal if possible
 all_linkage_internal = false
 # assumes that calls to functions named like strlen and other cstdlib function
@@ -40,16 +41,18 @@ fast_contract = false
 #equiv to fapprox-func
 approx_func = false
 
+# ------------------------------------------------------------------------------------------------
+# FIR Pipeline
 
-[pipeline.default_release_early]
-fir_passes = [
+[pipeline.fir.default_release_early]
+passes = [
         "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
         "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DCE",
         "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE"
 ]
 
-[pipeline.default_release_middle]
-fir_passes = [
+[pipeline.fir.default_release_middle]
+passes = [
       "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
       "LoopSimplify", "DCE", "LVN", "SCCP", "IntrinSimplify", "InstSimplify",
       "DoubleLoadElim", "DCE", "SimplifyCFG", "StackKnownBits", "SORA", "Mem2Reg",
@@ -64,8 +67,8 @@ fir_passes = [
       "StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DCE",
 ]
 
-[pipeline.default_release_late]
-fir_passes = [
+[pipeline.fir.default_release_late]
+passes = [
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "GDCE", "IPCP",
       "GlobalPromotion", "Inline", "Inline", "GDCE", "FuncPropAnnotator",
       "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "InstSimplify",
@@ -83,15 +86,15 @@ fir_passes = [
       "LegalizeVecs", "SCCP", "LVN", "InstSimplify", "DCE", "LVN", "InstSimplify", "DCE",  
 ]
 
-[pipeline.default_release_cleanup]
-fir_passes = [
+[pipeline.fir.default_release_cleanup]
+passes = [
   "MergeAlloca", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
   "InstSimplify", "SimplifyCFG", "DCE", "LegalizeVecs", "InstSimplify",
   "SCCP", "LegalizeVecs", "DCE",
 ]
 
-[pipeline.default_release]
-fir_passes = [
+[pipeline.fir.default_release]
+passes = [
   "pipeline:default_release_early",
   "pipeline:default_release_middle",
   "pipeline:default_release_late",
@@ -99,48 +102,101 @@ fir_passes = [
 ]
 
 # ------------------------------------------------------------------------------------------------
-# Passes
+# FIR Passes
 
 #module
-[pass.Inline]
+[pass.fir.Inline]
 recursive = true
-[pass.LoopUnroll]
+[pass.fir.LoopUnroll]
 maxUnroll = 32
 maxInstr = 32
-[pass.FuncPropAnnotator]
-[pass.GlobalPromotion]
-[pass.ArgPromotion]
-[pass.GDCE]
-[pass.IPCP]
-[pass.FunctionDedupSame]
-[pass.FunctionDedupDiff]
-[pass.LoopUnswitch]
+[pass.fir.FuncPropAnnotator]
+[pass.fir.GlobalPromotion]
+[pass.fir.ArgPromotion]
+[pass.fir.GDCE]
+[pass.fir.IPCP]
+[pass.fir.FunctionDedupSame]
+[pass.fir.FunctionDedupDiff]
+[pass.fir.LoopUnswitch]
+# [pass.PrintModule]
+# [pass.VerifyModule]
 
 #func
-[pass.SLPVectorizer]
+[pass.fir.SLPVectorizer]
 reductions = true
-[pass.DCE]
-[pass.LegalizeStructs]
-[pass.LLVMIntrinsicLowering]
-[pass.SORA]
-[pass.Mem2Reg]
-[pass.DoubleLoadElim]
-[pass.IntrinSimplify]
-[pass.InstSimplify]
-[pass.SimplifyCFG]
-[pass.LVN]
-[pass.CmpKnownValProp]
-[pass.TailRecElim]
-[pass.LICM]
-[pass.LoopRotate]
-[pass.LoopSimplify]
-[pass.SCCP]
-[pass.StackKnownBits]
-[pass.ConstLoopEval]
-[pass.MergeAlloca]
-[pass.LegalizeVecs]
-[pass.PrintFunc]
-[pass.VerifyFunc]
+[pass.fir.DCE]
+[pass.fir.LegalizeStructs]
+[pass.fir.LLVMIntrinsicLowering]
+[pass.fir.SORA]
+[pass.fir.Mem2Reg]
+[pass.fir.DoubleLoadElim]
+[pass.fir.IntrinSimplify]
+[pass.fir.InstSimplify]
+[pass.fir.SimplifyCFG]
+[pass.fir.LVN]
+[pass.fir.CmpKnownValProp]
+[pass.fir.TailRecElim]
+[pass.fir.LICM]
+[pass.fir.LoopRotate]
+[pass.fir.LoopSimplify]
+[pass.fir.SCCP]
+[pass.fir.StackKnownBits]
+[pass.fir.ConstLoopEval]
+[pass.fir.MergeAlloca]
+[pass.fir.LegalizeVecs]
+[pass.fir.PrintFunc]
+[pass.fir.VerifyFunc]
+
+
+# ------------------------------------------------------------------------------------------------
+# MIR Pipeline
+[pipeline.mir.default_release]
+passes = [
+  "LegalizeBBForm",
+  "DCE",
+  # "CopyPropagation",
+  "DCE",
+  "BBReordering",
+  "DCE",
+  # "LVN",
+  # "CopyPropagation",
+  # "InstSimplifyEarly",
+  # "LifetimeShortening",
+  # "CopyPropagation",
+  # "InstSimplifyEarly",
+  "DCE",
+  # "CallingConv_FirstStage",
+  # "Legalizer",
+  # "InstSimplifyEarly",
+  # "RegisterJoining",
+  # "InstSimplifyEarly",
+  # "RegAlloc",
+  # "CallingConv_SecondStage",
+  # "StackOptim",
+  # "InstSimplify",
+  # "InstSimplify",
+  "BBReordering",
+]
+
+# ------------------------------------------------------------------------------------------------
+# MIR Passes
+
+# func
+[pass.mir.LegalizeBBForm]
+[pass.mir.DCE]
+# [pass.mir.CopyPropagation]
+[pass.mir.BBReordering]
+# [pass.mir.LVN]
+# [pass.mir.InstSimplifyEarly]
+# [pass.mir.LifetimeShortening]
+# [pass.mir.CallingConv_FirstStage]
+# [pass.mir.Legalizer]
+# [pass.mir.RegisterJoining]
+# [pass.mir.RegAlloc]
+# [pass.mir.CallingConv_SecondStage]
+# [pass.mir.StackOptim]
+# [pass.mir.InstSimplify]
+
 
 # ------------------------------------------------------------------------------------------------
 # Debug

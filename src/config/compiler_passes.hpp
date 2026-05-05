@@ -58,7 +58,9 @@ concept has_construct_function_pass_func = requires {
 template <class T>
 struct ModulePassConf : public PassConfig {
   virtual std::string_view get_name() const override final { return T::Name; }
-  virtual PassType pass_type() const override final { return PassType::Module; }
+  virtual PassType pass_type() const override final {
+    return PassType::FIR_Module;
+  }
   virtual bool _pass_parse(void* arg) override final {
     return ((T*)this)->pass_parse(*(toml::table*)arg);
   }
@@ -74,23 +76,17 @@ struct ModulePassConf : public PassConfig {
     ((T*)this)->construct_module_pass(*alloc);
     return static_cast<optim::ModulePass*>(alloc);
   };
-  virtual optim::FunctionPass* _construct_function_pass() override {
-    TODO("INVALID TYPE OF PASS");
-  };
 };
 
 template <class T>
 struct FunctionPassConf : public PassConfig {
   virtual std::string_view get_name() const override final { return T::Name; }
   virtual PassType pass_type() const override final {
-    return PassType::Function;
+    return PassType::FIR_Function;
   }
   virtual bool _pass_parse(void* arg) override final {
     return ((T*)this)->pass_parse(*(toml::table*)arg);
   }
-  virtual optim::ModulePass* _construct_module_pass() override {
-    TODO("INVALID TYPE OF PASS");
-  };
   virtual optim::FunctionPass* _construct_function_pass() override {
     static_assert(
         std::is_convertible<typename T::Pass*, optim::FunctionPass*>::value,
