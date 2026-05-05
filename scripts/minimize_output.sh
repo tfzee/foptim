@@ -12,7 +12,7 @@ UNINTERESTING=1  # cvise discards these
 INTERESTING=0    # cvise keeps these
 
 clang++ $compile_optim $flags $test_linkdir "$test_file" -o min.ll -S -emit-llvm \
-  2>/dev/null || exit $UNINTERESTING
+  || exit $UNINTERESTING
 
 clang++ -static-libstdc++ -O3 $flags $test_linkdir "$test_file" \
   -Werror=return-type -Werror=uninitialized -Wall -Wextra \
