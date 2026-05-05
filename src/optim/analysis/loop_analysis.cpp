@@ -80,8 +80,7 @@ void LoopInfoAnalysis::update(Dominators &dom) {
       u32 curr = deq.back();
       deq.pop_back();
       for (auto pred : cfg.bbrs[curr].pred) {
-        if (forward[pred] && !backward[pred] &&
-            dom.dominates(bb_id, pred)) {
+        if (forward[pred] && !backward[pred] && dom.dominates(bb_id, pred)) {
           backward[pred].set(true);
           // if () {
           //   fmt::println(" INVALID {}", pred);
@@ -1029,7 +1028,8 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
     return false;
   }
   auto lowwer_boundv = incoming_term->bbs[0].args[induct_id->first];
-  if (!lowwer_boundv.is_constant()) {
+  if (!lowwer_boundv.is_constant() ||
+      lowwer_boundv.as_constant()->is_poison()) {
     return false;
   }
   start_value = lowwer_boundv.as_constant()->as_int();
