@@ -1,6 +1,8 @@
 #pragma once
+#include "config/compiler_config.hpp"
 #include "func.hpp"
 #include "mir/instr.hpp"
+#include "mir/optim/function_pass.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fmir {
@@ -11,7 +13,7 @@ namespace foptim::fmir {
 //  other case we split this bb here to make it legal basicblocks again that
 //  haven no control flow in them
 
-class LegalizeBBForm {
+class LegalizeBBForm : public FunctionPass {
   void apply_impl(MFunc &func) {
     u32 start_instr;
     // find instructions between controlflow instructions
@@ -71,12 +73,7 @@ class LegalizeBBForm {
   }
 
  public:
-  void apply(MFunc &func) { apply_impl(func); }
-  void apply(FVec<MFunc> &funcs) {
-    for (auto &f : funcs) {
-      apply(f);
-    }
-  }
+  void apply(MFunc &func, const conf::CompConf &) final override { apply_impl(func); }
 };
 
 }  // namespace foptim::fmir

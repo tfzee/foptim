@@ -1,15 +1,17 @@
 #pragma once
 #include "../func.hpp"
-#include "utils/vec.hpp"
+#include "function_pass.hpp"
 
 namespace foptim::fmir {
 
-class DeadCodeElim {
+class DeadCodeElim : public FunctionPass {
   void apply_impl(MFunc &func);
 
  public:
-  void apply(MFunc &funcs);
-  void apply(FVec<MFunc> &funcs);
+  void apply(MFunc &func, const conf::CompConf &config) final override {
+    (void)config;
+    apply_impl(func);
+  }
 };
 
 }  // namespace foptim::fmir

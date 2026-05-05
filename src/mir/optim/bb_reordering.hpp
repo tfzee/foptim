@@ -1,13 +1,12 @@
 #pragma once
 #include "../func.hpp"
-#include "utils/vec.hpp"
+#include "mir/optim/function_pass.hpp"
 
 namespace foptim::fmir {
 
-class BBReordering {
+class BBReordering : public FunctionPass {
  public:
-  void apply(MFunc &func);
-  void apply(FVec<MFunc> &funcs);
+  void apply(MFunc& func, const conf::CompConf&) final override;
 };
 
 }  // namespace foptim::fmir

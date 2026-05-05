@@ -154,12 +154,5 @@ void DeadCodeElim::apply_impl(MFunc &func) {
   }
 }
 
-void DeadCodeElim::apply(MFunc &func) { apply_impl(func); }
-void DeadCodeElim::apply(FVec<MFunc> &funcs) {
-  ZoneScopedNC("DCE", COLOR_OPTIMF);
-  for (auto &func : funcs) {
-    apply(func);
-  }
-}
 
 }  // namespace foptim::fmir

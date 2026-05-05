@@ -349,12 +349,12 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func, *config);
       ASSERT(foptim::fmir::verify(func));
-      foptim::fmir::LegalizeBBForm{}.apply(func);
-      foptim::fmir::DeadCodeElim{}.apply(func);
+      foptim::fmir::LegalizeBBForm{}.apply(func, *config);
+      foptim::fmir::DeadCodeElim{}.apply(func, *config);
       foptim::fmir::CopyPropagation{}.apply(func);
-      foptim::fmir::DeadCodeElim{}.apply(func);
-      foptim::fmir::BBReordering{}.apply(func);
-      foptim::fmir::DeadCodeElim{}.apply(func);
+      foptim::fmir::DeadCodeElim{}.apply(func, *config);
+      foptim::fmir::BBReordering{}.apply(func, *config);
+      foptim::fmir::DeadCodeElim{}.apply(func, *config);
       foptim::fmir::LVN{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::CopyPropagation{}.apply(func);
@@ -366,7 +366,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::InstSimplify{}.early_apply(func);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::DeadCodeElim{}.apply(func);
+      foptim::fmir::DeadCodeElim{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       ASSERT(foptim::fmir::verify(func));
       foptim::fmir::CallingConv{}.first_stage(func);
@@ -386,7 +386,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::InstSimplify{}.apply(func);
       foptim::fmir::InstSimplify{}.apply(func);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::BBReordering{}.apply(func);
+      foptim::fmir::BBReordering{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       ASSERT(foptim::fmir::verify(func));
     });

@@ -1,6 +1,7 @@
 #pragma once
 #include "mir/instr.hpp"
 #include "utils/vec.hpp"
+#include "utils/types.hpp"
 
 namespace foptim::fmir {
 

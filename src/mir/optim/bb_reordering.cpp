@@ -1,8 +1,9 @@
 #include "bb_reordering.hpp"
+
 #include "mir/instr.hpp"
 
 namespace foptim::fmir {
-void BBReordering::apply(MFunc &func) {
+void BBReordering::apply(MFunc &func, const conf::CompConf &) {
   TVec<u32> new_bb_vals;
   new_bb_vals.reserve(func.bbs.size());
 
@@ -75,11 +76,4 @@ void BBReordering::apply(MFunc &func) {
   }
 }
 
-void BBReordering::apply(FVec<MFunc> &funcs) {
-  ZoneScopedN("BB Reordering");
-  // (void)funcs;
-  for (auto &func : funcs) {
-    apply(func);
-  }
-}
 }  // namespace foptim::fmir
