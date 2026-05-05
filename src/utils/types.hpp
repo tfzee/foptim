@@ -3,6 +3,16 @@
 #include <cstdlib>
 
 namespace foptim {
+namespace conf {
+struct BasePassesData;
+struct Remarks;
+struct Debug;
+struct Optimize;
+struct Pipeline;
+struct PipelineElem;
+struct PassConfig;
+struct CompConf;
+}
 namespace fmir {
 class VReg;
 enum class CReg : uint8_t;
