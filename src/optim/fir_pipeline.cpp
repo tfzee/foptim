@@ -5,10 +5,11 @@
 #include <unistd.h>
 
 #include <deque>
+#include <ranges>
 
+#include "arg_parsing/parser.hpp"
 #include "config/compiler_config.hpp"
 #include "config/compiler_passes.hpp"
-#include "arg_parsing/parser.hpp"
 #include "ir/context.hpp"
 #include "ir/helpers.hpp"
 #include "llvm/llir_loader.hpp"
@@ -25,23 +26,21 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   using namespace foptim;
   using namespace foptim::optim;
   std::vector<PassConfig *> passes_worklist;
-  std::deque<utils::SRef<Pipeline>> pipeline_worklist;
+  std::deque<PipelineElem> pipeline_worklist;
 
-  pipeline_worklist.push_back(ctx.config->optim.pipeline);
+  pipeline_worklist.push_back(PipelineElem{ctx.config->optim.pipeline});
 
   // construct full pipeline
   while (!pipeline_worklist.empty()) {
-    auto curr_pipe = pipeline_worklist.front();
-    pipeline_worklist.pop_front();
-    for (auto elem : curr_pipe->fir_passes) {
-      switch (elem.type) {
-        case PipelineElem::Pipeline:
-          pipeline_worklist.push_back(elem.pipeline);
-          break;
-        case PipelineElem::Pass:
-          passes_worklist.push_back(*elem.pass.get_raw_ptr());
-          break;
+    auto curr_pipe = pipeline_worklist.back();
+    pipeline_worklist.pop_back();
+    if (curr_pipe.type == PipelineElem::Pipeline) {
+      for (auto elem :
+           std::ranges::reverse_view(curr_pipe.pipeline->fir_passes)) {
+        pipeline_worklist.push_back(elem);
       }
+    } else {
+      passes_worklist.push_back(*curr_pipe.pass.get_raw_ptr());
     }
   }
 
