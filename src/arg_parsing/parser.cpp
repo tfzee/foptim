@@ -11,7 +11,7 @@
 
 void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   ZoneScopedN("Arg Parsing");
-  std::string config = "default";
+  std::string config = "Default";
 
   argparse::ArgumentParser program("foptim");
   program.add_argument("--workers")
@@ -24,7 +24,7 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .default_value(254);
   program.add_argument("--cconffile")
       .store_into(config)
-      .default_value("default")
+      .default_value("Default")
       .help("where the cconf.toml is located at")
       .default_value("default");
   program.add_argument("input").required().help("specify the input .ll file.");
