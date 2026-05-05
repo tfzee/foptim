@@ -1,14 +1,16 @@
 #pragma once
+#include "config/compiler_config.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
+#include "mir/optim/function_pass.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::fmir {
 
-class StackOptim {
+class StackOptim : public FunctionPass {
  public:
-  void apply(MFunc& funcs) {
+  void apply(MFunc& funcs, const conf::CompConf&) {
     TVec<ArgData> helper;
     for (auto& bb : funcs.bbs) {
       for (size_t i_id = 0; i_id < bb.instrs.size(); i_id++) {
@@ -55,7 +57,9 @@ class StackOptim {
             //   fmt::println(">{:cd}", bb.instrs[i]);
             // }
             // fmt::println("{:cd}", i2);
-            fmt::println("TODO: can forward push/pop here prob implement it dont be lazy ");
+            fmt::println(
+                "TODO: can forward push/pop here prob implement it dont be "
+                "lazy ");
             // TODO("idk1 if really possbile");
           }
         }

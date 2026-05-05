@@ -1,14 +1,14 @@
 #pragma once
-#include "utils/vec.hpp"
+#include "config/compiler_config.hpp"
+#include "mir/optim/function_pass.hpp"
 
 namespace foptim::fmir {
 class MFunc;
 
-class RegisterJoining {
+class RegisterJoining: public FunctionPass {
   void apply_impl(MFunc &func);
 
  public:
-  void apply(MFunc &func);
-  void apply(foptim::FVec<MFunc> &funcs);
+  void apply(MFunc &func, const conf::CompConf&);
 };
 }  // namespace foptim::fmir

@@ -1,9 +1,11 @@
 #pragma once
 #include "../func.hpp"
+#include "config/compiler_config.hpp"
+#include "mir/optim/function_pass.hpp"
 
 namespace foptim::fmir {
 
-class LVN {
+class LVN: public FunctionPass {
   u64 unique_reg_id = 0;
   // TVec<ArgData> helper1;
   // TVec<ArgData> helper2;
@@ -13,7 +15,7 @@ class LVN {
   void apply_impl(MBB &bb);
 
  public:
-  void apply(MFunc &funcs);
+  void apply(MFunc &funcs, const conf::CompConf&) final override;
 };
 
 }  // namespace foptim::fmir

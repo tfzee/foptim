@@ -1,11 +1,11 @@
 #pragma once
 #include "config/compiler_config.hpp"
+#include "mir/optim/function_pass.hpp"
 #include "utils/types.hpp"
-#include "utils/vec.hpp"
 
 namespace foptim::fmir {
 
-class Legalizer {
+class Legalizer : public FunctionPass {
   u64 unique_reg_id;
 
   // helpers
@@ -35,11 +35,10 @@ class Legalizer {
   bool legalize_cmoveXX(MBB &bb, u32 indx);
   // bool legalize_si2fl(MBB &bb, u32 indx);
   // bool legalize_sub(MBB &bb, u32 indx);
-  void apply_impl(MFunc &funcs, const foptim::conf::CompConf& conf);
+  void apply_impl(MFunc &funcs, const foptim::conf::CompConf &conf);
 
  public:
-  void apply(MFunc &funcs, const foptim::conf::CompConf& conf);
-  void apply(FVec<MFunc> &funcs, const foptim::conf::CompConf& conf);
+  void apply(MFunc &funcs, const foptim::conf::CompConf &conf);
 };
 
 }  // namespace foptim::fmir

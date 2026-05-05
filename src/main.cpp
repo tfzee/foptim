@@ -5,8 +5,8 @@
 #include <algorithm>
 #include <atomic>
 
-#include "config/compiler_config.hpp"
 #include "arg_parsing/parser.hpp"
+#include "config/compiler_config.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
@@ -351,20 +351,20 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       ASSERT(foptim::fmir::verify(func));
       foptim::fmir::LegalizeBBForm{}.apply(func, *config);
       foptim::fmir::DeadCodeElim{}.apply(func, *config);
-      foptim::fmir::CopyPropagation{}.apply(func);
+      foptim::fmir::CopyPropagation{}.apply(func, *config);
       foptim::fmir::DeadCodeElim{}.apply(func, *config);
       foptim::fmir::BBReordering{}.apply(func, *config);
       foptim::fmir::DeadCodeElim{}.apply(func, *config);
-      foptim::fmir::LVN{}.apply(func);
+      foptim::fmir::LVN{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::CopyPropagation{}.apply(func);
-      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::fmir::CopyPropagation{}.apply(func, *config);
+      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::LifetimeShortening{}.apply(func);
+      foptim::fmir::LifetimeShortening{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::CopyPropagation{}.apply(func);
+      foptim::fmir::CopyPropagation{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::DeadCodeElim{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
@@ -372,19 +372,19 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::CallingConv{}.first_stage(func);
       foptim::fmir::Legalizer{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::RegisterJoining{}.apply(func);
+      foptim::fmir::RegisterJoining{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplify{}.early_apply(func);
+      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::RegAlloc{}.apply(func);
+      foptim::fmir::RegAlloc{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::CallingConv{}.second_stage(func);
-      foptim::fmir::StackOptim{}.apply(func);
+      foptim::fmir::StackOptim{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplify{}.apply(func);
-      foptim::fmir::InstSimplify{}.apply(func);
+      foptim::fmir::InstSimplify{}.apply(func, *config);
+      foptim::fmir::InstSimplify{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::BBReordering{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();

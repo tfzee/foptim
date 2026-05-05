@@ -3,11 +3,12 @@
 #include "mir/analysis/cfg.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
+#include "mir/optim/function_pass.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fmir {
 
-class CopyPropagation {
+class CopyPropagation : public FunctionPass {
   void apply_impl(MFunc &func) {
     CFG cfg{func};
     TVec<ArgData> w_args;
@@ -105,14 +106,9 @@ class CopyPropagation {
   }
 
  public:
-  void apply(MFunc &func) {
+  void apply(MFunc &func, const conf::CompConf &) final override {
     ZoneScopedNC("CopyProp", COLOR_OPTIMF);
     apply_impl(func);
-  }
-  void apply(FVec<MFunc> &funcs) {
-    for (auto &func : funcs) {
-      apply(func);
-    }
   }
 };
 

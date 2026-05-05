@@ -158,6 +158,24 @@ std::optional<PassConfig*> setup_pass(std::string_view name, toml::table* cnf) {
       pass = new fmir::LegalizeBBConf{};
     } else if (name == "BBReordering") {
       pass = new fmir::BBReorderingConf{};
+    } else if (name == "CopyPropagation") {
+      pass = new fmir::CopyPropagationConf{};
+    } else if (name == "LVN") {
+      pass = new fmir::LVNConf{};
+    } else if (name == "InstSimplifyEarly") {
+      pass = new fmir::InstSimplifyEarlyConf{};
+    } else if (name == "InstSimplify") {
+      pass = new fmir::InstSimplifyConf{};
+    } else if (name == "LifetimeShortening") {
+      pass = new fmir::LifetimeShorteningConf{};
+    } else if (name == "Legalizer") {
+      pass = new fmir::LegalizerConf{};
+    } else if (name == "RegisterJoining") {
+      pass = new fmir::RegisterJoiningConf{};
+    } else if (name == "RegAlloc") {
+      pass = new fmir::RegAllocConf{};
+    } else if (name == "StackOptim") {
+      pass = new fmir::StackOptimConf{};
     } else {
       fmt::println("Dont know any mir pass with the name '{}'", name);
       TODO("Dont know this pass name");

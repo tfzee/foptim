@@ -154,27 +154,28 @@ reductions = true
 passes = [
   "LegalizeBBForm",
   "DCE",
-  # "CopyPropagation",
+  "CopyPropagation",
   "DCE",
+  "LVN",
   "BBReordering",
+  "CopyPropagation",
+  "LVN",
   "DCE",
-  # "LVN",
-  # "CopyPropagation",
-  # "InstSimplifyEarly",
-  # "LifetimeShortening",
-  # "CopyPropagation",
-  # "InstSimplifyEarly",
+  "InstSimplifyEarly",
+  "LifetimeShortening",
+  "CopyPropagation",
+  "InstSimplifyEarly",
   "DCE",
   # "CallingConv_FirstStage",
-  # "Legalizer",
-  # "InstSimplifyEarly",
-  # "RegisterJoining",
-  # "InstSimplifyEarly",
-  # "RegAlloc",
+  "Legalizer",
+  "InstSimplifyEarly",
+  "RegisterJoining",
+  "InstSimplifyEarly",
+  "RegAlloc",
   # "CallingConv_SecondStage",
-  # "StackOptim",
-  # "InstSimplify",
-  # "InstSimplify",
+  "StackOptim",
+  "InstSimplify",
+  "InstSimplify",
   "BBReordering",
 ]
 
@@ -184,18 +185,18 @@ passes = [
 # func
 [pass.mir.LegalizeBBForm]
 [pass.mir.DCE]
-# [pass.mir.CopyPropagation]
+[pass.mir.CopyPropagation]
 [pass.mir.BBReordering]
-# [pass.mir.LVN]
-# [pass.mir.InstSimplifyEarly]
-# [pass.mir.LifetimeShortening]
+[pass.mir.LVN]
+[pass.mir.InstSimplifyEarly]
+[pass.mir.InstSimplify]
+[pass.mir.LifetimeShortening]
 # [pass.mir.CallingConv_FirstStage]
-# [pass.mir.Legalizer]
-# [pass.mir.RegisterJoining]
-# [pass.mir.RegAlloc]
+[pass.mir.Legalizer]
+[pass.mir.RegisterJoining]
+[pass.mir.RegAlloc]
 # [pass.mir.CallingConv_SecondStage]
-# [pass.mir.StackOptim]
-# [pass.mir.InstSimplify]
+[pass.mir.StackOptim]
 
 
 # ------------------------------------------------------------------------------------------------

@@ -172,7 +172,7 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
 }
 }  // namespace
 
-void InstSimplify::apply(MFunc &func) {
+void InstSimplifyImpl::impl_apply(MFunc &func) {
   for (auto &bb : func.bbs) {
     for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
       if (simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
@@ -187,14 +187,7 @@ void InstSimplify::apply(MFunc &func) {
   }
 }
 
-void InstSimplify::apply(FVec<MFunc> &funcs) {
-  ZoneScopedN("InstSimplify");
-  for (auto &func : funcs) {
-    apply(func);
-  }
-}
-
-void InstSimplify::early_apply(MFunc &func) {
+void InstSimplifyImpl::impl_early(MFunc &func) {
   for (auto &bb : func.bbs) {
     for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
       if (early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
@@ -206,12 +199,6 @@ void InstSimplify::early_apply(MFunc &func) {
         continue;
       }
     }
-  }
-}
-void InstSimplify::early_apply(FVec<MFunc> &funcs) {
-  ZoneScopedN("InstSimplifyEarly");
-  for (auto &func : funcs) {
-    early_apply(func);
   }
 }
 

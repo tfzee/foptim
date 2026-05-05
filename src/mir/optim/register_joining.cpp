@@ -72,13 +72,7 @@ void RegisterJoining::apply_impl(MFunc &func) {
   replace_vargs(func.bbs, reg_mapping);
 }
 
-void RegisterJoining::apply(MFunc &func) { apply_impl(func); }
+void RegisterJoining::apply(MFunc &func, const conf::CompConf&) { apply_impl(func); }
 
-void RegisterJoining::apply(foptim::FVec<MFunc> &funcs) {
-  ZoneScopedN("Register Joining");
-  for (auto &f : funcs) {
-    apply(f);
-  }
-}
 
 }  // namespace foptim::fmir

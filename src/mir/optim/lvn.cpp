@@ -1,6 +1,7 @@
+#include "lvn.hpp"
+
 #include <fmt/core.h>
 
-#include "lvn.hpp"
 #include "mir/instr.hpp"
 
 namespace foptim::fmir {
@@ -71,7 +72,7 @@ void LVN::apply_impl(MBB &bb) {
   }
 }
 
-void LVN::apply(MFunc &func) {
+void LVN::apply(MFunc &func, const conf::CompConf &) {
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {

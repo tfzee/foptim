@@ -1,11 +1,13 @@
 #pragma once
 #include "../func.hpp"
+#include "config/compiler_config.hpp"
 #include "mir/instr.hpp"
+#include "mir/optim/function_pass.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fmir {
 
-class LifetimeShortening {
+class LifetimeShortening : public FunctionPass {
   void apply(MBB &bb) {
     TMap<VReg, VReg> mappings;
     TVec<ArgData> temp;
@@ -117,14 +119,9 @@ class LifetimeShortening {
   }
 
  public:
-  void apply(MFunc &func) {
+  void apply(MFunc &func, const conf::CompConf &) final override {
     for (auto &bb : func.bbs) {
       apply(bb);
-    }
-  }
-  void apply(FVec<MFunc> &funcs) {
-    for (auto &f : funcs) {
-      apply(f);
     }
   }
 };

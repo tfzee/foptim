@@ -1,4 +1,5 @@
 #include "reg_alloc.hpp"
+
 #include <fmt/base.h>
 
 #include "mir/analysis/live_variables.hpp"
@@ -154,7 +155,7 @@ void spill_one(MFunc &func, TVec<VReg> &spillers,
   fmt::println("========================\n{}", spillers);
   fmt::println("{}: {} @ {}", worst_spiller, worst_amount, num_uses);
   fmt::println("{}", func.name);
-  //important is used in test to check for spill errors
+  // important is used in test to check for spill errors
   fmt::println("FAILED SPILL");
   TODO("spill it ?");
   ASSERT(false);
@@ -251,16 +252,6 @@ void apply_func(MFunc &func) {
 }
 }  // namespace
 
-void RegAlloc::apply(MFunc &func) { apply_func(func); }
-
-void RegAlloc::apply(FVec<MFunc> &funcs) {
-  ZoneScopedN("RegAlloc");
-  // FVec<utils::BitSet> used_regs;
-  // used_regs.resize(funcs.size(), utils::BitSet::empty(12));
-
-  for (auto &func : funcs) {
-    apply(func);
-  }
-}
+void RegAlloc::apply(MFunc &func, const conf::CompConf &) { apply_func(func); }
 
 }  // namespace foptim::fmir

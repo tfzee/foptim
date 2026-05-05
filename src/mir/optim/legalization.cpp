@@ -955,11 +955,4 @@ void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf& conf) {
 
 void Legalizer::apply(MFunc &func, const foptim::conf::CompConf& conf) { apply_impl(func, conf); }
 
-void Legalizer::apply(FVec<MFunc> &funcs, const foptim::conf::CompConf& conf) {
-  ZoneScopedN("MIR Legalizer");
-  for (auto &func : funcs) {
-    apply(func, conf);
-  }
-}
-
 }  // namespace foptim::fmir
