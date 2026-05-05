@@ -77,6 +77,15 @@ class SmallVec {
 
  public:
   constexpr SmallVec() noexcept : data(inline_ptr()), _size(0) {}
+  constexpr SmallVec(std::initializer_list<T> vals) noexcept
+      : data(inline_ptr()), _size(0) {
+    if (vals.size() > capacity()) {
+      reserve_exact(vals.size());
+    }
+    for (auto&& val : vals) {
+      emplace_back(std::move(val));
+    }
+  }
   constexpr T& operator[](size_t i) noexcept { return data[i]; }
   constexpr const T& operator[](size_t i) const noexcept { return data[i]; }
   constexpr SizeTy size() const noexcept { return _size; }
