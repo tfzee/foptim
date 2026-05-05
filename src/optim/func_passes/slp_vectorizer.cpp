@@ -1594,7 +1594,8 @@ void red_search_assoc(TVec<fir::ValueR> &reduction_inputs,
 }  // namespace
 
 std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_reduction(
-    fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa) {
+    fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa,
+    const conf::CompConf &conf) {
   SeedBundle curr;
   (void)bb;
   (void)aa;
@@ -1615,6 +1616,9 @@ std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_reduction(
   bool is_associative = subtype == (u32)fir::BinaryInstrSubType::IntMul ||
                         subtype == (u32)fir::BinaryInstrSubType::IntAdd ||
                         isBool;
+  is_associative |= conf.optim.fltOpt.associative_math &&
+                    (subtype == (u32)fir::BinaryInstrSubType::FloatMul ||
+                     subtype == (u32)fir::BinaryInstrSubType::FloatAdd);
   if (!isProd && !isSum && !isBool) {
     return {};
   }
@@ -1717,7 +1721,8 @@ std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_successive_stores(
   }
   return {};
 }
-void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb, TVec<SeedBundle> &store_bundles,
+void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
+                               TVec<SeedBundle> &store_bundles,
                                TVec<SeedBundle> &load_bundles,
                                TVec<SeedBundle> &reduction_bundles,
                                AliasAnalyis &aa) {
@@ -1735,8 +1740,8 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb, T
       if (res) {
         load_bundles.push_back(res.value());
       }
-    } else if(config.reductions){
-      auto res = find_reduction(bb, i, aa);
+    } else if (config.reductions) {
+      auto res = find_reduction(bb, i, aa, conf);
       if (res) {
         // fmt::println("FOUND");
         // fmt::println("LEN {} AT {} ", res.value().data.size(),

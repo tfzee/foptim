@@ -56,7 +56,7 @@ class SLPVectorizer final : public FunctionPass {
                                                   AliasAnalyis &aa);
 
   std::optional<SeedBundle> find_reduction(fir::BasicBlock bb, size_t instr_id,
-                                           AliasAnalyis &aa);
+                                           AliasAnalyis &aa, const conf::CompConf& conf);
 
   std::optional<SeedBundle> find_successive_stores(fir::BasicBlock bb,
                                                    size_t instr_id,

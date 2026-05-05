@@ -847,6 +847,15 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         instr.destroy();
         return true;
       }
+      if (c_val->as_f64() == 0 && ctx.config->optim.fltOpt.no_signed_zeros &&
+          ctx.config->optim.fltOpt.no_infinites &&
+          ctx.config->optim.fltOpt.no_nans) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(
+            fir::ValueR{ctx->get_constant_value(0.0, c_val->get_type())});
+        instr.destroy();
+        return true;
+      }
       if (c_val->as_f64() == 2) {
         fir::Builder buh{instr};
         auto res = buh.build_binary_op(instr->args[0], instr->args[0],
