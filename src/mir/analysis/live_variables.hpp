@@ -23,19 +23,19 @@ class LiveVariables {
 size_t max_vreg_id(const MFunc &func);
 constexpr size_t reg_to_uid(VReg r) {
   if (r.is_concrete()) {
-    return (size_t)r.c_reg() - 1;
+    return static_cast<size_t>(r.c_reg()) - 1;
   }
-  return (size_t)CReg::N_REGS + r.virt_id();
+  return static_cast<size_t>(CReg::N_REGS) + r.virt_id();
 }
 
 constexpr VReg uid_to_reg(size_t id) {
-  if (id + 1 < (size_t)CReg::N_REGS) {
-    return VReg{(CReg)(id + 1)};
+  if (id + 1 < static_cast<size_t>(CReg::N_REGS)) {
+    return VReg{static_cast<CReg>(id + 1)};
   }
-  return VReg{id - (size_t)CReg::N_REGS};
+  return VReg{id - static_cast<size_t>(CReg::N_REGS)};
 }
 
-inline bool uid_is_concrete(size_t id) { return id + 1 < (size_t)CReg::N_REGS; }
+inline bool uid_is_concrete(size_t id) { return id + 1 < static_cast<size_t>(CReg::N_REGS); }
 // VReg uid_to_reg(size_t r);
 void update_def(const MInstr &instr, utils::BitSet<> &def);
 

@@ -14,12 +14,8 @@
 
 namespace foptim::optim {
 
-namespace {
-u64 arg_prom_unique_name_number = 0;
-}
-
 class ArgPromotion final : public ModulePass {
- public:
+public:
   bool are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
                                            fir::BBArgument /*barg*/,
                                            fir::Use use, CFG &cfg,
@@ -53,4 +49,4 @@ class ArgPromotion final : public ModulePass {
   void apply(fir::Context &ctx, JobSheduler * /*unused*/) override;
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

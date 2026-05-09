@@ -17,7 +17,7 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
   i64 head_id = -1;
   for (u64 i = 0; i < loop.body_nodes.size(); i++) {
     if (loop.body_nodes[i] == loop.head) {
-      head_id = (i64)i;
+      head_id = static_cast<i64>(i);
     }
   }
   ASSERT(head_id >= 0);
@@ -121,7 +121,7 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
   i64 head_id = -1;
   for (u64 i = 0; i < loop.body_nodes.size(); i++) {
     if (loop.body_nodes[i] == loop.head) {
-      head_id = (i64)i;
+      head_id = static_cast<i64>(i);
     }
   }
   ASSERT(head_id >= 0);
@@ -225,6 +225,7 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
   // TODO("okka");
 }
 
+namespace {
 /*IF we have a i==0 condition it might make sense to peel first iteration since
  * this now elimenates the else part in the peeled part and the if guarded part
  * inside the loop*/
@@ -332,6 +333,7 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   (void)func;
   return false;
 }
+}  // namespace
 
 bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
                           fir::Function &func, LoopBoundsAnalysis &lb) {

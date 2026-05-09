@@ -8,8 +8,6 @@
 
 namespace foptim::utils {
 
-namespace {
-
 // used to calculate default storage size
 template <class T, size_t wanted_size = 64>
 struct SmallVecSizeCalc {
@@ -37,8 +35,6 @@ struct SmallVecInferSizeTy {
           uint64_t>;
   // clang-format on
 };
-
-}  // namespace
 
 template <class T, size_t N = SmallVecSizeCalc<T, 64>::n_elems_that_fit,
           class SizeTy = typename SmallVecInferSizeTy<T>::Type,

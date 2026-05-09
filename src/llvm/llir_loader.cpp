@@ -1626,13 +1626,16 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
             static_cast<uint8_t>(d->getZExtValue());
         break;
       case 16:
-        *((uint16_t *)output) = static_cast<uint16_t>(d->getZExtValue());
+        *(reinterpret_cast<uint16_t *>(const_cast<uint8_t *>(output))) =
+            static_cast<uint16_t>(d->getZExtValue());
         break;
       case 32:
-        *((uint32_t *)output) = static_cast<uint32_t>(d->getZExtValue());
+        *(reinterpret_cast<uint32_t *>(const_cast<uint8_t *>(output))) =
+            static_cast<uint32_t>(d->getZExtValue());
         break;
       case 64:
-        *((uint64_t *)output) = d->getZExtValue();
+        *(reinterpret_cast<uint64_t *>(const_cast<uint8_t *>(output))) =
+            d->getZExtValue();
         break;
       default:
         llvm::errs() << "constant int " << *d << " " << d->getBitWidth()
@@ -1646,11 +1649,12 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
     if (ty_id == llvm::Type::FloatTyID) {
       auto val =
           static_cast<u32>(d->getValue().bitcastToAPInt().getZExtValue());
-      *((uint32_t *)output) = static_cast<uint32_t>(val);
+      *(reinterpret_cast<uint32_t *>(const_cast<uint8_t *>(output))) =
+          static_cast<uint32_t>(val);
     } else if (ty_id == llvm::Type::DoubleTyID) {
       auto val =
           static_cast<u64>(d->getValue().bitcastToAPInt().getZExtValue());
-      *((u64 *)output) = val;
+      *(reinterpret_cast<u64 *>(const_cast<uint8_t *>(output))) = val;
     } else if (ty_id == llvm::Type::X86_FP80TyID) {
       WARN_UNSUPPORTED_O(
           warned_f80_const,
@@ -1658,7 +1662,7 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
           "f64 const instead\n");
       auto val =
           static_cast<u64>(d->getValue().bitcastToAPInt().getZExtValue());
-      *((u64 *)output) = val;
+      *(reinterpret_cast<u64 *>(const_cast<uint8_t *>(output))) = val;
     } else {
       llvm::errs() << "TODO: handle global init\n";
       llvm::errs() << "constant fp " << *d << "\n";

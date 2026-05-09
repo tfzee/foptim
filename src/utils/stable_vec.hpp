@@ -33,10 +33,14 @@ struct SlabIter {
   Slab<T, slot_slab_len> *slab;
   u32 offset;
   constexpr bool operator==(const SlabIter &other) {
-    return (void *)slab == (void *)other.slab && offset == other.offset;
+    return static_cast<const void *>(slab) ==
+               static_cast<const void *>(other.slab) &&
+           offset == other.offset;
   }
   constexpr bool operator!=(const SlabIter &other) {
-    return (void *)slab != (void *)other.slab || offset != other.offset;
+    return static_cast<const void *>(slab) !=
+               static_cast<const void *>(other.slab) ||
+           offset != other.offset;
   }
 
   constexpr SRef<T> operator*() {
@@ -106,7 +110,8 @@ class StableVec {
 
   StableVec() {
     Slab *new_slab = AllocSlabs{}.allocate(1);
-    std::memset((void *)&new_slab->data[0], 0, slot_slab_len * sizeof(Slot<T>));
+    std::memset(static_cast<void *>(&new_slab->data[0]), 0,
+                slot_slab_len * sizeof(Slot<T>));
     {
       slap_append(new_slab);
     }
@@ -226,7 +231,8 @@ class StableVec {
         }
       }
       if (is_new) {
-        std::memset((void *)target.ptr, 0, target.len * sizeof(Slot<T>));
+        std::memset(static_cast<void *>(target.ptr), 0,
+                    target.len * sizeof(Slot<T>));
         // only append it after so we cant race if someone else accesses the
         // slabs
         slap_append(new_slab);

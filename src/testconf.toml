@@ -4,6 +4,14 @@ include = [
   # "FastMath",
 ]
 
+[pipeline.fir.default_release]
+passes = [
+  "pipeline:default_release_early",
+  "pipeline:default_release_middle",
+  "pipeline:default_release_late",
+  "pipeline:default_release_cleanup",
+  # "PrintFunc",
+]
 # ------------------------------------------------------------------------------------------------
 # Optimizations
 

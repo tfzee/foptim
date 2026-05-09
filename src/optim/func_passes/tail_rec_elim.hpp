@@ -68,8 +68,8 @@ class TailRecElim final : public FunctionPass {
     auto term = bb->get_terminator();
     auto call = bb->instructions[bb->instructions.size() - 3];
     auto add = bb->instructions[bb->instructions.size() - 2];
-    if (add->subtype != (u32)fir::BinaryInstrSubType::IntAdd &&
-        add->subtype != (u32)fir::BinaryInstrSubType::IntSub) {
+    if (add->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
+        add->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntSub)) {
       return;
     }
     if (term->args.size() != 1 || term->args[0] != fir::ValueR{add}) {
@@ -145,7 +145,7 @@ class TailRecElim final : public FunctionPass {
     call.destroy();
   }
 
- public:
+public:
   void apply(fir::Context &ctx, fir::Function &func) override {
     if (func.attribs.no_recurse || func.attribs.variadic) {
       return;
@@ -179,4 +179,4 @@ class TailRecElim final : public FunctionPass {
     }
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

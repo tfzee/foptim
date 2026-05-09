@@ -69,22 +69,21 @@ class LoopBoundsAnalysis {
   bool update(ScalarEvo &evo, CFG &cfg, LoopInfo &info);
   void dump() const;
 };
-
 class LoopRangeAnalysis {
  public:
-  fir::BBArgument induction_var;
-  fir::Use lower_bound_var;
-  fir::Use upper_bound_var;
-  bool known_lower = false;
-  i128 lower_bound = 0;
-  bool known_upper = false;
-  i128 upper_bound = 0;
-
   enum IterationType {
     PlusA,
   };
-  IterationType type = IterationType::PlusA;
+  i128 lower_bound = 0;
+  i128 upper_bound = 0;
   i128 a = 0;
+  fir::BBArgument induction_var;
+  fir::Use lower_bound_var;
+  fir::Use upper_bound_var;
+  IterationType type = IterationType::PlusA;
+  bool known_lower = false;
+  bool known_upper = false;
+
   LoopRangeAnalysis()
       : induction_var(fir::BBArgument::invalid()),
         lower_bound_var(fir::Use::norm(fir::Instr{fir::Instr::invalid()}, 0)),

@@ -6,13 +6,11 @@
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
+#include "ir/value.hpp"
 #include "optim/analysis/dominators.hpp"
 
-using namespace foptim::utils;
-using namespace foptim::fir;
-using namespace foptim;
-
 TEST(LivenessTest, SingleBB) {
+  using foptim::fir::ValueR;
   foptim::fir::Context ctx{nullptr};
 
   auto func = ctx.data->create_function(
@@ -26,9 +24,9 @@ TEST(LivenessTest, SingleBB) {
                                  ValueR{entry_bb->args[0]});
   auto ret = builder.build_return(x);
 
-  optim::CFG cfg{*func.func};
-  optim::Dominators dom{cfg};
-  optim::LiveVariables lives{*func.func, cfg};
+  foptim::optim::CFG cfg{*func.func};
+  foptim::optim::Dominators dom{cfg};
+  foptim::optim::LiveVariables lives{*func.func, cfg};
 
   EXPECT_EQ(lives.live_variables.size(), 2);
   EXPECT_EQ(lives.live_variables[x].size(), 1);
@@ -49,6 +47,7 @@ TEST(LivenessTest, SingleBB) {
 }
 
 TEST(LivenessTest, AcrossBB) {
+  using foptim::fir::ValueR;
   foptim::fir::Context ctx{nullptr};
 
   auto func = ctx.data->create_function(
@@ -71,9 +70,9 @@ TEST(LivenessTest, AcrossBB) {
   auto y = builder.build_int_add(ValueR{entry_bb->args[1]}, x);
   auto ret = builder.build_return(y);
 
-  optim::CFG cfg{*func.func};
-  optim::Dominators dom{cfg};
-  optim::LiveVariables lives{*func.func, cfg};
+  foptim::optim::CFG cfg{*func.func};
+  foptim::optim::Dominators dom{cfg};
+  foptim::optim::LiveVariables lives{*func.func, cfg};
 
   // lives.dump();
 

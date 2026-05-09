@@ -50,7 +50,7 @@ size_t max_vreg_id(const MFunc &func) {
 void update_def(const MInstr &instr, utils::BitSet<> &def) {
   switch (instr.bop) {
     case GOpcode::GBase:
-      switch ((GBaseSubtype)instr.sop) {
+      switch (static_cast<GBaseSubtype>(instr.sop)) {
         case GBaseSubtype::INVALID:
           return;
         case GBaseSubtype::mov:
@@ -80,7 +80,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
       }
     case GOpcode::GJmp:
-      switch ((GJumpSubtype)instr.sop) {
+      switch (static_cast<GJumpSubtype>(instr.sop)) {
         case GJumpSubtype::INVALID:
           return;
         case GJumpSubtype::icmp_slt:
@@ -145,7 +145,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
       }
     case GOpcode::GConv:
-      switch ((GConvSubtype)instr.sop) {
+      switch (static_cast<GConvSubtype>(instr.sop)) {
         case GConvSubtype::INVALID:
           return;
         case GConvSubtype::SI2FL:
@@ -163,7 +163,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
       }
     case GOpcode::GArith:
-      switch ((GArithSubtype)instr.sop) {
+      switch (static_cast<GArithSubtype>(instr.sop)) {
         case GArithSubtype::INVALID:
           return;
         case GArithSubtype::idiv:
@@ -190,7 +190,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
       }
     case GOpcode::GCMov:
-      switch ((GCMovSubtype)instr.sop) {
+      switch (static_cast<GCMovSubtype>(instr.sop)) {
         case GCMovSubtype::INVALID:
           return;
         case GCMovSubtype::cmov:
@@ -211,7 +211,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
       }
     case GOpcode::GVec:
-      switch ((GVecSubtype)instr.sop) {
+      switch (static_cast<GVecSubtype>(instr.sop)) {
         case GVecSubtype::INVALID:
           return;
         case GVecSubtype::vadd:
@@ -231,7 +231,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
           return;
       }
     case GOpcode::X86:
-      switch ((X86Subtype)instr.sop) {
+      switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
           return;
         case X86Subtype::LockXAdd2:
@@ -309,7 +309,7 @@ void update_uses(const MArgument &arg, utils::BitSet<> &uses) {
 void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   switch (instr.bop) {
     case GOpcode::GJmp:
-      switch ((GJumpSubtype)instr.sop) {
+      switch (static_cast<GJumpSubtype>(instr.sop)) {
         case GJumpSubtype::INVALID:
           return;
         case GJumpSubtype::icmp_slt:
@@ -381,7 +381,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
       }
     case GOpcode::GCMov:
-      switch ((GCMovSubtype)instr.sop) {
+      switch (static_cast<GCMovSubtype>(instr.sop)) {
         case GCMovSubtype::INVALID:
           return;
         case GCMovSubtype::cmov:
@@ -411,7 +411,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
       }
     case GOpcode::GConv:
-      switch ((GConvSubtype)instr.sop) {
+      switch (static_cast<GConvSubtype>(instr.sop)) {
         case GConvSubtype::INVALID:
           return;
         case GConvSubtype::SI2FL:
@@ -430,7 +430,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
       }
     case GOpcode::GArith:
-      switch ((GArithSubtype)instr.sop) {
+      switch (static_cast<GArithSubtype>(instr.sop)) {
         case GArithSubtype::INVALID:
           return;
         case GArithSubtype::abs:
@@ -478,7 +478,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
       }
     case GOpcode::GVec:
-      switch ((GVecSubtype)instr.sop) {
+      switch (static_cast<GVecSubtype>(instr.sop)) {
         case GVecSubtype::INVALID:
           return;
         case GVecSubtype::ffmadd:
@@ -524,7 +524,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
       }
     case GOpcode::GBase:
-      switch ((GBaseSubtype)instr.sop) {
+      switch (static_cast<GBaseSubtype>(instr.sop)) {
         case GBaseSubtype::INVALID:
           return;
         case GBaseSubtype::stack_arg_load:
@@ -573,7 +573,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
       }
     case GOpcode::X86:
-      switch ((X86Subtype)instr.sop) {
+      switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
           return;
         case X86Subtype::LockXAdd2:
@@ -640,7 +640,7 @@ void LiveVariables::update(const fmir::MFunc &func) {
   TVec<utils::BitSet<>> defs;
 
   const auto max_id = max_vreg_id(func);
-  const auto n_unique_regs = (u8)CReg::N_REGS + max_id + 1;
+  const auto n_unique_regs = static_cast<u8>(CReg::N_REGS) + max_id + 1;
 
   upwExp.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});
   defs.resize(func.bbs.size(), utils::BitSet{n_unique_regs, false});

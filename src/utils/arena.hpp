@@ -1,3 +1,4 @@
+// NOLINTBEGIN
 #pragma once
 #include <fmt/core.h>
 
@@ -152,3 +153,4 @@ constexpr bool operator!=(const TempAlloc<T> & /*unnused*/,
   return false;
 }
 }  // namespace foptim::utils
+// NOLINTEND

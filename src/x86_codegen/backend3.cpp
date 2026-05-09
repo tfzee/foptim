@@ -14,48 +14,12 @@
 #include "third_party/Zydis.h"
 #include "utils/arena.hpp"
 #include "utils/parameters.hpp"
-#include "utils/stats.hpp"
 #include "x86_codegen/backend3_instr_gen.hpp"
 
 namespace foptim::codegen {
 
 namespace {
 
-size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
-                  TLabelUsageMap &reloc_map, ProEpilogueType proepiloguetype,
-                  const foptim::conf::CompConf &conf) {
-  // size_t length = 999;
-  ZydisEncoderRequest req;
-  memset(&req, 0, sizeof(req));
-  req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
-  req.operand_count = instr.n_args;
-
-  utils::StatCollector::get().addi(1, "NUserInstrEmitted");
-  switch (instr.bop) {
-    case fmir::GOpcode::GBase:
-      return emit_gbase(req, instr, out_buff, curr_bb_id, reloc_map,
-                        proepiloguetype);
-    case fmir::GOpcode::GJmp:
-      return emit_gjmp(req, instr, out_buff, curr_bb_id, reloc_map,
-                       proepiloguetype);
-    case fmir::GOpcode::GConv:
-      return emit_gconv(req, instr, out_buff, curr_bb_id, reloc_map,
-                        proepiloguetype, conf);
-    case fmir::GOpcode::GArith:
-      return emit_garith(req, instr, out_buff, curr_bb_id, reloc_map,
-                         proepiloguetype);
-    case fmir::GOpcode::GCMov:
-      return emit_gcmov(req, instr, out_buff, curr_bb_id, reloc_map,
-                        proepiloguetype);
-    case fmir::GOpcode::GVec:
-      return emit_gvec(req, instr, out_buff, curr_bb_id, reloc_map,
-                       proepiloguetype);
-    case fmir::GOpcode::X86:
-      return emit_x86(req, instr, out_buff, curr_bb_id, reloc_map,
-                      proepiloguetype, conf);
-      break;
-  }
-}
 
 // void diss_print(u8 *buff) {
 //   ZydisDisassembledInstruction instruction;

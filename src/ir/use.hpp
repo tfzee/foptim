@@ -90,7 +90,7 @@ struct std::hash<foptim::fir::Use> {
     using foptim::fir::Instr;
     using std::hash;
 
-    return hash<Instr>()(k.user) ^ hash<u8>()((u8)k.type) ^
+    return hash<Instr>()(k.user) ^ hash<u8>()(static_cast<u8>(k.type)) ^
            hash<u16>()(k.argId) ^ hash<u16>()(k.bbArgId);
   }
 };

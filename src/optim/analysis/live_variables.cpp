@@ -1,11 +1,13 @@
+#include "live_variables.hpp"
+
 #include <deque>
 
 #include "ir/basic_block_ref.hpp"
-#include "live_variables.hpp"
 #include "utils/bitset.hpp"
 
 namespace foptim::optim {
 
+namespace {
 fir::Instr get_last_use_in_bb(fir::ValueR value, fir::BasicBlock target_bb) {
   size_t sub_pos = 0;
   fir::Instr final_use_instr{fir::Instr::invalid()};
@@ -37,6 +39,7 @@ fir::Instr get_last_use_in_bb(fir::ValueR value, fir::BasicBlock target_bb) {
   ASSERT(final_use_instr.is_valid());
   return final_use_instr;
 }
+}  // namespace
 
 void LiveVariables::dump() {
   TODO("REIMPL");

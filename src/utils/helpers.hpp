@@ -44,14 +44,14 @@ __attribute__((const)) static constexpr inline u128 npow2(u128 x) {
   return (128 - __builtin_clzg(x - 1));
 }
 __attribute__((const)) static constexpr inline u128 get_mask(u32 width) {
-  //TODO: surely theres a cleaner way to do this
-  // this prob works but is even uglier to me
-  // return ((((u128)1 << (width - 1)) - 1) << 1) | 1;
-  if (width == 128){
-    return ~(u128)0;
+  // TODO: surely theres a cleaner way to do this
+  //  this prob works but is even uglier to me
+  //  return ((((u128)1 << (width - 1)) - 1) << 1) | 1;
+  if (width == 128) {
+    return ~static_cast<u128>(0);
   }
   ASSERT(width < 128);
-  return (((u128)1 << width) - 1);
+  return ((static_cast<u128>(1) << width) - 1);
 }
 
 }  // namespace foptim::utils

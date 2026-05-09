@@ -14,7 +14,7 @@ class LifetimeShortening : public FunctionPass {
 
     for (auto &instr : bb.instrs) {
       if (instr.bop == GOpcode::GBase) {
-        switch ((GBaseSubtype)instr.sop) {
+        switch (static_cast<GBaseSubtype>(instr.sop)) {
           case GBaseSubtype::mov:
             if (instr.args[0].isReg() && instr.args[1].isReg() &&
                 instr.args[0] != instr.args[1] &&

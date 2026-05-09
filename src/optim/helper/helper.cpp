@@ -6,7 +6,6 @@
 namespace foptim::optim {
 
 void swap_args(fir::Instr instr, u32 a1, u32 a2) {
-  using namespace foptim::fir;
   auto v1 = instr->args[a1];
   auto v2 = instr->args[a2];
   instr.replace_arg(a1, v2);
@@ -59,7 +58,7 @@ GuessTypeResult guessType(fir::ValueR ptr) {
       return {.typeless = true, .type = fir::TypeR{fir::TypeR::invalid()}};
     }
     if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
-        (fir::BinaryInstrSubType)ptr_instr->subtype ==
+        static_cast<fir::BinaryInstrSubType>(ptr_instr->subtype) ==
             fir::BinaryInstrSubType::IntAdd) {
       GuessTypeResult out_res = guessType(ptr_instr->args[0]);
       GuessTypeResult r2 = guessType(ptr_instr->args[1]);

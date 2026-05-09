@@ -13,6 +13,8 @@ if(CMAKE_EXPORT_COMPILE_COMMANDS)
       ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
 endif()
 
+# set(CMAKE_CXX_CLANG_TIDY
+#   "clang-tidy")
 
 include(FetchContent)
 
@@ -151,6 +153,7 @@ add_library (foptim OBJECT
 
                 #codegen
                 ./src/x86_codegen/backend3.cpp
+                ./src/x86_codegen/backend3_instr_gen.cpp
                 ./src/x86_codegen/backend3_print.cpp
                 ./src/third_party/Zydis.c
 

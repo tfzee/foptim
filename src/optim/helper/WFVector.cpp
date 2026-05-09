@@ -45,7 +45,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
           }
           break;
         case fir::InstrType::BinaryInstr:
-          switch ((fir::BinaryInstrSubType)instr->subtype) {
+          switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
             case fir::BinaryInstrSubType::FloatAdd:
             case fir::BinaryInstrSubType::FloatMul:
             case fir::BinaryInstrSubType::IntAdd:
@@ -78,7 +78,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
           }
           break;
         case fir::InstrType::Intrinsic:
-          switch ((fir::IntrinsicSubType)instr->subtype) {
+          switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
             case fir::IntrinsicSubType::FAbs:
             case fir::IntrinsicSubType::Abs:
             case fir::IntrinsicSubType::UMin:
@@ -109,7 +109,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
           }
           break;
         case fir::InstrType::UnaryInstr:
-          switch ((fir::UnaryInstrSubType)instr->subtype) {
+          switch (static_cast<fir::UnaryInstrSubType>(instr->subtype)) {
             case fir::UnaryInstrSubType::INVALID:
               return {};
             case fir::UnaryInstrSubType::FloatNeg:
@@ -125,7 +125,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
         case fir::InstrType::ZExt:
           break;
         case fir::InstrType::Conversion: {
-          switch ((fir::ConversionSubType)instr->subtype) {
+          switch (static_cast<fir::ConversionSubType>(instr->subtype)) {
             case fir::ConversionSubType::BitCast:
             case fir::ConversionSubType::SITOFP:
             case fir::ConversionSubType::FPTOUI:
@@ -178,9 +178,9 @@ std::optional<i64> can_whole_function_vectorize(fir::Function& func,
   return {cost};
 }
 
-fir::ValueR convert_value(fir::ContextData* ctx, fir::Builder& buh,
-                          fir::ValueR v, u64 n_lanes,
-                          fir::ContextData::V2VMap& subs) {
+static fir::ValueR convert_value(fir::ContextData* ctx, fir::Builder& buh,
+                                 fir::ValueR v, u64 n_lanes,
+                                 fir::ContextData::V2VMap& subs) {
   if (v.is_constant()) {
     return buh.build_vbroadcast(v, ctx->get_vec_type(v.get_type(), n_lanes));
   } else {
@@ -230,7 +230,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
     for (auto instr : bb->instructions) {
       switch (instr->instr_type) {
         case fir::InstrType::BinaryInstr:
-          switch ((fir::BinaryInstrSubType)instr->subtype) {
+          switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
             case fir::BinaryInstrSubType::IntAdd:
             case fir::BinaryInstrSubType::IntSub:
             case fir::BinaryInstrSubType::IntMul:
@@ -246,7 +246,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
               auto new_i = buh.build_binary_op(
                   convert_value(ctx, buh, instr->args[0], n_lanes, subs),
                   convert_value(ctx, buh, instr->args[1], n_lanes, subs),
-                  (fir::BinaryInstrSubType)instr->subtype);
+                  static_cast<fir::BinaryInstrSubType>(instr->subtype));
               subs.insert({fir::ValueR{instr}, new_i});
               break;
             }
@@ -269,12 +269,12 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
           }
         } break;
         case fir::InstrType::Intrinsic:
-          switch ((fir::IntrinsicSubType)instr->subtype) {
+          switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
             case fir::IntrinsicSubType::Abs:
             case fir::IntrinsicSubType::FAbs: {
               auto new_i = buh.build_intrinsic(
                   convert_value(ctx, buh, instr->args[0], n_lanes, subs),
-                  (fir::IntrinsicSubType)instr->subtype);
+                  static_cast<fir::IntrinsicSubType>(instr->subtype));
               subs.insert({fir::ValueR{instr}, new_i});
             } break;
             case fir::IntrinsicSubType::UMin:
@@ -286,7 +286,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
               auto new_i = buh.build_intrinsic(
                   convert_value(ctx, buh, instr->args[0], n_lanes, subs),
                   convert_value(ctx, buh, instr->args[1], n_lanes, subs),
-                  (fir::IntrinsicSubType)instr->subtype);
+                  static_cast<fir::IntrinsicSubType>(instr->subtype));
               subs.insert({fir::ValueR{instr}, new_i});
             } break;
             case fir::IntrinsicSubType::INVALID:
@@ -307,7 +307,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
           auto new_i = buh.build_float_cmp(
               convert_value(ctx, buh, instr->args[0], n_lanes, subs),
               convert_value(ctx, buh, instr->args[1], n_lanes, subs),
-              (fir::FCmpInstrSubType)instr->subtype);
+              static_cast<fir::FCmpInstrSubType>(instr->subtype));
           subs.insert({fir::ValueR{instr}, new_i});
           break;
         }

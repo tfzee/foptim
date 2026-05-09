@@ -9,12 +9,12 @@
 namespace foptim::fmir {
 
 class StackOptim : public FunctionPass {
- public:
-  void apply(MFunc& funcs, const conf::CompConf&) {
+public:
+  void apply(MFunc &funcs, const conf::CompConf &) {
     TVec<ArgData> helper;
-    for (auto& bb : funcs.bbs) {
+    for (auto &bb : funcs.bbs) {
       for (size_t i_id = 0; i_id < bb.instrs.size(); i_id++) {
-        auto& i = bb.instrs[i_id];
+        auto &i = bb.instrs[i_id];
         if (i.is(GArithSubtype::add2) && i.args[0].isReg() &&
             i.args[0].reg.is_concrete() && i.args[0].reg.c_reg() == CReg::SP &&
             i.args[1].isImm()) {
@@ -24,7 +24,7 @@ class StackOptim : public FunctionPass {
               (!next_use.is_read && !next_use.is_write)) {
             continue;
           }
-          auto& i2 = bb.instrs[next_use.index];
+          auto &i2 = bb.instrs[next_use.index];
           if (i2.is(GArithSubtype::sub2) && i2.args[0].isReg() &&
               i2.args[0].reg.is_concrete() &&
               i2.args[0].reg.c_reg() == CReg::SP && i2.args[1].isImm()) {
@@ -61,7 +61,7 @@ class StackOptim : public FunctionPass {
               (!next_use.is_read && !next_use.is_write)) {
             continue;
           }
-          auto& i2 = bb.instrs[next_use.index];
+          auto &i2 = bb.instrs[next_use.index];
           if (i2.is(GBaseSubtype::pop) && i2.args[0] == i.args[0]) {
             // fmt::println("{:cd}", i);
             // for (size_t i = i_id; i < next_use.index; i++) {
@@ -81,7 +81,7 @@ class StackOptim : public FunctionPass {
               (!next_use.is_read && !next_use.is_write)) {
             continue;
           }
-          auto& i2 = bb.instrs[next_use.index];
+          auto &i2 = bb.instrs[next_use.index];
           if (i2.is(GBaseSubtype::push) && i2.args[0] == i.args[0]) {
             auto has_any_use =
                 find_next_use(bb.instrs, reg_to_uid(i.args[0].reg), i_id + 1,
@@ -110,4 +110,4 @@ class StackOptim : public FunctionPass {
     }
   }
 };
-}  // namespace foptim::fmir
+} // namespace foptim::fmir

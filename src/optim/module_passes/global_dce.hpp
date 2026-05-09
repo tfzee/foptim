@@ -9,15 +9,13 @@
 
 namespace foptim::optim {
 
-namespace {
-bool global_is_never_read(fir::Global g) {
+static bool global_is_never_read(fir::Global g) {
   auto r = ptr_access_analysis(g);
   return !r.IsRead && !r.Escapes;
 }
-}  // namespace
 
 class GDCE final : public ModulePass {
- public:
+public:
   bool is_intrinsic(const IRString &name) {
     return name.starts_with("llvm.") || name.starts_with("foptim.");
   }
@@ -63,14 +61,14 @@ class GDCE final : public ModulePass {
 #endif
                 }};
             switch (g->linkage) {
-              case fir::Linkage::External:
-              case fir::Linkage::WeakODR:
-              case fir::Linkage::Weak:
-                continue;
-              case fir::Linkage::Internal:
-              case fir::Linkage::LinkOnce:
-              case fir::Linkage::LinkOnceODR:
-                break;
+            case fir::Linkage::External:
+            case fir::Linkage::WeakODR:
+            case fir::Linkage::Weak:
+              continue;
+            case fir::Linkage::Internal:
+            case fir::Linkage::LinkOnce:
+            case fir::Linkage::LinkOnceODR:
+              break;
             }
             if (g->get_n_uses() > 0 &&
                 // assumes constannt is either escaping or read otherwise it
@@ -120,14 +118,14 @@ class GDCE final : public ModulePass {
         continue;
       }
       switch (f->attribs.linkage) {
-        case fir::Linkage::External:
-        case fir::Linkage::WeakODR:
-        case fir::Linkage::Weak:
-          continue;
-        case fir::Linkage::Internal:
-        case fir::Linkage::LinkOnce:
-        case fir::Linkage::LinkOnceODR:
-          break;
+      case fir::Linkage::External:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::Weak:
+        continue;
+      case fir::Linkage::Internal:
+      case fir::Linkage::LinkOnce:
+      case fir::Linkage::LinkOnceODR:
+        break;
       }
       if (name.starts_with("_GLOBAL")) {
         continue;
@@ -158,4 +156,4 @@ class GDCE final : public ModulePass {
     }
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

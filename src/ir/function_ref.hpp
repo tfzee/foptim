@@ -12,7 +12,7 @@ class FunctionR {
   constexpr Function *operator->() const { return func; }
 
   constexpr bool operator==(FunctionR other) const {
-    return (void *)func == other.func;
+    return reinterpret_cast<void *>(func) == other.func;
   }
   Builder builder();
 };

@@ -29,29 +29,29 @@ u32 Legalizer::move_arg_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
 u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
   Type int_version = Type::INVALID;
   switch (ty) {
-    case Type::INVALID:
-    case Type::Int8:
-    case Type::Int16:
-    case Type::Int32:
-    case Type::Int64:
-    case fmir::Type::Float32x16:
-    case fmir::Type::Float64x8:
-      TODO("UNREACH");
-    case Type::Int32x4:
-    case Type::Float32x2:
-    case Type::Float32x4:
-    case Type::Int32x8:
-    case Type::Float32x8:
-    case Type::Float32:
-      int_version = Type::Int32;
-      break;
-    case Type::Int64x2:
-    case Type::Float64x2:
-    case Type::Int64x4:
-    case Type::Float64x4:
-    case Type::Float64:
-      int_version = Type::Int64;
-      break;
+  case Type::INVALID:
+  case Type::Int8:
+  case Type::Int16:
+  case Type::Int32:
+  case Type::Int64:
+  case fmir::Type::Float32x16:
+  case fmir::Type::Float64x8:
+    TODO("UNREACH");
+  case Type::Int32x4:
+  case Type::Float32x2:
+  case Type::Float32x4:
+  case Type::Int32x8:
+  case Type::Float32x8:
+  case Type::Float32:
+    int_version = Type::Int32;
+    break;
+  case Type::Int64x2:
+  case Type::Float64x2:
+  case Type::Int64x4:
+  case Type::Float64x4:
+  case Type::Float64:
+    int_version = Type::Int64;
+    break;
   }
   auto old_arg = bb.instrs[indx].args[arg_id];
   auto new_float_reg = get_reg(ty);
@@ -79,30 +79,30 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
 u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
   Type int_version = Type::INVALID;
   switch (ty) {
-    case Type::INVALID:
-    case Type::Int8:
-    case Type::Int16:
-    case fmir::Type::Float32x16:
-    case fmir::Type::Float64x8:
-      fmt::println("{}", bb);
-      TODO("UNREACH");
-    case Type::Int32:
-    case Type::Int32x4:
-    case Type::Float32x2:
-    case Type::Float32x4:
-    case Type::Int32x8:
-    case Type::Float32x8:
-    case Type::Float32:
-      int_version = Type::Int32;
-      break;
-    case Type::Int64:
-    case Type::Int64x2:
-    case Type::Float64x2:
-    case Type::Int64x4:
-    case Type::Float64x4:
-    case Type::Float64:
-      int_version = Type::Int64;
-      break;
+  case Type::INVALID:
+  case Type::Int8:
+  case Type::Int16:
+  case fmir::Type::Float32x16:
+  case fmir::Type::Float64x8:
+    fmt::println("{}", bb);
+    TODO("UNREACH");
+  case Type::Int32:
+  case Type::Int32x4:
+  case Type::Float32x2:
+  case Type::Float32x4:
+  case Type::Int32x8:
+  case Type::Float32x8:
+  case Type::Float32:
+    int_version = Type::Int32;
+    break;
+  case Type::Int64:
+  case Type::Int64x2:
+  case Type::Float64x2:
+  case Type::Int64x4:
+  case Type::Float64x4:
+  case Type::Float64:
+    int_version = Type::Int64;
+    break;
   }
   ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
@@ -131,54 +131,55 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
   bool big_unsigned_const =
       instr.args[1].isImm() &&
-      instr.args[1].imm > (u64)std::numeric_limits<u16>::max();
-  bool big_signed_const =
-      instr.args[1].isImm() &&
-      (i64)instr.args[1].imm > (i64)std::numeric_limits<i16>::max;
+      instr.args[1].imm > static_cast<u64>(std::numeric_limits<u16>::max());
+  bool big_signed_const = instr.args[1].isImm() &&
+                          static_cast<i64>(instr.args[1].imm) >
+                              static_cast<i64>(std::numeric_limits<i16>::max());
 
   bool big_unsigned_const2 =
       instr.args[2].isImm() &&
-      instr.args[2].imm > (u64)std::numeric_limits<u16>::max();
+      instr.args[2].imm > static_cast<u64>(std::numeric_limits<u16>::max());
   bool big_signed_const2 =
       instr.args[2].isImm() &&
-      (i64)instr.args[2].imm > (i64)std::numeric_limits<i16>::max;
+      static_cast<i64>(instr.args[2].imm) >
+          static_cast<i64>(std::numeric_limits<i16>::max());
 
   if (instr.bop == GOpcode::GJmp) {
-    switch ((GJumpSubtype)instr.sop) {
-      case GJumpSubtype::icmp_eq:
-      case GJumpSubtype::icmp_ugt:
-        if (big_unsigned_const2) {
-          indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
-          return true;
-        }
-        break;
-      case GJumpSubtype::icmp_slt:
-        if (big_signed_const2) {
-          indx = move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
-          return true;
-        }
-        break;
-      case GJumpSubtype::cjmp_int_ne:
-      case GJumpSubtype::cjmp_int_eq:
-      case GJumpSubtype::cjmp_int_ult:
-      case GJumpSubtype::cjmp_int_ugt:
-      case GJumpSubtype::cjmp_int_ule:
-      case GJumpSubtype::cjmp_int_uge:
-        if (big_unsigned_const) {
-          indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
-          return true;
-        }
-        break;
-      case GJumpSubtype::cjmp_int_slt:
-      case GJumpSubtype::cjmp_int_sgt:
-      case GJumpSubtype::cjmp_int_sge:
-      case GJumpSubtype::cjmp_int_sle:
-        if (big_signed_const) {
-          indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
-          return true;
-        }
-        break;
-      default:
+    switch (static_cast<GJumpSubtype>(instr.sop)) {
+    case GJumpSubtype::icmp_eq:
+    case GJumpSubtype::icmp_ugt:
+      if (big_unsigned_const2) {
+        move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
+        return true;
+      }
+      break;
+    case GJumpSubtype::icmp_slt:
+      if (big_signed_const2) {
+        move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
+        return true;
+      }
+      break;
+    case GJumpSubtype::cjmp_int_ne:
+    case GJumpSubtype::cjmp_int_eq:
+    case GJumpSubtype::cjmp_int_ult:
+    case GJumpSubtype::cjmp_int_ugt:
+    case GJumpSubtype::cjmp_int_ule:
+    case GJumpSubtype::cjmp_int_uge:
+      if (big_unsigned_const) {
+        move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+        return true;
+      }
+      break;
+    case GJumpSubtype::cjmp_int_slt:
+    case GJumpSubtype::cjmp_int_sgt:
+    case GJumpSubtype::cjmp_int_sge:
+    case GJumpSubtype::cjmp_int_sle:
+      if (big_signed_const) {
+        move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+        return true;
+      }
+      break;
+    default:
     }
   }
   return false;
@@ -188,47 +189,47 @@ bool Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
 
   if (instr.bop == GOpcode::GJmp) {
-    switch ((GJumpSubtype)instr.sop) {
-      case GJumpSubtype::cjmp_flt_oeq:
-      case GJumpSubtype::cjmp_flt_ogt:
-      case GJumpSubtype::cjmp_flt_oge:
-      case GJumpSubtype::cjmp_flt_olt:
-      case GJumpSubtype::cjmp_flt_ole:
-      case GJumpSubtype::cjmp_flt_one:
-      case GJumpSubtype::cjmp_flt_ord:
-      case GJumpSubtype::cjmp_flt_uno:
-      case GJumpSubtype::cjmp_flt_ueq:
-      case GJumpSubtype::cjmp_flt_ugt:
-      case GJumpSubtype::cjmp_flt_uge:
-      case GJumpSubtype::cjmp_flt_ult:
-      case GJumpSubtype::cjmp_flt_ule:
-      case GJumpSubtype::cjmp_flt_une:
-        if (instr.args[1].isImm()) {
-          move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
-          return true;
-        }
-        break;
-      case GJumpSubtype::fcmp_oeq:
-      case GJumpSubtype::fcmp_ogt:
-      case GJumpSubtype::fcmp_oge:
-      case GJumpSubtype::fcmp_olt:
-      case GJumpSubtype::fcmp_ole:
-      case GJumpSubtype::fcmp_one:
-      case GJumpSubtype::fcmp_ord:
-      case GJumpSubtype::fcmp_uno:
-      case GJumpSubtype::fcmp_ueq:
-      case GJumpSubtype::fcmp_ugt:
-      case GJumpSubtype::fcmp_uge:
-      case GJumpSubtype::fcmp_ult:
-      case GJumpSubtype::fcmp_ule:
-      case GJumpSubtype::fcmp_une:
-        if (instr.args[2].isImm()) {
-          move_fp_const_to_reg(bb, indx, 2, instr.args[1].ty);
-          return true;
-        }
-        break;
-      default:
-        break;
+    switch (static_cast<GJumpSubtype>(instr.sop)) {
+    case GJumpSubtype::cjmp_flt_oeq:
+    case GJumpSubtype::cjmp_flt_ogt:
+    case GJumpSubtype::cjmp_flt_oge:
+    case GJumpSubtype::cjmp_flt_olt:
+    case GJumpSubtype::cjmp_flt_ole:
+    case GJumpSubtype::cjmp_flt_one:
+    case GJumpSubtype::cjmp_flt_ord:
+    case GJumpSubtype::cjmp_flt_uno:
+    case GJumpSubtype::cjmp_flt_ueq:
+    case GJumpSubtype::cjmp_flt_ugt:
+    case GJumpSubtype::cjmp_flt_uge:
+    case GJumpSubtype::cjmp_flt_ult:
+    case GJumpSubtype::cjmp_flt_ule:
+    case GJumpSubtype::cjmp_flt_une:
+      if (instr.args[1].isImm()) {
+        move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+        return true;
+      }
+      break;
+    case GJumpSubtype::fcmp_oeq:
+    case GJumpSubtype::fcmp_ogt:
+    case GJumpSubtype::fcmp_oge:
+    case GJumpSubtype::fcmp_olt:
+    case GJumpSubtype::fcmp_ole:
+    case GJumpSubtype::fcmp_one:
+    case GJumpSubtype::fcmp_ord:
+    case GJumpSubtype::fcmp_uno:
+    case GJumpSubtype::fcmp_ueq:
+    case GJumpSubtype::fcmp_ugt:
+    case GJumpSubtype::fcmp_uge:
+    case GJumpSubtype::fcmp_ult:
+    case GJumpSubtype::fcmp_ule:
+    case GJumpSubtype::fcmp_une:
+      if (instr.args[2].isImm()) {
+        move_fp_const_to_reg(bb, indx, 2, instr.args[1].ty);
+        return true;
+      }
+      break;
+    default:
+      break;
     }
   }
   return false;
@@ -258,8 +259,8 @@ bool Legalizer::legalize_idiv(MBB &bb, u32 indx) {
     if (!instr.args[3].isReg()) {
       // use the type of the result register since if this is a constant its
       // type might be to big
-      indx = move_arg_to_reg(bb, indx, 3, instr.args[0].ty);
-      modified = true;
+      move_arg_to_reg(bb, indx, 3, instr.args[0].ty);
+      return true;
     }
   }
   return modified;
@@ -272,11 +273,11 @@ bool Legalizer::legalize_push(MBB &bb, u32 indx) {
     if (instr.args[0].isImm()) {
       if (instr.args[0].ty == Type::Float64 ||
           instr.args[0].ty == Type::Float32) {
-        indx = move_fp_const_to_grp(bb, indx, 0, instr.args[0].ty);
+        move_fp_const_to_grp(bb, indx, 0, instr.args[0].ty);
         return true;
       }
       if (instr.args[0].ty == Type::Int64 || instr.args[0].ty == Type::Int32) {
-        indx = move_arg_to_reg(bb, indx, 0, instr.args[0].ty);
+        move_arg_to_reg(bb, indx, 0, instr.args[0].ty);
         return true;
       }
     }
@@ -292,7 +293,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
     // cant jsut check on == 0 on a floating point
     if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
       instr.bop = GOpcode::GVec;
-      instr.sop = (u32)GVecSubtype::vXor;
+      instr.sop = static_cast<u32>(GVecSubtype::vXor);
       instr.args[1] = instr.args[0];
       instr.args[2] = instr.args[0];
       instr.n_args = 3;
@@ -320,7 +321,7 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
       (instr.args[0].ty == Type::Int8 || instr.args[0].ty == Type::Int16) &&
       instr.args[1].isMem()) {
     instr.bop = GOpcode::GConv;
-    instr.sop = (u32)GConvSubtype::mov_zx;
+    instr.sop = static_cast<u32>(GConvSubtype::mov_zx);
     instr.args[0].ty = Type::Int32;
     instr.args[0].reg.ty = Type::Int32;
     return true;
@@ -332,11 +333,11 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
     auto t1 = instr.args[1].ty;
     if (get_size(t0) > get_size(t1)) {
       instr.bop = GOpcode::GConv;
-      instr.sop = (u32)GConvSubtype::mov_zx;
+      instr.sop = static_cast<u32>(GConvSubtype::mov_zx);
       return true;
     }
     instr.bop = GOpcode::GConv;
-    instr.sop = (u32)GConvSubtype::itrunc;
+    instr.sop = static_cast<u32>(GConvSubtype::itrunc);
     return true;
 
     // ASSERT(get_size(t0) > get_size(t1));
@@ -346,35 +347,35 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   }
   if (instr.is(GConvSubtype::mov_zx) && instr.args[1].isImm()) {
     instr.bop = GOpcode::GBase;
-    instr.sop = (u32)GBaseSubtype::mov;
+    instr.sop = static_cast<u32>(GBaseSubtype::mov);
     instr.args[1].ty = instr.args[0].ty;
     return true;
   }
   if (instr.is(GConvSubtype::mov_sx) && instr.args[1].isImm()) {
     instr.bop = GOpcode::GBase;
-    instr.sop = (u32)GBaseSubtype::mov;
+    instr.sop = static_cast<u32>(GBaseSubtype::mov);
     i64 val_big;
     switch (instr.args[1].ty) {
-      case Type::INVALID:
-      case Type::Int8: {
-        i8 val_smol = static_cast<i8>(static_cast<u8>(instr.args[1].imm));
-        val_big = static_cast<i64>(val_smol);
-        break;
-      }
-      case Type::Int16: {
-        i16 val_smol = static_cast<i16>(static_cast<u16>(instr.args[1].imm));
-        val_big = static_cast<i64>(val_smol);
-        break;
-      }
-      case Type::Int32: {
-        i32 val_smol = static_cast<i32>(static_cast<u32>(instr.args[1].imm));
-        val_big = static_cast<i64>(val_smol);
-        break;
-      }
-      default:
-        TODO("IMPL");
+    case Type::INVALID:
+    case Type::Int8: {
+      i8 val_smol = static_cast<i8>(static_cast<u8>(instr.args[1].imm));
+      val_big = static_cast<i64>(val_smol);
+      break;
     }
-    instr.args[1].imm = (u64)val_big;
+    case Type::Int16: {
+      i16 val_smol = static_cast<i16>(static_cast<u16>(instr.args[1].imm));
+      val_big = static_cast<i64>(val_smol);
+      break;
+    }
+    case Type::Int32: {
+      i32 val_smol = static_cast<i32>(static_cast<u32>(instr.args[1].imm));
+      val_big = static_cast<i64>(val_smol);
+      break;
+    }
+    default:
+      TODO("IMPL");
+    }
+    instr.args[1].imm = static_cast<u64>(val_big);
     instr.args[1].ty = instr.args[0].ty;
     return true;
   }
@@ -415,7 +416,8 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
       }
       if (instr.args[0].ty != Type::Float64 &&
           instr.args[0].ty != Type::Float32 &&
-          instr.args[0].imm <= (u64)std::numeric_limits<i32>::max()) {
+          instr.args[0].imm <=
+              static_cast<u64>(std::numeric_limits<i32>::max())) {
         continue;
       }
 
@@ -438,14 +440,15 @@ bool Legalizer::legalize_arg_setup(MBB &bb, u32 indx) {
   return modified;
 }
 
-bool Legalizer::legalize_floating_binary_ops(MBB &bb, u32 indx, const foptim::conf::CompConf& conf) {
+bool Legalizer::legalize_floating_binary_ops(
+    MBB &bb, u32 indx, const foptim::conf::CompConf &conf) {
   MInstr &instr = bb.instrs[indx];
   if (instr.args[1].isImm()) {
-    indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+    move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
     return true;
   }
   if (instr.args[2].isImm()) {
-    indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
+    move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
     return true;
   }
   // cant do 64 bit mul without avx512
@@ -526,7 +529,7 @@ bool Legalizer::legalize_arith_op(MBB &bb, u32 indx) {
     MInstr &instr = bb.instrs[indx];
     if (instr.args[1].isImm() &&
         instr.args[1].imm > std::numeric_limits<i32>::max()) {
-      indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+      move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
   }
@@ -540,9 +543,9 @@ bool Legalizer::legalize_cmove(MBB &bb, u32 indx) {
     if (instr.args[2].isImm()) {
       if (instr.args[2].ty == Type::Float32 ||
           instr.args[2].ty == Type::Float64) {
-        indx = move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
+        move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
       } else {
-        indx = move_arg_to_reg(bb, indx, 2, instr.args[0].ty);
+        move_arg_to_reg(bb, indx, 2, instr.args[0].ty);
       }
       return true;
     }
@@ -557,79 +560,81 @@ bool Legalizer::legalize_cmoveXX(MBB &bb, u32 indx) {
     if (instr.args[1].isImm()) {
       if (instr.args[1].ty == Type::Float32 ||
           instr.args[1].ty == Type::Float64) {
-        indx = move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
+        move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
       } else {
-        indx = move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
+        move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       }
       return true;
     }
   }
 
-  {  // cant have big constants in comparison
+  { // cant have big constants in comparison
     bool big_unsigned_const =
         instr.args[3].isImm() &&
-        instr.args[3].imm > (u64)std::numeric_limits<u16>::max();
+        instr.args[3].imm > static_cast<u64>(std::numeric_limits<u16>::max());
     bool big_signed_const =
         instr.args[3].isImm() &&
-        (i64)instr.args[3].imm > (i64)std::numeric_limits<i16>::max;
+        static_cast<i64>(instr.args[3].imm) >
+            static_cast<i64>(std::numeric_limits<i16>::max());
 
     if (instr.bop == GOpcode::GCMov) {
-      switch ((GCMovSubtype)instr.sop) {
-        case GCMovSubtype::cmov_ne:
-        case GCMovSubtype::cmov_eq:
-        case GCMovSubtype::cmov_ult:
-        case GCMovSubtype::cmov_ugt:
-        case GCMovSubtype::cmov_ule:
-        case GCMovSubtype::cmov_uge:
-          if (big_unsigned_const) {
-            indx = move_arg_to_reg(bb, indx, 3, instr.args[2].ty);
-            return true;
-          }
-          break;
-        case GCMovSubtype::cmov_slt:
-        case GCMovSubtype::cmov_sgt:
-        case GCMovSubtype::cmov_sge:
-        case GCMovSubtype::cmov_sle:
-          if (big_signed_const) {
-            indx = move_arg_to_reg(bb, indx, 3, instr.args[2].ty);
-            return true;
-          }
-          break;
-        default:
+      switch (static_cast<GCMovSubtype>(instr.sop)) {
+      case GCMovSubtype::cmov_ne:
+      case GCMovSubtype::cmov_eq:
+      case GCMovSubtype::cmov_ult:
+      case GCMovSubtype::cmov_ugt:
+      case GCMovSubtype::cmov_ule:
+      case GCMovSubtype::cmov_uge:
+        if (big_unsigned_const) {
+          move_arg_to_reg(bb, indx, 3, instr.args[2].ty);
+          return true;
+        }
+        break;
+      case GCMovSubtype::cmov_slt:
+      case GCMovSubtype::cmov_sgt:
+      case GCMovSubtype::cmov_sge:
+      case GCMovSubtype::cmov_sle:
+        if (big_signed_const) {
+          move_arg_to_reg(bb, indx, 3, instr.args[2].ty);
+          return true;
+        }
+        break;
+      default:
       }
     }
   }
-  {  // cant have big constants in comparison
+  { // cant have big constants in comparison
     bool big_unsigned_const =
         instr.args[2].isImm() &&
-        instr.args[2].imm > (u64)std::numeric_limits<u16>::max();
+        instr.args[2].imm > static_cast<u64>(std::numeric_limits<u16>::max());
     bool big_signed_const =
         instr.args[2].isImm() &&
-        (i64)instr.args[2].imm > (i64)std::numeric_limits<i16>::max;
+        static_cast<i64>(instr.args[2].imm) >
+            static_cast<i64>(std::numeric_limits<i16>::max());
 
     if (instr.bop == GOpcode::GCMov) {
-      switch ((GCMovSubtype)instr.sop) {
-        case GCMovSubtype::cmov_ne:
-        case GCMovSubtype::cmov_eq:
-        case GCMovSubtype::cmov_ult:
-        case GCMovSubtype::cmov_ugt:
-        case GCMovSubtype::cmov_ule:
-        case GCMovSubtype::cmov_uge:
-          if (big_unsigned_const) {
-            indx = move_arg_to_reg(bb, indx, 2, instr.args[3].ty);
-            return true;
-          }
-          break;
-        case GCMovSubtype::cmov_slt:
-        case GCMovSubtype::cmov_sgt:
-        case GCMovSubtype::cmov_sge:
-        case GCMovSubtype::cmov_sle:
-          if (big_signed_const) {
-            indx = move_arg_to_reg(bb, indx, 2, instr.args[3].ty);
-            return true;
-          }
-          break;
-        default:
+      switch (static_cast<GCMovSubtype>(instr.sop)) {
+      case GCMovSubtype::cmov_ne:
+      case GCMovSubtype::cmov_eq:
+      case GCMovSubtype::cmov_ult:
+      case GCMovSubtype::cmov_ugt:
+      case GCMovSubtype::cmov_ule:
+      case GCMovSubtype::cmov_uge:
+        if (big_unsigned_const) {
+          move_arg_to_reg(bb, indx, 2, instr.args[3].ty);
+          return true;
+        }
+        break;
+      case GCMovSubtype::cmov_slt:
+      case GCMovSubtype::cmov_sgt:
+      case GCMovSubtype::cmov_sge:
+      case GCMovSubtype::cmov_sle:
+        if (big_signed_const) {
+          move_arg_to_reg(bb, indx, 2, instr.args[3].ty);
+          return true;
+        }
+        break;
+      default:
       }
     }
   }
@@ -671,7 +676,6 @@ bool Legalizer::legalize_sqrt(MBB &bb, u32 indx) {
   return false;
 }
 
-
 bool Legalizer::legalize_three_op_imm(MBB &bb, u32 indx) {
   {
     MInstr &instr = bb.instrs[indx];
@@ -693,15 +697,15 @@ bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
     instr.args[1].reg.ty = Type::Int32;
   }
   if (instr.is(GConvSubtype::SI2FL) && instr.args[1].isImm()) {
-    indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
     return true;
   }
   if (instr.is(GConvSubtype::UI2FL) && instr.args[1].isImm()) {
-    indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
     return true;
   }
   if (instr.is(GConvSubtype::FL2UI) && instr.args[1].isImm()) {
-    indx = move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
+    move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
     return true;
   }
   if (instr.is(GConvSubtype::UI2FL) && instr.args[1].isReg() &&
@@ -716,41 +720,41 @@ bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   return false;
 }
 
-void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf& conf) {
+void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf &conf) {
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {
       for (u8 i = 0; i < instr.n_args; i++) {
         switch (instr.args[i].type) {
-          case MArgument::ArgumentType::VReg:
-          case MArgument::ArgumentType::MemVReg:
-          case MArgument::ArgumentType::MemImmVReg:
-            if (!instr.args[i].reg.is_concrete()) {
-              unique_reg_id =
-                  std::max(unique_reg_id, instr.args[i].reg.virt_id());
-            }
-            break;
-          case MArgument::ArgumentType::MemImmVRegScale:
-            if (!instr.args[i].indx.is_concrete()) {
-              unique_reg_id =
-                  std::max(unique_reg_id, instr.args[i].indx.virt_id());
-            }
-            break;
-          case MArgument::ArgumentType::MemVRegVReg:
-          case MArgument::ArgumentType::MemImmVRegVReg:
-          case MArgument::ArgumentType::MemVRegVRegScale:
-          case MArgument::ArgumentType::MemImmVRegVRegScale:
-            if (!instr.args[i].reg.is_concrete()) {
-              unique_reg_id =
-                  std::max(unique_reg_id, instr.args[i].reg.virt_id());
-            }
-            if (!instr.args[i].indx.is_concrete()) {
-              unique_reg_id =
-                  std::max(unique_reg_id, instr.args[i].indx.virt_id());
-            }
-            break;
-          default:
-            break;
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemVReg:
+        case MArgument::ArgumentType::MemImmVReg:
+          if (!instr.args[i].reg.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].reg.virt_id());
+          }
+          break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+          if (!instr.args[i].indx.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].indx.virt_id());
+          }
+          break;
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          if (!instr.args[i].reg.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].reg.virt_id());
+          }
+          if (!instr.args[i].indx.is_concrete()) {
+            unique_reg_id =
+                std::max(unique_reg_id, instr.args[i].indx.virt_id());
+          }
+          break;
+        default:
+          break;
         }
       }
     }
@@ -761,198 +765,200 @@ void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf& conf) {
     for (size_t ioff = 1; ioff <= bb.instrs.size(); ioff++) {
       auto i = ioff - 1;
       switch (bb.instrs[i].bop) {
-        case GOpcode::GBase:
-          switch ((GBaseSubtype)bb.instrs[i].sop) {
-            case GBaseSubtype::mov:
-              if (legalize_move(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case GBaseSubtype::push:
-              if (legalize_push(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case GBaseSubtype::arg_setup:
-              if (legalize_arg_setup(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            default:
-              break;
+      case GOpcode::GBase:
+        switch (static_cast<GBaseSubtype>(bb.instrs[i].sop)) {
+        case GBaseSubtype::mov:
+          if (legalize_move(bb, i)) {
+            ioff = 0;
           }
           break;
-        case GOpcode::GJmp:
-          switch ((GJumpSubtype)bb.instrs[i].sop) {
-            case GJumpSubtype::icmp_slt:
-            case GJumpSubtype::icmp_eq:
-            case GJumpSubtype::icmp_ult:
-            case GJumpSubtype::icmp_ne:
-            case GJumpSubtype::icmp_sgt:
-            case GJumpSubtype::icmp_ugt:
-            case GJumpSubtype::icmp_uge:
-            case GJumpSubtype::icmp_ule:
-            case GJumpSubtype::icmp_sge:
-            case GJumpSubtype::icmp_sle:
-            case GJumpSubtype::cjmp_int_slt:
-            case GJumpSubtype::cjmp_int_sge:
-            case GJumpSubtype::cjmp_int_sle:
-            case GJumpSubtype::cjmp_int_sgt:
-            case GJumpSubtype::cjmp_int_ult:
-            case GJumpSubtype::cjmp_int_ule:
-            case GJumpSubtype::cjmp_int_ugt:
-            case GJumpSubtype::cjmp_int_uge:
-            case GJumpSubtype::cjmp_int_ne:
-            case GJumpSubtype::cjmp_int_eq:
-              if (legalize_icmp(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case GJumpSubtype::cjmp_flt_oeq:
-            case GJumpSubtype::cjmp_flt_ogt:
-            case GJumpSubtype::cjmp_flt_oge:
-            case GJumpSubtype::cjmp_flt_olt:
-            case GJumpSubtype::cjmp_flt_ole:
-            case GJumpSubtype::cjmp_flt_one:
-            case GJumpSubtype::cjmp_flt_ord:
-            case GJumpSubtype::cjmp_flt_uno:
-            case GJumpSubtype::cjmp_flt_ueq:
-            case GJumpSubtype::cjmp_flt_ugt:
-            case GJumpSubtype::cjmp_flt_uge:
-            case GJumpSubtype::cjmp_flt_ult:
-            case GJumpSubtype::cjmp_flt_ule:
-            case GJumpSubtype::cjmp_flt_une:
-            case GJumpSubtype::fcmp_oeq:
-            case GJumpSubtype::fcmp_ogt:
-            case GJumpSubtype::fcmp_oge:
-            case GJumpSubtype::fcmp_olt:
-            case GJumpSubtype::fcmp_ole:
-            case GJumpSubtype::fcmp_one:
-            case GJumpSubtype::fcmp_ord:
-            case GJumpSubtype::fcmp_uno:
-            case GJumpSubtype::fcmp_ueq:
-            case GJumpSubtype::fcmp_ugt:
-            case GJumpSubtype::fcmp_uge:
-            case GJumpSubtype::fcmp_ult:
-            case GJumpSubtype::fcmp_ule:
-            case GJumpSubtype::fcmp_une:
-              if (legalize_fcmp(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            default:
-              break;
+        case GBaseSubtype::push:
+          if (legalize_push(bb, i)) {
+            ioff = 0;
           }
           break;
-        case GOpcode::GConv:
-          switch ((GConvSubtype)bb.instrs[i].sop) {
-            case GConvSubtype::mov_zx:
-            case GConvSubtype::mov_sx:
-              if (legalize_move(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case GConvSubtype::UI2FL:
-            case GConvSubtype::FL2UI:
-            case GConvSubtype::FL2SI:
-            case GConvSubtype::SI2FL:
-              if (legalize_conversion(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            default:
-              break;
+        case GBaseSubtype::arg_setup:
+          if (legalize_arg_setup(bb, i)) {
+            ioff = 0;
           }
           break;
-        case GOpcode::GArith:
-          switch ((GArithSubtype)bb.instrs[i].sop) {
-            case GArithSubtype::land2:
-            case GArithSubtype::lor2:
-            case GArithSubtype::mul2:
-            case GArithSubtype::add2:
-              if (legalize_arith_op(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case GArithSubtype::udiv:
-            case GArithSubtype::idiv:
-              if (legalize_idiv(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            default:
-              break;
+        default:
+          break;
+        }
+        break;
+      case GOpcode::GJmp:
+        switch (static_cast<GJumpSubtype>(bb.instrs[i].sop)) {
+        case GJumpSubtype::icmp_slt:
+        case GJumpSubtype::icmp_eq:
+        case GJumpSubtype::icmp_ult:
+        case GJumpSubtype::icmp_ne:
+        case GJumpSubtype::icmp_sgt:
+        case GJumpSubtype::icmp_ugt:
+        case GJumpSubtype::icmp_uge:
+        case GJumpSubtype::icmp_ule:
+        case GJumpSubtype::icmp_sge:
+        case GJumpSubtype::icmp_sle:
+        case GJumpSubtype::cjmp_int_slt:
+        case GJumpSubtype::cjmp_int_sge:
+        case GJumpSubtype::cjmp_int_sle:
+        case GJumpSubtype::cjmp_int_sgt:
+        case GJumpSubtype::cjmp_int_ult:
+        case GJumpSubtype::cjmp_int_ule:
+        case GJumpSubtype::cjmp_int_ugt:
+        case GJumpSubtype::cjmp_int_uge:
+        case GJumpSubtype::cjmp_int_ne:
+        case GJumpSubtype::cjmp_int_eq:
+          if (legalize_icmp(bb, i)) {
+            ioff = 0;
           }
           break;
-        case GOpcode::GCMov:
-          switch ((GCMovSubtype)bb.instrs[i].sop) {
-            case GCMovSubtype::cmov_sgt:
-            case GCMovSubtype::cmov_slt:
-            case GCMovSubtype::cmov_ult:
-            case GCMovSubtype::cmov_sge:
-            case GCMovSubtype::cmov_sle:
-            case GCMovSubtype::cmov_ne:
-            case GCMovSubtype::cmov_eq:
-            case GCMovSubtype::cmov_ugt:
-            case GCMovSubtype::cmov_uge:
-            case GCMovSubtype::cmov_ule:
-              if (legalize_cmoveXX(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case GCMovSubtype::cmov:
-              if (legalize_cmove(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            default:
-              break;
+        case GJumpSubtype::cjmp_flt_oeq:
+        case GJumpSubtype::cjmp_flt_ogt:
+        case GJumpSubtype::cjmp_flt_oge:
+        case GJumpSubtype::cjmp_flt_olt:
+        case GJumpSubtype::cjmp_flt_ole:
+        case GJumpSubtype::cjmp_flt_one:
+        case GJumpSubtype::cjmp_flt_ord:
+        case GJumpSubtype::cjmp_flt_uno:
+        case GJumpSubtype::cjmp_flt_ueq:
+        case GJumpSubtype::cjmp_flt_ugt:
+        case GJumpSubtype::cjmp_flt_uge:
+        case GJumpSubtype::cjmp_flt_ult:
+        case GJumpSubtype::cjmp_flt_ule:
+        case GJumpSubtype::cjmp_flt_une:
+        case GJumpSubtype::fcmp_oeq:
+        case GJumpSubtype::fcmp_ogt:
+        case GJumpSubtype::fcmp_oge:
+        case GJumpSubtype::fcmp_olt:
+        case GJumpSubtype::fcmp_ole:
+        case GJumpSubtype::fcmp_one:
+        case GJumpSubtype::fcmp_ord:
+        case GJumpSubtype::fcmp_uno:
+        case GJumpSubtype::fcmp_ueq:
+        case GJumpSubtype::fcmp_ugt:
+        case GJumpSubtype::fcmp_uge:
+        case GJumpSubtype::fcmp_ult:
+        case GJumpSubtype::fcmp_ule:
+        case GJumpSubtype::fcmp_une:
+          if (legalize_fcmp(bb, i)) {
+            ioff = 0;
           }
           break;
-        case GOpcode::GVec:
-          switch ((GVecSubtype)bb.instrs[i].sop) {
-            case GVecSubtype::vmul:
-            case GVecSubtype::vdiv:
-            case GVecSubtype::vsub:
-            case GVecSubtype::vXor:
-            case GVecSubtype::vadd:
-            case GVecSubtype::vAnd:
-            case GVecSubtype::vOr:
-              if (legalize_floating_binary_ops(bb, i, conf)) {
-                ioff = 0;
-              }
-              break;
-            default:
-              break;
+        default:
+          break;
+        }
+        break;
+      case GOpcode::GConv:
+        switch (static_cast<GConvSubtype>(bb.instrs[i].sop)) {
+        case GConvSubtype::mov_zx:
+        case GConvSubtype::mov_sx:
+          if (legalize_move(bb, i)) {
+            ioff = 0;
           }
           break;
-        case GOpcode::X86:
-          switch ((X86Subtype)bb.instrs[i].sop) {
-            case X86Subtype::sqrt:
-              if (legalize_sqrt(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case X86Subtype::punpckl:
-              if (legalize_punpckl(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            case X86Subtype::vcmp:
-            case X86Subtype::vblendv:
-              if (legalize_three_op_imm(bb, i)) {
-                ioff = 0;
-              }
-              break;
-            default:
-              break;
+        case GConvSubtype::UI2FL:
+        case GConvSubtype::FL2UI:
+        case GConvSubtype::FL2SI:
+        case GConvSubtype::SI2FL:
+          if (legalize_conversion(bb, i)) {
+            ioff = 0;
           }
           break;
+        default:
+          break;
+        }
+        break;
+      case GOpcode::GArith:
+        switch (static_cast<GArithSubtype>(bb.instrs[i].sop)) {
+        case GArithSubtype::land2:
+        case GArithSubtype::lor2:
+        case GArithSubtype::mul2:
+        case GArithSubtype::add2:
+          if (legalize_arith_op(bb, i)) {
+            ioff = 0;
+          }
+          break;
+        case GArithSubtype::udiv:
+        case GArithSubtype::idiv:
+          if (legalize_idiv(bb, i)) {
+            ioff = 0;
+          }
+          break;
+        default:
+          break;
+        }
+        break;
+      case GOpcode::GCMov:
+        switch (static_cast<GCMovSubtype>(bb.instrs[i].sop)) {
+        case GCMovSubtype::cmov_sgt:
+        case GCMovSubtype::cmov_slt:
+        case GCMovSubtype::cmov_ult:
+        case GCMovSubtype::cmov_sge:
+        case GCMovSubtype::cmov_sle:
+        case GCMovSubtype::cmov_ne:
+        case GCMovSubtype::cmov_eq:
+        case GCMovSubtype::cmov_ugt:
+        case GCMovSubtype::cmov_uge:
+        case GCMovSubtype::cmov_ule:
+          if (legalize_cmoveXX(bb, i)) {
+            ioff = 0;
+          }
+          break;
+        case GCMovSubtype::cmov:
+          if (legalize_cmove(bb, i)) {
+            ioff = 0;
+          }
+          break;
+        default:
+          break;
+        }
+        break;
+      case GOpcode::GVec:
+        switch (static_cast<GVecSubtype>(bb.instrs[i].sop)) {
+        case GVecSubtype::vmul:
+        case GVecSubtype::vdiv:
+        case GVecSubtype::vsub:
+        case GVecSubtype::vXor:
+        case GVecSubtype::vadd:
+        case GVecSubtype::vAnd:
+        case GVecSubtype::vOr:
+          if (legalize_floating_binary_ops(bb, i, conf)) {
+            ioff = 0;
+          }
+          break;
+        default:
+          break;
+        }
+        break;
+      case GOpcode::X86:
+        switch (static_cast<X86Subtype>(bb.instrs[i].sop)) {
+        case X86Subtype::sqrt:
+          if (legalize_sqrt(bb, i)) {
+            ioff = 0;
+          }
+          break;
+        case X86Subtype::punpckl:
+          if (legalize_punpckl(bb, i)) {
+            ioff = 0;
+          }
+          break;
+        case X86Subtype::vcmp:
+        case X86Subtype::vblendv:
+          if (legalize_three_op_imm(bb, i)) {
+            ioff = 0;
+          }
+          break;
+        default:
+          break;
+        }
+        break;
       }
     }
   }
 }
 
-void Legalizer::apply(MFunc &func, const foptim::conf::CompConf& conf) { apply_impl(func, conf); }
+void Legalizer::apply(MFunc &func, const foptim::conf::CompConf &conf) {
+  apply_impl(func, conf);
+}
 
-}  // namespace foptim::fmir
+} // namespace foptim::fmir

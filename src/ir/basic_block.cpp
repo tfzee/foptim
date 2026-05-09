@@ -20,7 +20,7 @@ void BasicBlockData::remove_instr(size_t indx, bool delete_instr) {
     instructions[indx].clear_bbs();
     instructions[indx]->set_parent(BasicBlock(BasicBlock::invalid()));
   }
-  instructions.erase(instructions.begin() + (i64)indx);
+  instructions.erase(instructions.begin() + static_cast<i64>(indx));
 }
 
 bool BasicBlockData::verify(const Function *exp_parent) const {
@@ -47,7 +47,8 @@ bool BasicBlockData::verify(const Function *exp_parent) const {
 
   for (const auto &instr : instructions) {
     if (!instr.is_valid() || !instr->verify(this)) {
-      fmt::println("Invalid Instruction {:p}", (void *)instr.get_raw_ptr());
+      fmt::println("Invalid Instruction {:p}",
+                   reinterpret_cast<const void *>(instr.get_raw_ptr()));
       return false;
     }
   }

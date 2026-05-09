@@ -30,7 +30,8 @@ void Instr::remove_from_parent() {
   assert(parent.is_valid());
   for (size_t indx = 0; indx < parent->instructions.size(); indx++) {
     auto instr = parent->instructions[indx];
-    if ((void *)get_raw_ptr() == (void *)instr.get_raw_ptr()) {
+    if (static_cast<const void *>(get_raw_ptr()) ==
+        static_cast<const void *>(instr.get_raw_ptr())) {
       parent->remove_instr(indx, false);
       return;
     }
@@ -124,7 +125,8 @@ u16 Instr::get_bb_id(BasicBlock target) const {
     bb_indx++;
   }
   fmt::println("In instruction: {}", *this);
-  fmt::println("Tried to get bb arg: {}", (void *)target.get_raw_ptr());
+  fmt::println("Tried to get bb arg: {}",
+               static_cast<const void *>(target.get_raw_ptr()));
   fmt::println("BUT it does not reference this basic block");
 
   std::abort();
@@ -264,7 +266,7 @@ void Instr::remove_bb_arg(u16 bb_id, u16 indx1, bool verify) {
 u16 Instr::add_arg(ValueR v) {
   InstrData *self = operator->();
   self->args.push_back(v);
-  v.add_usage(Use::norm(*this, (u16)(self->args.size() - 1)));
+  v.add_usage(Use::norm(*this, static_cast<u16>(self->args.size() - 1)));
   return self->args.size() - 1;
 }
 
@@ -293,10 +295,12 @@ fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
     foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const {
   auto app = ctx.out();
   if (color) {
-    app = fmt::format_to(app, color_bb, "{:p}",
-                         (void *)bb_with_args.bb.get_raw_ptr());
+    app = fmt::format_to(
+        app, color_bb, "{:p}",
+        static_cast<const void *>(bb_with_args.bb.get_raw_ptr()));
   } else {
-    app = fmt::format_to(app, "{:p}", (void *)bb_with_args.bb.get_raw_ptr());
+    app = fmt::format_to(
+        app, "{:p}", static_cast<const void *>(bb_with_args.bb.get_raw_ptr()));
   }
   app = fmt::format_to(app, "(");
   if (!bb_with_args.args.empty()) {
@@ -325,11 +329,14 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(
   }
 
   if (color) {
-    app = fmt::format_to(app, "{:p}: {:c} = {}",
-                         fmt::styled((void *)instr.get_raw_ptr(), color_value),
-                         instr->get_type(), instr->get_name());
+    app = fmt::format_to(
+        app, "{:p}: {:c} = {}",
+        fmt::styled(static_cast<const void *>(instr.get_raw_ptr()),
+                    color_value),
+        instr->get_type(), instr->get_name());
   } else {
-    app = fmt::format_to(app, "{:p}: {} = {}", (void *)instr.get_raw_ptr(),
+    app = fmt::format_to(app, "{:p}: {} = {}",
+                         static_cast<const void *>(instr.get_raw_ptr()),
                          instr->get_type(), instr->get_name());
   }
   const auto &bb_args = instr->get_bb_args();
@@ -399,7 +406,7 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(
     app = fmt::format_to(app, "VOLATILE; ");
   }
   if (instr->Ordering != 0) {
-    switch ((foptim::fir::Ordering)instr->Ordering) {
+    switch (static_cast<foptim::fir::Ordering>(instr->Ordering)) {
       case foptim::fir::NonAtomic:
         app = fmt::format_to(app, "ORDER(NONE); ");
         break;

@@ -166,10 +166,10 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             instr->args[0].eql(instr2->args[0]) &&
             instr->args[1].eql(instr2->args[1])) {
           bool opposite_eql =
-              (instr->subtype == (u32)fir::ICmpInstrSubType::EQ &&
-               instr2->subtype == (u32)fir::ICmpInstrSubType::NE) ||
-              (instr->subtype == (u32)fir::ICmpInstrSubType::NE &&
-               instr2->subtype == (u32)fir::ICmpInstrSubType::EQ);
+              (instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ) &&
+               instr2->subtype == static_cast<u32>(fir::ICmpInstrSubType::NE)) ||
+              (instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::NE) &&
+               instr2->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ));
           if (opposite_eql) {
             fir::Builder bb{instr2};
             auto res = bb.build_unary_op(fir::ValueR{instr},

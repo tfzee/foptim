@@ -2,20 +2,18 @@
 #include <fmt/base.h>
 #include <fmt/core.h>
 
+#include "config/compiler_config.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/function_pass.hpp"
-#include "config/compiler_config.hpp"
 #include "utils/string.hpp"
 
 namespace foptim::optim {
 
-namespace {
 static std::atomic<u32> helper_index_name = 0;
-}
 
 class LegalizeVecs final : public FunctionPass {
   void make_constant_global(fir::Context &ctx, fir::Instr instr, u32 arg_indx) {
@@ -57,7 +55,8 @@ class LegalizeVecs final : public FunctionPass {
     }
 
     // fmax can never take immediate even for singular values
-    if (instr->is(fir::IntrinsicSubType::FMax) || instr->is(fir::IntrinsicSubType::FMin)) {
+    if (instr->is(fir::IntrinsicSubType::FMax) ||
+        instr->is(fir::IntrinsicSubType::FMin)) {
       if (instr->args[0].is_constant_float()) {
         make_constant_global(ctx, instr, 0);
         return true;
@@ -93,12 +92,13 @@ class LegalizeVecs final : public FunctionPass {
       if (width == 64) {
         broad = b.build_vbroadcast(
             fir::ValueR{ctx->get_constant_value(
-                std::bit_cast<f64>((u64)0x7fffffffffffffff), f_type)},
+                std::bit_cast<f64>(static_cast<u64>(0x7fffffffffffffff)),
+                f_type)},
             instr->get_type());
       } else {
         broad = b.build_vbroadcast(
             fir::ValueR{ctx->get_constant_value(
-                std::bit_cast<f32>((u32)0x7fffffff), f_type)},
+                std::bit_cast<f32>(static_cast<u32>(0x7fffffff)), f_type)},
             instr->get_type());
       }
       auto r = b.build_binary_op(instr->args[0], broad,
@@ -115,7 +115,8 @@ class LegalizeVecs final : public FunctionPass {
         make_constant_global(ctx, instr, 0);
         return true;
       }
-      if (!ctx.config->target.features.avx512f && instr->get_type()->get_bitwidth() >= 512) {
+      if (!ctx.config->target.features.avx512f &&
+          instr->get_type()->get_bitwidth() >= 512) {
         // auto funcy = instr->get_parent()->get_parent().func;
         // fmt::println("{:cd}", *funcy);
         // fmt::println("{}", instr);
@@ -137,21 +138,21 @@ class LegalizeVecs final : public FunctionPass {
     }
     // TODO: is this check for avx512 sufficient/correct?
     if (instr->is(fir::VectorISubType::HorizontalAdd) &&
-        !ctx.config->target.features.avx512f  &&
+        !ctx.config->target.features.avx512f &&
         instr->args[0].get_type()->get_bitwidth() >= 512) {
       fir::Builder buh{instr};
       auto out_type = instr->get_type();
       auto old_type = instr->args[0].get_type()->as_vec();
       auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
                                         old_type.member_number / 2);
-      auto al = buh.build_vector_op(instr->args[0], new_type,
-                                    fir::VectorISubType::ExtractLow);
-      auto ah = buh.build_vector_op(instr->args[0], new_type,
-                                    fir::VectorISubType::ExtractHigh);
-      auto a1 =
-          buh.build_vector_op(al, out_type, fir::VectorISubType::HorizontalAdd);
-      auto a2 =
-          buh.build_vector_op(ah, out_type, fir::VectorISubType::HorizontalAdd);
+      auto a_low = buh.build_vector_op(instr->args[0], new_type,
+                                       fir::VectorISubType::ExtractLow);
+      auto a_high = buh.build_vector_op(instr->args[0], new_type,
+                                        fir::VectorISubType::ExtractHigh);
+      auto a1 = buh.build_vector_op(a_low, out_type,
+                                    fir::VectorISubType::HorizontalAdd);
+      auto a2 = buh.build_vector_op(a_high, out_type,
+                                    fir::VectorISubType::HorizontalAdd);
       ASSERT(out_type->is_float());  // TODO: impl for int
       auto r = buh.build_float_add(a1, a2);
       push_all_uses(worklist, instr);

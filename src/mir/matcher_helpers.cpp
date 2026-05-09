@@ -1,7 +1,5 @@
 #include "mir/matcher_helpers.hpp"
 
-#include <typeinfo>
-
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
@@ -112,7 +110,7 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
 }
 
 void setup_callreturns(fir::Instr &call_instr, MatchResult &res,
-                    ExtraMatchData &data) {
+                       ExtraMatchData &data) {
   // fmt::println("Instr: {}", call_instr);
   TVec<MArgument> evaluated_args;
   for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
@@ -130,30 +128,35 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
   auto consti = val.as_constant();
   if (consti->is_int()) {
     if (val.get_type()->is_ptr()) {
-      return {(u64)std::bit_cast<u64>((i64)consti->as_int())};
+      return {static_cast<u64>(
+          std::bit_cast<u64>(static_cast<i64>(consti->as_int())))};
     }
     switch (val.get_type()->as_int()) {
       case 1:
       case 8:
-        return MArgument::Int(std::bit_cast<u64>((i64)(i8)consti->as_int()),
+        return MArgument::Int(std::bit_cast<u64>(static_cast<i64>(
+                                  static_cast<i8>(consti->as_int()))),
                               Type::Int8);
       case 16:
-        return MArgument::Int(std::bit_cast<u64>((i64)(i16)consti->as_int()),
+        return MArgument::Int(std::bit_cast<u64>(static_cast<i64>(
+                                  static_cast<i16>(consti->as_int()))),
                               Type::Int16);
         return {};
       case 32:
-        return MArgument::Int(std::bit_cast<u64>((i64)(i32)consti->as_int()),
+        return MArgument::Int(std::bit_cast<u64>(static_cast<i64>(
+                                  static_cast<i32>(consti->as_int()))),
                               Type::Int32);
       case 64:
-        return MArgument::Int(std::bit_cast<u64>((i64)consti->as_int()),
-                              Type::Int64);
+        return MArgument::Int(
+            std::bit_cast<u64>(static_cast<i64>(consti->as_int())),
+            Type::Int64);
       default:
-        fmt::println("{}", (i64)consti->as_int());
+        fmt::println("{}", static_cast<i64>(consti->as_int()));
         TODO("impl");
     }
   }
   if (consti->is_null()) {
-    return {(u64)0};
+    return {static_cast<u64>(0)};
   }
 
   if (consti->is_float()) {
@@ -193,21 +196,21 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
       case fir::AnyTypeType::Integer:
         switch (consti->type->as_int()) {
           case 1:
-            return {(u8)0};
+            return {static_cast<u8>(0)};
           case 8:
-            return {(u8)0};
+            return {static_cast<u8>(0)};
           case 16:
-            return {(u16)0};
+            return {static_cast<u16>(0)};
           case 32:
-            return {(u32)0};
+            return {static_cast<u32>(0)};
           case 64:
-            return {(u64)0};
+            return {static_cast<u64>(0)};
           default:
             fmt::println("{}", consti->type->as_int());
             UNREACH();
         }
       case fir::AnyTypeType::Ptr:
-        return {(u64)0};
+        return {static_cast<u64>(0)};
       case fir::AnyTypeType::Float:
         return {0.0F};
       case fir::AnyTypeType::Vector: {
@@ -304,10 +307,10 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,
     }
     if (constant->is_int()) {
       auto constant_ptr = constant->as_int();
-      return MArgument::MemO((u64)constant_ptr, type_id);
+      return MArgument::MemO(static_cast<u64>(constant_ptr), type_id);
     }
     if (constant->is_null() || constant->is_poison()) {
-      return MArgument::MemO((u64)0, type_id);
+      return MArgument::MemO(static_cast<u64>(0), type_id);
     }
     fmt::println("{}", constant);
     TODO("unreach?");
@@ -344,10 +347,10 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
     }
     if (constant->is_int()) {
       auto constant_ptr = constant->as_int();
-      return MArgument::MemO((u64)constant_ptr, type_id);
+      return MArgument::MemO(static_cast<u64>(constant_ptr), type_id);
     }
     if (constant->is_null() || constant->is_poison()) {
-      return MArgument::MemO((u64)0, type_id);
+      return MArgument::MemO(static_cast<u64>(0), type_id);
     }
     fmt::println("{}", constant);
     TODO("unreach?");
@@ -496,22 +499,22 @@ void setup_va_start(fir::Instr &va_instr, MatchResult &res,
 
   res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(0, ptr_arg.reg, Type::Int32),
-                          MArgument((u32)8 * n_int_args));
+                          MArgument(static_cast<u32>(8) * n_int_args));
   res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(4, ptr_arg.reg, Type::Int32),
-                          MArgument((u32)48 + 16 * n_vec_args));
+                          MArgument(static_cast<u32>(48) + 16 * n_vec_args));
   res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
                           MArgument(VReg::RBP(), Type::Int64));
   res.result.emplace_back(GArithSubtype::add2,
                           MArgument::MemOB(8, ptr_arg.reg, Type::Int64),
-                          MArgument((u16)16));
+                          MArgument(static_cast<u16>(16)));
   res.result.emplace_back(GBaseSubtype::mov,
                           MArgument::MemOB(16, ptr_arg.reg, Type::Int64),
                           MArgument(VReg::RBP(), Type::Int64));
   res.result.emplace_back(GArithSubtype::sub2,
                           MArgument::MemOB(16, ptr_arg.reg, Type::Int64),
-                          MArgument((u16)176));
+                          MArgument(static_cast<u16>(176)));
 }
 
 void setup_va_end(fir::Instr &va_instr, MatchResult &res,
@@ -593,7 +596,8 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
     case 12: {
       auto helper_arg = MArgument(helper_reg, res_ty);
       result.emplace_back(GBaseSubtype::mov, helper_arg, base);
-      result.emplace_back(GArithSubtype::shl2, helper_arg, MArgument((u8)2));
+      result.emplace_back(GArithSubtype::shl2, helper_arg,
+                          MArgument(static_cast<u8>(2)));
       result.emplace_back(X86Subtype::lea, res_reg,
                           MArgument::MemBIS(helper_reg, helper_reg, 1, res_ty));
       return true;
@@ -614,7 +618,8 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
       result.emplace_back(GBaseSubtype::mov, res_reg, base);
       result.emplace_back(X86Subtype::lea, helper_arg,
                           MArgument::MemBI(res_reg.reg, res_reg.reg, res_ty));
-      result.emplace_back(GArithSubtype::shl2, res_reg, MArgument((u8)4));
+      result.emplace_back(GArithSubtype::shl2, res_reg,
+                          MArgument(static_cast<u8>(4)));
       result.emplace_back(GArithSubtype::sub2, res_reg, helper_arg);
       return true;
     }
@@ -630,7 +635,8 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
     }
     case 16: {
       result.emplace_back(GBaseSubtype::mov, res_reg, base);
-      result.emplace_back(GArithSubtype::shl2, res_reg, MArgument((u8)4));
+      result.emplace_back(GArithSubtype::shl2, res_reg,
+                          MArgument(static_cast<u8>(4)));
       return true;
     }
   }

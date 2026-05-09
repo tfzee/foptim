@@ -1,10 +1,8 @@
 #include <gtest/gtest.h>
-
-#include <limits>
 #include <utils/types.hpp>
 
-using namespace foptim::utils;
-using namespace foptim;
+// using namespace foptim::utils;
+// using namespace foptim;
 
 TEST(Int128Test, Basic) {
   // {

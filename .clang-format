@@ -1,4 +1,7 @@
 ---
+If:                               
+  PathMatch: [.*\.h, .*\.c, .*\.cpp, .*\.hpp]
+  PathExclude: third_party/.*       
 Language:        Cpp
 AccessModifierOffset: -1
 AlignAfterOpenBracket: Align

@@ -5,6 +5,7 @@
 
 namespace foptim::optim {
 
+namespace {
 bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
               fir::Function &func) {
   (void)loop;
@@ -29,6 +30,8 @@ bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   range.dump();
   TODO("okak");
 }
+
+}  // namespace
 
 void SimpleVectorizer::apply(fir::Context &ctx, fir::Function &func) {
   (void)ctx;

@@ -18,7 +18,7 @@ class LoopUnroll final : public FunctionPass {
 };
 
 void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
-             fir::Function &func);
+             fir::Function &func, bool known_to_iterate_more);
 void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
                fir::Function &func, bool is_full_unroll);
 

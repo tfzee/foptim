@@ -89,7 +89,8 @@ class AttributerManager {
     if (!_attribs.at(aa_typeid).contains(loc)) {
       return nullptr;
     }
-    AAna *analysis = (AAna *)_attribs.at(aa_typeid).at(loc);
+    auto analysis =
+        std::launder(reinterpret_cast<AAna *>(_attribs.at(aa_typeid).at(loc)));
     return analysis;
   }
 
@@ -115,7 +116,8 @@ class AttributerManager {
       analysis->associatedValue = loc;
       _attribs.at(aa_typeid).insert({loc, analysis});
     } else {
-      analysis = (AAna *)_attribs.at(aa_typeid).at(loc);
+      analysis = std::launder(
+          reinterpret_cast<AAna *>(_attribs.at(aa_typeid).at(loc)));
     }
     if (_currently_updating) {
       _inverse_dependencies[analysis].push_back(_currently_updating);

@@ -23,8 +23,7 @@ namespace foptim::conf::pipeline {
 
 void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   ZoneScopedN("Optim FIR");
-  using namespace foptim;
-  using namespace foptim::optim;
+  //TODO: use my types
   std::vector<PassConfig *> passes_worklist;
   std::deque<PipelineElem> pipeline_worklist;
 
@@ -46,7 +45,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   // reduce when bisecting
   const auto n_actual_run =
       ctx.config->debug.bisect != 0
-          ? std::min((u64)ctx.config->debug.bisect, passes_worklist.size())
+          ? std::min(static_cast<u64>(ctx.config->debug.bisect), passes_worklist.size())
           : passes_worklist.size();
   fmt::println("Having {} passes and running {} passes", passes_worklist.size(),
                n_actual_run);

@@ -62,8 +62,8 @@ bool try_constant_eval_binary(fir::Instr instr,
       if (b == 0) {
         instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
       } else {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value((i64)a / (i64)b, type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            static_cast<i64>(a) / static_cast<i64>(b), type)));
       }
       return true;
     case fir::BinaryInstrSubType::IntUDiv:
@@ -129,8 +129,8 @@ bool try_constant_eval_binary(fir::Instr instr,
       if constexpr (std::is_integral_v<T>) {
         auto width = type->get_bitwidth();
         auto invwidth = (128 + 1 - width);
-        auto extended_a = (((i128)a << invwidth) >> invwidth);
-        auto extended_b = (((i128)b << invwidth) >> invwidth);
+        auto extended_a = ((static_cast<i128>(a) << invwidth) >> invwidth);
+        auto extended_b = ((static_cast<i128>(b) << invwidth) >> invwidth);
         instr->replace_all_uses(fir::ValueR(
             ctx->get_constant_value(extended_a % extended_b, type)));
         return true;
@@ -138,8 +138,9 @@ bool try_constant_eval_binary(fir::Instr instr,
       TODO("impl");
     case fir::BinaryInstrSubType::IntURem:
       if constexpr (std::is_integral_v<T>) {
-        instr->replace_all_uses(fir::ValueR(
-            ctx->get_constant_value((i128)((u128)a % (u128)b), type)));
+        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+            static_cast<i128>(static_cast<u128>(a) % static_cast<u128>(b)),
+            type)));
         return true;
       }
       TODO("impl");

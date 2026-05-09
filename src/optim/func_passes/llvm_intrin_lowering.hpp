@@ -14,7 +14,7 @@
 namespace foptim::optim {
 
 class LLVMInstrinsicLowering final : public FunctionPass {
- public:
+public:
   void handle_memset(fir::Instr instr, fir::Function &func,
                      fir::FunctionR /*callee*/) {
     auto *ctx = func.ctx;
@@ -151,7 +151,9 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     foptim::TVec<fir::ValueR> checks;
 
     auto add_check = [&](bool condition, fir::ValueR v) {
-      if (condition) checks.push_back(v);
+      if (condition) {
+        checks.push_back(v);
+      }
     };
 
     // NaN checks (Bit 0 1)
@@ -168,26 +170,32 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     auto is_qnan = bb.build_binary_op(is_nan, is_qnan_bit_set_bool,
                                       fir::BinaryInstrSubType::And);
 
-    if (mode & 0x001) add_check(true, is_snan);
-    if (mode & 0x002) add_check(true, is_qnan);
+    if (mode & 0x001) {
+      add_check(true, is_snan);
+    }
+    if (mode & 0x002) {
+      add_check(true, is_qnan);
+    }
 
     // infinity (Bit 2 9)
-    if (mode & 0x004)
-      add_check(true,
-                bb.build_binary_op(is_inf, sign_bit,
-                                   fir::BinaryInstrSubType::And));  // -Inf
-    if (mode & 0x200)
-      add_check(true,
-                bb.build_binary_op(is_inf, is_pos,
-                                   fir::BinaryInstrSubType::And));  // +Inf
+    if (mode & 0x004) {
+      add_check(true, bb.build_binary_op(is_inf, sign_bit,
+                                         fir::BinaryInstrSubType::And)); // -Inf
+    }
+    if (mode & 0x200) {
+      add_check(true, bb.build_binary_op(is_inf, is_pos,
+                                         fir::BinaryInstrSubType::And)); // +Inf
+    }
 
     // zero (Bit 5 6)
-    if (mode & 0x020)
+    if (mode & 0x020) {
       add_check(true, bb.build_binary_op(is_zero, is_neg,
-                                         fir::BinaryInstrSubType::And));  // -0
-    if (mode & 0x040)
+                                         fir::BinaryInstrSubType::And)); // -0
+    }
+    if (mode & 0x040) {
       add_check(true, bb.build_binary_op(is_zero, is_pos,
-                                         fir::BinaryInstrSubType::And));  // +0
+                                         fir::BinaryInstrSubType::And)); // +0
+    }
 
     // normal and subnormal (Bits 3 4 7 8)
     // aavalue is "normal" if it's not zero, nan, inf, or subnormal.
@@ -201,22 +209,26 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     auto is_normal = bb.build_binary_op(exp_not_zero, exp_not_max,
                                         fir::BinaryInstrSubType::And);
 
-    if (mode & 0x008)
+    if (mode & 0x008) {
       add_check(true,
                 bb.build_binary_op(is_normal, is_neg,
-                                   fir::BinaryInstrSubType::And));  // -Normal
-    if (mode & 0x100)
+                                   fir::BinaryInstrSubType::And)); // -Normal
+    }
+    if (mode & 0x100) {
       add_check(true,
                 bb.build_binary_op(is_normal, is_pos,
-                                   fir::BinaryInstrSubType::And));  // +Normal
-    if (mode & 0x010)
-      add_check(true, bb.build_binary_op(
-                          is_subnormal, is_neg,
-                          fir::BinaryInstrSubType::And));  // -Subnormal
-    if (mode & 0x080)
-      add_check(true, bb.build_binary_op(
-                          is_subnormal, is_pos,
-                          fir::BinaryInstrSubType::And));  // +Subnormal
+                                   fir::BinaryInstrSubType::And)); // +Normal
+    }
+    if (mode & 0x010) {
+      add_check(true,
+                bb.build_binary_op(is_subnormal, is_neg,
+                                   fir::BinaryInstrSubType::And)); // -Subnormal
+    }
+    if (mode & 0x080) {
+      add_check(true,
+                bb.build_binary_op(is_subnormal, is_pos,
+                                   fir::BinaryInstrSubType::And)); // +Subnormal
+    }
 
     ASSERT(!checks.empty());
     fir::ValueR final_res = checks[0];
@@ -481,9 +493,9 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     fir::Builder bb{instr};
     auto res = fir::ValueR{};
     // TODO: this has not the quite corret beheaviour in some edgecases
-    res = bb.build_intrinsic(
-        instr->args[1], instr->args[2],
-        is_min ? fir::IntrinsicSubType::FMin : fir::IntrinsicSubType::FMax);
+    res = bb.build_intrinsic(instr->args[1], instr->args[2],
+                             is_min ? fir::IntrinsicSubType::FMin
+                                    : fir::IntrinsicSubType::FMax);
     instr->replace_all_uses(res);
     instr.destroy();
   }
@@ -669,4 +681,4 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     }
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

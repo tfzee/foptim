@@ -17,7 +17,6 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "optim/helper/inline.hpp"
-#include "utils/arena.hpp"
 #include "utils/bitset.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_ref.hpp"
@@ -693,7 +692,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
       case fir::InstrType::CallInstr:
         return false;
       case fir::InstrType::Intrinsic:
-        switch ((fir::IntrinsicSubType)instr->subtype) {
+        switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
           case fir::IntrinsicSubType::INVALID:
           case fir::IntrinsicSubType::CTLZ:
           case fir::IntrinsicSubType::Abs:

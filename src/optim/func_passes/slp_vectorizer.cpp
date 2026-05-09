@@ -107,10 +107,12 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
     auto subtype = orig_instr->subtype;
     ASSERT(children.size() == 1);
 
-    bool isProd = subtype == (u32)fir::BinaryInstrSubType::FloatMul ||
-                  subtype == (u32)fir::BinaryInstrSubType::IntMul;
-    bool isSum = subtype == (u32)fir::BinaryInstrSubType::FloatAdd ||
-                 subtype == (u32)fir::BinaryInstrSubType::IntAdd;
+    bool isProd =
+        subtype == static_cast<u32>(fir::BinaryInstrSubType::FloatMul) ||
+        subtype == static_cast<u32>(fir::BinaryInstrSubType::IntMul);
+    bool isSum =
+        subtype == static_cast<u32>(fir::BinaryInstrSubType::FloatAdd) ||
+        subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd);
     ASSERT(isProd || isSum);
 
     auto vec = children.at(0)->generate(ctx, orig_bundle);
@@ -169,15 +171,16 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
     n_lanes = values.size();
     if (values.back().is_instr()) {
       insert_loc = values.back().as_instr();
-      binary_op = (fir::BinaryInstrSubType)insert_loc->subtype;
+      binary_op = static_cast<fir::BinaryInstrSubType>(insert_loc->subtype);
       orig_type = insert_loc->get_type();
     } else if (values.back().is_bb_arg()) {
       insert_loc = values.back().as_bb_arg()->get_parent()->instructions[0];
-      binary_op = (fir::BinaryInstrSubType)values.front().as_instr()->subtype;
+      binary_op = static_cast<fir::BinaryInstrSubType>(
+          values.front().as_instr()->subtype);
       orig_type = values.front().as_instr()->get_type();
     } else {
       insert_loc = values.front().as_instr();
-      binary_op = (fir::BinaryInstrSubType)insert_loc->subtype;
+      binary_op = static_cast<fir::BinaryInstrSubType>(insert_loc->subtype);
       orig_type = insert_loc->get_type();
     }
     return this;
@@ -218,7 +221,7 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
       }
       return false;
     }
-    switch ((fir::BinaryInstrSubType)base_v->subtype) {
+    switch (static_cast<fir::BinaryInstrSubType>(base_v->subtype)) {
       case fir::BinaryInstrSubType::FloatAdd:
       case fir::BinaryInstrSubType::IntAdd:
       case fir::BinaryInstrSubType::Shl:
@@ -460,7 +463,8 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
   UnaryTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
     insert_loc = values.back().as_instr();
-    sub_ty = (fir::UnaryInstrSubType)values.back().as_instr()->subtype;
+    sub_ty =
+        static_cast<fir::UnaryInstrSubType>(values.back().as_instr()->subtype);
     return this;
   }
 
@@ -480,7 +484,8 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
         return false;
       }
     }
-    switch ((fir::UnaryInstrSubType)values.back().as_instr()->subtype) {
+    switch (static_cast<fir::UnaryInstrSubType>(
+        values.back().as_instr()->subtype)) {
       case fir::UnaryInstrSubType::INVALID:
         return false;
       case fir::UnaryInstrSubType::IntNeg:
@@ -624,7 +629,7 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
   IntrinTreeOp *init(const TVec<fir::ValueR> &values) {
     n_lanes = values.size();
     insert_loc = values.back().as_instr();
-    type = (fir::IntrinsicSubType)insert_loc->subtype;
+    type = static_cast<fir::IntrinsicSubType>(insert_loc->subtype);
     return this;
   }
 
@@ -647,7 +652,7 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
       }
     }
 
-    switch ((fir::IntrinsicSubType)base_v->subtype) {
+    switch (static_cast<fir::IntrinsicSubType>(base_v->subtype)) {
       case fir::IntrinsicSubType::INVALID:
       case fir::IntrinsicSubType::VA_start:
       case fir::IntrinsicSubType::VA_end:
@@ -793,15 +798,16 @@ class ConversionTreeOp final : public SLPVectorizer::TreeElem {
     n_lanes = values.size();
     if (values.back().is_instr()) {
       insert_loc = values.back().as_instr();
-      sub_type = (fir::ConversionSubType)insert_loc->subtype;
+      sub_type = static_cast<fir::ConversionSubType>(insert_loc->subtype);
       orig_type = insert_loc->get_type();
     } else if (values.back().is_bb_arg()) {
       insert_loc = values.back().as_bb_arg()->get_parent()->instructions[0];
-      sub_type = (fir::ConversionSubType)values.front().as_instr()->subtype;
+      sub_type = static_cast<fir::ConversionSubType>(
+          values.front().as_instr()->subtype);
       orig_type = values.front().as_instr()->get_type();
     } else {
       insert_loc = values.front().as_instr();
-      sub_type = (fir::ConversionSubType)insert_loc->subtype;
+      sub_type = static_cast<fir::ConversionSubType>(insert_loc->subtype);
       orig_type = insert_loc->get_type();
     }
     return this;
@@ -1116,8 +1122,8 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
                   neutral_int = 1;
                   break;
                 case fir::BinaryInstrSubType::And:
-                  neutral_float = std::bit_cast<f64>(~(u64)0);
-                  neutral_int = ~(i128)0;
+                  neutral_float = std::bit_cast<f64>(~static_cast<u64>(0));
+                  neutral_int = ~static_cast<i128>(0);
                   break;
                 case fir::BinaryInstrSubType::INVALID:
                 case fir::BinaryInstrSubType::IntSRem:
@@ -1433,17 +1439,17 @@ SLPVectorizer::get_storeload_data(fir::Instr storeload) {
   }
   auto arg = storeload->args[0].as_instr();
   if (arg->is(fir::InstrType::BinaryInstr) &&
-      arg->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
+      arg->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
       arg->args[1].is_constant()) {
     data.b = arg->args[1];
     return {data, arg->args[0]};
   }
   if (arg->is(fir::InstrType::BinaryInstr) &&
-      arg->subtype == (u32)fir::BinaryInstrSubType::IntMul) {
+      arg->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntMul)) {
     if (arg->args[0].is_instr() &&
         arg->args[0].as_instr()->is(fir::InstrType::BinaryInstr) &&
         arg->args[0].as_instr()->subtype ==
-            (u32)fir::BinaryInstrSubType::IntAdd) {
+            static_cast<u32>(fir::BinaryInstrSubType::IntAdd)) {
       auto sub_val = arg->args[0].as_instr();
       data.a = arg->args[1];
       data.b = sub_val->args[1];
@@ -1606,19 +1612,19 @@ std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_reduction(
   if (!base_instr->is(fir::InstrType::BinaryInstr)) {
     return {};
   }
-  bool isProd = subtype == (u32)fir::BinaryInstrSubType::FloatMul ||
-                subtype == (u32)fir::BinaryInstrSubType::IntMul;
-  bool isSum = subtype == (u32)fir::BinaryInstrSubType::FloatAdd ||
-               subtype == (u32)fir::BinaryInstrSubType::IntAdd;
-  bool isBool = subtype == (u32)fir::BinaryInstrSubType::Or ||
-                subtype == (u32)fir::BinaryInstrSubType::And ||
-                subtype == (u32)fir::BinaryInstrSubType::Xor;
-  bool is_associative = subtype == (u32)fir::BinaryInstrSubType::IntMul ||
-                        subtype == (u32)fir::BinaryInstrSubType::IntAdd ||
-                        isBool;
+  fir::BinaryInstrSubType binsub = static_cast<fir::BinaryInstrSubType>(subtype);
+  bool isProd = binsub == fir::BinaryInstrSubType::FloatMul ||
+                binsub == fir::BinaryInstrSubType::IntMul;
+  bool isSum = binsub == fir::BinaryInstrSubType::FloatAdd ||
+               binsub == fir::BinaryInstrSubType::IntAdd;
+  bool isBool = binsub == fir::BinaryInstrSubType::Or ||
+                binsub == fir::BinaryInstrSubType::And ||
+                binsub == fir::BinaryInstrSubType::Xor;
+  bool is_associative = binsub == fir::BinaryInstrSubType::IntMul ||
+                        binsub == fir::BinaryInstrSubType::IntAdd || isBool;
   is_associative |= conf.optim.fltOpt.associative_math &&
-                    (subtype == (u32)fir::BinaryInstrSubType::FloatMul ||
-                     subtype == (u32)fir::BinaryInstrSubType::FloatAdd);
+                    (binsub == fir::BinaryInstrSubType::FloatMul ||
+                     binsub == fir::BinaryInstrSubType::FloatAdd);
   if (!isProd && !isSum && !isBool) {
     return {};
   }

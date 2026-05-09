@@ -1,6 +1,4 @@
 #pragma once
-#include <unordered_map>
-
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
@@ -93,7 +91,7 @@ template <>
 struct std::hash<foptim::fir::IRLocation::LocationType> {
   std::size_t operator()(
       const foptim::fir::IRLocation::LocationType &k) const noexcept {
-    return hash<foptim::u8>()((foptim::u8)k);
+    return hash<foptim::u8>()(static_cast<foptim::u8>(k));
   }
 };
 

@@ -10,45 +10,45 @@ namespace foptim::optim {
 class SORA final : public FunctionPass {
   struct UseRes {
     u64 offset;
-    u64 access_size;  // 0 means infinite
+    u64 access_size; // 0 means infinite
     fir::Use user;
   };
 
-  TVec<UseRes> handle_use(const fir::Use& use) {
+  TVec<UseRes> handle_use(const fir::Use &use) {
     switch (use.user->instr_type) {
-      case fir::InstrType::LoadInstr:
-      case fir::InstrType::StoreInstr:
-        return {UseRes{.offset = 0,
-                       .access_size = use.user->get_type()->get_size(),
-                       .user = use}};
-      case fir::InstrType::BinaryInstr:
-        switch ((fir::BinaryInstrSubType)use.user->subtype) {
-          case fir::BinaryInstrSubType::IntAdd:
-            if (use.user->args[1].is_constant() &&
-                use.user->args[1].as_constant()->is_int()) {
-              TVec<UseRes> ress;
-              auto myoff = use.user->args[1].as_constant()->as_int();
-              for (auto sub_use : use.user->uses) {
-                auto v = handle_use(sub_use);
-                for (auto sv : v) {
-                  sv.offset += myoff;
-                  ress.push_back(sv);
-                }
-              }
-              return ress;
+    case fir::InstrType::LoadInstr:
+    case fir::InstrType::StoreInstr:
+      return {UseRes{.offset = 0,
+                     .access_size = use.user->get_type()->get_size(),
+                     .user = use}};
+    case fir::InstrType::BinaryInstr:
+      switch (static_cast<fir::BinaryInstrSubType>(use.user->subtype)) {
+      case fir::BinaryInstrSubType::IntAdd:
+        if (use.user->args[1].is_constant() &&
+            use.user->args[1].as_constant()->is_int()) {
+          TVec<UseRes> ress;
+          auto myoff = use.user->args[1].as_constant()->as_int();
+          for (auto sub_use : use.user->uses) {
+            auto v = handle_use(sub_use);
+            for (auto sv : v) {
+              sv.offset += myoff;
+              ress.push_back(sv);
             }
-          default:
+          }
+          return ress;
         }
-        break;
       default:
-      case fir::InstrType::CallInstr:
-        // fmt::println("Failed with user {}", use.user);
-        break;
+      }
+      break;
+    default:
+    case fir::InstrType::CallInstr:
+      // fmt::println("Failed with user {}", use.user);
+      break;
     }
     return {UseRes{.offset = 0, .access_size = 0, .user = use}};
   }
 
-  void apply(fir::Context& ctx, fir::Instr alloca) {
+  void apply(fir::Context &ctx, fir::Instr alloca) {
     struct Data {
       u64 size;
       TVec<fir::Use> uses;
@@ -116,7 +116,7 @@ class SORA final : public FunctionPass {
     if (cutoff == 0 || ress.size() <= 1) {
       return;
     }
-    std::erase_if(ress, [cutoff](const auto& x) {
+    std::erase_if(ress, [cutoff](const auto &x) {
       return (x.first + x.second.size) > cutoff || x.second.size == 0;
     });
     if (ress.size() <= 1) {
@@ -124,7 +124,7 @@ class SORA final : public FunctionPass {
     }
 
     // fmt::println("For alloca {} cutoff {}", alloca, cutoff);
-    for (auto& [off, data] : ress) {
+    for (auto &[off, data] : ress) {
       fir::Builder bb{alloca};
       // fmt::println("  @{} Size:{}", off, data.size);
       auto new_alloca =
@@ -136,8 +136,8 @@ class SORA final : public FunctionPass {
     }
   }
 
- public:
-  void apply(fir::Context& ctx, fir::Function& func) override {
+public:
+  void apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("SORA", COLOR_OPTIMF);
     auto entry = func.get_entry();
     // if (func.name != "_Z9WikiMergeP4Test5RangeS1_S1_PFbS_S_ES0_l") {
@@ -151,4 +151,4 @@ class SORA final : public FunctionPass {
   }
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

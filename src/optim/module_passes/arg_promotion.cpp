@@ -14,6 +14,10 @@
 
 namespace foptim::optim {
 
+namespace {
+u64 arg_prom_unique_name_number = 0;
+}
+
 bool ArgPromotion::are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
                                                        fir::BBArgument /*barg*/,
                                                        fir::Use use, CFG &cfg,
@@ -121,7 +125,7 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
     }
   }
 
-  {  // type cleanup
+  { // type cleanup
     func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
@@ -518,14 +522,14 @@ void ArgPromotion::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
     // fmt::println("RUNNING ON {}", f->func_ty);
     // fmt::println("RUNNING ON {}", *f.get());
     switch (f->attribs.linkage) {
-      case fir::Linkage::External:
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-      case fir::Linkage::WeakODR:
-        continue;
-      case fir::Linkage::LinkOnceODR:
-      case fir::Linkage::Internal:
-        break;
+    case fir::Linkage::External:
+    case fir::Linkage::Weak:
+    case fir::Linkage::LinkOnce:
+    case fir::Linkage::WeakODR:
+      continue;
+    case fir::Linkage::LinkOnceODR:
+    case fir::Linkage::Internal:
+      break;
     }
 
     if (f->is_decl() || f->attribs.variadic) {
@@ -564,4 +568,4 @@ void ArgPromotion::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
     }
   }
 }
-}  // namespace foptim::optim
+} // namespace foptim::optim

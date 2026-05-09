@@ -7,15 +7,13 @@
 
 namespace foptim::optim {
 
-using namespace fir;
-
 fir::BasicBlock split_block(fir::Instr at_instr) {
   // auto *ctx = at_instr->get_parent()->get_parent()->ctx;
-  BasicBlock t_bb = at_instr->get_parent();
-  FunctionR t_func = t_bb->get_parent();
+  fir::BasicBlock t_bb = at_instr->get_parent();
+  fir::FunctionR t_func = t_bb->get_parent();
 
-  Builder bb = t_func.builder();
-  BasicBlock new_bb = bb.append_bb();
+  fir::Builder bb = t_func.builder();
+  fir::BasicBlock new_bb = bb.append_bb();
 
   size_t instr_id = 0;
   while (t_bb->instructions[instr_id] != at_instr) {
@@ -28,13 +26,14 @@ fir::BasicBlock split_block(fir::Instr at_instr) {
   for (; instr_id < t_bb->instructions.size(); instr_id++) {
     new_bb.push_instr(t_bb->instructions[instr_id]);
   }
-  t_bb->instructions.erase(t_bb->instructions.begin() + (i64)start_id,
-                           t_bb->instructions.end());
+  t_bb->instructions.erase(
+      t_bb->instructions.begin() + static_cast<i64>(start_id),
+      t_bb->instructions.end());
   return new_bb;
 }
 
 bool inline_call(fir::Instr call) {
-  ASSERT(call->is(InstrType::CallInstr));
+  ASSERT(call->is(fir::InstrType::CallInstr));
 
   if (!call->args[0].is_constant()) {
     return false;
@@ -43,8 +42,8 @@ bool inline_call(fir::Instr call) {
   bool has_ret_value = call->has_result();
 
   auto *ctx = call->get_parent()->get_parent()->ctx;
-  BasicBlock call_bb = call->get_parent();
-  FunctionR call_func = call_bb->get_parent();
+  fir::BasicBlock call_bb = call->get_parent();
+  fir::FunctionR call_func = call_bb->get_parent();
   const auto called_func = call->args[0].as_constant()->as_func();
   if (called_func->is_decl()) {
     return false;
@@ -63,9 +62,9 @@ bool inline_call(fir::Instr call) {
     }
   }
 
-  ContextData::V2VMap subs;
-  ContextData::V2VMap bb_subs;
-  TVec<BasicBlock> new_bbs;
+  fir::ContextData::V2VMap subs;
+  fir::ContextData::V2VMap bb_subs;
+  TVec<fir::BasicBlock> new_bbs;
   for (size_t bb_id = 0; bb_id < called_func->n_bbs(); bb_id++) {
     // dont apply the subs here
     auto new_bb = ctx->copy(called_func->basic_blocks.at(bb_id), subs, false);
@@ -106,9 +105,9 @@ bool inline_call(fir::Instr call) {
       instr.substitute(subs);
     }
   }
-  auto new_entry = subs.at(ValueR{called_func->basic_blocks[0]});
+  auto new_entry = subs.at(fir::ValueR{called_func->basic_blocks[0]});
 
-  Builder bb = call_bb.builder_at_end();
+  fir::Builder bb = call_bb.builder_at_end();
   auto entry_branch = bb.build_branch(new_entry.as_bb());
 
   // add the args
@@ -121,10 +120,10 @@ bool inline_call(fir::Instr call) {
   // replace every return isntruction with a jump to the resulting bb
   // who gets an bb_arg that holds the value
   if (has_ret_value) {
-    call->replace_all_uses(ValueR{end_bb->args[0]});
+    call->replace_all_uses(fir::ValueR{end_bb->args[0]});
   }
   for (auto bb : new_bbs) {
-    Builder ret_bb = bb.builder_at_end();
+    fir::Builder ret_bb = bb.builder_at_end();
     for (size_t instr_id = 0; instr_id < bb->instructions.size(); instr_id++) {
       if (bb->instructions[instr_id]->is(fir::InstrType::ReturnInstr)) {
         auto end_branch = ret_bb.build_branch(end_bb);

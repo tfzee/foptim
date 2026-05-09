@@ -5,7 +5,6 @@
 #include <unistd.h>
 
 #include <deque>
-#include <map>
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -61,8 +60,8 @@ void StackKnownBits::update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
 
     for (u64 i = 0; i < csize; i++) {
       auto curr_off = offset + i;
-      new_in_one.set(curr_off * 8, 8, (u8)cval);
-      new_in_zero.set(curr_off * 8, 8, ~(u8)cval);
+      new_in_one.set(curr_off * 8, 8, static_cast<u8>(cval));
+      new_in_zero.set(curr_off * 8, 8, ~static_cast<u8>(cval));
     }
     return;
   }
@@ -114,7 +113,7 @@ void StackKnownBits::update_load(fir::Instr instr, utils::BitSet<> &new_in_one,
   ASSERT((in_one & in_zero) == 0);
 
   u64 known_bits = in_zero | in_one;
-  u64 mask = load_width == 64 ? std::bit_cast<u64>((i64)-1)
+  u64 mask = load_width == 64 ? std::bit_cast<u64>(static_cast<i64>(-1))
                               : ((1ULL << load_width) - 1);
   if ((known_bits & mask) != mask) {
     // in case it is in here from previous iteration
@@ -214,52 +213,51 @@ struct SROARes {
   u32 size;
 };
 
-bool handle_arg(fir::ValueR arg, fir::Use use, fir::TypeR type,
-                StackKnowCache &cache, TOMap<u32, SROARes> &acceses) {
-  auto r = cache.at(arg);
-  if (r.result == StackOffsetResult::UnknownLocal) {
-    return false;
-  }
-  // fmt::println("{}", arg);
-  if (r.result == StackOffsetResult::KnownLocal) {
-    auto lower_bound = acceses.lower_bound(r.offset);
-    auto v_size = arg.get_type()->get_size();
-    if (lower_bound == acceses.end()) {
-      // its upper bound so just insert cant collide
-      acceses.insert(
-          {r.offset,
-           {.type = type, .associated_values = {use}, .size = v_size}});
-    } else if (lower_bound->first == r.offset) {
-      // perfect match so types neeed to match
-      if (!lower_bound->second.type.is_valid() ||
-          lower_bound->second.type != type) {
-        lower_bound->second.type = fir::TypeR{fir::TypeR::invalid()};
-        lower_bound->second.size = std::max(lower_bound->second.size, v_size);
-      } else {
-        lower_bound->second.associated_values.push_back(use);
-      }
-    } else {
-      // we didnt match but we might overlap with the next need invalidate it
-      // then
-      auto curr = lower_bound;
-      bool overlapped = false;
-      while (curr != acceses.end() && curr->first < r.offset + v_size) {
-        lower_bound->second.type = fir::TypeR{fir::TypeR::invalid()};
-        overlapped = true;
-        curr = curr++;
-      }
-      auto typee = overlapped ? fir::TypeR{fir::TypeR::invalid()} : type;
-      acceses.insert(
-          {r.offset,
-           {.type = typee, .associated_values = {use}, .size = v_size}});
-    }
-  }
-  return true;
-}
+// static bool handle_arg(fir::ValueR arg, fir::Use use, fir::TypeR type,
+//                 StackKnowCache &cache, TOMap<u32, SROARes> &acceses) {
+//   auto r = cache.at(arg);
+//   if (r.result == StackOffsetResult::UnknownLocal) {
+//     return false;
+//   }
+//   // fmt::println("{}", arg);
+//   if (r.result == StackOffsetResult::KnownLocal) {
+//     auto lower_bound = acceses.lower_bound(r.offset);
+//     auto v_size = arg.get_type()->get_size();
+//     if (lower_bound == acceses.end()) {
+//       // its upper bound so just insert cant collide
+//       acceses.insert(
+//           {r.offset,
+//            {.type = type, .associated_values = {use}, .size = v_size}});
+//     } else if (lower_bound->first == r.offset) {
+//       // perfect match so types neeed to match
+//       if (!lower_bound->second.type.is_valid() ||
+//           lower_bound->second.type != type) {
+//         lower_bound->second.type = fir::TypeR{fir::TypeR::invalid()};
+//         lower_bound->second.size = std::max(lower_bound->second.size, v_size);
+//       } else {
+//         lower_bound->second.associated_values.push_back(use);
+//       }
+//     } else {
+//       // we didnt match but we might overlap with the next need invalidate it
+//       // then
+//       auto curr = lower_bound;
+//       bool overlapped = false;
+//       while (curr != acceses.end() && curr->first < r.offset + v_size) {
+//         lower_bound->second.type = fir::TypeR{fir::TypeR::invalid()};
+//         overlapped = true;
+//         curr = curr++;
+//       }
+//       auto typee = overlapped ? fir::TypeR{fir::TypeR::invalid()} : type;
+//       acceses.insert(
+//           {r.offset,
+//            {.type = typee, .associated_values = {use}, .size = v_size}});
+//     }
+//   }
+//   return true;
+// }
 
 StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
                                    StackKnowCache &cache) {
-  using namespace foptim::fir;
   offset = 0;
   if (cache.contains(ptr)) {
     auto res = cache.at(ptr);
@@ -337,8 +335,8 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
         if (ptr_instr->args[offset_index].is_constant() &&
             ptr_instr->args[offset_index].as_constant()->is_int()) {
           auto value = ptr_instr->args[offset_index].as_constant()->as_int();
-          if ((BinaryInstrSubType)ptr_instr->subtype ==
-              BinaryInstrSubType::IntAdd) {
+          if (static_cast<fir::BinaryInstrSubType>(ptr_instr->subtype) ==
+              fir::BinaryInstrSubType::IntAdd) {
             offset += sub_offset + value;
           } else {
             TODO("IMPL");
@@ -357,7 +355,7 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
       return sub_result;
     }
     if (ptr_instr->is(fir::InstrType::Conversion) &&
-        (ConversionSubType)ptr_instr->subtype == ConversionSubType::IntToPtr) {
+        static_cast<fir::ConversionSubType>(ptr_instr->subtype) == fir::ConversionSubType::IntToPtr) {
       return StackOffsetResult::UnknownLocal;
     }
     if (ptr_instr->is(fir::InstrType::ExtractValue)) {
@@ -399,7 +397,6 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
 }
 
 void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
-  using namespace foptim::fir;
   ZoneScopedNC("StackKnownBits", COLOR_OPTIMF);
 
   u64 stack_size = 0;
@@ -445,7 +442,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
   auto new_in_zero = utils::BitSet<>::empty(stack_size);
   // auto test = utils::BitSet<>::empty(stack_size);
 
-  TMap<ValueR, i128> known_load_values;
+  TMap<fir::ValueR, i128> known_load_values;
   TVec<fir::Instr> load_stores;
 
   while (!worklist.empty()) {
@@ -473,7 +470,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
 
     for (auto instr : cfg.bbrs[curr].bb->instructions) {
       if (instr->is(fir::InstrType::Conversion) &&
-          (ConversionSubType)instr->subtype == ConversionSubType::PtrToInt) {
+          static_cast<fir::ConversionSubType>(instr->subtype) == fir::ConversionSubType::PtrToInt) {
         // TODO: this can be improved depending on the usage
         // but important to not have escaping pointers
         failure({.reason = "PtrToInt escape", .loc = instr});
@@ -521,13 +518,13 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
       auto widht = l.get_type()->as_float();
       if (widht == 32) {
         auto val =
-            ctx->get_constant_value(std::bit_cast<f32>((u32)v), l.get_type());
+            ctx->get_constant_value(std::bit_cast<f32>(static_cast<u32>(v)), l.get_type());
         load.replace_all_uses(fir::ValueR(val));
         cache.erase(load);
       } else if (widht == 64) {
         // TODO: this might lead to issues with teh cast?
         auto val =
-            ctx->get_constant_value(std::bit_cast<f64>((u64)v), l.get_type());
+            ctx->get_constant_value(std::bit_cast<f64>(static_cast<u64>(v)), l.get_type());
         load.replace_all_uses(fir::ValueR(val));
         cache.erase(load);
       }

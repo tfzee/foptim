@@ -204,7 +204,7 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     }
     auto induct_oper = induction_arg.as_instr();
     if (!induct_oper->is(fir::InstrType::BinaryInstr) ||
-        (fir::BinaryInstrSubType)induct_oper->subtype !=
+        static_cast<fir::BinaryInstrSubType>(induct_oper->subtype) !=
             fir::BinaryInstrSubType::IntAdd) {
       if constexpr (debug_print) {
         fmt::println("3");
@@ -267,7 +267,7 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
       return false;
     }
     auto cond_instr = cond.as_instr();
-    auto condi = (fir::ICmpInstrSubType)cond_instr->subtype;
+    auto condi = static_cast<fir::ICmpInstrSubType>(cond_instr->subtype);
     if (condi != fir::ICmpInstrSubType::ULT &&
         condi != fir::ICmpInstrSubType::SLT) {
       if constexpr (debug_print) {
@@ -535,7 +535,7 @@ void InductionVarAnalysis::dump() const {
 namespace {
 std::optional<i128> get_constant(fir::ValueR v) {
   return (v.is_constant() && v.as_constant()->is_int())
-             ? std::optional{i128(v.as_constant()->as_int())}
+             ? std::optional{(v.as_constant()->as_int())}
              : std::nullopt;
 }
 
@@ -830,7 +830,7 @@ void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
       }
 
       SCEVExpr::Type ty = SCEVExpr::Type::Invalid;
-      switch ((fir::BinaryInstrSubType)instr->subtype) {
+      switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
         case fir::BinaryInstrSubType::IntAdd:
           ty = SCEVExpr::Type::Add;
           break;
@@ -884,7 +884,7 @@ void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
 
   for (auto t : loop_info.tails) {
     auto term = cfg.bbrs[t].bb->get_terminator();
-    auto v = (u32)(std::ranges::find(cfg.bbrs[t].succ, loop_info.head) -
+    auto v = static_cast<u32>(std::ranges::find(cfg.bbrs[t].succ, loop_info.head) -
                    cfg.bbrs[t].succ.begin());
     size_t arg_id = 0;
     for (auto a : term->bbs[v].args) {
@@ -959,7 +959,7 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
     return false;
   }
   auto loop_continue =
-      (u32)(std::ranges::find(cfg.bbrs[info.leaving_nodes[0]].succ, info.head) -
+      static_cast<u32>(std::ranges::find(cfg.bbrs[info.leaving_nodes[0]].succ, info.head) -
             cfg.bbrs[info.leaving_nodes[0]].succ.begin());
 
   auto cond = leav_term->args[0];
@@ -967,7 +967,7 @@ bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
     return false;
   }
   auto condi = cond.as_instr();
-  auto sub = (fir::ICmpInstrSubType)condi->subtype;
+  auto sub = static_cast<fir::ICmpInstrSubType>(condi->subtype);
   bool is_eql_cond =
       sub == fir::ICmpInstrSubType::NE || sub == fir::ICmpInstrSubType::EQ;
   bool isle =

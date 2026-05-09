@@ -112,7 +112,7 @@ class GlobalPromotion final : public ModulePass {
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
                 b.build_store(ptr,
                               fir::ValueR{ctx->get_constant_int(
-                                  *((u64 *)(global->init_value + i)), 64)},
+                                  *(reinterpret_cast<u64 *>(global->init_value + i)), 64)},
                               false, false);
               }
             } else if (global->n_bytes % 4 == 0) {
@@ -121,7 +121,7 @@ class GlobalPromotion final : public ModulePass {
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
                 b.build_store(ptr,
                               fir::ValueR{ctx->get_constant_int(
-                                  *((u32 *)(global->init_value + i)), 32)},
+                                  *(reinterpret_cast<u32 *>(global->init_value + i)), 32)},
                               false, false);
               }
             } else {
@@ -130,7 +130,7 @@ class GlobalPromotion final : public ModulePass {
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
                 b.build_store(ptr,
                               fir::ValueR{ctx->get_constant_int(
-                                  *((u8 *)(global->init_value + i)), 8)},
+                                  *(static_cast<u8 *>(global->init_value + i)), 8)},
                               false, false);
               }
             }

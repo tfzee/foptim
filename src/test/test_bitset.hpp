@@ -2,10 +2,8 @@
 
 #include <utils/bitset.hpp>
 
-using namespace foptim::utils;
-using namespace foptim;
-
 TEST(BitSetTest, BasicSetIter) {
+  using foptim::u64;
   constexpr size_t N_BITS = 6;
   foptim::utils::BitSet<u64> a_bb{N_BITS, false};
   a_bb[3].set(true);
@@ -58,6 +56,7 @@ TEST(BitSetTest, BasicSetIter) {
 }
 
 TEST(BitSetTest, BasicSetGet) {
+  using foptim::u64;
   constexpr size_t N_BITS = 68;
   foptim::utils::BitSet<u64> bb{N_BITS, false};
   foptim::utils::BitSet<u64> bb2{N_BITS, true};

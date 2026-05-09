@@ -15,8 +15,8 @@ struct BitRef {
   StorageType *_data;
 
   constexpr BitRef &set(bool value) {
-    const auto set_val = *_data | ((StorageType)1 << offset);
-    const auto unset_val = *_data & ~((StorageType)1 << offset);
+    const auto set_val = *_data | (static_cast<StorageType>(1) << offset);
+    const auto unset_val = *_data & ~(static_cast<StorageType>(1) << offset);
     *_data = value ? set_val : unset_val;
     return *this;
   }
@@ -38,7 +38,7 @@ struct IterBitSet {
 
   void skip_empty() {
     while (indx < size) {
-      BitRef<StorageType> ref = {(u16)(indx % StrgTySizeBit),
+      BitRef<StorageType> ref = {static_cast<u16>(indx % StrgTySizeBit),
                                  &_data[indx / StrgTySizeBit]};
       if (ref) {
         return;
@@ -54,7 +54,7 @@ struct IterBitSet {
   }
 
   size_t operator*() const {
-    BitRef<StorageType> ref = {(u16)(indx % StrgTySizeBit),
+    BitRef<StorageType> ref = {static_cast<u16>(indx % StrgTySizeBit),
                                &_data[indx / StrgTySizeBit]};
     ASSERT((bool)ref);
     return indx;
@@ -134,7 +134,7 @@ struct BitSet {
     }
     u16 n_dead_bits = (n_elems * StrgTySizeBit) - _size_bits;
     u16 n_alive_bits = StrgTySizeBit - n_dead_bits;
-    auto mask = ((StorageType)1 << n_alive_bits) - 1;
+    auto mask = (static_cast<StorageType>(1) << n_alive_bits) - 1;
     return (_data[n_elems - 1] & mask) != 0;
   }
 
@@ -147,7 +147,7 @@ struct BitSet {
     }
     u16 n_dead_bits = (n_elems * StrgTySizeBit) - _size_bits;
     u16 n_alive_bits = StrgTySizeBit - n_dead_bits;
-    auto mask = ((StorageType)1 << n_alive_bits) - 1;
+    auto mask = (static_cast<StorageType>(1) << n_alive_bits) - 1;
     TODO("impl");
     // return (_data[n_elems - 1] & mask) != 0;
   }
@@ -155,11 +155,13 @@ struct BitSet {
   [[nodiscard]] constexpr BitRef<StorageType> operator[](
       const size_t indx) const {
     ASSERT(indx < _size_bits);
-    return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
+    return {static_cast<u16>(indx % StrgTySizeBit),
+            &_data[indx / StrgTySizeBit]};
   }
   [[nodiscard]] constexpr BitRef<StorageType> operator[](const size_t indx) {
     ASSERT(indx < _size_bits);
-    return {(u16)(indx % StrgTySizeBit), &_data[indx / StrgTySizeBit]};
+    return {static_cast<u16>(indx % StrgTySizeBit),
+            &_data[indx / StrgTySizeBit]};
   }
   [[nodiscard]] constexpr size_t bit_size() const { return _size_bits; }
   [[nodiscard]] constexpr size_t count() const {
@@ -169,7 +171,7 @@ struct BitSet {
     // mask out the last bits of the last storage space
     u16 n_dead_bits = (n_elems * StrgTySizeBit) - _size_bits;
     u16 n_alive_bits = StrgTySizeBit - n_dead_bits;
-    auto mask = ((StorageType)1 << n_alive_bits) - 1;
+    auto mask = (static_cast<StorageType>(1) << n_alive_bits) - 1;
     _data[n_elems - 1] = _data[n_elems - 1] & mask;
 
     for (size_t i = 0; i < n_elems; i++) {
@@ -197,7 +199,7 @@ struct BitSet {
 
     u16 n_dead_bits = (n_elems * StrgTySizeBit) - _size_bits;
     u16 n_alive_bits = StrgTySizeBit - n_dead_bits;
-    auto mask = ((StorageType)1 << n_alive_bits) - 1;
+    auto mask = (static_cast<StorageType>(1) << n_alive_bits) - 1;
     return (_data[n_elems - 1] & mask) == (other._data[n_elems - 1] & mask);
   }
 
@@ -221,12 +223,13 @@ struct BitSet {
       auto loc = operator[](indx + i);
       // BitRef<> loc = {(u16)((indx + i) % StrgTySizeBit),
       //                 &_data[(indx + i) / StrgTySizeBit]};
-      out_val = (out_val << 1) | (u64)(bool)loc;
+      out_val = (out_val << 1) | static_cast<u64>(static_cast<bool>(loc));
     }
     return out_val;
   }
 
-  /*Assigns the values of other to this copying the data leaving other unchanged and returning this*/
+  /*Assigns the values of other to this copying the data leaving other unchanged
+   * and returning this*/
   constexpr BitSet &assign(const BitSet &other) {
     assert(_size_bits == other._size_bits);
     auto n_elems = (_size_bits + StrgTySizeBit) / StrgTySizeBit;

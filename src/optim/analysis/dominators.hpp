@@ -49,7 +49,7 @@ class Dominators {
     fmt::println("DUMP DOM");
 
     for (const auto &node : dom_bbs) {
-      fmt::println("BB: {:p}", (void *)node.bb.get_raw_ptr());
+      fmt::println("BB: {:p}", reinterpret_cast<const void *>(node.bb.get_raw_ptr()));
       fmt::println(" Dominators {}", node.dominators);
       fmt::println(" Frontier {}", node.frontier);
       // print << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";

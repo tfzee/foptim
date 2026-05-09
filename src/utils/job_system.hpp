@@ -48,10 +48,10 @@ class JobSheduler {
   void init(u8 n_threads) {
     ZoneScopedN("InitThreads");
     jobs.reserve(32);
-    threads = (Worker *)malloc(sizeof(Worker) * n_threads);
+    threads = static_cast<Worker *>(malloc(sizeof(Worker) * n_threads));
     this->n_threads = n_threads;
     for (u8 i = 0; i < n_threads; i++) {
-      new (&threads[i]) Worker{this, (u8)(i + 1)};
+      new (&threads[i]) Worker{this, static_cast<u8>(i + 1)};
     }
     new_work_there.store(false, std::memory_order_release);
   }

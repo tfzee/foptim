@@ -1,11 +1,9 @@
 #include "basic_alias_test.hpp"
 
-#include "fmt/std.h"
 #include "ir/basic_block.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
-#include "ir/use.hpp"
 
 namespace foptim::optim {
 AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
@@ -66,7 +64,7 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     }
     if (i->is(fir::InstrType::BinaryInstr)) {
       auto a = analyze(i->args[0]);
-      if (i->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
+      if (i->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
           i->args[1].is_constant() && i->args[1].as_constant()->is_int()) {
         u32 new_offset = i->args[1].as_constant()->as_int();
         if (a.offset.has_value()) {

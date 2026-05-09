@@ -40,16 +40,17 @@ bool is_reg(fir::ValueR val) {
     return true;
   }
 }
-}  // namespace
 
 void move_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
-  auto IntCmpNode = Node{NodeType::Instr, InstrType::ICmp, (u32)0};
-  auto FloatCmpNode = Node{NodeType::Instr, InstrType::FCmp, (u32)0};
-  auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, (u32)0};
+  auto IntCmpNode = Node{NodeType::Instr, InstrType::ICmp, static_cast<u32>(0)};
+  auto FloatCmpNode =
+      Node{NodeType::Instr, InstrType::FCmp, static_cast<u32>(0)};
+  auto SelectNode =
+      Node{NodeType::Instr, InstrType::SelectInstr, static_cast<u32>(0)};
 
   pats.push_back(Pattern{
       .nodes = {IntCmpNode, SelectNode},
@@ -85,7 +86,8 @@ void move_patterns(IRVec<Pattern> &pats) {
         auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
         GJumpSubtype op = GJumpSubtype::icmp_eq;
 
-        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        switch (static_cast<fir::ICmpInstrSubType>(
+            cmp_instr->get_instr_subtype())) {
           case fir::ICmpInstrSubType::SLT:
             op = dir1 ? GJumpSubtype::icmp_slt : GJumpSubtype::icmp_sge;
             break;
@@ -156,7 +158,8 @@ void move_patterns(IRVec<Pattern> &pats) {
         fir::Instr cmp_instr = res.matched_instrs[0];
         fir::Instr slct_instr = res.matched_instrs[1];
 
-        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        switch (static_cast<fir::ICmpInstrSubType>(
+            cmp_instr->get_instr_subtype())) {
           case fir::ICmpInstrSubType::MulOverflow:
           case fir::ICmpInstrSubType::AddOverflow:
             // TODO: impl
@@ -174,7 +177,8 @@ void move_patterns(IRVec<Pattern> &pats) {
         auto arg2 = valueToArg(slct_instr->args[2], res.result, data.alloc);
         GCMovSubtype op = GCMovSubtype::cmov;
 
-        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        switch (static_cast<fir::ICmpInstrSubType>(
+            cmp_instr->get_instr_subtype())) {
           case fir::ICmpInstrSubType::SGT:
             op = GCMovSubtype::cmov_sgt;
             break;
@@ -265,7 +269,8 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         u8 vcmp_condition = 0;
 
-        switch ((fir::FCmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        switch (static_cast<fir::FCmpInstrSubType>(
+            cmp_instr->get_instr_subtype())) {
           case fir::FCmpInstrSubType::OEQ:
             vcmp_condition = 0x00;
             break;
@@ -336,9 +341,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
   using NodeType = Pattern::NodeType;
 
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntAdd};
+                         static_cast<u32>(fir::BinaryInstrSubType::IntAdd)};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntMul};
+                         static_cast<u32>(fir::BinaryInstrSubType::IntMul)};
   auto StoreNode = Node{NodeType::Instr, InstrType::StoreInstr, 0};
   auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
 
@@ -759,9 +764,9 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
   using NodeType = Pattern::NodeType;
   auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
   auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                      (u32)fir::BinaryInstrSubType::And};
+                      static_cast<u32>(fir::BinaryInstrSubType::And)};
   auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                     (u32)fir::BinaryInstrSubType::Or};
+                     static_cast<u32>(fir::BinaryInstrSubType::Or)};
   auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
   auto CondBranchNode = Node{NodeType::Instr, InstrType::CondBranchInstr, 0};
 
@@ -825,7 +830,8 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         auto cmp_instr = res.matched_instrs[0];
         auto branch_instr = res.matched_instrs[1];
 
-        auto sub_type = (fir::ICmpInstrSubType)cmp_instr->get_instr_subtype();
+        auto sub_type =
+            static_cast<fir::ICmpInstrSubType>(cmp_instr->get_instr_subtype());
 
         // first we check if we can output a simplified version
         if (sub_type != fir::ICmpInstrSubType::SLT &&
@@ -914,7 +920,8 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         auto cmp_instr = res.matched_instrs[0];
         auto branch_instr = res.matched_instrs[1];
 
-        auto sub_type = (fir::FCmpInstrSubType)cmp_instr->get_instr_subtype();
+        auto sub_type =
+            static_cast<fir::FCmpInstrSubType>(cmp_instr->get_instr_subtype());
 
         auto &bb_with_args = branch_instr->bbs[0];
         auto target_bb = branch_instr->bbs[0].bb;
@@ -950,17 +957,17 @@ void arith_patterns(IRVec<Pattern> &pats) {
   using NodeType = Pattern::NodeType;
 
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntAdd};
+                         static_cast<u32>(fir::BinaryInstrSubType::IntAdd)};
   // auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                        (u32)fir::BinaryInstrSubType::IntSub};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntMul};
+                         static_cast<u32>(fir::BinaryInstrSubType::IntMul)};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::IntSRem};
+                       static_cast<u32>(fir::BinaryInstrSubType::IntSRem)};
   auto UDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::IntUDiv};
+                       static_cast<u32>(fir::BinaryInstrSubType::IntUDiv)};
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::IntSDiv};
+                       static_cast<u32>(fir::BinaryInstrSubType::IntSDiv)};
   // auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                     (u32)fir::BinaryInstrSubType::And};
   // auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -968,9 +975,9 @@ void arith_patterns(IRVec<Pattern> &pats) {
   // auto XorNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                     (u32)fir::BinaryInstrSubType::Xor};
   auto FloatAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::FloatAdd};
+                           static_cast<u32>(fir::BinaryInstrSubType::FloatAdd)};
   auto FloatMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::FloatMul};
+                           static_cast<u32>(fir::BinaryInstrSubType::FloatMul)};
   // auto ShlNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                     (u32)fir::BinaryInstrSubType::Shl};
   // auto ShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -1013,12 +1020,12 @@ void arith_patterns(IRVec<Pattern> &pats) {
             // sar     eax
             res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
             res.result.emplace_back(GArithSubtype::shr2, res_reg,
-                                    MArgument((u8)31));
+                                    MArgument(static_cast<u8>(31)));
             res.result.emplace_back(GArithSubtype::add2, res_reg, base);
             res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
                                     base);
             res.result.emplace_back(GArithSubtype::sar2, res_reg,
-                                    MArgument((u8)1));
+                                    MArgument(static_cast<u8>(1)));
             break;
           }
           case 4:
@@ -1040,8 +1047,9 @@ void arith_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
                                     base);
             // sar eax, 3
-            res.result.emplace_back(GArithSubtype::sar2, res_reg,
-                                    MArgument((u8)utils::npow2(c)));
+            res.result.emplace_back(
+                GArithSubtype::sar2, res_reg,
+                MArgument(static_cast<u8>(utils::npow2(c))));
             break;
           }
           case 10: {
@@ -1066,15 +1074,15 @@ void arith_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, base);
             // imul    target64, target64, 1717986919
             res.result.emplace_back(GArithSubtype::smul3, res_reg64, res_reg64,
-                                    MArgument((u32)1717986919));
+                                    MArgument(static_cast<u32>(1717986919)));
             // mov     helper64, target64
             res.result.emplace_back(GBaseSubtype::mov, helper64, res_reg64);
             // shr     helper64, 63
             res.result.emplace_back(GArithSubtype::shr2, helper64,
-                                    MArgument((u8)63));
+                                    MArgument(static_cast<u8>(63)));
             // sar     target64, 34
             res.result.emplace_back(GArithSubtype::sar2, res_reg64,
-                                    MArgument((u8)34));
+                                    MArgument(static_cast<u8>(34)));
             // add     target32, helper32
             res.result.emplace_back(GArithSubtype::land2, res_reg32, helper32);
             break;
@@ -1101,14 +1109,14 @@ void arith_patterns(IRVec<Pattern> &pats) {
             (c & (c - 1)) != 0) {
           return false;
         }
-        auto power = std::bit_width((u32)c) - 1;
+        auto power = std::bit_width(static_cast<u32>(c)) - 1;
 
         auto res_reg =
             valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
         auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
         res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
         res.result.emplace_back(GArithSubtype::shr2, res_reg,
-                                MArgument((u32)power));
+                                MArgument(static_cast<u32>(power)));
         return true;
       }});
   pats.push_back(Pattern{
@@ -1212,9 +1220,9 @@ void arith_patterns(IRVec<Pattern> &pats) {
         if (!a.isReg() || !b.isReg()) {
           return false;
         }
-        res.result.emplace_back(
-            X86Subtype::lea, res_reg,
-            MArgument::MemOBI((u8)consti_val, a.reg, b.reg, res_ty));
+        res.result.emplace_back(X86Subtype::lea, res_reg,
+                                MArgument::MemOBI(static_cast<u8>(consti_val),
+                                                  a.reg, b.reg, res_ty));
         return true;
       }});
   pats.push_back(Pattern{
@@ -1286,7 +1294,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         ASSERT(base.isReg());
         res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
         res.result.emplace_back(GArithSubtype::shl2, res_reg,
-                                MArgument((u8)shift_width));
+                                MArgument(static_cast<u8>(shift_width)));
         return true;
       }});
 
@@ -1350,7 +1358,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GBaseSubtype::mov, h32, arg);
             // shr     h32, 31
             res.result.emplace_back(GArithSubtype::shr2, h32,
-                                    MArgument((u8)31));
+                                    MArgument(static_cast<u8>(31)));
             // add     h32, in32
             res.result.emplace_back(GArithSubtype::add2, h32, arg);
             // and     h32, -2
@@ -1379,15 +1387,15 @@ void arith_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, arg);
             // imul    h64, out64, 1717986919
             res.result.emplace_back(GArithSubtype::smul3, h64, res_reg64,
-                                    MArgument((u64)1717986919));
+                                    MArgument(static_cast<u64>(1717986919)));
             // mov     g64, h64
             res.result.emplace_back(GBaseSubtype::mov, g64, h64);
             // shr     g64, 63
             res.result.emplace_back(GArithSubtype::shr2, g64,
-                                    MArgument((u8)63));
+                                    MArgument(static_cast<u8>(63)));
             // sar     h64, 33
             res.result.emplace_back(GArithSubtype::sar2, h64,
-                                    MArgument((u8)33));
+                                    MArgument(static_cast<u8>(33)));
             // add     h32, g32
             res.result.emplace_back(GArithSubtype::add2, h32, g32);
             // lea     h32, [h64 + 4*h64]
@@ -1428,8 +1436,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         i128 consti_val = consti->as_int();
-        if (consti_val < 0 ||
-            __builtin_clzg((u128)consti_val) < ((i32)res_ty_size * 8 + 1)) {
+        if (consti_val < 0 || __builtin_clzg(static_cast<u128>(consti_val)) <
+                                  (static_cast<i32>(res_ty_size) * 8 + 1)) {
           //  TOOD: should be possible to extend to negative
           return false;
         }
@@ -1448,10 +1456,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
             continue;
           }
 
-          u64 upper_pow = (u64)utils::npow2((u128)abs_consti_val);
-          auto upper_pow_v = ((i128)1) << upper_pow;
+          u64 upper_pow =
+              static_cast<u64>(utils::npow2(static_cast<u128>(abs_consti_val)));
+          auto upper_pow_v = (static_cast<i128>(1)) << upper_pow;
           u64 lower_pow = upper_pow >> 1;
-          auto lower_pow_v = ((i128)1) << lower_pow;
+          auto lower_pow_v = (static_cast<i128>(1)) << lower_pow;
           auto selected_pow_v = lower_pow_v;
           auto selected_pow_i = lower_pow;
           if (std::abs(abs_consti_val - upper_pow_v) <=
@@ -1459,8 +1468,10 @@ void arith_patterns(IRVec<Pattern> &pats) {
             selected_pow_v = upper_pow_v;
             selected_pow_i = upper_pow;
           }
-          multi_needed[multi_index] = (negated ? -((i128)1 << selected_pow_i)
-                                               : (i128)1 << selected_pow_i);
+          multi_needed[multi_index] =
+              (negated ? -(static_cast<i128>(1) << selected_pow_i)
+                       : static_cast<i128>(1) << selected_pow_i);
+
           multi_index++;
           consti_val = negated ? consti_val + selected_pow_v
                                : consti_val - selected_pow_v;
@@ -1504,7 +1515,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
             res.result.emplace_back(GBaseSubtype::mov, helper_reg, base);
             auto p2 = utils::npow2(abs_c_multi);
             res.result.emplace_back(GArithSubtype::shl2, helper_reg,
-                                    MArgument((u64)p2));
+                                    MArgument(static_cast<u64>(p2)));
             if (negated) {
               if (i == 0) {
                 ASSERT(false);
@@ -1538,8 +1549,9 @@ void vec_patterns(IRVec<Pattern> &pats) {
   using NodeType = Pattern::NodeType;
 
   auto BroadNode = Node{NodeType::Instr, InstrType::VectorInstr,
-                        (u32)fir::VectorISubType::Broadcast};
-  auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, (u32)0};
+                        static_cast<u32>(fir::VectorISubType::Broadcast)};
+  auto LoadNode =
+      Node{NodeType::Instr, InstrType::LoadInstr, static_cast<u32>(0)};
 
   pats.push_back(Pattern{
       .nodes = {LoadNode, BroadNode},
@@ -1554,230 +1566,101 @@ void vec_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
 }
-void base_patterns(IRVec<Pattern> &pats) {
+
+void base_binary_patterns(IRVec<Pattern> &pats) {
   using Node = Pattern::Node;
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
-  auto UnreachNode = Node{NodeType::Instr, InstrType::Unreachable, 0};
-  auto NotNode = Node{NodeType::Instr, InstrType::UnaryInstr,
-                      (u32)fir::UnaryInstrSubType::Not};
-  auto NegateNode = Node{NodeType::Instr, InstrType::UnaryInstr,
-                         (u32)fir::UnaryInstrSubType::IntNeg};
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntAdd};
+                         static_cast<u32>(fir::BinaryInstrSubType::IntAdd)};
   auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntSub};
+                         static_cast<u32>(fir::BinaryInstrSubType::IntSub)};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         (u32)fir::BinaryInstrSubType::IntMul};
+                         static_cast<u32>(fir::BinaryInstrSubType::IntMul)};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::IntSRem};
+                       static_cast<u32>(fir::BinaryInstrSubType::IntSRem)};
   auto URemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::IntURem};
+                       static_cast<u32>(fir::BinaryInstrSubType::IntURem)};
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::IntSDiv};
+                       static_cast<u32>(fir::BinaryInstrSubType::IntSDiv)};
   auto UDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::IntUDiv};
+                       static_cast<u32>(fir::BinaryInstrSubType::IntUDiv)};
   auto AndNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                      (u32)fir::BinaryInstrSubType::And};
+                      static_cast<u32>(fir::BinaryInstrSubType::And)};
   auto OrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                     (u32)fir::BinaryInstrSubType::Or};
+                     static_cast<u32>(fir::BinaryInstrSubType::Or)};
   auto XorNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                      (u32)fir::BinaryInstrSubType::Xor};
+                      static_cast<u32>(fir::BinaryInstrSubType::Xor)};
   auto FloatAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::FloatAdd};
+                           static_cast<u32>(fir::BinaryInstrSubType::FloatAdd)};
   auto FloatSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::FloatSub};
+                           static_cast<u32>(fir::BinaryInstrSubType::FloatSub)};
   auto FloatMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::FloatMul};
+                           static_cast<u32>(fir::BinaryInstrSubType::FloatMul)};
   auto FloatDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                           (u32)fir::BinaryInstrSubType::FloatDiv};
-  auto FloatNegNode = Node{NodeType::Instr, InstrType::UnaryInstr,
-                           (u32)fir::UnaryInstrSubType::FloatNeg};
+                           static_cast<u32>(fir::BinaryInstrSubType::FloatDiv)};
   auto ShlNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                      (u32)fir::BinaryInstrSubType::Shl};
+                      static_cast<u32>(fir::BinaryInstrSubType::Shl)};
   auto ShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                      (u32)fir::BinaryInstrSubType::Shr};
-  auto FSqrtNode = Node{NodeType::Instr, InstrType::UnaryInstr,
-                        (u32)fir::UnaryInstrSubType::FloatSqrt};
-  auto HAddNode = Node{NodeType::Instr, InstrType::VectorInstr,
-                       (u32)fir::VectorISubType::HorizontalAdd};
-  auto ConcatNode = Node{NodeType::Instr, InstrType::VectorInstr,
-                         (u32)fir::VectorISubType::Concat};
-  auto ExtractHighNode = Node{NodeType::Instr, InstrType::VectorInstr,
-                              (u32)fir::VectorISubType::ExtractHigh};
-  auto ExtractLowNode = Node{NodeType::Instr, InstrType::VectorInstr,
-                             (u32)fir::VectorISubType::ExtractLow};
-  auto HMulNode = Node{NodeType::Instr, InstrType::VectorInstr,
-                       (u32)fir::VectorISubType::HorizontalMul};
+                      static_cast<u32>(fir::BinaryInstrSubType::Shr)};
   auto AShrNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                       (u32)fir::BinaryInstrSubType::AShr};
-  auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
-  auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
-  auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
-  auto BranchNode = Node{NodeType::Instr, InstrType::BranchInstr, 0};
-  auto CondBranchNode = Node{NodeType::Instr, InstrType::CondBranchInstr, 0};
-  auto SwitchNode = Node{NodeType::Instr, InstrType::SwitchInstr, 0};
-  auto ReturnNode = Node{NodeType::Instr, InstrType::ReturnInstr, 0};
-  auto CallNode = Node{NodeType::Instr, InstrType::CallInstr, 0};
-  auto StoreNode = Node{NodeType::Instr, InstrType::StoreInstr, 0};
-  auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
-  auto AllocaNode = Node{NodeType::Instr, InstrType::AllocaInstr, 0};
-  auto SExtNode = Node{NodeType::Instr, InstrType::SExt, 0};
-  auto ZExtNode = Node{NodeType::Instr, InstrType::ZExt, 0};
-  auto ITruncNode = Node{NodeType::Instr, InstrType::ITrunc, 0};
-  auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, 0};
-  auto BroadcastNode = Node{NodeType::Instr, InstrType::VectorInstr,
-                            (u32)fir::VectorISubType::Broadcast};
-  auto InsertValueNode = Node{NodeType::Instr, InstrType::InsertValue, (u32)0};
-  auto ExtractValueNode =
-      Node{NodeType::Instr, InstrType::ExtractValue, (u32)0};
-  auto AtomicRMWNode = Node{NodeType::Instr, InstrType::AtomicRMW, (u32)0};
-  pats.push_back(Pattern{
-      .nodes = {AtomicRMWNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        (void)data;
-        auto atomic_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(atomic_instr), res.result, data.alloc);
-
-        auto order = (fir::Ordering)atomic_instr->Ordering;
-        auto ptr = valueToArg(atomic_instr->args[0], res.result, data.alloc);
-        auto val = valueToArg(atomic_instr->args[1], res.result, data.alloc);
-        auto op = (fir::AtomicRMWSubType)atomic_instr->subtype;
-        // TODO: use order
-        (void)order;
-        switch (op) {
-          case fir::AtomicRMWSubType::INVALID:
-            UNREACH();
-          case fir::AtomicRMWSubType::Add:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
-            res.result.emplace_back(X86Subtype::LockXAdd2, ptr, res_reg);
-            return true;
-          case fir::AtomicRMWSubType::Xchg:
-          case fir::AtomicRMWSubType::Or:
-            fmt::print("{:cd}", atomic_instr);
-            TODO("implement");
-        }
-
-        fmt::print("{:cd}", atomic_instr);
-        TODO("okka");
-        return true;
-      }});
+                       static_cast<u32>(fir::BinaryInstrSubType::AShr)};
 
   pats.push_back(Pattern{
-      .nodes = {AllocaNode},
+      .nodes = {FloatAddNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
-        // TODO: this should be done once for all allocas that only
-        // get executed once
-        auto alloca_instr = res.matched_instrs[0];
-        auto rsp_reg = VReg::RSP();
-        auto rsp_arg = MArgument{rsp_reg, Type::Int64};
-
+        auto f_add_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_add_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArgPosMem(f_add_instr->args[1], res.result, data.alloc,
+                                   f_add_instr->get_parent());
         auto res_reg =
-            valueToArg(fir::ValueR(alloca_instr), res.result, data.alloc);
-        if (!alloca_instr->args[0].is_constant()) {
-          return false;
-        }
+            valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
 
-        auto orig_size = (u64)alloca_instr->args[0].as_constant()->as_int();
-        auto size = orig_size;
-        // TODO: this is inefficient for many stack allocations
-        // TODO: this also depends on the calling conv
-        if (size % 16 != 0) {
-          size = size + (16 - (size % 16));
-        }
-
-        res.result.emplace_back(GArithSubtype::sub2, rsp_arg, size);
-        // if (data.bb_id == 0 && data.static_alloca_size == orig_size) {
-        //   res.result.emplace_back(
-        //       X86Subtype::lea, res_reg,
-        //       //+8 for pushing the rbp
-        //       MArgument::MemOB(-(i32)(size + 8), VReg::RBP(),
-        //       Type::Int64));
-        // } else {
-        res.result.emplace_back(GBaseSubtype::mov, res_reg, rsp_arg);
-        // }
-
+        res.result.emplace_back(GVecSubtype::vadd, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {LoadNode},
+      .nodes = {FloatSubNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto load_instr = res.matched_instrs[0];
-        if (load_instr->get_type()->is_struct()) {
-          TODO("struct loading should prob be legalized");
-        }
+        auto f_sub_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_sub_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArgPosMem(f_sub_instr->args[1], res.result, data.alloc,
+                                   f_sub_instr->get_parent());
         auto res_reg =
-            valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
-        if (load_instr->args[0].get_type()->is_vec()) {
-          auto base_reg = data.alloc.get_new_register(Type::Int64);
-          auto base_arg = MArgument{base_reg, Type::Int64};
-          auto mask_reg = data.alloc.get_new_register(res_reg.ty);
-          auto mask = MArgument{mask_reg, res_reg.ty};
-          auto arg = valueToArg(load_instr->args[0], res.result, data.alloc);
-          ASSERT(arg.isReg());
-          res.result.emplace_back(GArithSubtype::lxor2, base_arg, base_arg);
-          res.result.emplace_back(X86Subtype::vpcmpeq, mask, mask, mask);
-          res.result.emplace_back(
-              X86Subtype::vgatherq, res_reg,
-              MArgument::MemOIS(0, arg.reg, 0, Type::Int32x4), mask);
-          return true;
-        }
-        auto arg = valueToArgPtr(load_instr->args[0],
-                                 convert_type(load_instr.get_type()),
-                                 res.result, data.alloc);
-        arg.ty = convert_type(load_instr.get_type());
-        res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+            valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
+
+        res.result.emplace_back(GVecSubtype::vsub, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {StoreNode},
+      .nodes = {FloatMulNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto store_instr = res.matched_instrs[0];
+        auto f_mul_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArgPosMem(f_mul_instr->args[1], res.result, data.alloc,
+                                   f_mul_instr->get_parent());
+        auto res_reg =
+            valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
 
-        auto store_ty = store_instr.get_type();
+        res.result.emplace_back(GVecSubtype::vmul, res_reg, a1, a2);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {FloatDivNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto f_div_instr = res.matched_instrs[0];
+        auto a1 = valueToArg(f_div_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArgPosMem(f_div_instr->args[1], res.result, data.alloc,
+                                   f_div_instr->get_parent());
+        auto res_reg =
+            valueToArg(fir::ValueR(f_div_instr), res.result, data.alloc);
 
-        if (store_ty->is_struct()) {
-          auto ptr_target =
-              valueToArg(store_instr->args[0], res.result, data.alloc);
-          auto helper_indx = data.alloc.get_new_register(ptr_target.ty);
-          auto helper_indx_arg = MArgument{helper_indx, ptr_target.ty};
-          auto stru_ty = store_ty->as_struct();
-          auto args =
-              valueToArgStruct(store_instr->args[1], res.result, data.alloc);
-          res.result.emplace_back(GBaseSubtype::mov, helper_indx_arg,
-                                  ptr_target);
-          for (size_t i = 0; i < stru_ty.elems.size(); i++) {
-            // if (stru_ty.elems[i].offset != 0) {
-            //   res.result.emplace_back(GArithSubtype::add2,
-            //   helper_indx_arg,
-            //                           stru_ty.elems[i].offset);
-            // }
-            res.result.emplace_back(
-                GBaseSubtype::mov,
-                MArgument::MemOB(stru_ty.elems[i].offset, helper_indx,
-                                 convert_type(stru_ty.elems[i].ty)),
-                args[i]);
-          }
-          // fmt::println("<<<<\n{:cd}", store_instr);
-          // for (auto &b : res.result) {
-          //   fmt::println("{:cd}", b);
-          // }
-          // TODO("impl");
-          return true;
-        }
-        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
-        auto ptr_target = valueToArgPtr(
-            store_instr->args[0], convert_type(store_instr->args[0].get_type()),
-            res.result, data.alloc);
-
-        ptr_target.ty = convert_type(store_ty);
-        res.result.emplace_back(GBaseSubtype::mov, ptr_target, value);
+        res.result.emplace_back(GVecSubtype::vdiv, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(Pattern{
@@ -1828,450 +1711,7 @@ void base_patterns(IRVec<Pattern> &pats) {
         res.result.emplace_back(GArithSubtype::add2, res_reg, a1);
         return true;
       }});
-  pats.push_back(Pattern{
-      .nodes = {SelectNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto select_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(select_instr), res.result, data.alloc);
-        auto cond = valueToArg(select_instr->args[0], res.result, data.alloc);
-        auto a = valueToArg(select_instr->args[1], res.result, data.alloc);
-        auto b = valueToArg(select_instr->args[2], res.result, data.alloc);
 
-        res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
-        res.result.emplace_back(GCMovSubtype::cmov, res_reg, cond, a);
-        return true;
-      }});
-  pats.push_back(
-      Pattern{.nodes = {NotNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto not_instr = res.matched_instrs[0];
-                auto res_reg =
-                    valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
-
-                if (res_reg.is_fp()) {
-                  res.result.emplace_back(X86Subtype::vpcmpeq, res_reg, res_reg,
-                                          res_reg);
-                  res.result.emplace_back(
-                      GVecSubtype::vXor, res_reg, res_reg,
-                      valueToArg(not_instr->args[0], res.result, data.alloc));
-                } else if (res_reg.is_vec_reg()) {
-                  fmt::print("{:cd}", not_instr);
-                  TODO("impl");
-                } else {
-                  auto bitwidth = not_instr.get_type()->as_int();
-                  if (bitwidth == 1) {
-                    res.result.emplace_back(
-                        GBaseSubtype::mov, res_reg,
-                        valueToArg(not_instr->args[0], res.result, data.alloc));
-                    res.result.emplace_back(GArithSubtype::lxor2, res_reg,
-                                            MArgument((u8)0x1));
-                    return true;
-                  }
-
-                  res.result.emplace_back(
-                      GBaseSubtype::mov, res_reg,
-                      valueToArg(not_instr->args[0], res.result, data.alloc));
-                  res.result.emplace_back(GArithSubtype::not1, res_reg);
-                }
-                return true;
-              }});
-  pats.push_back(
-      Pattern{.nodes = {FSqrtNode},
-              .edges = {},
-              .generator = [](MatchResult &res, ExtraMatchData &data) {
-                auto sqrt_instr = res.matched_instrs[0];
-                auto res_reg =
-                    valueToArg(fir::ValueR(sqrt_instr), res.result, data.alloc);
-
-                ASSERT(res_reg.is_fp());
-                res.result.emplace_back(
-                    X86Subtype::sqrt, res_reg,
-                    valueToArg(sqrt_instr->args[0], res.result, data.alloc));
-                return true;
-              }});
-  pats.push_back(Pattern{
-      .nodes = {HMulNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto hred_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
-        auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
-        (void)res_reg;
-
-        switch (a1.ty) {
-          case Type::INVALID:
-          case Type::Int8:
-          case Type::Int16:
-          case Type::Int32:
-          case Type::Int64:
-          case Type::Float32:
-          case Type::Float64:
-            TODO("invalid?");
-          case Type::Float32x2:
-            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
-            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
-            break;
-          case Type::Float64x2:
-            res.result.emplace_back(X86Subtype::vpermil, res_reg, a1,
-                                    MArgument::Int(1, Type::Int8));
-            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
-            break;
-          case Type::Int32x4:
-          case Type::Int64x2:
-          case Type::Float32x4:
-          case Type::Int32x8:
-          case Type::Int64x4:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Float32x16:
-          case Type::Float64x8:
-            fmt::println("{:cd}", hred_instr->args[0].get_type());
-            fmt::println("{:cd}", hred_instr);
-            TODO("impl");
-            break;
-        }
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {HAddNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto hred_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
-        auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
-
-        switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x2:
-            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
-            res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
-            break;
-          case Type::Float32x4: {
-            auto res_reg_exp = MArgument{res_reg.reg, Type::Float32x2};
-            res.result.emplace_back(X86Subtype::HAdd, res_reg_exp, a1);
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_reg_exp);
-            break;
-          }
-          case Type::Float32x8: {
-            auto res_128 =
-                MArgument{res_reg.reg.retype(Type::Float32x4), Type::Float32x4};
-            auto a1_128 =
-                MArgument{a1.reg.retype(Type::Float32x4), Type::Float32x4};
-            auto res_64 =
-                MArgument{res_reg.reg.retype(Type::Float32x2), Type::Float32x2};
-
-            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
-                                    MArgument((u8)1));
-            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
-                                    a1_128);
-            res.result.emplace_back(X86Subtype::HAdd, res_64, res_128);
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_64);
-            break;
-          }
-          case Type::Float64x2: {
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
-            break;
-          }
-          case Type::Float64x4: {
-            auto res_128 =
-                MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
-            auto a1_128 =
-                MArgument{a1.reg.retype(Type::Float64x2), Type::Float64x2};
-
-            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
-                                    MArgument((u8)1));
-            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
-                                    a1_128);
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
-            break;
-          }
-          case Type::Float64x8: {
-            auto res_256 =
-                MArgument{res_reg.reg.retype(Type::Float64x4), Type::Float64x4};
-            auto a1_256 =
-                MArgument{a1.reg.retype(Type::Float64x4), Type::Float64x4};
-            auto res_128 =
-                MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
-
-            // 256 red
-            res.result.emplace_back(X86Subtype::vextractf64x4, res_256, a1,
-                                    MArgument((u8)1));
-            res.result.emplace_back(GVecSubtype::vadd, res_256, res_256,
-                                    a1_256);
-
-            // 128 red
-            auto res_256_low_128 = MArgument{res_reg.reg, Type::Float64x2};
-            res.result.emplace_back(X86Subtype::vextract128, res_128, res_256,
-                                    MArgument((u8)1));
-            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
-                                    res_256_low_128);
-
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
-            break;
-          }
-          case Type::Int64x2: {
-            auto helper = data.alloc.get_new_register(Type::Int64);
-            auto helper_arg = MArgument{helper, Type::Int64};
-            res.result.emplace_back(GBaseSubtype::mov, helper_arg, a1);
-            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
-                                    MArgument((u8)1));
-            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
-            break;
-          }
-          case Type::Int64x4: {
-            auto helper_vec = data.alloc.get_new_register(Type::Int64x2);
-            auto helper_vec_arg = MArgument{helper_vec, Type::Int64x2};
-
-            auto helper = data.alloc.get_new_register(Type::Int64);
-            auto helper_arg = MArgument{helper, Type::Int64};
-            res.result.emplace_back(X86Subtype::vextract128, helper_vec_arg, a1,
-                                    MArgument((u8)1));
-            ASSERT(a1.isReg());
-            res.result.emplace_back(
-                GVecSubtype::vadd, helper_vec_arg, helper_vec_arg,
-                MArgument{a1.reg.retype(Type::Int64x2), Type::Int64x2});
-
-            res.result.emplace_back(GBaseSubtype::mov, helper_arg,
-                                    helper_vec_arg);
-            res.result.emplace_back(X86Subtype::vpextr, res_reg, helper_vec_arg,
-                                    MArgument((u8)1));
-            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
-            break;
-          }
-          case Type::Int32x8:
-          case Type::Int32x4:
-            fmt::println("{:cd}", hred_instr->args[0].get_type());
-            fmt::println("{:cd}", hred_instr);
-            TODO("impl");
-            break;
-        }
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {ConcatNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto concat_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(concat_instr), res.result, data.alloc);
-        auto a1 = valueToArg(concat_instr->args[0], res.result, data.alloc);
-        auto a2 = valueToArg(concat_instr->args[1], res.result, data.alloc);
-        ASSERT(a1.ty == a2.ty);
-        switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x2:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
-            res.result.emplace_back(X86Subtype::movlhps, res_reg, res_reg, a2);
-            break;
-          case Type::Int64x2:
-          case Type::Float64x2:
-          case Type::Int32x4:
-          case Type::Float32x4:
-            ASSERT(a1.isReg());
-            res.result.emplace_back(
-                X86Subtype::vinsert128, res_reg,
-                MArgument(a1.reg.retype(res_reg.ty), res_reg.ty), a2,
-                MArgument((u8)1));
-            break;
-          case Type::Float32x8:
-          case Type::Int32x8:
-          case Type::Float64x4:
-          case Type::Int64x4:
-            fmt::println("{:cd}", concat_instr->args[0].get_type());
-            fmt::println("{:cd}", concat_instr);
-            TODO("impl");
-            break;
-        }
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {ExtractHighNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto extract_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
-        auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
-
-        switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x4:
-            res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg,
-                                    res_reg);
-            res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
-            break;
-          case Type::Int64x2:
-            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
-                                    MArgument((u8)1));
-            break;
-          case Type::Int64x4:
-            res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
-                                    MArgument((u8)1));
-            break;
-          case Type::Float32x2:
-          case Type::Float64x2:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Int32x8:
-          case Type::Int32x4:
-            fmt::println("{:cd}", extract_instr->args[0].get_type());
-            fmt::println("{:cd}", extract_instr);
-            TODO("impl");
-            break;
-        }
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {ExtractLowNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto extract_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
-        auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
-
-        switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x4:
-          case Type::Int64x4:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
-            break;
-          case Type::Float32x2:
-          case Type::Float64x2:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Int32x8:
-          case Type::Int64x2:
-          case Type::Int32x4:
-            fmt::println("{:cd}", extract_instr->args[0].get_type());
-            fmt::println("{:cd}", extract_instr);
-            TODO("impl");
-            break;
-        }
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {NegateNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto negate_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(negate_instr), res.result, data.alloc);
-
-        res.result.emplace_back(
-            GBaseSubtype::mov, res_reg,
-            valueToArg(negate_instr->args[0], res.result, data.alloc));
-        res.result.emplace_back(GArithSubtype::neg1, res_reg);
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {BroadcastNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto broad_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
-        auto arg = valueToArg(broad_instr->args[0], res.result, data.alloc);
-        if (arg.isImm() && ((!arg.is_fp() && arg.imm == 0) ||
-                            (arg.is_fp() && arg.immf == 0))) {
-          res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg, res_reg);
-          return true;
-        }
-        // TODO: better way to generate if the lowest or the upper n bits
-        // set
-        //  if (arg.isImm() && !arg.is_fp() && arg.imm == 1) {
-        //    res.result.emplace_back(X86Subtype::vpcmpeq, res_reg, res_reg,
-        //                            res_reg);
-        //    res.result.emplace_back(GVecSubtype::fShr, res_reg, width-1);
-        //    return true;
-        //  }
-        //  TODO: better to use if we know that its the n lowest bits that
-        //  are set pcmpeqd       xmm0, xmm0 psrld xmm0, 32-n
-        if (data.config.target.features.avx512vl) {
-          switch (res_reg.ty) {
-            case Type::Int32x4:
-            case Type::Int32x8:
-            case Type::Int64x2: {
-              auto helper_reg =
-                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
-              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
-              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
-                                      helper_reg);
-              return true;
-            }
-            case Type::Float64x2: {
-              res_reg.ty = Type::Float64x4;
-              res_reg.reg.ty = Type::Float64x4;
-              auto helper_reg =
-                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
-              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
-              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
-                                      helper_reg);
-              return true;
-            }
-            default:
-              break;
-          }
-        }
-
-        auto res_reg_smoll = res_reg;
-        bool can_pshuf = false;
-        bool can_punpckl = false;
-        bool can_vbroadcast = false;
-        switch (res_reg.ty) {
-          case Type::INVALID:
-          case Type::Int32x4:
-          case Type::Int32x8:
-          case Type::Float32x8:
-          case Type::Float32x4:
-            can_pshuf = true;
-            res_reg_smoll.ty = Type::Float32;
-            res_reg_smoll.reg.ty = Type::Float32;
-          case Type::Int64x2:
-          case Type::Float64x2:
-            can_punpckl = true;
-            res_reg_smoll.ty = Type::Float64;
-            res_reg_smoll.reg.ty = Type::Float64;
-            break;
-          case Type::Int64x4:
-          case Type::Float64x4:
-            can_vbroadcast = true;
-            res_reg_smoll.ty = Type::Float64;
-            res_reg_smoll.reg.ty = Type::Float64;
-            break;
-          default:
-            TODO("UNREACH");
-        }
-        if (can_pshuf) {
-          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
-          res.result.emplace_back(X86Subtype::vpshuf, res_reg, res_reg,
-                                  MArgument((u8)0));
-          return true;
-        }
-        if (can_punpckl) {
-          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
-          res.result.emplace_back(X86Subtype::punpckl, res_reg, res_reg,
-                                  res_reg);
-          return true;
-        }
-        if (can_vbroadcast) {
-          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
-          res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
-                                  res_reg_smoll);
-          return true;
-        }
-        TODO("IMPL broadcast");
-        return false;
-      }});
   pats.push_back(Pattern{
       .nodes = {IntSubNode},
       .edges = {},
@@ -2435,7 +1875,7 @@ void base_patterns(IRVec<Pattern> &pats) {
           }
           res.result.emplace_back(GArithSubtype::mul2, res_reg16, arg1);
           res.result.emplace_back(GArithSubtype::land2, res_reg16,
-                                  MArgument((u8)255));
+                                  MArgument(static_cast<u8>(255)));
           return true;
         }
 
@@ -2615,6 +2055,647 @@ void base_patterns(IRVec<Pattern> &pats) {
         res.result.emplace_back(GBaseSubtype::mov, res_reg, res_div_arg);
         return true;
       }});
+}
+
+void base_patterns(IRVec<Pattern> &pats) {
+  using Node = Pattern::Node;
+  using InstrType = fir::InstrType;
+  using NodeType = Pattern::NodeType;
+
+  base_binary_patterns(pats);
+
+  auto UnreachNode = Node{NodeType::Instr, InstrType::Unreachable, 0};
+  auto NotNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                      static_cast<u32>(fir::UnaryInstrSubType::Not)};
+  auto NegateNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                         static_cast<u32>(fir::UnaryInstrSubType::IntNeg)};
+  auto FloatNegNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                           static_cast<u32>(fir::UnaryInstrSubType::FloatNeg)};
+  auto FSqrtNode = Node{NodeType::Instr, InstrType::UnaryInstr,
+                        static_cast<u32>(fir::UnaryInstrSubType::FloatSqrt)};
+  auto HAddNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                       static_cast<u32>(fir::VectorISubType::HorizontalAdd)};
+  auto ConcatNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                         static_cast<u32>(fir::VectorISubType::Concat)};
+  auto ExtractHighNode =
+      Node{NodeType::Instr, InstrType::VectorInstr,
+           static_cast<u32>(fir::VectorISubType::ExtractHigh)};
+  auto ExtractLowNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                             static_cast<u32>(fir::VectorISubType::ExtractLow)};
+  auto HMulNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                       static_cast<u32>(fir::VectorISubType::HorizontalMul)};
+  auto ConversionNode = Node{NodeType::Instr, InstrType::Conversion, 0};
+  auto ICMPNode = Node{NodeType::Instr, InstrType::ICmp, 0};
+  auto FCMPNode = Node{NodeType::Instr, InstrType::FCmp, 0};
+  auto BranchNode = Node{NodeType::Instr, InstrType::BranchInstr, 0};
+  auto CondBranchNode = Node{NodeType::Instr, InstrType::CondBranchInstr, 0};
+  auto SwitchNode = Node{NodeType::Instr, InstrType::SwitchInstr, 0};
+  auto ReturnNode = Node{NodeType::Instr, InstrType::ReturnInstr, 0};
+  auto CallNode = Node{NodeType::Instr, InstrType::CallInstr, 0};
+  auto StoreNode = Node{NodeType::Instr, InstrType::StoreInstr, 0};
+  auto LoadNode = Node{NodeType::Instr, InstrType::LoadInstr, 0};
+  auto AllocaNode = Node{NodeType::Instr, InstrType::AllocaInstr, 0};
+  auto SExtNode = Node{NodeType::Instr, InstrType::SExt, 0};
+  auto ZExtNode = Node{NodeType::Instr, InstrType::ZExt, 0};
+  auto ITruncNode = Node{NodeType::Instr, InstrType::ITrunc, 0};
+  auto SelectNode = Node{NodeType::Instr, InstrType::SelectInstr, 0};
+  auto BroadcastNode = Node{NodeType::Instr, InstrType::VectorInstr,
+                            static_cast<u32>(fir::VectorISubType::Broadcast)};
+  auto InsertValueNode = Node{NodeType::Instr, InstrType::InsertValue, 0};
+  auto ExtractValueNode = Node{NodeType::Instr, InstrType::ExtractValue, 0};
+  auto AtomicRMWNode = Node{NodeType::Instr, InstrType::AtomicRMW, 0};
+  pats.push_back(Pattern{
+      .nodes = {AtomicRMWNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        (void)data;
+        auto atomic_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(atomic_instr), res.result, data.alloc);
+
+        auto order = static_cast<fir::Ordering>(atomic_instr->Ordering);
+        auto ptr = valueToArg(atomic_instr->args[0], res.result, data.alloc);
+        auto val = valueToArg(atomic_instr->args[1], res.result, data.alloc);
+        auto op = static_cast<fir::AtomicRMWSubType>(atomic_instr->subtype);
+        // TODO: use order
+        (void)order;
+        switch (op) {
+          case fir::AtomicRMWSubType::INVALID:
+            UNREACH();
+          case fir::AtomicRMWSubType::Add:
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+            res.result.emplace_back(X86Subtype::LockXAdd2, ptr, res_reg);
+            return true;
+          case fir::AtomicRMWSubType::Xchg:
+          case fir::AtomicRMWSubType::Or:
+            fmt::print("{:cd}", atomic_instr);
+            TODO("implement");
+        }
+
+        fmt::print("{:cd}", atomic_instr);
+        TODO("okka");
+        return true;
+      }});
+
+  pats.push_back(Pattern{
+      .nodes = {AllocaNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        // TODO: this should be done once for all allocas that only
+        // get executed once
+        auto alloca_instr = res.matched_instrs[0];
+        auto rsp_reg = VReg::RSP();
+        auto rsp_arg = MArgument{rsp_reg, Type::Int64};
+
+        auto res_reg =
+            valueToArg(fir::ValueR(alloca_instr), res.result, data.alloc);
+        if (!alloca_instr->args[0].is_constant()) {
+          return false;
+        }
+
+        auto orig_size =
+            static_cast<u64>(alloca_instr->args[0].as_constant()->as_int());
+        auto size = orig_size;
+        // TODO: this is inefficient for many stack allocations
+        // TODO: this also depends on the calling conv
+        if (size % 16 != 0) {
+          size = size + (16 - (size % 16));
+        }
+
+        res.result.emplace_back(GArithSubtype::sub2, rsp_arg, size);
+        // if (data.bb_id == 0 && data.static_alloca_size == orig_size) {
+        //   res.result.emplace_back(
+        //       X86Subtype::lea, res_reg,
+        //       //+8 for pushing the rbp
+        //       MArgument::MemOB(-(i32)(size + 8), VReg::RBP(),
+        //       Type::Int64));
+        // } else {
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, rsp_arg);
+        // }
+
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {LoadNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto load_instr = res.matched_instrs[0];
+        if (load_instr->get_type()->is_struct()) {
+          TODO("struct loading should prob be legalized");
+        }
+        auto res_reg =
+            valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+        if (load_instr->args[0].get_type()->is_vec()) {
+          auto base_reg = data.alloc.get_new_register(Type::Int64);
+          auto base_arg = MArgument{base_reg, Type::Int64};
+          auto mask_reg = data.alloc.get_new_register(res_reg.ty);
+          auto mask = MArgument{mask_reg, res_reg.ty};
+          auto arg = valueToArg(load_instr->args[0], res.result, data.alloc);
+          ASSERT(arg.isReg());
+          res.result.emplace_back(GArithSubtype::lxor2, base_arg, base_arg);
+          res.result.emplace_back(X86Subtype::vpcmpeq, mask, mask, mask);
+          res.result.emplace_back(
+              X86Subtype::vgatherq, res_reg,
+              MArgument::MemOIS(0, arg.reg, 0, Type::Int32x4), mask);
+          return true;
+        }
+        auto arg = valueToArgPtr(load_instr->args[0],
+                                 convert_type(load_instr.get_type()),
+                                 res.result, data.alloc);
+        arg.ty = convert_type(load_instr.get_type());
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {StoreNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto store_instr = res.matched_instrs[0];
+
+        auto store_ty = store_instr.get_type();
+
+        if (store_ty->is_struct()) {
+          auto ptr_target =
+              valueToArg(store_instr->args[0], res.result, data.alloc);
+          auto helper_indx = data.alloc.get_new_register(ptr_target.ty);
+          auto helper_indx_arg = MArgument{helper_indx, ptr_target.ty};
+          auto stru_ty = store_ty->as_struct();
+          auto args =
+              valueToArgStruct(store_instr->args[1], res.result, data.alloc);
+          res.result.emplace_back(GBaseSubtype::mov, helper_indx_arg,
+                                  ptr_target);
+          for (size_t i = 0; i < stru_ty.elems.size(); i++) {
+            // if (stru_ty.elems[i].offset != 0) {
+            //   res.result.emplace_back(GArithSubtype::add2,
+            //   helper_indx_arg,
+            //                           stru_ty.elems[i].offset);
+            // }
+            res.result.emplace_back(
+                GBaseSubtype::mov,
+                MArgument::MemOB(stru_ty.elems[i].offset, helper_indx,
+                                 convert_type(stru_ty.elems[i].ty)),
+                args[i]);
+          }
+          // fmt::println("<<<<\n{:cd}", store_instr);
+          // for (auto &b : res.result) {
+          //   fmt::println("{:cd}", b);
+          // }
+          // TODO("impl");
+          return true;
+        }
+        auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
+        auto ptr_target = valueToArgPtr(
+            store_instr->args[0], convert_type(store_instr->args[0].get_type()),
+            res.result, data.alloc);
+
+        ptr_target.ty = convert_type(store_ty);
+        res.result.emplace_back(GBaseSubtype::mov, ptr_target, value);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {SelectNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto select_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(select_instr), res.result, data.alloc);
+        auto cond = valueToArg(select_instr->args[0], res.result, data.alloc);
+        auto a = valueToArg(select_instr->args[1], res.result, data.alloc);
+        auto b = valueToArg(select_instr->args[2], res.result, data.alloc);
+
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
+        res.result.emplace_back(GCMovSubtype::cmov, res_reg, cond, a);
+        return true;
+      }});
+  pats.push_back(
+      Pattern{.nodes = {NotNode},
+              .edges = {},
+              .generator = [](MatchResult &res, ExtraMatchData &data) {
+                auto not_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
+
+                if (res_reg.is_fp()) {
+                  res.result.emplace_back(X86Subtype::vpcmpeq, res_reg, res_reg,
+                                          res_reg);
+                  res.result.emplace_back(
+                      GVecSubtype::vXor, res_reg, res_reg,
+                      valueToArg(not_instr->args[0], res.result, data.alloc));
+                } else if (res_reg.is_vec_reg()) {
+                  fmt::print("{:cd}", not_instr);
+                  TODO("impl");
+                } else {
+                  auto bitwidth = not_instr.get_type()->as_int();
+                  if (bitwidth == 1) {
+                    res.result.emplace_back(
+                        GBaseSubtype::mov, res_reg,
+                        valueToArg(not_instr->args[0], res.result, data.alloc));
+                    res.result.emplace_back(GArithSubtype::lxor2, res_reg,
+                                            MArgument(static_cast<u8>(0x1)));
+                    return true;
+                  }
+
+                  res.result.emplace_back(
+                      GBaseSubtype::mov, res_reg,
+                      valueToArg(not_instr->args[0], res.result, data.alloc));
+                  res.result.emplace_back(GArithSubtype::not1, res_reg);
+                }
+                return true;
+              }});
+  pats.push_back(
+      Pattern{.nodes = {FSqrtNode},
+              .edges = {},
+              .generator = [](MatchResult &res, ExtraMatchData &data) {
+                auto sqrt_instr = res.matched_instrs[0];
+                auto res_reg =
+                    valueToArg(fir::ValueR(sqrt_instr), res.result, data.alloc);
+
+                ASSERT(res_reg.is_fp());
+                res.result.emplace_back(
+                    X86Subtype::sqrt, res_reg,
+                    valueToArg(sqrt_instr->args[0], res.result, data.alloc));
+                return true;
+              }});
+  pats.push_back(Pattern{
+      .nodes = {HMulNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto hred_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
+        auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
+        (void)res_reg;
+
+        switch (a1.ty) {
+          case Type::INVALID:
+          case Type::Int8:
+          case Type::Int16:
+          case Type::Int32:
+          case Type::Int64:
+          case Type::Float32:
+          case Type::Float64:
+            TODO("invalid?");
+          case Type::Float32x2:
+            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
+            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
+            break;
+          case Type::Float64x2:
+            res.result.emplace_back(X86Subtype::vpermil, res_reg, a1,
+                                    MArgument::Int(1, Type::Int8));
+            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
+            break;
+          case Type::Int32x4:
+          case Type::Int64x2:
+          case Type::Float32x4:
+          case Type::Int32x8:
+          case Type::Int64x4:
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Float32x16:
+          case Type::Float64x8:
+            fmt::println("{:cd}", hred_instr->args[0].get_type());
+            fmt::println("{:cd}", hred_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {HAddNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto hred_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
+        auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
+
+        switch (a1.ty) {
+          default:
+            TODO("invalid?");
+          case Type::Float32x2:
+            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
+            res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
+            break;
+          case Type::Float32x4: {
+            auto res_reg_exp = MArgument{res_reg.reg, Type::Float32x2};
+            res.result.emplace_back(X86Subtype::HAdd, res_reg_exp, a1);
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_reg_exp);
+            break;
+          }
+          case Type::Float32x8: {
+            auto res_128 =
+                MArgument{res_reg.reg.retype(Type::Float32x4), Type::Float32x4};
+            auto a1_128 =
+                MArgument{a1.reg.retype(Type::Float32x4), Type::Float32x4};
+            auto res_64 =
+                MArgument{res_reg.reg.retype(Type::Float32x2), Type::Float32x2};
+
+            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
+                                    MArgument(static_cast<u8>(1)));
+            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
+                                    a1_128);
+            res.result.emplace_back(X86Subtype::HAdd, res_64, res_128);
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_64);
+            break;
+          }
+          case Type::Float64x2: {
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
+            break;
+          }
+          case Type::Float64x4: {
+            auto res_128 =
+                MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
+            auto a1_128 =
+                MArgument{a1.reg.retype(Type::Float64x2), Type::Float64x2};
+
+            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
+                                    MArgument(static_cast<u8>(1)));
+            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
+                                    a1_128);
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
+            break;
+          }
+          case Type::Float64x8: {
+            auto res_256 =
+                MArgument{res_reg.reg.retype(Type::Float64x4), Type::Float64x4};
+            auto a1_256 =
+                MArgument{a1.reg.retype(Type::Float64x4), Type::Float64x4};
+            auto res_128 =
+                MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
+
+            // 256 red
+            res.result.emplace_back(X86Subtype::vextractf64x4, res_256, a1,
+                                    MArgument(static_cast<u8>(1)));
+            res.result.emplace_back(GVecSubtype::vadd, res_256, res_256,
+                                    a1_256);
+
+            // 128 red
+            auto res_256_low_128 = MArgument{res_reg.reg, Type::Float64x2};
+            res.result.emplace_back(X86Subtype::vextract128, res_128, res_256,
+                                    MArgument(static_cast<u8>(1)));
+            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
+                                    res_256_low_128);
+
+            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
+            break;
+          }
+          case Type::Int64x2: {
+            auto helper = data.alloc.get_new_register(Type::Int64);
+            auto helper_arg = MArgument{helper, Type::Int64};
+            res.result.emplace_back(GBaseSubtype::mov, helper_arg, a1);
+            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
+                                    MArgument(static_cast<u8>(1)));
+            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
+            break;
+          }
+          case Type::Int64x4: {
+            auto helper_vec = data.alloc.get_new_register(Type::Int64x2);
+            auto helper_vec_arg = MArgument{helper_vec, Type::Int64x2};
+
+            auto helper = data.alloc.get_new_register(Type::Int64);
+            auto helper_arg = MArgument{helper, Type::Int64};
+            res.result.emplace_back(X86Subtype::vextract128, helper_vec_arg, a1,
+                                    MArgument(static_cast<u8>(1)));
+            ASSERT(a1.isReg());
+            res.result.emplace_back(
+                GVecSubtype::vadd, helper_vec_arg, helper_vec_arg,
+                MArgument{a1.reg.retype(Type::Int64x2), Type::Int64x2});
+
+            res.result.emplace_back(GBaseSubtype::mov, helper_arg,
+                                    helper_vec_arg);
+            res.result.emplace_back(X86Subtype::vpextr, res_reg, helper_vec_arg,
+                                    MArgument(static_cast<u8>(1)));
+            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
+            break;
+          }
+          case Type::Int32x8:
+          case Type::Int32x4:
+            fmt::println("{:cd}", hred_instr->args[0].get_type());
+            fmt::println("{:cd}", hred_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {ConcatNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto concat_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(concat_instr), res.result, data.alloc);
+        auto a1 = valueToArg(concat_instr->args[0], res.result, data.alloc);
+        auto a2 = valueToArg(concat_instr->args[1], res.result, data.alloc);
+        ASSERT(a1.ty == a2.ty);
+        switch (a1.ty) {
+          default:
+            TODO("invalid?");
+          case Type::Float32x2:
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+            res.result.emplace_back(X86Subtype::movlhps, res_reg, res_reg, a2);
+            break;
+          case Type::Int64x2:
+          case Type::Float64x2:
+          case Type::Int32x4:
+          case Type::Float32x4:
+            ASSERT(a1.isReg());
+            res.result.emplace_back(
+                X86Subtype::vinsert128, res_reg,
+                MArgument(a1.reg.retype(res_reg.ty), res_reg.ty), a2,
+                MArgument(static_cast<u8>(1)));
+            break;
+          case Type::Float32x8:
+          case Type::Int32x8:
+          case Type::Float64x4:
+          case Type::Int64x4:
+            fmt::println("{:cd}", concat_instr->args[0].get_type());
+            fmt::println("{:cd}", concat_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {ExtractHighNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto extract_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
+        auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
+
+        switch (a1.ty) {
+          default:
+            TODO("invalid?");
+          case Type::Float32x4:
+            res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg,
+                                    res_reg);
+            res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
+            break;
+          case Type::Int64x2:
+            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
+                                    MArgument(static_cast<u8>(1)));
+            break;
+          case Type::Int64x4:
+            res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
+                                    MArgument(static_cast<u8>(1)));
+            break;
+          case Type::Float32x2:
+          case Type::Float64x2:
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Int32x8:
+          case Type::Int32x4:
+            fmt::println("{:cd}", extract_instr->args[0].get_type());
+            fmt::println("{:cd}", extract_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {ExtractLowNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto extract_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
+        auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
+
+        switch (a1.ty) {
+          default:
+            TODO("invalid?");
+          case Type::Float32x4:
+          case Type::Int64x4:
+            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+            break;
+          case Type::Float32x2:
+          case Type::Float64x2:
+          case Type::Float32x8:
+          case Type::Float64x4:
+          case Type::Int32x8:
+          case Type::Int64x2:
+          case Type::Int32x4:
+            fmt::println("{:cd}", extract_instr->args[0].get_type());
+            fmt::println("{:cd}", extract_instr);
+            TODO("impl");
+            break;
+        }
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {NegateNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto negate_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(negate_instr), res.result, data.alloc);
+
+        res.result.emplace_back(
+            GBaseSubtype::mov, res_reg,
+            valueToArg(negate_instr->args[0], res.result, data.alloc));
+        res.result.emplace_back(GArithSubtype::neg1, res_reg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {BroadcastNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto broad_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
+        auto arg = valueToArg(broad_instr->args[0], res.result, data.alloc);
+        if (arg.isImm() && ((!arg.is_fp() && arg.imm == 0) ||
+                            (arg.is_fp() && arg.immf == 0))) {
+          res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg, res_reg);
+          return true;
+        }
+        // TODO: better way to generate if the lowest or the upper n bits
+        // set
+        //  if (arg.isImm() && !arg.is_fp() && arg.imm == 1) {
+        //    res.result.emplace_back(X86Subtype::vpcmpeq, res_reg, res_reg,
+        //                            res_reg);
+        //    res.result.emplace_back(GVecSubtype::fShr, res_reg, width-1);
+        //    return true;
+        //  }
+        //  TODO: better to use if we know that its the n lowest bits that
+        //  are set pcmpeqd       xmm0, xmm0 psrld xmm0, 32-n
+        if (data.config.target.features.avx512vl) {
+          switch (res_reg.ty) {
+            case Type::Int32x4:
+            case Type::Int32x8:
+            case Type::Int64x2: {
+              auto helper_reg =
+                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
+              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
+              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                      helper_reg);
+              return true;
+            }
+            case Type::Float64x2: {
+              res_reg.ty = Type::Float64x4;
+              res_reg.reg.ty = Type::Float64x4;
+              auto helper_reg =
+                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
+              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
+              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                      helper_reg);
+              return true;
+            }
+            default:
+              break;
+          }
+        }
+
+        auto res_reg_smoll = res_reg;
+        bool can_pshuf = false;
+        bool can_punpckl = false;
+        bool can_vbroadcast = false;
+        switch (res_reg.ty) {
+          case Type::INVALID:
+          case Type::Int32x4:
+          case Type::Int32x8:
+          case Type::Float32x8:
+          case Type::Float32x4:
+            can_pshuf = true;
+            res_reg_smoll.ty = Type::Float32;
+            res_reg_smoll.reg.ty = Type::Float32;
+          case Type::Int64x2:
+          case Type::Float64x2:
+            can_punpckl = true;
+            res_reg_smoll.ty = Type::Float64;
+            res_reg_smoll.reg.ty = Type::Float64;
+            break;
+          case Type::Int64x4:
+          case Type::Float64x4:
+            can_vbroadcast = true;
+            res_reg_smoll.ty = Type::Float64;
+            res_reg_smoll.reg.ty = Type::Float64;
+            break;
+          default:
+            TODO("UNREACH");
+        }
+        if (can_pshuf) {
+          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
+          res.result.emplace_back(X86Subtype::vpshuf, res_reg, res_reg,
+                                  MArgument(static_cast<u8>(0)));
+          return true;
+        }
+        if (can_punpckl) {
+          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
+          res.result.emplace_back(X86Subtype::punpckl, res_reg, res_reg,
+                                  res_reg);
+          return true;
+        }
+        if (can_vbroadcast) {
+          res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
+          res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                  res_reg_smoll);
+          return true;
+        }
+        TODO("IMPL broadcast");
+        return false;
+      }});
   pats.push_back(Pattern{
       .nodes = {FCMPNode},
       .edges = {},
@@ -2631,7 +2712,8 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         GJumpSubtype op = GJumpSubtype::fcmp_oeq;
 
-        switch ((fir::FCmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        switch (static_cast<fir::FCmpInstrSubType>(
+            cmp_instr->get_instr_subtype())) {
           case fir::FCmpInstrSubType::IsNaN:
             op = GJumpSubtype::fcmp_isNaN;
             break;
@@ -2701,7 +2783,8 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         GJumpSubtype op = GJumpSubtype::icmp_eq;
 
-        switch ((fir::ICmpInstrSubType)cmp_instr->get_instr_subtype()) {
+        switch (static_cast<fir::ICmpInstrSubType>(
+            cmp_instr->get_instr_subtype())) {
           case fir::ICmpInstrSubType::SLT:
             op = GJumpSubtype::icmp_slt;
             break;
@@ -2821,9 +2904,9 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto ret_instr = res.matched_instrs[0];
         if (data.static_alloca_size > 0) {
           if (data.static_alloca_size < 255) {
-            res.result.emplace_back(GArithSubtype::add2,
-                                    MArgument(VReg::RSP(), Type::Int64),
-                                    MArgument((u8)data.static_alloca_size));
+            res.result.emplace_back(
+                GArithSubtype::add2, MArgument(VReg::RSP(), Type::Int64),
+                MArgument(static_cast<u8>(data.static_alloca_size)));
           } else {
             res.result.emplace_back(GArithSubtype::add2,
                                     MArgument(VReg::RSP(), Type::Int64),
@@ -2917,7 +3000,8 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(conversion_instr), res.result, data.alloc);
         auto res_opcode = GConvSubtype::FL2SI;
-        switch ((fir::ConversionSubType)conversion_instr->subtype) {
+        switch (
+            static_cast<fir::ConversionSubType>(conversion_instr->subtype)) {
           case fir::ConversionSubType::INVALID:
             UNREACH();
           case fir::ConversionSubType::BitCast:
@@ -2946,10 +3030,11 @@ void base_patterns(IRVec<Pattern> &pats) {
               res.result.emplace_back(GBaseSubtype::mov, g64, h64);
               res.result.emplace_back(
                   GVecSubtype::vsub, hf, hf,
-                  MArgument(doub ? (f64)0x43e0000000000000 : (f64)0x5f000000));
+                  MArgument(doub ? static_cast<f64>(0x43e0000000000000)
+                                 : static_cast<f64>(0x5f000000)));
               res.result.emplace_back(GConvSubtype::FL2SI, res_reg, hf);
               res.result.emplace_back(GArithSubtype::sar2, g64,
-                                      MArgument((u8)63));
+                                      MArgument(static_cast<u8>(63)));
               res.result.emplace_back(GArithSubtype::land2, res_reg, g64);
               res.result.emplace_back(GArithSubtype::lor2, res_reg, h64);
               return true;
@@ -3031,20 +3116,6 @@ void base_patterns(IRVec<Pattern> &pats) {
         TODO("impl ret value");
       }});
   pats.push_back(Pattern{
-      .nodes = {FloatAddNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto f_add_instr = res.matched_instrs[0];
-        auto a1 = valueToArg(f_add_instr->args[0], res.result, data.alloc);
-        auto a2 = valueToArgPosMem(f_add_instr->args[1], res.result, data.alloc,
-                                   f_add_instr->get_parent());
-        auto res_reg =
-            valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
-
-        res.result.emplace_back(GVecSubtype::vadd, res_reg, a1, a2);
-        return true;
-      }});
-  pats.push_back(Pattern{
       .nodes = {FloatNegNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
@@ -3066,48 +3137,6 @@ void base_patterns(IRVec<Pattern> &pats) {
           a2 = MArgument{v};
         }
         res.result.emplace_back(GVecSubtype::vXor, res_reg, a1, a2);
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {FloatSubNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto f_sub_instr = res.matched_instrs[0];
-        auto a1 = valueToArg(f_sub_instr->args[0], res.result, data.alloc);
-        auto a2 = valueToArgPosMem(f_sub_instr->args[1], res.result, data.alloc,
-                                   f_sub_instr->get_parent());
-        auto res_reg =
-            valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
-
-        res.result.emplace_back(GVecSubtype::vsub, res_reg, a1, a2);
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {FloatMulNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto f_mul_instr = res.matched_instrs[0];
-        auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
-        auto a2 = valueToArgPosMem(f_mul_instr->args[1], res.result, data.alloc,
-                                   f_mul_instr->get_parent());
-        auto res_reg =
-            valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
-
-        res.result.emplace_back(GVecSubtype::vmul, res_reg, a1, a2);
-        return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {FloatDivNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto f_div_instr = res.matched_instrs[0];
-        auto a1 = valueToArg(f_div_instr->args[0], res.result, data.alloc);
-        auto a2 = valueToArgPosMem(f_div_instr->args[1], res.result, data.alloc,
-                                   f_div_instr->get_parent());
-        auto res_reg =
-            valueToArg(fir::ValueR(f_div_instr), res.result, data.alloc);
-
-        res.result.emplace_back(GVecSubtype::vdiv, res_reg, a1, a2);
         return true;
       }});
   pats.push_back(
@@ -3194,22 +3223,22 @@ void base_patterns(IRVec<Pattern> &pats) {
               res.result.emplace_back(
                   X86Subtype::vpextr, target,
                   MArgument(input.reg.retype(helper_ty), helper_ty),
-                  MArgument((u8)1));
+                  MArgument(static_cast<u8>(1)));
             } else if (rev_indx == 2) {
               auto helper_ty = get_xmm_version_ty(target.ty);
               auto helper_reg = data.alloc.get_new_register(helper_ty);
               auto helper_arg = MArgument(helper_reg, helper_ty);
               res.result.emplace_back(X86Subtype::vextract128, helper_arg,
-                                      input, MArgument((u8)1));
+                                      input, MArgument(static_cast<u8>(1)));
               res.result.emplace_back(GBaseSubtype::mov, target, helper_arg);
             } else if (rev_indx == 3) {
               auto helper_ty = get_xmm_version_ty(target.ty);
               auto helper_reg = data.alloc.get_new_register(helper_ty);
               auto helper_arg = MArgument(helper_reg, helper_ty);
               res.result.emplace_back(X86Subtype::vextract128, helper_arg,
-                                      input, MArgument((u8)1));
+                                      input, MArgument(static_cast<u8>(1)));
               res.result.emplace_back(X86Subtype::vpextr, target, input,
-                                      MArgument((u8)1));
+                                      MArgument(static_cast<u8>(1)));
             } else {
               fmt::println("{}", extract_instr);
               TODO("Impl");
@@ -3260,39 +3289,39 @@ void intrin_patterns(IRVec<Pattern> &pats) {
   using NodeType = Pattern::NodeType;
 
   auto ctlzNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::CTLZ};
+                       static_cast<u32>(fir::IntrinsicSubType::CTLZ)};
   auto popCntNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                         (u32)fir::IntrinsicSubType::PopCnt};
+                         static_cast<u32>(fir::IntrinsicSubType::PopCnt)};
   auto va_endNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                         (u32)fir::IntrinsicSubType::VA_end};
+                         static_cast<u32>(fir::IntrinsicSubType::VA_end)};
   auto va_startNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                           (u32)fir::IntrinsicSubType::VA_start};
+                           static_cast<u32>(fir::IntrinsicSubType::VA_start)};
   auto absNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                      (u32)fir::IntrinsicSubType::Abs};
+                      static_cast<u32>(fir::IntrinsicSubType::Abs)};
   auto fabsNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::FAbs};
+                       static_cast<u32>(fir::IntrinsicSubType::FAbs)};
   auto sminNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::SMin};
+                       static_cast<u32>(fir::IntrinsicSubType::SMin)};
   auto uminNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::UMin};
+                       static_cast<u32>(fir::IntrinsicSubType::UMin)};
   auto umaxNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::UMax};
+                       static_cast<u32>(fir::IntrinsicSubType::UMax)};
   auto smaxNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::SMax};
+                       static_cast<u32>(fir::IntrinsicSubType::SMax)};
   auto fmaxNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::FMax};
+                       static_cast<u32>(fir::IntrinsicSubType::FMax)};
   auto fminNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::FMin};
+                       static_cast<u32>(fir::IntrinsicSubType::FMin)};
   auto froundNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                         (u32)fir::IntrinsicSubType::FRound};
+                         static_cast<u32>(fir::IntrinsicSubType::FRound)};
   auto fceilNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                        (u32)fir::IntrinsicSubType::FCeil};
+                        static_cast<u32>(fir::IntrinsicSubType::FCeil)};
   auto ffloorNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                         (u32)fir::IntrinsicSubType::FFloor};
+                         static_cast<u32>(fir::IntrinsicSubType::FFloor)};
   auto ftruncNode = Node{NodeType::Instr, InstrType::Intrinsic,
-                         (u32)fir::IntrinsicSubType::FTrunc};
+                         static_cast<u32>(fir::IntrinsicSubType::FTrunc)};
   auto is_const = Node{NodeType::Instr, InstrType::Intrinsic,
-                       (u32)fir::IntrinsicSubType::IsConstant};
+                       static_cast<u32>(fir::IntrinsicSubType::IsConstant)};
 
   pats.push_back(Pattern{
       .nodes = {froundNode},
@@ -3302,7 +3331,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument((u8)0b00));
+                                MArgument(static_cast<u8>(0b00)));
         return true;
       }});
   pats.push_back(Pattern{
@@ -3322,7 +3351,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument((u8)0b10));
+                                MArgument(static_cast<u8>(0b10)));
         return true;
       }});
   pats.push_back(Pattern{
@@ -3333,7 +3362,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument((u8)0b01));
+                                MArgument(static_cast<u8>(0b01)));
         return true;
       }});
   pats.push_back(Pattern{
@@ -3344,7 +3373,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
         res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument((u8)0b11));
+                                MArgument(static_cast<u8>(0b11)));
         return true;
       }});
   pats.push_back(Pattern{
@@ -3459,12 +3488,13 @@ void intrin_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
           res.result.emplace_back(
               GVecSubtype::vAnd, res_reg, res_reg,
-              MArgument(std::bit_cast<f32>((u32)0x7fffffff)));
+              MArgument(std::bit_cast<f32>(static_cast<u32>(0x7fffffff))));
         } else if (arg.ty == Type::Float64) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
-          res.result.emplace_back(
-              GVecSubtype::vAnd, res_reg, res_reg,
-              MArgument(std::bit_cast<f64>((u64)0x7fffffffffffffff)));
+          res.result.emplace_back(GVecSubtype::vAnd, res_reg, res_reg,
+                                  MArgument(std::bit_cast<f64>(
+                                      static_cast<u64>(0x7fffffffffffffff))));
+
         } else {
           TODO("impl");
         }
@@ -3485,6 +3515,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                 return true;
               }});
 }
+}  // namespace
 
 IRVec<Pattern> get_pats() {
   IRVec<Pattern> res;
