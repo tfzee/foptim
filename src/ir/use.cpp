@@ -1,7 +1,8 @@
+#include "use.hpp"
+
 #include <fmt/core.h>
 
 #include "ir/instruction_data.hpp"
-#include "use.hpp"
 #include "value.hpp"
 
 namespace foptim::fir {
@@ -106,7 +107,8 @@ fmt::appender fmt::formatter<foptim::fir::Use>::format(
     foptim::fir::Use const &v, format_context &ctx) const {
   auto out = ctx.out();
 
-  out = fmt::format_to(out, "{:p}", (void *)v.user.get_raw_ptr());
+  out = fmt::format_to(out, "{:p}",
+                       static_cast<const void *>(v.user.get_raw_ptr()));
   switch (v.type) {
     case foptim::fir::UseType::NormalArg:
       return fmt::format_to(out, "({})", v.argId);

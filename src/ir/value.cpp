@@ -42,11 +42,14 @@ bool ValueR::eql(const ValueR &other) const {
     case ValueType::InvalidValue:
       return true;
     case ValueType::Instr:
-      return (void *)instr.get_raw_ptr() == (void *)other.instr.get_raw_ptr();
+      return static_cast<const void *>(instr.get_raw_ptr()) ==
+             static_cast<const void *>(other.instr.get_raw_ptr());
     case ValueType::BasicBlock:
-      return (void *)bb.get_raw_ptr() == (void *)other.bb.get_raw_ptr();
+      return static_cast<const void *>(bb.get_raw_ptr()) ==
+             static_cast<const void *>(other.bb.get_raw_ptr());
     case ValueType::BBArg:
-      return (void *)bb_arg.get_raw_ptr() == (void *)other.bb_arg.get_raw_ptr();
+      return static_cast<const void *>(bb_arg.get_raw_ptr()) ==
+             static_cast<const void *>(other.bb_arg.get_raw_ptr());
     case ValueType::ConstantValueR:
       return const_val->eql(*other.const_val.get_raw_ptr());
   }
@@ -171,10 +174,10 @@ fmt::appender fmt::formatter<foptim::fir::ValueR>::format(
       return fmt::format_to(ctx.out(), "INVALID");
     case foptim::fir::ValueType::Instr:
       return fmt::format_to(ctx.out(), col1, "{:p}",
-                            (void *)k.instr.get_raw_ptr());
+                            static_cast<const void *>(k.instr.get_raw_ptr()));
     case foptim::fir::ValueType::BasicBlock:
       return fmt::format_to(ctx.out(), colbb, "{:p}",
-                            (void *)k.bb.get_raw_ptr());
+                            static_cast<const void *>(k.bb.get_raw_ptr()));
     case foptim::fir::ValueType::BBArg:
       if (debug && color) {
         return fmt::format_to(ctx.out(), col2, "{:cd}", k.bb_arg);

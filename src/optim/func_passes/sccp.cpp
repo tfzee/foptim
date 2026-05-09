@@ -347,7 +347,7 @@ SCCP::ConstantValue SCCP::eval_binary_instr(fir::Context &ctx,
   auto out_type = a.get_type();
 
   TVec<ConstantValue::Value> v_outs;
-  if (a.is_int()) {
+  if (a.is_int() || a.is_null()) {
     for (size_t i = 0; i < a.vals.size(); i++) {
       auto c = ConstantValue::Value{
           .i = const_eval_bin(instr, out_type, a.as_int(i), b.as_int(i))};

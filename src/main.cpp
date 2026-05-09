@@ -26,37 +26,6 @@
 #include "mir/optim/register_joining.hpp"
 #include "mir/optim/stack_optim.hpp"
 #include "optim/fir_pipeline.hpp"
-#include "optim/func_passes/cmp_known_val_prop.hpp"
-#include "optim/func_passes/constant_loop_eval.hpp"
-#include "optim/func_passes/dce.hpp"
-#include "optim/func_passes/double_load.hpp"
-#include "optim/func_passes/inst_simplify.hpp"
-#include "optim/func_passes/intrin_simplify.hpp"
-#include "optim/func_passes/legalize_struct.hpp"
-#include "optim/func_passes/legalize_vecs.hpp"
-#include "optim/func_passes/licm.hpp"
-#include "optim/func_passes/llvm_intrin_lowering.hpp"
-#include "optim/func_passes/loop_rotate.hpp"
-#include "optim/func_passes/loop_simplify.hpp"
-#include "optim/func_passes/loop_unroll.hpp"
-#include "optim/func_passes/loop_unswitch.hpp"
-#include "optim/func_passes/lvn.hpp"
-#include "optim/func_passes/mem2reg.hpp"
-#include "optim/func_passes/merge_alloca.hpp"
-#include "optim/func_passes/sccp.hpp"
-#include "optim/func_passes/simplify_cfg.hpp"
-#include "optim/func_passes/slp_vectorizer.hpp"
-#include "optim/func_passes/sora.hpp"
-#include "optim/func_passes/stack_known_bits.hpp"
-#include "optim/func_passes/tail_rec_elim.hpp"
-#include "optim/function_pass.hpp"
-#include "optim/module_passes/IPCP.hpp"
-#include "optim/module_passes/arg_promotion.hpp"
-#include "optim/module_passes/func_property_annotator.hpp"
-#include "optim/module_passes/function_dedup.hpp"
-#include "optim/module_passes/global_dce.hpp"
-#include "optim/module_passes/global_promotion.hpp"
-#include "optim/module_passes/inline.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
@@ -70,7 +39,6 @@
 
 namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed);
-void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed);
 void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
                                foptim::FVec<foptim::fmir::MFunc> &funcs,
                                foptim::FVec<foptim::fmir::Global> &globals,
@@ -147,118 +115,6 @@ void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx, shed);
   foptim::utils::TempAlloc<void *>::reset();
-}
-
-[[maybe_unused]] void optimize_fir(foptim::fir::Context &ctx,
-                                   foptim::JobSheduler *shed) {
-  (void)shed;
-  ZoneScopedN("Optim FIR");
-  using namespace foptim::optim;
-  if (foptim::utils::verbosity > 0) {
-    fmt::print("================FIR====================\n");
-    fmt::print("================FIR START====================\n");
-  }
-  ASSERT(ctx->verify());
-  foptim::optim::StaticParallelFunctionPassManager<DCE>{}.apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      LegalizeStructs, LLVMInstrinsicLowering, SORA, Mem2Reg, DoubleLoadElim,
-      DCE, IntrinSimplify, InstSimplify, DCE, SimplifyCFG, LVN, DCE>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
-                                         ArgPromotion, GDCE>{}
-      .apply(ctx, shed);
-
-  foptim::optim::StaticParallelFunctionPassManager<
-      DCE, CmpKnownValProp, SimplifyCFG, TailRecElim, LICM, LoopRotate,
-      LoopSimplify, DCE, LVN, SCCP, IntrinSimplify, InstSimplify,
-      DoubleLoadElim, DCE, SimplifyCFG, StackKnownBits, SORA, Mem2Reg,
-      SimplifyCFG, DCE, LVN, InstSimplify, ConstLoopEval, LoopSimplify,
-      InstSimplify, SimplifyCFG>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<
-      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
-      ArgPromotion, GDCE, FunctionDeDup<true>, GDCE, FuncPropAnnotator>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      SimplifyCFG, CmpKnownValProp, InstSimplify, SimplifyCFG, LICM, DCE,
-      LoopSimplify, LoopUnswitch, LoopUnroll, SimplifyCFG, DCE, SLPVectorizer,
-      LVN, SCCP, IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify,
-      CmpKnownValProp, SimplifyCFG, DCE>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<
-      FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
-      ArgPromotion, FunctionDeDup<true>, GDCE, FuncPropAnnotator>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      SimplifyCFG, InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE,
-      LoopSimplify, LoopUnswitch, IntrinSimplify, InstSimplify, DCE>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, SORA,
-                                                   Mem2Reg, SimplifyCFG, DCE>{}
-      .apply(ctx, shed);
-
-  foptim::optim::StaticModulePassManager<
-      ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, GDCE, IPCP,
-      GlobalPromotion, Inline<>, Inline<>, GDCE, FuncPropAnnotator>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, InstSimplify,
-      CmpKnownValProp, SimplifyCFG, SCCP>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<
-      ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>,
-      Inline<>, GDCE, IPCP, FuncPropAnnotator>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      SimplifyCFG, LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, SimplifyCFG,
-      InstSimplify, SCCP, DCE, InstSimplify, ConstLoopEval, LoopSimplify,
-      LoopUnswitch, LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, InstSimplify,
-      SimplifyCFG>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticModulePassManager<
-      ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>,
-      GDCE, IPCP, FuncPropAnnotator>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      SimplifyCFG, LVN, SCCP, DCE, IntrinSimplify, InstSimplify, DCE,
-      SLPVectorizer, InstSimplify, SimplifyCFG>{}
-      .apply(ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      LegalizeVecs, SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
-      .apply(ctx, shed);
-  // for (const auto &[_, func] : ctx->storage.functions) {
-  //   fmt::println("{:cd}", *func);
-  // }
-  // general cleanup / legalization / finalization
-  foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
-      ctx, shed);
-  foptim::optim::StaticParallelFunctionPassManager<
-      LVN, InstSimplify, SCCP, DCE, LVN, InstSimplify, SimplifyCFG, DCE,
-      LegalizeVecs, InstSimplify, SCCP, LegalizeVecs, DCE>{}
-      .apply(ctx, shed);
-
-  ASSERT(ctx->verify());
-  // {
-  //   auto *slab = ctx->storage.storage_global._slot_start.load();
-  //   while (slab != nullptr) {
-  //     for (auto &i : slab->data) {
-  //       const auto *v = &i;
-  //       if (v->used == foptim::utils::SlotState::Used) {
-  //         // auto size = v->data->n_bytes;
-  //         // foptim::fmir::Global glob = {.name = v->data->name.c_str(),
-  //         //                              .data = {},
-  //         //                              .size = 0,
-  //         //                              .reloc_info = {},
-  //         //                              .vis = v->data->linkvis};
-  //         fmt::println("{:cd}", *v->data);
-  //       }
-  //     }
-  //     slab = slab->next;
-  //   }
-  // }
-  if (foptim::utils::verbosity > 0) {
-    fmt::print("================FIR END====================\n");
-  }
 }
 
 void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
@@ -369,7 +225,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::DeadCodeElim{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       ASSERT(foptim::fmir::verify(func));
-      foptim::fmir::CallingConv{}.first_stage(func);
+      foptim::fmir::CallingConvFirst{}.apply(func, *config);
       foptim::fmir::Legalizer{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
@@ -379,8 +235,9 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::RegAlloc{}.apply(func, *config);
+      // fmt::println("{:cd}", func);
       foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::CallingConv{}.second_stage(func);
+      foptim::fmir::CallingConvSecond{}.apply(func, *config);
       foptim::fmir::StackOptim{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::InstSimplify{}.apply(func, *config);
@@ -388,6 +245,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       foptim::utils::TempAlloc<void *>::reset();
       foptim::fmir::BBReordering{}.apply(func, *config);
       foptim::utils::TempAlloc<void *>::reset();
+      // fmt::println("{:cd}", func);
       ASSERT(foptim::fmir::verify(func));
     });
     i++;

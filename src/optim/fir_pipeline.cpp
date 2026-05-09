@@ -105,4 +105,119 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   ASSERT(ctx->verify());
 }
 
+
+
+
+// [[maybe_unused]] void optimize_fir(foptim::fir::Context &ctx,
+//                                    foptim::JobSheduler *shed) {
+//   (void)shed;
+//   ZoneScopedN("Optim FIR");
+//   using namespace foptim::optim;
+//   if (foptim::utils::verbosity > 0) {
+//     fmt::print("================FIR====================\n");
+//     fmt::print("================FIR START====================\n");
+//   }
+//   ASSERT(ctx->verify());
+//   foptim::optim::StaticParallelFunctionPassManager<DCE>{}.apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       LegalizeStructs, LLVMInstrinsicLowering, SORA, Mem2Reg, DoubleLoadElim,
+//       DCE, IntrinSimplify, InstSimplify, DCE, SimplifyCFG, LVN, DCE>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticModulePassManager<FuncPropAnnotator, GlobalPromotion,
+//                                          ArgPromotion, GDCE>{}
+//       .apply(ctx, shed);
+
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       DCE, CmpKnownValProp, SimplifyCFG, TailRecElim, LICM, LoopRotate,
+//       LoopSimplify, DCE, LVN, SCCP, IntrinSimplify, InstSimplify,
+//       DoubleLoadElim, DCE, SimplifyCFG, StackKnownBits, SORA, Mem2Reg,
+//       SimplifyCFG, DCE, LVN, InstSimplify, ConstLoopEval, LoopSimplify,
+//       InstSimplify, SimplifyCFG>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticModulePassManager<
+//       FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
+//       ArgPromotion, GDCE, FunctionDeDup<true>, GDCE, FuncPropAnnotator>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       SimplifyCFG, CmpKnownValProp, InstSimplify, SimplifyCFG, LICM, DCE,
+//       LoopSimplify, LoopUnswitch, LoopUnroll, SimplifyCFG, DCE, SLPVectorizer,
+//       LVN, SCCP, IntrinSimplify, InstSimplify, ConstLoopEval, InstSimplify,
+//       CmpKnownValProp, SimplifyCFG, DCE>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticModulePassManager<
+//       FuncPropAnnotator, IPCP, GlobalPromotion, Inline<>, Inline<>, Inline<>,
+//       ArgPromotion, FunctionDeDup<true>, GDCE, FuncPropAnnotator>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       SimplifyCFG, InstSimplify, SimplifyCFG, TailRecElim, SimplifyCFG, DCE,
+//       LoopSimplify, LoopUnswitch, IntrinSimplify, InstSimplify, DCE>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<StackKnownBits, SORA,
+//                                                    Mem2Reg, SimplifyCFG, DCE>{}
+//       .apply(ctx, shed);
+
+//   foptim::optim::StaticModulePassManager<
+//       ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, GDCE, IPCP,
+//       GlobalPromotion, Inline<>, Inline<>, GDCE, FuncPropAnnotator>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, InstSimplify,
+//       CmpKnownValProp, SimplifyCFG, SCCP>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticModulePassManager<
+//       ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>,
+//       Inline<>, GDCE, IPCP, FuncPropAnnotator>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       SimplifyCFG, LVN, SCCP, DoubleLoadElim, DCE, IntrinSimplify, SimplifyCFG,
+//       InstSimplify, SCCP, DCE, InstSimplify, ConstLoopEval, LoopSimplify,
+//       LoopUnswitch, LoopUnroll, SimplifyCFG, DCE, SLPVectorizer, InstSimplify,
+//       SimplifyCFG>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticModulePassManager<
+//       ArgPromotion, FuncPropAnnotator, FunctionDeDup<false>, Inline<>, Inline<>,
+//       GDCE, IPCP, FuncPropAnnotator>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       SimplifyCFG, LVN, SCCP, DCE, IntrinSimplify, InstSimplify, DCE,
+//       SLPVectorizer, InstSimplify, SimplifyCFG>{}
+//       .apply(ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       LegalizeVecs, SCCP, LVN, InstSimplify, DCE, LVN, InstSimplify, DCE>{}
+//       .apply(ctx, shed);
+//   // for (const auto &[_, func] : ctx->storage.functions) {
+//   //   fmt::println("{:cd}", *func);
+//   // }
+//   // general cleanup / legalization / finalization
+//   foptim::optim::StaticParallelFunctionPassManager<MergeAllocaPass>{}.apply(
+//       ctx, shed);
+//   foptim::optim::StaticParallelFunctionPassManager<
+//       LVN, InstSimplify, SCCP, DCE, LVN, InstSimplify, SimplifyCFG, DCE,
+//       LegalizeVecs, InstSimplify, SCCP, LegalizeVecs, DCE>{}
+//       .apply(ctx, shed);
+
+//   ASSERT(ctx->verify());
+//   // {
+//   //   auto *slab = ctx->storage.storage_global._slot_start.load();
+//   //   while (slab != nullptr) {
+//   //     for (auto &i : slab->data) {
+//   //       const auto *v = &i;
+//   //       if (v->used == foptim::utils::SlotState::Used) {
+//   //         // auto size = v->data->n_bytes;
+//   //         // foptim::fmir::Global glob = {.name = v->data->name.c_str(),
+//   //         //                              .data = {},
+//   //         //                              .size = 0,
+//   //         //                              .reloc_info = {},
+//   //         //                              .vis = v->data->linkvis};
+//   //         fmt::println("{:cd}", *v->data);
+//   //       }
+//   //     }
+//   //     slab = slab->next;
+//   //   }
+//   // }
+//   if (foptim::utils::verbosity > 0) {
+//     fmt::print("================FIR END====================\n");
+//   }
+// }
+
 }  // namespace foptim::conf::pipeline

@@ -4,8 +4,6 @@
 #include "stable_vec_slot.hpp"
 #include "types.hpp"
 #include "utils/todo.hpp"
-// needed for std::hash
-#include <unordered_map>
 
 namespace foptim::utils {
 
@@ -123,9 +121,10 @@ struct ankerl::unordered_dense::hash<foptim::utils::SRef<T>> {
       -> uint64_t {
     using foptim::u32;
 #ifdef SLOT_CHECK_GENERATION
-    return hash<void *>()((void *)k.data_ref) ^ hash<u32>()(k.generation);
+    return hash<const void *>()(static_cast<const void *>(k.data_ref)) ^
+           hash<u32>()(k.generation);
 #else
-    return hash<void *>()((void *)k.data_ref);
+    return hash<const void *>()(static_cast<const void *>(k.data_ref));
 #endif
   }
 };
@@ -137,9 +136,10 @@ struct std::hash<foptim::utils::SRef<T>> {
     using std::hash;
 
 #ifdef SLOT_CHECK_GENERATION
-    return hash<void *>()((void *)k.data_ref) ^ hash<u32>()(k.generation);
+    return hash<const void *>()(static_cast<const void *>(k.data_ref)) ^
+           hash<u32>()(k.generation);
 #else
-    return hash<void *>()((void *)k.data_ref);
+    return hash<const void *>()(static_cast<const void *>(k.data_ref));
 #endif
   }
 };

@@ -15,18 +15,22 @@ void Function::dump_data_dependency_graph(const char *filename) const {
   fmt::println(file, "node [shape=box, fontname=\"monospace\", fontsize=10];");
   for (auto b : basic_blocks) {
     for (auto arg : b->args) {
-      fmt::println(file, R"( "{}"[label="{}"])", (void *)arg.get_raw_ptr(),
-                   (void *)arg.get_raw_ptr());
+      fmt::println(file, R"( "{}"[label="{}"])",
+                   static_cast<const void *>(arg.get_raw_ptr()),
+                   static_cast<const void *>(arg.get_raw_ptr()));
       for (auto u : arg->get_uses()) {
         fmt::print(file, "\"{}\" -> \"{}\" [color=\"red\"];\n",
-                   (void *)arg.get_raw_ptr(), (void *)u.user.get_raw_ptr());
+                   static_cast<const void *>(arg.get_raw_ptr()),
+                   static_cast<const void *>(u.user.get_raw_ptr()));
       }
     }
     for (auto i : b->instructions) {
-      fmt::print(file, R"( "{}"[label="{}"])", (void *)i.get_raw_ptr(), i);
+      fmt::print(file, R"( "{}"[label="{}"])",
+                 static_cast<const void *>(i.get_raw_ptr()), i);
       for (auto u : i->get_uses()) {
         fmt::print(file, "\"{}\" -> \"{}\" [color=\"red\"];\n",
-                   (void *)i.get_raw_ptr(), (void *)u.user.get_raw_ptr());
+                   static_cast<const void *>(i.get_raw_ptr()),
+                   static_cast<const void *>(u.user.get_raw_ptr()));
       }
     }
   }
@@ -77,7 +81,7 @@ bool Function::verify() const {
 
   for (const auto &bb : basic_blocks) {
     if (!bb.is_valid() || !bb->verify(this)) {
-      fmt::println("In BB {:p}", (void *)bb.get_raw_ptr());
+      fmt::println("In BB {:p}", static_cast<const void *>(bb.get_raw_ptr()));
       return false;
     }
   }

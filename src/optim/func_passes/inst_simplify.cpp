@@ -129,7 +129,7 @@ bool select_to_abs(fir::Instr instr, WorkList &worklist) {
   if (negated || positive) {
     fir::Builder b{instr};
     fir::ValueR new_val;
-    switch ((fir::ICmpInstrSubType)icmp->subtype) {
+    switch (static_cast<fir::ICmpInstrSubType>(icmp->subtype)) {
       case fir::ICmpInstrSubType::SGT:
       case fir::ICmpInstrSubType::SGE:
       case fir::ICmpInstrSubType::UGT:
@@ -220,7 +220,7 @@ bool select_to_fabs(fir::Instr instr, WorkList &worklist) {
   if (negated || positive) {
     fir::Builder b{instr};
     fir::ValueR new_val;
-    switch ((fir::FCmpInstrSubType)icmp->subtype) {
+    switch (static_cast<fir::FCmpInstrSubType>(icmp->subtype)) {
       case fir::FCmpInstrSubType::OGE:
       case fir::FCmpInstrSubType::UGT:
       case fir::FCmpInstrSubType::UGE:
@@ -344,7 +344,7 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (negated || positive) {
       fir::Builder b{instr};
       fir::ValueR new_val;
-      switch ((fir::ICmpInstrSubType)icmp->subtype) {
+      switch (static_cast<fir::ICmpInstrSubType>(icmp->subtype)) {
         case fir::ICmpInstrSubType::UGT:
         case fir::ICmpInstrSubType::UGE:
           new_val = b.build_intrinsic(instr->args[1], instr->args[2],
@@ -410,7 +410,7 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (negated || positive) {
       fir::Builder b{instr};
       fir::ValueR new_val;
-      switch ((fir::FCmpInstrSubType)fcmp->subtype) {
+      switch (static_cast<fir::FCmpInstrSubType>(fcmp->subtype)) {
         // TODO(CORRECTNESS): idk  if both unordered and ordered can just be
         // converted
         case fir::FCmpInstrSubType::OGT:
@@ -489,7 +489,7 @@ bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
   if (instr->args[0].is_instr()) {
     auto cond = instr->args[0].as_instr();
     if (cond->is(fir::InstrType::UnaryInstr) &&
-        cond->subtype == (u32)fir::UnaryInstrSubType::Not) {
+        cond->subtype == static_cast<u32>(fir::UnaryInstrSubType::Not)) {
       TVec<fir::ValueR> args0 = {instr->bbs[0].args.begin(),
                                  instr->bbs[0].args.end()};
       TVec<fir::ValueR> args1 = {instr->bbs[1].args.begin(),
@@ -610,7 +610,9 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto c = instr->args[0].as_constant()->as_int();
     push_all_uses(worklist, instr);
     if (iszext) {
-      auto mask = ((u128)1 << instr->args[0].get_type()->get_bitwidth()) - 1;
+      auto mask =
+          (static_cast<u128>(1) << instr->args[0].get_type()->get_bitwidth()) -
+          1;
       instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
           std::bit_cast<i128>(c & mask), instr->get_type())});
     } else {
@@ -650,7 +652,8 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto output_width = output_type->get_bitwidth();
     fir::Builder b(instr);
     auto bitwidth = trunc.get_type()->get_size() * 8;
-    auto mask = ctx->get_constant_value(((u64)1 << bitwidth) - 1, input_ty);
+    auto mask = ctx->get_constant_value((static_cast<u64>(1) << bitwidth) - 1,
+                                        input_ty);
     auto new_result = b.build_binary_op(trunc->args[0], fir::ValueR{mask},
                                         fir::BinaryInstrSubType::And);
     push_all_uses(worklist, instr);
@@ -699,7 +702,8 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
         arg2Ext = buh.build_sext(argi->args[1], ext_ty);
       }
       auto res = buh.build_binary_op(
-          arg1Ext, arg2Ext, (fir::BinaryInstrSubType)argi->get_instr_subtype());
+          arg1Ext, arg2Ext,
+          static_cast<fir::BinaryInstrSubType>(argi->get_instr_subtype()));
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
       instr.destroy();
@@ -733,7 +737,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   // since lea doesnt like 1byte value we skip those for now
   auto old_bitwidth = instr->args[0].get_type()->get_bitwidth();
   auto new_bitwidth = instr.get_type()->get_bitwidth();
-  auto mask = ((i128)1 << new_bitwidth) - 1;
+  auto mask = (static_cast<i128>(1) << new_bitwidth) - 1;
 
   if (instr->args[0].get_type() == instr.get_type()) {
     push_all_uses(worklist, instr);
@@ -817,23 +821,25 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         auto i_arg0 = arg_i->args[0];
         auto i_arg1 = arg_i->args[1];
         fir::Builder b{instr};
-        switch ((fir::BinaryInstrSubType)arg_i->subtype) {
+        switch (static_cast<fir::BinaryInstrSubType>(arg_i->subtype)) {
           case fir::BinaryInstrSubType::Shl: {
             if (i_arg1.is_constant()) {
               auto i_arg1c = i_arg1.as_constant()->as_int();
               if (i_arg1c >= new_bitwidth) {
                 push_all_uses(worklist, instr);
-                instr->replace_all_uses(fir::ValueR{
-                    ctx->get_constant_value((i128)0, instr->get_type())});
+                instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+                    static_cast<i128>(0), instr->get_type())});
                 instr.destroy();
                 return true;
               }
-              if (i_arg1c >= 0 && i_arg1c < ((i128)1 << new_bitwidth)) {
+              if (i_arg1c >= 0 &&
+                  i_arg1c < (static_cast<i128>(1) << new_bitwidth)) {
                 push_all_uses(worklist, instr);
                 auto v0 = b.build_itrunc(i_arg0, out_type);
                 auto v1 = b.build_itrunc(i_arg1, out_type);
                 auto r = b.build_binary_op(
-                    v0, v1, (fir::BinaryInstrSubType)arg_i->subtype);
+                    v0, v1,
+                    static_cast<fir::BinaryInstrSubType>(arg_i->subtype));
                 push_all_uses(worklist, instr);
                 worklist.push_back(
                     {v0.as_instr(), v0.as_instr()->get_parent()});
@@ -853,8 +859,8 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           case fir::BinaryInstrSubType::IntAdd: {
             auto v0 = b.build_itrunc(i_arg0, out_type);
             auto v1 = b.build_itrunc(i_arg1, out_type);
-            auto r = b.build_binary_op(v0, v1,
-                                       (fir::BinaryInstrSubType)arg_i->subtype);
+            auto r = b.build_binary_op(
+                v0, v1, static_cast<fir::BinaryInstrSubType>(arg_i->subtype));
             worklist.push_back({v0.as_instr(), v0.as_instr()->get_parent()});
             worklist.push_back({v1.as_instr(), v1.as_instr()->get_parent()});
             push_all_uses(worklist, r.as_instr());
@@ -901,7 +907,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
   }
   if (instr->is(fir::UnaryInstrSubType::IntNeg) &&
       instr->get_type()->get_bitwidth() == 1) {
-    instr->subtype = (u32)fir::UnaryInstrSubType::Not;
+    instr->subtype = static_cast<u32>(fir::UnaryInstrSubType::Not);
     worklist.push_back(
         InstSimplify::WorkItem{.instr = instr, .b = instr->get_parent()});
     return true;
@@ -920,7 +926,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     push_all_uses(worklist, instr);
     auto old_icmp = instr->args[0].as_instr();
     auto new_subtype = fir::ICmpInstrSubType::INVALID;
-    switch ((fir::ICmpInstrSubType)old_icmp->subtype) {
+    switch (static_cast<fir::ICmpInstrSubType>(old_icmp->subtype)) {
       case fir::ICmpInstrSubType::INVALID:
         break;
       case fir::ICmpInstrSubType::ULT:
@@ -973,7 +979,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     push_all_uses(worklist, instr);
     auto old_fcmp = instr->args[0].as_instr();
     auto new_subtype = fir::FCmpInstrSubType::INVALID;
-    switch ((fir::FCmpInstrSubType)old_fcmp->subtype) {
+    switch (static_cast<fir::FCmpInstrSubType>(old_fcmp->subtype)) {
       case fir::FCmpInstrSubType::OEQ:
         new_subtype = fir::FCmpInstrSubType::ONE;
         break;
@@ -1084,7 +1090,7 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     instr.destroy();
     return true;
   }
-  switch ((fir::ConversionSubType)instr->subtype) {
+  switch (static_cast<fir::ConversionSubType>(instr->subtype)) {
     case fir::ConversionSubType::INVALID:
       TODO("unreach");
     case fir::ConversionSubType::BitCast:
@@ -1159,9 +1165,9 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
             } else {
               arg1_casted = arg1.as_instr()->args[0];
             }
-            auto r =
-                buh.build_binary_op(arg0_casted, arg1_casted, instr.get_type(),
-                                    (fir::BinaryInstrSubType)a0->subtype);
+            auto r = buh.build_binary_op(
+                arg0_casted, arg1_casted, instr.get_type(),
+                static_cast<fir::BinaryInstrSubType>(a0->subtype));
             instr->replace_all_uses(r);
             instr.destroy();
             if (a0->get_n_uses() == 0) {
@@ -1192,11 +1198,11 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         auto out_width = instr->get_type()->as_float();
         if (out_width == 32) {
-          instr->replace_all_uses(fir::ValueR{
-              ctx->get_constant_value((f32)val, instr->get_type())});
+          instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+              static_cast<f32>(val), instr->get_type())});
         } else if (out_width == 64) {
-          instr->replace_all_uses(fir::ValueR{
-              ctx->get_constant_value((f64)val, instr->get_type())});
+          instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+              static_cast<f64>(val), instr->get_type())});
         } else {
           TODO("Not supported other float bitwidths");
         }
@@ -1250,15 +1256,15 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
       if (instr->args[0].is_constant() &&
           instr->args[0].as_constant()->is_float()) {
         auto cval = instr->args[0].as_constant();
-        auto val = (i128)0;
+        auto val = static_cast<i128>(0);
         if (instr->args[0].get_type()->get_bitwidth() == 32) {
           val = cval->as_f32();
         } else {
           val = cval->as_f64();
         }
         push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value((i128)val, instr->get_type())});
+        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
+            static_cast<i128>(val), instr->get_type())});
         instr.destroy();
         // TODO("OKAK IMPL");
         return true;
@@ -1269,8 +1275,8 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->args[0].as_constant()->is_float()) {
         auto val = instr->args[0].as_constant()->as_float();
         push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value((u64)val, instr->get_type())});
+        instr->replace_all_uses(fir::ValueR{
+            ctx->get_constant_value(static_cast<u64>(val), instr->get_type())});
         instr.destroy();
         return true;
       }
@@ -1290,8 +1296,8 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         ASSERT(instr.get_type()->as_float() == 64);
         auto val = instr->args[0].as_constant()->as_f32();
         push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value((f64)val, instr->get_type())});
+        instr->replace_all_uses(fir::ValueR{
+            ctx->get_constant_value(static_cast<f64>(val), instr->get_type())});
         instr.destroy();
         return true;
       }
@@ -1303,8 +1309,8 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         ASSERT(instr.get_type()->as_float() == 32);
         auto val = instr->args[0].as_constant()->as_f64();
         push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value((f32)val, instr->get_type())});
+        instr->replace_all_uses(fir::ValueR{
+            ctx->get_constant_value(static_cast<f32>(val), instr->get_type())});
         instr.destroy();
         return true;
       }
@@ -1428,7 +1434,7 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           instr->args[1].as_constant()->is_global()) {
         auto g = instr->args[1].as_constant()->as_global();
         if (g->is_constant && g->init_value != nullptr) {
-          auto len = strlen((const char *)g->init_value);
+          auto len = strlen(reinterpret_cast<const char *>(g->init_value));
           auto len_constant = ctx->get_constant_int(len, 64);
           push_all_uses(worklist, instr);
           instr->replace_all_uses(fir::ValueR{len_constant});
@@ -1587,17 +1593,20 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             } else if (out_bitwidth == 8) {
               val = *glob->init_value;
             } else if (out_bitwidth < 16) {
-              val = (*(u16 *)glob->init_value) & ((1 << out_bitwidth) - 1);
+              val = (*reinterpret_cast<u16 *>(glob->init_value)) &
+                    ((1 << out_bitwidth) - 1);
             } else if (out_bitwidth == 16) {
-              val = (*(u16 *)glob->init_value);
+              val = (*reinterpret_cast<u16 *>(glob->init_value));
             } else if (out_bitwidth < 32) {
-              val = (*(u32 *)glob->init_value) & ((1 << out_bitwidth) - 1);
+              val = (*reinterpret_cast<u32 *>(glob->init_value)) &
+                    ((1 << out_bitwidth) - 1);
             } else if (out_bitwidth == 32) {
-              val = (*(u32 *)glob->init_value);
+              val = (*reinterpret_cast<u32 *>(glob->init_value));
             } else if (out_bitwidth < 64) {
-              val = (*(u64 *)glob->init_value) & ((1 << out_bitwidth) - 1);
+              val = (*reinterpret_cast<u64 *>(glob->init_value)) &
+                    ((1 << out_bitwidth) - 1);
             } else if (out_bitwidth == 64) {
-              val = (*(u64 *)glob->init_value);
+              val = (*reinterpret_cast<u64 *>(glob->init_value));
             } else {
               UNREACH();
             }
@@ -1610,11 +1619,11 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         } else if (load_type->is_float()) {
           fir::ValueR new_val;
           if (out_bitwidth == 32) {
-            f32 val = *(f32 *)glob->init_value;
+            f32 val = *reinterpret_cast<f32 *>(glob->init_value);
             new_val = fir::ValueR{
                 ctx->get_constant_value(val, ctx->get_float_type(32))};
           } else if (out_bitwidth == 64) {
-            f64 val = *(f64 *)glob->init_value;
+            f64 val = *reinterpret_cast<f64 *>(glob->init_value);
             new_val = fir::ValueR{
                 ctx->get_constant_value(val, ctx->get_float_type(64))};
           } else {
@@ -1628,7 +1637,7 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           // TODO: implement
         } else if (load_type->is_ptr()) {
           i128 val = 0;
-          val = (*(u64 *)glob->init_value);
+          val = (*reinterpret_cast<u64 *>(glob->init_value));
           push_all_uses(worklist, instr);
           instr->replace_all_uses(
               fir::ValueR{ctx->get_constant_int(val, out_bitwidth)});
@@ -1645,7 +1654,8 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   if (instr->args[0].is_instr()) {
     auto arg_instr = instr->args[0].as_instr();
     if (arg_instr->is(fir::InstrType::BinaryInstr) &&
-        arg_instr->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
+        arg_instr->subtype ==
+            static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
         arg_instr->args[0].is_constant() && arg_instr->args[1].is_constant()) {
       auto base_global = arg_instr->args[0].as_constant();
       auto offset = arg_instr->args[1].as_constant();
@@ -1677,27 +1687,31 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             fir::ValueR v;
             if (res_ty->is_int() || res_ty->is_ptr()) {
               if (load_width == 8) {
-                v = fir::ValueR{
-                    ctx->get_constant_value((i128) * (i8 *)data_ptr, res_ty)};
+                v = fir::ValueR{ctx->get_constant_value(
+                    static_cast<i128>(*reinterpret_cast<i8 *>(data_ptr)),
+                    res_ty)};
               } else if (load_width == 16) {
-                v = fir::ValueR{
-                    ctx->get_constant_value((i128) * (i16 *)data_ptr, res_ty)};
+                v = fir::ValueR{ctx->get_constant_value(
+                    static_cast<i128>(*reinterpret_cast<i16 *>(data_ptr)),
+                    res_ty)};
               } else if (load_width == 32) {
-                v = fir::ValueR{
-                    ctx->get_constant_value((i128) * (i32 *)data_ptr, res_ty)};
+                v = fir::ValueR{ctx->get_constant_value(
+                    static_cast<i128>(*reinterpret_cast<i32 *>(data_ptr)),
+                    res_ty)};
               } else if (load_width == 64) {
-                v = fir::ValueR{
-                    ctx->get_constant_value((i128) * (i64 *)data_ptr, res_ty)};
+                v = fir::ValueR{ctx->get_constant_value(
+                    static_cast<i128>(*reinterpret_cast<i64 *>(data_ptr)),
+                    res_ty)};
               } else {
                 TODO("UNREACH?");
               }
             } else if (res_ty->is_float()) {
               if (load_width == 32) {
-                v = fir::ValueR{
-                    ctx->get_constant_value(*(f32 *)data_ptr, res_ty)};
+                v = fir::ValueR{ctx->get_constant_value(
+                    *reinterpret_cast<f32 *>(data_ptr), res_ty)};
               } else if (load_width == 64) {
-                v = fir::ValueR{
-                    ctx->get_constant_value(*(f64 *)data_ptr, res_ty)};
+                v = fir::ValueR{ctx->get_constant_value(
+                    *reinterpret_cast<f64 *>(data_ptr), res_ty)};
               } else {
                 TODO("UNREACH?");
               }
@@ -1724,7 +1738,7 @@ bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyIntrin");
   }
-  auto sub_type = (fir::IntrinsicSubType)instr->subtype;
+  auto sub_type = static_cast<fir::IntrinsicSubType>(instr->subtype);
   if (sub_type == fir::IntrinsicSubType::Abs && instr->args[0].is_constant()) {
     push_all_uses(worklist, instr);
     auto c = instr->args[0].as_constant();
@@ -2073,7 +2087,7 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
     return true;
   }
   if (instr->is(fir::InstrType::VectorInstr) &&
-      instr->subtype == (u32)fir::VectorISubType::Broadcast) {
+      instr->subtype == static_cast<u32>(fir::VectorISubType::Broadcast)) {
     fir::Builder bb{instr};
     auto in_val = instr->args[0];
     auto orig_v = bb.build_zext(in_val, out_type);
@@ -2184,7 +2198,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     }
   }
-  if (instr->subtype == (u32)fir::VectorISubType::Concat &&
+  if (instr->subtype == static_cast<u32>(fir::VectorISubType::Concat) &&
       instr->args[0].is_instr() && instr->args[1].is_instr()) {
     auto a1 = instr->args[0].as_instr();
     auto a2 = instr->args[1].as_instr();
@@ -2197,7 +2211,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       return;
     }
   }
-  if (instr->subtype == (u32)fir::VectorISubType::ExtractHigh &&
+  if (instr->subtype == static_cast<u32>(fir::VectorISubType::ExtractHigh) &&
       instr->args[0].is_instr()) {
     auto a1 = instr->args[0].as_instr();
     if (a1->is(fir::VectorISubType::Concat)) {
@@ -2209,7 +2223,8 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
       return;
     }
-  } else if (instr->subtype == (u32)fir::VectorISubType::ExtractLow &&
+  } else if (instr->subtype ==
+                 static_cast<u32>(fir::VectorISubType::ExtractLow) &&
              instr->args[0].is_instr()) {
     auto a1 = instr->args[0].as_instr();
     if (a1->is(fir::VectorISubType::Concat)) {
@@ -2305,8 +2320,8 @@ bool simplify_insert(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
 bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
   ZoneScopedN("SimplifyInstr");
-  using namespace foptim::fir;
-  (void)anal;
+  using foptim::fir::InstrType;
+
   auto instr_ty = instr->get_instr_type();
   if (instr_ty == InstrType::BinaryInstr) {
     return simplify_binary(instr, bb, ctx, worklist, man);
@@ -2378,13 +2393,12 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 
 void InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("InstSimplify", COLOR_OPTIMF);
-  using namespace foptim::fir;
   AttributerManager man;
   AliasAnalyis anal{};
 
   // TODO: maybe replace with actual queue
   TVec<WorkItem> worklist;
-  for (BasicBlock bb : func.basic_blocks) {
+  for (foptim::fir::BasicBlock bb : func.basic_blocks) {
     auto &instrs = bb->get_instrs();
     for (auto &instr : instrs) {
       worklist.emplace_back(instr, bb);

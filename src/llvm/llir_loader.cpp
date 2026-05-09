@@ -1618,19 +1618,21 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
   if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantInt>(val)) {
     switch (d->getBitWidth()) {
       case 1:
-        *((uint8_t *)output) = (uint8_t)d->getZExtValue();
+        *(const_cast<uint8_t *>(output)) =
+            static_cast<uint8_t>(d->getZExtValue());
         break;
       case 8:
-        *((uint8_t *)output) = (uint8_t)d->getZExtValue();
+        *(const_cast<uint8_t *>(output)) =
+            static_cast<uint8_t>(d->getZExtValue());
         break;
       case 16:
-        *((uint16_t *)output) = (uint16_t)d->getZExtValue();
+        *((uint16_t *)output) = static_cast<uint16_t>(d->getZExtValue());
         break;
       case 32:
-        *((uint32_t *)output) = (uint32_t)d->getZExtValue();
+        *((uint32_t *)output) = static_cast<uint32_t>(d->getZExtValue());
         break;
       case 64:
-        *((uint64_t *)output) = (uint64_t)d->getZExtValue();
+        *((uint64_t *)output) = d->getZExtValue();
         break;
       default:
         llvm::errs() << "constant int " << *d << " " << d->getBitWidth()
@@ -1642,17 +1644,20 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
   if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantFP>(val)) {
     auto ty_id = d->getType()->getTypeID();
     if (ty_id == llvm::Type::FloatTyID) {
-      auto val = (u32)d->getValue().bitcastToAPInt().getZExtValue();
-      *((uint32_t *)output) = (uint32_t)val;
+      auto val =
+          static_cast<u32>(d->getValue().bitcastToAPInt().getZExtValue());
+      *((uint32_t *)output) = static_cast<uint32_t>(val);
     } else if (ty_id == llvm::Type::DoubleTyID) {
-      auto val = (u64)d->getValue().bitcastToAPInt().getZExtValue();
+      auto val =
+          static_cast<u64>(d->getValue().bitcastToAPInt().getZExtValue());
       *((u64 *)output) = val;
     } else if (ty_id == llvm::Type::X86_FP80TyID) {
       WARN_UNSUPPORTED_O(
           warned_f80_const,
           "[WARNING] Unsupported x86_fp80 const will still try to run with "
           "f64 const instead\n");
-      auto val = (u64)d->getValue().bitcastToAPInt().getZExtValue();
+      auto val =
+          static_cast<u64>(d->getValue().bitcastToAPInt().getZExtValue());
       *((u64 *)output) = val;
     } else {
       llvm::errs() << "TODO: handle global init\n";
@@ -1759,7 +1764,7 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
         } else {
           TODO("impl");
         }
-        glob->reloc_info.push_back({reloc_off, reloc_ref, (u64)stru_off});
+        glob->reloc_info.push_back({reloc_off, reloc_ref, stru_off});
         return;
       } else {
         ASSERT(gep->getNumIndices() == 1);
@@ -1794,7 +1799,8 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
           } else {
             TODO("impl");
           }
-          glob->reloc_info.push_back({reloc_off, reloc_ref, (u64)off_val});
+          glob->reloc_info.push_back(
+              {reloc_off, reloc_ref, static_cast<u64>(off_val)});
           return;
         }
       }
@@ -1912,8 +1918,8 @@ inline void setup_globals(llvm::Module &mod, foptim::fir::Context &fctx,
             foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);
         memset(global->init_value, 0, actual_size);
       }
-      valueToValue.insert(
-          {(llvm::Value *)&gval, foptim::fir::ValueR(as_global)});
+      valueToValue.insert({static_cast<const llvm::Value *>(&gval),
+                           foptim::fir::ValueR(as_global)});
     }
   }
 }
@@ -1934,8 +1940,8 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
     // TODO: if we keep this we need to potentially update the linkage
     //  and visiblity of the original since the alias might have more general
     //  one
-    valueToValue.insert(
-        {(llvm::Value *)&gval, valueToValue.at(val->getAliasee())});
+    valueToValue.insert({static_cast<llvm::Value *>(&gval),
+                         valueToValue.at(val->getAliasee())});
   } else {
     // llvm::errs() << "Not handling global " << gval;
   }

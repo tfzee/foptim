@@ -254,7 +254,7 @@ class InstrData : public Used, public InstrAttribs {
       case InstrType::Fence:
         return "Fence";
       case InstrType::AtomicRMW:
-        switch ((AtomicRMWSubType)subtype) {
+        switch (static_cast<AtomicRMWSubType>(subtype)) {
           case AtomicRMWSubType::INVALID:
             return "ATOMICRMW_INVALID";
           case AtomicRMWSubType::Add:
@@ -265,7 +265,7 @@ class InstrData : public Used, public InstrAttribs {
             return "AtomicRMW.Xchg";
         }
       case InstrType::VectorInstr:
-        switch ((VectorISubType)subtype) {
+        switch (static_cast<VectorISubType>(subtype)) {
           case VectorISubType::INVALID:
             return "VECTORINSTR_INVALID";
           case VectorISubType::Broadcast:
@@ -284,7 +284,7 @@ class InstrData : public Used, public InstrAttribs {
             return "V.Shuffle";
         }
       case InstrType::Intrinsic:
-        switch ((IntrinsicSubType)subtype) {
+        switch (static_cast<IntrinsicSubType>(subtype)) {
           case IntrinsicSubType::INVALID:
             return "INTRINSIC_INVALID";
           case IntrinsicSubType::CTLZ:
@@ -325,7 +325,7 @@ class InstrData : public Used, public InstrAttribs {
       case InstrType::Unreachable:
         return "unreachable";
       case InstrType::UnaryInstr:
-        switch ((UnaryInstrSubType)subtype) {
+        switch (static_cast<UnaryInstrSubType>(subtype)) {
           case UnaryInstrSubType::INVALID:
             return "UNARYYOP_INVALID";
           case UnaryInstrSubType::FloatSqrt:
@@ -338,7 +338,7 @@ class InstrData : public Used, public InstrAttribs {
             return "Not";
         }
       case InstrType::BinaryInstr:
-        switch ((BinaryInstrSubType)subtype) {
+        switch (static_cast<BinaryInstrSubType>(subtype)) {
           case BinaryInstrSubType::INVALID:
             return "BINARYOP_INVALID";
           case BinaryInstrSubType::IntAdd:
@@ -377,7 +377,7 @@ class InstrData : public Used, public InstrAttribs {
             return "And";
         }
       case InstrType::Conversion:
-        switch ((ConversionSubType)subtype) {
+        switch (static_cast<ConversionSubType>(subtype)) {
           case ConversionSubType::INVALID:
             return "CONVERSIONOP_INVALID";
           case ConversionSubType::FPTOUI:
@@ -428,7 +428,7 @@ class InstrData : public Used, public InstrAttribs {
       case InstrType::BranchInstr:
         return "Branch";
       case InstrType::ICmp:
-        switch ((ICmpInstrSubType)subtype) {
+        switch (static_cast<ICmpInstrSubType>(subtype)) {
           case ICmpInstrSubType::INVALID:
             return "INVALID";
           case ICmpInstrSubType::ULT:
@@ -457,7 +457,7 @@ class InstrData : public Used, public InstrAttribs {
             return "IntAddOverflow";
         }
       case InstrType::FCmp:
-        switch ((FCmpInstrSubType)subtype) {
+        switch (static_cast<FCmpInstrSubType>(subtype)) {
           case FCmpInstrSubType::INVALID:
             return "FloatINVALID";
           case FCmpInstrSubType::IsNaN:
@@ -505,31 +505,36 @@ class InstrData : public Used, public InstrAttribs {
   }
 
   [[nodiscard]] constexpr bool is(ICmpInstrSubType ty) const {
-    return instr_type == InstrType::ICmp && subtype == (u32)ty;
+    return instr_type == InstrType::ICmp && subtype == static_cast<u32>(ty);
   }
 
   [[nodiscard]] constexpr bool is(ConversionSubType ty) const {
-    return instr_type == InstrType::Conversion && subtype == (u32)ty;
+    return instr_type == InstrType::Conversion &&
+           subtype == static_cast<u32>(ty);
   }
 
   [[nodiscard]] constexpr bool is(FCmpInstrSubType ty) const {
-    return instr_type == InstrType::FCmp && subtype == (u32)ty;
+    return instr_type == InstrType::FCmp && subtype == static_cast<u32>(ty);
   }
 
   [[nodiscard]] constexpr bool is(BinaryInstrSubType ty) const {
-    return instr_type == InstrType::BinaryInstr && subtype == (u32)ty;
+    return instr_type == InstrType::BinaryInstr &&
+           subtype == static_cast<u32>(ty);
   }
 
   [[nodiscard]] constexpr bool is(UnaryInstrSubType ty) const {
-    return instr_type == InstrType::UnaryInstr && subtype == (u32)ty;
+    return instr_type == InstrType::UnaryInstr &&
+           subtype == static_cast<u32>(ty);
   }
 
   [[nodiscard]] constexpr bool is(VectorISubType ty) const {
-    return instr_type == InstrType::VectorInstr && subtype == (u32)ty;
+    return instr_type == InstrType::VectorInstr &&
+           subtype == static_cast<u32>(ty);
   }
 
   [[nodiscard]] constexpr bool is(IntrinsicSubType ty) const {
-    return instr_type == InstrType::Intrinsic && subtype == (u32)ty;
+    return instr_type == InstrType::Intrinsic &&
+           subtype == static_cast<u32>(ty);
   }
 
   constexpr void verify() const {
