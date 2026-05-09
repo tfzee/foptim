@@ -3,39 +3,24 @@
 #include <unistd.h>
 
 #include <algorithm>
-#include <atomic>
 
 #include "arg_parsing/parser.hpp"
 #include "config/compiler_config.hpp"
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
-#include "llvm/llir_loader.hpp"
 #include "mir/func.hpp"
-#include "mir/legalize_bb_form.hpp"
-#include "mir/matcher.hpp"
-#include "mir/optim/bb_reordering.hpp"
-#include "mir/optim/calling_conv.hpp"
-#include "mir/optim/copy_prop.hpp"
-#include "mir/optim/dce.hpp"
-#include "mir/optim/inst_simplify.hpp"
-#include "mir/optim/legalization.hpp"
-#include "mir/optim/lifetime_shortening.hpp"
-#include "mir/optim/lvn.hpp"
-#include "mir/optim/reg_alloc.hpp"
+#include "mir/optim/mir_pipeline.hpp"
 #include "mir/optim/register_joining.hpp"
-#include "mir/optim/stack_optim.hpp"
 #include "optim/fir_pipeline.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
-#include "utils/stable_vec_ref.hpp"
-#include "utils/stable_vec_slot.hpp"
 #include "utils/stats.hpp"
 #include "utils/timer.hpp"
-#include "utils/todo.hpp"
 #include "utils/tracy.hpp"
 #include "x86_codegen/backend.hpp"
+#include "llvm/llir_loader.hpp"
 
 namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed);
@@ -48,7 +33,7 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals,
              const foptim::conf::CompConf &conf);
 
-}  // namespace
+} // namespace
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
@@ -74,7 +59,7 @@ int main(int argc, char *argv[]) {
       }
       {
         auto a1 = t.scopedTimer("Optimize");
-        foptim::conf::pipeline::optimize_fir(ctx, &shed);
+        foptim::optim::pipeline::optimize_fir(ctx, &shed);
         // optimize_fir(ctx, &shed);
       }
     }
@@ -96,6 +81,9 @@ int main(int argc, char *argv[]) {
       auto a1 = t.scopedTimer("Codegen");
       // asm
       codegen(funcs, decls, globals, conf);
+      if (foptim::utils::verbosity > 0) {
+        ctx.data->print_stats();
+      }
     }
 
     foptim::utils::StatCollector::get().dump();
@@ -129,8 +117,8 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
                                foptim::FVec<foptim::fmir::MFunc> &funcs,
                                foptim::FVec<foptim::fmir::Global> &globals,
                                foptim::JobSheduler *shed) {
+
   ZoneScopedN("MIR stuff");
-  funcs.reserve(ctx->storage.functions.size());
   globals.reserve(ctx->storage.storage_global.n_used());
 
   {
@@ -183,7 +171,6 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
   if (foptim::utils::verbosity > 0) {
     fmt::print("================MATCHING====================\n");
     fmt::println(" Got {} functions", reordered_funcs.size());
-    ctx.data->print_stats();
   }
 
   size_t n_reordered_def_funcs = 0;
@@ -194,66 +181,8 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     n_reordered_def_funcs += 1;
   }
   funcs.resize(n_reordered_def_funcs);
-  size_t i = 0;
-  for (auto *reord_func : reordered_funcs) {
-    if (reord_func->is_decl()) {
-      continue;
-    }
-    const auto *config = ctx.config;
-    shed->push(nullptr, [i, &funcs, reord_func, config]() {
-      auto &func = funcs.at(i);
-      auto matcher = foptim::fmir::GreedyMatcher{};
-      func = matcher.apply(*reord_func, *config);
-      ASSERT(foptim::fmir::verify(func));
-      foptim::fmir::LegalizeBBForm{}.apply(func, *config);
-      foptim::fmir::DeadCodeElim{}.apply(func, *config);
-      foptim::fmir::CopyPropagation{}.apply(func, *config);
-      foptim::fmir::DeadCodeElim{}.apply(func, *config);
-      foptim::fmir::BBReordering{}.apply(func, *config);
-      foptim::fmir::DeadCodeElim{}.apply(func, *config);
-      foptim::fmir::LVN{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::CopyPropagation{}.apply(func, *config);
-      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::LifetimeShortening{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::CopyPropagation{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::DeadCodeElim{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      ASSERT(foptim::fmir::verify(func));
-      foptim::fmir::CallingConvFirst{}.apply(func, *config);
-      foptim::fmir::Legalizer{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::RegisterJoining{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplifyEarly{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::RegAlloc{}.apply(func, *config);
-      // fmt::println("{:cd}", func);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::CallingConvSecond{}.apply(func, *config);
-      foptim::fmir::StackOptim{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::InstSimplify{}.apply(func, *config);
-      foptim::fmir::InstSimplify{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      foptim::fmir::BBReordering{}.apply(func, *config);
-      foptim::utils::TempAlloc<void *>::reset();
-      // fmt::println("{:cd}", func);
-      ASSERT(foptim::fmir::verify(func));
-    });
-    i++;
-  }
-  shed->wait_till_done();
-  // for (auto &f : funcs) {
-  //   fmt::println("{:cd}", f);
-  // }
+  foptim::fmir::pipeline::optimize_mir(funcs, reordered_funcs, globals, shed,
+                                       *ctx.config);
 }
 
 void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
@@ -264,4 +193,4 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::codegen::run(funcs, decls, globals, conf);
   fmt::println("Done!");
 }
-}  // namespace
+} // namespace

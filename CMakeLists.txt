@@ -141,6 +141,7 @@ add_library (foptim OBJECT
                 ./src/mir/matcher_patterns.cpp
                 ./src/mir/matcher_helpers.cpp
                 ./src/mir/analysis/live_variables.cpp
+                ./src/mir/optim/mir_pipeline.cpp
                 ./src/mir/optim/reg_alloc.cpp
                 ./src/mir/optim/reg_alloc_wp.cpp
                 ./src/mir/optim/lvn.cpp

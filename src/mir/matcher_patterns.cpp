@@ -88,50 +88,50 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         switch (static_cast<fir::ICmpInstrSubType>(
             cmp_instr->get_instr_subtype())) {
-          case fir::ICmpInstrSubType::SLT:
-            op = dir1 ? GJumpSubtype::icmp_slt : GJumpSubtype::icmp_sge;
-            break;
-          case fir::ICmpInstrSubType::ULT:
-            op = dir1 ? GJumpSubtype::icmp_ult : GJumpSubtype::icmp_uge;
-            break;
-          case fir::ICmpInstrSubType::NE:
-            op = dir1 ? GJumpSubtype::icmp_ne : GJumpSubtype::icmp_eq;
-            break;
-          case fir::ICmpInstrSubType::EQ:
-            op = dir1 ? GJumpSubtype::icmp_eq : GJumpSubtype::icmp_ne;
-            break;
-          case fir::ICmpInstrSubType::SGT:
-            op = dir1 ? GJumpSubtype::icmp_sgt : GJumpSubtype::icmp_sle;
-            break;
-          case fir::ICmpInstrSubType::UGT:
-            op = dir1 ? GJumpSubtype::icmp_ugt : GJumpSubtype::icmp_ule;
-            break;
-          case fir::ICmpInstrSubType::UGE:
-            op = dir1 ? GJumpSubtype::icmp_uge : GJumpSubtype::icmp_ult;
-            break;
-          case fir::ICmpInstrSubType::ULE:
-            op = dir1 ? GJumpSubtype::icmp_ule : GJumpSubtype::icmp_ugt;
-            break;
-          case fir::ICmpInstrSubType::SGE:
-            op = dir1 ? GJumpSubtype::icmp_sge : GJumpSubtype::icmp_slt;
-            break;
-          case fir::ICmpInstrSubType::SLE:
-            op = dir1 ? GJumpSubtype::icmp_sle : GJumpSubtype::icmp_sgt;
-            break;
-          case fir::ICmpInstrSubType::INVALID:
-            UNREACH();
-          case fir::ICmpInstrSubType::MulOverflow:
-            if (!dir1) {
-              return false;
-            }
-            op = GJumpSubtype::icmp_mul_overflow;
-            break;
-          case fir::ICmpInstrSubType::AddOverflow:
-            if (!dir1) {
-              return false;
-            }
-            op = GJumpSubtype::icmp_add_overflow;
-            break;
+        case fir::ICmpInstrSubType::SLT:
+          op = dir1 ? GJumpSubtype::icmp_slt : GJumpSubtype::icmp_sge;
+          break;
+        case fir::ICmpInstrSubType::ULT:
+          op = dir1 ? GJumpSubtype::icmp_ult : GJumpSubtype::icmp_uge;
+          break;
+        case fir::ICmpInstrSubType::NE:
+          op = dir1 ? GJumpSubtype::icmp_ne : GJumpSubtype::icmp_eq;
+          break;
+        case fir::ICmpInstrSubType::EQ:
+          op = dir1 ? GJumpSubtype::icmp_eq : GJumpSubtype::icmp_ne;
+          break;
+        case fir::ICmpInstrSubType::SGT:
+          op = dir1 ? GJumpSubtype::icmp_sgt : GJumpSubtype::icmp_sle;
+          break;
+        case fir::ICmpInstrSubType::UGT:
+          op = dir1 ? GJumpSubtype::icmp_ugt : GJumpSubtype::icmp_ule;
+          break;
+        case fir::ICmpInstrSubType::UGE:
+          op = dir1 ? GJumpSubtype::icmp_uge : GJumpSubtype::icmp_ult;
+          break;
+        case fir::ICmpInstrSubType::ULE:
+          op = dir1 ? GJumpSubtype::icmp_ule : GJumpSubtype::icmp_ugt;
+          break;
+        case fir::ICmpInstrSubType::SGE:
+          op = dir1 ? GJumpSubtype::icmp_sge : GJumpSubtype::icmp_slt;
+          break;
+        case fir::ICmpInstrSubType::SLE:
+          op = dir1 ? GJumpSubtype::icmp_sle : GJumpSubtype::icmp_sgt;
+          break;
+        case fir::ICmpInstrSubType::INVALID:
+          UNREACH();
+        case fir::ICmpInstrSubType::MulOverflow:
+          if (!dir1) {
+            return false;
+          }
+          op = GJumpSubtype::icmp_mul_overflow;
+          break;
+        case fir::ICmpInstrSubType::AddOverflow:
+          if (!dir1) {
+            return false;
+          }
+          op = GJumpSubtype::icmp_add_overflow;
+          break;
         }
         // Do a little cheating
         auto res_arg_smol = res_arg;
@@ -160,11 +160,11 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         switch (static_cast<fir::ICmpInstrSubType>(
             cmp_instr->get_instr_subtype())) {
-          case fir::ICmpInstrSubType::MulOverflow:
-          case fir::ICmpInstrSubType::AddOverflow:
-            // TODO: impl
-            return false;
-          default:
+        case fir::ICmpInstrSubType::MulOverflow:
+        case fir::ICmpInstrSubType::AddOverflow:
+          // TODO: impl
+          return false;
+        default:
         }
         auto res_arg =
             valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
@@ -179,40 +179,40 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         switch (static_cast<fir::ICmpInstrSubType>(
             cmp_instr->get_instr_subtype())) {
-          case fir::ICmpInstrSubType::SGT:
-            op = GCMovSubtype::cmov_sgt;
-            break;
-          case fir::ICmpInstrSubType::SLT:
-            op = GCMovSubtype::cmov_slt;
-            break;
-          case fir::ICmpInstrSubType::ULT:
-            op = GCMovSubtype::cmov_ult;
-            break;
-          case fir::ICmpInstrSubType::SGE:
-            op = GCMovSubtype::cmov_sge;
-            break;
-          case fir::ICmpInstrSubType::SLE:
-            op = GCMovSubtype::cmov_sle;
-            break;
-          case fir::ICmpInstrSubType::NE:
-            op = GCMovSubtype::cmov_ne;
-            break;
-          case fir::ICmpInstrSubType::EQ:
-            op = GCMovSubtype::cmov_eq;
-            break;
-          case fir::ICmpInstrSubType::UGT:
-            op = GCMovSubtype::cmov_ugt;
-            break;
-          case fir::ICmpInstrSubType::UGE:
-            op = GCMovSubtype::cmov_uge;
-            break;
-          case fir::ICmpInstrSubType::ULE:
-            op = GCMovSubtype::cmov_ule;
-            break;
-          case fir::ICmpInstrSubType::MulOverflow:
-          case fir::ICmpInstrSubType::AddOverflow:
-          case fir::ICmpInstrSubType::INVALID:
-            UNREACH();
+        case fir::ICmpInstrSubType::SGT:
+          op = GCMovSubtype::cmov_sgt;
+          break;
+        case fir::ICmpInstrSubType::SLT:
+          op = GCMovSubtype::cmov_slt;
+          break;
+        case fir::ICmpInstrSubType::ULT:
+          op = GCMovSubtype::cmov_ult;
+          break;
+        case fir::ICmpInstrSubType::SGE:
+          op = GCMovSubtype::cmov_sge;
+          break;
+        case fir::ICmpInstrSubType::SLE:
+          op = GCMovSubtype::cmov_sle;
+          break;
+        case fir::ICmpInstrSubType::NE:
+          op = GCMovSubtype::cmov_ne;
+          break;
+        case fir::ICmpInstrSubType::EQ:
+          op = GCMovSubtype::cmov_eq;
+          break;
+        case fir::ICmpInstrSubType::UGT:
+          op = GCMovSubtype::cmov_ugt;
+          break;
+        case fir::ICmpInstrSubType::UGE:
+          op = GCMovSubtype::cmov_uge;
+          break;
+        case fir::ICmpInstrSubType::ULE:
+          op = GCMovSubtype::cmov_ule;
+          break;
+        case fir::ICmpInstrSubType::MulOverflow:
+        case fir::ICmpInstrSubType::AddOverflow:
+        case fir::ICmpInstrSubType::INVALID:
+          UNREACH();
         }
 
         res.result.emplace_back(GBaseSubtype::mov, res_arg, arg2);
@@ -235,34 +235,34 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         auto cond_ty = Type::INVALID;
         switch (res_arg.ty) {
-          case Type::Float32:
-            cond_ty = Type::Int32x4;
-            break;
-          case Type::Float64:
-            cond_ty = Type::Int64x2;
-            break;
-          case Type::Int8:
-          case Type::Int16:
-          case Type::Int32:
-          case Type::Int64:
-            // TOOD: prob cant do it efficiently?
-            return false;
-          case Type::INVALID:
-          case Type::Float32x2:
-          case Type::Int32x4:
-          case Type::Int64x2:
-          case Type::Float32x4:
-          case Type::Float64x2:
-          case Type::Int32x8:
-          case Type::Int64x4:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Float32x16:
-          case Type::Float64x8:
-            fmt::println("{}", cmp_instr);
-            fmt::println("{}", slct_instr);
-            fmt::println("{}", res_arg);
-            TODO("Impl");
+        case Type::Float32:
+          cond_ty = Type::Int32x4;
+          break;
+        case Type::Float64:
+          cond_ty = Type::Int64x2;
+          break;
+        case Type::Int8:
+        case Type::Int16:
+        case Type::Int32:
+        case Type::Int64:
+          // TOOD: prob cant do it efficiently?
+          return false;
+        case Type::INVALID:
+        case Type::Float32x2:
+        case Type::Int32x4:
+        case Type::Int64x2:
+        case Type::Float32x4:
+        case Type::Float64x2:
+        case Type::Int32x8:
+        case Type::Int64x4:
+        case Type::Float32x8:
+        case Type::Float64x4:
+        case Type::Float32x16:
+        case Type::Float64x8:
+          fmt::println("{}", cmp_instr);
+          fmt::println("{}", slct_instr);
+          fmt::println("{}", res_arg);
+          TODO("Impl");
         }
         auto condition =
             MArgument(data.alloc.get_new_register(cond_ty), cond_ty);
@@ -271,61 +271,61 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         switch (static_cast<fir::FCmpInstrSubType>(
             cmp_instr->get_instr_subtype())) {
-          case fir::FCmpInstrSubType::OEQ:
-            vcmp_condition = 0x00;
-            break;
-          case fir::FCmpInstrSubType::OLT:
-            vcmp_condition = 0x01;
-            break;
-          case fir::FCmpInstrSubType::OLE:
-            vcmp_condition = 0x02;
-            break;
-          case fir::FCmpInstrSubType::UNO:
-            vcmp_condition = 0x03;
-            break;
-          case fir::FCmpInstrSubType::UNE:
-            vcmp_condition = 0x04;
-            break;
-          case fir::FCmpInstrSubType::ULT:
-            vcmp_condition = 0x05;
-            break;
-          case fir::FCmpInstrSubType::ULE:
-            vcmp_condition = 0x06;
-            break;
-          case fir::FCmpInstrSubType::ORD:
-            vcmp_condition = 0x07;
-            break;
-          case fir::FCmpInstrSubType::UEQ:
-            vcmp_condition = 0x08;
-            break;
-          case fir::FCmpInstrSubType::AlwFalse:
-            vcmp_condition = 0x0B;
-            break;
-          case fir::FCmpInstrSubType::ONE:
-            vcmp_condition = 0x0C;
-            break;
-          case fir::FCmpInstrSubType::OGE:
-            vcmp_condition = 0x0D;
-            break;
-          case fir::FCmpInstrSubType::OGT:
-            vcmp_condition = 0x0E;
-            break;
-          case fir::FCmpInstrSubType::AlwTrue:
-            vcmp_condition = 0x0F;
-            break;
-          case fir::FCmpInstrSubType::UGT:
-            vcmp_condition = 0x16;
-            break;
-          case fir::FCmpInstrSubType::UGE:
-            vcmp_condition = 0x15;
-            break;
-          case fir::FCmpInstrSubType::IsNaN:
-            vcmp_condition = 0x03;
-            break;
-          case fir::FCmpInstrSubType::INVALID:
-            fmt::println("{}", cmp_instr);
-            fmt::println("{}", slct_instr);
-            TODO("TODO");
+        case fir::FCmpInstrSubType::OEQ:
+          vcmp_condition = 0x00;
+          break;
+        case fir::FCmpInstrSubType::OLT:
+          vcmp_condition = 0x01;
+          break;
+        case fir::FCmpInstrSubType::OLE:
+          vcmp_condition = 0x02;
+          break;
+        case fir::FCmpInstrSubType::UNO:
+          vcmp_condition = 0x03;
+          break;
+        case fir::FCmpInstrSubType::UNE:
+          vcmp_condition = 0x04;
+          break;
+        case fir::FCmpInstrSubType::ULT:
+          vcmp_condition = 0x05;
+          break;
+        case fir::FCmpInstrSubType::ULE:
+          vcmp_condition = 0x06;
+          break;
+        case fir::FCmpInstrSubType::ORD:
+          vcmp_condition = 0x07;
+          break;
+        case fir::FCmpInstrSubType::UEQ:
+          vcmp_condition = 0x08;
+          break;
+        case fir::FCmpInstrSubType::AlwFalse:
+          vcmp_condition = 0x0B;
+          break;
+        case fir::FCmpInstrSubType::ONE:
+          vcmp_condition = 0x0C;
+          break;
+        case fir::FCmpInstrSubType::OGE:
+          vcmp_condition = 0x0D;
+          break;
+        case fir::FCmpInstrSubType::OGT:
+          vcmp_condition = 0x0E;
+          break;
+        case fir::FCmpInstrSubType::AlwTrue:
+          vcmp_condition = 0x0F;
+          break;
+        case fir::FCmpInstrSubType::UGT:
+          vcmp_condition = 0x16;
+          break;
+        case fir::FCmpInstrSubType::UGE:
+          vcmp_condition = 0x15;
+          break;
+        case fir::FCmpInstrSubType::IsNaN:
+          vcmp_condition = 0x03;
+          break;
+        case fir::FCmpInstrSubType::INVALID:
+          fmt::println("{}", cmp_instr);
+          fmt::println("{}", slct_instr);
+          TODO("TODO");
         }
 
         res.result.emplace_back(X86Subtype::vcmp, condition, c1, c2,
@@ -418,21 +418,21 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto consti_val = consti->as_int();
 
         switch (consti_val) {
-          default: {
-            return false;
-          }
-          case 1:
-            consti_val = 0;
-            break;
-          case 2:
-            consti_val = 1;
-            break;
-          case 4:
-            consti_val = 2;
-            break;
-          case 8:
-            consti_val = 3;
-            break;
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
         }
 
         // $1 = $0 * C
@@ -481,21 +481,21 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto consti_val = consti->as_int();
 
         switch (consti_val) {
-          default: {
-            return false;
-          }
-          case 1:
-            consti_val = 0;
-            break;
-          case 2:
-            consti_val = 1;
-            break;
-          case 4:
-            consti_val = 2;
-            break;
-          case 8:
-            consti_val = 3;
-            break;
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
         }
 
         // $1 = $0 * C
@@ -1003,90 +1003,88 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto c = cc->as_int();
         auto out_type = convert_type(div_instr->get_type());
         switch (c) {
-          default:
-            fmt::println("OPTIMIZE SDIV ?? x/{}", c);
+        default:
+          fmt::println("OPTIMIZE SDIV ?? x/{}", c);
+          return false;
+        case 2: {
+          // TODO: is that right??
+          if (get_size(out_type) != 4) {
             return false;
-          case 2: {
-            // TODO: is that right??
-            if (get_size(out_type) != 4) {
-              return false;
-            }
-            auto res_reg =
-                valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-            auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-            // mov     eax, edi
-            // shr     eax, 31
-            // add     eax, edi
-            // sar     eax
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
-            res.result.emplace_back(GArithSubtype::shr2, res_reg,
-                                    MArgument(static_cast<u8>(31)));
-            res.result.emplace_back(GArithSubtype::add2, res_reg, base);
-            res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
-                                    base);
-            res.result.emplace_back(GArithSubtype::sar2, res_reg,
-                                    MArgument(static_cast<u8>(1)));
-            break;
           }
-          case 4:
-          case 8:
-          case 16:
-          case 32:
-          case 64:
-          case 128: {
-            auto res_reg =
-                valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-            auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-            // lea eax, [rdi + 7]
-            ASSERT(base.isReg());
-            res.result.emplace_back(
-                X86Subtype::lea, res_reg,
-                MArgument::MemOB(c - 1, base.reg, out_type));
-            // test edi, edi
-            // cmovns eax, edi
-            res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
-                                    base);
-            // sar eax, 3
-            res.result.emplace_back(
-                GArithSubtype::sar2, res_reg,
-                MArgument(static_cast<u8>(utils::npow2(c))));
-            break;
+          auto res_reg =
+              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+          // mov     eax, edi
+          // shr     eax, 31
+          // add     eax, edi
+          // sar     eax
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
+          res.result.emplace_back(GArithSubtype::shr2, res_reg,
+                                  MArgument(static_cast<u8>(31)));
+          res.result.emplace_back(GArithSubtype::add2, res_reg, base);
+          res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
+                                  base);
+          res.result.emplace_back(GArithSubtype::sar2, res_reg,
+                                  MArgument(static_cast<u8>(1)));
+          break;
+        }
+        case 4:
+        case 8:
+        case 16:
+        case 32:
+        case 64:
+        case 128: {
+          auto res_reg =
+              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+          // lea eax, [rdi + 7]
+          ASSERT(base.isReg());
+          res.result.emplace_back(X86Subtype::lea, res_reg,
+                                  MArgument::MemOB(c - 1, base.reg, out_type));
+          // test edi, edi
+          // cmovns eax, edi
+          res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
+                                  base);
+          // sar eax, 3
+          res.result.emplace_back(GArithSubtype::sar2, res_reg,
+                                  MArgument(static_cast<u8>(utils::npow2(c))));
+          break;
+        }
+        case 10: {
+          // TODO: is that rightt???
+          if (get_size(out_type) != 4) {
+            return false;
           }
-          case 10: {
-            // TODO: is that rightt???
-            if (get_size(out_type) != 4) {
-              return false;
-            }
-            auto res_reg32 =
-                valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-            auto res_reg64 = res_reg32;
-            res_reg64.ty = Type::Int64;
-            res_reg64.reg.ty = Type::Int64;
-            auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-            auto helper64 = MArgument(data.alloc.get_new_register(Type::Int64),
-                                      Type::Int64);
-            auto helper32 = helper64;
-            helper32.ty = Type::Int32;
-            helper32.reg.ty = Type::Int32;
+          auto res_reg32 =
+              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
+          auto res_reg64 = res_reg32;
+          res_reg64.ty = Type::Int64;
+          res_reg64.reg.ty = Type::Int64;
+          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
+          auto helper64 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto helper32 = helper64;
+          helper32.ty = Type::Int32;
+          helper32.reg.ty = Type::Int32;
 
-            ASSERT(base.isReg());
-            // movsxd  target64, edi
-            res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, base);
-            // imul    target64, target64, 1717986919
-            res.result.emplace_back(GArithSubtype::smul3, res_reg64, res_reg64,
-                                    MArgument(static_cast<u32>(1717986919)));
-            // mov     helper64, target64
-            res.result.emplace_back(GBaseSubtype::mov, helper64, res_reg64);
-            // shr     helper64, 63
-            res.result.emplace_back(GArithSubtype::shr2, helper64,
-                                    MArgument(static_cast<u8>(63)));
-            // sar     target64, 34
-            res.result.emplace_back(GArithSubtype::sar2, res_reg64,
-                                    MArgument(static_cast<u8>(34)));
-            // add     target32, helper32
-            res.result.emplace_back(GArithSubtype::land2, res_reg32, helper32);
-            break;
-          }
+          ASSERT(base.isReg());
+          // movsxd  target64, edi
+          res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, base);
+          // imul    target64, target64, 1717986919
+          res.result.emplace_back(GArithSubtype::smul3, res_reg64, res_reg64,
+                                  MArgument(static_cast<u32>(1717986919)));
+          // mov     helper64, target64
+          res.result.emplace_back(GBaseSubtype::mov, helper64, res_reg64);
+          // shr     helper64, 63
+          res.result.emplace_back(GArithSubtype::shr2, helper64,
+                                  MArgument(static_cast<u8>(63)));
+          // sar     target64, 34
+          res.result.emplace_back(GArithSubtype::sar2, res_reg64,
+                                  MArgument(static_cast<u8>(34)));
+          // add     target32, helper32
+          res.result.emplace_back(GArithSubtype::land2, res_reg32, helper32);
+          break;
+        }
         }
 
         return true;
@@ -1147,21 +1145,21 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto consti_val = consti->as_int();
 
         switch (consti_val) {
-          default: {
-            return false;
-          }
-          case 1:
-            consti_val = 0;
-            break;
-          case 2:
-            consti_val = 1;
-            break;
-          case 4:
-            consti_val = 2;
-            break;
-          case 8:
-            consti_val = 3;
-            break;
+        default: {
+          return false;
+        }
+        case 1:
+          consti_val = 0;
+          break;
+        case 2:
+          consti_val = 1;
+          break;
+        case 4:
+          consti_val = 2;
+          break;
+        case 8:
+          consti_val = 3;
+          break;
         }
 
         // $1 = $0 * C
@@ -1347,65 +1345,65 @@ void arith_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         switch (const_arg.imm) {
-          default:
-            return false;
-          case 2: {
-            auto h32 = MArgument(data.alloc.get_new_register(Type::Int32),
-                                 Type::Int32);
-            // mov     out32, in32
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
-            // mov     h32, in32
-            res.result.emplace_back(GBaseSubtype::mov, h32, arg);
-            // shr     h32, 31
-            res.result.emplace_back(GArithSubtype::shr2, h32,
-                                    MArgument(static_cast<u8>(31)));
-            // add     h32, in32
-            res.result.emplace_back(GArithSubtype::add2, h32, arg);
-            // and     h32, -2
-            res.result.emplace_back(GArithSubtype::land2, h32,
-                                    MArgument::Int(-2, Type::Int32));
-            // sub     out32, h32
-            res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
-            return true;
-          }
-          case 5: {
-            auto h64 = MArgument(data.alloc.get_new_register(Type::Int64),
-                                 Type::Int64);
-            auto h32 = h64;
-            h32.ty = Type::Int32;
-            h32.reg.ty = Type::Int32;
-            auto g64 = MArgument(data.alloc.get_new_register(Type::Int64),
-                                 Type::Int64);
-            auto g32 = g64;
-            g32.ty = Type::Int32;
-            g32.reg.ty = Type::Int32;
-            auto res_reg64 = res_reg;
-            res_reg64.ty = Type::Int64;
-            res_reg64.reg.ty = Type::Int64;
+        default:
+          return false;
+        case 2: {
+          auto h32 =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          // mov     out32, in32
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+          // mov     h32, in32
+          res.result.emplace_back(GBaseSubtype::mov, h32, arg);
+          // shr     h32, 31
+          res.result.emplace_back(GArithSubtype::shr2, h32,
+                                  MArgument(static_cast<u8>(31)));
+          // add     h32, in32
+          res.result.emplace_back(GArithSubtype::add2, h32, arg);
+          // and     h32, -2
+          res.result.emplace_back(GArithSubtype::land2, h32,
+                                  MArgument::Int(-2, Type::Int32));
+          // sub     out32, h32
+          res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
+          return true;
+        }
+        case 5: {
+          auto h64 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto h32 = h64;
+          h32.ty = Type::Int32;
+          h32.reg.ty = Type::Int32;
+          auto g64 =
+              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+          auto g32 = g64;
+          g32.ty = Type::Int32;
+          g32.reg.ty = Type::Int32;
+          auto res_reg64 = res_reg;
+          res_reg64.ty = Type::Int64;
+          res_reg64.reg.ty = Type::Int64;
 
-            // movsxd  out64, inp32
-            res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, arg);
-            // imul    h64, out64, 1717986919
-            res.result.emplace_back(GArithSubtype::smul3, h64, res_reg64,
-                                    MArgument(static_cast<u64>(1717986919)));
-            // mov     g64, h64
-            res.result.emplace_back(GBaseSubtype::mov, g64, h64);
-            // shr     g64, 63
-            res.result.emplace_back(GArithSubtype::shr2, g64,
-                                    MArgument(static_cast<u8>(63)));
-            // sar     h64, 33
-            res.result.emplace_back(GArithSubtype::sar2, h64,
-                                    MArgument(static_cast<u8>(33)));
-            // add     h32, g32
-            res.result.emplace_back(GArithSubtype::add2, h32, g32);
-            // lea     h32, [h64 + 4*h64]
-            res.result.emplace_back(
-                X86Subtype::lea, h32,
-                MArgument::MemBIS(h32.reg, h32.reg, 2, Type::Int32));
-            // sub     out32, h32
-            res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
-            return true;
-          }
+          // movsxd  out64, inp32
+          res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, arg);
+          // imul    h64, out64, 1717986919
+          res.result.emplace_back(GArithSubtype::smul3, h64, res_reg64,
+                                  MArgument(static_cast<u64>(1717986919)));
+          // mov     g64, h64
+          res.result.emplace_back(GBaseSubtype::mov, g64, h64);
+          // shr     g64, 63
+          res.result.emplace_back(GArithSubtype::shr2, g64,
+                                  MArgument(static_cast<u8>(63)));
+          // sar     h64, 33
+          res.result.emplace_back(GArithSubtype::sar2, h64,
+                                  MArgument(static_cast<u8>(33)));
+          // add     h32, g32
+          res.result.emplace_back(GArithSubtype::add2, h32, g32);
+          // lea     h32, [h64 + 4*h64]
+          res.result.emplace_back(
+              X86Subtype::lea, h32,
+              MArgument::MemBIS(h32.reg, h32.reg, 2, Type::Int32));
+          // sub     out32, h32
+          res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
+          return true;
+        }
         }
         fmt::println("Could have optimized the matchign of srem x%{}",
                      const_arg.imm);
@@ -1763,15 +1761,15 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
         if (res_reg.is_vec_reg()) {
           switch (shift_instr->get_type()->as_vec().bitwidth) {
-            case 32:
-            case 64:
-              // vpsllvd ymm0, ymm1, ymm2
-              res.result.emplace_back(GVecSubtype::vShl, res_reg, a, b);
-              return true;
-              // idk this seems not very easy for avx2
-            default:
-              fmt::println("{}", shift_instr);
-              TODO("impl");
+          case 32:
+          case 64:
+            // vpsllvd ymm0, ymm1, ymm2
+            res.result.emplace_back(GVecSubtype::vShl, res_reg, a, b);
+            return true;
+            // idk this seems not very easy for avx2
+          default:
+            fmt::println("{}", shift_instr);
+            TODO("impl");
           }
         }
 
@@ -1886,14 +1884,14 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
               valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
                                add_instr->get_parent()));
         } else {
-          res.result.emplace_back(
-              GBaseSubtype::mov, res_reg,
-              valueToArgPosMem(add_instr->args[0], res.result, data.alloc,
-                               add_instr->get_parent()));
-          res.result.emplace_back(
-              GArithSubtype::mul2, res_reg,
-              valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                               add_instr->get_parent()));
+          res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                                  valueToArgPosMem(add_instr->args[0],
+                                                   res.result, data.alloc,
+                                                   add_instr->get_parent()));
+          res.result.emplace_back(GArithSubtype::mul2, res_reg,
+                                  valueToArgPosMem(add_instr->args[1],
+                                                   res.result, data.alloc,
+                                                   add_instr->get_parent()));
         }
         return true;
       }});
@@ -2120,16 +2118,16 @@ void base_patterns(IRVec<Pattern> &pats) {
         // TODO: use order
         (void)order;
         switch (op) {
-          case fir::AtomicRMWSubType::INVALID:
-            UNREACH();
-          case fir::AtomicRMWSubType::Add:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
-            res.result.emplace_back(X86Subtype::LockXAdd2, ptr, res_reg);
-            return true;
-          case fir::AtomicRMWSubType::Xchg:
-          case fir::AtomicRMWSubType::Or:
-            fmt::print("{:cd}", atomic_instr);
-            TODO("implement");
+        case fir::AtomicRMWSubType::INVALID:
+          UNREACH();
+        case fir::AtomicRMWSubType::Add:
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+          res.result.emplace_back(X86Subtype::LockXAdd2, ptr, res_reg);
+          return true;
+        case fir::AtomicRMWSubType::Xchg:
+        case fir::AtomicRMWSubType::Or:
+          fmt::print("{:cd}", atomic_instr);
+          TODO("implement");
         }
 
         fmt::print("{:cd}", atomic_instr);
@@ -2327,36 +2325,36 @@ void base_patterns(IRVec<Pattern> &pats) {
         (void)res_reg;
 
         switch (a1.ty) {
-          case Type::INVALID:
-          case Type::Int8:
-          case Type::Int16:
-          case Type::Int32:
-          case Type::Int64:
-          case Type::Float32:
-          case Type::Float64:
-            TODO("invalid?");
-          case Type::Float32x2:
-            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
-            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
-            break;
-          case Type::Float64x2:
-            res.result.emplace_back(X86Subtype::vpermil, res_reg, a1,
-                                    MArgument::Int(1, Type::Int8));
-            res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
-            break;
-          case Type::Int32x4:
-          case Type::Int64x2:
-          case Type::Float32x4:
-          case Type::Int32x8:
-          case Type::Int64x4:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Float32x16:
-          case Type::Float64x8:
-            fmt::println("{:cd}", hred_instr->args[0].get_type());
-            fmt::println("{:cd}", hred_instr);
-            TODO("impl");
-            break;
+        case Type::INVALID:
+        case Type::Int8:
+        case Type::Int16:
+        case Type::Int32:
+        case Type::Int64:
+        case Type::Float32:
+        case Type::Float64:
+          TODO("invalid?");
+        case Type::Float32x2:
+          res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
+          res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
+          break;
+        case Type::Float64x2:
+          res.result.emplace_back(X86Subtype::vpermil, res_reg, a1,
+                                  MArgument::Int(1, Type::Int8));
+          res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
+          break;
+        case Type::Int32x4:
+        case Type::Int64x2:
+        case Type::Float32x4:
+        case Type::Int32x8:
+        case Type::Int64x4:
+        case Type::Float32x8:
+        case Type::Float64x4:
+        case Type::Float32x16:
+        case Type::Float64x8:
+          fmt::println("{:cd}", hred_instr->args[0].get_type());
+          fmt::println("{:cd}", hred_instr);
+          TODO("impl");
+          break;
         }
         return true;
       }});
@@ -2370,110 +2368,107 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
 
         switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x2:
-            res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
-            res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
-            break;
-          case Type::Float32x4: {
-            auto res_reg_exp = MArgument{res_reg.reg, Type::Float32x2};
-            res.result.emplace_back(X86Subtype::HAdd, res_reg_exp, a1);
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_reg_exp);
-            break;
-          }
-          case Type::Float32x8: {
-            auto res_128 =
-                MArgument{res_reg.reg.retype(Type::Float32x4), Type::Float32x4};
-            auto a1_128 =
-                MArgument{a1.reg.retype(Type::Float32x4), Type::Float32x4};
-            auto res_64 =
-                MArgument{res_reg.reg.retype(Type::Float32x2), Type::Float32x2};
+        default:
+          TODO("invalid?");
+        case Type::Float32x2:
+          res.result.emplace_back(X86Subtype::vmovshdup, res_reg, a1);
+          res.result.emplace_back(GVecSubtype::vadd, res_reg, res_reg, a1);
+          break;
+        case Type::Float32x4: {
+          auto res_reg_exp = MArgument{res_reg.reg, Type::Float32x2};
+          res.result.emplace_back(X86Subtype::HAdd, res_reg_exp, a1);
+          res.result.emplace_back(X86Subtype::HAdd, res_reg, res_reg_exp);
+          break;
+        }
+        case Type::Float32x8: {
+          auto res_128 =
+              MArgument{res_reg.reg.retype(Type::Float32x4), Type::Float32x4};
+          auto a1_128 =
+              MArgument{a1.reg.retype(Type::Float32x4), Type::Float32x4};
+          auto res_64 =
+              MArgument{res_reg.reg.retype(Type::Float32x2), Type::Float32x2};
 
-            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
-                                    MArgument(static_cast<u8>(1)));
-            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
-                                    a1_128);
-            res.result.emplace_back(X86Subtype::HAdd, res_64, res_128);
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_64);
-            break;
-          }
-          case Type::Float64x2: {
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
-            break;
-          }
-          case Type::Float64x4: {
-            auto res_128 =
-                MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
-            auto a1_128 =
-                MArgument{a1.reg.retype(Type::Float64x2), Type::Float64x2};
+          res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
+                                  MArgument(static_cast<u8>(1)));
+          res.result.emplace_back(GVecSubtype::vadd, res_128, res_128, a1_128);
+          res.result.emplace_back(X86Subtype::HAdd, res_64, res_128);
+          res.result.emplace_back(X86Subtype::HAdd, res_reg, res_64);
+          break;
+        }
+        case Type::Float64x2: {
+          res.result.emplace_back(X86Subtype::HAdd, res_reg, a1);
+          break;
+        }
+        case Type::Float64x4: {
+          auto res_128 =
+              MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
+          auto a1_128 =
+              MArgument{a1.reg.retype(Type::Float64x2), Type::Float64x2};
 
-            res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
-                                    MArgument(static_cast<u8>(1)));
-            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
-                                    a1_128);
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
-            break;
-          }
-          case Type::Float64x8: {
-            auto res_256 =
-                MArgument{res_reg.reg.retype(Type::Float64x4), Type::Float64x4};
-            auto a1_256 =
-                MArgument{a1.reg.retype(Type::Float64x4), Type::Float64x4};
-            auto res_128 =
-                MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
+          res.result.emplace_back(X86Subtype::vextract128, res_128, a1,
+                                  MArgument(static_cast<u8>(1)));
+          res.result.emplace_back(GVecSubtype::vadd, res_128, res_128, a1_128);
+          res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
+          break;
+        }
+        case Type::Float64x8: {
+          auto res_256 =
+              MArgument{res_reg.reg.retype(Type::Float64x4), Type::Float64x4};
+          auto a1_256 =
+              MArgument{a1.reg.retype(Type::Float64x4), Type::Float64x4};
+          auto res_128 =
+              MArgument{res_reg.reg.retype(Type::Float64x2), Type::Float64x2};
 
-            // 256 red
-            res.result.emplace_back(X86Subtype::vextractf64x4, res_256, a1,
-                                    MArgument(static_cast<u8>(1)));
-            res.result.emplace_back(GVecSubtype::vadd, res_256, res_256,
-                                    a1_256);
+          // 256 red
+          res.result.emplace_back(X86Subtype::vextractf64x4, res_256, a1,
+                                  MArgument(static_cast<u8>(1)));
+          res.result.emplace_back(GVecSubtype::vadd, res_256, res_256, a1_256);
 
-            // 128 red
-            auto res_256_low_128 = MArgument{res_reg.reg, Type::Float64x2};
-            res.result.emplace_back(X86Subtype::vextract128, res_128, res_256,
-                                    MArgument(static_cast<u8>(1)));
-            res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
-                                    res_256_low_128);
+          // 128 red
+          auto res_256_low_128 = MArgument{res_reg.reg, Type::Float64x2};
+          res.result.emplace_back(X86Subtype::vextract128, res_128, res_256,
+                                  MArgument(static_cast<u8>(1)));
+          res.result.emplace_back(GVecSubtype::vadd, res_128, res_128,
+                                  res_256_low_128);
 
-            res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
-            break;
-          }
-          case Type::Int64x2: {
-            auto helper = data.alloc.get_new_register(Type::Int64);
-            auto helper_arg = MArgument{helper, Type::Int64};
-            res.result.emplace_back(GBaseSubtype::mov, helper_arg, a1);
-            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
-                                    MArgument(static_cast<u8>(1)));
-            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
-            break;
-          }
-          case Type::Int64x4: {
-            auto helper_vec = data.alloc.get_new_register(Type::Int64x2);
-            auto helper_vec_arg = MArgument{helper_vec, Type::Int64x2};
+          res.result.emplace_back(X86Subtype::HAdd, res_reg, res_128);
+          break;
+        }
+        case Type::Int64x2: {
+          auto helper = data.alloc.get_new_register(Type::Int64);
+          auto helper_arg = MArgument{helper, Type::Int64};
+          res.result.emplace_back(GBaseSubtype::mov, helper_arg, a1);
+          res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
+                                  MArgument(static_cast<u8>(1)));
+          res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
+          break;
+        }
+        case Type::Int64x4: {
+          auto helper_vec = data.alloc.get_new_register(Type::Int64x2);
+          auto helper_vec_arg = MArgument{helper_vec, Type::Int64x2};
 
-            auto helper = data.alloc.get_new_register(Type::Int64);
-            auto helper_arg = MArgument{helper, Type::Int64};
-            res.result.emplace_back(X86Subtype::vextract128, helper_vec_arg, a1,
-                                    MArgument(static_cast<u8>(1)));
-            ASSERT(a1.isReg());
-            res.result.emplace_back(
-                GVecSubtype::vadd, helper_vec_arg, helper_vec_arg,
-                MArgument{a1.reg.retype(Type::Int64x2), Type::Int64x2});
+          auto helper = data.alloc.get_new_register(Type::Int64);
+          auto helper_arg = MArgument{helper, Type::Int64};
+          res.result.emplace_back(X86Subtype::vextract128, helper_vec_arg, a1,
+                                  MArgument(static_cast<u8>(1)));
+          ASSERT(a1.isReg());
+          res.result.emplace_back(
+              GVecSubtype::vadd, helper_vec_arg, helper_vec_arg,
+              MArgument{a1.reg.retype(Type::Int64x2), Type::Int64x2});
 
-            res.result.emplace_back(GBaseSubtype::mov, helper_arg,
-                                    helper_vec_arg);
-            res.result.emplace_back(X86Subtype::vpextr, res_reg, helper_vec_arg,
-                                    MArgument(static_cast<u8>(1)));
-            res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
-            break;
-          }
-          case Type::Int32x8:
-          case Type::Int32x4:
-            fmt::println("{:cd}", hred_instr->args[0].get_type());
-            fmt::println("{:cd}", hred_instr);
-            TODO("impl");
-            break;
+          res.result.emplace_back(GBaseSubtype::mov, helper_arg,
+                                  helper_vec_arg);
+          res.result.emplace_back(X86Subtype::vpextr, res_reg, helper_vec_arg,
+                                  MArgument(static_cast<u8>(1)));
+          res.result.emplace_back(GArithSubtype::add2, res_reg, helper_arg);
+          break;
+        }
+        case Type::Int32x8:
+        case Type::Int32x4:
+          fmt::println("{:cd}", hred_instr->args[0].get_type());
+          fmt::println("{:cd}", hred_instr);
+          TODO("impl");
+          break;
         }
         return true;
       }});
@@ -2488,30 +2483,30 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a2 = valueToArg(concat_instr->args[1], res.result, data.alloc);
         ASSERT(a1.ty == a2.ty);
         switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x2:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
-            res.result.emplace_back(X86Subtype::movlhps, res_reg, res_reg, a2);
-            break;
-          case Type::Int64x2:
-          case Type::Float64x2:
-          case Type::Int32x4:
-          case Type::Float32x4:
-            ASSERT(a1.isReg());
-            res.result.emplace_back(
-                X86Subtype::vinsert128, res_reg,
-                MArgument(a1.reg.retype(res_reg.ty), res_reg.ty), a2,
-                MArgument(static_cast<u8>(1)));
-            break;
-          case Type::Float32x8:
-          case Type::Int32x8:
-          case Type::Float64x4:
-          case Type::Int64x4:
-            fmt::println("{:cd}", concat_instr->args[0].get_type());
-            fmt::println("{:cd}", concat_instr);
-            TODO("impl");
-            break;
+        default:
+          TODO("invalid?");
+        case Type::Float32x2:
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+          res.result.emplace_back(X86Subtype::movlhps, res_reg, res_reg, a2);
+          break;
+        case Type::Int64x2:
+        case Type::Float64x2:
+        case Type::Int32x4:
+        case Type::Float32x4:
+          ASSERT(a1.isReg());
+          res.result.emplace_back(
+              X86Subtype::vinsert128, res_reg,
+              MArgument(a1.reg.retype(res_reg.ty), res_reg.ty), a2,
+              MArgument(static_cast<u8>(1)));
+          break;
+        case Type::Float32x8:
+        case Type::Int32x8:
+        case Type::Float64x4:
+        case Type::Int64x4:
+          fmt::println("{:cd}", concat_instr->args[0].get_type());
+          fmt::println("{:cd}", concat_instr);
+          TODO("impl");
+          break;
         }
         return true;
       }});
@@ -2525,31 +2520,30 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
 
         switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x4:
-            res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg,
-                                    res_reg);
-            res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
-            break;
-          case Type::Int64x2:
-            res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
-                                    MArgument(static_cast<u8>(1)));
-            break;
-          case Type::Int64x4:
-            res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
-                                    MArgument(static_cast<u8>(1)));
-            break;
-          case Type::Float32x2:
-          case Type::Float64x2:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Int32x8:
-          case Type::Int32x4:
-            fmt::println("{:cd}", extract_instr->args[0].get_type());
-            fmt::println("{:cd}", extract_instr);
-            TODO("impl");
-            break;
+        default:
+          TODO("invalid?");
+        case Type::Float32x4:
+          res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg, res_reg);
+          res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
+          break;
+        case Type::Int64x2:
+          res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
+                                  MArgument(static_cast<u8>(1)));
+          break;
+        case Type::Int64x4:
+        case Type::Float32x8:
+        case Type::Float64x4:
+          res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
+                                  MArgument(static_cast<u8>(1)));
+          break;
+        case Type::Float32x2:
+        case Type::Float64x2:
+        case Type::Int32x8:
+        case Type::Int32x4:
+          fmt::println("{:cd}", extract_instr->args[0].get_type());
+          fmt::println("{:cd}", extract_instr);
+          TODO("impl");
+          break;
         }
         return true;
       }});
@@ -2563,40 +2557,40 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
 
         switch (a1.ty) {
-          default:
-            TODO("invalid?");
-          case Type::Float32x4:
-          case Type::Int64x4:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
-            break;
-          case Type::Float32x2:
-          case Type::Float64x2:
-          case Type::Float32x8:
-          case Type::Float64x4:
-          case Type::Int32x8:
-          case Type::Int64x2:
-          case Type::Int32x4:
-            fmt::println("{:cd}", extract_instr->args[0].get_type());
-            fmt::println("{:cd}", extract_instr);
-            TODO("impl");
-            break;
+        default:
+          TODO("invalid?");
+        case Type::Float32x8:
+        case Type::Float32x4:
+        case Type::Int64x4:
+        case Type::Float64x4:
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+          break;
+        case Type::Float32x2:
+        case Type::Float64x2:
+        case Type::Int32x8:
+        case Type::Int64x2:
+        case Type::Int32x4:
+          fmt::println("{:cd}", extract_instr->args[0].get_type());
+          fmt::println("{:cd}", extract_instr);
+          TODO("impl");
+          break;
         }
         return true;
       }});
-  pats.push_back(Pattern{
-      .nodes = {NegateNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto negate_instr = res.matched_instrs[0];
-        auto res_reg =
-            valueToArg(fir::ValueR(negate_instr), res.result, data.alloc);
+  pats.push_back(
+      Pattern{.nodes = {NegateNode},
+              .edges = {},
+              .generator = [](MatchResult &res, ExtraMatchData &data) {
+                auto negate_instr = res.matched_instrs[0];
+                auto res_reg = valueToArg(fir::ValueR(negate_instr), res.result,
+                                          data.alloc);
 
-        res.result.emplace_back(
-            GBaseSubtype::mov, res_reg,
-            valueToArg(negate_instr->args[0], res.result, data.alloc));
-        res.result.emplace_back(GArithSubtype::neg1, res_reg);
-        return true;
-      }});
+                res.result.emplace_back(
+                    GBaseSubtype::mov, res_reg,
+                    valueToArg(negate_instr->args[0], res.result, data.alloc));
+                res.result.emplace_back(GArithSubtype::neg1, res_reg);
+                return true;
+              }});
   pats.push_back(Pattern{
       .nodes = {BroadcastNode},
       .edges = {},
@@ -2622,28 +2616,28 @@ void base_patterns(IRVec<Pattern> &pats) {
         //  are set pcmpeqd       xmm0, xmm0 psrld xmm0, 32-n
         if (data.config.target.features.avx512vl) {
           switch (res_reg.ty) {
-            case Type::Int32x4:
-            case Type::Int32x8:
-            case Type::Int64x2: {
-              auto helper_reg =
-                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
-              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
-              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
-                                      helper_reg);
-              return true;
-            }
-            case Type::Float64x2: {
-              res_reg.ty = Type::Float64x4;
-              res_reg.reg.ty = Type::Float64x4;
-              auto helper_reg =
-                  MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
-              res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
-              res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
-                                      helper_reg);
-              return true;
-            }
-            default:
-              break;
+          case Type::Int32x4:
+          case Type::Int32x8:
+          case Type::Int64x2: {
+            auto helper_reg =
+                MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
+            res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
+            res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                    helper_reg);
+            return true;
+          }
+          case Type::Float64x2: {
+            res_reg.ty = Type::Float64x4;
+            res_reg.reg.ty = Type::Float64x4;
+            auto helper_reg =
+                MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
+            res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
+            res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
+                                    helper_reg);
+            return true;
+          }
+          default:
+            break;
           }
         }
 
@@ -2652,28 +2646,28 @@ void base_patterns(IRVec<Pattern> &pats) {
         bool can_punpckl = false;
         bool can_vbroadcast = false;
         switch (res_reg.ty) {
-          case Type::INVALID:
-          case Type::Int32x4:
-          case Type::Int32x8:
-          case Type::Float32x8:
-          case Type::Float32x4:
-            can_pshuf = true;
-            res_reg_smoll.ty = Type::Float32;
-            res_reg_smoll.reg.ty = Type::Float32;
-          case Type::Int64x2:
-          case Type::Float64x2:
-            can_punpckl = true;
-            res_reg_smoll.ty = Type::Float64;
-            res_reg_smoll.reg.ty = Type::Float64;
-            break;
-          case Type::Int64x4:
-          case Type::Float64x4:
-            can_vbroadcast = true;
-            res_reg_smoll.ty = Type::Float64;
-            res_reg_smoll.reg.ty = Type::Float64;
-            break;
-          default:
-            TODO("UNREACH");
+        case Type::INVALID:
+        case Type::Int32x4:
+        case Type::Int32x8:
+        case Type::Float32x8:
+        case Type::Float32x4:
+          can_pshuf = true;
+          res_reg_smoll.ty = Type::Float32;
+          res_reg_smoll.reg.ty = Type::Float32;
+        case Type::Int64x2:
+        case Type::Float64x2:
+          can_punpckl = true;
+          res_reg_smoll.ty = Type::Float64;
+          res_reg_smoll.reg.ty = Type::Float64;
+          break;
+        case Type::Int64x4:
+        case Type::Float64x4:
+          can_vbroadcast = true;
+          res_reg_smoll.ty = Type::Float64;
+          res_reg_smoll.reg.ty = Type::Float64;
+          break;
+        default:
+          TODO("UNREACH");
         }
         if (can_pshuf) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg_smoll, arg);
@@ -2714,56 +2708,56 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         switch (static_cast<fir::FCmpInstrSubType>(
             cmp_instr->get_instr_subtype())) {
-          case fir::FCmpInstrSubType::IsNaN:
-            op = GJumpSubtype::fcmp_isNaN;
-            break;
-          case fir::FCmpInstrSubType::OEQ:
-            op = GJumpSubtype::fcmp_oeq;
-            break;
-          case fir::FCmpInstrSubType::OGT:
-            op = GJumpSubtype::fcmp_ogt;
-            break;
-          case fir::FCmpInstrSubType::OGE:
-            op = GJumpSubtype::fcmp_oge;
-            break;
-          case fir::FCmpInstrSubType::OLT:
-            op = GJumpSubtype::fcmp_olt;
-            break;
-          case fir::FCmpInstrSubType::OLE:
-            op = GJumpSubtype::fcmp_ole;
-            break;
-          case fir::FCmpInstrSubType::ONE:
-            op = GJumpSubtype::fcmp_one;
-            break;
-          case fir::FCmpInstrSubType::ORD:
-            op = GJumpSubtype::fcmp_ord;
-            break;
-          case fir::FCmpInstrSubType::UNO:
-            op = GJumpSubtype::fcmp_uno;
-            break;
-          case fir::FCmpInstrSubType::UEQ:
-            op = GJumpSubtype::fcmp_ueq;
-            break;
-          case fir::FCmpInstrSubType::UGT:
-            op = GJumpSubtype::fcmp_ugt;
-            break;
-          case fir::FCmpInstrSubType::UGE:
-            op = GJumpSubtype::fcmp_uge;
-            break;
-          case fir::FCmpInstrSubType::ULT:
-            op = GJumpSubtype::fcmp_ult;
-            break;
-          case fir::FCmpInstrSubType::ULE:
-            op = GJumpSubtype::fcmp_ule;
-            break;
-          case fir::FCmpInstrSubType::UNE:
-            op = GJumpSubtype::fcmp_une;
-            break;
-          case fir::FCmpInstrSubType::INVALID:
-          case fir::FCmpInstrSubType::AlwFalse:
-          case fir::FCmpInstrSubType::AlwTrue:
-            TODO("");
-            break;
+        case fir::FCmpInstrSubType::IsNaN:
+          op = GJumpSubtype::fcmp_isNaN;
+          break;
+        case fir::FCmpInstrSubType::OEQ:
+          op = GJumpSubtype::fcmp_oeq;
+          break;
+        case fir::FCmpInstrSubType::OGT:
+          op = GJumpSubtype::fcmp_ogt;
+          break;
+        case fir::FCmpInstrSubType::OGE:
+          op = GJumpSubtype::fcmp_oge;
+          break;
+        case fir::FCmpInstrSubType::OLT:
+          op = GJumpSubtype::fcmp_olt;
+          break;
+        case fir::FCmpInstrSubType::OLE:
+          op = GJumpSubtype::fcmp_ole;
+          break;
+        case fir::FCmpInstrSubType::ONE:
+          op = GJumpSubtype::fcmp_one;
+          break;
+        case fir::FCmpInstrSubType::ORD:
+          op = GJumpSubtype::fcmp_ord;
+          break;
+        case fir::FCmpInstrSubType::UNO:
+          op = GJumpSubtype::fcmp_uno;
+          break;
+        case fir::FCmpInstrSubType::UEQ:
+          op = GJumpSubtype::fcmp_ueq;
+          break;
+        case fir::FCmpInstrSubType::UGT:
+          op = GJumpSubtype::fcmp_ugt;
+          break;
+        case fir::FCmpInstrSubType::UGE:
+          op = GJumpSubtype::fcmp_uge;
+          break;
+        case fir::FCmpInstrSubType::ULT:
+          op = GJumpSubtype::fcmp_ult;
+          break;
+        case fir::FCmpInstrSubType::ULE:
+          op = GJumpSubtype::fcmp_ule;
+          break;
+        case fir::FCmpInstrSubType::UNE:
+          op = GJumpSubtype::fcmp_une;
+          break;
+        case fir::FCmpInstrSubType::INVALID:
+        case fir::FCmpInstrSubType::AlwFalse:
+        case fir::FCmpInstrSubType::AlwTrue:
+          TODO("");
+          break;
         }
         res.result.emplace_back(op, res_arg, arg1, arg2);
         return true;
@@ -2785,44 +2779,44 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         switch (static_cast<fir::ICmpInstrSubType>(
             cmp_instr->get_instr_subtype())) {
-          case fir::ICmpInstrSubType::SLT:
-            op = GJumpSubtype::icmp_slt;
-            break;
-          case fir::ICmpInstrSubType::ULT:
-            op = GJumpSubtype::icmp_ult;
-            break;
-          case fir::ICmpInstrSubType::NE:
-            op = GJumpSubtype::icmp_ne;
-            break;
-          case fir::ICmpInstrSubType::EQ:
-            op = GJumpSubtype::icmp_eq;
-            break;
-          case fir::ICmpInstrSubType::SGT:
-            op = GJumpSubtype::icmp_sgt;
-            break;
-          case fir::ICmpInstrSubType::UGT:
-            op = GJumpSubtype::icmp_ugt;
-            break;
-          case fir::ICmpInstrSubType::UGE:
-            op = GJumpSubtype::icmp_uge;
-            break;
-          case fir::ICmpInstrSubType::ULE:
-            op = GJumpSubtype::icmp_ule;
-            break;
-          case fir::ICmpInstrSubType::SGE:
-            op = GJumpSubtype::icmp_sge;
-            break;
-          case fir::ICmpInstrSubType::SLE:
-            op = GJumpSubtype::icmp_sle;
-            break;
-          case fir::ICmpInstrSubType::MulOverflow:
-            op = GJumpSubtype::icmp_mul_overflow;
-            break;
-          case fir::ICmpInstrSubType::AddOverflow:
-            op = GJumpSubtype::icmp_add_overflow;
-            break;
-          case fir::ICmpInstrSubType::INVALID:
-            UNREACH();
+        case fir::ICmpInstrSubType::SLT:
+          op = GJumpSubtype::icmp_slt;
+          break;
+        case fir::ICmpInstrSubType::ULT:
+          op = GJumpSubtype::icmp_ult;
+          break;
+        case fir::ICmpInstrSubType::NE:
+          op = GJumpSubtype::icmp_ne;
+          break;
+        case fir::ICmpInstrSubType::EQ:
+          op = GJumpSubtype::icmp_eq;
+          break;
+        case fir::ICmpInstrSubType::SGT:
+          op = GJumpSubtype::icmp_sgt;
+          break;
+        case fir::ICmpInstrSubType::UGT:
+          op = GJumpSubtype::icmp_ugt;
+          break;
+        case fir::ICmpInstrSubType::UGE:
+          op = GJumpSubtype::icmp_uge;
+          break;
+        case fir::ICmpInstrSubType::ULE:
+          op = GJumpSubtype::icmp_ule;
+          break;
+        case fir::ICmpInstrSubType::SGE:
+          op = GJumpSubtype::icmp_sge;
+          break;
+        case fir::ICmpInstrSubType::SLE:
+          op = GJumpSubtype::icmp_sle;
+          break;
+        case fir::ICmpInstrSubType::MulOverflow:
+          op = GJumpSubtype::icmp_mul_overflow;
+          break;
+        case fir::ICmpInstrSubType::AddOverflow:
+          op = GJumpSubtype::icmp_add_overflow;
+          break;
+        case fir::ICmpInstrSubType::INVALID:
+          UNREACH();
         }
         res.result.emplace_back(op, res_arg, arg1, arg2);
         return true;
@@ -3002,64 +2996,64 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_opcode = GConvSubtype::FL2SI;
         switch (
             static_cast<fir::ConversionSubType>(conversion_instr->subtype)) {
-          case fir::ConversionSubType::INVALID:
-            UNREACH();
-          case fir::ConversionSubType::BitCast:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+        case fir::ConversionSubType::INVALID:
+          UNREACH();
+        case fir::ConversionSubType::BitCast:
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+          return true;
+        case fir::ConversionSubType::FPTOUI:
+          if (get_size(res_reg.ty) == 8) {
+            // _Z4testv:
+            //         vmovsd/vmovss     hF64, Input
+            //         cvttsd2si/cttss2s1 h64, hF64
+            //         mov       g64, h64
+            //         subsd     hF64, hF64, 0x43e0000000000000
+            //         cvttsd2si res, hF64
+            //         sar       g64, 63
+            //         and       res, g64
+            //         or        res, h64
+            auto doub = get_size(val.ty) == 64;
+            auto reg_ty = val.ty;
+            auto hf = MArgument(data.alloc.get_new_register(reg_ty), reg_ty);
+            auto h64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                 Type::Int64);
+            auto g64 = MArgument(data.alloc.get_new_register(Type::Int64),
+                                 Type::Int64);
+            res.result.emplace_back(GBaseSubtype::mov, hf, val);
+            res.result.emplace_back(GConvSubtype::FL2SI, h64, hf);
+            res.result.emplace_back(GBaseSubtype::mov, g64, h64);
+            res.result.emplace_back(
+                GVecSubtype::vsub, hf, hf,
+                MArgument(doub ? static_cast<f64>(0x43e0000000000000)
+                               : static_cast<f64>(0x5f000000)));
+            res.result.emplace_back(GConvSubtype::FL2SI, res_reg, hf);
+            res.result.emplace_back(GArithSubtype::sar2, g64,
+                                    MArgument(static_cast<u8>(63)));
+            res.result.emplace_back(GArithSubtype::land2, res_reg, g64);
+            res.result.emplace_back(GArithSubtype::lor2, res_reg, h64);
             return true;
-          case fir::ConversionSubType::FPTOUI:
-            if (get_size(res_reg.ty) == 8) {
-              // _Z4testv:
-              //         vmovsd/vmovss     hF64, Input
-              //         cvttsd2si/cttss2s1 h64, hF64
-              //         mov       g64, h64
-              //         subsd     hF64, hF64, 0x43e0000000000000
-              //         cvttsd2si res, hF64
-              //         sar       g64, 63
-              //         and       res, g64
-              //         or        res, h64
-              auto doub = get_size(val.ty) == 64;
-              auto reg_ty = val.ty;
-              auto hf = MArgument(data.alloc.get_new_register(reg_ty), reg_ty);
-              auto h64 = MArgument(data.alloc.get_new_register(Type::Int64),
-                                   Type::Int64);
-              auto g64 = MArgument(data.alloc.get_new_register(Type::Int64),
-                                   Type::Int64);
-              res.result.emplace_back(GBaseSubtype::mov, hf, val);
-              res.result.emplace_back(GConvSubtype::FL2SI, h64, hf);
-              res.result.emplace_back(GBaseSubtype::mov, g64, h64);
-              res.result.emplace_back(
-                  GVecSubtype::vsub, hf, hf,
-                  MArgument(doub ? static_cast<f64>(0x43e0000000000000)
-                                 : static_cast<f64>(0x5f000000)));
-              res.result.emplace_back(GConvSubtype::FL2SI, res_reg, hf);
-              res.result.emplace_back(GArithSubtype::sar2, g64,
-                                      MArgument(static_cast<u8>(63)));
-              res.result.emplace_back(GArithSubtype::land2, res_reg, g64);
-              res.result.emplace_back(GArithSubtype::lor2, res_reg, h64);
-              return true;
-            }
-            res_opcode = GConvSubtype::FL2UI;
-            break;
-          case fir::ConversionSubType::FPTOSI:
-            res_opcode = GConvSubtype::FL2SI;
-            break;
-          case fir::ConversionSubType::UITOFP:
-            res_opcode = GConvSubtype::UI2FL;
-            break;
-          case fir::ConversionSubType::SITOFP:
-            res_opcode = GConvSubtype::SI2FL;
-            break;
-          case fir::ConversionSubType::FPEXT:
-            res_opcode = GConvSubtype::F64_ext;
-            break;
-          case fir::ConversionSubType::FPTRUNC:
-            res_opcode = GConvSubtype::F32_trunc;
-            break;
-          case fir::ConversionSubType::PtrToInt:
-          case fir::ConversionSubType::IntToPtr:
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
-            return true;
+          }
+          res_opcode = GConvSubtype::FL2UI;
+          break;
+        case fir::ConversionSubType::FPTOSI:
+          res_opcode = GConvSubtype::FL2SI;
+          break;
+        case fir::ConversionSubType::UITOFP:
+          res_opcode = GConvSubtype::UI2FL;
+          break;
+        case fir::ConversionSubType::SITOFP:
+          res_opcode = GConvSubtype::SI2FL;
+          break;
+        case fir::ConversionSubType::FPEXT:
+          res_opcode = GConvSubtype::F64_ext;
+          break;
+        case fir::ConversionSubType::FPTRUNC:
+          res_opcode = GConvSubtype::F32_trunc;
+          break;
+        case fir::ConversionSubType::PtrToInt:
+        case fir::ConversionSubType::IntToPtr:
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+          return true;
         }
 
         res.result.emplace_back(res_opcode, res_reg, val);
@@ -3247,18 +3241,18 @@ void base_patterns(IRVec<Pattern> &pats) {
             auto ext_out = MArgument{target.reg.retype(input.ty), input.ty};
             u8 mapp = 0;
             switch (rev_indx) {
-              case 1:
-                mapp = 0b01'00'1110;
-                break;
-              case 2:
-                mapp = 0b10'00'1110;
-                break;
-              case 3:
-                mapp = 0b11'00'1110;
-                break;
-              default:
-                fmt::print("{} {}", rev_indx, extract_instr);
-                UNREACH();
+            case 1:
+              mapp = 0b01'00'1110;
+              break;
+            case 2:
+              mapp = 0b10'00'1110;
+              break;
+            case 3:
+              mapp = 0b11'00'1110;
+              break;
+            default:
+              fmt::print("{} {}", rev_indx, extract_instr);
+              UNREACH();
             }
             res.result.emplace_back(GVecSubtype::vXor, ext_out, ext_out,
                                     ext_out);
@@ -3515,7 +3509,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                 return true;
               }});
 }
-}  // namespace
+} // namespace
 
 IRVec<Pattern> get_pats() {
   IRVec<Pattern> res;
@@ -3531,4 +3525,4 @@ IRVec<Pattern> get_pats() {
 
   return res;
 }
-}  // namespace foptim::fmir
+} // namespace foptim::fmir

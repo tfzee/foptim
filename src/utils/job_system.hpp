@@ -36,7 +36,7 @@ std::optional<Job> try_get_job(JobSheduler *shed, Worker *self);
 void do_job(JobSheduler *shed, Worker *self = nullptr);
 
 class JobSheduler {
- public:
+public:
   // this is definetly not optimal for short running jobs
   std::mutex job_queue;
   foptim::IRVec<Job> jobs;
@@ -48,7 +48,7 @@ class JobSheduler {
   void init(u8 n_threads) {
     ZoneScopedN("InitThreads");
     jobs.reserve(32);
-    threads = static_cast<Worker *>(malloc(sizeof(Worker) * n_threads));
+    threads = reinterpret_cast<Worker *>(malloc(sizeof(Worker) * n_threads));
     this->n_threads = n_threads;
     for (u8 i = 0; i < n_threads; i++) {
       new (&threads[i]) Worker{this, static_cast<u8>(i + 1)};
@@ -141,4 +141,4 @@ class JobSheduler {
   }
 };
 
-}  // namespace foptim
+} // namespace foptim

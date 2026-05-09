@@ -23,7 +23,7 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
   fir::ValueR v;
   bool after;
 
- public:
+public:
   void dump() final { fmt::print("BROAD({})", v); }
 
   BroadcastTreeOp *init(const TVec<fir::ValueR> &values) {
@@ -70,7 +70,7 @@ class BroadcastTreeOp final : public SLPVectorizer::TreeElem {
 };
 
 class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
- public:
+public:
   void dump() final {
     fmt::print("RED(\n");
     for (auto *c : children) {
@@ -129,7 +129,7 @@ class HorizRedTreeOp final : public SLPVectorizer::TreeElem {
 };
 
 class BinaryTreeOp final : public SLPVectorizer::TreeElem {
- public:
+public:
   bool is_signed = false;
   fir::BinaryInstrSubType binary_op = fir::BinaryInstrSubType::INVALID;
   fir::TypeR orig_type;
@@ -137,22 +137,22 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
   void dump() final {
     children.at(1)->dump();
     switch (binary_op) {
-      case fir::BinaryInstrSubType::FloatAdd:
-      case fir::BinaryInstrSubType::IntAdd:
-        fmt::print(" + ");
-        break;
-      case fir::BinaryInstrSubType::FloatMul:
-      case fir::BinaryInstrSubType::IntMul:
-        fmt::print(" * ");
-        break;
-      case fir::BinaryInstrSubType::FloatDiv:
-      case fir::BinaryInstrSubType::IntSDiv:
-      case fir::BinaryInstrSubType::IntUDiv:
-        fmt::print(" / ");
-        break;
-      default:
-        fmt::print(" BinOp ");
-        break;
+    case fir::BinaryInstrSubType::FloatAdd:
+    case fir::BinaryInstrSubType::IntAdd:
+      fmt::print(" + ");
+      break;
+    case fir::BinaryInstrSubType::FloatMul:
+    case fir::BinaryInstrSubType::IntMul:
+      fmt::print(" * ");
+      break;
+    case fir::BinaryInstrSubType::FloatDiv:
+    case fir::BinaryInstrSubType::IntSDiv:
+    case fir::BinaryInstrSubType::IntUDiv:
+      fmt::print(" / ");
+      break;
+    default:
+      fmt::print(" BinOp ");
+      break;
     }
     children.at(0)->dump();
   }
@@ -222,37 +222,36 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
       return false;
     }
     switch (static_cast<fir::BinaryInstrSubType>(base_v->subtype)) {
-      case fir::BinaryInstrSubType::FloatAdd:
-      case fir::BinaryInstrSubType::IntAdd:
-      case fir::BinaryInstrSubType::Shl:
-      case fir::BinaryInstrSubType::IntSub:
-      case fir::BinaryInstrSubType::Xor:
-      case fir::BinaryInstrSubType::Or:
-      case fir::BinaryInstrSubType::Shr:
-        return true;
-      case fir::BinaryInstrSubType::FloatSub:
-      case fir::BinaryInstrSubType::FloatMul:
-      case fir::BinaryInstrSubType::IntMul:
-      case fir::BinaryInstrSubType::And:
-      case fir::BinaryInstrSubType::FloatDiv:
-        if (SLPVectorizer::debug_print && potential_neutral_elem) {
-          fmt::println(
-              "Failed with op that doesnt support neutral but needs it");
-        }
-        // we cant handle neutral elemtns for everything
-        return !potential_neutral_elem;
-        // TODO. this causes issues + technically there is a neutral element for
-        // div
-      case fir::BinaryInstrSubType::IntSRem:
-      case fir::BinaryInstrSubType::IntURem:
-      case fir::BinaryInstrSubType::IntSDiv:
-      case fir::BinaryInstrSubType::IntUDiv:
-        return false;
-      case fir::BinaryInstrSubType::INVALID:
-      case fir::BinaryInstrSubType::AShr:
-        fmt::println("{}", base_v);
-        TODO("impl");
-        return false;
+    case fir::BinaryInstrSubType::FloatAdd:
+    case fir::BinaryInstrSubType::IntAdd:
+    case fir::BinaryInstrSubType::Shl:
+    case fir::BinaryInstrSubType::IntSub:
+    case fir::BinaryInstrSubType::Xor:
+    case fir::BinaryInstrSubType::Or:
+    case fir::BinaryInstrSubType::Shr:
+      return true;
+    case fir::BinaryInstrSubType::FloatSub:
+    case fir::BinaryInstrSubType::FloatMul:
+    case fir::BinaryInstrSubType::IntMul:
+    case fir::BinaryInstrSubType::And:
+    case fir::BinaryInstrSubType::FloatDiv:
+      if (SLPVectorizer::debug_print && potential_neutral_elem) {
+        fmt::println("Failed with op that doesnt support neutral but needs it");
+      }
+      // we cant handle neutral elemtns for everything
+      return !potential_neutral_elem;
+      // TODO. this causes issues + technically there is a neutral element for
+      // div
+    case fir::BinaryInstrSubType::IntSRem:
+    case fir::BinaryInstrSubType::IntURem:
+    case fir::BinaryInstrSubType::IntSDiv:
+    case fir::BinaryInstrSubType::IntUDiv:
+      return false;
+    case fir::BinaryInstrSubType::INVALID:
+    case fir::BinaryInstrSubType::AShr:
+      fmt::println("{}", base_v);
+      TODO("impl");
+      return false;
     }
   }
   fir::ValueR generate(fir::Context &ctx,
@@ -266,7 +265,7 @@ class BinaryTreeOp final : public SLPVectorizer::TreeElem {
 };
 
 class ZextTreeOp final : public SLPVectorizer::TreeElem {
- public:
+public:
   fir::TypeR res_ty;
   void dump() final {
     // children.at(1)->dump();
@@ -323,7 +322,7 @@ class ZextTreeOp final : public SLPVectorizer::TreeElem {
 };
 
 class ITruncTreeOp final : public SLPVectorizer::TreeElem {
- public:
+public:
   fir::TypeR res_ty;
   void dump() final {
     // children.at(1)->dump();
@@ -367,7 +366,7 @@ class ITruncTreeOp final : public SLPVectorizer::TreeElem {
 };
 
 class CallTreeOp final : public SLPVectorizer::TreeElem {
- public:
+public:
   fir::ValueR func_ref;
   void dump() final {
     fmt::print("call {} ", func_ref);
@@ -451,7 +450,7 @@ class CallTreeOp final : public SLPVectorizer::TreeElem {
 };
 
 class UnaryTreeOp final : public SLPVectorizer::TreeElem {
- public:
+public:
   fir::UnaryInstrSubType sub_ty;
   void dump() final {
     // children.at(1)->dump();
@@ -486,15 +485,15 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
     }
     switch (static_cast<fir::UnaryInstrSubType>(
         values.back().as_instr()->subtype)) {
-      case fir::UnaryInstrSubType::INVALID:
-        return false;
-      case fir::UnaryInstrSubType::IntNeg:
-        fmt::println("{}", values.back().as_instr());
-        TODO("impl it?");
-      case fir::UnaryInstrSubType::Not:
-      case fir::UnaryInstrSubType::FloatNeg:
-      case fir::UnaryInstrSubType::FloatSqrt:
-        break;
+    case fir::UnaryInstrSubType::INVALID:
+      return false;
+    case fir::UnaryInstrSubType::IntNeg:
+      fmt::println("{}", values.back().as_instr());
+      TODO("impl it?");
+    case fir::UnaryInstrSubType::Not:
+    case fir::UnaryInstrSubType::FloatNeg:
+    case fir::UnaryInstrSubType::FloatSqrt:
+      break;
     }
     return true;
   }
@@ -508,7 +507,7 @@ class UnaryTreeOp final : public SLPVectorizer::TreeElem {
 };
 
 class ExtractTreeOp final : public SLPVectorizer::TreeElem {
- public:
+public:
   void dump() final { fmt::println("\n"); }
 
   ExtractTreeOp *init(const TVec<fir::ValueR> &values) {
@@ -554,7 +553,7 @@ class ExtractTreeOp final : public SLPVectorizer::TreeElem {
 class StoreTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr store_loc;
 
- public:
+public:
   void dump() final {
     // children.at(1)->dump();
     // fmt::print(" = ");
@@ -600,21 +599,21 @@ class StoreTreeOp final : public SLPVectorizer::TreeElem {
 class IntrinTreeOp final : public SLPVectorizer::TreeElem {
   fir::IntrinsicSubType type;
 
- public:
+public:
   void dump() final {
     switch (type) {
-      default:
-        TODO("UNREACH");
-      case fir::IntrinsicSubType::Abs:
-        fmt::print("abs(");
-        children.at(0)->dump();
-        fmt::print(")");
-        break;
-      case fir::IntrinsicSubType::FAbs:
-        fmt::print("fabs(");
-        children.at(0)->dump();
-        fmt::print(")");
-        break;
+    default:
+      TODO("UNREACH");
+    case fir::IntrinsicSubType::Abs:
+      fmt::print("abs(");
+      children.at(0)->dump();
+      fmt::print(")");
+      break;
+    case fir::IntrinsicSubType::FAbs:
+      fmt::print("fabs(");
+      children.at(0)->dump();
+      fmt::print(")");
+      break;
     }
   }
 
@@ -653,26 +652,26 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
     }
 
     switch (static_cast<fir::IntrinsicSubType>(base_v->subtype)) {
-      case fir::IntrinsicSubType::INVALID:
-      case fir::IntrinsicSubType::VA_start:
-      case fir::IntrinsicSubType::VA_end:
-      case fir::IntrinsicSubType::IsConstant:
-        return false;
-      case fir::IntrinsicSubType::PopCnt:
-      case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
-      case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::UMax:
-      case fir::IntrinsicSubType::SMin:
-      case fir::IntrinsicSubType::SMax:
-      case fir::IntrinsicSubType::Abs:
-      case fir::IntrinsicSubType::FAbs:
-      case fir::IntrinsicSubType::FRound:
-      case fir::IntrinsicSubType::FCeil:
-      case fir::IntrinsicSubType::FFloor:
-      case fir::IntrinsicSubType::FTrunc:
-        return true;
+    case fir::IntrinsicSubType::INVALID:
+    case fir::IntrinsicSubType::VA_start:
+    case fir::IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::IsConstant:
+      return false;
+    case fir::IntrinsicSubType::PopCnt:
+    case fir::IntrinsicSubType::CTLZ:
+    case fir::IntrinsicSubType::FMin:
+    case fir::IntrinsicSubType::FMax:
+    case fir::IntrinsicSubType::UMin:
+    case fir::IntrinsicSubType::UMax:
+    case fir::IntrinsicSubType::SMin:
+    case fir::IntrinsicSubType::SMax:
+    case fir::IntrinsicSubType::Abs:
+    case fir::IntrinsicSubType::FAbs:
+    case fir::IntrinsicSubType::FRound:
+    case fir::IntrinsicSubType::FCeil:
+    case fir::IntrinsicSubType::FFloor:
+    case fir::IntrinsicSubType::FTrunc:
+      return true;
     }
   }
 
@@ -682,32 +681,30 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
     auto val = children.at(0)->generate(ctx, orig_bundl);
     fir::Builder bb{insert_loc};
     switch (type) {
-      default:
-        TODO("UNREACH");
-      case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::UMax:
-      case fir::IntrinsicSubType::SMin:
-      case fir::IntrinsicSubType::SMax:
-        TODO("impl");
-      case fir::IntrinsicSubType::FMin:
-        return bb.build_intrinsic(val,
-                                  children.at(1)->generate(ctx, orig_bundl),
-                                  fir::IntrinsicSubType::FMin);
-      case fir::IntrinsicSubType::FMax:
-        return bb.build_intrinsic(val,
-                                  children.at(1)->generate(ctx, orig_bundl),
-                                  fir::IntrinsicSubType::FMax);
-      case fir::IntrinsicSubType::FRound:
-        return bb.build_intrinsic(val, fir::IntrinsicSubType::FRound);
-      case fir::IntrinsicSubType::FCeil:
-        return bb.build_intrinsic(val, fir::IntrinsicSubType::FCeil);
-      case fir::IntrinsicSubType::FFloor:
-        return bb.build_intrinsic(val, fir::IntrinsicSubType::FFloor);
-      case fir::IntrinsicSubType::Abs:
-        return bb.build_abs(val);
-      case fir::IntrinsicSubType::FAbs:
-        return bb.build_fabs(val);
+    default:
+      TODO("UNREACH");
+    case fir::IntrinsicSubType::CTLZ:
+    case fir::IntrinsicSubType::UMin:
+    case fir::IntrinsicSubType::UMax:
+    case fir::IntrinsicSubType::SMin:
+    case fir::IntrinsicSubType::SMax:
+      TODO("impl");
+    case fir::IntrinsicSubType::FMin:
+      return bb.build_intrinsic(val, children.at(1)->generate(ctx, orig_bundl),
+                                fir::IntrinsicSubType::FMin);
+    case fir::IntrinsicSubType::FMax:
+      return bb.build_intrinsic(val, children.at(1)->generate(ctx, orig_bundl),
+                                fir::IntrinsicSubType::FMax);
+    case fir::IntrinsicSubType::FRound:
+      return bb.build_intrinsic(val, fir::IntrinsicSubType::FRound);
+    case fir::IntrinsicSubType::FCeil:
+      return bb.build_intrinsic(val, fir::IntrinsicSubType::FCeil);
+    case fir::IntrinsicSubType::FFloor:
+      return bb.build_intrinsic(val, fir::IntrinsicSubType::FFloor);
+    case fir::IntrinsicSubType::Abs:
+      return bb.build_abs(val);
+    case fir::IntrinsicSubType::FAbs:
+      return bb.build_fabs(val);
     }
   }
 };
@@ -715,7 +712,7 @@ class IntrinTreeOp final : public SLPVectorizer::TreeElem {
 class ConstantTreeOp final : public SLPVectorizer::TreeElem {
   TVec<fir::ValueR> my_values;
 
- public:
+public:
   void dump() final {
     fmt::print("<");
     for (auto v : my_values) {
@@ -783,7 +780,7 @@ class ConversionTreeOp final : public SLPVectorizer::TreeElem {
   fir::ConversionSubType sub_type;
   fir::TypeR orig_type;
 
- public:
+public:
   void dump() final {
     fmt::print("CONV(");
     fmt::print(")");
@@ -854,7 +851,7 @@ class ConversionTreeOp final : public SLPVectorizer::TreeElem {
 class SelectTreeOp final : public SLPVectorizer::TreeElem {
   fir::TypeR orig_type;
 
- public:
+public:
   void dump() final {
     fmt::print("SELECT(");
     fmt::print(")");
@@ -917,7 +914,7 @@ class SelectTreeOp final : public SLPVectorizer::TreeElem {
 class LoadTreeOp final : public SLPVectorizer::TreeElem {
   fir::Instr base_load;
 
- public:
+public:
   void dump() final {
     fmt::print("L(");
     children.at(0)->dump();
@@ -1078,249 +1075,248 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
       TreeElem *result;
       size_t n_args = 999999;
       switch (test_i.as_instr()->instr_type) {
-        case fir::InstrType::StoreInstr:
-          if (StoreTreeOp::match(curr)) {
-            auto *result_t = StoreAlloc{}.allocate(1);
-            (new (result_t) StoreTreeOp)->init(curr);
-            result = result_t;
-            n_args = 2;
-            ASSERT(parent == nullptr);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at store {}", curr[0]);
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::BinaryInstr: {
-          bool potential_neutral_elem = false;
-          if (BinaryTreeOp::match(curr, potential_neutral_elem)) {
-            auto *result_t = BinaryAlloc{}.allocate(1);
-            (new (result_t) BinaryTreeOp)->init(curr);
-            result = result_t;
-            n_args = 2;
-            ASSERT(parent != nullptr);
-            parent->children.push_back(result);
-            tree.push_back(result);
-
-            f64 neutral_float = 0.F;
-            i128 neutral_int = 0;
-
-            if (potential_neutral_elem) {
-              switch (result_t->binary_op) {
-                case fir::BinaryInstrSubType::FloatAdd:
-                case fir::BinaryInstrSubType::IntAdd:
-                case fir::BinaryInstrSubType::Shl:
-                case fir::BinaryInstrSubType::IntSub:
-                case fir::BinaryInstrSubType::Xor:
-                case fir::BinaryInstrSubType::Or:
-                  neutral_float = 0.F;
-                  neutral_int = 0;
-                  break;
-                case fir::BinaryInstrSubType::IntMul:
-                  neutral_float = 1.F;
-                  neutral_int = 1;
-                  break;
-                case fir::BinaryInstrSubType::And:
-                  neutral_float = std::bit_cast<f64>(~static_cast<u64>(0));
-                  neutral_int = ~static_cast<i128>(0);
-                  break;
-                case fir::BinaryInstrSubType::INVALID:
-                case fir::BinaryInstrSubType::IntSRem:
-                case fir::BinaryInstrSubType::IntURem:
-                case fir::BinaryInstrSubType::IntSDiv:
-                case fir::BinaryInstrSubType::IntUDiv:
-                case fir::BinaryInstrSubType::Shr:
-                case fir::BinaryInstrSubType::AShr:
-                case fir::BinaryInstrSubType::FloatSub:
-                case fir::BinaryInstrSubType::FloatMul:
-                case fir::BinaryInstrSubType::FloatDiv:
-                  UNREACH();
-              }
-            }
-            auto arg_0 = test_i.as_instr()->args[0];
-            for (size_t arg_id = 0; arg_id < n_args; arg_id++) {
-              TVec<fir::ValueR> data;
-              for (auto c : curr) {
-                if (c == arg_0 && arg_id == 1 && test_i != c) {
-                  auto t = test_i.as_instr()->args[1].get_type();
-                  if (t->is_float()) {
-                    // TODO THis is only correct ofr addition
-                    data.emplace_back(
-                        ctx->get_constant_value(neutral_float, t));
-                  } else {
-                    data.emplace_back(ctx->get_constant_value(neutral_int, t));
-                  }
-                } else if (c == arg_0 && arg_id == 0 && test_i != c) {
-                  data.push_back(c);
-                } else {
-                  data.push_back(c.as_instr()->args[arg_id]);
-                }
-              }
-              worklist.emplace_back(result, std::move(data));
-            }
-            continue;
-          }
+      case fir::InstrType::StoreInstr:
+        if (StoreTreeOp::match(curr)) {
+          auto *result_t = StoreAlloc{}.allocate(1);
+          (new (result_t) StoreTreeOp)->init(curr);
+          result = result_t;
+          n_args = 2;
+          ASSERT(parent == nullptr);
+        } else {
           if constexpr (debug_print) {
-            fmt::println("Failed tree vectorize at binary {} {} {}",
-                         test_i.as_instr(), curr[0], curr[1]);
+            fmt::println("Failed tree vectorize at store {}", curr[0]);
           }
           return false;
         }
-        case fir::InstrType::LoadInstr:
-          if (LoadTreeOp::match(curr, load_bundles)) {
-            auto *result_t = LoadAlloc{}.allocate(1);
-            (new (result_t) LoadTreeOp)->init(curr);
-            result = result_t;
-            n_args = 1;
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at load {}", curr[0]);
+        break;
+      case fir::InstrType::BinaryInstr: {
+        bool potential_neutral_elem = false;
+        if (BinaryTreeOp::match(curr, potential_neutral_elem)) {
+          auto *result_t = BinaryAlloc{}.allocate(1);
+          (new (result_t) BinaryTreeOp)->init(curr);
+          result = result_t;
+          n_args = 2;
+          ASSERT(parent != nullptr);
+          parent->children.push_back(result);
+          tree.push_back(result);
+
+          f64 neutral_float = 0.F;
+          i128 neutral_int = 0;
+
+          if (potential_neutral_elem) {
+            switch (result_t->binary_op) {
+            case fir::BinaryInstrSubType::FloatAdd:
+            case fir::BinaryInstrSubType::IntAdd:
+            case fir::BinaryInstrSubType::Shl:
+            case fir::BinaryInstrSubType::IntSub:
+            case fir::BinaryInstrSubType::Xor:
+            case fir::BinaryInstrSubType::Or:
+              neutral_float = 0.F;
+              neutral_int = 0;
+              break;
+            case fir::BinaryInstrSubType::IntMul:
+              neutral_float = 1.F;
+              neutral_int = 1;
+              break;
+            case fir::BinaryInstrSubType::And:
+              neutral_float = std::bit_cast<f64>(~static_cast<u64>(0));
+              neutral_int = ~static_cast<i128>(0);
+              break;
+            case fir::BinaryInstrSubType::INVALID:
+            case fir::BinaryInstrSubType::IntSRem:
+            case fir::BinaryInstrSubType::IntURem:
+            case fir::BinaryInstrSubType::IntSDiv:
+            case fir::BinaryInstrSubType::IntUDiv:
+            case fir::BinaryInstrSubType::Shr:
+            case fir::BinaryInstrSubType::AShr:
+            case fir::BinaryInstrSubType::FloatSub:
+            case fir::BinaryInstrSubType::FloatMul:
+            case fir::BinaryInstrSubType::FloatDiv:
+              UNREACH();
             }
-            return false;
           }
-          break;
-        case fir::InstrType::Intrinsic:
-          if (IntrinTreeOp::match(curr)) {
-            auto *result_t = IntrinAlloc{}.allocate(1);
-            (new (result_t) IntrinTreeOp)->init(curr);
-            result = result_t;
-            n_args = curr[0].as_instr()->get_n_args();
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at intrinsic like {}",
-                           curr.back().as_instr());
+          auto arg_0 = test_i.as_instr()->args[0];
+          for (size_t arg_id = 0; arg_id < n_args; arg_id++) {
+            TVec<fir::ValueR> data;
+            for (auto c : curr) {
+              if (c == arg_0 && arg_id == 1 && test_i != c) {
+                auto t = test_i.as_instr()->args[1].get_type();
+                if (t->is_float()) {
+                  // TODO THis is only correct ofr addition
+                  data.emplace_back(ctx->get_constant_value(neutral_float, t));
+                } else {
+                  data.emplace_back(ctx->get_constant_value(neutral_int, t));
+                }
+              } else if (c == arg_0 && arg_id == 0 && test_i != c) {
+                data.push_back(c);
+              } else {
+                data.push_back(c.as_instr()->args[arg_id]);
+              }
             }
-            return false;
+            worklist.emplace_back(result, std::move(data));
           }
-          break;
-        case fir::InstrType::ITrunc:
-          if (ZextTreeOp::match(curr)) {
-            auto *result_t = ITruncTreeAlloc{}.allocate(1);
-            (new (result_t) ITruncTreeOp)->init(curr);
-            result = result_t;
-            n_args = 1;
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at itrunc like {}",
-                           curr.back().as_instr());
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::ZExt:
-          if (ZextTreeOp::match(curr)) {
-            auto *result_t = ZextTreeAlloc{}.allocate(1);
-            (new (result_t) ZextTreeOp)->init(curr);
-            result = result_t;
-            n_args = 1;
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at zext like {}",
-                           curr.back().as_instr());
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::UnaryInstr:
-          if (UnaryTreeOp::match(curr)) {
-            auto *result_t = UnaryTreeAlloc{}.allocate(1);
-            (new (result_t) UnaryTreeOp)->init(curr);
-            result = result_t;
-            n_args = 1;
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at unary like {}",
-                           curr.back().as_instr());
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::ExtractValue:
-          if (ExtractTreeOp::match(curr)) {
-            auto *result_t = ExtractTreeAlloc{}.allocate(1);
-            (new (result_t) ExtractTreeOp)->init(curr);
-            result = result_t;
-            n_args = 0;
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at extract value like {}",
-                           curr.back().as_instr());
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::CallInstr:
-          if (CallTreeOp::match(curr)) {
-            auto *result_t = CallTreeAlloc{}.allocate(1);
-            (new (result_t) CallTreeOp)->init(curr);
-            result = result_t;
-            n_args = curr[0].as_instr()->get_n_args();
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at call value like {}",
-                           curr.back().as_instr());
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::Conversion:
-          if (ConversionTreeOp::match(curr)) {
-            auto *result_t = ConversionTreeAlloc{}.allocate(1);
-            (new (result_t) ConversionTreeOp)->init(curr);
-            result = result_t;
-            n_args = 1;
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at conversion value like {}",
-                           curr.back().as_instr());
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::SelectInstr:
-          if (SelectTreeOp::match(curr)) {
-            auto *result_t = SelectTreeAlloc{}.allocate(1);
-            (new (result_t) SelectTreeOp)->init(curr);
-            result = result_t;
-            n_args = 3;
-            parent->children.push_back(result);
-          } else {
-            if constexpr (debug_print) {
-              fmt::println("Failed tree vectorize at select value like {}",
-                           curr.back().as_instr());
-            }
-            return false;
-          }
-          break;
-        case fir::InstrType::ICmp:
-        case fir::InstrType::FCmp:
-          fmt::println("{}", test_i.as_instr());
-          TODO("Should be implementable");
-        case fir::InstrType::AtomicRMW:
-        case fir::InstrType::Fence:
-        case fir::InstrType::VectorInstr:
-        case fir::InstrType::SExt:
-        case fir::InstrType::AllocaInstr:
-        case fir::InstrType::InsertValue:
-        case fir::InstrType::ReturnInstr:
-        case fir::InstrType::BranchInstr:
-        case fir::InstrType::CondBranchInstr:
-        case fir::InstrType::SwitchInstr:
-        case fir::InstrType::Unreachable:
+          continue;
+        }
+        if constexpr (debug_print) {
+          fmt::println("Failed tree vectorize at binary {} {} {}",
+                       test_i.as_instr(), curr[0], curr[1]);
+        }
+        return false;
+      }
+      case fir::InstrType::LoadInstr:
+        if (LoadTreeOp::match(curr, load_bundles)) {
+          auto *result_t = LoadAlloc{}.allocate(1);
+          (new (result_t) LoadTreeOp)->init(curr);
+          result = result_t;
+          n_args = 1;
+          parent->children.push_back(result);
+        } else {
           if constexpr (debug_print) {
-            fmt::println("Failed tree vectorize at instruction like {}",
+            fmt::println("Failed tree vectorize at load {}", curr[0]);
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::Intrinsic:
+        if (IntrinTreeOp::match(curr)) {
+          auto *result_t = IntrinAlloc{}.allocate(1);
+          (new (result_t) IntrinTreeOp)->init(curr);
+          result = result_t;
+          n_args = curr[0].as_instr()->get_n_args();
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at intrinsic like {}",
                          curr.back().as_instr());
           }
           return false;
+        }
+        break;
+      case fir::InstrType::ITrunc:
+        if (ZextTreeOp::match(curr)) {
+          auto *result_t = ITruncTreeAlloc{}.allocate(1);
+          (new (result_t) ITruncTreeOp)->init(curr);
+          result = result_t;
+          n_args = 1;
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at itrunc like {}",
+                         curr.back().as_instr());
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::ZExt:
+        if (ZextTreeOp::match(curr)) {
+          auto *result_t = ZextTreeAlloc{}.allocate(1);
+          (new (result_t) ZextTreeOp)->init(curr);
+          result = result_t;
+          n_args = 1;
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at zext like {}",
+                         curr.back().as_instr());
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::UnaryInstr:
+        if (UnaryTreeOp::match(curr)) {
+          auto *result_t = UnaryTreeAlloc{}.allocate(1);
+          (new (result_t) UnaryTreeOp)->init(curr);
+          result = result_t;
+          n_args = 1;
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at unary like {}",
+                         curr.back().as_instr());
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::ExtractValue:
+        if (ExtractTreeOp::match(curr)) {
+          auto *result_t = ExtractTreeAlloc{}.allocate(1);
+          (new (result_t) ExtractTreeOp)->init(curr);
+          result = result_t;
+          n_args = 0;
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at extract value like {}",
+                         curr.back().as_instr());
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::CallInstr:
+        if (CallTreeOp::match(curr)) {
+          auto *result_t = CallTreeAlloc{}.allocate(1);
+          (new (result_t) CallTreeOp)->init(curr);
+          result = result_t;
+          n_args = curr[0].as_instr()->get_n_args();
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at call value like {}",
+                         curr.back().as_instr());
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::Conversion:
+        if (ConversionTreeOp::match(curr)) {
+          auto *result_t = ConversionTreeAlloc{}.allocate(1);
+          (new (result_t) ConversionTreeOp)->init(curr);
+          result = result_t;
+          n_args = 1;
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at conversion value like {}",
+                         curr.back().as_instr());
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::SelectInstr:
+        if (SelectTreeOp::match(curr)) {
+          auto *result_t = SelectTreeAlloc{}.allocate(1);
+          (new (result_t) SelectTreeOp)->init(curr);
+          result = result_t;
+          n_args = 3;
+          parent->children.push_back(result);
+        } else {
+          if constexpr (debug_print) {
+            fmt::println("Failed tree vectorize at select value like {}",
+                         curr.back().as_instr());
+          }
+          return false;
+        }
+        break;
+      case fir::InstrType::ICmp:
+      case fir::InstrType::FCmp:
+        fmt::println("{}", test_i.as_instr());
+        TODO("Should be implementable");
+      case fir::InstrType::AtomicRMW:
+      case fir::InstrType::Fence:
+      case fir::InstrType::VectorInstr:
+      case fir::InstrType::SExt:
+      case fir::InstrType::AllocaInstr:
+      case fir::InstrType::InsertValue:
+      case fir::InstrType::ReturnInstr:
+      case fir::InstrType::BranchInstr:
+      case fir::InstrType::CondBranchInstr:
+      case fir::InstrType::SwitchInstr:
+      case fir::InstrType::Unreachable:
+        if constexpr (debug_print) {
+          fmt::println("Failed tree vectorize at instruction like {}",
+                       curr.back().as_instr());
+        }
+        return false;
       }
       tree.push_back(result);
       for (size_t arg_id = 0; arg_id < n_args; arg_id++) {
@@ -1461,8 +1457,9 @@ SLPVectorizer::get_storeload_data(fir::Instr storeload) {
   return {data, storeload->args[0]};
 }
 
-std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_successive_loads(
-    fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa) {
+std::optional<SLPVectorizer::SeedBundle>
+SLPVectorizer::find_successive_loads(fir::BasicBlock bb, size_t instr_id,
+                                     AliasAnalyis &aa) {
   SeedBundle curr;
   auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
   curr.base = base;
@@ -1597,11 +1594,11 @@ void red_search_assoc(TVec<fir::ValueR> &reduction_inputs,
   red_search_assoc(reduction_inputs, curr_i->args[0], exp_sub_type);
   red_search_assoc(reduction_inputs, curr_i->args[1], exp_sub_type);
 }
-}  // namespace
+} // namespace
 
-std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_reduction(
-    fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa,
-    const conf::CompConf &conf) {
+std::optional<SLPVectorizer::SeedBundle>
+SLPVectorizer::find_reduction(fir::BasicBlock bb, size_t instr_id,
+                              AliasAnalyis &aa, const conf::CompConf &conf) {
   SeedBundle curr;
   (void)bb;
   (void)aa;
@@ -1612,7 +1609,8 @@ std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_reduction(
   if (!base_instr->is(fir::InstrType::BinaryInstr)) {
     return {};
   }
-  fir::BinaryInstrSubType binsub = static_cast<fir::BinaryInstrSubType>(subtype);
+  fir::BinaryInstrSubType binsub =
+      static_cast<fir::BinaryInstrSubType>(subtype);
   bool isProd = binsub == fir::BinaryInstrSubType::FloatMul ||
                 binsub == fir::BinaryInstrSubType::IntMul;
   bool isSum = binsub == fir::BinaryInstrSubType::FloatAdd ||
@@ -1673,8 +1671,9 @@ std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_reduction(
   //             .instr = base_instr->args[1].as_instr(), .a = {}, .b = {}}}};
 }
 
-std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_successive_stores(
-    fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa) {
+std::optional<SLPVectorizer::SeedBundle>
+SLPVectorizer::find_successive_stores(fir::BasicBlock bb, size_t instr_id,
+                                      AliasAnalyis &aa) {
   SeedBundle curr;
   auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
   curr.base = base;
@@ -1828,6 +1827,16 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
         reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
         continue;
       }
+
+      //TODO disable them for now
+      if (b.type->get_size() == 1) {
+        store_bundles.erase(store_bundles.begin() + bi - 1);
+        continue;
+      } else if (b.type->get_size() == 2) {
+        store_bundles.erase(store_bundles.begin() + bi - 1);
+        continue;
+      }
+
       // sort the loads
       std::ranges::sort(b.data, [](const auto &a, const auto &b) {
         i128 av = 0;
@@ -1893,6 +1902,15 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
         b.data.erase(b.data.end());
         n_stor = b.data.size();
         overall_width = n_stor * b.type->get_bitwidth();
+      }
+
+      //TODO disable them for now
+      if (b.type->get_size() == 1) {
+        store_bundles.erase(store_bundles.begin() + bi - 1);
+        continue;
+      } else if (b.type->get_size() == 2) {
+        store_bundles.erase(store_bundles.begin() + bi - 1);
+        continue;
       }
 
       if (b.type->get_size() == 1 && n_stor < 16) {
@@ -1996,4 +2014,4 @@ bool SLPVectorizer::constant_vector_store(fir::Context &ctx,
   return true;
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

@@ -90,4 +90,4 @@ void Worker::start_worker(std::stop_token stoken, JobSheduler *shed, u8 id) {
   foptim::utils::IRAlloc<void *>::free();
 }
 
-}  // namespace foptim
+} // namespace foptim
