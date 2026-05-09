@@ -14,7 +14,7 @@ namespace foptim::conf {
 
 namespace {
 
-bool target_parse(Target& target, toml::node_view<toml::node> cnf) {
+bool target_parse(Target &target, toml::node_view<toml::node> cnf) {
   target.name = cnf["name"].value_or(target.name);
   auto features = cnf["features"];
   target.features.avx512f =
@@ -31,7 +31,7 @@ bool target_parse(Target& target, toml::node_view<toml::node> cnf) {
   return true;
 }
 
-bool optimize_float_parse(Optimize::FloatOptions& flt,
+bool optimize_float_parse(Optimize::FloatOptions &flt,
                           toml::node_view<toml::node> cnf) {
   flt.no_nans = cnf["no_nans"].value_or(flt.no_nans);
   flt.no_infinites = cnf["no_infinites"].value_or(flt.no_infinites);
@@ -46,7 +46,7 @@ bool optimize_float_parse(Optimize::FloatOptions& flt,
   return true;
 }
 
-bool optimize_parse(Optimize& optim, CompConf& conf,
+bool optimize_parse(Optimize &optim, CompConf &conf,
                     toml::node_view<toml::node> cnf) {
   auto v_fir = cnf["fir_pipeline"].value<std::string_view>();
   if (v_fir.has_value()) {
@@ -67,13 +67,14 @@ bool optimize_parse(Optimize& optim, CompConf& conf,
 }
 
 struct PassesArray {
-  const char* name;
+  const char *name;
   PassConfig config;
 };
 
 template <IRType Ty>
-std::optional<PassConfig*> setup_pass(std::string_view name, toml::table* cnf) {
-  PassConfig* pass = nullptr;
+std::optional<PassConfig *> setup_pass(std::string_view name,
+                                       toml::table *cnf) {
+  PassConfig *pass = nullptr;
   if constexpr (Ty == IRType::FIR) {
     // TODO: cleanup of these
     // TODO: really shouldnt allocate here
@@ -176,6 +177,10 @@ std::optional<PassConfig*> setup_pass(std::string_view name, toml::table* cnf) {
       pass = new fmir::RegAllocConf{};
     } else if (name == "StackOptim") {
       pass = new fmir::StackOptimConf{};
+    } else if (name == "CallingConv_FirstStage") {
+      pass = new fmir::CallingConfFirstConf{};
+    } else if (name == "CallingConv_SecondStage") {
+      pass = new fmir::CallingConfSecondConf{};
     } else {
       fmt::println("Dont know any mir pass with the name '{}'", name);
       TODO("Dont know this pass name");
@@ -186,10 +191,9 @@ std::optional<PassConfig*> setup_pass(std::string_view name, toml::table* cnf) {
   return pass;
 }
 
-template <IRType Ty>
-bool passes_parse(CompConf& conf, toml::table& tbl) {
-  auto& target_arr = Ty == IRType::FIR ? conf.fir_passes : conf.mir_passes;
-  for (auto&& [name, data] : tbl) {
+template <IRType Ty> bool passes_parse(CompConf &conf, toml::table &tbl) {
+  auto &target_arr = Ty == IRType::FIR ? conf.fir_passes : conf.mir_passes;
+  for (auto &&[name, data] : tbl) {
     auto str_name = name.str();
     auto end = target_arr.end();
     for (auto i = target_arr.begin(); i != end; ++i) {
@@ -210,11 +214,11 @@ bool passes_parse(CompConf& conf, toml::table& tbl) {
 }
 
 template <IRType Ty>
-bool pipeline_parse(PipelineRef pipeline, CompConf& conf,
+bool pipeline_parse(PipelineRef pipeline, CompConf &conf,
                     toml::node_view<toml::node> cnf) {
   if (cnf["passes"].is_array()) {
     pipeline->passes.clear();
-    for (auto&& pass_name_val : *cnf["passes"].as_array()) {
+    for (auto &&pass_name_val : *cnf["passes"].as_array()) {
       auto maybe_pass_name = pass_name_val.value<std::string_view>();
       ASSERT(maybe_pass_name.has_value());
       auto pass_name = maybe_pass_name.value();
@@ -231,13 +235,12 @@ bool pipeline_parse(PipelineRef pipeline, CompConf& conf,
   return true;
 }
 
-template <IRType Ty>
-bool pipelines_parse(CompConf& conf, toml::table& tbl) {
+template <IRType Ty> bool pipelines_parse(CompConf &conf, toml::table &tbl) {
   TVec<std::pair<std::string_view, toml::node_view<toml::node>>> overwrites;
-  auto& target_arr =
+  auto &target_arr =
       Ty == IRType::FIR ? conf.fir_pipelines : conf.mir_pipelines;
   // first push them all back and make sure there all in
-  for (auto&& [name, data] : tbl) {
+  for (auto &&[name, data] : tbl) {
     auto str_name = name.str();
     auto end = target_arr.end();
     bool found = false;
@@ -255,7 +258,7 @@ bool pipelines_parse(CompConf& conf, toml::table& tbl) {
     target_arr.push_back(p);
   }
 
-  for (auto&& [name, data] : tbl) {
+  for (auto &&[name, data] : tbl) {
     auto str_name = name.str();
     auto end = target_arr.end();
     for (auto i = target_arr.begin(); i != end; ++i) {
@@ -270,7 +273,7 @@ bool pipelines_parse(CompConf& conf, toml::table& tbl) {
   return true;
 }
 
-bool debug_parse(Debug& conf, toml::table& tbl) {
+bool debug_parse(Debug &conf, toml::table &tbl) {
   conf.bisect = tbl["bisect"].value_or(conf.bisect);
   conf.print_color = tbl["print_color"].value_or(conf.print_color);
   conf.print_optimization_failure_reasons =
@@ -284,8 +287,8 @@ bool debug_parse(Debug& conf, toml::table& tbl) {
   return true;
 }
 
-bool include_parse(CompConf& conf, toml::array& arr) {
-  for (auto&& include : arr) {
+bool include_parse(CompConf &conf, toml::array &arr) {
+  for (auto &&include : arr) {
     auto maybe_name = include.value<std::string_view>();
     ASSERT(maybe_name.has_value());
     auto name = maybe_name.value();
@@ -294,7 +297,7 @@ bool include_parse(CompConf& conf, toml::array& arr) {
   return true;
 }
 
-bool config_parse(CompConf& conf, toml::table& tbl) {
+bool config_parse(CompConf &conf, toml::table &tbl) {
   uint64_t version = tbl["config_version"].value_or(1);
   ASSERT(version == 1);
   target_parse(conf.target, tbl["target"]);
@@ -345,7 +348,7 @@ static const char fast_math_toml[] = {
 #embed "fast_math.toml"
     , 0};
 
-static constexpr const char* builtin_configs[] = {
+static constexpr const char *builtin_configs[] = {
     &default_toml[0],
     &fast_math_toml[0],
 };
@@ -355,13 +358,13 @@ enum class BuiltinConfig {
   FastMath = 1,
 };
 
-void setup_builtin(CompConf& conf, BuiltinConfig config) {
+void setup_builtin(CompConf &conf, BuiltinConfig config) {
   toml::table tbl;
   try {
-    const char* config_ptr = builtin_configs[static_cast<u32>(config)];
+    const char *config_ptr = builtin_configs[static_cast<u32>(config)];
     auto view = std::string_view{config_ptr};
     tbl = toml::parse(view);
-  } catch (const toml::parse_error& err) {
+  } catch (const toml::parse_error &err) {
     fmt::println("{};  of default {}", err, static_cast<u32>(config));
     TODO("FAILED PARSE Default {}");
   }
@@ -369,7 +372,7 @@ void setup_builtin(CompConf& conf, BuiltinConfig config) {
   // conf.parse("../src/default.toml");
 }
 
-}  // namespace
+} // namespace
 
 bool CompConf::parse(std::string_view filename) {
   using namespace std::literals;
@@ -385,7 +388,7 @@ bool CompConf::parse(std::string_view filename) {
   }
   try {
     tbl = toml::parse_file(filename);
-  } catch (const toml::parse_error& err) {
+  } catch (const toml::parse_error &err) {
     std::cerr << "Error parsing config file '" << filename << "':\n"
               << err << "\n";
     TODO("FAILED PARSE");
@@ -394,4 +397,4 @@ bool CompConf::parse(std::string_view filename) {
 
   return true;
 }
-}  // namespace foptim::conf
+} // namespace foptim::conf

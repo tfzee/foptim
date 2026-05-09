@@ -30,7 +30,7 @@ struct Target {
 };
 
 struct PassConfig;
-struct PassRef : utils::SRef<PassConfig*> {};
+struct PassRef : utils::SRef<PassConfig *> {};
 struct Pipeline;
 struct PipelineRef : utils::SRef<Pipeline> {};
 
@@ -42,16 +42,16 @@ struct PassConfig {
   };
   virtual std::string_view get_name() const { TODO("IMPL"); };
   virtual PassType pass_type() const { TODO("IMPL"); };
-  virtual bool _pass_parse(void*) { TODO("IMPL"); };
-  virtual optim::ModulePass* _construct_module_pass() {
+  virtual bool _pass_parse(void *) { TODO("IMPL"); };
+  virtual optim::ModulePass *_construct_module_pass() {
     TODO("INVALID TYPE OF PASS");
     ;
   };
-  virtual optim::FunctionPass* _construct_function_pass() {
+  virtual optim::FunctionPass *_construct_function_pass() {
     TODO("INVALID TYPE OF PASS");
     ;
   };
-  virtual fmir::FunctionPass* _construct_mir_func_pass() {
+  virtual fmir::FunctionPass *_construct_mir_func_pass() {
     TODO("INVALID TYPE OF PASS");
     ;
   };
@@ -108,7 +108,7 @@ struct Debug {
 struct Remarks {};
 
 struct BasePassesData {
-  const char* name;
+  const char *name;
   PassConfig config;
 };
 
@@ -120,14 +120,13 @@ struct CompConf {
 
   utils::StableVec<Pipeline> mir_pipelines;
   utils::StableVec<Pipeline> fir_pipelines;
-  utils::StableVec<PassConfig*> fir_passes;
-  utils::StableVec<PassConfig*> mir_passes;
+  utils::StableVec<PassConfig *> fir_passes;
+  utils::StableVec<PassConfig *> mir_passes;
 
   CompConf() {}
 
-  template <IRType Ty>
-  PipelineRef find_pipeline(std::string_view name) {
-    auto& pipelines = Ty == IRType::FIR ? fir_pipelines : mir_pipelines;
+  template <IRType Ty> PipelineRef find_pipeline(std::string_view name) {
+    auto &pipelines = Ty == IRType::FIR ? fir_pipelines : mir_pipelines;
     for (auto pipe : pipelines) {
       if (pipe->name == name) {
         return {pipe};
@@ -141,9 +140,8 @@ struct CompConf {
     }
     TODO("Failed to find pipeline with that name");
   }
-  template <IRType Ty>
-  PassRef find_pass(std::string_view name) {
-    auto& passes = Ty == IRType::FIR ? fir_passes : mir_passes;
+  template <IRType Ty> PassRef find_pass(std::string_view name) {
+    auto &passes = Ty == IRType::FIR ? fir_passes : mir_passes;
     for (auto pass : passes) {
       if (name == (*pass.get_raw_ptr())->get_name()) {
         return {pass};
@@ -161,4 +159,4 @@ struct CompConf {
   bool parse(std::string_view filename);
 };
 
-}  // namespace foptim::conf
+} // namespace foptim::conf

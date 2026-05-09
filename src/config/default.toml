@@ -150,12 +150,16 @@ reductions = true
 
 # ------------------------------------------------------------------------------------------------
 # MIR Pipeline
-[pipeline.mir.default_release]
+[pipeline.mir.default_release_early]
 passes = [
   "LegalizeBBForm",
   "DCE",
   "CopyPropagation",
   "DCE",
+]
+
+[pipeline.mir.default_release_middle]
+passes = [
   "LVN",
   "BBReordering",
   "CopyPropagation",
@@ -166,17 +170,43 @@ passes = [
   "CopyPropagation",
   "InstSimplifyEarly",
   "DCE",
-  # "CallingConv_FirstStage",
+]
+
+[pipeline.mir.default_release_CC1]
+passes = [
+  "CallingConv_FirstStage",
   "Legalizer",
   "InstSimplifyEarly",
   "RegisterJoining",
   "InstSimplifyEarly",
+]
+
+[pipeline.mir.default_release_RegAlloc]
+passes = [
   "RegAlloc",
-  # "CallingConv_SecondStage",
+]
+
+[pipeline.mir.default_release_CC2]
+passes = [
+  "CallingConv_SecondStage",
+]
+
+[pipeline.mir.default_release_Cleanup]
+passes = [
   "StackOptim",
   "InstSimplify",
   "InstSimplify",
   "BBReordering",
+]
+
+[pipeline.mir.default_release]
+passes = [
+ "pipeline:default_release_early",
+ "pipeline:default_release_middle",
+ "pipeline:default_release_CC1",
+ "pipeline:default_release_RegAlloc",
+ "pipeline:default_release_CC2",
+ "pipeline:default_release_Cleanup",
 ]
 
 # ------------------------------------------------------------------------------------------------
@@ -191,11 +221,11 @@ passes = [
 [pass.mir.InstSimplifyEarly]
 [pass.mir.InstSimplify]
 [pass.mir.LifetimeShortening]
-# [pass.mir.CallingConv_FirstStage]
+[pass.mir.CallingConv_FirstStage]
 [pass.mir.Legalizer]
 [pass.mir.RegisterJoining]
 [pass.mir.RegAlloc]
-# [pass.mir.CallingConv_SecondStage]
+[pass.mir.CallingConv_SecondStage]
 [pass.mir.StackOptim]
 
 
