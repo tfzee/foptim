@@ -27,14 +27,14 @@ bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
 
       if (is_zero && !instr.args[0].reg.is_vec_reg()) {
         instr.bop = GOpcode::GArith;
-        instr.sop = (u32)GArithSubtype::lxor2;
+        instr.sop = static_cast<u32>(GArithSubtype::lxor2);
         instr.n_args = 2;
         instr.args[1] = instr.args[0];
         return false;
       }
       if (is_zero && instr.args[0].reg.is_vec_reg()) {
         instr.bop = GOpcode::GVec;
-        instr.sop = (u32)GVecSubtype::vXor;
+        instr.sop = static_cast<u32>(GVecSubtype::vXor);
         instr.n_args = 3;
         instr.args[1] = instr.args[0];
         instr.args[2] = instr.args[0];
@@ -49,7 +49,7 @@ bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
     // if both inputs are the same replace iwth basic move
     if (instr.args[1] == instr.args[2]) {
       instr.bop = GOpcode::GBase;
-      instr.sop = (u32)GBaseSubtype::mov;
+      instr.sop = static_cast<u32>(GBaseSubtype::mov);
       instr.n_args = 2;
       return false;
     }

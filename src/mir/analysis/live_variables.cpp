@@ -71,23 +71,11 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GBaseSubtype::call:
         case GBaseSubtype::arg_setup:
         case GBaseSubtype::ret:
-          return;
         case GBaseSubtype::invoke:
-          if (instr.n_args > 1 && instr.args[1].isReg()) {
-            def[reg_to_uid(instr.args[1].reg)].set(true);
-            if (instr.args[1].is_fp()) {
-              def[reg_to_uid(VReg::MM0SS())].set(true);
-            } else {
-              def[reg_to_uid(VReg::EAX())].set(true);
-            }
-            if (instr.n_args > 2 && instr.args[2].isReg()) {
-              def[reg_to_uid(instr.args[2].reg)].set(true);
-              if (instr.args[2].is_fp()) {
-                def[reg_to_uid(VReg::MM1SS())].set(true);
-              } else {
-                def[reg_to_uid(VReg::EDX())].set(true);
-              }
-            }
+          return;
+        case GBaseSubtype::ret_setup:
+          if (instr.args[0].isReg()) {
+            def[reg_to_uid(instr.args[0].reg)].set(true);
           }
           return;
       }
@@ -550,12 +538,14 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case GBaseSubtype::invoke:
           uses[reg_to_uid(CReg::SP)].set(true);
           update_uses(instr.args[0], uses);
-          if (instr.n_args > 1 && !instr.args[1].isReg()) {
-            update_uses(instr.args[1], uses);
-            if (instr.n_args > 2 && !instr.args[2].isReg()) {
-              update_uses(instr.args[2], uses);
-            }
+          return;
+        case GBaseSubtype::ret_setup:
+          if (!instr.args[0].isReg()) {
+            update_uses(instr.args[0], uses);
           }
+          // if (instr.n_args > 1) {
+          //   update_uses(instr.args[1], uses);
+          // }
           return;
         case GBaseSubtype::pop:
           uses[reg_to_uid(CReg::SP)].set(true);
@@ -576,7 +566,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           }
           return;
         case GBaseSubtype::arg_setup:
-          if (!instr.args[1].isReg()) {
+          if (instr.n_args > 1 && !instr.args[1].isReg()) {
             update_uses(instr.args[1], uses);
           }
           update_uses(instr.args[0], uses);
@@ -744,18 +734,18 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
         res.is_read = true;
         res.index = i;
       }
-      if (instrs[i].n_args > 1) {
-        res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
-        res.is_write |= instrs[i].args[1].is_vec_reg()
-                            ? search_reg_id == reg_to_uid(VReg::MM0SS())
-                            : search_reg_id == reg_to_uid(VReg::EAX());
-        if (instrs[i].n_args > 2) {
-          res.is_write |= search_reg_id == reg_to_uid(instrs[i].args[2].reg);
-          res.is_write |= instrs[i].args[2].is_vec_reg()
-                              ? search_reg_id == reg_to_uid(VReg::MM1SS())
-                              : search_reg_id == reg_to_uid(VReg::EDX());
-        }
-      }
+      // if (instrs[i].n_args > 1) {
+      //   res.is_write = search_reg_id == reg_to_uid(instrs[i].args[1].reg);
+      //   res.is_write |= instrs[i].args[1].is_vec_reg()
+      //                       ? search_reg_id == reg_to_uid(VReg::MM0SS())
+      //                       : search_reg_id == reg_to_uid(VReg::EAX());
+      //   if (instrs[i].n_args > 2) {
+      //     res.is_write |= search_reg_id == reg_to_uid(instrs[i].args[2].reg);
+      //     res.is_write |= instrs[i].args[2].is_vec_reg()
+      //                         ? search_reg_id == reg_to_uid(VReg::MM1SS())
+      //                         : search_reg_id == reg_to_uid(VReg::EDX());
+      //   }
+      // }
       if (res.is_write) {
         res.index = i;
       }
@@ -906,6 +896,7 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   ZoneScopedN("LinearLifetimes");
   TSet<VReg> all_used_regs;
+  // fmt::println("===============LINLIF=====================");
 
   for (const auto &bb : func.bbs) {
     for (const auto &instr : bb.instrs) {
@@ -939,6 +930,12 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   }
   CFG cfg{func};
   LiveVariables live{cfg, func};
+  // for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
+  //   fmt::println("BB {}", bb_id);
+  //   fmt::println("   {}", live._liveIn);
+  //   fmt::println("   {}", live._live);
+  //   fmt::println("   {}", live._liveOut);
+  // }
   TMap<VReg, LinearRangeSet> ranges;
   TVec<ArgData> helper;
   helper.reserve(4);
@@ -950,18 +947,20 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
     const auto &aliveOut = live._liveOut[bb_id];
     // fmt::println("{:cd}", func);
     // fmt::println("{:cd}", func.bbs[bb_id]);
+    // fmt::println("====================={}=======================", bb_id);
     for (const auto &reg : all_used_regs) {
-      // fmt::println("{:cd}", reg);
       auto reg_id = reg_to_uid(reg);
       if (alive[reg_id]) {
         size_t start_instr = 0;
         size_t search_instr = 0;
+        // fmt::println("REG: {:cd} AliceIn:{} AliceOut:{}", reg,
+        //              (bool)aliveIn[reg_id], (bool)aliveOut[reg_id]);
         // ranges[reg];
 
         if (!aliveIn[reg_id]) {
           auto res = find_next_use(func.bbs[bb_id].instrs, reg_id, 0, helper);
-          // fmt::println("{} {} {:cd}", res.is_read, res.is_write,
-          //              func.bbs[bb_id].instrs[res.index]);
+          // fmt::println("{} {} start from {}", res.is_read, res.is_write,
+          //              res.index);
           // ASSERT(res.is_write);
           // ASSERT(!res.is_read);
           start_instr = res.index;
@@ -982,6 +981,8 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
         while (true) {
           auto res = find_next_use(func.bbs[bb_id].instrs, reg_id,
                                    search_instr + 1, helper);
+          // fmt::println("CURR: ");
+          // ranges[reg].dump();
           if (!res.is_read && !res.is_write) {
             if (aliveOut[reg_id]) {
               ranges[reg].update(LinearRange::inBB(
@@ -1006,6 +1007,8 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
             search_instr = res.index;
           }
         }
+        // fmt::println("AFT: ");
+        // ranges[reg].dump();
 
         // if its alive out and we have multiple terminators we need to makr
         // it alive at each
@@ -1040,22 +1043,30 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
                 instr.is(GJumpSubtype::cjmp)) {
               size_t closest_index = 0;
               for (auto range : ranges[reg].ranges) {
+                // range.dump();
                 if (range.end.bb_indx == bb_id &&
-                    range.end.instr_indx <= instr_indx &&
+                    (range.end.instr_indx <= instr_indx ||
+                     range.start.instr_indx <= instr_indx) &&
                     range.end.instr_indx > closest_index) {
                   closest_index = range.end.instr_indx;
                 }
               }
-              ranges[reg].update(
-                  LinearRange::inBB(bb_id, closest_index, instr_indx));
+              // fmt::println("FUCKED: ");
+              // fmt::println("{}", closest_index);
+              // fmt::println("{}", instr_indx);
+              if (closest_index < instr_indx) {
+                ranges[reg].update(
+                    LinearRange::inBB(bb_id, closest_index, instr_indx));
+              }
             }
           }
         }
-
         if (alive[reg_id] && ranges[reg].ranges.empty()) {
           ranges[reg].update(
               LinearRange::inBB(bb_id, start_instr + 1, start_instr + 2));
         }
+        // fmt::println("FIN: ");
+        // ranges[reg].dump();
       }
     }
   }

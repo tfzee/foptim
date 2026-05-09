@@ -308,7 +308,8 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
     for (auto bb : func.get_bbs()) {
       for (auto instr : bb->instructions) {
         if (instr->is(fir::InstrType::Intrinsic) &&
-            instr->subtype == (u32)fir::IntrinsicSubType::VA_start) {
+            instr->subtype ==
+                static_cast<u32>(fir::IntrinsicSubType::VA_start)) {
           found = true;
           break;
         }
@@ -425,7 +426,7 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
         const auto from = pairs[pair1_id].from;
 
         res.result.emplace_back(GBaseSubtype::mov, to, from);
-        pairs.erase(pairs.begin() + (int64_t)pair1_id);
+        pairs.erase(pairs.begin() + static_cast<int64_t>(pair1_id));
         if (pair1_id > 0) {
           pair1_id--;
         }

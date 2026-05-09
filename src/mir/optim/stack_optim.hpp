@@ -35,12 +35,23 @@ class StackOptim : public FunctionPass {
                   1, "NStackAddSubElim", utils::StatCollector::StatMirOptim);
               i_id = 0;
               continue;
-            } else {
-              fmt::println("{:cd}", i);
-              fmt::println("{:cd}", i2);
-              fmt::println("{}", i.args[1].imm - i2.args[1].imm);
-              TODO("impl");
+            } else if (i.args[1].imm > i2.args[1].imm) {
+              bb.instrs[i_id].args[1].imm = i.args[1].imm - i2.args[1].imm;
+              bb.instrs.erase(bb.instrs.begin() + next_use.index);
+              utils::StatCollector::get().addi(
+                  1, "NStackAddSubElim", utils::StatCollector::StatMirOptim);
+              i_id = 0;
+              continue;
+            } else if (i.args[1].imm < i2.args[1].imm) {
+              bb.instrs[next_use.index].args[1].imm =
+                  i2.args[1].imm - i.args[1].imm;
+              bb.instrs.erase(bb.instrs.begin() + i_id);
+              utils::StatCollector::get().addi(
+                  1, "NStackAddSubElim", utils::StatCollector::StatMirOptim);
+              i_id = 0;
+              continue;
             }
+            UNREACH();
           }
         }
         if (i.is(GBaseSubtype::push)) {

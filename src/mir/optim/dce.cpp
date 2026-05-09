@@ -11,7 +11,7 @@ namespace {
 bool is_applicable(GOpcode op, u32 sop) {
   switch (op) {
     case GOpcode::GJmp:
-      switch ((GJumpSubtype)sop) {
+      switch (static_cast<GJumpSubtype>(sop)) {
         case GJumpSubtype::icmp_slt:
         case GJumpSubtype::icmp_eq:
         case GJumpSubtype::icmp_ult:
@@ -46,7 +46,7 @@ bool is_applicable(GOpcode op, u32 sop) {
     case GOpcode::GVec:
       return true;
     case GOpcode::GBase:
-      switch ((GBaseSubtype)sop) {
+      switch (static_cast<GBaseSubtype>(sop)) {
         case GBaseSubtype::INVALID:
         case GBaseSubtype::mov:
         case GBaseSubtype::stack_arg_load:
@@ -56,11 +56,12 @@ bool is_applicable(GOpcode op, u32 sop) {
         case GBaseSubtype::call:
         case GBaseSubtype::ret:
         case GBaseSubtype::arg_setup:
+        case GBaseSubtype::ret_setup:
         case GBaseSubtype::invoke:
           return false;
       }
     case GOpcode::X86:
-      switch ((X86Subtype)sop) {
+      switch (static_cast<X86Subtype>(sop)) {
         case X86Subtype::LockXAdd2:
           // TOOD: if we knew it was reg-reg args then we could set it to true
           return false;

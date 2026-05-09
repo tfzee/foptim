@@ -2104,6 +2104,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           default:
             TODO("invalid?");
           case Type::Float32x4:
+            res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg,
+                                    res_reg);
             res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
             break;
           case Type::Int64x2:
@@ -3008,45 +3010,22 @@ void base_patterns(IRVec<Pattern> &pats) {
         }
 
         auto res_type = call_instr.get_type();
-        if (res_type->is_void() || call_instr->get_n_uses() == 0) {
-          res.result.emplace_back(GBaseSubtype::invoke, calee);
-          res.result.back().is_var_arg_call = is_var_arg;
+        res.result.emplace_back(GBaseSubtype::invoke, calee);
+        res.result.back().is_var_arg_call = is_var_arg;
+
+        if (res_type->is_void()) {
           return true;
-        }
-        if (res_type->is_int() || res_type->is_ptr()) {
+        } else if (res_type->is_int() || res_type->is_ptr() ||
+                   res_type->is_float() || res_type->is_vec()) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-          if (get_size(res_reg.ty) == 8) {
-            auto ax_reg = VReg::RAX();
-            auto ax_arg = MArgument{ax_reg, res_reg.ty};
-            res.result.emplace_back(GBaseSubtype::invoke, calee, ax_arg);
-            res.result.back().is_var_arg_call = is_var_arg;
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, ax_arg);
-          } else if (get_size(res_reg.ty) <= 4) {
-            auto ax_reg = VReg::EAX();
-            auto ax_arg = MArgument{ax_reg, res_reg.ty};
-            res.result.emplace_back(GBaseSubtype::invoke, calee, ax_arg);
-            res.result.back().is_var_arg_call = is_var_arg;
-            res.result.emplace_back(GBaseSubtype::mov, res_reg, ax_arg);
-          } else {
-            res.result.emplace_back(GBaseSubtype::invoke, calee, res_reg);
-            res.result.back().is_var_arg_call = is_var_arg;
-          }
+          res.result.emplace_back(GBaseSubtype::ret_setup, res_reg);
           return true;
-        }
-        if (res_type->is_float() || res_type->is_vec()) {
-          auto res_reg =
-              valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(GBaseSubtype::invoke, calee, res_reg);
-          res.result.back().is_var_arg_call = is_var_arg;
-          return true;
-        }
-        if (res_type->is_struct()) {
+        } else if (res_type->is_struct()) {
           auto res_reg =
               valueToArgStruct(fir::ValueR(call_instr), res.result, data.alloc);
-          res.result.emplace_back(GBaseSubtype::invoke, calee, res_reg[0],
-                                  res_reg[1]);
-          res.result.back().is_var_arg_call = is_var_arg;
+          res.result.emplace_back(GBaseSubtype::ret_setup, res_reg[0]);
+          res.result.emplace_back(GBaseSubtype::ret_setup, res_reg[1]);
           return true;
         }
         TODO("impl ret value");
@@ -3252,6 +3231,8 @@ void base_patterns(IRVec<Pattern> &pats) {
                 fmt::print("{} {}", rev_indx, extract_instr);
                 UNREACH();
             }
+            res.result.emplace_back(GVecSubtype::vXor, ext_out, ext_out,
+                                    ext_out);
             res.result.emplace_back(X86Subtype::vinsertps, ext_out, ext_out,
                                     input, MArgument{mapp});
           } else {

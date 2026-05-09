@@ -15,7 +15,7 @@ namespace foptim::fmir {
 const char *getNameFromOpcode(GOpcode code, u32 sop) {
   switch (code) {
     case GOpcode::GBase:
-      switch ((GBaseSubtype)sop) {
+      switch (static_cast<GBaseSubtype>(sop)) {
         ReturnString(GBaseSubtype, INVALID);
         ReturnString(GBaseSubtype, mov);
         ReturnString(GBaseSubtype, push);
@@ -24,10 +24,11 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GBaseSubtype, call);
         ReturnString(GBaseSubtype, ret);
         ReturnString(GBaseSubtype, arg_setup);
+        ReturnString(GBaseSubtype, ret_setup);
         ReturnString(GBaseSubtype, invoke);
       }
     case GOpcode::GJmp:
-      switch ((GJumpSubtype)sop) {
+      switch (static_cast<GJumpSubtype>(sop)) {
         ReturnString(GJumpSubtype, INVALID);
         ReturnString(GJumpSubtype, icmp_slt);
         ReturnString(GJumpSubtype, icmp_eq);
@@ -86,7 +87,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GJumpSubtype, jmp);
       }
     case GOpcode::GConv:
-      switch ((GConvSubtype)sop) {
+      switch (static_cast<GConvSubtype>(sop)) {
         ReturnString(GConvSubtype, INVALID);
         ReturnString(GConvSubtype, SI2FL);
         ReturnString(GConvSubtype, UI2FL);
@@ -99,7 +100,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GConvSubtype, mov_sx);
       }
     case GOpcode::GArith:
-      switch ((GArithSubtype)sop) {
+      switch (static_cast<GArithSubtype>(sop)) {
         ReturnString(GArithSubtype, INVALID);
         ReturnString(GArithSubtype, abs);
         ReturnString(GArithSubtype, shl2);
@@ -118,7 +119,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GArithSubtype, smul3);
       }
     case GOpcode::GCMov:
-      switch ((GCMovSubtype)sop) {
+      switch (static_cast<GCMovSubtype>(sop)) {
         ReturnString(GCMovSubtype, INVALID);
         ReturnString(GCMovSubtype, cmov);
         ReturnString(GCMovSubtype, cmov_ns);
@@ -134,7 +135,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GCMovSubtype, cmov_ule);
       }
     case GOpcode::GVec:
-      switch ((GVecSubtype)sop) {
+      switch (static_cast<GVecSubtype>(sop)) {
         ReturnString(GVecSubtype, INVALID);
         ReturnString(GVecSubtype, vadd);
         ReturnString(GVecSubtype, vsub);
@@ -149,7 +150,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GVecSubtype, fMin);
       }
     case GOpcode::X86:
-      switch ((X86Subtype)sop) {
+      switch (static_cast<X86Subtype>(sop)) {
         ReturnString(X86Subtype, INVALID);
         ReturnString(X86Subtype, vblendv);
         ReturnString(X86Subtype, vcmp);
@@ -190,7 +191,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
 void written_args(const MInstr &instr, TVec<ArgData> &out) {
   switch (instr.bop) {
     case GOpcode::GJmp:
-      switch ((GJumpSubtype)instr.sop) {
+      switch (static_cast<GJumpSubtype>(instr.sop)) {
         case GJumpSubtype::icmp_slt:
         case GJumpSubtype::icmp_eq:
         case GJumpSubtype::icmp_ult:
@@ -252,7 +253,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GConv:
-      switch ((GConvSubtype)instr.sop) {
+      switch (static_cast<GConvSubtype>(instr.sop)) {
         case GConvSubtype::SI2FL:
         case GConvSubtype::UI2FL:
         case GConvSubtype::FL2SI:
@@ -268,7 +269,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GCMov:
-      switch ((GCMovSubtype)instr.sop) {
+      switch (static_cast<GCMovSubtype>(instr.sop)) {
         case GCMovSubtype::INVALID:
           return;
         case GCMovSubtype::cmov:
@@ -287,7 +288,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GArith:
-      switch ((GArithSubtype)instr.sop) {
+      switch (static_cast<GArithSubtype>(instr.sop)) {
         case GArithSubtype::INVALID:
           return;
         case GArithSubtype::abs:
@@ -312,7 +313,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GVec:
-      switch ((GVecSubtype)instr.sop) {
+      switch (static_cast<GVecSubtype>(instr.sop)) {
         case GVecSubtype::INVALID:
           return;
         case GVecSubtype::vadd:
@@ -330,7 +331,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::X86:
-      switch ((X86Subtype)instr.sop) {
+      switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
           return;
         case X86Subtype::lea:
@@ -371,7 +372,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GBase:
-      switch ((GBaseSubtype)instr.sop) {
+      switch (static_cast<GBaseSubtype>(instr.sop)) {
         case GBaseSubtype::INVALID:
           return;
         case GBaseSubtype::mov:
@@ -384,13 +385,16 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GBaseSubtype::ret:
         case GBaseSubtype::arg_setup:
           return;
+        case GBaseSubtype::ret_setup:
+          out.push_back({0, instr.args[0]});
+          return;
         case GBaseSubtype::invoke:
-          if (instr.n_args > 1) {
-            out.push_back({1, instr.args[1]});
-            if (instr.n_args > 2) {
-              out.push_back({2, instr.args[2]});
-            }
-          }
+          // if (instr.n_args > 1) {
+          //   out.push_back({1, instr.args[1]});
+          //   if (instr.n_args > 2) {
+          //     out.push_back({2, instr.args[2]});
+          //   }
+          // }
           return;
       }
   }
@@ -400,7 +404,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
 void read_args(const MInstr &instr, TVec<ArgData> &out) {
   switch (instr.bop) {
     case GOpcode::GBase:
-      switch ((GBaseSubtype)instr.sop) {
+      switch (static_cast<GBaseSubtype>(instr.sop)) {
         case GBaseSubtype::INVALID:
           return;
         case GBaseSubtype::stack_arg_load:
@@ -412,6 +416,9 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GBaseSubtype::invoke:
         case GBaseSubtype::arg_setup:
           out.push_back({0, instr.args[0]});
+          return;
+        case GBaseSubtype::ret_setup:
+          // out.push_back({1, instr.args[1]});
           return;
         case GBaseSubtype::pop:
           return;
@@ -425,7 +432,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GJmp:
-      switch ((GJumpSubtype)instr.sop) {
+      switch (static_cast<GJumpSubtype>(instr.sop)) {
         case GJumpSubtype::INVALID:
         case GJumpSubtype::jmp:
           return;
@@ -493,7 +500,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GConv:
-      switch ((GConvSubtype)instr.sop) {
+      switch (static_cast<GConvSubtype>(instr.sop)) {
         case GConvSubtype::INVALID:
           return;
         case GConvSubtype::SI2FL:
@@ -509,7 +516,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GArith:
-      switch ((GArithSubtype)instr.sop) {
+      switch (static_cast<GArithSubtype>(instr.sop)) {
         case GArithSubtype::INVALID:
           return;
         case GArithSubtype::abs:
@@ -548,7 +555,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GCMov:
-      switch ((GCMovSubtype)instr.sop) {
+      switch (static_cast<GCMovSubtype>(instr.sop)) {
         case GCMovSubtype::INVALID:
           return;
         case GCMovSubtype::cmov:
@@ -574,7 +581,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::GVec:
-      switch ((GVecSubtype)instr.sop) {
+      switch (static_cast<GVecSubtype>(instr.sop)) {
         case GVecSubtype::INVALID:
           return;
         case GVecSubtype::vXor:
@@ -603,7 +610,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
       }
     case GOpcode::X86:
-      switch ((X86Subtype)instr.sop) {
+      switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
           return;
         case X86Subtype::lea:
@@ -658,7 +665,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
 bool MInstr::is_control_flow(GOpcode c, u32 sop) {
   switch (c) {
     case GOpcode::GBase:
-      return sop == (u32)GBaseSubtype::ret;
+      return sop == static_cast<u32>(GBaseSubtype::ret);
     case GOpcode::GConv:
     case GOpcode::GArith:
     case GOpcode::GVec:
@@ -666,7 +673,7 @@ bool MInstr::is_control_flow(GOpcode c, u32 sop) {
     case GOpcode::X86:
       return false;
     case GOpcode::GJmp:
-      switch ((GJumpSubtype)sop) {
+      switch (static_cast<GJumpSubtype>(sop)) {
         case GJumpSubtype::cjmp_int_slt:
         case GJumpSubtype::cjmp_int_sge:
         case GJumpSubtype::cjmp_int_sle:
@@ -970,14 +977,14 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
         if (value.ty == foptim::fmir::Type::Float32) {
           return fmt::format_to(
               app, color_number, "{}f",
-              std::bit_cast<foptim::f32>(
-                  (foptim::u32)std::bit_cast<foptim::u64>(value.immf)));
+              std::bit_cast<foptim::f32>(static_cast<foptim::u32>(
+                  std::bit_cast<foptim::u64>(value.immf))));
         }
         if (value.ty == foptim::fmir::Type::Float64) {
           return fmt::format_to(app, color_number, "{}d", value.immf);
         }
         return fmt::format_to(app, color_number, "{}:{}",
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
       }
       case foptim::fmir::MArgument::ArgumentType::VReg:
         return fmt::format_to(app, "{}:{}", value.reg, value.ty);
@@ -987,24 +994,25 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
         return fmt::format_to(app, "[{} + {}]:{}", value.reg, value.indx,
                               value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImm:
-        return fmt::format_to(app, "[{}]:{}", (foptim::i64)value.imm, value.ty);
+        return fmt::format_to(app, "[{}]:{}",
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
         return fmt::format_to(app, "[{} + {}]:{}", value.reg,
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
         return fmt::format_to(app, "[{} + {} + {}]:{}", value.reg, value.indx,
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
         return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx,
-                              1 << value.scale, (foptim::i64)value.imm,
-                              value.ty);
+                              1 << value.scale,
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
         return fmt::format_to(app, "[{} + {}*{}]:{}", value.reg, value.indx,
                               1 << value.scale, value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
         return fmt::format_to(app, "[{} + {}*{} + {}]:{}", value.reg,
                               value.indx, 1 << value.scale,
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
     }
   } else {
     switch (value.type) {
@@ -1014,21 +1022,21 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
       case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
         return fmt::format_to(app, "[{} + {}]: {:c}",
                               fmt::styled(value.label, color_func),
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::Label:
         return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
       case foptim::fmir::MArgument::ArgumentType::Imm: {
         if (value.ty == foptim::fmir::Type::Float32) {
           return fmt::format_to(
               app, color_number, "{}f",
-              std::bit_cast<foptim::f32>(
-                  (foptim::u32)std::bit_cast<foptim::u64>(value.immf)));
+              std::bit_cast<foptim::f32>(static_cast<foptim::u32>(
+                  std::bit_cast<foptim::u64>(value.immf))));
         }
         if (value.ty == foptim::fmir::Type::Float64) {
           return fmt::format_to(app, color_number, "{}d", value.immf);
         }
         return fmt::format_to(app, color_number, "{}:{:c}",
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
       }
       case foptim::fmir::MArgument::ArgumentType::VReg:
         return fmt::format_to(app, "{:c}:{:c}", value.reg, value.ty);
@@ -1038,25 +1046,26 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
         return fmt::format_to(app, "[{:c} + {:c}]:{:c}", value.reg, value.indx,
                               value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImm:
-        return fmt::format_to(app, "[{}]:{:c}", (foptim::i64)value.imm,
-                              value.ty);
+        return fmt::format_to(app, "[{}]:{:c}",
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
         return fmt::format_to(app, "[{:c} + {}]:{:c}", value.reg,
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
         return fmt::format_to(app, "[{:c} + {:c} + {}]:{:c}", value.reg,
-                              value.indx, (foptim::i64)value.imm, value.ty);
+                              value.indx, static_cast<foptim::i64>(value.imm),
+                              value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
         return fmt::format_to(app, "[{:c}*{} + {}]:{:c}", value.indx,
-                              1 << value.scale, (foptim::i64)value.imm,
-                              value.ty);
+                              1 << value.scale,
+                              static_cast<foptim::i64>(value.imm), value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
         return fmt::format_to(app, "[{:c} + {:c}*{}]:{:c}", value.reg,
                               value.indx, 1 << value.scale, value.ty);
       case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
         return fmt::format_to(app, "[{:c} + {:c}*{} + {}]:{:c}", value.reg,
                               value.indx, 1 << value.scale,
-                              (foptim::i64)value.imm, value.ty);
+                              static_cast<foptim::i64>(value.imm), value.ty);
     }
   }
 }
@@ -1118,7 +1127,7 @@ fmt::appender fmt::formatter<foptim::fmir::VReg>::format(
     return fmt::format_to(app, "${}", value.virt_id());
   }
 
-  if (get_size(value.ty) == 0) {
+  if (value.ty == foptim::fmir::Type::INVALID || get_size(value.ty) == 0) {
     switch (value.c_reg()) {
       case CReg::A:
         return fmt::format_to(app, colv2, "$a");
@@ -1276,9 +1285,9 @@ fmt::appender fmt::formatter<foptim::fmir::VReg>::format(
       case CReg::mm13:
       case CReg::mm14:
       case CReg::mm15:
-        return fmt::format_to(
-            app, col_vec, "$mm{}",
-            ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
+        return fmt::format_to(app, col_vec, "$mm{}",
+                              (static_cast<foptim::u8>(value.c_reg()) -
+                               static_cast<foptim::u8>(CReg::mm0)));
       default:
     }
   } else if (get_size(value.ty) == 8) {
@@ -1331,9 +1340,9 @@ fmt::appender fmt::formatter<foptim::fmir::VReg>::format(
       case CReg::mm13:
       case CReg::mm14:
       case CReg::mm15:
-        return fmt::format_to(
-            app, col_vec, "$mm{}",
-            ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
+        return fmt::format_to(app, col_vec, "$mm{}",
+                              (static_cast<foptim::u8>(value.c_reg()) -
+                               static_cast<foptim::u8>(CReg::mm0)));
       default:
     }
   } else if (get_size(value.ty) > 8) {
@@ -1369,9 +1378,9 @@ fmt::appender fmt::formatter<foptim::fmir::VReg>::format(
           default:
             break;
         }
-        return fmt::format_to(
-            app, col_vec, "${}mm{}", size_name,
-            ((foptim::u8)value.c_reg() - (foptim::u8)CReg::mm0));
+        return fmt::format_to(app, col_vec, "${}mm{}", size_name,
+                              (static_cast<foptim::u8>(value.c_reg()) -
+                               static_cast<foptim::u8>(CReg::mm0)));
       }
       default:
         TODO("URNEACH");
@@ -1380,5 +1389,5 @@ fmt::appender fmt::formatter<foptim::fmir::VReg>::format(
     TODO("unrach?");
   }
   return fmt::format_to(app, "REG PRINT FAIL TYPE:{} OFF:{}", value.ty,
-                        (foptim::u8)value.c_reg());
+                        static_cast<foptim::u8>(value.c_reg()));
 }

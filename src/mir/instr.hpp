@@ -155,11 +155,15 @@ enum class GBaseSubtype : u32 {
   // special purpose helper instructions
   //  that *cant* be generated and *need* to be lowered
   // used for each arg for a function call
-  arg_setup,
+  arg_setup,  // like move but second arg is pinned by cc(and reversed args)
   // used for each function call all arg_setups immediatly prior are the args
   // while this isntruction only takes the function label and the return
   // register as args
   invoke,
+  // special purpose helper instructions
+  //  that *cant* be generated and *need* to be lowered
+  // used for each return value on caller size
+  ret_setup,  // like move but second arg is pinned by cc
 };
 
 enum class X86Subtype : u32 {
@@ -459,7 +463,7 @@ class MArgument {
   MArgument(f32 imm)
       : type(ArgumentType::Imm),
         ty(Type::Float32),
-        immf(std::bit_cast<f64>((u64)std::bit_cast<u32>(imm))) {}
+        immf(std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(imm)))) {}
   MArgument(IRStringRef lab)
       : type(ArgumentType::Label), ty(Type::INVALID), label(lab) {}
   MArgument(IRStringRef lab, Type ty)
@@ -479,7 +483,7 @@ class MArgument {
     arg.type = ArgumentType::MemImmLabel;
     arg.ty = ty;
     arg.label = lab;
-    arg.imm = std::bit_cast<u64>((i64)imm);
+    arg.imm = std::bit_cast<u64>(static_cast<i64>(imm));
     return arg;
   }
 
@@ -487,7 +491,7 @@ class MArgument {
     MArgument arg;
     arg.type = ArgumentType::MemImm;
     arg.ty = ty;
-    arg.imm = std::bit_cast<u64>((i64)imm);
+    arg.imm = std::bit_cast<u64>(static_cast<i64>(imm));
     return arg;
   }
 
@@ -503,7 +507,7 @@ class MArgument {
     MArgument arg;
     arg.type = ArgumentType::MemImmVReg;
     arg.ty = ty;
-    arg.imm = std::bit_cast<u64>((i64)off);
+    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
     arg.reg = reg;
     return arg;
   }
@@ -538,7 +542,7 @@ class MArgument {
     arg.ty = ty;
     arg.reg = reg;
     arg.indx = indx;
-    arg.imm = std::bit_cast<u64>((i64)off);
+    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
     return arg;
   }
 
@@ -552,7 +556,7 @@ class MArgument {
     arg.reg = reg;
     arg.indx = indx;
     arg.scale = scale;
-    arg.imm = std::bit_cast<u64>((i64)off);
+    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
     return arg;
   }
 
@@ -562,7 +566,7 @@ class MArgument {
     MArgument arg;
     arg.type = ArgumentType::MemImmVRegScale;
     arg.ty = ty;
-    arg.imm = std::bit_cast<u64>((i64)off);
+    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
     arg.indx = indx;
     arg.scale = scale;
     return arg;
@@ -829,14 +833,15 @@ class MInstr {
   }
 
   static MInstr jmp(u32 new_bb_ref) {
-    auto res = MInstr{GOpcode::GJmp, (u32)GJumpSubtype::jmp};
+    auto res = MInstr{GOpcode::GJmp, static_cast<u32>(GJumpSubtype::jmp)};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;
   }
 
   static MInstr cJmp(MArgument cond, u32 new_bb_ref) {
-    auto res = MInstr{GOpcode::GJmp, (u32)GJumpSubtype::cjmp, cond};
+    auto res =
+        MInstr{GOpcode::GJmp, static_cast<u32>(GJumpSubtype::cjmp), cond};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;
@@ -852,25 +857,25 @@ class MInstr {
   }
 
   [[nodiscard]] bool is(GBaseSubtype sub) const {
-    return bop == GOpcode::GBase && sop == (u32)sub;
+    return bop == GOpcode::GBase && sop == static_cast<u32>(sub);
   }
   [[nodiscard]] bool is(X86Subtype sub) const {
-    return bop == GOpcode::X86 && sop == (u32)sub;
+    return bop == GOpcode::X86 && sop == static_cast<u32>(sub);
   }
   [[nodiscard]] bool is(GCMovSubtype sub) const {
-    return bop == GOpcode::GCMov && sop == (u32)sub;
+    return bop == GOpcode::GCMov && sop == static_cast<u32>(sub);
   }
   [[nodiscard]] bool is(GConvSubtype sub) const {
-    return bop == GOpcode::GConv && sop == (u32)sub;
+    return bop == GOpcode::GConv && sop == static_cast<u32>(sub);
   }
   [[nodiscard]] bool is(GJumpSubtype sub) const {
-    return bop == GOpcode::GJmp && sop == (u32)sub;
+    return bop == GOpcode::GJmp && sop == static_cast<u32>(sub);
   }
   [[nodiscard]] bool is(GVecSubtype sub) const {
-    return bop == GOpcode::GVec && sop == (u32)sub;
+    return bop == GOpcode::GVec && sop == static_cast<u32>(sub);
   }
   [[nodiscard]] bool is(GArithSubtype sub) const {
-    return bop == GOpcode::GArith && sop == (u32)sub;
+    return bop == GOpcode::GArith && sop == static_cast<u32>(sub);
   }
 
   [[nodiscard]] static bool is_control_flow(GOpcode c, u32 sop);
@@ -945,7 +950,7 @@ class MInstr {
         break;
     }
 
-    auto res = MInstr{GOpcode::GJmp, (u32)sopcode_type, v1, v2};
+    auto res = MInstr{GOpcode::GJmp, static_cast<u32>(sopcode_type), v1, v2};
     res.bb_ref = new_bb_ref;
     res.has_bb_ref = true;
     return res;
@@ -972,7 +977,7 @@ struct std::hash<foptim::fmir::VReg> {
     using foptim::u64;
     using foptim::u8;
     if (k.is_concrete()) {
-      return hash<u8>()((u8)k.c_reg());
+      return hash<u8>()(static_cast<u8>(k.c_reg()));
     }
     return hash<u64>()(k.virt_id());
   }

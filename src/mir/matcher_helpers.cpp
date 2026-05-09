@@ -111,6 +111,19 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
   }
 }
 
+void setup_callreturns(fir::Instr &call_instr, MatchResult &res,
+                    ExtraMatchData &data) {
+  // fmt::println("Instr: {}", call_instr);
+  TVec<MArgument> evaluated_args;
+  for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
+    evaluated_args.push_back(
+        setup_callarg(call_instr->args[arg_id], res, data));
+  }
+  for (auto arg_value : evaluated_args) {
+    res.result.emplace_back(GBaseSubtype::ret_setup, arg_value);
+  }
+}
+
 MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
                           DumbRegAlloc &alloc) {
   ASSERT(val.is_constant());
