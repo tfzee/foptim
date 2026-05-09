@@ -6,7 +6,7 @@
 #include "basic_block_ref.hpp"
 #include "instruction.hpp"
 #include "ir/basic_block_arg.hpp"
-#include "ir/constant_value_ref.hpp"
+#include "ir/constant_value.hpp"
 #include "ir/use.hpp"
 #include "types_ref.hpp"
 
@@ -124,18 +124,17 @@ struct ankerl::unordered_dense::hash<foptim::fir::ValueR> {
 
   [[nodiscard]] auto operator()(const foptim::fir::ValueR &k) const noexcept
       -> uint64_t {
-    using namespace foptim::fir;
     switch (k.ty) {
       case foptim::fir::ValueType::InvalidValue:
         return 0;
       case foptim::fir::ValueType::Instr:
-        return hash<Instr>()(k.instr);
+        return hash<foptim::fir::Instr>()(k.instr);
       case foptim::fir::ValueType::BasicBlock:
-        return hash<BasicBlock>()(k.bb);
+        return hash<foptim::fir::BasicBlock>()(k.bb);
       case foptim::fir::ValueType::BBArg:
-        return hash<BBArgument>()(k.bb_arg);
+        return hash<foptim::fir::BBArgument>()(k.bb_arg);
       case foptim::fir::ValueType::ConstantValueR:
-        return hash<ConstantValueR>()(k.const_val);
+        return hash<foptim::fir::ConstantValueR>()(k.const_val);
     }
   }
 };
@@ -144,19 +143,18 @@ template <>
 struct std::hash<foptim::fir::ValueR> {
   std::size_t operator()(const foptim::fir::ValueR &k) const {
     using foptim::u32;
-    using namespace foptim::fir;
     using std::hash;
     switch (k.ty) {
       case foptim::fir::ValueType::InvalidValue:
         return 0;
       case foptim::fir::ValueType::Instr:
-        return std::hash<Instr>()(k.instr);
+        return std::hash<foptim::fir::Instr>()(k.instr);
       case foptim::fir::ValueType::BasicBlock:
-        return std::hash<BasicBlock>()(k.bb);
+        return std::hash<foptim::fir::BasicBlock>()(k.bb);
       case foptim::fir::ValueType::BBArg:
-        return std::hash<BBArgument>()(k.bb_arg);
+        return std::hash<foptim::fir::BBArgument>()(k.bb_arg);
       case foptim::fir::ValueType::ConstantValueR:
-        return std::hash<ConstantValueR>()(k.const_val);
+        return std::hash<foptim::fir::ConstantValueR>()(k.const_val);
     }
   }
 };

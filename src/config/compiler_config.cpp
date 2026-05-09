@@ -358,11 +358,11 @@ enum class BuiltinConfig {
 void setup_builtin(CompConf& conf, BuiltinConfig config) {
   toml::table tbl;
   try {
-    const char* config_ptr = builtin_configs[(u32)config];
+    const char* config_ptr = builtin_configs[static_cast<u32>(config)];
     auto view = std::string_view{config_ptr};
     tbl = toml::parse(view);
   } catch (const toml::parse_error& err) {
-    fmt::println("{};  of default {}", err, (u32)config);
+    fmt::println("{};  of default {}", err, static_cast<u32>(config));
     TODO("FAILED PARSE Default {}");
   }
   config_parse(conf, tbl);

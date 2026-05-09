@@ -80,10 +80,10 @@ struct OpData {
   ZydisFormatter formatter;
   ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL);
   char buffer[256];
-  ZydisFormatterFormatInstruction(&formatter, instruction, operands,
-                                  instruction->operand_count_visible, buffer,
-                                  sizeof(buffer), (ZyanU64)buff, ZYAN_NULL);
-  printf("%016llX  %s\n", (unsigned long long)buff, buffer);
+  ZydisFormatterFormatInstruction(
+      &formatter, instruction, operands, instruction->operand_count_visible,
+      buffer, sizeof(buffer), std::bit_cast<ZyanU64>(buff), ZYAN_NULL);
+  printf("%016llX  %s\n", std::bit_cast<unsigned long long>(buff), buffer);
 }
 
 // returns the address of the operand + the offset till end of instruction
@@ -137,7 +137,7 @@ OpData get_op_addr(u8 *buff, u8 op_num) {
   auto old_val =
       is_imm ? operands[op_num].imm.value.s : operands[op_num].mem.disp.value;
   return {.op_addr = buff + op_off,
-          .op_off = (u8)(instruction.length - op_off),
+          .op_off = static_cast<u8>(instruction.length - op_off),
           .op_val = old_val};
 }
 
@@ -290,8 +290,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     text_sec->set_type(SHT_PROGBITS);
     text_sec->set_flags(SHF_ALLOC | SHF_EXECINSTR);
     text_sec->set_addr_align(0x10);
-    text_sec->set_data((const char *)start_txt,
-                       (size_t)end_txt - (size_t)start_txt);
+    text_sec->set_data(
+        reinterpret_cast<const char *>(start_txt),
+        std::bit_cast<size_t>(end_txt) - std::bit_cast<size_t>(start_txt));
   }
 
   for (const auto &decl : decls) {
@@ -373,7 +374,8 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         {  // handle reloccs
           int i = 0;
           for (const auto &reloc_info : global.reloc_info) {
-            if (0 == ((uint64_t)reloc_info.insert_offset - 16) % 24) {
+            if (0 ==
+                (static_cast<uint64_t>(reloc_info.insert_offset) - 16) % 24) {
               // this is techincally conditional and we woulkd need to verify
               // its not discarded
               //  however since we referenc it it cant be discarded ??
@@ -384,7 +386,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
             ASSERT(0 == ((uint64_t)reloc_info.insert_offset - 8) % 24);
             label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
                 LabelRelocData::Usage{
-                    .usage_instr = (u8 *)(8ULL * i),
+                    .usage_instr = std::bit_cast<u8 *>(8ULL * i),
                     .operand_num = 0,
                     .usage_section = RelocSection::InitArray,
                     .addent = 0,
@@ -395,7 +397,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           init_array_sec->set_size(size);
           void *buff_data = malloc(size);
           memset(buff_data, 0, size);
-          data_sec->set_data((const char *)buff_data, size);
+          data_sec->set_data(static_cast<const char *>(buff_data), size);
           // TODO: IDK if i assume it copies it ??
           free(buff_data);
         }
@@ -433,7 +435,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
 
       curr_data_ptr += global.data.size();
     }
-    data_sec->set_data((char *)start_data, global_data_size);
+    data_sec->set_data(reinterpret_cast<char *>(start_data), global_data_size);
   }
 
   section *data_rel_sec = writer.sections.add(".rela.data");
@@ -516,12 +518,12 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         case RelocSection::Extern:
           UNREACH();
         case RelocSection::InitArray:
-          init_array_rela.add_entry((Elf64_Addr)loc.usage_instr, symbol,
-                                    (unsigned char)R_X86_64_64, loc.addent);
+          init_array_rela.add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
+                                    symbol, R_X86_64_64, loc.addent);
           break;
         case RelocSection::Data:
-          data_rela.add_entry(loc.usage_instr - start_data, symbol,
-                              (unsigned char)R_X86_64_64, loc.addent);
+          data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
+                              loc.addent);
           break;
         case RelocSection::Text:
           auto data = get_op_addr(loc.usage_instr, loc.operand_num);
@@ -531,17 +533,17 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
               UNREACH();
             case RelocSection::Data:
               text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                  (unsigned char)R_X86_64_PC32,
+                                  R_X86_64_PC32,
                                   -data.op_off + data.op_val + loc.addent);
               break;
             case RelocSection::Extern:
               if (label_data.kind == RelocKind::Func) {
                 text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                    (unsigned char)R_X86_64_PLT32,
+                                    R_X86_64_PLT32,
                                     -data.op_off + data.op_val + loc.addent);
               } else if (label_data.kind == RelocKind::Data) {
                 text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                    (unsigned char)R_X86_64_GOTPCREL,
+                                    R_X86_64_GOTPCREL,
                                     -data.op_off + data.op_val + loc.addent);
               } else {
                 TODO("UNREACH?");
@@ -549,7 +551,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
               break;
             case RelocSection::Text:
               text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                  (unsigned char)R_X86_64_PLT32,
+                                  R_X86_64_PLT32,
                                   -data.op_off + data.op_val + loc.addent);
               break;
           }

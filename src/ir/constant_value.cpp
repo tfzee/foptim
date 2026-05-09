@@ -299,11 +299,13 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
   if ((old_ty->is_int() || old_ty->is_ptr()) && target_type->is_float()) {
     if (old_ty->get_bitwidth() == 32) {
       return {ctx->get_constant_value(
-          std::bit_cast<f32>((u32)std::bit_cast<u128>(as_int())), target_type)};
+          std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u128>(as_int()))),
+          target_type)};
     }
     if (old_ty->get_bitwidth() == 64) {
       return {ctx->get_constant_value(
-          std::bit_cast<f64>((u64)std::bit_cast<u128>(as_int())), target_type)};
+          std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u128>(as_int()))),
+          target_type)};
     }
   }
   if (!old_ty->is_vec() && target_type->is_vec()) {
@@ -311,11 +313,11 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
     u128 value;
     if (old_ty->is_int() || old_ty->is_ptr()) {
       value = as_int();
-    } else if (old_ty->is_f32()){
+    } else if (old_ty->is_f32()) {
       value = std::bit_cast<u32>(as_f32());
-    } else if (old_ty->is_f64()){
+    } else if (old_ty->is_f64()) {
       value = std::bit_cast<u64>(as_f64());
-    }else{
+    } else {
       TODO("UNREACH?");
     }
     IRVec<ConstantValueR> values;
@@ -327,14 +329,14 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
         values.push_back(ctx->get_constant_int(curr_val, target.bitwidth));
       } else if (target.type == VectorType::SubType::Floating &&
                  target.bitwidth == 32) {
-        values.push_back(
-            ctx->get_constant_value(std::bit_cast<f32>((u32)curr_val),
-                                    ctx->get_float_type(target.bitwidth)));
+        values.push_back(ctx->get_constant_value(
+            std::bit_cast<f32>(static_cast<u32>(curr_val)),
+            ctx->get_float_type(target.bitwidth)));
       } else if (target.type == VectorType::SubType::Floating &&
                  target.bitwidth == 64) {
-        values.push_back(
-            ctx->get_constant_value(std::bit_cast<f64>((u64)curr_val),
-                                    ctx->get_float_type(target.bitwidth)));
+        values.push_back(ctx->get_constant_value(
+            std::bit_cast<f64>(static_cast<u64>(curr_val)),
+            ctx->get_float_type(target.bitwidth)));
       }
     }
 
@@ -385,7 +387,8 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
         if (v.type->as_float() == 32) {
           return fmt::format_to(
               ctx.out(), colnumber, "{:X}:{}",
-              (foptim::u32)std::bit_cast<foptim::u64>(v.float_u.v.data),
+              static_cast<foptim::u32>(
+                  std::bit_cast<foptim::u64>(v.float_u.v.data)),
               v.type);
         }
         return fmt::format_to(ctx.out(), colnumber, "{:X}:{}",

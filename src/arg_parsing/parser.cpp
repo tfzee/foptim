@@ -1,3 +1,5 @@
+#include "parser.hpp"
+
 #include <fmt/base.h>
 #include <fmt/core.h>
 
@@ -42,7 +44,8 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   assert(foptim::utils::number_worker_threads >= 0 &&
          foptim::utils::number_worker_threads <= 8 &&
          "Invalid number of worker threads");
-  foptim::utils::verbosity = (foptim::u8)program.get<int>("verbosity");
+  foptim::utils::verbosity =
+      static_cast<foptim::u8>(program.get<int>("verbosity"));
   foptim::utils::in_file_path = program.get<std::string>("input");
   foptim::utils::out_file_path = program.get<std::string>("output");
 

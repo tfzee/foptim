@@ -229,7 +229,7 @@ bool InstrData::is_critical() const {
       }
       return true;
     case InstrType::Intrinsic:
-      switch ((IntrinsicSubType)subtype) {
+      switch (static_cast<IntrinsicSubType>(subtype)) {
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
         case IntrinsicSubType::Abs:
@@ -276,7 +276,7 @@ bool InstrData::is_commutative() const {
     case InstrType::Fence:
       return false;
     case InstrType::BinaryInstr:
-      switch ((BinaryInstrSubType)subtype) {
+      switch (static_cast<BinaryInstrSubType>(subtype)) {
         case BinaryInstrSubType::INVALID:
         case BinaryInstrSubType::IntAdd:
         case BinaryInstrSubType::IntMul:
@@ -299,7 +299,7 @@ bool InstrData::is_commutative() const {
           return false;
       }
     case InstrType::Intrinsic:
-      switch ((IntrinsicSubType)subtype) {
+      switch (static_cast<IntrinsicSubType>(subtype)) {
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
         case IntrinsicSubType::VA_start:
@@ -322,7 +322,7 @@ bool InstrData::is_commutative() const {
           return true;
       }
     case InstrType::FCmp:
-      switch ((FCmpInstrSubType)subtype) {
+      switch (static_cast<FCmpInstrSubType>(subtype)) {
         case FCmpInstrSubType::INVALID:
         case FCmpInstrSubType::AlwFalse:
         case FCmpInstrSubType::ORD:
@@ -337,7 +337,7 @@ bool InstrData::is_commutative() const {
           return false;
       }
     case InstrType::ICmp:
-      switch ((ICmpInstrSubType)subtype) {
+      switch (static_cast<ICmpInstrSubType>(subtype)) {
         case ICmpInstrSubType::INVALID:
         case ICmpInstrSubType::NE:
         case ICmpInstrSubType::EQ:
@@ -383,7 +383,7 @@ bool InstrData::pot_modifies_mem() const {
     case InstrType::StoreInstr:
       return true;
     case InstrType::Intrinsic:
-      switch ((IntrinsicSubType)subtype) {
+      switch (static_cast<IntrinsicSubType>(subtype)) {
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
         case IntrinsicSubType::Abs:
@@ -437,7 +437,7 @@ bool InstrData::pot_reads_mem() const {
       }
       return true;
     case InstrType::Intrinsic:
-      switch ((IntrinsicSubType)subtype) {
+      switch (static_cast<IntrinsicSubType>(subtype)) {
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
         case IntrinsicSubType::Abs:
@@ -497,7 +497,7 @@ bool InstrData::has_pot_sideeffects() const {
     case InstrType::Fence:
       return true;
     case InstrType::Intrinsic:
-      switch ((IntrinsicSubType)subtype) {
+      switch (static_cast<IntrinsicSubType>(subtype)) {
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
         case IntrinsicSubType::Abs:
@@ -548,113 +548,121 @@ InstrData InstrData::get_call(TypeR ty) {
 }
 
 InstrData InstrData::get_float_add(TypeR ty) {
-  auto res =
-      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatAdd, ty,
-                BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::FloatAdd), ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_float_sub(TypeR ty) {
-  auto res =
-      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatSub, ty,
-                BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::FloatSub), ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_float_mul(TypeR ty) {
-  auto res =
-      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatMul, ty,
-                BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::FloatMul), ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_float_div(TypeR ty) {
-  auto res =
-      InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::FloatDiv, ty,
-                BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::FloatDiv), ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_add(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntAdd,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::IntAdd), ty,
+                       BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }
 
 InstrData InstrData::get_smod(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntSRem,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::IntSRem), ty,
+                       BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }
 
 InstrData InstrData::get_umod(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntURem,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::IntURem), ty,
+                       BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }
 
 InstrData InstrData::get_intrinsic(TypeR ty, IntrinsicSubType sub_type) {
-  auto res = InstrData{InstrType::Intrinsic, (u32)sub_type, ty,
+  auto res = InstrData{InstrType::Intrinsic, static_cast<u32>(sub_type), ty,
                        BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }
 
 InstrData InstrData::get_vector(TypeR ty, VectorISubType sub_type) {
-  auto res = InstrData{InstrType::VectorInstr, (u32)sub_type, ty,
+  auto res = InstrData{InstrType::VectorInstr, static_cast<u32>(sub_type), ty,
                        BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }
 
 InstrData InstrData::get_binary(TypeR ty, BinaryInstrSubType sub_type) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)sub_type, ty,
+  auto res = InstrData{InstrType::BinaryInstr, static_cast<u32>(sub_type), ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_unary(TypeR ty, UnaryInstrSubType sub_type) {
-  auto res = InstrData{InstrType::UnaryInstr, (u32)sub_type, ty,
+  auto res = InstrData{InstrType::UnaryInstr, static_cast<u32>(sub_type), ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_conversion(TypeR ty, ConversionSubType sub_type) {
-  auto res = InstrData{InstrType::Conversion, (u32)sub_type, ty,
+  auto res = InstrData{InstrType::Conversion, static_cast<u32>(sub_type), ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_mul(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntMul,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::IntMul), ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_shl(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::Shl, ty,
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::Shl), ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_ashr(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::AShr,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::AShr), ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_lshr(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::Shr, ty,
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::Shr), ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
 InstrData InstrData::get_sub(TypeR ty) {
-  auto res = InstrData{InstrType::BinaryInstr, (u32)BinaryInstrSubType::IntSub,
-                       ty, BasicBlock(BasicBlock::invalid())};
+  auto res = InstrData{InstrType::BinaryInstr,
+                       static_cast<u32>(BinaryInstrSubType::IntSub), ty,
+                       BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }
@@ -681,7 +689,7 @@ InstrData InstrData::get_zext(TypeR ty) {
 }
 
 InstrData InstrData::get_atomic_rmw(TypeR ty, AtomicRMWSubType sub_type) {
-  auto res = InstrData{InstrType::AtomicRMW, (u32)sub_type, ty,
+  auto res = InstrData{InstrType::AtomicRMW, static_cast<u32>(sub_type), ty,
                        BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(1);
   return res;
@@ -695,14 +703,14 @@ InstrData InstrData::get_fence(TypeR ty) {
 }
 
 InstrData InstrData::get_int_cmp(TypeR ty, ICmpInstrSubType cmp_ty) {
-  auto res = InstrData{InstrType::ICmp, (u32)cmp_ty, ty,
+  auto res = InstrData{InstrType::ICmp, static_cast<u32>(cmp_ty), ty,
                        BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
   return res;
 }
 
 InstrData InstrData::get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty) {
-  auto res = InstrData{InstrType::FCmp, (u32)cmp_ty, ty,
+  auto res = InstrData{InstrType::FCmp, static_cast<u32>(cmp_ty), ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }

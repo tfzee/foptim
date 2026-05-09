@@ -1,5 +1,5 @@
 #pragma once
-#include "constant_value.hpp"
+#include "constant_value_ref.hpp"
 #include "ir/types_ref.hpp"
 #include "utils/logging.hpp"
 #include "utils/string.hpp"
@@ -65,7 +65,7 @@ class Attribute {
 
   [[nodiscard]] const void *try_void() const {
     if (ty == AttributeType::Void) {
-      return (void *)this;
+      return static_cast<const void *>(this);
     }
     return nullptr;
   }

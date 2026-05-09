@@ -1,4 +1,4 @@
-HeaderFilterRegex: ''
+HeaderFilterRegex: .*
 Checks: >
   -*,
   bugprone-,
@@ -15,3 +15,10 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,
   -misc-use-anonymous-namespace,
+
+WarningsAsErrors: >
+  bugprone-*,
+  clang-analyzer-*,
+  clang-diagnostic-*,
+  performance-*,
+

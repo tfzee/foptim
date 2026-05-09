@@ -21,7 +21,7 @@ struct FloatValue {
 
   constexpr FloatValue(f64 d) : data(d) {}
   constexpr FloatValue(f32 d)
-      : data(std::bit_cast<f64>((u64)std::bit_cast<u32>(d))) {}
+      : data(std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(d)))) {}
   [[gnu::always_inline]] constexpr bool operator==(
       const FloatValue &other) const {
     return data == other.data;
@@ -194,7 +194,7 @@ struct ConstantValue {
 
   [[nodiscard]] constexpr f32 as_f32() const {
     ASSERT(is_float());
-    return std::bit_cast<f32>((u32)std::bit_cast<u64>(float_u.v.data));
+    return std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(float_u.v.data)));
   }
 
   [[nodiscard]] constexpr f64 as_f64() const {

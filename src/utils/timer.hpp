@@ -16,9 +16,11 @@ struct DumbTimer {
   void print() {
     for (const auto &[name, time] : times) {
       if (time > 100'000'000) {
-        fmt::println("{:<20} {:>10.3f}  s", name, (double)time / 1'000'000'000);
+        fmt::println("{:<20} {:>10.3f}  s", name,
+                     static_cast<double>(time) / 1'000'000'000);
       } else if (time > 10'000) {
-        fmt::println("{:<20} {:>10.3f} ms", name, (double)time / 1'000'000);
+        fmt::println("{:<20} {:>10.3f} ms", name,
+                     static_cast<double>(time) / 1'000'000);
       } else {
         fmt::println("{:<20} {:>6}     ns", name, time);
       }
@@ -47,5 +49,7 @@ struct ScopedTimer {
   }
 };
 
-ScopedTimer DumbTimer::scopedTimer(const char *name) { return {this, name}; }
+inline ScopedTimer DumbTimer::scopedTimer(const char *name) {
+  return {this, name};
+}
 }  // namespace foptim::utils

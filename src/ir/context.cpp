@@ -49,8 +49,8 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
 }
 
 BBArgument ContextData::copy(BBArgument bb_arg) {
-  auto res =
-      storage.insert_bb_arg(BBArgumentData{BasicBlock{BasicBlock::invalid()}, bb_arg->_type});
+  auto res = storage.insert_bb_arg(
+      BBArgumentData{BasicBlock{BasicBlock::invalid()}, bb_arg->_type});
   res->uses.clear();
   return res;
 }
@@ -376,7 +376,7 @@ ConstantValueR ContextData::get_constant_value(i64 val, IntTypeR ty) {
 }
 
 ConstantValueR ContextData::get_constant_value(i32 val, IntTypeR ty) {
-  const auto constant = ConstantValue((i64)val, ty);
+  const auto constant = ConstantValue(static_cast<i64>(val), ty);
   auto maybeR = try_reuse_constant(constant);
   if (maybeR.is_valid()) {
     return maybeR;
@@ -419,7 +419,7 @@ ConstantValueR ContextData::get_constant_value(IRVec<ConstantValueR> data,
 }
 
 ConstantValueR ContextData::get_constant_value(u32 val, IntTypeR ty) {
-  const auto constant = ConstantValue((u64)val, ty);
+  const auto constant = ConstantValue(static_cast<u64>(val), ty);
   auto maybeR = try_reuse_constant(constant);
   if (maybeR.is_valid()) {
     return maybeR;
@@ -475,8 +475,9 @@ void ContextData::dump_graph(const char *filename) {
         "lightgrey;\n",
         f.second->name, f.second->name);
     for (auto bb : f.second->basic_blocks) {
-      fmt::print(file, R"( "{}"[label="{}:\n)", (void *)bb.get_raw_ptr(),
-                 (void *)bb.get_raw_ptr());
+      fmt::print(file, R"( "{}"[label="{}:\n)",
+                 static_cast<const void *>(bb.get_raw_ptr()),
+                 static_cast<const void *>(bb.get_raw_ptr()));
       for (auto i : bb->instructions) {
         fmt::print(file, R"(    {}\n)", i);
       }
@@ -487,7 +488,8 @@ void ContextData::dump_graph(const char *filename) {
           "green", "red", "blue", "purple", "yellow", "black"};
       for (auto &t : bb->get_terminator()->bbs) {
         fmt::print(file, "\"{}\" -> \"{}\" [color=\"{}\"];\n",
-                   (void *)bb.get_raw_ptr(), (void *)t.bb.get_raw_ptr(),
+                   static_cast<const void *>(bb.get_raw_ptr()),
+                   static_cast<const void *>(t.bb.get_raw_ptr()),
                    edgecolors[std::min(i, N_EDGE_COLORS - 1)]);
         i++;
       }

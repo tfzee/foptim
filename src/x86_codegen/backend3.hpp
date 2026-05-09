@@ -1,5 +1,6 @@
 #pragma once
 #include "ir/helpers.hpp"
+#include "mir/global.hpp"
 #include "utils/map.hpp"
 #include "utils/string.hpp"
 #include "utils/vec.hpp"
@@ -62,4 +63,8 @@ struct TLabelUsageMap {
     bb_map[bb].usage_loc.push_back({instr_loc, op_num, section, 0});
   }
 };
+
+void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
+         std::span<const fmir::Global> globals, const conf::CompConf &conf);
+
 }  // namespace foptim::codegen

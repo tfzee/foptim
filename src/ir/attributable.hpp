@@ -1,7 +1,5 @@
 #pragma once
 #include "ir/attribute.hpp"
-#include "ir/constant_value.hpp"
-#include "utils/logging.hpp"
 #include "utils/map.hpp"
 #include "utils/string.hpp"
 

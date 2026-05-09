@@ -388,7 +388,7 @@ ValueR Builder::build_atomic_rmw(ValueR ptr, ValueR val,
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(
       InstrData::get_atomic_rmw(val.get_type(), sub_type));
-  instr->Ordering = (u64)ordering;
+  instr->Ordering = static_cast<u64>(ordering);
   instr.add_arg(ptr);
   instr.add_arg(val);
   bb.insert_instr(indx, instr);
@@ -400,7 +400,7 @@ ValueR Builder::build_fence(Ordering ordering) {
   check_bb_set();
   Instr instr =
       ctx->storage.insert_instr(InstrData::get_fence(ctx->get_void_type()));
-  instr->Ordering = (u64)ordering;
+  instr->Ordering = static_cast<u64>(ordering);
   bb.insert_instr(indx, instr);
   indx++;
   return ValueR(instr);
@@ -637,7 +637,7 @@ Instr Builder::move_instr(Instr instr) {
   //   instr_id++;
   //   ASSERT(instr_id < parent->instructions.size());
   // }
-  parent->instructions.erase(parent->instructions.begin() + (i64)instr_id);
+  parent->instructions.erase(parent->instructions.begin() + static_cast<i64>(instr_id));
 
   bb.insert_instr(indx, instr);
   indx++;

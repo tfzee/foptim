@@ -60,7 +60,7 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
   if (!v1 || !v2) {
     return false;
   }
-  switch ((BinaryInstrSubType)instr->subtype) {
+  switch (static_cast<BinaryInstrSubType>(instr->subtype)) {
     case BinaryInstrSubType::IntAdd:
       st.set_value(ValueR(instr), ConstantValue{v1->as_int() + v2->as_int(),
                                                 instr.get_type()});
@@ -129,32 +129,36 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
   if (!v1 || !v2) {
     return false;
   }
-  switch ((ICmpInstrSubType)instr->subtype) {
+  switch (static_cast<ICmpInstrSubType>(instr->subtype)) {
     case ICmpInstrSubType::SGE:
-      st.set_value(ValueR(instr),
-                   ConstantValue{(v1->as_int() >= v2->as_int()) ? ~(i128)0 : 0,
-                                 instr->get_type()});
+      st.set_value(ValueR(instr), ConstantValue{(v1->as_int() >= v2->as_int())
+                                                    ? ~static_cast<i128>(0)
+                                                    : 0,
+                                                instr->get_type()});
       break;
     case ICmpInstrSubType::SGT:
-      st.set_value(ValueR(instr),
-                   ConstantValue{(v1->as_int() > v2->as_int()) ? ~(i128)0 : 0,
-                                 instr->get_type()});
+      st.set_value(ValueR(instr), ConstantValue{(v1->as_int() > v2->as_int())
+                                                    ? ~static_cast<i128>(0)
+                                                    : 0,
+                                                instr->get_type()});
       break;
     case ICmpInstrSubType::SLT:
-      st.set_value(ValueR(instr),
-                   ConstantValue{(v1->as_int() < v2->as_int()) ? ~(i128)0 : 0,
-                                 instr->get_type()});
+      st.set_value(ValueR(instr), ConstantValue{(v1->as_int() < v2->as_int())
+                                                    ? ~static_cast<i128>(0)
+                                                    : 0,
+                                                instr->get_type()});
       break;
     case ICmpInstrSubType::SLE:
-      st.set_value(ValueR(instr),
-                   ConstantValue{(v1->as_int() <= v2->as_int()) ? ~(i128)0 : 0,
-                                 instr->get_type()});
+      st.set_value(ValueR(instr), ConstantValue{(v1->as_int() <= v2->as_int())
+                                                    ? ~static_cast<i128>(0)
+                                                    : 0,
+                                                instr->get_type()});
       break;
     case ICmpInstrSubType::ULT:
       st.set_value(ValueR(instr),
                    ConstantValue{(std::bit_cast<u128>(v1->as_int()) <
                                   std::bit_cast<u128>(v2->as_int()))
-                                     ? ~(i128)0
+                                     ? ~static_cast<i128>(0)
                                      : 0,
                                  instr->get_type()});
       break;
@@ -162,7 +166,7 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
       st.set_value(ValueR(instr),
                    ConstantValue{(std::bit_cast<u128>(v1->as_int()) <=
                                   std::bit_cast<u128>(v2->as_int()))
-                                     ? ~(i128)0
+                                     ? ~static_cast<i128>(0)
                                      : 0,
                                  instr->get_type()});
       break;
@@ -170,7 +174,7 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
       st.set_value(ValueR(instr),
                    ConstantValue{(std::bit_cast<u128>(v1->as_int()) >
                                   std::bit_cast<u128>(v2->as_int()))
-                                     ? ~(i128)0
+                                     ? ~static_cast<i128>(0)
                                      : 0,
                                  instr->get_type()});
       break;
@@ -178,19 +182,21 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
       st.set_value(ValueR(instr),
                    ConstantValue{(std::bit_cast<u128>(v1->as_int()) >=
                                   std::bit_cast<u128>(v2->as_int()))
-                                     ? ~(i128)0
+                                     ? ~static_cast<i128>(0)
                                      : 0,
                                  instr->get_type()});
       break;
     case ICmpInstrSubType::EQ:
-      st.set_value(ValueR(instr),
-                   ConstantValue{(v1->as_int() == v2->as_int()) ? ~(i128)0 : 0,
-                                 instr->get_type()});
+      st.set_value(ValueR(instr), ConstantValue{(v1->as_int() == v2->as_int())
+                                                    ? ~static_cast<i128>(0)
+                                                    : 0,
+                                                instr->get_type()});
       break;
     case ICmpInstrSubType::NE:
-      st.set_value(ValueR(instr),
-                   ConstantValue{(v1->as_int() != v2->as_int()) ? ~(i128)0 : 0,
-                                 instr->get_type()});
+      st.set_value(ValueR(instr), ConstantValue{(v1->as_int() != v2->as_int())
+                                                    ? ~static_cast<i128>(0)
+                                                    : 0,
+                                                instr->get_type()});
       break;
     default:
       return false;
@@ -217,7 +223,7 @@ bool interpret_zext(Instr instr, State &st, InstrPointer &ip) {
     return false;
   }
   auto bitwidth = instr->get_type()->as_int();
-  i128 mask = std::bit_cast<i128>((((u128)1) << bitwidth) - 1);
+  i128 mask = std::bit_cast<i128>(((static_cast<u128>(1)) << bitwidth) - 1);
   st.set_value(ValueR(instr),
                ConstantValue{v1->as_int() & mask, instr->get_type()});
   ip.instr_id++;

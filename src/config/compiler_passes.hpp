@@ -62,7 +62,7 @@ struct ModulePassConf : public PassConfig {
     return PassType::FIR_Module;
   }
   virtual bool _pass_parse(void* arg) override final {
-    return ((T*)this)->pass_parse(*(toml::table*)arg);
+    return (static_cast<T*>(this))->pass_parse(*static_cast<toml::table*>(arg));
   }
   virtual optim::ModulePass* _construct_module_pass() override {
     static_assert(
@@ -73,7 +73,7 @@ struct ModulePassConf : public PassConfig {
                   "the construct_module_pass function");
     auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
     new (alloc) T::Pass{};
-    ((T*)this)->construct_module_pass(*alloc);
+    (static_cast<T*>(this))->construct_module_pass(*alloc);
     return static_cast<optim::ModulePass*>(alloc);
   };
 };
@@ -85,7 +85,7 @@ struct FunctionPassConf : public PassConfig {
     return PassType::FIR_Function;
   }
   virtual bool _pass_parse(void* arg) override final {
-    return ((T*)this)->pass_parse(*(toml::table*)arg);
+    return (static_cast<T*>(this))->pass_parse(*static_cast<toml::table*>(arg));
   }
   virtual optim::FunctionPass* _construct_function_pass() override {
     static_assert(
@@ -96,7 +96,7 @@ struct FunctionPassConf : public PassConfig {
                   "the construct_function_pass function");
     auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
     new (alloc) T::Pass{};
-    ((T*)this)->construct_function_pass(*alloc);
+    (static_cast<T*>(this))->construct_function_pass(*alloc);
     return static_cast<optim::FunctionPass*>(alloc);
   };
 };

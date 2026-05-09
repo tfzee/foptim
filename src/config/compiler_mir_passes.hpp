@@ -28,7 +28,7 @@ struct FunctionPassConf : public PassConfig {
     return PassType::MIR_Func;
   }
   virtual bool _pass_parse(void* arg) override final {
-    return ((T*)this)->pass_parse(*(toml::table*)arg);
+    return (static_cast<T*>(this))->pass_parse(*static_cast<toml::table*>(arg));
   }
   virtual ::foptim::fmir::FunctionPass* _construct_mir_func_pass() override {
     static_assert(std::is_convertible<typename T::Pass*,
@@ -39,7 +39,7 @@ struct FunctionPassConf : public PassConfig {
                   "the construct_mir_function_pass function");
     auto* alloc = utils::IRAlloc<typename T::Pass>{}.allocate(1);
     new (alloc) T::Pass{};
-    ((T*)this)->construct_function_pass(*alloc);
+    (static_cast<T*>(this))->construct_function_pass(*alloc);
     return static_cast<::foptim::fmir::FunctionPass*>(alloc);
   };
 };
