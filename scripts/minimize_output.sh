@@ -48,7 +48,8 @@ if [[ "$stats_exp" != "$stats_exp2" ]] || [[ "$OUT_exp" != "$OUT_exp2" ]]; then
   exit $UNINTERESTING
 fi
 
-if [[ "$stats_exp" != "0" ]] || [[ "$OUT_exp" != "1.00000026.000000" ]]; then
+# if [[ "$stats_exp" != "0" ]] || [[ "$OUT_exp" != "1; 1; 2" ]]; then
+if [[ "$stats_exp" != "0" ]]; then
   echo "Fail2"
   exit $UNINTERESTING
 fi
