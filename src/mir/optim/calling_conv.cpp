@@ -192,6 +192,8 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
     case Type::Float64x4:
     case Type::Float32x16:
     case Type::Float64x8:
+    case Type::Int32x16:
+    case Type::Int64x8:
       instrs[instr_call_id + i].n_args = 2;
       instrs[instr_call_id + i].args[1] =
           MArgument({conv.rets.fvr[ret_fvr_indx], arg_ty}, arg_ty);
@@ -255,6 +257,7 @@ utils::BitSet<> calculate_used_regs(const MFunc &f,
         case MArgument::ArgumentType::MemLabel:
         case MArgument::ArgumentType::MemImmLabel:
         case MArgument::ArgumentType::MemImm:
+        case MArgument::ArgumentType::StackSlot:
           break;
         case MArgument::ArgumentType::MemVReg:
         case MArgument::ArgumentType::MemImmVReg:
@@ -441,6 +444,7 @@ TMap<CReg, Type> compute_max_reg_types(const MFunc &f) {
         case MArgument::ArgumentType::Label:
         case MArgument::ArgumentType::MemLabel:
         case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::StackSlot:
         case MArgument::ArgumentType::MemImm:
           break;
         case MArgument::ArgumentType::MemVReg:
@@ -681,6 +685,8 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
     case Type::Float64x4:
     case Type::Float32x16:
     case Type::Float64x8:
+    case Type::Int32x16:
+    case Type::Int64x8:
       out_instrs.insert(out_instrs.begin() + cinfo.start_id,
                         {
                             GBaseSubtype::mov,

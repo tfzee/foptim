@@ -206,7 +206,7 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
   std::ranges::reverse(result_bb.instrs);
   return result_bb;
 }
-}  // namespace
+} // namespace
 
 Type convert_type(fir::TypeR type) {
   if (type->is_int()) {
@@ -240,53 +240,56 @@ Type convert_type(fir::TypeR type) {
   } else if (type->is_vec()) {
     auto d = type->as_vec();
     switch (d.type) {
-      case fir::VectorType::SubType::Integer:
-        // if its a boolean width just extend so it fits with number of expected
-        // values
-        if (d.bitwidth == 1) {
-          // if(d.member_number == 4){
-          TODO("Impl");
-          //   todo not sure should prob not make this legal
-          // }
-        }
-        if (d.bitwidth == 32 && d.member_number == 4) {
-          return Type::Int32x4;
-        }
-        if (d.bitwidth == 32 && d.member_number == 8) {
-          return Type::Int32x8;
-        }
-        if (d.bitwidth == 64 && d.member_number == 2) {
-          return Type::Int64x2;
-        }
-        if (d.bitwidth == 64 && d.member_number == 4) {
-          return Type::Int64x4;
-        }
-        fmt::println("{}", type);
-        ASSERT(false);
-      case fir::VectorType::SubType::Floating:
-        if (d.bitwidth == 32 && d.member_number == 2) {
-          return Type::Float32x2;
-        }
-        if (d.bitwidth == 32 && d.member_number == 4) {
-          return Type::Float32x4;
-        }
-        if (d.bitwidth == 32 && d.member_number == 8) {
-          return Type::Float32x8;
-        }
-        if (d.bitwidth == 32 && d.member_number == 16) {
-          return Type::Float32x16;
-        }
-        if (d.bitwidth == 64 && d.member_number == 2) {
-          return Type::Float64x2;
-        }
-        if (d.bitwidth == 64 && d.member_number == 4) {
-          return Type::Float64x4;
-        }
-        if (d.bitwidth == 64 && d.member_number == 8) {
-          return Type::Float64x8;
-        }
-        fmt::println("{}", type);
-        ASSERT(false);
+    case fir::VectorType::SubType::Integer:
+      // if its a boolean width just extend so it fits with number of expected
+      // values
+      if (d.bitwidth == 1) {
+        // if(d.member_number == 4){
+        TODO("Impl");
+        //   todo not sure should prob not make this legal
+        // }
+      }
+      if (d.bitwidth == 32 && d.member_number == 4) {
+        return Type::Int32x4;
+      }
+      if (d.bitwidth == 32 && d.member_number == 8) {
+        return Type::Int32x8;
+      }
+      if (d.bitwidth == 64 && d.member_number == 2) {
+        return Type::Int64x2;
+      }
+      if (d.bitwidth == 64 && d.member_number == 4) {
+        return Type::Int64x4;
+      }
+      if (d.bitwidth == 64 && d.member_number == 8) {
+        return Type::Int64x8;
+      }
+      fmt::println("{}", type);
+      ASSERT(false);
+    case fir::VectorType::SubType::Floating:
+      if (d.bitwidth == 32 && d.member_number == 2) {
+        return Type::Float32x2;
+      }
+      if (d.bitwidth == 32 && d.member_number == 4) {
+        return Type::Float32x4;
+      }
+      if (d.bitwidth == 32 && d.member_number == 8) {
+        return Type::Float32x8;
+      }
+      if (d.bitwidth == 32 && d.member_number == 16) {
+        return Type::Float32x16;
+      }
+      if (d.bitwidth == 64 && d.member_number == 2) {
+        return Type::Float64x2;
+      }
+      if (d.bitwidth == 64 && d.member_number == 4) {
+        return Type::Float64x4;
+      }
+      if (d.bitwidth == 64 && d.member_number == 8) {
+        return Type::Float64x8;
+      }
+      fmt::println("{}", type);
+      ASSERT(false);
     }
   } else {
     fmt::println("{}", type);
@@ -301,6 +304,7 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
   res_func.name = func.name;
   res_func.bbs.reserve(func.n_bbs());
   DumbRegAlloc alloc{};
+  // fmt::println("{:cd}", func);
 
   if (func.attribs.variadic) {
     res_func.variadic = true;
@@ -451,4 +455,4 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
 }
 
 GreedyMatcher::GreedyMatcher() : Matcher(get_pats()) {}
-}  // namespace foptim::fmir
+} // namespace foptim::fmir

@@ -257,6 +257,8 @@ void move_patterns(IRVec<Pattern> &pats) {
         case Type::Int64x4:
         case Type::Float32x8:
         case Type::Float64x4:
+        case Type::Int32x16:
+        case Type::Int64x8:
         case Type::Float32x16:
         case Type::Float64x8:
           fmt::println("{}", cmp_instr);
@@ -2342,15 +2344,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                                   MArgument::Int(1, Type::Int8));
           res.result.emplace_back(GVecSubtype::vmul, res_reg, res_reg, a1);
           break;
-        case Type::Int32x4:
-        case Type::Int64x2:
-        case Type::Float32x4:
-        case Type::Int32x8:
-        case Type::Int64x4:
-        case Type::Float32x8:
-        case Type::Float64x4:
-        case Type::Float32x16:
-        case Type::Float64x8:
+        default:
           fmt::println("{:cd}", hred_instr->args[0].get_type());
           fmt::println("{:cd}", hred_instr);
           TODO("impl");
@@ -2503,6 +2497,9 @@ void base_patterns(IRVec<Pattern> &pats) {
         case Type::Int32x8:
         case Type::Float64x4:
         case Type::Int64x4:
+          fmt::println("{:cd}", *concat_instr->get_parent()->get_parent().func);
+          ASSERT_M(data.config.target.features.avx512f,
+                   "Need avx512 support for this");
           fmt::println("{:cd}", concat_instr->args[0].get_type());
           fmt::println("{:cd}", concat_instr);
           TODO("impl");

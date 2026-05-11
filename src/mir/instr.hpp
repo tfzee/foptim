@@ -4,6 +4,10 @@
 #include "utils/types.hpp"
 
 namespace foptim::fmir {
+using StackSlotId = u64;
+struct StackSlot {
+  u64 size;
+};
 
 enum class GOpcode : u8 {
   GBase,
@@ -221,18 +225,20 @@ enum class Type : u16 {
 
   // NOTE: ORDER matters then vec smallest to biggest
   // xmm
-  Float32x2 = 9,
-  Int32x4 = 7,
-  Int64x2 = 8,
+  Float32x2 = 7,
+  Int32x4 = 8,
+  Int64x2 = 9,
   Float32x4 = 10,
   Float64x2 = 11,
   // ymm
   Int32x8 = 12,
   Int64x4 = 13,
   Float32x8 = 14,
-  Float64x4 = 16,
-  Float32x16 = 15,
-  Float64x8 = 17,
+  Float64x4 = 15,
+  Int32x16 = 16,
+  Int64x8 = 17,
+  Float32x16 = 18,
+  Float64x8 = 19,
 };
 
 /*Returns the size in bytes of the given type*/
@@ -266,10 +272,14 @@ static constexpr u32 get_size(fmir::Type type) {
     return 8 * 4;
   case Type::Float32x8:
     return 4 * 8;
-  case Type::Float32x16:
-    return 4 * 16;
   case Type::Float64x4:
     return 8 * 4;
+  case Type::Int32x16:
+    return 4 * 16;
+  case Type::Int64x8:
+    return 8 * 8;
+  case Type::Float32x16:
+    return 4 * 16;
   case Type::Float64x8:
     return 8 * 8;
   case fmir::Type::INVALID:
@@ -428,6 +438,7 @@ public:
     Label,
     MemLabel,
     MemImmLabel,
+    StackSlot,
   };
 
   ArgumentType type;
@@ -467,6 +478,15 @@ public:
       : type(ArgumentType::Label), ty(Type::INVALID), label(lab) {}
   MArgument(IRStringRef lab, Type ty)
       : type(ArgumentType::Label), ty(ty), label(lab) {}
+
+  static MArgument stack_slot(StackSlotId id, u64 size) {
+    auto arg = MArgument{};
+    arg.type = ArgumentType::StackSlot;
+    arg.ty = Type::INVALID;
+    arg.imm = id;
+    arg.scale = size;
+    return arg;
+  }
 
   [[nodiscard]] static constexpr MArgument MemL(IRStringRef lab, Type ty) {
     MArgument arg;
@@ -585,6 +605,7 @@ public:
     case ArgumentType::Imm:
     case ArgumentType::VReg:
     case ArgumentType::Label:
+    case ArgumentType::StackSlot:
       return false;
     case ArgumentType::MemVReg:
     case ArgumentType::MemVRegVReg:
@@ -610,6 +631,7 @@ public:
       return label == other.label;
     case ArgumentType::MemImm:
     case ArgumentType::Imm:
+    case ArgumentType::StackSlot:
       return imm == other.imm;
     case ArgumentType::VReg:
     case ArgumentType::MemVReg:
@@ -638,6 +660,7 @@ public:
     case ArgumentType::Label:
     case ArgumentType::MemLabel:
     case ArgumentType::MemImmLabel:
+    case ArgumentType::StackSlot:
       return false;
     case ArgumentType::VReg:
     case ArgumentType::MemVReg:
@@ -659,6 +682,7 @@ public:
     case ArgumentType::MemImm:
     case ArgumentType::Label:
     case ArgumentType::MemLabel:
+    case ArgumentType::StackSlot:
     case ArgumentType::MemImmLabel:
       return false;
     case ArgumentType::VReg:
@@ -682,6 +706,7 @@ public:
     case ArgumentType::Label:
     case ArgumentType::MemImm:
     case ArgumentType::MemLabel:
+    case ArgumentType::StackSlot:
       return false;
     case ArgumentType::VReg:
     case ArgumentType::MemVReg:
@@ -722,6 +747,8 @@ public:
     case Type::Int64x2:
     case Type::Int32x8:
     case Type::Int64x4:
+    case Type::Int32x16:
+    case Type::Int64x8:
       return true;
     }
     return ty == Type::Float32 || ty == Type::Float64;

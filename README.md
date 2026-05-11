@@ -112,6 +112,7 @@ The last regression in perfomance was from the removal of the current SLP pass t
 		+ sometimes already done in trivial cases
 	+ replace cond + select with specific cmovXX commands
 		+ missing for floatingpoint
+	+ slpvec rn loads of f32x8 disabled since they might generate i64x8 inputs which we need to legalize then
 	+ 2 allocas without overlapping lifetimes could be merged to use same stack space
 	+ optimize sdiv
 		+ can convert into imul shifts and add (theres some formular for this)

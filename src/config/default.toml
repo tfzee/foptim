@@ -193,6 +193,7 @@ passes = [
 
 [pipeline.mir.default_release_Cleanup]
 passes = [
+  "StackSlotLowering",
   "StackOptim",
   "InstSimplify",
   "InstSimplify",
@@ -226,6 +227,7 @@ passes = [
 [pass.mir.RegisterJoining]
 [pass.mir.RegAlloc]
 [pass.mir.CallingConv_SecondStage]
+[pass.mir.StackSlotLowering]
 [pass.mir.StackOptim]
 
 

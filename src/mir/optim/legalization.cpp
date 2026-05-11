@@ -43,8 +43,10 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
   case Type::Int32x8:
   case Type::Float32x8:
   case Type::Float32:
+  case Type::Int32x16:
     int_version = Type::Int32;
     break;
+  case Type::Int64x8:
   case Type::Int64x2:
   case Type::Float64x2:
   case Type::Int64x4:
@@ -84,6 +86,8 @@ u32 Legalizer::move_fp_const_to_grp(MBB &bb, u32 indx, u8 arg_id, Type ty) {
   case Type::Int16:
   case fmir::Type::Float32x16:
   case fmir::Type::Float64x8:
+  case Type::Int32x16:
+  case Type::Int64x8:
     fmt::println("{}", bb);
     TODO("UNREACH");
   case Type::Int32:

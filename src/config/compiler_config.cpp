@@ -181,6 +181,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name,
       pass = new fmir::CallingConfFirstConf{};
     } else if (name == "CallingConv_SecondStage") {
       pass = new fmir::CallingConfSecondConf{};
+    } else if (name == "StackSlotLowering") {
+      pass = new fmir::StackSlotLoweringConf{};
     } else {
       fmt::println("Dont know any mir pass with the name '{}'", name);
       TODO("Dont know this pass name");

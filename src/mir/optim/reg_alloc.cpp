@@ -1,6 +1,9 @@
 #include "reg_alloc.hpp"
 
+#include <algorithm>
 #include <fmt/base.h>
+#include <limits>
+#include <ranges>
 
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
@@ -20,46 +23,47 @@ void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
 void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
-      case MArgument::ArgumentType::Imm:
-      case MArgument::ArgumentType::Label:
-      case MArgument::ArgumentType::MemLabel:
-      case MArgument::ArgumentType::MemImmLabel:
-      case MArgument::ArgumentType::MemImm:
-        break;
-      case MArgument::ArgumentType::VReg:
-      case MArgument::ArgumentType::MemImmVReg:
-      case MArgument::ArgumentType::MemVReg: {
-        auto reg = instr.args[i].reg;
-        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-          instr.args[i].reg.rty = VReg::RegType::Concrete;
-          instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
-        }
-        break;
+    case MArgument::ArgumentType::StackSlot:
+    case MArgument::ArgumentType::Imm:
+    case MArgument::ArgumentType::Label:
+    case MArgument::ArgumentType::MemLabel:
+    case MArgument::ArgumentType::MemImmLabel:
+    case MArgument::ArgumentType::MemImm:
+      break;
+    case MArgument::ArgumentType::VReg:
+    case MArgument::ArgumentType::MemImmVReg:
+    case MArgument::ArgumentType::MemVReg: {
+      auto reg = instr.args[i].reg;
+      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+        instr.args[i].reg.rty = VReg::RegType::Concrete;
+        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
       }
-      case MArgument::ArgumentType::MemVRegVRegScale:
-      case MArgument::ArgumentType::MemImmVRegVReg:
-      case MArgument::ArgumentType::MemVRegVReg:
-      case MArgument::ArgumentType::MemImmVRegVRegScale: {
-        auto reg = instr.args[i].reg;
-        auto indx = instr.args[i].indx;
-        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-          instr.args[i].reg.rty = VReg::RegType::Concrete;
-          instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
-        }
-        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-          instr.args[i].indx.rty = VReg::RegType::Concrete;
-          instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
-        }
-        break;
+      break;
+    }
+    case MArgument::ArgumentType::MemVRegVRegScale:
+    case MArgument::ArgumentType::MemImmVRegVReg:
+    case MArgument::ArgumentType::MemVRegVReg:
+    case MArgument::ArgumentType::MemImmVRegVRegScale: {
+      auto reg = instr.args[i].reg;
+      auto indx = instr.args[i].indx;
+      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+        instr.args[i].reg.rty = VReg::RegType::Concrete;
+        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
       }
-      case MArgument::ArgumentType::MemImmVRegScale: {
-        auto indx = instr.args[i].indx;
-        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-          instr.args[i].indx.rty = VReg::RegType::Concrete;
-          instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
-        }
-        break;
+      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+        instr.args[i].indx.rty = VReg::RegType::Concrete;
+        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
       }
+      break;
+    }
+    case MArgument::ArgumentType::MemImmVRegScale: {
+      auto indx = instr.args[i].indx;
+      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+        instr.args[i].indx.rty = VReg::RegType::Concrete;
+        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
+      }
+      break;
+    }
     }
   }
 }
@@ -90,9 +94,10 @@ bool reg_is_legal(const VReg &reg, CReg avail_reg) {
 }
 
 constexpr size_t N_REGS_SELECTABLE = 30;
-static_assert((size_t)CReg::N_REGS - 3 == N_REGS_SELECTABLE);
+static_assert(static_cast<size_t>(CReg::N_REGS) - 3 == N_REGS_SELECTABLE);
 
 constexpr void get_reg_order(MFunc &func, CReg *regs) {
+  // TODO: these dont make sense for other CCs
   static constexpr CReg leaf_optimized_regs[N_REGS_SELECTABLE] = {
       CReg::A,    CReg::D,    CReg::C,    CReg::DI,   CReg::SI,   CReg::R8,
       CReg::R9,   CReg::R10,  CReg::R11,  CReg::mm0,  CReg::mm1,  CReg::mm2,
@@ -129,38 +134,128 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
   }
 }
 
-void spill_one(MFunc &func, TVec<VReg> &spillers,
-               const TMap<VReg, TSet<size_t>> &reg_coll) {
-  VReg worst_spiller = spillers[0];
-  u32 worst_amount = 0;
-  for (auto spiller : spillers) {
-    if (reg_coll.at(spiller).size() > worst_amount) {
-      worst_amount = reg_coll.at(spiller).size();
-      worst_spiller = spiller;
-    }
-  }
+// float chaitin_cost(VReg reg, ...) {
+//     float uses = 0;
+//     for (auto &bb : func.bbs) {
+//         float depth_weight = std::pow(10, loop_depth(bb));
+//         for (auto &instr : bb.instrs) {
+//             if (instr.uses_vreg(reg)) uses += depth_weight;
+//         }
+//     }
+//     float degree = lifetimes.at(reg).size();  // number of conflicts
+//     return uses / degree;  // cost per conflict relieved
+// }
 
-  // fmt::println("{}", func);
-  u64 num_uses = 0;
-  // bool gets_written = false;
+float get_spill_cost(MFunc &func, VReg &spil_candidate,
+                     const TMap<VReg, TSet<size_t>> &reg_coll) {
+  // TODO use chaitins heuristic
+  i64 num_coll = reg_coll.at(spil_candidate).size();
+  i64 num_uses = 0;
   for (auto &bb : func.bbs) {
     for (auto &i : bb.instrs) {
-      if (i.uses_vreg(worst_spiller)) {
+      if (i.uses_vreg(spil_candidate)) {
         num_uses++;
       }
     }
   }
+  return num_uses * 100 - num_coll;
+}
 
-  // fmt::println("========================\n{:c}", func);
-  fmt::println("========================\n{}", spillers);
-  fmt::println("{}: {} @ {}", worst_spiller, worst_amount, num_uses);
+void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
+                   const TMap<VReg, TSet<size_t>> &reg_coll) {
+  ASSERT(!spil_candidate.empty());
+  VReg worst_spill_candidate = spil_candidate[0];
+  f64 worst_rating = std::numeric_limits<f64>::max();
+  for (auto spiller : spil_candidate) {
+    f64 rating = get_spill_cost(func, spiller, reg_coll);
+    if (rating <= worst_rating) {
+      worst_spill_candidate = spiller;
+      worst_rating = rating;
+    }
+  }
+  ASSERT_M(!worst_spill_candidate.is_vec_reg(), "spilling for vec reg?");
+
+  TVec<ArgData> args;
+  args.reserve(4);
+  auto size = 8;
+  auto stack_slot_id = func.get_stack_slot(size);
+
+  // find all that are independent and could use the same stack slot
+  //  collect them and then spill them all together
+  TVec<VReg> spill_set{worst_spill_candidate};
+  for (auto spill_candidate : spil_candidate) {
+    auto cc = reg_coll.at(spill_candidate);
+    bool collides = false;
+    for (auto spill_setter : spill_set) {
+      if (cc.contains(reg_to_uid(spill_setter))) {
+        collides = true;
+        break;
+      }
+    }
+    if (!collides) {
+      spill_set.push_back(spill_candidate);
+    }
+  }
+
+  // TODO: grp to vec reg spilling
+  //  bool vec_reg_spill = false;
+  //  VReg target_reg;
+  //  for(auto reg: ){
+
+  // }
+
+  for (auto &bb : func.bbs) {
+    for (size_t i = 0; i < bb.instrs.size(); i++) {
+      auto &instr = bb.instrs[i];
+      for (auto spiller : spill_set) {
+        if (instr.uses_vreg(spiller)) {
+          args.clear();
+          read_args(instr, args);
+          bool read = false;
+          bool written = false;
+          for (auto &arg : args) {
+            if (arg.arg.uses_same_vreg(spiller)) {
+              read = true;
+            }
+          }
+          args.clear();
+          written_args(instr, args);
+          for (auto &arg : args) {
+            if (arg.arg.uses_same_vreg(spiller)) {
+              written = true;
+            }
+          }
+          if (!read && !written) {
+            continue;
+          }
+
+          if (read) {
+            bb.instrs.insert(
+                bb.instrs.begin() + i + 0,
+                MInstr{GBaseSubtype::mov, MArgument{spiller, Type::Int64},
+                       MArgument::stack_slot(stack_slot_id, size)});
+            i++;
+          }
+          if (written) {
+            bb.instrs.insert(bb.instrs.begin() + i + 1,
+                             MInstr{
+                                 GBaseSubtype::mov,
+                                 MArgument::stack_slot(stack_slot_id, size),
+                                 MArgument{spiller, Type::Int64},
+                             });
+            i++;
+          }
+        }
+      }
+    }
+  }
+  // fmt::println("{}", func);
+  fmt::println("========================\n{}", spil_candidate);
+  fmt::println("{}: RAT:{}", worst_spill_candidate, worst_rating);
   fmt::println("{}", func.name);
-  // important is used in test to check for spill errors
-  fmt::println("FAILED SPILL");
-  TODO("spill it ?");
-  ASSERT(false);
-  (void)reg_coll;
-  // auto biggest =
+  fmt::println("SPILLED");
+  // TODO("spill it ?");
+  // ASSERT(false);
 }
 
 void apply_func(MFunc &func) {
@@ -240,7 +335,7 @@ void apply_func(MFunc &func) {
         break;
       }
       // if we didnt find one spill one
-      spill_one(func, spillers, lifetimes);
+      spill_one_set(func, spillers, lifetimes);
     }
   }
 
@@ -250,8 +345,8 @@ void apply_func(MFunc &func) {
     }
   }
 }
-}  // namespace
+} // namespace
 
 void RegAlloc::apply(MFunc &func, const conf::CompConf &) { apply_func(func); }
 
-}  // namespace foptim::fmir
+} // namespace foptim::fmir

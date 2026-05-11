@@ -4,6 +4,7 @@
 #include <fmt/core.h>
 
 #include <algorithm>
+#include <llvm/IR/Value.h>
 
 #include "config/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -933,7 +934,8 @@ public:
   }
 
   static bool match(const TVec<fir::ValueR> &values,
-                    const TVec<SLPVectorizer::SeedBundle> &load_bundles) {
+                    const TVec<SLPVectorizer::SeedBundle> &load_bundles,
+                    const conf::CompConf &conf) {
     for (auto v : values) {
       if (!v.is_instr()) {
         if (SLPVectorizer::debug_print) {
@@ -953,6 +955,21 @@ public:
       }
       return false;
       // }
+    }
+    if (base_v->get_type()->get_bitwidth() <= 16) {
+      if (SLPVectorizer::debug_print) {
+        fmt::println("TODO dont know how to grather i8 and stuff efficiently");
+      }
+      return false;
+    }
+
+    // TODO: would
+    if (values.size() > 8 ||
+        (!conf.target.features.avx512f && values.size() > 4)) {
+      if (SLPVectorizer::debug_print) {
+        fmt::println("TODO impl vec for bigger sizes");
+      }
+      return false;
     }
 
     for (auto i_v : values) {
@@ -1164,7 +1181,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
         return false;
       }
       case fir::InstrType::LoadInstr:
-        if (LoadTreeOp::match(curr, load_bundles)) {
+        if (LoadTreeOp::match(curr, load_bundles, *ctx.config)) {
           auto *result_t = LoadAlloc{}.allocate(1);
           (new (result_t) LoadTreeOp)->init(curr);
           result = result_t;
@@ -1828,7 +1845,7 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
         continue;
       }
 
-      //TODO disable them for now
+      // TODO disable them for now
       if (b.type->get_size() == 1) {
         store_bundles.erase(store_bundles.begin() + bi - 1);
         continue;
@@ -1904,7 +1921,7 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
         overall_width = n_stor * b.type->get_bitwidth();
       }
 
-      //TODO disable them for now
+      // TODO disable them for now
       if (b.type->get_size() == 1) {
         store_bundles.erase(store_bundles.begin() + bi - 1);
         continue;

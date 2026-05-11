@@ -15,48 +15,48 @@ namespace foptim::optim::InstSimp {
 inline void swap_args_icmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::ICmp))
   switch (static_cast<fir::ICmpInstrSubType>(instr->subtype)) {
-    case fir::ICmpInstrSubType::NE:
-    case fir::ICmpInstrSubType::EQ:
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::SLT:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SGT);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::ULT:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::UGT);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::SGT:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SLT);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::UGT:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::ULT);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::UGE:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::ULE);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::ULE:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::UGE);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::SGE:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SLE);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::SLE:
-      instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SGE);
-      swap_args(instr, 0, 1);
-      return;
-    case fir::ICmpInstrSubType::AddOverflow:
-    case fir::ICmpInstrSubType::MulOverflow:
-      // TODO
-      return;
-    case fir::ICmpInstrSubType::INVALID:
-      UNREACH();
+  case fir::ICmpInstrSubType::NE:
+  case fir::ICmpInstrSubType::EQ:
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SLT:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SGT);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::ULT:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::UGT);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SGT:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SLT);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::UGT:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::ULT);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::UGE:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::ULE);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::ULE:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::UGE);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SGE:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SLE);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::SLE:
+    instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SGE);
+    swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::AddOverflow:
+  case fir::ICmpInstrSubType::MulOverflow:
+    // swap_args(instr, 0, 1);
+    return;
+  case fir::ICmpInstrSubType::INVALID:
+    UNREACH();
   }
 }
 
@@ -187,49 +187,49 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     v2 = ((v2 & mask) << rest_width) >> rest_width;
     bool is_true = false;
     switch (static_cast<ICmpInstrSubType>(instr->get_instr_subtype())) {
-      case fir::ICmpInstrSubType::INVALID:
-        UNREACH();
-      case fir::ICmpInstrSubType::SLT:
-        is_true = static_cast<i64>(v1) < static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::ULT:
-        is_true = static_cast<u64>(v1) < static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::NE:
-        is_true = v1 != v2;
-        break;
-      case fir::ICmpInstrSubType::EQ:
-        is_true = v1 == v2;
-        break;
-      case fir::ICmpInstrSubType::SGT:
-        is_true = static_cast<i64>(v1) > static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::UGT:
-        is_true = static_cast<u64>(v1) > static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::UGE:
-        is_true = static_cast<u64>(v1) >= static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::ULE:
-        is_true = static_cast<u64>(v1) <= static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::SGE:
-        is_true = static_cast<i64>(v1) >= static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::SLE:
-        is_true = static_cast<i64>(v1) <= static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::MulOverflow: {
-        i128 output = v1 * v2;
-        i128 mask = ~((static_cast<i128>(1) << bitwidth) - 1);
-        is_true = (output & mask) != 0;
-      } break;
+    case fir::ICmpInstrSubType::INVALID:
+      UNREACH();
+    case fir::ICmpInstrSubType::SLT:
+      is_true = static_cast<i64>(v1) < static_cast<i64>(v2);
+      break;
+    case fir::ICmpInstrSubType::ULT:
+      is_true = static_cast<u64>(v1) < static_cast<u64>(v2);
+      break;
+    case fir::ICmpInstrSubType::NE:
+      is_true = v1 != v2;
+      break;
+    case fir::ICmpInstrSubType::EQ:
+      is_true = v1 == v2;
+      break;
+    case fir::ICmpInstrSubType::SGT:
+      is_true = static_cast<i64>(v1) > static_cast<i64>(v2);
+      break;
+    case fir::ICmpInstrSubType::UGT:
+      is_true = static_cast<u64>(v1) > static_cast<u64>(v2);
+      break;
+    case fir::ICmpInstrSubType::UGE:
+      is_true = static_cast<u64>(v1) >= static_cast<u64>(v2);
+      break;
+    case fir::ICmpInstrSubType::ULE:
+      is_true = static_cast<u64>(v1) <= static_cast<u64>(v2);
+      break;
+    case fir::ICmpInstrSubType::SGE:
+      is_true = static_cast<i64>(v1) >= static_cast<i64>(v2);
+      break;
+    case fir::ICmpInstrSubType::SLE:
+      is_true = static_cast<i64>(v1) <= static_cast<i64>(v2);
+      break;
+    case fir::ICmpInstrSubType::MulOverflow: {
+      i128 output = v1 * v2;
+      i128 mask = ~((static_cast<i128>(1) << bitwidth) - 1);
+      is_true = (output & mask) != 0;
+    } break;
 
-      case fir::ICmpInstrSubType::AddOverflow: {
-        i128 output = v1 + v2;
-        i128 mask = ~((static_cast<i128>(1) << bitwidth) - 1);
-        is_true = (output & mask) != 0;
-      } break;
+    case fir::ICmpInstrSubType::AddOverflow: {
+      i128 output = v1 + v2;
+      i128 mask = ~((static_cast<i128>(1) << bitwidth) - 1);
+      is_true = (output & mask) != 0;
+    } break;
     }
     auto new_const_value = ctx->get_constant_int(static_cast<u64>(is_true), 1);
     push_all_uses(worklist, instr);
@@ -315,7 +315,8 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     if ((sub_type == ICmpInstrSubType::SLT) && instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
       if (arg0->is(InstrType::Intrinsic) &&
-          arg0->subtype == static_cast<u32>(IntrinsicSubType::Abs) && c_val == 1) {
+          arg0->subtype == static_cast<u32>(IntrinsicSubType::Abs) &&
+          c_val == 1) {
         // abs(x) < 1 => x == 0
         auto x = arg0->args[0];
         Builder bb{instr};
@@ -353,7 +354,8 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
       if (arg0->is(InstrType::BinaryInstr) &&
-          arg0->subtype == static_cast<u32>(BinaryInstrSubType::IntSub) && c_val == 0) {
+          arg0->subtype == static_cast<u32>(BinaryInstrSubType::IntSub) &&
+          c_val == 0) {
         fir::Builder b{instr};
         auto new_cmp = b.build_int_cmp(arg0->args[0], arg0->args[1], sub_type);
         push_all_uses(worklist, instr);
@@ -447,16 +449,18 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     // since we dont have a data dependency on the xor
     if (a1i->is(BinaryInstrSubType::IntAdd) &&
         (a1i->args[1] == instr->args[1] || a1i->args[0] == instr->args[1]) &&
-        (instr->get_instr_subtype() == static_cast<u32>(ICmpInstrSubType::UGE) ||
-         instr->get_instr_subtype() == static_cast<u32>(ICmpInstrSubType::ULT))) {
+        (instr->get_instr_subtype() ==
+             static_cast<u32>(ICmpInstrSubType::UGE) ||
+         instr->get_instr_subtype() ==
+             static_cast<u32>(ICmpInstrSubType::ULT))) {
       fir::Builder buh{instr};
       auto a = a1i->args[1] == instr->args[1] ? a1i->args[0] : a1i->args[1];
       auto b = instr->args[1];
-      auto xord =
-          buh.build_binary_op(b,
-                              fir::ValueR{ctx->get_constant_value(
-                                  static_cast<i128>(-1L), instr->args[1].get_type())},
-                              BinaryInstrSubType::Xor);
+      auto xord = buh.build_binary_op(
+          b,
+          fir::ValueR{ctx->get_constant_value(static_cast<i128>(-1L),
+                                              instr->args[1].get_type())},
+          BinaryInstrSubType::Xor);
       auto res = buh.build_int_cmp(
           a, xord,
           instr->get_instr_subtype() == static_cast<u32>(ICmpInstrSubType::UGE)
@@ -627,4 +631,4 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   return false;
 }
 
-}  // namespace foptim::optim::InstSimp
+} // namespace foptim::optim::InstSimp
