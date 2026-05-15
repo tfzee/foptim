@@ -148,6 +148,8 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
       static_cast<i64>(instr.args[2].imm) >
           static_cast<i64>(std::numeric_limits<i16>::max());
 
+  // fmt::println("{} -> {};{};{};{}", instr, big_unsigned_const, big_signed_const,
+  //              big_unsigned_const2, big_signed_const2);
   if (instr.bop == GOpcode::GJmp) {
     switch (static_cast<GJumpSubtype>(instr.sop)) {
     case GJumpSubtype::icmp_eq:
@@ -157,6 +159,7 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
         return true;
       }
       break;
+    case GJumpSubtype::icmp_sgt:
     case GJumpSubtype::icmp_slt:
       if (big_signed_const2) {
         move_arg_to_reg(bb, indx, 2, instr.args[1].ty);

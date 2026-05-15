@@ -255,6 +255,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     case X86Subtype::vbroadcast:
     case X86Subtype::popcnt:
     case X86Subtype::lzcnt:
+    case X86Subtype::tzcnt:
     case X86Subtype::vpermil:
     case X86Subtype::vmovshdup:
     case X86Subtype::ffmadd132:
@@ -583,6 +584,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       return;
     case X86Subtype::lea:
     case X86Subtype::popcnt:
+    case X86Subtype::tzcnt:
     case X86Subtype::lzcnt:
     case X86Subtype::HAdd:
     case X86Subtype::sqrt:

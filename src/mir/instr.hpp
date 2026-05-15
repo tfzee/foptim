@@ -189,6 +189,7 @@ enum class X86Subtype : u32 {
   vblendv,
   vcmp,
   lzcnt,
+  tzcnt,
   popcnt,
   ffmadd132,
   ffmadd213,
@@ -596,6 +597,9 @@ public:
   }
   [[nodiscard]] constexpr bool isImm() const {
     return type == ArgumentType::Imm;
+  }
+  [[nodiscard]] constexpr bool isStackSlot() const {
+    return type == ArgumentType::StackSlot;
   }
   [[nodiscard]] constexpr bool isLabel() const {
     return type == ArgumentType::Label;

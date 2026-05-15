@@ -10,97 +10,98 @@ namespace foptim::fmir {
 namespace {
 bool is_applicable(GOpcode op, u32 sop) {
   switch (op) {
-    case GOpcode::GJmp:
-      switch (static_cast<GJumpSubtype>(sop)) {
-        case GJumpSubtype::icmp_slt:
-        case GJumpSubtype::icmp_eq:
-        case GJumpSubtype::icmp_ult:
-        case GJumpSubtype::icmp_ne:
-        case GJumpSubtype::icmp_sgt:
-        case GJumpSubtype::icmp_ugt:
-        case GJumpSubtype::icmp_uge:
-        case GJumpSubtype::icmp_ule:
-        case GJumpSubtype::icmp_sge:
-        case GJumpSubtype::icmp_sle:
-        case GJumpSubtype::fcmp_oeq:
-        case GJumpSubtype::fcmp_ogt:
-        case GJumpSubtype::fcmp_oge:
-        case GJumpSubtype::fcmp_olt:
-        case GJumpSubtype::fcmp_ole:
-        case GJumpSubtype::fcmp_one:
-        case GJumpSubtype::fcmp_ord:
-        case GJumpSubtype::fcmp_uno:
-        case GJumpSubtype::fcmp_ueq:
-        case GJumpSubtype::fcmp_ugt:
-        case GJumpSubtype::fcmp_uge:
-        case GJumpSubtype::fcmp_ult:
-        case GJumpSubtype::fcmp_ule:
-        case GJumpSubtype::fcmp_une:
-          return true;
-        default:
-          return false;
-      }
-    case GOpcode::GConv:
-    case GOpcode::GArith:
-    case GOpcode::GCMov:
-    case GOpcode::GVec:
+  case GOpcode::GJmp:
+    switch (static_cast<GJumpSubtype>(sop)) {
+    case GJumpSubtype::icmp_slt:
+    case GJumpSubtype::icmp_eq:
+    case GJumpSubtype::icmp_ult:
+    case GJumpSubtype::icmp_ne:
+    case GJumpSubtype::icmp_sgt:
+    case GJumpSubtype::icmp_ugt:
+    case GJumpSubtype::icmp_uge:
+    case GJumpSubtype::icmp_ule:
+    case GJumpSubtype::icmp_sge:
+    case GJumpSubtype::icmp_sle:
+    case GJumpSubtype::fcmp_oeq:
+    case GJumpSubtype::fcmp_ogt:
+    case GJumpSubtype::fcmp_oge:
+    case GJumpSubtype::fcmp_olt:
+    case GJumpSubtype::fcmp_ole:
+    case GJumpSubtype::fcmp_one:
+    case GJumpSubtype::fcmp_ord:
+    case GJumpSubtype::fcmp_uno:
+    case GJumpSubtype::fcmp_ueq:
+    case GJumpSubtype::fcmp_ugt:
+    case GJumpSubtype::fcmp_uge:
+    case GJumpSubtype::fcmp_ult:
+    case GJumpSubtype::fcmp_ule:
+    case GJumpSubtype::fcmp_une:
       return true;
-    case GOpcode::GBase:
-      switch (static_cast<GBaseSubtype>(sop)) {
-        case GBaseSubtype::INVALID:
-        case GBaseSubtype::mov:
-        case GBaseSubtype::stack_arg_load:
-          return true;
-        case GBaseSubtype::push:
-        case GBaseSubtype::pop:
-        case GBaseSubtype::call:
-        case GBaseSubtype::ret:
-        case GBaseSubtype::arg_setup:
-        case GBaseSubtype::ret_setup:
-        case GBaseSubtype::invoke:
-          return false;
-      }
-    case GOpcode::X86:
-      switch (static_cast<X86Subtype>(sop)) {
-        case X86Subtype::LockXAdd2:
-          // TOOD: if we knew it was reg-reg args then we could set it to true
-          return false;
-        case X86Subtype::vblendv:
-        case X86Subtype::vcmp:
-        case X86Subtype::INVALID:
-        case X86Subtype::vextractf64x2:
-        case X86Subtype::vextractf64x4:
-        case X86Subtype::vextract128:
-        case X86Subtype::vinsert128:
-        case X86Subtype::vinsertps:
-        case X86Subtype::sqrt:
-        case X86Subtype::vpermil:
-        case X86Subtype::movlhps:
-        case X86Subtype::movhlps:
-        case X86Subtype::vmovshdup:
-        case X86Subtype::vpextr:
-        case X86Subtype::HAdd:
-        case X86Subtype::lea:
-        case X86Subtype::vpshuf:
-        case X86Subtype::punpckl:
-        case X86Subtype::vbroadcast:
-        case X86Subtype::lzcnt:
-        case X86Subtype::popcnt:
-        case X86Subtype::ffmadd132:
-        case X86Subtype::ffmadd213:
-        case X86Subtype::ffmadd231:
-        case X86Subtype::vgatherq:
-        case X86Subtype::vpcmpeq:
-        case X86Subtype::vround:
-        case X86Subtype::psrl:
-        case X86Subtype::psll:
-        case X86Subtype::pmuludq:
-        case X86Subtype::padd:
-          return true;
-      }
+    default:
+      return false;
+    }
+  case GOpcode::GConv:
+  case GOpcode::GArith:
+  case GOpcode::GCMov:
+  case GOpcode::GVec:
+    return true;
+  case GOpcode::GBase:
+    switch (static_cast<GBaseSubtype>(sop)) {
+    case GBaseSubtype::INVALID:
+    case GBaseSubtype::mov:
+    case GBaseSubtype::stack_arg_load:
+      return true;
+    case GBaseSubtype::push:
+    case GBaseSubtype::pop:
+    case GBaseSubtype::call:
+    case GBaseSubtype::ret:
+    case GBaseSubtype::arg_setup:
+    case GBaseSubtype::ret_setup:
+    case GBaseSubtype::invoke:
+      return false;
+    }
+  case GOpcode::X86:
+    switch (static_cast<X86Subtype>(sop)) {
+    case X86Subtype::LockXAdd2:
+      // TOOD: if we knew it was reg-reg args then we could set it to true
+      return false;
+    case X86Subtype::vblendv:
+    case X86Subtype::vcmp:
+    case X86Subtype::INVALID:
+    case X86Subtype::vextractf64x2:
+    case X86Subtype::vextractf64x4:
+    case X86Subtype::vextract128:
+    case X86Subtype::vinsert128:
+    case X86Subtype::vinsertps:
+    case X86Subtype::sqrt:
+    case X86Subtype::vpermil:
+    case X86Subtype::movlhps:
+    case X86Subtype::movhlps:
+    case X86Subtype::vmovshdup:
+    case X86Subtype::vpextr:
+    case X86Subtype::HAdd:
+    case X86Subtype::lea:
+    case X86Subtype::vpshuf:
+    case X86Subtype::punpckl:
+    case X86Subtype::vbroadcast:
+    case X86Subtype::tzcnt:
+    case X86Subtype::lzcnt:
+    case X86Subtype::popcnt:
+    case X86Subtype::ffmadd132:
+    case X86Subtype::ffmadd213:
+    case X86Subtype::ffmadd231:
+    case X86Subtype::vgatherq:
+    case X86Subtype::vpcmpeq:
+    case X86Subtype::vround:
+    case X86Subtype::psrl:
+    case X86Subtype::psll:
+    case X86Subtype::pmuludq:
+    case X86Subtype::padd:
+      return true;
+    }
   }
 }
-}  // namespace
+} // namespace
 
 void DeadCodeElim::apply_impl(MFunc &func) {
   CFG cfg{func};
@@ -155,5 +156,4 @@ void DeadCodeElim::apply_impl(MFunc &func) {
   }
 }
 
-
-}  // namespace foptim::fmir
+} // namespace foptim::fmir

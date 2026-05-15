@@ -174,6 +174,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       ReturnString(X86Subtype, vpshuf);
       ReturnString(X86Subtype, punpckl);
       ReturnString(X86Subtype, vbroadcast);
+      ReturnString(X86Subtype, tzcnt);
       ReturnString(X86Subtype, lzcnt);
       ReturnString(X86Subtype, popcnt);
       ReturnString(X86Subtype, vpextr);
@@ -350,6 +351,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
     case X86Subtype::punpckl:
     case X86Subtype::vbroadcast:
     case X86Subtype::popcnt:
+    case X86Subtype::tzcnt:
     case X86Subtype::lzcnt:
     case X86Subtype::vmovshdup:
     case X86Subtype::vround:
@@ -615,6 +617,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
       return;
     case X86Subtype::lea:
     case X86Subtype::popcnt:
+    case X86Subtype::tzcnt:
     case X86Subtype::lzcnt:
     case X86Subtype::vmovshdup:
     case X86Subtype::sqrt:

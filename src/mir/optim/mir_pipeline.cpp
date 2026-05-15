@@ -111,6 +111,7 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
       // foptim::utils::TempAlloc<void *>::reset();
       // foptim::fmir::BBReordering{}.apply(func, config);
       // foptim::utils::TempAlloc<void *>::reset();
+      // fmt::println("{}", func);
       ASSERT(foptim::fmir::verify(func));
     });
   }

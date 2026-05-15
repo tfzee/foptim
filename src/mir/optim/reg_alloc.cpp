@@ -1,6 +1,5 @@
 #include "reg_alloc.hpp"
 
-#include <algorithm>
 #include <fmt/base.h>
 #include <limits>
 #include <ranges>
@@ -162,11 +161,16 @@ float get_spill_cost(MFunc &func, VReg &spil_candidate,
 }
 
 void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
-                   const TMap<VReg, TSet<size_t>> &reg_coll) {
+                   const TMap<VReg, TSet<size_t>> &reg_coll,
+                   TSet<VReg> &already_spilled) {
   ASSERT(!spil_candidate.empty());
   VReg worst_spill_candidate = spil_candidate[0];
   f64 worst_rating = std::numeric_limits<f64>::max();
   for (auto spiller : spil_candidate) {
+    // should just weight it incredible negatively instead of skipping
+    if (already_spilled.contains(spiller)) {
+      continue;
+    }
     f64 rating = get_spill_cost(func, spiller, reg_coll);
     if (rating <= worst_rating) {
       worst_spill_candidate = spiller;
@@ -184,6 +188,9 @@ void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
   //  collect them and then spill them all together
   TVec<VReg> spill_set{worst_spill_candidate};
   for (auto spill_candidate : spil_candidate) {
+    if (already_spilled.contains(spill_candidate)) {
+      continue;
+    }
     auto cc = reg_coll.at(spill_candidate);
     bool collides = false;
     for (auto spill_setter : spill_set) {
@@ -201,12 +208,18 @@ void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
   //  bool vec_reg_spill = false;
   //  VReg target_reg;
   //  for(auto reg: ){
-
   // }
+  for (auto spill : spill_set) {
+    already_spilled.insert(spill);
+  }
 
   for (auto &bb : func.bbs) {
     for (size_t i = 0; i < bb.instrs.size(); i++) {
       auto &instr = bb.instrs[i];
+      if ((i < (bb.instrs.size() - 1) &&
+           bb.instrs[i + 1].is(GBaseSubtype::ret_setup))) {
+        continue;
+      }
       for (auto spiller : spill_set) {
         if (instr.uses_vreg(spiller)) {
           args.clear();
@@ -229,9 +242,16 @@ void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
             continue;
           }
 
+          // TODO: we cannot insert within a arg_setup call ret_setup chunk so
+          // gotta walk backwards/forwards from it to handle it correctly
           if (read) {
+            auto insert_loc = i;
+            while (insert_loc > 0 &&
+                   bb.instrs[insert_loc - 1].is(GBaseSubtype::arg_setup)) {
+              insert_loc--;
+            }
             bb.instrs.insert(
-                bb.instrs.begin() + i + 0,
+                bb.instrs.begin() + insert_loc + 0,
                 MInstr{GBaseSubtype::mov, MArgument{spiller, Type::Int64},
                        MArgument::stack_slot(stack_slot_id, size)});
             i++;
@@ -249,13 +269,14 @@ void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
       }
     }
   }
-  // fmt::println("{}", func);
+  fmt::println("{}", func);
   fmt::println("========================\n{}", spil_candidate);
-  fmt::println("{}: RAT:{}", worst_spill_candidate, worst_rating);
+  fmt::println("{}: RAT:{} SpillSet:{}", worst_spill_candidate, worst_rating,
+               spill_set.size());
   fmt::println("{}", func.name);
-  fmt::println("SPILLED");
+  // fmt::println("SPILLED");
   // TODO("spill it ?");
-  // ASSERT(false);
+  // // ASSERT(false);
 }
 
 void apply_func(MFunc &func) {
@@ -273,6 +294,8 @@ void apply_func(MFunc &func) {
   //           [](const auto &a, const auto &b) {
   //             return a.second->size() < b.second->size();
   //           });
+  u32 spill_attempts = 0;
+  TSet<VReg> already_spilled;
   get_reg_order(func, regs);
 
   {
@@ -281,6 +304,7 @@ void apply_func(MFunc &func) {
     while (true) {
       reg_mapping.clear();
       lifeness.clear();
+      already_spilled.clear();
       spillers.clear();
       const auto lifetimes = reg_coll(func);
 
@@ -335,7 +359,12 @@ void apply_func(MFunc &func) {
         break;
       }
       // if we didnt find one spill one
-      spill_one_set(func, spillers, lifetimes);
+      spill_one_set(func, spillers, lifetimes, already_spilled);
+      spill_attempts += 1;
+      if (spill_attempts > 64) {
+        fmt::println("Failed to spill after 64 attempts");
+        TODO("spill it ?");
+      }
     }
   }
 
