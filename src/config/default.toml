@@ -145,6 +145,7 @@ reductions = true
 [pass.fir.MergeAlloca]
 [pass.fir.LegalizeVecs]
 [pass.fir.PrintFunc]
+name_matching = ""
 [pass.fir.VerifyFunc]
 
 

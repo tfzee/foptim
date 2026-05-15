@@ -1,12 +1,21 @@
 #pragma once
+#include "config/compiler_config.hpp"
 #include "ir/function.hpp"
 #include "optim/function_pass.hpp"
-#include "config/compiler_config.hpp"
 
 namespace foptim::optim {
 class PrintFunc final : public FunctionPass {
- public:
+public:
+  struct Config {
+    FString name_match;
+  };
+  Config config;
+
   void apply(fir::Context &ctx, fir::Function &func) override {
+    if (!config.name_match.empty() &&
+        !func.getName().contains(config.name_match)) {
+      return;
+    }
     if (ctx.config->debug.print_color) {
       fmt::println("{:cd}", func);
     } else {
@@ -14,4 +23,4 @@ class PrintFunc final : public FunctionPass {
     }
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

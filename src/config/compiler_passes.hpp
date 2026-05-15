@@ -57,7 +57,16 @@ concept has_construct_function_pass_func = requires {
 };
 
 template <class T> struct ModulePassConf : public PassConfig {
-  virtual std::string_view get_name() const override final { return T::Name; }
+  virtual PassConfig *clone() const override final {
+    return new T(static_cast<const T &>(*this));
+  }
+  virtual std::string_view get_name() const override final {
+    if (override_name.empty()) {
+      return T::BaseName;
+    } else {
+      return override_name;
+    }
+  }
   virtual PassType pass_type() const override final {
     return PassType::FIR_Module;
   }
@@ -80,7 +89,16 @@ template <class T> struct ModulePassConf : public PassConfig {
 };
 
 template <class T> struct FunctionPassConf : public PassConfig {
-  virtual std::string_view get_name() const override final { return T::Name; }
+  virtual PassConfig *clone() const override final {
+    return new T(static_cast<const T &>(*this));
+  }
+  virtual std::string_view get_name() const override final {
+    if (override_name.empty()) {
+      return T::BaseName;
+    } else {
+      return override_name;
+    }
+  }
   virtual PassType pass_type() const override final {
     return PassType::FIR_Function;
   }
@@ -102,160 +120,171 @@ template <class T> struct FunctionPassConf : public PassConfig {
   };
 };
 
-struct PrintFuncConf : public FunctionPassConf<PrintFuncConf> {
-  static constexpr const char *Name = "PrintFunc";
+struct PrintFuncConf : public FunctionPassConf<PrintFuncConf>,
+                       optim::PrintFunc::Config {
+  static constexpr const char *BaseName = "PrintFunc";
   using Pass = optim::PrintFunc;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  FString name_match;
+  bool pass_parse(toml::table &tbl) {
+    auto view = tbl["name_matching"].value_or<std::string_view>("");
+    if (!view.empty()) {
+      name_match = view;
+    }
+    return true;
+  }
+
+  void construct_function_pass(Pass &p) {
+    p.config = *static_cast<Pass::Config *>(this);
+  };
 };
 struct VerifyFuncConf : public FunctionPassConf<VerifyFuncConf> {
-  static constexpr const char *Name = "VerifyFunc";
+  static constexpr const char *BaseName = "VerifyFunc";
   using Pass = optim::VerifyFunc;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct DCEConf : public FunctionPassConf<DCEConf> {
-  static constexpr const char *Name = "DCE";
+  static constexpr const char *BaseName = "DCE";
   using Pass = optim::DCE;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LegalizeStructsConf : public FunctionPassConf<LegalizeStructsConf> {
-  static constexpr const char *Name = "LegalizeStructs";
+  static constexpr const char *BaseName = "LegalizeStructs";
   using Pass = optim::LegalizeStructs;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LLVMIntrinsicLoweringConf
     : public FunctionPassConf<LLVMIntrinsicLoweringConf> {
-  static constexpr const char *Name = "LLVMIntrinsicLowering";
+  static constexpr const char *BaseName = "LLVMIntrinsicLowering";
   using Pass = optim::LLVMInstrinsicLowering;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct SORAConf : public FunctionPassConf<SORAConf> {
-  static constexpr const char *Name = "SORA";
+  static constexpr const char *BaseName = "SORA";
   using Pass = optim::SORA;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct Mem2RegConf : public FunctionPassConf<Mem2RegConf> {
-  static constexpr const char *Name = "Mem2Reg";
+  static constexpr const char *BaseName = "Mem2Reg";
   using Pass = optim::Mem2Reg;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct DoubleLoadElimConf : public FunctionPassConf<DoubleLoadElimConf> {
-  static constexpr const char *Name = "DoubleLoadElim";
+  static constexpr const char *BaseName = "DoubleLoadElim";
   using Pass = optim::DoubleLoadElim;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct IntrinSimplifyConf : public FunctionPassConf<IntrinSimplifyConf> {
-  static constexpr const char *Name = "IntrinSimplify";
+  static constexpr const char *BaseName = "IntrinSimplify";
   using Pass = optim::IntrinSimplify;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct InstSimplifyConf : public FunctionPassConf<InstSimplifyConf> {
-  static constexpr const char *Name = "InstSimplify";
+  static constexpr const char *BaseName = "InstSimplify";
   using Pass = optim::InstSimplify;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct SimplifyCFGConf : public FunctionPassConf<SimplifyCFGConf> {
-  static constexpr const char *Name = "SimplifyCFG";
+  static constexpr const char *BaseName = "SimplifyCFG";
   using Pass = optim::SimplifyCFG;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LVNConf : public FunctionPassConf<LVNConf> {
-  static constexpr const char *Name = "LVN";
+  static constexpr const char *BaseName = "LVN";
   using Pass = optim::LVN;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct CmpKnownValPropConf : public FunctionPassConf<CmpKnownValPropConf> {
-  static constexpr const char *Name = "CmpKnownValProp";
+  static constexpr const char *BaseName = "CmpKnownValProp";
   using Pass = optim::CmpKnownValProp;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct TailRecElimConf : public FunctionPassConf<TailRecElimConf> {
-  static constexpr const char *Name = "TailRecElim";
+  static constexpr const char *BaseName = "TailRecElim";
   using Pass = optim::TailRecElim;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LICMConf : public FunctionPassConf<LICMConf> {
-  static constexpr const char *Name = "LICM";
+  static constexpr const char *BaseName = "LICM";
   using Pass = optim::LICM;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LoopRotateConf : public FunctionPassConf<LoopRotateConf> {
-  static constexpr const char *Name = "LoopRotate";
+  static constexpr const char *BaseName = "LoopRotate";
   using Pass = optim::LoopRotate;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LoopSimplifyConf : public FunctionPassConf<LoopSimplifyConf> {
-  static constexpr const char *Name = "LoopSimplify";
+  static constexpr const char *BaseName = "LoopSimplify";
   using Pass = optim::LoopSimplify;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct SCCPConf : public FunctionPassConf<SCCPConf> {
-  static constexpr const char *Name = "SCCP";
+  static constexpr const char *BaseName = "SCCP";
   using Pass = optim::SCCP;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct StackKnownBitsConf : public FunctionPassConf<StackKnownBitsConf> {
-  static constexpr const char *Name = "StackKnownBits";
+  static constexpr const char *BaseName = "StackKnownBits";
   using Pass = optim::StackKnownBits;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct ConstLoopEvalConf : public FunctionPassConf<ConstLoopEvalConf> {
-  static constexpr const char *Name = "ConstLoopEval";
+  static constexpr const char *BaseName = "ConstLoopEval";
   using Pass = optim::ConstLoopEval;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf>,
                            optim::SLPVectorizer::Config {
-  static constexpr const char *Name = "SLPVectorizer";
+  static constexpr const char *BaseName = "SLPVectorizer";
   using Pass = optim::SLPVectorizer;
   bool pass_parse(toml::table &tbl) {
     reductions = tbl["reductions"].value_or(reductions);
     return true;
   }
   void construct_function_pass(Pass &p) {
-    p.config = static_cast<Pass::Config>(*this);
+    p.config = *static_cast<Pass::Config *>(this);
   };
 };
 struct MergeAllocaConf : public FunctionPassConf<MergeAllocaConf> {
-  static constexpr const char *Name = "MergeAlloca";
+  static constexpr const char *BaseName = "MergeAlloca";
   using Pass = optim::MergeAllocaPass;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LegalizeVecsConf : public FunctionPassConf<LegalizeVecsConf> {
-  static constexpr const char *Name = "LegalizeVecs";
+  static constexpr const char *BaseName = "LegalizeVecs";
   using Pass = optim::LegalizeVecs;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LoopUnswitchConf : public FunctionPassConf<LoopUnswitchConf> {
-  static constexpr const char *Name = "LoopUnswitch";
+  static constexpr const char *BaseName = "LoopUnswitch";
   using Pass = optim::LoopUnswitch;
   bool pass_parse(toml::table &) { return true; }
   void construct_function_pass(Pass &) {};
 };
 struct LoopUnrollConf : public FunctionPassConf<LoopUnrollConf>,
                         optim::LoopUnroll::Config {
-  static constexpr const char *Name = "LoopUnroll";
+  static constexpr const char *BaseName = "LoopUnroll";
   using Pass = optim::LoopUnroll;
 
   bool pass_parse(toml::table &tbl) {
@@ -271,7 +300,7 @@ struct LoopUnrollConf : public FunctionPassConf<LoopUnrollConf>,
 // #########################################################################################
 
 struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
-  static constexpr const char *Name = "Inline";
+  static constexpr const char *BaseName = "Inline";
   using Pass = optim::Inline<>;
 
   bool pass_parse(toml::table &tbl) {
@@ -285,43 +314,43 @@ struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
 };
 
 struct FuncPropAnnotatorConf : public ModulePassConf<FuncPropAnnotatorConf> {
-  static constexpr const char *Name = "FuncPropAnnotator";
+  static constexpr const char *BaseName = "FuncPropAnnotator";
   using Pass = optim::FuncPropAnnotator;
   bool pass_parse(toml::table &) { return true; }
   void construct_module_pass(Pass &) {};
 };
 struct GlobalPromotionConf : public ModulePassConf<GlobalPromotionConf> {
-  static constexpr const char *Name = "GlobalPromotion";
+  static constexpr const char *BaseName = "GlobalPromotion";
   using Pass = optim::GlobalPromotion;
   bool pass_parse(toml::table &) { return true; }
   void construct_module_pass(Pass &) {};
 };
 struct ArgPromotionConf : public ModulePassConf<ArgPromotionConf> {
-  static constexpr const char *Name = "ArgPromotion";
+  static constexpr const char *BaseName = "ArgPromotion";
   using Pass = optim::ArgPromotion;
   bool pass_parse(toml::table &) { return true; }
   void construct_module_pass(Pass &) {};
 };
 struct GDCEConf : public ModulePassConf<GDCEConf> {
-  static constexpr const char *Name = "GDCE";
+  static constexpr const char *BaseName = "GDCE";
   using Pass = optim::GDCE;
   bool pass_parse(toml::table &) { return true; }
   void construct_module_pass(Pass &) {};
 };
 struct IPCPConf : public ModulePassConf<IPCPConf> {
-  static constexpr const char *Name = "IPCP";
+  static constexpr const char *BaseName = "IPCP";
   using Pass = optim::IPCP;
   bool pass_parse(toml::table &) { return true; }
   void construct_module_pass(Pass &) {};
 };
 struct FunctionDedupSameConf : public ModulePassConf<FunctionDedupSameConf> {
-  static constexpr const char *Name = "FunctionDedupSame";
+  static constexpr const char *BaseName = "FunctionDedupSame";
   using Pass = optim::FunctionDeDup<true>;
   bool pass_parse(toml::table &) { return true; }
   void construct_module_pass(Pass &) {};
 };
 struct FunctionDedupDiffConf : public ModulePassConf<FunctionDedupDiffConf> {
-  static constexpr const char *Name = "FunctionDedupDiff";
+  static constexpr const char *BaseName = "FunctionDedupDiff";
   using Pass = optim::FunctionDeDup<false>;
   bool pass_parse(toml::table &) { return true; }
   void construct_module_pass(Pass &) {};

@@ -25,6 +25,9 @@ concept has_construct_function_pass_func = requires {
 };
 
 template <class T> struct FunctionPassConf : public PassConfig {
+  virtual PassConfig *clone() const override final {
+    return new T(static_cast<const T &>(*this));
+  }
   virtual std::string_view get_name() const override final { return T::Name; }
   virtual PassType pass_type() const override final {
     return PassType::MIR_Func;

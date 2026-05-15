@@ -40,9 +40,12 @@ struct PassConfig {
     FIR_Module,
     MIR_Func,
   };
-  virtual std::string_view get_name() const { TODO("IMPL"); };
-  virtual PassType pass_type() const { TODO("IMPL"); };
-  virtual bool _pass_parse(void *) { TODO("IMPL"); };
+
+  FString override_name;
+  virtual PassConfig *clone() const = 0;
+  virtual std::string_view get_name() const = 0;
+  virtual PassType pass_type() const = 0;
+  virtual bool _pass_parse(void *) = 0;
   virtual optim::ModulePass *_construct_module_pass() {
     TODO("INVALID TYPE OF PASS");
     ;
@@ -106,11 +109,6 @@ struct Debug {
 };
 
 struct Remarks {};
-
-struct BasePassesData {
-  const char *name;
-  PassConfig config;
-};
 
 struct CompConf {
   Target target;

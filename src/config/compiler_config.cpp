@@ -66,15 +66,18 @@ bool optimize_parse(Optimize &optim, CompConf &conf,
   return true;
 }
 
-struct PassesArray {
-  const char *name;
-  PassConfig config;
-};
-
 template <IRType Ty>
-std::optional<PassConfig *> setup_pass(std::string_view name,
-                                       toml::table *cnf) {
+std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
+                                       CompConf &conf) {
   PassConfig *pass = nullptr;
+  if (cnf["extends"].is_value()) {
+    auto r = cnf["extends"].value_or<std::string_view>("");
+    PassRef parent = conf.find_pass<Ty>(r);
+    PassConfig *new_pass = (*parent.get_raw_ptr())->clone();
+    new_pass->override_name = name;
+    new_pass->_pass_parse(&cnf);
+    return {new_pass};
+  }
   if constexpr (Ty == IRType::FIR) {
     // TODO: cleanup of these
     // TODO: really shouldnt allocate here
@@ -189,10 +192,11 @@ std::optional<PassConfig *> setup_pass(std::string_view name,
     }
   }
   ASSERT(pass != nullptr);
-  pass->_pass_parse(cnf);
+  pass->_pass_parse(&cnf);
   return pass;
 }
 
+// TODO out of order parsing might be an issue here like it was with pipelines
 template <IRType Ty> bool passes_parse(CompConf &conf, toml::table &tbl) {
   auto &target_arr = Ty == IRType::FIR ? conf.fir_passes : conf.mir_passes;
   for (auto &&[name, data] : tbl) {
@@ -206,7 +210,7 @@ template <IRType Ty> bool passes_parse(CompConf &conf, toml::table &tbl) {
         }
       }
     }
-    auto p = setup_pass<Ty>(name.str(), data.as_table());
+    auto p = setup_pass<Ty>(name.str(), *data.as_table(), conf);
     if (!p) {
       return false;
     }
