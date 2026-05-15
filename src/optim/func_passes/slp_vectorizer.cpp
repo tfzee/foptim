@@ -660,6 +660,7 @@ public:
       return false;
     case fir::IntrinsicSubType::PopCnt:
     case fir::IntrinsicSubType::CTLZ:
+    case fir::IntrinsicSubType::CTTZ:
     case fir::IntrinsicSubType::FMin:
     case fir::IntrinsicSubType::FMax:
     case fir::IntrinsicSubType::UMin:

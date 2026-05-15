@@ -504,6 +504,14 @@ public:
     instr.destroy();
   }
 
+  void handle_cttz(fir::Instr instr, fir::Function & /*funcy*/,
+                   fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = bb.build_cttz(instr->args[1], instr->args[2]);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
   void handle_va(fir::Instr instr, fir::Function & /*funcy*/,
                  fir::FunctionR /*callee*/, bool is_start) {
     fir::Builder bb{instr};
@@ -678,6 +686,8 @@ public:
           handle_memmove(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.ctlz")) {
           handle_ctlz(instr, func, callee);
+        } else if (callee.func->name.starts_with("llvm.cttz")) {
+          handle_cttz(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.is.constant")) {
           handle_is_constant(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.minnum")) {

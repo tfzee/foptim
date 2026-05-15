@@ -24,7 +24,7 @@ static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS);
 static KnownBits abs_known_bits(const KnownBits &input);
 
 class KnownBits final : public AttributeAnalysis {
- public:
+public:
   KnownBits() = default;
   ~KnownBits() override = default;
 
@@ -68,8 +68,8 @@ class KnownBits final : public AttributeAnalysis {
       if ((known_arg0_bits == nullptr) || (known_arg1_bits == nullptr)) {
         return;
       }
-      auto bitwidth =  // instr->get_type()->is_int()
-                       //  ? instr->get_type()->as_int() :
+      auto bitwidth = // instr->get_type()->is_int()
+                      //  ? instr->get_type()->as_int() :
           instr->get_type()->get_bitwidth();
       {
         auto biggest_val =
@@ -146,162 +146,176 @@ class KnownBits final : public AttributeAnalysis {
       new_known_zero = (~static_cast<u64>(0)) - 1;
     } else if (instr->is(fir::InstrType::Intrinsic)) {
       switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
-        case fir::IntrinsicSubType::IsConstant: {
-          const auto *known_arg_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          const auto known_bits =
-              known_arg_bits->known_one | known_arg_bits->known_zero;
-          const bool all_known = (known_bits & (known_bits + 1)) == 0;
-          new_known_one = all_known ? 1 : 0;
-          // new_known_zero = all_known ? 0 : 0;
-          new_known_zero = 0;
-          break;
+      case fir::IntrinsicSubType::IsConstant: {
+        const auto *known_arg_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const auto known_bits =
+            known_arg_bits->known_one | known_arg_bits->known_zero;
+        const bool all_known = (known_bits & (known_bits + 1)) == 0;
+        new_known_one = all_known ? 1 : 0;
+        // new_known_zero = all_known ? 0 : 0;
+        new_known_zero = 0;
+        break;
+      }
+      case fir::IntrinsicSubType::Abs: {
+        const auto *known_arg_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        auto res = abs_known_bits(*known_arg_bits);
+        new_known_one = res.known_one;
+        new_known_zero = res.known_zero;
+        break;
+      }
+      case fir::IntrinsicSubType::UMax: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const auto *known_arg1_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+        if (known_arg0_bits->get_unsigned_min_value() >=
+            known_arg1_bits->get_unsigned_max_value()) {
+          new_known_one = known_arg0_bits->known_one;
+          new_known_zero = known_arg0_bits->known_zero;
+        } else if (known_arg1_bits->get_unsigned_min_value() >=
+                   known_arg0_bits->get_unsigned_max_value()) {
+          new_known_one = known_arg1_bits->known_one;
+          new_known_zero = known_arg1_bits->known_zero;
+        } else {
+          new_known_one =
+              known_arg0_bits->known_one & known_arg1_bits->known_one;
+          new_known_zero =
+              known_arg0_bits->known_zero & known_arg1_bits->known_zero;
         }
-        case fir::IntrinsicSubType::Abs: {
-          const auto *known_arg_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          auto res = abs_known_bits(*known_arg_bits);
-          new_known_one = res.known_one;
-          new_known_zero = res.known_zero;
-          break;
+        break;
+      }
+      case fir::IntrinsicSubType::UMin: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const auto *known_arg1_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+        if (known_arg0_bits->get_unsigned_max_value() <=
+            known_arg1_bits->get_unsigned_min_value()) {
+          new_known_one = known_arg0_bits->known_one;
+          new_known_zero = known_arg0_bits->known_zero;
+        } else if (known_arg1_bits->get_unsigned_max_value() <=
+                   known_arg0_bits->get_unsigned_min_value()) {
+          new_known_one = known_arg1_bits->known_one;
+          new_known_zero = known_arg1_bits->known_zero;
+        } else {
+          new_known_one =
+              known_arg0_bits->known_one & known_arg1_bits->known_one;
+          new_known_zero =
+              known_arg0_bits->known_zero & known_arg1_bits->known_zero;
         }
-        case fir::IntrinsicSubType::UMax: {
-          const auto *known_arg0_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          const auto *known_arg1_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
-          if (known_arg0_bits->get_unsigned_min_value() >=
-              known_arg1_bits->get_unsigned_max_value()) {
-            new_known_one = known_arg0_bits->known_one;
-            new_known_zero = known_arg0_bits->known_zero;
-          } else if (known_arg1_bits->get_unsigned_min_value() >=
-                     known_arg0_bits->get_unsigned_max_value()) {
-            new_known_one = known_arg1_bits->known_one;
-            new_known_zero = known_arg1_bits->known_zero;
-          } else {
-            new_known_one =
-                known_arg0_bits->known_one & known_arg1_bits->known_one;
-            new_known_zero =
-                known_arg0_bits->known_zero & known_arg1_bits->known_zero;
-          }
-          break;
+        break;
+      }
+      case fir::IntrinsicSubType::SMax: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const auto *known_arg1_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+        if (known_arg0_bits->get_signed_min_value() >=
+            known_arg1_bits->get_signed_max_value()) {
+          new_known_one = known_arg0_bits->known_one;
+          new_known_zero = known_arg0_bits->known_zero;
+        } else if (known_arg1_bits->get_signed_min_value() >=
+                   known_arg0_bits->get_signed_max_value()) {
+          new_known_one = known_arg1_bits->known_one;
+          new_known_zero = known_arg1_bits->known_zero;
+        } else {
+          new_known_one =
+              known_arg0_bits->known_one & known_arg1_bits->known_one;
+          new_known_zero =
+              known_arg0_bits->known_zero & known_arg1_bits->known_zero;
         }
-        case fir::IntrinsicSubType::UMin: {
-          const auto *known_arg0_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          const auto *known_arg1_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
-          if (known_arg0_bits->get_unsigned_max_value() <=
-              known_arg1_bits->get_unsigned_min_value()) {
-            new_known_one = known_arg0_bits->known_one;
-            new_known_zero = known_arg0_bits->known_zero;
-          } else if (known_arg1_bits->get_unsigned_max_value() <=
-                     known_arg0_bits->get_unsigned_min_value()) {
-            new_known_one = known_arg1_bits->known_one;
-            new_known_zero = known_arg1_bits->known_zero;
-          } else {
-            new_known_one =
-                known_arg0_bits->known_one & known_arg1_bits->known_one;
-            new_known_zero =
-                known_arg0_bits->known_zero & known_arg1_bits->known_zero;
-          }
-          break;
-        }
-        case fir::IntrinsicSubType::SMax: {
-          const auto *known_arg0_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          const auto *known_arg1_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
-          if (known_arg0_bits->get_signed_min_value() >=
-              known_arg1_bits->get_signed_max_value()) {
-            new_known_one = known_arg0_bits->known_one;
-            new_known_zero = known_arg0_bits->known_zero;
-          } else if (known_arg1_bits->get_signed_min_value() >=
-                     known_arg0_bits->get_signed_max_value()) {
-            new_known_one = known_arg1_bits->known_one;
-            new_known_zero = known_arg1_bits->known_zero;
-          } else {
-            new_known_one =
-                known_arg0_bits->known_one & known_arg1_bits->known_one;
-            new_known_zero =
-                known_arg0_bits->known_zero & known_arg1_bits->known_zero;
-          }
-          break;
-        }
-        case fir::IntrinsicSubType::SMin: {
-          const auto *known_arg0_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          const auto *known_arg1_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
+        break;
+      }
+      case fir::IntrinsicSubType::SMin: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const auto *known_arg1_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
 
-          // If arg0 is always <= arg1, result must be arg0
-          if (known_arg0_bits->get_signed_max_value() <=
-              known_arg1_bits->get_signed_min_value()) {
-            new_known_one = known_arg0_bits->known_one;
-            new_known_zero = known_arg0_bits->known_zero;
-          }
-          // If arg1 is always <= arg0, result must be arg1
-          else if (known_arg1_bits->get_signed_max_value() <=
-                   known_arg0_bits->get_signed_min_value()) {
-            new_known_one = known_arg1_bits->known_one;
-            new_known_zero = known_arg1_bits->known_zero;
-          }
-          // Otherwise, conservatively intersect known bits
-          else {
-            new_known_one =
-                known_arg0_bits->known_one & known_arg1_bits->known_one;
-            new_known_zero =
-                known_arg0_bits->known_zero & known_arg1_bits->known_zero;
-          }
-          break;
+        // If arg0 is always <= arg1, result must be arg0
+        if (known_arg0_bits->get_signed_max_value() <=
+            known_arg1_bits->get_signed_min_value()) {
+          new_known_one = known_arg0_bits->known_one;
+          new_known_zero = known_arg0_bits->known_zero;
         }
-        case fir::IntrinsicSubType::CTLZ: {
-          const auto *known_arg0_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
-              std::numeric_limits<u64>::max()) {
-            auto pre = __builtin_clzg(known_arg0_bits->known_one);
-            new_known_one = pre;
-            new_known_zero = ~pre;
-            break;
-          }
+        // If arg1 is always <= arg0, result must be arg1
+        else if (known_arg1_bits->get_signed_max_value() <=
+                 known_arg0_bits->get_signed_min_value()) {
+          new_known_one = known_arg1_bits->known_one;
+          new_known_zero = known_arg1_bits->known_zero;
+        }
+        // Otherwise, conservatively intersect known bits
+        else {
+          new_known_one =
+              known_arg0_bits->known_one & known_arg1_bits->known_one;
+          new_known_zero =
+              known_arg0_bits->known_zero & known_arg1_bits->known_zero;
+        }
+        break;
+      }
+      case fir::IntrinsicSubType::CTLZ: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
+            std::numeric_limits<u64>::max()) {
+          auto pre = __builtin_clzg(known_arg0_bits->known_one);
+          new_known_one = pre;
+          new_known_zero = ~pre;
+        } else {
           new_known_one = 0;
           new_known_zero = ~static_cast<u64>(0b111111);
+        }
+        break;
+      }
+      case fir::IntrinsicSubType::CTTZ: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
+            std::numeric_limits<u64>::max()) {
+          auto pre = __builtin_ctzg(known_arg0_bits->known_one);
+          new_known_one = pre;
+          new_known_zero = ~pre;
+        } else {
+          new_known_one = 0;
+          new_known_zero = ~static_cast<u64>(0b111111);
+        }
+        break;
+      }
+      case fir::IntrinsicSubType::PopCnt: {
+        const auto *known_arg0_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
+            std::numeric_limits<u64>::max()) {
+          auto pre = __builtin_popcountg(known_arg0_bits->known_one);
+          new_known_one = pre;
+          new_known_zero = ~pre;
           break;
         }
-        case fir::IntrinsicSubType::PopCnt: {
-          const auto *known_arg0_bits =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
-              std::numeric_limits<u64>::max()) {
-            auto pre = __builtin_popcountg(known_arg0_bits->known_one);
-            new_known_one = pre;
-            new_known_zero = ~pre;
-            break;
-          }
-          KnownBits res = KnownBits::from_umin_umax(
-              __builtin_popcountg(known_arg0_bits->known_one),
-              instr->args[0].get_type()->get_bitwidth() -
-                  __builtin_popcountg(known_arg0_bits->known_zero));
-          new_known_zero = res.known_zero;
-          new_known_one = res.known_one;
-          break;
-        }
-        case fir::IntrinsicSubType::FAbs:
-        case fir::IntrinsicSubType::FMin:
-        case fir::IntrinsicSubType::FMax:
-        case fir::IntrinsicSubType::FRound:
-        case fir::IntrinsicSubType::FCeil:
-        case fir::IntrinsicSubType::FFloor:
-        case fir::IntrinsicSubType::FTrunc:
-          fmt::println("BITS KNOWN {}", *this);
-          fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
-                       associatedValue.as_instr());
-          TODO("impl");
-        case fir::IntrinsicSubType::INVALID:
-        case fir::IntrinsicSubType::VA_start:
-        case fir::IntrinsicSubType::VA_end:
-          TODO("UNREACH");
+        KnownBits res = KnownBits::from_umin_umax(
+            __builtin_popcountg(known_arg0_bits->known_one),
+            instr->args[0].get_type()->get_bitwidth() -
+                __builtin_popcountg(known_arg0_bits->known_zero));
+        new_known_zero = res.known_zero;
+        new_known_one = res.known_one;
+        break;
+      }
+      case fir::IntrinsicSubType::FAbs:
+      case fir::IntrinsicSubType::FMin:
+      case fir::IntrinsicSubType::FMax:
+      case fir::IntrinsicSubType::FRound:
+      case fir::IntrinsicSubType::FCeil:
+      case fir::IntrinsicSubType::FFloor:
+      case fir::IntrinsicSubType::FTrunc:
+        fmt::println("BITS KNOWN {}", *this);
+        fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
+                     associatedValue.as_instr());
+        TODO("impl");
+      case fir::IntrinsicSubType::INVALID:
+      case fir::IntrinsicSubType::VA_start:
+      case fir::IntrinsicSubType::VA_end:
+        TODO("UNREACH");
       }
     } else if (instr->is(fir::InstrType::ITrunc)) {
       const auto *known_arg_bits =
@@ -344,37 +358,37 @@ class KnownBits final : public AttributeAnalysis {
       }
     } else if (instr->is(fir::InstrType::Conversion)) {
       switch (static_cast<fir::ConversionSubType>(instr->subtype)) {
-        case fir::ConversionSubType::PtrToInt:
-        case fir::ConversionSubType::IntToPtr: {
-          const auto *a =
-              m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
-          new_known_one = a->known_one;
-          new_known_zero = a->known_zero;
-        } break;
-        case fir::ConversionSubType::BitCast:
-        case fir::ConversionSubType::INVALID:
-        case fir::ConversionSubType::FPEXT:
-        case fir::ConversionSubType::FPTRUNC:
-        case fir::ConversionSubType::FPTOUI:
-        case fir::ConversionSubType::FPTOSI:
-        case fir::ConversionSubType::UITOFP:
-        case fir::ConversionSubType::SITOFP:
-          break;
+      case fir::ConversionSubType::PtrToInt:
+      case fir::ConversionSubType::IntToPtr: {
+        const auto *a =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        new_known_one = a->known_one;
+        new_known_zero = a->known_zero;
+      } break;
+      case fir::ConversionSubType::BitCast:
+      case fir::ConversionSubType::INVALID:
+      case fir::ConversionSubType::FPEXT:
+      case fir::ConversionSubType::FPTRUNC:
+      case fir::ConversionSubType::FPTOUI:
+      case fir::ConversionSubType::FPTOSI:
+      case fir::ConversionSubType::UITOFP:
+      case fir::ConversionSubType::SITOFP:
+        break;
       }
     } else if (instr->is(fir::InstrType::UnaryInstr)) {
       const auto *a =
           m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
       switch (static_cast<fir::UnaryInstrSubType>(instr->subtype)) {
-        case fir::UnaryInstrSubType::INVALID:
-          TODO("UNREACH");
-        case fir::UnaryInstrSubType::FloatSqrt:
-        case fir::UnaryInstrSubType::FloatNeg:
-        case fir::UnaryInstrSubType::IntNeg:
-          break;
-        case fir::UnaryInstrSubType::Not:
-          new_known_zero = a->known_one;
-          new_known_one = a->known_zero;
-          break;
+      case fir::UnaryInstrSubType::INVALID:
+        TODO("UNREACH");
+      case fir::UnaryInstrSubType::FloatSqrt:
+      case fir::UnaryInstrSubType::FloatNeg:
+      case fir::UnaryInstrSubType::IntNeg:
+        break;
+      case fir::UnaryInstrSubType::Not:
+        new_known_zero = a->known_one;
+        new_known_one = a->known_zero;
+        break;
       }
     } else if (instr->is(fir::InstrType::BinaryInstr)) {
       const auto *a =
@@ -535,17 +549,17 @@ class KnownBits final : public AttributeAnalysis {
       }
     } else if (instr->is(fir::InstrType::VectorInstr)) {
       switch (static_cast<fir::VectorISubType>(instr->subtype)) {
-        case fir::VectorISubType::INVALID:
-        case fir::VectorISubType::Broadcast:
-        case fir::VectorISubType::Shuffle:
-        case fir::VectorISubType::Concat:
-        case fir::VectorISubType::ExtractHigh:
-        case fir::VectorISubType::ExtractLow:
-        case fir::VectorISubType::HorizontalAdd:
-        case fir::VectorISubType::HorizontalMul:
-          new_known_one = 0;
-          new_known_zero = 0;
-          break;
+      case fir::VectorISubType::INVALID:
+      case fir::VectorISubType::Broadcast:
+      case fir::VectorISubType::Shuffle:
+      case fir::VectorISubType::Concat:
+      case fir::VectorISubType::ExtractHigh:
+      case fir::VectorISubType::ExtractLow:
+      case fir::VectorISubType::HorizontalAdd:
+      case fir::VectorISubType::HorizontalMul:
+        new_known_one = 0;
+        new_known_zero = 0;
+        break;
       }
     } else if (instr->is(fir::InstrType::ExtractValue)) {
       // TODO: can propagate in certain conditions (but then we prob removing
@@ -592,33 +606,33 @@ class KnownBits final : public AttributeAnalysis {
 
     auto constant = associatedValue.as_constant();
     switch (constant->ty) {
-      case fir::ConstantType::PoisonValue:
-        new_known_one = 0;
-        new_known_zero = ~0ULL;
-        break;
-      case fir::ConstantType::IntValue: {
-        auto v = std::bit_cast<u64>(static_cast<i64>(constant->as_int()));
+    case fir::ConstantType::PoisonValue:
+      new_known_one = 0;
+      new_known_zero = ~0ULL;
+      break;
+    case fir::ConstantType::IntValue: {
+      auto v = std::bit_cast<u64>(static_cast<i64>(constant->as_int()));
+      new_known_one = v;
+      new_known_zero = ~v;
+    } break;
+    case fir::ConstantType::FloatValue: {
+      auto bitwidth = constant->get_type()->as_float();
+      if (bitwidth == 64) {
+        auto v = std::bit_cast<u64>(constant->as_f64());
         new_known_one = v;
         new_known_zero = ~v;
-      } break;
-      case fir::ConstantType::FloatValue: {
-        auto bitwidth = constant->get_type()->as_float();
-        if (bitwidth == 64) {
-          auto v = std::bit_cast<u64>(constant->as_f64());
-          new_known_one = v;
-          new_known_zero = ~v;
-        } else if (bitwidth == 32) {
-          auto v = std::bit_cast<u32>(constant->as_f32());
-          new_known_one = v;
-          new_known_zero = ~v;
-        }
-      } break;
-      case fir::ConstantType::VectorValue:
-      case fir::ConstantType::GlobalPtr:
-      case fir::ConstantType::FuncPtr:
-      case fir::ConstantType::NullPtr:
-      case fir::ConstantType::ConstantStruct:
-        break;
+      } else if (bitwidth == 32) {
+        auto v = std::bit_cast<u32>(constant->as_f32());
+        new_known_one = v;
+        new_known_zero = ~v;
+      }
+    } break;
+    case fir::ConstantType::VectorValue:
+    case fir::ConstantType::GlobalPtr:
+    case fir::ConstantType::FuncPtr:
+    case fir::ConstantType::NullPtr:
+    case fir::ConstantType::ConstantStruct:
+      break;
     }
 
     // mask the result
@@ -804,12 +818,14 @@ static KnownBits abs_known_bits(const KnownBits &input) {
       bool zero = (maybe_zeros & bit) != 0;
 
       if (one || zero) {
-        bool inv = !one;         // ~x flips the known one
-        bool sum = inv ^ carry;  // Compute the sum bit
+        bool inv = !one;        // ~x flips the known one
+        bool sum = inv ^ carry; // Compute the sum bit
         bool next_carry = inv & carry;
 
         abs_known |= bit;
-        if (!sum) abs_known_zero |= bit;
+        if (!sum) {
+          abs_known_zero |= bit;
+        }
 
         carry = next_carry;
       } else {
@@ -846,7 +862,7 @@ static KnownBits abs_known_bits(const KnownBits &input) {
   return res;
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
 
 inline fmt::appender fmt::formatter<foptim::optim::KnownBits>::format(
     foptim::optim::KnownBits const &v, format_context &ctx) const {

@@ -2245,6 +2245,20 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       return emit(out_buff, off, &req);
     }
     }
+  case fmir::X86Subtype::tzcnt:
+    for (auto i = 0; i < req.operand_count; i++) {
+      emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+    }
+    if (instr.args[0].ty == fmir::Type::Int8 &&
+        req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER &&
+        req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER) {
+      auto a0_expanded = reg_with_type(instr.args[0].reg, fmir::Type::Int16);
+      auto a1_expanded = reg_with_type(instr.args[1].reg, fmir::Type::Int16);
+      req.operands[0].reg.value = a0_expanded;
+      req.operands[1].reg.value = a1_expanded;
+    }
+    req.mnemonic = ZYDIS_MNEMONIC_TZCNT;
+    return emit(out_buff, 0, &req);
   case fmir::X86Subtype::lzcnt:
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);

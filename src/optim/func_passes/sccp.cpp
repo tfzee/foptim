@@ -13,59 +13,59 @@
 
 namespace foptim::optim {
 
-std::optional<fir::ConstantValueR> SCCP::ConstantValue::toConstantValue(
-    fir::Context ctx, fir::TypeR t) {
+std::optional<fir::ConstantValueR>
+SCCP::ConstantValue::toConstantValue(fir::Context ctx, fir::TypeR t) {
   switch (type) {
-    case ValueType::Top:
-    case ValueType::Bottom:
-      return {};
-    case ValueType::Poison:
-      return ctx->get_poisson_value(t);
-    case ValueType::NullPtr:
-      ASSERT(vals.size() == 1);
-      return ctx->get_constant_null();
-    case ValueType::Float:
-      if (vals.size() == 1) {
-        return ctx->get_constant_value(vals[0].f, t);
-      } else {
-        IRVec<fir::ConstantValueR> args;
-        auto elem_width = t->as_vec().bitwidth;
-        for (auto &v : vals) {
-          if (elem_width == 32) {
-            args.push_back(ctx->get_constant_value(
-                std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(v.f))),
-                ctx->get_float_type(elem_width)));
-          } else {
-            args.push_back(
-                ctx->get_constant_value(v.f, ctx->get_float_type(elem_width)));
-          }
-        }
-        return ctx->get_constant_value(args, t);
-      }
-    case ValueType::Int:
-      if (vals.size() == 1) {
-        return ctx->get_constant_value(vals[0].i, t);
-      } else {
-        IRVec<fir::ConstantValueR> args;
-        auto elem_width = t->as_vec().bitwidth;
-        for (auto &v : vals) {
+  case ValueType::Top:
+  case ValueType::Bottom:
+    return {};
+  case ValueType::Poison:
+    return ctx->get_poisson_value(t);
+  case ValueType::NullPtr:
+    ASSERT(vals.size() == 1);
+    return ctx->get_constant_null();
+  case ValueType::Float:
+    if (vals.size() == 1) {
+      return ctx->get_constant_value(vals[0].f, t);
+    } else {
+      IRVec<fir::ConstantValueR> args;
+      auto elem_width = t->as_vec().bitwidth;
+      for (auto &v : vals) {
+        if (elem_width == 32) {
+          args.push_back(ctx->get_constant_value(
+              std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(v.f))),
+              ctx->get_float_type(elem_width)));
+        } else {
           args.push_back(
-              ctx->get_constant_value(v.i, ctx->get_int_type(elem_width)));
+              ctx->get_constant_value(v.f, ctx->get_float_type(elem_width)));
         }
-        return ctx->get_constant_value(args, t);
       }
-    case ValueType::Fptr:
-      ASSERT(vals.size() == 1);
-      return ctx->get_constant_value(vals[0].fptr);
-    case ValueType::Gptr:
-      ASSERT(vals.size() == 1);
-      return ctx->get_constant_value(vals[0].gptr);
+      return ctx->get_constant_value(args, t);
+    }
+  case ValueType::Int:
+    if (vals.size() == 1) {
+      return ctx->get_constant_value(vals[0].i, t);
+    } else {
+      IRVec<fir::ConstantValueR> args;
+      auto elem_width = t->as_vec().bitwidth;
+      for (auto &v : vals) {
+        args.push_back(
+            ctx->get_constant_value(v.i, ctx->get_int_type(elem_width)));
+      }
+      return ctx->get_constant_value(args, t);
+    }
+  case ValueType::Fptr:
+    ASSERT(vals.size() == 1);
+    return ctx->get_constant_value(vals[0].fptr);
+  case ValueType::Gptr:
+    ASSERT(vals.size() == 1);
+    return ctx->get_constant_value(vals[0].gptr);
   }
   TODO("unreach?");
 }
 
-std::optional<SCCP::ConstantValue> SCCP::ConstantValue::loadConstant(
-    u8 *v, fir::TypeR c, fir::Context &ctx)
+std::optional<SCCP::ConstantValue>
+SCCP::ConstantValue::loadConstant(u8 *v, fir::TypeR c, fir::Context &ctx)
 
 {
   auto bitwidth = c->get_bitwidth();
@@ -151,31 +151,31 @@ bool SCCP::ConstantValue::operator==(const ConstantValue &other) const {
     }
     for (size_t i = 0; i < vals.size(); i++) {
       switch (type) {
-        case ValueType::Top:
-        case ValueType::Bottom:
-        case ValueType::NullPtr:
-        case ValueType::Poison:
-          continue;
-        case ValueType::Float:
-          if (vals[i].f != other.vals[i].f) {
-            return false;
-          }
-          continue;
-        case ValueType::Int:
-          if (vals[i].i != other.vals[i].i) {
-            return false;
-          }
-          continue;
-        case ValueType::Gptr:
-          if (vals[i].gptr != other.vals[i].gptr) {
-            return false;
-          }
-          continue;
-        case ValueType::Fptr:
-          if (vals[i].fptr != other.vals[i].fptr) {
-            return false;
-          }
-          continue;
+      case ValueType::Top:
+      case ValueType::Bottom:
+      case ValueType::NullPtr:
+      case ValueType::Poison:
+        continue;
+      case ValueType::Float:
+        if (vals[i].f != other.vals[i].f) {
+          return false;
+        }
+        continue;
+      case ValueType::Int:
+        if (vals[i].i != other.vals[i].i) {
+          return false;
+        }
+        continue;
+      case ValueType::Gptr:
+        if (vals[i].gptr != other.vals[i].gptr) {
+          return false;
+        }
+        continue;
+      case ValueType::Fptr:
+        if (vals[i].fptr != other.vals[i].fptr) {
+          return false;
+        }
+        continue;
       }
     }
   }
@@ -186,148 +186,146 @@ namespace {
 template <class T>
 T const_eval_bin(fir::Instr instr, fir::TypeR out_type, T a, T b) {
   switch (static_cast<fir::BinaryInstrSubType>(instr->get_instr_subtype())) {
-    default:
-      fmt::println("{}", instr);
-      TODO("implement instr");
+  default:
+    fmt::println("{}", instr);
+    TODO("implement instr");
+    UNREACH();
+  case fir::BinaryInstrSubType::INVALID:
+    UNREACH();
+  case fir::BinaryInstrSubType::And:
+    if constexpr (std::is_same_v<T, f32>) {
+      return std::bit_cast<f32>(std::bit_cast<u32>(a) & std::bit_cast<u32>(b));
+    } else if constexpr (std::is_same_v<T, f64>) {
+      return std::bit_cast<f64>(std::bit_cast<u64>(a) & std::bit_cast<u64>(b));
+    } else {
+      return a & b;
+    }
+  case fir::BinaryInstrSubType::Xor:
+    if constexpr (std::is_floating_point_v<T>) {
       UNREACH();
-    case fir::BinaryInstrSubType::INVALID:
+    } else {
+      return a ^ b;
+    }
+  case fir::BinaryInstrSubType::Or:
+    if constexpr (std::is_floating_point_v<T>) {
       UNREACH();
-    case fir::BinaryInstrSubType::And:
-      if constexpr (std::is_same_v<T, f32>) {
-        return std::bit_cast<f32>(std::bit_cast<u32>(a) &
-                                  std::bit_cast<u32>(b));
-      } else if constexpr (std::is_same_v<T, f64>) {
-        return std::bit_cast<f64>(std::bit_cast<u64>(a) &
-                                  std::bit_cast<u64>(b));
-      } else {
-        return a & b;
-      }
-    case fir::BinaryInstrSubType::Xor:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return a ^ b;
-      }
-    case fir::BinaryInstrSubType::Or:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return a | b;
-      }
-    case fir::BinaryInstrSubType::Shl:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return (a << b) & ((static_cast<i128>(1) << out_type->as_int()) - 1);
-      }
-    case fir::BinaryInstrSubType::Shr:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return (std::bit_cast<i128>(std::bit_cast<u128>(a) >>
-                                    std::bit_cast<u128>(b)) &
-                ((static_cast<i128>(1) << out_type->as_int()) - 1));
-      }
-    case fir::BinaryInstrSubType::AShr: {
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return a >> b;
-      }
+    } else {
+      return a | b;
     }
-    case fir::BinaryInstrSubType::IntSub:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return a - b;
-      }
-    case fir::BinaryInstrSubType::IntAdd:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return a + b;
-      }
-    case fir::BinaryInstrSubType::IntUDiv: {
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return static_cast<u64>(a) / static_cast<u64>(b);
-      }
+  case fir::BinaryInstrSubType::Shl:
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      return (a << b) & ((static_cast<i128>(1) << out_type->as_int()) - 1);
     }
-    case fir::BinaryInstrSubType::IntSDiv: {
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        auto a_width = (128 - out_type->get_bitwidth());
-        auto b_width = (128 - out_type->get_bitwidth());
-        auto sexta = (a << a_width) >> a_width;
-        auto sextb = (b << b_width) >> b_width;
-        return sexta / sextb;
-      }
+  case fir::BinaryInstrSubType::Shr:
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      return (std::bit_cast<i128>(std::bit_cast<u128>(a) >>
+                                  std::bit_cast<u128>(b)) &
+              ((static_cast<i128>(1) << out_type->as_int()) - 1));
     }
-    case fir::BinaryInstrSubType::IntSRem: {
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        auto a_width = (128 - out_type->get_bitwidth());
-        auto b_width = (128 - out_type->get_bitwidth());
-        auto sexta = (a << a_width) >> a_width;
-        auto sextb = (b << b_width) >> b_width;
-        return sexta % sextb;
-      }
+  case fir::BinaryInstrSubType::AShr: {
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      return a >> b;
     }
-    case fir::BinaryInstrSubType::IntURem: {
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        auto a_width = (128 - out_type->get_bitwidth());
-        auto b_width = (128 - out_type->get_bitwidth());
-        auto zexta = (std::bit_cast<u128>(a) << a_width) >> a_width;
-        auto zextb = (std::bit_cast<u128>(b) << b_width) >> b_width;
-        return std::bit_cast<i128>(zexta % zextb);
-      }
+  }
+  case fir::BinaryInstrSubType::IntSub:
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      return a - b;
     }
-    case fir::BinaryInstrSubType::IntMul:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
-      } else {
-        return a * b;
-      }
-    case fir::BinaryInstrSubType::FloatAdd:
-      if constexpr (std::is_same_v<T, f32>) {
-        return a + b;
-      } else if constexpr (std::is_same_v<T, f64>) {
-        return a + b;
-      } else {
-        TODO("support other bitwidths");
-      }
-    case fir::BinaryInstrSubType::FloatMul:
-      if constexpr (std::is_same_v<T, f32>) {
-        return a * b;
-      } else if constexpr (std::is_same_v<T, f64>) {
-        return a * b;
-      } else {
-        TODO("support other bitwidths");
-      }
-    case fir::BinaryInstrSubType::FloatDiv:
-      if constexpr (std::is_same_v<T, f32>) {
-        return a / b;
-      } else if constexpr (std::is_same_v<T, f64>) {
-        return a / b;
-      } else {
-        TODO("support other bitwidths");
-      }
-    case fir::BinaryInstrSubType::FloatSub:
-      if constexpr (std::is_same_v<T, f32>) {
-        return a - b;
-      } else if constexpr (std::is_same_v<T, f64>) {
-        return a - b;
-      } else {
-        TODO("support other bitwidths");
-      }
+  case fir::BinaryInstrSubType::IntAdd:
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      return a + b;
+    }
+  case fir::BinaryInstrSubType::IntUDiv: {
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      return static_cast<u64>(a) / static_cast<u64>(b);
+    }
+  }
+  case fir::BinaryInstrSubType::IntSDiv: {
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      auto a_width = (128 - out_type->get_bitwidth());
+      auto b_width = (128 - out_type->get_bitwidth());
+      auto sexta = (a << a_width) >> a_width;
+      auto sextb = (b << b_width) >> b_width;
+      return sexta / sextb;
+    }
+  }
+  case fir::BinaryInstrSubType::IntSRem: {
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      auto a_width = (128 - out_type->get_bitwidth());
+      auto b_width = (128 - out_type->get_bitwidth());
+      auto sexta = (a << a_width) >> a_width;
+      auto sextb = (b << b_width) >> b_width;
+      return sexta % sextb;
+    }
+  }
+  case fir::BinaryInstrSubType::IntURem: {
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      auto a_width = (128 - out_type->get_bitwidth());
+      auto b_width = (128 - out_type->get_bitwidth());
+      auto zexta = (std::bit_cast<u128>(a) << a_width) >> a_width;
+      auto zextb = (std::bit_cast<u128>(b) << b_width) >> b_width;
+      return std::bit_cast<i128>(zexta % zextb);
+    }
+  }
+  case fir::BinaryInstrSubType::IntMul:
+    if constexpr (std::is_floating_point_v<T>) {
+      UNREACH();
+    } else {
+      return a * b;
+    }
+  case fir::BinaryInstrSubType::FloatAdd:
+    if constexpr (std::is_same_v<T, f32>) {
+      return a + b;
+    } else if constexpr (std::is_same_v<T, f64>) {
+      return a + b;
+    } else {
+      TODO("support other bitwidths");
+    }
+  case fir::BinaryInstrSubType::FloatMul:
+    if constexpr (std::is_same_v<T, f32>) {
+      return a * b;
+    } else if constexpr (std::is_same_v<T, f64>) {
+      return a * b;
+    } else {
+      TODO("support other bitwidths");
+    }
+  case fir::BinaryInstrSubType::FloatDiv:
+    if constexpr (std::is_same_v<T, f32>) {
+      return a / b;
+    } else if constexpr (std::is_same_v<T, f64>) {
+      return a / b;
+    } else {
+      TODO("support other bitwidths");
+    }
+  case fir::BinaryInstrSubType::FloatSub:
+    if constexpr (std::is_same_v<T, f32>) {
+      return a - b;
+    } else if constexpr (std::is_same_v<T, f64>) {
+      return a - b;
+    } else {
+      TODO("support other bitwidths");
+    }
   }
 }
-}  // namespace
+} // namespace
 
 SCCP::ConstantValue SCCP::eval_binary_instr(fir::Context &ctx,
                                             fir::Instr instr) {
@@ -487,21 +485,21 @@ void SCCP::dump() {
     ASSERT(val.is_valid(false));
     fmt::println("{}: ", val);
     switch (consta.type) {
-      case ConstantValue::ValueType::Top:
-        fmt::println("TOP\n");
-        break;
-      case ConstantValue::ValueType::Bottom:
-        fmt::println("BOT\n");
-        break;
-      case ConstantValue::ValueType::Float:
-      case ConstantValue::ValueType::Int:
-      case ConstantValue::ValueType::Gptr:
-      case ConstantValue::ValueType::Fptr:
-      case ConstantValue::ValueType::NullPtr:
-      case ConstantValue::ValueType::Poison:
-        ASSERT(consta.get_type().is_valid());
-        fmt::println("VAL {}\n", consta.get_type().is_valid());
-        break;
+    case ConstantValue::ValueType::Top:
+      fmt::println("TOP\n");
+      break;
+    case ConstantValue::ValueType::Bottom:
+      fmt::println("BOT\n");
+      break;
+    case ConstantValue::ValueType::Float:
+    case ConstantValue::ValueType::Int:
+    case ConstantValue::ValueType::Gptr:
+    case ConstantValue::ValueType::Fptr:
+    case ConstantValue::ValueType::NullPtr:
+    case ConstantValue::ValueType::Poison:
+      ASSERT(consta.get_type().is_valid());
+      fmt::println("VAL {}\n", consta.get_type().is_valid());
+      break;
     }
   }
 }
@@ -537,425 +535,415 @@ void SCCP::eval_and_update(fir::Context &ctx, fir::ValueR value) {
 }
 SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
   switch (instr->get_instr_type()) {
-    case fir::InstrType::Fence: {
-      return ConstantValue::Bottom();
-    }
-    case fir::InstrType::AtomicRMW: {
-      return ConstantValue::Top();
-    }
-    case fir::InstrType::VectorInstr: {
-      switch (static_cast<fir::VectorISubType>(instr->get_instr_subtype())) {
-        case fir::VectorISubType::HorizontalAdd: {
-          auto a = eval(instr->get_arg(0));
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() && (!a.is_int() && !a.is_float())) {
-            return ConstantValue::Top();
-          }
+  case fir::InstrType::Fence: {
+    return ConstantValue::Bottom();
+  }
+  case fir::InstrType::AtomicRMW: {
+    return ConstantValue::Top();
+  }
+  case fir::InstrType::VectorInstr: {
+    switch (static_cast<fir::VectorISubType>(instr->get_instr_subtype())) {
+    case fir::VectorISubType::HorizontalAdd: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() && (!a.is_int() && !a.is_float())) {
+        return ConstantValue::Top();
+      }
 
-          if (a.is_int()) {
-            i128 sum = 0;
-            for (auto &m : a.vals) {
-              sum += m.i;
-            }
-            i128 mask = utils::get_mask(instr->get_type()->get_bitwidth());
-            sum = sum & mask;
-            return ConstantValue::Constant(sum, instr->get_type());
-          } else if (a.is_float() &&
-                     ((a.vtype->is_float() && a.vtype->as_float() == 64) ||
-                      (a.is_float() && a.vtype->is_vec() &&
-                       a.vtype->as_vec().bitwidth == 64))) {
-            f64 res = 0;
-            for (auto &m : a.vals) {
-              res += m.f;
-            }
-            return ConstantValue::Constant(res, instr->get_type());
-          } else if (a.is_float() &&
-                     ((a.vtype->is_float() && a.vtype->as_float() == 32) ||
-                      (a.is_float() && a.vtype->is_vec() &&
-                       a.vtype->as_vec().bitwidth == 32))) {
-            f32 res = 0;
-            for (auto &m : a.vals) {
-              res +=
-                  std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(m.f)));
-            }
-            return ConstantValue::Constant(res, instr->get_type());
-          }
-          return ConstantValue::Top();
+      if (a.is_int()) {
+        i128 sum = 0;
+        for (auto &m : a.vals) {
+          sum += m.i;
         }
-        case fir::VectorISubType::Broadcast: {
-          auto a = eval(instr->get_arg(0));
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() && (!a.is_int() && !a.is_float())) {
-            return ConstantValue::Top();
-          }
-          auto &vtype = instr->get_type()->as_vec();
-          if (a.is_int()) {
-            TVec<ConstantValue::Value> v_outs = {};
-            for (size_t i = 0; i < vtype.member_number; i++) {
-              v_outs.push_back({.i = a.as_int()});
-            }
-            return {.type = ConstantValue::ValueType::Int,
-                    .vals = v_outs,
-                    .vtype = instr->get_type()};
-          } else if (a.is_float()) {
-            TVec<ConstantValue::Value> v_outs = {};
-            for (size_t i = 0; i < vtype.member_number; i++) {
-              if (a.vtype->is_float() && a.vtype->as_float() == 64) {
-                v_outs.push_back({.f = a.as_f64()});
-              } else if (a.vtype->is_float() && a.vtype->as_float() == 32) {
-                v_outs.push_back({.f = std::bit_cast<f64>(static_cast<u64>(
-                                      std::bit_cast<u32>(a.as_f32())))});
-              }
-            }
-            return {.type = ConstantValue::ValueType::Float,
-                    .vals = v_outs,
-                    .vtype = instr->get_type()};
-          }
-          return ConstantValue::Top();
+        i128 mask = utils::get_mask(instr->get_type()->get_bitwidth());
+        sum = sum & mask;
+        return ConstantValue::Constant(sum, instr->get_type());
+      } else if (a.is_float() &&
+                 ((a.vtype->is_float() && a.vtype->as_float() == 64) ||
+                  (a.is_float() && a.vtype->is_vec() &&
+                   a.vtype->as_vec().bitwidth == 64))) {
+        f64 res = 0;
+        for (auto &m : a.vals) {
+          res += m.f;
         }
-        case fir::VectorISubType::INVALID:
-        case fir::VectorISubType::Shuffle:
-        case fir::VectorISubType::Concat:
-        case fir::VectorISubType::ExtractHigh:
-        case fir::VectorISubType::ExtractLow:
-        case fir::VectorISubType::HorizontalMul:
-          break;
+        return ConstantValue::Constant(res, instr->get_type());
+      } else if (a.is_float() &&
+                 ((a.vtype->is_float() && a.vtype->as_float() == 32) ||
+                  (a.is_float() && a.vtype->is_vec() &&
+                   a.vtype->as_vec().bitwidth == 32))) {
+        f32 res = 0;
+        for (auto &m : a.vals) {
+          res += std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(m.f)));
+        }
+        return ConstantValue::Constant(res, instr->get_type());
       }
       return ConstantValue::Top();
     }
-    case fir::InstrType::UnaryInstr: {
+    case fir::VectorISubType::Broadcast: {
       auto a = eval(instr->get_arg(0));
-      ASSERT(a.vals.size() <= 1);
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() && (!a.is_int() && !a.is_float())) {
+        return ConstantValue::Top();
+      }
+      auto &vtype = instr->get_type()->as_vec();
+      if (a.is_int()) {
+        TVec<ConstantValue::Value> v_outs = {};
+        for (size_t i = 0; i < vtype.member_number; i++) {
+          v_outs.push_back({.i = a.as_int()});
+        }
+        return {.type = ConstantValue::ValueType::Int,
+                .vals = v_outs,
+                .vtype = instr->get_type()};
+      } else if (a.is_float()) {
+        TVec<ConstantValue::Value> v_outs = {};
+        for (size_t i = 0; i < vtype.member_number; i++) {
+          if (a.vtype->is_float() && a.vtype->as_float() == 64) {
+            v_outs.push_back({.f = a.as_f64()});
+          } else if (a.vtype->is_float() && a.vtype->as_float() == 32) {
+            v_outs.push_back({.f = std::bit_cast<f64>(static_cast<u64>(
+                                  std::bit_cast<u32>(a.as_f32())))});
+          }
+        }
+        return {.type = ConstantValue::ValueType::Float,
+                .vals = v_outs,
+                .vtype = instr->get_type()};
+      }
+      return ConstantValue::Top();
+    }
+    case fir::VectorISubType::INVALID:
+    case fir::VectorISubType::Shuffle:
+    case fir::VectorISubType::Concat:
+    case fir::VectorISubType::ExtractHigh:
+    case fir::VectorISubType::ExtractLow:
+    case fir::VectorISubType::HorizontalMul:
+      break;
+    }
+    return ConstantValue::Top();
+  }
+  case fir::InstrType::UnaryInstr: {
+    auto a = eval(instr->get_arg(0));
+    ASSERT(a.vals.size() <= 1);
 
+    if (a.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (!a.is_const()) {
+      return ConstantValue::Top();
+    }
+
+    if ((!a.is_int() && !a.is_float())) {
+      failure(
+          {.reason = "Cannot do SCCP on binary expr using non integers/floats",
+           .loc = instr});
+      return ConstantValue::Bottom();
+    }
+
+    auto out_type = a.get_type();
+
+    switch (static_cast<fir::UnaryInstrSubType>(instr->get_instr_subtype())) {
+    case fir::UnaryInstrSubType::INVALID:
+      UNREACH();
+    case fir::UnaryInstrSubType::FloatNeg: {
+      auto width = out_type->as_float();
+      if (width == 32) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(-a.as_f32(), out_type));
+      } else if (width == 64) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(-a.as_f64(), out_type));
+      } else {
+        TODO("UNREACH?");
+      }
+    }
+    case fir::UnaryInstrSubType::IntNeg:
+      return ConstantValue::Constant(
+          ctx->get_constant_value(-a.as_int(), out_type));
+    case fir::UnaryInstrSubType::Not: {
+      // return ConstantValue::Bottom();
+      auto mask = (static_cast<i128>(1) << out_type->as_int()) - 1;
+      return ConstantValue::Constant(
+          ctx->get_constant_value((~a.as_int()) & mask, out_type));
+    }
+    case fir::UnaryInstrSubType::FloatSqrt: {
+      auto width = out_type->as_float();
+      if (width == 32) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(std::sqrt(a.as_f32()), out_type));
+      } else if (width == 64) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(std::sqrt(a.as_f64()), out_type));
+      } else {
+        TODO("UNREACH?");
+      }
+    }
+
+    default:
+      fmt::println("{}", instr);
+      TODO("implement instr");
+      UNREACH();
+    }
+  }
+  case fir::InstrType::Intrinsic: {
+    bool is_signed = false;
+    // TODO: implement constant propagation
+    switch (static_cast<fir::IntrinsicSubType>(instr->get_instr_subtype())) {
+    case fir::IntrinsicSubType::FCeil:
+    case fir::IntrinsicSubType::FFloor:
+    case fir::IntrinsicSubType::FTrunc:
+    case fir::IntrinsicSubType::FRound: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() && (!a.is_float())) {
+        return ConstantValue::Top();
+      }
+      fmt::println("{:cd}", instr);
+      TODO("Impl");
+    }
+    case fir::IntrinsicSubType::FAbs: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() && (!a.is_float())) {
+        return ConstantValue::Top();
+      }
+      for (auto &m : a.vals) {
+        if (((a.vtype->is_float() && a.vtype->as_float() == 64) ||
+             (a.vtype->is_vec() && a.vtype->as_vec().bitwidth == 64))) {
+          m.f = std::abs(m.f);
+        } else if (((a.vtype->is_float() && a.vtype->as_float() == 32) ||
+                    (a.vtype->is_vec() && a.vtype->as_vec().bitwidth == 32))) {
+          m.f = std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(std::abs(
+              std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(m.f)))))));
+        }
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::Abs: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() && (!a.is_float())) {
+        return ConstantValue::Top();
+      }
+      for (auto &m : a.vals) {
+        m.i = std::abs(m.i);
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::IsConstant: {
+      auto a = eval(instr->get_arg(0));
+      a.vtype = ctx->get_int_type(1);
       if (a.is_bottom()) {
         return ConstantValue::Bottom();
       }
       if (!a.is_const()) {
         return ConstantValue::Top();
       }
-
-      if ((!a.is_int() && !a.is_float())) {
-        failure({.reason =
-                     "Cannot do SCCP on binary expr using non integers/floats",
-                 .loc = instr});
+      for (auto &m : a.vals) {
+        m.i = 1;
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::SMax:
+      is_signed = true;
+    case fir::IntrinsicSubType::UMax: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
         return ConstantValue::Bottom();
       }
-
-      auto out_type = a.get_type();
-
-      switch (static_cast<fir::UnaryInstrSubType>(instr->get_instr_subtype())) {
-        case fir::UnaryInstrSubType::INVALID:
-          UNREACH();
-        case fir::UnaryInstrSubType::FloatNeg: {
-          auto width = out_type->as_float();
-          if (width == 32) {
-            return ConstantValue::Constant(
-                ctx->get_constant_value(-a.as_f32(), out_type));
-          } else if (width == 64) {
-            return ConstantValue::Constant(
-                ctx->get_constant_value(-a.as_f64(), out_type));
-          } else {
-            TODO("UNREACH?");
-          }
-        }
-        case fir::UnaryInstrSubType::IntNeg:
-          return ConstantValue::Constant(
-              ctx->get_constant_value(-a.as_int(), out_type));
-        case fir::UnaryInstrSubType::Not: {
-          // return ConstantValue::Bottom();
-          auto mask = (static_cast<i128>(1) << out_type->as_int()) - 1;
-          return ConstantValue::Constant(
-              ctx->get_constant_value((~a.as_int()) & mask, out_type));
-        }
-        case fir::UnaryInstrSubType::FloatSqrt: {
-          auto width = out_type->as_float();
-          if (width == 32) {
-            return ConstantValue::Constant(
-                ctx->get_constant_value(std::sqrt(a.as_f32()), out_type));
-          } else if (width == 64) {
-            return ConstantValue::Constant(
-                ctx->get_constant_value(std::sqrt(a.as_f64()), out_type));
-          } else {
-            TODO("UNREACH?");
-          }
-        }
-
-        default:
-          fmt::println("{}", instr);
-          TODO("implement instr");
-          UNREACH();
+      if ((!a.is_const() || !a.is_int()) || (!b.is_const() || !b.is_int())) {
+        return ConstantValue::Top();
       }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        if (is_signed) {
+          a.vals[i].i = std::max(std::bit_cast<i128>(a.vals[i].i),
+                                 std::bit_cast<i128>(b.vals[i].i));
+        } else {
+          a.vals[i].i = std::max(std::bit_cast<u128>(a.vals[i].i),
+                                 std::bit_cast<u128>(b.vals[i].i));
+        }
+      }
+      return a;
     }
-    case fir::InstrType::Intrinsic: {
-      bool is_signed = false;
-      // TODO: implement constant propagation
-      switch (static_cast<fir::IntrinsicSubType>(instr->get_instr_subtype())) {
-        case fir::IntrinsicSubType::FCeil:
-        case fir::IntrinsicSubType::FFloor:
-        case fir::IntrinsicSubType::FTrunc:
-        case fir::IntrinsicSubType::FRound: {
-          auto a = eval(instr->get_arg(0));
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() && (!a.is_float())) {
-            return ConstantValue::Top();
-          }
-          fmt::println("{:cd}", instr);
-          TODO("Impl");
-        }
-        case fir::IntrinsicSubType::FAbs: {
-          auto a = eval(instr->get_arg(0));
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() && (!a.is_float())) {
-            return ConstantValue::Top();
-          }
-          for (auto &m : a.vals) {
-            if (((a.vtype->is_float() && a.vtype->as_float() == 64) ||
-                 (a.vtype->is_vec() && a.vtype->as_vec().bitwidth == 64))) {
-              m.f = std::abs(m.f);
-            } else if (((a.vtype->is_float() && a.vtype->as_float() == 32) ||
-                        (a.vtype->is_vec() &&
-                         a.vtype->as_vec().bitwidth == 32))) {
-              m.f = std::bit_cast<f64>(static_cast<u64>(
-                  std::bit_cast<u32>(std::abs(std::bit_cast<f32>(
-                      static_cast<u32>(std::bit_cast<u64>(m.f)))))));
-            }
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::Abs: {
-          auto a = eval(instr->get_arg(0));
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() && (!a.is_float())) {
-            return ConstantValue::Top();
-          }
-          for (auto &m : a.vals) {
-            m.i = std::abs(m.i);
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::IsConstant: {
-          auto a = eval(instr->get_arg(0));
-          a.vtype = ctx->get_int_type(1);
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const()) {
-            return ConstantValue::Top();
-          }
-          for (auto &m : a.vals) {
-            m.i = 1;
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::SMax:
-          is_signed = true;
-        case fir::IntrinsicSubType::UMax: {
-          auto a = eval(instr->get_arg(0));
-          auto b = eval(instr->get_arg(1));
-          if (a.is_bottom() || b.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if ((!a.is_const() || !a.is_int()) ||
-              (!b.is_const() || !b.is_int())) {
-            return ConstantValue::Top();
-          }
-          for (size_t i = 0; i < a.vals.size(); i++) {
-            if (is_signed) {
-              a.vals[i].i = std::max(std::bit_cast<i128>(a.vals[i].i),
-                                     std::bit_cast<i128>(b.vals[i].i));
-            } else {
-              a.vals[i].i = std::max(std::bit_cast<u128>(a.vals[i].i),
-                                     std::bit_cast<u128>(b.vals[i].i));
-            }
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::SMin:
-          is_signed = true;
-        case fir::IntrinsicSubType::UMin: {
-          auto a = eval(instr->get_arg(0));
-          auto b = eval(instr->get_arg(1));
-          if (a.is_bottom() || b.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if ((!a.is_const() || !a.is_int()) ||
-              (!b.is_const() || !b.is_int())) {
-            return ConstantValue::Top();
-          }
-          for (size_t i = 0; i < a.vals.size(); i++) {
-            if (is_signed) {
-              a.vals[i].i = std::min(std::bit_cast<i128>(a.vals[i].i),
-                                     std::bit_cast<i128>(b.vals[i].i));
-            } else {
-              a.vals[i].i = std::min(std::bit_cast<u128>(a.vals[i].i),
-                                     std::bit_cast<u128>(b.vals[i].i));
-            }
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::FMin: {
-          auto a = eval(instr->get_arg(0));
-          auto b = eval(instr->get_arg(1));
-          if (a.is_bottom() || b.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() || !b.is_const()) {
-            return ConstantValue::Top();
-          }
-          for (size_t i = 0; i < a.vals.size(); i++) {
-            a.vals[i].i = std::min(a.vals[i].f, b.vals[i].f);
-            // if (a.vtype->as_float() == 32) {
-            // } else {
-            //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
-            // }
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::FMax: {
-          auto a = eval(instr->get_arg(0));
-          auto b = eval(instr->get_arg(1));
-          if (a.is_bottom() || b.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() || !b.is_const()) {
-            return ConstantValue::Top();
-          }
-          for (size_t i = 0; i < a.vals.size(); i++) {
-            a.vals[i].i = std::max(a.vals[i].f, b.vals[i].f);
-            // if (a.vtype->as_float() == 32) {
-            // } else {
-            //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
-            // }
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::CTLZ: {
-          auto a = eval(instr->get_arg(0));
-          auto b = eval(instr->get_arg(1));
-          if (a.is_bottom() || b.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const()) {
-            return ConstantValue::Top();
-          }
-          ASSERT(a.is_int());
-          // if b is not known we dont know how to handle 0
-          if (!b.is_const()) {
-            for (size_t i = 0; i < a.vals.size(); i++) {
-              if (a.vals[0].i == 0) {
-                return ConstantValue::Top();
-              }
-            }
-          }
-          for (size_t i = 0; i < a.vals.size(); i++) {
-            a.vals[i].i = __builtin_clzg(std::bit_cast<u128>(a.vals[i].i));
-          }
-          return a;
-        }
-        case fir::IntrinsicSubType::PopCnt: {
-          auto a = eval(instr->get_arg(0));
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const()) {
-            return ConstantValue::Top();
-          }
-          TODO("popcnt impl sccp");
-        }
-        case fir::IntrinsicSubType::INVALID:
-        case fir::IntrinsicSubType::VA_start:
-        case fir::IntrinsicSubType::VA_end:
-          break;
+    case fir::IntrinsicSubType::SMin:
+      is_signed = true;
+    case fir::IntrinsicSubType::UMin: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
       }
-      return ConstantValue::Bottom();
+      if ((!a.is_const() || !a.is_int()) || (!b.is_const() || !b.is_int())) {
+        return ConstantValue::Top();
+      }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        if (is_signed) {
+          a.vals[i].i = std::min(std::bit_cast<i128>(a.vals[i].i),
+                                 std::bit_cast<i128>(b.vals[i].i));
+        } else {
+          a.vals[i].i = std::min(std::bit_cast<u128>(a.vals[i].i),
+                                 std::bit_cast<u128>(b.vals[i].i));
+        }
+      }
+      return a;
     }
-    case fir::InstrType::BinaryInstr:
-      return eval_binary_instr(ctx, instr);
-    case fir::InstrType::BranchInstr: {
-      const auto &target = instr->get_bb_args();
-      ASSERT(target.size() == 1);
-      const auto func = instr->get_parent()->get_parent();
-      if (!bottom_bbs.contains(target[0].bb)) {
-        cfg_worklist.push_back(target[0].bb);
-        bottom_bbs.insert(target[0].bb);
+    case fir::IntrinsicSubType::FMin: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
       }
-      // if () {
-      // }
+      if (!a.is_const() || !b.is_const()) {
+        return ConstantValue::Top();
+      }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        a.vals[i].i = std::min(a.vals[i].f, b.vals[i].f);
+        // if (a.vtype->as_float() == 32) {
+        // } else {
+        //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
+        // }
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::FMax: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() || !b.is_const()) {
+        return ConstantValue::Top();
+      }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        a.vals[i].i = std::max(a.vals[i].f, b.vals[i].f);
+        // if (a.vtype->as_float() == 32) {
+        // } else {
+        //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
+        // }
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::CTTZ: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const()) {
+        return ConstantValue::Top();
+      }
+      ASSERT(a.is_int());
+      // if b is not known we dont know how to handle 0
+      if (!b.is_const()) {
+        for (size_t i = 0; i < a.vals.size(); i++) {
+          if (a.vals[0].i == 0) {
+            return ConstantValue::Top();
+          }
+        }
+      }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        a.vals[i].i = __builtin_ctzg(std::bit_cast<u128>(a.vals[i].i));
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::CTLZ: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const()) {
+        return ConstantValue::Top();
+      }
+      ASSERT(a.is_int());
+      // if b is not known we dont know how to handle 0
+      if (!b.is_const()) {
+        for (size_t i = 0; i < a.vals.size(); i++) {
+          if (a.vals[0].i == 0) {
+            return ConstantValue::Top();
+          }
+        }
+      }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        a.vals[i].i = __builtin_clzg(std::bit_cast<u128>(a.vals[i].i));
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::PopCnt: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const()) {
+        return ConstantValue::Top();
+      }
+      TODO("popcnt impl sccp");
+    }
+    case fir::IntrinsicSubType::INVALID:
+    case fir::IntrinsicSubType::VA_start:
+    case fir::IntrinsicSubType::VA_end:
+      break;
+    }
+    return ConstantValue::Bottom();
+  }
+  case fir::InstrType::BinaryInstr:
+    return eval_binary_instr(ctx, instr);
+  case fir::InstrType::BranchInstr: {
+    const auto &target = instr->get_bb_args();
+    ASSERT(target.size() == 1);
+    const auto func = instr->get_parent()->get_parent();
+    if (!bottom_bbs.contains(target[0].bb)) {
+      cfg_worklist.push_back(target[0].bb);
+      bottom_bbs.insert(target[0].bb);
+    }
+    // if () {
+    // }
+    {
+      const size_t bb_id = func->bb_id(target[0].bb);
+      eval_meets(target[0].bb, bb_id);
+    }
+    return ConstantValue::Top();
+  }
+  case fir::InstrType::SwitchInstr: {
+    const auto &targets = instr->get_bb_args();
+    const auto func = instr->get_parent()->get_parent();
+    // TODO: IMPROVE IT
+    for (const auto &arg : targets) {
+      if (!bottom_bbs.contains(arg.bb)) {
+        cfg_worklist.push_back(arg.bb);
+        bottom_bbs.insert(arg.bb);
+      }
       {
-        const size_t bb_id = func->bb_id(target[0].bb);
-        eval_meets(target[0].bb, bb_id);
+        const size_t bb_id = func->bb_id(arg.bb);
+        eval_meets(arg.bb, bb_id);
       }
-      return ConstantValue::Top();
     }
-    case fir::InstrType::SwitchInstr: {
-      const auto &targets = instr->get_bb_args();
-      const auto func = instr->get_parent()->get_parent();
-      // TODO: IMPROVE IT
-      for (const auto &arg : targets) {
-        if (!bottom_bbs.contains(arg.bb)) {
-          cfg_worklist.push_back(arg.bb);
-          bottom_bbs.insert(arg.bb);
-        }
-        {
-          const size_t bb_id = func->bb_id(arg.bb);
-          eval_meets(arg.bb, bb_id);
-        }
-      }
-      return ConstantValue::Top();
-    }
-    case fir::InstrType::CondBranchInstr: {
-      const auto &targets = instr->get_bb_args();
-      ASSERT(targets.size() == 2);
-      auto arg = eval(instr->get_arg(0));
-      ASSERT(arg.vals.size() <= 1);
-      const auto func = instr->get_parent()->get_parent();
-      // ASSERT(!arg.is_bottom());
-      if (arg.is_bottom()) {
-        if (!bottom_bbs.contains(targets[0].bb)) {
-          cfg_worklist.push_back(targets[0].bb);
-          bottom_bbs.insert(targets[0].bb);
-        }
-        if (!bottom_bbs.contains(targets[1].bb)) {
-          cfg_worklist.push_back(targets[1].bb);
-          bottom_bbs.insert(targets[1].bb);
-        }
-
-        {
-          const size_t bb_id = func->bb_id(targets[0].bb);
-          eval_meets(targets[0].bb, bb_id);
-        }
-        {
-          const size_t bb_id = func->bb_id(targets[1].bb);
-          eval_meets(targets[1].bb, bb_id);
-        }
-        return ConstantValue::Top();
-      }
-      if (arg.is_top()) {
-        return ConstantValue::Top();
-      }
-
-      bool cond = false;
-      if (arg.is_poison()) {
-      } else {
-        ASSERT(arg.is_int());
-        cond = arg.as_int() != 0;
-      }
-
-      if (cond) {
+    return ConstantValue::Top();
+  }
+  case fir::InstrType::CondBranchInstr: {
+    const auto &targets = instr->get_bb_args();
+    ASSERT(targets.size() == 2);
+    auto arg = eval(instr->get_arg(0));
+    ASSERT(arg.vals.size() <= 1);
+    const auto func = instr->get_parent()->get_parent();
+    // ASSERT(!arg.is_bottom());
+    if (arg.is_bottom()) {
+      if (!bottom_bbs.contains(targets[0].bb)) {
         cfg_worklist.push_back(targets[0].bb);
+        bottom_bbs.insert(targets[0].bb);
       }
-      if (!cond) {
+      if (!bottom_bbs.contains(targets[1].bb)) {
         cfg_worklist.push_back(targets[1].bb);
+        bottom_bbs.insert(targets[1].bb);
       }
 
       {
@@ -966,495 +954,512 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         const size_t bb_id = func->bb_id(targets[1].bb);
         eval_meets(targets[1].bb, bb_id);
       }
-
-      u8 target_bb_id = cond ? 0 : 1;
-      fir::Builder bb{instr};
-
-      auto replacement_term = bb.build_branch(instr->bbs[target_bb_id].bb);
-      for (auto bb_arg : instr->bbs[target_bb_id].args) {
-        replacement_term.add_bb_arg(0, bb_arg);
-      }
-
-      values.erase(fir::ValueR{instr});
-      instr.clear_bbs();
-      instr.clear_args();
-      instr.destroy();
-      // TODO("handle cond branch being constant or skip top\n");
-      values.insert({fir::ValueR(replacement_term), ConstantValue::Top()});
-      cfg.update(*replacement_term->get_parent()->get_parent().func, false);
       return ConstantValue::Top();
     }
-    case fir::InstrType::Conversion: {
-      auto a = eval(instr->get_arg(0));
-      if (a.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (a.is_top()) {
-        return ConstantValue::Top();
-      }
-      if (a.is_const() && a.is_global()) {
-        return ConstantValue::Bottom();
-      }
-      if (a.is_const() && a.is_poison()) {
-        return a;
-      }
-      switch (static_cast<fir::ConversionSubType>(instr->get_instr_subtype())) {
-        case fir::ConversionSubType::INVALID:
-          UNREACH();
-        case fir::ConversionSubType::BitCast: {
-          // fmt::println("Doing conversion================");
-          auto *buf = utils::TempAlloc<u8>{}.allocate(a.vtype->get_size());
-          // fmt::println("{:cd} ", a.toConstantValue(ctx, a.vtype).value());
-          if (!a.storeConstant(buf, a.vtype)) {
-            return ConstantValue::Top();
-          }
-          auto r = ConstantValue::loadConstant(buf, instr->get_type(), ctx);
-          if (!r) {
-            return ConstantValue::Top();
-          }
-          // fmt::println(
-          //     "{:cd} ",
-          //     r.value().toConstantValue(ctx, instr->get_type()).value());
-          // fmt::println("\nDONE================");
-          return r.value();
-        }
-        case fir::ConversionSubType::FPTOUI:
-          ASSERT(a.vals.size() <= 1);
-          if (a.vtype->get_bitwidth() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<u32>(a.as_f32()), instr->get_type()));
-          }
-          return ConstantValue::Constant(ctx->get_constant_value(
-              static_cast<u64>(a.as_f64()), instr->get_type()));
-        case fir::ConversionSubType::FPTOSI:
-          ASSERT(a.vals.size() <= 1);
-          if (a.vtype->get_bitwidth() == 32) {
-            return ConstantValue::Constant(ctx->get_constant_value(
-                static_cast<i32>(a.as_f32()), instr->get_type()));
-          }
-          return ConstantValue::Constant(ctx->get_constant_value(
-              static_cast<i64>(a.as_f64()), instr->get_type()));
-        case fir::ConversionSubType::UITOFP:
-        case fir::ConversionSubType::SITOFP:
-          ASSERT(a.vals.size() <= 1);
-          switch (instr->get_type()->as_float()) {
-            case 32:
-              return ConstantValue::Constant(ctx->get_constant_value(
-                  static_cast<f32>(a.as_int()), instr->get_type()));
-            case 64:
-              return ConstantValue::Constant(ctx->get_constant_value(
-                  static_cast<f64>(a.as_int()), instr->get_type()));
-            default:
-              TODO("dont suport other bitwidths");
-          }
-        case fir::ConversionSubType::PtrToInt:
-        case fir::ConversionSubType::IntToPtr:
-          ASSERT(a.vals.size() <= 1);
-          return ConstantValue::Constant(ctx->get_constant_value(
-              static_cast<u64>(a.as_int()), instr->get_type()));
-        case fir::ConversionSubType::FPEXT:
-          ASSERT(a.vals.size() <= 1);
-          return ConstantValue::Constant(
-              ctx->get_constant_value(a.as_f64(), instr->get_type()));
-        case fir::ConversionSubType::FPTRUNC:
-          ASSERT(a.vals.size() <= 1);
-          return ConstantValue::Constant(ctx->get_constant_value(
-              static_cast<f32>(a.as_f64()), instr->get_type()));
-      }
-    }
-    case fir::InstrType::ExtractValue: {
-      auto v = eval(instr->get_arg(0));
-      auto indx = eval(instr->get_arg(1));
-      if (v.is_bottom() || indx.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (v.is_top() || indx.is_top()) {
-        return ConstantValue::Top();
-      }
-      if (v.is_poison() || indx.is_poison()) {
-        return ConstantValue::Constant(
-            ctx->get_poisson_value(instr->get_type()));
-      }
-      ASSERT(v.is_const());
-      ASSERT(indx.is_int());
-      if (v.vtype->is_vec()) {
-        ASSERT(v.vals.size() > 1);
-        ASSERT(v.vals.size() > indx.as_int());
-        auto r = v.vals[indx.as_int()];
-        auto t = v.vtype->as_vec();
-        if (t.type == fir::VectorType::SubType::Floating) {
-          return ConstantValue::Constant(r.f, ctx->get_float_type(t.bitwidth));
-        }
-        return ConstantValue::Constant(r.i, ctx->get_int_type(t.bitwidth));
-      }
-      return ConstantValue::Bottom();
-    }
-    case fir::InstrType::InsertValue:
-      return ConstantValue::Bottom();
-    case fir::InstrType::ZExt: {
-      auto a = eval(instr->get_arg(0));
-      if (a.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (a.is_top()) {
-        return ConstantValue::Top();
-      }
-      if (a.is_poison()) {
-        return ConstantValue::Constant(
-            ctx->get_poisson_value(instr->get_type()));
-      }
-      if (a.vals.size() == 1) {
-        return ConstantValue::Constant(
-            ctx->get_constant_value(a.as_int(), instr->get_type()));
-      }
-      IRVec<fir::ConstantValueR> args;
-      for (const auto &v : a.vals) {
-        args.push_back(ctx->get_constant_value(
-            v.i, ctx->get_int_type(instr->get_type()->as_vec().bitwidth)));
-      }
-      return ConstantValue::Constant(
-          ctx->get_constant_value(args, instr.get_type()));
-    }
-    case fir::InstrType::SExt: {
-      auto a = eval(instr->get_arg(0));
-      if (a.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (a.is_top()) {
-        return ConstantValue::Top();
-      }
-      size_t old_width = 0;
-      size_t new_width = 0;
-      if (a.vals.size() == 1) {
-        old_width = a.get_type()->get_bitwidth();
-        new_width = instr->get_type()->get_bitwidth();
-      } else {
-        ASSERT(instr.get_type()->is_vec());
-        old_width = a.get_type()->as_vec().bitwidth;
-        new_width = instr->get_type()->as_vec().bitwidth;
-      }
-      auto const_prop = [old_width, new_width](auto old_value) {
-        auto is_negative =
-            (old_value & (static_cast<i128>(1) << (old_width - 1))) != 0;
-        if (is_negative) {
-          auto mask = (static_cast<i128>(1) << (new_width - old_width)) - 1;
-          mask = mask << old_width;
-          return old_value | mask;
-        }
-        return old_value;
-      };
-
-      ASSERT(a.is_int());
-      ConstantValue res;
-      res.vtype = instr->get_type();
-      res.type = ConstantValue::ValueType::Int;
-      res.vals.clear();
-      for (auto &val : a.vals) {
-        res.vals.push_back(ConstantValue::Value{.i = const_prop(val.i)});
-      }
-      return res;
-    }
-    case fir::InstrType::FCmp: {
-      auto a = eval(instr->get_arg(0));
-      auto b = eval(instr->get_arg(1));
-      if (a.is_bottom() || b.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (!a.is_const() || !b.is_const()) {
-        return ConstantValue::Top();
-      }
-      if (a.is_poison() || b.is_poison()) {
-        return ConstantValue::Constant(
-            ctx->get_poisson_value(instr->get_type()));
-      }
-      ASSERT(a.vals.size() == b.vals.size());
-      auto res_type = ctx->get_int_type(1);
-      if (a.vals.size() != 1) {
-        res_type = ctx->get_vec_type(fir::VectorType::SubType::Integer, 1,
-                                     a.vals.size());
-      }
-
-      TVec<ConstantValue::Value> res_vals;
-
-      for (size_t i = 0; i < a.vals.size(); i++) {
-        switch (
-            static_cast<fir::FCmpInstrSubType>(instr->get_instr_subtype())) {
-          case fir::FCmpInstrSubType::IsNaN:
-            if (a.get_type()->as_float() == 32) {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(std::isnan(a.as_f32(i)))});
-              break;
-            } else {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(std::isnan(a.as_f64(i)))});
-              break;
-            }
-          case fir::FCmpInstrSubType::OGT:
-            if (a.get_type()->as_float() == 32) {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f32(i) > b.as_f32(i))});
-              break;
-            } else {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f64(i) > b.as_f64(i))});
-              break;
-            }
-          case fir::FCmpInstrSubType::OLT:
-            if (a.get_type()->as_float() == 32) {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f32(i) < b.as_f32(i))});
-              break;
-            } else {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f64(i) < b.as_f64(i))});
-              break;
-            }
-          case fir::FCmpInstrSubType::OEQ:
-            if (a.get_type()->as_float() == 32) {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f32(i) == b.as_f32(i))});
-              break;
-            } else {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f64(i) == b.as_f64(i))});
-              break;
-            }
-          case fir::FCmpInstrSubType::OGE:
-            if (a.get_type()->as_float() == 32) {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f32(i) >= b.as_f32(i))});
-              break;
-            } else {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f64(i) >= b.as_f64(i))});
-              break;
-            }
-          case fir::FCmpInstrSubType::OLE:
-            if (a.get_type()->as_float() == 32) {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f32(i) <= b.as_f32(i))});
-              break;
-            } else {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f64(i) <= b.as_f64(i))});
-              break;
-            }
-          case fir::FCmpInstrSubType::ONE:
-            if (a.get_type()->as_float() == 32) {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f32(i) != b.as_f32(i))});
-              break;
-            } else {
-              res_vals.push_back(ConstantValue::Value{
-                  .i = static_cast<i32>(a.as_f64(i) != b.as_f64(i))});
-              break;
-            }
-          case fir::FCmpInstrSubType::UEQ:
-          case fir::FCmpInstrSubType::UGT:
-          case fir::FCmpInstrSubType::UGE:
-          case fir::FCmpInstrSubType::ULT:
-          case fir::FCmpInstrSubType::ULE:
-          case fir::FCmpInstrSubType::UNE:
-          case fir::FCmpInstrSubType::ORD:
-          case fir::FCmpInstrSubType::UNO:
-            TODO("IMPL");
-          case fir::FCmpInstrSubType::AlwFalse:
-            res_vals.push_back(
-                ConstantValue::Value{.i = static_cast<i32>(false)});
-            break;
-          case fir::FCmpInstrSubType::AlwTrue:
-            res_vals.push_back(
-                ConstantValue::Value{.i = static_cast<i32>(true)});
-            break;
-          case fir::FCmpInstrSubType::INVALID:
-            UNREACH();
-        }
-      }
-      return ConstantValue{ConstantValue::ValueType::Int, res_vals, res_type};
-    }
-    case fir::InstrType::ICmp: {
-      auto a = eval(instr->get_arg(0));
-      auto b = eval(instr->get_arg(1));
-
-      const auto res_type = ctx->get_int_type(1);
-      if (a.is_const() && a.vals.size() == 1 &&
-          static_cast<fir::ICmpInstrSubType>(instr->get_instr_subtype()) ==
-              fir::ICmpInstrSubType::ULE) {
-        if (a.as_int() == 0) {
-          return ConstantValue::Constant(
-              ctx->get_constant_value(static_cast<u64>(1), res_type));
-        }
-      } else if (a.is_const() && a.vals.size() == 1 &&
-                 static_cast<fir::ICmpInstrSubType>(
-                     instr->get_instr_subtype()) ==
-                     fir::ICmpInstrSubType::UGT) {
-        if (a.as_int() == 0) {
-          return ConstantValue::Constant(
-              ctx->get_constant_value(static_cast<u64>(0), res_type));
-        }
-      }
-
-      if (a.is_bottom() || b.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (!a.is_const() || !b.is_const()) {
-        return ConstantValue::Top();
-      }
-      if (a.is_poison() || b.is_poison()) {
-        return ConstantValue::Poision(instr->get_type());
-      }
-
-      size_t bit_width = 0;
-      if (a.vals.size() == 1) {
-        ASSERT(instr.get_type()->is_int() || instr.get_type()->is_ptr());
-        bit_width = std::max(instr->args[0].get_type()->get_bitwidth(),
-                             instr->args[1].get_type()->get_bitwidth());
-      } else {
-        ASSERT(instr.get_type()->is_vec());
-        bit_width = std::max(instr->args[0].get_type()->as_vec().bitwidth,
-                             instr->args[1].get_type()->as_vec().bitwidth);
-      }
-      auto mask = (static_cast<i128>(1) << bit_width) - 1;
-      auto rest_width = (128 - bit_width);
-      auto instr_ty = instr->get_instr_subtype();
-
-      auto constnat_prop = [mask, rest_width, instr_ty](auto a, auto b) -> u64 {
-        auto a_val = ((a & mask) << rest_width) >> rest_width;
-        auto b_val = ((b & mask) << rest_width) >> rest_width;
-        switch (static_cast<fir::ICmpInstrSubType>(instr_ty)) {
-          case fir::ICmpInstrSubType::INVALID:
-            UNREACH();
-            break;
-          case fir::ICmpInstrSubType::NE:
-            return static_cast<u64>(a_val != b_val);
-          case fir::ICmpInstrSubType::EQ:
-            return static_cast<u64>(a_val == b_val);
-          case fir::ICmpInstrSubType::SLT:
-            return static_cast<u64>(static_cast<i64>(a_val) <
-                                    static_cast<i64>(b_val));
-          case fir::ICmpInstrSubType::ULT:
-            return static_cast<u64>(
-                std::bit_cast<u64>(static_cast<i64>(a_val)) <
-                std::bit_cast<u64>(static_cast<i64>(b_val)));
-          case fir::ICmpInstrSubType::SGT:
-            return static_cast<u64>(static_cast<i64>(a_val) >
-                                    static_cast<i64>(b_val));
-          case fir::ICmpInstrSubType::UGT:
-            return static_cast<u64>(
-                std::bit_cast<u64>(static_cast<i64>(a_val)) >
-                std::bit_cast<u64>(static_cast<i64>(b_val)));
-          case fir::ICmpInstrSubType::UGE:
-            return static_cast<u64>(
-                std::bit_cast<u64>(static_cast<i64>(a_val)) >=
-                std::bit_cast<u64>(static_cast<i64>(b_val)));
-          case fir::ICmpInstrSubType::ULE:
-            return static_cast<u64>(
-                std::bit_cast<u64>(static_cast<i64>(a_val)) <=
-                std::bit_cast<u64>(static_cast<i64>(b_val)));
-          case fir::ICmpInstrSubType::SGE:
-            return static_cast<u64>(static_cast<i64>(a_val) >=
-                                    static_cast<i64>(b_val));
-          case fir::ICmpInstrSubType::SLE:
-            return static_cast<u64>(static_cast<i64>(a_val) <=
-                                    static_cast<i64>(b_val));
-          case fir::ICmpInstrSubType::MulOverflow: {
-            i128 output = a_val * b_val;
-            return static_cast<u64>((output & mask) != 0);
-          }
-          case fir::ICmpInstrSubType::AddOverflow: {
-            i128 output = a_val + b_val;
-            return static_cast<u64>((output & mask) != 0);
-          }
-        }
-      };
-
-      ConstantValue res;
-      res.vtype = res_type;
-      res.type = ConstantValue::ValueType::Int;
-      res.vals.clear();
-      for (size_t i = 0; i < a.vals.size(); i++) {
-        res.vals.push_back(
-            ConstantValue::Value{.i = constnat_prop(a.vals[i].i, b.vals[i].i)});
-      }
-      return res;
-    }
-    case fir::InstrType::ITrunc: {
-      auto a = eval(instr->get_arg(0));
-      ASSERT(a.vals.size() <= 1);
-
-      if (a.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (a.is_top()) {
-        return ConstantValue::Top();
-      }
-
-      if (!a.is_int()) {
-        failure({.reason = "Impl icmp on non ints", .loc = instr});
-        return ConstantValue::Bottom();
-      }
-
-      auto res_type_width = instr->get_type()->as_int();
-      u64 mask = (static_cast<u64>(1) << res_type_width) - 1;
-      return ConstantValue::Constant(
-          ctx->get_constant_int(a.as_int() & mask, res_type_width));
-    }
-    case fir::InstrType::SelectInstr: {
-      auto c = eval(instr->get_arg(0));
-      auto a = eval(instr->get_arg(1));
-      auto b = eval(instr->get_arg(2));
-      ASSERT(c.vals.size() <= 1);
-      ASSERT(a.vals.size() <= 1);
-      ASSERT(b.vals.size() <= 1);
-
-      if (c.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (c.is_top()) {
-        return ConstantValue::Top();
-      }
-      if (c.is_poison()) {
-        TODO("okeee");
-        // TODO: idk if this makes the most sense
-        return a;
-      }
-
-      if (c.as_int() != 0) {
-        return a;
-      }
-      return b;
-    }
-    case fir::InstrType::LoadInstr: {
-      auto c = eval(instr->get_arg(0));
-      if (c.is_bottom()) {
-        return ConstantValue::Bottom();
-      }
-      if (c.is_top() || !c.is_global()) {
-        return ConstantValue::Top();
-      }
-      if (!c.vals[0].gptr->is_constant ||
-          (c.vals[0].gptr->linkage != fir::Linkage::Internal &&
-           c.vals[0].gptr->linkage != fir::Linkage::LinkOnceODR)) {
-        return ConstantValue::Top();
-      }
-      ASSERT(c.vals.size() <= 1);
-      auto ty = instr->get_type();
-      auto glob = c.vals[0].gptr;
-      auto res = ConstantValue::loadConstant(glob->init_value, ty, ctx);
-      if (res) {
-        return res.value();
-      }
-      fmt::println("{:cd}", instr);
-      TODO("impl");
-    }
-    case fir::InstrType::CallInstr:
-    case fir::InstrType::AllocaInstr:
-    case fir::InstrType::ReturnInstr:
-    case fir::InstrType::Unreachable:
-    case fir::InstrType::StoreInstr:
+    if (arg.is_top()) {
       return ConstantValue::Top();
+    }
+
+    bool cond = false;
+    if (arg.is_poison()) {
+    } else {
+      ASSERT(arg.is_int());
+      cond = arg.as_int() != 0;
+    }
+
+    if (cond) {
+      cfg_worklist.push_back(targets[0].bb);
+    }
+    if (!cond) {
+      cfg_worklist.push_back(targets[1].bb);
+    }
+
+    {
+      const size_t bb_id = func->bb_id(targets[0].bb);
+      eval_meets(targets[0].bb, bb_id);
+    }
+    {
+      const size_t bb_id = func->bb_id(targets[1].bb);
+      eval_meets(targets[1].bb, bb_id);
+    }
+
+    u8 target_bb_id = cond ? 0 : 1;
+    fir::Builder bb{instr};
+
+    auto replacement_term = bb.build_branch(instr->bbs[target_bb_id].bb);
+    for (auto bb_arg : instr->bbs[target_bb_id].args) {
+      replacement_term.add_bb_arg(0, bb_arg);
+    }
+
+    values.erase(fir::ValueR{instr});
+    instr.clear_bbs();
+    instr.clear_args();
+    instr.destroy();
+    // TODO("handle cond branch being constant or skip top\n");
+    values.insert({fir::ValueR(replacement_term), ConstantValue::Top()});
+    cfg.update(*replacement_term->get_parent()->get_parent().func, false);
+    return ConstantValue::Top();
+  }
+  case fir::InstrType::Conversion: {
+    auto a = eval(instr->get_arg(0));
+    if (a.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (a.is_top()) {
+      return ConstantValue::Top();
+    }
+    if (a.is_const() && a.is_global()) {
+      return ConstantValue::Bottom();
+    }
+    if (a.is_const() && a.is_poison()) {
+      return a;
+    }
+    switch (static_cast<fir::ConversionSubType>(instr->get_instr_subtype())) {
+    case fir::ConversionSubType::INVALID:
+      UNREACH();
+    case fir::ConversionSubType::BitCast: {
+      // fmt::println("Doing conversion================");
+      auto *buf = utils::TempAlloc<u8>{}.allocate(a.vtype->get_size());
+      // fmt::println("{:cd} ", a.toConstantValue(ctx, a.vtype).value());
+      if (!a.storeConstant(buf, a.vtype)) {
+        return ConstantValue::Top();
+      }
+      auto r = ConstantValue::loadConstant(buf, instr->get_type(), ctx);
+      if (!r) {
+        return ConstantValue::Top();
+      }
+      // fmt::println(
+      //     "{:cd} ",
+      //     r.value().toConstantValue(ctx, instr->get_type()).value());
+      // fmt::println("\nDONE================");
+      return r.value();
+    }
+    case fir::ConversionSubType::FPTOUI:
+      ASSERT(a.vals.size() <= 1);
+      if (a.vtype->get_bitwidth() == 32) {
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<u32>(a.as_f32()), instr->get_type()));
+      }
+      return ConstantValue::Constant(ctx->get_constant_value(
+          static_cast<u64>(a.as_f64()), instr->get_type()));
+    case fir::ConversionSubType::FPTOSI:
+      ASSERT(a.vals.size() <= 1);
+      if (a.vtype->get_bitwidth() == 32) {
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<i32>(a.as_f32()), instr->get_type()));
+      }
+      return ConstantValue::Constant(ctx->get_constant_value(
+          static_cast<i64>(a.as_f64()), instr->get_type()));
+    case fir::ConversionSubType::UITOFP:
+    case fir::ConversionSubType::SITOFP:
+      ASSERT(a.vals.size() <= 1);
+      switch (instr->get_type()->as_float()) {
+      case 32:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<f32>(a.as_int()), instr->get_type()));
+      case 64:
+        return ConstantValue::Constant(ctx->get_constant_value(
+            static_cast<f64>(a.as_int()), instr->get_type()));
+      default:
+        TODO("dont suport other bitwidths");
+      }
+    case fir::ConversionSubType::PtrToInt:
+    case fir::ConversionSubType::IntToPtr:
+      ASSERT(a.vals.size() <= 1);
+      return ConstantValue::Constant(ctx->get_constant_value(
+          static_cast<u64>(a.as_int()), instr->get_type()));
+    case fir::ConversionSubType::FPEXT:
+      ASSERT(a.vals.size() <= 1);
+      return ConstantValue::Constant(
+          ctx->get_constant_value(a.as_f64(), instr->get_type()));
+    case fir::ConversionSubType::FPTRUNC:
+      ASSERT(a.vals.size() <= 1);
+      return ConstantValue::Constant(ctx->get_constant_value(
+          static_cast<f32>(a.as_f64()), instr->get_type()));
+    }
+  }
+  case fir::InstrType::ExtractValue: {
+    auto v = eval(instr->get_arg(0));
+    auto indx = eval(instr->get_arg(1));
+    if (v.is_bottom() || indx.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (v.is_top() || indx.is_top()) {
+      return ConstantValue::Top();
+    }
+    if (v.is_poison() || indx.is_poison()) {
+      return ConstantValue::Constant(ctx->get_poisson_value(instr->get_type()));
+    }
+    ASSERT(v.is_const());
+    ASSERT(indx.is_int());
+    if (v.vtype->is_vec()) {
+      ASSERT(v.vals.size() > 1);
+      ASSERT(v.vals.size() > indx.as_int());
+      auto r = v.vals[indx.as_int()];
+      auto t = v.vtype->as_vec();
+      if (t.type == fir::VectorType::SubType::Floating) {
+        return ConstantValue::Constant(r.f, ctx->get_float_type(t.bitwidth));
+      }
+      return ConstantValue::Constant(r.i, ctx->get_int_type(t.bitwidth));
+    }
+    return ConstantValue::Bottom();
+  }
+  case fir::InstrType::InsertValue:
+    return ConstantValue::Bottom();
+  case fir::InstrType::ZExt: {
+    auto a = eval(instr->get_arg(0));
+    if (a.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (a.is_top()) {
+      return ConstantValue::Top();
+    }
+    if (a.is_poison()) {
+      return ConstantValue::Constant(ctx->get_poisson_value(instr->get_type()));
+    }
+    if (a.vals.size() == 1) {
+      return ConstantValue::Constant(
+          ctx->get_constant_value(a.as_int(), instr->get_type()));
+    }
+    IRVec<fir::ConstantValueR> args;
+    for (const auto &v : a.vals) {
+      args.push_back(ctx->get_constant_value(
+          v.i, ctx->get_int_type(instr->get_type()->as_vec().bitwidth)));
+    }
+    return ConstantValue::Constant(
+        ctx->get_constant_value(args, instr.get_type()));
+  }
+  case fir::InstrType::SExt: {
+    auto a = eval(instr->get_arg(0));
+    if (a.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (a.is_top()) {
+      return ConstantValue::Top();
+    }
+    size_t old_width = 0;
+    size_t new_width = 0;
+    if (a.vals.size() == 1) {
+      old_width = a.get_type()->get_bitwidth();
+      new_width = instr->get_type()->get_bitwidth();
+    } else {
+      ASSERT(instr.get_type()->is_vec());
+      old_width = a.get_type()->as_vec().bitwidth;
+      new_width = instr->get_type()->as_vec().bitwidth;
+    }
+    auto const_prop = [old_width, new_width](auto old_value) {
+      auto is_negative =
+          (old_value & (static_cast<i128>(1) << (old_width - 1))) != 0;
+      if (is_negative) {
+        auto mask = (static_cast<i128>(1) << (new_width - old_width)) - 1;
+        mask = mask << old_width;
+        return old_value | mask;
+      }
+      return old_value;
+    };
+
+    ASSERT(a.is_int());
+    ConstantValue res;
+    res.vtype = instr->get_type();
+    res.type = ConstantValue::ValueType::Int;
+    res.vals.clear();
+    for (auto &val : a.vals) {
+      res.vals.push_back(ConstantValue::Value{.i = const_prop(val.i)});
+    }
+    return res;
+  }
+  case fir::InstrType::FCmp: {
+    auto a = eval(instr->get_arg(0));
+    auto b = eval(instr->get_arg(1));
+    if (a.is_bottom() || b.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (!a.is_const() || !b.is_const()) {
+      return ConstantValue::Top();
+    }
+    if (a.is_poison() || b.is_poison()) {
+      return ConstantValue::Constant(ctx->get_poisson_value(instr->get_type()));
+    }
+    ASSERT(a.vals.size() == b.vals.size());
+    auto res_type = ctx->get_int_type(1);
+    if (a.vals.size() != 1) {
+      res_type = ctx->get_vec_type(fir::VectorType::SubType::Integer, 1,
+                                   a.vals.size());
+    }
+
+    TVec<ConstantValue::Value> res_vals;
+
+    for (size_t i = 0; i < a.vals.size(); i++) {
+      switch (static_cast<fir::FCmpInstrSubType>(instr->get_instr_subtype())) {
+      case fir::FCmpInstrSubType::IsNaN:
+        if (a.get_type()->as_float() == 32) {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(std::isnan(a.as_f32(i)))});
+          break;
+        } else {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(std::isnan(a.as_f64(i)))});
+          break;
+        }
+      case fir::FCmpInstrSubType::OGT:
+        if (a.get_type()->as_float() == 32) {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f32(i) > b.as_f32(i))});
+          break;
+        } else {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f64(i) > b.as_f64(i))});
+          break;
+        }
+      case fir::FCmpInstrSubType::OLT:
+        if (a.get_type()->as_float() == 32) {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f32(i) < b.as_f32(i))});
+          break;
+        } else {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f64(i) < b.as_f64(i))});
+          break;
+        }
+      case fir::FCmpInstrSubType::OEQ:
+        if (a.get_type()->as_float() == 32) {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f32(i) == b.as_f32(i))});
+          break;
+        } else {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f64(i) == b.as_f64(i))});
+          break;
+        }
+      case fir::FCmpInstrSubType::OGE:
+        if (a.get_type()->as_float() == 32) {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f32(i) >= b.as_f32(i))});
+          break;
+        } else {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f64(i) >= b.as_f64(i))});
+          break;
+        }
+      case fir::FCmpInstrSubType::OLE:
+        if (a.get_type()->as_float() == 32) {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f32(i) <= b.as_f32(i))});
+          break;
+        } else {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f64(i) <= b.as_f64(i))});
+          break;
+        }
+      case fir::FCmpInstrSubType::ONE:
+        if (a.get_type()->as_float() == 32) {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f32(i) != b.as_f32(i))});
+          break;
+        } else {
+          res_vals.push_back(ConstantValue::Value{
+              .i = static_cast<i32>(a.as_f64(i) != b.as_f64(i))});
+          break;
+        }
+      case fir::FCmpInstrSubType::UEQ:
+      case fir::FCmpInstrSubType::UGT:
+      case fir::FCmpInstrSubType::UGE:
+      case fir::FCmpInstrSubType::ULT:
+      case fir::FCmpInstrSubType::ULE:
+      case fir::FCmpInstrSubType::UNE:
+      case fir::FCmpInstrSubType::ORD:
+      case fir::FCmpInstrSubType::UNO:
+        TODO("IMPL");
+      case fir::FCmpInstrSubType::AlwFalse:
+        res_vals.push_back(ConstantValue::Value{.i = static_cast<i32>(false)});
+        break;
+      case fir::FCmpInstrSubType::AlwTrue:
+        res_vals.push_back(ConstantValue::Value{.i = static_cast<i32>(true)});
+        break;
+      case fir::FCmpInstrSubType::INVALID:
+        UNREACH();
+      }
+    }
+    return ConstantValue{ConstantValue::ValueType::Int, res_vals, res_type};
+  }
+  case fir::InstrType::ICmp: {
+    auto a = eval(instr->get_arg(0));
+    auto b = eval(instr->get_arg(1));
+
+    const auto res_type = ctx->get_int_type(1);
+    if (a.is_const() && a.vals.size() == 1 &&
+        static_cast<fir::ICmpInstrSubType>(instr->get_instr_subtype()) ==
+            fir::ICmpInstrSubType::ULE) {
+      if (a.as_int() == 0) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(static_cast<u64>(1), res_type));
+      }
+    } else if (a.is_const() && a.vals.size() == 1 &&
+               static_cast<fir::ICmpInstrSubType>(instr->get_instr_subtype()) ==
+                   fir::ICmpInstrSubType::UGT) {
+      if (a.as_int() == 0) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(static_cast<u64>(0), res_type));
+      }
+    }
+
+    if (a.is_bottom() || b.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (!a.is_const() || !b.is_const()) {
+      return ConstantValue::Top();
+    }
+    if (a.is_poison() || b.is_poison()) {
+      return ConstantValue::Poision(instr->get_type());
+    }
+
+    size_t bit_width = 0;
+    if (a.vals.size() == 1) {
+      ASSERT(instr.get_type()->is_int() || instr.get_type()->is_ptr());
+      bit_width = std::max(instr->args[0].get_type()->get_bitwidth(),
+                           instr->args[1].get_type()->get_bitwidth());
+    } else {
+      ASSERT(instr.get_type()->is_vec());
+      bit_width = std::max(instr->args[0].get_type()->as_vec().bitwidth,
+                           instr->args[1].get_type()->as_vec().bitwidth);
+    }
+    auto mask = (static_cast<i128>(1) << bit_width) - 1;
+    auto rest_width = (128 - bit_width);
+    auto instr_ty = instr->get_instr_subtype();
+
+    auto constnat_prop = [mask, rest_width, instr_ty](auto a, auto b) -> u64 {
+      auto a_val = ((a & mask) << rest_width) >> rest_width;
+      auto b_val = ((b & mask) << rest_width) >> rest_width;
+      switch (static_cast<fir::ICmpInstrSubType>(instr_ty)) {
+      case fir::ICmpInstrSubType::INVALID:
+        UNREACH();
+        break;
+      case fir::ICmpInstrSubType::NE:
+        return static_cast<u64>(a_val != b_val);
+      case fir::ICmpInstrSubType::EQ:
+        return static_cast<u64>(a_val == b_val);
+      case fir::ICmpInstrSubType::SLT:
+        return static_cast<u64>(static_cast<i64>(a_val) <
+                                static_cast<i64>(b_val));
+      case fir::ICmpInstrSubType::ULT:
+        return static_cast<u64>(std::bit_cast<u64>(static_cast<i64>(a_val)) <
+                                std::bit_cast<u64>(static_cast<i64>(b_val)));
+      case fir::ICmpInstrSubType::SGT:
+        return static_cast<u64>(static_cast<i64>(a_val) >
+                                static_cast<i64>(b_val));
+      case fir::ICmpInstrSubType::UGT:
+        return static_cast<u64>(std::bit_cast<u64>(static_cast<i64>(a_val)) >
+                                std::bit_cast<u64>(static_cast<i64>(b_val)));
+      case fir::ICmpInstrSubType::UGE:
+        return static_cast<u64>(std::bit_cast<u64>(static_cast<i64>(a_val)) >=
+                                std::bit_cast<u64>(static_cast<i64>(b_val)));
+      case fir::ICmpInstrSubType::ULE:
+        return static_cast<u64>(std::bit_cast<u64>(static_cast<i64>(a_val)) <=
+                                std::bit_cast<u64>(static_cast<i64>(b_val)));
+      case fir::ICmpInstrSubType::SGE:
+        return static_cast<u64>(static_cast<i64>(a_val) >=
+                                static_cast<i64>(b_val));
+      case fir::ICmpInstrSubType::SLE:
+        return static_cast<u64>(static_cast<i64>(a_val) <=
+                                static_cast<i64>(b_val));
+      case fir::ICmpInstrSubType::MulOverflow: {
+        i128 output = a_val * b_val;
+        return static_cast<u64>((output & mask) != 0);
+      }
+      case fir::ICmpInstrSubType::AddOverflow: {
+        i128 output = a_val + b_val;
+        return static_cast<u64>((output & mask) != 0);
+      }
+      }
+    };
+
+    ConstantValue res;
+    res.vtype = res_type;
+    res.type = ConstantValue::ValueType::Int;
+    res.vals.clear();
+    for (size_t i = 0; i < a.vals.size(); i++) {
+      res.vals.push_back(
+          ConstantValue::Value{.i = constnat_prop(a.vals[i].i, b.vals[i].i)});
+    }
+    return res;
+  }
+  case fir::InstrType::ITrunc: {
+    auto a = eval(instr->get_arg(0));
+    ASSERT(a.vals.size() <= 1);
+
+    if (a.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (a.is_top()) {
+      return ConstantValue::Top();
+    }
+
+    if (!a.is_int()) {
+      failure({.reason = "Impl icmp on non ints", .loc = instr});
+      return ConstantValue::Bottom();
+    }
+
+    auto res_type_width = instr->get_type()->as_int();
+    u64 mask = (static_cast<u64>(1) << res_type_width) - 1;
+    return ConstantValue::Constant(
+        ctx->get_constant_int(a.as_int() & mask, res_type_width));
+  }
+  case fir::InstrType::SelectInstr: {
+    auto c = eval(instr->get_arg(0));
+    auto a = eval(instr->get_arg(1));
+    auto b = eval(instr->get_arg(2));
+    ASSERT(c.vals.size() <= 1);
+    ASSERT(a.vals.size() <= 1);
+    ASSERT(b.vals.size() <= 1);
+
+    if (c.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (c.is_top()) {
+      return ConstantValue::Top();
+    }
+    if (c.is_poison()) {
+      TODO("okeee");
+      // TODO: idk if this makes the most sense
+      return a;
+    }
+
+    if (c.as_int() != 0) {
+      return a;
+    }
+    return b;
+  }
+  case fir::InstrType::LoadInstr: {
+    auto c = eval(instr->get_arg(0));
+    if (c.is_bottom()) {
+      return ConstantValue::Bottom();
+    }
+    if (c.is_top() || !c.is_global()) {
+      return ConstantValue::Top();
+    }
+    if (!c.vals[0].gptr->is_constant ||
+        (c.vals[0].gptr->linkage != fir::Linkage::Internal &&
+         c.vals[0].gptr->linkage != fir::Linkage::LinkOnceODR)) {
+      return ConstantValue::Top();
+    }
+    ASSERT(c.vals.size() <= 1);
+    auto ty = instr->get_type();
+    auto glob = c.vals[0].gptr;
+    auto res = ConstantValue::loadConstant(glob->init_value, ty, ctx);
+    if (res) {
+      return res.value();
+    }
+    fmt::println("{:cd}", instr);
+    TODO("impl");
+  }
+  case fir::InstrType::CallInstr:
+  case fir::InstrType::AllocaInstr:
+  case fir::InstrType::ReturnInstr:
+  case fir::InstrType::Unreachable:
+  case fir::InstrType::StoreInstr:
+    return ConstantValue::Top();
   }
   assert(false);
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
