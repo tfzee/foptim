@@ -104,8 +104,9 @@ SimplifyCFG::Res SimplifyCFG::remove_struct_bb_arg(CFG &cfg, CFG::Node &curr) {
   return SimplifyCFG::Res::NoChange;
 }
 
-SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
-    fir::Function &func, CFG::Node &curr) {
+SimplifyCFG::Res
+SimplifyCFG::static_select_call_into_branch(fir::Function &func,
+                                            CFG::Node &curr) {
   auto *ctx = func.ctx;
   for (auto i : curr.bb->instructions) {
     if (!i->is(fir::InstrType::CallInstr) || !i->args[0].is_instr()) {
@@ -254,7 +255,7 @@ bool has_true_use(fir::BBArgument v) {
   }
   return false;
 }
-}  // namespace
+} // namespace
 
 bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
                                      bool is_entry) {
@@ -516,7 +517,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
 
   return modified;
 }
-}  // namespace
+} // namespace
 
 bool SimplifyCFG::dup_bb_to_args(fir::Function &func, CFG &cfg) {
   ZoneScopedN("dup bb to arg");
@@ -635,44 +636,48 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
   return true;
 }
 bool SimplifyCFG::remove_constant_bb_args(CFG::Node &curr, bool is_entry) {
-  if (curr.bb->n_args() != 0 && !is_entry) {
-    ZoneScopedN("rem const bb args");
-    auto n_args = curr.bb->n_args();
-    for (u32 ip1 = n_args; ip1 > 0; ip1--) {
-      auto i = ip1 - 1;
-      fir::ValueR c_value{};
-      bool is_c = true;
+  if (curr.bb->n_args() == 0 || is_entry) {
+    return false;
+  }
+  ZoneScopedN("rem const bb args");
+  auto n_args = curr.bb->n_args();
+  bool modified = false;
+  for (u32 ip1 = n_args; ip1 > 0; ip1--) {
+    auto i = ip1 - 1;
+    fir::ValueR c_value{};
+    bool is_c = true;
 
-      TVec<fir::Use> uses{curr.bb->uses.begin(), curr.bb->uses.end()};
+    TVec<fir::Use> uses{curr.bb->uses.begin(), curr.bb->uses.end()};
 
-      for (auto use : uses) {
-        ASSERT(use.type == fir::UseType::BB);
-        auto pred_term = use.user;
-        auto pred_term_bb_id = use.argId;
-        auto incoming_arg = pred_term->bbs[pred_term_bb_id].args[i];
-        if (c_value.is_invalid() || incoming_arg.eql(c_value)) {
-          c_value = incoming_arg;
-        } else if (incoming_arg.is_bb_arg() &&
-                   incoming_arg.as_bb_arg() == curr.bb->args[i]) {
-        } else {
-          is_c = false;
-          break;
-        }
-      }
-      if (is_c) {
-        for (auto use : uses) {
-          ASSERT(use.type == fir::UseType::BB);
-          auto user = use.user;
-          auto bb_id = user.get_bb_id(curr.bb);
-          user.remove_bb_arg(bb_id, i);
-        }
-        curr.bb->args[i]->replace_all_uses(c_value);
-        curr.bb->args.erase(curr.bb->args.begin() + i);
-        return true;
+    for (auto use : uses) {
+      ASSERT(use.type == fir::UseType::BB);
+      auto pred_term = use.user;
+      auto pred_term_bb_id = use.argId;
+      auto incoming_arg = pred_term->bbs[pred_term_bb_id].args[i];
+      if (c_value.is_invalid() || incoming_arg.eql(c_value)) {
+        c_value = incoming_arg;
+      } else if (incoming_arg.is_bb_arg() &&
+                 incoming_arg.as_bb_arg() == curr.bb->args[i]) {
+      } else {
+        is_c = false;
+        break;
       }
     }
+    if (!is_c) {
+      continue;
+    }
+    for (auto use : uses) {
+      ASSERT(use.type == fir::UseType::BB);
+      auto user = use.user;
+      auto bb_id = user.get_bb_id(curr.bb);
+      user.remove_bb_arg(bb_id, i);
+    }
+    curr.bb->args[i]->replace_all_uses(c_value);
+    curr.bb->args.erase(curr.bb->args.begin() + i);
+    modified = true;
+    // return true;
   }
-  return false;
+  return modified;
 }
 
 bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
@@ -689,53 +694,54 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
   for (auto instr : curr.bb->instructions) {
     // just switching to make sure to update this
     switch (instr->instr_type) {
-      case fir::InstrType::CallInstr:
-        return false;
-      case fir::InstrType::Intrinsic:
-        switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
-          case fir::IntrinsicSubType::INVALID:
-          case fir::IntrinsicSubType::CTLZ:
-          case fir::IntrinsicSubType::Abs:
-          case fir::IntrinsicSubType::FAbs:
-          case fir::IntrinsicSubType::VA_end:
-          case fir::IntrinsicSubType::VA_start:
-          case fir::IntrinsicSubType::UMin:
-          case fir::IntrinsicSubType::UMax:
-          case fir::IntrinsicSubType::SMin:
-          case fir::IntrinsicSubType::SMax:
-          case fir::IntrinsicSubType::FMin:
-          case fir::IntrinsicSubType::FMax:
-          case fir::IntrinsicSubType::FRound:
-          case fir::IntrinsicSubType::FFloor:
-          case fir::IntrinsicSubType::PopCnt:
-          case fir::IntrinsicSubType::FCeil:
-          case fir::IntrinsicSubType::FTrunc:
-          case fir::IntrinsicSubType::IsConstant:
-            break;
-        }
-      case fir::InstrType::VectorInstr:
-      case fir::InstrType::ICmp:
-      case fir::InstrType::FCmp:
-      case fir::InstrType::BinaryInstr:
-      case fir::InstrType::UnaryInstr:
-      case fir::InstrType::AllocaInstr:
-      case fir::InstrType::ExtractValue:
-      case fir::InstrType::InsertValue:
-      case fir::InstrType::ITrunc:
-      case fir::InstrType::ZExt:
-      case fir::InstrType::SExt:
-      case fir::InstrType::Conversion:
-      case fir::InstrType::SelectInstr:
-      case fir::InstrType::ReturnInstr:
-      case fir::InstrType::BranchInstr:
-      case fir::InstrType::CondBranchInstr:
-      case fir::InstrType::SwitchInstr:
-      case fir::InstrType::Unreachable:
-      case fir::InstrType::LoadInstr:
-      case fir::InstrType::StoreInstr:
-      case fir::InstrType::AtomicRMW:
-      case fir::InstrType::Fence:
+    case fir::InstrType::CallInstr:
+      return false;
+    case fir::InstrType::Intrinsic:
+      switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
+      case fir::IntrinsicSubType::INVALID:
+      case fir::IntrinsicSubType::CTLZ:
+      case fir::IntrinsicSubType::CTTZ:
+      case fir::IntrinsicSubType::Abs:
+      case fir::IntrinsicSubType::FAbs:
+      case fir::IntrinsicSubType::VA_end:
+      case fir::IntrinsicSubType::VA_start:
+      case fir::IntrinsicSubType::UMin:
+      case fir::IntrinsicSubType::UMax:
+      case fir::IntrinsicSubType::SMin:
+      case fir::IntrinsicSubType::SMax:
+      case fir::IntrinsicSubType::FMin:
+      case fir::IntrinsicSubType::FMax:
+      case fir::IntrinsicSubType::FRound:
+      case fir::IntrinsicSubType::FFloor:
+      case fir::IntrinsicSubType::PopCnt:
+      case fir::IntrinsicSubType::FCeil:
+      case fir::IntrinsicSubType::FTrunc:
+      case fir::IntrinsicSubType::IsConstant:
         break;
+      }
+    case fir::InstrType::VectorInstr:
+    case fir::InstrType::ICmp:
+    case fir::InstrType::FCmp:
+    case fir::InstrType::BinaryInstr:
+    case fir::InstrType::UnaryInstr:
+    case fir::InstrType::AllocaInstr:
+    case fir::InstrType::ExtractValue:
+    case fir::InstrType::InsertValue:
+    case fir::InstrType::ITrunc:
+    case fir::InstrType::ZExt:
+    case fir::InstrType::SExt:
+    case fir::InstrType::Conversion:
+    case fir::InstrType::SelectInstr:
+    case fir::InstrType::ReturnInstr:
+    case fir::InstrType::BranchInstr:
+    case fir::InstrType::CondBranchInstr:
+    case fir::InstrType::SwitchInstr:
+    case fir::InstrType::Unreachable:
+    case fir::InstrType::LoadInstr:
+    case fir::InstrType::StoreInstr:
+    case fir::InstrType::AtomicRMW:
+    case fir::InstrType::Fence:
+      break;
     }
   }
 
@@ -1015,38 +1021,44 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
     auto t1 = terminator->bbs[0].bb;
     auto t2 = terminator->bbs[1].bb;
     bool matched = false;
-    fir::Instr extra_instr;
+    TVec<fir::Instr> extra_instrs;
     u8 extra_bb = 0;
     // TODO: prob should ignore instrucitons that are part of both so get
     // executed either way? but technically that should already be taken care by
     // redundancy eliminiation or PRE
-    if (t1->n_instrs() == 1 &&
-        t1->instructions[0]->is(fir::InstrType::ReturnInstr) &&
-        t2->n_instrs() == 1 &&
-        t2->instructions[0]->is(fir::InstrType::ReturnInstr) &&
-        // need a return value
-        t2->instructions[0]->args.size() == 1) {
-      matched = true;
-    }
-    if (t1->n_instrs() == 1 &&
-        t1->instructions[0]->is(fir::InstrType::ReturnInstr) &&
-        t2->n_instrs() == 2 &&
-        t2->instructions[1]->is(fir::InstrType::ReturnInstr) &&
-        t2->instructions[1]->args.size() == 1 &&
-        t2->instructions[1]->args[0] == fir::ValueR{t2->instructions[0]}) {
-      extra_instr = t2->instructions[0];
-      matched = true;
-      extra_bb = 1;
-    }
-    if (t2->n_instrs() == 1 &&
-        t2->instructions[0]->is(fir::InstrType::ReturnInstr) &&
-        t1->n_instrs() == 2 &&
-        t1->instructions[1]->is(fir::InstrType::ReturnInstr) &&
-        t1->instructions[1]->args.size() == 1 &&
-        t1->instructions[1]->args[0] == fir::ValueR{t1->instructions[0]}) {
-      extra_instr = t1->instructions[0];
-      matched = true;
-      extra_bb = 0;
+    if (t1->get_terminator()->is(fir::InstrType::ReturnInstr) &&
+        t2->get_terminator()->is(fir::InstrType::ReturnInstr)) {
+      if (t1->n_instrs() == 1 && t2->n_instrs() == 1 &&
+          // need a return value
+          t2->instructions[0]->args.size() == 1) {
+        matched = true;
+      } else if (t1->n_instrs() == 1 && t2->n_instrs() <= 3) {
+        matched = true;
+        for (auto instr : t2->get_instrs()) {
+          if (instr->is(fir::InstrType::ReturnInstr)) {
+            continue;
+          }
+          if (instr->has_pot_sideeffects()) {
+            matched = false;
+            break;
+          }
+          extra_instrs.push_back(instr);
+        }
+        extra_bb = 1;
+      } else if (t2->n_instrs() == 1 && t1->n_instrs() <= 4) {
+        matched = true;
+        for (auto instr : t1->get_instrs()) {
+          if (instr->is(fir::InstrType::ReturnInstr)) {
+            continue;
+          }
+          if (instr->has_pot_sideeffects()) {
+            matched = false;
+            break;
+          }
+          extra_instrs.push_back(instr);
+        }
+        extra_bb = 0;
+      }
     }
     if (matched) {
       fir::Builder bb{terminator};
@@ -1055,20 +1067,33 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
       ASSERT(!res_t->is_void());
       fir::ValueR v1;
       fir::ValueR v2;
-      if (!extra_instr.is_valid()) {
+      if (extra_instrs.empty()) {
         v1 = t1->get_terminator()->args[0];
         v2 = t2->get_terminator()->args[0];
-      } else if (extra_bb == 1) {
+      } else {
+        fir::ContextData::V2VMap subs;
+        TVec<fir::Instr> new_instr;
+        new_instr.reserve(extra_instrs.size());
+        for (auto i : extra_instrs) {
+          auto r = bb.insert_copy(i);
+          new_instr.push_back(r);
+          subs.insert({fir::ValueR{i}, fir::ValueR{r}});
+        }
+        for (auto i : new_instr) {
+          i.substitute(subs);
+        }
         v1 = t1->get_terminator()->args[0];
-        v2 = fir::ValueR{bb.insert_copy(extra_instr)};
-      } else if (extra_bb == 0) {
-        v1 = fir::ValueR{bb.insert_copy(extra_instr)};
+        if (extra_bb == 0 && subs.contains(v1)) {
+          v1 = subs.at(v1);
+        }
         v2 = t2->get_terminator()->args[0];
+        if (extra_bb == 1 && subs.contains(v2)) {
+          v2 = subs.at(v2);
+        }
       }
       auto res_v = bb.build_select(res_t, terminator->args[0], v1, v2);
       bb.build_return(res_v);
       terminator.destroy();
-      // fmt::println("{:cd}", curr.bb);
       // TODO("okak");
       return true;
     }
@@ -1189,7 +1214,7 @@ bool can_merge(const fir::BasicBlock bb1, u32 next_id, bool &sec_neg,
   }
   return true;
 }
-}  // namespace
+} // namespace
 
 bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
   auto terminator = curr.bb->get_terminator();
@@ -1591,4 +1616,4 @@ void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
   dup_bb_to_args(func, cfg);
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

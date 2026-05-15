@@ -6,7 +6,7 @@
 namespace foptim::fir {
 class Function;
 class BasicBlock;
-}  // namespace foptim::fir
+} // namespace foptim::fir
 namespace foptim::optim {
 class Dominators;
 
@@ -22,7 +22,7 @@ class Dominators;
 // + [ ]
 
 class SimplifyCFG final : public FunctionPass {
- public:
+public:
   static constexpr bool debug_print = false;
   enum class Res : u8 {
     // No chagne
@@ -33,7 +33,7 @@ class SimplifyCFG final : public FunctionPass {
     NeedUpdate,
   };
 
- private:
+private:
   // if we got a select(cond, f1, f2) with f1 and f2 statically known and only
   // being used in a call in the same
   //  BB then we should replace this select + call into a cbranch into 2 bbs
@@ -106,7 +106,7 @@ class SimplifyCFG final : public FunctionPass {
   // cold bb and the fallthrough is the 'hot' path
   SimplifyCFG::Res flip_cold_cond(CFG &cfg, CFG::Node &curr);
 
- public:
+public:
   // simplifications on the bbargs which
   Res simplify_bb_args(CFG &cfg, Dominators &dom, fir::Function &func,
                        size_t bb_id);
@@ -115,4 +115,4 @@ class SimplifyCFG final : public FunctionPass {
   void apply(fir::Context & /*unused*/, fir::Function &func) override;
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
