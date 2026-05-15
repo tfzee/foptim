@@ -32,6 +32,7 @@ class Builder {
   */
   BasicBlock append_bb();
 
+  void before(Instr instr);
   void after(Instr instr);
   void at_end(BasicBlock bbr);
   void at_start(BasicBlock bbr);
@@ -55,6 +56,7 @@ class Builder {
   ValueR build_atomic_rmw(ValueR ptr, ValueR val, AtomicRMWSubType sub_type, Ordering ordering);
   ValueR build_fence(Ordering ordering);
   ValueR build_ctlz(ValueR a, ValueR b);
+  ValueR build_cttz(ValueR a, ValueR b);
   ValueR build_va_start(ValueR a);
   ValueR build_va_end(ValueR a);
   ValueR build_fabs(ValueR a);

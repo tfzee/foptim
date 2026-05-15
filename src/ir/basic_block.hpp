@@ -9,7 +9,7 @@
 namespace foptim::fir {
 
 class BasicBlockData : public Used {
- public:
+public:
   FunctionR func;
   IRVec<Instr> instructions;
   IRVec<BBArgument> args;
@@ -48,16 +48,13 @@ class BasicBlockData : public Used {
     return instructions.back();
   }
 
-  // // NOTE: prob shouldnt use this since it doesnt update shit
-  // void set_terminator(Instr newTerm) {
-  //   if (instructions.empty()) {
-  //     instructions.push_back(newTerm);
-  //   } else {
-  //     instructions.back() = newTerm;
-  //   }
-  // }
+  u64 get_instr_id(fir::Instr instr) {
+    auto r = std::find(instructions.begin(), instructions.end(), instr);
+    ASSERT(r != instructions.end());
+    return r - instructions.begin();
+  }
 
   auto &get_args() { return args; }
 };
 
-}  // namespace foptim::fir
+} // namespace foptim::fir

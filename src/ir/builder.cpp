@@ -19,11 +19,9 @@ Builder::Builder(BasicBlock bb)
     : ctx(bb->get_parent()->ctx), func(bb->get_parent()), bb(bb), indx(0) {}
 Builder::Builder(Instr instr)
     : ctx(instr->get_parent()->get_parent()->ctx),
-      func(instr->get_parent()->get_parent()),
-      bb(instr->get_parent()),
+      func(instr->get_parent()->get_parent()), bb(instr->get_parent()),
       indx(0) {
-  indx = std::find(bb->instructions.begin(), bb->instructions.end(), instr) -
-         bb->instructions.begin();
+  indx = bb->get_instr_id(instr);
 }
 
 BasicBlock Builder::append_bb() {
@@ -37,13 +35,13 @@ BasicBlock Builder::append_bb() {
   return res;
 }
 
-// void Builder::before(Instr instr) {
-//   ctx = instr->get_parent()->get_parent()->ctx;
-//   func = instr->get_parent()->get_parent()), bb(instr->get_parent();
-//   indx = 0;
-//   indx = std::find(bb->instructions.begin(), bb->instructions.end(), instr) -
-//          bb->instructions.begin();
-// }
+void Builder::before(Instr instr) {
+  if (instr->get_parent() != bb) {
+    bb = instr->get_parent();
+    func = bb->get_parent();
+  }
+  indx = bb->get_instr_id(instr);
+}
 
 void Builder::after(fir::Instr i) {
   if (i->get_parent() != bb) {
@@ -53,8 +51,6 @@ void Builder::after(fir::Instr i) {
   auto r = std::ranges::find(bb->instructions, i);
   ASSERT(r != bb->instructions.end());
   indx = r - bb->instructions.begin() + 1;
-  bb = i->get_parent();
-  func = bb->get_parent();
 }
 
 void Builder::at_end(BasicBlock bbr) {
@@ -77,9 +73,8 @@ void Builder::at_penultimate(BasicBlock bbr) {
 }
 
 void Builder::check_bb_set() {
-  ASSERT_M(bb.is_valid(),
-           "Need to set basicblock insert location first with "
-           "funtions like at_end for exmaple");
+  ASSERT_M(bb.is_valid(), "Need to set basicblock insert location first with "
+                          "funtions like at_end for exmaple");
 }
 
 ValueR Builder::build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
@@ -120,6 +115,17 @@ ValueR Builder::build_ctlz(ValueR a, ValueR b) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(
       InstrData::get_intrinsic(a.get_type(), IntrinsicSubType::CTLZ));
+  instr.add_arg(a);
+  instr.add_arg(b);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
+ValueR Builder::build_cttz(ValueR a, ValueR b) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_intrinsic(a.get_type(), IntrinsicSubType::CTTZ));
   instr.add_arg(a);
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
@@ -617,7 +623,7 @@ Instr Builder::build_return(ValueR v) {
   return instr;
 }
 
-BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap& subs) {
+BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap &subs) {
   BasicBlock new_bb = ctx->copy(bb, subs);
   new_bb->func = func;
   func->append_bbr(new_bb);
@@ -637,7 +643,8 @@ Instr Builder::move_instr(Instr instr) {
   //   instr_id++;
   //   ASSERT(instr_id < parent->instructions.size());
   // }
-  parent->instructions.erase(parent->instructions.begin() + static_cast<i64>(instr_id));
+  parent->instructions.erase(parent->instructions.begin() +
+                             static_cast<i64>(instr_id));
 
   bb.insert_instr(indx, instr);
   indx++;
@@ -652,12 +659,12 @@ Instr Builder::insert_copy(Instr instr) {
   // TODO: this is inneficient and should be clened up
   auto args = res->args;
   res->args.clear();
-  for (auto& arg : args) {
+  for (auto &arg : args) {
     res.add_arg(arg);
   }
   auto bbs = res->bbs;
   res->bbs.clear();
-  for (auto& bb : bbs) {
+  for (auto &bb : bbs) {
     res.add_bb(bb.bb);
     // this works but is weird
     for (size_t arg_id = 0; arg_id < bb.args.size(); arg_id++) {
@@ -670,4 +677,4 @@ Instr Builder::insert_copy(Instr instr) {
   return res;
 }
 
-}  // namespace foptim::fir
+} // namespace foptim::fir
