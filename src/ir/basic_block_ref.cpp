@@ -37,13 +37,14 @@ BBArgument BasicBlock::add_arg(BBArgument arg) {
   return arg;
 }
 
-}  // namespace foptim::fir
+} // namespace foptim::fir
 
 fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
     foptim::fir::BasicBlock const &bb, format_context &ctx) const {
   auto colbb = color ? color_bb : text_style{};
 
-  fmt::format_to(ctx.out(), colbb, "{:p}", (void *)bb.get_raw_ptr());
+  fmt::format_to(ctx.out(), colbb, "{:p}",
+                 reinterpret_cast<const void *>(bb.get_raw_ptr()));
   fmt::format_to(ctx.out(), "(");
   const auto &args = bb->args;
   if (args.size() > 0) {

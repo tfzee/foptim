@@ -217,75 +217,77 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {
 void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
   (void)output;
   switch (val->ty) {
-    case ConstantType::PoisonValue:
+  case ConstantType::PoisonValue:
+    return;
+  case ConstantType::FloatValue:
+    switch (val->type->as_float()) {
+    case 32:
+      *(reinterpret_cast<f32 *>(output)) = val->as_f32();
       return;
-    case ConstantType::FloatValue:
-      switch (val->type->as_float()) {
-        case 32:
-          *((f32 *)output) = val->as_f32();
-          return;
-        case 64:
-          *((f64 *)output) = val->as_f64();
-          return;
-        default:
-          fmt::println("{}", val);
-          TODO("okakf");
-      }
-      break;
-    case ConstantType::NullPtr:
-      *((u64 *)output) = 0;
+    case 64:
+      *(reinterpret_cast<f64 *>(output)) = val->as_f64();
       return;
-    case ConstantType::IntValue:
-      switch (val->type->get_bitwidth()) {
-        case 8:
-          *output = (u8)val->int_u.v.data;
-          return;
-        case 16:
-          *((u16 *)output) = (u16)val->int_u.v.data;
-          return;
-        case 32:
-          *((u32 *)output) = (u32)val->int_u.v.data;
-          return;
-        case 64:
-          *((u64 *)output) = (u64)val->int_u.v.data;
-          return;
-        default:
-          fmt::println("{}", val);
-          TODO("okaka");
-      }
-      break;
-    case ConstantType::VectorValue: {
-      auto typee = val->type->as_vec();
-      auto width = typee.bitwidth;
-      size_t i = 0;
-      ASSERT(width % 8 == 0);
-      auto width_byte = (width / 8);
-      for (auto m : val->vec_u.v.members) {
-        convert_constant_init(output + (width_byte * i), m, glob);
-        i++;
-      }
-      return;
+    default:
+      fmt::println("{}", val);
+      TODO("okakf");
     }
-    case ConstantType::GlobalPtr: {
-      glob->reloc_info.push_back(GlobalData::RelocationInfo{
-          .insert_offset = (size_t)output - (size_t)glob->init_value,
-          .ref = val,
-          .reloc_offset = 0});
+    break;
+  case ConstantType::NullPtr:
+    *(reinterpret_cast<u64 *>(output)) = 0;
+    return;
+  case ConstantType::IntValue:
+    switch (val->type->get_bitwidth()) {
+    case 8:
+      *output = static_cast<u8>(val->int_u.v.data);
       return;
+    case 16:
+      *(reinterpret_cast<u16 *>(output)) = static_cast<u16>(val->int_u.v.data);
+      return;
+    case 32:
+      *(reinterpret_cast<u32 *>(output)) = static_cast<u32>(val->int_u.v.data);
+      return;
+    case 64:
+      *(reinterpret_cast<u64 *>(output)) = static_cast<u64>(val->int_u.v.data);
+      return;
+    default:
+      fmt::println("{}", val);
+      TODO("okaka");
     }
-    case ConstantType::FuncPtr: {
-      glob->reloc_info.push_back(GlobalData::RelocationInfo{
-          .insert_offset = (size_t)output - (size_t)glob->init_value,
-          .ref = val,
-          .reloc_offset = 0});
-      return;
-      return;
+    break;
+  case ConstantType::VectorValue: {
+    auto typee = val->type->as_vec();
+    auto width = typee.bitwidth;
+    size_t i = 0;
+    ASSERT(width % 8 == 0);
+    auto width_byte = (width / 8);
+    for (auto m : val->vec_u.v.members) {
+      convert_constant_init(output + (width_byte * i), m, glob);
+      i++;
     }
-    case ConstantType::ConstantStruct:
-      break;
+    return;
+  }
+  case ConstantType::GlobalPtr: {
+    glob->reloc_info.push_back(GlobalData::RelocationInfo{
+        .insert_offset = std::bit_cast<size_t>(output) -
+                         std::bit_cast<size_t>(glob->init_value),
+        .ref = val,
+        .reloc_offset = 0});
+    return;
+  }
+  case ConstantType::FuncPtr: {
+    glob->reloc_info.push_back(GlobalData::RelocationInfo{
+        .insert_offset = std::bit_cast<size_t>(output) -
+                         std::bit_cast<size_t>(glob->init_value),
+        .ref = val,
+        .reloc_offset = 0});
+    return;
+    return;
+  }
+  case ConstantType::ConstantStruct:
+    break;
   }
   fmt::println("{}", val);
   TODO("okaku");
 }
 
-}  // namespace foptim::fir
+} // namespace foptim::fir

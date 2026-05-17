@@ -49,7 +49,7 @@ public:
   }
 
   u64 get_instr_id(fir::Instr instr) {
-    auto r = std::find(instructions.begin(), instructions.end(), instr);
+    auto r = std::ranges::find(instructions, instr);
     ASSERT(r != instructions.end());
     return r - instructions.begin();
   }

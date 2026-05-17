@@ -20,7 +20,6 @@ namespace foptim::codegen {
 
 namespace {
 
-
 // void diss_print(u8 *buff) {
 //   ZydisDisassembledInstruction instruction;
 //   ZY_ASS(ZydisDisassembleIntel(
@@ -147,7 +146,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
     fmt::println("{}", func);
-    {  // make sure were aligned
+    { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % 0x10;
       if (align_offset != 0) {
@@ -239,9 +238,38 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                        u8 *end_txt, std::span<const IRString> decls,
                        std::span<const fmir::Global> globals) {
   ZoneScopedN("Generating obj");
-  using namespace ELFIO;
+  using ELFIO::Elf64_Addr;
+  using ELFIO::Elf_Half;
+  using ELFIO::Elf_Sxword;
+  using ELFIO::Elf_Word;
+  using ELFIO::Elf_Xword;
+  using ELFIO::ELFCLASS64;
+  using ELFIO::ELFDATA2LSB;
+  using ELFIO::ELFOSABI_LINUX;
+  using ELFIO::EM_X86_64;
+  using ELFIO::ET_REL;
+  using ELFIO::R_X86_64_64;
+  using ELFIO::R_X86_64_GOTPCREL;
+  using ELFIO::R_X86_64_PC32;
+  using ELFIO::R_X86_64_PLT32;
+  using ELFIO::SHF_ALLOC;
+  using ELFIO::SHF_EXECINSTR;
+  using ELFIO::SHF_WRITE;
+  using ELFIO::SHT_INIT_ARRAY;
+  using ELFIO::SHT_NOTE;
+  using ELFIO::SHT_PROGBITS;
+  using ELFIO::SHT_RELA;
+  using ELFIO::SHT_STRTAB;
+  using ELFIO::SHT_SYMTAB;
+  using ELFIO::STB_GLOBAL;
+  using ELFIO::STB_WEAK;
+  using ELFIO::STT_FUNC;
+  using ELFIO::STT_OBJECT;
+  using ELFIO::STV_DEFAULT;
+  using ELFIO::STV_HIDDEN;
+  using ELFIO::STV_PROTECTED;
 
-  elfio writer;
+  ELFIO::elfio writer;
   {
     writer.create(ELFCLASS64, ELFDATA2LSB);
     writer.set_os_abi(ELFOSABI_LINUX);
@@ -250,14 +278,14 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   }
 
   // code section
-  section *text_sec = writer.sections.add(".text");
+  ELFIO::section *text_sec = writer.sections.add(".text");
   {
     text_sec->set_type(SHT_PROGBITS);
     text_sec->set_flags(SHF_ALLOC | SHF_EXECINSTR);
     text_sec->set_addr_align(0x10);
-    text_sec->set_data(
-        reinterpret_cast<const char *>(start_txt),
-        std::bit_cast<size_t>(end_txt) - std::bit_cast<size_t>(start_txt));
+    text_sec->set_data(reinterpret_cast<const char *>(start_txt),
+                       std::bit_cast<size_t>(end_txt) -
+                           std::bit_cast<size_t>(start_txt));
   }
 
   for (const auto &decl : decls) {
@@ -271,11 +299,11 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   }
 
   // Create string table section
-  section *str_sec = writer.sections.add(".strtab");
+  ELFIO::section *str_sec = writer.sections.add(".strtab");
   str_sec->set_type(SHT_STRTAB);
-  string_section_accessor stra(str_sec);
+  ELFIO::string_section_accessor stra(str_sec);
 
-  section *sym_sec = writer.sections.add(".symtab");
+  ELFIO::section *sym_sec = writer.sections.add(".symtab");
   {
     sym_sec->set_type(SHT_SYMTAB);
     sym_sec->set_info(1);
@@ -283,9 +311,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     sym_sec->set_entry_size(writer.get_default_entry_size(SHT_SYMTAB));
     sym_sec->set_link(str_sec->get_index());
   }
-  symbol_section_accessor syma(writer, sym_sec);
+  ELFIO::symbol_section_accessor syma(writer, sym_sec);
 
-  section *init_array_sec = writer.sections.add(".init_array");
+  ELFIO::section *init_array_sec = writer.sections.add(".init_array");
   {
     init_array_sec->set_type(SHT_INIT_ARRAY);
     init_array_sec->set_flags(SHF_ALLOC | SHF_WRITE);
@@ -293,7 +321,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     init_array_sec->set_entry_size(8);
     // init_array_sec->set_link(sym_sec->get_index());
   }
-  section *init_array_rel_sec = writer.sections.add(".rela.init_array");
+  ELFIO::section *init_array_rel_sec = writer.sections.add(".rela.init_array");
   {
     init_array_rel_sec->set_type(SHT_RELA);
     init_array_rel_sec->set_info(init_array_sec->get_index());
@@ -301,9 +329,10 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     init_array_rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
     init_array_rel_sec->set_link(sym_sec->get_index());
   }
-  relocation_section_accessor init_array_rela(writer, init_array_rel_sec);
+  ELFIO::relocation_section_accessor init_array_rela(writer,
+                                                     init_array_rel_sec);
 
-  section *text_rel_sec = writer.sections.add(".rela.text");
+  ELFIO::section *text_rel_sec = writer.sections.add(".rela.text");
   {
     text_rel_sec->set_type(SHT_RELA);
     text_rel_sec->set_info(text_sec->get_index());
@@ -311,9 +340,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     text_rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
     text_rel_sec->set_link(sym_sec->get_index());
   }
-  relocation_section_accessor text_rela(writer, text_rel_sec);
+  ELFIO::relocation_section_accessor text_rela(writer, text_rel_sec);
 
-  section *data_sec = writer.sections.add(".data");
+  ELFIO::section *data_sec = writer.sections.add(".data");
   u8 *start_data = nullptr;
   {
     data_sec->set_type(SHT_PROGBITS);
@@ -336,7 +365,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         label_usage_map.label_map[global.name].size = global.data.size();
         label_usage_map.label_map[global.name].vis = global.vis;
         // fmt::println("CTOR {}", global.name);
-        {  // handle reloccs
+        { // handle reloccs
           int i = 0;
           for (const auto &reloc_info : global.reloc_info) {
             if (0 ==
@@ -384,7 +413,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       if (!global.data.empty()) {
         memcpy(curr_data_ptr, global.data.data(), global.data.size());
       }
-      {  // handle reloccs
+      { // handle reloccs
         for (const auto &reloc_info : global.reloc_info) {
           // fmt::println("RELOC INFO {}", reloc_info.name);
           ASSERT(label_usage_map.label_map.contains(reloc_info.name));
@@ -403,7 +432,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     data_sec->set_data(reinterpret_cast<char *>(start_data), global_data_size);
   }
 
-  section *data_rel_sec = writer.sections.add(".rela.data");
+  ELFIO::section *data_rel_sec = writer.sections.add(".rela.data");
   {
     data_rel_sec->set_type(SHT_RELA);
     data_rel_sec->set_info(data_sec->get_index());
@@ -411,7 +440,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     data_rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
     data_rel_sec->set_link(sym_sec->get_index());
   }
-  relocation_section_accessor data_rela(writer, data_rel_sec);
+  ELFIO::relocation_section_accessor data_rela(writer, data_rel_sec);
 
   for (auto [label_name, label_data] : label_usage_map.label_map) {
     // fmt::println("{}", label_name.c_str());
@@ -422,54 +451,54 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     Elf_Word symbol_binding = STB_GLOBAL;
 
     switch (label_data.section) {
-      case RelocSection::INVALID:
-        UNREACH();
-      case RelocSection::InitArray:
-        sec_indx = init_array_sec->get_index();
-        break;
-      case RelocSection::Data:
-        sec_indx = data_sec->get_index();
-        break;
-      case RelocSection::Text:
-        sec_indx = text_sec->get_index();
-        break;
-      case RelocSection::Extern:
-        sec_indx = 0;
-        break;
+    case RelocSection::INVALID:
+      UNREACH();
+    case RelocSection::InitArray:
+      sec_indx = init_array_sec->get_index();
+      break;
+    case RelocSection::Data:
+      sec_indx = data_sec->get_index();
+      break;
+    case RelocSection::Text:
+      sec_indx = text_sec->get_index();
+      break;
+    case RelocSection::Extern:
+      sec_indx = 0;
+      break;
     }
     switch (label_data.kind) {
-      case RelocKind::INVALID:
-      case RelocKind::BB:
-        UNREACH();
-      case RelocKind::Func:
-        symbol_type = STT_FUNC;
-        break;
-      case RelocKind::Data:
-        symbol_type = STT_OBJECT;
-        break;
+    case RelocKind::INVALID:
+    case RelocKind::BB:
+      UNREACH();
+    case RelocKind::Func:
+      symbol_type = STT_FUNC;
+      break;
+    case RelocKind::Data:
+      symbol_type = STT_OBJECT;
+      break;
     }
     switch (label_data.binding) {
-      case RelocBinding::INVALID:
-        UNREACH();
-      case RelocBinding::Global:
-        symbol_binding = STB_GLOBAL;
-        break;
-      case RelocBinding::Weak:
-        symbol_binding = STB_WEAK;
-        break;
+    case RelocBinding::INVALID:
+      UNREACH();
+    case RelocBinding::Global:
+      symbol_binding = STB_GLOBAL;
+      break;
+    case RelocBinding::Weak:
+      symbol_binding = STB_WEAK;
+      break;
     }
 
     unsigned char other = 0;
     switch (label_data.vis) {
-      case fir::LinkVisibility::Default:
-        other |= STV_DEFAULT;
-        break;
-      case fir::LinkVisibility::Hidden:
-        other |= STV_HIDDEN;
-        break;
-      case fir::LinkVisibility::Protected:
-        other |= STV_PROTECTED;
-        break;
+    case fir::LinkVisibility::Default:
+      other |= STV_DEFAULT;
+      break;
+    case fir::LinkVisibility::Hidden:
+      other |= STV_HIDDEN;
+      break;
+    case fir::LinkVisibility::Protected:
+      other |= STV_PROTECTED;
+      break;
     }
 
     auto symbol = syma.add_symbol(stra, label_name.c_str(), label_data.def_loc,
@@ -479,61 +508,59 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     for (auto loc : label_data.usage_loc) {
       ASSERT(loc.usage_section != RelocSection::INVALID);
       switch (loc.usage_section) {
+      case RelocSection::INVALID:
+      case RelocSection::Extern:
+        UNREACH();
+      case RelocSection::InitArray:
+        init_array_rela.add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
+                                  symbol, R_X86_64_64, loc.addent);
+        break;
+      case RelocSection::Data:
+        data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
+                            loc.addent);
+        break;
+      case RelocSection::Text:
+        auto data = get_op_addr(loc.usage_instr, loc.operand_num);
+        switch (label_data.section) {
         case RelocSection::INVALID:
-        case RelocSection::Extern:
-          UNREACH();
         case RelocSection::InitArray:
-          init_array_rela.add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
-                                    symbol, R_X86_64_64, loc.addent);
-          break;
+          UNREACH();
         case RelocSection::Data:
-          data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
-                              loc.addent);
+          text_rela.add_entry(data.op_addr - start_txt, symbol, R_X86_64_PC32,
+                              -data.op_off + data.op_val + loc.addent);
           break;
-        case RelocSection::Text:
-          auto data = get_op_addr(loc.usage_instr, loc.operand_num);
-          switch (label_data.section) {
-            case RelocSection::INVALID:
-            case RelocSection::InitArray:
-              UNREACH();
-            case RelocSection::Data:
-              text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                  R_X86_64_PC32,
-                                  -data.op_off + data.op_val + loc.addent);
-              break;
-            case RelocSection::Extern:
-              if (label_data.kind == RelocKind::Func) {
-                text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                    R_X86_64_PLT32,
-                                    -data.op_off + data.op_val + loc.addent);
-              } else if (label_data.kind == RelocKind::Data) {
-                text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                    R_X86_64_GOTPCREL,
-                                    -data.op_off + data.op_val + loc.addent);
-              } else {
-                TODO("UNREACH?");
-              }
-              break;
-            case RelocSection::Text:
-              text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                  R_X86_64_PLT32,
-                                  -data.op_off + data.op_val + loc.addent);
-              break;
+        case RelocSection::Extern:
+          if (label_data.kind == RelocKind::Func) {
+            text_rela.add_entry(data.op_addr - start_txt, symbol,
+                                R_X86_64_PLT32,
+                                -data.op_off + data.op_val + loc.addent);
+          } else if (label_data.kind == RelocKind::Data) {
+            text_rela.add_entry(data.op_addr - start_txt, symbol,
+                                R_X86_64_GOTPCREL,
+                                -data.op_off + data.op_val + loc.addent);
+          } else {
+            TODO("UNREACH?");
           }
           break;
+        case RelocSection::Text:
+          text_rela.add_entry(data.op_addr - start_txt, symbol, R_X86_64_PLT32,
+                              -data.op_off + data.op_val + loc.addent);
+          break;
+        }
+        break;
       }
     }
   }
 
-  section *note_gnu_stack_sec = writer.sections.add(".note.GNU-stack");
-  {  // section .note.GNU-stack noalloc noexec nowrite progbits
+  ELFIO::section *note_gnu_stack_sec = writer.sections.add(".note.GNU-stack");
+  { // section .note.GNU-stack noalloc noexec nowrite progbits
     note_gnu_stack_sec->set_type(SHT_PROGBITS);
   }
 
-  section *note_sec = writer.sections.add(".note");
+  ELFIO::section *note_sec = writer.sections.add(".note");
   {
     note_sec->set_type(SHT_NOTE);
-    note_section_accessor note_writer(writer, note_sec);
+    ELFIO::note_section_accessor note_writer(writer, note_sec);
     note_writer.add_note(0x01, "Created By Foptim", nullptr, 0);
   }
 
@@ -551,7 +578,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
 
   ASSERT(writer.save(utils::out_file_path));
 }
-}  // namespace
+} // namespace
 
 void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
          std::span<const fmir::Global> globals, const conf::CompConf &conf) {
@@ -591,4 +618,4 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   // }
 }
 
-}  // namespace foptim::codegen
+} // namespace foptim::codegen

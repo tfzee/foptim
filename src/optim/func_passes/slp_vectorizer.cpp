@@ -1921,6 +1921,9 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
         n_stor = b.data.size();
         overall_width = n_stor * b.type->get_bitwidth();
       }
+      // in case we need it earlier we want to make sure its correct for now
+      // even tough the compiler is unhappy that i dont read it
+      (void)overall_width;
 
       // TODO disable them for now
       if (b.type->get_size() == 1) {

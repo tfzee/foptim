@@ -455,7 +455,6 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     auto term1 = bb1->get_terminator();
     auto term2 = bb2->get_terminator();
     if (!match_term(term1, term2, local_value_map, cost, difference_values)) {
-      found = false;
       continue;
     }
 
@@ -470,6 +469,9 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
         found = false;
         break;
       }
+    }
+    if (!found) {
+      continue;
     }
     if (std::ranges::equal(cfg.bbrs[cfg.get_bb_id(bb1)].pred,
                            cfg.bbrs[cfg.get_bb_id(bb2)].pred)) {

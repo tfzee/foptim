@@ -74,4 +74,4 @@ GuessTypeResult guessType(fir::ValueR ptr) {
   return {.typeless = false, .type = fir::TypeR{fir::TypeR::invalid()}};
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
