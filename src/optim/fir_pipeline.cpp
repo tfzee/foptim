@@ -51,8 +51,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
           ? std::min(static_cast<u64>(ctx.config->debug.bisect),
                      passes_worklist.size())
           : passes_worklist.size();
-  fmt::println("Having {} FIR passes and running {} passes",
-               passes_worklist.size(), n_actual_run);
+  fmt::println("Having {} FIR passes and running {} passes on {} Functions",
+               passes_worklist.size(), n_actual_run,
+               ctx->storage.functions.size());
   size_t curr_pass = 0;
   conf::PrintFuncConf print_debug_func{};
   conf::VerifyFuncConf verify_debug_func{};
