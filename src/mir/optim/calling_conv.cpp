@@ -107,7 +107,7 @@ u32 calculate_arg_locations(const TVec<MInstr> &args,
 //     const auto &arg_ty = arg.args[0].ty;
 //     bool is_vec_reg = arg_ty >= Type::Float32;
 //     if (is_vec_reg && float_arg_id < n_float_arg_regs) {
-//       pos.push_back({RetPosition::Type::FloatReg, float_arg_id});
+//       pos._back({RetPosition::Type::FloatReg, float_arg_id});
 //       float_arg_id++;
 //     } else if (!is_vec_reg && int_arg_id < n_int_arg_regs) {
 //       pos.push_back({RetPosition::Type::IntReg, int_arg_id});
@@ -649,9 +649,17 @@ void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
         MArgument{{cconf.args.fvr[arg_pos.position], arg_ty}, arg_ty},
         arg.args[0]);
     break;
-  case ArgPosition::Stack:
-    instrs.emplace_back(GBaseSubtype::push, arg.args[0]);
+  case ArgPosition::Stack: {
+    auto orig_type = arg.args[0].ty;
+    auto new_arg = arg.args[0];
+    if (orig_type == Type::Int8 || orig_type == Type::Int16 ||
+        orig_type == Type::Int32) {
+      new_arg.ty = Type::Int64;
+      new_arg.reg.ty = Type::Int64;
+    }
+    instrs.emplace_back(GBaseSubtype::push, new_arg);
     break;
+  }
   }
 }
 
