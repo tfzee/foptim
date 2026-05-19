@@ -1030,9 +1030,11 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
     // redundancy eliminiation or PRE
     if (t1->get_terminator()->is(fir::InstrType::ReturnInstr) &&
         t2->get_terminator()->is(fir::InstrType::ReturnInstr)) {
-      if (t1->n_instrs() == 1 && t2->n_instrs() == 1 &&
-          // need a return value
-          t2->instructions[0]->args.size() == 1) {
+      // need a return value
+      if (t2->instructions[0]->args.size() == 0) {
+        return false;
+      }
+      if (t1->n_instrs() == 1 && t2->n_instrs() == 1) {
         matched = true;
       } else if (t1->n_instrs() == 1 && t2->n_instrs() <= 3) {
         matched = true;
