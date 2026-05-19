@@ -545,7 +545,26 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.operands[0].mem.size = size;
       req.operands[1] = real_arg;
       return emit(out_buff, off, &req);
+    } else if (instr.args[0].isReg() &&
+               instr.args[0].reg.ty == fmir::Type::Int8) {
+      u64 off = 0;
+      auto real_arg = req.operands[0];
+      req.mnemonic = ZYDIS_MNEMONIC_SUB;
+      req.operand_count = 2;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+      req.operands[0].reg.value = ZYDIS_REGISTER_RSP;
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      req.operands[1].imm.u = 8;
+      off = emit(out_buff, off, &req);
+
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+      req.operands[0].type = ZYDIS_OPERAND_TYPE_MEMORY;
+      req.operands[0].mem.base = ZYDIS_REGISTER_RSP;
+      req.operands[0].mem.size = 1;
+      req.operands[1] = real_arg;
+      return emit(out_buff, off, &req);
     }
+    req.operand_count = 1;
     req.mnemonic = ZYDIS_MNEMONIC_PUSH;
     return emit(out_buff, 0, &req);
   }
