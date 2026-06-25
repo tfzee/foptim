@@ -594,7 +594,7 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
     for (size_t ip1 = dup_pairs.size(); ip1 > 0; ip1--) {
       auto &p = dup_pairs[ip1 - 1];
       if (args_use[p.first] != args_use[p.second]) {
-        dup_pairs.erase(dup_pairs.begin() + (ip1 - 1));
+        dup_pairs.erase(dup_pairs.begin() + static_cast<i64>(ip1 - 1));
         continue;
       }
     }
@@ -1569,7 +1569,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   return Res::NoChange;
 }
 
-void SimplifyCFG::apply(fir::Context &_, fir::Function &func) {
+void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("SimplifyCFG", COLOR_OPTIMF);
   // Cant really simplify the cfg if theres just 1 node
   if (func.basic_blocks.size() == 1) {

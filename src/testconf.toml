@@ -10,7 +10,7 @@ passes = [
   "pipeline:default_release_middle",
   "pipeline:default_release_late",
   "pipeline:default_release_cleanup",
-  # "PrintFunc",
+  "PrintFunc",
 ]
 # ------------------------------------------------------------------------------------------------
 # Optimizations

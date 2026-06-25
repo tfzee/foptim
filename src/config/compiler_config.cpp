@@ -113,8 +113,6 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new LoopRotateConf{};
     } else if (name == "LoopSimplify") {
       pass = new LoopSimplifyConf{};
-    } else if (name == "LVN") {
-      pass = new LVNConf{};
     } else if (name == "LegalizeVecs") {
       pass = new LegalizeVecsConf{};
     } else if (name == "MergeAlloca") {
@@ -125,8 +123,6 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new StackKnownBitsConf{};
     } else if (name == "SLPVectorizer") {
       pass = new SLPVectorizerConf{};
-    } else if (name == "SCCP") {
-      pass = new SCCPConf{};
     } else if (name == "ConstLoopEval") {
       pass = new ConstLoopEvalConf{};
     } else if (name == "FuncPropAnnotator") {
@@ -203,7 +199,7 @@ template <IRType Ty> bool passes_parse(CompConf &conf, toml::table &tbl) {
     auto str_name = name.str();
     auto end = target_arr.end();
     for (auto i = target_arr.begin(); i != end; ++i) {
-      auto pass_ptr = *(*i).get_raw_ptr();
+      auto *pass_ptr = *(*i).get_raw_ptr();
       if (pass_ptr->get_name() == str_name) {
         if (!pass_ptr->_pass_parse(&data)) {
           return false;
@@ -289,6 +285,8 @@ bool debug_parse(Debug &conf, toml::table &tbl) {
       tbl["print_between_passes"].value_or(conf.print_between_passes);
   conf.verify_between_passes =
       tbl["verify_between_passes"].value_or(conf.verify_between_passes);
+  conf.time_passes =
+      tbl["time_passes"].value_or(conf.time_passes);
 
   return true;
 }
@@ -347,14 +345,14 @@ bool config_parse(CompConf &conf, toml::table &tbl) {
   return true;
 }
 
-static const char default_toml[] = {
+constexpr char default_toml[] = {
 #embed "default.toml"
     , 0};
-static const char fast_math_toml[] = {
+constexpr char fast_math_toml[] = {
 #embed "fast_math.toml"
     , 0};
 
-static constexpr const char *builtin_configs[] = {
+constexpr const char *builtin_configs[] = {
     &default_toml[0],
     &fast_math_toml[0],
 };

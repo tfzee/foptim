@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include <fmt/base.h>
 
 #include "config/compiler_config.hpp"
@@ -7,11 +8,12 @@
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
+#include "utils/stats.hpp"
 
 namespace foptim::optim {
 
 class FunctionPass {
- public:
+public:
   struct FailureReason {
     const char *reason;
     fir::IRLocation loc;
@@ -80,8 +82,7 @@ class FunctionPass {
 //   }
 // };
 
-template <class... Passes>
-class StaticParallelFunctionPassManager {
+template <class... Passes> class StaticParallelFunctionPassManager {
   template <class Pass>
   static void apply_pass(fir::Context &ctx, fir::Function &f,
                          bool print_failure) {
@@ -97,7 +98,7 @@ class StaticParallelFunctionPassManager {
     }
   }
 
- public:
+public:
   void apply(fir::Context &ctx, JobSheduler *shed) {
     // fmt::println("FUNC: {}", sizeof...(Passes));
     for (auto &[name, func] : ctx->storage.functions) {
@@ -125,8 +126,21 @@ class ParallelFunctionPassManager {
   static void apply_pass(fir::Context &ctx, conf::PassConfig *conf,
                          fir::Function &f, bool print_failure) {
     {
-      auto pass = conf->_construct_function_pass();
-      pass->apply(ctx, f);
+      auto *pass = conf->_construct_function_pass();
+      if (ctx.config->debug.time_passes) {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        pass->apply(ctx, f);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        end_time - start_time)
+                        .count();
+        if (time > 0) {
+          utils::StatCollector::get().addi(time, conf->get_name(),
+                                           utils::StatCollector::StatTiming);
+        }
+      } else {
+        pass->apply(ctx, f);
+      }
       if (print_failure) {
         pass->print_failures();
       }
@@ -136,7 +150,7 @@ class ParallelFunctionPassManager {
     }
   }
 
- public:
+public:
   void push_pass(conf::PassConfig *pass) { dyn_passes.push_back(pass); }
 
   void apply(fir::Context &ctx, JobSheduler *shed) {
@@ -175,4 +189,4 @@ class ParallelFunctionPassManager {
 //     }
 //   }
 // };
-}  // namespace foptim::optim
+} // namespace foptim::optim

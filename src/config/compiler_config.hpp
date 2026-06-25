@@ -42,9 +42,9 @@ struct PassConfig {
   };
 
   FString override_name;
-  virtual PassConfig *clone() const = 0;
-  virtual std::string_view get_name() const = 0;
-  virtual PassType pass_type() const = 0;
+  [[nodiscard]] virtual PassConfig *clone() const = 0;
+  [[nodiscard]] virtual std::string_view get_name() const = 0;
+  [[nodiscard]] virtual PassType pass_type() const = 0;
   virtual bool _pass_parse(void *) = 0;
   virtual optim::ModulePass *_construct_module_pass() {
     TODO("INVALID TYPE OF PASS");
@@ -105,6 +105,7 @@ struct Debug {
   bool print_between_passes;
   bool print_optimization_failure_reasons;
   bool verify_between_passes;
+  bool time_passes;
   bool print_color;
 };
 
@@ -121,7 +122,7 @@ struct CompConf {
   utils::StableVec<PassConfig *> fir_passes;
   utils::StableVec<PassConfig *> mir_passes;
 
-  CompConf() {}
+  CompConf() = default;
 
   template <IRType Ty> PipelineRef find_pipeline(std::string_view name) {
     auto &pipelines = Ty == IRType::FIR ? fir_pipelines : mir_pipelines;

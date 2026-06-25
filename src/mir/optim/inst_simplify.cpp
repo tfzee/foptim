@@ -14,7 +14,7 @@ namespace {
 bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   if (instr.is(GBaseSubtype::mov) || instr.is(GConvSubtype::mov_zx)) {
     if (instr.args[0] == instr.args[1]) {
-      instrs.erase(instrs.begin() + instr_id);
+      instrs.erase(instrs.begin() + static_cast<i64>(instr_id));
       return true;
     }
     if (instr.args[0].isReg() && instr.args[1].isImm()) {
@@ -43,7 +43,7 @@ bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
     }
   } else if (instr.is(GCMovSubtype::cmov)) {
     if (instr.args[0] == instr.args[2]) {
-      instrs.erase(instrs.begin() + instr_id);
+      instrs.erase(instrs.begin() + static_cast<i64>(instr_id));
       return true;
     }
     // if both inputs are the same replace iwth basic move
@@ -61,7 +61,7 @@ bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
   if (instr.is(GBaseSubtype::mov) || instr.is(GConvSubtype::mov_zx)) {
     if (instr.args[0] == instr.args[1] && instr.args[0].isReg() &&
         !instr.args[0].reg.is_concrete()) {
-      instrs.erase(instrs.begin() + instr_id);
+      instrs.erase(instrs.begin() + static_cast<i64>(instr_id));
       return true;
     }
   }
@@ -119,7 +119,8 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
     auto a0 = instrs[instr_id + 0];
     auto a1 = instrs[instr_id + 1];
     if (a0.args[0] == a1.args[0] && a0.args[1] == a1.args[1]) {
-      instrs.erase(instrs.begin() + instr_id, instrs.begin() + instr_id + 2);
+      instrs.erase(instrs.begin() + static_cast<i64>(instr_id),
+                   instrs.begin() + static_cast<i64>(instr_id) + 2);
       return true;
     }
   }
@@ -162,15 +163,15 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
       u64 res_val = lea.args[1].imm + add.args[1].imm;
       if (std::in_range<std::uint32_t>(res_val)) {
         lea.args[1].imm = res_val;
-        instrs.erase(instrs.begin() + instr_id + 1,
-                     instrs.begin() + instr_id + 2);
+        instrs.erase(instrs.begin() + static_cast<i64>(instr_id) + 1,
+                     instrs.begin() + static_cast<i64>(instr_id) + 2);
         return true;
       }
     }
   }
   return false;
 }
-}  // namespace
+} // namespace
 
 void InstSimplifyImpl::impl_apply(MFunc &func) {
   for (auto &bb : func.bbs) {
@@ -202,4 +203,4 @@ void InstSimplifyImpl::impl_early(MFunc &func) {
   }
 }
 
-}  // namespace foptim::fmir
+} // namespace foptim::fmir

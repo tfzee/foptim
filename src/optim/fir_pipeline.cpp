@@ -28,8 +28,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   std::vector<PassConfig *> passes_worklist;
   std::deque<conf::PipelineElem> pipeline_worklist;
 
-  pipeline_worklist.push_back(
-      conf::PipelineElem{ctx.config->optim.fir_pipeline});
+  pipeline_worklist.emplace_back(ctx.config->optim.fir_pipeline);
 
   // construct full pipeline
   while (!pipeline_worklist.empty()) {
@@ -88,11 +87,11 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     }
     case PassConfig::FIR_Module: {
       foptim::optim::ModulePassManager man{};
-      man.push_pass(pass->_construct_module_pass());
+      man.push_pass(pass);
       while (curr_pass < n_actual_run &&
              passes_worklist[curr_pass]->pass_type() ==
                  PassConfig::PassType::FIR_Module) {
-        man.push_pass(passes_worklist[curr_pass]->_construct_module_pass());
+        man.push_pass(passes_worklist[curr_pass]);
         curr_pass++;
       }
       man.apply(ctx, shed);

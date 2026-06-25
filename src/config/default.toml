@@ -240,5 +240,6 @@ print_between_passes = false
 print_optimization_failure_reasons = true
 print_color = true
 verify_between_passes = false
+time_passes = true
 bisect = 0
 
