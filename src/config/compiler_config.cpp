@@ -15,7 +15,7 @@ namespace foptim::conf {
 namespace {
 
 bool target_parse(Target &target, toml::node_view<toml::node> cnf) {
-  target.name = cnf["name"].value_or(target.name);
+  target.name = cnf["name"].value_or(std::string_view{target.name});
   auto features = cnf["features"];
   target.features.avx512f =
       features["avx512f"].value_or(target.features.avx512f);

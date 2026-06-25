@@ -10,8 +10,8 @@ namespace foptim::fir {
 
 struct IntValue {
   i128 data;
-  [[gnu::always_inline]] constexpr bool operator==(
-      const IntValue &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const IntValue &other) const {
     return data == other.data;
   }
 };
@@ -22,16 +22,16 @@ struct FloatValue {
   constexpr FloatValue(f64 d) : data(d) {}
   constexpr FloatValue(f32 d)
       : data(std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(d)))) {}
-  [[gnu::always_inline]] constexpr bool operator==(
-      const FloatValue &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const FloatValue &other) const {
     return data == other.data;
   }
 };
 
 struct FunctionPtr {
   FunctionR func;
-  [[gnu::always_inline]] constexpr bool operator==(
-      const FunctionPtr &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const FunctionPtr &other) const {
     return func == other.func;
   }
 };
@@ -43,8 +43,8 @@ struct ConstantStruct {
 
 struct GlobalPointer {
   Global glob;
-  [[gnu::always_inline]] constexpr bool operator==(
-      const GlobalPointer &other) const {
+  [[gnu::always_inline]] constexpr bool
+  operator==(const GlobalPointer &other) const {
     return glob == other.glob;
   }
 };
@@ -71,7 +71,7 @@ struct ConstantValue {
   TypeR type;
   union {
     struct {
-      ConstantType ty;
+      ConstantType ty{};
     };
     struct {
       ConstantType _ty;
@@ -99,8 +99,7 @@ struct ConstantValue {
     } stru_u;
   };
 
-  constexpr ConstantValue(TypeR typee)
-      : type(typee), ty(ConstantType::PoisonValue) {}
+  constexpr ConstantValue(TypeR typee) : type(typee) {}
   ~ConstantValue();
   ConstantValue(const ConstantValue &);
   ConstantValue &operator=(const ConstantValue &);
@@ -134,9 +133,8 @@ struct ConstantValue {
       : type(typee), stru_u({._ty = ConstantType::ConstantStruct, .v = stru}) {}
 
   constexpr ConstantValue(IRVec<ConstantValueR> members, TypeR typee)
-      : type(typee),
-        vec_u({._ty = ConstantType::VectorValue,
-               .v = VectorValue{std::move(members)}}) {}
+      : type(typee), vec_u({._ty = ConstantType::VectorValue,
+                            .v = VectorValue{std::move(members)}}) {}
 
   static ConstantValue null_ptr(TypeR typee) {
     auto c = ConstantValue(typee);
@@ -144,7 +142,8 @@ struct ConstantValue {
     return c;
   }
 
-  std::optional<fir::ConstantValueR> bit_cast(Context& ctx, fir::TypeR target_type);
+  std::optional<fir::ConstantValueR> bit_cast(Context &ctx,
+                                              fir::TypeR target_type);
 
   void add_usage(Use u);
   [[nodiscard]] size_t get_n_uses() const;
@@ -194,7 +193,8 @@ struct ConstantValue {
 
   [[nodiscard]] constexpr f32 as_f32() const {
     ASSERT(is_float());
-    return std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(float_u.v.data)));
+    return std::bit_cast<f32>(
+        static_cast<u32>(std::bit_cast<u64>(float_u.v.data)));
   }
 
   [[nodiscard]] constexpr f64 as_f64() const {
@@ -209,7 +209,7 @@ struct ConstantValue {
   }
 
   [[nodiscard]] constexpr i128 as_int() const {
-    if (is_null()){
+    if (is_null()) {
       return 0;
     }
     if (!is_int()) {
@@ -223,8 +223,29 @@ struct ConstantValue {
     ASSERT(is_global());
     return gp_u.v.glob;
   }
-  [[nodiscard]] TypeR get_type() const;
-  [[nodiscard]] bool eql(const ConstantValue &) const;
+  [[nodiscard]] TypeR get_type() const { return type; }
+  [[nodiscard]] bool eql(const ConstantValue &other) const {
+    if (ty != other.ty) {
+      return false;
+    }
+    switch (ty) {
+    case ConstantType::NullPtr:
+    case ConstantType::PoisonValue:
+      return true;
+    case ConstantType::ConstantStruct:
+      return stru_u.v == other.stru_u.v;
+    case ConstantType::IntValue:
+      return int_u.v == other.int_u.v;
+    case ConstantType::FloatValue:
+      return float_u.v == other.float_u.v;
+    case ConstantType::VectorValue:
+      return vec_u.v == other.vec_u.v;
+    case ConstantType::GlobalPtr:
+      return gp_u.v == other.gp_u.v;
+    case ConstantType::FuncPtr:
+      return fup_u.v == other.fup_u.v;
+    }
+  }
 };
 
-}  // namespace foptim::fir
+} // namespace foptim::fir

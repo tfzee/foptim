@@ -37,210 +37,193 @@ bool ConstantStruct::operator==(const ConstantStruct &other) const {
 
 void ConstantValue::add_usage(Use u) {
   switch (ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-    case ConstantType::IntValue:
-    case ConstantType::FloatValue:
-    case ConstantType::VectorValue:
-    case ConstantType::ConstantStruct:
-      return;
-    case ConstantType::GlobalPtr:
-      return gp_u.v.glob->add_usage(u);
-    case ConstantType::FuncPtr:
-      return fup_u.v.func->add_usage(u);
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
+    return;
+  case ConstantType::GlobalPtr:
+    gp_u.v.glob->add_usage(u);
+    return;
+  case ConstantType::FuncPtr:
+    fup_u.v.func->add_usage(u);
+    return;
   }
 }
 [[nodiscard]] size_t ConstantValue::get_n_uses() const {
   switch (ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-    case ConstantType::IntValue:
-    case ConstantType::FloatValue:
-    case ConstantType::VectorValue:
-    case ConstantType::ConstantStruct:
-      return 0;
-    case ConstantType::GlobalPtr:
-      return gp_u.v.glob->get_n_uses();
-    case ConstantType::FuncPtr:
-      return fup_u.v.func->get_n_uses();
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
+    return 0;
+  case ConstantType::GlobalPtr:
+    return gp_u.v.glob->get_n_uses();
+  case ConstantType::FuncPtr:
+    return fup_u.v.func->get_n_uses();
   }
 }
 void ConstantValue::remove_usage(Use u, bool verify) {
   switch (ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-    case ConstantType::IntValue:
-    case ConstantType::FloatValue:
-    case ConstantType::VectorValue:
-    case ConstantType::ConstantStruct:
-      return;
-    case ConstantType::GlobalPtr:
-      return gp_u.v.glob->remove_usage(u, verify);
-    case ConstantType::FuncPtr:
-      return fup_u.v.func->remove_usage(u, verify);
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
+    return;
+  case ConstantType::GlobalPtr:
+    gp_u.v.glob->remove_usage(u, verify);
+    return;
+  case ConstantType::FuncPtr:
+    fup_u.v.func->remove_usage(u, verify);
+    return;
   }
 }
 void ConstantValue::replace_all_uses(ValueR v) {
   switch (ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-    case ConstantType::IntValue:
-    case ConstantType::FloatValue:
-    case ConstantType::VectorValue:
-    case ConstantType::ConstantStruct:
-      return;
-    case ConstantType::GlobalPtr:
-      return gp_u.v.glob->replace_all_uses(v);
-    case ConstantType::FuncPtr:
-      return fup_u.v.func->replace_all_uses(v);
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
+    return;
+  case ConstantType::GlobalPtr:
+    gp_u.v.glob->replace_all_uses(v);
+    return;
+  case ConstantType::FuncPtr:
+    fup_u.v.func->replace_all_uses(v);
+    return;
   }
 }
 [[nodiscard]] IRVec<Use> *ConstantValue::get_uses() {
   switch (ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-    case ConstantType::IntValue:
-    case ConstantType::FloatValue:
-    case ConstantType::VectorValue:
-    case ConstantType::ConstantStruct:
-      return nullptr;
-    case ConstantType::GlobalPtr:
-      // return gp_u.v.glob->get_uses();
-    case ConstantType::FuncPtr:
-      TODO("idk if this is legal");
-      // return &fup_u.v.func->get_uses();
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
+    return nullptr;
+  case ConstantType::GlobalPtr:
+    // return gp_u.v.glob->get_uses();
+  case ConstantType::FuncPtr:
+    TODO("idk if this is legal");
+    // return &fup_u.v.func->get_uses();
   }
 }
 [[nodiscard]] const IRVec<Use> *ConstantValue::get_uses() const {
   switch (ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-    case ConstantType::IntValue:
-    case ConstantType::FloatValue:
-    case ConstantType::VectorValue:
-    case ConstantType::ConstantStruct:
-      return nullptr;
-    case ConstantType::GlobalPtr:
-      return &gp_u.v.glob->get_uses();
-    case ConstantType::FuncPtr:
-      return &fup_u.v.func->get_uses();
-  }
-}
-
-TypeR ConstantValue::get_type() const { return type; }
-
-bool ConstantValue::eql(const ConstantValue &other) const {
-  if (ty != other.ty) {
-    return false;
-  }
-  switch (ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-      return true;
-    case ConstantType::ConstantStruct:
-      return stru_u.v == other.stru_u.v;
-    case ConstantType::IntValue:
-      return int_u.v == other.int_u.v;
-    case ConstantType::FloatValue:
-      return float_u.v == other.float_u.v;
-    case ConstantType::VectorValue:
-      return vec_u.v == other.vec_u.v;
-    case ConstantType::GlobalPtr:
-      return gp_u.v == other.gp_u.v;
-    case ConstantType::FuncPtr:
-      return fup_u.v == other.fup_u.v;
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
+    return nullptr;
+  case ConstantType::GlobalPtr:
+    return &gp_u.v.glob->get_uses();
+  case ConstantType::FuncPtr:
+    return &fup_u.v.func->get_uses();
   }
 }
 
 ConstantValue::~ConstantValue() {
   switch (ty) {
-    case ConstantType::PoisonValue:
-    case ConstantType::IntValue:
-    case ConstantType::FloatValue:
-    case ConstantType::GlobalPtr:
-    case ConstantType::FuncPtr:
-    case ConstantType::NullPtr:
-      return;
-    case ConstantType::ConstantStruct:
-      stru_u.v.v.~vector();
-      return;
-    case ConstantType::VectorValue:
-      vec_u.v.members.~vector();
-      return;
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::GlobalPtr:
+  case ConstantType::FuncPtr:
+  case ConstantType::NullPtr:
+    return;
+  case ConstantType::ConstantStruct:
+    stru_u.v.v.~vector();
+    return;
+  case ConstantType::VectorValue:
+    vec_u.v.members.~vector();
+    return;
   }
 }
 
 ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
-  if (this == &old) return *this;
+  if (this == &old) {
+    return *this;
+  }
   this->~ConstantValue();
   type = old.type;
   switch (old.ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-      ty = old.ty;
-      return *this;
-    case ConstantType::IntValue:
-      int_u = old.int_u;
-      int_u._ty = old.int_u._ty;
-      return *this;
-    case ConstantType::FloatValue:
-      float_u = old.float_u;
-      float_u._ty = old.float_u._ty;
-      return *this;
-    case ConstantType::GlobalPtr:
-      gp_u = old.gp_u;
-      gp_u._ty = old.gp_u._ty;
-      return *this;
-    case ConstantType::FuncPtr:
-      fup_u = old.fup_u;
-      fup_u._ty = old.fup_u._ty;
-      return *this;
-    case ConstantType::VectorValue:
-      new (&vec_u.v) VectorValue(old.vec_u.v);
-      vec_u._ty = old.ty;
-      // vec_u = {._ty = old.ty, .v = old.vec_u.v};
-      return *this;
-    case ConstantType::ConstantStruct:
-      new (&stru_u.v) ConstantStruct(old.stru_u.v);
-      stru_u._ty = old.ty;
-      // stru_u = {._ty = old.ty, .v = old.stru_u.v};
-      return *this;
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+    ty = old.ty;
+    return *this;
+  case ConstantType::IntValue:
+    int_u = old.int_u;
+    int_u._ty = old.int_u._ty;
+    return *this;
+  case ConstantType::FloatValue:
+    float_u = old.float_u;
+    float_u._ty = old.float_u._ty;
+    return *this;
+  case ConstantType::GlobalPtr:
+    gp_u = old.gp_u;
+    gp_u._ty = old.gp_u._ty;
+    return *this;
+  case ConstantType::FuncPtr:
+    fup_u = old.fup_u;
+    fup_u._ty = old.fup_u._ty;
+    return *this;
+  case ConstantType::VectorValue:
+    new (&vec_u.v) VectorValue(old.vec_u.v);
+    vec_u._ty = old.ty;
+    // vec_u = {._ty = old.ty, .v = old.vec_u.v};
+    return *this;
+  case ConstantType::ConstantStruct:
+    new (&stru_u.v) ConstantStruct(old.stru_u.v);
+    stru_u._ty = old.ty;
+    // stru_u = {._ty = old.ty, .v = old.stru_u.v};
+    return *this;
   }
 }
 
 ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
   type = old.type;
   switch (old.ty) {
-    case ConstantType::NullPtr:
-    case ConstantType::PoisonValue:
-      ty = old.ty;
-      return;
-    case ConstantType::IntValue:
-      int_u = old.int_u;
-      int_u._ty = old.int_u._ty;
-      return;
-    case ConstantType::FloatValue:
-      float_u = old.float_u;
-      float_u._ty = old.float_u._ty;
-      return;
-    case ConstantType::GlobalPtr:
-      gp_u = old.gp_u;
-      gp_u._ty = old.gp_u._ty;
-      return;
-    case ConstantType::FuncPtr:
-      fup_u = old.fup_u;
-      fup_u._ty = old.fup_u._ty;
-      return;
-    case ConstantType::VectorValue:
-      new (&vec_u.v) VectorValue(old.vec_u.v);
-      vec_u._ty = old.ty;
-      // vec_u = {old.ty, old.vec_u.v};
-      return;
-    case ConstantType::ConstantStruct:
-      new (&stru_u.v) ConstantStruct(old.stru_u.v);
-      stru_u._ty = old.ty;
-      // stru_u = {old.ty, old.stru_u.v};
-      return;
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+    ty = old.ty;
+    return;
+  case ConstantType::IntValue:
+    int_u = old.int_u;
+    int_u._ty = old.int_u._ty;
+    return;
+  case ConstantType::FloatValue:
+    float_u = old.float_u;
+    float_u._ty = old.float_u._ty;
+    return;
+  case ConstantType::GlobalPtr:
+    gp_u = old.gp_u;
+    gp_u._ty = old.gp_u._ty;
+    return;
+  case ConstantType::FuncPtr:
+    fup_u = old.fup_u;
+    fup_u._ty = old.fup_u._ty;
+    return;
+  case ConstantType::VectorValue:
+    new (&vec_u.v) VectorValue(old.vec_u.v);
+    vec_u._ty = old.ty;
+    // vec_u = {old.ty, old.vec_u.v};
+    return;
+  case ConstantType::ConstantStruct:
+    new (&stru_u.v) ConstantStruct(old.stru_u.v);
+    stru_u._ty = old.ty;
+    // stru_u = {old.ty, old.stru_u.v};
+    return;
   }
 }
 
@@ -279,8 +262,8 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
   }
   return true;
 }
-std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
-    Context &ctx, fir::TypeR target_type) {
+std::optional<fir::ConstantValueR>
+ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
   auto old_ty = get_type();
   if (old_ty->get_bitwidth() != target_type->get_bitwidth()) {
     return {};
@@ -323,7 +306,8 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
     IRVec<ConstantValueR> values;
 
     for (u32 i = 0; i < target.member_number; i++) {
-      i128 curr_val = value & utils::get_mask(target.bitwidth);
+      i128 curr_val =
+          std::bit_cast<i128>(value & utils::get_mask(target.bitwidth));
       value = value >> target.bitwidth;
       if (target.type == VectorType::SubType::Integer) {
         values.push_back(ctx->get_constant_int(curr_val, target.bitwidth));
@@ -349,7 +333,7 @@ std::optional<fir::ConstantValueR> ConstantValue::bit_cast(
   TODO("impl");
 }
 
-}  // namespace foptim::fir
+} // namespace foptim::fir
 
 fmt::appender fmt::formatter<foptim::fir::ConstantValueR>::format(
     foptim::fir::ConstantValueR const &v, format_context &ctx) const {
@@ -371,53 +355,51 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
   auto colnumber = color ? color_number : text_style{};
   auto colfunc = color ? color_func : text_style{};
   switch (v.ty) {
-    case foptim::fir::ConstantType::NullPtr:
-      return fmt::format_to(ctx.out(), colconst, "NULL");
-    case foptim::fir::ConstantType::PoisonValue:
-      return fmt::format_to(ctx.out(), colconst, "POISON");
-    case foptim::fir::ConstantType::IntValue:
-      if (color) {
-        return fmt::format_to(ctx.out(), colnumber, "{}:{:c}", v.int_u.v.data,
-                              v.type);
-      } else {
-        return fmt::format_to(ctx.out(), "{}:{}", v.int_u.v.data, v.type);
-      }
-    case foptim::fir::ConstantType::FloatValue:
-      if (debug) {
-        if (v.type->as_float() == 32) {
-          return fmt::format_to(
-              ctx.out(), colnumber, "{:X}:{}",
-              static_cast<foptim::u32>(
-                  std::bit_cast<foptim::u64>(v.float_u.v.data)),
-              v.type);
-        }
-        return fmt::format_to(ctx.out(), colnumber, "{:X}:{}",
-                              std::bit_cast<foptim::u64>(v.float_u.v.data),
-                              v.type);
-
-      } else {
-        if (v.type->as_float() == 32) {
-          return fmt::format_to(ctx.out(), colnumber, "{}:{}", v.as_f32(),
-                                v.type);
-        }
-        return fmt::format_to(ctx.out(), colnumber, "{}:{}", v.as_f64(),
-                              v.type);
-      }
-    case foptim::fir::ConstantType::GlobalPtr:
-      return fmt::format_to(ctx.out(), colconst, "G({})",
-                            v.gp_u.v.glob->name.c_str());
-    case foptim::fir::ConstantType::FuncPtr:
-      return fmt::format_to(ctx.out(), colfunc, "{}",
-                            v.fup_u.v.func->getName().c_str());
-    case foptim::fir::ConstantType::VectorValue: {
-      const auto &va = v.vec_u.v;
-      auto ct = fmt::format_to(ctx.out(), colconst, "<");
-      for (auto m : va.members) {
-        ct = fmt::format_to(ct, colconst, "{}, ", m);
-      }
-      return fmt::format_to(ct, colconst, ">:{}", v.type);
+  case foptim::fir::ConstantType::NullPtr:
+    return fmt::format_to(ctx.out(), colconst, "NULL");
+  case foptim::fir::ConstantType::PoisonValue:
+    return fmt::format_to(ctx.out(), colconst, "POISON");
+  case foptim::fir::ConstantType::IntValue:
+    if (color) {
+      return fmt::format_to(ctx.out(), colnumber, "{}:{:c}", v.int_u.v.data,
+                            v.type);
+    } else {
+      return fmt::format_to(ctx.out(), "{}:{}", v.int_u.v.data, v.type);
     }
-    case foptim::fir::ConstantType::ConstantStruct:
-      return fmt::format_to(ctx.out(), colconst, "STRUCT");
+  case foptim::fir::ConstantType::FloatValue:
+    if (debug) {
+      if (v.type->as_float() == 32) {
+        return fmt::format_to(ctx.out(), colnumber, "{:X}:{}",
+                              static_cast<foptim::u32>(
+                                  std::bit_cast<foptim::u64>(v.float_u.v.data)),
+                              v.type);
+      }
+      return fmt::format_to(ctx.out(), colnumber, "{:X}:{}",
+                            std::bit_cast<foptim::u64>(v.float_u.v.data),
+                            v.type);
+
+    } else {
+      if (v.type->as_float() == 32) {
+        return fmt::format_to(ctx.out(), colnumber, "{}:{}", v.as_f32(),
+                              v.type);
+      }
+      return fmt::format_to(ctx.out(), colnumber, "{}:{}", v.as_f64(), v.type);
+    }
+  case foptim::fir::ConstantType::GlobalPtr:
+    return fmt::format_to(ctx.out(), colconst, "G({})",
+                          v.gp_u.v.glob->name.c_str());
+  case foptim::fir::ConstantType::FuncPtr:
+    return fmt::format_to(ctx.out(), colfunc, "{}",
+                          v.fup_u.v.func->getName().c_str());
+  case foptim::fir::ConstantType::VectorValue: {
+    const auto &va = v.vec_u.v;
+    auto ct = fmt::format_to(ctx.out(), colconst, "<");
+    for (auto m : va.members) {
+      ct = fmt::format_to(ct, colconst, "{}, ", m);
+    }
+    return fmt::format_to(ct, colconst, ">:{}", v.type);
+  }
+  case foptim::fir::ConstantType::ConstantStruct:
+    return fmt::format_to(ctx.out(), colconst, "STRUCT");
   }
 }

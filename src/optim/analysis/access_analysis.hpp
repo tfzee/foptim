@@ -22,12 +22,11 @@ concept PtrAnalysisInput = requires(T v) { v->get_uses(); };
 
 /*runs only locally within a single function used in a function call is
  * considered escaped*/
-template <PtrAnalysisInput T>
-AccessResult ptr_access_analysis(T ptr);
+template <PtrAnalysisInput T> AccessResult ptr_access_analysis(T ptr);
 
 /*run access analyis but starting from a use*/
-static void useptr_access_analysis(fir::Use u, AccessResult& res,
-                                   TVec<fir::Use>* worklist = nullptr) {
+static void useptr_access_analysis(fir::Use u, AccessResult &res,
+                                   TVec<fir::Use> *worklist = nullptr) {
   fir::Instr i = u.user;
   if (u.type == fir::UseType::BBArg) {
     // TODO: impl
@@ -35,7 +34,7 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
     return;
   }
   if (i->is(fir::BinaryInstrSubType::IntAdd)) {
-    if (worklist) {
+    if (worklist != nullptr) {
       for (auto u : i->get_uses()) {
         worklist->push_back(u);
       }
@@ -46,7 +45,7 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
   }
   if (i->is(fir::InstrType::SelectInstr)) {
     if (u.argId == 1 || u.argId == 2) {
-      if (worklist) {
+      if (worklist != nullptr) {
         for (auto u : i->get_uses()) {
           worklist->push_back(u);
         }
@@ -54,9 +53,8 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
         res = ptr_access_analysis(i);
       }
       return;
-    } else {
-      TODO("unreach?");
     }
+    TODO("unreach?");
   }
   if (i->is(fir::InstrType::StoreInstr)) {
     // TODO: volatile
@@ -110,8 +108,7 @@ static void useptr_access_analysis(fir::Use u, AccessResult& res,
   TODO("okak");
 }
 
-template <PtrAnalysisInput T>
-AccessResult ptr_access_analysis(T ptr) {
+template <PtrAnalysisInput T> AccessResult ptr_access_analysis(T ptr) {
   AccessResult res{.IsWriten = 0, .IsRead = 0, .Escapes = 0};
   TVec<fir::Use> worklist;
   for (auto u : ptr->get_uses()) {
@@ -126,4 +123,4 @@ AccessResult ptr_access_analysis(T ptr) {
   return res;
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

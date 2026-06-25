@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef TRACY_ENABLE
-#include <tracy/Tracy.hpp>
+#include <tracy/tracy/Tracy.hpp>
 #else
 #define ZoneScopedN(name)
 #define ZoneScopedNC(name, color)
