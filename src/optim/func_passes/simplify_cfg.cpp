@@ -220,9 +220,8 @@ namespace {
 // check for true uses (so a  bb arg  that is actually used in an instruction)
 //  we might have a loop of multiple bbs that just forward a bb so it will
 //  have uses but all are just forwarding to the next bb
-bool has_true_use(fir::BBArgument v) {
-  TVec<fir::Use> worklist;
-  TSet<fir::Use> seen;
+bool has_true_use(fir::BBArgument v, TVec<fir::Use> &worklist,
+                  TSet<fir::Use> &seen) {
   for (auto use : v->get_uses()) {
     worklist.push_back(use);
   }
@@ -261,6 +260,9 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
                                      bool is_entry) {
   if (curr.bb->n_args() != 0 && !is_entry) {
     ZoneScopedN("rem dead bb arg");
+    TVec<fir::Use> worklist;
+    TSet<fir::Use> seen;
+
     auto n_args = curr.bb->n_args();
     for (u32 ip1 = n_args; ip1 > 0; ip1--) {
       auto i = ip1 - 1;
@@ -276,7 +278,9 @@ bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
         curr.bb->args.erase(curr.bb->args.begin() + i);
         return true;
       }
-      if (!has_true_use(value)) {
+      worklist.clear();
+      seen.clear();
+      if (!has_true_use(value, worklist, seen)) {
         for (auto use : curr.bb->get_uses()) {
           ASSERT(use.type == fir::UseType::BB);
           use.user.remove_bb_arg(use.argId, i);

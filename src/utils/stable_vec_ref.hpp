@@ -7,9 +7,8 @@
 
 namespace foptim::utils {
 
-template <class T>
-class SRef {
- public:
+template <class T> class SRef {
+public:
   Slot<T> *data_ref;
 #ifdef SLOT_CHECK_GENERATION
   u32 generation;
@@ -43,28 +42,28 @@ class SRef {
   }
 
   [[nodiscard]] constexpr bool is_valid() const {
-    if (nullptr == data_ref) {
+    if (nullptr == data_ref) [[unlikely]] {
       return false;
     }
 #ifdef SLOT_CHECK_GENERATION
-    if (0 == generation) {
+    if (0 == generation) [[unlikely]] {
       return false;
     }
-    if (data_ref->generation != generation) {
+    if (data_ref->generation != generation) [[unlikely]] {
       return false;
     }
 #endif
-    if (data_ref->used != SlotState::Used) {
+    if (data_ref->used != SlotState::Used) [[unlikely]] {
       return false;
     }
     return true;
   }
 
-  inline constexpr void verify_validness() const {
+  constexpr void verify_validness() const {
     ASSERT(data_ref != nullptr && data_ref->used == SlotState::Used);
 #ifdef SLOT_CHECK_GENERATION
     ASSERT(generation != 0);
-    if (data_ref->generation != generation) {
+    if (data_ref->generation != generation) [[unlikely]] {
       fmt::println("{} {}", data_ref->generation.load(), generation);
       TODO("shite");
     }
@@ -103,7 +102,7 @@ class SRef {
 };
 
 template <class T>
-constexpr inline bool operator==(const SRef<T> &self, const SRef<T> &other) {
+constexpr bool operator==(const SRef<T> &self, const SRef<T> &other) {
 #ifdef SLOT_CHECK_GENERATION
   return self.data_ref == other.data_ref && self.generation == other.generation;
 #else
@@ -111,7 +110,7 @@ constexpr inline bool operator==(const SRef<T> &self, const SRef<T> &other) {
 #endif
 }
 
-}  // namespace foptim::utils
+} // namespace foptim::utils
 
 template <class T>
 struct ankerl::unordered_dense::hash<foptim::utils::SRef<T>> {
@@ -129,8 +128,7 @@ struct ankerl::unordered_dense::hash<foptim::utils::SRef<T>> {
   }
 };
 
-template <class T>
-struct std::hash<foptim::utils::SRef<T>> {
+template <class T> struct std::hash<foptim::utils::SRef<T>> {
   std::size_t operator()(const foptim::utils::SRef<T> &k) const {
     using foptim::u32;
     using std::hash;

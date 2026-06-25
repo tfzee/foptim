@@ -21,7 +21,7 @@ enum class ValueType {
 };
 
 class ValueR {
- public:
+public:
   ValueType ty;
   union {
     Instr instr;
@@ -52,8 +52,9 @@ class ValueR {
 
   [[nodiscard]] bool eql(const ValueR &other) const;
 
-  [[nodiscard]] bool operator==(const ValueR &other) const;
-
+  [[nodiscard]] bool operator==(const ValueR &other) const {
+    return this->eql(other);
+  }
   [[nodiscard]] constexpr bool is_constant() const {
     return ty == ValueType::ConstantValueR;
   }
@@ -115,46 +116,43 @@ class ValueR {
     return bb_arg;
   }
 };
+} // namespace foptim::fir
 
-}  // namespace foptim::fir
-
-template <>
-struct ankerl::unordered_dense::hash<foptim::fir::ValueR> {
+template <> struct ankerl::unordered_dense::hash<foptim::fir::ValueR> {
   using is_avalanching = void;
 
   [[nodiscard]] auto operator()(const foptim::fir::ValueR &k) const noexcept
       -> uint64_t {
     switch (k.ty) {
-      case foptim::fir::ValueType::InvalidValue:
-        return 0;
-      case foptim::fir::ValueType::Instr:
-        return hash<foptim::fir::Instr>()(k.instr);
-      case foptim::fir::ValueType::BasicBlock:
-        return hash<foptim::fir::BasicBlock>()(k.bb);
-      case foptim::fir::ValueType::BBArg:
-        return hash<foptim::fir::BBArgument>()(k.bb_arg);
-      case foptim::fir::ValueType::ConstantValueR:
-        return hash<foptim::fir::ConstantValueR>()(k.const_val);
+    case foptim::fir::ValueType::InvalidValue:
+      return 0;
+    case foptim::fir::ValueType::Instr:
+      return hash<foptim::fir::Instr>()(k.instr);
+    case foptim::fir::ValueType::BasicBlock:
+      return hash<foptim::fir::BasicBlock>()(k.bb);
+    case foptim::fir::ValueType::BBArg:
+      return hash<foptim::fir::BBArgument>()(k.bb_arg);
+    case foptim::fir::ValueType::ConstantValueR:
+      return hash<foptim::fir::ConstantValueR>()(k.const_val);
     }
   }
 };
 
-template <>
-struct std::hash<foptim::fir::ValueR> {
+template <> struct std::hash<foptim::fir::ValueR> {
   std::size_t operator()(const foptim::fir::ValueR &k) const {
     using foptim::u32;
     using std::hash;
     switch (k.ty) {
-      case foptim::fir::ValueType::InvalidValue:
-        return 0;
-      case foptim::fir::ValueType::Instr:
-        return std::hash<foptim::fir::Instr>()(k.instr);
-      case foptim::fir::ValueType::BasicBlock:
-        return std::hash<foptim::fir::BasicBlock>()(k.bb);
-      case foptim::fir::ValueType::BBArg:
-        return std::hash<foptim::fir::BBArgument>()(k.bb_arg);
-      case foptim::fir::ValueType::ConstantValueR:
-        return std::hash<foptim::fir::ConstantValueR>()(k.const_val);
+    case foptim::fir::ValueType::InvalidValue:
+      return 0;
+    case foptim::fir::ValueType::Instr:
+      return std::hash<foptim::fir::Instr>()(k.instr);
+    case foptim::fir::ValueType::BasicBlock:
+      return std::hash<foptim::fir::BasicBlock>()(k.bb);
+    case foptim::fir::ValueType::BBArg:
+      return std::hash<foptim::fir::BBArgument>()(k.bb_arg);
+    case foptim::fir::ValueType::ConstantValueR:
+      return std::hash<foptim::fir::ConstantValueR>()(k.const_val);
     }
   }
 };
