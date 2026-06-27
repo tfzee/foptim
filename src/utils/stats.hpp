@@ -1,10 +1,10 @@
 #pragma once
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <mutex>
 #include <string_view>
 #include <unordered_map>
-#include <vector>
 
 #include "types.hpp"
 #include "utils/todo.hpp"
@@ -36,7 +36,6 @@ public:
   };
   std::mutex access_mutex;
   std::unordered_map<std::string_view, Stat> stats;
-  std::vector<const char *> string_storage;
 
   static StatCollector &get() {
     static StatCollector coll;
@@ -60,7 +59,7 @@ public:
       ASSERT(stats[name].ty == ty);
       ASSERT(stats[name].type == StatValType::F64);
     } else {
-      stats[name].type = StatValType::I64;
+      stats[name].type = StatValType::F64;
       stats[name].ty = ty;
     }
     stats[name].dv = v;
@@ -71,6 +70,10 @@ public:
   void addi(i64 v, const std::string_view name, StatType ty = StatOther) {
     std::lock_guard<std::mutex> l{access_mutex};
     if (stats.contains(name)) [[likely]] {
+      // if (stats[name].ty != ty) {
+      //   fmt::println("Failed wrong type {:s} {}!={}", name,
+      //   static_cast<u8>(stats[name].ty), static_cast<u8>(ty));
+      // }
       ASSERT(stats[name].ty == ty);
       ASSERT(stats[name].type == StatValType::I64);
     } else {
@@ -86,7 +89,7 @@ public:
       ASSERT(stats[name].ty == ty);
       ASSERT(stats[name].type == StatValType::F64);
     } else {
-      stats[name].type = StatValType::I64;
+      stats[name].type = StatValType::F64;
       stats[name].ty = ty;
       stats[name].dv = 0;
     }

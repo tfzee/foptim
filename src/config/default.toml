@@ -107,9 +107,6 @@ passes = [
 #module
 [pass.fir.Inline]
 recursive = true
-[pass.fir.LoopUnroll]
-maxUnroll = 32
-maxInstr = 32
 [pass.fir.FuncPropAnnotator]
 [pass.fir.GlobalPromotion]
 [pass.fir.ArgPromotion]
@@ -117,11 +114,14 @@ maxInstr = 32
 [pass.fir.IPCP]
 [pass.fir.FunctionDedupSame]
 [pass.fir.FunctionDedupDiff]
-[pass.fir.LoopUnswitch]
 # [pass.PrintModule]
 # [pass.VerifyModule]
 
 #func
+[pass.fir.LoopUnswitch]
+[pass.fir.LoopUnroll]
+maxUnroll = 32
+maxInstr = 32
 [pass.fir.SLPVectorizer]
 reductions = true
 [pass.fir.DCE]

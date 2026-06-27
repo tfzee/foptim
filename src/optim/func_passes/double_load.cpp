@@ -12,7 +12,7 @@ namespace {
 void intersection(TSet<fir::Instr> &curr, const TSet<fir::Instr> &remove_data) {
   for (auto it = curr.begin(); it != curr.end();) {
     if (!remove_data.contains(*it)) {
-      it = curr.erase(it);  // erase returns the next iterator
+      it = curr.erase(it); // erase returns the next iterator
     } else {
       ++it;
     }
@@ -43,7 +43,7 @@ void cut(TSet<fir::Instr> &curr, AliasAnalyis &aa, bool all_overwritten,
     }
   }
 }
-}  // namespace
+} // namespace
 
 void DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("DoubleLoadElim", COLOR_OPTIMF);
@@ -148,7 +148,7 @@ void DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) {
           //   continue;
           // }
           instr->replace_all_uses(fir::ValueR{l});
-          utils::StatCollector::get().addi(1, "DoubleLoadElim");
+          utils::StatCollector::get().addi(1, "Num_DoubleLoadElim");
           // instr.destroy();
           break;
         }
@@ -175,4 +175,4 @@ void DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) {
   // TODO("okak");
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
