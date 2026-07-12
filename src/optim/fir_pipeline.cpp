@@ -59,7 +59,6 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   conf::VerifyFuncConf verify_debug_func{};
   while (curr_pass < n_passes) {
     auto *pass = passes_worklist[curr_pass];
-    curr_pass++;
     if (enable_bisect) {
       if (curr_pass > n_actual_run) {
         fmt::println("  {}: {}", curr_pass, pass->get_name());
@@ -68,6 +67,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       }
       fmt::println("X {}: {}", curr_pass, pass->get_name());
     }
+    curr_pass++;
     switch (pass->pass_type()) {
       // merge function passes so we can run them in parralel
     case PassConfig::FIR_Function: {
@@ -79,15 +79,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       if (ctx.config->debug.verify_between_passes) {
         man.push_pass(&verify_debug_func);
       }
-      while (curr_pass < n_passes && passes_worklist[curr_pass]->pass_type() ==
-                                         PassConfig::PassType::FIR_Function) {
+      while (curr_pass <= n_actual_run &&
+             passes_worklist[curr_pass]->pass_type() ==
+                 PassConfig::PassType::FIR_Function) {
         if (enable_bisect) {
-          if (curr_pass > n_actual_run) {
-            fmt::println("  {}: {}", curr_pass,
-                         passes_worklist[curr_pass]->get_name());
-            curr_pass++;
-            continue;
-          }
           fmt::println("X {}: {}", curr_pass,
                        passes_worklist[curr_pass]->get_name());
         }
@@ -107,15 +102,10 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     case PassConfig::FIR_Module: {
       foptim::optim::ModulePassManager man{};
       man.push_pass(pass);
-      while (curr_pass < n_passes && passes_worklist[curr_pass]->pass_type() ==
-                                         PassConfig::PassType::FIR_Module) {
+      while (curr_pass <= n_actual_run &&
+             passes_worklist[curr_pass]->pass_type() ==
+                 PassConfig::PassType::FIR_Module) {
         if (enable_bisect) {
-          if (curr_pass > n_actual_run) {
-            fmt::println("  {}: {}", curr_pass,
-                         passes_worklist[curr_pass]->get_name());
-            curr_pass++;
-            continue;
-          }
           fmt::println("X {}: {}", curr_pass,
                        passes_worklist[curr_pass]->get_name());
         }
