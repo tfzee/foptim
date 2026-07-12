@@ -48,7 +48,7 @@ approx_func = false
 passes = [
         "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
         "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DCE",
-        "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE"
+        "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler"
 ]
 
 [pipeline.fir.default_release_middle]
@@ -88,7 +88,7 @@ passes = [
 
 [pipeline.fir.default_release_cleanup]
 passes = [
-  "MergeAlloca", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
+  "MergeAlloca", "EarlySheduler", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
   "InstSimplify", "SimplifyCFG", "DCE", "LegalizeVecs", "InstSimplify",
   "SCCP", "LegalizeVecs", "DCE",
 ]
@@ -134,6 +134,7 @@ reductions = true
 [pass.fir.InstSimplify]
 [pass.fir.SimplifyCFG]
 [pass.fir.LVN]
+[pass.fir.EarlySheduler]
 [pass.fir.CmpKnownValProp]
 [pass.fir.TailRecElim]
 [pass.fir.LICM]
@@ -241,5 +242,5 @@ print_optimization_failure_reasons = true
 print_color = true
 verify_between_passes = false
 time_passes = true
-bisect = 0
+bisect = -1
 

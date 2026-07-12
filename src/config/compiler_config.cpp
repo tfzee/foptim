@@ -103,6 +103,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new SimplifyCFGConf{};
     } else if (name == "LVN") {
       pass = new LVNConf{};
+    } else if (name == "EarlySheduler") {
+      pass = new EarlyShedulerConf{};
     } else if (name == "CmpKnownValProp") {
       pass = new CmpKnownValPropConf{};
     } else if (name == "TailRecElim") {
@@ -285,8 +287,7 @@ bool debug_parse(Debug &conf, toml::table &tbl) {
       tbl["print_between_passes"].value_or(conf.print_between_passes);
   conf.verify_between_passes =
       tbl["verify_between_passes"].value_or(conf.verify_between_passes);
-  conf.time_passes =
-      tbl["time_passes"].value_or(conf.time_passes);
+  conf.time_passes = tbl["time_passes"].value_or(conf.time_passes);
 
   return true;
 }

@@ -101,7 +101,7 @@ struct Optimize {
 };
 
 struct Debug {
-  u32 bisect;
+  i32 bisect;
   bool print_between_passes;
   bool print_optimization_failure_reasons;
   bool verify_between_passes;

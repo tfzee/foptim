@@ -8,6 +8,7 @@
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/double_load.hpp"
+#include "optim/func_passes/early_sheduler.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
 #include "optim/func_passes/legalize_struct.hpp"
@@ -132,7 +133,6 @@ struct PrintFuncConf : public FunctionPassConf<PrintFuncConf>,
                        optim::PrintFunc::Config {
   static constexpr const char *BaseName = "PrintFunc";
   using Pass = optim::PrintFunc;
-  FString name_match;
   bool pass_parse(toml::table &tbl) {
     auto view = tbl["name_matching"].value_or<std::string_view>("");
     if (!view.empty()) {
@@ -145,6 +145,18 @@ struct PrintFuncConf : public FunctionPassConf<PrintFuncConf>,
     p.config = *static_cast<Pass::Config *>(this);
   };
 };
+
+struct EarlyShedulerConf : public FunctionPassConf<EarlyShedulerConf>,
+                           optim::EarlySheduler::Config {
+  static constexpr const char *BaseName = "EarlySheduler";
+  using Pass = optim::EarlySheduler;
+  bool pass_parse(toml::table & /*tbl*/) { return true; }
+
+  void construct_function_pass(Pass &p) {
+    p.config = *static_cast<Pass::Config *>(this);
+  };
+};
+
 struct VerifyFuncConf : public FunctionPassConf<VerifyFuncConf> {
   static constexpr const char *BaseName = "VerifyFunc";
   using Pass = optim::VerifyFunc;
