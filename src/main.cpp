@@ -60,7 +60,6 @@ int main(int argc, char *argv[]) {
       {
         auto a1 = t.scopedTimer("Optimize");
         foptim::optim::pipeline::optimize_fir(ctx, &shed);
-        // optimize_fir(ctx, &shed);
       }
     }
 
