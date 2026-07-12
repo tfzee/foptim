@@ -79,7 +79,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       if (ctx.config->debug.verify_between_passes) {
         man.push_pass(&verify_debug_func);
       }
-      while (curr_pass <= n_actual_run &&
+      while (curr_pass < n_actual_run &&
              passes_worklist[curr_pass]->pass_type() ==
                  PassConfig::PassType::FIR_Function) {
         if (enable_bisect) {
@@ -102,7 +102,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     case PassConfig::FIR_Module: {
       foptim::optim::ModulePassManager man{};
       man.push_pass(pass);
-      while (curr_pass <= n_actual_run &&
+      while (curr_pass < n_actual_run &&
              passes_worklist[curr_pass]->pass_type() ==
                  PassConfig::PassType::FIR_Module) {
         if (enable_bisect) {

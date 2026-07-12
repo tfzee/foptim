@@ -271,8 +271,8 @@ void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
       }
     }
   }
-  fmt::println("{}", func);
-  fmt::println("========================\n{}", spil_candidate);
+  // fmt::println("{}", func);
+  // fmt::println("========================\n{}", spil_candidate);
   fmt::println("{}: RAT:{} SpillSet:{}", worst_spill_candidate, worst_rating,
                spill_set.size());
   fmt::println("{}", func.name);
