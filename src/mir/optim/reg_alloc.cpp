@@ -55,6 +55,8 @@ void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
       }
       break;
     }
+    case MArgument::ArgumentType::MemLabelVregScale:
+    case MArgument::ArgumentType::MemLabelVreg:
     case MArgument::ArgumentType::MemImmVRegScale: {
       auto indx = instr.args[i].indx;
       if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
@@ -145,10 +147,10 @@ constexpr void get_reg_order(MFunc &func, CReg *regs) {
 //     return uses / degree;  // cost per conflict relieved
 // }
 
-float get_spill_cost(MFunc &func, VReg &spil_candidate,
+f32 get_spill_cost(MFunc &func, VReg &spil_candidate,
                      const TMap<VReg, TSet<size_t>> &reg_coll) {
   // TODO use chaitins heuristic
-  i64 num_coll = reg_coll.at(spil_candidate).size();
+  f32 num_coll = static_cast<f32>(reg_coll.at(spil_candidate).size());
   i64 num_uses = 0;
   for (auto &bb : func.bbs) {
     for (auto &i : bb.instrs) {
@@ -157,7 +159,7 @@ float get_spill_cost(MFunc &func, VReg &spil_candidate,
       }
     }
   }
-  return num_uses * 100 - num_coll;
+  return static_cast<f32>(num_uses * 100) - num_coll;
 }
 
 void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
@@ -251,13 +253,13 @@ void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
               insert_loc--;
             }
             bb.instrs.insert(
-                bb.instrs.begin() + insert_loc + 0,
+                bb.instrs.begin() + static_cast<i64>(insert_loc) + 0,
                 MInstr{GBaseSubtype::mov, MArgument{spiller, Type::Int64},
                        MArgument::stack_slot(stack_slot_id, size)});
             i++;
           }
           if (written) {
-            bb.instrs.insert(bb.instrs.begin() + i + 1,
+            bb.instrs.insert(bb.instrs.begin() + static_cast<i64>(i) + 1,
                              MInstr{
                                  GBaseSubtype::mov,
                                  MArgument::stack_slot(stack_slot_id, size),

@@ -289,6 +289,8 @@ void update_uses(const MArgument &arg, utils::BitSet<> &uses) {
     uses[reg_to_uid(arg.reg)].set(true);
     break;
   case MArgument::ArgumentType::MemImmVRegScale:
+  case MArgument::ArgumentType::MemLabelVregScale:
+  case MArgument::ArgumentType::MemLabelVreg:
     uses[reg_to_uid(arg.indx)].set(true);
     break;
   case MArgument::ArgumentType::MemVRegVReg:
@@ -817,6 +819,8 @@ NextUseResult find_next_use(const IRVec<MInstr> &instrs, size_t search_reg_id,
             res.index = i;
           }
           break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
         case MArgument::ArgumentType::MemImmVRegScale:
           if (reg_to_uid(argy.indx) == search_reg_id) {
             res.is_read = true;
@@ -926,6 +930,8 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
           all_used_regs.insert(arg.reg);
           all_used_regs.insert(arg.indx);
           break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
         case MArgument::ArgumentType::MemImmVRegScale:
           all_used_regs.insert(arg.indx);
           break;
@@ -1114,6 +1120,8 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           all_used_regs.insert(arg.reg);
           all_used_regs.insert(arg.indx);
           break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
         case MArgument::ArgumentType::MemImmVRegScale:
           ranges[arg.indx];
           all_used_regs.insert(arg.indx);
@@ -1217,6 +1225,8 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           }
           curr_live[reg_to_uid(written.arg.reg)].set(true);
           break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
         case MArgument::ArgumentType::MemImmVRegScale:
           // fmt::println("{} USE {} ", curr_live, written.arg.indx);
           for (auto r : curr_live) {
@@ -1265,6 +1275,8 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           }
           curr_live[reg_to_uid(read.arg.reg)].set(true);
           break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
         case MArgument::ArgumentType::MemImmVRegScale:
           // fmt::println("{} USE {} ", curr_live, read.arg.indx);
           for (auto r : curr_live) {

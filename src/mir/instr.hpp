@@ -439,6 +439,8 @@ public:
     Label,
     MemLabel,
     MemImmLabel,
+    MemLabelVreg,
+    MemLabelVregScale,
     StackSlot,
   };
 
@@ -450,8 +452,8 @@ public:
     f64 immf;
   };
   u64 scale = 0;
-  VReg reg = VReg();
-  VReg indx = VReg();
+  VReg reg;
+  VReg indx;
   IRStringRef label = nullptr;
 
   constexpr MArgument() : type(ArgumentType::Imm), imm(0) {}
@@ -476,7 +478,7 @@ public:
       : type(ArgumentType::Imm), ty(Type::Float32),
         immf(std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(imm)))) {}
   MArgument(IRStringRef lab)
-      : type(ArgumentType::Label), ty(Type::INVALID), label(lab) {}
+      : type(ArgumentType::Label), label(lab) {}
   MArgument(IRStringRef lab, Type ty)
       : type(ArgumentType::Label), ty(ty), label(lab) {}
 
@@ -497,21 +499,42 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemLO(IRStringRef lab, i32 imm,
+  [[nodiscard]] static constexpr MArgument MemLO(IRStringRef lab, i64 imm,
                                                  Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmLabel;
     arg.ty = ty;
     arg.label = lab;
-    arg.imm = std::bit_cast<u64>(static_cast<i64>(imm));
+    arg.imm = std::bit_cast<u64>(imm);
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemO(i32 imm, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemLI(IRStringRef lab, VReg off,
+                                                 Type ty) {
+    MArgument arg;
+    arg.type = ArgumentType::MemLabelVreg;
+    arg.ty = ty;
+    arg.label = lab;
+    arg.indx = off;
+    return arg;
+  }
+
+  [[nodiscard]] static constexpr MArgument MemLIS(IRStringRef lab, VReg off, u32 scale,
+                                                 Type ty) {
+    MArgument arg;
+    arg.type = ArgumentType::MemLabelVregScale;
+    arg.ty = ty;
+    arg.label = lab;
+    arg.indx = off;
+    arg.scale= scale;
+    return arg;
+  }
+
+  [[nodiscard]] static constexpr MArgument MemO(i64 imm, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImm;
     arg.ty = ty;
-    arg.imm = std::bit_cast<u64>(static_cast<i64>(imm));
+    arg.imm = std::bit_cast<u64>(imm);
     return arg;
   }
 
@@ -523,11 +546,11 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemOB(i32 off, VReg reg, Type ty) {
+  [[nodiscard]] static constexpr MArgument MemOB(u64 off, VReg reg, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmVReg;
     arg.ty = ty;
-    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
+    arg.imm = off;
     arg.reg = reg;
     return arg;
   }
@@ -555,19 +578,19 @@ public:
   }
 
   // reg + indx + off
-  [[nodiscard]] static constexpr MArgument MemOBI(i32 off, VReg reg, VReg indx,
+  [[nodiscard]] static constexpr MArgument MemOBI(u64 off, VReg reg, VReg indx,
                                                   Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemImmVRegVReg;
     arg.ty = ty;
     arg.reg = reg;
     arg.indx = indx;
-    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
+    arg.imm = std::bit_cast<u64>(off);
     return arg;
   }
 
   // reg + indx*scale + off
-  [[nodiscard]] static constexpr MArgument MemOBIS(i32 off, VReg reg, VReg indx,
+  [[nodiscard]] static constexpr MArgument MemOBIS(i64 off, VReg reg, VReg indx,
                                                    u32 scale, Type ty) {
     ASSERT(scale <= 3);
     MArgument arg;
@@ -576,17 +599,17 @@ public:
     arg.reg = reg;
     arg.indx = indx;
     arg.scale = scale;
-    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
+    arg.imm = std::bit_cast<u64>(off);
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemOIS(i32 off, VReg indx, u32 scale,
+  [[nodiscard]] static constexpr MArgument MemOIS(u64 off, VReg indx, u32 scale,
                                                   Type ty) {
     ASSERT(scale <= 3);
     MArgument arg;
     arg.type = ArgumentType::MemImmVRegScale;
     arg.ty = ty;
-    arg.imm = std::bit_cast<u64>(static_cast<i64>(off));
+    arg.imm = off;
     arg.indx = indx;
     arg.scale = scale;
     return arg;
@@ -621,6 +644,8 @@ public:
     case ArgumentType::MemImmVRegVRegScale:
     case ArgumentType::MemLabel:
     case ArgumentType::MemImmLabel:
+    case ArgumentType::MemLabelVreg:
+    case ArgumentType::MemLabelVregScale:
       return true;
     }
   }
@@ -655,6 +680,10 @@ public:
              scale == other.scale;
     case ArgumentType::MemImmLabel:
       return label == other.label && imm == other.imm;
+    case ArgumentType::MemLabelVreg:
+      return label == other.label && indx == other.indx;
+    case ArgumentType::MemLabelVregScale:
+      return label == other.label && indx == other.indx && scale == other.scale;
     }
   }
   [[nodiscard]] constexpr bool uses_same_vreg(const VReg &other) const {
@@ -670,6 +699,8 @@ public:
     case ArgumentType::MemVReg:
     case ArgumentType::MemImmVReg:
       return reg == other;
+    case ArgumentType::MemLabelVreg:
+    case ArgumentType::MemLabelVregScale:
     case ArgumentType::MemImmVRegScale:
       return indx == other;
     case ArgumentType::MemImmVRegVReg:
@@ -694,6 +725,8 @@ public:
     case ArgumentType::MemImmVReg:
       return uses_same_vreg(other.reg);
     case ArgumentType::MemImmVRegScale:
+    case ArgumentType::MemLabelVreg:
+    case ArgumentType::MemLabelVregScale:
       return uses_same_vreg(other.indx);
     case ArgumentType::MemImmVRegVReg:
     case ArgumentType::MemVRegVRegScale:
@@ -720,6 +753,8 @@ public:
     case ArgumentType::MemVRegVRegScale:
     case ArgumentType::MemImmVRegScale:
     case ArgumentType::MemImmVRegVRegScale:
+    case ArgumentType::MemLabelVreg:
+    case ArgumentType::MemLabelVregScale:
       return true;
     }
   }

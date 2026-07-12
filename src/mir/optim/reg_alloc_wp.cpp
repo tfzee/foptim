@@ -34,6 +34,8 @@ void replace_vargs(MInstr &instr, const TMap<size_t, ColorData> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
     case MArgument::ArgumentType::StackSlot:
+    case MArgument::ArgumentType::MemLabelVregScale:
+    case MArgument::ArgumentType::MemLabelVreg:
       TODO("impl");
     case MArgument::ArgumentType::Imm:
     case MArgument::ArgumentType::Label:

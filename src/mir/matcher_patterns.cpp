@@ -446,6 +446,12 @@ void memory_patterns(IRVec<Pattern> &pats) {
         auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
         ASSERT(base.isReg());
         ASSERT(indx.isReg());
+        if (add_instr->args[0].is_constant_global()) {
+          res.result.emplace_back(
+              GBaseSubtype::mov, res_reg,
+              MArgument::MemLIS(add_instr->args[0].as_constant()->as_global()->name.c_str(),
+                                indx.reg, consti_val, load_ty));
+        }
         res.result.emplace_back(
             GBaseSubtype::mov, res_reg,
             MArgument::MemBIS(base.reg, indx.reg, consti_val, load_ty));
@@ -1176,6 +1182,12 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
         auto base_reg = base.reg;
         auto indx_reg = indx.reg;
+        if (add_instr->args[0].is_constant_global()) {
+          res.result.emplace_back(
+              GBaseSubtype::mov, res_reg,
+              MArgument::MemLIS(add_instr->args[0].as_constant()->as_global()->name.c_str(),
+                                indx_reg, consti_val, res_ty));
+        }
         res.result.emplace_back(
             X86Subtype::lea, res_reg,
             MArgument::MemBIS(base_reg, indx_reg, consti_val, res_ty));

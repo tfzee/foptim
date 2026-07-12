@@ -42,6 +42,8 @@ class LifetimeShortening : public FunctionPass {
           case MArgument::ArgumentType::MemLabel:
           case MArgument::ArgumentType::MemImmLabel:
             break;
+          case MArgument::ArgumentType::MemLabelVregScale:
+          case MArgument::ArgumentType::MemLabelVreg:
           case MArgument::ArgumentType::MemImmVRegScale:
             mappings.erase(written.indx);
             for (auto it = mappings.begin(); it != mappings.end();) {
@@ -105,6 +107,8 @@ class LifetimeShortening : public FunctionPass {
                   MArgument{mappings.at(read.reg), instr.args[id].ty};
             }
             break;
+          case MArgument::ArgumentType::MemLabelVregScale:
+          case MArgument::ArgumentType::MemLabelVreg:
           case MArgument::ArgumentType::MemVReg:
           case MArgument::ArgumentType::MemImmVReg:
           case MArgument::ArgumentType::MemImmVRegScale:

@@ -59,7 +59,8 @@ void gen_arg_mapping(MFunc &func, const CallingConvDefinition &conv) {
       ASSERT(conv.args.allows_stack_args);
       instr = MInstr(GBaseSubtype::stack_arg_load,
                      MArgument{func.args[arg_i], arg_ty},
-                     MArgument::MemOB(8 * (n_stack_args), VReg::RSP(), arg_ty));
+                     MArgument::MemOB(static_cast<u64>(8) * n_stack_args,
+                                      VReg::RSP(), arg_ty));
       n_stack_args++;
     }
     func.bbs[0].instrs.insert(func.bbs[0].instrs.begin(), instr);
@@ -207,7 +208,7 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
 
 void CallingConvImpl::first_stage(MFunc &func,
                                   const CallingConvDefinition &conv,
-                                  const conf::CompConf &) {
+                                  const conf::CompConf & /*unused*/) {
   gen_arg_mapping(func, conv);
   for (auto &bb : func.bbs) {
     size_t n_instrs = bb.instrs.size();
@@ -273,6 +274,8 @@ utils::BitSet<> calculate_used_regs(const MFunc &f,
           res[static_cast<u8>(arg.indx.c_reg()) - 1].set(true);
           break;
         }
+        case MArgument::ArgumentType::MemLabelVreg:
+        case MArgument::ArgumentType::MemLabelVregScale:
         case MArgument::ArgumentType::MemImmVRegScale: {
           res[static_cast<u8>(arg.indx.c_reg()) - 1].set(true);
           break;
@@ -382,7 +385,7 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
   }
   // after we push poped stuff to save em we then need to updated our stack
   // arguments so we actually use the right offsets.
-  u32 additional_offset = 8 * (2 + n_regs_saved) + additional_align_off +
+  u32 additional_offset = (8 * (2 + n_regs_saved)) + additional_align_off +
                           (func.needs_register_save_area ? 176 : 0);
   // NOTE: Assuming we got a full pro/epilogue because we reference SP
 
@@ -479,6 +482,8 @@ TMap<CReg, Type> compute_max_reg_types(const MFunc &f) {
           }
           break;
         }
+        case MArgument::ArgumentType::MemLabelVreg:
+        case MArgument::ArgumentType::MemLabelVregScale:
         case MArgument::ArgumentType::MemImmVRegScale: {
           if (arg.indx.is_concrete()) {
             auto creg = arg.indx.c_reg();
@@ -880,7 +885,7 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
   instrs[cinfo.start_id].is_var_arg_call = is_var_args;
 
   // for vararg setup al with the number of xmm registiers
-  if (is_var_args) {
+  if (is_var_args != 0U) {
     u8 n_gpr_regs = 0;
     u8 n_fvr_regs = 0;
     for (auto arg_p : arg_pos) {
@@ -928,7 +933,7 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
 } // namespace
 
 void CallingConvImpl::second_stage(MFunc &func, const CallingConvDefinition &cc,
-                                   const conf::CompConf &) {
+                                   const conf::CompConf & /*unused*/) {
   (void)func;
   (void)cc;
   ASSERT(!func.variadic ||

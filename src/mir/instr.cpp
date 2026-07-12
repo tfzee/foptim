@@ -786,6 +786,8 @@ bool verify(const MFunc &func) {
         case MArgument::ArgumentType::MemImmVReg:
           insertr(arg.arg.reg);
           break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
         case MArgument::ArgumentType::MemImmVRegScale:
           insertr(arg.arg.indx);
           break;
@@ -814,6 +816,8 @@ bool verify(const MFunc &func) {
         case MArgument::ArgumentType::MemImmVReg:
           insertr(arg.arg.reg);
           break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
         case MArgument::ArgumentType::MemImmVRegScale:
           insertr(arg.arg.indx);
           break;
@@ -1013,6 +1017,12 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
     case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
       return fmt::format_to(app, "[{} + {} + {}]:{}", value.reg, value.indx,
                             static_cast<foptim::i64>(value.imm), value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemLabelVreg:
+      return fmt::format_to(app, "[{} + {}]:{}", value.indx, value.label,
+                            value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemLabelVregScale:
+      return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx,
+                            1 << value.scale, value.label, value.ty);
     case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
       return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx,
                             1 << value.scale,
@@ -1069,6 +1079,12 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
       return fmt::format_to(app, "[{:c} + {:c} + {}]:{:c}", value.reg,
                             value.indx, static_cast<foptim::i64>(value.imm),
                             value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemLabelVreg:
+      return fmt::format_to(app, "[{:c} + {}]:{:c}", value.indx, value.label,
+                            value.ty);
+    case foptim::fmir::MArgument::ArgumentType::MemLabelVregScale:
+      return fmt::format_to(app, "[{:c}*{} + {}]:{:c}", value.indx,
+                            1 << value.scale, value.label, value.ty);
     case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
       return fmt::format_to(app, "[{:c}*{} + {}]:{:c}", value.indx,
                             1 << value.scale,

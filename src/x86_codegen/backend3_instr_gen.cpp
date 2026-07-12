@@ -332,6 +332,26 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
     operand.mem.scale = 1 << arg.scale;
     operand.mem.size = get_size(arg.ty);
     return;
+  case fmir::MArgument::ArgumentType::MemLabelVreg:
+    reloc_map.insert_label_ref(arg.label, instr_ptr, arg_id,
+                               RelocSection::Text);
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = ZYDIS_REGISTER_RIP;
+    operand.mem.displacement = 0;
+    operand.mem.index = convert_reg(arg.indx);
+    operand.mem.scale = 0;
+    operand.mem.size = get_size(arg.ty);
+    return;
+  case fmir::MArgument::ArgumentType::MemLabelVregScale:
+    reloc_map.insert_label_ref(arg.label, instr_ptr, arg_id,
+                               RelocSection::Text);
+    operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
+    operand.mem.base = ZYDIS_REGISTER_RIP;
+    operand.mem.displacement = 0;
+    operand.mem.index = convert_reg(arg.indx);
+    operand.mem.scale = 1 << arg.scale;
+    operand.mem.size = get_size(arg.ty);
+    return;
   }
 }
 
