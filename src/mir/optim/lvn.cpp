@@ -62,7 +62,7 @@ void LVN::apply_impl(MBB &bb) {
                 MInstr{GBaseSubtype::mov, bb.instrs[i1].args[0], new_reg};
             bb.instrs[i2] =
                 MInstr{GBaseSubtype::mov, bb.instrs[i2].args[0], new_reg};
-            bb.instrs.insert(bb.instrs.begin() + i1, copy_i1);
+            bb.instrs.insert(bb.instrs.begin() + static_cast<i64>(i1), copy_i1);
             i1--;
             break;
           }
@@ -72,7 +72,7 @@ void LVN::apply_impl(MBB &bb) {
   }
 }
 
-void LVN::apply(MFunc &func, const conf::CompConf &) {
+void LVN::apply(MFunc &func, const conf::CompConf & /*config*/) {
   unique_reg_id = 0;
   for (auto &bb : func.bbs) {
     for (auto &instr : bb.instrs) {

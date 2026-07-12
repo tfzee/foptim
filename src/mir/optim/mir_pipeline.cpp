@@ -2,19 +2,8 @@
 #include "config/compiler_config.hpp"
 #include "config/compiler_mir_passes.hpp"
 #include "ir/function.hpp"
-#include "mir/legalize_bb_form.hpp"
 #include "mir/matcher.hpp"
-#include "mir/optim/bb_reordering.hpp"
-#include "mir/optim/calling_conv.hpp"
-#include "mir/optim/copy_prop.hpp"
-#include "mir/optim/dce.hpp"
-#include "mir/optim/inst_simplify.hpp"
-#include "mir/optim/legalization.hpp"
-#include "mir/optim/lifetime_shortening.hpp"
-#include "mir/optim/lvn.hpp"
-#include "mir/optim/reg_alloc.hpp"
 #include "mir/optim/register_joining.hpp"
-#include "mir/optim/stack_optim.hpp"
 #include "utils/todo.hpp"
 #include <deque>
 #include <fmt/base.h>
@@ -24,7 +13,7 @@ namespace foptim::fmir::pipeline {
 
 void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::TVec<foptim::fir::Function *> &reordered_funcs,
-                  foptim::FVec<foptim::fmir::Global> &,
+                  foptim::FVec<foptim::fmir::Global> & /*unused*/,
                   foptim::JobSheduler *shed, const conf::CompConf &config) {
   size_t i = 0;
   // do matching first since it usese TVec we must before touching da tempalloc
@@ -47,7 +36,7 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   std::vector<conf::PassConfig *> passes_worklist;
   std::deque<conf::PipelineElem> pipeline_worklist;
 
-  pipeline_worklist.push_back(conf::PipelineElem{config.optim.mir_pipeline});
+  pipeline_worklist.emplace_back(config.optim.mir_pipeline);
 
   // construct full pipeline
   while (!pipeline_worklist.empty()) {
@@ -69,7 +58,7 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
     ASSERT(!func.bbs.empty());
     shed->push(nullptr, [&func, &passes_worklist, &config]() {
       for (auto &pass_conf : passes_worklist) {
-        auto pass = pass_conf->_construct_mir_func_pass();
+        auto *pass = pass_conf->_construct_mir_func_pass();
         pass->apply(func, config);
       }
       // foptim::fmir::LegalizeBBForm{}.apply(func, config);
