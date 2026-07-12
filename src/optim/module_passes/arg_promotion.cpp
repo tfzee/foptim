@@ -313,7 +313,7 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
   //   fmt::print("{:cd}", use.user->get_parent());
   // }
   // TODO("impl");
-  auto &func_ty = func.func->func_ty->as_func();
+  const auto &func_ty = func.func->func_ty->as_func();
   func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
   for (auto use : func.func->get_uses()) {
     use.user->extra_type = func.func->func_ty;
@@ -350,7 +350,7 @@ bool ArgPromotion::all_exits_are_dominated(const CFG &cfg,
     }
     bool any_dom = false;
     for (auto bb_id : direct_load_bbs) {
-      if (dom.dominates(bb_id, exit_bb_id)) {
+      if (dom.strict_dominates(bb_id, exit_bb_id)) {
         any_dom = true;
         break;
       }

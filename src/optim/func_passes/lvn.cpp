@@ -92,7 +92,7 @@ bool eql_instr_expr(fir::Instr a, fir::Instr b) {
 bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
                const Dominators &dom) {
   auto bb_id = cfg.get_bb_id(bb);
-  for (auto d : dom.dominators(bb_id)) {
+  for (auto d : dom.strict_dominators(bb_id)) {
     if (d == bb_id) {
       // lvn handles this case
       continue;
@@ -112,7 +112,7 @@ bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
 
 bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   auto a0 = load_instr->args[0].as_instr();
-  auto &store_ty = store_instr->get_type()->as_vec();
+  const auto &store_ty = store_instr->get_type()->as_vec();
   auto load_ty = load_instr->get_type();
   if (load_ty->get_bitwidth() != store_ty.bitwidth ||
       !a0->is(fir::BinaryInstrSubType::IntAdd) ||

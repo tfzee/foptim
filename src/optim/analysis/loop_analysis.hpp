@@ -20,11 +20,17 @@ struct LoopInfo {
 };
 
 class LoopInfoAnalysis {
- public:
+private:
+  template <class DomType> void update_impl(DomType &dom);
+
+public:
   TVec<LoopInfo> info;
 
   LoopInfoAnalysis(Dominators &dom) { update(dom); }
+  LoopInfoAnalysis(DominatorTree &dom) { update(dom); }
+
   void update(Dominators &dom);
+  void update(DominatorTree &dom);
   void dump() const;
 };
 
@@ -47,7 +53,7 @@ struct SCEVExpr {
 };
 
 class ScalarEvo {
- public:
+public:
   TVec<SCEVExpr> exprs;
   TVec<std::pair<u32, SCEVExpr::SCEVExprR>> direct_induct;
 
@@ -57,7 +63,7 @@ class ScalarEvo {
 };
 
 class LoopBoundsAnalysis {
- public:
+public:
   SCEVExpr::SCEVExprR induct;
   i128 start_value;
   i128 end_value;
@@ -70,7 +76,7 @@ class LoopBoundsAnalysis {
   void dump() const;
 };
 class LoopRangeAnalysis {
- public:
+public:
   enum IterationType {
     PlusA,
   };
@@ -94,7 +100,7 @@ class LoopRangeAnalysis {
 };
 
 class InductionVarAnalysis {
- public:
+public:
   enum IterationType {
     PlusConst,
     SubConst,
@@ -113,10 +119,10 @@ class InductionVarAnalysis {
     IterationType type = IterationType::Other;
   };
 
-  std::optional<InductionVar> _check_if_direct_induct(
-      fir::BBArgument v, u32 arg_id,
-      TVec<std::pair<fir::Instr, u32>> backwards_jumps, CFG &cfg,
-      LoopInfo &info);
+  std::optional<InductionVar>
+  _check_if_direct_induct(fir::BBArgument v, u32 arg_id,
+                          TVec<std::pair<fir::Instr, u32>> backwards_jumps,
+                          CFG &cfg, LoopInfo &info);
   // do not depend on other induction vars
   TVec<InductionVar> direct_inductvars;
 
@@ -129,7 +135,7 @@ class InductionVarAnalysis {
 };
 
 class InductionEndValueAnalysis {
- public:
+public:
   struct EndInfo {
     fir::BasicBlock from_bb;
     fir::BasicBlock to_bb;
@@ -145,4 +151,4 @@ class InductionEndValueAnalysis {
   void dump();
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
