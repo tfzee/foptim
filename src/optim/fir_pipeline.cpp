@@ -45,20 +45,29 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   // TODO destruction of passes kinda iffy
 
   // reduce when bisecting
+  bool enable_bisect = ctx.config->debug.bisect >= 0;
   const auto n_actual_run =
-      ctx.config->debug.bisect != 0
-          ? std::min(static_cast<u64>(ctx.config->debug.bisect),
-                     passes_worklist.size())
-          : passes_worklist.size();
+      enable_bisect ? std::min(static_cast<u64>(ctx.config->debug.bisect),
+                               passes_worklist.size())
+                    : passes_worklist.size();
+  const auto n_passes = passes_worklist.size();
   fmt::println("Having {} FIR passes and running {} passes on {} Functions",
                passes_worklist.size(), n_actual_run,
                ctx->storage.functions.size());
   size_t curr_pass = 0;
   conf::PrintFuncConf print_debug_func{};
   conf::VerifyFuncConf verify_debug_func{};
-  while (curr_pass < n_actual_run) {
+  while (curr_pass < n_passes) {
     auto *pass = passes_worklist[curr_pass];
     curr_pass++;
+    if (enable_bisect) {
+      if (curr_pass > n_actual_run) {
+        fmt::println("  {}: {}", curr_pass, pass->get_name());
+        curr_pass++;
+        continue;
+      }
+      fmt::println("X {}: {}", curr_pass, pass->get_name());
+    }
     switch (pass->pass_type()) {
       // merge function passes so we can run them in parralel
     case PassConfig::FIR_Function: {
@@ -70,9 +79,19 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
       if (ctx.config->debug.verify_between_passes) {
         man.push_pass(&verify_debug_func);
       }
-      while (curr_pass < n_actual_run &&
-             passes_worklist[curr_pass]->pass_type() ==
-                 PassConfig::PassType::FIR_Function) {
+      while (curr_pass < n_passes && passes_worklist[curr_pass]->pass_type() ==
+                                         PassConfig::PassType::FIR_Function) {
+        if (enable_bisect) {
+          if (curr_pass > n_actual_run) {
+            fmt::println("  {}: {}", curr_pass,
+                         passes_worklist[curr_pass]->get_name());
+            curr_pass++;
+            continue;
+          }
+          fmt::println("X {}: {}", curr_pass,
+                       passes_worklist[curr_pass]->get_name());
+        }
+
         man.push_pass(passes_worklist[curr_pass]);
         if (ctx.config->debug.print_between_passes) {
           man.push_pass(&print_debug_func);
@@ -88,9 +107,18 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     case PassConfig::FIR_Module: {
       foptim::optim::ModulePassManager man{};
       man.push_pass(pass);
-      while (curr_pass < n_actual_run &&
-             passes_worklist[curr_pass]->pass_type() ==
-                 PassConfig::PassType::FIR_Module) {
+      while (curr_pass < n_passes && passes_worklist[curr_pass]->pass_type() ==
+                                         PassConfig::PassType::FIR_Module) {
+        if (enable_bisect) {
+          if (curr_pass > n_actual_run) {
+            fmt::println("  {}: {}", curr_pass,
+                         passes_worklist[curr_pass]->get_name());
+            curr_pass++;
+            continue;
+          }
+          fmt::println("X {}: {}", curr_pass,
+                       passes_worklist[curr_pass]->get_name());
+        }
         man.push_pass(passes_worklist[curr_pass]);
         curr_pass++;
       }
