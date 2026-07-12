@@ -12,28 +12,21 @@ passes = [
   "pipeline:default_release_cleanup",
 ]
 
-
 #########
 # TOOD potential futures stuff
 
-# like include but gets applied afterwards
-# overwrite = [
-#   "default",
+
+# conditional stuff
+# [pipeline.fir.loopExtra]
+# cond = [
+#   "loopCount == 0"
 # ]
-# [debug]
-# color = true
-# print_missed_optim = true
-
-# [remarks]
-# output = "remarks.yaml"
-# passes = ["SLPVectorizer"]
-# filter = "hot"
-# missed = true   
-
-# [pass.UnrollEarly]
-# extends = "unroll"
-# max_unroll = 2
-
+# passes = [
+#   "LICM", "LoopRotate", "LoopSimplify", "DCE",
+#   "ConstLoopEval", "SimplifyCFG", "InstSimplify", "DCE",
+#   "LoopUnswitch", "LoopUnroll", "DCE",
+#   "SimplifyCFG", "InstSimplify", "DCE",
+# ]
 # [pass.FuncDedupLate]
 # extends = "func_dedup"
 # when = "is_hot"
@@ -43,5 +36,18 @@ passes = [
 # filter = "annotation:always_inline"
 # pass = "inline"
 # always_inline = true
+
+
+
+
+# like include but gets applied afterwards
+# overlay = [
+#   "fastmath",
+# ]
+# [remarks]
+# output = "remarks.yaml"
+# passes = ["SLPVectorizer"]
+# filter = "hot"
+# missed = true
 
 
