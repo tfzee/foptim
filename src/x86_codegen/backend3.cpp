@@ -567,7 +567,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   syma.arrange_local_symbols([&](Elf_Xword first, Elf_Xword second) {
     Elf64_Addr off;
     Elf_Word symbol;
-    unsigned char type;
+    unsigned int type;
     Elf_Sxword addend;
     if (!text_rela.get_entry(first, off, symbol, type, addend)) {
       text_rela.swap_symbols(first, second);
