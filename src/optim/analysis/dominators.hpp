@@ -354,6 +354,13 @@ public:
       }
     }
 
+    //handle unreachable bbs gracefully
+    for (auto &n : dom_bbs) {
+      if (n.idom == ~0U) {
+        n.idom = cfg.entry;
+      }
+    }
+
     // build the dominator tree as a flat CSR array (no per-node vectors)
     TVec<u32, utils::TempAlloc<u32>> child_count(n_bbs, 0);
     for (u32 i = 0; i < n_bbs; i++) {
