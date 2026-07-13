@@ -1390,9 +1390,9 @@ bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
       while (!worklist.empty()) {
         u32 c = worklist.back();
         worklist.pop_back();
+        reachable_bbs[c].set(true);
         for (auto n : cfg.bbrs[c].succ) {
           if (!reachable_bbs[n]) {
-            reachable_bbs[c].set(true);
             worklist.push_back(n);
           }
         }
@@ -1554,7 +1554,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   r = flip_cold_cond(cfg, curr);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("15");
+      fmt::println("16");
     }
     return r;
   }
@@ -1562,7 +1562,7 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   r = static_select_call_into_branch(func, curr);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
-      fmt::println("16");
+      fmt::println("17");
     }
     return r;
   }

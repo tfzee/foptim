@@ -1,7 +1,9 @@
+#include "ir/function.hpp"
 #include <fmt/color.h>
 
 #include "builder.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
 
@@ -71,26 +73,48 @@ bool Function::verify() const {
   }
   for (size_t i = 0; i < ty.arg_types.size(); i++) {
     if (!ty.arg_types[i]->eql(*entry->args[i]->get_type().get_raw_ptr())) {
-      fmt::println(
-          "Argument type at location {} does not match the type of "
-          "the function {} != {}",
-          i, ty.arg_types[i], entry->args[i]->get_type());
+      fmt::println("Argument type at location {} does not match the type of "
+                   "the function {} != {}",
+                   i, ty.arg_types[i], entry->args[i]->get_type());
       return false;
     }
   }
+
+  optim::CFG cfg{*const_cast<fir::Function *>(this)};
+  optim::DominatorTree dom{cfg};
 
   for (const auto &bb : basic_blocks) {
     if (!bb.is_valid() || !bb->verify(this)) {
       fmt::println("In BB {:p}", static_cast<const void *>(bb.get_raw_ptr()));
       return false;
     }
+    auto i_bb = cfg.get_bb_id(bb);
+    for (auto i : bb->args) {
+      for (auto u : i->get_uses()) {
+        auto u_bb = cfg.get_bb_id(u.user->get_parent());
+        if (!dom.dominates(i_bb, u_bb)) {
+          fmt::println("An bb_arg doesnt dominate all uses {}  {}", i, u);
+          return false;
+        }
+      }
+    }
+    for (auto i : bb->instructions) {
+      for (auto u : i->get_uses()) {
+        auto u_bb = cfg.get_bb_id(u.user->get_parent());
+        if (!dom.dominates(i_bb, u_bb)) {
+          fmt::println("An instruction doesnt dominate all uses {}  {}", i, u);
+          return false;
+        }
+      }
+    }
   }
   return true;
 }
-}  // namespace foptim::fir
+} // namespace foptim::fir
 
-fmt::appender fmt::formatter<foptim::fir::Function>::format(
-    foptim::fir::Function const &func, format_context &ctx) const {
+fmt::appender
+fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
+                                              format_context &ctx) const {
   auto app = ctx.out();
   app = fmt::format_to(app, "\n; ");
   if (func.attribs.variadic) {
@@ -123,33 +147,33 @@ fmt::appender fmt::formatter<foptim::fir::Function>::format(
 
   app = fmt::format_to(app, "<CC: ");
   switch (func.attribs.cc) {
-    case foptim::fir::Function::CallingConv::C:
-      app = fmt::format_to(app, "C");
-      break;
-    case foptim::fir::Function::CallingConv::Dynamic:
-      app = fmt::format_to(app, "dyn");
-      break;
+  case foptim::fir::Function::CallingConv::C:
+    app = fmt::format_to(app, "C");
+    break;
+  case foptim::fir::Function::CallingConv::Dynamic:
+    app = fmt::format_to(app, "dyn");
+    break;
   }
   app = fmt::format_to(app, ", LINK: ");
   switch (func.attribs.linkage) {
-    case foptim::fir::Linkage::Internal:
-      app = fmt::format_to(app, "internal");
-      break;
-    case foptim::fir::Linkage::External:
-      app = fmt::format_to(app, "external");
-      break;
-    case foptim::fir::Linkage::Weak:
-      app = fmt::format_to(app, "weak");
-      break;
-    case foptim::fir::Linkage::WeakODR:
-      app = fmt::format_to(app, "weakODR");
-      break;
-    case foptim::fir::Linkage::LinkOnce:
-      app = fmt::format_to(app, "linkonce");
-      break;
-    case foptim::fir::Linkage::LinkOnceODR:
-      app = fmt::format_to(app, "linkonceODR");
-      break;
+  case foptim::fir::Linkage::Internal:
+    app = fmt::format_to(app, "internal");
+    break;
+  case foptim::fir::Linkage::External:
+    app = fmt::format_to(app, "external");
+    break;
+  case foptim::fir::Linkage::Weak:
+    app = fmt::format_to(app, "weak");
+    break;
+  case foptim::fir::Linkage::WeakODR:
+    app = fmt::format_to(app, "weakODR");
+    break;
+  case foptim::fir::Linkage::LinkOnce:
+    app = fmt::format_to(app, "linkonce");
+    break;
+  case foptim::fir::Linkage::LinkOnceODR:
+    app = fmt::format_to(app, "linkonceODR");
+    break;
   }
   app = fmt::format_to(app, ", ");
   const auto &attribs = func.get_attribs();
