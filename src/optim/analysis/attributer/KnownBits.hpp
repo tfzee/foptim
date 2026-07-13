@@ -500,6 +500,16 @@ public:
           new_known_one = 0;
           new_known_zero = ~(~static_cast<u64>(0) << min_shift);
         }
+      } else if (instr->is(fir::BinaryInstrSubType::IntSRem)) {
+        if ((b->known_one | b->known_zero) != ~static_cast<u64>(0)) {
+          // TODO: just for simplicity only care about constant for now 
+          new_known_one = 0;
+          new_known_zero = 0;
+        } else {
+          fmt::println("BITS KNOWN {}", *this);
+          fmt::println("TODO: ATTRIB KNOWN BITS BIINARY OP {}",
+                       associatedValue.as_instr());
+        }
       } else if (instr->subtype ==
                  static_cast<u32>(fir::BinaryInstrSubType::AShr)) {
         if ((b->known_one | b->known_zero) == ~static_cast<u64>(0)) {

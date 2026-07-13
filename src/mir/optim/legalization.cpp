@@ -148,7 +148,8 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
       static_cast<i64>(instr.args[2].imm) >
           static_cast<i64>(std::numeric_limits<i16>::max());
 
-  // fmt::println("{} -> {};{};{};{}", instr, big_unsigned_const, big_signed_const,
+  // fmt::println("{} -> {};{};{};{}", instr, big_unsigned_const,
+  // big_signed_const,
   //              big_unsigned_const2, big_signed_const2);
   if (instr.bop == GOpcode::GJmp) {
     switch (static_cast<GJumpSubtype>(instr.sop)) {
@@ -698,6 +699,11 @@ bool Legalizer::legalize_three_op_imm(MBB &bb, u32 indx) {
 
 bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
+  if (instr.is(GConvSubtype::F64_ext) && instr.args[1].isReg() &&
+      instr.args[0].ty == Type::Float64) {
+    instr.bop = GOpcode::GBase;
+    instr.sop = static_cast<u32>(GBaseSubtype::mov);
+  }
   if (instr.is(GConvSubtype::SI2FL) && instr.args[1].isReg() &&
       get_size(instr.args[1].ty) < 4) {
     instr.args[1].ty = Type::Int32;
@@ -867,6 +873,7 @@ void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf &conf) {
         case GConvSubtype::FL2UI:
         case GConvSubtype::FL2SI:
         case GConvSubtype::SI2FL:
+        case GConvSubtype::F64_ext:
           if (legalize_conversion(bb, i)) {
             ioff = 0;
           }
