@@ -589,7 +589,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       if (!a.is_const() && (!a.is_int() && !a.is_float())) {
         return ConstantValue::Top();
       }
-      auto &vtype = instr->get_type()->as_vec();
+      const auto &vtype = instr->get_type()->as_vec();
       if (a.is_int()) {
         TVec<ConstantValue::Value> v_outs = {};
         for (size_t i = 0; i < vtype.member_number; i++) {
@@ -806,7 +806,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         return ConstantValue::Top();
       }
       for (size_t i = 0; i < a.vals.size(); i++) {
-        a.vals[i].i = std::min(a.vals[i].f, b.vals[i].f);
+        a.vals[i].f = std::min(a.vals[i].f, b.vals[i].f);
         // if (a.vtype->as_float() == 32) {
         // } else {
         //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
@@ -824,7 +824,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         return ConstantValue::Top();
       }
       for (size_t i = 0; i < a.vals.size(); i++) {
-        a.vals[i].i = std::max(a.vals[i].f, b.vals[i].f);
+        a.vals[i].f = std::max(a.vals[i].f, b.vals[i].f);
         // if (a.vtype->as_float() == 32) {
         // } else {
         //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
@@ -1070,8 +1070,9 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           static_cast<u64>(a.as_int()), instr->get_type()));
     case fir::ConversionSubType::FPEXT:
       ASSERT(a.vals.size() <= 1);
+      ASSERT(a.is_float() && a.get_type()->get_bitwidth() == 32);
       return ConstantValue::Constant(
-          ctx->get_constant_value(a.as_f64(), instr->get_type()));
+          ctx->get_constant_value(static_cast<f64>(a.as_f32()), instr->get_type()));
     case fir::ConversionSubType::FPTRUNC:
       ASSERT(a.vals.size() <= 1);
       return ConstantValue::Constant(ctx->get_constant_value(
