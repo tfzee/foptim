@@ -5,6 +5,7 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -58,7 +59,7 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
 
   old_terminator.remove_from_parent();
 }
-}  // namespace
+} // namespace
 
 void LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("LoopRotate");
@@ -186,21 +187,23 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
 
     auto new_exit = bb.append_bb();
     bb.at_end(new_exit);
-    // contsruct our bb
+    // add the terminator that forwards the old_exit_args
+    auto new_exit_term = bb.build_branch(exit_target.bb);
+
+    // contsruct our bb args
     //  BB(old_exit_args..., used_after_args...)
+    // first the old args and forwarding them to the new termintor
     for (auto argy : exit_target.args) {
-      new_exit.add_arg(ctx->storage.insert_bb_arg(new_exit, argy.get_type()));
+      auto new_bb_arg = ctx->storage.insert_bb_arg(new_exit, argy.get_type());
+      new_exit.add_arg(new_bb_arg);
+      new_exit_term.add_bb_arg(0, fir::ValueR{new_bb_arg});
     }
+    // then the new args
     TVec<fir::BBArgument> new_args;
     for (auto used_after : used_after_args) {
       auto new_arg = new_exit.add_arg(
           ctx->storage.insert_bb_arg(new_exit, used_after->get_type()));
       new_args.push_back(new_arg);
-    }
-    // add the terminator that forwards the old_exit_args
-    auto new_exit_term = bb.build_branch(exit_target.bb);
-    for (auto argy : exit_target.args) {
-      new_exit_term.add_bb_arg(0, argy);
     }
 
     // update the header terminator to point to new exit + add the
@@ -271,4 +274,4 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
   return true;
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
