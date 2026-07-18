@@ -699,25 +699,22 @@ bool Legalizer::legalize_three_op_imm(MBB &bb, u32 indx) {
 
 bool Legalizer::legalize_conversion(MBB &bb, u32 indx) {
   MInstr &instr = bb.instrs[indx];
-  if (instr.is(GConvSubtype::F64_ext) && instr.args[1].isReg() &&
-      instr.args[0].ty == Type::Float64) {
+  bool extend_is_degenerate = instr.is(GConvSubtype::F64_ext) &&
+                              instr.args[1].isReg() &&
+                              instr.args[1].ty == Type::Float64;
+  bool trunc_is_degenerate = instr.is(GConvSubtype::F32_trunc) &&
+                             instr.args[1].isReg() &&
+                             instr.args[1].ty == Type::Float32;
+  if (extend_is_degenerate || trunc_is_degenerate) {
     instr.bop = GOpcode::GBase;
     instr.sop = static_cast<u32>(GBaseSubtype::mov);
-  }
-  if (instr.is(GConvSubtype::SI2FL) && instr.args[1].isReg() &&
-      get_size(instr.args[1].ty) < 4) {
+  } else if (instr.is(GConvSubtype::SI2FL) && instr.args[1].isReg() &&
+             get_size(instr.args[1].ty) < 4) {
     instr.args[1].ty = Type::Int32;
     instr.args[1].reg.ty = Type::Int32;
-  }
-  if (instr.is(GConvSubtype::SI2FL) && instr.args[1].isImm()) {
-    move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
-    return true;
-  }
-  if (instr.is(GConvSubtype::UI2FL) && instr.args[1].isImm()) {
-    move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
-    return true;
-  }
-  if (instr.is(GConvSubtype::FL2UI) && instr.args[1].isImm()) {
+  } else if ((instr.is(GConvSubtype::SI2FL) && instr.args[1].isImm()) ||
+             (instr.is(GConvSubtype::UI2FL) && instr.args[1].isImm()) ||
+             (instr.is(GConvSubtype::FL2UI) && instr.args[1].isImm())) {
     move_arg_to_reg(bb, indx, 1, instr.args[1].ty);
     return true;
   }
