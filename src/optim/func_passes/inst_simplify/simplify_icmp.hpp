@@ -252,6 +252,31 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
 
     if (instr->args[0].is_instr()) {
       auto arg0 = instr->args[0].as_instr();
+      if (arg0->is(fir::BinaryInstrSubType::And) &&
+          arg0->args[1].is_const_int(1)) {
+        // mask everything but lowest bit then when do eq/me on 0/1 then we can
+        // also just truncate
+        if ((c_val == 1 && sub_type == ICmpInstrSubType::EQ) ||
+            (c_val == 0 && sub_type == ICmpInstrSubType::NE)) {
+          Builder bb{instr};
+          auto new_val = bb.build_itrunc(arg0->args[0], ctx->get_int_type(1));
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(ValueR(new_val));
+          instr.destroy();
+          return true;
+        }
+        //need to invert it here
+        if ((c_val == 0 && sub_type == ICmpInstrSubType::EQ) ||
+            (c_val == 1 && sub_type == ICmpInstrSubType::NE)) {
+          Builder bb{instr};
+          auto new_val = bb.build_itrunc(arg0->args[0], ctx->get_int_type(1));
+          auto res = bb.build_unary_op(new_val, UnaryInstrSubType::Not);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(ValueR(res));
+          instr.destroy();
+          return true;
+        }
+      }
       // NOTE: a / 2^x > 0 -> a > x (if x is between 0-bitwidth)
       if (c_val == 0 && (sub_type == ICmpInstrSubType::SGT) &&
           arg0->is(InstrType::BinaryInstr) &&
