@@ -276,6 +276,11 @@ void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
   fmt::println("{}: RAT:{} SpillSet:{}", worst_spill_candidate, worst_rating,
                spill_set.size());
   fmt::println("{}", func.name);
+  static int attempt = 0;
+  attempt++;
+  if(attempt > 10){
+    TODO("prob FAILED SPILL");
+  }
   // fmt::println("SPILLED");
   // TODO("spill it ?");
   // // ASSERT(false);
@@ -378,6 +383,6 @@ void apply_func(MFunc &func) {
 }
 } // namespace
 
-void RegAlloc::apply(MFunc &func, const conf::CompConf &) { apply_func(func); }
+void RegAlloc::apply(MFunc &func, const conf::CompConf & /*config*/) { apply_func(func); }
 
 } // namespace foptim::fmir
