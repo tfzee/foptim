@@ -1994,5 +1994,6 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx,
   } else {
     llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
                  << error.getMessage() << "\n";
+    std::abort();
   }
 }
