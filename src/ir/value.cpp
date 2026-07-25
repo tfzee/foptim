@@ -151,6 +151,25 @@ void ValueR::remove_usage(Use u, bool verify) {
   }
 }
 
+void ValueR::replace_uses_outside_block(fir::BasicBlock bb, ValueR new_value) {
+  switch (ty) {
+  case ValueType::Instr:
+    instr->replace_uses_outside_block(bb, new_value);
+    return;
+  case ValueType::BBArg:
+    bb_arg->replace_uses_outside_block(bb, new_value);
+    return;
+  case ValueType::BasicBlock:
+    bb->replace_uses_outside_block(bb, new_value);
+    return;
+  case ValueType::ConstantValueR:
+    const_val->replace_uses_outside_block(bb, new_value);
+    return;
+  case ValueType::InvalidValue:
+    return;
+  }
+}
+
 void ValueR::replace_all_uses(ValueR new_value) {
   switch (ty) {
   case ValueType::Instr:
