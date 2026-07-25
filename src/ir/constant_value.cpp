@@ -84,6 +84,24 @@ void ConstantValue::remove_usage(Use u, bool verify) {
     return;
   }
 }
+void ConstantValue::replace_uses_outside_block(fir::BasicBlock bb,
+                                               ValueR new_value) {
+  switch (ty) {
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+  case ConstantType::IntValue:
+  case ConstantType::FloatValue:
+  case ConstantType::VectorValue:
+  case ConstantType::ConstantStruct:
+    return;
+  case ConstantType::GlobalPtr:
+    gp_u.v.glob->replace_uses_outside_block(bb, new_value);
+    return;
+  case ConstantType::FuncPtr:
+    fup_u.v.func->replace_uses_outside_block(bb, new_value);
+    return;
+  }
+}
 void ConstantValue::replace_all_uses(ValueR v) {
   switch (ty) {
   case ConstantType::NullPtr:
