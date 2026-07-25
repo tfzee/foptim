@@ -9,6 +9,10 @@
 #include "utils/vec.hpp"
 
 namespace foptim::optim {
+struct AttributeKey {};
+template <class DerivedT> struct AttributeInfo {
+  static AttributeKey *ID() { return &DerivedT::Key; }
+};
 
 class AttributeAnalysis;
 class AttributerManager;
@@ -16,8 +20,7 @@ using Worklist =
     std::deque<AttributeAnalysis *, utils::TempAlloc<AttributeAnalysis *>>;
 // using Worklist = TVec<AttributeAnalysis *>;
 
-template <class Int, Int best, Int worst>
-struct IntegerLattice {
+template <class Int, Int best, Int worst> struct IntegerLattice {
   Int value;
 
   constexpr IntegerLattice() : value(worst) {}
@@ -47,7 +50,7 @@ struct PairLattice {
 };
 
 class AttributeAnalysis {
- public:
+public:
   enum class Result {
     Changed,
     Fixed,
@@ -66,8 +69,8 @@ class AttributeAnalysis {
 };
 
 class AttributerManager {
- public:
-  TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
+public:
+  TMap<AttributeKey *, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
   // TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
   TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
   AttributeAnalysis *_currently_updating = nullptr;
@@ -77,12 +80,11 @@ class AttributerManager {
     _inverse_dependencies.clear();
   }
 
-  template <class AAna>
-  const AAna *get_analysis(fir::ValueR loc) const {
+  template <class AAna> const AAna *get_analysis(fir::ValueR loc) const {
     static_assert(std::is_base_of_v<AttributeAnalysis, AAna>,
                   "AAna must inherit AttributeAnalysis");
     // ASSERT(loc.is_valid(true) && "must be valid");
-    const std::type_index aa_typeid = typeid(AAna);
+    auto aa_typeid = AAna::ID();
     if (!_attribs.contains(aa_typeid)) {
       return nullptr;
     }
@@ -99,7 +101,7 @@ class AttributerManager {
     static_assert(std::is_base_of_v<AttributeAnalysis, AAna>,
                   "AAna must inherit AttributeAnalysis");
     // ASSERT(loc.is_valid(true) && "must be valid");
-    const std::type_index aa_typeid = typeid(AAna);
+    auto aa_typeid = AAna::ID();
     if (!_attribs.contains(aa_typeid)) {
       _attribs.insert({aa_typeid, {}});
     }
@@ -178,4 +180,4 @@ class AttributerManager {
   }
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
