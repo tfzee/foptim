@@ -1,3 +1,4 @@
+#pragma once
 #include "third_party/Zydis.h"
 #include "utils/logging.hpp"
 
