@@ -1,6 +1,7 @@
 #pragma once
 #include "../utils/types.hpp"
 #include "instruction.hpp"
+#include "ir/basic_block_ref.hpp"
 #include "utils/mutex.hpp"
 #include "utils/vec.hpp"
 
@@ -54,6 +55,7 @@ class Used {
   [[nodiscard]] const IRVec<Use> &get_uses() const { return uses; }
 
   void replace_all_uses(ValueR new_value);
+  void replace_uses_outside_block(fir::BasicBlock bb, ValueR new_value);
   void remove_usage(const Use &use, bool verify);
   void remove_all_usages();
 };
@@ -75,6 +77,7 @@ class LockedUsed {
     return us->uses;
   }
 
+  void replace_uses_outside_block(fir::BasicBlock bb, ValueR new_value);
   void replace_all_uses(ValueR new_value);
   void remove_usage(const Use &use, bool verify);
   void remove_all_usages();
