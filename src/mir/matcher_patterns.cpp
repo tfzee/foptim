@@ -3149,7 +3149,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                 (void)data;
                 (void)res;
                 // TODO: prob nicer way to handle this
-                res.result.emplace_back(GBaseSubtype::ret);
+                res.result.emplace_back(GBaseSubtype::unreach);
                 return true;
               }});
   pats.push_back(Pattern{

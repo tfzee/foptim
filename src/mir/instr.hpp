@@ -153,6 +153,7 @@ enum class GBaseSubtype : u32 {
   pop,
   call,
   ret,
+  unreach,
 
   stack_arg_load,
 

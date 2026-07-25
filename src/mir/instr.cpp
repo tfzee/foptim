@@ -17,6 +17,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
   case GOpcode::GBase:
     switch (static_cast<GBaseSubtype>(sop)) {
       ReturnString(GBaseSubtype, INVALID);
+      ReturnString(GBaseSubtype, unreach);
       ReturnString(GBaseSubtype, mov);
       ReturnString(GBaseSubtype, push);
       ReturnString(GBaseSubtype, pop);
@@ -376,6 +377,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
   case GOpcode::GBase:
     switch (static_cast<GBaseSubtype>(instr.sop)) {
     case GBaseSubtype::INVALID:
+    case GBaseSubtype::unreach:
       return;
     case GBaseSubtype::mov:
     case GBaseSubtype::stack_arg_load:
@@ -408,6 +410,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
   case GOpcode::GBase:
     switch (static_cast<GBaseSubtype>(instr.sop)) {
     case GBaseSubtype::INVALID:
+    case GBaseSubtype::unreach:
       return;
     case GBaseSubtype::stack_arg_load:
     case GBaseSubtype::mov:
@@ -725,7 +728,8 @@ bool verify(const MInstr &instr) {
 
 bool verify(const MBB &bb) {
   auto back_instr = bb.instrs.back();
-  if (!back_instr.is(GBaseSubtype::ret) && !back_instr.is(GJumpSubtype::jmp)) {
+  if (!back_instr.is(GBaseSubtype::unreach) &&
+      !back_instr.is(GBaseSubtype::ret) && !back_instr.is(GJumpSubtype::jmp)) {
     fmt::println("Last instruction should be jmp or ret but is {}",
                  bb.instrs.back());
     return false;

@@ -533,6 +533,9 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   (void)proepiloguetype;
   // size_t length = 9999;
   switch (static_cast<fmir::GBaseSubtype>(instr.sop)) {
+  case fmir::GBaseSubtype::unreach: {
+    return 0;
+  }
   case fmir::GBaseSubtype::push: {
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);

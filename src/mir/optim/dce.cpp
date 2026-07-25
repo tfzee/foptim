@@ -54,6 +54,7 @@ bool is_applicable(GOpcode op, u32 sop) {
     case GBaseSubtype::push:
     case GBaseSubtype::pop:
     case GBaseSubtype::call:
+    case GBaseSubtype::unreach:
     case GBaseSubtype::ret:
     case GBaseSubtype::arg_setup:
     case GBaseSubtype::ret_setup:

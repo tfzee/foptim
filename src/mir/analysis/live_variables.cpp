@@ -52,6 +52,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
   case GOpcode::GBase:
     switch (static_cast<GBaseSubtype>(instr.sop)) {
     case GBaseSubtype::INVALID:
+    case GBaseSubtype::unreach:
       return;
     case GBaseSubtype::mov:
     case GBaseSubtype::stack_arg_load:
@@ -530,6 +531,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
   case GOpcode::GBase:
     switch (static_cast<GBaseSubtype>(instr.sop)) {
     case GBaseSubtype::INVALID:
+    case GBaseSubtype::unreach:
       return;
     case GBaseSubtype::stack_arg_load:
     case GBaseSubtype::mov:
