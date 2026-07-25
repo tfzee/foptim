@@ -3,6 +3,10 @@
 #include <fmt/format.h>
 
 #include "types.hpp"
+template <class T, class Ctx> struct PrintWrapper {
+  T data;
+  Ctx ctx;
+};
 
 template <class T>
 class BaseIRFormatter {
