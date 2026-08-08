@@ -23,6 +23,7 @@ public:
   IRVec<StackSlot> extra_stack_slots;
 
   bool void_ret = true;
+  u16 align = 0x10;
   Type res_ty = Type::INVALID;
 
   StackSlotId get_stack_slot(u64 size) {

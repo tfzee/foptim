@@ -84,11 +84,16 @@ bool Function::verify() const {
   optim::DominatorTree dom{cfg};
 
   for (const auto &bb : basic_blocks) {
+    // if this bb is *not* dominated by the entry its unreachable and as such we
+    // dont care
+    auto i_bb = cfg.get_bb_id(bb);
+    if (dom.dominates(cfg.entry, i_bb)) {
+      continue;
+    }
     if (!bb.is_valid() || !bb->verify(this)) {
       fmt::println("In BB {:p}", static_cast<const void *>(bb.get_raw_ptr()));
       return false;
     }
-    auto i_bb = cfg.get_bb_id(bb);
     for (auto i : bb->args) {
       for (auto u : i->get_uses()) {
         auto u_bb = cfg.get_bb_id(u.user->get_parent());

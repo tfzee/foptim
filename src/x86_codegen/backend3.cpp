@@ -145,12 +145,13 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
   for (const auto &func : funcs) {
-    // fmt::println("{}", func);
+    // Do min align of 16 then we can be sure ABI is happy
+    const auto final_align = std::max(static_cast<u16>(0x10), func.align);
     { // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
-      auto align_offset = offset_from_section % 0x10;
+      auto align_offset = offset_from_section % final_align;
       if (align_offset != 0) {
-        auto align_correction = 0x10 - align_offset;
+        auto align_correction = final_align - align_offset;
         ZydisEncoderNopFill(curr_loc, align_correction);
         curr_loc += align_correction;
       }

@@ -17,6 +17,7 @@
 #include <llvm/IR/Module.h>
 #include <llvm/IR/Type.h>
 #include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/Alignment.h>
 #include <llvm/Support/AtomicOrdering.h>
 #include <llvm/Support/SourceMgr.h>
 
@@ -1400,6 +1401,9 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     foff_func->attribs.variadic = true;
   }
 
+  foff_func.func->attribs.min_align =
+      func.getAlign().value_or(llvm::Align(16UL)).value();
+
   switch (func.getCallingConv()) {
   case llvm::CallingConv::Fast:
     WARN_UNSUPPORTED_O(warned_fastcc,
@@ -1928,11 +1932,12 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
   if (const auto *val = dyn_cast_or_null<llvm::GlobalVariable>(&gval)) {
     ZoneScopedN("Initializing Global Variable");
     auto layout = mod.getDataLayout();
+    auto global = valueToValue.at(val).as_constant()->as_global();
     if (val->hasInitializer()) {
-      auto global = valueToValue.at(val).as_constant()->as_global();
       convert_constant_init(global->init_value, val->getInitializer(), fctx,
                             global, layout, valueToValue);
     }
+    global->min_align = val->getPointerAlignment(mod.getDataLayout()).value();
   } else if (const auto *val = dyn_cast_or_null<llvm::GlobalAlias>(&gval)) {
     // setup the aliases afterwards since then we can be sure that the originals
     // are already setup
@@ -1941,6 +1946,8 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
     //  one
     valueToValue.insert({static_cast<llvm::Value *>(&gval),
                          valueToValue.at(val->getAliasee())});
+    auto global = valueToValue.at(val).as_constant()->as_global();
+    global->min_align = val->getPointerAlignment(mod.getDataLayout()).value();
   } else {
     // llvm::errs() << "Not handling global " << gval;
   }

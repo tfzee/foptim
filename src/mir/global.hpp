@@ -19,6 +19,7 @@ struct Global {
   FVec<u8> data;
   u64 size = 0;
   IRVec<RelocationInfo> reloc_info;
+  u32 min_align = 0;
   fir::LinkVisibility vis;
 };
 

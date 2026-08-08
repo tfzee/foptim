@@ -12,7 +12,7 @@ namespace foptim::fir {
 struct GlobalData;
 
 struct Global : public utils::SRef<std::unique_ptr<GlobalData>> {
- public:
+public:
   constexpr explicit Global(utils::SRef<std::unique_ptr<GlobalData>> &&crtp) {
     this->data_ref = crtp.data_ref;
 #ifdef SLOT_CHECK_GENERATION
@@ -47,37 +47,34 @@ struct GlobalData : public LockedUsed {
       : name(std::move(name)), n_bytes(n_bytes), reloc_info({}) {}
 
   GlobalData(IRString name, size_t n_bytes, uint8_t *init_value)
-      : name(std::move(name)),
-        n_bytes(n_bytes),
-        init_value(init_value),
+      : name(std::move(name)), n_bytes(n_bytes), init_value(init_value),
         reloc_info({}) {}
 
   // TypeR type;
   IRString name;
-  size_t n_bytes;
+  u64 n_bytes;
+  u32 min_align;
   bool is_constant = false;
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;
   Linkage linkage = Linkage::External;
   LinkVisibility linkvis = LinkVisibility::Default;
 
-
-  bool is_extern_decl(){
+  [[nodiscard]] bool is_extern_decl() const {
     return init_value == nullptr && linkage == Linkage::External;
   }
 };
 
-};  // namespace foptim::fir
+}; // namespace foptim::fir
 
 template <>
 class fmt::formatter<foptim::fir::GlobalData>
     : public BaseIRFormatter<foptim::fir::GlobalData> {
- public:
+public:
   appender format(foptim::fir::GlobalData const &v, format_context &ctx) const;
 };
 
-template <>
-struct std::hash<foptim::fir::Global> {
+template <> struct std::hash<foptim::fir::Global> {
   std::size_t operator()(const foptim::fir::Global &k) const {
     using foptim::u32;
     using std::hash;

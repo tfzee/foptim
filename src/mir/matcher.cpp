@@ -302,6 +302,7 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
   ZoneScopedN("Greedy Matcher");
   MFunc res_func;
   res_func.name = func.name;
+  res_func.align = func.attribs.min_align;
   res_func.bbs.reserve(func.n_bbs());
   DumbRegAlloc alloc{};
   // fmt::println("{:cd}", func);
