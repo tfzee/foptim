@@ -5,8 +5,11 @@
 #include "ir/context.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/value.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
+#include "optim/analysis/constraint_analysis.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/helper/helper.hpp"
 
@@ -265,7 +268,7 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr.destroy();
           return true;
         }
-        //need to invert it here
+        // need to invert it here
         if ((c_val == 0 && sub_type == ICmpInstrSubType::EQ) ||
             (c_val == 1 && sub_type == ICmpInstrSubType::NE)) {
           Builder bb{instr};
@@ -653,6 +656,24 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   //     return;
   //   }
   // }
+  {
+    // expiremental constraint pass
+    CFG cfg(*instr->get_parent()->get_parent().func);
+    Dominators dom(cfg);
+    ConstraintAnalysis constr(cfg, dom);
+    auto bb_id = cfg.get_bb_id(instr->get_parent());
+    auto &b = constr.bb_to_constraints[bb_id];
+    auto cond_constr = constr.get_constraint(instr);
+    if (cond_constr.has_value() &&
+        constr.contradicts(cond_constr.value(), b.active_constraints)) {
+      instr->replace_all_uses(fir::ValueR{ctx->get_constant_int(0, 1)});
+      return true;
+    }
+    // else if (constr.supported(b.terminator_constraint,
+    // b.active_constraints)) {
+    //   TODO("okak");
+    // }
+  }
   return false;
 }
 

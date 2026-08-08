@@ -5,6 +5,7 @@
 #include "config/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/parameters.hpp"
@@ -12,6 +13,10 @@
 
 namespace foptim::optim {
 
+// struct FunctionPassKey {};
+// template <class DerivedT> struct FunctionPassInfo {
+//   static FunctionPassInfo *ID() { return &DerivedT::Key; }
+// };
 class FunctionPass {
 public:
   struct FailureReason {
@@ -24,7 +29,8 @@ public:
   IRVec<FailureReason> failures;
 #endif
 
-  virtual void apply(fir::Context & /*unused*/, fir::Function & /*unused*/) {
+  [[nodiscard]] virtual PreservedAnalysis apply(fir::Context & /*unused*/,
+                                                fir::Function & /*unused*/) {
     TODO("impl");
   }
 
@@ -82,54 +88,58 @@ public:
 //   }
 // };
 
-template <class... Passes> class StaticParallelFunctionPassManager {
-  template <class Pass>
-  static void apply_pass(fir::Context &ctx, fir::Function &f,
-                         bool print_failure) {
-    {
-      auto p = Pass{};
-      p.apply(ctx, f);
-      if (print_failure) {
-        p.print_failures();
-      }
-    }
-    if (utils::number_worker_threads > 0) {
-      utils::TempAlloc<void *>::reset();
-    }
-  }
+// template <class... Passes> class StaticParallelFunctionPassManager {
+//   template <class Pass>
+//   static void apply_pass(fir::Context &ctx, fir::Function &f,
+//                          bool print_failure) {
+//     {
+//       auto p = Pass{};
+//       p.apply(ctx, f);
+//       if (print_failure) {
+//         p.print_failures();
+//       }
+//     }
+//     if (utils::number_worker_threads > 0) {
+//       utils::TempAlloc<void *>::reset();
+//     }
+//   }
 
-public:
-  void apply(fir::Context &ctx, JobSheduler *shed) {
-    // fmt::println("FUNC: {}", sizeof...(Passes));
-    for (auto &[name, func] : ctx->storage.functions) {
-      if (func->is_decl()) {
-        continue;
-      }
-      shed->push(nullptr, [&ctx, &func]() {
-        (apply_pass<Passes>(
-             ctx, *func, ctx.config->debug.print_optimization_failure_reasons),
-         ...);
-      });
-    }
-    shed->wait_till_done();
-    ctx.data->storage.storage_instr.collect_garbage();
-    if (utils::number_worker_threads == 0) {
-      utils::TempAlloc<void *>::reset();
-    }
-    // ctx.data->storage.storage_instr.collect_garbage();
-  }
-};
+// public:
+//   void apply(fir::Context &ctx, JobSheduler *shed) {
+//     // fmt::println("FUNC: {}", sizeof...(Passes));
+//     for (auto &[name, func] : ctx->storage.functions) {
+//       if (func->is_decl()) {
+//         continue;
+//       }
+//       shed->push(nullptr, [&ctx, &func]() {
+//         (apply_pass<Passes>(
+//              ctx, *func,
+//              ctx.config->debug.print_optimization_failure_reasons),
+//          ...);
+//       });
+//     }
+//     shed->wait_till_done();
+//     ctx.data->storage.storage_instr.collect_garbage();
+//     if (utils::number_worker_threads == 0) {
+//       utils::TempAlloc<void *>::reset();
+//     }
+//     // ctx.data->storage.storage_instr.collect_garbage();
+//   }
+// };
 
 class ParallelFunctionPassManager {
   FVec<conf::PassConfig *> dyn_passes;
 
+
   static void apply_pass(fir::Context &ctx, conf::PassConfig *conf,
-                         fir::Function &f, bool print_failure) {
+                         AnalysisManager &analMan, fir::Function &f,
+                         bool print_failure) {
     {
       auto *pass = conf->_construct_function_pass();
       if (ctx.config->debug.time_passes) {
         auto start_time = std::chrono::high_resolution_clock::now();
-        pass->apply(ctx, f);
+        auto r = pass->apply(ctx, f);
+        analMan.invalidate(&f, r);
         auto end_time = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
                         end_time - start_time)
@@ -139,7 +149,8 @@ class ParallelFunctionPassManager {
                                            utils::StatCollector::StatTiming);
         }
       } else {
-        pass->apply(ctx, f);
+        auto r = pass->apply(ctx, f);
+        analMan.invalidate(&f, r);
       }
       if (print_failure) {
         pass->print_failures();
@@ -151,17 +162,19 @@ class ParallelFunctionPassManager {
   }
 
 public:
+  void clear() { dyn_passes.clear(); }
+
   void push_pass(conf::PassConfig *pass) { dyn_passes.push_back(pass); }
 
-  void apply(fir::Context &ctx, JobSheduler *shed) {
+  void apply(fir::Context &ctx, JobSheduler *shed, AnalysisManager &analMan) {
     // fmt::println("FUNC: {}", dyn_passes.size());
     for (auto &[name, func] : ctx->storage.functions) {
       if (func->is_decl()) {
         continue;
       }
-      shed->push(nullptr, [this, &ctx, &func]() {
+      shed->push(nullptr, [this, &ctx, &func, &analMan]() {
         for (auto *pass : dyn_passes) {
-          apply_pass(ctx, pass, *func,
+          apply_pass(ctx, pass, analMan, *func,
                      ctx.config->debug.print_optimization_failure_reasons);
         }
       });

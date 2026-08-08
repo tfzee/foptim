@@ -111,12 +111,46 @@ ConstraintAnalysis::get_constraint(Constraint::ConstraintType ty, ExprId v1,
   return constraints.size();
 }
 
+void ConstraintAnalysis::propagate_constraints() {
+  TVec<u32> worklist;
+  for (u32 bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
+    if (bb_to_constraints[bb_id].active_constraints.empty()) {
+      continue;
+    }
+    worklist.push_back(bb_id);
+  }
+
+  while (!worklist.empty()) {
+    auto c_id = worklist.back();
+    worklist.pop_back();
+    if (bb_to_constraints[c_id].active_constraints.empty()) {
+      continue;
+    }
+    auto &cur = cfg.bbrs[c_id];
+    if (cur.succ.empty()) {
+      continue;
+    }
+    if (cur.pred.size() == 1) {
+      // TODO: cause ssa constraint gotta be true here aswell but idk if useful
+    }
+    for (auto succ : cur.succ) {
+      if (cfg.bbrs[succ].pred.size() != 1) {
+        // implement merging
+        continue;
+      }
+      bb_to_constraints[succ].active_constraints.insert(
+          bb_to_constraints[c_id].active_constraints.begin(),
+          bb_to_constraints[c_id].active_constraints.end());
+    }
+  }
+}
+
 void ConstraintAnalysis::update() {
   ZoneScopedNC("CONSTRAINT UPDATE", COLOR_ANALY);
   reset_and_resize();
   setup_direct_constraints();
   setup_inferred_constraints();
-  // propagate_constraints();
+  propagate_constraints();
   // dump();
 }
 
@@ -169,7 +203,7 @@ void ConstraintAnalysis::setup_inferred_constraints() {
     }
     for (auto add_constr : add_constraints) {
       // TODO: prob want to do duplicate check here or earlier already
-      bb.active_constraints.push_back(add_constr);
+      bb.active_constraints.insert(add_constr);
     }
   }
 }
@@ -193,7 +227,7 @@ void ConstraintAnalysis::setup_direct_constraints() {
       auto false_target = cfg.get_bb_id(term->bbs[1].bb);
       bb_to_constraints[bb_id].terminator_constraint = constraint.value();
       if (cfg.bbrs[true_target].pred.size() > 1) {
-        bb_to_constraints[true_target].active_constraints.push_back(
+        bb_to_constraints[true_target].active_constraints.insert(
             constraint.value());
       }
       if (cfg.bbrs[false_target].pred.size() == 1) {
@@ -220,7 +254,7 @@ void ConstraintAnalysis::setup_direct_constraints() {
         } else if (constrs.type == Constraint::ConstraintType::SGE) {
           inv_cond_res = Constraint::ConstraintType::SLT;
         }
-        bb_to_constraints[false_target].active_constraints.push_back(
+        bb_to_constraints[false_target].active_constraints.insert(
             get_constraint(inv_cond_res, constrs.e1, constrs.e2, cond));
       }
     }
@@ -390,7 +424,7 @@ bool ConstraintAnalysis::contradicts(ConstrId x, ConstrId y) {
   return x_strict || y_strict;
 }
 
-bool ConstraintAnalysis::contradicts(ConstrId v, TVec<ConstrId> &orig) {
+bool ConstraintAnalysis::contradicts(ConstrId v, TSet<ConstrId> &orig) {
   // if were in the set we cant contradict unless the set was already
   // contradicting itself
   for (auto x : orig) {

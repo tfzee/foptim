@@ -47,7 +47,7 @@ approx_func = false
 [pipeline.fir.default_release_early]
 passes = [
         "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
-        "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DCE",
+        "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DSE", "DCE",
         "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler"
 ]
 
@@ -64,20 +64,20 @@ passes = [
       "CmpKnownValProp", "SimplifyCFG", "DCE","FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline", "Inline", "Inline",
       "ArgPromotion", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "InstSimplify",
       "SimplifyCFG", "TailRecElim", "SimplifyCFG", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinSimplify", "InstSimplify", "DCE",
-      "StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DCE",
+      "StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DSE", "DCE",
 ]
 
 [pipeline.fir.default_release_late]
 passes = [
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "GDCE", "IPCP",
       "GlobalPromotion", "Inline", "Inline", "GDCE", "FuncPropAnnotator",
-      "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "InstSimplify",
+      "LVN", "SCCP", "DoubleLoadElim", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
       "CmpKnownValProp", "SimplifyCFG", "SCCP",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "Inline", "Inline",
       "Inline", "GDCE", "IPCP", "FuncPropAnnotator",
       "SimplifyCFG", "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "SimplifyCFG",
       "InstSimplify", "SCCP", "DCE", "InstSimplify", "ConstLoopEval", "LoopSimplify",
-      "LoopUnswitch", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer", "InstSimplify",
+      "LoopUnswitch", "LoopUnroll", "SimplifyCFG", "DSE", "DCE", "SLPVectorizer", "InstSimplify",
       "SimplifyCFG",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "Inline", "Inline",
       "GDCE", "IPCP", "FuncPropAnnotator",
@@ -144,6 +144,7 @@ reductions = true
 [pass.fir.StackKnownBits]
 [pass.fir.ConstLoopEval]
 [pass.fir.MergeAlloca]
+[pass.fir.DSE]
 [pass.fir.LegalizeVecs]
 [pass.fir.PrintFunc]
 name_matching = ""

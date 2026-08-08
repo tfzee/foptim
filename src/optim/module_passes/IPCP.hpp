@@ -6,7 +6,8 @@ namespace foptim::optim {
 // inter procedural constant propagation
 // replace arguments insideo of functions with constant args
 class IPCP final : public ModulePass {
- public:
-  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override;
+public:
+  PreservedAnalysis apply(fir::Context & /*unused*/, JobSheduler * /*shed*/,
+                          AnalysisManager & /*analyMan*/) override;
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

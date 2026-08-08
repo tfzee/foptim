@@ -1,4 +1,5 @@
 #pragma once
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/function_pass.hpp"
@@ -43,6 +44,13 @@ private:
   // if not jumped to just delete
   Res remove_dead_bb(CFG &cfg, Dominators &dom, CFG::Node &curr,
                      fir::Function &func, size_t bb_id, bool is_entry);
+  // pull certain jump related patterns through bbArgs
+  Res pull_through_bb_args(CFG &cfg, CFG::Node &curr, size_t bb_id,
+                           bool is_entry);
+  // conditional block duplication
+  // duplicate a block if deemed worthy and a incoming bb determines its own condbranch
+  Res conditional_block_duplication(fir::Context &ctx, CFG &cfg, Dominators& dom, CFG::Node &curr, size_t bb_id,
+                           bool is_entry);
   // if we got a bb arg that got no use remove it
   bool remove_dead_bb_arg(CFG::Node &curr, fir::Function &func, bool is_entry);
   // if we got a bb arg thats a struct just split them and do a destructuring
@@ -108,11 +116,11 @@ private:
 
 public:
   // simplifications on the bbargs which
-  Res simplify_bb_args(CFG &cfg, Dominators &dom, fir::Function &func,
+  Res simplify_bb_args(fir::Context& ctx, CFG &cfg, Dominators &dom, fir::Function &func,
                        size_t bb_id);
   Res simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
                    size_t bb_id);
-  void apply(fir::Context & /*unused*/, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context & ctx, fir::Function &func) override;
 };
 
 } // namespace foptim::optim

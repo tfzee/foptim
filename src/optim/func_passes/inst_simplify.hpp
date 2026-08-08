@@ -5,6 +5,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 
 namespace foptim::optim {
 
@@ -17,7 +18,7 @@ class InstSimplify final : public FunctionPass {
     fir::BasicBlock b;
   };
 
-  void apply(fir::Context &ctx, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 
 namespace InstSimp {

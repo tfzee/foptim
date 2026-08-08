@@ -2,6 +2,7 @@
 
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/access_analysis.hpp"
 #include "optim/helper/helper.hpp"
 
@@ -103,7 +104,7 @@ static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx) {
   }
 }
 
-void IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("IntrinSimplify", COLOR_OPTIMF);
 
   for (foptim::fir::BasicBlock bb : func.basic_blocks) {
@@ -113,6 +114,7 @@ void IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) {
       simplify(instr, bb, ctx);
     }
   }
+  return PreservedAnalysis::none();
 }
 
 } // namespace foptim::optim

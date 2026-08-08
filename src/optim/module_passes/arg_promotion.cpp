@@ -10,6 +10,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
@@ -513,7 +514,9 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
   return false;
 }
 
-void ArgPromotion::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
+PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
+                                      JobSheduler * /*unused*/,
+                                      AnalysisManager & /*unused*/) {
   ZoneScopedNC("ArgumentPromoition", COLOR_OPTIMM);
   auto iter = ctx.data->storage.functions.begin();
   for (; iter != ctx.data->storage.functions.end(); iter++) {
@@ -567,5 +570,6 @@ void ArgPromotion::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
       continue;
     }
   }
+  return PreservedAnalysis::none();
 }
 } // namespace foptim::optim

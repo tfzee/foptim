@@ -1,5 +1,6 @@
 #include "simple_vectorize.hpp"
 
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 
@@ -31,9 +32,10 @@ bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   TODO("okak");
 }
 
-}  // namespace
+} // namespace
 
-void SimpleVectorizer::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis SimpleVectorizer::apply(fir::Context &ctx,
+                                          fir::Function &func) {
   (void)ctx;
   (void)func;
 
@@ -47,6 +49,7 @@ void SimpleVectorizer::apply(fir::Context &ctx, fir::Function &func) {
       TODO("okka");
     }
   }
+  return PreservedAnalysis::none();
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

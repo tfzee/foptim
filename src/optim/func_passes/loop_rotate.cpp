@@ -8,6 +8,7 @@
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "utils/vec.hpp"
@@ -61,7 +62,7 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
 }
 } // namespace
 
-void LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("LoopRotate");
   CFG cfg{func};
   Dominators dom{cfg};
@@ -76,6 +77,7 @@ void LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
       loop = linfo.info.begin();
     }
   }
+  return PreservedAnalysis::none();
 }
 
 bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {

@@ -5,6 +5,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/function_pass.hpp"
 
 namespace foptim::optim {
@@ -146,9 +147,9 @@ class TailRecElim final : public FunctionPass {
   }
 
 public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     if (func.attribs.no_recurse || func.attribs.variadic) {
-      return;
+      return PreservedAnalysis::all();
     }
     for (auto bb : func.basic_blocks) {
       for (auto instr : bb->instructions) {
@@ -157,7 +158,7 @@ public:
           // if there isnt one we dont need to worry :)
           // also moves allocas out of initial block could lead to issues
           // further down the pipeline further down the pipeline
-          return;
+          return PreservedAnalysis::all();
         }
       }
     }
@@ -177,6 +178,8 @@ public:
         handle_accum(ctx, func, bb);
       }
     }
+    // TODO: actually check if modified
+    return PreservedAnalysis::none();
   }
 };
 } // namespace foptim::optim

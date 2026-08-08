@@ -9,6 +9,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
 
@@ -192,9 +193,10 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
     // TOOD: impl
     if (offset * 8 >= new_in_one.bit_size()) {
       return false;
-    } else if (size > 64) {
-      new_in_one.reset(0);
-      new_in_zero.reset(0);
+    }
+    if (size > 64) {
+      new_in_one.reset(false);
+      new_in_zero.reset(false);
     } else {
       new_in_one.set(offset * 8, size, 0);
       new_in_zero.set(offset * 8, size, 0);
@@ -233,7 +235,8 @@ struct SROARes {
 //       if (!lower_bound->second.type.is_valid() ||
 //           lower_bound->second.type != type) {
 //         lower_bound->second.type = fir::TypeR{fir::TypeR::invalid()};
-//         lower_bound->second.size = std::max(lower_bound->second.size, v_size);
+//         lower_bound->second.size = std::max(lower_bound->second.size,
+//         v_size);
 //       } else {
 //         lower_bound->second.associated_values.push_back(use);
 //       }
@@ -355,7 +358,8 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
       return sub_result;
     }
     if (ptr_instr->is(fir::InstrType::Conversion) &&
-        static_cast<fir::ConversionSubType>(ptr_instr->subtype) == fir::ConversionSubType::IntToPtr) {
+        static_cast<fir::ConversionSubType>(ptr_instr->subtype) ==
+            fir::ConversionSubType::IntToPtr) {
       return StackOffsetResult::UnknownLocal;
     }
     if (ptr_instr->is(fir::InstrType::ExtractValue)) {
@@ -396,7 +400,8 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
   return StackOffsetResult::UnknownLocal;
 }
 
-void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
+                                        fir::Function &func) {
   ZoneScopedNC("StackKnownBits", COLOR_OPTIMF);
 
   u64 stack_size = 0;
@@ -407,7 +412,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
       auto a1 = instr->get_arg(0);
       if (!a1.is_constant()) {
         failure({.reason = "Failed cause of dynamic alloca", .loc = instr});
-        return;
+        return PreservedAnalysis::all();
       }
       cache.insert({fir::ValueR{instr},
                     {.result = StackOffsetResult::KnownLocal,
@@ -417,12 +422,12 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
   }
 
   if (stack_size == 0) {
-    return;
+    return PreservedAnalysis::all();
   }
   if (stack_size > 4096) {
     failure({.reason = "Failed cause too much stack space",
              .loc = func.get_entry()});
-    return;
+    return PreservedAnalysis::all();
   }
   // fmt::println("Got {} bits\n", stack_size);
 
@@ -470,11 +475,12 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
 
     for (auto instr : cfg.bbrs[curr].bb->instructions) {
       if (instr->is(fir::InstrType::Conversion) &&
-          static_cast<fir::ConversionSubType>(instr->subtype) == fir::ConversionSubType::PtrToInt) {
+          static_cast<fir::ConversionSubType>(instr->subtype) ==
+              fir::ConversionSubType::PtrToInt) {
         // TODO: this can be improved depending on the usage
         // but important to not have escaping pointers
         failure({.reason = "PtrToInt escape", .loc = instr});
-        return;
+        return PreservedAnalysis::all();
       }
       if (instr->is(fir::InstrType::CallInstr)) {
         update_call(instr, new_in_one, new_in_zero, cache);
@@ -484,7 +490,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
         // important to not have escaping pointers
         if (!update_store(instr, new_in_one, new_in_zero, cache)) {
           failure({.reason = "Storing a local pointer away", .loc = instr});
-          return;
+          return PreservedAnalysis::all();
         }
         load_stores.push_back(instr);
         // fmt::println("STORE\n{}\n{}", new_in_zero, new_in_one);
@@ -517,14 +523,14 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
     if (l.get_type()->is_float()) {
       auto widht = l.get_type()->as_float();
       if (widht == 32) {
-        auto val =
-            ctx->get_constant_value(std::bit_cast<f32>(static_cast<u32>(v)), l.get_type());
+        auto val = ctx->get_constant_value(
+            std::bit_cast<f32>(static_cast<u32>(v)), l.get_type());
         load.replace_all_uses(fir::ValueR(val));
         cache.erase(load);
       } else if (widht == 64) {
         // TODO: this might lead to issues with teh cast?
-        auto val =
-            ctx->get_constant_value(std::bit_cast<f64>(static_cast<u64>(v)), l.get_type());
+        auto val = ctx->get_constant_value(
+            std::bit_cast<f64>(static_cast<u64>(v)), l.get_type());
         load.replace_all_uses(fir::ValueR(val));
         cache.erase(load);
       }
@@ -534,6 +540,7 @@ void StackKnownBits::apply(fir::Context &ctx, fir::Function &func) {
       cache.erase(load);
     }
   }
+  return PreservedAnalysis::none();
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

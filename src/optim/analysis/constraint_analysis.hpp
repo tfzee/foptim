@@ -6,6 +6,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "utils/set.hpp"
 
 namespace foptim::optim {
 
@@ -56,7 +57,7 @@ public:
 
   struct BBConstraintData {
     ConstrId terminator_constraint = 0;
-    TVec<ConstrId> active_constraints;
+    TSet<ConstrId> active_constraints;
   };
 
   TVec<ExprNode> exprs;
@@ -100,13 +101,14 @@ public:
   void reset_and_resize();
   void setup_direct_constraints();
   void setup_inferred_constraints();
+  void propagate_constraints();
   // returns true if we are sure that v will contradict one or multiple of the
   // constraints in orig. So it might be true but it might not return true
   // However there are no false positives as such if there are no contradiction
   // it will *never* return true
   // Iff the orig input is already contradicting itself then the output is
   // unspecificed
-  bool contradicts(ConstrId v, TVec<ConstrId> &orig);
+  bool contradicts(ConstrId v, TSet<ConstrId> &orig);
   bool contradicts(ConstrId x, ConstrId y);
   // return true if the second input supports the first
   // so only returns true if the first can be inferred from the second

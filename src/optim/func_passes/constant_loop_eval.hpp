@@ -5,6 +5,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/interpreter/interpreter.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"
@@ -124,14 +125,14 @@ class ConstLoopEval final : public FunctionPass {
   }
 
 public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("ConstLoopEval", COLOR_OPTIMF);
     // if a loop only contains 'pure' instrutions that can be evaluated at
     // compile time and all the input dependencies are constant + we have a
     // mustprogress attribute(no infinite loops) we should constant evaluate
     // the loop
     if (!func.attribs.must_progress) {
-      return;
+      return PreservedAnalysis::all();
     }
     CFG cfg{func};
     Dominators dom{cfg};
@@ -164,7 +165,7 @@ public:
         if (!func.basic_blocks[enter_bb_id]
                  ->instructions[enter_bb_instr_id]
                  ->is(fir::InstrType::BranchInstr)) {
-          return;
+          return PreservedAnalysis::all();
         }
 
         bool failed = false;
@@ -228,6 +229,7 @@ public:
         loop_iter = info.info.begin();
       }
     }
+    return PreservedAnalysis::none();
   }
 };
 } // namespace foptim::optim

@@ -4,9 +4,8 @@
 #include "ir/function.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/function_pass.hpp"
-#include "utils/bitset.hpp"
-#include <limits>
 
 namespace foptim::optim {
 
@@ -14,7 +13,7 @@ namespace foptim::optim {
 // them
 class MergeAllocaPass final : public FunctionPass {
 public:
-  void apply(fir::Context &ctx, fir::Function &func, fir::BasicBlock bl) {
+  bool apply(fir::Context &ctx, fir::Function &func, fir::BasicBlock bl) {
     (void)ctx;
     (void)func;
 
@@ -33,7 +32,7 @@ public:
       }
     }
     if (allocas.empty()) {
-      return;
+      return false;
     }
     // fmt::println("{}", bl);
 
@@ -67,12 +66,18 @@ public:
           new_alloca, fir::ValueR{ctx->get_constant_int(offset, 32)});
       alloca->replace_all_uses(new_value);
     }
-    // fmt::println("{}\n========================", bl);
+    // should check if actually modfiied
+    return true;
   }
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
+    bool modified = false;
     for (auto bb : func.get_bbs()) {
-      apply(ctx, func, bb);
+      modified |= apply(ctx, func, bb);
     }
+    if (modified) {
+      return PreservedAnalysis::none();
+    }
+    return PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

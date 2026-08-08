@@ -1,6 +1,7 @@
 #pragma once
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/callgraph.hpp"
 #include "optim/helper/WFVector.hpp"
@@ -9,7 +10,7 @@
 namespace foptim::optim {
 
 class FuncPropAnnotator final : public ModulePass {
- public:
+public:
   struct Result {
     bool does_read = false;
     bool does_write = false;
@@ -74,7 +75,8 @@ class FuncPropAnnotator final : public ModulePass {
     return r;
   }
 
-  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
+  PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
+                          AnalysisManager & /*analyMan*/) override {
     ZoneScopedNC("FuncPropAnnotator", COLOR_OPTIMF);
     CallGraph call_graph{ctx};
     AliasAnalyis aa;
@@ -126,6 +128,7 @@ class FuncPropAnnotator final : public ModulePass {
         }
       }
     }
+    return PreservedAnalysis::none();
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

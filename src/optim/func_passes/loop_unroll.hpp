@@ -1,4 +1,5 @@
 #pragma once
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"
 
@@ -12,7 +13,7 @@ class LoopUnroll final : public FunctionPass {
     u32 max_unroll = 1024;
     u32 max_instr = 32;
   } config;
-  void apply(fir::Context &ctx, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
   bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
                 fir::Function &func, LoopBoundsAnalysis &lb);
 };

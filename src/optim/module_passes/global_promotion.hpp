@@ -3,6 +3,7 @@
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
@@ -11,8 +12,9 @@
 namespace foptim::optim {
 
 class GlobalPromotion final : public ModulePass {
- public:
-  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
+public:
+  PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
+                          AnalysisManager & /*analyMan*/) override {
     ZoneScopedNC("GlobalPromotion", COLOR_OPTIMF);
     // if we have a global thats linked internally
     //  and its only used in 1 function we can promote it to a local alloca
@@ -53,14 +55,14 @@ class GlobalPromotion final : public ModulePass {
 #endif
             auto global = fir::Global{std::move(sref)};
             switch (global->linkage) {
-              case fir::Linkage::External:
-              case fir::Linkage::Weak:
-              case fir::Linkage::WeakODR:
-              case fir::Linkage::LinkOnce:
-              case fir::Linkage::LinkOnceODR:
-                continue;
-              case fir::Linkage::Internal:
-                break;
+            case fir::Linkage::External:
+            case fir::Linkage::Weak:
+            case fir::Linkage::WeakODR:
+            case fir::Linkage::LinkOnce:
+            case fir::Linkage::LinkOnceODR:
+              continue;
+            case fir::Linkage::Internal:
+              break;
             }
             // TODO: tweak
             if (global->n_bytes > 8) {
@@ -110,28 +112,33 @@ class GlobalPromotion final : public ModulePass {
               for (size_t i = 0; i < global->n_bytes; i += 8) {
                 auto ptr = b.build_int_add(
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
-                b.build_store(ptr,
-                              fir::ValueR{ctx->get_constant_int(
-                                  *(reinterpret_cast<u64 *>(global->init_value + i)), 64)},
-                              false, false);
+                b.build_store(
+                    ptr,
+                    fir::ValueR{ctx->get_constant_int(
+                        *(reinterpret_cast<u64 *>(global->init_value + i)),
+                        64)},
+                    false, false);
               }
             } else if (global->n_bytes % 4 == 0) {
               for (size_t i = 0; i < global->n_bytes; i += 4) {
                 auto ptr = b.build_int_add(
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
-                b.build_store(ptr,
-                              fir::ValueR{ctx->get_constant_int(
-                                  *(reinterpret_cast<u32 *>(global->init_value + i)), 32)},
-                              false, false);
+                b.build_store(
+                    ptr,
+                    fir::ValueR{ctx->get_constant_int(
+                        *(reinterpret_cast<u32 *>(global->init_value + i)),
+                        32)},
+                    false, false);
               }
             } else {
               for (size_t i = 0; i < global->n_bytes; i += 1) {
                 auto ptr = b.build_int_add(
                     new_val, fir::ValueR{ctx->get_constant_int(i, 64)});
-                b.build_store(ptr,
-                              fir::ValueR{ctx->get_constant_int(
-                                  *(static_cast<u8 *>(global->init_value + i)), 8)},
-                              false, false);
+                b.build_store(
+                    ptr,
+                    fir::ValueR{ctx->get_constant_int(
+                        *(static_cast<u8 *>(global->init_value + i)), 8)},
+                    false, false);
               }
             }
             for (auto use : uses) {
@@ -142,7 +149,8 @@ class GlobalPromotion final : public ModulePass {
         slab = slab->next;
       }
     }
+    return PreservedAnalysis::none();
   }
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

@@ -3,6 +3,7 @@
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "utils/stats.hpp"
@@ -333,7 +334,7 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   (void)func;
   return false;
 }
-}  // namespace
+} // namespace
 
 bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
                           fir::Function &func, LoopBoundsAnalysis &lb) {
@@ -410,7 +411,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   return true;
 }
 
-void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("LoopUnroll", COLOR_OPTIMF);
   CFG cfg{func};
   Dominators dom{cfg};
@@ -422,7 +423,7 @@ void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
     LoopBoundsAnalysis lb{};
     if (!lb.update(evo, cfg, loop)) {
       if (peel_condition(cfg, loop, ctx, func, evo)) {
-        return;
+        return PreservedAnalysis::none();
       }
       failure(
           {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
@@ -438,9 +439,10 @@ void LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
       utils::StatCollector::get().addi(1, "loopUnrolled",
                                        utils::StatCollector::StatFOptim);
       // TODO: impl to do multiple loops
-      return;
+      return PreservedAnalysis::none();
     }
   }
+  return PreservedAnalysis::all();
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

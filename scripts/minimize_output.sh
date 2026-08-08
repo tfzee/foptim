@@ -24,14 +24,18 @@ g++ -static-libstdc++ -O0 $flags $test_linkdir "$test_file" \
 
 
 
-$foptim --cconffile "$FOLDER/src/testconf.toml" min.ll min.o 2>/dev/null \
+echo "COMP"
+timeout 10s $foptim --cconffile "$FOLDER/src/testconf.toml" min.ll min.o \
   || exit $INTERESTING
 
-clang++ min.o -o min.out -static-libstdc++ 2>/dev/null \
+echo "LINK"
+clang++ min.o -o min.out -static-libstdc++ \
   || exit $UNINTERESTING
 
 
-
+echo "M"
+echo "C"
+echo "G"
 OUT_exp=$(./clang_min.out 2>&1);  stats_exp=$?
 OUT_exp2=$(./gcc_min.out 2>&1);   stats_exp2=$?
 OUT_got=$(./min.out 2>&1); stats_got=$?
@@ -48,7 +52,7 @@ if [[ "$stats_exp" != "$stats_exp2" ]] || [[ "$OUT_exp" != "$OUT_exp2" ]]; then
   exit $UNINTERESTING
 fi
 
-# if [[ "$stats_exp" != "0" ]] || [[ "$OUT_exp" != "1; 1; 2" ]]; then
+# if [[ "$stats_exp" != "0" ]] || [[ "$OUT_exp" != "33.000000" ]]; then
 if [[ "$stats_exp" != "0" ]]; then
   echo "Fail2"
   exit $UNINTERESTING

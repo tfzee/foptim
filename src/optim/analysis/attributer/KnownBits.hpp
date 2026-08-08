@@ -23,7 +23,8 @@ static KnownBits computeForAddCarry(const KnownBits &LHS, const KnownBits &RHS,
 static KnownBits computeMul(const KnownBits &LHS, const KnownBits &RHS);
 static KnownBits abs_known_bits(const KnownBits &input);
 
-class KnownBits final : public AttributeAnalysis, public AttributeInfo<KnownBits> {
+class KnownBits final : public AttributeAnalysis,
+                        public AttributeInfo<KnownBits> {
 public:
   static AttributeKey Key;
   KnownBits() = default;

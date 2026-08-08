@@ -5,6 +5,7 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 
 namespace foptim::optim {
 class SORA final : public FunctionPass {
@@ -137,7 +138,7 @@ class SORA final : public FunctionPass {
   }
 
 public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("SORA", COLOR_OPTIMF);
     auto entry = func.get_entry();
     // if (func.name != "_Z9WikiMergeP4Test5RangeS1_S1_PFbS_S_ES0_l") {
@@ -148,6 +149,8 @@ public:
         apply(ctx, instr);
       }
     }
+    //TODO: actually check if modified
+    return PreservedAnalysis::none();
   }
 };
 

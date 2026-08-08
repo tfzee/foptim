@@ -5,6 +5,7 @@
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/function_pass.hpp"
 
 namespace foptim::optim {
@@ -54,7 +55,7 @@ class LegalizeStructs final : public FunctionPass {
   }
 
  public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     for (auto bb : func.basic_blocks) {
       for (size_t instr_id = 0; instr_id < bb->instructions.size();
            instr_id++) {
@@ -63,6 +64,8 @@ class LegalizeStructs final : public FunctionPass {
         }
       }
     }
+    //TODO: check if its actulal preserved
+    return PreservedAnalysis::none();
   }
 };
 }  // namespace foptim::optim

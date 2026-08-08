@@ -3,7 +3,7 @@
 #include <fmt/std.h>
 
 #include "../function_pass.hpp"
-#include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 
 namespace foptim::optim {
 
@@ -11,6 +11,6 @@ namespace foptim::optim {
 
 class LVN final : public FunctionPass {
  public:
-  void apply(fir::Context & /*unused*/, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context & /*unused*/, fir::Function &func) override;
 };
 }  // namespace foptim::optim

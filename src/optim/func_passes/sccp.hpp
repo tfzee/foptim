@@ -14,6 +14,7 @@
 #include "ir/instruction.hpp"
 #include "ir/types.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
@@ -288,6 +289,6 @@ class SCCP final : public FunctionPass {
     }
   }
 
-  void apply(fir::Context &ctx, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 }  // namespace foptim::optim

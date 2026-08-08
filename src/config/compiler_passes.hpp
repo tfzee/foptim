@@ -8,6 +8,7 @@
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/double_load.hpp"
+#include "optim/func_passes/dse.hpp"
 #include "optim/func_passes/early_sheduler.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
@@ -150,6 +151,15 @@ struct EarlyShedulerConf : public FunctionPassConf<EarlyShedulerConf>,
                            optim::EarlySheduler::Config {
   static constexpr const char *BaseName = "EarlySheduler";
   using Pass = optim::EarlySheduler;
+  bool pass_parse(toml::table & /*tbl*/) { return true; }
+
+  void construct_function_pass(Pass &p) {
+    p.config = *static_cast<Pass::Config *>(this);
+  };
+};
+struct DSEConf : public FunctionPassConf<DSEConf>, optim::DSE::Config {
+  static constexpr const char *BaseName = "DSE";
+  using Pass = optim::DSE;
   bool pass_parse(toml::table & /*tbl*/) { return true; }
 
   void construct_function_pass(Pass &p) {

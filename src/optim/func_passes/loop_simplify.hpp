@@ -1,4 +1,5 @@
 #pragma once
+#include <fmt/base.h>
 #include <fmt/core.h>
 
 #include <algorithm>
@@ -9,6 +10,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
@@ -18,7 +20,7 @@
 
 namespace foptim::optim {
 class LoopSimplify final : public FunctionPass {
- public:
+public:
   bool dead_loop_elimination(CFG &cfg, LoopInfoAnalysis &loops, u32 loop_i) {
     auto &loop = loops.info.at(loop_i);
     for (auto b : loop.body_nodes) {
@@ -280,7 +282,7 @@ class LoopSimplify final : public FunctionPass {
     return modified;
   }
 
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("LoopSimplify", COLOR_OPTIMF);
     (void)ctx;
     CFG cfg{func};
@@ -296,7 +298,6 @@ class LoopSimplify final : public FunctionPass {
           merge_same_diret_induct_var(cfg, loops, loop_ip1 - 1)) {
         // loop_ip1 = 0;
         // continue;
-        // TODO: idk if it invalidates anythign
       }
       if (dead_loop_elimination(cfg, loops, loop_ip1 - 1) ||
           const_exit_value(ctx, cfg, dom, loops, loop_ip1 - 1)) {
@@ -307,6 +308,7 @@ class LoopSimplify final : public FunctionPass {
         continue;
       }
     }
+    return PreservedAnalysis::none();
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

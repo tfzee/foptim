@@ -1,6 +1,7 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "utils/bitset.hpp"
 
 namespace foptim::optim {
@@ -51,6 +52,6 @@ class StackKnownBits final : public FunctionPass {
                     fir::BasicBlock entry_bb);
 
  public:
-  void apply(fir::Context &ctx, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 }  // namespace foptim::optim

@@ -1,6 +1,7 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/arena.hpp"
@@ -30,7 +31,7 @@ static void reachable_from_entry(CFG &cfg, TSet<size_t> &seen) {
 
 class DCE final : public FunctionPass {
  public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("DCE", COLOR_OPTIMF);
     {
       CFG rev_cfg{func, true};
@@ -179,6 +180,7 @@ class DCE final : public FunctionPass {
         }
       }
     }
+    return PreservedAnalysis::none();
   }
 
   void dump(fir::Function &func, TSet<fir::Instr> &marked) {

@@ -2,6 +2,7 @@
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "utils/set.hpp"
@@ -45,7 +46,7 @@ void cut(TSet<fir::Instr> &curr, AliasAnalyis &aa, bool all_overwritten,
 }
 } // namespace
 
-void DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("DoubleLoadElim", COLOR_OPTIMF);
   (void)ctx;
   TVec<TSet<fir::Instr>> active_loads;
@@ -173,6 +174,7 @@ void DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) {
   //   }
   // }
   // TODO("okak");
+  return PreservedAnalysis::none();
 }
 
 } // namespace foptim::optim

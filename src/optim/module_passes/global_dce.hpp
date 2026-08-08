@@ -2,6 +2,7 @@
 #include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/global.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/access_analysis.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
@@ -20,7 +21,8 @@ public:
     return name.starts_with("llvm.") || name.starts_with("foptim.");
   }
 
-  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override {
+  PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
+                          AnalysisManager & /*analyMan*/) override {
     ZoneScopedN("GDCE");
 
     TSet<const fir::Function *> func_global_reffed;
@@ -154,6 +156,7 @@ public:
       }
       ctx.data->storage.functions.erase(name);
     }
+    return PreservedAnalysis::none();
   }
 };
 } // namespace foptim::optim

@@ -46,7 +46,8 @@ public:
   //  optimizations on that side like mem2reg
   bool promote_ptr_to_value_args(fir::FunctionR func, fir::Context &ctx);
 
-  void apply(fir::Context &ctx, JobSheduler * /*unused*/) override;
+  PreservedAnalysis apply(fir::Context & /*unused*/, JobSheduler * /*shed*/,
+                          AnalysisManager & /*analyMan*/) override;
 };
 
 } // namespace foptim::optim

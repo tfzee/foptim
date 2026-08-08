@@ -3,6 +3,7 @@
 
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"
@@ -37,7 +38,7 @@ class LoopUnswitch final : public FunctionPass {
   };
 
   bool apply(fir::Context &ctx, CFG &cfg, LoopInfo &info, HelperData &help);
-  void apply(fir::Context &ctx, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 
 }  // namespace foptim::optim

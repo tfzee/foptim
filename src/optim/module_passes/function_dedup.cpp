@@ -8,6 +8,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "utils/arena.hpp"
 #include "utils/stats.hpp"
 
@@ -352,8 +353,7 @@ void collect_group(
 
     if (f1->basic_blocks.size() != f2->basic_blocks.size() ||
         f1->get_entry()->n_args() != f2->get_entry()->n_args() ||
-        f1_ninstrs != f2->n_instrs() ||
-        f1->func_ty != f2->func_ty) {
+        f1_ninstrs != f2->n_instrs() || f1->func_ty != f2->func_ty) {
       continue;
     }
 
@@ -401,9 +401,9 @@ void collect_group(
   }
 }
 
-}  // namespace
+} // namespace
 
-void merge_func_dups_only_same(fir::Context &ctx) {
+PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx) {
   ZoneScopedN("DeDup0Diff");
   auto saved_talloc = utils::TempAlloc<void *>::scoped();
   TMap<fir::ValueR, fir::ValueR> local_value_map;
@@ -471,9 +471,10 @@ void merge_func_dups_only_same(fir::Context &ctx) {
       }
     }
   }
+  return PreservedAnalysis::none();
 }
 
-void merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
+PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
   Mutex<FVec<MergableGroup>> prot_groups;
   // helpers
 
@@ -527,7 +528,7 @@ void merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
           continue;
         }
         utils::StatCollector::get().addi(
-            curr.funcs.size() - 1, "funcDedupDiff",
+            static_cast<i64>(curr.funcs.size()) - 1, "funcDedupDiff",
             utils::StatCollector::StatType::StatFOptim);
         // clena up from other groups by removing f2
         for (size_t g2_id = 0; g2_id + 1 < groups.size(); g2_id++) {
@@ -554,6 +555,7 @@ void merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
       }
     }
   }
+  return PreservedAnalysis::none();
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

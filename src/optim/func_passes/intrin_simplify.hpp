@@ -1,11 +1,12 @@
 #pragma once
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/function_pass.hpp"
 
 namespace foptim::optim {
 
 class IntrinSimplify final : public FunctionPass {
  public:
-  void apply(fir::Context &ctx, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 
 }  // namespace foptim::optim

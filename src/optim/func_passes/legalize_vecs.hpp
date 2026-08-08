@@ -8,6 +8,7 @@
 #include "ir/function.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/string.hpp"
 
@@ -153,7 +154,7 @@ class LegalizeVecs final : public FunctionPass {
                                     fir::VectorISubType::HorizontalAdd);
       auto a2 = buh.build_vector_op(a_high, out_type,
                                     fir::VectorISubType::HorizontalAdd);
-      ASSERT(out_type->is_float());  // TODO: impl for int
+      ASSERT(out_type->is_float()); // TODO: impl for int
       auto r = buh.build_float_add(a1, a2);
       push_all_uses(worklist, instr);
       instr->replace_all_uses(r);
@@ -163,14 +164,13 @@ class LegalizeVecs final : public FunctionPass {
     return false;
   }
 
- public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+public:
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     TVec<fir::Instr> worklist;
     // TODO(PERF): do prefiltering
     for (auto bb : func.basic_blocks) {
-      for (size_t instr_id = 0; instr_id < bb->instructions.size();
-           instr_id++) {
-        worklist.push_back(bb->instructions[instr_id]);
+      for (auto instruction : bb->instructions) {
+        worklist.push_back(instruction);
       }
     }
 
@@ -179,6 +179,7 @@ class LegalizeVecs final : public FunctionPass {
       worklist.pop_back();
       legalize(ctx, curr, worklist);
     }
+    return PreservedAnalysis::none();
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

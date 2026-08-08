@@ -4,15 +4,16 @@
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 
 namespace foptim::optim {
 class CmpKnownValProp final : public FunctionPass {
   void propagate(fir::ValueR input, fir::ValueR val, fir::BasicBlock /*condbb*/,
-                 fir::BasicBlock targetbb, CFG& cfg, Dominators& dom) {
+                 fir::BasicBlock targetbb, CFG &cfg, Dominators &dom) {
     auto targetbb_id = cfg.get_bb_id(targetbb);
-    if (const auto* old_use_ref = input.get_uses()) {
+    if (const auto *old_use_ref = input.get_uses()) {
       TVec old_uses = *old_use_ref;
       for (auto u : old_uses) {
         auto use_bb = u.user->get_parent();
@@ -23,8 +24,8 @@ class CmpKnownValProp final : public FunctionPass {
     }
   }
 
-  void handle_cbranch(fir::Instr cond, fir::Instr term, CFG& cfg,
-                      Dominators& dom, bool useEq, bool useNe) {
+  void handle_cbranch(fir::Instr cond, fir::Instr term, CFG &cfg,
+                      Dominators &dom, bool useEq, bool useNe) {
     if (cond->is(fir::BinaryInstrSubType::And)) {
       if (cond->args[0].is_instr()) {
         handle_cbranch(cond->args[0].as_instr(), term, cfg, dom, true, false);
@@ -56,7 +57,7 @@ class CmpKnownValProp final : public FunctionPass {
     }
   }
 
-  void propagate_known_cond(fir::Instr term, CFG& cfg) {
+  void propagate_known_cond(fir::Instr term, CFG &cfg) {
     // only if we have multiple uses
     if (term->args[0].get_n_uses() < 2) {
       return;
@@ -114,8 +115,9 @@ class CmpKnownValProp final : public FunctionPass {
     }
   }
 
- public:
-  void apply(fir::Context& /*ctx*/, fir::Function& func) override {
+public:
+  PreservedAnalysis apply(fir::Context & /*ctx*/,
+                          fir::Function &func) override {
     ZoneScopedNC("CmpKnownValProp", COLOR_OPTIMF);
     CFG cfg{func};
     Dominators dom{cfg};
@@ -129,6 +131,7 @@ class CmpKnownValProp final : public FunctionPass {
         propagate_known_cond(term, cfg);
       }
     }
+    return PreservedAnalysis::none();
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

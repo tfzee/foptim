@@ -113,6 +113,8 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/loop_analysis.cpp
                 ./src/optim/analysis/cfg.cpp
                 ./src/optim/analysis/basic_alias_test.cpp
+                ./src/optim/analysis/constraint_analysis.cpp
+                ./src/optim/analysis/attributer/KnownBits.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/loop_unroll.cpp
                 ./src/optim/func_passes/loop_unswitch.cpp

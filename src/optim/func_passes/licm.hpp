@@ -6,14 +6,15 @@
 
 #include "../function_pass.hpp"
 #include "ir/builder.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 
 namespace foptim::optim {
 
 class LICM final : public FunctionPass {
- public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+public:
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("LICM");
     CFG cfg{func};
     Dominators dom{cfg};
@@ -22,6 +23,8 @@ class LICM final : public FunctionPass {
     for (auto &info : linfo.info) {
       apply(ctx, func, cfg, info);
     }
+    // TODO: check if actually modified
+    return PreservedAnalysis::none();
   }
 
   void apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
@@ -36,8 +39,7 @@ class LICM final : public FunctionPass {
 
     fir::BasicBlock pre_header{fir::BasicBlock{fir::BasicBlock::invalid()}};
     for (auto i : cfg.bbrs[info.head].pred) {
-      if (std::find(info.body_nodes.begin(), info.body_nodes.end(), i) ==
-          info.body_nodes.end()) {
+      if (std::ranges::find(info.body_nodes, i) == info.body_nodes.end()) {
         ASSERT(!pre_header.is_valid());
         pre_header = cfg.bbrs[i].bb;
         // TODO: break
@@ -89,10 +91,9 @@ class LICM final : public FunctionPass {
         }
         auto arg_bb_id = cfg.get_bb_id(arg_bb);
 
-        if (std::find(invariant.begin(), invariant.end(), arg) ==
-                invariant.end() &&
-            std::find(info.body_nodes.begin(), info.body_nodes.end(),
-                      arg_bb_id) != info.body_nodes.end()) {
+        if (std::ranges::find(invariant, arg) == invariant.end() &&
+            std::ranges::find(info.body_nodes, arg_bb_id) !=
+                info.body_nodes.end()) {
           all_args_are_invariant = false;
           break;
         }
@@ -120,4 +121,4 @@ class LICM final : public FunctionPass {
   }
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

@@ -4,6 +4,7 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -167,7 +168,8 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             instr->args[1].eql(instr2->args[1])) {
           bool opposite_eql =
               (instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ) &&
-               instr2->subtype == static_cast<u32>(fir::ICmpInstrSubType::NE)) ||
+               instr2->subtype ==
+                   static_cast<u32>(fir::ICmpInstrSubType::NE)) ||
               (instr->subtype == static_cast<u32>(fir::ICmpInstrSubType::NE) &&
                instr2->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ));
           if (opposite_eql) {
@@ -444,9 +446,9 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
     }
   }
 }
-}  // namespace
+} // namespace
 
-void LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
+PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("LVN", COLOR_OPTIMF);
   CFG cfg{func};
   Dominators dom{cfg};
@@ -454,6 +456,7 @@ void LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   for (auto bb : func.basic_blocks) {
     apply_lvn(bb, cfg, dom, aa);
   }
+  return PreservedAnalysis::none();
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

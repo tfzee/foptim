@@ -4,6 +4,7 @@
 #include "ir/builder.hpp"
 #include "ir/instruction.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
@@ -97,7 +98,8 @@ public:
     instr->replace_all_uses(fir::ValueR{new_instr});
   }
 
-  void apply(fir::Context & /*ctx*/, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context & /*ctx*/,
+                          fir::Function &func) override {
     ZoneScopedNC("EarlySheduler", COLOR_OPTIMF);
     CFG cfg{func};
     DominatorTree dom{cfg};
@@ -112,6 +114,8 @@ public:
         move_to_latest_position(i, cfg, dom, loop);
       }
     }
+    //TOOD: check if actulaly modified
+    return PreservedAnalysis::none();
   }
 };
 } // namespace foptim::optim

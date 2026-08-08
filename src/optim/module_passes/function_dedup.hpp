@@ -1,27 +1,29 @@
 #pragma once
 #include <fmt/core.h>
 
+#include "optim/analysis/AnalysisManager.hpp"
 #include "utils/tracy.hpp"
 
 #include "optim/module_pass.hpp"
 
 namespace foptim::optim {
 
-void merge_func_dups(fir::Context &ctx, JobSheduler *shed);
-void merge_func_dups_only_same(fir::Context &ctx);
+PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed);
+PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx);
 
-template <bool onlySame>
-class FunctionDeDup final : public ModulePass {
- public:
-  void apply(fir::Context &ctx, JobSheduler *shed) override {
+template <bool onlySame> class FunctionDeDup final : public ModulePass {
+public:
+  PreservedAnalysis apply(fir::Context &ctx, JobSheduler *shed,
+                          AnalysisManager & /*analyMan*/) override {
     ZoneScopedN("FunctionDeDup");
     // TODO maybe run always onlysame before hand ??
     // but then we iterate twice over everything??
     if constexpr (onlySame) {
-      merge_func_dups_only_same(ctx);
+      return merge_func_dups_only_same(ctx);
     } else {
-      merge_func_dups(ctx, shed);
+      return merge_func_dups(ctx, shed);
     }
+
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

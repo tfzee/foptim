@@ -8,6 +8,7 @@
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
@@ -424,9 +425,9 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
     current_variable_value.pop_back();
   }
 }
-}  // namespace
+} // namespace
 
-void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("Mem2Reg");
 
   fix_types(func);
@@ -463,5 +464,6 @@ void Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()),
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
+  return PreservedAnalysis::none();
 }
-}  // namespace foptim::optim
+} // namespace foptim::optim

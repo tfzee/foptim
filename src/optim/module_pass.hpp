@@ -4,7 +4,7 @@
 #include "config/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
-#include "utils/arena.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "utils/job_system.hpp"
 #include "utils/stats.hpp"
 
@@ -22,15 +22,17 @@ public:
   IRVec<FailureReason> failures;
 #endif
 
-  virtual void apply(fir::Context & /*unused*/, JobSheduler * /*shed*/) {
+  [[nodiscard]] virtual PreservedAnalysis apply(fir::Context & /*unused*/,
+                                  JobSheduler * /*shed*/,
+                                  AnalysisManager & /*analyMan*/) {
     TODO("impl");
   }
 
-  ModulePass &apply_pass(fir::Context &ctx, JobSheduler *shed) {
-    apply(ctx, shed);
-    utils::TempAlloc<void *>::reset();
-    return *this;
-  }
+  // ModulePass &apply_pass(fir::Context &ctx, JobSheduler *shed) {
+  //   apply(ctx, shed);
+  //   utils::TempAlloc<void *>::reset();
+  //   return *this;
+  // }
 
   ModulePass &print_failures() {
 #ifdef OPTIM_STATS
@@ -67,14 +69,17 @@ class ModulePassManager {
   FVec<conf::PassConfig *> dyn_passes;
 
 public:
+  void clear() { dyn_passes.clear(); }
+
   void push_pass(conf::PassConfig *pass) { dyn_passes.push_back(pass); }
 
-  void apply(fir::Context &ctx, JobSheduler *shed) {
+  void apply(fir::Context &ctx, JobSheduler *shed, AnalysisManager &analMan) {
     for (auto *p : dyn_passes) {
       auto *pass = p->_construct_module_pass();
       if (ctx.config->debug.time_passes) {
         auto start_time = std::chrono::high_resolution_clock::now();
-        pass->apply(ctx, shed);
+        auto r = pass->apply(ctx, shed, analMan);
+        analMan.invalidate(nullptr, r);
         auto end_time = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
                         end_time - start_time)
@@ -84,7 +89,8 @@ public:
                                            utils::StatCollector::StatTiming);
         }
       } else {
-        pass->apply(ctx, shed);
+        auto r = pass->apply(ctx, shed, analMan);
+        analMan.invalidate(nullptr, r);
       }
       if (ctx.config->debug.print_optimization_failure_reasons) {
         pass->print_failures();

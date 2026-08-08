@@ -6,6 +6,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 
 namespace foptim::optim {
 namespace {
@@ -211,20 +212,22 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
   }
   return false;
 }
-}  // namespace
+} // namespace
 
-void IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
+PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
+                              AnalysisManager & /*a*/) {
   ZoneScopedN("IPCP");
+  bool modified = false;
   for (auto &f : ctx.data->storage.functions) {
     switch (f.second->attribs.linkage) {
-      case fir::Linkage::External:
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-      case fir::Linkage::WeakODR:
-        continue;
-      case fir::Linkage::LinkOnceODR:
-      case fir::Linkage::Internal:
-        break;
+    case fir::Linkage::External:
+    case fir::Linkage::Weak:
+    case fir::Linkage::LinkOnce:
+    case fir::Linkage::WeakODR:
+      continue;
+    case fir::Linkage::LinkOnceODR:
+    case fir::Linkage::Internal:
+      break;
     }
 
     if (f.second->is_decl() || f.second->attribs.variadic) {
@@ -245,6 +248,7 @@ void IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
     // if (constant_prop_args(fir::FunctionR(f.second.get()), ctx)) {
     //   continue;
     // }
+    modified = true;
     if (kill_dead_args(f.second.get(), ctx)) {
       continue;
     }
@@ -253,6 +257,10 @@ void IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/) {
     }
     constant_prop_return(fir::FunctionR(f.second.get()), ctx);
   }
+  if (modified) {
+    return PreservedAnalysis::none();
+  }
+  return PreservedAnalysis::all();
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

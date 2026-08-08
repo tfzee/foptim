@@ -10,10 +10,15 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/context.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/attributer/KnownBits.hpp"
+#include "optim/analysis/attributer/attributer.hpp"
+#include "optim/analysis/constraint_analysis.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "optim/helper/inline.hpp"
@@ -43,6 +48,152 @@ SimplifyCFG::Res SimplifyCFG::flip_cold_cond(CFG &cfg, CFG::Node &curr) {
 
   flip_cond_branch(term);
   return SimplifyCFG::Res::Changed;
+}
+
+SimplifyCFG::Res
+SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
+                                           Dominators &dom, CFG::Node &curr,
+                                           size_t bb_id, bool is_entry) {
+
+  if (is_entry) {
+    return Res::NoChange;
+  }
+  if (cfg.bbrs[bb_id].pred.size() != 2) {
+    return Res::NoChange;
+  }
+  auto term = curr.bb->get_terminator();
+  if (!term->is(fir::InstrType::CondBranchInstr)) {
+    return Res::NoChange;
+  }
+  auto cond = term->args[0];
+
+  auto p1 = cfg.bbrs[bb_id].pred[0];
+  auto p2 = cfg.bbrs[bb_id].pred[1];
+  if (p1 == p2) {
+    return Res::NoChange;
+  }
+  if (cfg.bbrs[p2].bb->get_instrs().size() > 5) {
+    return Res::NoChange;
+  }
+
+  bool found_path = false;
+  fir::Instr false_t;
+  u32 false_t_bb_id = 0;
+  {
+    auto stripped_cond = cond;
+    while (stripped_cond.is_instr() &&
+           stripped_cond.as_instr()->is(fir::InstrType::ITrunc)) {
+      stripped_cond = stripped_cond.as_instr()->args[0];
+    }
+    if (stripped_cond.is_bb_arg()) {
+      auto arg_id = curr.bb->get_arg_id(stripped_cond.as_bb_arg());
+      // TODO(PERF): dont recreate everytime
+      AttributerManager man;
+      auto t1 = cfg.bbrs[p1].bb->get_terminator();
+      false_t = cfg.bbrs[p2].bb->get_terminator();
+      auto incoming1 = t1->bbs[t1.get_bb_id(curr.bb)].args[arg_id];
+      false_t_bb_id = false_t.get_bb_id(curr.bb);
+      auto incoming2 = false_t->bbs[false_t_bb_id].args[arg_id];
+      const auto *res1 = man.get_or_create_analysis<KnownBits>(incoming1);
+      const auto *res2 = man.get_or_create_analysis<KnownBits>(incoming2);
+
+      man.run(ctx);
+      // is iether itruncd or 1bit width so we can just steal that lowest bit
+      // we only care that both incoming ones are hitting the condition
+      // differntly
+      if (!(((res1->known_one & 0x1) ^ (res2->known_one & 0x1)) == 0U) &&
+          !(((res1->known_zero & 0x1) ^ (res2->known_zero & 0x1)) == 0U)) {
+        found_path = true;
+      }
+    }
+  }
+  if (!found_path) {
+    // TODO(PERF): dont rerun everytime
+    foptim::optim::ConstraintAnalysis canal(cfg, dom);
+    auto term_constr = canal.bb_to_constraints[bb_id].terminator_constraint;
+    if (term_constr != 0) {
+      auto &inc1 = canal.bb_to_constraints[p1].active_constraints;
+      auto &inc2 = canal.bb_to_constraints[p2].active_constraints;
+      // fmt::println("{}", canal.printConstr(term_constr));
+      // for (auto c : inc1) {
+      //   fmt::println("1 {}", c);
+      //   fmt::println("  VS  {}", canal.printConstr(c));
+      // }
+      // fmt::println("\n{}", canal.printConstr(term_constr));
+      // for (auto c : inc2) {
+      //   fmt::println("  VS  {}", canal.printConstr(c));
+      // }
+      if (canal.contradicts(term_constr, inc1)) {
+        false_t = cfg.bbrs[p1].bb->get_terminator();
+        false_t_bb_id = false_t.get_bb_id(curr.bb);
+        found_path = true;
+      } else if (canal.contradicts(term_constr, inc2)) {
+        false_t = cfg.bbrs[p2].bb->get_terminator();
+        false_t_bb_id = false_t.get_bb_id(curr.bb);
+        found_path = true;
+      }
+    }
+  }
+
+  if (found_path) {
+    // TODO: HEURISTIC
+    ASSERT(
+        cond_tail_duplication(ctx, cfg, dom, curr.bb, term,
+                              {.term = false_t, .inc_bb_id = false_t_bb_id}));
+  }
+  return Res::NoChange;
+}
+
+SimplifyCFG::Res SimplifyCFG::pull_through_bb_args(CFG &cfg, CFG::Node &curr,
+                                                   size_t bb_id,
+                                                   bool is_entry) {
+  if (is_entry) {
+    return Res::NoChange;
+  }
+
+  // auto term = curr.bb->get_terminator();
+  // if (!term->is(fir::InstrType::CondBranchInstr)) {
+  //   return Res::NoChange;
+  // }
+  // auto cond = term->args[0];
+  // if(cond.is_instr()){
+
+  // }
+  size_t arg_id = 0;
+  for (auto &arg : curr.bb->args) {
+    if (arg->get_n_uses() != 1) {
+      continue;
+    }
+    fmt::println(">>>>>>>> {}", arg);
+    auto &use = arg->uses[0];
+
+    if (use.user->is(fir::InstrType::ITrunc)) {
+      auto target_ty = use.user->get_type();
+
+      for (auto incoming_bb_id : cfg.bbrs[bb_id].pred) {
+        auto incoming_bb = cfg.bbrs[incoming_bb_id].bb;
+        auto incom_term = incoming_bb->get_terminator();
+        fir::Builder bb{incoming_bb};
+        bb.at_penultimate(incoming_bb);
+        for (size_t target_i = 0; target_i < incom_term->bbs.size();
+             target_i++) {
+          auto target_bb = incom_term->bbs[target_i];
+          if (target_bb.bb != curr.bb) {
+            continue;
+          }
+          auto r = bb.build_itrunc(target_bb.args[arg_id], target_ty);
+          incom_term.replace_bb_arg(target_i, arg_id, r);
+        }
+      }
+      arg->_type = target_ty;
+      use.user->replace_all_uses(fir::ValueR{arg});
+      TODO("impl dodes this work");
+      return Res::Changed;
+    }
+    arg_id++;
+  }
+
+  return Res::NoChange;
 }
 
 SimplifyCFG::Res SimplifyCFG::remove_struct_bb_arg(CFG &cfg, CFG::Node &curr) {
@@ -1431,7 +1582,8 @@ bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
   return false;
 }
 
-SimplifyCFG::Res SimplifyCFG::simplify_bb_args(CFG &cfg, Dominators &dom,
+SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
+                                               Dominators &dom,
                                                fir::Function &func,
                                                size_t bb_id) {
   (void)dom;
@@ -1461,6 +1613,21 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(CFG &cfg, Dominators &dom,
     }
     return Res::Changed;
   }
+  // auto r = conditional_block_duplication(ctx, cfg, dom, curr, bb_id,
+  // is_entry); if (r != Res::NoChange) {
+  //   if constexpr (debug_print) {
+  //     fmt::println("6");
+  //   }
+  //   return r;
+  // }
+  // auto r = pull_through_bb_args(cfg, curr, bb_id, is_entry);
+  // if (r != Res::NoChange) {
+  //   if constexpr (debug_print) {
+  //     fmt::println("6");
+  //   }
+  //   return r;
+  // }
+  (void)ctx;
   auto r = remove_struct_bb_arg(cfg, curr);
   if (r != Res::NoChange) {
     if constexpr (debug_print) {
@@ -1573,11 +1740,11 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
   return Res::NoChange;
 }
 
-void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
+PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("SimplifyCFG", COLOR_OPTIMF);
   // Cant really simplify the cfg if theres just 1 node
   if (func.basic_blocks.size() == 1) {
-    return;
+    return PreservedAnalysis::all();
   }
   CFG cfg{func};
   Dominators dom{cfg};
@@ -1589,7 +1756,7 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
     modified = false;
     needs_update = false;
     for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
-      auto r1 = simplify_bb_args(cfg, dom, func, bb_id - 1);
+      auto r1 = simplify_bb_args(ctx, cfg, dom, func, bb_id - 1);
       modified |= (r1 == Res::Changed || r1 == Res::NeedUpdate);
       if (r1 == Res::NeedUpdate) {
         needs_update = true;
@@ -1622,6 +1789,7 @@ void SimplifyCFG::apply(fir::Context & /*unused*/, fir::Function &func) {
     }
   }
   dup_bb_to_args(func, cfg);
+  return PreservedAnalysis::none();
 }
 
 } // namespace foptim::optim

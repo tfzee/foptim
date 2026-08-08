@@ -1,11 +1,12 @@
 #pragma once
 #include <fmt/base.h>
 
-#include "optim/module_pass.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/inline.hpp"
+#include "optim/module_pass.hpp"
 #include "utils/job_system.hpp"
 
 namespace foptim::optim {
@@ -16,10 +17,10 @@ struct InlineConfig {
 class AlwaysInlineAdvisor {
   static constexpr bool debug_print = false;
 
- public:
-  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& /*cfg*/,
-                                       Dominators& /*dom*/,
-                                       InlineConfig& conf) {
+public:
+  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG & /*cfg*/,
+                                       Dominators & /*dom*/,
+                                       InlineConfig &conf) {
     auto called_func = instr->get_arg(0);
     auto self_func = instr->get_parent()->get_parent();
     if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
@@ -37,18 +38,18 @@ class AlwaysInlineAdvisor {
       return false;
     }
     switch (v->attribs.linkage) {
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-        if (debug_print) {
-          fmt::println("N Bad linkage");
-        }
-        ASSERT(!v->attribs.must_inline);
-        return false;
-      case fir::Linkage::Internal:
-      case fir::Linkage::External:
-      case fir::Linkage::WeakODR:
-      case fir::Linkage::LinkOnceODR:
-        break;
+    case fir::Linkage::Weak:
+    case fir::Linkage::LinkOnce:
+      if (debug_print) {
+        fmt::println("N Bad linkage");
+      }
+      ASSERT(!v->attribs.must_inline);
+      return false;
+    case fir::Linkage::Internal:
+    case fir::Linkage::External:
+    case fir::Linkage::WeakODR:
+    case fir::Linkage::LinkOnceODR:
+      break;
     }
 
     // TODO: impl to hndle this correctly
@@ -76,9 +77,9 @@ class BaseInlineAdvisor {
 
   static constexpr bool debug_print = false;
 
- public:
-  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG& cfg,
-                                       Dominators& dom, InlineConfig& conf) {
+public:
+  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG &cfg,
+                                       Dominators &dom, InlineConfig &conf) {
     if (_should_be_inlined(instr, cfg, dom, conf)) {
       auto v = instr->get_arg(0).as_constant()->as_func();
       n_inlined_calls += 1;
@@ -88,9 +89,9 @@ class BaseInlineAdvisor {
     return false;
   }
 
-  [[nodiscard]] bool _should_be_inlined(const fir::Instr instr, CFG& cfg,
-                                        Dominators& dom,
-                                        InlineConfig& conf) const {
+  [[nodiscard]] bool _should_be_inlined(const fir::Instr instr, CFG &cfg,
+                                        Dominators &dom,
+                                        InlineConfig &conf) const {
     auto called_func = instr->get_arg(0);
     auto self_func = instr->get_parent()->get_parent();
     auto self_n_instrs = self_func->n_instrs();
@@ -122,18 +123,18 @@ class BaseInlineAdvisor {
     }
 
     switch (v->attribs.linkage) {
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-        if (debug_print) {
-          fmt::println("N Bad linkage");
-        }
-        ASSERT(!v->attribs.must_inline);
-        return false;
-      case fir::Linkage::Internal:
-      case fir::Linkage::External:
-      case fir::Linkage::WeakODR:
-      case fir::Linkage::LinkOnceODR:
-        break;
+    case fir::Linkage::Weak:
+    case fir::Linkage::LinkOnce:
+      if (debug_print) {
+        fmt::println("N Bad linkage");
+      }
+      ASSERT(!v->attribs.must_inline);
+      return false;
+    case fir::Linkage::Internal:
+    case fir::Linkage::External:
+    case fir::Linkage::WeakODR:
+    case fir::Linkage::LinkOnceODR:
+      break;
     }
 
     // TODO: impl to hndle this correctly
@@ -270,9 +271,8 @@ class BaseInlineAdvisor {
     if (all_args_are_constant_or_allocas && self_n_instrs < 50 &&
         called_n_instrs < 10) {
       if (debug_print) {
-        fmt::println(
-            "Y all args are constnat + allocs might allow for mem2reg "
-            "and shit");
+        fmt::println("Y all args are constnat + allocs might allow for mem2reg "
+                     "and shit");
       }
       return true;
     }
@@ -293,25 +293,27 @@ class BaseInlineAdvisor {
 };
 
 template <typename T>
-concept InlineAdvisor = requires(T v, fir::Instr instr, CFG& cfg,
-                                 Dominators& dom, InlineConfig& conf) {
+concept InlineAdvisor = requires(T v, fir::Instr instr, CFG &cfg,
+                                 Dominators &dom, InlineConfig &conf) {
   { v.should_be_inlined(instr, cfg, dom, conf) } -> std::same_as<bool>;
 };
 
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {
- public:
+public:
   using Config = InlineConfig;
   Config config;
 
-  void apply(fir::Context& ctx, JobSheduler* /*unused*/) override {
+  PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
+                          AnalysisManager & /*analyMan*/) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
-    for (auto& f : ctx.data->storage.functions) {
+    for (auto &f : ctx.data->storage.functions) {
       apply(ctx, *f.second);
     }
+    return PreservedAnalysis::none();
   }
 
-  void apply(fir::Context& /*unused*/, fir::Function& func) {
+  void apply(fir::Context & /*unused*/, fir::Function &func) {
     Advisor adv;
     TVec<fir::Instr> calls;
 
@@ -349,4 +351,4 @@ class Inline final : public ModulePass {
   }
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

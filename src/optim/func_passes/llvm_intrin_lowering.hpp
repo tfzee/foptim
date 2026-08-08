@@ -8,6 +8,7 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/helper/helper.hpp"
 #include "utils/todo.hpp"
 
@@ -75,7 +76,7 @@ public:
   void handle_is_fpclass(fir::Instr instr, fir::Function &func,
                          fir::FunctionR /*callee*/) {
     fir::Builder bb{instr};
-    auto ctx = func.ctx;
+    auto *ctx = func.ctx;
     auto val = instr->args[1];
     auto mode_a = instr->args[2];
     ASSERT(mode_a.is_constant());
@@ -170,29 +171,29 @@ public:
     auto is_qnan = bb.build_binary_op(is_nan, is_qnan_bit_set_bool,
                                       fir::BinaryInstrSubType::And);
 
-    if (mode & 0x001) {
+    if ((mode & 0x001) != 0) {
       add_check(true, is_snan);
     }
-    if (mode & 0x002) {
+    if ((mode & 0x002) != 0) {
       add_check(true, is_qnan);
     }
 
     // infinity (Bit 2 9)
-    if (mode & 0x004) {
+    if ((mode & 0x004) != 0) {
       add_check(true, bb.build_binary_op(is_inf, sign_bit,
                                          fir::BinaryInstrSubType::And)); // -Inf
     }
-    if (mode & 0x200) {
+    if ((mode & 0x200) != 0) {
       add_check(true, bb.build_binary_op(is_inf, is_pos,
                                          fir::BinaryInstrSubType::And)); // +Inf
     }
 
     // zero (Bit 5 6)
-    if (mode & 0x020) {
+    if ((mode & 0x020) != 0) {
       add_check(true, bb.build_binary_op(is_zero, is_neg,
                                          fir::BinaryInstrSubType::And)); // -0
     }
-    if (mode & 0x040) {
+    if ((mode & 0x040) != 0) {
       add_check(true, bb.build_binary_op(is_zero, is_pos,
                                          fir::BinaryInstrSubType::And)); // +0
     }
@@ -209,22 +210,22 @@ public:
     auto is_normal = bb.build_binary_op(exp_not_zero, exp_not_max,
                                         fir::BinaryInstrSubType::And);
 
-    if (mode & 0x008) {
+    if ((mode & 0x008) != 0) {
       add_check(true,
                 bb.build_binary_op(is_normal, is_neg,
                                    fir::BinaryInstrSubType::And)); // -Normal
     }
-    if (mode & 0x100) {
+    if ((mode & 0x100) != 0) {
       add_check(true,
                 bb.build_binary_op(is_normal, is_pos,
                                    fir::BinaryInstrSubType::And)); // +Normal
     }
-    if (mode & 0x010) {
+    if ((mode & 0x010) != 0) {
       add_check(true,
                 bb.build_binary_op(is_subnormal, is_neg,
                                    fir::BinaryInstrSubType::And)); // -Subnormal
     }
-    if (mode & 0x080) {
+    if ((mode & 0x080) != 0) {
       add_check(true,
                 bb.build_binary_op(is_subnormal, is_pos,
                                    fir::BinaryInstrSubType::And)); // +Subnormal
@@ -597,7 +598,7 @@ public:
   void handle_copysign(fir::Instr instr, fir::Function &funcy,
                        fir::FunctionR /*callee*/) {
     fir::Builder buh{instr};
-    auto ctx = funcy.ctx;
+    auto *ctx = funcy.ctx;
     auto ty = instr->get_type();
     auto mag_inp = instr->args[1];
     auto sign_inp = instr->args[2];
@@ -605,7 +606,7 @@ public:
     fir::ValueR neg0Mask;
     if (ty->is_float() && ty->get_bitwidth() == 32) {
       neg0Mask =
-          fir::ValueR{ctx->get_constant_value(-0.0f, ctx->get_float_type(32))};
+          fir::ValueR{ctx->get_constant_value(-0.0F, ctx->get_float_type(32))};
     } else if (ty->is_float() && ty->get_bitwidth() == 64) {
       neg0Mask =
           fir::ValueR{ctx->get_constant_value(-0.0, ctx->get_float_type(64))};
@@ -715,11 +716,14 @@ public:
     }
   }
 
-  void apply(fir::Context & /*unused*/, fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context & /*unused*/,
+                          fir::Function &func) override {
     ZoneScopedN("LLVMInstrinsLowering");
     for (auto bb : func.basic_blocks) {
       apply(bb, func);
     }
+    // TODO: check if actually modified
+    return PreservedAnalysis::none();
   }
 };
 } // namespace foptim::optim

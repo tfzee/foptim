@@ -6,6 +6,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/arena.hpp"
@@ -13,7 +14,7 @@
 namespace foptim::optim {
 
 class SLPVectorizer final : public FunctionPass {
- public:
+public:
   struct Config {
     bool reductions = true;
   } config;
@@ -31,7 +32,7 @@ class SLPVectorizer final : public FunctionPass {
     TVec<SeedInstrData> data;
   };
   class TreeElem {
-   public:
+  public:
     TVec<TreeElem *> children;
     fir::Instr insert_loc;
     u32 n_lanes;
@@ -43,24 +44,25 @@ class SLPVectorizer final : public FunctionPass {
     }
     virtual void dump() { TODO("UNREACH"); }
     // higher = better
-    virtual i64 cost(const conf::CompConf &) const { TODO("UNREACH"); }
+    [[nodiscard]] virtual i64 cost(const conf::CompConf & /*unused*/) const {
+      TODO("UNREACH");
+    }
     virtual ~TreeElem() = default;
   };
 
- private:
-  std::pair<SeedInstrData, fir::ValueR> get_storeload_data(
-      fir::Instr storeload);
+private:
+  std::pair<SeedInstrData, fir::ValueR>
+  get_storeload_data(fir::Instr storeload);
 
-  std::optional<SeedBundle> find_successive_loads(fir::BasicBlock bb,
-                                                  size_t instr_id,
-                                                  AliasAnalyis &aa);
+  std::optional<SeedBundle>
+  find_successive_loads(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa);
 
   std::optional<SeedBundle> find_reduction(fir::BasicBlock bb, size_t instr_id,
-                                           AliasAnalyis &aa, const conf::CompConf& conf);
+                                           AliasAnalyis &aa,
+                                           const conf::CompConf &conf);
 
-  std::optional<SeedBundle> find_successive_stores(fir::BasicBlock bb,
-                                                   size_t instr_id,
-                                                   AliasAnalyis &aa);
+  std::optional<SeedBundle>
+  find_successive_stores(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa);
 
   void find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
                   TVec<SeedBundle> &store_bundles,
@@ -76,8 +78,8 @@ class SLPVectorizer final : public FunctionPass {
   bool tree_vectorize_reduction(fir::Context &ctx, SeedBundle &bundle,
                                 const TVec<SeedBundle> &load_bundles);
 
- public:
-  void apply(fir::Context &ctx, fir::Function &func) override {
+public:
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("SLPVectorizer");
     AliasAnalyis aa{};
     // if (func.name != "_Z19_nettle_aes_encryptjPKjPK9aes_tablemPhPKh") {
@@ -92,7 +94,7 @@ class SLPVectorizer final : public FunctionPass {
                  reduction_bundles, aa);
     }
     if (store_bundles.empty() && reduction_bundles.empty()) {
-      return;
+      return PreservedAnalysis::all();
     }
     if constexpr (debug_print) {
       fmt::println("Stor {} Lod {} Red {}", store_bundles.size(),
@@ -137,9 +139,9 @@ class SLPVectorizer final : public FunctionPass {
       }
     }
 
-    // fmt::println("{}:", func);
-    // TODO("okak");
+    // TODO: actuall y check if modified
+    return PreservedAnalysis::none();
   }
 };
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

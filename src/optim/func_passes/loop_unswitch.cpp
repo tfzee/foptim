@@ -1,10 +1,12 @@
 #include "optim/func_passes/loop_unswitch.hpp"
 
 #include <algorithm>
+#include <fmt/base.h>
 
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/value.hpp"
+#include "optim/analysis/AnalysisManager.hpp"
 #include "utils/set.hpp"
 namespace foptim::optim {
 
@@ -18,8 +20,8 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
   }
   for (auto bnode : info.body_nodes) {
     // find all conditional bbs inside the loop that arent exit conditions
-    if (std::find(info.leaving_nodes.begin(), info.leaving_nodes.end(),
-                  bnode) != info.leaving_nodes.end()) {
+    if (std::ranges::find(info.leaving_nodes, bnode) !=
+        info.leaving_nodes.end()) {
       continue;
     }
     // TODO: could support switches aswell
@@ -43,8 +45,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
     } else {
       UNREACH();
     }
-    if (std::find(info.body_nodes.begin(), info.body_nodes.end(), cond_bb) !=
-        info.body_nodes.end()) {
+    if (std::ranges::find(info.body_nodes, cond_bb) != info.body_nodes.end()) {
       continue;
     }
 
@@ -73,8 +74,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
         }
         seen.insert(curr);
         help.condIf[curr].set(true);
-        if (std::find(info.tails.begin(), info.tails.end(), curr) !=
-            info.tails.end()) {
+        if (std::ranges::find(info.tails, curr) != info.tails.end()) {
           continue;
         }
         for (auto succ : cfg.bbrs[curr].succ) {
@@ -92,8 +92,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
         }
         seen.insert(curr);
         help.condElse[curr].set(true);
-        if (std::find(info.tails.begin(), info.tails.end(), curr) !=
-            info.tails.end()) {
+        if (std::ranges::find(info.tails, curr) != info.tails.end()) {
           continue;
         }
         for (auto succ : cfg.bbrs[curr].succ) {
@@ -119,7 +118,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       }
 
       // colllect all the data for da heuristic
-      u32 duplicated_instr = target_bb->n_instrs() - 1;
+      u32 duplicated_instr = (target_bb->n_instrs() + 1) * 2;
       // saved atleast 1 condition aswell
       u32 saved_instr = 1;
 
@@ -150,11 +149,10 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       for (auto arg : cfg.bbrs[node].bb->args) {
         for (auto use : arg->get_uses()) {
           auto use_bb = cfg.get_bb_id(use.user->get_parent());
-          auto is_use_outside =
-              std::find(info.body_nodes.begin(), info.body_nodes.end(),
-                        use_bb) == info.body_nodes.end();
+          auto is_use_outside = std::ranges::find(info.body_nodes, use_bb) ==
+                                info.body_nodes.end();
           if (is_use_outside) {
-            values_that_are_used_after.push_back(fir::ValueR{arg});
+            values_that_are_used_after.emplace_back(arg);
             break;
           }
         }
@@ -162,11 +160,10 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       for (auto instr : cfg.bbrs[node].bb->instructions) {
         for (auto use : instr->get_uses()) {
           auto use_bb = cfg.get_bb_id(use.user->get_parent());
-          auto is_use_outside =
-              std::find(info.body_nodes.begin(), info.body_nodes.end(),
-                        use_bb) == info.body_nodes.end();
+          auto is_use_outside = std::ranges::find(info.body_nodes, use_bb) ==
+                                info.body_nodes.end();
           if (is_use_outside) {
-            values_that_are_used_after.push_back(fir::ValueR{instr});
+            values_that_are_used_after.emplace_back(instr);
             break;
           }
         }
@@ -179,7 +176,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
     }
     // save which node within the loop is the head so when copying the loop we
     // know which node is its head aswell
-    auto copied_head_bb_id = 0;
+    u32 copied_head_bb_id = 0;
     for (size_t i = 0; i < info.body_nodes.size(); i++) {
       if (info.body_nodes[i] == info.head) {
         copied_head_bb_id = i;
@@ -220,7 +217,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
     {
       // we however need to find out out of our copied bbs which one is our
       // target bb
-      auto copied_target_bb_id = 0;
+      u32 copied_target_bb_id = 0;
       for (size_t i = 0; i < info.body_nodes.size(); i++) {
         if (cfg.bbrs[info.body_nodes[i]].bb == target_bb) {
           copied_target_bb_id = i;
@@ -262,8 +259,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
                        fir::ValueR{new_outer_cond_bb}});
       for (auto pot_incoming : cfg.bbrs[info.head].pred) {
         // need to check that its not a backwards edge
-        if (std::find(info.tails.begin(), info.tails.end(), pot_incoming) !=
-            info.tails.end()) {
+        if (std::ranges::find(info.tails, pot_incoming) != info.tails.end()) {
           continue;
         }
         // then we need to forward the terminator to our new entry
@@ -287,12 +283,14 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
   return false;
 }
 
-void LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("LoopUnswitch");
   CFG cfg{func};
   Dominators dom{cfg};
   LoopInfoAnalysis linfo{dom};
 
+  fmt::println("TODO FIX LOOPUNSWITCH");
+  return PreservedAnalysis::all();
   auto helper = HelperData{
       .a = BitSet<>::empty(cfg.bbrs.size()),
       .condIf = BitSet<>::empty(cfg.bbrs.size()),
@@ -300,8 +298,6 @@ void LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
       .c = BitSet<>::empty(cfg.bbrs.size()),
       .map = fir::ContextData::V2VMap{},
   };
-  // fmt::println("BEFORE:");
-  // fmt::println("{:cd}", func);
   for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
     helper.reset(cfg);
     bool apply_res = apply(ctx, cfg, *loop, helper);
@@ -312,9 +308,9 @@ void LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
       loop = linfo.info.begin();
     }
   }
-  // fmt::println("AFTER:");
   // fmt::println("{:cd}", func);
   // fmt::println("okak");
+  return PreservedAnalysis::none();
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim
