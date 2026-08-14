@@ -206,10 +206,9 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
 
 } // namespace
 
-void CallingConvImpl::first_stage(MFunc &func,
-                                  const CallingConvDefinition &conv,
+void CallingConvImpl::first_stage(MFunc &func, const CallingConvDefinition &cc,
                                   const conf::CompConf & /*unused*/) {
-  gen_arg_mapping(func, conv);
+  gen_arg_mapping(func, cc);
   for (auto &bb : func.bbs) {
     size_t n_instrs = bb.instrs.size();
     for (size_t instr_id = 0; instr_id < n_instrs; instr_id++) {
@@ -222,13 +221,13 @@ void CallingConvImpl::first_stage(MFunc &func,
         if (!bb.instrs[instr_call_id].is(GBaseSubtype::invoke)) {
           continue;
         }
-        mark_arguments_with_regs(bb.instrs, conv, instr_id, instr_call_id);
+        mark_arguments_with_regs(bb.instrs, cc, instr_id, instr_call_id);
         size_t instr_ret_id = instr_call_id + 1;
         for (; instr_ret_id < n_instrs; instr_ret_id++) {
           if (bb.instrs[instr_ret_id].is(GBaseSubtype::ret_setup)) {
             continue;
           }
-          mark_returns_with_regs(bb.instrs, conv, instr_call_id + 1,
+          mark_returns_with_regs(bb.instrs, cc, instr_call_id + 1,
                                  instr_ret_id);
           break;
         }
@@ -333,30 +332,69 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
   }
 
   // save all potential va args from registers into the register_save_area
+  ;
+  ASSERT((!func.variadic || cc.var_arg.needs_register_save_area !=
+                                CallingConvDefinition::Req::Required) ||
+         func.needs_register_save_area);
+  u32 size_register_save_area = 0;
   if (func.needs_register_save_area) {
-    TODO("impl register save area");
-    std::pair<VReg, u32> arg_int_regs[6] = {
-        {VReg::RDI(), 0},  {VReg::RSI(), 8}, {VReg::RDX(), 16},
-        {VReg::RCX(), 24}, {VReg::R8(), 32}, {VReg::R9(), 40},
-    };
-    std::pair<VReg, u32> arg_xmm_regs[8] = {
-        {VReg{CReg::mm0, Type::Float64}, 48},
-        {VReg{CReg::mm1, Type::Float64}, 64},
-        {VReg{CReg::mm2, Type::Float64}, 80},
-        {VReg{CReg::mm3, Type::Float64}, 96},
-        {VReg{CReg::mm4, Type::Float64}, 112},
-        {VReg{CReg::mm5, Type::Float64}, 128},
-        {VReg{CReg::mm6, Type::Float64}, 144},
-        {VReg{CReg::mm7, Type::Float64}, 160},
-        // {VReg{CReg::mm8, Type::Float64}, 176},
-        // {VReg{CReg::mm9, Type::Float64}, 192},
-        // {VReg{CReg::mm10, Type::Float64}, 208},
-        // {VReg{CReg::mm11, Type::Float64}, 224},
-        // {VReg{CReg::mm12, Type::Float64}, 240},
-        // {VReg{CReg::mm13, Type::Float64}, 256},
-        // {VReg{CReg::mm14, Type::Float64}, 272},
-        // {VReg{CReg::mm15, Type::Float64}, 288},
-    };
+    ASSERT(cc.var_arg.needs_register_save_area >=
+           CallingConvDefinition::Req::Supported);
+    u32 offset = 0;
+    TVec<std::pair<VReg, u32>> arg_int_regs;
+    TVec<std::pair<VReg, u32>> arg_xmm_regs;
+    for (auto gpr_arg : cc.args.gpr) {
+      arg_int_regs.emplace_back(VReg{gpr_arg, Type::Int64}, offset);
+      offset += 8;
+    }
+    // std::pair<VReg, u32> arg_int_regs[6] = {
+    //     {VReg::RDI(), 0},  {VReg::RSI(), 8}, {VReg::RDX(), 16},
+    //     {VReg::RCX(), 24}, {VReg::R8(), 32}, {VReg::R9(), 40},
+    // };
+    for (auto fvr_arg : cc.args.fvr) {
+      Type storetype = Type::INVALID;
+      switch (cc.var_arg.max_size_fvr_arg) {
+      case 0:
+        continue;
+      case 4:
+        storetype = Type::Float32;
+        break;
+      case 8:
+        storetype = Type::Float64;
+        break;
+      case 16:
+        storetype = Type::Float64x2;
+        break;
+      case 32:
+        storetype = Type::Float64x4;
+        break;
+      case 64:
+        storetype = Type::Float64x8;
+        break;
+      default:
+        UNREACH();
+      }
+      arg_xmm_regs.emplace_back(VReg{fvr_arg, storetype}, offset);
+      offset += cc.var_arg.max_size_fvr_arg;
+    }
+    // std::pair<VReg, u32> arg_xmm_regs[8] = {
+    //     {VReg{CReg::mm0, Type::Float64}, 48},
+    //     {VReg{CReg::mm1, Type::Float64}, 64},
+    //     {VReg{CReg::mm2, Type::Float64}, 72},
+    //     {VReg{CReg::mm3, Type::Float64}, 80},
+    //     {VReg{CReg::mm4, Type::Float64}, 88},
+    //     {VReg{CReg::mm5, Type::Float64}, 96},
+    //     {VReg{CReg::mm6, Type::Float64}, 104},
+    //     {VReg{CReg::mm7, Type::Float64}, 112},
+    //     // {VReg{CReg::mm8, Type::Float64}, 120},
+    //     // {VReg{CReg::mm9, Type::Float64}, 128},
+    //     // {VReg{CReg::mm10, Type::Float64}, 136},
+    //     // {VReg{CReg::mm11, Type::Float64}, 144},
+    //     // {VReg{CReg::mm12, Type::Float64}, 152},
+    //     // {VReg{CReg::mm13, Type::Float64}, 160},
+    //     // {VReg{CReg::mm14, Type::Float64}, 168},
+    //     // {VReg{CReg::mm15, Type::Float64}, 176},
+    // };
 
     for (auto [reg, offset] : arg_int_regs) {
       first_bb.instrs.insert(first_bb.instrs.begin() + 0,
@@ -378,15 +416,17 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
                                                      VReg::RSP(), Type::Int64),
                                     MArgument{reg, reg.ty}});
     }
+    size_register_save_area = offset;
     first_bb.instrs.insert(first_bb.instrs.begin() + 0,
                            MInstr{GArithSubtype::sub2,
                                   MArgument{VReg::RSP(), Type::Int64},
-                                  MArgument{176U}});
+                                  MArgument{size_register_save_area}});
   }
   // after we push poped stuff to save em we then need to updated our stack
   // arguments so we actually use the right offsets.
-  u32 additional_offset = (8 * (2 + n_regs_saved)) + additional_align_off +
-                          (func.needs_register_save_area ? 176 : 0);
+  u32 additional_offset =
+      (8 * (2 + n_regs_saved)) + additional_align_off +
+      (func.needs_register_save_area ? size_register_save_area : 0);
   // NOTE: Assuming we got a full pro/epilogue because we reference SP
 
   for (auto &instr : first_bb.instrs) {
@@ -429,7 +469,7 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
       func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
                                     MInstr{GArithSubtype::add2,
                                            MArgument{VReg::RSP(), Type::Int64},
-                                           MArgument{176U}});
+                                           MArgument{size_register_save_area}});
     }
   }
 }
@@ -678,13 +718,13 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
     case Type::Int16:
     case Type::Int32:
     case Type::Int64:
-      out_instrs.insert(out_instrs.begin() + cinfo.start_id,
-                        {
-                            GBaseSubtype::mov,
-                            ret.args[0],
-                            ret.args[1],
-                        });
-      break;
+      // out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
+      //                   {
+      //                       GBaseSubtype::mov,
+      //                       ret.args[0],
+      //                       ret.args[1],
+      //                   });
+      // break;
     case Type::Float32:
     case Type::Float64:
     case Type::Float32x2:
@@ -700,7 +740,7 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
     case Type::Float64x8:
     case Type::Int32x16:
     case Type::Int64x8:
-      out_instrs.insert(out_instrs.begin() + cinfo.start_id,
+      out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
                         {
                             GBaseSubtype::mov,
                             ret.args[0],
@@ -752,7 +792,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
       }
       if (!collision) {
         generate_arg(output_vec, cinfo.args[arg_id], cinfo.cc, arg_pos[arg_id]);
-        worklist.erase(worklist.begin() + curr_work_item);
+        worklist.erase(worklist.begin() + static_cast<i64>(curr_work_item));
         found_one = true;
         break;
       }
@@ -786,8 +826,8 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
       UNREACH();
     }
   }
-  out_instrs.insert(out_instrs.begin() + cinfo.start_id, output_vec.begin(),
-                    output_vec.end());
+  out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
+                    output_vec.begin(), output_vec.end());
 }
 
 void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,

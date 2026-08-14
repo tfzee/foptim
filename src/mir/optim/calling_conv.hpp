@@ -18,8 +18,8 @@ struct CallingConvDefinition {
     Required = 2,
   };
   struct Args {
-    FVec<fmir::CReg> gpr = {};
-    FVec<fmir::CReg> fvr = {};
+    FVec<fmir::CReg> gpr;
+    FVec<fmir::CReg> fvr;
     bool caller_cleanup = true;
     bool allows_stack_args = true;
     // TODO: assumes size of 8
@@ -27,8 +27,8 @@ struct CallingConvDefinition {
     //  .stack_arg_max_size = 8,
   } args;
   struct Ret {
-    SmallFVec<fmir::CReg, 4> gpr = {};
-    SmallFVec<fmir::CReg, 4> fvr = {};
+    SmallFVec<fmir::CReg, 4> gpr;
+    SmallFVec<fmir::CReg, 4> fvr;
     u64 max_ret_regs;
     enum RetConv {
       // only gpr/fvr returns no mixing
@@ -43,8 +43,8 @@ struct CallingConvDefinition {
   } rets;
 
   // caller saved *must* contain all arguments and return regs aswell
-  FVec<fmir::CReg> caller_saved = {};
-  FVec<fmir::CReg> callee_saved = {};
+  FVec<fmir::CReg> caller_saved;
+  FVec<fmir::CReg> callee_saved;
 
   Req full_pro_epilogue = Req::Supported;
   // bool requires_red_zone;
@@ -59,13 +59,15 @@ struct CallingConvDefinition {
   // jmp func
   // ret link_reg
   // in my testing up to 2x for basic test
-  std::optional<fmir::CReg> link_reg = {};
+  std::optional<fmir::CReg> link_reg = std::nullopt;
 
   struct VarArg {
-    Req supported;
-    Req needs_register_save_area;
-    std::optional<fmir::CReg> n_gpr_regs_stor = {};
-    std::optional<fmir::CReg> n_fvr_regs_stor = {};
+    Req supported = Req::Supported;
+    Req needs_register_save_area = Req::Supported;
+    // required for the register saving area should be one of 0,4,8,16,32,64
+    u8 max_size_fvr_arg = 16;
+    std::optional<fmir::CReg> n_gpr_regs_stor = std::nullopt;
+    std::optional<fmir::CReg> n_fvr_regs_stor = {CReg::A};
   } var_arg;
 };
 
@@ -111,23 +113,26 @@ const CallingConvDefinition CCallHelper = {
             CReg::SP,
             CReg::BP,
         },
-    .align = {CallingConvDefinition::Req::Required, 16},
+    .align = {.alignment = CallingConvDefinition::Req::Required,
+              .alignment_value = 16},
     .link_reg = std::nullopt,
-    .var_arg = {CallingConvDefinition::Req::Supported,
-                CallingConvDefinition::Req::Supported,
-                std::nullopt,
-                {CReg::A}},
+    .var_arg = {.supported = CallingConvDefinition::Req::Supported,
+                .needs_register_save_area =
+                    CallingConvDefinition::Req::Supported,
+                .max_size_fvr_arg = 16,
+                .n_gpr_regs_stor = std::nullopt,
+                .n_fvr_regs_stor = {CReg::A}},
 };
 class CallingConvImpl {
 public:
   // run before final  register alloc
   // sets up argument loading
-  void first_stage(MFunc &func, const CallingConvDefinition &conv,
+  void first_stage(MFunc &func, const CallingConvDefinition &cc,
                    const conf::CompConf &);
 
   // run after final register alloc
   // lowers the invokes to calls and sets up their arguments
-  void second_stage(MFunc &func, const CallingConvDefinition &conv,
+  void second_stage(MFunc &func, const CallingConvDefinition &cc,
                     const conf::CompConf &);
 };
 
