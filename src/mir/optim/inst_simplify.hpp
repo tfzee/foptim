@@ -6,7 +6,7 @@
 namespace foptim::fmir {
 
 class InstSimplifyImpl {
- public:
+public:
   void impl_apply(MFunc &funcs);
   // void apply(FVec<MFunc> &funcs);
   void impl_early(MFunc &funcs);
@@ -14,17 +14,17 @@ class InstSimplifyImpl {
 };
 
 class InstSimplifyEarly : public FunctionPass, InstSimplifyImpl {
- public:
-  void apply(MFunc &func, const conf::CompConf &) final override {
+public:
+  void apply(MFunc &func, const conf::CompConf & /*config*/) final {
     impl_early(func);
   }
 };
 
 class InstSimplify : public FunctionPass, InstSimplifyImpl {
- public:
-  void apply(MFunc &func, const conf::CompConf &) final override {
+public:
+  void apply(MFunc &func, const conf::CompConf & /*config*/) final {
     impl_apply(func);
   }
 };
 
-}  // namespace foptim::fmir
+} // namespace foptim::fmir
