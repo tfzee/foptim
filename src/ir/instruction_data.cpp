@@ -287,6 +287,7 @@ bool InstrData::is_commutative() const {
     case BinaryInstrSubType::FloatAdd:
     case BinaryInstrSubType::FloatMul:
       return true;
+    case BinaryInstrSubType::PtrAdd:
     case BinaryInstrSubType::IntSub:
     case BinaryInstrSubType::IntSRem:
     case BinaryInstrSubType::IntURem:

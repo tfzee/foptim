@@ -161,7 +161,6 @@ add_library (foptim OBJECT
                 ./src/third_party/Zydis.c
 
                 #utils
-                ./src/utils/parameters.cpp
                 ./src/utils/job_system.cpp
                 ./src/utils/arena.cpp
 

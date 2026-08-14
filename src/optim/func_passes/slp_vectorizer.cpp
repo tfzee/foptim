@@ -57,7 +57,9 @@ public:
     return true;
   }
 
-  [[nodiscard]] i64 cost(const conf::CompConf &) const final { return -1; }
+  [[nodiscard]] i64 cost(const conf::CompConf & /*unused*/) const final {
+    return -1;
+  }
 
   fir::ValueR generate(fir::Context &ctx,
                        SLPVectorizer::SeedBundle & /*orig_bundle*/) final {
@@ -82,7 +84,7 @@ public:
     fmt::print(")\n");
   }
 
-  i64 cost(const conf::CompConf &conf) const final {
+  [[nodiscard]] i64 cost(const conf::CompConf &conf) const final {
     return children.at(0)->cost(conf) + -(n_lanes / 2);
   }
 
@@ -158,7 +160,7 @@ public:
     children.at(0)->dump();
   }
 
-  i64 cost(const conf::CompConf &conf) const final {
+  [[nodiscard]] i64 cost(const conf::CompConf &conf) const final {
     auto cost =
         children.at(0)->cost(conf) + children.at(1)->cost(conf) + n_lanes;
     if (binary_op == fir::BinaryInstrSubType::IntMul &&
@@ -225,6 +227,7 @@ public:
     switch (static_cast<fir::BinaryInstrSubType>(base_v->subtype)) {
     case fir::BinaryInstrSubType::FloatAdd:
     case fir::BinaryInstrSubType::IntAdd:
+    case fir::BinaryInstrSubType::PtrAdd:
     case fir::BinaryInstrSubType::Shl:
     case fir::BinaryInstrSubType::IntSub:
     case fir::BinaryInstrSubType::Xor:
@@ -517,7 +520,9 @@ public:
     return this;
   }
 
-  [[nodiscard]] i64 cost(const conf::CompConf &) const final { return -2; }
+  [[nodiscard]] i64 cost(const conf::CompConf & /*unused*/) const final {
+    return -2;
+  }
 
   static bool match(const TVec<fir::ValueR> &values) {
     auto base_v = values.back().as_instr();
@@ -723,7 +728,7 @@ public:
     fmt::print(">");
   }
 
-  [[nodiscard]] i64 cost(const conf::CompConf &) const final {
+  [[nodiscard]] i64 cost(const conf::CompConf & /*unused*/) const final {
     return static_cast<i64>(n_lanes) * 1;
   }
 
@@ -788,7 +793,7 @@ public:
     fmt::print(")");
   }
 
-  i64 cost(const conf::CompConf &) const final {
+  [[nodiscard]] i64 cost(const conf::CompConf & /*unused*/) const final {
     // TODO switch on type of cast
     return 1;
   }
@@ -859,7 +864,7 @@ public:
     fmt::print(")");
   }
 
-  i64 cost(const conf::CompConf &) const final {
+  [[nodiscard]] i64 cost(const conf::CompConf & /*unused*/) const final {
     // TODO switch on type of cast
     return 1;
   }
@@ -1125,6 +1130,7 @@ bool SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
             switch (result_t->binary_op) {
             case fir::BinaryInstrSubType::FloatAdd:
             case fir::BinaryInstrSubType::IntAdd:
+            case fir::BinaryInstrSubType::PtrAdd:
             case fir::BinaryInstrSubType::Shl:
             case fir::BinaryInstrSubType::IntSub:
             case fir::BinaryInstrSubType::Xor:
@@ -1627,8 +1633,7 @@ SLPVectorizer::find_reduction(fir::BasicBlock bb, size_t instr_id,
   if (!base_instr->is(fir::InstrType::BinaryInstr)) {
     return {};
   }
-  fir::BinaryInstrSubType binsub =
-      static_cast<fir::BinaryInstrSubType>(subtype);
+  auto binsub = static_cast<fir::BinaryInstrSubType>(subtype);
   bool isProd = binsub == fir::BinaryInstrSubType::FloatMul ||
                 binsub == fir::BinaryInstrSubType::IntMul;
   bool isSum = binsub == fir::BinaryInstrSubType::FloatAdd ||
@@ -1824,34 +1829,36 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
         } else if (n_load > 2) {
           b.data.resize(2);
         } else {
-          reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+          reduction_bundles.erase(reduction_bundles.begin() +
+                                  static_cast<i64>(bi) - 1);
           continue;
         }
       }
       if (b.type->get_size() == 1 &&
           (n_load % 8 != 0 && n_load % 16 != 0 && n_load % 32 != 0)) {
-        reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+        reduction_bundles.erase(reduction_bundles.begin() +
+                                static_cast<i64>(bi) - 1);
         continue;
       }
       if (b.type->get_size() == 2 && (n_load % 8 != 0 && n_load % 16 != 0)) {
-        reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+        reduction_bundles.erase(reduction_bundles.begin() +
+                                static_cast<i64>(bi) - 1);
         continue;
       }
       if (b.type->get_size() == 4 && (n_load % 4 != 0 && n_load % 8 != 0)) {
-        reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+        reduction_bundles.erase(reduction_bundles.begin() +
+                                static_cast<i64>(bi) - 1);
         continue;
       }
       if (b.type->get_size() == 8 && (n_load % 2 != 0 && n_load % 4 != 0)) {
-        reduction_bundles.erase(reduction_bundles.begin() + bi - 1);
+        reduction_bundles.erase(reduction_bundles.begin() +
+                                static_cast<i64>(bi) - 1);
         continue;
       }
 
       // TODO disable them for now
-      if (b.type->get_size() == 1) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
-        continue;
-      } else if (b.type->get_size() == 2) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
+      if (b.type->get_size() == 1 || b.type->get_size() == 2) {
+        store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
         continue;
       }
 
@@ -1888,7 +1895,7 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
         } else if (n_stor > 2) {
           b.data.resize(2);
         } else {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
+          store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
           continue;
         }
       }
@@ -1926,25 +1933,17 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
       (void)overall_width;
 
       // TODO disable them for now
-      if (b.type->get_size() == 1) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
-        continue;
-      } else if (b.type->get_size() == 2) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
+      if (b.type->get_size() == 1 || b.type->get_size() == 2) {
+        store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
         continue;
       }
+      auto c1 = b.type->get_size() == 1 && n_stor < 16;
+      auto c2 = b.type->get_size() == 2 && n_stor < 8;
+      auto c3 = b.type->get_size() == 4 && n_stor < 4;
+      auto c4 = b.type->get_size() == 8 && n_stor < 2;
 
-      if (b.type->get_size() == 1 && n_stor < 16) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
-        continue;
-      } else if (b.type->get_size() == 2 && n_stor < 8) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
-        continue;
-      } else if (b.type->get_size() == 4 && n_stor < 4) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
-        continue;
-      } else if (b.type->get_size() == 8 && n_stor < 2) {
-        store_bundles.erase(store_bundles.begin() + bi - 1);
+      if (c1 || c2 || c3 || c4) {
+        store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
         continue;
       }
 
@@ -1979,7 +1978,7 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
           offsets.push_back(consti);
         }
         if (failed) {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
+          store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
           continue;
         }
 
@@ -1991,7 +1990,7 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
           }
         }
         if (failed) {
-          store_bundles.erase(store_bundles.begin() + bi - 1);
+          store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
           continue;
         }
       }

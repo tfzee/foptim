@@ -29,6 +29,18 @@ struct Target {
   } features;
 };
 
+struct Input {
+  // empty = piped in i guess
+  IRString in_file;
+};
+
+struct Output {
+  enum class OutputType : u8 { Object, Assembly };
+  OutputType type = OutputType::Object;
+  // empty = stdout
+  IRString out_file;
+};
+
 struct PassConfig;
 struct PassRef : utils::SRef<PassConfig *> {};
 struct Pipeline;
@@ -107,15 +119,20 @@ struct Debug {
   bool verify_between_passes;
   bool time_passes;
   bool print_color;
+  u8 verbosity;
 };
 
 struct Remarks {};
 
 struct CompConf {
   Target target;
+  Input input;
+  Output output;
   Debug debug;
   Optimize optim;
   Remarks remarks;
+
+  u8 number_worker_threads = 0;
 
   utils::StableVec<Pipeline> mir_pipelines;
   utils::StableVec<Pipeline> fir_pipelines;

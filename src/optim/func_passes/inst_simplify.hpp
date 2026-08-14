@@ -12,7 +12,7 @@ namespace foptim::optim {
 constexpr bool TRACY_DEBUG_INST_SIMPLIFY = false;
 
 class InstSimplify final : public FunctionPass {
- public:
+public:
   struct WorkItem {
     fir::Instr instr;
     fir::BasicBlock b;
@@ -36,150 +36,148 @@ bool try_constant_eval_binary(fir::Instr instr,
                               fir::BinaryInstrSubType sub_type, T a, T b,
                               fir::TypeR type, fir::Context &ctx) {
   switch (sub_type) {
-    case fir::BinaryInstrSubType::FloatAdd:
-    case fir::BinaryInstrSubType::IntAdd:
+  case fir::BinaryInstrSubType::FloatAdd:
+  case fir::BinaryInstrSubType::IntAdd:
+  case fir::BinaryInstrSubType::PtrAdd:
+    instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(a + b, type)));
+    return true;
+  case fir::BinaryInstrSubType::IntMul:
+  case fir::BinaryInstrSubType::FloatMul:
+    instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(a * b, type)));
+    return true;
+  case fir::BinaryInstrSubType::FloatSub:
+  case fir::BinaryInstrSubType::IntSub:
+    instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(a - b, type)));
+    return true;
+  case fir::BinaryInstrSubType::FloatDiv:
+    if (b == 0) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
+    } else {
       instr->replace_all_uses(
-          fir::ValueR(ctx->get_constant_value(a + b, type)));
-      return true;
-    case fir::BinaryInstrSubType::IntMul:
-    case fir::BinaryInstrSubType::FloatMul:
+          fir::ValueR(ctx->get_constant_value(a / b, type)));
+    }
+    return true;
+  case fir::BinaryInstrSubType::IntSDiv:
+    if (b == 0) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
+    } else {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          static_cast<i64>(a) / static_cast<i64>(b), type)));
+    }
+    return true;
+  case fir::BinaryInstrSubType::IntUDiv:
+    if (b == 0) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
+    } else {
       instr->replace_all_uses(
-          fir::ValueR(ctx->get_constant_value(a * b, type)));
-      return true;
-    case fir::BinaryInstrSubType::FloatSub:
-    case fir::BinaryInstrSubType::IntSub:
+          fir::ValueR(ctx->get_constant_value(a / b, type)));
+    }
+    return true;
+  case fir::BinaryInstrSubType::Or:
+    if constexpr (std::is_integral_v<T>) {
       instr->replace_all_uses(
-          fir::ValueR(ctx->get_constant_value(a - b, type)));
+          fir::ValueR(ctx->get_constant_value(a | b, type)));
       return true;
-    case fir::BinaryInstrSubType::FloatDiv:
-      if (b == 0) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
-      } else {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(a / b, type)));
-      }
+    } else if constexpr (std::is_same_v<T, float>) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          std::bit_cast<f32>(std::bit_cast<u32>(a) | std::bit_cast<u32>(b)),
+          type)));
       return true;
-    case fir::BinaryInstrSubType::IntSDiv:
-      if (b == 0) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
-      } else {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            static_cast<i64>(a) / static_cast<i64>(b), type)));
-      }
+    } else if constexpr (std::is_same_v<T, double>) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          std::bit_cast<f64>(std::bit_cast<u64>(a) | std::bit_cast<u64>(b)),
+          type)));
       return true;
-    case fir::BinaryInstrSubType::IntUDiv:
-      if (b == 0) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_poisson_value(type)));
-      } else {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(a / b, type)));
-      }
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::And:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a & b, type)));
       return true;
-    case fir::BinaryInstrSubType::Or:
-      if constexpr (std::is_integral_v<T>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(a | b, type)));
-        return true;
-      } else if constexpr (std::is_same_v<T, float>) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            std::bit_cast<f32>(std::bit_cast<u32>(a) | std::bit_cast<u32>(b)),
-            type)));
-        return true;
-      } else if constexpr (std::is_same_v<T, double>) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            std::bit_cast<f64>(std::bit_cast<u64>(a) | std::bit_cast<u64>(b)),
-            type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::And:
-      if constexpr (std::is_integral_v<T>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(a & b, type)));
-        return true;
-      } else if constexpr (std::is_same_v<T, float>) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            std::bit_cast<f32>(std::bit_cast<u32>(a) & std::bit_cast<u32>(b)),
-            type)));
-        return true;
-      } else if constexpr (std::is_same_v<T, double>) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            std::bit_cast<f64>(std::bit_cast<u64>(a) & std::bit_cast<u64>(b)),
-            type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::Xor:
-      if constexpr (std::is_integral_v<T>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(a ^ b, type)));
-        return true;
-      } else if constexpr (std::is_same_v<T, float>) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            std::bit_cast<f32>(std::bit_cast<u32>(a) ^ std::bit_cast<u32>(b)),
-            type)));
-        return true;
-      } else if constexpr (std::is_same_v<T, double>) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            std::bit_cast<f64>(std::bit_cast<u64>(a) ^ std::bit_cast<u64>(b)),
-            type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::IntSRem:
-      if constexpr (std::is_integral_v<T>) {
-        auto width = type->get_bitwidth();
-        auto invwidth = (128 + 1 - width);
-        auto extended_a = ((static_cast<i128>(a) << invwidth) >> invwidth);
-        auto extended_b = ((static_cast<i128>(b) << invwidth) >> invwidth);
-        instr->replace_all_uses(fir::ValueR(
-            ctx->get_constant_value(extended_a % extended_b, type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::IntURem:
-      if constexpr (std::is_integral_v<T>) {
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            static_cast<i128>(static_cast<u128>(a) % static_cast<u128>(b)),
-            type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::Shl:
-      if constexpr (std::is_integral_v<T>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(a << b, type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::Shr:
-      if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(a >> b, type)));
-        return true;
-      } else if constexpr (std::is_integral_v<T>) {
-        using unsigned_ty = std::make_unsigned_t<T>;
-        instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-            std::bit_cast<T>(std::bit_cast<unsigned_ty>(a)) >>
-                std::bit_cast<T>(std::bit_cast<unsigned_ty>(b)),
-            type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::AShr:
-      if constexpr (std::is_integral_v<T>) {
-        auto width = type->get_bitwidth();
-        auto invwidth = (128 + 1 - width);
-        auto extended_a = ((a << invwidth) >> invwidth);
-        instr->replace_all_uses(
-            fir::ValueR(ctx->get_constant_value(extended_a >> b, type)));
-        return true;
-      }
-      TODO("impl");
-    case fir::BinaryInstrSubType::INVALID:
-      return false;
+    } else if constexpr (std::is_same_v<T, float>) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          std::bit_cast<f32>(std::bit_cast<u32>(a) & std::bit_cast<u32>(b)),
+          type)));
+      return true;
+    } else if constexpr (std::is_same_v<T, double>) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          std::bit_cast<f64>(std::bit_cast<u64>(a) & std::bit_cast<u64>(b)),
+          type)));
+      return true;
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::Xor:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a ^ b, type)));
+      return true;
+    } else if constexpr (std::is_same_v<T, float>) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          std::bit_cast<f32>(std::bit_cast<u32>(a) ^ std::bit_cast<u32>(b)),
+          type)));
+      return true;
+    } else if constexpr (std::is_same_v<T, double>) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          std::bit_cast<f64>(std::bit_cast<u64>(a) ^ std::bit_cast<u64>(b)),
+          type)));
+      return true;
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::IntSRem:
+    if constexpr (std::is_integral_v<T>) {
+      auto width = type->get_bitwidth();
+      auto invwidth = (128 + 1 - width);
+      auto extended_a = ((static_cast<i128>(a) << invwidth) >> invwidth);
+      auto extended_b = ((static_cast<i128>(b) << invwidth) >> invwidth);
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(extended_a % extended_b, type)));
+      return true;
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::IntURem:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          static_cast<i128>(static_cast<u128>(a) % static_cast<u128>(b)),
+          type)));
+      return true;
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::Shl:
+    if constexpr (std::is_integral_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a << b, type)));
+      return true;
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::Shr:
+    if constexpr (std::is_integral_v<T> && std::is_unsigned_v<T>) {
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(a >> b, type)));
+      return true;
+    } else if constexpr (std::is_integral_v<T>) {
+      using unsigned_ty = std::make_unsigned_t<T>;
+      instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
+          std::bit_cast<T>(std::bit_cast<unsigned_ty>(a)) >>
+              std::bit_cast<T>(std::bit_cast<unsigned_ty>(b)),
+          type)));
+      return true;
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::AShr:
+    if constexpr (std::is_integral_v<T>) {
+      auto width = type->get_bitwidth();
+      auto invwidth = (128 + 1 - width);
+      auto extended_a = ((a << invwidth) >> invwidth);
+      instr->replace_all_uses(
+          fir::ValueR(ctx->get_constant_value(extended_a >> b, type)));
+      return true;
+    }
+    TODO("impl");
+  case fir::BinaryInstrSubType::INVALID:
+    return false;
   }
 }
 
-}  // namespace InstSimp
-}  // namespace foptim::optim
+} // namespace InstSimp
+} // namespace foptim::optim

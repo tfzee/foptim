@@ -8,7 +8,6 @@
 #include "optim/analysis/AnalysisManager.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
-#include "utils/parameters.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
@@ -156,7 +155,7 @@ class ParallelFunctionPassManager {
         pass->print_failures();
       }
     }
-    if (utils::number_worker_threads > 0) {
+    if (ctx.config->number_worker_threads > 0) {
       utils::TempAlloc<void *>::reset();
     }
   }
@@ -181,7 +180,7 @@ public:
     }
     shed->wait_till_done();
     ctx.data->storage.storage_instr.collect_garbage();
-    if (utils::number_worker_threads == 0) {
+    if (ctx.config->number_worker_threads == 0) {
       utils::TempAlloc<void *>::reset();
     }
   }

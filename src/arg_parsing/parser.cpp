@@ -8,7 +8,6 @@
 #include <string_view>
 
 #include "config/compiler_config.hpp"
-#include "utils/parameters.hpp"
 #include "utils/tracy.hpp"
 
 void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
@@ -40,15 +39,14 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
     std::exit(1);
   }
 
-  foptim::utils::number_worker_threads = program.get<int>("workers");
-  assert(foptim::utils::number_worker_threads >= 0 &&
-         foptim::utils::number_worker_threads <= 8 &&
-         "Invalid number of worker threads");
-  foptim::utils::verbosity =
-      static_cast<foptim::u8>(program.get<int>("verbosity"));
-  foptim::utils::in_file_path = program.get<std::string>("input");
-  foptim::utils::out_file_path = program.get<std::string>("output");
-
   fmt::println("Using config '{}'", config);
   ASSERT(conf.parse(config));
+
+  conf.number_worker_threads = program.get<int>("workers");
+  assert(conf.number_worker_threads >= 0 && conf.number_worker_threads <= 8 &&
+         "Invalid number of worker threads");
+  conf.debug.verbosity = static_cast<foptim::u8>(program.get<int>("verbosity"));
+  conf.input.in_file = program.get<std::string>("input");
+  conf.output.out_file = program.get<std::string>("output");
+
 }

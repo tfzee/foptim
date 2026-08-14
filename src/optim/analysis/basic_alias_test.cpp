@@ -34,8 +34,10 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     if (i->is(fir::InstrType::SelectInstr)) {
       auto a = analyze(i->args[1]);
       auto b = analyze(i->args[2]);
-      if (a.heap == 0) return {.heap = b.heap, .offset = {}};
-      if (b.heap == 0) return {.heap = a.heap, .offset = {}};
+      if (a.heap == 0)
+        return {.heap = b.heap, .offset = {}};
+      if (b.heap == 0)
+        return {.heap = a.heap, .offset = {}};
       return {.heap = meet(a.heap, b.heap), .offset = {}};
     }
     if (i->is(fir::InstrType::LoadInstr)) {
@@ -64,8 +66,8 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
     }
     if (i->is(fir::InstrType::BinaryInstr)) {
       auto a = analyze(i->args[0]);
-      if (i->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
-          i->args[1].is_constant() && i->args[1].as_constant()->is_int()) {
+      if (i->is(fir::BinaryInstrSubType::PtrAdd) && i->args[1].is_constant() &&
+          i->args[1].as_constant()->is_int()) {
         u32 new_offset = i->args[1].as_constant()->as_int();
         if (a.offset.has_value()) {
           new_offset = a.offset.value() + new_offset;
@@ -102,4 +104,4 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
   TODO("okak");
 }
 
-}  // namespace foptim::optim
+} // namespace foptim::optim

@@ -342,8 +342,8 @@ void memory_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
-  auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         static_cast<u32>(fir::BinaryInstrSubType::IntAdd)};
+  auto PtrAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         static_cast<u32>(fir::BinaryInstrSubType::PtrAdd)};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          static_cast<u32>(fir::BinaryInstrSubType::IntMul)};
   auto StoreNode = Node{NodeType::Instr, InstrType::StoreInstr, 0};
@@ -389,7 +389,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
   //     }});
   //
   pats.push_back(Pattern{
-      .nodes = {IntMulNode, IntAddNode, LoadNode},
+      .nodes = {IntMulNode, PtrAddNode, LoadNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 1},
                 {.from_instr = 1, .to_instr = 2, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
@@ -449,8 +449,9 @@ void memory_patterns(IRVec<Pattern> &pats) {
         if (add_instr->args[0].is_constant_global()) {
           res.result.emplace_back(
               GBaseSubtype::mov, res_reg,
-              MArgument::MemLIS(add_instr->args[0].as_constant()->as_global()->name.c_str(),
-                                indx.reg, consti_val, load_ty));
+              MArgument::MemLIS(
+                  add_instr->args[0].as_constant()->as_global()->name.c_str(),
+                  indx.reg, consti_val, load_ty));
         }
         res.result.emplace_back(
             GBaseSubtype::mov, res_reg,
@@ -458,7 +459,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {IntMulNode, IntAddNode, StoreNode},
+      .nodes = {IntMulNode, PtrAddNode, StoreNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 1},
                 {.from_instr = 1, .to_instr = 2, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
@@ -523,7 +524,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {IntAddNode, IntAddNode, LoadNode},
+      .nodes = {PtrAddNode, PtrAddNode, LoadNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0},
                 {.from_instr = 1, .to_instr = 2, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
@@ -569,7 +570,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {IntAddNode, LoadNode},
+      .nodes = {PtrAddNode, LoadNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         ASSERT(res.matched_instrs[0].is_valid());
@@ -598,9 +599,10 @@ void memory_patterns(IRVec<Pattern> &pats) {
             auto repl = valueToArgPtr(add_instr->args[1], Type::Int64,
                                       res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
-            res.result.emplace_back(
-                GBaseSubtype::mov, res_reg,
-                MArgument::MemLO(repl.label, a0.imm, load_ty));
+            res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                                    MArgument::MemLO(repl.label,
+                                                     std::bit_cast<i64>(a0.imm),
+                                                     load_ty));
             return true;
           }
         }
@@ -611,9 +613,10 @@ void memory_patterns(IRVec<Pattern> &pats) {
             auto repl = valueToArgPtr(add_instr->args[0], Type::Int64,
                                       res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
-            res.result.emplace_back(
-                GBaseSubtype::mov, res_reg,
-                MArgument::MemLO(repl.label, a1.imm, load_ty));
+            res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                                    MArgument::MemLO(repl.label,
+                                                     std::bit_cast<i64>(a0.imm),
+                                                     load_ty));
             return true;
           }
         }
@@ -646,7 +649,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {IntAddNode, IntAddNode, StoreNode},
+      .nodes = {PtrAddNode, PtrAddNode, StoreNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 1},
                 {.from_instr = 1, .to_instr = 2, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
@@ -687,7 +690,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {IntAddNode, StoreNode},
+      .nodes = {PtrAddNode, StoreNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         ASSERT(res.matched_instrs[0].is_valid());
@@ -715,9 +718,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
             auto repl = valueToArgPtr(add_instr->args[1], Type::Int64,
                                       res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
-            res.result.emplace_back(
-                GBaseSubtype::mov,
-                MArgument::MemLO(repl.label, a0.imm, store_ty), value);
+            res.result.emplace_back(GBaseSubtype::mov,
+                                    MArgument::MemLO(repl.label,
+                                                     std::bit_cast<i64>(a0.imm),
+                                                     store_ty),
+                                    value);
             return true;
           }
           if (c1->is_int() && c1->as_int() < 0) {
@@ -732,9 +737,11 @@ void memory_patterns(IRVec<Pattern> &pats) {
             auto repl = valueToArgPtr(add_instr->args[0], Type::Int64,
                                       res.result, data.alloc);
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
-            res.result.emplace_back(
-                GBaseSubtype::mov,
-                MArgument::MemLO(repl.label, a1.imm, store_ty), value);
+            res.result.emplace_back(GBaseSubtype::mov,
+                                    MArgument::MemLO(repl.label,
+                                                     std::bit_cast<i64>(a1.imm),
+                                                     store_ty),
+                                    value);
             return true;
           }
         }
@@ -1185,8 +1192,9 @@ void arith_patterns(IRVec<Pattern> &pats) {
         if (add_instr->args[0].is_constant_global()) {
           res.result.emplace_back(
               GBaseSubtype::mov, res_reg,
-              MArgument::MemLIS(add_instr->args[0].as_constant()->as_global()->name.c_str(),
-                                indx_reg, consti_val, res_ty));
+              MArgument::MemLIS(
+                  add_instr->args[0].as_constant()->as_global()->name.c_str(),
+                  indx_reg, consti_val, res_ty));
         }
         res.result.emplace_back(
             X86Subtype::lea, res_reg,
@@ -1586,6 +1594,8 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
 
   auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          static_cast<u32>(fir::BinaryInstrSubType::IntAdd)};
+  auto PtrAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         static_cast<u32>(fir::BinaryInstrSubType::PtrAdd)};
   auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                          static_cast<u32>(fir::BinaryInstrSubType::IntSub)};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -1677,6 +1687,54 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
       }});
   pats.push_back(Pattern{
       .nodes = {IntAddNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto add_instr = res.matched_instrs[0];
+        auto res_reg =
+            valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+
+        auto res_ty = convert_type(add_instr.get_type());
+        if (res_ty >= Type::Float32) {
+          // int vector add has different 3 oeprand operation
+          auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
+          auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
+                                     add_instr->get_parent());
+          res.result.emplace_back(GVecSubtype::vadd, res_reg, a0, a1);
+          return true;
+        }
+
+        auto a0 = valueToArgPosMem(add_instr->args[0], res.result, data.alloc,
+                                   add_instr->get_parent());
+        if (res_reg.ty != a0.ty) {
+          if (a0.isMem()) {
+            a0.ty = res_reg.ty;
+          } else {
+            auto res_reg = data.alloc.get_new_register(res_ty);
+            auto helper_reg0 = MArgument(res_reg, res_ty);
+
+            res.result.emplace_back(GBaseSubtype::mov, helper_reg0, a0);
+            a0 = helper_reg0;
+          }
+        }
+
+        auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
+                                   add_instr->get_parent());
+        if (a1.isImm()) {
+          // then we gucci
+        } else if (res_reg.ty != a1.ty) {
+          auto res_reg = data.alloc.get_new_register(res_ty);
+          auto helper_reg1 = MArgument(res_reg, res_ty);
+
+          res.result.emplace_back(GBaseSubtype::mov, helper_reg1, a1);
+          a1 = helper_reg1;
+        }
+
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, a0);
+        res.result.emplace_back(GArithSubtype::add2, res_reg, a1);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {PtrAddNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto add_instr = res.matched_instrs[0];
@@ -3103,13 +3161,15 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         if (res_type->is_void()) {
           return true;
-        } else if (res_type->is_int() || res_type->is_ptr() ||
-                   res_type->is_float() || res_type->is_vec()) {
+        }
+        if (res_type->is_int() || res_type->is_ptr() || res_type->is_float() ||
+            res_type->is_vec()) {
           auto res_reg =
               valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
           res.result.emplace_back(GBaseSubtype::ret_setup, res_reg);
           return true;
-        } else if (res_type->is_struct()) {
+        }
+        if (res_type->is_struct()) {
           auto res_reg =
               valueToArgStruct(fir::ValueR(call_instr), res.result, data.alloc);
           res.result.emplace_back(GBaseSubtype::ret_setup, res_reg[0]);
@@ -3198,11 +3258,14 @@ void base_patterns(IRVec<Pattern> &pats) {
           auto get_xmm_version_ty = [](Type t) {
             if (t == Type::Float32) {
               return Type::Float32x4;
-            } else if (t == Type::Int32) {
+            }
+            if (t == Type::Int32) {
               return Type::Int32x4;
-            } else if (t == Type::Float64) {
+            }
+            if (t == Type::Float64) {
               return Type::Float64x2;
-            } else if (t == Type::Int64) {
+            }
+            if (t == Type::Int64) {
               return Type::Int64x2;
             }
             TODO("unreach?");

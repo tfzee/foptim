@@ -65,6 +65,7 @@ class Builder {
                          TypeR opt_type = TypeR{TypeR::invalid()});
   ValueR build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type);
   ValueR build_int_add(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
+  ValueR build_ptr_add(ValueR ptr, ValueR b, bool nuw = true, bool nsw = true);
   ValueR build_float_add(ValueR a, ValueR b);
   ValueR build_float_sub(ValueR a, ValueR b);
   ValueR build_float_mul(ValueR a, ValueR b);

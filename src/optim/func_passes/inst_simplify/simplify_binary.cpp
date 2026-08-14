@@ -86,7 +86,7 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
     for (size_t i0 = red_args.size(); i0 > 0; i0--) {
       for (size_t i1 = red_args.size(); i1 > i0; i1--) {
         if (red_args[i0 - 1] == red_args[i1 - 1]) {
-          red_args.erase(red_args.begin() + i1 - 1);
+          red_args.erase(red_args.begin() + static_cast<i64>(i1) - 1);
           n_dupls++;
           break;
         }
@@ -255,7 +255,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
   }
   if (instr->args[1].is_constant() &&
-      instr->args[0].get_type() != instr->args[1].get_type()) {
+      instr->args[0].get_type() != instr->args[1].get_type() && !instr->is(fir::BinaryInstrSubType::PtrAdd)) {
     auto t1 = instr->args[0].get_type();
     auto t2 = instr->args[1].get_type();
     // skip converting integer constants to ptr type instead extend to same
@@ -343,7 +343,9 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       }
     }
   }
-  if (instr->is(fir::BinaryInstrSubType::IntAdd) && instr->args[0].is_instr()) {
+  auto add_like = (instr->is(fir::BinaryInstrSubType::PtrAdd) ||
+                   instr->is(fir::BinaryInstrSubType::IntAdd));
+  if (add_like && instr->args[0].is_instr()) {
     auto inner = instr->args[0].as_instr();
     if (inner->is(fir::BinaryInstrSubType::IntAdd) &&
         inner->args[1] == instr->args[1]) {
@@ -1052,6 +1054,14 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         }
       }
     }
+    if (c_val->is_int() && instr->is(fir::BinaryInstrSubType::PtrAdd)) {
+      if (c_val->as_int() == 0) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(instr->args[v_idx]);
+        instr.destroy();
+        return true;
+      }
+    }
     if (c_val->is_int() && instr->is(fir::BinaryInstrSubType::IntAdd)) {
       if (c_val->as_int() == 0) {
         push_all_uses(worklist, instr);
@@ -1157,6 +1167,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       is_redundant1 = arg0_known->known_zero == ~0ULL;
       break;
     case fir::BinaryInstrSubType::INVALID:
+    case fir::BinaryInstrSubType::PtrAdd:
     case fir::BinaryInstrSubType::IntAdd:
     case fir::BinaryInstrSubType::IntSub:
     case fir::BinaryInstrSubType::IntMul:

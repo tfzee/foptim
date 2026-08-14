@@ -427,7 +427,7 @@ void convert_gep(const llvm::Instruction *any_instr,
       auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
                                        foptim::fir::ValueR(arg_mul_ptr_value),
                                        true, true);
-      result_value = builder.build_int_add(result_value, mul, true, true);
+      result_value = builder.build_ptr_add(result_value, mul, true, true);
     }
     for (const auto *index_it = gep_instr->indices().begin() + 1;
          index_it != gep_instr->indices().end(); index_it++) {
@@ -443,7 +443,7 @@ void convert_gep(const llvm::Instruction *any_instr,
                               ->getElementOffset(offset_struct);
         auto arg_offset_foptim =
             fctx->get_constant_int(arg_offset.getFixedValue(), 32);
-        result_value = builder.build_int_add(
+        result_value = builder.build_ptr_add(
             result_value, foptim::fir::ValueR{arg_offset_foptim}, true, true);
         indexed_type = struct_type->getElementType(offset_struct);
       } else if (indexed_type->isArrayTy()) { // index into array
@@ -460,7 +460,7 @@ void convert_gep(const llvm::Instruction *any_instr,
         auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
                                          foptim::fir::ValueR(arg_mul_ptr_value),
                                          true, true);
-        result_value = builder.build_int_add(result_value, mul, true, true);
+        result_value = builder.build_ptr_add(result_value, mul, true, true);
         indexed_type = array_type->getElementType();
       }
     }
@@ -474,7 +474,7 @@ void convert_gep(const llvm::Instruction *any_instr,
     auto arg_mul_value = fctx->get_constant_int(arg_mul.getFixedValue(), 32);
     auto mul = builder.build_int_mul(
         arg_foptim, foptim::fir::ValueR(arg_mul_value), true, true);
-    result_value = builder.build_int_add(result_value, mul, true, true);
+    result_value = builder.build_ptr_add(result_value, mul, true, true);
   }
 
   valueToValue.insert({any_instr, result_value});

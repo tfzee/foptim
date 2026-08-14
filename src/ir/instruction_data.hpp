@@ -168,6 +168,8 @@ enum class UnaryInstrSubType : u32 {
 
 enum class BinaryInstrSubType : u32 {
   INVALID = 0,
+  PtrAdd,
+
   IntAdd,
   IntSub,
   IntMul,
@@ -263,7 +265,7 @@ public:
       case AtomicRMWSubType::Xchg:
         return "AtomicRMW.Xchg";
       case AtomicRMWSubType::Or:
-        return "AtomicRMW.Xchg";
+        return "AtomicRMW.Or";
       }
     case InstrType::VectorInstr:
       switch (static_cast<VectorISubType>(subtype)) {
@@ -313,7 +315,7 @@ public:
       case IntrinsicSubType::FMax:
         return "INTRIN:FMax";
       case IntrinsicSubType::FRound:
-        return "INTRIN:FFloor";
+        return "INTRIN:FRound";
       case IntrinsicSubType::FFloor:
         return "INTRIN:FFloor";
       case IntrinsicSubType::FCeil:
@@ -344,6 +346,8 @@ public:
       switch (static_cast<BinaryInstrSubType>(subtype)) {
       case BinaryInstrSubType::INVALID:
         return "BINARYOP_INVALID";
+      case BinaryInstrSubType::PtrAdd:
+        return "PtrAdd";
       case BinaryInstrSubType::IntAdd:
         return "IntAdd";
       case BinaryInstrSubType::IntSub:

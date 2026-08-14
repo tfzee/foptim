@@ -398,6 +398,13 @@ public:
       const auto *b =
           m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
       if (instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd)) {
+        //pot use overlfow flags overfloa
+        auto res = computeForAddCarry(*a, *b, true, false);
+        new_known_one = res.known_one;
+        new_known_zero = res.known_zero;
+      } else if (instr->subtype ==
+                 static_cast<u32>(fir::BinaryInstrSubType::PtrAdd)) {
+        //KNOWN no overfloa
         auto res = computeForAddCarry(*a, *b, true, false);
         new_known_one = res.known_one;
         new_known_zero = res.known_zero;

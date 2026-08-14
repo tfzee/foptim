@@ -338,8 +338,9 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
         if (ptr_instr->args[offset_index].is_constant() &&
             ptr_instr->args[offset_index].as_constant()->is_int()) {
           auto value = ptr_instr->args[offset_index].as_constant()->as_int();
-          if (static_cast<fir::BinaryInstrSubType>(ptr_instr->subtype) ==
-              fir::BinaryInstrSubType::IntAdd) {
+          auto ty = static_cast<fir::BinaryInstrSubType>(ptr_instr->subtype);
+          if (ty == fir::BinaryInstrSubType::IntAdd ||
+              ty == fir::BinaryInstrSubType::PtrAdd) {
             offset += sub_offset + value;
           } else {
             TODO("IMPL");

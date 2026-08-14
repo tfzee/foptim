@@ -24,7 +24,7 @@ class SORA final : public FunctionPass {
                      .user = use}};
     case fir::InstrType::BinaryInstr:
       switch (static_cast<fir::BinaryInstrSubType>(use.user->subtype)) {
-      case fir::BinaryInstrSubType::IntAdd:
+      case fir::BinaryInstrSubType::PtrAdd:
         if (use.user->args[1].is_constant() &&
             use.user->args[1].as_constant()->is_int()) {
           TVec<UseRes> ress;

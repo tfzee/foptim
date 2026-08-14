@@ -48,6 +48,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
         case fir::BinaryInstrSubType::FloatAdd:
         case fir::BinaryInstrSubType::FloatMul:
+        case fir::BinaryInstrSubType::PtrAdd:
         case fir::BinaryInstrSubType::IntAdd:
         case fir::BinaryInstrSubType::IntSub:
         case fir::BinaryInstrSubType::IntMul:
@@ -59,7 +60,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         case fir::BinaryInstrSubType::Shl:
         case fir::BinaryInstrSubType::Shr:
         case fir::BinaryInstrSubType::AShr:
-          cost -= lanes;
+          cost -= static_cast<i64>(lanes);
           break;
         case fir::BinaryInstrSubType::INVALID:
         case fir::BinaryInstrSubType::IntSRem:
@@ -91,7 +92,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         case fir::IntrinsicSubType::FCeil:
         case fir::IntrinsicSubType::FFloor:
         case fir::IntrinsicSubType::FTrunc:
-          cost -= lanes;
+          cost -= static_cast<i64>(lanes);
           break;
         case fir::IntrinsicSubType::CTTZ:
         case fir::IntrinsicSubType::CTLZ:
@@ -117,7 +118,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         case fir::UnaryInstrSubType::IntNeg:
         case fir::UnaryInstrSubType::Not:
         case fir::UnaryInstrSubType::FloatSqrt:
-          cost -= lanes;
+          cost -= static_cast<i64>(lanes);
           break;
           fmt::println("{}", instr);
           IMPL("impl wfvector unary");
@@ -152,7 +153,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         break;
       case fir::InstrType::ICmp:
       case fir::InstrType::FCmp:
-        cost -= lanes;
+        cost -= static_cast<i64>(lanes);
         break;
       case fir::InstrType::Unreachable:
       case fir::InstrType::BranchInstr:
@@ -184,17 +185,16 @@ static fir::ValueR convert_value(fir::ContextData *ctx, fir::Builder &buh,
                                  fir::ContextData::V2VMap &subs) {
   if (v.is_constant()) {
     return buh.build_vbroadcast(v, ctx->get_vec_type(v.get_type(), n_lanes));
-  } else {
-    // if (!subs.contains(v)) {
-    //   if (v.is_instr()) {
-    //     fmt::println("Didnt find {:cd}", v.as_instr());
-    //   } else {
-    //     fmt::println("Didnt find {:cd}", v);
-    //   }
-    //   ASSERT(false);
-    // }
-    return subs.at(v);
   }
+  // if (!subs.contains(v)) {
+  //   if (v.is_instr()) {
+  //     fmt::println("Didnt find {:cd}", v.as_instr());
+  //   } else {
+  //     fmt::println("Didnt find {:cd}", v);
+  //   }
+  //   ASSERT(false);
+  // }
+  return subs.at(v);
 }
 
 std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
@@ -232,6 +232,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
       switch (instr->instr_type) {
       case fir::InstrType::BinaryInstr:
         switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
+        case fir::BinaryInstrSubType::PtrAdd:
         case fir::BinaryInstrSubType::IntAdd:
         case fir::BinaryInstrSubType::IntSub:
         case fir::BinaryInstrSubType::IntMul:

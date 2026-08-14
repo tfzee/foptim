@@ -15,7 +15,6 @@
 #include "optim/fir_pipeline.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
-#include "utils/parameters.hpp"
 #include "utils/stats.hpp"
 #include "utils/timer.hpp"
 #include "utils/tracy.hpp"
@@ -41,10 +40,10 @@ int main(int argc, char *argv[]) {
   parse_args(argc, argv, conf);
   foptim::utils::DumbTimer t;
   foptim::JobSheduler shed;
-  shed.init(foptim::utils::number_worker_threads);
-  if (foptim::utils::verbosity > 0) {
-    fmt::println("Running with {} Workers",
-                 foptim::utils::number_worker_threads);
+
+  shed.init(conf.number_worker_threads);
+  if (conf.debug.verbosity > 0) {
+    fmt::println("Running with {} Workers", conf.number_worker_threads);
   }
 
   {
@@ -80,7 +79,7 @@ int main(int argc, char *argv[]) {
       auto a1 = t.scopedTimer("Codegen");
       // asm
       codegen(funcs, decls, globals, conf);
-      if (foptim::utils::verbosity > 0) {
+      if (conf.debug.verbosity > 0) {
         ctx.data->print_stats();
       }
     }
@@ -100,7 +99,7 @@ int main(int argc, char *argv[]) {
 namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
   ZoneScopedN("LLIR LOADING");
-  load_llvm_ir(foptim::utils::in_file_path.c_str(), ctx, shed);
+  load_llvm_ir(ctx.config->input.in_file.c_str(), ctx, shed);
   foptim::utils::TempAlloc<void *>::reset();
 }
 
@@ -168,7 +167,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     reordered_funcs.emplace_back(func.get());
   }
   reorder_funcs(reordered_funcs);
-  if (foptim::utils::verbosity > 0) {
+  if (ctx.config->debug.verbosity > 0) {
     fmt::print("================MATCHING====================\n");
     fmt::println(" Got {} functions", reordered_funcs.size());
   }

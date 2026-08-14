@@ -2129,8 +2129,8 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (instr->is(fir::VectorISubType::Concat) && instr->args[0].is_constant() &&
       instr->args[1].is_constant()) {
     IRVec<fir::ConstantValueR> elems;
-    auto &a1 = instr->args[0].as_constant()->as_vec().members;
-    auto &a2 = instr->args[1].as_constant()->as_vec().members;
+    const auto &a1 = instr->args[0].as_constant()->as_vec().members;
+    const auto &a2 = instr->args[1].as_constant()->as_vec().members;
     elems.insert(elems.end(), a1.begin(), a1.end());
     elems.insert(elems.end(), a2.begin(), a2.end());
 

@@ -6,7 +6,7 @@ test_file="min.cpp"
 foptim="$BUILD_DIR/foptim_main"
 flags="-U__SIZEOF_INT128__ -std=c++26 -fno-stack-protector"
 test_linkdir="-I$TEST_FOLDER/test/CppPerformanceBenchmarks/ -I$TEST_FOLDER/test/embench/"
-compile_optim="-O0"
+compile_optim="-O1 -mllvm -disable-llvm-optzns"
 
 UNINTERESTING=1  # cvise discards these
 INTERESTING=0    # cvise keeps these
