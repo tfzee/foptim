@@ -262,9 +262,16 @@ public:
             m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
         if ((known_arg0_bits->known_zero | known_arg0_bits->known_one) ==
             std::numeric_limits<u64>::max()) {
-          auto pre = __builtin_clzg(known_arg0_bits->known_one);
-          new_known_one = pre;
-          new_known_zero = ~pre;
+          if (known_arg0_bits->known_one == 0) {
+            auto width = instr->get_type()->get_bitwidth();
+            u64 mask = static_cast<u64>((static_cast<u128>(1) << width) - 1);
+            new_known_one = mask;
+            new_known_zero = ~mask;
+          } else {
+            auto pre = __builtin_clzg(known_arg0_bits->known_one);
+            new_known_one = pre;
+            new_known_zero = ~pre;
+          }
         } else {
           new_known_one = 0;
           new_known_zero = ~static_cast<u64>(0b111111);
@@ -398,13 +405,13 @@ public:
       const auto *b =
           m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
       if (instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd)) {
-        //pot use overlfow flags overfloa
+        // pot use overlfow flags overfloa
         auto res = computeForAddCarry(*a, *b, true, false);
         new_known_one = res.known_one;
         new_known_zero = res.known_zero;
       } else if (instr->subtype ==
                  static_cast<u32>(fir::BinaryInstrSubType::PtrAdd)) {
-        //KNOWN no overfloa
+        // KNOWN no overfloa
         auto res = computeForAddCarry(*a, *b, true, false);
         new_known_one = res.known_one;
         new_known_zero = res.known_zero;
@@ -605,6 +612,7 @@ public:
           fmt::println(
               "Failed known bits on {:c}\n it marked bits as both 1 and 0",
               associatedValue.as_instr());
+          fmt::println("{:x} {:x}", new_known_one, new_known_zero);
         } else {
           fmt::println(
               "Failed known bits on {:c}\n it marked bits as both 1 and 0",
