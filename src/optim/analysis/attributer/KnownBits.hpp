@@ -658,9 +658,15 @@ public:
       new_known_one = 0;
       new_known_zero = ~static_cast<u64>(0);
     } break;
-    case fir::ConstantType::GlobalPtr:
     case fir::ConstantType::FuncPtr: {
       auto min_align = constant->as_func().func->attribs.min_align;
+      if (min_align > 0) {
+        new_known_one = 0;
+        new_known_zero = static_cast<u64>(min_align) - 1;
+      }
+    } break;
+    case fir::ConstantType::GlobalPtr: {
+      auto min_align = constant->as_global()->min_align;
       if (min_align > 0) {
         new_known_one = 0;
         new_known_zero = static_cast<u64>(min_align) - 1;
