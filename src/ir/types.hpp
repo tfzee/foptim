@@ -74,6 +74,9 @@ class VectorType {
   [[nodiscard]] constexpr u32 get_size() const {
     return ((bitwidth + 7) / 8) * member_number;
   }
+  [[nodiscard]] constexpr u32 get_bitwidth() const {
+    return bitwidth * member_number;
+  }
   [[nodiscard]] constexpr u32 get_align() const {
     return ((bitwidth + 7) / 8) * member_number;
   }
