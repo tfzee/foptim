@@ -25,7 +25,7 @@ g++ -static-libstdc++ -O0 $flags $test_linkdir "$test_file" \
 
 
 echo "COMP"
-timeout 10s $foptim --cconffile "$FOLDER/src/testconf.toml" min.ll min.o \
+timeout 20s $foptim --cconffile "$FOLDER/src/testconf.toml" min.ll min.o \
   || exit $INTERESTING
 
 echo "LINK"
