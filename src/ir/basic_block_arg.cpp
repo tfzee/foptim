@@ -2,6 +2,7 @@
 // #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/types_ref.hpp"
+#include "ir/types.hpp"
 
 namespace foptim::fir {
 

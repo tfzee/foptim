@@ -128,6 +128,9 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   if (func.attribs.must_progress) {
     app = fmt::format_to(app, "MUST_PROGRESS, ");
   }
+  if (func.attribs.must_return) {
+    app = fmt::format_to(app, "MUST_RETURN, ");
+  }
   if (func.attribs.no_inline) {
     app = fmt::format_to(app, "NO_INLINE, ");
   }
