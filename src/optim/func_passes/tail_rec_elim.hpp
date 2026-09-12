@@ -70,6 +70,7 @@ class TailRecElim final : public FunctionPass {
     auto call = bb->instructions[bb->instructions.size() - 3];
     auto add = bb->instructions[bb->instructions.size() - 2];
     if (add->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
+        add->subtype != static_cast<u32>(fir::BinaryInstrSubType::PtrAdd) &&
         add->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntSub)) {
       return;
     }

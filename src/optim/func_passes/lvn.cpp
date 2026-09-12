@@ -4,10 +4,12 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
+#include "ir/value.hpp"
 #include "optim/analysis/AnalysisManager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include <fmt/base.h>
 
 namespace foptim::optim {
 
@@ -116,7 +118,7 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   const auto &store_ty = store_instr->get_type()->as_vec();
   auto load_ty = load_instr->get_type();
   if (load_ty->get_bitwidth() != store_ty.bitwidth ||
-      !a0->is(fir::BinaryInstrSubType::IntAdd) ||
+      !a0->is(fir::BinaryInstrSubType::PtrAdd) ||
       a0->args[0] != store_instr->args[0] || !a0->args[1].is_constant_int()) {
     return false;
   }
@@ -139,6 +141,27 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
     a0.destroy();
   }
   return true;
+}
+
+bool vstore_vload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
+  const auto &store_ty = store_instr->get_type()->as_vec();
+  auto a0 = load_instr->args[0].as_instr();
+  const auto &load_ty = load_instr->get_type();
+
+  // TODO: can also forward other cases
+  if (load_ty->get_bitwidth() * 2 == store_ty.get_bitwidth()) {
+    fir::Builder buh{load_instr};
+    auto res = buh.build_vector_op(store_instr->args[1], load_ty,
+                                   fir::VectorISubType::ExtractLow);
+    load_instr->replace_all_uses(res);
+    load_instr.destroy();
+    if (a0->get_n_uses() == 0) {
+      a0.destroy();
+    }
+    return true;
+  }
+
+  return false;
 }
 
 void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
@@ -186,9 +209,10 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
 
       // if we store and afterwards load from teh same address
       //  and there is no other store that could interfere inbetween we can
-      //  replace the load(TOOD: unless its volatile)
+      //  replace the load
       if (instr->is(fir::InstrType::StoreInstr) &&
-          instr2->is(fir::InstrType::LoadInstr)) {
+          instr2->is(fir::InstrType::LoadInstr) && !instr->Volatile &&
+          !instr2->Volatile) {
         if (instr->get_arg(0) == instr2->get_arg(0)) {
           auto t1 = instr->get_type();
           auto t2 = instr2->get_type();
@@ -250,17 +274,30 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             i2--;
             continue;
           }
+        } else if (instr2->args[0].is_instr() && instr->get_type()->is_vec() &&
+                   instr2->get_type()->is_vec() &&
+                   instr2->get_type()->get_bitwidth() <
+                       instr->get_type()->get_bitwidth()) {
+          bool pot_store_between = is_pot_store_between(
+              bb, instr2->args[0], instr2->get_type()->get_size(), i + 1, i2,
+              aa);
+          // TODO: for now only for vector
+          if (!pot_store_between && vstore_vload_forwarding(instr, instr2)) {
+            i2--;
+            continue;
+          }
         }
       }
 
       // if we store and afterwards store to the same address
       //  and there is nobody loading that memory inbetween we can
-      //  delete the first store(TOOD: unless its volatile)
+      //  delete the first store
       if (instr->is(fir::InstrType::StoreInstr) &&
           instr2->is(fir::InstrType::StoreInstr) &&
           instr->get_type()->get_bitwidth() ==
               instr2.get_type()->get_bitwidth() &&
-          instr->get_arg(0) == instr2->get_arg(0)) {
+          instr->get_arg(0) == instr2->get_arg(0) && !instr->Volatile &&
+          !instr2->Volatile) {
         bool pot_load_between = is_pot_load_between(
             bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
         if (!pot_load_between) {
@@ -284,13 +321,13 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
         i128 base1_off = 0;
         fir::ValueR base2_addr = fir::ValueR{arg2};
         i128 base2_off = 0;
-        if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
+        if (arg1->is(fir::BinaryInstrSubType::PtrAdd) &&
             arg1->args[1].is_constant() &&
             arg1->args[1].as_constant()->is_int()) {
           base1_addr = arg1->args[0];
           base1_off = arg1->args[1].as_constant()->as_int();
         }
-        if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
+        if (arg2->is(fir::BinaryInstrSubType::PtrAdd) &&
             arg2->args[1].is_constant() &&
             arg2->args[1].as_constant()->is_int()) {
           base2_addr = arg2->args[0];
@@ -312,6 +349,35 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             auto data = buh.build_vector_op(v1, v2, new_type,
                                             fir::VectorISubType::Concat);
             buh.build_store(instr->args[0], data,
+                            instr->Atomic || instr2->Atomic, false);
+            instr.destroy();
+            instr2.destroy();
+            i--;
+            break;
+          }
+        } else if (instr->get_type()->is_float() && old_width <= 16 &&
+                   base1_addr == base2_addr &&
+                   base1_off + old_width == base2_off &&
+                   instr->get_type() == instr2->get_type()) {
+          bool pot_load_between = is_pot_loadstore_between(
+              bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+          if (!pot_load_between) {
+            fir::Builder buh{instr2};
+            auto *ctx = bb->get_parent()->ctx;
+            auto base_ty = instr->get_type();
+            auto new_type = ctx->get_vec_type(
+                fir::VectorType::SubType::Floating, base_ty->as_float(), 2);
+            auto v1 = instr->args[1];
+            auto v2 = instr2->args[1];
+            fir::ValueR indices[1] = {
+                fir::ValueR{ctx->get_constant_int(0, 32)}};
+            auto res = buh.build_insert_value(
+                fir::ValueR{ctx->get_poisson_value(new_type)}, v1, indices,
+                new_type);
+            fir::ValueR indices2[1] = {
+                fir::ValueR{ctx->get_constant_int(1, 32)}};
+            res = buh.build_insert_value(res, v2, indices2, new_type);
+            buh.build_store(instr->args[0], res,
                             instr->Atomic || instr2->Atomic, false);
             instr.destroy();
             instr2.destroy();
@@ -374,13 +440,13 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           i128 base1_off = 0;
           fir::ValueR base2_addr = fir::ValueR{arg2};
           i128 base2_off = 0;
-          if (arg1->is(fir::BinaryInstrSubType::IntAdd) &&
+          if (arg1->is(fir::BinaryInstrSubType::PtrAdd) &&
               arg1->args[1].is_constant() &&
               arg1->args[1].as_constant()->is_int()) {
             base1_addr = arg1->args[0];
             base1_off = arg1->args[1].as_constant()->as_int();
           }
-          if (arg2->is(fir::BinaryInstrSubType::IntAdd) &&
+          if (arg2->is(fir::BinaryInstrSubType::PtrAdd) &&
               arg2->args[1].is_constant() &&
               arg2->args[1].as_constant()->is_int()) {
             base2_addr = arg2->args[0];

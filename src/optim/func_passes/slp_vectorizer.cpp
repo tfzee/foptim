@@ -142,6 +142,7 @@ public:
     switch (binary_op) {
     case fir::BinaryInstrSubType::FloatAdd:
     case fir::BinaryInstrSubType::IntAdd:
+    case fir::BinaryInstrSubType::PtrAdd:
       fmt::print(" + ");
       break;
     case fir::BinaryInstrSubType::FloatMul:
@@ -1458,18 +1459,13 @@ SLPVectorizer::get_storeload_data(fir::Instr storeload) {
     return {data, storeload->args[0]};
   }
   auto arg = storeload->args[0].as_instr();
-  if (arg->is(fir::InstrType::BinaryInstr) &&
-      arg->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
-      arg->args[1].is_constant()) {
+  if (arg->is(fir::BinaryInstrSubType::PtrAdd) && arg->args[1].is_constant()) {
     data.b = arg->args[1];
     return {data, arg->args[0]};
   }
-  if (arg->is(fir::InstrType::BinaryInstr) &&
-      arg->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntMul)) {
+  if (arg->is(fir::BinaryInstrSubType::IntMul)) {
     if (arg->args[0].is_instr() &&
-        arg->args[0].as_instr()->is(fir::InstrType::BinaryInstr) &&
-        arg->args[0].as_instr()->subtype ==
-            static_cast<u32>(fir::BinaryInstrSubType::IntAdd)) {
+        arg->args[0].as_instr()->is(fir::BinaryInstrSubType::PtrAdd)) {
       auto sub_val = arg->args[0].as_instr();
       data.a = arg->args[1];
       data.b = sub_val->args[1];

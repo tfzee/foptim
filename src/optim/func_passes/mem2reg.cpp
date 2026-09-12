@@ -155,8 +155,8 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
           guessed_type = fir::TypeR{fir::TypeR::invalid()};
           break;
         }
-      } else if (usage.user->is(fir::InstrType::BinaryInstr) &&
-                 usage.user->subtype == (u32)fir::BinaryInstrSubType::IntAdd &&
+      } else if ((usage.user->is(fir::BinaryInstrSubType::IntAdd) ||
+                  usage.user->is(fir::BinaryInstrSubType::PtrAdd)) &&
                  usage.argId == 0) {
         auto guess = guessType(fir::ValueR{usage.user});
         if (guess.typeless) {

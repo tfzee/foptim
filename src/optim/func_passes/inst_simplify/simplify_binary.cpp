@@ -1,6 +1,7 @@
 #include "simplify_binary.hpp"
 
 #include <algorithm>
+#include <fmt/base.h>
 
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
@@ -255,7 +256,8 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
   }
   if (instr->args[1].is_constant() &&
-      instr->args[0].get_type() != instr->args[1].get_type() && !instr->is(fir::BinaryInstrSubType::PtrAdd)) {
+      instr->args[0].get_type() != instr->args[1].get_type() &&
+      !instr->is(fir::BinaryInstrSubType::PtrAdd)) {
     auto t1 = instr->args[0].get_type();
     auto t2 = instr->args[1].get_type();
     // skip converting integer constants to ptr type instead extend to same
@@ -347,6 +349,16 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    instr->is(fir::BinaryInstrSubType::IntAdd));
   if (add_like && instr->args[0].is_instr()) {
     auto inner = instr->args[0].as_instr();
+    auto no_wrap = instr->NUW && inner->NUW && instr->NSW && inner->NSW;
+    if (inner->is(fir::BinaryInstrSubType::IntAdd) &&
+        inner->args[1].is_constant_int() && instr->args[1].is_constant_int() &&
+        inner->args[1].as_constant()->as_int() ==
+            -instr->args[1].as_constant()->as_int() &&
+        no_wrap) {
+      instr->replace_all_uses(inner->args[0]);
+      instr.destroy();
+      return true;
+    }
     if (inner->is(fir::BinaryInstrSubType::IntAdd) &&
         inner->args[1] == instr->args[1]) {
       fir::Builder b(instr);
@@ -724,7 +736,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     // }
 
     // (x+c1) +y => (x+y)+c1
-    if (instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
+    if (instr->is(fir::BinaryInstrSubType::IntAdd) &&
         instr->args[v_idx].is_instr()) {
       auto sub = instr->args[v_idx].as_instr();
       if (sub->is(fir::BinaryInstrSubType::IntAdd) &&
@@ -838,10 +850,27 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           instr.destroy();
           return true;
         }
-        if (instr->args[1].is_constant() && argi->args[1].is_constant() &&
+        if (instr->args[1].is_constant_int() &&
+            argi->args[1].is_constant_int() &&
             argi->is(fir::BinaryInstrSubType::AShr)) {
-          TODO("impl");
-          return true;
+          auto input = argi->args[0];
+          auto rightI = argi->args[1].as_constant()->as_int();
+          auto leftI = instr->args[1].as_constant()->as_int();
+          if (leftI >= rightI) {
+            fir::Builder buh{argi};
+            auto mask = ~((static_cast<u128>(1) << rightI) - 1);
+            auto res = buh.build_binary_op(
+                input,
+                fir::ValueR{ctx->get_constant_int(
+                    static_cast<i128>(mask), instr.get_type()->get_bitwidth())},
+                fir::BinaryInstrSubType::And);
+            if (leftI != rightI) {
+              res = buh.build_shl(
+                  res, fir::ValueR{ctx->get_constant_int(
+                           leftI - rightI, instr.get_type()->get_bitwidth())});
+            }
+            return true;
+          }
         }
       }
       if (argi->is(fir::BinaryInstrSubType::And) ||

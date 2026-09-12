@@ -685,6 +685,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
         argi->is(fir::BinaryInstrSubType::Or) ||
         argi->is(fir::BinaryInstrSubType::Xor) ||
         (argi->is(fir::BinaryInstrSubType::IntAdd) && is_non_overflowing) ||
+        (argi->is(fir::BinaryInstrSubType::PtrAdd) && is_non_overflowing) ||
         (argi->is(fir::BinaryInstrSubType::IntMul) && is_non_overflowing) ||
         (iszext && argi->is(fir::BinaryInstrSubType::Shr))) {
       fir::Builder buh{argi};
@@ -851,6 +852,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       case fir::BinaryInstrSubType::Or:
       case fir::BinaryInstrSubType::IntSub:
       case fir::BinaryInstrSubType::IntMul:
+      case fir::BinaryInstrSubType::PtrAdd:
       case fir::BinaryInstrSubType::IntAdd: {
         auto v0 = b.build_itrunc(i_arg0, out_type);
         auto v1 = b.build_itrunc(i_arg1, out_type);
@@ -1338,7 +1340,7 @@ bool simplify_store(fir::Instr instr) {
         if (offset != 0) {
           auto b = ctx->get_constant_int(out_ty.elems[offset].offset, 64);
           auto off = buh.build_binary_op(instr->args[0], fir::ValueR{b},
-                                         fir::BinaryInstrSubType::IntAdd);
+                                         fir::BinaryInstrSubType::PtrAdd);
           buh.build_store(off, val_i->args[1], instr->Atomic, instr->Volatile);
         } else {
           buh.build_store(instr->args[0], val_i->args[1], instr->Atomic,
@@ -1648,7 +1650,7 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     auto arg_instr = instr->args[0].as_instr();
     if (arg_instr->is(fir::InstrType::BinaryInstr) &&
         arg_instr->subtype ==
-            static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
+            static_cast<u32>(fir::BinaryInstrSubType::PtrAdd) &&
         arg_instr->args[0].is_constant() && arg_instr->args[1].is_constant()) {
       auto base_global = arg_instr->args[0].as_constant();
       auto offset = arg_instr->args[1].as_constant();
@@ -2143,7 +2145,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (instr->is(fir::InstrType::LoadInstr) &&
       instr->args[0].get_type()->is_vec() && instr->args[0].is_instr()) {
     auto argi = instr->args[0].as_instr();
-    if (argi->is(fir::BinaryInstrSubType::IntAdd) &&
+    if (argi->is(fir::BinaryInstrSubType::PtrAdd) &&
         argi->args[1].is_constant() && argi->args[0].is_instr() &&
         argi->args[0].as_instr()->is(fir::VectorISubType::Broadcast)) {
       auto broad_cast = argi->args[0].as_instr();

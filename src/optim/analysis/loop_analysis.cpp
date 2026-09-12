@@ -207,9 +207,8 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
       return false;
     }
     auto induct_oper = induction_arg.as_instr();
-    if (!induct_oper->is(fir::InstrType::BinaryInstr) ||
-        static_cast<fir::BinaryInstrSubType>(induct_oper->subtype) !=
-            fir::BinaryInstrSubType::IntAdd) {
+    if (!induct_oper->is(fir::BinaryInstrSubType::IntAdd) &&
+        !induct_oper->is(fir::BinaryInstrSubType::PtrAdd)) {
       if constexpr (debug_print) {
         fmt::println("3");
       }
@@ -353,7 +352,8 @@ InductionVarAnalysis::_check_if_direct_induct(
 
     auto subty = static_cast<fir::BinaryInstrSubType>(i->subtype);
 
-    if ((subty != fir::BinaryInstrSubType::IntAdd &&
+    if ((subty != fir::BinaryInstrSubType::PtrAdd &&
+         subty != fir::BinaryInstrSubType::IntAdd &&
          subty != fir::BinaryInstrSubType::IntSub) ||
         (!i->args[0].is_bb_arg() && !i->args[1].is_bb_arg()) ||
         (!i->args[0].is_constant() && !i->args[1].is_constant())) {
@@ -369,10 +369,12 @@ InductionVarAnalysis::_check_if_direct_induct(
         i->args[1].is_constant()) {
       var_arg = i->args[0];
       const_arg = i->args[1].as_constant();
-      type = (subty == fir::BinaryInstrSubType::IntAdd)
+      type = (subty == fir::BinaryInstrSubType::IntAdd ||
+              subty == fir::BinaryInstrSubType::PtrAdd)
                  ? IterationType::PlusConst
                  : IterationType::SubConst;
-    } else if (subty == fir::BinaryInstrSubType::IntAdd &&
+    } else if ((subty == fir::BinaryInstrSubType::IntAdd ||
+                subty == fir::BinaryInstrSubType::PtrAdd) &&
                i->args[1].is_bb_arg() && i->args[1].as_bb_arg() == v &&
                i->args[0].is_constant()) {
       // Commutative Add: allow `c + v`
@@ -472,6 +474,7 @@ void InductionVarAnalysis::update(CFG &cfg, LoopInfo &info) {
       IterationType itype = IterationType::Other;
 
       switch (subtype) {
+      case fir::BinaryInstrSubType::PtrAdd:
       case fir::BinaryInstrSubType::IntAdd:
         itype = IterationType::PlusConst;
         break;
@@ -838,6 +841,7 @@ void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
       SCEVExpr::Type ty = SCEVExpr::Type::Invalid;
       switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
       case fir::BinaryInstrSubType::IntAdd:
+      case fir::BinaryInstrSubType::PtrAdd:
         ty = SCEVExpr::Type::Add;
         break;
       case fir::BinaryInstrSubType::IntSub:

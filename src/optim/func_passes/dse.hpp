@@ -115,7 +115,8 @@ public:
           out.push_back(w);
         }
       }
-      if (user->is(fir::BinaryInstrSubType::IntAdd) ||
+      if (user->is(fir::BinaryInstrSubType::PtrAdd) ||
+          user->is(fir::BinaryInstrSubType::IntAdd) ||
           user->is(fir::ConversionSubType::PtrToInt)) {
         collect_writes_to_alloca(fir::ValueR{user}, seen, out);
       }
@@ -163,7 +164,8 @@ public:
         return {.unknown = false, .off = 0, .size = size};
       }
       if (ptr.is_instr() &&
-          ptr.as_instr()->is(fir::BinaryInstrSubType::IntAdd)) {
+          (ptr.as_instr()->is(fir::BinaryInstrSubType::IntAdd) ||
+           ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd))) {
         auto iptr = ptr.as_instr();
         fir::ValueR a = iptr->args[0];
         fir::ValueR b = iptr->args[1];

@@ -62,9 +62,8 @@ GuessTypeResult guessType(fir::ValueR ptr) {
     if (ptr_instr->is(fir::InstrType::LoadInstr)) {
       return {.typeless = true, .type = fir::TypeR{fir::TypeR::invalid()}};
     }
-    if (ptr_instr->is(fir::InstrType::BinaryInstr) &&
-        static_cast<fir::BinaryInstrSubType>(ptr_instr->subtype) ==
-            fir::BinaryInstrSubType::IntAdd) {
+    if (ptr_instr->is(fir::BinaryInstrSubType::IntAdd) ||
+        ptr_instr->is(fir::BinaryInstrSubType::PtrAdd)) {
       GuessTypeResult out_res = guessType(ptr_instr->args[0]);
       GuessTypeResult r2 = guessType(ptr_instr->args[1]);
       if (out_res.typeless && !r2.typeless) {
