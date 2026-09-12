@@ -64,7 +64,8 @@ public:
       return;
     }
     auto instr = associatedValue.as_instr();
-    if (instr->is(fir::BinaryInstrSubType::IntAdd)) {
+    if (instr->is(fir::BinaryInstrSubType::IntAdd) ||
+        instr->is(fir::BinaryInstrSubType::PtrAdd)) {
       const auto *known_arg0_bits = m.get_analysis<KnownBits>(instr->args[0]);
       const auto *known_arg1_bits = m.get_analysis<KnownBits>(instr->args[1]);
       if ((known_arg0_bits == nullptr) || (known_arg1_bits == nullptr)) {
@@ -404,7 +405,7 @@ public:
           m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
       const auto *b =
           m.get_or_create_analysis<KnownBits>(instr->args[1], &worklist);
-      if (instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd)) {
+      if (instr->is(fir::BinaryInstrSubType::IntAdd)) {
         // pot use overlfow flags overfloa
         auto res = computeForAddCarry(*a, *b, true, false);
         new_known_one = res.known_one;
