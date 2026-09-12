@@ -26,9 +26,13 @@ public:
   u16 align = 0x10;
   Type res_ty = Type::INVALID;
 
-  StackSlotId get_stack_slot(u64 size) {
+  StackSlotId create_stack_slot(u64 size) {
     extra_stack_slots.push_back(StackSlot{size});
     return extra_stack_slots.size();
+  }
+
+  StackSlot &get_stack_slot(u64 stack_slot_id) {
+    return extra_stack_slots[stack_slot_id - 1];
   }
 };
 
