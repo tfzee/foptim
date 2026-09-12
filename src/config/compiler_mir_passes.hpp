@@ -25,20 +25,22 @@ concept has_construct_function_pass_func = requires {
 };
 
 template <class T> struct FunctionPassConf : public PassConfig {
-  virtual PassConfig *clone() const override final {
+private:
+  FunctionPassConf() = default;
+
+public:
+  [[nodiscard]] PassConfig *clone() const final {
     return new T(static_cast<const T &>(*this));
   }
-  virtual std::string_view get_name() const override final { return T::Name; }
-  virtual PassType pass_type() const override final {
-    return PassType::MIR_Func;
-  }
-  virtual bool _pass_parse(void *arg) override final {
+  [[nodiscard]] std::string_view get_name() const final { return T::Name; }
+  [[nodiscard]] PassType pass_type() const final { return PassType::MIR_Func; }
+  bool _pass_parse(void *arg) final {
     return (static_cast<T *>(this))
         ->pass_parse(*static_cast<toml::table *>(arg));
   }
-  virtual ::foptim::fmir::FunctionPass *_construct_mir_func_pass() override {
-    static_assert(std::is_convertible<typename T::Pass *,
-                                      ::foptim::fmir::FunctionPass *>::value,
+  ::foptim::fmir::FunctionPass *_construct_mir_func_pass() override {
+    static_assert(std::is_convertible_v<typename T::Pass *,
+                                        ::foptim::fmir::FunctionPass *>,
                   "The pass must inherit from module pass from public");
     static_assert(has_construct_function_pass_func<T>,
                   "When inheriting from FunctionPassConfig you gotta implement "
@@ -48,6 +50,7 @@ template <class T> struct FunctionPassConf : public PassConfig {
     (static_cast<T *>(this))->construct_function_pass(*alloc);
     return static_cast<::foptim::fmir::FunctionPass *>(alloc);
   };
+  friend T;
 };
 
 struct DCEConf : public FunctionPassConf<DCEConf> {
