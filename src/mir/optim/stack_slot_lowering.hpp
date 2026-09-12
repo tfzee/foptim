@@ -11,7 +11,7 @@ namespace foptim::fmir {
 
 class StackSlotLowering : public FunctionPass {
 public:
-  void apply(MFunc &func, const conf::CompConf &) {
+  void apply(MFunc &func, const conf::CompConf & /*config*/) override {
 
     u64 stack_slots_size = 0;
     for (auto &slot : func.extra_stack_slots) {
@@ -32,8 +32,6 @@ public:
     func.bbs[0].instrs.insert(
         func.bbs[0].instrs.begin(),
         MInstr{GArithSubtype::sub2, stack_ptr, stack_slots_size});
-    // fmt::println("Entry");
-    // fmt::println("{:cd}", func.bbs[0]);
     for (auto &bb : func.bbs) {
       auto r = bb.instrs.back();
       if (!r.is(GBaseSubtype::ret)) {
@@ -50,8 +48,15 @@ public:
           auto &arg = i.args[arg_id];
           if (arg.isStackSlot()) {
             // TOOD: support other types
-            ASSERT(arg.scale == 8);
-            arg = MArgument::MemOB((arg.imm - 1) * 8, VReg::RBP(), Type::Int64);
+            if (arg.scale == 8) {
+              arg =
+                  MArgument::MemOB((arg.imm - 1) * 8, VReg::RBP(), Type::Int64);
+            } else if (arg.scale == 4) {
+              arg =
+                  MArgument::MemOB((arg.imm - 1) * 4, VReg::RBP(), Type::Int64);
+            } else {
+              ASSERT(false);
+            }
           }
         }
       }
