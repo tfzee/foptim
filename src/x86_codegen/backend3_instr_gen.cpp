@@ -7,6 +7,7 @@
 #include "utils/stats.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
+#include <fmt/base.h>
 
 namespace foptim::codegen {
 namespace {
@@ -370,9 +371,11 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
   bool input_is_vec = input_is_fp_reg && instr.args[1].ty > fmir::Type::Float64;
   req.mnemonic = ZYDIS_MNEMONIC_MOV;
 
+  bool target_isscalarfp = target_isfloat64 || target_isfloat32;
+  bool input_isscalarfp = input_isfloat64 || input_isfloat32;
   if ((input_is_vec && target_is_vec) ||
-      (target_is_vec && instr.args[1].isMem()) ||
-      (input_is_vec && instr.args[0].isMem())) {
+      (target_is_vec && instr.args[1].isMem() && !input_isscalarfp) ||
+      (input_is_vec && instr.args[0].isMem() && !target_isscalarfp)) {
     auto arg_index = input_is_vec ? 1 : 0;
     switch (instr.args[arg_index].ty) {
       // TODO: aligned??
@@ -589,6 +592,14 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     req.operand_count = 1;
     req.mnemonic = ZYDIS_MNEMONIC_PUSH;
+    // cant emit 32bit push
+    if (instr.args[0].isReg() && instr.args[0].ty == fmir::Type::Int32) {
+      ASSERT_M(false, "Cant emit 32bit push")
+      // auto copied_arg = instr.args[0];
+      // copied_arg.ty = fmir::Type::Int64;
+      // copied_arg.reg = copied_arg.reg.retype(fmir::Type::Int64);
+      // emit_operand(copied_arg, req.operands[0], reloc_map, out_buff, 0);
+    }
     return emit(out_buff, 0, &req);
   }
   case fmir::GBaseSubtype::mov:
@@ -670,6 +681,14 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       return emit(out_buff, off, &req);
     }
     req.mnemonic = ZYDIS_MNEMONIC_POP;
+    // cant emit 32bit pop
+    if (instr.args[0].isReg() && instr.args[0].ty == fmir::Type::Int32) {
+      ASSERT_M(false, "Cant emit 32bit pop")
+      // auto copied_arg = instr.args[0];
+      // copied_arg.ty = fmir::Type::Int64;
+      // copied_arg.reg = copied_arg.reg.retype(fmir::Type::Int64);
+      // emit_operand(copied_arg, req.operands[0], reloc_map, out_buff, 0);
+    }
     return emit(out_buff, 0, &req);
   case fmir::GBaseSubtype::arg_setup:
   case fmir::GBaseSubtype::ret_setup:
@@ -2436,6 +2455,14 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     return emit(out_buff, 0, &req);
   }
+  case fmir::X86Subtype::vpinsr: {
+    for (auto i = 0; i < req.operand_count; i++) {
+      emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+    }
+    assert(req.operand_count == 3);
+    TODO("IMPL");
+    return emit(out_buff, 0, &req);
+  }
   case fmir::X86Subtype::vblendv: {
     // for (auto i = 0; i < req.operand_count; i++) {
     //   emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -2445,7 +2472,7 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     emit_operand(instr.args[1], req.operands[1], reloc_map, out_buff, 1);
     emit_operand(instr.args[2], req.operands[2], reloc_map, out_buff, 2);
     req.operands[3].type = ZYDIS_OPERAND_TYPE_REGISTER;
-    req.operands[3].reg.is4 = true;
+    req.operands[3].reg.is4 = 1U;
     req.operands[3].reg.value =
         reg_with_type(instr.args[3].reg, instr.args[0].ty);
     switch (instr.args[0].ty) {
