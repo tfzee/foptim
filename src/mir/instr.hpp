@@ -1,7 +1,9 @@
 #pragma once
 #include "ir/instruction_data.hpp"
+#include "ir/types_ref.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
+#include <type_traits>
 
 namespace foptim::fmir {
 using StackSlotId = u64;
@@ -179,6 +181,7 @@ enum class X86Subtype : u32 {
   movhlps,
   vpermil,
   vpextr,
+  vpinsr,
   vextract128,
   vinsert128,
   vinsertps,
@@ -329,6 +332,8 @@ enum class CReg : u8 {
 
 class VReg {
 public:
+  // TODO: we can replace regtype with creg since creg can already tell us if
+  // its virtual
   enum class RegType : u8 {
     Virtual,
     Concrete,
@@ -355,7 +360,11 @@ public:
   constexpr VReg(u64 id) : virt(RegType::Virtual, Type::INVALID, id) {}
   constexpr VReg(u64 id, Type ty) : virt(RegType::Virtual, ty, id) {}
   constexpr VReg(CReg reg_ty, Type ty = Type::Int64)
-      : conc(RegType::Concrete, ty, reg_ty) {}
+      : conc(RegType::Concrete, ty, reg_ty) {
+    if constexpr (!std::is_constant_evaluated()) {
+      ASSERT(reg_ty != CReg::Virtual);
+    }
+  }
 
   constexpr VReg retype(Type new_ty) {
     VReg res = *this;
@@ -387,6 +396,7 @@ public:
       return conc.creg >= CReg::mm0;
     }
   }
+  [[nodiscard]] constexpr bool is_gor_reg() const { return !is_vec_reg(); }
   [[nodiscard]] static consteval VReg RDI() { return {CReg::DI, Type::Int64}; }
   [[nodiscard]] static consteval VReg RSI() { return {CReg::SI, Type::Int64}; }
   [[nodiscard]] static consteval VReg RDX() { return {CReg::D, Type::Int64}; }
@@ -478,17 +488,16 @@ public:
   MArgument(f32 imm)
       : type(ArgumentType::Imm), ty(Type::Float32),
         immf(std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(imm)))) {}
-  MArgument(IRStringRef lab)
-      : type(ArgumentType::Label), label(lab) {}
+  MArgument(IRStringRef lab) : type(ArgumentType::Label), label(lab) {}
   MArgument(IRStringRef lab, Type ty)
       : type(ArgumentType::Label), ty(ty), label(lab) {}
 
-  static MArgument stack_slot(StackSlotId id, u64 size) {
+  static MArgument stack_slot(StackSlotId id, Type type) {
     auto arg = MArgument{};
     arg.type = ArgumentType::StackSlot;
-    arg.ty = Type::INVALID;
+    arg.ty = type;
     arg.imm = id;
-    arg.scale = size;
+    arg.scale = get_size(type);
     return arg;
   }
 
@@ -520,14 +529,14 @@ public:
     return arg;
   }
 
-  [[nodiscard]] static constexpr MArgument MemLIS(IRStringRef lab, VReg off, u32 scale,
-                                                 Type ty) {
+  [[nodiscard]] static constexpr MArgument MemLIS(IRStringRef lab, VReg off,
+                                                  u32 scale, Type ty) {
     MArgument arg;
     arg.type = ArgumentType::MemLabelVregScale;
     arg.ty = ty;
     arg.label = lab;
     arg.indx = off;
-    arg.scale= scale;
+    arg.scale = scale;
     return arg;
   }
 
@@ -633,8 +642,8 @@ public:
     case ArgumentType::Imm:
     case ArgumentType::VReg:
     case ArgumentType::Label:
-    case ArgumentType::StackSlot:
       return false;
+    case ArgumentType::StackSlot:
     case ArgumentType::MemVReg:
     case ArgumentType::MemVRegVReg:
     case ArgumentType::MemImm:
@@ -872,26 +881,24 @@ public:
   CONSTR_REGN(GOpcode::GVec, GVecSubtype);
   CONSTR_REGN(GOpcode::X86, X86Subtype);
 
-  MInstr(GOpcode op, u32 sop)
-      : has_bb_ref(false), n_args(0), bop(op), sop(sop) {}
-  MInstr(GOpcode op, u32 sop, MArgument a1)
-      : has_bb_ref(false), n_args(1), bop(op), sop(sop) {
+  MInstr(GOpcode op, u32 sop) : bop(op), sop(sop) {}
+  MInstr(GOpcode op, u32 sop, MArgument a1) : n_args(1), bop(op), sop(sop) {
     args[0] = a1;
   }
   MInstr(GOpcode op, u32 sop, MArgument a1, MArgument a2)
-      : has_bb_ref(false), n_args(2), bop(op), sop(sop) {
+      : n_args(2), bop(op), sop(sop) {
     args[0] = a1;
     args[1] = a2;
   }
   MInstr(GOpcode op, u32 sop, MArgument a1, MArgument a2, MArgument a3)
-      : has_bb_ref(false), n_args(3), bop(op), sop(sop) {
+      : n_args(3), bop(op), sop(sop) {
     args[0] = a1;
     args[1] = a2;
     args[2] = a3;
   }
   MInstr(GOpcode op, u32 sop, MArgument a1, MArgument a2, MArgument a3,
          MArgument a4)
-      : has_bb_ref(false), n_args(4), bop(op), sop(sop) {
+      : n_args(4), bop(op), sop(sop) {
     args[0] = a1;
     args[1] = a2;
     args[2] = a3;

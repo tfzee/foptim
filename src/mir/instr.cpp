@@ -1,7 +1,7 @@
 #include "instr.hpp"
 
 #include <fmt/color.h>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
@@ -179,6 +179,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       ReturnString(X86Subtype, lzcnt);
       ReturnString(X86Subtype, popcnt);
       ReturnString(X86Subtype, vpextr);
+      ReturnString(X86Subtype, vpinsr);
       ReturnString(X86Subtype, ffmadd132);
       ReturnString(X86Subtype, ffmadd213);
       ReturnString(X86Subtype, ffmadd231);
@@ -349,6 +350,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
     case X86Subtype::movhlps:
     case X86Subtype::vpshuf:
     case X86Subtype::vpextr:
+    case X86Subtype::vpinsr:
     case X86Subtype::punpckl:
     case X86Subtype::vbroadcast:
     case X86Subtype::popcnt:
@@ -423,8 +425,6 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
       out.push_back({0, instr.args[0]});
       return;
     case GBaseSubtype::ret_setup:
-      // out.push_back({1, instr.args[1]});
-      return;
     case GBaseSubtype::pop:
       return;
     case GBaseSubtype::ret:
@@ -646,6 +646,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     case X86Subtype::padd:
     case X86Subtype::vpcmpeq:
     case X86Subtype::vpextr:
+    case X86Subtype::vpinsr:
       out.push_back({1, instr.args[1]});
       out.push_back({2, instr.args[2]});
       return;
@@ -884,8 +885,8 @@ fmt::formatter<foptim::fmir::MFunc>::format(foptim::fmir::MFunc const &func,
 
   for (size_t bb_indx = 0; bb_indx < func.bbs.size(); bb_indx++) {
     if (color) {
-      app = fmt::format_to(app, "  {}:\n{:c}", fmt::styled(bb_indx, color_bb),
-                           func.bbs[bb_indx]);
+      app = fmt::format_to(app, color_bb, "  {}:\n", bb_indx);
+      app = fmt::format_to(app, "{:c}", func.bbs[bb_indx]);
     } else {
       app = fmt::format_to(app, "  {}:\n{}", bb_indx, func.bbs[bb_indx]);
     }
@@ -981,8 +982,9 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
   if (!color) {
     switch (value.type) {
     case foptim::fmir::MArgument::ArgumentType::StackSlot:
-      return fmt::format_to(app, "S<{}>@{}", fmt::styled(value.imm, color_func),
-                            value.scale);
+      app = fmt::format_to(app, "S<");
+      app = fmt::format_to(app, color_func, "{}", value.imm);
+      return fmt::format_to(app, ">@{}", value.scale);
     case foptim::fmir::MArgument::ArgumentType::MemLabel:
       return fmt::format_to(app, "[{}]: {}",
                             fmt::styled(value.label, color_func), value.ty);
@@ -1042,8 +1044,9 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
   } else {
     switch (value.type) {
     case foptim::fmir::MArgument::ArgumentType::StackSlot:
-      return fmt::format_to(app, "S<{}>@{}", fmt::styled(value.imm, color_func),
-                            value.scale);
+      app = fmt::format_to(app, "S<");
+      app = fmt::format_to(app, color_func, "{}", value.imm);
+      return fmt::format_to(app, ">@{}", value.scale);
     case foptim::fmir::MArgument::ArgumentType::MemLabel:
       return fmt::format_to(app, "[{}]: {:c}",
                             fmt::styled(value.label, color_func), value.ty);

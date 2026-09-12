@@ -264,6 +264,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     case X86Subtype::ffmadd231:
     case X86Subtype::vgatherq:
     case X86Subtype::vpextr:
+    case X86Subtype::vpinsr:
     case X86Subtype::vpcmpeq:
     case X86Subtype::vround:
     case X86Subtype::psrl:
@@ -613,6 +614,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     case X86Subtype::ffmadd213:
     case X86Subtype::ffmadd231:
     case X86Subtype::vpextr:
+    case X86Subtype::vpinsr:
     case X86Subtype::vgatherq:
     case X86Subtype::vpcmpeq:
     case X86Subtype::vround:

@@ -7,7 +7,7 @@
 namespace foptim::fmir {
 
 class LiveVariables {
- public:
+public:
   const CFG &cfg;
   TVec<utils::BitSet<>> _live;
   TVec<utils::BitSet<>> _liveIn;
@@ -35,7 +35,6 @@ constexpr VReg uid_to_reg(size_t id) {
   return VReg{id - static_cast<size_t>(CReg::N_REGS)};
 }
 
-inline bool uid_is_concrete(size_t id) { return id + 1 < static_cast<size_t>(CReg::N_REGS); }
 // VReg uid_to_reg(size_t r);
 void update_def(const MInstr &instr, utils::BitSet<> &def);
 
@@ -176,4 +175,4 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func);
 
 TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func);
 
-}  // namespace foptim::fmir
+} // namespace foptim::fmir
