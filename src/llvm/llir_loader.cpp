@@ -1464,6 +1464,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   foff_func->attribs.must_inline =
       func.hasFnAttribute(llvm::Attribute::AttrKind::AlwaysInline);
   foff_func->attribs.must_progress = func.mustProgress();
+  foff_func->attribs.must_return = func.willReturn();
   // readNone: 0, readOnly: 0,
   // noInline: 0, alwaysInline:
   foff_func->attribs.no_recurse = func.doesNotRecurse();
