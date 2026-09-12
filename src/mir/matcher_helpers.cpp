@@ -9,6 +9,7 @@
 #include "mir/instr.hpp"
 #include "mir/matcher.hpp"
 #include "utils/set.hpp"
+#include <fmt/base.h>
 
 namespace foptim::fmir {
 
@@ -356,9 +357,9 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
     // return {(u64)0, :wype_id};
   } else if (val.is_instr()) {
     auto i = val.as_instr();
-    if (i->is(fir::BinaryInstrSubType::IntAdd)) {
+    if (i->is(fir::BinaryInstrSubType::PtrAdd)) {
       if (i->args[0].is_instr() &&
-          i->args[0].as_instr()->is(fir::BinaryInstrSubType::IntAdd)) {
+          i->args[0].as_instr()->is(fir::BinaryInstrSubType::PtrAdd)) {
         auto i2 = i->args[0].as_instr();
         auto arg1 = valueToArg(i2->args[0], res, alloc);
         auto arg2 = valueToArg(i2->args[1], res, alloc);
@@ -375,7 +376,7 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
         }
       }
       if (i->args[1].is_instr() &&
-          i->args[1].as_instr()->is(fir::BinaryInstrSubType::IntAdd)) {
+          i->args[1].as_instr()->is(fir::BinaryInstrSubType::PtrAdd)) {
         auto i2 = i->args[1].as_instr();
         auto arg1 = valueToArg(i2->args[0], res, alloc);
         auto arg2 = valueToArg(i2->args[1], res, alloc);

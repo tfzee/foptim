@@ -592,20 +592,6 @@ void memory_patterns(IRVec<Pattern> &pats) {
         }
 
         auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
-
-        if (add_instr->args[1].is_constant() && a0.isImm()) {
-          auto c1 = add_instr->args[1].as_constant();
-          if (c1->is_global() && !c1->as_global()->is_extern_decl()) {
-            auto repl = valueToArgPtr(add_instr->args[1], Type::Int64,
-                                      res.result, data.alloc);
-            ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
-            res.result.emplace_back(GBaseSubtype::mov, res_reg,
-                                    MArgument::MemLO(repl.label,
-                                                     std::bit_cast<i64>(a0.imm),
-                                                     load_ty));
-            return true;
-          }
-        }
         auto a1 = valueToArg(add_instr->args[1], res.result, data.alloc);
         if (add_instr->args[0].is_constant() && a1.isImm()) {
           auto c1 = add_instr->args[0].as_constant();
@@ -615,7 +601,7 @@ void memory_patterns(IRVec<Pattern> &pats) {
             ASSERT(repl.type == MArgument::ArgumentType::MemLabel);
             res.result.emplace_back(GBaseSubtype::mov, res_reg,
                                     MArgument::MemLO(repl.label,
-                                                     std::bit_cast<i64>(a0.imm),
+                                                     std::bit_cast<i64>(a1.imm),
                                                      load_ty));
             return true;
           }
@@ -971,8 +957,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
   using InstrType = fir::InstrType;
   using NodeType = Pattern::NodeType;
 
-  auto IntAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
-                         static_cast<u32>(fir::BinaryInstrSubType::IntAdd)};
+  auto PtrAddNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                         static_cast<u32>(fir::BinaryInstrSubType::PtrAdd)};
   // auto IntSubNode = Node{NodeType::Instr, InstrType::BinaryInstr,
   //                        (u32)fir::BinaryInstrSubType::IntSub};
   auto IntMulNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -1133,7 +1119,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {IntMulNode, IntAddNode},
+      .nodes = {IntMulNode, PtrAddNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 1}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         // x + y * 1|2|4|8
@@ -1202,7 +1188,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         return true;
       }});
   pats.push_back(Pattern{
-      .nodes = {IntAddNode, IntAddNode},
+      .nodes = {PtrAddNode, PtrAddNode},
       .edges = {{.from_instr = 0, .to_instr = 1, .to_arg = 0}},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         // x + y + c
@@ -3217,16 +3203,121 @@ void base_patterns(IRVec<Pattern> &pats) {
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
         auto insert_instr = res.matched_instrs[0];
+        ASSERT(insert_instr->args[2].is_constant() &&
+               insert_instr->args[2].as_constant()->is_int());
+        auto indx = insert_instr->args[2].as_constant()->as_int();
+
         if (insert_instr->args[0].get_type()->is_vec()) {
-          TODO("impl");
+          auto input_vec =
+              valueToArg(insert_instr->args[0], res.result, data.alloc);
+          auto input =
+              valueToArg(insert_instr->args[1], res.result, data.alloc);
+          auto target =
+              valueToArg(fir::ValueR{insert_instr}, res.result, data.alloc);
+          auto vec_ty = insert_instr->args[0].get_type()->as_vec();
+          auto rev_indx = vec_ty.member_number - indx - 1;
+          // auto rev_indx = indx;
+          auto get_xmm_version_ty = [](Type t) {
+            if (t == Type::Float32) {
+              return Type::Float32x4;
+            }
+            if (t == Type::Int32) {
+              return Type::Int32x4;
+            }
+            if (t == Type::Float64) {
+              return Type::Float64x2;
+            }
+            if (t == Type::Int64) {
+              return Type::Int64x2;
+            }
+            fmt::println("unreach? {}", t);
+            TODO("UNREACH");
+          };
+          auto helper_ty = get_xmm_version_ty(input.ty);
+          if (rev_indx == 0) {
+            ASSERT(input.isReg())
+            res.result.emplace_back(GBaseSubtype::mov, target, input_vec);
+            res.result.emplace_back(
+                X86Subtype::vinsertps, target, target,
+                MArgument(input.reg.retype(helper_ty), helper_ty),
+                MArgument(static_cast<u8>(
+                    0b00'00'0000))); // src lane0, dst lane0, zmask=0000
+          } else {
+            ASSERT(input.isReg())
+            // Start by copying the untouched vector into place, then patch the
+            // single lane we're inserting.
+            res.result.emplace_back(GBaseSubtype::mov, target, input_vec);
+
+            if (input.ty == Type::Float64 || input.ty == Type::Int64) {
+              if (rev_indx == 1) {
+                // second-to-last lane lives in the low 128 bits -> vpinsr in
+                // place
+                res.result.emplace_back(
+                    X86Subtype::vpinsr, target, target,
+                    MArgument(input.reg.retype(helper_ty), helper_ty),
+                    MArgument(static_cast<u8>(1)));
+              } else if (rev_indx == 2) {
+                // first lane of the high 128 bits: build the high half in a
+                // scratch xmm and vinsert128 it back in.
+                auto helper_reg = data.alloc.get_new_register(helper_ty);
+                auto high_half = MArgument(helper_reg, helper_ty);
+                res.result.emplace_back(
+                    GBaseSubtype::mov, high_half,
+                    MArgument(input.reg.retype(helper_ty), helper_ty));
+                res.result.emplace_back(X86Subtype::vinsert128, target, target,
+                                        high_half,
+                                        MArgument(static_cast<u8>(1)));
+              } else if (rev_indx == 3) {
+                // second lane of the high 128 bits: pull the high half out,
+                // patch its top lane, and reinsert it.
+                auto helper_reg = data.alloc.get_new_register(helper_ty);
+                auto high_half = MArgument(helper_reg, helper_ty);
+                res.result.emplace_back(X86Subtype::vextract128, high_half,
+                                        target, MArgument(static_cast<u8>(1)));
+                res.result.emplace_back(
+                    X86Subtype::vpinsr, high_half, high_half,
+                    MArgument(input.reg.retype(helper_ty), helper_ty),
+                    MArgument(static_cast<u8>(1)));
+                res.result.emplace_back(X86Subtype::vinsert128, target, target,
+                                        high_half,
+                                        MArgument(static_cast<u8>(1)));
+              } else {
+                fmt::println("{:cd}", insert_instr);
+                TODO("impl");
+              }
+            } else if (input.ty == Type::Float32) {
+              // vinsertps: count_s = 0 (take element 0 of the source scalar),
+              // count_d = rev_indx (destination lane), zmask = 0000 (don't
+              // clobber the other lanes we just copied in).
+              u8 mapp = 0;
+              switch (rev_indx) {
+              case 1:
+                mapp = 0b00'01'0000;
+                break;
+              case 2:
+                mapp = 0b00'10'0000;
+                break;
+              case 3:
+                mapp = 0b00'11'0000;
+                break;
+              default:
+                fmt::print("{} {}", rev_indx, insert_instr);
+                UNREACH();
+              }
+              res.result.emplace_back(
+                  X86Subtype::vinsertps, target, target,
+                  MArgument(input.reg.retype(helper_ty), helper_ty),
+                  MArgument{mapp});
+            } else {
+              TODO("impl");
+            }
+          }
+          return true;
         }
         ASSERT(insert_instr->args.size() == 3);
         auto input =
             valueToArgStruct(insert_instr->args[0], res.result, data.alloc);
         auto val = valueToArg(insert_instr->args[1], res.result, data.alloc);
-        ASSERT(insert_instr->args[2].is_constant() &&
-               insert_instr->args[2].as_constant()->is_int());
-        auto indx = insert_instr->args[2].as_constant()->as_int();
 
         auto target =
             valueToArgStruct(fir::ValueR{insert_instr}, res.result, data.alloc);
