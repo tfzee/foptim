@@ -400,7 +400,7 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
       first_bb.instrs.insert(first_bb.instrs.begin() + 0,
                              MInstr{GBaseSubtype::mov,
                                     MArgument::MemOB(static_cast<i32>(offset),
-                                                     VReg::RSP(), Type::Int64),
+                                                     VReg::RSP(), reg.ty),
                                     MArgument{reg, reg.ty}});
     }
 
@@ -413,7 +413,7 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
       first_bb.instrs.insert(first_bb.instrs.begin() + 0,
                              MInstr{GBaseSubtype::mov,
                                     MArgument::MemOB(static_cast<i32>(offset),
-                                                     VReg::RSP(), Type::Int64),
+                                                     VReg::RSP(), reg.ty),
                                     MArgument{reg, reg.ty}});
     }
     size_register_save_area = offset;
@@ -718,7 +718,8 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
     case Type::Int16:
     case Type::Int32:
     case Type::Int64:
-      // out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
+      // out_instrs.insert(out_instrs.begin() +
+      // static_cast<i64>(cinfo.start_id),
       //                   {
       //                       GBaseSubtype::mov,
       //                       ret.args[0],
@@ -800,8 +801,14 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
     // if we didnt find any that dont colllide
     // we us a push and pop
     if (!found_one && !worklist.empty()) {
-      output_vec.emplace_back(GBaseSubtype::push,
-                              cinfo.args[worklist[0]].args[0]);
+      auto &arg = cinfo.args[worklist[0]].args[0];
+      auto arg_ty = arg.ty;
+      if (arg_ty == Type::Int32 || arg_ty == Type::Int16 ||
+          arg_ty == Type::Int8) {
+        arg.ty = Type::Int64;
+        arg.reg.ty = Type::Int64;
+      }
+      output_vec.emplace_back(GBaseSubtype::push, arg);
       push_pop_queue.push_back(worklist[0]);
       worklist.erase(worklist.begin() + 0);
     }
@@ -809,7 +816,11 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
 
   for (auto push_pop : push_pop_queue | std::views::reverse) {
     const auto &arg = cinfo.args[push_pop];
-    const auto &arg_ty = arg.args[0].ty;
+    auto arg_ty = arg.args[0].ty;
+    if (arg_ty == Type::Int32 || arg_ty == Type::Int16 ||
+        arg_ty == Type::Int8) {
+      arg_ty = Type::Int64;
+    }
     auto arg_po = arg_pos[push_pop];
     switch (arg_po.ty) {
     case ArgPosition::IntReg:
