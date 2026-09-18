@@ -12,6 +12,12 @@ namespace foptim::fmir {
 namespace {
 //@returns true if the instruction was deleted
 bool simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
+  if ((instr.is(GConvSubtype::mov_zx) || instr.is(GConvSubtype::mov_sx)) &&
+      instr.args[0].ty == instr.args[1].ty) {
+    instr.bop = GOpcode::GBase;
+    instr.sop = static_cast<u32>(GBaseSubtype::mov);
+    return false;
+  }
   if (instr.is(GBaseSubtype::mov) || instr.is(GConvSubtype::mov_zx)) {
     if (instr.args[0] == instr.args[1]) {
       instrs.erase(instrs.begin() + static_cast<i64>(instr_id));
