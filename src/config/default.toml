@@ -54,7 +54,7 @@ passes = [
 [pipeline.fir.default_release_middle]
 passes = [
       "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
-      "LoopSimplify", "DCE", "LVN", "SCCP", "IntrinSimplify", "InstSimplify",
+      "LoopSimplify", "SimplifyCFG", "DCE", "LVN", "SCCP", "IntrinSimplify", "InstSimplify",
       "DoubleLoadElim", "DCE", "SimplifyCFG", "StackKnownBits", "SORA", "Mem2Reg",
       "SimplifyCFG", "DCE", "LVN", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "InstSimplify", "SimplifyCFG", "FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline", "Inline", "Inline",
@@ -70,16 +70,16 @@ passes = [
 [pipeline.fir.default_release_late]
 passes = [
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "GDCE", "IPCP",
-      "GlobalPromotion", "Inline", "Inline", "GDCE", "FuncPropAnnotator",
+      "GlobalPromotion", "LateInline", "LateInline", "GDCE", "FuncPropAnnotator",
       "LVN", "SCCP", "DoubleLoadElim", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
       "CmpKnownValProp", "SimplifyCFG", "SCCP",
-      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "Inline", "Inline",
-      "Inline", "GDCE", "IPCP", "FuncPropAnnotator",
+      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "LateInline", "LateInline",
+      "LateInline", "GDCE", "IPCP", "FuncPropAnnotator",
       "SimplifyCFG", "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "SimplifyCFG",
       "InstSimplify", "SCCP", "DCE", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "LoopUnswitch", "LoopUnroll", "SimplifyCFG", "DSE", "DCE", "SLPVectorizer", "InstSimplify",
       "SimplifyCFG",
-      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "Inline", "Inline",
+      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "LateInline", "LateInline",
       "GDCE", "IPCP", "FuncPropAnnotator",
       "SimplifyCFG", "LVN", "SCCP", "DCE", "IntrinSimplify", "InstSimplify", "DCE",
       "SLPVectorizer", "InstSimplify", "SimplifyCFG",
@@ -105,8 +105,13 @@ passes = [
 # FIR Passes
 
 #module
+[pass.fir.LateInline]
+extends = "Inline"
+allow_recursive = true
+allow_builtins = true
 [pass.fir.Inline]
-recursive = true
+allow_recursive = true
+allow_builtins = false
 [pass.fir.FuncPropAnnotator]
 [pass.fir.GlobalPromotion]
 [pass.fir.ArgPromotion]
@@ -145,6 +150,7 @@ reductions = true
 [pass.fir.ConstLoopEval]
 [pass.fir.MergeAlloca]
 [pass.fir.DSE]
+[pass.fir.IntrinConv]
 [pass.fir.LegalizeVecs]
 [pass.fir.PrintFunc]
 name_matching = ""
@@ -180,7 +186,7 @@ passes = [
   "CallingConv_FirstStage",
   "Legalizer",
   "InstSimplifyEarly",
-  "RegisterJoining",
+  # "RegisterJoining",
   "InstSimplifyEarly",
 ]
 

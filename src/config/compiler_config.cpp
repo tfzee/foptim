@@ -107,6 +107,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new LVNConf{};
     } else if (name == "EarlySheduler") {
       pass = new EarlyShedulerConf{};
+    } else if (name == "IntrinConv") {
+      pass = new IntrinConvConf{};
     } else if (name == "CmpKnownValProp") {
       pass = new CmpKnownValPropConf{};
     } else if (name == "TailRecElim") {

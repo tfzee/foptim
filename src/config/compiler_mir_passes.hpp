@@ -56,107 +56,108 @@ public:
 struct DCEConf : public FunctionPassConf<DCEConf> {
   static constexpr const char *Name = "DCE";
   using Pass = ::foptim::fmir::DeadCodeElim;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct LegalizeBBConf : public FunctionPassConf<LegalizeBBConf> {
   static constexpr const char *Name = "LegalizeBBForm";
   using Pass = ::foptim::fmir::LegalizeBBForm;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct BBReorderingConf : public FunctionPassConf<BBReorderingConf> {
   static constexpr const char *Name = "BBReordering";
   using Pass = ::foptim::fmir::BBReordering;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct CopyPropagationConf : public FunctionPassConf<CopyPropagationConf> {
   static constexpr const char *Name = "CopyPropagation";
   using Pass = ::foptim::fmir::CopyPropagation;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct LVNConf : public FunctionPassConf<LVNConf> {
   static constexpr const char *Name = "LVN";
   using Pass = ::foptim::fmir::LVN;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct InstSimplifyConf : public FunctionPassConf<InstSimplifyConf> {
   static constexpr const char *Name = "InstSimplify";
   using Pass = ::foptim::fmir::InstSimplify;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct InstSimplifyEarlyConf : public FunctionPassConf<InstSimplifyEarlyConf> {
   static constexpr const char *Name = "InstSimplifyEarly";
   using Pass = ::foptim::fmir::InstSimplifyEarly;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct LifetimeShorteningConf
     : public FunctionPassConf<LifetimeShorteningConf> {
   static constexpr const char *Name = "LifetimeShortening";
   using Pass = ::foptim::fmir::LifetimeShortening;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct LegalizerConf : public FunctionPassConf<LegalizerConf> {
   static constexpr const char *Name = "Legalizer";
   using Pass = ::foptim::fmir::Legalizer;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct RegisterJoiningConf : public FunctionPassConf<RegisterJoiningConf> {
   static constexpr const char *Name = "RegisterJoining";
   using Pass = ::foptim::fmir::RegisterJoining;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct RegAllocConf : public FunctionPassConf<RegAllocConf> {
   static constexpr const char *Name = "RegAlloc";
   using Pass = ::foptim::fmir::RegAlloc;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  using Pass = ::foptim::fmir::RegAlloc2;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct StackOptimConf : public FunctionPassConf<StackOptimConf> {
   static constexpr const char *Name = "StackOptim";
   using Pass = ::foptim::fmir::StackOptim;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct CallingConfFirstConf : public FunctionPassConf<CallingConfFirstConf> {
   static constexpr const char *Name = "CallingConv_FirstStage";
   using Pass = ::foptim::fmir::CallingConvFirst;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct CallingConfSecondConf : public FunctionPassConf<CallingConfSecondConf> {
   static constexpr const char *Name = "CallingConv_SecondStage";
   using Pass = ::foptim::fmir::CallingConvSecond;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 struct StackSlotLoweringConf : public FunctionPassConf<StackSlotLoweringConf> {
   static constexpr const char *Name = "StackSlotLowering";
   using Pass = ::foptim::fmir::StackSlotLowering;
-  bool pass_parse(toml::table &) { return true; }
-  void construct_function_pass(Pass &) {};
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
 };
 
 } // namespace foptim::conf::fmir

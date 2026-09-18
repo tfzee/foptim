@@ -9,6 +9,7 @@
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/double_load.hpp"
 #include "optim/func_passes/dse.hpp"
+#include "optim/func_passes/intrin_conv.hpp"
 #include "optim/func_passes/early_sheduler.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
@@ -294,6 +295,12 @@ struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf>,
     p.config = *static_cast<Pass::Config *>(this);
   };
 };
+struct IntrinConvConf : public FunctionPassConf<IntrinConvConf> {
+  static constexpr const char *BaseName = "IntrinConv";
+  using Pass = optim::IntrinConv;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
 struct MergeAllocaConf : public FunctionPassConf<MergeAllocaConf> {
   static constexpr const char *BaseName = "MergeAlloca";
   using Pass = optim::MergeAllocaPass;
@@ -334,7 +341,8 @@ struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
   using Pass = optim::Inline<>;
 
   bool pass_parse(toml::table &tbl) {
-    recursive = tbl["recursive"].value_or(recursive);
+    allow_recursive = tbl["allow_recursive"].value_or(allow_recursive);
+    allow_builtins = tbl["allow_builtins"].value_or(allow_builtins);
     return true;
   }
 

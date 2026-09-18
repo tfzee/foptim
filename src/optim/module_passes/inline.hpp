@@ -11,7 +11,8 @@
 
 namespace foptim::optim {
 struct InlineConfig {
-  bool recursive = true;
+  bool allow_recursive = true;
+  bool allow_builtins = true;
 };
 
 class AlwaysInlineAdvisor {
@@ -34,7 +35,7 @@ public:
     if (debug_print) {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
     }
-    if (self_func == v && !conf.recursive) {
+    if (self_func == v && !conf.allow_recursive) {
       return false;
     }
     switch (v->attribs.linkage) {
@@ -100,6 +101,11 @@ public:
     }
     auto v = called_func.as_constant()->as_func();
     const auto called_n_instrs = v->n_instrs();
+    if (!conf.allow_builtins) {
+      // llvm. just as fixup incase we havent converted yet but shouldnt really
+      // happen
+      return v->name.starts_with("foptim.") || v->name.starts_with("llvm.");
+    }
     if (v->is_decl() || v->attribs.variadic) {
       if (v->attribs.must_inline) {
         fmt::println("Had must_inline but is variadic or only decl {:cd}",
@@ -111,7 +117,7 @@ public:
     if (debug_print) {
       fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
     }
-    if (self_func == v && !conf.recursive) {
+    if (self_func == v && !conf.allow_recursive) {
       return false;
     }
 
@@ -185,12 +191,14 @@ public:
     }
     // NOTE: this aint perfect it would also try to inlnie namespace std {
     // namespace min { void someFunc(); }}
-    if (v->name.starts_with("_ZSt3min") || v->name.starts_with("_ZSt3max") ||
-        v->name.starts_with("_ZSt3absf")) {
-      if (debug_print) {
-        fmt::println("Y Special");
+    if (conf.allow_builtins) {
+      if (v->name.starts_with("_ZSt3min") || v->name.starts_with("_ZSt3max") ||
+          v->name.starts_with("_ZSt3absf")) {
+        if (debug_print) {
+          fmt::println("Y Special");
+        }
+        return true;
       }
-      return true;
     }
 
     if (n_inlined_instructions > 100 && n_inlined_calls > 50) {

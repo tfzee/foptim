@@ -1,5 +1,6 @@
 #pragma once
 #include "ir/function.hpp"
+#include "utils/todo.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
 #include <type_traits>
@@ -27,9 +28,11 @@ struct PreservedAnalysis {
 struct AnalysisManager {
   struct FunctionAnalysis {
     bool is_dirty;
-    virtual ~FunctionAnalysis();
-    virtual void on_register(fir::Function &func, AnalysisManager &man);
-    virtual void update();
+    virtual ~FunctionAnalysis() = default;
+    virtual void on_register(fir::Function & /*func*/, AnalysisManager & /*man*/) {
+      IMPL("implement it");
+    }
+    virtual void update() { IMPL("implement it"); }
   };
 
   struct GenericAnalysisData {
