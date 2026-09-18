@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16.3)
 project(foptim
         LANGUAGES CXX C)
 set(CMAKE_EXPERIMENTAL_CXX_MODULE_DYNDEP 1)
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_C_EXTENSIONS ON)
 
 set(CMAKE_CXX_COMPILER "clang++")
@@ -166,7 +166,7 @@ add_library (foptim OBJECT
 
                )
 
-target_compile_options(foptim PRIVATE -fno-exceptions -Wall -Wextra -Werror -ggdb -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
+target_compile_options(foptim PRIVATE -fno-exceptions -Wall -Wextra -Werror -ggdb -Wno-c23-extensions -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_include_directories(foptim PUBLIC ./src/)
 target_include_directories(foptim SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 target_link_libraries(foptim PUBLIC ${llvm_libs} Threads::Threads unordered_dense::unordered_dense)
@@ -178,7 +178,7 @@ set_target_properties(foptim PROPERTIES UNITY_BUILD ON UNITY_BUILD_MODE BATCH UN
 add_executable (foptim_unit_test
                 ./src/test/test_main.cpp
                )
-target_compile_options(foptim_unit_test PRIVATE -fvisibility=hidden -Wall -Wextra -Werror -ggdb -Wno-unused-private-field -Wno-implicit-fallthrough)
+target_compile_options(foptim_unit_test PRIVATE -fvisibility=hidden -Wall -Wextra -Werror -ggdb -Wno-c23-extensions -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_link_libraries(foptim_unit_test PRIVATE foptim gtest)
 target_include_directories(foptim_unit_test PRIVATE ./src/)
 
@@ -194,7 +194,7 @@ add_executable (foptim_main
                 ./src/config/compiler_config.cpp
                )
 
-target_compile_options(foptim_main PRIVATE -fvisibility=hidden -Wall -Wextra -Werror -ggdb -Wno-unused-private-field -Wno-implicit-fallthrough)
+target_compile_options(foptim_main PRIVATE -fvisibility=hidden -Wall -Wextra -Werror -ggdb -Wno-c23-extensions -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_link_libraries(foptim_main PRIVATE foptim)
 target_include_directories(foptim_main PRIVATE ./src/)
 
