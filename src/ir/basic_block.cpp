@@ -58,7 +58,7 @@ bool BasicBlockData::verify(const Function *exp_parent) const {
 void BasicBlockData::remove_arg(size_t i) {
   args[i]->replace_all_uses(ValueR());
   args[i]->_parent = fir::BasicBlock(fir::BasicBlock::invalid());
-  args.erase(args.begin() + i);
+  args.erase(args.begin() + static_cast<i64>(i));
 }
 
 void BasicBlockData::clear_args() {
@@ -83,7 +83,8 @@ void BasicBlockData::remove_from_parent(bool remove_references,
   }
   for (size_t t = 0; t < func->basic_blocks.size(); t++) {
     if (func->basic_blocks[t].operator->() == this) {
-      func->basic_blocks.erase(func->basic_blocks.begin() + t);
+      func->basic_blocks.erase(func->basic_blocks.begin() +
+                               static_cast<i64>(t));
       return;
     }
   }
@@ -91,4 +92,4 @@ void BasicBlockData::remove_from_parent(bool remove_references,
 }
 
 // FVec<Instr> &BasicBlockData::get_instrs() { return instructions; }
-}  // namespace foptim::fir
+} // namespace foptim::fir

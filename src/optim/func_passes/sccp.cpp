@@ -244,10 +244,15 @@ T const_eval_bin(fir::Instr instr, fir::TypeR out_type, T a, T b) {
     } else {
       return a - b;
     }
+  case fir::BinaryInstrSubType::PtrAdd:
   case fir::BinaryInstrSubType::IntAdd:
     if constexpr (std::is_floating_point_v<T>) {
       UNREACH();
     } else {
+      // TODO: inbounds with null add is poision
+      //  if (instr->InBounds && a == 0) {
+      //    return ctx->get_poision_value(out_type);
+      //  }
       return a + b;
     }
   case fir::BinaryInstrSubType::IntUDiv: {

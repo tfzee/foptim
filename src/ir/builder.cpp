@@ -318,14 +318,15 @@ ValueR Builder::build_int_add(ValueR a, ValueR b, bool nuw, bool nsw) {
   return ValueR(instr);
 }
 
-ValueR Builder::build_ptr_add(ValueR ptr, ValueR b, bool nuw, bool nsw) {
+ValueR Builder::build_ptr_add(ValueR ptr, ValueR b, bool inBounds) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(
       InstrData::get_binary(ptr.get_type(), BinaryInstrSubType::PtrAdd));
   instr.add_arg(ptr);
   instr.add_arg(b);
-  instr->NUW = nuw;
-  instr->NSW = nsw;
+  instr->NUW = true;
+  instr->NSW = true;
+  instr->InBounds = inBounds;
   bb.insert_instr(indx, instr);
   indx++;
   return ValueR(instr);

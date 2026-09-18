@@ -6,6 +6,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
+#include <fmt/base.h>
 
 namespace foptim::optim {
 
@@ -30,7 +31,7 @@ static void reachable_from_entry(CFG &cfg, TSet<size_t> &seen) {
 }
 
 class DCE final : public FunctionPass {
- public:
+public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("DCE", COLOR_OPTIMF);
     {
@@ -79,7 +80,7 @@ class DCE final : public FunctionPass {
         // same with bb arguments
         for (const auto &bb_with_args : curr_i->get_bb_args()) {
           auto term = bb_with_args.bb->get_terminator();
-          if (std::get<1>(marked.insert(term))) {
+          if (term.is_valid() && std::get<1>(marked.insert(term))) {
             worklist.push_back(term);
           }
           // and the args for them
@@ -91,7 +92,7 @@ class DCE final : public FunctionPass {
               }
             } else if (bb_arg.is_bb_arg()) {
               auto term = bb_arg.as_bb_arg()->get_parent()->get_terminator();
-              if (std::get<1>(marked.insert(term))) {
+              if (term.is_valid() && std::get<1>(marked.insert(term))) {
                 worklist.push_back(term);
               }
             }
@@ -104,7 +105,7 @@ class DCE final : public FunctionPass {
         const size_t bb_id = rev_cfg.get_bb_id(curr_i->get_parent());
         for (auto bb_id : rev_dom.dom_bbs.at(bb_id).frontier) {
           auto term = func.basic_blocks[bb_id]->get_terminator();
-          if (std::get<1>(marked.insert(term))) {
+          if (term.is_valid() && std::get<1>(marked.insert(term))) {
             worklist.push_back(term);
           }
         }
@@ -192,4 +193,4 @@ class DCE final : public FunctionPass {
     }
   }
 };
-}  // namespace foptim::optim
+} // namespace foptim::optim

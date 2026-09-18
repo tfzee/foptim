@@ -72,6 +72,9 @@ public:
   [[nodiscard]] constexpr bool is_constant_int() const {
     return ty == ValueType::ConstantValueR && const_val->is_int();
   }
+  [[nodiscard]] constexpr bool is_constant_null() const {
+    return ty == ValueType::ConstantValueR && const_val->is_null();
+  }
   [[nodiscard]] constexpr bool is_poison() const {
     return ty == ValueType::ConstantValueR && const_val->is_poison();
   }

@@ -203,11 +203,12 @@ enum Ordering : u8 {
 
 struct InstrAttribs {
   fir::TypeR extra_type{fir::TypeR::invalid()};
-  u64 NSW : 1 = 0;
-  u64 NUW : 1 = 0;
-  u64 Volatile : 1 = 0;
-  u64 Atomic : 1 = 0;
-  u64 Ordering : 3 = 0;
+  u8 NSW : 1 = 0;
+  u8 NUW : 1 = 0;
+  u8 InBounds : 1 = 0;
+  u8 Volatile : 1 = 0;
+  u8 Atomic : 1 = 0;
+  u8 Ordering : 3 = 0;
 };
 
 class InstrData : public Used, public InstrAttribs {

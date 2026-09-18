@@ -21,6 +21,13 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       fmt::print("Instr references a bb thats not part of this function\n");
       return false;
     }
+    auto bb_found =
+        std::ranges::find(exp_parent->get_parent()->basic_blocks, bb);
+    if (exp_parent->get_parent()->basic_blocks.end() == bb_found) {
+      fmt::print("BB is reference and claims to have same parent but not found "
+                 "in function\n");
+      return false;
+    }
     if (bb_args.size() != bb->n_args()) {
       fmt::print("Instr has invalid number of basicblock arguments\n");
       fmt::println("Expected: {} Got: {}", bb->n_args(), bb_args.size());

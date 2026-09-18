@@ -347,6 +347,13 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   auto add_like = (instr->is(fir::BinaryInstrSubType::PtrAdd) ||
                    instr->is(fir::BinaryInstrSubType::IntAdd));
+
+  if (add_like && instr->InBounds && instr->args[0].is_constant_null()) {
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_poisson_value(instr->get_type())});
+    instr.destroy();
+    return true;
+  }
   if (add_like && instr->args[0].is_instr()) {
     auto inner = instr->args[0].as_instr();
     auto no_wrap = instr->NUW && inner->NUW && instr->NSW && inner->NSW;

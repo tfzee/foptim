@@ -397,6 +397,9 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(
   if (instr->NUW) {
     app = fmt::format_to(app, "NUW; ");
   }
+  if (instr->InBounds) {
+    app = fmt::format_to(app, "InBounds; ");
+  }
   if (instr->Atomic) {
     app = fmt::format_to(app, "ATOMIC; ");
   }
