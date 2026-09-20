@@ -723,6 +723,15 @@ bool verify(const MInstr &instr) {
       fmt::println("Cmov should have 3 args {}", instr);
       return false;
     }
+  } else if (instr.is(GArithSubtype::smul3)) {
+    if (instr.n_args != 3) {
+      fmt::println("smul should have 3 args {}", instr);
+      return false;
+    }
+    if (instr.args[1].isImm() != instr.args[2].isImm()) {
+      fmt::println("smul cant have 2 immediates {}", instr);
+      return false;
+    }
   }
   return true;
 }

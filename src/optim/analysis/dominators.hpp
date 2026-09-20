@@ -33,7 +33,7 @@ public:
 
   // bb1 dominates bb2
   [[nodiscard]] bool strict_dominates(u32 bb1, u32 bb2) const {
-    return dom_bbs[bb2].dominators[bb1];
+    return bb1 != bb2 && dom_bbs[bb2].dominators[bb1];
   }
 
   [[nodiscard]] bool dominates(u32 bb1, u32 bb2) const {
@@ -354,7 +354,7 @@ public:
       }
     }
 
-    //handle unreachable bbs gracefully
+    // handle unreachable bbs gracefully
     for (auto &n : dom_bbs) {
       if (n.idom == ~0U) {
         n.idom = cfg.entry;
