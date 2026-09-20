@@ -314,6 +314,8 @@ public:
       case fir::IntrinsicSubType::FAbs:
       case fir::IntrinsicSubType::FMin:
       case fir::IntrinsicSubType::FMax:
+      case fir::IntrinsicSubType::FMinimum:
+      case fir::IntrinsicSubType::FMaximum:
       case fir::IntrinsicSubType::FRound:
       case fir::IntrinsicSubType::FCeil:
       case fir::IntrinsicSubType::FFloor:
@@ -325,6 +327,8 @@ public:
       case fir::IntrinsicSubType::INVALID:
       case fir::IntrinsicSubType::VA_start:
       case fir::IntrinsicSubType::VA_end:
+      case fir::IntrinsicSubType::Memset:
+      case fir::IntrinsicSubType::Memcpy:
         TODO("UNREACH");
       }
     } else if (instr->is(fir::InstrType::ITrunc)) {

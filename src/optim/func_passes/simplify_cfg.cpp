@@ -868,12 +868,16 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
       case fir::IntrinsicSubType::SMax:
       case fir::IntrinsicSubType::FMin:
       case fir::IntrinsicSubType::FMax:
+      case fir::IntrinsicSubType::FMinimum:
+      case fir::IntrinsicSubType::FMaximum:
       case fir::IntrinsicSubType::FRound:
       case fir::IntrinsicSubType::FFloor:
       case fir::IntrinsicSubType::PopCnt:
       case fir::IntrinsicSubType::FCeil:
       case fir::IntrinsicSubType::FTrunc:
       case fir::IntrinsicSubType::IsConstant:
+      case fir::IntrinsicSubType::Memset:
+      case fir::IntrinsicSubType::Memcpy:
         break;
       }
     case fir::InstrType::VectorInstr:

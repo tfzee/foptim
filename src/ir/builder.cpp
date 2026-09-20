@@ -198,6 +198,22 @@ ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type) {
   return ValueR(instr);
 }
 
+ValueR Builder::build_intrinsic(ValueR a, ValueR b, ValueR c,
+                                IntrinsicSubType type, TypeR opt_type) {
+  check_bb_set();
+  if (!opt_type.is_valid()) {
+    opt_type = a.get_type();
+  }
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_intrinsic(opt_type, type));
+  instr.add_arg(a);
+  instr.add_arg(b);
+  instr.add_arg(c);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return ValueR(instr);
+}
+
 ValueR Builder::build_binary_op(ValueR a, ValueR b,
                                 BinaryInstrSubType sub_type) {
   check_bb_set();

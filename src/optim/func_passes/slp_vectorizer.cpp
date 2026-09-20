@@ -663,12 +663,16 @@ public:
     case fir::IntrinsicSubType::VA_start:
     case fir::IntrinsicSubType::VA_end:
     case fir::IntrinsicSubType::IsConstant:
+    case fir::IntrinsicSubType::Memset:
+    case fir::IntrinsicSubType::Memcpy:
       return false;
     case fir::IntrinsicSubType::PopCnt:
     case fir::IntrinsicSubType::CTLZ:
     case fir::IntrinsicSubType::CTTZ:
     case fir::IntrinsicSubType::FMin:
     case fir::IntrinsicSubType::FMax:
+    case fir::IntrinsicSubType::FMinimum:
+    case fir::IntrinsicSubType::FMaximum:
     case fir::IntrinsicSubType::UMin:
     case fir::IntrinsicSubType::UMax:
     case fir::IntrinsicSubType::SMin:

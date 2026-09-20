@@ -1,6 +1,7 @@
 #include "sccp.hpp"
 
 #include <bit>
+#include <cmath>
 #include <fmt/base.h>
 
 #include <algorithm>
@@ -803,6 +804,40 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       }
       return a;
     }
+    case fir::IntrinsicSubType::FMinimum: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() || !b.is_const()) {
+        return ConstantValue::Top();
+      }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        if (std::isnan(a.vals[i].f)) {
+          a.vals[i].f = a.vals[i].f;
+        }
+        a.vals[i].f = std::min(a.vals[i].f, b.vals[i].f);
+      }
+      return a;
+    }
+    case fir::IntrinsicSubType::FMaximum: {
+      auto a = eval(instr->get_arg(0));
+      auto b = eval(instr->get_arg(1));
+      if (a.is_bottom() || b.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const() || !b.is_const()) {
+        return ConstantValue::Top();
+      }
+      for (size_t i = 0; i < a.vals.size(); i++) {
+        if (std::isnan(a.vals[i].f)) {
+          a.vals[i].f = a.vals[i].f;
+        }
+        a.vals[i].f = std::max(a.vals[i].f, b.vals[i].f);
+      }
+      return a;
+    }
     case fir::IntrinsicSubType::FMin: {
       auto a = eval(instr->get_arg(0));
       auto b = eval(instr->get_arg(1));
@@ -814,10 +849,6 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       }
       for (size_t i = 0; i < a.vals.size(); i++) {
         a.vals[i].f = std::min(a.vals[i].f, b.vals[i].f);
-        // if (a.vtype->as_float() == 32) {
-        // } else {
-        //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
-        // }
       }
       return a;
     }
@@ -832,10 +863,6 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       }
       for (size_t i = 0; i < a.vals.size(); i++) {
         a.vals[i].f = std::max(a.vals[i].f, b.vals[i].f);
-        // if (a.vtype->as_float() == 32) {
-        // } else {
-        //   a.vals[i].i = std::max((a.vals[i].f), (b.vals[i].f));
-        // }
       }
       return a;
     }
@@ -898,6 +925,8 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     case fir::IntrinsicSubType::INVALID:
     case fir::IntrinsicSubType::VA_start:
     case fir::IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::Memset:
+    case fir::IntrinsicSubType::Memcpy:
       break;
     }
     return ConstantValue::Bottom();

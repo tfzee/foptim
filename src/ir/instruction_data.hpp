@@ -93,8 +93,12 @@ enum class IntrinsicSubType : u32 {
   UMax,
   SMin,
   SMax,
+  // like std and llvm.maxinum7minnum
   FMin,
   FMax,
+  // like llvm.maximum
+  FMinimum,
+  FMaximum,
 
   PopCnt,
 
@@ -104,6 +108,11 @@ enum class IntrinsicSubType : u32 {
   FTrunc,
 
   IsConstant,
+
+  // ptr, val, u64 n_elements
+  Memset,
+  // ptr, ptr, u64 bytes
+  Memcpy,
 };
 
 enum class ConversionSubType : u32 {
@@ -315,6 +324,10 @@ public:
         return "INTRIN:FMin";
       case IntrinsicSubType::FMax:
         return "INTRIN:FMax";
+      case IntrinsicSubType::FMinimum:
+        return "INTRIN:FMinimum";
+      case IntrinsicSubType::FMaximum:
+        return "INTRIN:FMaximum";
       case IntrinsicSubType::FRound:
         return "INTRIN:FRound";
       case IntrinsicSubType::FFloor:
@@ -327,6 +340,10 @@ public:
         return "INTRIN:IsConstant";
       case IntrinsicSubType::PopCnt:
         return "INTRIN:PopCnt";
+      case IntrinsicSubType::Memcpy:
+        return "INTRIN:MemCpy";
+      case IntrinsicSubType::Memset:
+        return "INTRIN:MemSet";
       }
     case InstrType::Unreachable:
       return "unreachable";

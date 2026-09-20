@@ -538,6 +538,18 @@ public:
     instr.destroy();
   }
 
+  void handle_minmax(fir::Instr instr, fir::Function & /*funcy*/,
+                        fir::FunctionR /*callee*/, bool is_min) {
+    fir::Builder bb{instr};
+    auto res = fir::ValueR{};
+    // TODO: this has not the quite corret beheaviour in some edgecases
+    res = bb.build_intrinsic(instr->args[1], instr->args[2],
+                             is_min ? fir::IntrinsicSubType::FMinimum
+                                    : fir::IntrinsicSubType::FMaximum);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
   void handle_round(fir::Instr instr, fir::Function & /*funcy*/,
                     fir::FunctionR /*callee*/) {
     fir::Builder bb{instr};
@@ -695,6 +707,10 @@ public:
           handle_minmaxnum(instr, func, callee, true);
         } else if (callee.func->name.starts_with("llvm.maxnum")) {
           handle_minmaxnum(instr, func, callee, false);
+        } else if (callee.func->name.starts_with("llvm.maximum")) {
+          handle_minmax(instr, func, callee, true);
+        } else if (callee.func->name.starts_with("llvm.minimum")) {
+          handle_minmax(instr, func, callee, false);
         } else if (callee.func->name.starts_with("llvm.trunc.")) {
           handle_trunc(instr, func, callee);
         } else if (callee.func->name.starts_with("llvm.ctpop.")) {

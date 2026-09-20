@@ -20,7 +20,7 @@ class Builder {
   BasicBlock bb;
   size_t indx;
 
- public:
+public:
   Builder(FunctionR func);
   Builder(BasicBlock bb);
   Builder(Instr instr);
@@ -44,7 +44,8 @@ class Builder {
   ValueR build_int_srem(ValueR a, ValueR b);
   ValueR build_int_urem(ValueR a, ValueR b);
   ValueR build_binary_op(ValueR a, ValueR b, BinaryInstrSubType sub_type);
-  ValueR build_binary_op(ValueR a, ValueR b, fir::TypeR res_type, BinaryInstrSubType sub_type);
+  ValueR build_binary_op(ValueR a, ValueR b, fir::TypeR res_type,
+                         BinaryInstrSubType sub_type);
   ValueR build_unary_op(ValueR a, UnaryInstrSubType sub_type);
   ValueR build_conversion_op(ValueR a, TypeR res_type,
                              ConversionSubType sub_type);
@@ -53,7 +54,8 @@ class Builder {
                          VectorISubType sub_type);
   ValueR build_vector_op(ValueR v1, ValueR v2, ValueR v3, TypeR res_type,
                          VectorISubType sub_type);
-  ValueR build_atomic_rmw(ValueR ptr, ValueR val, AtomicRMWSubType sub_type, Ordering ordering);
+  ValueR build_atomic_rmw(ValueR ptr, ValueR val, AtomicRMWSubType sub_type,
+                          Ordering ordering);
   ValueR build_fence(Ordering ordering);
   ValueR build_ctlz(ValueR a, ValueR b);
   ValueR build_cttz(ValueR a, ValueR b);
@@ -64,6 +66,8 @@ class Builder {
   ValueR build_intrinsic(ValueR a, IntrinsicSubType type,
                          TypeR opt_type = TypeR{TypeR::invalid()});
   ValueR build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type);
+  ValueR build_intrinsic(ValueR a, ValueR b, ValueR c, IntrinsicSubType type,
+                         TypeR opt_type = TypeR{TypeR::invalid()});
   ValueR build_int_add(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
   ValueR build_ptr_add(ValueR ptr, ValueR b, bool inBounds = false);
   ValueR build_float_add(ValueR a, ValueR b);
@@ -94,7 +98,8 @@ class Builder {
       BasicBlock default_bb);
   ValueR build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2);
   ValueR build_load(TypeR type, ValueR ptr, bool is_atomic, bool is_volatile);
-  ValueR build_store(ValueR ptr, ValueR value, bool is_atomic, bool is_volatile);
+  ValueR build_store(ValueR ptr, ValueR value, bool is_atomic,
+                     bool is_volatile);
   Instr build_unreach();
   Instr build_return();
   Instr build_return(ValueR v);
@@ -104,4 +109,4 @@ class Builder {
   Instr move_instr(Instr instr);
 };
 
-}  // namespace foptim::fir
+} // namespace foptim::fir

@@ -247,6 +247,8 @@ bool InstrData::is_critical() const {
     case IntrinsicSubType::SMax:
     case IntrinsicSubType::FMin:
     case IntrinsicSubType::FMax:
+    case IntrinsicSubType::FMinimum:
+    case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
     case IntrinsicSubType::FRound:
@@ -254,6 +256,8 @@ bool InstrData::is_critical() const {
     case IntrinsicSubType::FCeil:
     case IntrinsicSubType::FTrunc:
     case IntrinsicSubType::CTTZ:
+    case fir::IntrinsicSubType::Memset:
+    case fir::IntrinsicSubType::Memcpy:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
@@ -322,6 +326,8 @@ bool InstrData::is_commutative() const {
     case IntrinsicSubType::FCeil:
     case IntrinsicSubType::FTrunc:
     case IntrinsicSubType::CTTZ:
+    case fir::IntrinsicSubType::Memset:
+    case fir::IntrinsicSubType::Memcpy:
       return false;
     case IntrinsicSubType::UMin:
     case IntrinsicSubType::UMax:
@@ -329,6 +335,8 @@ bool InstrData::is_commutative() const {
     case IntrinsicSubType::SMax:
     case IntrinsicSubType::FMin:
     case IntrinsicSubType::FMax:
+    case IntrinsicSubType::FMinimum:
+    case IntrinsicSubType::FMaximum:
       return true;
     }
   case InstrType::FCmp:
@@ -405,6 +413,8 @@ bool InstrData::pot_modifies_mem() const {
     case IntrinsicSubType::SMax:
     case IntrinsicSubType::FMin:
     case IntrinsicSubType::FMax:
+    case IntrinsicSubType::FMinimum:
+    case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
     case IntrinsicSubType::FRound:
@@ -414,6 +424,8 @@ bool InstrData::pot_modifies_mem() const {
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::Memset:
+    case fir::IntrinsicSubType::Memcpy:
       return true;
     }
   case InstrType::InsertValue:
@@ -460,15 +472,19 @@ bool InstrData::pot_reads_mem() const {
     case IntrinsicSubType::SMax:
     case IntrinsicSubType::FMin:
     case IntrinsicSubType::FMax:
+    case IntrinsicSubType::FMinimum:
+    case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
     case IntrinsicSubType::FRound:
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:
     case IntrinsicSubType::FTrunc:
+    case fir::IntrinsicSubType::Memset:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::Memcpy:
       return true;
     }
     // TODO: not sure fences kinda dont do this but can kinda kinda lead to
@@ -521,6 +537,8 @@ bool InstrData::has_pot_sideeffects() const {
     case IntrinsicSubType::SMax:
     case IntrinsicSubType::FMin:
     case IntrinsicSubType::FMax:
+    case IntrinsicSubType::FMinimum:
+    case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
     case IntrinsicSubType::FRound:
@@ -530,6 +548,8 @@ bool InstrData::has_pot_sideeffects() const {
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::Memset:
+    case fir::IntrinsicSubType::Memcpy:
       return true;
     }
   case InstrType::InsertValue:

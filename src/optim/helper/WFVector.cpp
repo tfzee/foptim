@@ -1,6 +1,7 @@
 #include "WFVector.hpp"
 
 #include <fmt/base.h>
+#include <optional>
 
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
@@ -88,6 +89,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         case fir::IntrinsicSubType::SMax:
         case fir::IntrinsicSubType::FMin:
         case fir::IntrinsicSubType::FMax:
+        case fir::IntrinsicSubType::FMinimum:
+        case fir::IntrinsicSubType::FMaximum:
         case fir::IntrinsicSubType::FRound:
         case fir::IntrinsicSubType::FCeil:
         case fir::IntrinsicSubType::FFloor:
@@ -107,6 +110,9 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:
         case fir::IntrinsicSubType::IsConstant:
+          // TODO: prob can do them aswell
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memset:
           return {};
         }
         break;
@@ -283,6 +289,8 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
         case fir::IntrinsicSubType::UMax:
         case fir::IntrinsicSubType::SMin:
         case fir::IntrinsicSubType::SMax:
+        case fir::IntrinsicSubType::FMinimum:
+        case fir::IntrinsicSubType::FMaximum:
         case fir::IntrinsicSubType::FMin:
         case fir::IntrinsicSubType::FMax: {
           auto new_i = buh.build_intrinsic(
@@ -291,6 +299,9 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
               static_cast<fir::IntrinsicSubType>(instr->subtype));
           subs.insert({fir::ValueR{instr}, new_i});
         } break;
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memset:
+          return {};
         case fir::IntrinsicSubType::INVALID:
         case fir::IntrinsicSubType::CTLZ:
         case fir::IntrinsicSubType::CTTZ:
