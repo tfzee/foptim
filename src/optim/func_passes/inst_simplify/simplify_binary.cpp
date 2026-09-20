@@ -256,8 +256,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     }
   }
   if (instr->args[1].is_constant() &&
-      instr->args[0].get_type() != instr->args[1].get_type() &&
-      !instr->is(fir::BinaryInstrSubType::PtrAdd)) {
+      instr->args[0].get_type() != instr->args[1].get_type()) {
     auto t1 = instr->args[0].get_type();
     auto t2 = instr->args[1].get_type();
     // skip converting integer constants to ptr type instead extend to same
