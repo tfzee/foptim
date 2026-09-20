@@ -1097,7 +1097,7 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.mnemonic = ZYDIS_MNEMONIC_IMUL;
       req.operand_count = 3;
       req.operands[0].reg.value = targ_expanded;
-      req.operands[1] = b;
+      req.operands[1] = a;
       req.operands[2] = b;
       off = emit(out_buff, off, &req);
     } else {
