@@ -97,6 +97,7 @@ public:
 
   bool update(CFG &cfg, LoopInfo &info);
   void dump() const;
+  void reset();
 };
 
 class InductionVarAnalysis {

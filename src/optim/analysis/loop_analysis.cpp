@@ -4,6 +4,7 @@
 
 #include <algorithm>
 
+#include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -38,7 +39,7 @@ template <class DomType> void LoopInfoAnalysis::update_impl(DomType &dom) {
   for (u32 bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
     tails.clear();
     for (auto pred : cfg.bbrs[bb_id].pred) {
-      if (dom.strict_dominates(bb_id, pred)) {
+      if (dom.dominates(bb_id, pred)) {
         tails.push_back(pred);
       }
     }
@@ -83,8 +84,7 @@ template <class DomType> void LoopInfoAnalysis::update_impl(DomType &dom) {
       u32 curr = deq.back();
       deq.pop_back();
       for (auto pred : cfg.bbrs[curr].pred) {
-        if (forward[pred] && !backward[pred] &&
-            dom.strict_dominates(bb_id, pred)) {
+        if (forward[pred] && !backward[pred] && dom.dominates(bb_id, pred)) {
           backward[pred].set(true);
           // if () {
           //   fmt::println(" INVALID {}", pred);
@@ -147,7 +147,18 @@ void LoopRangeAnalysis::dump() const {
   fmt::println(" step: {}", a);
 }
 
+void LoopRangeAnalysis::reset() {
+  lower_bound = 0;
+  upper_bound = 0;
+  a = 0;
+  induction_var = fir::BBArgument{fir::BBArgument::invalid()};
+  type = IterationType::PlusA;
+  known_lower = false;
+  known_upper = false;
+}
+
 bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
+  reset();
   fir::BasicBlock head = cfg.bbrs[info.head].bb;
   constexpr bool debug_print = false;
   // info.dump();
@@ -197,8 +208,12 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
       return false;
     }
     // there can only be 1 arg
-    ASSERT(term->bbs[0].bb == head);
-    auto induction_arg = term->bbs[0].args[0];
+    fir::ValueR induction_arg;
+    if (term->bbs[0].bb == head) {
+      induction_arg = term->bbs[0].args[0];
+    } else {
+      induction_arg = term->bbs[1].args[0];
+    }
     // TODO: improve
     if (!induction_arg.is_instr()) {
       if constexpr (debug_print) {
@@ -263,21 +278,45 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     auto term = head->get_terminator();
     ASSERT(term->is(fir::InstrType::CondBranchInstr));
     auto cond = term->args[0];
+
+    bool continue_on_true = false;
+    for (u32 node_idx : info.body_nodes) {
+      if (cfg.bbrs[node_idx].bb == term->bbs[0].bb) {
+        continue_on_true = true;
+        break;
+      }
+    }
+
+    if (cond.is_instr()) {
+      auto c_instr = cond.as_instr();
+      if (c_instr->is(fir::BinaryInstrSubType::Xor) &&
+          c_instr->args.size() == 2) {
+        if (c_instr->args[1].is_constant() &&
+            c_instr->args[1].as_constant()->is_int() &&
+            c_instr->args[1].as_constant()->as_int() == 1) {
+          continue_on_true = !continue_on_true;
+          cond = c_instr->args[0];
+        } else if (c_instr->args[0].is_constant() &&
+                   c_instr->args[0].as_constant()->is_int() &&
+                   c_instr->args[0].as_constant()->as_int() == 1) {
+          continue_on_true = !continue_on_true;
+          cond = c_instr->args[1];
+        }
+      } else if (c_instr->is(fir::UnaryInstrSubType::Not)) {
+        continue_on_true = !continue_on_true;
+        cond = c_instr->args[0];
+      }
+    }
+
     if (!cond.is_instr() || !cond.as_instr()->is(fir::InstrType::ICmp)) {
       if constexpr (debug_print) {
         fmt::println("7");
       }
       return false;
     }
+
     auto cond_instr = cond.as_instr();
     auto condi = static_cast<fir::ICmpInstrSubType>(cond_instr->subtype);
-    if (condi != fir::ICmpInstrSubType::ULT &&
-        condi != fir::ICmpInstrSubType::SLT) {
-      if constexpr (debug_print) {
-        fmt::println("8");
-      }
-      return false;
-    }
 
     u8 var_index = 0;
     u8 constant_index = 0;
@@ -293,10 +332,89 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
       }
       return false;
     }
+
+    fir::ICmpInstrSubType normalized_condi = condi;
+    if (constant_index == 0) {
+      switch (condi) {
+      case fir::ICmpInstrSubType::ULT:
+        normalized_condi = fir::ICmpInstrSubType::UGT;
+        break;
+      case fir::ICmpInstrSubType::SLT:
+        normalized_condi = fir::ICmpInstrSubType::SGT;
+        break;
+      case fir::ICmpInstrSubType::UGT:
+        normalized_condi = fir::ICmpInstrSubType::ULT;
+        break;
+      case fir::ICmpInstrSubType::SGT:
+        normalized_condi = fir::ICmpInstrSubType::SLT;
+        break;
+      case fir::ICmpInstrSubType::ULE:
+        normalized_condi = fir::ICmpInstrSubType::UGE;
+        break;
+      case fir::ICmpInstrSubType::SLE:
+        normalized_condi = fir::ICmpInstrSubType::SGE;
+        break;
+      case fir::ICmpInstrSubType::UGE:
+        normalized_condi = fir::ICmpInstrSubType::ULE;
+        break;
+      case fir::ICmpInstrSubType::SGE:
+        normalized_condi = fir::ICmpInstrSubType::SLE;
+        break;
+      default:
+        break; // EQ / NE stay the same
+      }
+    }
+
+    bool is_valid_bound = false;
+    i128 bound_offset = 0;
+
+    if (continue_on_true) {
+      switch (normalized_condi) {
+      case fir::ICmpInstrSubType::ULT:
+      case fir::ICmpInstrSubType::SLT:
+      case fir::ICmpInstrSubType::NE:
+        is_valid_bound = true;
+        bound_offset = 0;
+        break;
+      case fir::ICmpInstrSubType::ULE:
+      case fir::ICmpInstrSubType::SLE:
+        is_valid_bound = true;
+        bound_offset = 1;
+        break;
+
+      default:
+        break;
+      }
+    } else {
+      switch (normalized_condi) {
+      case fir::ICmpInstrSubType::UGE:
+      case fir::ICmpInstrSubType::SGE:
+      case fir::ICmpInstrSubType::EQ:
+        is_valid_bound = true;
+        bound_offset = 0;
+        break;
+      case fir::ICmpInstrSubType::UGT:
+      case fir::ICmpInstrSubType::SGT:
+        is_valid_bound = true;
+        bound_offset = 1;
+        break;
+
+      default:
+        break;
+      }
+    }
+
+    if (!is_valid_bound) {
+      if constexpr (debug_print) {
+        fmt::println("8");
+      }
+      return false;
+    }
+
     auto con = cond_instr->args[constant_index].as_constant();
     auto var = cond_instr->args[var_index];
     if (!con->is_int()) {
-      if (debug_print) {
+      if constexpr (debug_print) {
         fmt::println("9");
       }
       return false;
@@ -308,11 +426,21 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
       return false;
     }
 
-    auto new_off = con->as_int();
     known_upper = true;
-    upper_bound = new_off;
+    upper_bound = con->as_int() + bound_offset;
     upper_bound_var = fir::Use::norm(cond_instr, constant_index);
   }
+  if (known_lower && known_upper) {
+    if (a == 0 || (a > 0 && lower_bound > upper_bound) ||
+        (a < 0 && lower_bound < upper_bound)) {
+      if constexpr (debug_print) {
+        fmt::println("11 bad direction: lower={} upper={} step={}", lower_bound,
+                     upper_bound, a);
+      }
+      return false;
+    }
+  }
+
   if constexpr (debug_print) {
     fmt::println("f");
   }
