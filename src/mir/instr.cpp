@@ -732,6 +732,19 @@ bool verify(const MInstr &instr) {
       fmt::println("smul cant have 2 immediates {}", instr);
       return false;
     }
+  } else if (instr.is(X86Subtype::vpextr)) {
+    if (instr.n_args != 3) {
+      fmt::println("should have 3 args {}", instr);
+      return false;
+    }
+    if (!instr.args[2].isImm()) {
+      fmt::println("3rd arg needs to be imm {}", instr);
+      return false;
+    }
+    if (!instr.args[1].is_vec_reg() || get_size(instr.args[1].ty) > 128) {
+      fmt::println("2nd arg needs to be xmm vecreg {}", instr);
+      return false;
+    }
   }
   return true;
 }

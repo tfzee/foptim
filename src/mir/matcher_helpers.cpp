@@ -88,11 +88,12 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
 }
 
 namespace {
+MArgument setup_callargPosMem(fir::ValueR arg, MatchResult &res,
+                              ExtraMatchData &data, fir::BasicBlock curr_bb) {
+  return valueToArgPosMem(arg, res.result, data.alloc, curr_bb);
+}
 MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
                         ExtraMatchData &data) {
-  if (!arg.is_instr()) {
-    return valueToArg(arg, res.result, data.alloc);
-  }
   return valueToArg(arg, res.result, data.alloc);
 }
 } // namespace
@@ -102,8 +103,8 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
   // fmt::println("Instr: {}", call_instr);
   TVec<MArgument> evaluated_args;
   for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
-    evaluated_args.push_back(
-        setup_callarg(call_instr->args[arg_id], res, data));
+    evaluated_args.push_back(setup_callargPosMem(
+        call_instr->args[arg_id], res, data, call_instr->get_parent()));
   }
   for (auto arg_value : evaluated_args) {
     res.result.emplace_back(GBaseSubtype::arg_setup, arg_value);
@@ -325,6 +326,17 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,
 
 MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
                              DumbRegAlloc &alloc) {
+
+  auto ensure64bit = [](VReg x) {
+    if (x.size() == 64) {
+      return x;
+    }
+    if (x.size() > 64) {
+      TODO("idk about this");
+    }
+    return x.retype(Type::Int64);
+  };
+
   if (val.is_constant()) {
     auto constant = val.as_constant();
     if (constant->is_global()) {
@@ -366,13 +378,13 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
         auto arg3 = valueToArg(i->args[1], res, alloc);
         // does order matter here ?
         if (arg1.isReg() && arg2.isReg() && arg3.isImm()) {
-          return MArgument::MemOBI(arg3.imm, arg1.reg, arg2.reg, type_id);
+          return MArgument::MemOBI(arg3.imm, ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
         }
         if (arg1.isReg() && arg3.isReg() && arg2.isImm()) {
-          return MArgument::MemOBI(arg2.imm, arg1.reg, arg3.reg, type_id);
+          return MArgument::MemOBI(arg2.imm, ensure64bit(arg1.reg), ensure64bit(arg3.reg), type_id);
         }
         if (arg2.isReg() && arg3.isReg() && arg1.isImm()) {
-          return MArgument::MemOBI(arg1.imm, arg2.reg, arg3.reg, type_id);
+          return MArgument::MemOBI(arg1.imm, ensure64bit(arg2.reg), ensure64bit(arg3.reg), type_id);
         }
       }
       if (i->args[1].is_instr() &&
@@ -383,13 +395,13 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
         auto arg3 = valueToArg(i->args[0], res, alloc);
         // does order matter here ?
         if (arg1.isReg() && arg2.isReg() && arg3.isImm()) {
-          return MArgument::MemOBI(arg3.imm, arg1.reg, arg2.reg, type_id);
+          return MArgument::MemOBI(arg3.imm, ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
         }
         if (arg1.isReg() && arg3.isReg() && arg2.isImm()) {
-          return MArgument::MemOBI(arg2.imm, arg1.reg, arg3.reg, type_id);
+          return MArgument::MemOBI(arg2.imm, ensure64bit(arg1.reg), ensure64bit(arg3.reg), type_id);
         }
         if (arg2.isReg() && arg3.isReg() && arg1.isImm()) {
-          return MArgument::MemOBI(arg1.imm, arg2.reg, arg3.reg, type_id);
+          return MArgument::MemOBI(arg1.imm, ensure64bit(arg2.reg), ensure64bit(arg3.reg), type_id);
         }
       }
       if (i->args[0].is_instr() &&
@@ -422,11 +434,11 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
           }
           // does order matter here ?
           if (arg1.isReg() && off.isLabel()) {
-            return MArgument::MemLIS(off.label, arg1.reg, log_scale, type_id);
+            return MArgument::MemLIS(off.label, ensure64bit(arg1.reg), log_scale, type_id);
           } else if (arg1.isReg() && off.isReg()) {
-            return MArgument::MemBIS(off.reg, arg1.reg, log_scale, type_id);
+            return MArgument::MemBIS(off.reg, ensure64bit(arg1.reg), log_scale, type_id);
           } else if (arg1.isReg() && off.isImm()) {
-            return MArgument::MemOIS(off.imm, arg1.reg, log_scale, type_id);
+            return MArgument::MemOIS(off.imm, ensure64bit(arg1.reg), log_scale, type_id);
           }
         }
       }
@@ -458,9 +470,9 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
           }
           // does order matter here ?
           if (arg1.isReg() && off.isReg()) {
-            return MArgument::MemBIS(off.reg, arg1.reg, log_scale, type_id);
+            return MArgument::MemBIS(off.reg, ensure64bit(arg1.reg), log_scale, type_id);
           } else if (arg1.isReg() && off.isImm()) {
-            return MArgument::MemOIS(static_cast<i32>(off.imm), arg1.reg,
+            return MArgument::MemOIS(static_cast<i32>(off.imm), ensure64bit(arg1.reg),
                                      log_scale, type_id);
           }
         }
@@ -472,10 +484,10 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
                                 type_id);
       }
       if (arg1.isReg() && arg2.isReg()) {
-        return MArgument::MemBI(arg1.reg, arg2.reg, type_id);
+        return MArgument::MemBI(ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
       }
       if (arg1.isReg() && arg2.isReg()) {
-        return MArgument::MemBI(arg1.reg, arg2.reg, type_id);
+        return MArgument::MemBI(ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
       }
     }
     return MArgument::MemB(alloc.get_register(val), type_id);
