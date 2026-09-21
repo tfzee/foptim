@@ -3,6 +3,7 @@
 #include "backend3.hpp"
 #include "config/compiler_config.hpp"
 #include "mir/instr.hpp"
+#include "mir/matcher_helpers.hpp"
 #include "third_party/Zydis.h"
 #include "utils/stats.hpp"
 #include "utils/todo.hpp"
@@ -2437,18 +2438,45 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       default:
         fmt::println("{:cd}", instr);
         TODO("impl");
+      case fmir::Type::Int32x8: {
+        auto arg = instr.args[1];
+        arg.ty = fmir::Type::Int32x4;
+        arg.reg.ty = fmir::Type::Int32x4;
+        emit_operand(arg, req.operands[1], reloc_map, out_buff, 1);
+      }
+      /* fall through */
       case fmir::Type::Int32x4:
-      case fmir::Type::Int32x8:
         req.mnemonic = ZYDIS_MNEMONIC_VPEXTRD;
+        break;
+      case fmir::Type::Float32x8: {
+        auto arg = instr.args[1];
+        arg.ty = fmir::Type::Float32x4;
+        arg.reg.ty = fmir::Type::Float32x4;
+        emit_operand(arg, req.operands[1], reloc_map, out_buff, 1);
+      }
+      /* fall through */
       case fmir::Type::Float32x4:
       case fmir::Type::Float32x2:
-      case fmir::Type::Float32x8:
         req.mnemonic = ZYDIS_MNEMONIC_VEXTRACTPS;
         break;
+      case fmir::Type::Int64x4: {
+        auto arg = instr.args[1];
+        arg.ty = fmir::Type::Int64x2;
+        arg.reg.ty = fmir::Type::Int64x2;
+        emit_operand(arg, req.operands[1], reloc_map, out_buff, 1);
+      }
+      /* fall through */
       case fmir::Type::Int64x2:
+        req.mnemonic = ZYDIS_MNEMONIC_VPEXTRQ;
+        break;
+      case fmir::Type::Float64x4: {
+        auto arg = instr.args[1];
+        arg.ty = fmir::Type::Float64x2;
+        arg.reg.ty = fmir::Type::Float64x2;
+        emit_operand(arg, req.operands[1], reloc_map, out_buff, 1);
+      }
+      /* fall through */
       case fmir::Type::Float64x2:
-      case fmir::Type::Int64x4:
-      case fmir::Type::Float64x4:
         req.mnemonic = ZYDIS_MNEMONIC_VPEXTRQ;
         break;
       }
