@@ -1182,9 +1182,13 @@ void arith_patterns(IRVec<Pattern> &pats) {
                   add_instr->args[0].as_constant()->as_global()->name.c_str(),
                   indx_reg, consti_val, res_ty));
         }
+        auto cpy_indx_reg = indx_reg;
+        cpy_indx_reg.ty = res_ty;
+        auto cpy_base_reg = base_reg;
+        cpy_base_reg.ty = res_ty;
         res.result.emplace_back(
             X86Subtype::lea, res_reg,
-            MArgument::MemBIS(base_reg, indx_reg, consti_val, res_ty));
+            MArgument::MemBIS(cpy_base_reg, cpy_indx_reg, consti_val, res_ty));
         return true;
       }});
   pats.push_back(Pattern{
