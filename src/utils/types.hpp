@@ -20,6 +20,7 @@ class MArgument;
 class MInstr;
 class MBB;
 class MFunc;
+struct Global;
 enum class Type : uint16_t;
 } // namespace fmir
 

@@ -13,7 +13,6 @@
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
 #include "utils/arena.hpp"
-#include "utils/parameters.hpp"
 #include "x86_codegen/backend3_instr_gen.hpp"
 
 namespace foptim::codegen {
@@ -235,9 +234,38 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   return curr_loc;
 }
 
+void generate_asm_file(TLabelUsageMap &label_usage_map, const u8 *start_txt,
+                       const u8 *end_txt, std::span<const IRString> decls,
+                       std::span<const fmir::Global> globals,
+                       const conf::CompConf &conf) {
+  (void)conf;
+  (void)globals;
+  (void)decls;
+  (void)start_txt;
+  (void)end_txt;
+  (void)label_usage_map;
+  ZyanU64 runtime_address = 0x007FFFFFFF400000;
+
+  ZyanUSize offset = 0;
+  const auto *txt_ptr = start_txt;
+  auto txt_size = (static_cast<u64>(end_txt - start_txt));
+  ZydisDisassembledInstruction instruction;
+  while (ZYAN_SUCCESS(ZydisDisassembleIntel(
+      /* machine_mode:    */ ZYDIS_MACHINE_MODE_LONG_64,
+      /* runtime_address: */ runtime_address,
+      /* buffer:          */ txt_ptr + offset,
+      /* length:          */ txt_size - offset,
+      /* instruction:     */ &instruction))) {
+    fmt::println("{}", instruction.text);
+    offset += instruction.info.length;
+    runtime_address += instruction.info.length;
+  }
+  TODO("Impl");
+}
 void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                        u8 *end_txt, std::span<const IRString> decls,
-                       std::span<const fmir::Global> globals) {
+                       std::span<const fmir::Global> globals,
+                       const conf::CompConf &conf) {
   ZoneScopedN("Generating obj");
   using ELFIO::Elf64_Addr;
   using ELFIO::Elf_Half;
@@ -514,11 +542,12 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         UNREACH();
       case RelocSection::InitArray:
         init_array_rela.add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
-                                  symbol, R_X86_64_64, loc.addent);
+                                  symbol, R_X86_64_64,
+                                  static_cast<i64>(loc.addent));
         break;
       case RelocSection::Data:
         data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
-                            loc.addent);
+                            static_cast<Elf_Sxword>(loc.addent));
         break;
       case RelocSection::Text:
         auto data = get_op_addr(loc.usage_instr, loc.operand_num);
@@ -527,25 +556,29 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         case RelocSection::InitArray:
           UNREACH();
         case RelocSection::Data:
-          text_rela.add_entry(data.op_addr - start_txt, symbol, R_X86_64_PC32,
-                              -data.op_off + data.op_val + loc.addent);
+          text_rela.add_entry(
+              data.op_addr - start_txt, symbol, R_X86_64_PC32,
+              static_cast<Elf_Sxword>(-data.op_off + data.op_val + loc.addent));
           break;
         case RelocSection::Extern:
           if (label_data.kind == RelocKind::Func) {
             text_rela.add_entry(data.op_addr - start_txt, symbol,
                                 R_X86_64_PLT32,
-                                -data.op_off + data.op_val + loc.addent);
+                                static_cast<Elf_Sxword>(
+                                    -data.op_off + data.op_val + loc.addent));
           } else if (label_data.kind == RelocKind::Data) {
             text_rela.add_entry(data.op_addr - start_txt, symbol,
                                 R_X86_64_GOTPCREL,
-                                -data.op_off + data.op_val + loc.addent);
+                                static_cast<Elf_Sxword>(
+                                    -data.op_off + data.op_val + loc.addent));
           } else {
             TODO("UNREACH?");
           }
           break;
         case RelocSection::Text:
-          text_rela.add_entry(data.op_addr - start_txt, symbol, R_X86_64_PLT32,
-                              -data.op_off + data.op_val + loc.addent);
+          text_rela.add_entry(
+              data.op_addr - start_txt, symbol, R_X86_64_PLT32,
+              static_cast<Elf_Sxword>(-data.op_off + data.op_val + loc.addent));
           break;
         }
         break;
@@ -577,7 +610,11 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     }
   });
 
-  ASSERT(writer.save(utils::out_file_path));
+  std::ofstream stream;
+  ASSERT(!conf.output.out_file.empty());
+  stream.open(conf.output.out_file.c_str(), std::ios::out | std::ios::binary);
+  ASSERT(!!stream);
+  ASSERT(writer.save(stream));
 }
 } // namespace
 
@@ -591,6 +628,20 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
       }
     }
   }
+  if (conf.output.type == conf::Output::OutputType::PrintMIR) {
+    fmt::println("++++++++++++++PRINT MIR+++++++++++++++++");
+    for (const auto &func : funcs) {
+      fmt::println("{}", func);
+    }
+    for (const auto &decl : decls) {
+      fmt::println("{}", decl);
+    }
+    for (const auto &global : globals) {
+      fmt::println("{}", global);
+    }
+    fmt::println("++++++++++++++END PRINT MIR+++++++++++++++++");
+    return;
+  }
 
   auto *output_buffer = utils::TempAlloc<u8>{}.allocate(n_instrs * 16);
   memset(output_buffer, 0xFF, n_instrs * 16);
@@ -600,7 +651,20 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   fmt::println(" Needs {} Relocations\n Generated {} Bytes\n",
                label_usages.label_map.size(), end_buff_ptr - output_buffer);
 
-  generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals);
+  switch (conf.output.type) {
+  case conf::Output::OutputType::PrintIR:
+    UNREACH();
+  case conf::Output::OutputType::PrintMIR:
+    UNREACH();
+  case conf::Output::OutputType::Object:
+    generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals,
+                      conf);
+    break;
+  case conf::Output::OutputType::Assembly:
+    generate_asm_file(label_usages, output_buffer, end_buff_ptr, decls, globals,
+                      conf);
+    break;
+  }
 
   // {
   //   ZyanU64 runtime_address = 0;

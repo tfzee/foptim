@@ -35,7 +35,7 @@ struct Input {
 };
 
 struct Output {
-  enum class OutputType : u8 { Object, Assembly };
+  enum class OutputType : u8 { Object, PrintIR, PrintMIR, Assembly };
   OutputType type = OutputType::Object;
   // empty = stdout
   IRString out_file;

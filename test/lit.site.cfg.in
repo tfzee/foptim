@@ -1,0 +1,17 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+import sys
+import os
+
+for envvar in os.environ:
+    config.environment[envvar] = os.environ[envvar]
+    continue
+
+config.foptim_bin_dir="@FOPTIM_ARTIFACT_DIR@"
+config.foptim_src_dir="@CMAKE_SOURCE_DIR@"
+
+# Let the main config do the real work.
+config.loaded_site_config = True
+lit_config.load_config(config, "@CMAKE_SOURCE_DIR@/test/lit.cfg")
+
+

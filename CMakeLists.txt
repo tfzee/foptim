@@ -198,5 +198,28 @@ target_compile_options(foptim_main PRIVATE -fvisibility=hidden -Wall -Wextra -We
 target_link_libraries(foptim_main PRIVATE foptim)
 target_include_directories(foptim_main PRIVATE ./src/)
 
-# add_subdirectory(test)
 
+
+
+###############################################
+#foptim lit test
+set_property(GLOBAL PROPERTY GLOBAL_LIT_TARGETS)
+function(add_my_lit_suite target_name test_dir dependency_target)
+    add_custom_target(${target_name}
+        COMMAND lit "${test_dir}" -v
+        DEPENDS ${dependency_target}
+        COMMENT "Running lit test suite: ${target_name}"
+        USES_TERMINAL
+    )   
+    set_property(GLOBAL APPEND PROPERTY GLOBAL_LIT_TARGETS ${target_name})
+endfunction()
+add_subdirectory(test)
+get_property(ALL_LIT_TESTS GLOBAL PROPERTY GLOBAL_LIT_TARGETS)
+if(ALL_LIT_TESTS)
+    add_custom_target(check-all
+        COMMENT "Running all registered lit test suites..."
+    )
+    add_dependencies(check-all ${ALL_LIT_TESTS})
+else()
+    message(STATUS "No lit test suites registered for check-all.")
+endif()

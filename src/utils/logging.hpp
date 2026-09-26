@@ -168,6 +168,13 @@ class fmt::formatter<foptim::fmir::MFunc>
 };
 
 template <>
+class fmt::formatter<foptim::fmir::Global>
+    : public BaseIRFormatter<foptim::fmir::Global> {
+ public:
+  appender format(foptim::fmir::Global const &glob, format_context &ctx) const;
+};
+
+template <>
 class fmt::formatter<foptim::fmir::MInstr>
     : public BaseIRFormatter<foptim::fmir::MInstr> {
  public:

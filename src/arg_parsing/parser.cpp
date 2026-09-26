@@ -23,13 +23,16 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .help("verbosity")
       .scan<'i', int>()
       .default_value(254);
+  program.add_argument("--print-mir")
+      .help("print MIR instead of outputing an object")
+      .flag();
   program.add_argument("--cconffile")
       .store_into(config)
       .default_value("Default")
       .help("where the cconf.toml is located at")
       .default_value("default");
   program.add_argument("input").required().help("specify the input .ll file.");
-  program.add_argument("output").required().help(
+  program.add_argument("output").default_value("/dev/null").help(
       "specify the output .ss file.");
 
   try {
@@ -48,5 +51,7 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   conf.debug.verbosity = static_cast<foptim::u8>(program.get<int>("verbosity"));
   conf.input.in_file = program.get<std::string>("input");
   conf.output.out_file = program.get<std::string>("output");
-
+  if (program["--print-mir"] == true) {
+    conf.output.type = foptim::conf::Output::OutputType::PrintMIR;
+  }
 }

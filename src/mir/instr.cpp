@@ -1,10 +1,12 @@
 #include "instr.hpp"
 
+#include <fmt/base.h>
 #include <fmt/color.h>
 #include <fmt/format.h>
 
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
+#include "mir/global.hpp"
 #include "utils/set.hpp"
 namespace foptim::fmir {
 
@@ -934,6 +936,30 @@ bool verify(const FVec<MFunc> &funcs) {
 }
 
 } // namespace foptim::fmir
+
+fmt::appender
+fmt::formatter<foptim::fmir::Global>::format(foptim::fmir::Global const &glob,
+                                             format_context &ctx) const {
+  auto app = ctx.out();
+  switch (glob.vis) {
+  case foptim::fir::LinkVisibility::Default:
+    fmt::println("DEFAULT");
+    break;
+  case foptim::fir::LinkVisibility::Hidden:
+    fmt::println("HIDDEN");
+    break;
+  case foptim::fir::LinkVisibility::Protected:
+    fmt::println("PROTECTED");
+    break;
+  }
+  if (glob.data.empty()) {
+    fmt::println(" DECL");
+  }
+  fmt::println(" ALIGN({})", glob.min_align);
+  fmt::println(" {}", glob.name);
+  fmt::println(" = ({}) .....", glob.size);
+  return app;
+}
 
 fmt::appender
 fmt::formatter<foptim::fmir::MFunc>::format(foptim::fmir::MFunc const &func,

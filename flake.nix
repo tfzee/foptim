@@ -31,6 +31,7 @@
             ninja
             llvmPackages_20.clang
             gtest
+            lit
 
             #for testing stuff not real dependencies
             cmakeCurses
