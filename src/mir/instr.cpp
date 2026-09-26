@@ -989,7 +989,11 @@ fmt::formatter<foptim::fmir::MFunc>::format(foptim::fmir::MFunc const &func,
   forward_it(bb_fmt);
 
   for (size_t bb_indx = 0; bb_indx < func.bbs.size(); bb_indx++) {
-    app = fmt::format_to(app, color_bb, "  {}:\n", bb_indx);
+    if (color) {
+      app = fmt::format_to(app, color_bb, "  {}:\n", bb_indx);
+    } else {
+      app = fmt::format_to(app, "  {}:\n", bb_indx);
+    }
     app = bb_fmt.format(func.bbs[bb_indx], ctx);
   }
   return app;
@@ -999,12 +1003,12 @@ fmt::appender
 fmt::formatter<foptim::fmir::MBB>::format(foptim::fmir::MBB const &bb,
                                           format_context &ctx) const {
   auto app = ctx.out();
+  fmt::formatter<foptim::fmir::MInstr> instr_fmt;
+  forward_it(instr_fmt);
   for (const auto &instr : bb.instrs) {
-    if (color) {
-      app = fmt::format_to(app, "    {:c}\n", instr);
-    } else {
-      app = fmt::format_to(app, "    {}\n", instr);
-    }
+    app = fmt::format_to(app, "    ");
+    app = instr_fmt.format(instr, ctx);
+    app = fmt::format_to(app, "\n");
   }
   return app;
 }
