@@ -145,7 +145,6 @@ add_library (foptim OBJECT
                 ./src/mir/analysis/live_variables.cpp
                 ./src/mir/optim/mir_pipeline.cpp
                 ./src/mir/optim/reg_alloc.cpp
-                ./src/mir/optim/reg_alloc_wp.cpp
                 ./src/mir/optim/lvn.cpp
                 ./src/mir/optim/dce.cpp
                 ./src/mir/optim/calling_conv.cpp

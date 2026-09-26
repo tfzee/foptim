@@ -1,11 +1,17 @@
 #include "reg_alloc.hpp"
 
+#include <algorithm>
+#include <ankerl/unordered_dense.h>
+#include <cstring>
 #include <fmt/base.h>
+#include <fmt/ranges.h>
 #include <limits>
 #include <ranges>
 
+#include "mir/analysis/cfg.hpp"
 #include "mir/analysis/live_variables.hpp"
 #include "mir/instr.hpp"
+#include "mir/optim/reg_alloc.hpp"
 #include "utils/set.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
@@ -69,320 +75,1058 @@ void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
   }
 }
 
-namespace {
-bool reg_is_legal(const VReg &reg, CReg avail_reg) {
-  ASSERT(!reg.is_concrete());
-  ASSERT((u8)CReg::N_REGS == 33);
-
-  if (reg.is_vec_reg()) {
-    return avail_reg == CReg::mm0 || avail_reg == CReg::mm1 ||
-           avail_reg == CReg::mm2 || avail_reg == CReg::mm3 ||
-           avail_reg == CReg::mm4 || avail_reg == CReg::mm5 ||
-           avail_reg == CReg::mm6 || avail_reg == CReg::mm7 ||
-           avail_reg == CReg::mm8 || avail_reg == CReg::mm9 ||
-           avail_reg == CReg::mm10 || avail_reg == CReg::mm11 ||
-           avail_reg == CReg::mm12 || avail_reg == CReg::mm13 ||
-           avail_reg == CReg::mm14 || avail_reg == CReg::mm15;
-  }
-  return avail_reg == CReg::A || avail_reg == CReg::B || avail_reg == CReg::C ||
-         avail_reg == CReg::D || avail_reg == CReg::DI ||
-         avail_reg == CReg::SI || avail_reg == CReg::SP ||
-         avail_reg == CReg::BP || avail_reg == CReg::R8 ||
-         avail_reg == CReg::R9 || avail_reg == CReg::R10 ||
-         avail_reg == CReg::R11 || avail_reg == CReg::R12 ||
-         avail_reg == CReg::R13 || avail_reg == CReg::R14 ||
-         avail_reg == CReg::R15;
-}
-
-constexpr size_t N_REGS_SELECTABLE = 30;
-static_assert(static_cast<size_t>(CReg::N_REGS) - 3 == N_REGS_SELECTABLE);
-
-constexpr void get_reg_order(MFunc &func, CReg *regs) {
-  // TODO: these dont make sense for other CCs
-  static constexpr CReg leaf_optimized_regs[N_REGS_SELECTABLE] = {
-      CReg::A,    CReg::D,    CReg::C,    CReg::DI,   CReg::SI,   CReg::R8,
-      CReg::R9,   CReg::R10,  CReg::R11,  CReg::mm0,  CReg::mm1,  CReg::mm2,
-      CReg::mm3,  CReg::mm4,  CReg::mm5,  CReg::mm6,  CReg::mm7,  CReg::R12,
-      CReg::R13,  CReg::R14,  CReg::R15,  CReg::B,    CReg::mm8,  CReg::mm9,
-      CReg::mm10, CReg::mm11, CReg::mm12, CReg::mm13, CReg::mm14, CReg::mm15};
-  static constexpr CReg basic_regs[N_REGS_SELECTABLE] = {
-      CReg::B,    CReg::R12,  CReg::R13,  CReg::R14,  CReg::R15,  CReg::mm8,
-      CReg::mm9,  CReg::mm10, CReg::mm11, CReg::mm12, CReg::mm13, CReg::mm14,
-      CReg::mm15, CReg::A,    CReg::D,    CReg::C,    CReg::DI,   CReg::SI,
-      CReg::R8,   CReg::R9,   CReg::R10,  CReg::R11,  CReg::mm0,  CReg::mm1,
-      CReg::mm2,  CReg::mm3,  CReg::mm4,  CReg::mm5,  CReg::mm6,  CReg::mm7};
-
-  bool is_leaf = true;
-  for (auto &bb : func.bbs) {
-    for (auto &instr : bb.instrs) {
-      if (instr.is(GBaseSubtype::call) || instr.is(GBaseSubtype::invoke)) {
-        is_leaf = false;
-        break;
+void replace_varg(MInstr &instr, u64 from, VReg to, bool keep_type) {
+  const auto replace = [from, to, keep_type](VReg &reg) -> void {
+    if (!reg.is_concrete() && from == reg.virt_id()) {
+      if (keep_type) {
+        auto orig_type = reg.ty;
+        reg = to;
+        reg.ty = orig_type;
+      } else {
+        reg = to;
       }
     }
-    if (!is_leaf) {
+  };
+
+  for (u32 i = 0; i < instr.n_args; i++) {
+    switch (instr.args[i].type) {
+    case MArgument::ArgumentType::StackSlot:
+    case MArgument::ArgumentType::Imm:
+    case MArgument::ArgumentType::Label:
+    case MArgument::ArgumentType::MemLabel:
+    case MArgument::ArgumentType::MemImmLabel:
+    case MArgument::ArgumentType::MemImm:
+      break;
+    case MArgument::ArgumentType::VReg:
+    case MArgument::ArgumentType::MemImmVReg:
+    case MArgument::ArgumentType::MemVReg: {
+      replace(instr.args[i].reg);
+      break;
+    }
+    case MArgument::ArgumentType::MemVRegVRegScale:
+    case MArgument::ArgumentType::MemImmVRegVReg:
+    case MArgument::ArgumentType::MemVRegVReg:
+    case MArgument::ArgumentType::MemImmVRegVRegScale: {
+      replace(instr.args[i].reg);
+      replace(instr.args[i].indx);
+      break;
+    }
+    case MArgument::ArgumentType::MemLabelVregScale:
+    case MArgument::ArgumentType::MemLabelVreg:
+    case MArgument::ArgumentType::MemImmVRegScale: {
+      replace(instr.args[i].indx);
+      break;
+    }
+    }
+  }
+}
+
+namespace {
+constexpr f32 spillCost = 1000.F;
+constexpr f32 copyDiscount = -2;
+
+constexpr CReg kAllocatableGPRegs[] = {
+    CReg::A,  CReg::B,   CReg::C,   CReg::D,   CReg::DI,  CReg::SI,  CReg::R8,
+    CReg::R9, CReg::R10, CReg::R11, CReg::R12, CReg::R13, CReg::R14, CReg::R15,
+};
+// constexpr size_t kNumAllocatableGPR =
+//     sizeof(kAllocatableGPRegs) / sizeof(kAllocatableGPRegs[0]);
+
+constexpr CReg kAllocatableVecRegs[] = {
+    CReg::mm0,  CReg::mm1,  CReg::mm2,  CReg::mm3,  CReg::mm4,  CReg::mm5,
+    CReg::mm6,  CReg::mm7,  CReg::mm8,  CReg::mm9,  CReg::mm10, CReg::mm11,
+    CReg::mm12, CReg::mm13, CReg::mm14, CReg::mm15,
+};
+// constexpr size_t kNumAllocatableVec =
+//     sizeof(kAllocatableVecRegs) / sizeof(kAllocatableVecRegs[0]);
+constexpr size_t numRegs = static_cast<u64>(CReg::N_REGS);
+constexpr f32 infCost = std::numeric_limits<f32>::infinity();
+
+struct CostVector {
+  f32 cost[numRegs] = {};
+
+  [[nodiscard]] constexpr f32 get_spill_cost() const { return cost[0]; }
+  void dump() const {
+    fmt::print("V{{");
+    for (float i : cost) {
+      fmt::print("{}, ", i);
+    }
+    fmt::print("}}");
+  }
+};
+
+struct CostMatrix {
+  f32 cost[numRegs][numRegs] = {};
+  // if hard_cosntraint then we *cannot* ignore this matrix otherwise we can
+  // disable it to make coloring possible
+  bool hard_constraint = true;
+
+  [[nodiscard]] constexpr f32 get_cost(bool flip, u32 row, u32 col) const {
+    if (flip) {
+      return cost[row][col];
+    }
+    return cost[col][row];
+  };
+
+  void dump() const {
+    for (const auto &i : cost) {
+      for (float j : i) {
+        fmt::print("{}, ", j);
+      }
+      fmt::println(";");
+    }
+  }
+};
+
+struct EdgeId {
+  u64 a;
+  u64 b;
+
+  constexpr EdgeId(u64 i1, u64 i2) {
+    ASSERT(i1 != i2);
+    if (i1 >= i2) {
+      a = i1;
+      b = i2;
+    } else {
+      a = i2;
+      b = i1;
+    }
+  }
+
+  [[nodiscard]] constexpr bool operator==(EdgeId o) const {
+    return a == o.a && b == o.b;
+  }
+};
+} // namespace
+} // namespace foptim::fmir
+
+template <> struct ankerl::unordered_dense::hash<foptim::fmir::EdgeId> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(foptim::fmir::EdgeId const &x) const noexcept
+      -> uint64_t {
+    return ankerl::unordered_dense::detail::wyhash::mix(
+        ankerl::unordered_dense::detail::wyhash::hash(x.a),
+        ankerl::unordered_dense::detail::wyhash::hash(x.b));
+  }
+};
+
+namespace foptim::fmir {
+namespace {
+enum class ReductionType { R1, R2, RM };
+
+struct StackRecord {
+  ReductionType type;
+  u32 node;
+  TVec<f32> original_v;
+  u32 neigh0;
+  CostMatrix m_ab;
+  bool ab_flip;
+
+  // for r2
+  u32 neigh1;
+  CostMatrix m_bc;
+  bool bc_flip;
+
+  // mrule
+  struct BrokenEdge {
+    u32 neighbor;
+    CostMatrix matrix;
+    bool flip;
+  };
+  std::vector<BrokenEdge> broken_edges;
+};
+
+struct CostGraph {
+  // the 0 intex is used to mark spilling since its not a valid CReg
+  TMap<u64, CostVector> node_costs;
+  TMap<EdgeId, CostMatrix> connection_costs;
+  TMap<u64, TVec<u64>> neighbours;
+
+  [[nodiscard]] constexpr bool has_conn(u64 a, u64 b) const {
+    return connection_costs.contains(EdgeId(a, b));
+  }
+
+  void dump() {
+    fmt::println("GRAPH {} NODES", neighbours.size());
+    for (auto [node, neigh] : neighbours) {
+      fmt::print(" {} => ", uid_to_reg(node));
+      for (auto n : neigh) {
+        fmt::print(" {}, ", uid_to_reg(n));
+      }
+      fmt::println("");
+    }
+  }
+
+  void clear() {
+    node_costs.clear();
+    connection_costs.clear();
+    neighbours.clear();
+  }
+};
+
+void set_default_vec_reg_costs(VReg reg, CostVector &v) {
+  (void)reg;
+  // could make for f64 sized types gpr legal but expensive
+  //  for (auto r : kGPRRegs) {
+  //    v.cost[static_cast<u64>(r)] = 0;
+  //  }
+  for (auto r : kAllocatableVecRegs) {
+    v.cost[static_cast<u64>(r)] = 0;
+  }
+}
+
+void set_default_gpr_reg_costs(VReg reg, CostVector &v) {
+  (void)reg;
+  // could make for f64 sized types gpr legal but expensive
+  // for (auto r : kVecRegs) {
+  //   v.cost[static_cast<u64>(r)] = 0;
+  // }
+  for (auto r : kAllocatableGPRegs) {
+    v.cost[static_cast<u64>(r)] = 0;
+  }
+}
+
+void set_default_reg_costs(VReg reg, CostVector &vec) {
+  for (size_t i = 1; i < numRegs; i++) {
+    vec.cost[static_cast<u64>(i)] = infCost;
+  }
+  // TODO: spill costs
+  vec.cost[0] = reg.is_concrete() ? infCost : spillCost;
+  if (reg.is_concrete()) {
+    vec.cost[static_cast<u64>(reg.c_reg())] =
+        -std::numeric_limits<f32>::infinity();
+  } else {
+    if (reg.is_vec_reg()) {
+      set_default_vec_reg_costs(reg, vec);
+    } else {
+      set_default_gpr_reg_costs(reg, vec);
+    }
+  }
+}
+
+bool R1_Reduction(u64 node, TVec<u64> &neigh, CostGraph &graph,
+                  TVec<StackRecord> &allocation_stack, bool ignore_optional) {
+  if (neigh.size() == 0) {
+    return false;
+  }
+  u64 neigh0 = neigh[0];
+  if (ignore_optional) {
+    bool found_hard_neigh = false;
+    for (auto n : neigh) {
+      auto edge_ab = EdgeId{node, n};
+      if (graph.connection_costs[edge_ab].hard_constraint) {
+        if (found_hard_neigh) {
+          return false;
+        }
+        found_hard_neigh = true;
+        neigh0 = n;
+      }
+    }
+    if (!found_hard_neigh) {
+      return false;
+    }
+  } else if (neigh.size() != 1) {
+    return false;
+  }
+  f32 add_vb[numRegs] = {};
+  auto edge_ab = EdgeId{node, neigh0};
+  const auto &m_ab = graph.connection_costs[edge_ab];
+  const auto &v_a = graph.node_costs[node].cost;
+  bool ab_flip = node < neigh0;
+
+  for (u32 i = 0; i < numRegs; i++) {
+    f32 new_cost = infCost;
+    for (u32 j = 0; j < numRegs; j++) {
+      new_cost = std::min(new_cost, m_ab.get_cost(ab_flip, j, i) + v_a[j]);
+    }
+    add_vb[i] = new_cost;
+  }
+
+  StackRecord record;
+  record.type = ReductionType::R1;
+  record.node = node;
+  record.original_v = TVec<f32>(std::begin(v_a), std::end(v_a));
+  record.neigh0 = neigh0;
+  record.m_ab = m_ab;
+  record.ab_flip = ab_flip;
+  allocation_stack.push_back(record);
+
+  for (u32 i = 0; i < numRegs; i++) {
+    graph.node_costs[neigh0].cost[i] += add_vb[i];
+  }
+  // graph.node_costs[neigh[0]].dump();
+  // fmt::println("");
+  auto &neigh0_neigh = graph.neighbours[neigh0];
+  neigh0_neigh.erase(
+      std::remove(neigh0_neigh.begin(), neigh0_neigh.end(), node),
+      neigh0_neigh.end());
+  neigh.clear();
+  return true;
+}
+
+bool R2_Reduction(u64 node, TVec<u64> &neigh, CostGraph &graph,
+                  TVec<StackRecord> &allocation_stack, bool ignore_optional) {
+  if (neigh.size() < 2) {
+    return false;
+  }
+  // a - M_ab - b - M_bc - c
+  //  -->
+  //  a - M_ac - c and b is pushed
+  u64 neigh0 = neigh[0];
+  u64 neigh1 = neigh[1];
+  auto edge_ac = EdgeId{neigh0, neigh1};
+
+  if (ignore_optional) {
+    u32 found_hard_neigh = 0;
+    for (auto n : neigh) {
+      auto edge_ab = EdgeId{node, n};
+      if (graph.connection_costs[edge_ab].hard_constraint) {
+        if (found_hard_neigh == 0) {
+          found_hard_neigh = 1;
+          neigh0 = n;
+        } else if (found_hard_neigh == 1) {
+          found_hard_neigh = 2;
+          neigh1 = n;
+        } else {
+          return false;
+        }
+      }
+    }
+    if (found_hard_neigh != 2) {
+      return false;
+    }
+  } else if (neigh.size() != 2) {
+    return false;
+  }
+  auto edge_ab = EdgeId{neigh0, node};
+  auto edge_bc = EdgeId{node, neigh1};
+  bool is_already_connected = false;
+  CostMatrix new_ac{};
+  new_ac.hard_constraint = false;
+  // we set it to false above so if it gets overwritten here we can recognize
+  // that and then use that forced value otherwise we can use the default false
+  // to only chekc theo old ab bc connections
+  if (graph.has_conn(neigh0, neigh1)) {
+    // might make sense to not copy it here
+    is_already_connected = true;
+    new_ac = graph.connection_costs[edge_ac];
+  }
+  const auto &m_ab = graph.connection_costs[edge_ab];
+  const auto &m_bc = graph.connection_costs[edge_bc];
+  // TODO: double check this
+  new_ac.hard_constraint =
+      new_ac.hard_constraint || (m_ab.hard_constraint && m_bc.hard_constraint);
+  const auto &v_b = graph.node_costs[node].cost;
+
+  const bool ab_needs_flip = neigh0 < node;
+  const bool bc_needs_flip = node < neigh1;
+  const bool ac_needs_flip = neigh0 < neigh1;
+  for (u32 i = 0; i < numRegs; i++) {
+    for (u32 k = 0; k < numRegs; k++) {
+      f32 curr_cost = infCost;
+      for (u32 j = 0; j < numRegs; j++) {
+        curr_cost =
+            std::min(curr_cost, m_ab.get_cost(ab_needs_flip, i, j) + v_b[j] +
+                                    m_bc.get_cost(bc_needs_flip, j, k));
+      }
+      if (ac_needs_flip) {
+        new_ac.cost[i][k] += curr_cost;
+      } else {
+        new_ac.cost[k][i] += curr_cost;
+      }
+    }
+  }
+  // fmt::println("\n===AB===");
+  // m_ab.dump();
+  // fmt::println("\n===BC===");
+  // m_bc.dump();
+  // // fmt::println("===Bv===");
+  // // v_b.dump();
+  // fmt::println("\n===new===");
+  // new_ac.dump();
+  // fmt::println("");
+
+  StackRecord record;
+  record.type = ReductionType::R2;
+  record.node = node;
+  record.original_v = TVec<f32>(std::begin(v_b), std::end(v_b));
+  record.neigh0 = neigh0;
+  record.neigh1 = neigh1;
+  record.m_ab = m_ab;
+  record.m_bc = m_bc;
+  record.ab_flip = ab_needs_flip;
+  record.bc_flip = bc_needs_flip;
+  allocation_stack.push_back(record);
+
+  graph.connection_costs[edge_ac] = new_ac;
+  if (!is_already_connected) {
+    graph.neighbours[neigh0].push_back(neigh1);
+    graph.neighbours[neigh1].push_back(neigh0);
+  }
+  auto &neigh0_neigh = graph.neighbours[neigh0];
+  neigh0_neigh.erase(
+      std::remove(neigh0_neigh.begin(), neigh0_neigh.end(), node),
+      neigh0_neigh.end());
+  auto &neigh1_neigh = graph.neighbours[neigh1];
+  neigh1_neigh.erase(
+      std::remove(neigh1_neigh.begin(), neigh1_neigh.end(), node),
+      neigh1_neigh.end());
+  neigh.clear();
+  return true;
+}
+
+bool RM_Reduction(CostGraph &graph, TVec<StackRecord> &allocation_stack) {
+  u32 victim_node = static_cast<u32>(-1);
+  f32 min_spill_metric = std::numeric_limits<f32>::max();
+
+  // Heuristic Selection: Find the best node to eject from graph to maybe spill
+  for (const auto &[node, neigh] : graph.neighbours) {
+    if (neigh.empty()) {
+      continue;
+    }
+
+    // TODO: precalculate spill weights
+    f32 spill_weight = graph.node_costs[node].get_spill_cost();
+    f32 degree = static_cast<f32>(neigh.size());
+
+    // Standard Chaitin heuristic: minimize weight/degree
+    f32 metric = spill_weight / degree;
+    if (metric < min_spill_metric) {
+      min_spill_metric = metric;
+      victim_node = node;
+    }
+  }
+
+  // If no nodes are left, the graph is solved/empty!
+  if (victim_node == static_cast<u32>(-1)) {
+    return false;
+  }
+  auto &neigh_list = graph.neighbours[victim_node];
+  const auto &v_v = graph.node_costs[victim_node].cost;
+
+  StackRecord record;
+  record.type = ReductionType::RM;
+  record.node = victim_node;
+  record.original_v = TVec<f32>(std::begin(v_v), std::end(v_v));
+
+  for (u32 neighbor_id : neigh_list) {
+    auto edge_id = EdgeId{victim_node, neighbor_id};
+    bool needs_flip = victim_node < neighbor_id;
+
+    StackRecord::BrokenEdge broken;
+    broken.neighbor = neighbor_id;
+    broken.matrix = graph.connection_costs[edge_id];
+    broken.flip = needs_flip;
+    record.broken_edges.push_back(broken);
+
+    auto &r_neigh = graph.neighbours[neighbor_id];
+    r_neigh.erase(std::remove(r_neigh.begin(), r_neigh.end(), victim_node),
+                  r_neigh.end());
+  }
+  allocation_stack.push_back(record);
+  neigh_list.clear();
+  graph.neighbours.erase(victim_node);
+  return true;
+}
+
+void setup_costs(const MFunc &func, CostGraph &graph,
+                 const TMap<VReg, TSet<size_t>> &lifetimes) {
+  for (const auto &[reg, coll] : lifetimes) {
+    auto uid = reg_to_uid(reg);
+    CostVector vec;
+    for (size_t i = 1; i < numRegs; i++) {
+      vec.cost[static_cast<u64>(i)] = infCost;
+    }
+    // TODO: spill costs
+    vec.cost[0] = reg.is_concrete() ? infCost : spillCost;
+    if (reg.is_concrete()) {
+      vec.cost[static_cast<u64>(reg.c_reg())] = 0;
+    } else {
+      if (reg.is_vec_reg()) {
+        set_default_vec_reg_costs(reg, vec);
+      } else {
+        set_default_gpr_reg_costs(reg, vec);
+      }
+    }
+    graph.node_costs[uid] = vec;
+    graph.neighbours[uid];
+
+    // fmt::println("Reg {}", reg);
+    for (auto c : coll) {
+      if (c != uid) {
+        // fmt::println("  coll {} {}    {} {}", c, uid, reg, uid_to_reg(c));
+        CostMatrix matrix;
+        for (size_t i = 1; i < numRegs; i++) {
+          matrix.cost[static_cast<u64>(i)][static_cast<u64>(i)] = infCost;
+        }
+        EdgeId e = EdgeId(uid, c);
+        if (!graph.connection_costs.contains(e)) {
+          graph.connection_costs[e] = matrix;
+          graph.neighbours[uid].push_back(c);
+          graph.neighbours[c].push_back(uid);
+        }
+      }
+    }
+  }
+
+  // ensure every vreg is represented even the ones without collisions and
+  // make cost reductions
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      for (size_t i_arg = 0; i_arg < instr.n_args; i_arg++) {
+        switch (instr.args[i_arg].type) {
+        case MArgument::ArgumentType::StackSlot:
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::MemImm:
+          break;
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemImmVReg:
+        case MArgument::ArgumentType::MemVReg: {
+          auto reg = instr.args[i_arg].reg;
+          auto reg_id = reg_to_uid(instr.args[i_arg].reg);
+          if (!reg.is_concrete() && !graph.neighbours.contains(reg_id)) {
+            set_default_reg_costs(instr.args[i_arg].reg,
+                                  graph.node_costs[reg_id]);
+            graph.neighbours[reg_id];
+          }
+        } break;
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVRegScale: {
+          auto reg = instr.args[i_arg].reg;
+          auto reg_id = reg_to_uid(instr.args[i_arg].reg);
+          auto indx = instr.args[i_arg].indx;
+          auto indx_id = reg_to_uid(instr.args[i_arg].indx);
+          if (!reg.is_concrete() && !graph.neighbours.contains(reg_id)) {
+            set_default_reg_costs(instr.args[i_arg].reg,
+                                  graph.node_costs[reg_id]);
+            graph.neighbours[reg_id];
+          }
+          if (!indx.is_concrete() && !graph.neighbours.contains(indx_id)) {
+            set_default_reg_costs(instr.args[i_arg].indx,
+                                  graph.node_costs[indx_id]);
+            graph.neighbours[indx_id];
+          }
+        } break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
+        case MArgument::ArgumentType::MemImmVRegScale: {
+          auto indx = instr.args[i_arg].indx;
+          auto indx_id = reg_to_uid(instr.args[i_arg].indx);
+          if (!indx.is_concrete() && !graph.neighbours.contains(indx_id)) {
+            set_default_reg_costs(instr.args[i_arg].indx,
+                                  graph.node_costs[indx_id]);
+            graph.neighbours[indx_id];
+          }
+        } break;
+        }
+      }
+
+      // discount move like instructions between registers to keep in same
+      // regisrer
+      if ((instr.is(GBaseSubtype::mov) || instr.is(GBaseSubtype::ret_setup) ||
+           instr.is(GBaseSubtype::arg_setup)) &&
+          instr.args[0].isReg() && instr.args[1].isReg()) {
+        auto r0 = reg_to_uid(instr.args[0].reg);
+        auto r1 = reg_to_uid(instr.args[1].reg);
+        if (r0 == r1) {
+          continue;
+        }
+        EdgeId edge{r0, r1};
+        bool exists = graph.connection_costs.contains(edge);
+        auto &addd_costs = graph.connection_costs[edge];
+        if (!exists) {
+          graph.neighbours[r0].push_back(r1);
+          graph.neighbours[r1].push_back(r0);
+          addd_costs.hard_constraint = false;
+        }
+        for (u32 i = 1; i < numRegs; i++) {
+          if (addd_costs.cost[i][i] != infCost) {
+            addd_costs.cost[i][i] += copyDiscount;
+          }
+        }
+      }
+    }
+  }
+}
+
+void minimize_graph(CostGraph &graph, TVec<StackRecord> &allocation_stack) {
+  // fmt::println("Init size {}", graph.neighbours.size());
+  while (true) {
+    bool found_low_degree_node = false;
+    bool found_any_virtual = false;
+    // TODO: mazbe should first do all 1degree then all 2degree nodes
+    // 1 degree nodes i then oculd also run in parralel?
+    auto it = graph.neighbours.begin();
+    while (it != graph.neighbours.end()) {
+      auto &[node, neigh] = *it;
+      if (uid_to_reg(node).is_concrete()) {
+        ++it;
+        continue;
+      }
+      found_any_virtual = true;
+      if (R1_Reduction(node, neigh, graph, allocation_stack, false) ||
+          R2_Reduction(node, neigh, graph, allocation_stack, false)) {
+        it = graph.neighbours.erase(it); // Returns the next valid iterator
+        found_low_degree_node = true;
+      } else {
+        ++it; // Only advance if we didn't erase
+      }
+    }
+
+    // If we processed low-degree nodes, loop again to see if the reductions
+    // created *new* low-degree nodes.
+    if (found_low_degree_node) {
+      continue;
+    }
+    // if we havent found one we can go ahread and ignore the optional edges
+    // that we inserted to improve the register selection which however are not
+    // "real" edges. However these "fale" edges still can cause us to spill
+    // since for the R1/R2 by default htez look like hard constriants
+    while (it != graph.neighbours.end()) {
+      auto &[node, neigh] = *it;
+      if (uid_to_reg(node).is_concrete()) {
+        ++it;
+        continue;
+      }
+      // here we will actually break in hope there has been some fixes that now
+      // allow the upper stuff to run
+      //  however this might be a bad idea perfomance wise
+      found_any_virtual = true;
+      if (R1_Reduction(node, neigh, graph, allocation_stack, true)) {
+        it = graph.neighbours.erase(it); // Returns the next valid iterator
+        found_low_degree_node = true;
+        break;
+      }
+      // if (R2_Reduction(node, neigh, graph, allocation_stack, true)) {
+      //   it = graph.neighbours.erase(it); // Returns the next valid iterator
+      //   found_low_degree_node = true;
+      // }
+      ++it;
+    }
+    if (found_low_degree_node) {
+      continue;
+    }
+
+    if (graph.neighbours.empty() || !found_any_virtual) {
+      break;
+    }
+
+    // Spill / Minimum-degree reduction step if no degree 1 or 2 nodes remain
+    if (!RM_Reduction(graph, allocation_stack)) {
       break;
     }
   }
 
-  const CReg *selected = basic_regs;
-  if (is_leaf) {
-    selected = leaf_optimized_regs;
-  }
-
-  for (size_t i = 0; i < N_REGS_SELECTABLE; i++) {
-    regs[i] = selected[i];
-  }
-}
-
-// float chaitin_cost(VReg reg, ...) {
-//     float uses = 0;
-//     for (auto &bb : func.bbs) {
-//         float depth_weight = std::pow(10, loop_depth(bb));
-//         for (auto &instr : bb.instrs) {
-//             if (instr.uses_vreg(reg)) uses += depth_weight;
-//         }
-//     }
-//     float degree = lifetimes.at(reg).size();  // number of conflicts
-//     return uses / degree;  // cost per conflict relieved
-// }
-
-f32 get_spill_cost(MFunc &func, VReg &spil_candidate,
-                     const TMap<VReg, TSet<size_t>> &reg_coll) {
-  // TODO use chaitins heuristic
-  f32 num_coll = static_cast<f32>(reg_coll.at(spil_candidate).size());
-  i64 num_uses = 0;
-  for (auto &bb : func.bbs) {
-    for (auto &i : bb.instrs) {
-      if (i.uses_vreg(spil_candidate)) {
-        num_uses++;
-      }
-    }
-  }
-  return static_cast<f32>(num_uses * 100) - num_coll;
-}
-
-void spill_one_set(MFunc &func, TVec<VReg> &spil_candidate,
-                   const TMap<VReg, TSet<size_t>> &reg_coll,
-                   TSet<VReg> &already_spilled) {
-  ASSERT(!spil_candidate.empty());
-  VReg worst_spill_candidate = spil_candidate[0];
-  f64 worst_rating = std::numeric_limits<f64>::max();
-  for (auto spiller : spil_candidate) {
-    // should just weight it incredible negatively instead of skipping
-    if (already_spilled.contains(spiller)) {
+  for (auto &[node, neigh] : graph.neighbours) {
+    if (uid_to_reg(node).is_concrete()) {
       continue;
     }
-    f64 rating = get_spill_cost(func, spiller, reg_coll);
-    if (rating <= worst_rating) {
-      worst_spill_candidate = spiller;
-      worst_rating = rating;
-    }
+    ASSERT(neigh.empty());
+    StackRecord record;
+    record.node = node;
+    record.type = ReductionType::RM;
+    record.original_v = TVec<f32>(std::begin(graph.node_costs[node].cost),
+                                  std::end(graph.node_costs[node].cost));
+    allocation_stack.push_back(record);
   }
-  ASSERT_M(!worst_spill_candidate.is_vec_reg(), "spilling for vec reg?");
+}
 
+void actually_allocate(TVec<StackRecord> &allocation_stack,
+                       TMap<u64, CReg> &final_assignments,
+                       TVec<u64> &needs_spilling) {
+
+  auto get_final_assign = [&final_assignments](u64 neigh) -> CReg {
+    if (uid_to_reg(neigh).is_concrete()) {
+      return uid_to_reg(neigh).c_reg();
+    }
+    return final_assignments[neigh];
+  };
+  while (!allocation_stack.empty()) {
+    StackRecord record = allocation_stack.back();
+    allocation_stack.pop_back();
+
+    u64 u = record.node;
+    f32 selection_vector[numRegs] = {};
+
+    for (u32 i = 0; i < numRegs; i++) {
+      selection_vector[i] = record.original_v[i];
+    }
+
+    switch (record.type) {
+    case ReductionType::R1: {
+      auto assigned_reg_neigh0 = get_final_assign(record.neigh0);
+      // auto assigned_reg_neigh0 = final_assignments[record.neigh0];
+
+      for (u32 i = 0; i < numRegs; i++) {
+        // just go baesd on what the neighbour took
+        f32 edge_cost = record.m_ab.get_cost(
+            record.ab_flip, i, static_cast<u32>(assigned_reg_neigh0));
+        selection_vector[i] += edge_cost;
+      }
+    } break;
+    case ReductionType::R2: {
+      auto assigned_reg_neigh0 = get_final_assign(record.neigh0);
+      auto assigned_reg_neigh1 = get_final_assign(record.neigh1);
+      // auto assigned_reg_neigh0 = final_assignments[record.neigh0];
+      // auto assigned_reg_neigh1 = final_assignments[record.neigh1];
+
+      for (u32 i = 0; i < numRegs; i++) {
+        // Add interference cost from neighbor 0
+        f32 cost_a = record.m_ab.get_cost(
+            record.ab_flip, i, static_cast<u32>(assigned_reg_neigh0));
+        // Add interference cost from neighbor 1
+        f32 cost_b = record.m_bc.get_cost(
+            record.bc_flip, i, static_cast<u32>(assigned_reg_neigh1));
+
+        selection_vector[i] += (cost_a + cost_b);
+      }
+    } break;
+    case ReductionType::RM: {
+      // evaluate every enighbour edge we broke during the RM phase
+      for (const auto &broken : record.broken_edges) {
+        auto assigned_reg_neigh = get_final_assign(broken.neighbor);
+        // auto assigned_reg_neigh = final_assignments[broken.neighbor];
+
+        for (u32 i = 0; i < numRegs; i++) {
+          f32 edge_cost = broken.matrix.get_cost(
+              broken.flip, i, static_cast<u32>(assigned_reg_neigh));
+          selection_vector[i] += edge_cost;
+        }
+      }
+    } break;
+    }
+
+    // chose the best :)
+    u32 best_choice = 0;
+    // needs to be lower then INF since inf should never be chosen
+    f32 min_cost = 1e9F;
+
+    for (u32 i = 0; i < numRegs; i++) {
+      if (selection_vector[i] < min_cost) {
+        min_cost = selection_vector[i];
+        best_choice = i;
+      } else if (selection_vector[i] == min_cost && best_choice == 0 &&
+                 i != 0) {
+        // Prefer physical register over Spill on tie
+        best_choice = i;
+      }
+    }
+    auto best_creg = static_cast<CReg>(best_choice);
+    if (best_creg == CReg::Virtual) {
+      needs_spilling.push_back(u);
+    }
+    final_assignments[u] = best_creg;
+  }
+}
+
+bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
+                            VReg spill_vreg, u64 stack_slot_id) {
+  // try to spill by replacing th register usage in the instruction if posssible
+  // with a memory address to the spill register
+  auto &instr = bbm[instr_id];
+  if (instr.is(GBaseSubtype::mov) || instr.is(GBaseSubtype::arg_setup) ||
+      instr.is(GArithSubtype::add2) || instr.is(GArithSubtype::lor2) ||
+      instr.is(GArithSubtype::lxor2) || instr.is(GArithSubtype::land2) ||
+      instr.is(GArithSubtype::mul2) || instr.is(GArithSubtype::sub2) ||
+      instr.is(GConvSubtype::itrunc) || instr.is(GBaseSubtype::ret_setup)) {
+    auto &a0 = instr.args[0];
+    auto &a1 = instr.args[1];
+    // TODO: tehcnically if the argument youre modifying is mem you can in some
+    // cases update it
+    if (a0.isMem() || a1.isMem()) {
+      return false;
+    }
+    if (a0.uses_same_vreg(spill_vreg)) {
+      a0 = MArgument::stack_slot(stack_slot_id, a1.ty);
+      return true;
+    }
+    if (a1.uses_same_vreg(spill_vreg)) {
+      a1 = MArgument::stack_slot(stack_slot_id, a0.ty);
+      return true;
+    }
+  } else if (instr.is(GArithSubtype::udiv) || instr.is(GArithSubtype::idiv)) {
+    auto &a3 = instr.args[3];
+    if (a3.isMem()) {
+      return false;
+    }
+    ASSERT(a3.uses_same_vreg(spill_vreg));
+    a3 = MArgument::stack_slot(stack_slot_id, a3.ty);
+    return true;
+  } else if (instr.is(GConvSubtype::mov_zx) || instr.is(GConvSubtype::mov_sx)) {
+    auto &a1 = instr.args[1];
+    // TODO: tehcnically if the argument youre modifying is mem you can in some
+    // cases update it
+    if (a1.isMem()) {
+      return false;
+    }
+    if (a1.uses_same_vreg(spill_vreg)) {
+      a1 = MArgument::stack_slot(stack_slot_id, a1.ty);
+      return true;
+    }
+  } else {
+    fmt::println(">> try mem insert spill >> {}", instr);
+  }
+  return false;
+}
+
+bool handle_spill_scavenger() {
+  // MFunc &func, u64 spill_reg_uid, StackSlotId stack_slot
+  // scavenge for register and try moving into it
+  // TODO
+  return false;
+}
+
+void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
+                       u64 stack_slot_id, Type spill_type,
+                       u64 &new_virtual_reg_id) {
+  // Worst case just move into a new vreg and we restart register allocating
+  // is not allowed to fail since its used as backup
+  ASSERT(!spill_vreg.is_concrete());
+  auto to_insert_prior =
+      MInstr(GBaseSubtype::mov, MArgument(spill_vreg, spill_type),
+             MArgument::stack_slot(stack_slot_id, spill_type));
+  auto to_insert_after = MInstr(
+      GBaseSubtype::mov, MArgument::stack_slot(stack_slot_id, spill_type),
+      MArgument(spill_vreg, spill_type));
   TVec<ArgData> args;
-  args.reserve(4);
-  auto size = 8;
-  auto stack_slot_id = func.get_stack_slot(size);
+  auto &instr = bbm[instr_id];
 
-  // find all that are independent and could use the same stack slot
-  //  collect them and then spill them all together
-  TVec<VReg> spill_set{worst_spill_candidate};
-  for (auto spill_candidate : spil_candidate) {
-    if (already_spilled.contains(spill_candidate)) {
-      continue;
-    }
-    auto cc = reg_coll.at(spill_candidate);
-    bool collides = false;
-    for (auto spill_setter : spill_set) {
-      if (cc.contains(reg_to_uid(spill_setter))) {
-        collides = true;
-        break;
-      }
-    }
-    if (!collides) {
-      spill_set.push_back(spill_candidate);
+  read_args(instr, args);
+  bool read = false;
+  bool written = false;
+  for (auto &arg : args) {
+    if (arg.arg.uses_same_vreg(spill_vreg)) {
+      read = true;
     }
   }
-
-  // TODO: grp to vec reg spilling
-  //  bool vec_reg_spill = false;
-  //  VReg target_reg;
-  //  for(auto reg: ){
-  // }
-  for (auto spill : spill_set) {
-    already_spilled.insert(spill);
-  }
-
-  for (auto &bb : func.bbs) {
-    for (size_t i = 0; i < bb.instrs.size(); i++) {
-      auto &instr = bb.instrs[i];
-      if ((i < (bb.instrs.size() - 1) &&
-           bb.instrs[i + 1].is(GBaseSubtype::ret_setup))) {
-        continue;
-      }
-      for (auto spiller : spill_set) {
-        if (instr.uses_vreg(spiller)) {
-          args.clear();
-          read_args(instr, args);
-          bool read = false;
-          bool written = false;
-          for (auto &arg : args) {
-            if (arg.arg.uses_same_vreg(spiller)) {
-              read = true;
-            }
-          }
-          args.clear();
-          written_args(instr, args);
-          for (auto &arg : args) {
-            if (arg.arg.uses_same_vreg(spiller)) {
-              written = true;
-            }
-          }
-          if (!read && !written) {
-            continue;
-          }
-
-          // TODO: we cannot insert within a arg_setup call ret_setup chunk so
-          // gotta walk backwards/forwards from it to handle it correctly
-          if (read) {
-            auto insert_loc = i;
-            while (insert_loc > 0 &&
-                   bb.instrs[insert_loc - 1].is(GBaseSubtype::arg_setup)) {
-              insert_loc--;
-            }
-            bb.instrs.insert(
-                bb.instrs.begin() + static_cast<i64>(insert_loc) + 0,
-                MInstr{GBaseSubtype::mov, MArgument{spiller, Type::Int64},
-                       MArgument::stack_slot(stack_slot_id, size)});
-            i++;
-          }
-          if (written) {
-            bb.instrs.insert(bb.instrs.begin() + static_cast<i64>(i) + 1,
-                             MInstr{
-                                 GBaseSubtype::mov,
-                                 MArgument::stack_slot(stack_slot_id, size),
-                                 MArgument{spiller, Type::Int64},
-                             });
-            i++;
-          }
-        }
+  args.clear();
+  written_args(instr, args);
+  for (auto &arg : args) {
+    if (arg.arg.uses_same_vreg(spill_vreg)) {
+      if (arg.arg.isMem()) {
+        read = true;
+      } else {
+        written = true;
       }
     }
   }
-  // fmt::println("{}", func);
-  // fmt::println("========================\n{}", spil_candidate);
-  fmt::println("{}: RAT:{} SpillSet:{}", worst_spill_candidate, worst_rating,
-               spill_set.size());
-  fmt::println("{}", func.name);
-  static int attempt = 0;
-  attempt++;
-  if(attempt > 10){
-    TODO("prob FAILED SPILL");
+  ASSERT(read || written);
+
+  // TODO: we cannot insert within a arg_setup call ret_setup chunk so
+  // gotta walk backwards/forwards from it to handle it correctly
+  new_virtual_reg_id += 1;
+
+  u64 new_vid = new_virtual_reg_id;
+  VReg new_vreg = VReg(new_vid, spill_type);
+  replace_varg(bbm[instr_id], spill_vreg.virt_id(), new_vreg, true);
+
+  if (read) {
+    auto insert_loc = instr_id;
+    while (insert_loc > 0 && bbm[insert_loc - 1].is(GBaseSubtype::arg_setup)) {
+      insert_loc--;
+    }
+    bbm.insert(bbm.begin() + static_cast<i64>(insert_loc) + 0,
+               MInstr{GBaseSubtype::mov, MArgument{new_vreg, spill_type},
+                      MArgument::stack_slot(stack_slot_id, spill_type)});
+    instr_id++;
   }
-  // fmt::println("SPILLED");
-  // TODO("spill it ?");
-  // // ASSERT(false);
+  if (written) {
+    bbm.insert(bbm.begin() + static_cast<i64>(instr_id) + 1,
+               MInstr{
+                   GBaseSubtype::mov,
+                   MArgument::stack_slot(stack_slot_id, spill_type),
+                   MArgument{new_vreg, spill_type},
+               });
+    instr_id++;
+  }
 }
 
-void apply_func(MFunc &func) {
-  ZoneScopedN("Allocating Func");
-  TMap<CReg, TSet<size_t>> lifeness;
-  lifeness.reserve(32);
-  CReg regs[N_REGS_SELECTABLE];
-  TMap<size_t, CReg> reg_mapping;
+bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
+                 u64 &new_virtual_reg_id) {
+  if (needs_spilling.empty()) {
+    return true;
+  }
+  // TOOD: get real size
+  u64 spill_size = 16;
+  // TOOD: get real type
+  auto spill_type = Type::Int64;
 
-  // TVec<std::pair<VReg, const TSet<size_t> *>> iter_lifetimes;
-  // for (const auto &[r, l] : lifetimes) {
-  //   iter_lifetimes.emplace_back(r, &l);
+  TMap<u64, u64> spill_to_stack_slot;
+  for (auto spill : needs_spilling) {
+    auto stack_slot_id = func.create_stack_slot(spill_size);
+    spill_to_stack_slot.insert({spill, stack_slot_id});
+  }
+  bool inserted_moves = false;
+  // fmt::println("====");
+  // fmt::println("{:cd}", func);
+  // for (auto spill : needs_spilling) {
+  //   fmt::println("Spilling {}", uid_to_reg(spill));
   // }
-  // std::sort(iter_lifetimes.begin(), iter_lifetimes.end(),
-  //           [](const auto &a, const auto &b) {
-  //             return a.second->size() < b.second->size();
-  //           });
-  u32 spill_attempts = 0;
-  TSet<VReg> already_spilled;
-  get_reg_order(func, regs);
 
-  {
-    ZoneScopedN("Actual Alloc");
-    TVec<VReg> spillers;
-    while (true) {
-      reg_mapping.clear();
-      lifeness.clear();
-      already_spilled.clear();
-      spillers.clear();
-      const auto lifetimes = reg_coll(func);
-
-      for (const auto &[reg, colls] : lifetimes) {
-        // fmt::print("{}: ", reg);
-        // for (auto coll : colls) {
-        //   fmt::print("{}:{}, ", uid_to_reg(coll), coll);
-        // }
-        // fmt::println("");
-        if (reg.is_concrete()) {
-          lifeness.insert({reg.c_reg(), colls});
-        }
-      }
-
-      bool successfully_allocated = true;
-      for (const auto &[reg, colls] : lifetimes) {
-        if (reg.is_concrete()) {
+  for (auto &bb : func.bbs) {
+    for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
+      for (auto spill : needs_spilling) {
+        auto spill_vreg = uid_to_reg(spill);
+        if (!bb.instrs[instr_id].uses_vreg(spill_vreg)) {
           continue;
         }
-        bool found = false;
-        auto reg_id = reg_to_uid(reg);
-        for (auto avail_reg : regs) {
-          if (!reg_is_legal(reg, avail_reg)) {
-            continue;
-          }
-
-          if (!lifeness.contains(avail_reg)) {
-            lifeness.insert({avail_reg, colls});
-            reg_mapping.insert({reg.virt_id(), avail_reg});
-            found = true;
-            break;
-          }
-          if (!lifeness.at(avail_reg).contains(reg_id)) {
-            lifeness.at(avail_reg).insert(colls.begin(), colls.end());
-            reg_mapping.insert({reg.virt_id(), avail_reg});
-            found = true;
-            break;
-          }
+        // TODO: vecreg needs other size also always 8 is wasteful
+        // prob need to track it somwhere else
+        u64 stack_slot_id = spill_to_stack_slot[spill];
+        // TOOD: get real type
+        if (handle_spill_addr_mode(bb.instrs, instr_id, spill_vreg,
+                                   stack_slot_id)) {
+          continue;
         }
-        if (!found) {
-          spillers.push_back(reg);
-          successfully_allocated = false;
-          // fmt::println("========================\n{}", func);
-          // fmt::println("{} IN FUNC: {}", reg, func.name.c_str());
-          // fmt::println("{} Size:: {} IS vec: {}", reg, reg.ty,
-          // reg.is_vec_reg());
-          // TODO("spill it ?");
-          // ASSERT(false);
+        if (handle_spill_scavenger()) {
+          continue;
+        }
+        handle_spill_move(bb.instrs, instr_id, spill_vreg, stack_slot_id,
+                          spill_type, new_virtual_reg_id);
+        inserted_moves = true;
+      }
+    }
+  }
+  // TODO("we can reach this unless we implement it");
+  return !inserted_moves;
+}
+
+} // namespace
+} // namespace foptim::fmir
+
+namespace foptim::fmir {
+
+void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
+  ZoneScopedN("reg alloc func");
+  TMap<VReg, TSet<size_t>> lifetimes;
+  TVec<StackRecord> allocation_stack;
+  TMap<u64, CReg> final_assignments;
+  TVec<u64> needs_spilling;
+  CostGraph graph;
+  // fmt::println("+++++++++++++++++++++++++++++");
+  // fmt::println("{:cd}", func);
+
+  size_t new_virtual_reg_id = 0;
+  // TODO: can be merged whe nwe construct the graph we iterate anyway
+  for (auto &mbb : func.bbs) {
+    for (auto &instr : mbb.instrs) {
+      for (size_t arg_id = 0; arg_id < instr.n_args; arg_id++) {
+        auto &arg = instr.args[arg_id];
+        switch (arg.type) {
+        case MArgument::ArgumentType::StackSlot:
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::Label:
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::MemImm:
+          break;
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::MemImmVReg:
+        case MArgument::ArgumentType::MemVReg:
+          if (!arg.reg.is_concrete()) {
+            new_virtual_reg_id =
+                std::max(new_virtual_reg_id, arg.reg.virt_id());
+          }
+          break;
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          if (!arg.reg.is_concrete()) {
+            new_virtual_reg_id =
+                std::max(new_virtual_reg_id, arg.reg.virt_id());
+          }
+          if (!arg.indx.is_concrete()) {
+            new_virtual_reg_id =
+                std::max(new_virtual_reg_id, arg.indx.virt_id());
+          }
+          break;
+        case MArgument::ArgumentType::MemImmVRegScale:
+        case MArgument::ArgumentType::MemLabelVreg:
+        case MArgument::ArgumentType::MemLabelVregScale:
+          if (!arg.indx.is_concrete()) {
+            new_virtual_reg_id =
+                std::max(new_virtual_reg_id, arg.indx.virt_id());
+          }
+          break;
         }
       }
-      if (successfully_allocated) {
+    }
+  }
+  size_t i = 0;
+  while (true) {
+    graph.clear();
+    lifetimes.clear();
+    lifetimes = reg_coll(func);
+    {
+      ZoneScopedN("setup costs");
+      setup_costs(func, graph, lifetimes);
+    }
+    // fmt::println("============");
+    // graph.dump();
+    if (i > 3) {
+      TODO("idk about this");
+    }
+    i++;
+
+    {
+      ZoneScopedN("minimize graph");
+      allocation_stack.clear();
+      minimize_graph(graph, allocation_stack);
+    }
+
+    {
+      ZoneScopedN("actually allocate");
+      final_assignments.clear();
+      needs_spilling.clear();
+      actually_allocate(allocation_stack, final_assignments, needs_spilling);
+    }
+
+    // maybe todo the ifnal assignments we get out are uids but
+    //  replace_vargs expects virutal register ids
+    //   but we need uids preior sice we gotta handle also concrete regs in
+    //   the allocation scheme which also need to be filtered
+    TMap<u64, CReg> final_vreg_assignments;
+    for (auto [node, reg] : final_assignments) {
+      if (reg == CReg::Virtual || uid_to_reg(node).is_concrete()) {
+        continue;
+      }
+      auto node_reg = uid_to_reg(node);
+      ASSERT(!node_reg.is_concrete());
+      final_vreg_assignments.insert({node_reg.virt_id(), reg});
+    }
+    // for (auto [a, b] : final_assignments) {
+    //   fmt::println("=== {} -> {}", uid_to_reg(a), VReg(b));
+    // }
+    // fmt::println("============");
+    // for (auto [a, b] : final_vreg_assignments) {
+    //   fmt::println("    {} -> {}", VReg(a), VReg(b));
+    // }
+    // fmt::println("Allocated {} Vars", final_vreg_assignments.size());
+    // fmt::println("Spilling {} Vars", needs_spilling.size());
+
+    // if we fail to spill we will insert moves from the stackslot
+    // to a helper virtual reg and then retry
+    {
+      ZoneScopedN("spill and shit");
+      if (do_spilling(func, needs_spilling, new_virtual_reg_id)) {
+        replace_vargs(func.bbs, final_vreg_assignments);
         break;
       }
-      // if we didnt find one spill one
-      spill_one_set(func, spillers, lifetimes, already_spilled);
-      spill_attempts += 1;
-      if (spill_attempts > 64) {
-        fmt::println("Failed to spill after 64 attempts");
-        TODO("spill it ?");
-      }
     }
   }
 
-  for (auto &bb : func.bbs) {
-    for (auto &instr : bb.instrs) {
-      replace_vargs(instr, reg_mapping);
-    }
-  }
+  // fmt::println("{:cd}", func);
+  // fmt::println("=============================");
+  // if (func.name == "_Z11TestOneTypeImEvd") {
+  //   fmt::println("{:cd}", func);
+  // }
 }
-} // namespace
-
-void RegAlloc::apply(MFunc &func, const conf::CompConf & /*config*/) { apply_func(func); }
 
 } // namespace foptim::fmir

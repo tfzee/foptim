@@ -126,7 +126,6 @@ struct RegisterJoiningConf : public FunctionPassConf<RegisterJoiningConf> {
 
 struct RegAllocConf : public FunctionPassConf<RegAllocConf> {
   static constexpr const char *Name = "RegAlloc";
-  using Pass = ::foptim::fmir::RegAlloc;
   using Pass = ::foptim::fmir::RegAlloc2;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
