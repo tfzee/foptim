@@ -7,6 +7,7 @@
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
 #include "mir/global.hpp"
+#include "utils/logging.hpp"
 #include "utils/set.hpp"
 namespace foptim::fmir {
 
@@ -972,22 +973,24 @@ fmt::formatter<foptim::fmir::MFunc>::format(foptim::fmir::MFunc const &func,
     app = fmt::format_to(app, "func {} (", func.name.c_str());
   }
   auto n_args = func.args.size();
+  fmt::formatter<foptim::fmir::VReg> vreg_fmt;
+  forward_it(vreg_fmt);
+  fmt::formatter<foptim::fmir::Type> ty_fmt;
+  forward_it(ty_fmt);
   for (foptim::u32 i = 0; i < n_args; i++) {
-    if (color) {
-      app = fmt::format_to(app, "{:c}: {:c}, ", func.args[i], func.args[i].ty);
-    } else {
-      app = fmt::format_to(app, "{}: {}, ", func.args[i], func.args[i].ty);
-    }
+    app = vreg_fmt.format(func.args[i], ctx);
+    app = fmt::format_to(app, ": ");
+    app = ty_fmt.format(func.args[i].ty, ctx);
+    app = fmt::format_to(app, ", ");
   }
   app = fmt::format_to(app, ")\n");
 
+  fmt::formatter<foptim::fmir::MBB> bb_fmt;
+  forward_it(bb_fmt);
+
   for (size_t bb_indx = 0; bb_indx < func.bbs.size(); bb_indx++) {
-    if (color) {
-      app = fmt::format_to(app, color_bb, "  {}:\n", bb_indx);
-      app = fmt::format_to(app, "{:c}", func.bbs[bb_indx]);
-    } else {
-      app = fmt::format_to(app, "  {}:\n{}", bb_indx, func.bbs[bb_indx]);
-    }
+    app = fmt::format_to(app, color_bb, "  {}:\n", bb_indx);
+    app = bb_fmt.format(func.bbs[bb_indx], ctx);
   }
   return app;
 }
@@ -1010,54 +1013,80 @@ fmt::appender
 fmt::formatter<foptim::fmir::MInstr>::format(foptim::fmir::MInstr const &v,
                                              format_context &ctx) const {
   auto app = ctx.out();
+  fmt::formatter<foptim::fmir::MArgument> arg_fmt;
+  forward_it(arg_fmt);
   if (v.is(foptim::fmir::GBaseSubtype::mov)) {
-    return fmt::format_to(app, "{:c} = {:c}", v.args[0], v.args[1]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " = ");
+    return arg_fmt.format(v.args[1], ctx);
   }
   if (v.is(foptim::fmir::GArithSubtype::add2)) {
-    return fmt::format_to(app, "{:c} += {:c}", v.args[0], v.args[1]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " += ");
+    return arg_fmt.format(v.args[1], ctx);
   }
   if (v.is(foptim::fmir::GArithSubtype::sub2)) {
-    return fmt::format_to(app, "{:c} -= {:c}", v.args[0], v.args[1]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " -= ");
+    return arg_fmt.format(v.args[1], ctx);
   }
   if (v.is(foptim::fmir::GArithSubtype::mul2)) {
-    return fmt::format_to(app, "{:c} *= {:c}", v.args[0], v.args[1]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " *= ");
+    return arg_fmt.format(v.args[1], ctx);
   }
   if (v.is(foptim::fmir::GArithSubtype::lxor2)) {
     if (v.args[0] == v.args[1]) {
-      return fmt::format_to(app, "clear {:c}", v.args[0]);
+      app = fmt::format_to(app, "clear ");
+      app = arg_fmt.format(v.args[0], ctx);
+      return app;
     }
-    return fmt::format_to(app, "{:c} ^= {:c}", v.args[0], v.args[1]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " ^= ");
+    return arg_fmt.format(v.args[1], ctx);
   }
   if (v.is(foptim::fmir::GVecSubtype::vXor)) {
     if (v.args[0] == v.args[1] && v.args[0] == v.args[2]) {
       return fmt::format_to(app, "clear {:c}", v.args[0]);
     }
-    return fmt::format_to(app, "{:c} = {:cd} ^ {:c}", v.args[0], v.args[1],
-                          v.args[2]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " = ");
+    app = arg_fmt.format(v.args[1], ctx);
+    app = fmt::format_to(app, " ^ ");
+    return arg_fmt.format(v.args[2], ctx);
   }
   if (v.is(foptim::fmir::GVecSubtype::vsub)) {
-    return fmt::format_to(app, "{:c} = {:c} - {:c}", v.args[0], v.args[1],
-                          v.args[2]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " = ");
+    app = arg_fmt.format(v.args[1], ctx);
+    app = fmt::format_to(app, " - ");
+    return arg_fmt.format(v.args[2], ctx);
   }
   if (v.is(foptim::fmir::GVecSubtype::vadd)) {
-    return fmt::format_to(app, "{:c} = {:c} + {:c}", v.args[0], v.args[1],
-                          v.args[2]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " = ");
+    app = arg_fmt.format(v.args[1], ctx);
+    app = fmt::format_to(app, " + ");
+    return arg_fmt.format(v.args[2], ctx);
   }
   if (v.is(foptim::fmir::GVecSubtype::vmul)) {
-    return fmt::format_to(app, "{:c} = {:c} * {:c}", v.args[0], v.args[1],
-                          v.args[2]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " = ");
+    app = arg_fmt.format(v.args[1], ctx);
+    app = fmt::format_to(app, " * ");
+    return arg_fmt.format(v.args[2], ctx);
   }
   if (v.is(foptim::fmir::GVecSubtype::vdiv)) {
-    return fmt::format_to(app, "{:c} = {:c} / {:c}", v.args[0], v.args[1],
-                          v.args[2]);
+    app = arg_fmt.format(v.args[0], ctx);
+    app = fmt::format_to(app, " = ");
+    app = arg_fmt.format(v.args[1], ctx);
+    app = fmt::format_to(app, " / ");
+    return arg_fmt.format(v.args[2], ctx);
   }
   app = fmt::format_to(app, "{}(", getNameFromOpcode(v.bop, v.sop));
   for (size_t arg_indx = 0; arg_indx < v.n_args; arg_indx++) {
-    if (color) {
-      app = fmt::format_to(app, "{:c}, ", v.args[arg_indx]);
-    } else {
-      app = fmt::format_to(app, "{}, ", v.args[arg_indx]);
-    }
+    app = arg_fmt.format(v.args[arg_indx], ctx);
+    app = fmt::format_to(app, ", ", v.args[arg_indx]);
   }
   app = fmt::format_to(app, ")");
   if ((v.is(foptim::fmir::GBaseSubtype::call) ||
@@ -1077,131 +1106,111 @@ fmt::formatter<foptim::fmir::MInstr>::format(foptim::fmir::MInstr const &v,
 fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
     foptim::fmir::MArgument const &value, format_context &ctx) const {
   auto app = ctx.out();
-  if (!color) {
-    switch (value.type) {
-    case foptim::fmir::MArgument::ArgumentType::StackSlot:
-      app = fmt::format_to(app, "S<");
-      app = fmt::format_to(app, color_func, "{}", value.imm);
-      return fmt::format_to(app, ">@{}", value.scale);
-    case foptim::fmir::MArgument::ArgumentType::MemLabel:
-      return fmt::format_to(app, "[{}]: {}",
-                            fmt::styled(value.label, color_func), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
-      return fmt::format_to(app, "[{} + {}]: {}",
-                            fmt::styled(value.label, color_func), value.imm,
-                            value.ty);
-    case foptim::fmir::MArgument::ArgumentType::Label:
-      return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
-    case foptim::fmir::MArgument::ArgumentType::Imm: {
-      if (value.ty == foptim::fmir::Type::Float32) {
-        return fmt::format_to(
-            app, color_number, "{}f",
-            std::bit_cast<foptim::f32>(static_cast<foptim::u32>(
-                std::bit_cast<foptim::u64>(value.immf))));
-      }
-      if (value.ty == foptim::fmir::Type::Float64) {
-        return fmt::format_to(app, color_number, "{}d", value.immf);
-      }
-      return fmt::format_to(app, color_number, "{}:{}",
-                            static_cast<foptim::i64>(value.imm), value.ty);
+  fmt::formatter<foptim::fmir::Type> ty_fmt;
+  forward_it(ty_fmt);
+  fmt::formatter<foptim::fmir::VReg> vreg_fmt;
+  forward_it(vreg_fmt);
+  switch (value.type) {
+  case foptim::fmir::MArgument::ArgumentType::StackSlot:
+    app = fmt::format_to(app, "S<");
+    app = fmt::format_to(app, color_func, "{}", value.imm);
+    return fmt::format_to(app, ">@{}", value.scale);
+  case foptim::fmir::MArgument::ArgumentType::MemLabel:
+    app = fmt::format_to(app, "[{}]: ", fmt::styled(value.label, color_func));
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
+    app =
+        fmt::format_to(app, "[{} + {}]: ", fmt::styled(value.label, color_func),
+                       static_cast<foptim::i64>(value.imm));
+    return ty_fmt.format(value.ty, ctx);
+  case foptim::fmir::MArgument::ArgumentType::Label:
+    return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
+  case foptim::fmir::MArgument::ArgumentType::Imm: {
+    if (value.ty == foptim::fmir::Type::Float32) {
+      return fmt::format_to(app, color_number, "{}f",
+                            std::bit_cast<foptim::f32>(static_cast<foptim::u32>(
+                                std::bit_cast<foptim::u64>(value.immf))));
     }
-    case foptim::fmir::MArgument::ArgumentType::VReg:
-      return fmt::format_to(app, "{}:{}", value.reg, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemVReg:
-      return fmt::format_to(app, "[{}]:{}", value.reg, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
-      return fmt::format_to(app, "[{} + {}]:{}", value.reg, value.indx,
-                            value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImm:
-      return fmt::format_to(app, "[{}]:{}", static_cast<foptim::i64>(value.imm),
-                            value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
-      return fmt::format_to(app, "[{} + {}]:{}", value.reg,
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
-      return fmt::format_to(app, "[{} + {} + {}]:{}", value.reg, value.indx,
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemLabelVreg:
-      return fmt::format_to(app, "[{} + {}]:{}", value.indx, value.label,
-                            value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemLabelVregScale:
-      return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx,
-                            1 << value.scale, value.label, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
-      return fmt::format_to(app, "[{}*{} + {}]:{}", value.indx,
-                            1 << value.scale,
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
-      return fmt::format_to(app, "[{} + {}*{}]:{}", value.reg, value.indx,
-                            1 << value.scale, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-      return fmt::format_to(app, "[{} + {}*{} + {}]:{}", value.reg, value.indx,
-                            1 << value.scale,
-                            static_cast<foptim::i64>(value.imm), value.ty);
+    if (value.ty == foptim::fmir::Type::Float64) {
+      return fmt::format_to(app, color_number, "{}d", value.immf);
     }
-  } else {
-    switch (value.type) {
-    case foptim::fmir::MArgument::ArgumentType::StackSlot:
-      app = fmt::format_to(app, "S<");
-      app = fmt::format_to(app, color_func, "{}", value.imm);
-      return fmt::format_to(app, ">@{}", value.scale);
-    case foptim::fmir::MArgument::ArgumentType::MemLabel:
-      return fmt::format_to(app, "[{}]: {:c}",
-                            fmt::styled(value.label, color_func), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
-      return fmt::format_to(app, "[{} + {}]: {:c}",
-                            fmt::styled(value.label, color_func),
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::Label:
-      return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
-    case foptim::fmir::MArgument::ArgumentType::Imm: {
-      if (value.ty == foptim::fmir::Type::Float32) {
-        return fmt::format_to(
-            app, color_number, "{}f",
-            std::bit_cast<foptim::f32>(static_cast<foptim::u32>(
-                std::bit_cast<foptim::u64>(value.immf))));
-      }
-      if (value.ty == foptim::fmir::Type::Float64) {
-        return fmt::format_to(app, color_number, "{}d", value.immf);
-      }
-      return fmt::format_to(app, color_number, "{}:{:c}",
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    }
-    case foptim::fmir::MArgument::ArgumentType::VReg:
-      return fmt::format_to(app, "{:c}:{:c}", value.reg, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemVReg:
-      return fmt::format_to(app, "[{:c}]:{:c}", value.reg, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
-      return fmt::format_to(app, "[{:c} + {:c}]:{:c}", value.reg, value.indx,
-                            value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImm:
-      return fmt::format_to(app, "[{}]:{:c}",
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
-      return fmt::format_to(app, "[{:c} + {}]:{:c}", value.reg,
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
-      return fmt::format_to(app, "[{:c} + {:c} + {}]:{:c}", value.reg,
-                            value.indx, static_cast<foptim::i64>(value.imm),
-                            value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemLabelVreg:
-      return fmt::format_to(app, "[{:c} + {}]:{:c}", value.indx, value.label,
-                            value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemLabelVregScale:
-      return fmt::format_to(app, "[{:c}*{} + {}]:{:c}", value.indx,
-                            1 << value.scale, value.label, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
-      return fmt::format_to(app, "[{:c}*{} + {}]:{:c}", value.indx,
-                            1 << value.scale,
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
-      return fmt::format_to(app, "[{:c} + {:c}*{}]:{:c}", value.reg, value.indx,
-                            1 << value.scale, value.ty);
-    case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
-      return fmt::format_to(app, "[{:c} + {:c}*{} + {}]:{:c}", value.reg,
-                            value.indx, 1 << value.scale,
-                            static_cast<foptim::i64>(value.imm), value.ty);
-    }
+    app = fmt::format_to(app, color_number,
+                         "{}: ", static_cast<foptim::i64>(value.imm));
+    return ty_fmt.format(value.ty, ctx);
+  }
+  case foptim::fmir::MArgument::ArgumentType::VReg:
+    app = vreg_fmt.format(value.reg, ctx);
+    app = fmt::format_to(app, ": ");
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemVReg:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.reg, ctx);
+    app = fmt::format_to(app, "]: ");
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemVRegVReg:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.reg, ctx);
+    app = fmt::format_to(app, " + ");
+    app = vreg_fmt.format(value.indx, ctx);
+    app = fmt::format_to(app, "]: ");
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemImm:
+    app = fmt::format_to(app, "[{}]: ", static_cast<foptim::i64>(value.imm));
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemImmVReg:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.reg, ctx);
+    app = fmt::format_to(app, " + {}]: ", static_cast<foptim::i64>(value.imm));
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemImmVRegVReg:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.reg, ctx);
+    app = fmt::format_to(app, " + ");
+    app = vreg_fmt.format(value.indx, ctx);
+    app = fmt::format_to(app, " + {}]: ", static_cast<foptim::i64>(value.imm));
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemLabelVreg:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.indx, ctx);
+    app = fmt::format_to(app, " + {}]: ", value.label);
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemLabelVregScale:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.indx, ctx);
+    app = fmt::format_to(app, "*{} + {}]: ", 1 << value.scale, value.label);
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemImmVRegScale:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.indx, ctx);
+    app = fmt::format_to(app, "*{} + {}]: ", 1 << value.scale,
+                         static_cast<foptim::i64>(value.imm));
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemVRegVRegScale:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.reg, ctx);
+    app = fmt::format_to(app, " + ");
+    app = vreg_fmt.format(value.indx, ctx);
+    app = fmt::format_to(app, " *{}]: ", 1 << value.scale);
+    return ty_fmt.format(value.ty, ctx);
+
+  case foptim::fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
+    app = fmt::format_to(app, "[");
+    app = vreg_fmt.format(value.reg, ctx);
+    app = fmt::format_to(app, " + ");
+    app = vreg_fmt.format(value.indx, ctx);
+    app = fmt::format_to(app, "*{} + {}]: ", 1 << value.scale,
+                         static_cast<foptim::i64>(value.imm));
+    return ty_fmt.format(value.ty, ctx);
   }
 }
 

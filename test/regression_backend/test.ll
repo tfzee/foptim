@@ -2,7 +2,10 @@
 ; RUN: %foffcc %s --print-mir | FileCheck %s
 
 define i32 @max(i32 %A, i32 %B) nounwind {
-; CHECK: cmov_slt
+; CHECK: func max ($2: i32, $3: i32, )
+; CHECK: $eax: i32 = $esi: i32
+; CHECK: cmov_slt($eax: i32, $edi: i32, $eax: i32, $edi: i32, )
+; CHECK: ret($eax: i32, )
         %gt = icmp sgt i32 %A, %B
         %R = select i1 %gt, i32 %A, i32 %B
         ret i32 %R
