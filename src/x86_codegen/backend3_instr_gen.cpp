@@ -263,7 +263,7 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
                                RelocSection::Text);
     operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
     operand.mem.base = ZYDIS_REGISTER_RIP;
-    operand.mem.displacement = arg.imm;
+    operand.mem.displacement = static_cast<i64>(arg.imm);
     operand.mem.index = ZYDIS_REGISTER_NONE;
     operand.mem.scale = 0;
     operand.mem.size = get_size(arg.ty);
@@ -297,7 +297,7 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
   case fmir::MArgument::ArgumentType::MemImmVReg:
     operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
     operand.mem.base = convert_reg(arg.reg);
-    operand.mem.displacement = arg.imm;
+    operand.mem.displacement = static_cast<i64>(arg.imm);
     operand.mem.index = ZYDIS_REGISTER_NONE;
     operand.mem.scale = 0;
     operand.mem.size = get_size(arg.ty);
@@ -305,7 +305,7 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
   case fmir::MArgument::ArgumentType::MemImm:
     operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
     operand.mem.base = ZYDIS_REGISTER_NONE;
-    operand.mem.displacement = arg.imm;
+    operand.mem.displacement = static_cast<i64>(arg.imm);
     operand.mem.index = ZYDIS_REGISTER_NONE;
     operand.mem.scale = 0;
     operand.mem.size = get_size(arg.ty);
@@ -313,7 +313,7 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
   case fmir::MArgument::ArgumentType::MemImmVRegVReg:
     operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
     operand.mem.base = convert_reg(arg.reg);
-    operand.mem.displacement = arg.imm;
+    operand.mem.displacement = static_cast<i64>(arg.imm);
     operand.mem.index = convert_reg(arg.indx);
     operand.mem.scale = 1;
     operand.mem.size = get_size(arg.ty);
@@ -321,7 +321,7 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
   case fmir::MArgument::ArgumentType::MemImmVRegVRegScale:
     operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
     operand.mem.base = convert_reg(arg.reg);
-    operand.mem.displacement = arg.imm;
+    operand.mem.displacement = static_cast<i64>(arg.imm);
     operand.mem.index = convert_reg(arg.indx);
     operand.mem.scale = 1 << arg.scale;
     operand.mem.size = get_size(arg.ty);
@@ -329,7 +329,7 @@ void emit_operand(const fmir::MArgument &arg, ZydisEncoderOperand &operand,
   case fmir::MArgument::ArgumentType::MemImmVRegScale:
     operand.type = ZYDIS_OPERAND_TYPE_MEMORY;
     operand.mem.base = ZYDIS_REGISTER_NONE;
-    operand.mem.displacement = arg.imm;
+    operand.mem.displacement = static_cast<i64>(arg.imm);
     operand.mem.index = convert_reg(arg.indx);
     operand.mem.scale = 1 << arg.scale;
     operand.mem.size = get_size(arg.ty);
@@ -1166,11 +1166,12 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     if (instr.args[0].ty == instr.args[1].ty) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
-    } else if (instr.args[1].isReg() && instr.args[0].ty == fmir::Type::Int64 &&
+    } else if (instr.args[0].isReg() && instr.args[0].ty == fmir::Type::Int64 &&
                instr.args[1].ty == fmir::Type::Int32) {
+
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
-      req.operands[1].reg.value =
-          reg_with_type(instr.args[1].reg, fmir::Type::Int64);
+      req.operands[0].reg.value =
+          reg_with_type(instr.args[0].reg, fmir::Type::Int32);
       // auto increased_reg = instr.args[1].reg;
       // increased_reg.size() = 8;
       // req.operands[1].reg.value = convert_reg(increased_reg);

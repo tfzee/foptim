@@ -164,7 +164,6 @@ SimplifyCFG::Res SimplifyCFG::pull_through_bb_args(CFG &cfg, CFG::Node &curr,
     if (arg->get_n_uses() != 1) {
       continue;
     }
-    fmt::println(">>>>>>>> {}", arg);
     auto &use = arg->uses[0];
 
     if (use.user->is(fir::InstrType::ITrunc)) {

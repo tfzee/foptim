@@ -1182,13 +1182,11 @@ void arith_patterns(IRVec<Pattern> &pats) {
                   add_instr->args[0].as_constant()->as_global()->name.c_str(),
                   indx_reg, consti_val, res_ty));
         }
-        auto cpy_indx_reg = indx_reg;
-        cpy_indx_reg.ty = res_ty;
-        auto cpy_base_reg = base_reg;
-        cpy_base_reg.ty = res_ty;
+        indx_reg.ty = res_ty;
+        base_reg.ty = res_ty;
         res.result.emplace_back(
             X86Subtype::lea, res_reg,
-            MArgument::MemBIS(cpy_base_reg, cpy_indx_reg, consti_val, res_ty));
+            MArgument::MemBIS(base_reg, indx_reg, consti_val, res_ty));
         return true;
       }});
   pats.push_back(Pattern{
@@ -1230,9 +1228,13 @@ void arith_patterns(IRVec<Pattern> &pats) {
         if (!a.isReg() || !b.isReg()) {
           return false;
         }
+        auto cpy_a = a.reg;
+        auto cpy_b = b.reg;
+        cpy_a.ty = res_ty;
+        cpy_b.ty = res_ty;
         res.result.emplace_back(X86Subtype::lea, res_reg,
                                 MArgument::MemOBI(static_cast<u8>(consti_val),
-                                                  a.reg, b.reg, res_ty));
+                                                  cpy_a, cpy_b, res_ty));
         return true;
       }});
   pats.push_back(Pattern{

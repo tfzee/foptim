@@ -71,6 +71,18 @@ bool early_simplify(MInstr &instr, IRVec<MInstr> &instrs, size_t instr_id) {
       return true;
     }
   }
+  // if we load from memory we can just change it into a mov
+  if (instr.is(GConvSubtype::itrunc) || instr.is(GConvSubtype::mov_zx)) {
+    if (instr.args[1].ty == instr.args[0].ty) {
+      instr.bop = GOpcode::GBase;
+      instr.sop = static_cast<u32>(GBaseSubtype::mov);
+    } else if (instr.args[1].isMem() && instr.args[0].isReg() &&
+               !instr.args[0].reg.is_concrete()) {
+      instr.bop = GOpcode::GBase;
+      instr.sop = static_cast<u32>(GBaseSubtype::mov);
+      instr.args[0].reg = instr.args[0].reg.retype(instr.args[1].ty);
+    }
+  }
   return false;
 }
 
@@ -182,7 +194,8 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
 void InstSimplifyImpl::impl_apply(MFunc &func) {
   for (auto &bb : func.bbs) {
     for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
-      if (simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
+      if (simplify(bb.instrs[instr_id], bb.instrs, instr_id) ||
+          early_simplify(bb.instrs[instr_id], bb.instrs, instr_id)) {
         instr_id--;
         continue;
       }

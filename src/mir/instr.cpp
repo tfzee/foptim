@@ -718,6 +718,56 @@ bool MInstr::is_control_flow(GOpcode c, u32 sop) {
 
 namespace {
 bool verify(const MInstr &instr) {
+  if (instr.is(X86Subtype::lea)) {
+    for (size_t arg_id = 0; arg_id < instr.n_args; arg_id++) {
+      const auto &arg = instr.args[arg_id];
+      if (arg.isMem()) {
+        switch (arg.type) {
+        case MArgument::ArgumentType::Imm:
+        case MArgument::ArgumentType::VReg:
+        case MArgument::ArgumentType::Label:
+          UNREACH();
+        case MArgument::ArgumentType::MemLabel:
+        case MArgument::ArgumentType::MemImmLabel:
+        case MArgument::ArgumentType::StackSlot:
+        case MArgument::ArgumentType::MemImm:
+          break;
+        case MArgument::ArgumentType::MemImmVReg:
+        case MArgument::ArgumentType::MemVReg:
+          if (arg.reg.size() != get_size(arg.ty)) {
+            fmt::println("Mem operand type doenst match mem type {} {}:{}",
+                         instr, arg.reg, arg.reg.ty);
+            return false;
+          }
+          break;
+        case MArgument::ArgumentType::MemVRegVRegScale:
+        case MArgument::ArgumentType::MemImmVRegVReg:
+        case MArgument::ArgumentType::MemVRegVReg:
+        case MArgument::ArgumentType::MemImmVRegVRegScale:
+          if (arg.reg.size() != get_size(arg.ty)) {
+            fmt::println("Mem operand type doenst match mem type {} {}:{}",
+                         instr, arg.reg, arg.reg.ty);
+            return false;
+          }
+          if (arg.indx.size() != get_size(arg.ty)) {
+            fmt::println("Mem operand type doenst match mem type {} {}:{}",
+                         instr, arg.indx, arg.indx.ty);
+            return false;
+          }
+          break;
+        case MArgument::ArgumentType::MemLabelVregScale:
+        case MArgument::ArgumentType::MemLabelVreg:
+        case MArgument::ArgumentType::MemImmVRegScale:
+          if (arg.indx.size() != get_size(arg.ty)) {
+            fmt::println("Mem operand type doenst match mem type {} {}:{}",
+                         instr, arg.indx, arg.indx.ty);
+            return false;
+          }
+          break;
+        }
+      }
+    }
+  }
   if (instr.is(GCMovSubtype::cmov)) {
     if (instr.n_args != 3) {
       fmt::println("Cmov should have 3 args {}", instr);

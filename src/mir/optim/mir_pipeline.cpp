@@ -16,8 +16,12 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
                   foptim::FVec<foptim::fmir::Global> & /*unused*/,
                   foptim::JobSheduler *shed, const conf::CompConf &config) {
   size_t i = 0;
+  bool enable_bisect = config.debug.bisect >= 0;
   // do matching first since it usese TVec we must before touching da tempalloc
   // reset
+  if (enable_bisect) {
+    fmt::println("X 0: MATCHING");
+  }
   for (auto *reord_func : reordered_funcs) {
     if (reord_func->is_decl()) {
       continue;
@@ -53,18 +57,34 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   foptim::utils::TempAlloc<void *>::reset();
   fmt::println("Running {} MIR passes", passes_worklist.size());
 
-  // TODO destruction of stuff kinda iffy
-  for (auto &func : funcs) {
-    ASSERT(!func.bbs.empty());
-    shed->push(nullptr, [&func, &passes_worklist, &config]() {
-      for (auto &pass_conf : passes_worklist) {
+  // with bisect just disable parralelism
+  if (enable_bisect) {
+    size_t curr_pass = 1;
+    for (auto &pass_conf : passes_worklist) {
+      fmt::println("X {}: {}", curr_pass, pass_conf->get_name());
+      for (auto &func : funcs) {
+        ASSERT(!func.bbs.empty());
         auto *pass = pass_conf->_construct_mir_func_pass();
         pass->apply(func, config);
+        ASSERT(foptim::fmir::verify(func));
       }
-      ASSERT(foptim::fmir::verify(func));
-    });
+      curr_pass++;
+    }
+  } else {
+
+    // TODO destruction of stuff kinda iffy
+    for (auto &func : funcs) {
+      ASSERT(!func.bbs.empty());
+      shed->push(nullptr, [&func, &passes_worklist, &config]() {
+        for (auto &pass_conf : passes_worklist) {
+          auto *pass = pass_conf->_construct_mir_func_pass();
+          pass->apply(func, config);
+        }
+        ASSERT(foptim::fmir::verify(func));
+      });
+    }
+    shed->wait_till_done();
   }
-  shed->wait_till_done();
 }
 
 } // namespace foptim::fmir::pipeline

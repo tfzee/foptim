@@ -324,18 +324,31 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,
   std::abort();
 }
 
-MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
-                             DumbRegAlloc &alloc) {
-
-  auto ensure64bit = [](VReg x) {
-    if (x.size() == 64) {
-      return x;
+static constexpr auto ensure_size = [](VReg x, Type target_ty) {
+  if (get_size(target_ty) == x.size()) {
+    return x;
+  }
+  switch (target_ty) {
+  case Type::Int32:
+    if (x.size() > 32) {
+      TODO("idk about this");
     }
+    return x.retype(Type::Int32);
+  case Type::Int64:
     if (x.size() > 64) {
       TODO("idk about this");
     }
     return x.retype(Type::Int64);
-  };
+  case Type::INVALID:
+  case Type::Int8:
+  case Type::Int16:
+  default:
+    return x;
+  }
+};
+
+MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
+                             DumbRegAlloc &alloc) {
 
   if (val.is_constant()) {
     auto constant = val.as_constant();
@@ -378,13 +391,16 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
         auto arg3 = valueToArg(i->args[1], res, alloc);
         // does order matter here ?
         if (arg1.isReg() && arg2.isReg() && arg3.isImm()) {
-          return MArgument::MemOBI(arg3.imm, ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
+          return MArgument::MemOBI(arg3.imm, ensure_size(arg1.reg, Type::Int64),
+                                   ensure_size(arg2.reg, Type::Int64), type_id);
         }
         if (arg1.isReg() && arg3.isReg() && arg2.isImm()) {
-          return MArgument::MemOBI(arg2.imm, ensure64bit(arg1.reg), ensure64bit(arg3.reg), type_id);
+          return MArgument::MemOBI(arg2.imm, ensure_size(arg1.reg, Type::Int64),
+                                   ensure_size(arg3.reg, Type::Int64), type_id);
         }
         if (arg2.isReg() && arg3.isReg() && arg1.isImm()) {
-          return MArgument::MemOBI(arg1.imm, ensure64bit(arg2.reg), ensure64bit(arg3.reg), type_id);
+          return MArgument::MemOBI(arg1.imm, ensure_size(arg2.reg, Type::Int64),
+                                   ensure_size(arg3.reg, Type::Int64), type_id);
         }
       }
       if (i->args[1].is_instr() &&
@@ -395,13 +411,16 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
         auto arg3 = valueToArg(i->args[0], res, alloc);
         // does order matter here ?
         if (arg1.isReg() && arg2.isReg() && arg3.isImm()) {
-          return MArgument::MemOBI(arg3.imm, ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
+          return MArgument::MemOBI(arg3.imm, ensure_size(arg1.reg, Type::Int64),
+                                   ensure_size(arg2.reg, Type::Int64), type_id);
         }
         if (arg1.isReg() && arg3.isReg() && arg2.isImm()) {
-          return MArgument::MemOBI(arg2.imm, ensure64bit(arg1.reg), ensure64bit(arg3.reg), type_id);
+          return MArgument::MemOBI(arg2.imm, ensure_size(arg1.reg, Type::Int64),
+                                   ensure_size(arg3.reg, Type::Int64), type_id);
         }
         if (arg2.isReg() && arg3.isReg() && arg1.isImm()) {
-          return MArgument::MemOBI(arg1.imm, ensure64bit(arg2.reg), ensure64bit(arg3.reg), type_id);
+          return MArgument::MemOBI(arg1.imm, ensure_size(arg2.reg, Type::Int64),
+                                   ensure_size(arg3.reg, Type::Int64), type_id);
         }
       }
       if (i->args[0].is_instr() &&
@@ -434,11 +453,17 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
           }
           // does order matter here ?
           if (arg1.isReg() && off.isLabel()) {
-            return MArgument::MemLIS(off.label, ensure64bit(arg1.reg), log_scale, type_id);
+            return MArgument::MemLIS(off.label,
+                                     ensure_size(arg1.reg, Type::Int64),
+                                     log_scale, type_id);
           } else if (arg1.isReg() && off.isReg()) {
-            return MArgument::MemBIS(off.reg, ensure64bit(arg1.reg), log_scale, type_id);
+            return MArgument::MemBIS(off.reg,
+                                     ensure_size(arg1.reg, Type::Int64),
+                                     log_scale, type_id);
           } else if (arg1.isReg() && off.isImm()) {
-            return MArgument::MemOIS(off.imm, ensure64bit(arg1.reg), log_scale, type_id);
+            return MArgument::MemOIS(off.imm,
+                                     ensure_size(arg1.reg, Type::Int64),
+                                     log_scale, type_id);
           }
         }
       }
@@ -470,9 +495,12 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
           }
           // does order matter here ?
           if (arg1.isReg() && off.isReg()) {
-            return MArgument::MemBIS(off.reg, ensure64bit(arg1.reg), log_scale, type_id);
+            return MArgument::MemBIS(off.reg,
+                                     ensure_size(arg1.reg, Type::Int64),
+                                     log_scale, type_id);
           } else if (arg1.isReg() && off.isImm()) {
-            return MArgument::MemOIS(static_cast<i32>(off.imm), ensure64bit(arg1.reg),
+            return MArgument::MemOIS(static_cast<i32>(off.imm),
+                                     ensure_size(arg1.reg, Type::Int64),
                                      log_scale, type_id);
           }
         }
@@ -484,10 +512,12 @@ MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
                                 type_id);
       }
       if (arg1.isReg() && arg2.isReg()) {
-        return MArgument::MemBI(ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
+        return MArgument::MemBI(ensure_size(arg1.reg, Type::Int64),
+                                ensure_size(arg2.reg, Type::Int64), type_id);
       }
       if (arg1.isReg() && arg2.isReg()) {
-        return MArgument::MemBI(ensure64bit(arg1.reg), ensure64bit(arg2.reg), type_id);
+        return MArgument::MemBI(ensure_size(arg1.reg, Type::Int64),
+                                ensure_size(arg2.reg, Type::Int64), type_id);
       }
     }
     return MArgument::MemB(alloc.get_register(val), type_id);
@@ -608,9 +638,12 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
   }
   case 11: {
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemBIS(base.reg, base.reg, 2, res_ty));
+                        MArgument::MemBIS(ensure_size(base.reg, res_ty),
+                                          ensure_size(base.reg, res_ty), 2,
+                                          res_ty));
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemBIS(base.reg, res_reg.reg, 1, res_ty));
+                        MArgument::MemBIS(ensure_size(base.reg, res_ty),
+                                          res_reg.reg, 1, res_ty));
     return true;
   }
   case 12: {
@@ -624,9 +657,12 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
   }
   case 13: {
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemBIS(base.reg, base.reg, 1, res_ty));
+                        MArgument::MemBIS(ensure_size(base.reg, res_ty),
+                                          ensure_size(base.reg, res_ty), 1,
+                                          res_ty));
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemBIS(base.reg, res_reg.reg, 2, res_ty));
+                        MArgument::MemBIS(ensure_size(base.reg, res_ty),
+                                          res_reg.reg, 2, res_ty));
     return true;
   }
   case 14: {
@@ -647,7 +683,9 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
     // z = a + a*4
     // z = z + z * 2
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemBIS(base.reg, base.reg, 2, res_ty));
+                        MArgument::MemBIS(ensure_size(base.reg, res_ty),
+                                          ensure_size(base.reg, res_ty), 2,
+                                          res_ty));
     result.emplace_back(X86Subtype::lea, res_reg,
                         MArgument::MemBIS(res_reg.reg, res_reg.reg, 1, res_ty));
     return true;
@@ -663,16 +701,19 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
   // $1 = $0 * c
   // where $0 must be reg and C in [1,2,3,4,5,8,9]
   if (mul1More) {
-    result.emplace_back(
-        X86Subtype::lea, res_reg,
-        MArgument::MemBIS(base.reg, base.reg, consti_val, res_ty));
+    result.emplace_back(X86Subtype::lea, res_reg,
+                        MArgument::MemBIS(ensure_size(base.reg, res_ty),
+                                          ensure_size(base.reg, res_ty),
+                                          consti_val, res_ty));
   } else if (mul1Less) {
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemOIS(0, base.reg, consti_val, res_ty));
+                        MArgument::MemOIS(0, ensure_size(base.reg, res_ty),
+                                          consti_val, res_ty));
     result.emplace_back(GArithSubtype::sub2, res_reg, base);
   } else {
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemOIS(0, base.reg, consti_val, res_ty));
+                        MArgument::MemOIS(0, ensure_size(base.reg, res_ty),
+                                          consti_val, res_ty));
   }
   return true;
 }

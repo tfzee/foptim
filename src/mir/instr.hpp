@@ -386,6 +386,7 @@ public:
     return conc.creg;
   }
 
+  // return size of the type of this vreg
   [[nodiscard]] constexpr u64 size() const { return get_size(ty); }
 
   [[nodiscard]] constexpr bool is_vec_reg() const {
