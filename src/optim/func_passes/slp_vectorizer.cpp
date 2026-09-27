@@ -234,6 +234,7 @@ public:
     case fir::BinaryInstrSubType::Xor:
     case fir::BinaryInstrSubType::Or:
     case fir::BinaryInstrSubType::Shr:
+    case fir::BinaryInstrSubType::AShr:
       return true;
     case fir::BinaryInstrSubType::FloatSub:
     case fir::BinaryInstrSubType::FloatMul:
@@ -253,7 +254,6 @@ public:
     case fir::BinaryInstrSubType::IntUDiv:
       return false;
     case fir::BinaryInstrSubType::INVALID:
-    case fir::BinaryInstrSubType::AShr:
       fmt::println("{}", base_v);
       TODO("impl");
       return false;
