@@ -1151,6 +1151,18 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         }
       }
     }
+    if (c1_val != nullptr && c1_val->is_int() &&
+        (instr->is(fir::BinaryInstrSubType::Shl) ||
+         instr->is(fir::BinaryInstrSubType::Shr) ||
+         instr->is(fir::BinaryInstrSubType::AShr))) {
+      auto res_ty = instr->get_type();
+      if (c1_val->as_int() >= res_ty->get_bitwidth()) {
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(fir::ValueR{ctx->get_poisson_value(res_ty)});
+        instr.destroy();
+        return true;
+      }
+    }
   }
 
   // bit patterns
