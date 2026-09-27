@@ -427,7 +427,8 @@ void convert_gep(const llvm::Instruction *any_instr,
       auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
                                        foptim::fir::ValueR(arg_mul_ptr_value),
                                        true, true);
-      result_value = builder.build_ptr_add(result_value, mul, gep_instr->isInBounds());
+      result_value =
+          builder.build_ptr_add(result_value, mul, gep_instr->isInBounds());
     }
     for (const auto *index_it = gep_instr->indices().begin() + 1;
          index_it != gep_instr->indices().end(); index_it++) {
@@ -444,7 +445,8 @@ void convert_gep(const llvm::Instruction *any_instr,
         auto arg_offset_foptim =
             fctx->get_constant_int(arg_offset.getFixedValue(), 32);
         result_value = builder.build_ptr_add(
-            result_value, foptim::fir::ValueR{arg_offset_foptim}, gep_instr->isInBounds());
+            result_value, foptim::fir::ValueR{arg_offset_foptim},
+            gep_instr->isInBounds());
         indexed_type = struct_type->getElementType(offset_struct);
       } else if (indexed_type->isArrayTy()) { // index into array
         auto *array_type =
@@ -460,7 +462,8 @@ void convert_gep(const llvm::Instruction *any_instr,
         auto mul = builder.build_int_mul(offset_struct_ptr_foptim,
                                          foptim::fir::ValueR(arg_mul_ptr_value),
                                          true, true);
-        result_value = builder.build_ptr_add(result_value, mul, gep_instr->isInBounds());
+        result_value =
+            builder.build_ptr_add(result_value, mul, gep_instr->isInBounds());
         indexed_type = array_type->getElementType();
       }
     }
@@ -474,7 +477,8 @@ void convert_gep(const llvm::Instruction *any_instr,
     auto arg_mul_value = fctx->get_constant_int(arg_mul.getFixedValue(), 32);
     auto mul = builder.build_int_mul(
         arg_foptim, foptim::fir::ValueR(arg_mul_value), true, true);
-    result_value = builder.build_ptr_add(result_value, mul, gep_instr->isInBounds());
+    result_value =
+        builder.build_ptr_add(result_value, mul, gep_instr->isInBounds());
   }
 
   valueToValue.insert({any_instr, result_value});
@@ -1993,14 +1997,26 @@ void load_llvm_ir(const char *filename, foptim::fir::Context &fctx,
   llvm::LLVMContext context;
   llvm::SMDiagnostic error;
   std::unique_ptr<llvm::Module> module;
+
   {
     ZoneScopedN("LLVM");
-    module = llvm::parseIRFile(filename, error, context);
+    llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> buffer_or_err =
+        llvm::MemoryBuffer::getFileOrSTDIN(filename);
+    if (std::error_code ec = buffer_or_err.getError()) {
+      llvm::errs() << "FAILED TO OPEN: '" << filename << "' - " << ec.message()
+                   << "\n";
+      std::abort();
+    }
+    // 2. Parse the LLVM IR from the memory buffer
+    module =
+        llvm::parseIR(buffer_or_err.get()->getMemBufferRef(), error, context);
   }
+
   if (module) {
     convert(*module, fctx, shed);
   } else {
-    llvm::errs() << "FAILED TO LOAD: '" << filename << "' "
+    // error.print can sometimes offer better formatting than getMessage()
+    llvm::errs() << "FAILED TO PARSE: '" << filename << "' - "
                  << error.getMessage() << "\n";
     std::abort();
   }

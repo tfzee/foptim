@@ -31,7 +31,7 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .default_value("Default")
       .help("where the cconf.toml is located at")
       .default_value("default");
-  program.add_argument("input").required().help("specify the input .ll file.");
+  program.add_argument("input").default_value("-").help("specify the input .ll file.");
   program.add_argument("output").default_value("/dev/null").help(
       "specify the output .ss file.");
 
