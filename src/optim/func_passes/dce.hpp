@@ -49,8 +49,9 @@ public:
       for (auto &bb : func.get_bbs()) {
         for (auto &instr : bb->get_instrs()) {
           bool isCritical = instr->is_critical();
+          bool hasSideeffect = instr->has_pot_sideeffects();
 
-          if (isCritical) {
+          if (isCritical || hasSideeffect) {
             worklist.push_back(instr);
             marked.insert(instr);
           }

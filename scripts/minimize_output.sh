@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# --- NEW: Flag Parsing ---
 SHOW_TIMINGS=0
 for arg in "$@"; do
     if [[ "$arg" == "--time" || "$arg" == "-t" ]]; then
@@ -9,11 +8,9 @@ for arg in "$@"; do
     fi
 done
 
-# Variables to store elapsed times
 time_clang=""
 time_foptim=""
 
-# --- NEW: Trap to always print at the very end ---
 print_timings() {
     if [[ "$SHOW_TIMINGS" == "1" ]]; then
         echo "--- Timings ---"
@@ -21,10 +18,8 @@ print_timings() {
         [[ -n "$time_foptim" ]] && echo "foptim took ${time_foptim} sec"
     fi
 }
-# This ensures it prints no matter which 'exit' command is triggered
 trap print_timings EXIT
 
-# --- NEW: Helper function to measure execution time ---
 time_cmd() {
     local var_name=$1
     shift
@@ -33,18 +28,15 @@ time_cmd() {
         "$@"
         local ret=$?
         local end=$(date +%s.%3N)
-        # Calculate time diff and save it to the specified variable name
         local elapsed=$(awk "BEGIN {printf \"%.3f\", $end - $start}")
         eval "$var_name=\$elapsed"
         return $ret
     else
-        # If no flag, just run the command normally
         "$@"
         return $?
     fi
 }
 
-# --- ORIGINAL SCRIPT STARTS HERE ---
 
 TEST_FOLDER="$HOME/programming/foptim_test"
 FOLDER="$HOME/programming/foptim"
@@ -53,7 +45,7 @@ test_file="min.cpp"
 foptim="$BUILD_DIR/foptim_main"
 flags="-U__SIZEOF_INT128__ -std=c++26 -fno-stack-protector"
 test_linkdir="-I$TEST_FOLDER/test/CppPerformanceBenchmarks/ -I$TEST_FOLDER/test/embench/"
-compile_optim="-O1 -mllvm -disable-llvm-optzns"
+compile_optim="-fno-exceptions -O3 -mllvm -disable-llvm-optzns"
 
 UNINTERESTING=1  # cvise discards these
 INTERESTING=0    # cvise keeps these

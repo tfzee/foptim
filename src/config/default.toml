@@ -65,12 +65,12 @@ passes = [
       "ArgPromotion", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "InstSimplify",
       "SimplifyCFG", "TailRecElim", "SimplifyCFG", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinSimplify", "InstSimplify", "DCE",
       "StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DSE", "DCE",
+      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "GDCE", "IPCP",
+      "GlobalPromotion", "Inline", "Inline", "GDCE", "FuncPropAnnotator",
 ]
 
 [pipeline.fir.default_release_late]
 passes = [
-      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "GDCE", "IPCP",
-      "GlobalPromotion", "LateInline", "LateInline", "GDCE", "FuncPropAnnotator",
       "LVN", "SCCP", "DoubleLoadElim", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
       "CmpKnownValProp", "SimplifyCFG", "SCCP",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "LateInline", "LateInline",
