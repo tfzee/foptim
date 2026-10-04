@@ -472,7 +472,7 @@ public:
   // TODO FIX TYPE CONVERSION HERE
   constexpr MArgument(VReg reg, Type ty)
       : type(ArgumentType::VReg), ty(ty), reg(reg) {
-    reg.ty = ty;
+    this->reg.ty = ty;
   }
   constexpr static MArgument Int(u64 val, Type ty) {
     MArgument res;
