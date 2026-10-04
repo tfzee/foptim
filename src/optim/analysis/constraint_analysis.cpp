@@ -22,11 +22,8 @@ bool ConstraintAnalysis::get_bin_expr(fir::Instr i, u32 depth) {
 
 ConstraintAnalysis::ExprId ConstraintAnalysis::get_expr(fir::ValueR v,
                                                         u32 depth) {
-  for (u32 idx = 0; idx < exprs.size(); ++idx) {
-    auto &c = exprs[idx];
-    if (c.v == v) {
-      return idx + 1;
-    }
+  if (const auto it = expr_ids.find(v); it != expr_ids.end()) {
+    return it->second;
   }
   if (depth > max_expr_depth) {
     exprs.push_back({ExprNode::ExprNodeType::InpVal, v});
@@ -49,6 +46,8 @@ ConstraintAnalysis::ExprId ConstraintAnalysis::get_expr(fir::ValueR v,
   } else {
     exprs.push_back({ExprNode::ExprNodeType::InpVal, v});
   }
+  // the node for v is always the last one pushed (children come first)
+  expr_ids.emplace(v, exprs.size());
   return exprs.size();
 }
 
@@ -99,15 +98,12 @@ ConstraintAnalysis::ConstrId
 ConstraintAnalysis::get_constraint(Constraint::ConstraintType ty, ExprId v1,
                                    ExprId v2, fir::Instr origin_instr) {
 
-  for (u32 idx = 0; idx < constraints.size(); ++idx) {
-    auto &c = constraints[idx];
-    if (c.type == ty && c.e1 == v1 && c.e2 == v2 &&
-        c.origin_instr == origin_instr) {
-      return idx + 1;
-    }
+  const ConstrKey key{ty, v1, v2, origin_instr};
+  if (const auto it = constraint_ids.find(key); it != constraint_ids.end()) {
+    return it->second;
   }
-
   constraints.push_back({ty, v1, v2, origin_instr});
+  constraint_ids.emplace(key, constraints.size());
   return constraints.size();
 }
 
@@ -157,6 +153,8 @@ void ConstraintAnalysis::update() {
 void ConstraintAnalysis::reset_and_resize() {
   exprs.clear();
   constraints.clear();
+  expr_ids.clear();
+  constraint_ids.clear();
   bb_to_constraints.clear();
 
   bb_to_constraints.resize(cfg.bbrs.size(), {});

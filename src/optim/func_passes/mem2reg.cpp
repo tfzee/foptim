@@ -213,7 +213,7 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
     }
     visited.insert(considering_block);
 
-    for (auto dommy : dom.dom_bbs[considering_block].frontier) {
+    for (auto dommy : dom.get_frontier(considering_block)) {
       res[alloca_instr].insert(dommy);
       // if (std::find(blocks_containing_store.cbegin(),
       //               blocks_containing_store.cend(),

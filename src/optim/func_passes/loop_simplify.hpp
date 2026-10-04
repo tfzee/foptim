@@ -255,11 +255,11 @@ public:
       }
 
       TSet<fir::BasicBlock> dominated_blocks;
-      for (auto &b : dom.dom_bbs) {
-        if (!b.dominators[out_bb_id]) {
+      for (u32 b_id = 0; b_id < cfg.bbrs.size(); b_id++) {
+        if (!dom.dominates(out_bb_id, b_id)) {
           continue;
         }
-        dominated_blocks.insert(b.bb);
+        dominated_blocks.insert(cfg.bbrs[b_id].bb);
       }
 
       for (const auto &[base, known_val] : v.values) {

@@ -109,7 +109,7 @@ SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
   }
   if (!found_path) {
     // TODO(PERF): dont rerun everytime
-    foptim::optim::ConstraintAnalysis canal(cfg, dom);
+    foptim::optim::ConstraintAnalysis canal(cfg);
     auto term_constr = canal.bb_to_constraints[bb_id].terminator_constraint;
     if (term_constr != 0) {
       auto &inc1 = canal.bb_to_constraints[p1].active_constraints;

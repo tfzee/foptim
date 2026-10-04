@@ -10,7 +10,10 @@
 namespace foptim::optim {
 using utils::BitSet;
 
-class Dominators {
+// Legacy O(B^2) bitset solver. Only kept for DCE's reverse (post) dominator
+// frontier, whose results depend on how this treats blocks that are
+// unreachable from the entry (everything in a reversed CFG). Use Dominators.
+class BitsetDominators {
 public:
   struct Node {
     fir::BasicBlock bb;
@@ -22,8 +25,8 @@ public:
   TVec<Node> dom_bbs;
   const CFG *cfg;
 
-  Dominators() : cfg(nullptr) {}
-  Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
+  BitsetDominators() : cfg(nullptr) {}
+  BitsetDominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
 
   // a dominates b
   [[nodiscard]] bool strict_dominates(fir::BasicBlock a,
@@ -119,9 +122,9 @@ public:
     for (const auto &node : dom_bbs) {
       fmt::println("BB: {:p}",
                    reinterpret_cast<const void *>(node.bb.get_raw_ptr()));
-      fmt::println(" Dominators {}", node.dominators);
+      fmt::println(" BitsetDominators {}", node.dominators);
       fmt::println(" Frontier {}", node.frontier);
-      // print << "BB: " << node.bb.get_raw_ptr() << "\n  Dominators:";
+      // print << "BB: " << node.bb.get_raw_ptr() << "\n  BitsetDominators:";
       // print << node.dominators << "\n";
       // print << "  PostDom: " << node.postdominators << "\n";
       // print << "  Frontier: " << node.frontier << "\n";
@@ -204,6 +207,7 @@ public:
     u32 depth = 0;   // depth in the dominator tree, entry == 0
     u32 dfs_in = 0;  // preorder index of this node's Euler-tour entry
     u32 dfs_out = 0; // one-past the largest dfs_in in this node's subtree
+    bool reachable = true; // reachable from the entry (else idom is fake)
   };
 
   TVec<Node> dom_bbs;
@@ -358,6 +362,7 @@ public:
     for (auto &n : dom_bbs) {
       if (n.idom == ~0U) {
         n.idom = cfg.entry;
+        n.reachable = false;
       }
     }
 
@@ -406,6 +411,104 @@ public:
         }
       }
     }
+  }
+};
+
+// Dominators + dominance frontier on top of the dominator tree (O(E) to build,
+// O(1) queries). Blocks unreachable from the entry count as dominated by
+// every block (like the old bitset implementation) and dont take part in
+// frontiers. The frontier is computed on first use.
+class Dominators {
+public:
+  DominatorTree tree;
+  const CFG *cfg;
+
+  Dominators() : cfg(nullptr) {}
+  Dominators(const CFG &cfg) : cfg(&cfg) { update(cfg); }
+
+  [[nodiscard]] u32 idom(u32 bb_id) const { return tree.dom_bbs[bb_id].idom; }
+
+  [[nodiscard]] bool is_reachable(u32 bb_id) const {
+    return tree.dom_bbs[bb_id].reachable;
+  }
+
+  // bb1 dominates bb2 (a block dominates itself)
+  [[nodiscard]] bool dominates(u32 bb1, u32 bb2) const {
+    return bb1 == bb2 || !tree.dom_bbs[bb2].reachable ||
+           tree.dominates(bb1, bb2);
+  }
+
+  [[nodiscard]] bool strict_dominates(u32 bb1, u32 bb2) const {
+    return bb1 != bb2 && dominates(bb1, bb2);
+  }
+
+  [[nodiscard]] bool strict_dominates(fir::BasicBlock a,
+                                      fir::BasicBlock b) const {
+    return strict_dominates(cfg->get_bb_id(a), cfg->get_bb_id(b));
+  }
+
+  [[nodiscard]] u32 common_denom(u32 bb1_id, u32 bb2_id) const {
+    return tree.common_denom(bb1_id, bb2_id);
+  }
+
+  // blocks in the dominance frontier of the given block (ascending)
+  [[nodiscard]] const TVec<u32> &get_frontier(u32 bb_id) const {
+    if (!frontier_valid) {
+      compute_frontier();
+    }
+    return frontier[bb_id];
+  }
+  [[nodiscard]] const TVec<u32> &get_frontier(fir::BasicBlock a) const {
+    return get_frontier(cfg->get_bb_id(a));
+  }
+
+  void dump() const { tree.dump(); }
+
+  void update(const CFG &cfg) {
+    this->cfg = &cfg;
+    tree.update(cfg);
+    frontier.clear();
+    frontier_valid = false;
+  }
+
+private:
+  mutable TVec<TVec<u32>> frontier;
+  mutable bool frontier_valid = false;
+
+  void compute_frontier() const {
+    ZoneScopedNC("DOM FRONTIER", COLOR_ANALY);
+    const auto &bbrs = cfg->bbrs;
+    frontier.clear();
+    frontier.resize(bbrs.size());
+    // for every join point walk up from each pred to idom(join)
+    for (u32 s = 0; s < bbrs.size(); s++) {
+      if (!tree.dom_bbs[s].reachable) {
+        continue;
+      }
+      const auto &preds = bbrs[s].pred;
+      const bool is_entry = s == cfg->entry;
+      if (preds.size() < 2 && !(is_entry && !preds.empty())) {
+        continue;
+      }
+      for (const u32 p : preds) {
+        if (!tree.dom_bbs[p].reachable) {
+          continue;
+        }
+        u32 runner = p;
+        // the entry is its own idom, but it doesnt strictly dominate itself
+        // so with a backedge into the entry the walk has to include it.
+        while (is_entry || runner != tree.dom_bbs[s].idom) {
+          if (frontier[runner].empty() || frontier[runner].back() != s) {
+            frontier[runner].push_back(s);
+          }
+          if (runner == cfg->entry) {
+            break;
+          }
+          runner = tree.dom_bbs[runner].idom;
+        }
+      }
+    }
+    frontier_valid = true;
   }
 };
 

@@ -36,7 +36,7 @@ public:
     ZoneScopedNC("DCE", COLOR_OPTIMF);
     {
       CFG rev_cfg{func, true};
-      Dominators rev_dom{rev_cfg};
+      BitsetDominators rev_dom{rev_cfg};
       // if (func.linkage == fir::Function::Linkage::Internal &&
       //     func.get_n_uses() == 0) {
       //   // fmt::println("{}", func.name.c_str());

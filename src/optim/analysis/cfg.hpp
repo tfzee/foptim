@@ -6,6 +6,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "utils/SmallVec.hpp"
+#include "utils/map.hpp"
 
 namespace foptim::optim {
 
@@ -20,6 +21,10 @@ class CFG {
   };
 
   TVec<Node> bbrs;
+  // bb -> index into bbrs, only filled for bigger functions where the linear
+  // scan in get_bb_id would hurt (empty means "scan linearly")
+  TMap<fir::BasicBlock, u32> bb_to_id;
+  static constexpr size_t MIN_BBS_FOR_MAP = 12;
   u32 entry;
   fir::Function *func = nullptr;
   bool is_reversed;
@@ -32,6 +37,11 @@ class CFG {
   }
 
   [[nodiscard]] u32 get_bb_id(fir::BasicBlock search_bb) const {
+    if (!bb_to_id.empty()) {
+      const auto it = bb_to_id.find(search_bb);
+      ASSERT(it != bb_to_id.end());
+      return it->second;
+    }
     for (u32 id = 0; id < bbrs.size(); id++) {
       if (bbrs[id].bb == search_bb) {
         return id;
@@ -43,6 +53,17 @@ class CFG {
 
   void dump() const;
   void dump_graph(const char *filename = "out.dot") const;
+
+  void rebuild_id_map() {
+    bb_to_id.clear();
+    if (bbrs.size() < MIN_BBS_FOR_MAP) {
+      return;
+    }
+    bb_to_id.reserve(bbrs.size());
+    for (u32 id = 0; id < bbrs.size(); id++) {
+      bb_to_id.emplace(bbrs[id].bb, id);
+    }
+  }
 
   void update(fir::Function &func, bool reverse) {
     ZoneScopedNC("CFG UPDATE", COLOR_ANALY);
@@ -57,6 +78,7 @@ class CFG {
       bbrs.push_back(Node{.bb = bb, .pred = {}, .succ = {}});
     }
 
+    rebuild_id_map();
     const auto &bbs = func.get_bbs();
 
     for (size_t from = 0; from < bbs.size(); from++) {
@@ -67,12 +89,10 @@ class CFG {
       bbrs[from].succ.reserve(terminator->is(fir::InstrType::BranchInstr) ? 1
                                                                           : 2);
       for (const auto &target : terminator->get_bb_args()) {
-        for (u32 j = 0; j < bbrs.size(); j++) {
-          if (bbrs[j].bb == target.bb) {
-            bbrs[from].succ.push_back(j);
-            bbrs[j].pred.push_back(from);
-          }
-        }
+        // a block appears once in bbrs, so this is the unique match
+        const u32 j = get_bb_id(target.bb);
+        bbrs[from].succ.push_back(j);
+        bbrs[j].pred.push_back(from);
       }
     }
 
@@ -125,6 +145,7 @@ class CFG {
       }
     }
     bbrs.erase(bbrs.begin() + bb_id);
+    rebuild_id_map();
   }
 };
 

@@ -2309,7 +2309,8 @@ bool simplify_insert(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
 }
 
 bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-              WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
+              WorkList &worklist, AttributerManager &man, AliasAnalyis &anal,
+              ConstraintCache &ccache) {
   ZoneScopedN("SimplifyInstr");
   using foptim::fir::InstrType;
 
@@ -2321,7 +2322,7 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return simplify_unary(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::ICmp) {
-    return simplify_icmp(instr, bb, ctx, worklist, man);
+    return simplify_icmp(instr, bb, ctx, worklist, man, ccache);
   }
   if (instr_ty == InstrType::StoreInstr) {
     if (simplify_store(instr)) {
@@ -2386,6 +2387,7 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("InstSimplify", COLOR_OPTIMF);
   AttributerManager man;
   AliasAnalyis anal{};
+  InstSimp::ConstraintCache ccache{func};
 
   // TODO: maybe replace with actual queue
   TVec<WorkItem> worklist;
@@ -2402,8 +2404,9 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     if (!instr.is_valid() || !instr->parent.is_valid()) {
       continue;
     }
-    if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal)) {
+    if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal, ccache)) {
       man.reset();
+      ccache.invalidate();
     }
   }
   return PreservedAnalysis::none();

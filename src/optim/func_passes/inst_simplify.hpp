@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include <type_traits>
 
 #include "../function_pass.hpp"
@@ -6,6 +7,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/constraint_analysis.hpp"
 
 namespace foptim::optim {
 
@@ -22,6 +24,52 @@ public:
 };
 
 namespace InstSimp {
+
+// Lazily built CFG + ConstraintAnalysis shared by all icmps of one
+// InstSimplify run. Any change to the IR drops it (invalidate()), the next
+// query rebuilds it. Lives only as long as the pass (temp allocated).
+class ConstraintCache {
+  fir::Function *func;
+  std::optional<CFG> cfg;
+  std::optional<ConstraintAnalysis> constr;
+  // does the function have any conditional branch at all (otherwise no
+  // constraints exist and building the analysis is pointless)
+  std::optional<bool> has_cond_branch;
+
+public:
+  explicit ConstraintCache(fir::Function &func) : func(&func) {}
+
+  void invalidate() {
+    constr.reset();
+    cfg.reset();
+  }
+
+  // nullptr if the function cant produce any constraints
+  ConstraintAnalysis *get() {
+    if (!has_cond_branch.has_value()) {
+      bool found = false;
+      for (const auto bb : func->get_bbs()) {
+        if (bb->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
+          found = true;
+          break;
+        }
+      }
+      has_cond_branch = found;
+    }
+    if (!*has_cond_branch) {
+      return nullptr;
+    }
+    if (!constr.has_value()) {
+      cfg.emplace(*func);
+      constr.emplace(*cfg);
+    }
+    return &*constr;
+  }
+  CFG &get_cfg() {
+    ASSERT(cfg.has_value());
+    return *cfg;
+  }
+};
 
 using WorkList = TVec<InstSimplify::WorkItem>;
 

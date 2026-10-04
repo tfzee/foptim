@@ -65,7 +65,7 @@ inline void swap_args_icmp(fir::Instr instr) {
 
 inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
                           fir::Context &ctx, WorkList &worklist,
-                          AttributerManager &man) {
+                          AttributerManager &man, ConstraintCache &ccache) {
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyICMP");
   }
@@ -691,16 +691,16 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   // }
   {
     // expiremental constraint pass
-    CFG cfg(*instr->get_parent()->get_parent().func);
-    Dominators dom(cfg);
-    ConstraintAnalysis constr(cfg, dom);
-    auto bb_id = cfg.get_bb_id(instr->get_parent());
-    auto &b = constr.bb_to_constraints[bb_id];
-    auto cond_constr = constr.get_constraint(instr);
-    if (cond_constr.has_value() &&
-        constr.contradicts(cond_constr.value(), b.active_constraints)) {
-      instr->replace_all_uses(fir::ValueR{ctx->get_constant_int(0, 1)});
-      return true;
+    if (auto *constr_ptr = ccache.get()) {
+      auto &constr = *constr_ptr;
+      auto bb_id = ccache.get_cfg().get_bb_id(instr->get_parent());
+      auto &b = constr.bb_to_constraints[bb_id];
+      auto cond_constr = constr.get_constraint(instr);
+      if (cond_constr.has_value() &&
+          constr.contradicts(cond_constr.value(), b.active_constraints)) {
+        instr->replace_all_uses(fir::ValueR{ctx->get_constant_int(0, 1)});
+        return true;
+      }
     }
     // else if (constr.supported(b.terminator_constraint,
     // b.active_constraints)) {

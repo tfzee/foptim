@@ -5,7 +5,8 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/dominators.hpp"
+#include "optim/analysis/cfg.hpp"
+#include "utils/map.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
@@ -66,7 +67,32 @@ public:
   u32 max_expr_depth = 1;
 
   CFG &cfg;
-  Dominators &dom;
+
+  // dedup lookup (value -> ExprId, constraint key -> ConstrId)
+  struct ConstrKey {
+    Constraint::ConstraintType type;
+    ExprId e1;
+    ExprId e2;
+    fir::Instr origin_instr;
+    bool operator==(const ConstrKey &o) const {
+      return type == o.type && e1 == o.e1 && e2 == o.e2 &&
+             origin_instr == o.origin_instr;
+    }
+  };
+  struct ConstrKeyHash {
+    using is_avalanching = void;
+    uint64_t operator()(const ConstrKey &k) const noexcept {
+      return ankerl::unordered_dense::detail::wyhash::mix(
+          ankerl::unordered_dense::hash<fir::Instr>()(k.origin_instr),
+          (static_cast<uint64_t>(k.e1) << 32 | k.e2) * 16 +
+              static_cast<uint64_t>(k.type));
+    }
+  };
+  TMap<fir::ValueR, ExprId> expr_ids;
+  ankerl::unordered_dense::map<ConstrKey, ConstrId, ConstrKeyHash,
+                               std::equal_to<ConstrKey>,
+                               utils::TempAlloc<std::pair<ConstrKey, ConstrId>>>
+      constraint_ids;
 
   using PrintWrapperExpr = PrintWrapper<ExprNode &, ConstraintAnalysis *>;
   using PrintWrapperConstr = PrintWrapper<Constraint &, ConstraintAnalysis *>;
@@ -92,7 +118,7 @@ private:
 
 public:
   std::optional<ConstrId> get_constraint(fir::Instr i);
-  ConstraintAnalysis(CFG &cfg, Dominators &dom) : cfg(cfg), dom(dom) {
+  ConstraintAnalysis(CFG &cfg) : cfg(cfg) {
     update();
   }
 
