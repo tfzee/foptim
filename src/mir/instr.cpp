@@ -720,7 +720,29 @@ bool MInstr::is_control_flow(GOpcode c, u32 sop) {
 }
 
 namespace {
+bool verify(const MInstr &instr, size_t arg_id) {
+  const MArgument &arg = instr.args[arg_id];
+  if (arg.isReg() && arg.reg.is_concrete() && !arg.is_vec_reg() &&
+      get_size(arg.reg.ty) > 8) {
+    fmt::println("Arg is a non vec reg creg but its size is {}>8",
+                 get_size(arg.reg.ty));
+    return false;
+  }
+  if (arg.isMem() && (arg.reg.is_vec_reg() || arg.indx.is_vec_reg())) {
+    bool legal_instr = (instr.is(X86Subtype::vgatherq) && arg_id == 1);
+    if (!legal_instr) {
+      fmt::println("Cant use vec reg in a mem operand {}", arg);
+      return false;
+    }
+  }
+  return true;
+}
 bool verify(const MInstr &instr) {
+  for (size_t arg_id = 0; arg_id < instr.n_args; arg_id++) {
+    if (!verify(instr, arg_id)) {
+      return false;
+    }
+  }
   if (instr.is(X86Subtype::lea)) {
     for (size_t arg_id = 0; arg_id < instr.n_args; arg_id++) {
       const auto &arg = instr.args[arg_id];
@@ -1114,32 +1136,34 @@ fmt::appender fmt::formatter<foptim::fmir::MArgument>::format(
   forward_it(ty_fmt);
   fmt::formatter<foptim::fmir::VReg> vreg_fmt;
   forward_it(vreg_fmt);
+  const auto col_func = color ? color_func : text_style{};
+  const auto col_number = color ? color_number : text_style{};
   switch (value.type) {
   case foptim::fmir::MArgument::ArgumentType::StackSlot:
     app = fmt::format_to(app, "S<");
-    app = fmt::format_to(app, color_func, "{}", value.imm);
+    app = fmt::format_to(app, col_func, "{}", value.imm);
     return fmt::format_to(app, ">@{}", value.scale);
   case foptim::fmir::MArgument::ArgumentType::MemLabel:
-    app = fmt::format_to(app, "[{}]: ", fmt::styled(value.label, color_func));
+    app = fmt::format_to(app, "[{}]: ", fmt::styled(value.label, col_func));
     return ty_fmt.format(value.ty, ctx);
 
   case foptim::fmir::MArgument::ArgumentType::MemImmLabel:
     app =
-        fmt::format_to(app, "[{} + {}]: ", fmt::styled(value.label, color_func),
+        fmt::format_to(app, "[{} + {}]: ", fmt::styled(value.label, col_func),
                        static_cast<foptim::i64>(value.imm));
     return ty_fmt.format(value.ty, ctx);
   case foptim::fmir::MArgument::ArgumentType::Label:
-    return fmt::format_to(app, "{}", fmt::styled(value.label, color_func));
+    return fmt::format_to(app, "{}", fmt::styled(value.label, col_func));
   case foptim::fmir::MArgument::ArgumentType::Imm: {
     if (value.ty == foptim::fmir::Type::Float32) {
-      return fmt::format_to(app, color_number, "{}f",
+      return fmt::format_to(app, col_number, "{}f",
                             std::bit_cast<foptim::f32>(static_cast<foptim::u32>(
                                 std::bit_cast<foptim::u64>(value.immf))));
     }
     if (value.ty == foptim::fmir::Type::Float64) {
-      return fmt::format_to(app, color_number, "{}d", value.immf);
+      return fmt::format_to(app, col_number, "{}d", value.immf);
     }
-    app = fmt::format_to(app, color_number,
+    app = fmt::format_to(app, col_number,
                          "{}: ", static_cast<foptim::i64>(value.imm));
     return ty_fmt.format(value.ty, ctx);
   }
