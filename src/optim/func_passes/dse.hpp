@@ -2,6 +2,7 @@
 #include "../function_pass.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/alloca_escape.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -15,50 +16,6 @@ class DSE final : public FunctionPass {
 public:
   struct Config {};
   Config config;
-
-  bool alloca_escapes(fir::ValueR alloca_val, TSet<fir::Instr> &seen) {
-    for (auto &use : *alloca_val.get_uses()) {
-      auto user = use.user;
-      if (seen.contains(user)) {
-        continue;
-      }
-      seen.insert(user);
-
-      switch (user->instr_type) {
-      case fir::InstrType::StoreInstr: {
-        // Fine only if the alloca-derived pointer is the destination
-        // (args[0]), not the stored value (args[1]).
-        if (use.argId != 0) {
-          return true;
-        }
-        continue;
-      }
-      case fir::InstrType::CallInstr: {
-        if (user->args[0].is_constant_func()) {
-          // FIX: Consistent API usage
-          auto name = user->args[0].as_constant()->as_func()->name;
-          if (name == "foptim.memcpy" || name == "foptim.memset") {
-            continue;
-          }
-        }
-        return true;
-      }
-      case fir::InstrType::LoadInstr:
-        continue;
-      case fir::InstrType::ReturnInstr:
-        return true;
-      case fir::InstrType::BinaryInstr:
-      case fir::InstrType::Conversion:
-        if (alloca_escapes(fir::ValueR{user}, seen)) {
-          return true;
-        }
-        continue;
-      default:
-        return true;
-      }
-    }
-    return false;
-  }
 
   struct MemWrite {
     fir::Instr instr;
@@ -192,10 +149,16 @@ public:
         }
         fir::ValueR alloca_val{instr};
 
-        TSet<fir::Instr> escape_seen;
-        if (alloca_escapes(alloca_val, escape_seen)) {
+        auto escape_info = analyze_alloca_escape(alloca_val);
+        if (escape_info.escapes) {
           continue;
         }
+        // Pointers read back out of the alloca (self stores) alias it in ways
+        // the alias analysis can not see, so reads through them are reads of
+        // the alloca.
+        auto reads_alloca = [&](fir::ValueR ptr) {
+          return escape_info.derived.contains(ptr);
+        };
 
         TSet<fir::Instr> write_seen;
         TVec<MemWrite> writes;
@@ -275,8 +238,9 @@ public:
             if (cur->is(fir::InstrType::LoadInstr)) {
               u64 load_size = cur->get_type()->get_size();
 
-              if (aa.alias(cur->args[0], alloca_val, load_size, 0) !=
-                  AliasAnalyis::AAResult::NoAlias) {
+              if (reads_alloca(cur->args[0]) ||
+                  aa.alias(cur->args[0], alloca_val, load_size, 0) !=
+                      AliasAnalyis::AAResult::NoAlias) {
                 Range rr = get_range(cur->args[0], alloca_val, load_size);
                 TVec<Range> kept;
                 for (auto &c : covered) {
@@ -296,7 +260,8 @@ public:
                       ? static_cast<u64>(cur->args[3].as_constant()->as_int())
                       : ~0ULL;
 
-              if (aa.alias(src, alloca_val, load_size == ~0ULL ? 0 : load_size,
+              if (reads_alloca(src) ||
+                  aa.alias(src, alloca_val, load_size == ~0ULL ? 0 : load_size,
                            0) != AliasAnalyis::AAResult::NoAlias) {
                 Range rr = get_range(src, alloca_val, load_size);
                 TVec<Range> kept;
