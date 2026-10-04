@@ -14,16 +14,21 @@ class CFG {
  public:
   struct Node {
     fir::BasicBlock bb;
-    // TVec<u32> pred;
-    // TVec<u32> succ;
-    SmallTVec<u32, 8> pred;
-    SmallTVec<u32, 8> succ;
+    SmallFVec<u32, 8> pred;
+    SmallFVec<u32, 8> succ;
   };
 
-  TVec<Node> bbrs;
+  // NOTE: CFG, Dominators, DominatorTree and ConstraintAnalysis are cached on
+  // the function by the AnalysisManager, so they must not use the temp arena
+  // (it is reset between passes).
+  FVec<Node> bbrs;
   // bb -> index into bbrs, only filled for bigger functions where the linear
   // scan in get_bb_id would hurt (empty means "scan linearly")
-  TMap<fir::BasicBlock, u32> bb_to_id;
+  ankerl::unordered_dense::map<fir::BasicBlock, u32,
+                               ankerl::unordered_dense::hash<fir::BasicBlock>,
+                               std::equal_to<fir::BasicBlock>,
+                               utils::FAlloc<std::pair<fir::BasicBlock, u32>>>
+      bb_to_id;
   static constexpr size_t MIN_BBS_FOR_MAP = 12;
   u32 entry;
   fir::Function *func = nullptr;

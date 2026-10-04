@@ -10,7 +10,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
@@ -285,8 +285,8 @@ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("LoopSimplify", COLOR_OPTIMF);
     (void)ctx;
-    CFG cfg{func};
-    Dominators dom{cfg};
+    CFG &cfg = AnalysisManager::cfg(func);
+    Dominators &dom = AnalysisManager::dom(func);
     LoopInfoAnalysis loops{dom};
 
     size_t loop_ip1 = 1;

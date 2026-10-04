@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <utility>
 
 #include "basic_block.hpp"
@@ -9,7 +10,16 @@
 #include "utils/string.hpp"
 #include "utils/todo.hpp"
 
+namespace foptim::optim {
+struct FunctionAnalysisCache;
+}
+
 namespace foptim::fir {
+
+// defined next to the AnalysisManager so Function does not need the analyses
+struct AnalysisCacheDeleter {
+  void operator()(optim::FunctionAnalysisCache *p) const;
+};
 
 class Function : public Attributable, public LockedUsed {
  public:
@@ -44,6 +54,9 @@ class Function : public Attributable, public LockedUsed {
   IRVec<BasicBlock> basic_blocks;
   // metadata
   Attribs attribs;
+  // analyses cached by optim::AnalysisManager, see there
+  std::unique_ptr<optim::FunctionAnalysisCache, AnalysisCacheDeleter>
+      analysis_cache;
 
   Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}

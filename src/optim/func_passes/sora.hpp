@@ -5,7 +5,7 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 
 namespace foptim::optim {
 class SORA final : public FunctionPass {

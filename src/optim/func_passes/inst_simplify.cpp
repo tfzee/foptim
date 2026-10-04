@@ -18,7 +18,7 @@
 #include "ir/types.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
@@ -2388,6 +2388,7 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   AttributerManager man;
   AliasAnalyis anal{};
   InstSimp::ConstraintCache ccache{func};
+  bool changed_cfg = false;
 
   // TODO: maybe replace with actual queue
   TVec<WorkItem> worklist;
@@ -2404,12 +2405,19 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     if (!instr.is_valid() || !instr->parent.is_valid()) {
       continue;
     }
+    // only terminators have targets, instr is gone after it got simplified
+    const bool is_branching = !instr->bbs.empty();
     if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal, ccache)) {
       man.reset();
-      ccache.invalidate();
+      changed_cfg |= is_branching;
+      ccache.invalidate(is_branching);
     }
   }
-  return PreservedAnalysis::none();
+  // Simplifications can fold branches (edges change), everything else only
+  // touches instructions. Constraints refer to instructions so they go either
+  // way, not every in place edit reports a change.
+  return changed_cfg ? PreservedAnalysis::none()
+                     : PreservedAnalysis::cfg_only();
 }
 
 } // namespace foptim::optim

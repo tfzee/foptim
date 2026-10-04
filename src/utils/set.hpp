@@ -18,6 +18,12 @@ using TSet =
 // using TSet = std::unordered_set<Val, std::hash<Val>, std::equal_to<Val>,
 // Alloc>;
 
+// dense (ankerl) set with the normal allocator, for long lived data
+template <class Val, class Alloc = utils::FAlloc<Val>>
+using FDSet =
+    ankerl::unordered_dense::map<Val, void, ankerl::unordered_dense::hash<Val>,
+                                 std::equal_to<Val>, Alloc>;
+
 template <class Val, class Alloc = utils::IRAlloc<Val>>
 using IRSet =
     std::unordered_set<Val, std::hash<Val>, std::equal_to<Val>, Alloc>;

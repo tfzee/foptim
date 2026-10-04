@@ -1,7 +1,7 @@
 #pragma once
 #include <fmt/core.h>
 
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "utils/tracy.hpp"
 
 #include "optim/module_pass.hpp"

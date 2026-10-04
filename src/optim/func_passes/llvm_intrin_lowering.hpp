@@ -8,7 +8,7 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/helper/helper.hpp"
 #include "utils/todo.hpp"
 

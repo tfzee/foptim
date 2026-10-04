@@ -20,6 +20,13 @@ using TMap =
     ankerl::unordered_dense::map<Key, Val, ankerl::unordered_dense::hash<Key>,
                                  std::equal_to<Key>, Alloc>;
 
+// dense (ankerl) map with the normal allocator, for long lived data
+template <class Key, class Val,
+          class Alloc = utils::FAlloc<std::pair<Key, Val>>>
+using FDMap =
+    ankerl::unordered_dense::map<Key, Val, ankerl::unordered_dense::hash<Key>,
+                                 std::equal_to<Key>, Alloc>;
+
 template <class Key, class Val,
           class Alloc = utils::TempAlloc<std::pair<const Key, Val>>>
 using TOMap = std::map<Key, Val, std::less<Key>, Alloc>;

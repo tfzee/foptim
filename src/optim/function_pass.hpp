@@ -5,7 +5,7 @@
 #include "config/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/stats.hpp"
@@ -131,14 +131,14 @@ class ParallelFunctionPassManager {
 
 
   static void apply_pass(fir::Context &ctx, conf::PassConfig *conf,
-                         AnalysisManager &analMan, fir::Function &f,
+                         AnalysisManager & /*analMan*/, fir::Function &f,
                          bool print_failure) {
     {
       auto *pass = conf->_construct_function_pass();
       if (ctx.config->debug.time_passes) {
         auto start_time = std::chrono::high_resolution_clock::now();
         auto r = pass->apply(ctx, f);
-        analMan.invalidate(&f, r);
+        AnalysisManager::invalidate(f, r);
         auto end_time = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
                         end_time - start_time)
@@ -149,7 +149,7 @@ class ParallelFunctionPassManager {
         }
       } else {
         auto r = pass->apply(ctx, f);
-        analMan.invalidate(&f, r);
+        AnalysisManager::invalidate(f, r);
       }
       if (print_failure) {
         pass->print_failures();

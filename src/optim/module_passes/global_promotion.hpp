@@ -3,7 +3,7 @@
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"

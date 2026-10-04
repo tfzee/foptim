@@ -210,7 +210,7 @@ public:
     bool reachable = true; // reachable from the entry (else idom is fake)
   };
 
-  TVec<Node> dom_bbs;
+  FVec<Node> dom_bbs;
   const CFG *cfg = nullptr;
 
   DominatorTree() = default;
@@ -452,13 +452,13 @@ public:
   }
 
   // blocks in the dominance frontier of the given block (ascending)
-  [[nodiscard]] const TVec<u32> &get_frontier(u32 bb_id) const {
+  [[nodiscard]] const FVec<u32> &get_frontier(u32 bb_id) const {
     if (!frontier_valid) {
       compute_frontier();
     }
     return frontier[bb_id];
   }
-  [[nodiscard]] const TVec<u32> &get_frontier(fir::BasicBlock a) const {
+  [[nodiscard]] const FVec<u32> &get_frontier(fir::BasicBlock a) const {
     return get_frontier(cfg->get_bb_id(a));
   }
 
@@ -472,7 +472,7 @@ public:
   }
 
 private:
-  mutable TVec<TVec<u32>> frontier;
+  mutable FVec<FVec<u32>> frontier;
   mutable bool frontier_valid = false;
 
   void compute_frontier() const {

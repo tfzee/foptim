@@ -1,7 +1,7 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/arena.hpp"

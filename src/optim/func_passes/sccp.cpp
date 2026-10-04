@@ -10,7 +10,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "utils/helpers.hpp"
 #include "utils/todo.hpp"
 

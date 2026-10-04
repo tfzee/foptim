@@ -8,7 +8,7 @@
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "utils/vec.hpp"
@@ -64,8 +64,8 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
 
 PreservedAnalysis LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("LoopRotate");
-  CFG cfg{func};
-  Dominators dom{cfg};
+  CFG &cfg = AnalysisManager::cfg(func);
+  Dominators &dom = AnalysisManager::dom(func);
   LoopInfoAnalysis linfo{dom};
 
   for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {

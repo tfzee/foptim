@@ -3,7 +3,7 @@
 
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"

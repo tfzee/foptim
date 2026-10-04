@@ -1,6 +1,6 @@
 #include "simple_vectorize.hpp"
 
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 
@@ -39,8 +39,8 @@ PreservedAnalysis SimpleVectorizer::apply(fir::Context &ctx,
   (void)ctx;
   (void)func;
 
-  CFG cfg{func};
-  Dominators dom{cfg};
+  CFG &cfg = AnalysisManager::cfg(func);
+  Dominators &dom = AnalysisManager::dom(func);
   LoopInfoAnalysis linfo{dom};
   fmt::println("{}", func);
 

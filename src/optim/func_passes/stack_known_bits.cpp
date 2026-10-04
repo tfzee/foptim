@@ -9,7 +9,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "utils/arena.hpp"
 
@@ -442,7 +442,7 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
   for (u32 i = 0; i < func.n_bbs(); i++) {
     worklist.push_back(i);
   }
-  CFG cfg{func};
+  CFG &cfg = AnalysisManager::cfg(func);
 
   auto new_in_one = utils::BitSet<>::empty(stack_size);
   auto new_in_zero = utils::BitSet<>::empty(stack_size);

@@ -15,7 +15,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/constraint_analysis.hpp"
@@ -1749,8 +1749,8 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
   if (func.basic_blocks.size() == 1) {
     return PreservedAnalysis::all();
   }
-  CFG cfg{func};
-  Dominators dom{cfg};
+  CFG &cfg = AnalysisManager::cfg(func);
+  Dominators &dom = AnalysisManager::dom(func);
 
   auto iter = 0;
   bool modified = true;

@@ -1,7 +1,7 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/function.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 
 namespace foptim::optim {
 

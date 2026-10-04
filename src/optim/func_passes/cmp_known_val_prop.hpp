@@ -4,7 +4,7 @@
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 
@@ -119,8 +119,8 @@ public:
   PreservedAnalysis apply(fir::Context & /*ctx*/,
                           fir::Function &func) override {
     ZoneScopedNC("CmpKnownValProp", COLOR_OPTIMF);
-    CFG cfg{func};
-    Dominators dom{cfg};
+    CFG &cfg = AnalysisManager::cfg(func);
+    Dominators &dom = AnalysisManager::dom(func);
 
     for (auto bb : func.basic_blocks) {
       auto term = bb->get_terminator();
@@ -131,7 +131,8 @@ public:
         propagate_known_cond(term, cfg);
       }
     }
-    return PreservedAnalysis::none();
+    // only uses get replaced by constants
+    return PreservedAnalysis::cfg_only();
   }
 };
 } // namespace foptim::optim

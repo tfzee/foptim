@@ -422,7 +422,7 @@ bool ConstraintAnalysis::contradicts(ConstrId x, ConstrId y) {
   return x_strict || y_strict;
 }
 
-bool ConstraintAnalysis::contradicts(ConstrId v, TSet<ConstrId> &orig) {
+bool ConstraintAnalysis::contradicts(ConstrId v, FDSet<ConstrId> &orig) {
   // if were in the set we cant contradict unless the set was already
   // contradicting itself
   for (auto x : orig) {

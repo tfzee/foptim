@@ -8,7 +8,7 @@
 #include "ir/types_ref.hpp"
 #include "ir/use.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
@@ -433,8 +433,8 @@ PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   fix_types(func);
   // fmt::println("{:cd}", func);
 
-  CFG cfg{func};
-  Dominators dom{cfg};
+  CFG &cfg = AnalysisManager::cfg(func);
+  Dominators &dom = AnalysisManager::dom(func);
 
   // cfg.dump_graph();
   // dom.dump();
@@ -464,6 +464,7 @@ PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   decide_values_start_from(func, fir::BasicBlock(fir::BasicBlock::invalid()),
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
-  return PreservedAnalysis::none();
+  // only block arguments and instructions change, no edges
+  return PreservedAnalysis::cfg_only();
 }
 } // namespace foptim::optim

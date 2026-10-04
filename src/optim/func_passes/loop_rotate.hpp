@@ -1,6 +1,6 @@
 #pragma once
 #include "../function_pass.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 

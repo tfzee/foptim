@@ -4,7 +4,7 @@
 #include "config/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "utils/job_system.hpp"
 #include "utils/stats.hpp"
 
@@ -79,7 +79,9 @@ public:
       if (ctx.config->debug.time_passes) {
         auto start_time = std::chrono::high_resolution_clock::now();
         auto r = pass->apply(ctx, shed, analMan);
-        analMan.invalidate(nullptr, r);
+        (void)r;
+        // module passes may touch any function: drop all cached analyses
+        AnalysisManager::invalidate_all(ctx);
         auto end_time = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
                         end_time - start_time)
@@ -90,7 +92,9 @@ public:
         }
       } else {
         auto r = pass->apply(ctx, shed, analMan);
-        analMan.invalidate(nullptr, r);
+        (void)r;
+        // module passes may touch any function: drop all cached analyses
+        AnalysisManager::invalidate_all(ctx);
       }
       if (ctx.config->debug.print_optimization_failure_reasons) {
         pass->print_failures();

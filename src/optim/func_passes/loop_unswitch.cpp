@@ -6,7 +6,7 @@
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "utils/set.hpp"
 namespace foptim::optim {
 
@@ -285,12 +285,12 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
 
 PreservedAnalysis LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("LoopUnswitch");
-  CFG cfg{func};
-  Dominators dom{cfg};
+  CFG &cfg = AnalysisManager::cfg(func);
+  Dominators &dom = AnalysisManager::dom(func);
   LoopInfoAnalysis linfo{dom};
 
-  fmt::println("TODO FIX LOOPUNSWITCH");
-  return PreservedAnalysis::all();
+  // fmt::println("TODO FIX LOOPUNSWITCH");
+  // return PreservedAnalysis::all();
   auto helper = HelperData{
       .a = BitSet<>::empty(cfg.bbrs.size()),
       .condIf = BitSet<>::empty(cfg.bbrs.size()),

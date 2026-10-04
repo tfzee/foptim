@@ -1,6 +1,6 @@
 #pragma once
 #include "ir/context.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/function_pass.hpp"
 
 namespace foptim::optim {

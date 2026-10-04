@@ -58,12 +58,12 @@ public:
 
   struct BBConstraintData {
     ConstrId terminator_constraint = 0;
-    TSet<ConstrId> active_constraints;
+    FDSet<ConstrId> active_constraints;
   };
 
-  TVec<ExprNode> exprs;
-  TVec<Constraint> constraints;
-  TVec<BBConstraintData> bb_to_constraints;
+  FVec<ExprNode> exprs;
+  FVec<Constraint> constraints;
+  FVec<BBConstraintData> bb_to_constraints;
   u32 max_expr_depth = 1;
 
   CFG &cfg;
@@ -88,10 +88,10 @@ public:
               static_cast<uint64_t>(k.type));
     }
   };
-  TMap<fir::ValueR, ExprId> expr_ids;
+  FDMap<fir::ValueR, ExprId> expr_ids;
   ankerl::unordered_dense::map<ConstrKey, ConstrId, ConstrKeyHash,
                                std::equal_to<ConstrKey>,
-                               utils::TempAlloc<std::pair<ConstrKey, ConstrId>>>
+                               utils::FAlloc<std::pair<ConstrKey, ConstrId>>>
       constraint_ids;
 
   using PrintWrapperExpr = PrintWrapper<ExprNode &, ConstraintAnalysis *>;
@@ -134,7 +134,7 @@ public:
   // it will *never* return true
   // Iff the orig input is already contradicting itself then the output is
   // unspecificed
-  bool contradicts(ConstrId v, TSet<ConstrId> &orig);
+  bool contradicts(ConstrId v, FDSet<ConstrId> &orig);
   bool contradicts(ConstrId x, ConstrId y);
   // return true if the second input supports the first
   // so only returns true if the first can be inferred from the second

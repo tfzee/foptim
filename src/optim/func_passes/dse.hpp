@@ -1,7 +1,7 @@
 #pragma once
 #include "../function_pass.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/alloca_escape.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
@@ -334,12 +334,12 @@ public:
 
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("DSE", COLOR_OPTIMF);
-    CFG cfg(func);
-    Dominators dom(cfg);
+    CFG &cfg = AnalysisManager::cfg(func);
+    Dominators &dom = AnalysisManager::dom(func);
     AliasAnalyis aa;
 
     eliminate_dead_alloca_stores(ctx, func, dom, cfg, aa);
-    return PreservedAnalysis::none();
+    return PreservedAnalysis::cfg_only();
   }
 };
 

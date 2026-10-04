@@ -2,7 +2,7 @@
 #include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/global.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/access_analysis.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"

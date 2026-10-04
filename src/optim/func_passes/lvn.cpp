@@ -5,7 +5,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
 #include "ir/value.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -516,13 +516,14 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
 
 PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("LVN", COLOR_OPTIMF);
-  CFG cfg{func};
-  Dominators dom{cfg};
+  CFG &cfg = AnalysisManager::cfg(func);
+  Dominators &dom = AnalysisManager::dom(func);
   AliasAnalyis aa;
   for (auto bb : func.basic_blocks) {
     apply_lvn(bb, cfg, dom, aa);
   }
-  return PreservedAnalysis::none();
+  // only instructions change, never blocks or edges
+  return PreservedAnalysis::cfg_only();
 }
 
 } // namespace foptim::optim

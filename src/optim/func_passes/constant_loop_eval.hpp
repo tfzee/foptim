@@ -5,7 +5,7 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/interpreter/interpreter.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"
@@ -134,8 +134,8 @@ public:
     if (!func.attribs.must_progress) {
       return PreservedAnalysis::all();
     }
-    CFG cfg{func};
-    Dominators dom{cfg};
+    CFG &cfg = AnalysisManager::cfg(func);
+    Dominators &dom = AnalysisManager::dom(func);
     LoopInfoAnalysis info{dom};
 
     for (auto loop_iter = info.info.begin(); loop_iter != info.info.end();

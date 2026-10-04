@@ -6,7 +6,7 @@
 
 #include "../function_pass.hpp"
 #include "ir/builder.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 
@@ -16,15 +16,15 @@ class LICM final : public FunctionPass {
 public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("LICM");
-    CFG cfg{func};
-    Dominators dom{cfg};
+    CFG &cfg = AnalysisManager::cfg(func);
+    Dominators &dom = AnalysisManager::dom(func);
     LoopInfoAnalysis linfo{dom};
 
     for (auto &info : linfo.info) {
       apply(ctx, func, cfg, info);
     }
-    // TODO: check if actually modified
-    return PreservedAnalysis::none();
+    // instructions get moved, blocks and edges stay
+    return PreservedAnalysis::cfg_only();
   }
 
   void apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,

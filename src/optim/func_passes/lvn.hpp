@@ -3,7 +3,7 @@
 #include <fmt/std.h>
 
 #include "../function_pass.hpp"
-#include "optim/analysis/AnalysisManager.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 
 namespace foptim::optim {
 
