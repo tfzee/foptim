@@ -53,7 +53,7 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
                                passes_worklist.size())
                     : passes_worklist.size();
   const auto n_passes = passes_worklist.size();
-  fmt::println("Having {} FIR passes and running {} passes on {} Functions",
+  fmt::println(stderr, "Having {} FIR passes and running {} passes on {} Functions",
                passes_worklist.size(), n_actual_run,
                ctx->storage.functions.size());
   size_t curr_pass = 0;
@@ -66,11 +66,11 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     auto *pass = passes_worklist[curr_pass];
     if (enable_bisect) {
       if (curr_pass > n_actual_run) {
-        fmt::println("  {}: {}", curr_pass, pass->get_name());
+        fmt::println(stderr, "  {}: {}", curr_pass, pass->get_name());
         curr_pass++;
         continue;
       }
-      fmt::println("X {}: {}", curr_pass, pass->get_name());
+      fmt::println(stderr, "X {}: {}", curr_pass, pass->get_name());
     }
     curr_pass++;
     switch (pass->pass_type()) {

@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 
   shed.init(conf.number_worker_threads);
   if (conf.debug.verbosity > 0) {
-    fmt::println("Running with {} Workers", conf.number_worker_threads);
+    fmt::println(stderr, "Running with {} Workers", conf.number_worker_threads);
   }
 
   {
@@ -61,6 +61,20 @@ int main(int argc, char *argv[]) {
         auto a1 = t.scopedTimer("Optimize");
         foptim::optim::pipeline::optimize_fir(ctx, &shed);
       }
+    }
+
+    if (conf.output.type == foptim::conf::Output::OutputType::PrintIR) {
+      if (conf.debug.print_color) {
+        fmt::println("{:cd}", ctx);
+      } else {
+        fmt::println("{:d}", ctx);
+      }
+      shed.wait_till_done();
+      ctx.free();
+      shed.deinit();
+      foptim::utils::TempAlloc<void *>::free();
+      foptim::utils::IRAlloc<void *>::free();
+      return 0;
     }
 
     // mir
@@ -156,8 +170,8 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
 
   auto reordered_funcs = foptim::fmir::get_lowering_order(ctx);
   if (ctx.config->debug.verbosity > 0) {
-    fmt::print("================MATCHING====================\n");
-    fmt::println(" Got {} functions", reordered_funcs.size());
+    fmt::print(stderr, "================MATCHING====================\n");
+    fmt::println(stderr, " Got {} functions", reordered_funcs.size());
   }
 
   size_t n_reordered_def_funcs = 0;

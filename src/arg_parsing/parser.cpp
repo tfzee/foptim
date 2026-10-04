@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "config/compiler_config.hpp"
+#include "ir/print_ids.hpp"
 #include "utils/tracy.hpp"
 
 void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
@@ -26,6 +27,13 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   program.add_argument("--print-mir")
       .help("print MIR instead of outputing an object")
       .flag();
+  program.add_argument("--print-fir")
+      .help("print the FIR after the FIR pipeline instead of outputing an object")
+      .flag();
+  program.add_argument("--passes")
+      .help("comma separated FIR pass list replacing the configured FIR "
+            "pipeline; a leading '+' appends to it instead (e.g. '+PrintFunc')")
+      .default_value(std::string{});
   program.add_argument("--no-reorder-funcs")
       .help("keep functions in input order (deterministic output order)")
       .flag();
@@ -45,7 +53,7 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
     std::exit(1);
   }
 
-  fmt::println("Using config '{}'", config);
+  fmt::println(stderr, "Using config '{}'", config);
   ASSERT(conf.parse(config));
 
   conf.number_worker_threads = program.get<int>("workers");
@@ -56,6 +64,23 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   conf.output.out_file = program.get<std::string>("output");
   if (program["--no-reorder-funcs"] == true) {
     conf.debug.no_reorder_funcs = true;
+  }
+  if (program.is_used("--passes")) {
+    auto list = program.get<std::string>("--passes");
+    std::string_view sv = list;
+    bool append = sv.starts_with("+");
+    if (append) {
+      sv.remove_prefix(1);
+    }
+    if (!conf.set_fir_pass_list(sv, append)) {
+      std::exit(1);
+    }
+  }
+  if (program["--print-fir"] == true) {
+    conf.output.type = foptim::conf::Output::OutputType::PrintIR;
+    // stable output so it can be checked in tests
+    conf.debug.print_color = false;
+    foptim::fir::PrintIds::deterministic_ids = true;
   }
   if (program["--print-mir"] == true) {
     conf.output.type = foptim::conf::Output::OutputType::PrintMIR;

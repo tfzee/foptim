@@ -385,6 +385,53 @@ void setup_builtin(CompConf &conf, BuiltinConfig config) {
 
 } // namespace
 
+bool CompConf::set_fir_pass_list(std::string_view list, bool append) {
+  constexpr std::string_view pipe_name = "cli_override";
+  Pipeline p;
+  p.name = pipe_name;
+  if (append) {
+    p.passes.push_back({optim.fir_pipeline});
+  }
+  size_t pos = 0;
+  while (pos <= list.size()) {
+    auto end = list.find(',', pos);
+    if (end == std::string_view::npos) {
+      end = list.size();
+    }
+    auto tok = list.substr(pos, end - pos);
+    pos = end + 1;
+    while (!tok.empty() && tok.front() == ' ') {
+      tok.remove_prefix(1);
+    }
+    while (!tok.empty() && tok.back() == ' ') {
+      tok.remove_suffix(1);
+    }
+    if (tok.empty()) {
+      continue;
+    }
+    if (tok.starts_with("pipeline:")) {
+      auto found = lookup_pipeline<IRType::FIR>(tok.substr(9));
+      if (!found) {
+        fmt::println(stderr, "Unknown FIR pipeline '{}'", tok.substr(9));
+        print_available_pipelines<IRType::FIR>();
+        return false;
+      }
+      p.passes.push_back({*found});
+    } else {
+      auto found = lookup_pass<IRType::FIR>(tok);
+      if (!found) {
+        fmt::println(stderr, "Unknown FIR pass '{}'", tok);
+        print_available_passes<IRType::FIR>();
+        return false;
+      }
+      p.passes.push_back({*found});
+    }
+  }
+  fir_pipelines.push_back(p);
+  optim.fir_pipeline = find_pipeline<IRType::FIR>(pipe_name);
+  return true;
+}
+
 bool CompConf::parse(std::string_view filename) {
   using namespace std::literals;
 
