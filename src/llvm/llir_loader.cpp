@@ -399,6 +399,25 @@ void convert_alloca(const llvm::Instruction *any_instr,
   valueToValue.insert({any_instr, alloca});
 }
 
+// GEP indices are sign extended to pointer width, so narrower indices must be
+// extended before they are multiplied and added to the pointer
+static foptim::fir::ValueR convert_gep_index(
+    const llvm::Value *index, foptim::fir::Context &fctx,
+    foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+    V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
+  auto *int_ty = llvm::dyn_cast<llvm::IntegerType>(index->getType());
+  if (int_ty == nullptr || int_ty->getBitWidth() >= 64) {
+    return convert_instr_arg(index, fctx, ffunc, builder, valueToValue, mod,
+                             b2b);
+  }
+  if (const auto *c = llvm::dyn_cast<llvm::ConstantInt>(index)) {
+    return foptim::fir::ValueR{fctx->get_constant_int(c->getSExtValue(), 64)};
+  }
+  auto arg = convert_instr_arg(index, fctx, ffunc, builder, valueToValue, mod,
+                               b2b);
+  return builder.build_sext(arg, fctx->get_int_type(64));
+}
+
 void convert_gep(const llvm::Instruction *any_instr,
                  const llvm::GetElementPtrInst *gep_instr,
                  foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
@@ -416,7 +435,7 @@ void convert_gep(const llvm::Instruction *any_instr,
     ASSERT(gep_instr->getNumIndices() >= 1);
     { // first the index into the struct*
       auto offset_struct_ptr_foptim =
-          convert_instr_arg(gep_instr->indices().begin()->get(), fctx, ffunc,
+          convert_gep_index(gep_instr->indices().begin()->get(), fctx, ffunc,
                             builder, valueToValue, mod, b2b);
 
       auto arg_mul_ptr = datalayout.getTypeAllocSize(indexed_type);
@@ -452,7 +471,7 @@ void convert_gep(const llvm::Instruction *any_instr,
         auto *array_type =
             llvm::dyn_cast_or_null<llvm::ArrayType>(indexed_type);
         ASSERT(array_type);
-        auto offset_struct_ptr_foptim = convert_instr_arg(
+        auto offset_struct_ptr_foptim = convert_gep_index(
             index_it->get(), fctx, ffunc, builder, valueToValue, mod, b2b);
         auto arg_mul_ptr =
             datalayout.getTypeAllocSize(array_type->getElementType());
@@ -470,7 +489,7 @@ void convert_gep(const llvm::Instruction *any_instr,
   } else {
     ASSERT(gep_instr->getNumIndices() == 1);
     auto arg_foptim =
-        convert_instr_arg(gep_instr->indices().begin()->get(), fctx, ffunc,
+        convert_gep_index(gep_instr->indices().begin()->get(), fctx, ffunc,
                           builder, valueToValue, mod, b2b);
     auto arg_mul = datalayout.getTypeAllocSize(indexed_type);
     ASSERT(arg_mul.isFixed())

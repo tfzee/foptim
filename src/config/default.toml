@@ -170,7 +170,6 @@ passes = [
 [pipeline.mir.default_release_middle]
 passes = [
   "LVN",
-  "BBReordering",
   "CopyPropagation",
   "LVN",
   "DCE",
