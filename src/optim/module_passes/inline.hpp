@@ -15,6 +15,24 @@ struct InlineConfig {
   bool allow_builtins = true;
 };
 
+// Looks through constant offset PtrAdds to find the alloca a pointer points
+// into, e.g. a member of a stack object.
+inline bool points_into_alloca(fir::ValueR v) {
+  while (v.is_instr()) {
+    auto i = v.as_instr();
+    if (i->is(fir::InstrType::AllocaInstr)) {
+      return true;
+    }
+    if (i->is(fir::BinaryInstrSubType::PtrAdd) &&
+        i->args[1].is_constant_int()) {
+      v = i->args[0];
+      continue;
+    }
+    return false;
+  }
+  return false;
+}
+
 class AlwaysInlineAdvisor {
   static constexpr bool debug_print = false;
 
@@ -223,14 +241,15 @@ public:
       return true;
     }
 
-    // if (v.func->get_n_uses() == 1 &&
-    //     (v.func->linkage == fir::Linkage::Internal ||
-    //      v.func->linkage == fir::Linkage::LinkOnceODR)) {
-    //   if (debug_print) {
-    //     fmt::println("Y single use");
-    //   }
-    //   return true;
-    // }
+    // only caller, the original gets removed by GDCE so nothing grows
+    if (self_func != v && v->get_n_uses() == 1 &&
+        (v->attribs.linkage == fir::Linkage::Internal ||
+         v->attribs.linkage == fir::Linkage::LinkOnceODR)) {
+      if (debug_print) {
+        fmt::println("Y single use");
+      }
+      return true;
+    }
 
     bool is_in_straightline_section = true;
     bool is_always_executed = true;
@@ -303,9 +322,10 @@ public:
         auto arg = instr->args[i];
         if (arg.is_constant()) {
           threshold += 6;
-        } else if (arg.is_instr() &&
-                   arg.as_instr()->is(fir::InstrType::AllocaInstr)) {
-          threshold += 8;
+        } else if (points_into_alloca(arg)) {
+          // stack object member, inlining lets the object be split up and
+          // promoted since the pointer no longer escapes into the call
+          threshold += 100;
         }
       }
       if (debug_print) {
