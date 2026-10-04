@@ -4,3 +4,4 @@ set(FOPTIM_ARTIFACT_DIR "${FOPTIM_BINARY_DIR}")
 
 configure_file(lit.site.cfg.in lit.site.cfg @ONLY)
 add_my_lit_suite(check-backend "${CMAKE_CURRENT_BINARY_DIR}/backend" foptim_main)
+add_my_lit_suite(check-opt "${CMAKE_CURRENT_BINARY_DIR}/opt" foptim_main)

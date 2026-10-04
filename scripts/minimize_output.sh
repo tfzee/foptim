@@ -71,7 +71,7 @@ time_cmd time_clang clang++ -O3 $flags min.ll -c -o /dev/null 2>/dev/null
 
 
 echo "COMPILE"
-time_cmd time_foptim timeout 20s $foptim --cconffile "$FOLDER/src/testconf.toml" min.ll min.o \
+time_cmd time_foptim timeout 30s $foptim --cconffile "$FOLDER/src/testconf.toml" min.ll min.o \
   || exit $INTERESTING
 
 echo "LINK"
@@ -82,9 +82,9 @@ clang++ min.o -o min.out -static-libstdc++ \
 echo "M"
 echo "C"
 echo "G"
+OUT_got=$(timeout 30s ./min.out 2>&1); stats_got=$?
 OUT_exp=$(./clang_min.out 2>&1);  stats_exp=$?
 OUT_exp2=$(./gcc_min.out 2>&1);   stats_exp2=$?
-OUT_got=$(./min.out 2>&1); stats_got=$?
 
 echo $OUT_got
 echo $stats_got
