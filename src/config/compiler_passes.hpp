@@ -9,9 +9,10 @@
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/double_load.hpp"
 #include "optim/func_passes/dse.hpp"
-#include "optim/func_passes/intrin_conv.hpp"
 #include "optim/func_passes/early_sheduler.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
+#include "optim/func_passes/intrin_conv.hpp"
+#include "optim/func_passes/intrin_expand.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
 #include "optim/func_passes/legalize_struct.hpp"
 #include "optim/func_passes/legalize_vecs.hpp"
@@ -298,6 +299,12 @@ struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf>,
 struct IntrinConvConf : public FunctionPassConf<IntrinConvConf> {
   static constexpr const char *BaseName = "IntrinConv";
   using Pass = optim::IntrinConv;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct IntrinExpandConf : public FunctionPassConf<IntrinExpandConf> {
+  static constexpr const char *BaseName = "IntrinExpand";
+  using Pass = optim::IntrinExpand;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

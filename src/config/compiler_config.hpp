@@ -1,6 +1,7 @@
 #pragma once
 #include <fmt/base.h>
 
+#include <optional>
 #include <string_view>
 
 #include "mir/optim/function_pass.hpp"
@@ -143,36 +144,65 @@ struct CompConf {
 
   CompConf() = default;
 
-  template <IRType Ty> PipelineRef find_pipeline(std::string_view name) {
+  template <IRType Ty> std::optional<PipelineRef> lookup_pipeline(std::string_view name) {
     auto &pipelines = Ty == IRType::FIR ? fir_pipelines : mir_pipelines;
     for (auto pipe : pipelines) {
       if (pipe->name == name) {
-        return {pipe};
+        return PipelineRef{pipe};
       }
     }
-    constexpr auto ty_name = Ty == IRType::FIR ? "FIR" : "MIR";
-    fmt::println("Searched for {} pipeline with name '{}'", ty_name, name);
-    fmt::println("Available {} Pipelines:", ty_name);
-    for (auto pipe : pipelines) {
-      fmt::println("- {}", pipe->name);
-    }
-    TODO("Failed to find pipeline with that name");
+    return std::nullopt;
   }
-  template <IRType Ty> PassRef find_pass(std::string_view name) {
+  template <IRType Ty> std::optional<PassRef> lookup_pass(std::string_view name) {
     auto &passes = Ty == IRType::FIR ? fir_passes : mir_passes;
     for (auto pass : passes) {
       if (name == (*pass.get_raw_ptr())->get_name()) {
-        return {pass};
+        return PassRef{pass};
       }
+    }
+    return std::nullopt;
+  }
+  template <IRType Ty> void print_available_pipelines() {
+    auto &pipelines = Ty == IRType::FIR ? fir_pipelines : mir_pipelines;
+    constexpr auto ty_name = Ty == IRType::FIR ? "FIR" : "MIR";
+    fmt::println(stderr, "Available {} Pipelines:", ty_name);
+    for (auto pipe : pipelines) {
+      fmt::println(stderr, "- {}", pipe->name);
+    }
+  }
+  template <IRType Ty> void print_available_passes() {
+    auto &passes = Ty == IRType::FIR ? fir_passes : mir_passes;
+    constexpr auto ty_name = Ty == IRType::FIR ? "FIR" : "MIR";
+    fmt::println(stderr, "Available {} Passes:", ty_name);
+    for (auto pass : passes) {
+      fmt::println(stderr, "- {}", (*pass.get_raw_ptr())->get_name());
+    }
+  }
+
+  template <IRType Ty> PipelineRef find_pipeline(std::string_view name) {
+    if (auto r = lookup_pipeline<Ty>(name)) {
+      return *r;
+    }
+    constexpr auto ty_name = Ty == IRType::FIR ? "FIR" : "MIR";
+    fmt::println("Searched for {} pipeline with name '{}'", ty_name, name);
+    print_available_pipelines<Ty>();
+    TODO("Failed to find pipeline with that name");
+  }
+  template <IRType Ty> PassRef find_pass(std::string_view name) {
+    if (auto r = lookup_pass<Ty>(name)) {
+      return *r;
     }
     constexpr auto ty_name = Ty == IRType::FIR ? "FIR" : "MIR";
     fmt::println("Searched for {} pass with name '{}'", ty_name, name);
-    fmt::println("Available {} Passes:", ty_name);
-    for (auto pass : passes) {
-      fmt::println("- {}", (*pass.get_raw_ptr())->get_name());
-    }
+    print_available_passes<Ty>();
     TODO("Failed to find pass with that name");
   }
+
+  // Overrides the active FIR pipeline with a comma separated list of
+  // registered passes / "pipeline:<name>" entries. With `append` the list is
+  // added behind the currently active pipeline. Must run after the config was
+  // parsed. Prints the problem to stderr and returns false on unknown names.
+  bool set_fir_pass_list(std::string_view list, bool append);
 
   bool parse(std::string_view filename);
 };
