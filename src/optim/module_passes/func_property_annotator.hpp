@@ -26,7 +26,8 @@ public:
     for (auto bb : func->basic_blocks) {
       for (auto instr : bb->instructions) {
         // would need to do a proper AA to see if its local
-        if (instr->is(fir::InstrType::StoreInstr)) {
+        if (instr->is(fir::InstrType::StoreInstr) ||
+            instr->is(fir::IntrinsicSubType::Memset)) {
           if (!aa.is_known_local_stack(instr->args[0])) {
             r.does_write = true;
           }
@@ -37,6 +38,13 @@ public:
         } else if (instr->is(fir::InstrType::AtomicRMW)) {
           if (!aa.is_known_local_stack(instr->args[0])) {
             r.does_write = true;
+            r.does_read = true;
+          }
+        } else if (instr->is(fir::IntrinsicSubType::Memcpy)) {
+          if (!aa.is_known_local_stack(instr->args[0])) {
+            r.does_write = true;
+          }
+          if (!aa.is_known_local_stack(instr->args[1])) {
             r.does_read = true;
           }
         } else if (instr->is(fir::InstrType::CallInstr)) {
@@ -66,6 +74,9 @@ public:
               r.does_write = true;
             }
           }
+        } else if (instr->pot_modifies_mem() || instr->pot_reads_mem()) {
+          r.does_write = instr->pot_modifies_mem();
+          r.does_read = instr->pot_reads_mem();
         }
         if (r.does_read && r.does_write && !r.wont_recurse) {
           return r;
@@ -96,7 +107,8 @@ public:
       aa.reset();
       bool modified = false;
       auto new_wfvec = can_whole_function_vectorize(*v);
-      if (new_wfvec.has_value() != v->attribs.maybe_can_wfvec) {
+      if (static_cast<int>(new_wfvec.has_value()) !=
+          v->attribs.maybe_can_wfvec) {
         v->attribs.maybe_can_wfvec = new_wfvec.has_value();
         modified = true;
       }
