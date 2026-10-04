@@ -13,8 +13,9 @@ if(CMAKE_EXPORT_COMPILE_COMMANDS)
       ${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES})
 endif()
 
-# set(CMAKE_CXX_CLANG_TIDY
-#   "clang-tidy")
+add_compile_options(-fvisibility=hidden -ggdb
+  -Wall -Wextra -Werror -Wno-c23-extensions -Wno-unused-const-variable
+  -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
 
 include(FetchContent)
 
@@ -82,7 +83,6 @@ endif()
 
 
 link_libraries(fmt)
-add_compile_options(-Wno-c23-extensions)
 # add_link_options(-fsanitize=thread -fPIE -pie)
 
 add_library (foptim OBJECT
@@ -123,6 +123,7 @@ add_library (foptim OBJECT
                 ./src/optim/func_passes/simplify_cfg.cpp
                 ./src/optim/func_passes/double_load.cpp
                 ./src/optim/func_passes/intrin_simplify.cpp
+                ./src/optim/func_passes/intrin_expand.cpp
                 ./src/optim/func_passes/inst_simplify.cpp
                 ./src/optim/func_passes/lvn.cpp
                 ./src/optim/func_passes/sccp.cpp
@@ -157,7 +158,6 @@ add_library (foptim OBJECT
                 ./src/x86_codegen/backend3.cpp
                 ./src/x86_codegen/backend3_instr_gen.cpp
                 ./src/x86_codegen/backend3_print.cpp
-                ./src/third_party/Zydis.c
 
                 #utils
                 ./src/utils/job_system.cpp
@@ -165,19 +165,36 @@ add_library (foptim OBJECT
 
                )
 
-target_compile_options(foptim PRIVATE -fno-exceptions -Wall -Wextra -Werror -ggdb -Wno-c23-extensions -Wno-unused-const-variable -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
+target_compile_options(foptim PRIVATE -fno-exceptions)
 target_include_directories(foptim PUBLIC ./src/)
 target_include_directories(foptim SYSTEM PUBLIC ${LLVM_INCLUDE_DIRS})
 target_link_libraries(foptim PUBLIC ${llvm_libs} Threads::Threads unordered_dense::unordered_dense)
-set_target_properties(foptim PROPERTIES UNITY_BUILD ON UNITY_BUILD_MODE BATCH UNITY_BUILD_BATCH_SIZE 4)
 
+
+###############################################
+#zydis assembling libary
+add_library(zydis STATIC ./src/third_party/Zydis.c)
+target_include_directories(zydis PUBLIC ./src/)
+target_compile_options(zydis PRIVATE -w)
+target_link_libraries(foptim PUBLIC zydis)
+
+
+
+
+set(FOPTIM_PCH
+  <fmt/base.h> <fmt/core.h> <fmt/format.h> <fmt/color.h>
+  <ankerl/unordered_dense.h>
+  <algorithm> <vector> <string> <string_view> <optional> <span> <ranges>
+  <memory> <functional> <unordered_map> <deque> <atomic> <mutex>
+  <type_traits> <limits> <bit> <cstring> <cstdint>)
+target_precompile_headers(foptim PRIVATE ${FOPTIM_PCH})
 
 ###############################################
 #foptim unit test
 add_executable (foptim_unit_test
                 ./src/test/test_main.cpp
                )
-target_compile_options(foptim_unit_test PRIVATE -fvisibility=hidden -Wall -Wextra -Werror -ggdb -Wno-c23-extensions -Wno-unused-private-field -Wno-implicit-fallthrough)
+target_compile_options(foptim_unit_test PRIVATE -fno-exceptions)
 target_link_libraries(foptim_unit_test PRIVATE foptim gtest)
 target_include_directories(foptim_unit_test PRIVATE ./src/)
 
@@ -186,19 +203,19 @@ target_include_directories(foptim_unit_test PRIVATE ./src/)
 #foptim main
 add_executable (foptim_main
                 ./src/main.cpp
-
                 #arg parsing
                 ./src/arg_parsing/parser.cpp
                 #config parsing
                 ./src/config/compiler_config.cpp
                )
 
-target_compile_options(foptim_main PRIVATE -fvisibility=hidden -Wall -Wextra -Werror -ggdb -Wno-c23-extensions -Wno-unused-private-field -Wno-implicit-fallthrough)
 target_link_libraries(foptim_main PRIVATE foptim)
 target_include_directories(foptim_main PRIVATE ./src/)
 
 
 
+target_precompile_headers(foptim_unit_test REUSE_FROM foptim)
+target_precompile_headers(foptim_main PRIVATE ${FOPTIM_PCH})
 
 ###############################################
 #foptim lit test
