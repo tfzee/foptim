@@ -255,6 +255,15 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       swap_args(instr, 0, 1);
     }
   }
+  // x & x -> x, x | x -> x
+  if (!instr->args[0].is_constant() && instr->args[0] == instr->args[1] &&
+      (instr->is(fir::BinaryInstrSubType::And) ||
+       instr->is(fir::BinaryInstrSubType::Or))) {
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(instr->args[0]);
+    instr.destroy();
+    return true;
+  }
   if (instr->args[1].is_constant() &&
       instr->args[0].get_type() != instr->args[1].get_type()) {
     auto t1 = instr->args[0].get_type();

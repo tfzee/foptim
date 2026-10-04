@@ -90,6 +90,39 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
   bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
 
+  // x cmp x, only for non constants so the constant paths stay untouched
+  if (!first_constant && instr->args[0] == instr->args[1]) {
+    bool known = true;
+    bool is_true = false;
+    switch (static_cast<ICmpInstrSubType>(instr->get_instr_subtype())) {
+    case ICmpInstrSubType::EQ:
+    case ICmpInstrSubType::ULE:
+    case ICmpInstrSubType::UGE:
+    case ICmpInstrSubType::SLE:
+    case ICmpInstrSubType::SGE:
+      is_true = true;
+      break;
+    case ICmpInstrSubType::NE:
+    case ICmpInstrSubType::ULT:
+    case ICmpInstrSubType::UGT:
+    case ICmpInstrSubType::SLT:
+    case ICmpInstrSubType::SGT:
+      is_true = false;
+      break;
+    default:
+      known = false;
+      break;
+    }
+    if (known) {
+      auto new_const_value =
+          ctx->get_constant_int(static_cast<u32>(is_true), 8);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(ValueR(new_const_value));
+      instr.destroy();
+      return true;
+    }
+  }
+
   if (first_constant && second_constant) {
     const auto c1 = instr->args[0].as_constant();
     const auto c2 = instr->args[1].as_constant();
