@@ -1361,9 +1361,9 @@ bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
   }
   foptim::IRString func_name = func.getName().str().c_str();
   fctx.data->storage.functions.insert(
-      {func_name, std::make_unique<foptim::fir::Function>(
+      func_name, std::make_unique<foptim::fir::Function>(
                       fctx.operator->(), func_name,
-                      convert_type(func.getFunctionType(), fctx, mod))});
+                      convert_type(func.getFunctionType(), fctx, mod)));
 
   const auto foff_func = fctx->get_function(func_name.c_str());
   const auto func_ptr = fctx->get_constant_value(foff_func);
@@ -1474,6 +1474,8 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   foff_func->attribs.no_recurse = func.doesNotRecurse();
   foff_func->attribs.no_return =
       func.hasFnAttribute(llvm::Attribute::AttrKind::NoReturn);
+  foff_func->attribs.cold =
+      func.hasFnAttribute(llvm::Attribute::AttrKind::Cold);
 
   if (func.doesNotAccessMemory()) {
     foff_func->attribs.mem_read_none = true;

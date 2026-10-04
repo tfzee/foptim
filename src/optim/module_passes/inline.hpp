@@ -315,8 +315,8 @@ public:
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
                           AnalysisManager & /*analyMan*/) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
-    for (auto &f : ctx.data->storage.functions) {
-      apply(ctx, *f.second);
+    for (auto *f : ctx.data->storage.functions.all()) {
+      apply(ctx, *f);
     }
     return PreservedAnalysis::none();
   }

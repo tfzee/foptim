@@ -109,6 +109,7 @@ add_library (foptim OBJECT
 
                 #optim
                 ./src/optim/fir_pipeline.cpp
+                ./src/mir/func_order.cpp
                 ./src/optim/analysis/live_variables.cpp
                 ./src/optim/analysis/loop_analysis.cpp
                 ./src/optim/analysis/cfg.cpp

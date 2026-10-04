@@ -13,8 +13,8 @@ void generate_fexp(foptim::fir::Context &fctx) {
   auto func_ty =
       fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
   fctx.data->storage.functions.insert(
-      {"exp", std::make_unique<foptim::fir::Function>(fctx.operator->(), "exp",
-                                                      func_ty)});
+      "exp", std::make_unique<foptim::fir::Function>(fctx.operator->(), "exp",
+                                                      func_ty));
 }
 
 void generate_trunc(foptim::fir::Context &fctx) {
@@ -22,15 +22,15 @@ void generate_trunc(foptim::fir::Context &fctx) {
     auto func_ty =
         fctx->get_func_ty(fctx->get_float_type(64), {fctx->get_float_type(64)});
     fctx.data->storage.functions.insert(
-        {"trunc", std::make_unique<foptim::fir::Function>(fctx.operator->(),
-                                                          "trunc", func_ty)});
+        "trunc", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                          "trunc", func_ty));
   }
   if (!fctx->has_function("truncf")) {
     auto func_ty =
         fctx->get_func_ty(fctx->get_float_type(32), {fctx->get_float_type(32)});
     fctx.data->storage.functions.insert(
-        {"truncf", std::make_unique<foptim::fir::Function>(fctx.operator->(),
-                                                           "truncf", func_ty)});
+        "truncf", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                           "truncf", func_ty));
   }
 }
 
@@ -42,8 +42,8 @@ void generate_memmove(foptim::fir::Context &fctx) {
       fctx->get_ptr_type(),
       {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
   fctx.data->storage.functions.insert(
-      {"memmove", std::make_unique<foptim::fir::Function>(fctx.operator->(),
-                                                          "memmove", func_ty)});
+      "memmove", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                          "memmove", func_ty));
 }
 
 void generate_memset(foptim::fir::Context &fctx) {
@@ -180,8 +180,8 @@ void generate_trap(foptim::fir::Context &fctx) {
   }
   auto func_ty = fctx->get_func_ty(fctx->get_void_type(), {});
   fctx.data->storage.functions.insert(
-      {"abort", std::make_unique<foptim::fir::Function>(fctx.operator->(),
-                                                        "abort", func_ty)});
+      "abort", std::make_unique<foptim::fir::Function>(fctx.operator->(),
+                                                        "abort", func_ty));
 }
 
 BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {

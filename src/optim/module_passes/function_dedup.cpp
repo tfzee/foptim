@@ -332,21 +332,21 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx) {
 }
 
 void collect_group(
-    const fir::Context &ctx,
-    IRMap<IRString, std::unique_ptr<fir::Function>>::const_iterator iter1,
+    const fir::Context &ctx, size_t idx1,
     foptim::Mutex<FVec<MergableGroup>> &groups) {
   TMap<fir::ValueR, fir::ValueR> local_value_map;
   TVec<DiffConst> difference_values;
 
-  auto *f1 = iter1->second.get();
+  const auto &all_funcs = ctx->storage.functions.all();
+  auto *f1 = all_funcs[idx1];
   auto f1_ninstrs = f1->n_instrs();
   MergableGroup group{};
 
-  auto iter2 = std::next(iter1);
+  auto iter2 = idx1 + 1;
   // we just use the first match to then collect a group
   //  which could be a non optimal group
-  for (; iter2 != ctx.data->storage.functions.end(); iter2++) {
-    auto *f2 = iter2->second.get();
+  for (; iter2 < all_funcs.size(); iter2++) {
+    auto *f2 = all_funcs[iter2];
     if (!is_function_applicable(f2)) {
       continue;
     }
@@ -410,21 +410,21 @@ PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx) {
   TVec<DiffConst> difference_values;
   TVec<fir::Use> uses;
 
-  for (auto iter1 = ctx.data->storage.functions.begin();
-       iter1 != ctx.data->storage.functions.end(); iter1++) {
+  const auto &all_funcs = ctx.data->storage.functions.all();
+  for (size_t iter1 = 0; iter1 < all_funcs.size(); iter1++) {
     // helpers
-    auto *f1 = iter1->second.get();
+    auto *f1 = all_funcs[iter1];
     if (!is_function_applicable(f1)) {
       continue;
     }
     auto f1_ninstrs = f1->n_instrs();
 
-    auto iter2 = std::next(iter1);
+    auto iter2 = iter1 + 1;
     // we just use the first match to then collect a group
     //  which could be a non optimal group
     {
-      for (; iter2 != ctx.data->storage.functions.end(); iter2++) {
-        auto *f2 = iter2->second.get();
+      for (; iter2 < all_funcs.size(); iter2++) {
+        auto *f2 = all_funcs[iter2];
         if (!is_function_applicable(f2)) {
           continue;
         }
@@ -484,9 +484,9 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
     auto n_funcs = ctx.data->storage.functions.size();
     auto *waits = utils::TempAlloc<std::atomic<bool>>{}.allocate(n_funcs);
     size_t i = 0;
-    for (auto iter1 = ctx.data->storage.functions.begin();
-         iter1 != ctx.data->storage.functions.end(); iter1++) {
-      auto *f1 = iter1->second.get();
+    const auto &all_funcs = ctx.data->storage.functions.all();
+    for (size_t iter1 = 0; iter1 < all_funcs.size(); iter1++) {
+      auto *f1 = all_funcs[iter1];
       if (!is_function_applicable(f1)) {
         continue;
       }

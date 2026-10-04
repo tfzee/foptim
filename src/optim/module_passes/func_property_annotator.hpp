@@ -93,9 +93,9 @@ public:
     AliasAnalyis aa;
 
     TVec<fir::Function *> worklist;
-    for (auto &f : ctx->storage.functions) {
-      if (!f.second->is_decl()) {
-        worklist.push_back(f.second.get());
+    for (auto *f : ctx->storage.functions.all()) {
+      if (!f->is_decl()) {
+        worklist.push_back(f);
       } else {
         // TODO: some builtins could bemarked here
       }

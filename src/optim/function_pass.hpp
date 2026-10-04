@@ -167,11 +167,11 @@ public:
 
   void apply(fir::Context &ctx, JobSheduler *shed, AnalysisManager &analMan) {
     // fmt::println("FUNC: {}", dyn_passes.size());
-    for (auto &[name, func] : ctx->storage.functions) {
+    for (auto *func : ctx->storage.functions.all()) {
       if (func->is_decl()) {
         continue;
       }
-      shed->push(nullptr, [this, &ctx, &func, &analMan]() {
+      shed->push(nullptr, [this, &ctx, func, &analMan]() {
         for (auto *pass : dyn_passes) {
           apply_pass(ctx, pass, analMan, *func,
                      ctx.config->debug.print_optimization_failure_reasons);

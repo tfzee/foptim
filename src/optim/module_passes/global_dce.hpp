@@ -107,16 +107,19 @@ public:
       }
     }
 
-    for (auto &[name, f] : ctx.data->storage.functions) {
+    // copy since we erase while iterating
+    const auto funcs = ctx.data->storage.functions.all();
+    for (auto *f : funcs) {
+      const auto &name = f->name;
       if (f->get_n_uses() > 0) {
         continue;
       }
-      if (func_global_reffed.contains(f.get())) {
+      if (func_global_reffed.contains(f)) {
         continue;
       }
       if (is_intrinsic(name)) {
         // can always delete these even if they are external
-        ctx.data->storage.functions.erase(name);
+        ctx.data->storage.functions.erase(name.c_str());
         continue;
       }
       switch (f->attribs.linkage) {
@@ -142,7 +145,7 @@ public:
           for (auto &i : slab->data) {
             auto *v = &i;
             if (v->used == foptim::utils::SlotState::Used &&
-                v->data.is_func() && v->data.as_func().func == f.get()) {
+                v->data.is_func() && v->data.as_func().func == f) {
 #ifdef SLOT_CHECK_GENERATION
               auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
 #else
@@ -154,7 +157,7 @@ public:
           slab = slab->next;
         }
       }
-      ctx.data->storage.functions.erase(name);
+      ctx.data->storage.functions.erase(name.c_str());
     }
     return PreservedAnalysis::none();
   }

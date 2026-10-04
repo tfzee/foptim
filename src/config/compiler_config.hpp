@@ -120,6 +120,8 @@ struct Debug {
   bool time_passes;
   bool print_color;
   u8 verbosity;
+  // keep functions in input order instead of sorting them for MIR lowering
+  bool no_reorder_funcs = false;
 };
 
 struct Remarks {};

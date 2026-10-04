@@ -292,6 +292,8 @@ bool debug_parse(Debug &conf, toml::table &tbl) {
   conf.verify_between_passes =
       tbl["verify_between_passes"].value_or(conf.verify_between_passes);
   conf.time_passes = tbl["time_passes"].value_or(conf.time_passes);
+  conf.no_reorder_funcs =
+      tbl["no_reorder_funcs"].value_or(conf.no_reorder_funcs);
 
   return true;
 }

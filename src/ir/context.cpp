@@ -115,11 +115,12 @@ Global ContextData::insert_global(IRString name, size_t size_bytes) {
 }
 
 FunctionR ContextData::get_function(IRStringRef name) {
-  if (!storage.functions.contains(name)) {
+  auto *func = storage.functions.get(name);
+  if (func == nullptr) {
     fmt::println("Failed to find function '{}' from storage", name);
     ASSERT(false);
   }
-  return storage.functions.at(name).get();
+  return func;
 }
 
 bool ContextData::has_function(IRStringRef name) const {
@@ -127,9 +128,8 @@ bool ContextData::has_function(IRStringRef name) const {
 }
 
 FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
-  storage.functions.emplace(name, std::make_unique<Function>(this, name, type));
-
-  auto func = FunctionR(storage.functions.at(name).get());
+  auto func = FunctionR(storage.functions.insert(
+      name, std::make_unique<Function>(this, name, type)));
   auto init_bb = BasicBlock(storage.basic_blocks.push_back({func}));
   init_bb.verify_validness();
   func->append_bbr(init_bb);
@@ -143,18 +143,13 @@ FunctionR ContextData::create_function(IRString name, FunctionTypeR type) {
 }
 
 bool ContextData::delete_function(IRStringRef delete_func) {
-  if (storage.functions.contains(delete_func)) {
-    storage.functions.erase(delete_func);
-    return true;
-  }
-
-  return false;
+  return storage.functions.erase(delete_func);
 }
 
 bool ContextData::verify() const {
-  for (const auto &[name, func] : storage.functions) {
+  for (const auto *func : storage.functions.all()) {
     if (!func->verify()) {
-      fmt::println("In Function: {}\n", name.c_str());
+      fmt::println("In Function: {}\n", func->name.c_str());
       return false;
     }
   }
@@ -468,13 +463,13 @@ void ContextData::dump_graph(const char *filename) {
   }
   fmt::print(file, "digraph G{{\ncompound = true;\nrankdir=TB;\n");
   fmt::print(file, "node [shape=box, fontname=\"monospace\", fontsize=10];\n");
-  for (const auto &f : storage.functions) {
+  for (const auto *f : storage.functions.all()) {
     fmt::print(
         file,
         "subgraph \"cluster_{}\" {{\n label = \"Function: {}\";\n color = "
         "lightgrey;\n",
-        f.second->name, f.second->name);
-    for (auto bb : f.second->basic_blocks) {
+        f->name, f->name);
+    for (auto bb : f->basic_blocks) {
       fmt::print(file, R"( "{}"[label="{}:\n)",
                  static_cast<const void *>(bb.get_raw_ptr()),
                  static_cast<const void *>(bb.get_raw_ptr()));
@@ -535,7 +530,7 @@ fmt::appender fmt::formatter<foptim::fir::Context>::format(
     }
     slot = slot->next;
   }
-  for (const auto &[_, func] : v.data->storage.functions) {
+  for (const auto *func : v.data->storage.functions.all()) {
     if (color) {
       app = fmt::format_to(app, "{:cd}\n", *func);
     } else {

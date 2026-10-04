@@ -138,12 +138,10 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
     arg_prom_unique_name_number++;
     auto new_name = old_name + "MODArgProm";
     new_name += std::to_string(arg_prom_unique_name_number);
-    auto func_moved = std::move(ctx->storage.functions.at(old_name));
-    ctx->storage.functions.erase(old_name);
-    func_moved->name = new_name;
-    func_moved->attribs.linkage = fir::Linkage::Internal;
-    func_moved->attribs.no_inline = false;
-    ctx->storage.functions.insert({new_name, std::move(func_moved)});
+    auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+    ctx->storage.functions.rename(old_name.c_str(), new_name);
+    func_renamed->attribs.linkage = fir::Linkage::Internal;
+    func_renamed->attribs.no_inline = false;
   }
   // fmt::println("Found");
   // fmt::println("{:cd}", *func.func);
@@ -218,12 +216,10 @@ bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
       arg_prom_unique_name_number++;
       auto new_name = old_name + "MODArgProm";
       new_name += std::to_string(arg_prom_unique_name_number);
-      auto func_moved = std::move(ctx->storage.functions.at(old_name));
-      ctx->storage.functions.erase(old_name);
-      func_moved->name = new_name;
-      func_moved->attribs.linkage = fir::Linkage::Internal;
-      func_moved->attribs.no_inline = false;
-      ctx->storage.functions.insert({new_name, std::move(func_moved)});
+      auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+      ctx->storage.functions.rename(old_name.c_str(), new_name);
+      func_renamed->attribs.linkage = fir::Linkage::Internal;
+      func_renamed->attribs.no_inline = false;
       return true;
     }
   }
@@ -327,12 +323,10 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
     arg_prom_unique_name_number++;
     auto new_name = old_name + "MODArgProm";
     new_name += std::to_string(arg_prom_unique_name_number);
-    auto func_moved = std::move(ctx->storage.functions.at(old_name));
-    ctx->storage.functions.erase(old_name);
-    func_moved->name = new_name;
-    func_moved->attribs.linkage = fir::Linkage::Internal;
-    func_moved->attribs.no_inline = false;
-    ctx->storage.functions.insert({new_name, std::move(func_moved)});
+    auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+    ctx->storage.functions.rename(old_name.c_str(), new_name);
+    func_renamed->attribs.linkage = fir::Linkage::Internal;
+    func_renamed->attribs.no_inline = false;
     return true;
   }
 
@@ -502,12 +496,10 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
       arg_prom_unique_name_number++;
       auto new_name = old_name + "MODArgProm";
       new_name += std::to_string(arg_prom_unique_name_number);
-      auto func_moved = std::move(ctx->storage.functions.at(old_name));
-      ctx->storage.functions.erase(old_name);
-      func_moved->name = new_name;
-      func_moved->attribs.linkage = fir::Linkage::Internal;
-      func_moved->attribs.no_inline = false;
-      ctx->storage.functions.insert({new_name, std::move(func_moved)});
+      auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+      ctx->storage.functions.rename(old_name.c_str(), new_name);
+      func_renamed->attribs.linkage = fir::Linkage::Internal;
+      func_renamed->attribs.no_inline = false;
       return true;
     }
   }
@@ -518,12 +510,14 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
                                       JobSheduler * /*unused*/,
                                       AnalysisManager & /*unused*/) {
   ZoneScopedNC("ArgumentPromoition", COLOR_OPTIMM);
-  auto iter = ctx.data->storage.functions.begin();
-  for (; iter != ctx.data->storage.functions.end(); iter++) {
-    auto &[_, f] = *iter;
+  // indices stay valid since renaming keeps the order and new functions are
+  // appended
+  size_t iter = 0;
+  for (; iter < ctx.data->storage.functions.size(); iter++) {
+    auto *f = ctx.data->storage.functions.all()[iter];
     // fmt::println("RUNNING ON {}", f->name);
     // fmt::println("RUNNING ON {}", f->func_ty);
-    // fmt::println("RUNNING ON {}", *f.get());
+    // fmt::println("RUNNING ON {}", *f);
     switch (f->attribs.linkage) {
     case fir::Linkage::External:
     case fir::Linkage::Weak:
@@ -553,20 +547,20 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
         continue;
       }
     }
-    if (promote_ptr_to_value_return(f.get(), ctx)) {
-      iter = ctx.data->storage.functions.begin();
+    if (promote_ptr_to_value_return(f, ctx)) {
+      iter = static_cast<size_t>(-1);
       continue;
     }
-    if (promote_ptr_to_value_args(f.get(), ctx)) {
-      iter = ctx.data->storage.functions.begin();
+    if (promote_ptr_to_value_args(f, ctx)) {
+      iter = static_cast<size_t>(-1);
       continue;
     }
-    if (promote_vecvec_to_concat_vec(f.get(), ctx)) {
-      iter = ctx.data->storage.functions.begin();
+    if (promote_vecvec_to_concat_vec(f, ctx)) {
+      iter = static_cast<size_t>(-1);
       continue;
     }
-    if (return_vecvec_to_concat_vec(f.get(), ctx)) {
-      iter = ctx.data->storage.functions.begin();
+    if (return_vecvec_to_concat_vec(f, ctx)) {
+      iter = static_cast<size_t>(-1);
       continue;
     }
   }

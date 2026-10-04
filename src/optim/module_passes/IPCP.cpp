@@ -148,13 +148,11 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
       ipcp_unique_name_number++;
       auto new_name = old_name + "MODIPCP";
       new_name += std::to_string(ipcp_unique_name_number);
-      ASSERT(!ctx->storage.functions.contains(new_name));
-      auto func_moved = std::move(ctx->storage.functions.at(old_name));
-      ctx->storage.functions.erase(old_name);
-      func_moved->name = new_name;
-      func_moved->attribs.linkage = fir::Linkage::Internal;
-      func_moved->attribs.no_inline = false;
-      ctx->storage.functions.insert({new_name, std::move(func_moved)});
+      ASSERT(!ctx->storage.functions.contains(new_name.c_str()));
+      auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+      ctx->storage.functions.rename(old_name.c_str(), new_name);
+      func_renamed->attribs.linkage = fir::Linkage::Internal;
+      func_renamed->attribs.no_inline = false;
       return true;
     }
   }
@@ -199,14 +197,12 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
       ipcp_unique_name_number++;
       auto new_name = old_name + "MODIPCP";
       new_name += std::to_string(ipcp_unique_name_number);
-      ASSERT(!ctx->storage.functions.contains(new_name));
-      auto func_moved = std::move(ctx->storage.functions.at(old_name));
-      ctx->storage.functions.erase(old_name);
-      func_moved->name = new_name;
-      func_moved->attribs.linkage = fir::Linkage::Internal;
+      ASSERT(!ctx->storage.functions.contains(new_name.c_str()));
+      auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+      ctx->storage.functions.rename(old_name.c_str(), new_name);
+      func_renamed->attribs.linkage = fir::Linkage::Internal;
       // TODO: Technically legal but might be counter productive
-      func_moved->attribs.no_inline = false;
-      ctx->storage.functions.insert({new_name, std::move(func_moved)});
+      func_renamed->attribs.no_inline = false;
       return true;
     }
   }
@@ -218,8 +214,10 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
                               AnalysisManager & /*a*/) {
   ZoneScopedN("IPCP");
   bool modified = false;
-  for (auto &f : ctx.data->storage.functions) {
-    switch (f.second->attribs.linkage) {
+  // copy since passes below may add functions
+  const auto funcs = ctx.data->storage.functions.all();
+  for (auto *f : funcs) {
+    switch (f->attribs.linkage) {
     case fir::Linkage::External:
     case fir::Linkage::Weak:
     case fir::Linkage::LinkOnce:
@@ -230,11 +228,11 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
       break;
     }
 
-    if (f.second->is_decl() || f.second->attribs.variadic) {
+    if (f->is_decl() || f->attribs.variadic) {
       continue;
     }
     bool skip = false;
-    for (auto use : f.second->get_uses()) {
+    for (auto use : f->get_uses()) {
       if (!use.user->is(fir::InstrType::CallInstr) ||
           use.type != fir::UseType::NormalArg || use.argId != 0) {
         skip = true;
@@ -245,17 +243,17 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
       continue;
     }
 
-    // if (constant_prop_args(fir::FunctionR(f.second.get()), ctx)) {
+    // if (constant_prop_args(fir::FunctionR(f), ctx)) {
     //   continue;
     // }
     modified = true;
-    if (kill_dead_args(f.second.get(), ctx)) {
+    if (kill_dead_args(f, ctx)) {
       continue;
     }
-    if (constant_prop_args(fir::FunctionR(f.second.get()), ctx)) {
+    if (constant_prop_args(fir::FunctionR(f), ctx)) {
       continue;
     }
-    constant_prop_return(fir::FunctionR(f.second.get()), ctx);
+    constant_prop_return(fir::FunctionR(f), ctx);
   }
   if (modified) {
     return PreservedAnalysis::none();

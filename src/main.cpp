@@ -10,6 +10,7 @@
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
 #include "mir/func.hpp"
+#include "mir/func_order.hpp"
 #include "mir/optim/mir_pipeline.hpp"
 #include "mir/optim/register_joining.hpp"
 #include "optim/fir_pipeline.hpp"
@@ -68,9 +69,9 @@ int main(int argc, char *argv[]) {
     foptim::FVec<foptim::IRString> decls;
     {
       auto a1 = t.scopedTimer("Mir");
-      for (auto &[decl, f] : ctx.data->storage.functions) {
+      for (auto *f : ctx.data->storage.functions.all()) {
         if (f->is_decl()) {
-          decls.push_back(decl);
+          decls.push_back(f->name);
         }
       }
       lower_to_mir_and_optimize(ctx, funcs, globals, &shed);
@@ -101,14 +102,6 @@ void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed) {
   ZoneScopedN("LLIR LOADING");
   load_llvm_ir(ctx.config->input.in_file.c_str(), ctx, shed);
   foptim::utils::TempAlloc<void *>::reset();
-}
-
-void reorder_funcs(foptim::TVec<foptim::fir::Function *> &reordered_funcs) {
-  (void)reordered_funcs;
-  std::ranges::sort(reordered_funcs,
-                    [](foptim::fir::Function *a, foptim::fir::Function *b) {
-                      return a->get_n_uses() < b->get_n_uses();
-                    });
 }
 
 void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
@@ -161,12 +154,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     }
   }
 
-  foptim::TVec<foptim::fir::Function *> reordered_funcs;
-  reordered_funcs.reserve(ctx->storage.functions.size());
-  for (auto &[_, func] : ctx->storage.functions) {
-    reordered_funcs.emplace_back(func.get());
-  }
-  reorder_funcs(reordered_funcs);
+  auto reordered_funcs = foptim::fmir::get_lowering_order(ctx);
   if (ctx.config->debug.verbosity > 0) {
     fmt::print("================MATCHING====================\n");
     fmt::println(" Got {} functions", reordered_funcs.size());

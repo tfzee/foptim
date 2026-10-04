@@ -26,6 +26,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   program.add_argument("--print-mir")
       .help("print MIR instead of outputing an object")
       .flag();
+  program.add_argument("--no-reorder-funcs")
+      .help("keep functions in input order (deterministic output order)")
+      .flag();
   program.add_argument("--cconffile")
       .store_into(config)
       .default_value("Default")
@@ -51,6 +54,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   conf.debug.verbosity = static_cast<foptim::u8>(program.get<int>("verbosity"));
   conf.input.in_file = program.get<std::string>("input");
   conf.output.out_file = program.get<std::string>("output");
+  if (program["--no-reorder-funcs"] == true) {
+    conf.debug.no_reorder_funcs = true;
+  }
   if (program["--print-mir"] == true) {
     conf.output.type = foptim::conf::Output::OutputType::PrintMIR;
   }
