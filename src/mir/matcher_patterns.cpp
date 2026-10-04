@@ -1208,7 +1208,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
           return false;
         }
         // TODO: handle x + c +y
-        if (!is_reg(add1_instr->args[0]) || !is_reg(add0_instr->args[0]) ||
+        if (!is_reg(add1_instr->args[1]) || !is_reg(add0_instr->args[0]) ||
             !add0_instr->args[1].is_constant()) {
           return false;
         }
@@ -1224,7 +1224,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(add1_instr), res.result, data.alloc);
         auto a = valueToArg(add0_instr->args[0], res.result, data.alloc);
-        auto b = valueToArg(add1_instr->args[0], res.result, data.alloc);
+        auto b = valueToArg(add1_instr->args[1], res.result, data.alloc);
         if (!a.isReg() || !b.isReg()) {
           return false;
         }
