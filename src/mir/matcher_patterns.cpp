@@ -2186,7 +2186,12 @@ void base_patterns(IRVec<Pattern> &pats) {
           UNREACH();
         case fir::AtomicRMWSubType::Add:
           res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
-          res.result.emplace_back(X86Subtype::LockXAdd2, ptr, res_reg);
+          // xadd needs the pointer as memory operand [ptr]
+          ASSERT(ptr.isReg());
+          res.result.emplace_back(
+              X86Subtype::LockXAdd2,
+              MArgument::MemB(ptr.reg, convert_type(atomic_instr.get_type())),
+              res_reg);
           return true;
         case fir::AtomicRMWSubType::Xchg:
         case fir::AtomicRMWSubType::Or:
