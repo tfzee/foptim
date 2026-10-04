@@ -1458,10 +1458,18 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   }
 }
 
-size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &instr,
+size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &orig_instr,
                    u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
                    ProEpilogueType proepiloguetype) {
   size_t length = 9999;
+  // 8bit operations only accept immediates that are sign extended from 8 bits (so gotta us -1 instead of 255)
+  fmir::MInstr instr = orig_instr;
+  if (instr.n_args == 2 && instr.args[1].isImm() &&
+      instr.args[0].ty != fmir::Type::INVALID &&
+      fmir::get_size(instr.args[0].ty) == 1) {
+    instr.args[1].imm = static_cast<u64>(
+        static_cast<i64>(static_cast<i8>(static_cast<i64>(instr.args[1].imm))));
+  }
   (void)req;
   (void)instr;
   (void)out_buff;
