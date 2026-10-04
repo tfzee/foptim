@@ -293,6 +293,29 @@ public:
       return true;
     }
 
+    // The callee size vs threshold.
+    // Constant arguments let branches fold and allocas let loads/stores be
+    // forwarded and removed after inlining so both make the callee effectively
+    // cheaper
+    if (!v->attribs.cold && !v->attribs.no_return && self_func != v) {
+      i64 threshold = 20;
+      for (size_t i = 1; i < instr->args.size(); i++) {
+        auto arg = instr->args[i];
+        if (arg.is_constant()) {
+          threshold += 6;
+        } else if (arg.is_instr() &&
+                   arg.as_instr()->is(fir::InstrType::AllocaInstr)) {
+          threshold += 8;
+        }
+      }
+      if (debug_print) {
+        fmt::println("Score {} <= {}", called_n_instrs, threshold);
+      }
+      if (static_cast<i64>(called_n_instrs) <= threshold) {
+        return true;
+      }
+    }
+
     if (debug_print) {
       fmt::println("N end");
     }
