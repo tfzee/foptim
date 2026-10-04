@@ -843,13 +843,26 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
       return false;
     }
     if (a0.uses_same_vreg(spill_vreg)) {
-      a0 = MArgument::stack_slot(stack_slot_id, a1.ty);
+      // imul needs a register destination for first
+      if (instr.is(GArithSubtype::mul2)) {
+        return false;
+      }
+      a0 = MArgument::stack_slot(stack_slot_id,
+                                 a1.ty == Type::INVALID ? a0.ty : a1.ty);
       return true;
     }
     if (a1.uses_same_vreg(spill_vreg)) {
-      a1 = MArgument::stack_slot(stack_slot_id, a0.ty);
+      a1 = MArgument::stack_slot(stack_slot_id,
+                                 a0.ty == Type::INVALID ? a1.ty : a0.ty);
       return true;
     }
+  } else if (instr.is(GVecSubtype::vadd) || instr.is(GVecSubtype::vsub)) {
+    auto &a2 = instr.args[2];
+    if (a2.isMem() || !a2.uses_same_vreg(spill_vreg)) {
+      return false;
+    }
+    a2 = MArgument::stack_slot(stack_slot_id, a2.ty);
+    return true;
   } else if (instr.is(GArithSubtype::udiv) || instr.is(GArithSubtype::idiv)) {
     auto &a3 = instr.args[3];
     if (a3.isMem()) {
@@ -858,17 +871,17 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     ASSERT(a3.uses_same_vreg(spill_vreg));
     a3 = MArgument::stack_slot(stack_slot_id, a3.ty);
     return true;
-  } else if (instr.is(GConvSubtype::mov_zx) || instr.is(GConvSubtype::mov_sx)) {
+  } else if (instr.is(GConvSubtype::mov_zx) || instr.is(GConvSubtype::mov_sx)
+             //||instr.is(X86Subtype::vpcmpeq)
+  ) {
     auto &a1 = instr.args[1];
     // TODO: tehcnically if the argument youre modifying is mem you can in some
     // cases update it
-    if (a1.isMem()) {
+    if (a1.isMem() || !a1.uses_same_vreg(spill_vreg)) {
       return false;
     }
-    if (a1.uses_same_vreg(spill_vreg)) {
-      a1 = MArgument::stack_slot(stack_slot_id, a1.ty);
-      return true;
-    }
+    a1 = MArgument::stack_slot(stack_slot_id, a1.ty);
+    return true;
   } else {
     fmt::println(">> try mem insert spill >> {}", instr);
   }
@@ -947,27 +960,64 @@ void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
   }
 }
 
+// Figure out the type (and with it the size of the stack slot) of the vregs we
+// are about to spill. A vreg can be referenced with different types (for
+// example a i64 vreg that is truncated) so we take the biggest one we can find.
+TMap<u64, Type> get_spill_types(const MFunc &func,
+                                const TVec<u64> &needs_spilling) {
+  TMap<u64, Type> types;
+  for (auto spill : needs_spilling) {
+    types.insert({uid_to_reg(spill).virt_id(), Type::INVALID});
+  }
+  const auto update = [&types](const VReg &reg) {
+    if (reg.is_concrete() || reg.ty == Type::INVALID) {
+      return;
+    }
+    auto it = types.find(reg.virt_id());
+    if (it == types.end()) {
+      return;
+    }
+    if (it->second == Type::INVALID ||
+        get_size(reg.ty) > get_size(it->second)) {
+      it->second = reg.ty;
+    }
+  };
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      for (size_t arg_id = 0; arg_id < instr.n_args; arg_id++) {
+        const auto &arg = instr.args[arg_id];
+        if (arg.isReg() || arg.isMem()) {
+          update(arg.reg);
+        }
+        if (arg.isMem()) {
+          update(arg.indx);
+        }
+      }
+    }
+  }
+  for (auto &[id, type] : types) {
+    // only happens for registers only used as address and without a type
+    if (type == Type::INVALID) {
+      type = Type::Int64;
+    }
+  }
+  return types;
+}
+
 bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
                  u64 &new_virtual_reg_id) {
   if (needs_spilling.empty()) {
     return true;
   }
-  // TOOD: get real size
-  u64 spill_size = 16;
-  // TOOD: get real type
-  auto spill_type = Type::Int64;
+  const auto spill_types = get_spill_types(func, needs_spilling);
 
   TMap<u64, u64> spill_to_stack_slot;
   for (auto spill : needs_spilling) {
-    auto stack_slot_id = func.create_stack_slot(spill_size);
+    auto spill_type = spill_types.at(uid_to_reg(spill).virt_id());
+    auto stack_slot_id = func.create_stack_slot(get_size(spill_type));
     spill_to_stack_slot.insert({spill, stack_slot_id});
   }
   bool inserted_moves = false;
-  // fmt::println("====");
-  // fmt::println("{:cd}", func);
-  // for (auto spill : needs_spilling) {
-  //   fmt::println("Spilling {}", uid_to_reg(spill));
-  // }
 
   for (auto &bb : func.bbs) {
     for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
@@ -976,10 +1026,10 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
         if (!bb.instrs[instr_id].uses_vreg(spill_vreg)) {
           continue;
         }
-        // TODO: vecreg needs other size also always 8 is wasteful
-        // prob need to track it somwhere else
+        // the new vreg must have the type of the spilled vreg, otherwise a
+        // vec vreg ends up being allocated as a GPR
+        auto spill_type = spill_types.at(spill_vreg.virt_id());
         u64 stack_slot_id = spill_to_stack_slot[spill];
-        // TOOD: get real type
         if (handle_spill_addr_mode(bb.instrs, instr_id, spill_vreg,
                                    stack_slot_id)) {
           continue;

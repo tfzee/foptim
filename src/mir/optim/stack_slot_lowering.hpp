@@ -24,7 +24,7 @@ public:
     }
 
     // TODO: gotta handle generic CC
-    stack_slots_size += stack_slots_size % 16;
+    stack_slots_size = (stack_slots_size + 15) / 16 * 16;
     ASSERT(stack_slots_size % 16 == 0);
     utils::StatCollector::get().addi(
         static_cast<i64>(func.extra_stack_slots.size()), "StackSlotsEmitted");
@@ -52,8 +52,16 @@ public:
           auto &arg = i.args[arg_id];
           if (arg.isStackSlot()) {
             // TOOD: support other types
-            auto off = index_to_mem_off.at(arg.imm - 1);
-            if (arg.scale == 8) {
+            // the slots live below rbp, in the area reserved by the
+            // `sub rsp, stack_slots_size` in the prologue
+            auto off = static_cast<u64>(
+                static_cast<i64>(index_to_mem_off.at(arg.imm - 1)) -
+                static_cast<i64>(stack_slots_size));
+            if (arg.scale == 32) {
+              arg = MArgument::MemOB(off, VReg::RBP(), Type::Float64x4);
+            } else if (arg.scale == 16) {
+              arg = MArgument::MemOB(off, VReg::RBP(), Type::Float64x2);
+            } else if (arg.scale == 8) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Int64);
             } else if (arg.scale == 4) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Int32);
