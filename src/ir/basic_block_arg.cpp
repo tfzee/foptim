@@ -1,3 +1,4 @@
+#include "ir/print_ids.hpp"
 #include "ir/basic_block_arg.hpp"
 // #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -31,11 +32,13 @@ fmt::appender fmt::formatter<foptim::fir::BBArgument>::format(
   auto colv2 = color ? color_value2 : text_style{};
   auto f = ctx.out();
   if (!extended) {
-    return fmt::format_to(f, colv2, "{:p}",
-                          static_cast<const void *>(v.get_raw_ptr()));
+    return fmt::format_to(f, colv2, "{}",
+                          foptim::fir::IRId{
+                              static_cast<const void *>(v.get_raw_ptr()), "%"});
   }
-  f = fmt::format_to(f, colv2, "{:p}",
-                     static_cast<const void *>(v.get_raw_ptr()));
+  f = fmt::format_to(f, colv2, "{}",
+                     foptim::fir::IRId{
+                         static_cast<const void *>(v.get_raw_ptr()), "%"});
   fmt::format_to(ctx.out(), "{{");
   if (v->noalias) {
     f = fmt::format_to(f, "noalias; ");

@@ -1,3 +1,4 @@
+#include "ir/print_ids.hpp"
 #include "value.hpp"
 
 #include <fmt/color.h>
@@ -201,11 +202,15 @@ fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
   case foptim::fir::ValueType::InvalidValue:
     return fmt::format_to(ctx.out(), "INVALID");
   case foptim::fir::ValueType::Instr:
-    return fmt::format_to(ctx.out(), col1, "{:p}",
-                          static_cast<const void *>(k.instr.get_raw_ptr()));
+    return fmt::format_to(ctx.out(), col1, "{}",
+                          foptim::fir::IRId{
+                              static_cast<const void *>(k.instr.get_raw_ptr()),
+                              "%"});
   case foptim::fir::ValueType::BasicBlock:
-    return fmt::format_to(ctx.out(), colbb, "{:p}",
-                          static_cast<const void *>(k.bb.get_raw_ptr()));
+    return fmt::format_to(ctx.out(), colbb, "{}",
+                          foptim::fir::IRId{
+                              static_cast<const void *>(k.bb.get_raw_ptr()),
+                              "bb"});
   case foptim::fir::ValueType::BBArg:
     if (debug && color) {
       return fmt::format_to(ctx.out(), col2, "{:cd}", k.bb_arg);

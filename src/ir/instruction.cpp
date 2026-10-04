@@ -1,3 +1,4 @@
+#include "ir/print_ids.hpp"
 #include "ir/instruction.hpp"
 
 #include <fmt/color.h>
@@ -296,11 +297,14 @@ fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
   auto app = ctx.out();
   if (color) {
     app = fmt::format_to(
-        app, color_bb, "{:p}",
-        static_cast<const void *>(bb_with_args.bb.get_raw_ptr()));
+        app, color_bb, "{}",
+        foptim::fir::IRId{
+            static_cast<const void *>(bb_with_args.bb.get_raw_ptr()), "bb"});
   } else {
     app = fmt::format_to(
-        app, "{:p}", static_cast<const void *>(bb_with_args.bb.get_raw_ptr()));
+        app, "{}",
+        foptim::fir::IRId{
+            static_cast<const void *>(bb_with_args.bb.get_raw_ptr()), "bb"});
   }
   app = fmt::format_to(app, "(");
   if (!bb_with_args.args.empty()) {
@@ -331,13 +335,17 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
 
   if (color) {
     app = fmt::format_to(
-        app, "{:p}: {:c} = {}",
-        fmt::styled(static_cast<const void *>(instr.get_raw_ptr()),
-                    color_value),
+        app, "{}: {:c} = {}",
+        fmt::styled(
+            foptim::fir::IRId{static_cast<const void *>(instr.get_raw_ptr()),
+                              "%"},
+            color_value),
         instr->get_type(), instr->get_name());
   } else {
-    app = fmt::format_to(app, "{:p}: {} = {}",
-                         static_cast<const void *>(instr.get_raw_ptr()),
+    app = fmt::format_to(app, "{}: {} = {}",
+                         foptim::fir::IRId{
+                             static_cast<const void *>(instr.get_raw_ptr()),
+                             "%"},
                          instr->get_type(), instr->get_name());
   }
   const auto &bb_args = instr->get_bb_args();

@@ -1,3 +1,4 @@
+#include "ir/print_ids.hpp"
 #include "ir/function.hpp"
 #include <fmt/color.h>
 
@@ -120,6 +121,7 @@ bool Function::verify() const {
 fmt::appender
 fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
                                               format_context &ctx) const {
+  foptim::fir::PrintIdsScope id_scope;
   auto app = ctx.out();
   app = fmt::format_to(app, "\n; ");
   if (func.attribs.variadic) {
