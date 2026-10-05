@@ -348,6 +348,35 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
   if (is_dead) {
     ZoneScopedN("rem dead bb");
     auto *ctx = func.ctx;
+    // preds are dominated by this bb so they are dead as well but still
+    // target it, detach them so no terminator points to the removed bb
+    for (auto pred : curr.pred) {
+      if (func.basic_blocks[pred]->get_terminator()->is(
+              fir::InstrType::SwitchInstr)) {
+        return Res::NoChange;
+      }
+    }
+    for (auto pred : curr.pred) {
+      auto pred_bb = func.basic_blocks[pred];
+      auto pred_term = pred_bb->get_terminator();
+      if (pred_term->is(fir::InstrType::CondBranchInstr) &&
+          pred_term->bbs[0].bb != pred_term->bbs[1].bb) {
+        const u32 other = 1 - pred_term.get_bb_id(curr.bb);
+        fir::Builder buh{pred_bb};
+        buh.at_end(pred_bb);
+        auto new_term = buh.build_branch(pred_term->bbs[other].bb);
+        for (auto bb_arg : pred_term->bbs[other].args) {
+          new_term.add_bb_arg(0, bb_arg);
+        }
+        pred_term.destroy();
+      } else if (pred_term->is(fir::InstrType::CondBranchInstr) ||
+                 pred_term->is(fir::InstrType::BranchInstr)) {
+        fir::Builder buh{pred_bb};
+        buh.at_end(pred_bb);
+        buh.build_unreach();
+        pred_term.destroy();
+      }
+    }
     for (auto i : func.basic_blocks[bb_id]->args) {
       if (i->get_n_uses() > 0) {
         i->replace_all_uses(fir::ValueR{ctx->get_poisson_value(i->get_type())});
@@ -1785,9 +1814,9 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
       break;
     }
     if (needs_update) {
-      cfg = {};
-      dom = {};
-      cfg = CFG(func, false);
+      // cfg/dom reference the cached objects, rebuild them in place (the
+      // cache must not be invalidated here, that would free what we hold)
+      cfg.update(func, false);
       dom = Dominators(cfg);
     }
   }
