@@ -360,8 +360,10 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   auto iteration_count = lb.n_iter;
   u8 unroll_factor = 2;
   bool is_full_unroll = false;
+  bool did_peel;
   if (iteration_count > 2 && ((iteration_count - 1) % 2) == 0) {
     peel_it(cfg, loop, 1, ctx, func, true);
+    did_peel = true;
     iteration_count--;
     cfg.update(func, false);
   }
@@ -380,7 +382,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   } else if (iteration_count % 4 == 0) {
     unroll_factor = 4;
   } else {
-    return false;
+    return did_peel;
   }
 
   if (unroll_factor > config.max_unroll) {
@@ -395,7 +397,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   if (unroll_factor == 1) {
     failure(
         {.reason = "Unroll prob too massive", .loc = {cfg.bbrs[loop.head].bb}});
-    return false;
+    return did_peel;
   }
   // fmt::println("{}", unroll_factor);
   // fmt::println("unrolled {} {}", n_instrs, unroll_factor);
@@ -438,7 +440,6 @@ PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
     if (apply_it(cfg, loop, ctx, func, lb)) {
       utils::StatCollector::get().addi(1, "loopUnrolled",
                                        utils::StatCollector::StatFOptim);
-      // TODO: impl to do multiple loops
       return PreservedAnalysis::none();
     }
   }

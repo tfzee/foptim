@@ -81,7 +81,7 @@ public:
 
   // assert builds only: recompute what the pass claimed to preserve and
   // compare it to the cache
-  static void verify_preserved(fir::Function &func, PreservedAnalysis pres);
+  static bool verify_preserved(fir::Function &func, PreservedAnalysis pres);
 };
 
 } // namespace foptim::optim

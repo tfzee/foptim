@@ -2,6 +2,7 @@
 
 #include "ir/context.hpp"
 #include "utils/todo.hpp"
+#include <fmt/base.h>
 
 namespace foptim::fir {
 void AnalysisCacheDeleter::operator()(optim::FunctionAnalysisCache *p) const {
@@ -51,9 +52,7 @@ void AnalysisManager::invalidate(fir::Function &func, PreservedAnalysis pres) {
     return;
   }
   auto &cache = *func.analysis_cache;
-#ifdef ASSERT_ENABLED
-  verify_preserved(func, pres);
-#endif
+  ASSERT(verify_preserved(func, pres));
   // dependents first, they point into the CFG
   if (!pres.preserves(AnalysisKind::Constraints) ||
       !pres.preserves(AnalysisKind::CFG)) {
@@ -74,32 +73,39 @@ void AnalysisManager::invalidate_all(fir::Context &ctx) {
   }
 }
 
-void AnalysisManager::verify_preserved(fir::Function &func,
+bool AnalysisManager::verify_preserved(fir::Function &func,
                                        PreservedAnalysis pres) {
   if (!func.analysis_cache || func.is_decl()) {
-    return;
+    return true;
   }
   auto &cache = *func.analysis_cache;
   if (cache.cfg && pres.preserves(AnalysisKind::CFG)) {
     const CFG fresh{func};
     const auto &old = *cache.cfg;
-    const bool same =
-        old.entry == fresh.entry && old.bbrs.size() == fresh.bbrs.size() &&
-        std::ranges::all_of(std::views::iota(size_t{0}, fresh.bbrs.size()),
-                            [&](size_t i) {
-                              const auto &a = old.bbrs[i];
-                              const auto &b = fresh.bbrs[i];
-                              return a.bb == b.bb &&
-                                     std::ranges::equal(a.pred, b.pred) &&
-                                     std::ranges::equal(a.succ, b.succ);
-                            });
+    bool same =
+        old.entry == fresh.entry && old.bbrs.size() == fresh.bbrs.size();
+    for (size_t i = 0; same && i < fresh.bbrs.size(); i++) {
+      const auto &a = old.bbrs[i];
+      const auto &b = fresh.bbrs[i];
+      same = a.bb == b.bb && a.pred.size() == b.pred.size() &&
+             a.succ.size() == b.succ.size();
+      for (size_t j = 0; same && j < a.pred.size(); j++) {
+        same = a.pred[j] == b.pred[j];
+      }
+      for (size_t j = 0; same && j < a.succ.size(); j++) {
+        same = a.succ[j] == b.succ[j];
+      }
+    }
     if (!same) {
       fmt::println(stderr,
                    "AnalysisManager: pass claimed to preserve the CFG of '{}' "
                    "but it changed",
                    func.name.c_str());
     }
-    ASSERT_M(same, "Pass returned wrong PreservedAnalysis (CFG)");
+    if (!same) {
+      fmt::println("Pass returned wrong PreservedAnalysis (CFG)");
+      return false;
+    }
     if (cache.dom && pres.preserves(AnalysisKind::Dominators)) {
       const Dominators fresh_dom{fresh};
       bool dom_same = true;
@@ -107,9 +113,13 @@ void AnalysisManager::verify_preserved(fir::Function &func,
         dom_same = dom_same && fresh_dom.idom(i) == cache.dom->idom(i) &&
                    fresh_dom.is_reachable(i) == cache.dom->is_reachable(i);
       }
-      ASSERT_M(dom_same, "Pass returned wrong PreservedAnalysis (Dominators)");
+      if (!dom_same) {
+        fmt::println("Pass returned wrong PreservedAnalysis (Dominators)");
+        return false;
+      }
     }
   }
+  return true;
 }
 
 } // namespace foptim::optim
