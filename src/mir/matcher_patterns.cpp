@@ -3226,8 +3226,9 @@ void base_patterns(IRVec<Pattern> &pats) {
           auto target =
               valueToArg(fir::ValueR{insert_instr}, res.result, data.alloc);
           auto vec_ty = insert_instr->args[0].get_type()->as_vec();
-          auto rev_indx = vec_ty.member_number - indx - 1;
-          // auto rev_indx = indx;
+          (void)vec_ty;
+          // lane i of the FIR vector lives in lane i of the register
+          auto rev_indx = indx;
           auto get_xmm_version_ty = [](Type t) {
             if (t == Type::Float32) {
               return Type::Float32x4;
@@ -3373,8 +3374,9 @@ void base_patterns(IRVec<Pattern> &pats) {
             TODO("unreach?");
           };
           auto vec_ty = extract_instr->args[0].get_type()->as_vec();
-          auto rev_indx = vec_ty.member_number - indx - 1;
-          // auto rev_indx = indx;
+          (void)vec_ty;
+          // lane i of the FIR vector lives in lane i of the register
+          auto rev_indx = indx;
           auto helper_ty = get_xmm_version_ty(target.ty);
           if (rev_indx == 0) {
             ASSERT(input.isReg())
@@ -3405,7 +3407,7 @@ void base_patterns(IRVec<Pattern> &pats) {
               auto helper_arg = MArgument(helper_reg, helper_ty);
               res.result.emplace_back(X86Subtype::vextract128, helper_arg,
                                       input, MArgument(static_cast<u8>(1)));
-              res.result.emplace_back(X86Subtype::vpextr, target, input,
+              res.result.emplace_back(X86Subtype::vpextr, target, helper_arg,
                                       MArgument(static_cast<u8>(1)));
             } else {
               fmt::println("{}", extract_instr);

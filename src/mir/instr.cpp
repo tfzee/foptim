@@ -1073,7 +1073,8 @@ fmt::formatter<foptim::fmir::MInstr>::format(foptim::fmir::MInstr const &v,
   }
   if (v.is(foptim::fmir::GVecSubtype::vXor)) {
     if (v.args[0] == v.args[1] && v.args[0] == v.args[2]) {
-      return fmt::format_to(app, "clear {:c}", v.args[0]);
+      app = fmt::format_to(app, "clear ");
+      return arg_fmt.format(v.args[0], ctx);
     }
     app = arg_fmt.format(v.args[0], ctx);
     app = fmt::format_to(app, " = ");
