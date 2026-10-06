@@ -1,9 +1,18 @@
 #pragma once
+#include <atomic>
 #include <ankerl/unordered_dense.h>
 
 #include "stable_vec_slot.hpp"
 #include "types.hpp"
 #include "utils/todo.hpp"
+
+#ifndef SLOT_CHECK_LEVEL
+#ifdef SLOT_CHECK_GENERATION
+#define SLOT_CHECK_LEVEL 2
+#else
+#define SLOT_CHECK_LEVEL 1
+#endif
+#endif
 
 namespace foptim::utils {
 
@@ -59,17 +68,38 @@ public:
     return true;
   }
 
+  // Checks done on every deref, selected at compile time by SLOT_CHECK_LEVEL
+  // (0: none, 1: non null + slot in use, 2: additionally the generation)
   constexpr void verify_validness() const {
-    ASSERT(data_ref != nullptr && data_ref->used == SlotState::Used);
-#ifdef SLOT_CHECK_GENERATION
-    ASSERT(generation != 0);
-    if (data_ref->generation != generation) [[unlikely]] {
-      fmt::println("{} {}", data_ref->generation.load(), generation);
-      TODO("shite");
+#if SLOT_CHECK_LEVEL >= 1
+    // relaxed: slots are only freed/reused by the job owning them, the checks
+    // just need to see the value, and atomics with seq_cst block merging loads
+    const bool ok =
+        data_ref != nullptr &&
+        data_ref->used.load(std::memory_order_relaxed) == SlotState::Used
+#if SLOT_CHECK_LEVEL >= 2
+        && generation != 0 &&
+        data_ref->generation.load(std::memory_order_relaxed) == generation
+#endif
+        ;
+    if (!ok) [[unlikely]] {
+      verify_failed();
     }
-    ASSERT(data_ref->generation == generation);
 #endif
   }
+
+#if SLOT_CHECK_LEVEL >= 1
+  [[noreturn]] [[gnu::cold]] [[gnu::noinline]] void verify_failed() const {
+    ASSERT(data_ref != nullptr);
+    ASSERT(data_ref->used == SlotState::Used);
+#if SLOT_CHECK_LEVEL >= 2
+    ASSERT(generation != 0);
+    fmt::println("slot generation {} != ref generation {}",
+                 data_ref->generation.load(), generation);
+#endif
+    TODO("invalid SRef");
+  }
+#endif
 
   constexpr const T *get_raw_ptr() const {
     verify_validness();

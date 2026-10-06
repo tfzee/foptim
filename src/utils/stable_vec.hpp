@@ -45,7 +45,11 @@ struct SlabIter {
 
   constexpr SRef<T> operator*() {
     auto *res_ptr = &slab->data[offset];
+#ifdef SLOT_CHECK_GENERATION
     return SRef{res_ptr, res_ptr->generation};
+#else
+    return SRef{res_ptr, 0};
+#endif
   }
 
   constexpr T *operator->() { return &slab->data[offset].data; }
