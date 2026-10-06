@@ -77,8 +77,12 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
       ASSERT(!func.bbs.empty());
       shed->push(nullptr, [&func, &passes_worklist, &config]() {
         for (auto &pass_conf : passes_worklist) {
+          // temp allocations are never freed individually, rewind after every
+          // pass so they don't pile up over all passes (and functions)
+          const auto temp_mark = foptim::utils::TempAlloc<void *>::save();
           auto *pass = pass_conf->_construct_mir_func_pass();
           pass->apply(func, config);
+          foptim::utils::TempAlloc<void *>::restore(temp_mark);
         }
         ASSERT(foptim::fmir::verify(func));
       });
