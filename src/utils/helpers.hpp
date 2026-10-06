@@ -12,6 +12,14 @@ class TrackingAlloc : public std::allocator<T> {
  public:
   using pointer = T *;
 
+  template <class U> struct rebind {
+    using other = TrackingAlloc<U>;
+  };
+
+  constexpr TrackingAlloc() noexcept = default;
+  template <class U>
+  constexpr TrackingAlloc(const TrackingAlloc<U> & /*unused*/) noexcept {}
+
   constexpr T *allocate(size_t count) {
     auto ptr = std::allocator<T>::allocate(count);
     TracyAllocS(ptr, count * sizeof(T), 16);
