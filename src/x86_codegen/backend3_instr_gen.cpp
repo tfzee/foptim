@@ -833,7 +833,8 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     if ((instr.is(fmir::GJumpSubtype::cjmp_int_eq) ||
          instr.is(fmir::GJumpSubtype::cjmp_int_ne)) &&
-        (req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
+        (req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER &&
+         req.operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
          req.operands[1].imm.s == 0)) {
       // Assembly/Compiler Coding Rule 18. (M impact, ML generality)
       // Software
