@@ -20,11 +20,19 @@ bool can_be_converted_into_phi(fir::Instr instr) {
   if (!instr->extra_type.is_valid()) {
     return false;
   }
+  // loads/stores of a different size than the alloca type (type punning,
+  // partial access) can't be expressed as a value
+  const auto same_layout = [&](fir::TypeR ty) {
+    return ty == instr->extra_type ||
+           (ty->get_size() == instr->extra_type->get_size() &&
+            ty->get_align() == instr->extra_type->get_align());
+  };
   for (auto usage : instr->uses) {
-    if (usage.user->is(fir::InstrType::LoadInstr)) {
-      continue;
-    }
-    if (usage.user->is(fir::InstrType::StoreInstr) && usage.argId == 0) {
+    if (usage.user->is(fir::InstrType::LoadInstr) ||
+        (usage.user->is(fir::InstrType::StoreInstr) && usage.argId == 0)) {
+      if (!same_layout(usage.user.get_type())) {
+        return false;
+      }
       continue;
     }
     return false;
