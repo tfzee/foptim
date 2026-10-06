@@ -28,7 +28,8 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .help("print MIR instead of outputing an object")
       .flag();
   program.add_argument("--print-fir")
-      .help("print the FIR after the FIR pipeline instead of outputing an object")
+      .help(
+          "print the FIR after the FIR pipeline instead of outputing an object")
       .flag();
   program.add_argument("--passes")
       .help("comma separated FIR pass list replacing the configured FIR "
@@ -37,14 +38,21 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   program.add_argument("--no-reorder-funcs")
       .help("keep functions in input order (deterministic output order)")
       .flag();
+  program.add_argument("--bisect")
+      .help("only run the FIR passes up to and including pass index N combine "
+            "with --print-fir to inspect or diff the IR at a given depth")
+      .scan<'i', int>()
+      .default_value(-1);
   program.add_argument("--cconffile")
       .store_into(config)
       .default_value("Default")
       .help("where the cconf.toml is located at")
       .default_value("default");
-  program.add_argument("input").default_value("-").help("specify the input .ll file.");
-  program.add_argument("output").default_value("/dev/null").help(
-      "specify the output .ss file.");
+  program.add_argument("input").default_value("-").help(
+      "specify the input .ll file.");
+  program.add_argument("output")
+      .default_value("/dev/null")
+      .help("specify the output .ss file.");
 
   try {
     program.parse_args(argc, argv);
@@ -62,6 +70,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   conf.debug.verbosity = static_cast<foptim::u8>(program.get<int>("verbosity"));
   conf.input.in_file = program.get<std::string>("input");
   conf.output.out_file = program.get<std::string>("output");
+  if (program.is_used("--bisect")) {
+    conf.debug.bisect = program.get<int>("bisect");
+  }
   if (program["--no-reorder-funcs"] == true) {
     conf.debug.no_reorder_funcs = true;
   }
