@@ -133,6 +133,10 @@ class ParallelFunctionPassManager {
   static void apply_pass(fir::Context &ctx, conf::PassConfig *conf,
                          AnalysisManager & /*analMan*/, fir::Function &f,
                          bool print_failure) {
+    // temp allocations never free individually, so without this the scratch
+    // memory of every pass over every function piles up until the whole pass
+    // group is done (with workers the whole arena is reset below instead)
+    const auto temp_mark = utils::TempAlloc<void *>::save();
     {
       auto *pass = conf->_construct_function_pass();
       if (ctx.config->debug.time_passes) {
@@ -157,6 +161,8 @@ class ParallelFunctionPassManager {
     }
     if (ctx.config->number_worker_threads > 0) {
       utils::TempAlloc<void *>::reset();
+    } else {
+      utils::TempAlloc<void *>::restore(temp_mark);
     }
   }
 
