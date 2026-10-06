@@ -202,7 +202,6 @@ public:
 class DominatorTree {
 public:
   struct Node {
-    fir::BasicBlock bb;
     u32 idom = ~0U;  // immediate dominator (bb id); entry's idom == its own id
     u32 depth = 0;   // depth in the dominator tree, entry == 0
     u32 dfs_in = 0;  // preorder index of this node's Euler-tour entry
@@ -264,7 +263,8 @@ public:
     for (u32 i = 0; i < dom_bbs.size(); i++) {
       const auto &node = dom_bbs[i];
       fmt::println("BB {}: {:p} idom={} depth={}", i,
-                   reinterpret_cast<const void *>(node.bb.get_raw_ptr()),
+                   reinterpret_cast<const void *>(
+                       cfg->bbrs[i].bb.get_raw_ptr()),
                    node.idom, node.depth);
     }
   }
@@ -280,9 +280,7 @@ public:
 
     dom_bbs.clear();
     dom_bbs.reserve(n_bbs);
-    for (const auto &bbr : cfg_bbs) {
-      dom_bbs.push_back(Node{.bb = bbr.bb});
-    }
+    dom_bbs.resize(n_bbs);
 
     // reverse-postorder numbering via an iterative DFS over successors
     TVec<u32, utils::TempAlloc<u32>> postorder(n_bbs, ~0U);
@@ -291,13 +289,10 @@ public:
     {
       TVec<u8, utils::TempAlloc<u8>> visited(n_bbs, 0);
       TVec<std::pair<u32, u32>, utils::TempAlloc<std::pair<u32, u32>>> stack;
-      stack.reserve(n_bbs);
       stack.emplace_back(cfg.entry, 0);
       visited[cfg.entry] = 1;
 
-      TVec<u32, utils::TempAlloc<u32>> post_order_ids;
-      post_order_ids.reserve(n_bbs);
-
+      // rpo temporarily holds the postorder
       while (!stack.empty()) {
         auto &[node, next_idx] = stack.back();
         const auto &succs = cfg_bbs[node].succ;
@@ -308,14 +303,12 @@ public:
             stack.emplace_back(s, 0);
           }
         } else {
-          post_order_ids.push_back(node);
+          postorder[node] = static_cast<u32>(rpo.size());
+          rpo.push_back(node);
           stack.pop_back();
         }
       }
-      for (u32 i = 0; i < post_order_ids.size(); i++) {
-        postorder[post_order_ids[i]] = i;
-      }
-      rpo.assign(post_order_ids.rbegin(), post_order_ids.rend());
+      std::reverse(rpo.begin(), rpo.end());
     }
 
     // Cooper/Harvey/Kennedy iterative idom computation, O(E) per pass

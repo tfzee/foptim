@@ -14,8 +14,10 @@ class CFG {
  public:
   struct Node {
     fir::BasicBlock bb;
-    SmallFVec<u32, 8> pred;
-    SmallFVec<u32, 8> succ;
+    // pred and succ must stay the same type (reverse CFGs swap them). 4 inline
+    // slots each instead of 8 halves the size of this, the biggest allocation
+    SmallFVec<u32, 4> pred;
+    SmallFVec<u32, 4> succ;
   };
 
   // NOTE: CFG, Dominators, DominatorTree and ConstraintAnalysis are cached on
