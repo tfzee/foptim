@@ -1055,3 +1055,18 @@ template <> struct std::hash<foptim::fmir::VReg> {
     return hash<u64>()(k.virt_id());
   }
 };
+
+template <> struct ankerl::unordered_dense::hash<foptim::fmir::VReg> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::fmir::VReg &k) const noexcept
+      -> uint64_t {
+    using foptim::u64;
+    using foptim::u8;
+    if (k.is_concrete()) {
+      return ankerl::unordered_dense::detail::wyhash::hash(
+          static_cast<u64>(static_cast<u8>(k.c_reg())));
+    }
+    return ankerl::unordered_dense::detail::wyhash::hash(k.virt_id());
+  }
+};

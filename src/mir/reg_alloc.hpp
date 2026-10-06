@@ -20,6 +20,17 @@ struct std::hash<IndexedValue> {
   }
 };
 
+template <>
+struct ankerl::unordered_dense::hash<IndexedValue> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const IndexedValue &k) const noexcept
+      -> uint64_t {
+    return ankerl::unordered_dense::detail::wyhash::mix(
+        hash<foptim::fir::ValueR>()(k.v), k.id);
+  }
+};
+
 namespace foptim::fmir {
 
 class DumbRegAlloc {

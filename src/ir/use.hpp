@@ -97,3 +97,17 @@ struct std::hash<foptim::fir::Use> {
            hash<u16>()(k.argId) ^ hash<u16>()(k.bbArgId);
   }
 };
+
+template <>
+struct ankerl::unordered_dense::hash<foptim::fir::Use> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::fir::Use &k) const noexcept
+      -> uint64_t {
+    namespace wy = ankerl::unordered_dense::detail::wyhash;
+    return wy::mix(hash<foptim::fir::Instr>()(k.user),
+                   (static_cast<uint64_t>(k.argId) << 24) |
+                       (static_cast<uint64_t>(k.bbArgId) << 8) |
+                       static_cast<uint64_t>(static_cast<foptim::u8>(k.type)));
+  }
+};

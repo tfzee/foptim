@@ -82,3 +82,13 @@ template <> struct std::hash<foptim::fir::Global> {
         foptim::utils::SRef<std::unique_ptr<foptim::fir::GlobalData>>>()(k);
   }
 };
+
+template <>
+struct ankerl::unordered_dense::hash<foptim::fir::Global> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::fir::Global &k) const noexcept
+      -> uint64_t {
+    return hash<foptim::utils::SRef<std::unique_ptr<foptim::fir::GlobalData>>>()(k);
+  }
+};

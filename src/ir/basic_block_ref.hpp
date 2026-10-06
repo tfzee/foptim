@@ -31,3 +31,13 @@ struct std::hash<foptim::fir::BasicBlock> {
     return hash<foptim::utils::SRef<foptim::fir::BasicBlockData>>()(k);
   }
 };
+
+template <>
+struct ankerl::unordered_dense::hash<foptim::fir::BasicBlock> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::fir::BasicBlock &k) const noexcept
+      -> uint64_t {
+    return hash<foptim::utils::SRef<foptim::fir::BasicBlockData>>()(k);
+  }
+};

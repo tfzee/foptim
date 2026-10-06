@@ -42,3 +42,13 @@ struct std::hash<foptim::fir::BBArgument> {
     return hash<foptim::utils::SRef<foptim::fir::BBArgumentData>>()(k);
   }
 };
+
+template <>
+struct ankerl::unordered_dense::hash<foptim::fir::BBArgument> {
+  using is_avalanching = void;
+
+  [[nodiscard]] auto operator()(const foptim::fir::BBArgument &k) const noexcept
+      -> uint64_t {
+    return hash<foptim::utils::SRef<foptim::fir::BBArgumentData>>()(k);
+  }
+};
