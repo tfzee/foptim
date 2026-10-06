@@ -4,6 +4,7 @@
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
+#include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
@@ -95,15 +96,24 @@ bool eql_instr_expr(fir::Instr a, fir::Instr b) {
 bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
                const Dominators &dom) {
   auto bb_id = cfg.get_bb_id(bb);
-  for (auto d : dom.strict_dominators(bb_id)) {
-    if (d == bb_id) {
-      // lvn handles this case
-      continue;
-    }
+  // hoisted so the (checked) ref derefs are not repeated for every candidate
+  const fir::InstrData &data = *instr.get_raw_ptr();
+  const auto instr_type = data.instr_type;
+  const auto subtype = data.subtype;
+  const auto n_args = data.args.size();
+  const auto type = instr.get_type();
+  // walk up the dominator tree (nearest dominator first)
+  for (u32 d = bb_id; d != cfg.entry;) {
+    d = dom.idom(d);
     auto prev_bb = cfg.bbrs[d].bb;
     for (auto instr2 : prev_bb->instructions) {
-      if (instr->eql_expr(*instr2.get_raw_ptr()) &&
-          instr->get_type() == instr2.get_type()) {
+      const fir::InstrData &data2 = *instr2.get_raw_ptr();
+      // cheap rejects before the full comparison
+      if (data2.instr_type != instr_type || data2.subtype != subtype ||
+          data2.args.size() != n_args) {
+        continue;
+      }
+      if (data.eql_expr(data2) && type == instr2.get_type()) {
         instr->replace_all_uses(fir::ValueR{instr2});
         instr.destroy();
         return true;
@@ -173,10 +183,16 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       continue;
     }
 
+    // for a pure instr only the expression matching below can fire and that
+    // needs the same instr type, everything else needs a load/store as instr
+    const bool pure = lvn_applicable(instr);
+    const auto pure_type = instr->instr_type;
     for (size_t i2 = i + 1; i2 < bb->instructions.size(); i2++) {
       ASSERT(i2 > i);
-      auto instr = bb->instructions[i];
       auto instr2 = bb->instructions[i2];
+      if (pure && instr2->instr_type != pure_type) {
+        continue;
+      }
       if (lvn_applicable(instr2)) {
         if (eql_instr_expr(instr, instr2)) {
           instr2->replace_all_uses(fir::ValueR{instr});
@@ -385,26 +401,48 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             break;
           }
         }
-        // if (instr->get_type()->is_int() && old_width <= 4 &&
-        //     base1_addr == base2_addr && base1_off + old_width == base2_off)
-        //     {
+        // merge integers into bigger integers
+        if (instr->get_type()->is_int() && old_width <= 4 &&
+            base1_addr == base2_addr && base1_off + old_width == base2_off &&
+            instr->args[1].is_constant() && instr2->args[1].is_constant()) {
+          bool pot_load_between = is_pot_loadstore_between(
+              bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+          if (!pot_load_between) {
+            fir::Builder buh{instr2};
+            auto *ctx = bb->get_parent()->ctx;
+            auto new_type = ctx->get_int_type(2 * old_width * 8);
+            auto v1 = instr->args[1];
+            auto v2 = instr2->args[1];
+            auto v1_ext = buh.build_zext(v1, new_type);
+            auto v2_ext = buh.build_zext(v2, new_type);
+            auto shift2_val = buh.build_binary_op(
+                v2_ext,
+                fir::ValueR{ctx->get_constant_value(old_width * 8, new_type)},
+                fir::BinaryInstrSubType::Shl);
+            auto data = buh.build_binary_op(v1_ext, shift2_val,
+                                            fir::BinaryInstrSubType::Or);
+            buh.build_store(instr->args[0], data,
+                            instr->Atomic || instr2->Atomic, false);
+            instr.destroy();
+            instr2.destroy();
+            i--;
+            break;
+          }
+        }
+        // if (instr->get_type()->is_int() && old_width == 8 &&
+        //     base1_addr == base2_addr && base1_off + old_width == base2_off &&
+        //     instr->args[1].is_constant() && instr2->args[1].is_constant()) {
         //   bool pot_load_between = is_pot_loadstore_between(
         //       bb, instr->args[0], old_width * 2, i + 1, i2, aa);
         //   if (!pot_load_between) {
         //     fir::Builder buh{instr2};
         //     auto *ctx = bb->get_parent()->ctx;
-        //     auto new_type = ctx->get_int_type(2 * old_width * 8);
         //     auto v1 = instr->args[1];
         //     auto v2 = instr2->args[1];
-        //     auto v1_ext = buh.build_zext(v1, new_type);
-        //     auto v2_ext = buh.build_zext(v2, new_type);
-        //     auto shift2_val = buh.build_binary_op(
-        //         v2_ext,
-        //         fir::ValueR{ctx->get_constant_value(old_width * 8,
-        //         new_type)}, fir::BinaryInstrSubType::Shl);
-        //     auto data = buh.build_binary_op(v1_ext, shift2_val,
-        //                                     fir::BinaryInstrSubType::Or);
-        //     buh.build_store(instr->args[0], data);
+        //     auto data = ctx->get_constant_value(
+        //         {v1.as_constant(), v2.as_constant()}, instr->get_type());
+        //     buh.build_store(instr->args[0], fir::ValueR{data},
+        //                     instr->Atomic || instr2->Atomic, false);
         //     instr.destroy();
         //     instr2.destroy();
         //     i--;
@@ -479,35 +517,34 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               break;
             }
           }
+          // if (instr->get_type()->is_int() && old_width <= 4 &&
+          //     base1_addr == base2_addr && base1_off + old_width == base2_off)
+          //     {
+          //   bool pot_store_between = is_pot_store_between(
+          //       bb, instr->args[0], old_width * 2, i + 1, i2, aa);
+          //   if (!pot_store_between) {
+          //     // fmt::println("{:cd}", bb);
+          //     fir::Builder buh{instr};
+          //     auto *ctx = bb->get_parent()->ctx;
+          //     auto new_type = ctx->get_int_type(2 * old_width * 8);
+          //     auto loaded_data =
+          //         buh.build_load(new_type, fir::ValueR{arg1},
+          //                        instr->Atomic || instr2->Atomic, false);
+          //     auto v1_val = buh.build_itrunc(loaded_data, instr->get_type());
+          //     auto shift2_val = buh.build_binary_op(
+          //         loaded_data,
+          //         fir::ValueR{ctx->get_constant_value(old_width * 8,
+          //         new_type)}, fir::BinaryInstrSubType::Shr);
+          //     auto v2_val = buh.build_itrunc(shift2_val, instr->get_type());
+          //     instr->replace_all_uses(v1_val);
+          //     instr2->replace_all_uses(v2_val);
+          //     instr.destroy();
+          //     instr2.destroy();
+          //     i--;
+          //     break;
+          //   }
+          // }
         }
-        // if (instr->get_type()->is_int() && old_width <= 4 &&
-        //     base1_addr == base2_addr && base1_off + old_width == base2_off)
-        //     {
-        //   bool pot_store_between = is_pot_store_between(
-        //       bb, instr->args[0], old_width * 2, i + 1, i2, aa);
-        //   if (!pot_store_between) {
-        //     // fmt::println("{:cd}", bb);
-        //     fir::Builder buh{instr};
-        //     auto *ctx = bb->get_parent()->ctx;
-        //     auto new_type = ctx->get_int_type(2 * old_width * 8);
-        //     auto loaded_data = buh.build_load(new_type, fir::ValueR{arg1});
-        //     auto v1_val = buh.build_itrunc(loaded_data, instr->get_type());
-        //     auto shift2_val = buh.build_binary_op(
-        //         loaded_data,
-        //         fir::ValueR{ctx->get_constant_value(old_width * 8,
-        //         new_type)}, fir::BinaryInstrSubType::Shr);
-        //     auto v2_val = buh.build_itrunc(shift2_val, instr->get_type());
-        //     instr->replace_all_uses(v1_val);
-        //     instr2->replace_all_uses(v2_val);
-        //     instr.destroy();
-        //     instr2.destroy();
-        //     // fmt::println("{:cd}", bb);
-        //     // fmt::println("==========================");
-        //     // TODO("merge load==");
-        //     i--;
-        //     break;
-        //   }
-        // }
       }
     }
   }

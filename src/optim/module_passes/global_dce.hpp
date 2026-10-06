@@ -32,7 +32,7 @@ public:
       while (slab != nullptr) {
         for (auto &i : slab->data) {
           const auto *v = &i;
-          if (v->used == foptim::utils::SlotState::Used) {
+          if (v->is_used()) {
             for (auto info : v->data->reloc_info) {
               if (info.ref->is_func()) {
                 func_global_reffed.insert(info.ref->as_func().func);
@@ -52,12 +52,12 @@ public:
       while (slab != nullptr) {
         for (auto &i : slab->data) {
           auto *v = &i;
-          if (v->used == foptim::utils::SlotState::Used) {
+          if (v->is_used()) {
             auto g = fir::Global{
                 utils::SRef<std::unique_ptr<foptim::fir::GlobalData>>{
                     v,
 #ifdef SLOT_CHECK_GENERATION
-                    v->generation
+                    v->generation()
 #else
                     0
 #endif
@@ -87,10 +87,10 @@ public:
             while (slab != nullptr) {
               for (auto &i : slab->data) {
                 auto *v = &i;
-                if (v->used == foptim::utils::SlotState::Used &&
+                if (v->is_used() &&
                     v->data.is_global() && v->data.as_global() == g) {
 #ifdef SLOT_CHECK_GENERATION
-                  auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
+                  auto r = utils::SRef<fir::ConstantValue>{v, v->generation()};
 #else
                   auto r = utils::SRef<fir::ConstantValue>{v, 0};
 #endif
@@ -144,10 +144,10 @@ public:
         while (slab != nullptr) {
           for (auto &i : slab->data) {
             auto *v = &i;
-            if (v->used == foptim::utils::SlotState::Used &&
+            if (v->is_used() &&
                 v->data.is_func() && v->data.as_func().func == f) {
 #ifdef SLOT_CHECK_GENERATION
-              auto r = utils::SRef<fir::ConstantValue>{v, v->generation};
+              auto r = utils::SRef<fir::ConstantValue>{v, v->generation()};
 #else
               auto r = utils::SRef<fir::ConstantValue>{v, 0};
 #endif

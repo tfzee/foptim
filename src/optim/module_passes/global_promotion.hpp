@@ -25,7 +25,7 @@ public:
       while (slab != nullptr) {
         for (auto &i : slab->data) {
           const auto *v = &i;
-          if (v->used.load() == foptim::utils::SlotState::Used) {
+          if (v->is_used()) {
             for (auto info : v->data->reloc_info) {
               if (info.ref->is_global()) {
                 global_global_reffed.insert(info.ref->as_global());
@@ -42,12 +42,12 @@ public:
       while (slab != nullptr) {
         for (auto &i : slab->data) {
           const auto *v = &i;
-          if (v->used.load() == foptim::utils::SlotState::Used) {
+          if (v->is_used()) {
             //! CANCER!
 #ifdef SLOT_CHECK_GENERATION
             auto sref = utils::SRef<std::unique_ptr<fir::GlobalData>>{
                 const_cast<utils::Slot<std::unique_ptr<fir::GlobalData>> *>(v),
-                v->generation};
+                v->generation()};
 #else
             auto sref = utils::SRef<std::unique_ptr<fir::GlobalData>>{
                 const_cast<utils::Slot<std::unique_ptr<fir::GlobalData>> *>(v),

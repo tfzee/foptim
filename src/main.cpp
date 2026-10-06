@@ -131,7 +131,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     while (slab != nullptr) {
       for (auto &i : slab->data) {
         const auto *v = &i;
-        if (v->used == foptim::utils::SlotState::Used) {
+        if (v->is_used()) {
           auto size = v->data->n_bytes;
           foptim::fmir::Global glob = {.name = v->data->name.c_str(),
                                        .data = {},

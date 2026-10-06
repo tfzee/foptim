@@ -79,7 +79,7 @@ bool ContextData::has_global(IRString name) const {
   while (slot != nullptr) {
     for (auto &i : slot->data) {
       const auto *v = &i;
-      if (v->used == foptim::utils::SlotState::Used) {
+      if (v->is_used()) {
         if (v->data->name == name) {
           return true;
         }
@@ -95,10 +95,10 @@ Global ContextData::get_global(IRString name) {
   while (slot != nullptr) {
     for (auto &i : slot->data) {
       auto *v = &i;
-      if (v->used == foptim::utils::SlotState::Used) {
+      if (v->is_used()) {
         if (v->data->name == name) {
 #ifdef SLOT_CHECK_GENERATION
-          return fir::Global{utils::SRef{v, v->generation}};
+          return fir::Global{utils::SRef{v, v->generation()}};
 #else
           return fir::Global{utils::SRef{v, 0}};
 #endif
@@ -278,13 +278,12 @@ ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
   while (slot != nullptr) {
     for (auto &i : slot->data) {
       auto *constant = &i;
-      if (constant->used.load(std::memory_order::acquire) ==
-          utils::SlotState::Used) {
+      if (constant->is_used()) {
         if (constant->data.ty == val.ty &&
             constant->data.get_type() == val.get_type() &&
             constant->data.eql(val)) {
 #ifdef SLOT_CHECK_GENERATION
-          return ConstantValueR{utils::SRef{constant, constant->generation}};
+          return ConstantValueR{utils::SRef{constant, constant->generation()}};
 #else
           return ConstantValueR{utils::SRef{constant, 0}};
 #endif
@@ -301,11 +300,10 @@ TypeR ContextData::try_reuse_type(const AnyType &val) {
   while (slot != nullptr) {
     for (auto &i : slot->data) {
       auto *typee = &i;
-      if (typee->used.load(std::memory_order::acquire) ==
-          utils::SlotState::Used) {
+      if (typee->is_used()) {
         if (typee->data.eql(val)) {
 #ifdef SLOT_CHECK_GENERATION
-          return TypeR{utils::SRef{typee, typee->generation}};
+          return TypeR{utils::SRef{typee, typee->generation()}};
 #else
           return TypeR{utils::SRef{typee, 0}};
 #endif
@@ -520,7 +518,7 @@ fmt::appender fmt::formatter<foptim::fir::Context>::format(
   while (slot != nullptr) {
     for (auto &i : slot->data) {
       const auto *glob = &i;
-      if (glob->used == foptim::utils::SlotState::Used) {
+      if (glob->is_used()) {
         if (color) {
           app = fmt::format_to(app, "{:cd}\n", *glob->data);
         } else {

@@ -45,11 +45,7 @@ struct SlabIter {
 
   constexpr SRef<T> operator*() {
     auto *res_ptr = &slab->data[offset];
-#ifdef SLOT_CHECK_GENERATION
-    return SRef{res_ptr, res_ptr->generation};
-#else
-    return SRef{res_ptr, 0};
-#endif
+    return SRef{res_ptr, res_ptr->generation()};
   }
 
   constexpr T *operator->() { return &slab->data[offset].data; }
@@ -59,7 +55,7 @@ struct SlabIter {
       slab = slab->next;
       offset = 0;
     }
-    while (slab != nullptr && slab->data[offset].used != SlotState::Used) {
+    while (slab != nullptr && !slab->data[offset].is_used()) {
       offset++;
       if (offset >= slot_slab_len) {
         slab = slab->next;
@@ -87,7 +83,7 @@ class StableVec {
   SlabIter<T, slot_slab_len> begin() {
     auto r = SlabIter<T, slot_slab_len>{_slot_start, 0};
     Slab *n = _slot_start;
-    if (n != nullptr && n->data[0].used != SlotState::Used) {
+    if (n != nullptr && !n->data[0].is_used()) {
       ++r;
     }
     return r;
@@ -146,14 +142,13 @@ class StableVec {
   constexpr void remove(SRef<T> s) {
     {
 #ifdef SLOT_CHECK_GENERATION
-      s.data_ref->generation = 0;
       curr_gen++;
       if (curr_gen == 0) {
         curr_gen++;
       }
 #endif
       s.data_ref->data.~T();
-      s.data_ref->used = SlotState::FreeList;
+      s.data_ref->mark_free_list();
       auto free_list = _free_list.scoped_lock();
       free_list->emplace_back(s.data_ref, 1);
     }
@@ -173,17 +168,8 @@ class StableVec {
       Slab *slot_slab_start = _slot_start.load();
       while (slot_slab_start) {
         for (u32 i = 0; i < slot_slab_len; i++) {
-          if (slot_slab_start->data[i].used.load(std::memory_order_relaxed) !=
-              SlotState::Free) {
-            continue;
-          }
-          auto exp = SlotState::Free;
-          if (std::atomic_compare_exchange_strong(
-                  &slot_slab_start->data[i].used, &exp, SlotState::FreeList)) {
+          if (slot_slab_start->data[i].try_collect()) {
             temp_info.emplace_back(&slot_slab_start->data[i], 1);
-#ifdef SLOT_CHECK_GENERATION
-            slot_slab_start->data[i].generation.store(0);
-#endif
           }
         }
         slot_slab_start = slot_slab_start->next;
@@ -250,15 +236,12 @@ class StableVec {
         free_list->push_back(target);
       }
 #ifdef SLOT_CHECK_GENERATION
-      res_ptr->generation = curr_gen.load(std::memory_order::acquire);
-#endif
-      res_ptr->used.store(SlotState::Used, std::memory_order::release);
-    }
-#ifdef SLOT_CHECK_GENERATION
-    return SRef{res_ptr, res_ptr->generation};
+      res_ptr->publish(curr_gen.load(std::memory_order::acquire));
 #else
-    return SRef{res_ptr, 0};
+      res_ptr->publish(0);
 #endif
+    }
+    return SRef{res_ptr, res_ptr->generation()};
   }
 
   void clear() { TODO("not implemented clear yet"); }

@@ -6,14 +6,6 @@
 #include "types.hpp"
 #include "utils/todo.hpp"
 
-#ifndef SLOT_CHECK_LEVEL
-#ifdef SLOT_CHECK_GENERATION
-#define SLOT_CHECK_LEVEL 2
-#else
-#define SLOT_CHECK_LEVEL 1
-#endif
-#endif
-
 namespace foptim::utils {
 
 template <class T> class SRef {
@@ -45,44 +37,26 @@ public:
     ASSERT(data_ref != nullptr);
 #ifdef SLOT_CHECK_GENERATION
     ASSERT(generation != 0);
-    ASSERT(data_ref->generation == generation);
+    ASSERT(data_ref->generation() == generation);
 #endif
-    data_ref->used = SlotState::Free;
+    data_ref->mark_free();
   }
 
+  // slot is live and (if tracked) still the one this ref was created for
   [[nodiscard]] constexpr bool is_valid() const {
     if (nullptr == data_ref) [[unlikely]] {
       return false;
     }
-#ifdef SLOT_CHECK_GENERATION
-    if (0 == generation) [[unlikely]] {
-      return false;
-    }
-    if (data_ref->generation != generation) [[unlikely]] {
-      return false;
-    }
-#endif
-    if (data_ref->used != SlotState::Used) [[unlikely]] {
-      return false;
-    }
-    return true;
+    return slot_matches();
   }
 
   // Checks done on every deref, selected at compile time by SLOT_CHECK_LEVEL
   // (0: none, 1: non null + slot in use, 2: additionally the generation)
   constexpr void verify_validness() const {
 #if SLOT_CHECK_LEVEL >= 1
-    // relaxed: slots are only freed/reused by the job owning them, the checks
-    // just need to see the value, and atomics with seq_cst block merging loads
-    const bool ok =
-        data_ref != nullptr &&
-        data_ref->used.load(std::memory_order_relaxed) == SlotState::Used
-#if SLOT_CHECK_LEVEL >= 2
-        && generation != 0 &&
-        data_ref->generation.load(std::memory_order_relaxed) == generation
-#endif
-        ;
-    if (!ok) [[unlikely]] {
+    // a single relaxed load of the slot word covers state and generation
+    if (data_ref == nullptr || !slot_matches(std::memory_order_relaxed))
+        [[unlikely]] {
       verify_failed();
     }
 #endif
@@ -91,16 +65,29 @@ public:
 #if SLOT_CHECK_LEVEL >= 1
   [[noreturn]] [[gnu::cold]] [[gnu::noinline]] void verify_failed() const {
     ASSERT(data_ref != nullptr);
-    ASSERT(data_ref->used == SlotState::Used);
+    ASSERT(data_ref->is_used());
 #if SLOT_CHECK_LEVEL >= 2
     ASSERT(generation != 0);
     fmt::println("slot generation {} != ref generation {}",
-                 data_ref->generation.load(), generation);
+                 data_ref->generation(), generation);
 #endif
     TODO("invalid SRef");
   }
 #endif
 
+private:
+  [[nodiscard]] constexpr bool slot_matches(
+      std::memory_order order = std::memory_order_acquire) const {
+    // a live slot never has generation 0, so a ref with 0 never matches
+    return data_ref->word.load(order) ==
+#ifdef SLOT_CHECK_GENERATION
+           slot_word(generation, SlotState::Used);
+#else
+           slot_word(0, SlotState::Used);
+#endif
+  }
+
+public:
   constexpr const T *get_raw_ptr() const {
     verify_validness();
     return &data_ref->data;
