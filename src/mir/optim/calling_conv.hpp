@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <optional>
 
 #include "../func.hpp"
@@ -45,6 +46,19 @@ struct CallingConvDefinition {
   // caller saved *must* contain all arguments and return regs aswell
   FVec<fmir::CReg> caller_saved;
   FVec<fmir::CReg> callee_saved;
+
+  // Per register save class, the single source of truth for the register
+  // allocator's cost model (callee saved push/pop, caller saved around calls).
+  [[nodiscard]] std::array<u8, numRegs> save_classes() const {
+    std::array<u8, numRegs> t{};
+    for (auto r : caller_saved) {
+      t[static_cast<u8>(r)] = SaveClass::CallerSaved;
+    }
+    for (auto r : callee_saved) {
+      t[static_cast<u8>(r)] = SaveClass::CalleeSaved;
+    }
+    return t;
+  }
 
   Req full_pro_epilogue = Req::Supported;
   // bool requires_red_zone;

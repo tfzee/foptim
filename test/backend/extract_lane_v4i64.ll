@@ -7,25 +7,21 @@
 define i64 @pick(i32 %i) noinline {
 ; CHECK: func pick ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 8: i64
-; CHECK-NEXT:    push($rbx: i64, )
 ; CHECK-NEXT:    $ymm1: i64x4 = [g]: i64x4
-; CHECK-NEXT:    $rdx: i64 = $xmm1: i64x2
-; CHECK-NEXT:    vpextr($rbx: i64, $xmm1: i64x2, 1: i8, )
+; CHECK-NEXT:    $rdi: i64 = $xmm1: i64x2
+; CHECK-NEXT:    vpextr($rcx: i64, $xmm1: i64x2, 1: i8, )
 ; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm1: i64x4, 1: i8, )
-; CHECK-NEXT:    $rcx: i64 = $xmm0: i64x2
+; CHECK-NEXT:    $rsi: i64 = $xmm0: i64x2
 ; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm1: i64x4, 1: i8, )
 ; CHECK-NEXT:    vpextr($rax: i64, $xmm0: i64x2, 1: i8, )
-; CHECK-NEXT:    $rbx: i64 += $rbx: i64
-; CHECK-NEXT:    lea($rbx: i64, [$rbx + $rbx *4]: i64, )
-; CHECK-NEXT:    $rcx: i64 *= 1000: i64
+; CHECK-NEXT:    $rcx: i64 += $rcx: i64
+; CHECK-NEXT:    lea($rdx: i64, [$rcx + $rcx *4]: i64, )
+; CHECK-NEXT:    $rsi: i64 *= 1000: i64
 ; CHECK-NEXT:    $rax: i64 *= 100000: i64
-; CHECK-NEXT:    $rdx: i64 += $rbx: i64
-; CHECK-NEXT:    $rbx: i64 = $rcx: i64
-; CHECK-NEXT:    $rbx: i64 += $rax: i64
-; CHECK-NEXT:    $rax: i64 = $rdx: i64
-; CHECK-NEXT:    $rax: i64 += $rbx: i64
-; CHECK-NEXT:    pop($rbx: i64, )
+; CHECK-NEXT:    $rdi: i64 += $rdx: i64
+; CHECK-NEXT:    $rsi: i64 += $rax: i64
+; CHECK-NEXT:    $rdi: i64 += $rsi: i64
+; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %v = load <4 x i64>, ptr @g
   %a = extractelement <4 x i64> %v, i32 0

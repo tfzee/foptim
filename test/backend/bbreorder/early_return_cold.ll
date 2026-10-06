@@ -8,21 +8,17 @@ declare void @fail(i32) noreturn
 define i32 @checked(i32 %a, i32 %b) {
 ; CHECK: func checked ($2: i32, $3: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 8: i64
-; CHECK-NEXT:    push($rbx: i64, )
 ; CHECK-NEXT:    cjmp_int_eq($esi: i32, 0: i32, ) -> 2
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
 ; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $esi: i32, )
-; CHECK-NEXT:    $ebx: i32 = $eax: i32
+; CHECK-NEXT:    $ecx: i32 = $eax: i32
 ; CHECK-NEXT:    $eax: i32 = 100: i32
-; CHECK-NEXT:    cmov_sgt($eax: i32, $ebx: i32, $eax: i32, $ebx: i32, )
-; CHECK-NEXT:    pop($rbx: i64, )
+; CHECK-NEXT:    cmov_sgt($eax: i32, $ecx: i32, $eax: i32, $ecx: i32, )
 ; CHECK-NEXT:    ret($eax: i32, )
 ; CHECK-NEXT:  2:
 ; CHECK-NEXT:    call(fail, )
-; CHECK-NEXT:    pop($rbx: i64, )
 ; CHECK-NEXT:    unreach()
 entry:
   %z = icmp eq i32 %b, 0

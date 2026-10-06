@@ -4,6 +4,7 @@
 #include "test_general.hpp"
 #include "test_int128.hpp"
 #include "test_ir_liveness.hpp"
+#include "test_reg_alloc_solver.hpp"
 #include "test_stable_vec.hpp"
 
 int main(int argc, char **argv) {

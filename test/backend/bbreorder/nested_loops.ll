@@ -6,43 +6,38 @@
 define i32 @nested(i32 %n, i32 %m) {
 ; CHECK: func nested ($2: i32, $3: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 8: i64
-; CHECK-NEXT:    push($rbx: i64, )
 ; CHECK-NEXT:    $r8d: i32 = $esi: i32
+; CHECK-NEXT:    $r9d: i32 = $edi: i32
 ; CHECK-NEXT:    clear $ecx: i32
-; CHECK-NEXT:    clear $eax: i32
-; CHECK-NEXT:    cjmp_int_sgt($edi: i32, 0: i32, ) -> 3
+; CHECK-NEXT:    clear $esi: i32
+; CHECK-NEXT:    cjmp_int_sgt($r9d: i32, 0: i32, ) -> 3
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
 ; CHECK-NEXT:    clear $eax: i32
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    pop($rbx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    $edx: i32 = $ecx: i32
-; CHECK-NEXT:    clear $ebx: i32
+; CHECK-NEXT:    $edi: i32 = $ecx: i32
+; CHECK-NEXT:    clear $edx: i32
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
+; CHECK-NEXT:    $eax: i32 = $edi: i32
+; CHECK-NEXT:    $eax: i32 *= $edx: i32
+; CHECK-NEXT:    $eax: i32 += $esi: i32
 ; CHECK-NEXT:    $ecx: i32 = $edx: i32
-; CHECK-NEXT:    $ecx: i32 *= $ebx: i32
-; CHECK-NEXT:    $esi: i32 = $ecx: i32
-; CHECK-NEXT:    $esi: i32 += $eax: i32
-; CHECK-NEXT:    $ecx: i32 = $ebx: i32
 ; CHECK-NEXT:    $ecx: i32 += 1: i32
-; CHECK-NEXT:    $ebx: i32 += 1: i32
-; CHECK-NEXT:    $eax: i32 = $esi: i32
+; CHECK-NEXT:    $edx: i32 += 1: i32
+; CHECK-NEXT:    $esi: i32 = $eax: i32
 ; CHECK-NEXT:    cjmp_int_slt($ecx: i32, $r8d: i32, ) -> 4
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $ebx: i32 = $edx: i32
-; CHECK-NEXT:    $ebx: i32 += 1: i32
-; CHECK-NEXT:    $ecx: i32 = $ebx: i32
-; CHECK-NEXT:    $eax: i32 = $esi: i32
-; CHECK-NEXT:    cjmp_int_slt($ebx: i32, $edi: i32, ) -> 3
+; CHECK-NEXT:    $edi: i32 += 1: i32
+; CHECK-NEXT:    $ecx: i32 = $edi: i32
+; CHECK-NEXT:    $esi: i32 = $eax: i32
+; CHECK-NEXT:    cjmp_int_slt($edi: i32, $r9d: i32, ) -> 3
 ; CHECK-NEXT:    jmp() -> 6
 ; CHECK-NEXT:  6:
-; CHECK-NEXT:    $eax: i32 = $esi: i32
 ; CHECK-NEXT:    jmp() -> 2
 entry:
   br label %outer

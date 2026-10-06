@@ -330,6 +330,12 @@ enum class CReg : u8 {
   N_REGS = 33,
 };
 
+constexpr size_t numRegs = static_cast<u64>(CReg::N_REGS);
+
+// Who preserves a register across a call, generated via da calling convention
+// CallingConvDefinition::save_classes
+enum SaveClass : u8 { NotSaved = 0, CallerSaved = 1, CalleeSaved = 2 };
+
 class VReg {
 public:
   // TODO: we can replace regtype with creg since creg can already tell us if

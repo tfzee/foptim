@@ -1088,7 +1088,9 @@ TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func) {
   return ranges;
 }
 
-TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
+TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func,
+                                  const TVec<f32> *block_weights,
+                                  TMap<size_t, f32> *call_crossings) {
   ZoneScopedN("regColl");
   TSet<VReg> all_used_regs;
   CFG cfg{func};
@@ -1173,6 +1175,17 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func) {
           instr.is(GJumpSubtype::cjmp_flt_une) ||
           instr.is(GJumpSubtype::cjmp) || instr.is(GJumpSubtype::jmp)) {
         curr_live.add(aliveOut);
+      }
+      if (call_crossings != nullptr &&
+          (instr.is(GBaseSubtype::call) || instr.is(GBaseSubtype::invoke))) {
+        // everything alive after the call that is not defined by it lives
+        // across it
+        const f32 weight = block_weights != nullptr ? (*block_weights)[bb_id] : 1.F;
+        for (auto r : curr_live) {
+          if (!uid_to_reg(r).is_concrete()) {
+            (*call_crossings)[r] += weight;
+          }
+        }
       }
       helper.clear();
       written_args(instr, helper);

@@ -302,20 +302,271 @@ utils::BitSet<> calculate_used_regs(const MFunc &f,
   return res;
 }
 
+// Shrink wrapping: instead of saving the callee saved registers in the entry
+// block they can be saved in a later block S as long as da S dominates every
+// use of them, is not part of a loop (so it runs at most once) and every block
+// reachable from S can only be entered through S (so the restore in the
+// exits below S always matches the save). Exits that are not below S then
+// skip the push/pop. Returns 0 (entry) if nothing better exists.
+//
+// Parameters that live across calls are copied into da callee saved register at
+// the start of the entry block (`mov rbx, rsi`), these copies are sunk into S
+// if the argument register is still intact when entering S.
+struct SaveBlock {
+  size_t bb = 0;
+  TVec<size_t> sunk;
+};
+
+SaveBlock find_save_block(const MFunc &func, const CFG &cfg,
+                          const utils::BitSet<> &saved) {
+  const size_t n = func.bbs.size();
+  if (n < 2 || func.variadic || func.needs_register_save_area) {
+    return {};
+  }
+  const auto is_saved = [&saved](const VReg &r) {
+    return r.is_concrete() && saved[static_cast<u8>(r.c_reg()) - 1];
+  };
+  const auto mentions_saved = [&is_saved](const MInstr &instr) {
+    for (u32 i = 0; i < instr.n_args; i++) {
+      const auto &arg = instr.args[i];
+      if (((arg.isReg() || arg.isMem()) && is_saved(arg.reg)) ||
+          (arg.isMem() && is_saved(arg.indx))) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  SaveBlock res;
+  TVec<u8> mention(n, 0);
+  {
+    // entry block: only copies from an intact argument register or an
+    // immediate may touch the saved registers
+    const auto &instrs = func.bbs[0].instrs;
+    for (size_t i = 0; i < instrs.size(); i++) {
+      const auto &instr = instrs[i];
+      if (instr.is(GBaseSubtype::stack_arg_load)) {
+        return {};
+      }
+      if (!mentions_saved(instr)) {
+        continue;
+      }
+      const bool copy =
+          instr.is(GBaseSubtype::mov) && instr.n_args == 2 &&
+          instr.args[0].isReg() && is_saved(instr.args[0].reg) &&
+          ((instr.args[1].isReg() && instr.args[1].reg.is_concrete() &&
+            !is_saved(instr.args[1].reg)) ||
+           instr.args[1].isImm());
+      if (!copy) {
+        return {};
+      }
+      for (size_t j = i + 1; j < instrs.size(); j++) {
+        if (instrs[j].is(GBaseSubtype::call) ||
+            instrs[j].is(GBaseSubtype::invoke)) {
+          return {};
+        }
+        if (instr.args[1].isReg()) {
+          TVec<ArgData> written;
+          written_args(instrs[j], written);
+          for (auto &w : written) {
+            if (w.arg.isReg() && w.arg.uses_same_vreg(instr.args[1].reg)) {
+              return {};
+            }
+          }
+        }
+      }
+      res.sunk.push_back(i);
+    }
+  }
+  for (size_t b = 1; b < n; b++) {
+    for (const auto &instr : func.bbs[b].instrs) {
+      // the offsets of the incoming stack arguments assume the pushes happen
+      // before them
+      if (instr.is(GBaseSubtype::stack_arg_load)) {
+        return {};
+      }
+      if (mentions_saved(instr)) {
+        mention[b] = 1;
+      }
+    }
+  }
+
+  // dominators on the blocks reachable from the entry
+  TVec<u32> rpo;
+  TVec<u32> rpo_num(n, UINT32_MAX);
+  {
+    TVec<u8> seen(n, 0);
+    TVec<std::pair<u32, u32>> stack;
+    stack.emplace_back(0, 0);
+    seen[0] = 1;
+    while (!stack.empty()) {
+      auto &[bb, next] = stack.back();
+      if (next < cfg.bbrs[bb].succ.size()) {
+        const u32 s = cfg.bbrs[bb].succ[next++];
+        if (!seen[s]) {
+          seen[s] = 1;
+          stack.emplace_back(s, 0);
+        }
+      } else {
+        rpo.push_back(bb);
+        stack.pop_back();
+      }
+    }
+    std::reverse(rpo.begin(), rpo.end());
+    for (u32 i = 0; i < rpo.size(); i++) {
+      rpo_num[rpo[i]] = i;
+    }
+  }
+  TVec<u32> idom(n, UINT32_MAX);
+  idom[0] = 0;
+  const auto intersect = [&](u32 a, u32 b) {
+    while (a != b) {
+      while (rpo_num[a] > rpo_num[b]) {
+        a = idom[a];
+      }
+      while (rpo_num[b] > rpo_num[a]) {
+        b = idom[b];
+      }
+    }
+    return a;
+  };
+  for (bool changed = true; changed;) {
+    changed = false;
+    for (u32 b : rpo) {
+      if (b == 0) {
+        continue;
+      }
+      u32 new_idom = UINT32_MAX;
+      for (u32 p : cfg.bbrs[b].pred) {
+        if (idom[p] == UINT32_MAX) {
+          continue;
+        }
+        new_idom = new_idom == UINT32_MAX ? p : intersect(p, new_idom);
+      }
+      if (new_idom != idom[b]) {
+        idom[b] = new_idom;
+        changed = true;
+      }
+    }
+  }
+
+  // nearest common dominator of all uses (the ones in unreachable blocks never
+  // run)
+  u32 common = UINT32_MAX;
+  for (size_t b = 0; b < n; b++) {
+    if (mention[b] && idom[b] != UINT32_MAX) {
+      common = common == UINT32_MAX ? static_cast<u32>(b)
+                                    : intersect(common, static_cast<u32>(b));
+    }
+  }
+  if (common == UINT32_MAX) {
+    return {};
+  }
+
+  TVec<u8> in_region(n);
+  TVec<u32> work;
+  u32 cand = common;
+  // only look a few dominators up, the first valid one is the smallest region
+  for (size_t tries = 0; tries < 8 && cand != 0; tries++, cand = idom[cand]) {
+    std::fill(in_region.begin(), in_region.end(), 0);
+    work.assign(1, cand);
+    in_region[cand] = 1;
+    while (!work.empty()) {
+      const u32 b = work.back();
+      work.pop_back();
+      for (u32 s : cfg.bbrs[b].succ) {
+        if (!in_region[s]) {
+          in_region[s] = 1;
+          work.push_back(s);
+        }
+      }
+    }
+    bool valid = true;
+    // not in a loop
+    for (u32 p : cfg.bbrs[cand].pred) {
+      valid &= !in_region[p] || idom[p] == UINT32_MAX;
+    }
+    // only entered through cand
+    for (u32 b = 0; valid && b < n; b++) {
+      if (!in_region[b] || b == cand) {
+        continue;
+      }
+      for (u32 p : cfg.bbrs[b].pred) {
+        valid &= in_region[p] || idom[p] == UINT32_MAX;
+      }
+    }
+    // sunk copies are only correct if the entry block jumps straight to cand
+    if (valid && !res.sunk.empty()) {
+      for (u32 p : cfg.bbrs[cand].pred) {
+        valid &= in_region[p] || p == 0;
+      }
+    }
+    if (!valid) {
+      continue;
+    }
+    // only worth it if some exit does not have to save anything
+    for (u32 b = 0; b < n; b++) {
+      if (!in_region[b] && idom[b] != UINT32_MAX && cfg.bbrs[b].succ.empty()) {
+        res.bb = cand;
+        return res;
+      }
+    }
+    return {};
+  }
+  return {};
+}
+
 void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
   auto &first_bb = func.bbs[0];
 
   auto used_regs = calculate_used_regs(func, cc);
-  // store all the regs in the initial bb
+  utils::BitSet<> saved_regs{static_cast<u8>(CReg::N_REGS), false};
+  for (auto reg_ty : cc.callee_saved) {
+    if (used_regs[static_cast<u8>(reg_ty) - 1] && reg_ty != CReg::SP &&
+        reg_ty != CReg::BP) {
+      saved_regs[static_cast<u8>(reg_ty) - 1].set(true);
+    }
+  }
+  // store all the regs in the initial bb (or the block found by shrink
+  // wrapping)
+  const auto save_block = find_save_block(func, cfg, saved_regs);
+  const size_t save_bb_id = save_block.bb;
+  auto &save_bb = func.bbs[save_bb_id];
+  if (save_bb_id != 0) {
+    // move the copies of the arguments in front of the pushes
+    TVec<MInstr> sunk;
+    for (size_t idx : save_block.sunk) {
+      sunk.push_back(first_bb.instrs[idx]);
+    }
+    for (size_t idx : save_block.sunk | std::views::reverse) {
+      first_bb.instrs.erase(first_bb.instrs.begin() + static_cast<i64>(idx));
+    }
+    save_bb.instrs.insert(save_bb.instrs.begin(), sunk.begin(), sunk.end());
+  }
+  TVec<u8> in_save_region(func.bbs.size(), 1);
+  if (save_bb_id != 0) {
+    std::fill(in_save_region.begin(), in_save_region.end(), 0);
+    TVec<u32> work{static_cast<u32>(save_bb_id)};
+    in_save_region[save_bb_id] = 1;
+    while (!work.empty()) {
+      const u32 b = work.back();
+      work.pop_back();
+      for (u32 s : cfg.bbrs[b].succ) {
+        if (!in_save_region[s]) {
+          in_save_region[s] = 1;
+          work.push_back(s);
+        }
+      }
+    }
+  }
   size_t n_regs_saved = 0;
   for (auto reg_ty : cc.callee_saved) {
-    if (!used_regs[static_cast<u8>(reg_ty) - 1] || reg_ty == CReg::SP ||
-        reg_ty == CReg::BP) {
+    if (!saved_regs[static_cast<u8>(reg_ty) - 1]) {
       continue;
     }
     auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
-    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                           MInstr{GBaseSubtype::push, arg});
+    save_bb.instrs.insert(save_bb.instrs.begin() + 0,
+                          MInstr{GBaseSubtype::push, arg});
     n_regs_saved++;
   }
 
@@ -324,10 +575,10 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
   if (cc.align.alignment >= CallingConvDefinition::Req::Supported) {
     auto additional_align_off = (n_regs_saved * 8) % cc.align.alignment_value;
     if (additional_align_off != 0) {
-      first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                             MInstr{GArithSubtype::sub2,
-                                    MArgument{VReg::RSP(), Type::Int64},
-                                    MArgument{additional_align_off}});
+      save_bb.instrs.insert(save_bb.instrs.begin() + 0,
+                            MInstr{GArithSubtype::sub2,
+                                   MArgument{VReg::RSP(), Type::Int64},
+                                   MArgument{additional_align_off}});
     }
   }
 
@@ -422,17 +673,14 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
                                   MArgument{VReg::RSP(), Type::Int64},
                                   MArgument{size_register_save_area}});
   }
-  // after we push poped stuff to save em we then need to updated our stack
-  // arguments so we actually use the right offsets.
-  u32 additional_offset =
-      (8 * (2 + n_regs_saved)) + additional_align_off +
-      (func.needs_register_save_area ? size_register_save_area : 0);
-  // NOTE: Assuming we got a full pro/epilogue because we reference SP
-
+  // incoming stack arguments live above the saved rbp and the return address,
+  // address them relative to rbp so pushes, alignment and stack slots below it
+  // do not matter. Referencing rbp makes the function get a full pro/epilogue.
   for (auto &instr : first_bb.instrs) {
     if (instr.is(GBaseSubtype::stack_arg_load)) {
       instr.sop = static_cast<u32>(GBaseSubtype::mov);
-      instr.args[1].imm += additional_offset;
+      instr.args[1].reg = VReg::RBP();
+      instr.args[1].imm += 16;
     }
   }
 
@@ -440,14 +688,13 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
   // should be all cfg blocks without any successors??
 
   for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
-    if (cfg.bbrs[bb_id].succ.size() != 0) {
+    if (cfg.bbrs[bb_id].succ.size() != 0 || !in_save_region[bb_id]) {
       continue;
     }
 
     size_t n_regs_restored = 0;
     for (auto reg_ty : cc.callee_saved) {
-      if (!used_regs[static_cast<u8>(reg_ty) - 1] || reg_ty == CReg::SP ||
-          reg_ty == CReg::BP) {
+      if (!saved_regs[static_cast<u8>(reg_ty) - 1]) {
         continue;
       }
       auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
@@ -755,10 +1002,16 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
                           const TVec<ArgPosition> &arg_pos, CallInfo &cinfo) {
   TVec<MInstr> output_vec;
   TVec<u32> worklist;
+  // the first stack argument has to end up at the lowest address so the
+  // stack arguments are pushed last to first
+  for (size_t arg_id = cinfo.args.size(); arg_id > 0; arg_id--) {
+    if (arg_pos[arg_id - 1].ty == ArgPosition::Type::Stack) {
+      generate_arg(output_vec, cinfo.args[arg_id - 1], cinfo.cc,
+                   arg_pos[arg_id - 1]);
+    }
+  }
   for (size_t arg_id = 0; arg_id < cinfo.args.size(); arg_id++) {
-    if (arg_pos[arg_id].ty == ArgPosition::Type::Stack) {
-      generate_arg(output_vec, cinfo.args[arg_id], cinfo.cc, arg_pos[arg_id]);
-    } else {
+    if (arg_pos[arg_id].ty != ArgPosition::Type::Stack) {
       worklist.push_back(arg_id);
     }
   }

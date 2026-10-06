@@ -173,6 +173,12 @@ struct LinearRangeSet {
 
 TMap<VReg, LinearRangeSet> linear_lifetime(const MFunc &func);
 
-TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func);
+// Collision sets of all registers (which registers are alive at the same time).
+// If `call_crossings` is given it receives for every virtual register (by uid)
+// the summed weight of the calls it is alive across, the weight of a call is
+// the weight of its block in `block_weights` (1 if that is null).
+TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func,
+                                  const TVec<f32> *block_weights = nullptr,
+                                  TMap<size_t, f32> *call_crossings = nullptr);
 
 } // namespace foptim::fmir

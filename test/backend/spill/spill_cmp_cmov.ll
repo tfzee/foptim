@@ -201,7 +201,11 @@ f:
   %e23 = select i1 %d23, i64 %v2, i64 %v4
   %h23 = add i64 %h22, %e23
   ret i64 %h23
-}; CHECK: cjmp_int_eq([$rbp + -32]: i64, 5: i64, ) -> 2
-; CHECK: cmov_ne($rax: i64, $rcx: i64, [$rbp + -56]: i64, $rbx: i64, )
-; CHECK: cmov_ne($rdx: i64, [$rbp + -128]: i64, $rcx: i64, $rbx: i64, )
-; CHECK: cmov_ne($rbx: i64, $rsi: i64, $rcx: i64, [$rbp + -32]: i64, )
+}
+; The spilled operand of a cmov (as the value or as one of the compared
+; operands) is folded into a memory operand instead of being reloaded.
+; Which values get spilled depends on the allocator's costs so the registers
+; are not checked.
+; CHECK: cmov_ne({{.*}}[$rbp + {{-?[0-9]+}}]: i64
+; CHECK: cmov_ne({{.*}}[$rbp + {{-?[0-9]+}}]: i64
+; CHECK: cmov_ne({{.*}}[$rbp + {{-?[0-9]+}}]: i64

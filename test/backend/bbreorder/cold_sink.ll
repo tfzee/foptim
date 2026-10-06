@@ -9,39 +9,33 @@ declare void @abort() noreturn
 define i32 @sum(ptr %p, i32 %n) {
 ; CHECK: func sum ($2: i64, $3: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rsp: i64 -= 8: i64
-; CHECK-NEXT:    push($rbx: i64, )
-; CHECK-NEXT:    $r8: i64 = $rdi: i64
-; CHECK-NEXT:    mov_sx($rdi: i64, $esi: i32, )
+; CHECK-NEXT:    $edx: i32 = $esi: i32
+; CHECK-NEXT:    mov_sx($rsi: i64, $edx: i32, )
 ; CHECK-NEXT:    clear $rcx: i64
-; CHECK-NEXT:    clear $ebx: i32
-; CHECK-NEXT:    cjmp_int_sgt($esi: i32, 0: i32, ) -> 3
+; CHECK-NEXT:    clear $eax: i32
+; CHECK-NEXT:    cjmp_int_sgt($edx: i32, 0: i32, ) -> 3
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
-; CHECK-NEXT:    clear $eax: i32
+; CHECK-NEXT:    clear $edx: i32
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
-; CHECK-NEXT:    pop($rbx: i64, )
+; CHECK-NEXT:    $eax: i32 = $edx: i32
 ; CHECK-NEXT:    ret($eax: i32, )
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    $eax: i32 = [$r8 + $rcx *4]: i32
+; CHECK-NEXT:    $edx: i32 = $eax: i32
+; CHECK-NEXT:    $eax: i32 = [$rdi + $rcx *4]: i32
 ; CHECK-NEXT:    cjmp_int_slt($eax: i32, 0: i32, ) -> 6
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
+; CHECK-NEXT:    $eax: i32 += $edx: i32
+; CHECK-NEXT:    $rcx: i64 += 1: i64
 ; CHECK-NEXT:    $edx: i32 = $eax: i32
-; CHECK-NEXT:    $edx: i32 += $ebx: i32
-; CHECK-NEXT:    $rbx: i64 = $rcx: i64
-; CHECK-NEXT:    $rbx: i64 += 1: i64
-; CHECK-NEXT:    $eax: i32 = $edx: i32
-; CHECK-NEXT:    cjmp_int_eq($rbx: i64, $rdi: i64, ) -> 2
+; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $rsi: i64, ) -> 2
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $rcx: i64 = $rbx: i64
-; CHECK-NEXT:    $ebx: i32 = $edx: i32
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    call(abort, )
-; CHECK-NEXT:    pop($rbx: i64, )
 ; CHECK-NEXT:    unreach()
 entry:
   %c = icmp sgt i32 %n, 0
