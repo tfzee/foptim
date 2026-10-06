@@ -21,8 +21,10 @@ define void @neg_call() {
 
 ; the self pointer is read back as an integer and returned
 define i64 @neg_int() {
-; CHECK: func neg_int ()
-; CHECK: [$rbx]: i64 = $rax
+; CHECK: $rsp: i64 -= 32: i64
+; CHECK: $rax: i64 = $rsp: i64
+; CHECK: $rax: i64 += 16: i64
+; CHECK: $rsp: i64 += 32: i8
 ; CHECK: ret($rax: i64, )
   %s = alloca %S, align 8
   %buf = getelementptr inbounds %S, ptr %s, i32 0, i32 2

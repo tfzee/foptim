@@ -233,11 +233,13 @@ function(add_my_lit_suite target_name test_dir dependency_target)
 endfunction()
 add_subdirectory(test)
 get_property(ALL_LIT_TESTS GLOBAL PROPERTY GLOBAL_LIT_TARGETS)
-if(ALL_LIT_TESTS)
-    add_custom_target(check-all
-        COMMENT "Running all registered lit test suites..."
-    )
-    add_dependencies(check-all ${ALL_LIT_TESTS})
-else()
-    message(STATUS "No lit test suites registered for check-all.")
-endif()
+add_custom_target(check-unit
+    COMMAND foptim_unit_test
+    DEPENDS foptim_unit_test
+    COMMENT "Running unit tests"
+    USES_TERMINAL
+)
+add_custom_target(check-all
+    COMMENT "Running all registered test suites..."
+)
+add_dependencies(check-all check-unit ${ALL_LIT_TESTS})
