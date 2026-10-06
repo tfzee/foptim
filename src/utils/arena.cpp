@@ -251,8 +251,16 @@ void arena_rewind(Arena *a, Arena_Mark m) {
   }
 
   m.region->count = m.count;
-  for (Region *r = m.region->next; r != NULL; r = r->next) {
-    r->count = 0;
+  // regions after a->end are already empty, only clear the ones that were
+  // used since the snapshot (walking the whole chain every time is slow when
+  // there are many regions)
+  if (m.region != a->end) {
+    for (Region *r = m.region->next; r != NULL; r = r->next) {
+      r->count = 0;
+      if (r == a->end) {
+        break;
+      }
+    }
   }
 
   a->end = m.region;
