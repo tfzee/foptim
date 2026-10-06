@@ -16,10 +16,7 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyRed");
   }
-  // detect reductions
-  //  and try to simplify it
-  //  for example merging constants on different leaves of the reduction if
-  //  possible and merging duplicate values in the reduction
+  // detect reductions and try to simplify it
   (void)man;
 
   auto instr_ty = instr->instr_type;
@@ -116,21 +113,27 @@ bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (red_args.size() <= 3 || n_const < 2) {
       return false;
     }
-    std::ranges::sort(red_args, [](const auto &a, const auto &b) {
-      if (a.is_constant()) {
-        if (b.is_constant()) {
-          return a.as_constant().get_raw_ptr() < b.as_constant().get_raw_ptr();
+    // put equal values next to each other, in order of first occurrence
+    // (sorting by the address of the values would make the output depend on
+    // where things happen to live in memory)
+    {
+      TVec<fir::ValueR> grouped;
+      grouped.reserve(red_args.size());
+      TVec<bool> taken(red_args.size(), false);
+      for (size_t i = 0; i < red_args.size(); i++) {
+        if (taken[i]) {
+          continue;
         }
-        return true;
+        grouped.push_back(red_args[i]);
+        for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
+          if (!taken[i2] && red_args[i] == red_args[i2]) {
+            taken[i2] = true;
+            grouped.push_back(red_args[i2]);
+          }
+        }
       }
-      if (a.is_instr() && b.is_instr()) {
-        return a.as_instr().get_raw_ptr() < b.as_instr().get_raw_ptr();
-      }
-      if (a.is_bb_arg() && b.is_bb_arg()) {
-        return a.as_bb_arg().get_raw_ptr() < b.as_bb_arg().get_raw_ptr();
-      }
-      return false;
-    });
+      red_args.assign(grouped.begin(), grouped.end());
+    }
     size_t max_group_size = 0;
     for (size_t i = 0; i < red_args.size(); i++) {
       size_t endgroup = i + 1;
