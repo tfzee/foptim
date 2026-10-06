@@ -237,8 +237,14 @@ Arena_Mark arena_snapshot(Arena *a) {
 }
 
 void arena_reset(Arena *a) {
+  // regions after a->end are already empty (end only moves forward when
+  // allocating and rewind/reset clear everything up to it), so don't touch the
+  // rest of the chain: every region header is a cache miss
   for (Region *r = a->begin; r != NULL; r = r->next) {
     r->count = 0;
+    if (r == a->end) {
+      break;
+    }
   }
 
   a->end = a->begin;
