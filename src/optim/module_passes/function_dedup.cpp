@@ -141,10 +141,12 @@ bool check_match(fir::Function *f1, fir::Function *f2,
     for (size_t instr_id = 0; instr_id < bb1->instructions.size(); instr_id++) {
       auto i1 = bb1->instructions[instr_id];
       auto i2 = bb2->instructions[instr_id];
-      // TODO: might need to check type here aswell
       if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
           i1->args.size() != i2->args.size() ||
           i1->bbs.size() != i2->bbs.size()) {
+        return false;
+      }
+      if (i1->has_result() && i1.get_type() != i2.get_type()) {
         return false;
       }
     }
