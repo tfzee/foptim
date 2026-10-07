@@ -630,14 +630,23 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   }
   if (conf.output.type == conf::Output::OutputType::PrintMIR) {
     fmt::println("++++++++++++++PRINT MIR+++++++++++++++++");
+    const bool color = conf.debug.print_color;
     for (const auto &func : funcs) {
-      fmt::println("{}", func);
+      if (color) {
+        fmt::println("{:c}", func);
+      } else {
+        fmt::println("{}", func);
+      }
     }
     for (const auto &decl : decls) {
       fmt::println("{}", decl);
     }
     for (const auto &global : globals) {
-      fmt::println("{}", global);
+      if (color) {
+        fmt::println("{:c}", global);
+      } else {
+        fmt::println("{}", global);
+      }
     }
     fmt::println("++++++++++++++END PRINT MIR+++++++++++++++++");
     return;

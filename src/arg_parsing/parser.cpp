@@ -31,6 +31,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .help(
           "print the FIR after the FIR pipeline instead of outputing an object")
       .flag();
+  program.add_argument("--color")
+      .help("colored output for --print-fir and --print-mir")
+      .flag();
   program.add_argument("--passes")
       .help("comma separated FIR pass list replacing the configured FIR "
             "pipeline; a leading '+' appends to it instead (e.g. '+PrintFunc')")
@@ -90,10 +93,11 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   if (program["--print-fir"] == true) {
     conf.output.type = foptim::conf::Output::OutputType::PrintIR;
     // stable output so it can be checked in tests
-    conf.debug.print_color = false;
+    conf.debug.print_color = program["--color"] == true;
     foptim::fir::PrintIds::deterministic_ids = true;
   }
   if (program["--print-mir"] == true) {
     conf.output.type = foptim::conf::Output::OutputType::PrintMIR;
+    conf.debug.print_color = program["--color"] == true;
   }
 }
