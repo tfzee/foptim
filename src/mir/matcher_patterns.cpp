@@ -930,7 +930,7 @@ void cjmp_patterns(IRVec<Pattern> &pats) {
         auto target_bb = branch_instr->bbs[0].bb;
         auto v1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto v2 = valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc,
-                                   cmp_instr->get_parent());
+                                   cmp_instr);
 
         ASSERT(bb_with_args.args.size() == target_bb->args.size());
         generate_bb_args(bb_with_args, res, data);
@@ -1575,7 +1575,7 @@ void vec_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
         auto arg = valueToArgPosMem(broad_instr->args[0], res.result,
-                                    data.alloc, broad_instr->get_parent());
+                                    data.alloc, broad_instr);
         res.result.emplace_back(X86Subtype::vbroadcast, res_reg, arg);
         return true;
       }});
@@ -1630,7 +1630,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         auto f_add_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_add_instr->args[0], res.result, data.alloc);
         auto a2 = valueToArgPosMem(f_add_instr->args[1], res.result, data.alloc,
-                                   f_add_instr->get_parent());
+                                   f_add_instr);
         auto res_reg =
             valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
 
@@ -1644,7 +1644,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         auto f_sub_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_sub_instr->args[0], res.result, data.alloc);
         auto a2 = valueToArgPosMem(f_sub_instr->args[1], res.result, data.alloc,
-                                   f_sub_instr->get_parent());
+                                   f_sub_instr);
         auto res_reg =
             valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
 
@@ -1658,7 +1658,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         auto f_mul_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
         auto a2 = valueToArgPosMem(f_mul_instr->args[1], res.result, data.alloc,
-                                   f_mul_instr->get_parent());
+                                   f_mul_instr);
         auto res_reg =
             valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
 
@@ -1672,7 +1672,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         auto f_div_instr = res.matched_instrs[0];
         auto a1 = valueToArg(f_div_instr->args[0], res.result, data.alloc);
         auto a2 = valueToArgPosMem(f_div_instr->args[1], res.result, data.alloc,
-                                   f_div_instr->get_parent());
+                                   f_div_instr);
         auto res_reg =
             valueToArg(fir::ValueR(f_div_instr), res.result, data.alloc);
 
@@ -1692,13 +1692,13 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
           // int vector add has different 3 oeprand operation
           auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
           auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                                     add_instr->get_parent());
+                                     add_instr);
           res.result.emplace_back(GVecSubtype::vadd, res_reg, a0, a1);
           return true;
         }
 
         auto a0 = valueToArgPosMem(add_instr->args[0], res.result, data.alloc,
-                                   add_instr->get_parent());
+                                   add_instr);
         if (res_reg.ty != a0.ty) {
           if (a0.isMem()) {
             a0.ty = res_reg.ty;
@@ -1712,7 +1712,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         }
 
         auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                                   add_instr->get_parent());
+                                   add_instr);
         if (a1.isImm()) {
           // then we gucci
         } else if (res_reg.ty != a1.ty) {
@@ -1740,13 +1740,13 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
           // int vector add has different 3 oeprand operation
           auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
           auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                                     add_instr->get_parent());
+                                     add_instr);
           res.result.emplace_back(GVecSubtype::vadd, res_reg, a0, a1);
           return true;
         }
 
         auto a0 = valueToArgPosMem(add_instr->args[0], res.result, data.alloc,
-                                   add_instr->get_parent());
+                                   add_instr);
         if (res_reg.ty != a0.ty) {
           if (a0.isMem()) {
             a0.ty = res_reg.ty;
@@ -1760,7 +1760,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         }
 
         auto a1 = valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                                   add_instr->get_parent());
+                                   add_instr);
         if (a1.isImm()) {
           // then we gucci
         } else if (res_reg.ty != a1.ty) {
@@ -1928,7 +1928,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
           res_reg16.ty = Type::Int16;
           res_reg16.reg.ty = Type::Int16;
           auto arg1 = valueToArgPosMem(add_instr->args[1], res.result,
-                                       data.alloc, add_instr->get_parent());
+                                       data.alloc, add_instr);
           if (arg1.isReg()) {
             arg1.ty = Type::Int16;
             arg1.reg.ty = Type::Int16;
@@ -1948,16 +1948,16 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
               GVecSubtype::vmul, res_reg,
               valueToArg(add_instr->args[0], res.result, data.alloc),
               valueToArgPosMem(add_instr->args[1], res.result, data.alloc,
-                               add_instr->get_parent()));
+                               add_instr));
         } else {
           res.result.emplace_back(GBaseSubtype::mov, res_reg,
                                   valueToArgPosMem(add_instr->args[0],
                                                    res.result, data.alloc,
-                                                   add_instr->get_parent()));
+                                                   add_instr));
           res.result.emplace_back(GArithSubtype::mul2, res_reg,
                                   valueToArgPosMem(add_instr->args[1],
                                                    res.result, data.alloc,
-                                                   add_instr->get_parent()));
+                                                   add_instr));
         }
         return true;
       }});
@@ -2767,7 +2767,7 @@ void base_patterns(IRVec<Pattern> &pats) {
 
         auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
         auto arg2 = valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc,
-                                     cmp_instr->get_parent());
+                                     cmp_instr);
         // auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
 
         GJumpSubtype op = GJumpSubtype::fcmp_oeq;
@@ -3647,7 +3647,7 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto instr = res.matched_instrs[0];
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArgPosMem(instr->args[0], res.result, data.alloc,
-                                    instr->get_parent());
+                                    instr);
         res.result.emplace_back(X86Subtype::popcnt, res_reg, arg);
         return true;
       }});

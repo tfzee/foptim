@@ -146,7 +146,7 @@ bool check_match(fir::Function *f1, fir::Function *f2,
           i1->bbs.size() != i2->bbs.size()) {
         return false;
       }
-      if (i1->has_result() && i1.get_type() != i2.get_type()) {
+      if (i1.get_type() != i2.get_type()) {
         return false;
       }
     }

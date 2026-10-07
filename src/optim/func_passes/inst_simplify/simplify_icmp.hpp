@@ -500,6 +500,26 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
         //  could get rid of one of the zext
         instr.replace_arg(0, a1i->args[0]);
         instr.replace_arg(1, a2i->args[0]);
+        if (a1i->instr_type == InstrType::ZExt) {
+          // zero extended values are never negative in the wide type but the
+          // narrow ones can be, so a signed compare has to become unsigned
+          switch (static_cast<ICmpInstrSubType>(instr->subtype)) {
+          case ICmpInstrSubType::SLT:
+            instr->subtype = static_cast<u32>(ICmpInstrSubType::ULT);
+            break;
+          case ICmpInstrSubType::SLE:
+            instr->subtype = static_cast<u32>(ICmpInstrSubType::ULE);
+            break;
+          case ICmpInstrSubType::SGT:
+            instr->subtype = static_cast<u32>(ICmpInstrSubType::UGT);
+            break;
+          case ICmpInstrSubType::SGE:
+            instr->subtype = static_cast<u32>(ICmpInstrSubType::UGE);
+            break;
+          default:
+            break;
+          }
+        }
         return true;
       }
     }

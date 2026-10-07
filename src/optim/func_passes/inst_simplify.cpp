@@ -40,7 +40,10 @@ namespace {
 bool load_into_conversion_simpl(fir::Instr instr, fir::Instr a0,
                                 WorkList &worklist) {
   if (a0->get_n_uses() == 1 || (!a0->Volatile && !a0->Atomic)) {
-    fir::Builder buh{instr};
+    // the new load replaces the old one, so it has to read the memory at the
+    // old loads position (a store to the address may sit between it and the
+    // conversion)
+    fir::Builder buh{a0};
     auto new_val = buh.build_load(instr->get_type(), a0->args[0], a0->Atomic,
                                   a0->Volatile);
     push_all_uses(worklist, instr);

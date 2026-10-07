@@ -89,8 +89,8 @@ MArgument get_or_insert_bbarg_mapping(fir::BBArgument arg, MatchResult &res,
 
 namespace {
 MArgument setup_callargPosMem(fir::ValueR arg, MatchResult &res,
-                              ExtraMatchData &data, fir::BasicBlock curr_bb) {
-  return valueToArgPosMem(arg, res.result, data.alloc, curr_bb);
+                              ExtraMatchData &data, fir::Instr user) {
+  return valueToArgPosMem(arg, res.result, data.alloc, user);
 }
 MArgument setup_callarg(fir::ValueR arg, MatchResult &res,
                         ExtraMatchData &data) {
@@ -104,7 +104,7 @@ void setup_callargs(fir::Instr &call_instr, MatchResult &res,
   TVec<MArgument> evaluated_args;
   for (size_t arg_id = 1; arg_id < call_instr->args.size(); arg_id++) {
     evaluated_args.push_back(setup_callargPosMem(
-        call_instr->args[arg_id], res, data, call_instr->get_parent()));
+        call_instr->args[arg_id], res, data, call_instr));
   }
   for (auto arg_value : evaluated_args) {
     res.result.emplace_back(GBaseSubtype::arg_setup, arg_value);
@@ -240,8 +240,23 @@ MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc) {
   return {alloc.get_register(val), type_id};
 }
 
+namespace {
+// the load is evaluated where its user is emitted, so nothing in between may
+// write memory
+bool no_memory_write_between(fir::Instr load, fir::Instr user) {
+  const auto &instrs = load->get_parent()->instructions;
+  auto it = std::ranges::find(instrs, load);
+  for (; it != instrs.end() && *it != user; ++it) {
+    if ((*it)->pot_modifies_mem()) {
+      return false;
+    }
+  }
+  return true;
+}
+} // namespace
+
 MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
-                           DumbRegAlloc &alloc, fir::BasicBlock curr_bb) {
+                           DumbRegAlloc &alloc, fir::Instr user) {
   if (val.is_constant()) {
     return valueToArgConst(val, res, alloc);
   }
@@ -250,7 +265,8 @@ MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
     // TODO: verify if this is ok for atomic/volatile
     if (load->is(fir::InstrType::LoadInstr) &&
         !load->args[0].get_type()->is_vec() && !load->Atomic) {
-      if (curr_bb == load->get_parent()) {
+      if (user->get_parent() == load->get_parent() &&
+          no_memory_write_between(load, user)) {
         auto ptr = valueToArgPtrSmart(
             load->args[0], convert_type(load.get_type()), res, alloc);
         return ptr;
