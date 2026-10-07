@@ -884,8 +884,21 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           }
         }
       }
+      const auto arg_ty = instr->get_arg(0).get_type();
+      const u32 width =
+          arg_ty->is_vec() ? arg_ty->as_vec().bitwidth : arg_ty->get_bitwidth();
+      const u128 mask = width >= 128 ? ~u128{0} : ((u128{1} << width) - 1);
       for (auto &val : a.vals) {
-        val.i = __builtin_ctzg(std::bit_cast<u128>(val.i));
+        const u128 x = std::bit_cast<u128>(val.i) & mask;
+        if (x == 0) {
+          // zero input is poison if b is set, otherwise the width
+          if (b.vals[0].i != 0) {
+            return ConstantValue::Top();
+          }
+          val.i = width;
+        } else {
+          val.i = __builtin_ctzg(x);
+        }
       }
       return a;
     }
@@ -907,8 +920,21 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           }
         }
       }
+      const auto arg_ty = instr->get_arg(0).get_type();
+      const u32 width =
+          arg_ty->is_vec() ? arg_ty->as_vec().bitwidth : arg_ty->get_bitwidth();
+      const u128 mask = width >= 128 ? ~u128{0} : ((u128{1} << width) - 1);
       for (auto &val : a.vals) {
-        val.i = __builtin_clzg(std::bit_cast<u128>(val.i));
+        const u128 x = std::bit_cast<u128>(val.i) & mask;
+        if (x == 0) {
+          // zero input is poison if b is set, otherwise the width
+          if (b.vals[0].i != 0) {
+            return ConstantValue::Top();
+          }
+          val.i = width;
+        } else {
+          val.i = __builtin_clzg(x) - (128 - width);
+        }
       }
       return a;
     }
