@@ -126,9 +126,9 @@ public:
     }
     if (v->is_decl() || v->attribs.variadic) {
       if (v->attribs.must_inline) {
-        fmt::println("Had must_inline but is variadic or only decl {:cd}",
-                     instr);
-        TODO("okak?");
+        fmt::print(fg(fmt::color::red),
+                   "Had must_inline but is variadic or only decl {:cd}",
+                   *v.func);
       }
       return false;
     }
