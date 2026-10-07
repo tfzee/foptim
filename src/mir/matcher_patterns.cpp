@@ -332,7 +332,9 @@ void move_patterns(IRVec<Pattern> &pats) {
 
         res.result.emplace_back(X86Subtype::vcmp, condition, c1, c2,
                                 MArgument(vcmp_condition));
-        res.result.emplace_back(X86Subtype::vblendv, res_arg, arg1, arg2,
+        // vblendv picks the second source where the mask is set, so the
+        // false value goes first
+        res.result.emplace_back(X86Subtype::vblendv, res_arg, arg2, arg1,
                                 condition);
         return true;
       }});
