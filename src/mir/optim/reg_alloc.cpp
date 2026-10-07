@@ -365,8 +365,11 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
       if (instr.is(GArithSubtype::mul2)) {
         return false;
       }
-      a0 = MArgument::stack_slot(stack_slot_id,
-                                 a1.ty == Type::INVALID ? a0.ty : a1.ty);
+      // the destination of a truncation is narrower than its source, the slot
+      // must only be written with the destination size
+      const bool own_type = instr.is(GConvSubtype::itrunc) ||
+                            a1.ty == Type::INVALID;
+      a0 = MArgument::stack_slot(stack_slot_id, own_type ? a0.ty : a1.ty);
       return true;
     }
     if (a1.uses_same_vreg(spill_vreg)) {
@@ -503,7 +506,7 @@ bool writes_vreg(const MInstr &instr, VReg vreg) {
 
 void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
                        u64 stack_slot_id, Type spill_type,
-                       u64 &new_virtual_reg_id,
+                       u64 &new_virtual_reg_id, size_t &trailing_inserted,
                        const SpillCache *cached = nullptr,
                        VReg *used_temp = nullptr) {
   // Worst case just move into a new vreg and we restart register allocating
@@ -566,7 +569,9 @@ void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
                    home,
                    MArgument{new_vreg, spill_type},
                });
-    instr_id++;
+    // instr_id keeps pointing at the original instruction, other spilled vregs
+    // of the same instruction still have to be handled
+    trailing_inserted++;
   }
 }
 
@@ -639,6 +644,8 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
         // a value kept in a temp across a call would need a callee saved reg
         cache.clear();
       }
+      // stores inserted behind the instruction by handle_spill_move
+      size_t trailing_inserted = 0;
       for (auto spill : needs_spilling) {
         auto spill_vreg = uid_to_reg(spill);
         if (!bb.instrs[instr_id].uses_vreg(spill_vreg)) {
@@ -672,7 +679,8 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
         }
         VReg temp;
         handle_spill_move(bb.instrs, instr_id, spill_vreg, stack_slot_id,
-                          spill_type, new_virtual_reg_id, cached, &temp);
+                          spill_type, new_virtual_reg_id, trailing_inserted,
+                          cached, &temp);
         // reusing a temp does not extend how long it may be shared
         cache[spill] = SpillCache{
             .temp = temp,
@@ -680,6 +688,7 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
                                                               : step};
         inserted_moves = true;
       }
+      instr_id += trailing_inserted;
     }
   }
   // TODO("we can reach this unless we implement it");
