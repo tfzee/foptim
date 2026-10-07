@@ -243,7 +243,9 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               continue;
             }
             if (t1->get_bitwidth() == t2->get_bitwidth()) {
-              fir::Builder buh{instr};
+              // insert before the load: inserting before the store would shift
+              // it to index i + 1 and the i2 scan would meet the store itself
+              fir::Builder buh{instr2};
               auto r =
                   buh.build_conversion_op(instr->get_arg(1), instr2->get_type(),
                                           fir::ConversionSubType::BitCast);
@@ -253,7 +255,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               continue;
             }
             if (t1->is_vec() && !t2->is_vec()) {
-              fir::Builder buh{instr};
+              fir::Builder buh{instr2};
               auto *ctx = instr->get_parent()->get_parent()->ctx;
               std::array<fir::ValueR, 1> indicies(
                   {fir::ValueR{ctx->get_constant_int(0, 32)}});
