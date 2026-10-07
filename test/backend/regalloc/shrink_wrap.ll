@@ -13,7 +13,7 @@ define i64 @early_exit(i64 %a, ptr %p) {
 ; CHECK-NEXT:  1:
 ; CHECK-NEXT:    $rsp: i64 -= 8: i64
 ; CHECK-NEXT:    push($rbx: i64, )
-; CHECK-NEXT:    $rbx: i64 = $rsi: i64
+; CHECK-NEXT:    $rbx: i64 = [$rsi]: i64
 ; CHECK-NEXT:    $rsp: i64 -= 8: i32
 ; CHECK-NEXT:    push($rdi: i64, )
 ; CHECK-NEXT:    call(work, )
@@ -21,14 +21,14 @@ define i64 @early_exit(i64 %a, ptr %p) {
 ; CHECK-NEXT:    $rsp: i64 += 8: i32
 ; CHECK-NEXT:    push($rax: i64, )
 ; CHECK-NEXT:    push($rdi: i64, )
-; CHECK-NEXT:    $rdi: i64 = [$rbx]: i64
+; CHECK-NEXT:    $rdi: i64 = $rbx: i64
 ; CHECK-NEXT:    call(work, )
 ; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    pop($rdi: i64, )
 ; CHECK-NEXT:    pop($rax: i64, )
 ; CHECK-NEXT:    $rax: i64 += $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $rax: i64 += [$rbx]: i64
+; CHECK-NEXT:    $rax: i64 += $rbx: i64
 ; CHECK-NEXT:    pop($rbx: i64, )
 ; CHECK-NEXT:    ret($rax: i64, )
 ; CHECK-NEXT:  2:

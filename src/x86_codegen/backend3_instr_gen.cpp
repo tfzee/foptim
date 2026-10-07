@@ -1206,6 +1206,10 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           reg_with_type(instr.args[1].reg, fmir::Type::Int16);
       size_t off = 0;
       off = emit(out_buff, off, &req);
+      // a memory destination has no higher bits to mask
+      if (instr.args[0].isMem()) {
+        return off;
+      }
       // mask out the higher bits since it doesnt do this for 16 and 8 bit
       req.mnemonic = ZYDIS_MNEMONIC_AND;
       req.operands[0].reg.value =
@@ -1221,6 +1225,10 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           reg_with_type(instr.args[1].reg, fmir::Type::Int8);
       size_t off = 0;
       off = emit(out_buff, off, &req);
+      // a memory destination has no higher bits to mask
+      if (instr.args[0].isMem()) {
+        return off;
+      }
       // mask out the higher bits since it doesnt do this for 16 and 8 bit
       //  NOTE: In 64-bit mode, r/m8 can not be encoded to access the
       // following
@@ -2506,8 +2514,12 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
     }
-    assert(req.operand_count == 3);
-    TODO("IMPL");
+    // the matcher only inserts a scalar that already lives in an xmm into
+    // the upper 64bit lane: dst = [src.lo, scalar.lo]
+    ASSERT(instr.args[2].is_vec_reg() && instr.args[3].isImm() &&
+           instr.args[3].imm == 1);
+    req.mnemonic = ZYDIS_MNEMONIC_VMOVLHPS;
+    req.operand_count = 3;
     return emit(out_buff, 0, &req);
   }
   case fmir::X86Subtype::vblendv: {

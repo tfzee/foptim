@@ -924,6 +924,21 @@ restore_locals(IRVec<MInstr> &instrs, CallInfo &cinfo,
   return {n_locals_restored, n_local_bytes_restored};
 }
 
+// a push always moves 8 bytes: widen narrow integer arguments. A spilled
+// argument lives in a (narrower) stack slot, there the push just reads the
+// bytes behind it, which the callee never looks at.
+void widen_push_arg(MArgument &arg) {
+  const auto ty = arg.ty;
+  if (ty != Type::Int8 && ty != Type::Int16 && ty != Type::Int32) {
+    return;
+  }
+  arg.ty = Type::Int64;
+  arg.reg.ty = Type::Int64;
+  if (arg.isStackSlot()) {
+    arg.scale = get_size(Type::Int64);
+  }
+}
+
 void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
                   const CallingConvDefinition &cconf,
                   const ArgPosition &arg_pos) {
@@ -942,13 +957,8 @@ void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
         arg.args[0]);
     break;
   case ArgPosition::Stack: {
-    auto orig_type = arg.args[0].ty;
     auto new_arg = arg.args[0];
-    if (orig_type == Type::Int8 || orig_type == Type::Int16 ||
-        orig_type == Type::Int32) {
-      new_arg.ty = Type::Int64;
-      new_arg.reg.ty = Type::Int64;
-    }
+    widen_push_arg(new_arg);
     instrs.emplace_back(GBaseSubtype::push, new_arg);
     break;
   }
@@ -1055,12 +1065,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
     // we us a push and pop
     if (!found_one && !worklist.empty()) {
       auto &arg = cinfo.args[worklist[0]].args[0];
-      auto arg_ty = arg.ty;
-      if (arg_ty == Type::Int32 || arg_ty == Type::Int16 ||
-          arg_ty == Type::Int8) {
-        arg.ty = Type::Int64;
-        arg.reg.ty = Type::Int64;
-      }
+      widen_push_arg(arg);
       output_vec.emplace_back(GBaseSubtype::push, arg);
       push_pop_queue.push_back(worklist[0]);
       worklist.erase(worklist.begin() + 0);
