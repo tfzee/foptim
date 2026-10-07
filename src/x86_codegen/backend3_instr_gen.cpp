@@ -527,7 +527,7 @@ size_t emit_div(const fmir::MInstr &instr, ZydisEncoderRequest &req,
 }
 
 size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                  u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
+                  u8 *const out_buff, u32 curr_bb_id, TLabelUsageMap &reloc_map,
                   ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
@@ -702,7 +702,7 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 }
 
 size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                 u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
+                 u8 *const out_buff, u32 curr_bb_id, TLabelUsageMap &reloc_map,
                  ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
@@ -1151,7 +1151,7 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 }
 
 size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                  u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
+                  u8 *const out_buff, u32 curr_bb_id, TLabelUsageMap &reloc_map,
                   ProEpilogueType proepiloguetype, const conf::CompConf &conf) {
   (void)req;
   (void)instr;
@@ -1460,7 +1460,7 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 }
 
 size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &orig_instr,
-                   u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
+                   u8 *const out_buff, u32 curr_bb_id, TLabelUsageMap &reloc_map,
                    ProEpilogueType proepiloguetype) {
   size_t length = 9999;
   // 8bit operations only accept immediates that are sign extended from 8 bits (so gotta us -1 instead of 255)
@@ -1613,7 +1613,7 @@ size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &orig_instr,
   }
 }
 size_t emit_gcmov(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                  u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
+                  u8 *const out_buff, u32 curr_bb_id, TLabelUsageMap &reloc_map,
                   ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
@@ -1783,7 +1783,7 @@ size_t emit_gcmov(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   }
 }
 size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                 u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
+                 u8 *const out_buff, u32 curr_bb_id, TLabelUsageMap &reloc_map,
                  ProEpilogueType proepiloguetype) {
   (void)req;
   (void)instr;
@@ -2008,7 +2008,7 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   }
 }
 size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
-                u8 *const out_buff, u8 curr_bb_id, TLabelUsageMap &reloc_map,
+                u8 *const out_buff, u32 curr_bb_id, TLabelUsageMap &reloc_map,
                 ProEpilogueType proepiloguetype,
                 const foptim::conf::CompConf &conf) {
   (void)req;
@@ -2599,7 +2599,7 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 
 } // namespace
 
-size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
+size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u32 curr_bb_id,
                   TLabelUsageMap &reloc_map, ProEpilogueType proepiloguetype,
                   const foptim::conf::CompConf &conf) {
   // size_t length = 999;

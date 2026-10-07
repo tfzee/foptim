@@ -48,7 +48,7 @@ inline u64 emit_impl(u8 *buff, u32 curr_off, ZydisEncoderRequest *req,
   return curr_off + len;
 }
 
-size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u8 curr_bb_id,
+size_t emit_instr(const fmir::MInstr &instr, u8 *const out_buff, u32 curr_bb_id,
                   TLabelUsageMap &reloc_map, ProEpilogueType proepiloguetype,
                   const foptim::conf::CompConf &conf);
 } // namespace foptim::codegen

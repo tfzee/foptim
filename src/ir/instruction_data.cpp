@@ -525,6 +525,10 @@ bool InstrData::has_result() const {
 }
 
 bool InstrData::is_critical() const {
+  // a volatile load is observable even if its result is unused
+  if (instr_type == InstrType::LoadInstr && Volatile) {
+    return true;
+  }
   switch (instr_type) {
   case InstrType::ReturnInstr:
   case InstrType::Unreachable:
@@ -822,6 +826,9 @@ bool InstrData::pot_reads_mem() const {
 }
 
 bool InstrData::has_pot_sideeffects() const {
+  if (instr_type == InstrType::LoadInstr && Volatile) {
+    return true;
+  }
   switch (instr_type) {
   case InstrType::CallInstr:
   case InstrType::StoreInstr:

@@ -66,7 +66,8 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
     auto bb_id = cfg.get_bb_id(bb);
     over_writen_ptrs[bb_id].first = false;
     for (auto instr : bb->instructions) {
-      if (instr->is(fir::InstrType::LoadInstr)) {
+      // volatile loads must each stay and cannot stand in for another load
+      if (instr->is(fir::InstrType::LoadInstr) && !instr->Volatile) {
         downard_exp_loads[bb_id].push_back(instr);
       }
       if (instr->is(fir::InstrType::StoreInstr)) {
@@ -130,7 +131,7 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
   for (size_t b = 0; b < cfg.bbrs.size(); b++) {
     auto &bb_i = cfg.bbrs[b];
     for (auto instr : bb_i.bb->instructions) {
-      if (instr->is(fir::InstrType::LoadInstr)) {
+      if (instr->is(fir::InstrType::LoadInstr) && !instr->Volatile) {
         for (auto l : active_loads[b]) {
           if (l->parent == bb_i.bb) {
             continue;
