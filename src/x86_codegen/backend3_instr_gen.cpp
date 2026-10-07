@@ -377,6 +377,12 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
   if ((input_is_vec && target_is_vec) ||
       (target_is_vec && instr.args[1].isMem() && !input_isscalarfp) ||
       (input_is_vec && instr.args[0].isMem() && !target_isscalarfp)) {
+    // narrowing reg to reg move (ymm -> xmm): read the low half of the source
+    if (instr.args[0].isReg() && instr.args[1].isReg() &&
+        instr.args[0].reg.size() == 16 && instr.args[1].reg.size() == 32) {
+      req.operands[1].reg.value =
+          reg_with_type(instr.args[1].reg, fmir::Type::Int64x2);
+    }
     auto arg_index = input_is_vec ? 1 : 0;
     switch (instr.args[arg_index].ty) {
       // TODO: aligned??
