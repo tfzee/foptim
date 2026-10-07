@@ -32,6 +32,8 @@ enum class GVecSubtype : u32 {
   vAnd,
   vOr,
   vShl,
+  vShr,
+  vSar,
   fMax,
   fMin,
 };

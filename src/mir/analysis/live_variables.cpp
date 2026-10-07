@@ -226,6 +226,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     case GVecSubtype::vAnd:
     case GVecSubtype::vOr:
     case GVecSubtype::vShl:
+    case GVecSubtype::vShr:
+    case GVecSubtype::vSar:
       if (instr.args[0].isReg()) {
         def[reg_to_uid(instr.args[0].reg)].set(true);
       }
@@ -522,6 +524,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     case GVecSubtype::vAnd:
     case GVecSubtype::vOr:
     case GVecSubtype::vShl:
+    case GVecSubtype::vShr:
+    case GVecSubtype::vSar:
       if (!instr.args[0].isReg()) {
         update_uses(instr.args[0], uses);
       }

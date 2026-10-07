@@ -1866,6 +1866,18 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
+        if (res_reg.is_vec_reg()) {
+          switch (shift_instr->get_type()->as_vec().bitwidth) {
+          case 32:
+          case 64:
+            res.result.emplace_back(GVecSubtype::vShr, res_reg, a, b);
+            return true;
+          default:
+            fmt::println("{}", shift_instr);
+            TODO("impl");
+          }
+        }
+
         if (b.isImm()) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
           res.result.emplace_back(GArithSubtype::shr2, res_reg, b);
@@ -1892,6 +1904,18 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
 
         auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
         auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
+
+        if (res_reg.is_vec_reg()) {
+          switch (shift_instr->get_type()->as_vec().bitwidth) {
+          case 32:
+          case 64:
+            res.result.emplace_back(GVecSubtype::vSar, res_reg, a, b);
+            return true;
+          default:
+            fmt::println("{}", shift_instr);
+            TODO("impl");
+          }
+        }
 
         if (b.isImm()) {
           res.result.emplace_back(GBaseSubtype::mov, res_reg, a);
@@ -2016,7 +2040,7 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
                 auto res_reg =
                     valueToArg(fir::ValueR(xor_instr), res.result, data.alloc);
 
-                if (res_reg.is_fp()) {
+                if (res_reg.is_vec_reg()) {
                   res.result.emplace_back(
                       GVecSubtype::vXor, res_reg,
                       valueToArg(xor_instr->args[0], res.result, data.alloc),
@@ -3627,6 +3651,11 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto instr = res.matched_instrs[0];
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        if (arg.isImm()) {
+          // no immediate source operand
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+          arg = res_reg;
+        }
         res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
         return true;
       }});
@@ -3637,6 +3666,11 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto instr = res.matched_instrs[0];
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        if (arg.isImm()) {
+          // no immediate source operand
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+          arg = res_reg;
+        }
         res.result.emplace_back(X86Subtype::tzcnt, res_reg, arg);
         return true;
       }});
@@ -3648,6 +3682,11 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArgPosMem(instr->args[0], res.result, data.alloc,
                                     instr);
+        if (arg.isImm()) {
+          // no immediate source operand
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+          arg = res_reg;
+        }
         res.result.emplace_back(X86Subtype::popcnt, res_reg, arg);
         return true;
       }});

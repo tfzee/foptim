@@ -1965,6 +1965,35 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       TODO("Impl");
     }
     return emit(out_buff, 0, &req);
+  case fmir::GVecSubtype::vShr:
+  case fmir::GVecSubtype::vSar:
+    for (auto i = 0; i < req.operand_count; i++) {
+      emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+    }
+    switch (instr.args[0].ty) {
+    case fmir::Type::Int32x4:
+    case fmir::Type::Float32x2:
+    case fmir::Type::Int32x8:
+    case fmir::Type::Float32x4:
+    case fmir::Type::Float32x8:
+      req.mnemonic = instr.is(fmir::GVecSubtype::vShr) ? ZYDIS_MNEMONIC_VPSRLVD
+                                                        : ZYDIS_MNEMONIC_VPSRAVD;
+      break;
+    case fmir::Type::Int64x2:
+    case fmir::Type::Float64x2:
+    case fmir::Type::Int64x4:
+    case fmir::Type::Float64x4:
+      // no avx2 arithmetic right shift for 64 bit lanes (vpsravq is avx512)
+      if (instr.is(fmir::GVecSubtype::vSar)) {
+        TODO("Impl");
+      }
+      req.mnemonic = ZYDIS_MNEMONIC_VPSRLVQ;
+      break;
+    default:
+      fmt::println("{}", instr);
+      TODO("Impl");
+    }
+    return emit(out_buff, 0, &req);
   case fmir::GVecSubtype::ffmadd:
   case fmir::GVecSubtype::INVALID:
     fmt::println("{:cd}", instr);
