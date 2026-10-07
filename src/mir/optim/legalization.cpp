@@ -212,6 +212,11 @@ bool Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
     case GJumpSubtype::cjmp_flt_ult:
     case GJumpSubtype::cjmp_flt_ule:
     case GJumpSubtype::cjmp_flt_une:
+      // the first operand has to be a register too (comisd imm, reg)
+      if (instr.args[0].isImm()) {
+        move_fp_const_to_reg(bb, indx, 0, instr.args[1].ty);
+        return true;
+      }
       if (instr.args[1].isImm()) {
         move_fp_const_to_reg(bb, indx, 1, instr.args[0].ty);
         return true;
@@ -231,6 +236,10 @@ bool Legalizer::legalize_fcmp(MBB &bb, u32 indx) {
     case GJumpSubtype::fcmp_ult:
     case GJumpSubtype::fcmp_ule:
     case GJumpSubtype::fcmp_une:
+      if (instr.args[1].isImm()) {
+        move_fp_const_to_reg(bb, indx, 1, instr.args[2].ty);
+        return true;
+      }
       if (instr.args[2].isImm()) {
         move_fp_const_to_reg(bb, indx, 2, instr.args[1].ty);
         return true;

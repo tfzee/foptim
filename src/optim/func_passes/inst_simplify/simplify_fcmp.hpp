@@ -9,27 +9,49 @@ namespace foptim::optim::InstSimp {
 
 static void swap_args_fcmp(fir::Instr instr) {
   ASSERT(instr->is(fir::InstrType::FCmp))
-  switch (static_cast<fir::FCmpInstrSubType>(instr->subtype)) {
-  case fir::FCmpInstrSubType::INVALID:
-  case fir::FCmpInstrSubType::AlwFalse:
-  case fir::FCmpInstrSubType::OEQ:
-  case fir::FCmpInstrSubType::UEQ:
-  case fir::FCmpInstrSubType::ONE:
-  case fir::FCmpInstrSubType::UNE:
-  case fir::FCmpInstrSubType::AlwTrue:
+  using fir::FCmpInstrSubType;
+  // a < b == b > a, the symmetric predicates keep theirs
+  const auto flip = [&instr](FCmpInstrSubType to) {
+    instr->subtype = static_cast<u32>(to);
+    swap_args(instr, 0, 1);
+  };
+  switch (static_cast<FCmpInstrSubType>(instr->subtype)) {
+  case FCmpInstrSubType::INVALID:
+  case FCmpInstrSubType::AlwFalse:
+  case FCmpInstrSubType::OEQ:
+  case FCmpInstrSubType::UEQ:
+  case FCmpInstrSubType::ONE:
+  case FCmpInstrSubType::UNE:
+  case FCmpInstrSubType::ORD:
+  case FCmpInstrSubType::UNO:
+  case FCmpInstrSubType::AlwTrue:
     swap_args(instr, 0, 1);
     break;
-  case fir::FCmpInstrSubType::OGT:
-  case fir::FCmpInstrSubType::OGE:
-  case fir::FCmpInstrSubType::OLT:
-  case fir::FCmpInstrSubType::OLE:
-  case fir::FCmpInstrSubType::ORD:
-  case fir::FCmpInstrSubType::UNO:
-  case fir::FCmpInstrSubType::UGT:
-  case fir::FCmpInstrSubType::UGE:
-  case fir::FCmpInstrSubType::ULT:
-  case fir::FCmpInstrSubType::ULE:
-  case fir::FCmpInstrSubType::IsNaN:
+  case FCmpInstrSubType::OGT:
+    flip(FCmpInstrSubType::OLT);
+    break;
+  case FCmpInstrSubType::OGE:
+    flip(FCmpInstrSubType::OLE);
+    break;
+  case FCmpInstrSubType::OLT:
+    flip(FCmpInstrSubType::OGT);
+    break;
+  case FCmpInstrSubType::OLE:
+    flip(FCmpInstrSubType::OGE);
+    break;
+  case FCmpInstrSubType::UGT:
+    flip(FCmpInstrSubType::ULT);
+    break;
+  case FCmpInstrSubType::UGE:
+    flip(FCmpInstrSubType::ULE);
+    break;
+  case FCmpInstrSubType::ULT:
+    flip(FCmpInstrSubType::UGT);
+    break;
+  case FCmpInstrSubType::ULE:
+    flip(FCmpInstrSubType::UGE);
+    break;
+  case FCmpInstrSubType::IsNaN:
     break;
   }
 }
