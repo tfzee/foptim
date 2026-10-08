@@ -1474,8 +1474,10 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     auto a = eval(instr->get_arg(1));
     auto b = eval(instr->get_arg(2));
     ASSERT(c.vals.size() <= 1);
-    ASSERT(a.vals.size() <= 1);
-    ASSERT(b.vals.size() <= 1);
+    if (a.vals.size() > 1 || b.vals.size() > 1) {
+      // vector operands are not folded
+      return ConstantValue::Bottom();
+    }
 
     if (c.is_bottom()) {
       return ConstantValue::Bottom();

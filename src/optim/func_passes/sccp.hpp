@@ -122,6 +122,21 @@ class SCCP final : public FunctionPass {
                              .vals = {{.f = v->as_float()}},
                              .vtype = v->get_type()};
       }
+      if (c->is_vec() && (v->is_int() || v->is_float())) {
+        // splat of a scalar (e.g. zeroinitializer)
+        auto r = ConstantValue{.type = v->is_float() ? ValueType::Float
+                                                     : ValueType::Int,
+                               .vals = {},
+                               .vtype = v->get_type()};
+        for (u32 i = 0; i < c->as_vec().member_number; i++) {
+          if (v->is_float()) {
+            r.vals.push_back({.f = v->as_float()});
+          } else {
+            r.vals.push_back({.i = v->as_int()});
+          }
+        }
+        return r;
+      }
       if (c->is_int() || (c->is_ptr() && v->is_int())) {
         return ConstantValue{.type = ValueType::Int,
                              .vals = {{.i = v->as_int()}},
@@ -160,6 +175,10 @@ class SCCP final : public FunctionPass {
           }
         }
         return r;
+      }
+      if (v->is_struct()) {
+        // aggregate constants are not tracked
+        return Bottom();
       }
       fmt::println("{:cd}", v);
       TODO("impl");
