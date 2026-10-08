@@ -492,6 +492,7 @@ struct SpillCache {
 };
 // how many instructions a reloaded value may be reused for
 constexpr size_t MaxReloadShareDistance = 16;
+constexpr size_t MaxSpillRounds = 32;
 
 bool writes_vreg(const MInstr &instr, VReg vreg) {
   TVec<ArgData> args;
@@ -781,8 +782,8 @@ void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
     }
     // fmt::println("============");
     // graph.dump();
-    if (i > 3) {
-      TODO("idk about this");
+    if (i >= MaxSpillRounds) {
+      TODO("register allocation did not converge");
     }
     i++;
 
