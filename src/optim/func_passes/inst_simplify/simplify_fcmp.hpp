@@ -210,9 +210,6 @@ inline bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
       case fir::FCmpInstrSubType::ULE:
       case fir::FCmpInstrSubType::AlwTrue:
       case fir::FCmpInstrSubType::IsNaN:
-        fmt::println("{:cd}", instr);
-        fmt::println("{:cd}", *instr->get_parent()->get_parent().func);
-        TODO("impl");
         break;
       }
     }
@@ -233,64 +230,50 @@ inline bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
     const auto v2 = c2->as_float();
 
     bool is_true = false;
-    // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
-    // IMPORTANT: !!THIS IS IN OTHER SYNTAX SO FLIPPED ARGUMETNS!!
+    const bool uno = std::isnan(v1) || std::isnan(v2);
     switch (fcmp_subtype) {
     case fir::FCmpInstrSubType::IsNaN:
-      __asm__("vcomisd %2, %1\n\t"
-              "setp %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OEQ:
-      __asm__("vcomisd %2, %1\n\t"
-              "sete %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OGT:
-      __asm__("vcomisd %2, %1\n\t"
-              "seta %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OGE:
-      __asm__("vcomisd %2, %1\n\t"
-              "setae %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OLT:
-      __asm__("vcomisd %2, %1\n\t"
-              "setb %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::OLE:
-      __asm__("vcomisd %2, %1\n\t"
-              "setbe %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
-      break;
-    case fir::FCmpInstrSubType::ONE:
-      __asm__("vcomisd %2, %1\n\t"
-              "setne %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
+    case fir::FCmpInstrSubType::UNO:
+      is_true = uno;
       break;
     case fir::FCmpInstrSubType::ORD:
-    case fir::FCmpInstrSubType::UNO:
+      is_true = !uno;
+      break;
+    case fir::FCmpInstrSubType::OEQ:
+      is_true = !uno && v1 == v2;
+      break;
+    case fir::FCmpInstrSubType::OGT:
+      is_true = !uno && v1 > v2;
+      break;
+    case fir::FCmpInstrSubType::OGE:
+      is_true = !uno && v1 >= v2;
+      break;
+    case fir::FCmpInstrSubType::OLT:
+      is_true = !uno && v1 < v2;
+      break;
+    case fir::FCmpInstrSubType::OLE:
+      is_true = !uno && v1 <= v2;
+      break;
+    case fir::FCmpInstrSubType::ONE:
+      is_true = !uno && v1 != v2;
+      break;
     case fir::FCmpInstrSubType::UEQ:
+      is_true = uno || v1 == v2;
+      break;
     case fir::FCmpInstrSubType::UGT:
+      is_true = uno || v1 > v2;
+      break;
     case fir::FCmpInstrSubType::UGE:
+      is_true = uno || v1 >= v2;
+      break;
     case fir::FCmpInstrSubType::ULT:
+      is_true = uno || v1 < v2;
+      break;
     case fir::FCmpInstrSubType::ULE:
-      TODO("implement");
+      is_true = uno || v1 <= v2;
+      break;
     case fir::FCmpInstrSubType::UNE:
-      __asm__("vucomisd %2, %1\n\t"
-              "setne %0"
-              : "=r"(is_true)
-              : "x"(v1), "x"(v2));
+      is_true = uno || v1 != v2;
       break;
     case fir::FCmpInstrSubType::INVALID:
     case fir::FCmpInstrSubType::AlwFalse:

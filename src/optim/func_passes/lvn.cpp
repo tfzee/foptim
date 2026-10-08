@@ -460,7 +460,10 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
         // if we load and afterwards load form the same address
         //  and there is nobody storing that memory inbetween we can
         //  delete the first load(TOOD: unless its volatile)
-        if (instr->get_arg(0) == instr2->get_arg(0)) {
+        // the types have to match too, a ptr and a <2 x f32> load of the same
+        // address are not interchangeable
+        if (instr->get_arg(0) == instr2->get_arg(0) &&
+            instr->get_type() == instr2->get_type()) {
           bool pot_store_between = is_pot_store_between(
               bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
           if (!pot_store_between) {

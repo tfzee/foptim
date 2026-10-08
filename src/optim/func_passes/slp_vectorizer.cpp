@@ -829,6 +829,15 @@ public:
     } else {
       base_v = values.front().as_instr();
     }
+    // the backend only has scalar fp <-> int / ext / trunc conversions
+    switch (static_cast<fir::ConversionSubType>(base_v->subtype)) {
+    case fir::ConversionSubType::BitCast:
+    case fir::ConversionSubType::PtrToInt:
+    case fir::ConversionSubType::IntToPtr:
+      break;
+    default:
+      return false;
+    }
     for (auto i_v : values) {
       if (!i_v.is_instr()) {
         if constexpr (SLPVectorizer::debug_print) {

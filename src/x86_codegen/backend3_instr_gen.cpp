@@ -989,9 +989,12 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       mem = ZYDIS_MNEMONIC_SETNZ;
       break;
     case fmir::GJumpSubtype::fcmp_ord:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_SETNP;
+      break;
     case fmir::GJumpSubtype::fcmp_uno:
-      TODO("impl");
+      ordered = false;
+      mem = ZYDIS_MNEMONIC_SETP;
+      break;
     default:
       UNREACH();
     }
@@ -1064,7 +1067,8 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       mem = ZYDIS_MNEMONIC_JNZ;
       break;
     case fmir::GJumpSubtype::cjmp_flt_ord:
-      TODO("impl");
+      mem = ZYDIS_MNEMONIC_JNP;
+      break;
     case fmir::GJumpSubtype::cjmp_flt_uno:
       mem = ZYDIS_MNEMONIC_JP;
       break;
@@ -1902,14 +1906,10 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.mnemonic = ZYDIS_MNEMONIC_VSUBPD;
       break;
     case fmir::Type::Int32x4:
-      req.mnemonic = ZYDIS_MNEMONIC_PSUBD;
-      break;
     case fmir::Type::Int32x8:
       req.mnemonic = ZYDIS_MNEMONIC_VPSUBD;
       break;
     case fmir::Type::Int64x2:
-      req.mnemonic = ZYDIS_MNEMONIC_PSUBQ;
-      break;
     case fmir::Type::Int64x4:
       req.mnemonic = ZYDIS_MNEMONIC_VPSUBQ;
       break;
