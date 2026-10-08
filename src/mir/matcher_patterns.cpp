@@ -3474,6 +3474,19 @@ void base_patterns(IRVec<Pattern> &pats) {
               fmt::println("{}", extract_instr);
               TODO("Impl");
             }
+          } else if (target.ty == Type::Float32 && rev_indx >= 4 &&
+                     rev_indx < 8) {
+            // upper 128 bit half into a helper, then pick the lane there
+            auto helper_reg = data.alloc.get_new_register(helper_ty);
+            auto helper_arg = MArgument(helper_reg, helper_ty);
+            res.result.emplace_back(X86Subtype::vextract128, helper_arg, input,
+                                    MArgument(static_cast<u8>(1)));
+            auto ext_out = MArgument{target.reg.retype(helper_ty), helper_ty};
+            u8 mapp = static_cast<u8>(((rev_indx - 4) << 6) | 0b1110);
+            res.result.emplace_back(GVecSubtype::vXor, ext_out, ext_out,
+                                    ext_out);
+            res.result.emplace_back(X86Subtype::vinsertps, ext_out, ext_out,
+                                    helper_arg, MArgument{mapp});
           } else if (target.ty == Type::Float32) {
             auto ext_out = MArgument{target.reg.retype(input.ty), input.ty};
             u8 mapp = 0;
