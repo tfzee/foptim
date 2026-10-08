@@ -1177,6 +1177,10 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     if (instr.args[0].ty == instr.args[1].ty) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    } else if (instr.args[1].ty == fmir::Type::Int32x4 &&
+               (instr.args[0].ty == fmir::Type::Int64x2 ||
+                instr.args[0].ty == fmir::Type::Int64x4)) {
+      req.mnemonic = ZYDIS_MNEMONIC_VPMOVZXDQ;
     } else if (instr.args[0].isReg() && instr.args[0].ty == fmir::Type::Int64 &&
                instr.args[1].ty == fmir::Type::Int32) {
 
@@ -1254,6 +1258,10 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     if (instr.args[0].ty == instr.args[1].ty) {
       req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    } else if (instr.args[1].ty == fmir::Type::Int32x4 &&
+               (instr.args[0].ty == fmir::Type::Int64x2 ||
+                instr.args[0].ty == fmir::Type::Int64x4)) {
+      req.mnemonic = ZYDIS_MNEMONIC_VPMOVSXDQ;
     } else if (4 == get_size(instr.args[1].ty)) {
       req.mnemonic = ZYDIS_MNEMONIC_MOVSXD;
     } else {
@@ -1696,6 +1704,16 @@ size_t emit_gcmov(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.operand_count = 2;
       req.operands[0] = targ;
       req.operands[1] = val;
+      if (instr.args[0].isReg() && instr.args[0].ty == fmir::Type::Int8) {
+        // there is no 8 bit cmov, use the 32 bit registers (the unused upper
+        // bits of an i8 are don't care)
+        ASSERT(instr.args[1].isReg());
+        for (auto *op : {&req.operands[0], &req.operands[1]}) {
+          auto id = ZydisRegisterGetId(
+              ZydisRegisterGetLargestEnclosing(req.machine_mode, op->reg.value));
+          op->reg.value = ZydisRegisterEncode(ZYDIS_REGCLASS_GPR32, id);
+        }
+      }
       switch (static_cast<fmir::GCMovSubtype>(instr.sop)) {
       case fmir::GCMovSubtype::cmov_ns:
         req.mnemonic = ZYDIS_MNEMONIC_CMOVNS;

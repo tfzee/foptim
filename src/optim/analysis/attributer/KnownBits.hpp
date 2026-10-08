@@ -527,9 +527,16 @@ public:
           new_known_one = 0;
           new_known_zero = 0;
         } else {
-          fmt::println("BITS KNOWN {}", *this);
-          fmt::println("TODO: ATTRIB KNOWN BITS BIINARY OP {}",
-                       associatedValue.as_instr());
+          // constant divisor c: |a srem c| < c and the result has the sign of
+          // a, so for a non negative a and c > 0 the result lies in [0, c-1]
+          new_known_one = 0;
+          new_known_zero = 0;
+          const u64 c = b->known_one;
+          if (b->msb_info() == KnownZero && c > 0 &&
+              a->msb_info() == KnownZero) {
+            const auto res_bits = std::bit_width(c - 1);
+            new_known_zero = res_bits >= 64 ? 0 : ~static_cast<u64>(0) << res_bits;
+          }
         }
       } else if (instr->subtype ==
                  static_cast<u32>(fir::BinaryInstrSubType::AShr)) {

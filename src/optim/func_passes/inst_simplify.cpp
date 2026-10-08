@@ -1680,7 +1680,11 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           }
           // TODO: cant do it easily if we have relocs in there
           // BUT could do it
-          if (!any_reloc_overlap) {
+          // out of bounds / uninitialized reads are not foldable
+          bool in_bounds = global_v->init_value != nullptr && offset_v >= 0 &&
+                           static_cast<u64>(offset_v) + load_size <=
+                               global_v->n_bytes;
+          if (!any_reloc_overlap && in_bounds) {
             auto *data_ptr = &global_v->init_value[offset_v];
             fir::ValueR v;
             if (res_ty->is_int() || res_ty->is_ptr()) {

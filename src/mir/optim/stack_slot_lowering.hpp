@@ -54,6 +54,8 @@ public:
             // TOOD: support other types
             // the slots live below rbp, in the area reserved by the
             // `sub rsp, stack_slots_size` in the prologue
+            ASSERT_M(arg.scale <= func.extra_stack_slots.at(arg.imm - 1).size,
+                     "stack slot access wider than the slot");
             auto off = static_cast<u64>(
                 static_cast<i64>(index_to_mem_off.at(arg.imm - 1)) -
                 static_cast<i64>(stack_slots_size));

@@ -369,6 +369,13 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
       // must only be written with the destination size
       const bool own_type = instr.is(GConvSubtype::itrunc) ||
                             a1.ty == Type::INVALID;
+      // never write more than the destination holds (mov i32, xmm only moves
+      // 4 bytes but the source is the whole vector), let the normal spill
+      // path insert a correctly sized temp instead
+      if (!own_type && a0.ty != Type::INVALID && a1.ty != Type::INVALID &&
+          get_size(a1.ty) > get_size(a0.ty)) {
+        return false;
+      }
       a0 = MArgument::stack_slot(stack_slot_id, own_type ? a0.ty : a1.ty);
       return true;
     }
@@ -377,7 +384,8 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
                                  a0.ty == Type::INVALID ? a1.ty : a0.ty);
       return true;
     }
-  } else if (instr.is(GVecSubtype::vadd) || instr.is(GVecSubtype::vsub)) {
+  } else if (instr.is(GVecSubtype::vadd) || instr.is(GVecSubtype::vsub) ||
+             instr.is(GVecSubtype::fMin) || instr.is(GVecSubtype::fMax)) {
     auto &a2 = instr.args[2];
     if (a2.isMem() || !a2.uses_same_vreg(spill_vreg)) {
       return false;
@@ -430,6 +438,62 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     spilled = MArgument::stack_slot(
         stack_slot_id, other.ty == Type::INVALID ? spilled.ty : other.ty);
     return true;
+  } else if (instr.is(GJumpSubtype::icmp_slt) ||
+             instr.is(GJumpSubtype::icmp_eq) ||
+             instr.is(GJumpSubtype::icmp_ult) ||
+             instr.is(GJumpSubtype::icmp_ne) ||
+             instr.is(GJumpSubtype::icmp_sgt) ||
+             instr.is(GJumpSubtype::icmp_ugt) ||
+             instr.is(GJumpSubtype::icmp_uge) ||
+             instr.is(GJumpSubtype::icmp_ule) ||
+             instr.is(GJumpSubtype::icmp_sge) ||
+             instr.is(GJumpSubtype::icmp_sle)) {
+    // icmp_cc(res, c1, c2) = cmp c1, c2; setcc res
+    // res has to stay a register, at most one of c1/c2 may be memory
+    auto &res = instr.args[0];
+    auto &c1 = instr.args[1];
+    auto &c2 = instr.args[2];
+    if (res.isMem() || c1.isMem() || c2.isMem() ||
+        res.uses_same_vreg(spill_vreg)) {
+      return false;
+    }
+    const bool u1 = c1.uses_same_vreg(spill_vreg);
+    const bool u2 = c2.uses_same_vreg(spill_vreg);
+    if (u1 == u2) {
+      return false;
+    }
+    auto &spilled = u1 ? c1 : c2;
+    auto &other = u1 ? c2 : c1;
+    spilled = MArgument::stack_slot(
+        stack_slot_id, other.ty == Type::INVALID ? spilled.ty : other.ty);
+    return true;
+  } else if (instr.is(GJumpSubtype::fcmp_isNaN) ||
+             instr.is(GJumpSubtype::fcmp_oeq) ||
+             instr.is(GJumpSubtype::fcmp_ogt) ||
+             instr.is(GJumpSubtype::fcmp_oge) ||
+             instr.is(GJumpSubtype::fcmp_olt) ||
+             instr.is(GJumpSubtype::fcmp_ole) ||
+             instr.is(GJumpSubtype::fcmp_one) ||
+             instr.is(GJumpSubtype::fcmp_ord) ||
+             instr.is(GJumpSubtype::fcmp_uno) ||
+             instr.is(GJumpSubtype::fcmp_ueq) ||
+             instr.is(GJumpSubtype::fcmp_ugt) ||
+             instr.is(GJumpSubtype::fcmp_uge) ||
+             instr.is(GJumpSubtype::fcmp_ult) ||
+             instr.is(GJumpSubtype::fcmp_ule) ||
+             instr.is(GJumpSubtype::fcmp_une)) {
+    // fcmp_cc(res, c1, c2) = (u)comis c1, c2; setcc res
+    // res and c1 have to stay registers, c2 may be memory
+    auto &res = instr.args[0];
+    auto &c1 = instr.args[1];
+    auto &c2 = instr.args[2];
+    if (res.isMem() || c1.isMem() || c2.isMem() ||
+        res.uses_same_vreg(spill_vreg) || c1.uses_same_vreg(spill_vreg) ||
+        !c2.uses_same_vreg(spill_vreg)) {
+      return false;
+    }
+    c2 = MArgument::stack_slot(stack_slot_id, c2.ty);
+    return true;
   } else if (instr.is(GCMovSubtype::cmov_ns) ||
              instr.is(GCMovSubtype::cmov_sgt) ||
              instr.is(GCMovSubtype::cmov_slt) ||
@@ -456,6 +520,10 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     const bool u1 = c1.uses_same_vreg(spill_vreg);
     const bool u2 = c2.uses_same_vreg(spill_vreg);
     if (u1 && u2) {
+      return false;
+    }
+    // an i8 cmov is emitted as a 32 bit one, which cannot read the 1 byte slot
+    if (uv && target.ty == Type::Int8) {
       return false;
     }
     if (uv) {

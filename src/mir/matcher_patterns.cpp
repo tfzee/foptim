@@ -3513,7 +3513,23 @@ void base_patterns(IRVec<Pattern> &pats) {
                                     ext_out);
             res.result.emplace_back(X86Subtype::vinsertps, ext_out, ext_out,
                                     input, MArgument{mapp});
+          } else if (target.ty == Type::Int32 && rev_indx < 8) {
+            ASSERT(input.isReg());
+            if (rev_indx < 4) {
+              res.result.emplace_back(
+                  X86Subtype::vpextr, target,
+                  MArgument(input.reg.retype(helper_ty), helper_ty),
+                  MArgument(static_cast<u8>(rev_indx)));
+            } else {
+              auto helper_reg = data.alloc.get_new_register(helper_ty);
+              auto helper_arg = MArgument(helper_reg, helper_ty);
+              res.result.emplace_back(X86Subtype::vextract128, helper_arg,
+                                      input, MArgument(static_cast<u8>(1)));
+              res.result.emplace_back(X86Subtype::vpextr, target, helper_arg,
+                                      MArgument(static_cast<u8>(rev_indx - 4)));
+            }
           } else {
+            fmt::println("{} {}", target.ty, extract_instr);
             TODO("impl");
           }
           return true;

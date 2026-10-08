@@ -796,10 +796,13 @@ bool SimplifyCFG::remove_dup_bb_args(CFG::Node &curr, bool is_entry) {
   // then cleanup all the inputs and a itself
   // since we can have multiple thingies that we need to remove we need to
   // deduplicate them
-  TSet<u32> dupls;
+  // erase from the back so the indices of the remaining ones stay valid
+  TVec<u32> dupls;
   for (auto &[a, _] : dup_pairs) {
-    dupls.insert(a);
+    dupls.push_back(a);
   }
+  std::ranges::sort(dupls, std::greater<>{});
+  dupls.erase(std::unique(dupls.begin(), dupls.end()), dupls.end());
   for (auto &use : curr.bb->uses) {
     for (auto d : dupls) {
       use.user.remove_bb_arg(use.argId, d);
