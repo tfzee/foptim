@@ -2375,6 +2375,11 @@ void base_patterns(IRVec<Pattern> &pats) {
           auto narrow = MArgument(data.alloc.get_new_register(Type::Float64),
                                   Type::Float64);
           res.result.emplace_back(GBaseSubtype::mov, narrow, wide);
+          if (res_reg.ty == Type::Float32 || res_reg.ty == Type::Float64) {
+            // for scalar float the all ones / zeros mask already is the value
+            res.result.emplace_back(X86Subtype::vblendv, res_reg, b, a, narrow);
+            return true;
+          }
           res.result.emplace_back(X86Subtype::vbroadcast, mask, narrow);
           res.result.emplace_back(X86Subtype::vblendv, res_reg, b, a, mask);
           return true;
