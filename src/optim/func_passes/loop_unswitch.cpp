@@ -141,38 +141,74 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       }
     }
 
-    // sadly we also need to keep track if there are uses of values after the
-    // loop since when we duplicate the loop we would need to merge them into
-    // a new bb
-    TVec<fir::ValueR> values_that_are_used_after;
-    for (auto node : info.body_nodes) {
-      for (auto arg : cfg.bbrs[node].bb->args) {
-        for (auto use : arg->get_uses()) {
-          auto use_bb = cfg.get_bb_id(use.user->get_parent());
-          auto is_use_outside = std::ranges::find(info.body_nodes, use_bb) ==
-                                info.body_nodes.end();
-          if (is_use_outside) {
-            values_that_are_used_after.emplace_back(arg);
-            break;
+    // values defined in the loop that are used after it: once the loop is
+    // duplicated both exits reach the same outside block, so every such value
+    // gets a new block argument on the exit target that dominates its uses
+    struct UsedAfter {
+      fir::ValueR val;
+      u32 exit_bb;
+      TVec<fir::Use> uses;
+    };
+    TVec<UsedAfter> used_after;
+    {
+      Dominators &dom = AnalysisManager::dom(*cfg.func);
+      auto in_loop = [&](u32 id) {
+        return std::ranges::find(info.body_nodes, id) != info.body_nodes.end();
+      };
+      TVec<u32> exit_targets;
+      for (auto node : info.body_nodes) {
+        for (auto succ : cfg.bbrs[node].succ) {
+          if (!in_loop(succ) &&
+              std::ranges::find(exit_targets, succ) == exit_targets.end()) {
+            exit_targets.push_back(succ);
           }
         }
       }
-      for (auto instr : cfg.bbrs[node].bb->instructions) {
-        for (auto use : instr->get_uses()) {
+      auto collect = [&](fir::ValueR val) {
+        UsedAfter ua{.val = val, .exit_bb = 0, .uses = {}};
+        bool found_exit = false;
+        for (auto use : *val.get_uses()) {
           auto use_bb = cfg.get_bb_id(use.user->get_parent());
-          auto is_use_outside = std::ranges::find(info.body_nodes, use_bb) ==
-                                info.body_nodes.end();
-          if (is_use_outside) {
-            values_that_are_used_after.emplace_back(instr);
-            break;
+          if (in_loop(use_bb)) {
+            continue;
           }
+          u32 exit = ~0U;
+          for (auto e : exit_targets) {
+            if (dom.dominates(e, use_bb)) {
+              exit = e;
+              break;
+            }
+          }
+          if (exit == ~0U || (found_exit && exit != ua.exit_bb)) {
+            return false;
+          }
+          found_exit = true;
+          ua.exit_bb = exit;
+          ua.uses.push_back(use);
+        }
+        if (found_exit) {
+          used_after.push_back(std::move(ua));
+        }
+        return true;
+      };
+      bool ok = true;
+      for (auto node : info.body_nodes) {
+        for (auto arg : cfg.bbrs[node].bb->args) {
+          ok = ok && collect(fir::ValueR{arg});
+        }
+        for (auto instr : cfg.bbrs[node].bb->instructions) {
+          ok = ok && collect(fir::ValueR{instr});
         }
       }
-    }
-    if (!values_that_are_used_after.empty()) {
-      fmt::println("-->--{}", values_that_are_used_after.size());
-      fmt::println("IMPLEMENT THIS LOOPUNSWITCH WITH USES AFTER");
-      continue;
+      // exit targets must only be entered from the loop
+      for (auto ua : used_after) {
+        for (auto pred : cfg.bbrs[ua.exit_bb].pred) {
+          ok = ok && in_loop(pred);
+        }
+      }
+      if (!ok) {
+        continue;
+      }
     }
     // save which node within the loop is the head so when copying the loop we
     // know which node is its head aswell
@@ -232,6 +268,31 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
         branch.add_bb_arg(0, arg);
       }
       copied_term.destroy();
+    }
+
+    // merge the used after values at the exit targets
+    for (auto &ua : used_after) {
+      auto exit_bb = cfg.bbrs[ua.exit_bb].bb;
+      auto merged = exit_bb.add_arg(
+          ctx->storage.insert_bb_arg(exit_bb, ua.val.get_type()));
+      auto copied_val = help.map.at(ua.val);
+      auto patch_edges = [&](fir::BasicBlock from, fir::ValueR val) {
+        auto term = from->get_terminator();
+        for (u32 i = 0; i < term->bbs.size(); i++) {
+          if (term->bbs[i].bb == exit_bb) {
+            term.add_bb_arg(i, val);
+          }
+        }
+      };
+      for (auto node : info.body_nodes) {
+        patch_edges(cfg.bbrs[node].bb, ua.val);
+      }
+      for (auto bb : copied_loop) {
+        patch_edges(bb, copied_val);
+      }
+      for (auto use : ua.uses) {
+        use.replace_use(fir::ValueR{merged});
+      }
     }
 
     {

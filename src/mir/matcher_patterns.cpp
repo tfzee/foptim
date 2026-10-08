@@ -247,7 +247,6 @@ void move_patterns(IRVec<Pattern> &pats) {
         case Type::Int64:
           // TOOD: prob cant do it efficiently?
           return false;
-        case Type::INVALID:
         case Type::Float32x2:
         case Type::Int32x4:
         case Type::Int64x2:
@@ -261,6 +260,8 @@ void move_patterns(IRVec<Pattern> &pats) {
         case Type::Int64x8:
         case Type::Float32x16:
         case Type::Float64x8:
+          return false;
+        case Type::INVALID:
           fmt::println("{}", cmp_instr);
           fmt::println("{}", slct_instr);
           fmt::println("{}", res_arg);
@@ -1576,6 +1577,12 @@ void vec_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
         auto arg = valueToArgPosMem(broad_instr->args[0], res.result,
                                     data.alloc, broad_instr);
+        if (arg.isReg() && !arg.is_fp()) {
+          auto xmm_ty = arg.ty == Type::Int32 ? Type::Float32 : Type::Float64;
+          auto helper = MArgument(data.alloc.get_new_register(xmm_ty), xmm_ty);
+          res.result.emplace_back(GBaseSubtype::mov, helper, arg);
+          arg = helper;
+        }
         res.result.emplace_back(X86Subtype::vbroadcast, res_reg, arg);
         return true;
       }});
@@ -2356,6 +2363,22 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto a = valueToArg(select_instr->args[1], res.result, data.alloc);
         auto b = valueToArg(select_instr->args[2], res.result, data.alloc);
 
+        if (res_reg.is_vec_reg() && !cond.is_vec_reg()) {
+          // vector select with a scalar condition: build an all ones / all
+          // zeros mask, splat it and blend
+          auto wide = MArgument(data.alloc.get_new_register(Type::Int64),
+                                Type::Int64);
+          res.result.emplace_back(GConvSubtype::mov_zx, wide, cond);
+          res.result.emplace_back(GArithSubtype::neg1, wide);
+          auto mask = MArgument(data.alloc.get_new_register(res_reg.ty),
+                                res_reg.ty);
+          auto narrow = MArgument(data.alloc.get_new_register(Type::Float64),
+                                  Type::Float64);
+          res.result.emplace_back(GBaseSubtype::mov, narrow, wide);
+          res.result.emplace_back(X86Subtype::vbroadcast, mask, narrow);
+          res.result.emplace_back(X86Subtype::vblendv, res_reg, b, a, mask);
+          return true;
+        }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
         res.result.emplace_back(GCMovSubtype::cmov, res_reg, cond, a);
         return true;
@@ -2709,8 +2732,13 @@ void base_patterns(IRVec<Pattern> &pats) {
           case Type::Int32x4:
           case Type::Int32x8:
           case Type::Int64x2: {
+            // broadcast from an xmm, a gpr source is not encodable
+            auto helper_ty =
+                arg.ty == Type::Int64 ? Type::Float64
+                : arg.ty == Type::Int32 ? Type::Float32
+                                        : arg.ty;
             auto helper_reg =
-                MArgument(data.alloc.get_new_register(arg.ty), arg.ty);
+                MArgument(data.alloc.get_new_register(helper_ty), helper_ty);
             res.result.emplace_back(GBaseSubtype::mov, helper_reg, arg);
             res.result.emplace_back(X86Subtype::vbroadcast, res_reg,
                                     helper_reg);
@@ -3249,6 +3277,13 @@ void base_patterns(IRVec<Pattern> &pats) {
               valueToArg(insert_instr->args[0], res.result, data.alloc);
           auto input =
               valueToArg(insert_instr->args[1], res.result, data.alloc);
+          if (!input.isReg()) {
+            // constant lane value: materialize it first
+            auto const_reg = data.alloc.get_new_register(input.ty);
+            res.result.emplace_back(GBaseSubtype::mov,
+                                    MArgument(const_reg, input.ty), input);
+            input = MArgument(const_reg, input.ty);
+          }
           auto target =
               valueToArg(fir::ValueR{insert_instr}, res.result, data.alloc);
           auto vec_ty = insert_instr->args[0].get_type()->as_vec();

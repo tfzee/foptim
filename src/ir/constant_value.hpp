@@ -178,6 +178,10 @@ struct ConstantValue {
     return ty == ConstantType::PoisonValue;
   }
 
+  [[nodiscard]] constexpr bool is_struct() const {
+    return ty == ConstantType::ConstantStruct;
+  }
+
   [[nodiscard]] constexpr bool is_vec() const {
     return ty == ConstantType::VectorValue;
   }
