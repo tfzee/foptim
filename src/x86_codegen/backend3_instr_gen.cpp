@@ -2565,9 +2565,17 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         reg_with_type(instr.args[3].reg, instr.args[0].ty);
     switch (instr.args[0].ty) {
     case fmir::Type::Float32:
+    case fmir::Type::Float32x4:
+    case fmir::Type::Float32x8:
+    case fmir::Type::Int32x4:
+    case fmir::Type::Int32x8:
       req.mnemonic = ZYDIS_MNEMONIC_VBLENDVPS;
       break;
     case fmir::Type::Float64:
+    case fmir::Type::Float64x2:
+    case fmir::Type::Float64x4:
+    case fmir::Type::Int64x2:
+    case fmir::Type::Int64x4:
       req.mnemonic = ZYDIS_MNEMONIC_VBLENDVPD;
       break;
     default:
