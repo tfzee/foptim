@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
@@ -27,8 +28,14 @@ public:
         if (!size.is_constant()) {
           continue;
         }
+        const auto alloca_size = static_cast<u32>(size.as_constant()->as_int());
+        // allocas carry no alignment, a type's size is (always?) a multiple of its
+        // alignment so the lowest set bit of the size is a safe alignment
+        const u32 align =
+            alloca_size == 0 ? 1U : std::min(16U, alloca_size & -alloca_size);
+        total_alloca_size = (total_alloca_size + align - 1) & ~(align - 1);
         allocas.emplace_back(instr, total_alloca_size);
-        total_alloca_size += size.as_constant()->as_int();
+        total_alloca_size += alloca_size;
       }
     }
     if (allocas.empty()) {

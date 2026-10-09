@@ -138,7 +138,7 @@ public:
       u64 old_mask = ~0ULL;
       old_mask = old_mask >> (64 - old_bitwidth);
       u64 new_zero = ~0ULL;
-      new_zero = new_zero << (old_bitwidth);
+      new_zero = old_bitwidth >= 64 ? 0 : new_zero << (old_bitwidth);
 
       new_known_one = known_arg_bits->known_one & old_mask;
       new_known_zero = known_arg_bits->known_zero & old_mask;
@@ -361,7 +361,9 @@ public:
       new_known_one = known_arg_bits->known_one & old_mask;
       new_known_zero = known_arg_bits->known_zero & old_mask;
       auto old_msb = known_arg_bits->msb_info();
-      if (old_msb == KnownOne) {
+      if (old_bitwidth >= 64) {
+        // nothing to extend (shifting a u64 by 64 is UB)
+      } else if (old_msb == KnownOne) {
         u64 new_one = ~0ULL;
         new_one = new_one << (old_bitwidth);
         new_known_one |= new_one;

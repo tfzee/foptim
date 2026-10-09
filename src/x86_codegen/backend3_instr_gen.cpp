@@ -2507,6 +2507,13 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       auto inp_off = req.operands[3].imm.u;
       auto out_off = 0;
       req.operands[3].imm.u = (inp_off << 6) | (out_off << 4) | (0b1110);
+    } else if (instr.args[0].is_fp() && instr.args[0].ty == fmir::Type::Float64 &&
+               instr.args[1].is_vec_reg()) {
+      // vpextrq cannot write an xmm, the upper lane to the low lane of an
+      // xmm is vunpckhpd dst, src, src
+      ASSERT(instr.args[2].isImm() && instr.args[2].imm == 1);
+      req.mnemonic = ZYDIS_MNEMONIC_VUNPCKHPD;
+      req.operands[2] = req.operands[1];
     } else {
       switch (instr.args[1].ty) {
       default:
@@ -2562,10 +2569,12 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
     }
     // the matcher only inserts a scalar that already lives in an xmm into
-    // the upper 64bit lane: dst = [src.lo, scalar.lo]
+    // one of the two 64bit lanes: lane 1 dst = [src.lo, scalar.lo],
+    // lane 0 dst = [scalar.lo, src.hi]
     ASSERT(instr.args[2].is_vec_reg() && instr.args[3].isImm() &&
-           instr.args[3].imm == 1);
-    req.mnemonic = ZYDIS_MNEMONIC_VMOVLHPS;
+           instr.args[3].imm <= 1);
+    req.mnemonic = instr.args[3].imm == 1 ? ZYDIS_MNEMONIC_VMOVLHPS
+                                          : ZYDIS_MNEMONIC_VMOVSD;
     req.operand_count = 3;
     return emit(out_buff, 0, &req);
   }

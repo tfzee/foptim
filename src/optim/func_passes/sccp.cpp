@@ -1331,8 +1331,43 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       case fir::FCmpInstrSubType::ULE:
       case fir::FCmpInstrSubType::UNE:
       case fir::FCmpInstrSubType::ORD:
-      case fir::FCmpInstrSubType::UNO:
-        TODO("IMPL");
+      case fir::FCmpInstrSubType::UNO: {
+        // f32 -> f64 is exact so comparing as double is equivalent
+        const bool is32 = a.get_type()->as_float() == 32;
+        const double x = is32 ? static_cast<double>(a.as_f32(i)) : a.as_f64(i);
+        const double y = is32 ? static_cast<double>(b.as_f32(i)) : b.as_f64(i);
+        const bool unordered = std::isnan(x) || std::isnan(y);
+        bool r = false;
+        switch (static_cast<fir::FCmpInstrSubType>(
+            instr->get_instr_subtype())) {
+        case fir::FCmpInstrSubType::UEQ:
+          r = unordered || x == y;
+          break;
+        case fir::FCmpInstrSubType::UGT:
+          r = unordered || x > y;
+          break;
+        case fir::FCmpInstrSubType::UGE:
+          r = unordered || x >= y;
+          break;
+        case fir::FCmpInstrSubType::ULT:
+          r = unordered || x < y;
+          break;
+        case fir::FCmpInstrSubType::ULE:
+          r = unordered || x <= y;
+          break;
+        case fir::FCmpInstrSubType::UNE:
+          r = unordered || x != y;
+          break;
+        case fir::FCmpInstrSubType::ORD:
+          r = !unordered;
+          break;
+        default:
+          r = unordered;
+          break;
+        }
+        res_vals.push_back(ConstantValue::Value{.i = static_cast<i32>(r)});
+        break;
+      }
       case fir::FCmpInstrSubType::AlwFalse:
         res_vals.push_back(ConstantValue::Value{.i = static_cast<i32>(false)});
         break;

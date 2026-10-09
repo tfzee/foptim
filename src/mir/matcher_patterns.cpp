@@ -2649,6 +2649,7 @@ void base_patterns(IRVec<Pattern> &pats) {
                                   MArgument(static_cast<u8>(1)));
           break;
         case Type::Int64x4:
+        case Type::Int32x8:
         case Type::Float32x8:
         case Type::Float64x4:
           res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
@@ -2656,7 +2657,6 @@ void base_patterns(IRVec<Pattern> &pats) {
           break;
         case Type::Float32x2:
         case Type::Float64x2:
-        case Type::Int32x8:
         case Type::Int32x4:
           fmt::println("{:cd}", extract_instr->args[0].get_type());
           fmt::println("{:cd}", extract_instr);
@@ -2681,11 +2681,11 @@ void base_patterns(IRVec<Pattern> &pats) {
         case Type::Float32x4:
         case Type::Int64x4:
         case Type::Float64x4:
+        case Type::Int32x8:
           res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
           break;
         case Type::Float32x2:
         case Type::Float64x2:
-        case Type::Int32x8:
         case Type::Int64x2:
         case Type::Int32x4:
           fmt::println("{:cd}", extract_instr->args[0].get_type());
@@ -3191,6 +3191,12 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(itrunc_instr), res.result, data.alloc);
         res.result.emplace_back(GConvSubtype::itrunc, res_reg, val);
+        // i1 lives in a byte that consumers (cjmp, zext) assume to be 0/1
+        if (itrunc_instr.get_type()->is_int() &&
+            itrunc_instr.get_type()->as_int() == 1) {
+          res.result.emplace_back(GArithSubtype::land2, res_reg,
+                                  MArgument::Int(1, res_reg.ty));
+        }
         return true;
       }});
   pats.push_back(Pattern{
@@ -3315,11 +3321,19 @@ void base_patterns(IRVec<Pattern> &pats) {
           if (rev_indx == 0) {
             ASSERT(input.isReg())
             res.result.emplace_back(GBaseSubtype::mov, target, input_vec);
-            res.result.emplace_back(
-                X86Subtype::vinsertps, target, target,
-                MArgument(input.reg.retype(helper_ty), helper_ty),
-                MArgument(static_cast<u8>(
-                    0b00'00'0000))); // src lane0, dst lane0, zmask=0000
+            if (input.ty == Type::Float64 || input.ty == Type::Int64) {
+              // vinsertps only moves 32 bits, a 64 bit lane 0 is a vmovsd
+              res.result.emplace_back(
+                  X86Subtype::vpinsr, target, target,
+                  MArgument(input.reg.retype(helper_ty), helper_ty),
+                  MArgument(static_cast<u8>(0)));
+            } else {
+              res.result.emplace_back(
+                  X86Subtype::vinsertps, target, target,
+                  MArgument(input.reg.retype(helper_ty), helper_ty),
+                  MArgument(static_cast<u8>(
+                      0b00'00'0000))); // src lane0, dst lane0, zmask=0000
+            }
           } else {
             ASSERT(input.isReg())
             // Start by copying the untouched vector into place, then patch the

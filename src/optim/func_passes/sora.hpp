@@ -19,13 +19,17 @@ class SORA final : public FunctionPass {
     switch (use.user->instr_type) {
     case fir::InstrType::LoadInstr:
     case fir::InstrType::StoreInstr:
+      // the pointer being the stored value escapes it
+      if (use.argId != 0) {
+        break;
+      }
       return {UseRes{.offset = 0,
                      .access_size = use.user->get_type()->get_size(),
                      .user = use}};
     case fir::InstrType::BinaryInstr:
       switch (static_cast<fir::BinaryInstrSubType>(use.user->subtype)) {
       case fir::BinaryInstrSubType::PtrAdd:
-        if (use.user->args[1].is_constant() &&
+        if (use.argId == 0 && use.user->args[1].is_constant() &&
             use.user->args[1].as_constant()->is_int()) {
           TVec<UseRes> ress;
           auto myoff = use.user->args[1].as_constant()->as_int();
