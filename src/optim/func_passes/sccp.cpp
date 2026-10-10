@@ -228,9 +228,10 @@ T const_eval_bin(fir::Instr instr, fir::TypeR out_type, T a, T b) {
     if constexpr (std::is_floating_point_v<T>) {
       UNREACH();
     } else {
-      return (std::bit_cast<i128>(std::bit_cast<u128>(a) >>
-                                  std::bit_cast<u128>(b)) &
-              ((static_cast<i128>(1) << out_type->as_int()) - 1));
+      // a may be sign extended, drop the bits above the type before shifting
+      const i128 mask = (static_cast<i128>(1) << out_type->as_int()) - 1;
+      return std::bit_cast<i128>(std::bit_cast<u128>(a & mask) >>
+                                 std::bit_cast<u128>(b));
     }
   case fir::BinaryInstrSubType::AShr: {
     if constexpr (std::is_floating_point_v<T>) {

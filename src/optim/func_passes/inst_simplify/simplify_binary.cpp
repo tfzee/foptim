@@ -810,11 +810,13 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         fir::Builder buh{argi};
         fir::ValueR res;
         if (shiftl_amount == shiftr_amount) {
-          // (x & ((1 << n) - 1))
+          // (x & ((1 << (bw - n)) - 1))
           res = buh.build_binary_op(
               argi->args[0],
               fir::ValueR{ctx->get_constant_value(
-                  (static_cast<i128>(1) << shiftr_amount) - 1,
+                  (static_cast<i128>(1)
+                   << (instr->get_type()->get_bitwidth() - shiftr_amount)) -
+                      1,
                   instr->get_type())},
               fir::BinaryInstrSubType::And);
         } else if (shiftl_amount > shiftr_amount) {
@@ -859,10 +861,11 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
            argi->is(fir::BinaryInstrSubType::AShr))) {
         if (instr->args[1].is_constant() && instr->args[1] == argi->args[1]) {
           fir::Builder buh{argi};
-          // (x & ((1 << n) - 1))
+          // (x & (-1 << n)) clears the low n bits
           auto shift_amount = instr->args[1].as_constant()->as_int();
-          auto mask = (static_cast<i128>(1) << shift_amount) - 1;
-          mask = mask << (instr->get_type()->get_bitwidth() - shift_amount);
+          auto bitwidth = instr->get_type()->get_bitwidth();
+          auto mask = ((static_cast<i128>(1) << bitwidth) - 1) &
+                      ~((static_cast<i128>(1) << shift_amount) - 1);
           auto res = buh.build_binary_op(
               argi->args[0],
               fir::ValueR{ctx->get_constant_value(mask, instr->get_type())},

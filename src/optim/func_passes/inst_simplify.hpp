@@ -218,10 +218,15 @@ bool try_constant_eval_binary(fir::Instr instr,
       return true;
     } else if constexpr (std::is_integral_v<T>) {
       using unsigned_ty = std::make_unsigned_t<T>;
+      // logical shift: constants are sign extended, drop the bits above the
+      // type and shift on the unsigned type
+      const auto width = type->get_bitwidth();
+      unsigned_ty ua = std::bit_cast<unsigned_ty>(a);
+      if (width < sizeof(T) * 8) {
+        ua &= (static_cast<unsigned_ty>(1) << width) - 1;
+      }
       instr->replace_all_uses(fir::ValueR(ctx->get_constant_value(
-          std::bit_cast<T>(std::bit_cast<unsigned_ty>(a)) >>
-              std::bit_cast<T>(std::bit_cast<unsigned_ty>(b)),
-          type)));
+          static_cast<T>(ua >> std::bit_cast<unsigned_ty>(b)), type)));
       return true;
     }
     TODO("impl");
