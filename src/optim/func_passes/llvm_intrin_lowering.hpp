@@ -248,6 +248,23 @@ public:
     auto mul_2 = instr->args[2];
     auto add = instr->args[3];
 
+    // fmuladd(-a, b, c) is better as `c - a*b`
+    auto is_neg = [](fir::ValueR v) {
+      return v.is_instr() && v.as_instr()->is(fir::UnaryInstrSubType::FloatNeg);
+    };
+    if (is_neg(mul_1) || is_neg(mul_2)) {
+      if (is_neg(mul_1)) {
+        mul_1 = mul_1.as_instr()->args[0];
+      } else {
+        mul_2 = mul_2.as_instr()->args[0];
+      }
+      auto mul_res = bb.build_float_mul(mul_1, mul_2);
+      auto result = bb.build_float_sub(add, mul_res);
+      instr->replace_all_uses(result);
+      instr.destroy();
+      return;
+    }
+
     auto mul_res = bb.build_float_mul(mul_1, mul_2);
     auto result = bb.build_float_add(mul_res, add);
     instr->replace_all_uses(result);
