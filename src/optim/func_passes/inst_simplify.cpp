@@ -2432,6 +2432,8 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   // Simplifications can fold branches (edges change), everything else only
   // touches instructions. Constraints refer to instructions so they go either
   // way, not every in place edit reports a change.
+  // the known bits analysis sets nsw/nuw on instructions, whatever asked
+  changed |= man.ir_modified;
   if (!changed) {
     return PreservedAnalysis::all();
   }

@@ -77,6 +77,8 @@ SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
   }
 
   bool found_path = false;
+  // the known bits analysis sets nsw/nuw on instructions, whatever asked
+  bool flags_changed = false;
   fir::Instr false_t;
   u32 false_t_bb_id = 0;
   {
@@ -97,7 +99,7 @@ SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
       const auto *res1 = man.get_or_create_analysis<KnownBits>(incoming1);
       const auto *res2 = man.get_or_create_analysis<KnownBits>(incoming2);
 
-      man.run(ctx);
+      flags_changed = man.run(ctx);
       // is iether itruncd or 1bit width so we can just steal that lowest bit
       // we only care that both incoming ones are hitting the condition
       // differntly
@@ -141,7 +143,7 @@ SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
         cond_tail_duplication(ctx, cfg, dom, curr.bb, term,
                               {.term = false_t, .inc_bb_id = false_t_bb_id}));
   }
-  return Res::NoChange;
+  return flags_changed ? Res::Changed : Res::NoChange;
 }
 
 SimplifyCFG::Res SimplifyCFG::pull_through_bb_args(CFG &cfg, CFG::Node &curr,

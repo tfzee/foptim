@@ -550,7 +550,20 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     }
     src = MArgument::stack_slot(stack_slot_id, src.ty);
     return true;
-  } else {
+  } else if (instr.is(GArithSubtype::shl2) || instr.is(GArithSubtype::shr2) ||
+             instr.is(GArithSubtype::sar2)) {
+    // shift [mem], imm/cl: only the shifted value may live in memory, the
+    // count has to stay an immediate / cl
+    auto &a0 = instr.args[0];
+    auto &a1 = instr.args[1];
+    if (a0.isMem() || a1.isMem() || a1.uses_same_vreg(spill_vreg) ||
+        !a0.uses_same_vreg(spill_vreg)) {
+      return false;
+    }
+    a0 = MArgument::stack_slot(stack_slot_id, a0.ty);
+    return true;
+  } else if (!instr.is(X86Subtype::lea)) {
+    // lea needs a register destination and has no memory form for the address
     fmt::println(">> try mem insert spill >> {}", instr);
   }
   return false;

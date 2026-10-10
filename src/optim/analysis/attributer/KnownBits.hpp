@@ -57,11 +57,12 @@ public:
     return bits;
   }
 
-  void materialize_impl(fir::Context &ctx,
+  bool materialize_impl(fir::Context &ctx,
                         const AttributerManager &m) override {
     (void)ctx;
+    bool modified = false;
     if (!associatedValue.is_instr()) {
-      return;
+      return false;
     }
     auto instr = associatedValue.as_instr();
     if (instr->is(fir::BinaryInstrSubType::IntAdd) ||
@@ -69,7 +70,7 @@ public:
       const auto *known_arg0_bits = m.get_analysis<KnownBits>(instr->args[0]);
       const auto *known_arg1_bits = m.get_analysis<KnownBits>(instr->args[1]);
       if ((known_arg0_bits == nullptr) || (known_arg1_bits == nullptr)) {
-        return;
+        return false;
       }
       auto bitwidth = // instr->get_type()->is_int()
                       //  ? instr->get_type()->as_int() :
@@ -85,8 +86,10 @@ public:
         // auto signed_min = ((i128)1 << bitwidth) - 1;
         auto signed_max = (static_cast<i128>(1) << (bitwidth - 1)) - 1;
         auto signed_min = (static_cast<i128>(-2)) << (bitwidth - 1);
-        if (biggest_val < signed_max && smallest_val > signed_min) {
+        if (biggest_val < signed_max && smallest_val > signed_min &&
+            !instr->NSW) {
           instr->NSW = true;
+          modified = true;
         }
       }
       {
@@ -98,11 +101,14 @@ public:
             static_cast<i128>(known_arg1_bits->get_unsigned_min_value());
         auto unsigned_max = (static_cast<i128>(1) << bitwidth) - 1;
         auto unsigned_min = 0;
-        if (biggest_val < unsigned_max && smallest_val > unsigned_min) {
+        if (biggest_val < unsigned_max && smallest_val > unsigned_min &&
+            !instr->NUW) {
           instr->NUW = true;
+          modified = true;
         }
       }
     }
+    return modified;
   }
 
   enum BitInfo {

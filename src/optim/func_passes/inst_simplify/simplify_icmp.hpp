@@ -333,43 +333,47 @@ inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
         }
       }
 
+      // sdiv truncates towards zero: with d > 0
+      //   x/d <= k  <=>  x <= k*d + (k >= 0 ? d-1 : 0)
+      //   x/d >= k  <=>  x >= k*d - (k <= 0 ? d-1 : 0)
+      // the bound has to fit the type, otherwise leave it alone
       if ((sub_type == ICmpInstrSubType::SLE ||
-           sub_type == ICmpInstrSubType::SLT) &&
-          arg0->is(InstrType::BinaryInstr) &&
-          arg0->subtype == static_cast<u32>(BinaryInstrSubType::IntSDiv) &&
-          arg0->args[1].is_constant()) {
-        bool is_or_eq = sub_type == ICmpInstrSubType::SLE;
-        auto x = arg0->args[0];
-        auto c_div = arg0->args[1].as_constant()->as_int();
-        Builder bb{instr};
-        auto new_val = bb.build_int_cmp(
-            x,
-            fir::ValueR{ctx->get_constant_value(
-                (c_val + (is_or_eq ? 1 : 0)) * c_div, x.get_type())},
-            ICmpInstrSubType::SLE);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(ValueR(new_val));
-        instr.destroy();
-        return true;
-      }
-      if ((sub_type == ICmpInstrSubType::SGE ||
+           sub_type == ICmpInstrSubType::SLT ||
+           sub_type == ICmpInstrSubType::SGE ||
            sub_type == ICmpInstrSubType::SGT) &&
           arg0->is(InstrType::BinaryInstr) &&
           arg0->subtype == static_cast<u32>(BinaryInstrSubType::IntSDiv) &&
-          arg0->args[1].is_constant()) {
-        bool is_or_eq = sub_type == ICmpInstrSubType::SGE;
+          arg0->args[1].is_constant() &&
+          arg0->args[1].as_constant()->is_int() &&
+          arg0->args[0].get_type()->is_int() &&
+          arg0->args[0].get_type()->as_int() <= 64) {
         auto x = arg0->args[0];
-        auto c_div = arg0->args[1].as_constant()->as_int();
-        Builder bb{instr};
-        auto new_val = bb.build_int_cmp(
-            x,
-            fir::ValueR{ctx->get_constant_value(
-                (c_val + (is_or_eq ? 0 : 1)) * c_div, x.get_type())},
-            ICmpInstrSubType::SGE);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(ValueR(new_val));
-        instr.destroy();
-        return true;
+        const i128 d = arg0->args[1].as_constant()->as_int();
+        const u32 bw = x.get_type()->as_int();
+        const i128 lo = -(static_cast<i128>(1) << (bw - 1));
+        const i128 hi = (static_cast<i128>(1) << (bw - 1)) - 1;
+        const bool is_le = sub_type == ICmpInstrSubType::SLE ||
+                           sub_type == ICmpInstrSubType::SLT;
+        if (d > 0 && c_val >= lo && c_val <= hi) {
+          i128 bound = 0;
+          if (is_le) {
+            const i128 k = sub_type == ICmpInstrSubType::SLE ? c_val : c_val - 1;
+            bound = k * d + (k >= 0 ? d - 1 : 0);
+          } else {
+            const i128 k = sub_type == ICmpInstrSubType::SGE ? c_val : c_val + 1;
+            bound = k * d - (k <= 0 ? d - 1 : 0);
+          }
+          if (bound >= lo && bound <= hi) {
+            Builder bb{instr};
+            auto new_val = bb.build_int_cmp(
+                x, fir::ValueR{ctx->get_constant_value(bound, x.get_type())},
+                is_le ? ICmpInstrSubType::SLE : ICmpInstrSubType::SGE);
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(ValueR(new_val));
+            instr.destroy();
+            return true;
+          }
+        }
       }
     }
 

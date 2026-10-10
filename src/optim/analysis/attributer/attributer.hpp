@@ -59,7 +59,8 @@ public:
   bool force_update = false;
 
   AttributeAnalysis() = default;
-  virtual void materialize_impl(fir::Context &, const AttributerManager &m) = 0;
+  // returns whether it changed the IR
+  virtual bool materialize_impl(fir::Context &, const AttributerManager &m) = 0;
   virtual Result update_impl(AttributerManager & /*unused*/,
                              Worklist & /*worklist*/) {
     TODO("IMPL");
@@ -70,6 +71,13 @@ public:
 
 class AttributerManager {
 public:
+  // Set once run() materialized something that changed the IR (e.g. nsw/nuw on
+  // an add). run() materializes everything the manager holds, so this changes
+  // instructions other than the one the caller asked about, even if the caller
+  // then changes nothing itself. reset() keeps it, a pass using the manager has
+  // to look at it (or the result of run) to know whether it changed anything.
+  bool ir_modified = false;
+
   TMap<AttributeKey *, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
   // TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
   TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
@@ -130,15 +138,19 @@ public:
     return analysis;
   }
 
-  void materialize(fir::Context &ctx) {
+  // returns whether the IR changed
+  bool materialize(fir::Context &ctx) {
+    bool modified = false;
     for (auto [_, loc] : _attribs) {
       for (auto [_, att] : loc) {
-        att->materialize_impl(ctx, *this);
+        modified |= att->materialize_impl(ctx, *this);
       }
     }
+    return modified;
   }
 
-  void run(fir::Context &ctx) {
+  // returns whether materializing changed the IR (also kept in ir_modified)
+  bool run(fir::Context &ctx) {
     ZoneScopedNC("Attributer::run", COLOR_ANALY);
     Worklist worklist;
     for (auto &[_, loc] : _attribs) {
@@ -176,7 +188,9 @@ public:
       }
     }
     _currently_updating = nullptr;
-    materialize(ctx);
+    const bool modified = materialize(ctx);
+    ir_modified |= modified;
+    return modified;
   }
 };
 
