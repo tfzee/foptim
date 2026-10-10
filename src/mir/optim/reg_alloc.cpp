@@ -385,6 +385,7 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
       return true;
     }
   } else if (instr.is(GVecSubtype::vadd) || instr.is(GVecSubtype::vsub) ||
+             instr.is(GVecSubtype::vmul) || instr.is(GVecSubtype::vdiv) ||
              instr.is(GVecSubtype::fMin) || instr.is(GVecSubtype::fMax)) {
     auto &a2 = instr.args[2];
     if (a2.isMem() || !a2.uses_same_vreg(spill_vreg)) {
