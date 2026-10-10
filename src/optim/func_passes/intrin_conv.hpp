@@ -9,6 +9,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include <fmt/base.h>
+#include <optional>
 
 /*
 Try to convert intrinsic like patterns into the actual intrinsics this includes
@@ -18,6 +19,22 @@ not proper intrinsics like memcpy/memset etc
 namespace foptim::optim {
 
 namespace {
+
+// the block args passed on the loop exit edge, empty optional if one is
+// defined inside the loop (the loop is removed so it can not be forwarded)
+std::optional<TVec<fir::ValueR>> exit_edge_args(fir::Instr term,
+                                                fir::BasicBlock loop_bb,
+                                                size_t exit_idx) {
+  TVec<fir::ValueR> res;
+  for (auto arg : term->get_bb_args()[exit_idx].args) {
+    if ((arg.is_instr() && arg.as_instr()->get_parent() == loop_bb) ||
+        (arg.is_bb_arg() && arg.as_bb_arg()->get_parent() == loop_bb)) {
+      return std::nullopt;
+    }
+    res.push_back(arg);
+  }
+  return res;
+}
 
 // detect single basicblock memset/memcpy
 bool match_memsetcpy(fir::Function &func) {
@@ -108,6 +125,11 @@ bool match_memsetcpy(fir::Function &func) {
       fir::Builder buh{store_instr};
       auto old_term = loop_bb->get_terminator();
       ASSERT(old_term->bbs.size() == 2);
+      const size_t exit_idx = old_term->bbs[0].bb == loop_bb ? 1 : 0;
+      auto exit_args = exit_edge_args(old_term, loop_bb, exit_idx);
+      if (!exit_args.has_value()) {
+        continue;
+      }
       buh.at_end(loop_bb);
       buh.build_intrinsic(
           store_instr->args[0], load_instr->args[0],
@@ -119,7 +141,10 @@ bool match_memsetcpy(fir::Function &func) {
       } else if (old_term->bbs[1].bb == loop_bb) {
         target_bb = old_term->bbs[0].bb;
       }
-      buh.build_branch(target_bb);
+      auto new_br = buh.build_branch(target_bb);
+      for (auto arg : *exit_args) {
+        new_br.add_bb_arg(0, arg);
+      }
       load_instr.destroy();
       store_instr.destroy();
       old_term.destroy();
@@ -139,6 +164,11 @@ bool match_memsetcpy(fir::Function &func) {
     fir::Builder buh{store_instr};
     auto old_term = loop_bb->get_terminator();
     ASSERT(old_term->bbs.size() == 2);
+    const size_t exit_idx = old_term->bbs[0].bb == loop_bb ? 1 : 0;
+    auto exit_args = exit_edge_args(old_term, loop_bb, exit_idx);
+    if (!exit_args.has_value()) {
+      continue;
+    }
     buh.at_end(loop_bb);
     buh.build_intrinsic(store_instr->args[0], store_instr->args[1],
                         fir::ValueR{func.ctx->get_constant_int(r, 64)},
@@ -150,7 +180,10 @@ bool match_memsetcpy(fir::Function &func) {
     } else if (old_term->bbs[1].bb == loop_bb) {
       target_bb = old_term->bbs[0].bb;
     }
-    buh.build_branch(target_bb);
+    auto new_br = buh.build_branch(target_bb);
+    for (auto arg : *exit_args) {
+      new_br.add_bb_arg(0, arg);
+    }
     store_instr.destroy();
     old_term.destroy();
     return true;

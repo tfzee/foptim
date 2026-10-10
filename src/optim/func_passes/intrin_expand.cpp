@@ -41,7 +41,8 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memset(fir::Function &func,
 
   buh.build_store(curr_ptr, value, false, false);
   auto next_ptr =
-      buh.build_ptr_add(curr_ptr, fir::ValueR{ctx->get_constant_int(1, 64)});
+      buh.build_ptr_add(curr_ptr, fir::ValueR{ctx->get_constant_int(
+                                      value.get_type()->get_size(), 64)});
   auto next_off =
       buh.build_int_add(curr_off, fir::ValueR{ctx->get_constant_int(1, 64)});
   auto cond = buh.build_int_cmp(next_off, num, fir::ICmpInstrSubType::ULT);
