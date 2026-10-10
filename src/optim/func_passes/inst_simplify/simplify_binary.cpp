@@ -615,8 +615,9 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                         instr->subtype ==
                             static_cast<u32>(
                                 fir::BinaryInstrSubType::IntSub))) {
+              // (x - c1) - v2 = x - (c1 + v2)
               fir::ValueR res;
-              auto a1 = b.build_int_sub(const1, v2);
+              auto a1 = b.build_int_add(const1, v2);
               res = b.build_int_sub(x, a1);
               worklist.emplace_back(a1.as_instr(), bb);
               push_all_uses(worklist, instr);
@@ -656,7 +657,10 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             return true;
           }
         }
-        if (instr->args[1].is_instr()) {
+        // v2 - (x +- c1) is not (x +- c1) - v2, only valid for add
+        if (instr->subtype ==
+                static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
+            instr->args[1].is_instr()) {
           auto inner_add_sub = instr->args[1].as_instr();
           auto const2 = instr->args[0];
           if (f(inner_add_sub, const2)) {

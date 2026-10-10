@@ -224,7 +224,10 @@ void ConstraintAnalysis::setup_direct_constraints() {
       auto true_target = cfg.get_bb_id(term->bbs[0].bb);
       auto false_target = cfg.get_bb_id(term->bbs[1].bb);
       bb_to_constraints[bb_id].terminator_constraint = constraint.value();
-      if (cfg.bbrs[true_target].pred.size() > 1) {
+      // like the false edge: the condition only holds on entry if this edge
+      // is the only way in (otherwise a loop header would claim the
+      // condition of the previous iteration for the current value)
+      if (cfg.bbrs[true_target].pred.size() == 1) {
         bb_to_constraints[true_target].active_constraints.insert(
             constraint.value());
       }
