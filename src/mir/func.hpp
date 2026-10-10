@@ -18,6 +18,9 @@ public:
   IRString name;
   bool variadic = false;
   bool needs_register_save_area = false;
+  // bytes the entry block reserves with `sub rsp` for its static allocas, every
+  // return releases them again with an `add rsp`
+  u32 static_alloca_size = 0;
   // IRVec<Type> arg_tys;
 
   IRVec<StackSlot> extra_stack_slots;

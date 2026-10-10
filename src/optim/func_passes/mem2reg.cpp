@@ -394,7 +394,12 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
       // then we update the arguemtns of the origin jump
       auto term = last_bb->get_terminator();
 
-      term.replace_bb_arg(block, arg, var_val_res);
+      // a terminator can have several edges into the same block (switch)
+      for (u16 e = 0; e < term->bbs.size(); e++) {
+        if (term->bbs[e].bb == block) {
+          term.replace_bb_arg(e, arg, var_val_res);
+        }
+      }
       current_variable_value.back().insert(
           {target_alloca, {block, bb_arguemnt_value}});
     }

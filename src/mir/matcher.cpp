@@ -352,6 +352,8 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
     }
   }
 
+  res_func.static_alloca_size = static_alloca_size;
+
   TMap<fir::BasicBlock, u32> bbs;
   for (u32 bb_id = 0; bb_id < func.basic_blocks.size(); bb_id++) {
     bbs[func.basic_blocks[bb_id]] = bb_id;

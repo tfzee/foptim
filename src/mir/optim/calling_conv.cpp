@@ -355,7 +355,8 @@ SaveBlock find_save_block(const MFunc &func, const CFG &cfg,
           instr.is(GBaseSubtype::mov) && instr.n_args == 2 &&
           instr.args[0].isReg() && is_saved(instr.args[0].reg) &&
           ((instr.args[1].isReg() && instr.args[1].reg.is_concrete() &&
-            !is_saved(instr.args[1].reg)) ||
+            !is_saved(instr.args[1].reg) &&
+            instr.args[1].reg != VReg::RSP()) ||
            instr.args[1].isImm());
       if (!copy) {
         return {};
@@ -692,14 +693,34 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
       continue;
     }
 
+    // Without shrink wrapping the pushes come before the sub rsp of the
+    // static allocas, so the add rsp the return emits has to run before the
+    // pops. With the pushes in a later block they sit below that sub rsp
+    // and the pops have to go in front of the add rsp. It is followed by the
+    // moves of the return value, so look for the last one in the block.
+    size_t restore_off = 1;
+    if (save_bb_id != 0 && func.static_alloca_size != 0) {
+      const auto &instrs = func.bbs[bb_id].instrs;
+      for (size_t k = instrs.size(); k-- > 0;) {
+        const auto &prev = instrs[k];
+        if (prev.is(GArithSubtype::add2) &&
+            prev.args[0].type == MArgument::ArgumentType::VReg &&
+            prev.args[0].reg == VReg::RSP() && prev.args[1].isImm() &&
+            prev.args[1].imm == func.static_alloca_size) {
+          restore_off = instrs.size() - k;
+          break;
+        }
+      }
+    }
     size_t n_regs_restored = 0;
     for (auto reg_ty : cc.callee_saved) {
       if (!saved_regs[static_cast<u8>(reg_ty) - 1]) {
         continue;
       }
       auto arg = MArgument{VReg{reg_ty, Type::Int64}, Type::Int64};
-      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
-                                    MInstr{GBaseSubtype::pop, arg});
+      func.bbs[bb_id].instrs.insert(
+          func.bbs[bb_id].instrs.end() - static_cast<i64>(restore_off),
+          MInstr{GBaseSubtype::pop, arg});
       n_regs_restored++;
     }
     ASSERT(n_regs_saved == n_regs_restored);
@@ -707,16 +728,16 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     if (cc.align.alignment >= CallingConvDefinition::Req::Supported) {
       if (additional_align_off != 0) {
         func.bbs[bb_id].instrs.insert(
-            func.bbs[bb_id].instrs.end() - 1,
+            func.bbs[bb_id].instrs.end() - static_cast<i64>(restore_off),
             MInstr{GArithSubtype::add2, MArgument{VReg::RSP(), Type::Int64},
                    MArgument{additional_align_off}});
       }
     }
     if (func.needs_register_save_area) {
-      func.bbs[bb_id].instrs.insert(func.bbs[bb_id].instrs.end() - 1,
-                                    MInstr{GArithSubtype::add2,
-                                           MArgument{VReg::RSP(), Type::Int64},
-                                           MArgument{size_register_save_area}});
+      func.bbs[bb_id].instrs.insert(
+          func.bbs[bb_id].instrs.end() - static_cast<i64>(restore_off),
+          MInstr{GArithSubtype::add2, MArgument{VReg::RSP(), Type::Int64},
+                 MArgument{size_register_save_area}});
     }
   }
 }
