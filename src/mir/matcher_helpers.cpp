@@ -630,7 +630,7 @@ bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
     result.emplace_back(GBaseSubtype::mov, helper_arg, base);
     result.emplace_back(GArithSubtype::add2, helper_arg, helper_arg);
     result.emplace_back(X86Subtype::lea, res_reg,
-                        MArgument::MemBIS(helper_reg, helper_reg, 2, res_ty));
+                        MArgument::MemBIS(helper_reg, helper_reg, 1, res_ty));
     return true;
   }
   case 7:

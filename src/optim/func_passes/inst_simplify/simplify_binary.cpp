@@ -1081,16 +1081,17 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       if (instr->args[v_idx].is_instr()) {
         auto v_i = instr->args[v_idx].as_instr();
         auto uval = std::bit_cast<u128>(c_vali);
+        // (x udiv 2^n) * 2^n == x & -2^n. Not valid for sdiv, it rounds
+        // towards zero ((-1 sdiv 8) * 8 == 0 but -1 & -8 == -8) and we have no
+        // exact flag.
         if (utils::is_pow2(uval) && v_i->is(fir::InstrType::BinaryInstr) &&
-            (v_i->is(fir::BinaryInstrSubType::IntSDiv) ||
-             v_i->is(fir::BinaryInstrSubType::IntUDiv)) &&
+            v_i->is(fir::BinaryInstrSubType::IntUDiv) &&
             v_i->args[1].is_constant() &&
             v_i->args[1].as_constant()->eql(*c_val)) {
           fir::Builder b{instr};
 
           auto magic_constant = ctx->get_constant_int(
-              ~(static_cast<i128>(1) << (utils::npow2(uval) - 1)),
-              instr->get_type()->get_bitwidth());
+              -static_cast<i128>(c_vali), instr->get_type()->get_bitwidth());
           auto res =
               b.build_binary_op(v_i->args[0], fir::ValueR{magic_constant},
                                 fir::BinaryInstrSubType::And);

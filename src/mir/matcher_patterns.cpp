@@ -1086,7 +1086,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(GArithSubtype::sar2, res_reg64,
                                   MArgument(static_cast<u8>(34)));
           // add     target32, helper32
-          res.result.emplace_back(GArithSubtype::land2, res_reg32, helper32);
+          res.result.emplace_back(GArithSubtype::add2, res_reg32, helper32);
           break;
         }
         }
@@ -1292,7 +1292,7 @@ void arith_patterns(IRVec<Pattern> &pats) {
         }
 
         // TODO: if off by 1 or similar could do shift and then use a add
-        if (__builtin_popcount(consti_val) != 1) {
+        if (__builtin_popcountg(static_cast<u128>(consti_val)) != 1) {
           return false;
         }
         auto x = consti_val;
