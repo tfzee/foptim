@@ -138,6 +138,7 @@ public:
     Dominators &dom = AnalysisManager::dom(func);
     LoopInfoAnalysis info{dom};
 
+    bool modified = false;
     for (auto loop_iter = info.info.begin(); loop_iter != info.info.end();
          loop_iter++) {
       auto &loop = *loop_iter;
@@ -165,7 +166,8 @@ public:
         if (!func.basic_blocks[enter_bb_id]
                  ->instructions[enter_bb_instr_id]
                  ->is(fir::InstrType::BranchInstr)) {
-          return PreservedAnalysis::all();
+          return modified ? PreservedAnalysis::none()
+                          : PreservedAnalysis::all();
         }
 
         bool failed = false;
@@ -218,6 +220,7 @@ public:
         if (!has_modified_anything) {
           continue;
         }
+        modified = true;
         // TODO cleanup all the cbranches
         // inter.dump_state();
         // fmt::println("EXIT BB {}", inter.get_ip().bb_id);
@@ -229,7 +232,7 @@ public:
         loop_iter = info.info.begin();
       }
     }
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

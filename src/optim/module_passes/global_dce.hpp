@@ -22,7 +22,7 @@ public:
   }
 
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
-                          AnalysisManager & /*analyMan*/) override {
+                          AnalysisManager &analyMan) override {
     ZoneScopedN("GDCE");
 
     TSet<const fir::Function *> func_global_reffed;
@@ -82,8 +82,18 @@ public:
               continue;
             }
             auto *slab = ctx->storage.storage_constant._slot_start.load();
+            // the users (stores into a never read global) get a poison pointer
+            TVec<fir::Function *> users;
+            for (const auto &use : g->get_uses()) {
+              if (use.user.is_valid() && use.user->get_parent().is_valid()) {
+                users.push_back(use.user->get_parent()->get_parent().func);
+              }
+            }
             g->replace_all_uses(
                 fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())});
+            for (auto *user : users) {
+              analyMan.touched_body(*user);
+            }
             while (slab != nullptr) {
               for (auto &i : slab->data) {
                 auto *v = &i;
@@ -159,7 +169,8 @@ public:
       }
       ctx.data->storage.functions.erase(name.c_str());
     }
-    return PreservedAnalysis::none();
+    // erased functions and globals had no users, the rest is reported above
+    return PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

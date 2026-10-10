@@ -35,7 +35,8 @@ public:
     return false;
   }
 
-  void move_to_latest_position(fir::Instr instr, CFG &cfg, DominatorTree &dom,
+  // returns whether the instruction was moved
+  bool move_to_latest_position(fir::Instr instr, CFG &cfg, DominatorTree &dom,
                                LoopInfoAnalysis &loop_info) {
     // find bb that dominates all uses
     //  if its not the origin bb then it *could* be moved
@@ -48,7 +49,7 @@ public:
     for (auto use : instr->get_uses()) {
       // if we have use in origin bb  we can't move it
       if (use.user->get_parent() == origin_bb) {
-        return;
+        return false;
       }
       auto use_bb_id = cfg.get_bb_id(use.user->get_parent());
       if (!opt_curr_bb_id_target.has_value()) {
@@ -57,12 +58,12 @@ public:
       opt_curr_bb_id_target =
           dom.common_denom(use_bb_id, opt_curr_bb_id_target.value());
       if (opt_curr_bb_id_target.value() == origin_bb_id) {
-        return;
+        return false;
       }
     }
     if (!opt_curr_bb_id_target.has_value() ||
         opt_curr_bb_id_target.value() == origin_bb_id) {
-      return;
+      return false;
     }
     auto curr_bb_id_target = opt_curr_bb_id_target.value();
     ASSERT(dom.dominates(origin_bb_id, curr_bb_id_target));
@@ -77,7 +78,7 @@ public:
             std::ranges::find(loop.body_nodes, origin_bb_id) !=
             loop.body_nodes.end();
         if (!origin_in_same_loop) {
-          return;
+          return false;
         }
       }
     }
@@ -89,13 +90,14 @@ public:
         continue;
       }
       if (!is_alive(arg, cfg, dom, curr_bb_id_target)) {
-        return;
+        return false;
       }
     }
 
     auto bb = cfg.bbrs[curr_bb_id_target].bb.builder();
     auto new_instr = bb.insert_copy(instr);
     instr->replace_all_uses(fir::ValueR{new_instr});
+    return true;
   }
 
   PreservedAnalysis apply(fir::Context & /*ctx*/,
@@ -105,17 +107,17 @@ public:
     DominatorTree dom{cfg};
     LoopInfoAnalysis loop{dom};
 
+    bool modified = false;
     for (auto bb : func.basic_blocks) {
       for (auto i : bb->instructions) {
         if (i->has_pot_sideeffects() || i->pot_reads_mem() ||
             i->pot_modifies_mem() || i->get_n_uses() == 0) {
           continue;
         }
-        move_to_latest_position(i, cfg, dom, loop);
+        modified |= move_to_latest_position(i, cfg, dom, loop);
       }
     }
-    //TOOD: check if actulaly modified
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

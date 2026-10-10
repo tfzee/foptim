@@ -20,21 +20,23 @@ public:
     Dominators &dom = AnalysisManager::dom(func);
     LoopInfoAnalysis linfo{dom};
 
+    bool modified = false;
     for (auto &info : linfo.info) {
-      apply(ctx, func, cfg, info);
+      modified |= apply(ctx, func, cfg, info);
     }
     // instructions get moved, blocks and edges stay
-    return PreservedAnalysis::cfg_only();
+    return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
   }
 
-  void apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
+  // returns whether anything was hoisted
+  bool apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
              LoopInfo &info) {
     (void)func;
 
     if (cfg.bbrs[info.head].pred.size() != info.tails.size() + 1) {
       failure({.reason = "TODO: Cant apply licm without a preheader\n",
                .loc = cfg.bbrs[info.head].bb});
-      return;
+      return false;
     }
 
     fir::BasicBlock pre_header{fir::BasicBlock{fir::BasicBlock::invalid()}};
@@ -53,7 +55,7 @@ public:
       ASSERT(false);
       failure({.reason = "TODO: Cant apply licm without a preheader\n",
                .loc = cfg.bbrs[info.head].bb});
-      return;
+      return false;
     }
 
     std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
@@ -104,7 +106,7 @@ public:
       }
     }
     if (invariant.empty()) {
-      return;
+      return false;
     }
 
     fir::Builder bb{pre_header};
@@ -118,6 +120,7 @@ public:
     for (auto inv : invariant) {
       inv.as_instr().destroy();
     }
+    return true;
   }
 };
 

@@ -15,6 +15,7 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_pass.hpp"
+#include "optim/pass_skipping.hpp"
 #include "utils/job_system.hpp"
 #include "utils/todo.hpp"
 #include "utils/tracy.hpp"
@@ -59,8 +60,15 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
   size_t curr_pass = 0;
   conf::PrintFuncConf print_debug_func{};
   conf::VerifyFuncConf verify_debug_func{};
+  // skipping passes that were a no-op on the function is not compatible with
+  // bisecting, and can be turned off to compare
+  optim::CleanTracker clean_tracker;
+  clean_tracker.init(passes_worklist,
+                     !enable_bisect && !ctx.config->debug.no_skip_clean);
   foptim::optim::ParallelFunctionPassManager fman{};
+  fman.tracker = &clean_tracker;
   foptim::optim::ModulePassManager mman{};
+  mman.tracker = &clean_tracker;
 
   while (curr_pass < n_passes) {
     auto *pass = passes_worklist[curr_pass];
@@ -119,7 +127,12 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     }
   }
 
+  if (ctx.config->debug.time_passes) {
+    clean_tracker.print_stats();
+  }
+#ifdef ASSERT_ENABLED
   ASSERT(ctx->verify());
+#endif
 }
 
 } // namespace foptim::optim::pipeline

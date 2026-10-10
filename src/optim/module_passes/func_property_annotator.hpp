@@ -87,7 +87,7 @@ public:
   }
 
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
-                          AnalysisManager & /*analyMan*/) override {
+                          AnalysisManager &analyMan) override {
     ZoneScopedNC("FuncPropAnnotator", COLOR_OPTIMF);
     CallGraph call_graph{ctx};
     AliasAnalyis aa;
@@ -135,12 +135,13 @@ public:
       }
       if (modified) {
         // fmt::println("MODIFIED {:d}", *v);
+        analyMan.touched_interface(*v);
         for (auto *v : call_graph.call_graph[v].targeted_by) {
           worklist.push_back(v);
         }
       }
     }
-    return PreservedAnalysis::none();
+    return PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

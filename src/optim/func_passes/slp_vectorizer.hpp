@@ -19,6 +19,8 @@ public:
     bool reductions = true;
   } config;
   static constexpr bool debug_print = false;
+  // whole function vectorization of a call clones the body of the callee
+  static constexpr bool InterproceduralRead = true;
 
   struct SeedInstrData {
     fir::Instr instr;
@@ -101,6 +103,7 @@ public:
                    load_bundles.size(), reduction_bundles.size());
     }
 
+    bool modified = false;
     for (auto &b : store_bundles) {
       bool already_used = false;
       for (const auto &data : b.data) {
@@ -117,6 +120,7 @@ public:
       // }
       auto stor = utils::TempAlloc<void *>::save();
       if (tree_vectorize(ctx, b, load_bundles)) {
+        modified = true;
         utils::TempAlloc<void *>::restore(stor);
         continue;
       }
@@ -134,13 +138,13 @@ public:
       }
       auto stor = utils::TempAlloc<void *>::save();
       if (tree_vectorize_reduction(ctx, b, load_bundles)) {
+        modified = true;
         utils::TempAlloc<void *>::restore(stor);
         continue;
       }
     }
 
-    // TODO: actuall y check if modified
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 

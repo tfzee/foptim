@@ -359,9 +359,11 @@ PreservedAnalysis LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
       .c = BitSet<>::empty(cfg.bbrs.size()),
       .map = fir::ContextData::V2VMap{},
   };
+  bool modified = false;
   for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
     helper.reset(cfg);
     bool apply_res = apply(ctx, cfg, *loop, helper);
+    modified |= apply_res;
     if (apply_res && linfo.info.size() > 1) {
       cfg.update(func, false);
       dom.update(cfg);
@@ -371,7 +373,7 @@ PreservedAnalysis LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
   }
   // fmt::println("{:cd}", func);
   // fmt::println("okak");
-  return PreservedAnalysis::none();
+  return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

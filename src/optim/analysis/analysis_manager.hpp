@@ -1,7 +1,12 @@
 #pragma once
 #include <memory>
+#include <mutex>
+#include <unordered_map>
+#include <unordered_set>
+#include <string_view>
 
 #include "ir/function.hpp"
+#include "ir/global.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/constraint_analysis.hpp"
 #include "optim/analysis/dominators.hpp"
@@ -69,6 +74,17 @@ Not cached yet (still built by each user, candidates in this order):
    every change but expensive to rebuild)
 */
 class AnalysisManager {
+  // module pass reporting, see touched_body
+  std::mutex report_mutex;
+  // assert builds: what the module pass reported and what it looked like before
+  std::unordered_set<const fir::Function *> reported_bodies;
+  std::unordered_set<const fir::Function *> reported_interfaces;
+  struct Snapshot {
+    u64 body;
+    u64 interface;
+  };
+  std::unordered_map<const fir::Function *, Snapshot> before_module_pass;
+
 public:
   static CFG &cfg(fir::Function &func);
   static Dominators &dom(fir::Function &func);
@@ -76,12 +92,96 @@ public:
 
   // drop everything the pass did not preserve
   static void invalidate(fir::Function &func, PreservedAnalysis pres);
-  // drop all cached analyses of every function (used after module passes)
+  /*
+  Module passes tell what they changed, so the function analyses and the "this
+  pass is a no-op on the function" bits (pass_skipping.hpp) of everything else
+  survive. Call these AFTER making the change, from any thread.
+  A module pass that returns PreservedAnalysis::all() promises that everything
+  it changed on the functions that still exist was reported (assert builds
+  check this by hashing every function before and after). Any other return value
+  means the pass did not report and everything is dropped.
+  */
+  // instructions or blocks of f changed: drops f's analyses and bits
+  void touched_body(fir::Function &f);
+  // attributes, signature or decl-ness of g changed: drops the bits of g and of
+  // every function calling it (passes read callee attributes everywhere)
+  void touched_interface(fir::Function &g);
+  // constness or initializer of a global changed: drops the bits of its users
+  void touched_global(fir::Global g);
+
+  // called by the ModulePassManager around each module pass
+  void begin_module_pass(fir::Context &ctx);
+  // returns whether the pass reported its changes (so only those were dropped)
+  bool end_module_pass(fir::Context &ctx, PreservedAnalysis result,
+                       std::string_view pass_name);
+
+  static u64 hash_interface(const fir::Function &func);
+
+  /*
+  For module passes that transform one function plus its call sites and can not
+  tell exactly what changed: snapshot f and its callers, run the
+  transformation, then report() calls touched_body/touched_interface for what
+  actually differs.
+  */
+  class ChangeWatch {
+    AnalysisManager &manager;
+    struct Entry {
+      fir::Function *func;
+      u64 body;
+      u64 interface;
+    };
+    TVec<Entry> entries;
+
+    void add(fir::Function &f) {
+      for (const auto &e : entries) {
+        if (e.func == &f) {
+          return;
+        }
+      }
+      entries.push_back(Entry{.func = &f,
+                              .body = f.is_decl() ? 0 : hash_function(f),
+                              .interface = hash_interface(f)});
+    }
+
+  public:
+    ChangeWatch(AnalysisManager &manager, fir::Function &f)
+        : manager(manager) {
+      add(f);
+      for (const auto &use : f.get_uses()) {
+        if (use.user.is_valid() && use.user->get_parent().is_valid()) {
+          add(*use.user->get_parent()->get_parent().func);
+        }
+      }
+    }
+    void report() {
+      for (const auto &e : entries) {
+        if (!e.func->is_decl() && hash_function(*e.func) != e.body) {
+          manager.touched_body(*e.func);
+        }
+        if (hash_interface(*e.func) != e.interface) {
+          manager.touched_interface(*e.func);
+        }
+      }
+    }
+  };
+
+  // drop all cached analyses of every function (used after module passes), this
+  // also forgets which function passes were known to be a no-op on a function
   static void invalidate_all(fir::Context &ctx);
 
   // assert builds only: recompute what the pass claimed to preserve and
   // compare it to the cache
   static bool verify_preserved(fir::Function &func, PreservedAnalysis pres);
+
+  // hash over everything a pass can change in the function (blocks,
+  // instructions, operands, flags), values are hashed by identity
+  static u64 hash_function(const fir::Function &func);
+  // the same for a single instruction (operands, flags, targets)
+  static u64 hash_instr(fir::Instr instr);
+  // a pass that returned PreservedAnalysis::all() claims it did not touch the
+  // function, so the hash taken before it ran has to still match
+  static bool verify_unchanged(const fir::Function &func, u64 hash_before,
+                               u64 hash_after, std::string_view pass_name);
 };
 
 } // namespace foptim::optim

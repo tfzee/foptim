@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <chrono>
 #include <fmt/base.h>
 
@@ -6,6 +7,7 @@
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/pass_skipping.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/stats.hpp"
@@ -129,19 +131,32 @@ public:
 class ParallelFunctionPassManager {
   FVec<conf::PassConfig *> dyn_passes;
 
-
-  static void apply_pass(fir::Context &ctx, conf::PassConfig *conf,
-                         AnalysisManager & /*analMan*/, fir::Function &f,
+  // returns true if the function was (potentially) changed
+  static bool apply_pass(fir::Context &ctx, conf::PassConfig *conf,
+                         CleanTracker &tracker, fir::Function &f,
                          bool print_failure) {
+    const u32 skip_id = conf->skip_id;
+    tracker.count_run(skip_id);
+    if (tracker.is_clean(f, skip_id)) {
+      tracker.count_skip(skip_id);
+      if (tracker.skipping()) {
+        return false;
+      }
+    }
     // temp allocations never free individually, so without this the scratch
     // memory of every pass over every function piles up until the whole pass
     // group is done (with workers the whole arena is reset below instead)
     const auto temp_mark = utils::TempAlloc<void *>::save();
+    bool changed = true;
     {
       auto *pass = conf->_construct_function_pass();
+#ifdef ASSERT_ENABLED
+      const u64 hash_before = AnalysisManager::hash_function(f);
+#endif
+      PreservedAnalysis r;
       if (ctx.config->debug.time_passes) {
         auto start_time = std::chrono::high_resolution_clock::now();
-        auto r = pass->apply(ctx, f);
+        r = pass->apply(ctx, f);
         AnalysisManager::invalidate(f, r);
         auto end_time = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -152,8 +167,24 @@ class ParallelFunctionPassManager {
                                            utils::StatCollector::StatTiming);
         }
       } else {
-        auto r = pass->apply(ctx, f);
+        r = pass->apply(ctx, f);
         AnalysisManager::invalidate(f, r);
+      }
+      changed = r.mask != PreservedAnalysis::all().mask;
+      bool conservative = false;
+#ifdef ASSERT_ENABLED
+      const u64 hash_after = AnalysisManager::hash_function(f);
+      if (!changed) {
+        ASSERT(AnalysisManager::verify_unchanged(f, hash_before, hash_after,
+                                                 conf->get_name()));
+      }
+      conservative = hash_after == hash_before;
+#endif
+      tracker.count_result(skip_id, changed, changed && conservative);
+      if (changed) {
+        CleanTracker::mark_dirty(f);
+      } else {
+        tracker.mark_clean(f, skip_id);
       }
       if (print_failure) {
         pass->print_failures();
@@ -164,27 +195,37 @@ class ParallelFunctionPassManager {
     } else {
       utils::TempAlloc<void *>::restore(temp_mark);
     }
+    return changed;
   }
 
 public:
+  CleanTracker *tracker = nullptr;
+
   void clear() { dyn_passes.clear(); }
 
   void push_pass(conf::PassConfig *pass) { dyn_passes.push_back(pass); }
 
-  void apply(fir::Context &ctx, JobSheduler *shed, AnalysisManager &analMan) {
-    // fmt::println("FUNC: {}", dyn_passes.size());
+  void apply(fir::Context &ctx, JobSheduler *shed,
+             AnalysisManager & /*analMan*/) {
+    ASSERT(tracker != nullptr);
+    std::atomic<bool> any_changed{false};
     for (auto *func : ctx->storage.functions.all()) {
       if (func->is_decl()) {
         continue;
       }
-      shed->push(nullptr, [this, &ctx, func, &analMan]() {
+      shed->push(nullptr, [this, &ctx, func, &any_changed]() {
         for (auto *pass : dyn_passes) {
-          apply_pass(ctx, pass, analMan, *func,
-                     ctx.config->debug.print_optimization_failure_reasons);
+          if (apply_pass(ctx, pass, *tracker, *func,
+                         ctx.config->debug.print_optimization_failure_reasons)) {
+            any_changed = true;
+          }
         }
       });
     }
     shed->wait_till_done();
+    if (any_changed) {
+      tracker->mark_dirty_interprocedural(ctx);
+    }
     ctx.data->storage.storage_instr.collect_garbage();
     if (ctx.config->number_worker_threads == 0) {
       utils::TempAlloc<void *>::reset();

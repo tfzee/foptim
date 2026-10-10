@@ -34,6 +34,7 @@ class DCE final : public FunctionPass {
 public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("DCE", COLOR_OPTIMF);
+    bool modified = false;
     {
       CFG rev_cfg{func, true};
       BitsetDominators rev_dom{rev_cfg};
@@ -146,6 +147,7 @@ public:
                 use.user.destroy();
               }
               instr.destroy();
+              modified = true;
               continue;
             }
           }
@@ -161,6 +163,7 @@ public:
           instr->replace_all_uses(
               fir::ValueR{ctx->get_poisson_value(instr.get_type())});
           bb->remove_instr(instr_id_p1 - 1, true);
+          modified = true;
         }
       }
       // utils::TempAlloc<void>::reset();
@@ -179,10 +182,11 @@ public:
           //       fir::ValueR{ctx->get_poisson_value(instr.get_type())});
           // }
           func.basic_blocks[bb_idp1 - 1]->remove_from_parent(true, true, true);
+          modified = true;
         }
       }
     }
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 
   void dump(fir::Function &func, TSet<fir::Instr> &marked) {

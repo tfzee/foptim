@@ -174,12 +174,14 @@ bool vstore_vload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   return false;
 }
 
-void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
+bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
                AliasAnalyis &aa) {
+  bool modified = false;
   for (size_t i = 0; i < bb->instructions.size(); i++) {
     auto instr = bb->instructions[i];
     if (gvn_applicable(instr) && apply_gvn(instr, bb, cfg, dom)) {
       i--;
+      modified = true;
       continue;
     }
 
@@ -199,6 +201,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           ASSERT(instr2->get_n_uses() == 0);
           instr2.destroy();
           i2--;
+          modified = true;
           continue;
         }
         if (instr->is(fir::InstrType::ICmp) &&
@@ -218,6 +221,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             instr2->replace_all_uses(res);
             instr2.destroy();
             i2--;
+            modified = true;
             continue;
           }
         }
@@ -240,6 +244,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               instr2->replace_all_uses(instr->get_arg(1));
               instr2.destroy();
               i2--;
+              modified = true;
               continue;
             }
             if (t1->get_bitwidth() == t2->get_bitwidth()) {
@@ -252,6 +257,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               instr2->replace_all_uses(r);
               instr2.destroy();
               i2--;
+              modified = true;
               continue;
             }
             if (t1->is_vec() && !t2->is_vec()) {
@@ -264,6 +270,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               instr2->replace_all_uses(r);
               instr2.destroy();
               i2--;
+              modified = true;
               continue;
             }
             if (t1->is_vec() && t1->as_vec().bitwidth == t2->get_bitwidth() &&
@@ -279,6 +286,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               instr2->replace_all_uses(res);
               instr2.destroy();
               i2--;
+              modified = true;
               continue;
             }
           }
@@ -290,6 +298,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           // TODO: for now only for vector
           if (!pot_store_between && vstore_sload_forwarding(instr, instr2)) {
             i2--;
+            modified = true;
             continue;
           }
         } else if (instr2->args[0].is_instr() && instr->get_type()->is_vec() &&
@@ -302,6 +311,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           // TODO: for now only for vector
           if (!pot_store_between && vstore_vload_forwarding(instr, instr2)) {
             i2--;
+            modified = true;
             continue;
           }
         }
@@ -321,6 +331,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
         if (!pot_load_between) {
           instr.destroy();
           i--;
+          modified = true;
           break;
         }
       }
@@ -371,6 +382,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             instr.destroy();
             instr2.destroy();
             i--;
+            modified = true;
             break;
           }
         } else if (instr->get_type()->is_float() && old_width <= 16 &&
@@ -400,6 +412,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             instr.destroy();
             instr2.destroy();
             i--;
+            modified = true;
             break;
           }
         }
@@ -428,6 +441,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             instr.destroy();
             instr2.destroy();
             i--;
+            modified = true;
             break;
           }
         }
@@ -470,6 +484,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             instr2->replace_all_uses(fir::ValueR{instr});
             instr2.destroy();
             i2--;
+            modified = true;
             continue;
           }
         }
@@ -519,6 +534,7 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               instr.destroy();
               instr2.destroy();
               i--;
+              modified = true;
               break;
             }
           }
@@ -553,7 +569,9 @@ void apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       }
     }
   }
+  return modified;
 }
+
 } // namespace
 
 PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
@@ -561,11 +579,12 @@ PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   CFG &cfg = AnalysisManager::cfg(func);
   Dominators &dom = AnalysisManager::dom(func);
   AliasAnalyis aa;
+  bool modified = false;
   for (auto bb : func.basic_blocks) {
-    apply_lvn(bb, cfg, dom, aa);
+    modified |= apply_lvn(bb, cfg, dom, aa);
   }
   // only instructions change, never blocks or edges
-  return PreservedAnalysis::cfg_only();
+  return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

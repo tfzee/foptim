@@ -429,8 +429,13 @@ PreservedAnalysis SCCP::apply(fir::Context &ctx, fir::Function &func) {
     }
   }
   // dump();
-  execute(ctx);
-  return PreservedAnalysis::none();
+  modified |= execute(ctx);
+  if (!modified) {
+    return PreservedAnalysis::all();
+  }
+  // folded branches change edges, everything else only replaces uses
+  return cfg_modified ? PreservedAnalysis::none()
+                      : PreservedAnalysis::cfg_only();
 }
 
 void SCCP::eval_meets(fir::BasicBlock bb, size_t bb_id) {
@@ -532,6 +537,7 @@ void SCCP::eval_and_update(fir::Context &ctx, fir::ValueR value) {
       auto res_co = new_value.toConstantValue(ctx, value.get_type());
       if (res_co) {
         value.replace_all_uses(fir::ValueR{res_co.value()});
+        modified = true;
       }
     }
   } else if (value.is_bb_arg()) {
@@ -1054,6 +1060,8 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       replacement_term.add_bb_arg(0, bb_arg);
     }
 
+    modified = true;
+    cfg_modified = true;
     values.erase(fir::ValueR{instr});
     instr.clear_bbs();
     instr.clear_args();

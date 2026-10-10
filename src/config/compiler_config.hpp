@@ -54,7 +54,17 @@ struct PassConfig {
     MIR_Func,
   };
 
+  static constexpr u32 NoSkipId = ~0U;
+
   FString override_name;
+  // index of this pass for the "was a no-op, skip it" tracking, assigned when
+  // the FIR pipeline is built (see optim/pass_skipping.hpp)
+  u32 skip_id = NoSkipId;
+  // false for passes with side effects beyond the IR (printing, verifying)
+  [[nodiscard]] virtual bool can_skip_when_clean() const { return true; }
+  // true if the pass reads other functions than the one it runs on, so its
+  // result can go stale when another function changes
+  [[nodiscard]] virtual bool interprocedural_read() const { return false; }
   [[nodiscard]] virtual PassConfig *clone() const = 0;
   [[nodiscard]] virtual std::string_view get_name() const = 0;
   [[nodiscard]] virtual PassType pass_type() const = 0;
@@ -123,6 +133,9 @@ struct Debug {
   u8 verbosity;
   // keep functions in input order instead of sorting them for MIR lowering
   bool no_reorder_funcs = false;
+  // always rerun FIR function passes, even if they were a no-op on the
+  // unchanged function the last time
+  bool no_skip_clean = false;
 };
 
 struct Remarks {};

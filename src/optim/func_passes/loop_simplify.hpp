@@ -85,6 +85,7 @@ public:
     for (auto b_id : loop.body_nodes) {
       body_nodes_lut.insert(cfg.bbrs[b_id].bb);
     }
+    bool modified = false;
     for (auto b_id : loop.body_nodes) {
       for (auto instr : cfg.bbrs[b_id].bb->instructions) {
         // TODO(PERF): could move loads but only if theres no interfering writes
@@ -104,12 +105,13 @@ public:
           fir::Builder b{use.user};
           auto copied = b.insert_copy(instr);
           use.replace_use(fir::ValueR{copied});
+          modified = true;
           utils::StatCollector::get().addi(1, "PropagateUseAfter",
                                            utils::StatCollector::StatFOptim);
         }
       }
     }
-    return false;
+    return modified;
   }
 
   bool merge_same_diret_induct_var(CFG &cfg, LoopInfoAnalysis &loops,
@@ -289,6 +291,7 @@ public:
     Dominators &dom = AnalysisManager::dom(func);
     LoopInfoAnalysis loops{dom};
 
+    bool modified = false;
     size_t loop_ip1 = 1;
     // eliminate all loops that dont have sideffects
     //  TODO: handle if its values are used after and their result value is
@@ -296,11 +299,13 @@ public:
     for (; loop_ip1 <= loops.info.size(); loop_ip1++) {
       if (propagate_to_after_loop(cfg, loops, loop_ip1 - 1) ||
           merge_same_diret_induct_var(cfg, loops, loop_ip1 - 1)) {
+        modified = true;
         // loop_ip1 = 0;
         // continue;
       }
       if (dead_loop_elimination(cfg, loops, loop_ip1 - 1) ||
           const_exit_value(ctx, cfg, dom, loops, loop_ip1 - 1)) {
+        modified = true;
         cfg.update(func, false);
         dom.update(cfg);
         loops.update(dom);
@@ -308,7 +313,7 @@ public:
         continue;
       }
     }
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

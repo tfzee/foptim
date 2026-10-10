@@ -1786,6 +1786,7 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
 
   auto iter = 0;
   bool modified = true;
+  bool any_modified = false;
   bool needs_update = true;
   while (modified) {
     modified = false;
@@ -1816,6 +1817,7 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
     if (!modified) {
       break;
     }
+    any_modified = true;
     if (needs_update) {
       // cfg/dom reference the cached objects, rebuild them in place (the
       // cache must not be invalidated here, that would free what we hold)
@@ -1823,8 +1825,9 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
       dom = Dominators(cfg);
     }
   }
-  dup_bb_to_args(func, cfg);
-  return PreservedAnalysis::none();
+  const bool dup_modified = dup_bb_to_args(func, cfg);
+  return any_modified || dup_modified ? PreservedAnalysis::none()
+                                      : PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

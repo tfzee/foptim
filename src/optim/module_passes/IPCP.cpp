@@ -13,10 +13,11 @@ namespace {
 
 u64 ipcp_unique_name_number = 0;
 
-void constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
+// returns whether the results of calls were replaced
+bool constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
   TVec<fir::ValueR> ret_vals;
   if (func->func_ty->as_func().return_type->is_void()) {
-    return;
+    return false;
   }
   for (auto bb : func->basic_blocks) {
     for (auto instr : bb->instructions) {
@@ -29,17 +30,17 @@ void constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
           if (!ret_val.is_constant() &&
               (!ret_val.is_bb_arg() ||
                ret_val.as_bb_arg()->get_parent() != func->get_entry())) {
-            return;
+            return false;
           }
           ret_vals.push_back(ret_val);
         }
       } else {
         if (instr->args.size() != ret_vals.size()) {
-          return;
+          return false;
         }
         for (size_t i = 0; i < ret_vals.size(); i++) {
           if (ret_vals[i] != instr->args[i]) {
-            return;
+            return false;
           }
         }
       }
@@ -81,6 +82,7 @@ void constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
       use.user->replace_all_uses(res_val);
     }
   }
+  return !func->get_uses().empty();
 }
 
 bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
@@ -211,9 +213,8 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
 } // namespace
 
 PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
-                              AnalysisManager & /*a*/) {
+                              AnalysisManager &analyMan) {
   ZoneScopedN("IPCP");
-  bool modified = false;
   // copy since passes below may add functions
   const auto funcs = ctx.data->storage.functions.all();
   for (auto *f : funcs) {
@@ -246,17 +247,13 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
     // if (constant_prop_args(fir::FunctionR(f), ctx)) {
     //   continue;
     // }
-    modified = true;
-    if (kill_dead_args(f, ctx)) {
-      continue;
+    // changes f (arguments) and its call sites (arguments, results), the
+    // returns only say if the function got renamed, not if it changed
+    AnalysisManager::ChangeWatch watch{analyMan, *f};
+    if (!kill_dead_args(f, ctx) && !constant_prop_args(fir::FunctionR(f), ctx)) {
+      constant_prop_return(fir::FunctionR(f), ctx);
     }
-    if (constant_prop_args(fir::FunctionR(f), ctx)) {
-      continue;
-    }
-    constant_prop_return(fir::FunctionR(f), ctx);
-  }
-  if (modified) {
-    return PreservedAnalysis::none();
+    watch.report();
   }
   return PreservedAnalysis::all();
 }

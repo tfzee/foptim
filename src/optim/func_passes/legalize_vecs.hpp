@@ -47,11 +47,14 @@ class LegalizeVecs final : public FunctionPass {
 
   bool legalize(fir::Context &ctx, fir::Instr instr,
                 TVec<fir::Instr> &worklist) {
+    // constant vector operands get moved into globals, whatever else happens
+    bool changed = false;
     for (size_t arg_indx = 0; arg_indx < instr->args.size(); arg_indx++) {
       auto arg = instr->args[arg_indx];
       // replace vec with reference to global variable
       if (arg.is_constant() && arg.as_constant()->is_vec()) {
         make_constant_global(ctx, instr, arg_indx);
+        changed = true;
       }
     }
 
@@ -161,7 +164,7 @@ class LegalizeVecs final : public FunctionPass {
       instr.destroy();
       return true;
     }
-    return false;
+    return changed;
   }
 
 public:
@@ -174,12 +177,13 @@ public:
       }
     }
 
+    bool modified = false;
     while (!worklist.empty()) {
       auto curr = worklist.back();
       worklist.pop_back();
-      legalize(ctx, curr, worklist);
+      modified |= legalize(ctx, curr, worklist);
     }
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

@@ -30,7 +30,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
       auto &func = funcs.at(i);
       auto matcher = foptim::fmir::GreedyMatcher{};
       func = matcher.apply(*reord_func, config);
+#ifdef ASSERT_ENABLED
       ASSERT(foptim::fmir::verify(func));
+#endif
     });
     i++;
   }
@@ -66,7 +68,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
         ASSERT(!func.bbs.empty());
         auto *pass = pass_conf->_construct_mir_func_pass();
         pass->apply(func, config);
+#ifdef ASSERT_ENABLED
         ASSERT(foptim::fmir::verify(func));
+#endif
       }
       curr_pass++;
     }
@@ -84,7 +88,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
           pass->apply(func, config);
           foptim::utils::TempAlloc<void *>::restore(temp_mark);
         }
+#ifdef ASSERT_ENABLED
         ASSERT(foptim::fmir::verify(func));
+#endif
       });
     }
     shed->wait_till_done();

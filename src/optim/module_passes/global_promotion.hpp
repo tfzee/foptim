@@ -14,7 +14,7 @@ namespace foptim::optim {
 class GlobalPromotion final : public ModulePass {
 public:
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
-                          AnalysisManager & /*analyMan*/) override {
+                          AnalysisManager &analyMan) override {
     ZoneScopedNC("GlobalPromotion", COLOR_OPTIMF);
     // if we have a global thats linked internally
     //  and its only used in 1 function we can promote it to a local alloca
@@ -144,12 +144,13 @@ public:
             for (auto use : uses) {
               use.replace_use(new_val);
             }
+            analyMan.touched_body(*target_f);
           }
         }
         slab = slab->next;
       }
     }
-    return PreservedAnalysis::none();
+    return PreservedAnalysis::all();
   }
 };
 

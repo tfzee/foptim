@@ -41,6 +41,10 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   program.add_argument("--no-reorder-funcs")
       .help("keep functions in input order (deterministic output order)")
       .flag();
+  program.add_argument("--no-skip-clean")
+      .help("always rerun FIR function passes, even if they were a no-op on "
+            "the unchanged function the last time")
+      .flag();
   program.add_argument("--bisect")
       .help("only run the FIR passes up to and including pass index N combine "
             "with --print-fir to inspect or diff the IR at a given depth")
@@ -78,6 +82,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   }
   if (program["--no-reorder-funcs"] == true) {
     conf.debug.no_reorder_funcs = true;
+  }
+  if (program["--no-skip-clean"] == true) {
+    conf.debug.no_skip_clean = true;
   }
   if (program.is_used("--passes")) {
     auto list = program.get<std::string>("--passes");

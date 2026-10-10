@@ -10,6 +10,9 @@
 
 namespace foptim::optim {
 class CmpKnownValProp final : public FunctionPass {
+  // whether any use was replaced
+  bool modified = false;
+
   void propagate(fir::ValueR input, fir::ValueR val, fir::BasicBlock /*condbb*/,
                  fir::BasicBlock targetbb, CFG &cfg, Dominators &dom) {
     auto targetbb_id = cfg.get_bb_id(targetbb);
@@ -19,6 +22,7 @@ class CmpKnownValProp final : public FunctionPass {
         auto use_bb = u.user->get_parent();
         if (dom.strict_dominates(targetbb_id, cfg.get_bb_id(use_bb))) {
           u.replace_use(val);
+          modified = true;
         }
       }
     }
@@ -108,9 +112,11 @@ class CmpKnownValProp final : public FunctionPass {
       auto user_bb = cfg.get_bb_id(use.user->get_parent());
       if (reachable_bbs_true[user_bb]) {
         use.replace_use(fir::ValueR{cfg.func->ctx->get_constant_int(1, 1)});
+        modified = true;
       }
       if (reachable_bbs_false[user_bb]) {
         use.replace_use(fir::ValueR{cfg.func->ctx->get_constant_int(0, 1)});
+        modified = true;
       }
     }
   }
@@ -132,7 +138,7 @@ public:
       }
     }
     // only uses get replaced by constants
-    return PreservedAnalysis::cfg_only();
+    return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

@@ -128,6 +128,7 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
   }
 
   // Dominators dom{cfg};
+  bool changed = false;
   for (size_t b = 0; b < cfg.bbrs.size(); b++) {
     auto &bb_i = cfg.bbrs[b];
     for (auto instr : bb_i.bb->instructions) {
@@ -149,6 +150,7 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
           // if (!dom.dom_bbs[b].dominators[cfg.get_bb_id(l->parent)]) {
           //   continue;
           // }
+          changed |= instr->get_n_uses() > 0;
           instr->replace_all_uses(fir::ValueR{l});
           utils::StatCollector::get().addi(1, "Num_DoubleLoadElim");
           // instr.destroy();
@@ -175,7 +177,7 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
   //   }
   // }
   // TODO("okak");
-  return PreservedAnalysis::none();
+  return changed ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

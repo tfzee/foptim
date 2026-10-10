@@ -518,8 +518,10 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
   }
 
   // (void)ctx;
+  bool modified = false;
   for (auto &[l, v] : known_load_values) {
     auto load = l;
+    modified |= load.get_n_uses() > 0;
 
     if (l.get_type()->is_float()) {
       auto widht = l.get_type()->as_float();
@@ -541,7 +543,8 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
       cache.erase(load);
     }
   }
-  return PreservedAnalysis::none();
+  // only uses of loads get replaced
+  return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

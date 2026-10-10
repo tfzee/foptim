@@ -356,15 +356,16 @@ public:
   Config config;
 
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
-                          AnalysisManager & /*analyMan*/) override {
+                          AnalysisManager &analyMan) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
     for (auto *f : ctx.data->storage.functions.all()) {
-      apply(ctx, *f);
+      apply(ctx, *f, analyMan);
     }
-    return PreservedAnalysis::none();
+    return PreservedAnalysis::all();
   }
 
-  void apply(fir::Context & /*unused*/, fir::Function &func) {
+  void apply(fir::Context & /*unused*/, fir::Function &func,
+             AnalysisManager &analyMan) {
     Advisor adv;
     TVec<fir::Instr> calls;
 
@@ -391,7 +392,9 @@ public:
         break;
       }
       for (auto call : calls) {
-        inline_call(call);
+        if (inline_call(call)) {
+          analyMan.touched_body(func);
+        }
         // if(!success){
         //   fmt::println("{}", call);
         //   fmt::println("{}", *call->args[0].as_constant()->as_func().func);

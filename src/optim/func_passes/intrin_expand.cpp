@@ -55,4 +55,53 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memset(fir::Function &func,
   return {new_block};
 }
 
+std::optional<fir::BasicBlock> IntrinExpand::expand_memcpy(fir::Function &func,
+                                                           fir::BasicBlock bb,
+                                                           fir::Instr instr) {
+  if (!instr->is(fir::IntrinsicSubType::Memcpy)) {
+    return {};
+  }
+  auto *ctx = func.ctx;
+
+  auto dst = instr->args[0];
+  auto src = instr->args[1];
+  auto num = instr->args[2];
+  auto elem_ty =
+      instr->extra_type.is_valid() ? instr->extra_type : ctx->get_int_type(8);
+
+  auto new_block = split_block(instr);
+
+  fir::Builder buh{bb};
+  auto loop_bb = buh.append_bb();
+  auto curr_dst = fir::ValueR{loop_bb.add_arg(
+      ctx->storage.insert_bb_arg(loop_bb, ctx->get_ptr_type()))};
+  auto curr_src = fir::ValueR{loop_bb.add_arg(
+      ctx->storage.insert_bb_arg(loop_bb, ctx->get_ptr_type()))};
+  auto curr_off = fir::ValueR{loop_bb.add_arg(
+      ctx->storage.insert_bb_arg(loop_bb, ctx->get_int_type(64)))};
+  buh.at_end(bb);
+  auto b = buh.build_branch(loop_bb);
+  b.add_bb_arg(0, dst);
+  b.add_bb_arg(0, src);
+  b.add_bb_arg(0, fir::ValueR{ctx->get_constant_int(0, 64)});
+  buh.at_end(loop_bb);
+
+  // forward element by element, exactly what the loop this came from did
+  auto loaded = buh.build_load(elem_ty, curr_src, false, false);
+  buh.build_store(curr_dst, loaded, false, false);
+  auto elem_size = fir::ValueR{ctx->get_constant_int(elem_ty->get_size(), 64)};
+  auto next_dst = buh.build_ptr_add(curr_dst, elem_size);
+  auto next_src = buh.build_ptr_add(curr_src, elem_size);
+  auto next_off =
+      buh.build_int_add(curr_off, fir::ValueR{ctx->get_constant_int(1, 64)});
+  auto cond = buh.build_int_cmp(next_off, num, fir::ICmpInstrSubType::ULT);
+  auto loopb = buh.build_cond_branch(cond, loop_bb, new_block);
+  loopb.add_bb_arg(0, next_dst);
+  loopb.add_bb_arg(0, next_src);
+  loopb.add_bb_arg(0, next_off);
+  instr.destroy();
+
+  return {new_block};
+}
+
 } // namespace foptim::optim

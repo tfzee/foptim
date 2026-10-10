@@ -2111,13 +2111,14 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
   }
   return false;
 }
-void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
+// returns whether the instruction was changed
+bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyVector");
   }
   if (!instr->get_type()->is_vec()) {
-    return;
+    return false;
   }
   const auto &v_t = instr->get_type()->as_vec();
   if (v_t.type == fir::VectorType::SubType::Integer && v_t.bitwidth == 8) {
@@ -2131,7 +2132,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto out_type = ctx->get_int_type(extend_to * 8);
       if (simplify_ext_byte_vector(instr, ctx, worklist, extend_to, n_out_elems,
                                    out_type)) {
-        return;
+        return true;
       }
     }
   }
@@ -2147,7 +2148,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
     push_all_uses(worklist, instr);
     instr->replace_all_uses(res);
     instr.destroy();
-    return;
+    return true;
   }
   if (instr->is(fir::InstrType::LoadInstr) &&
       instr->args[0].get_type()->is_vec() && instr->args[0].is_instr()) {
@@ -2192,7 +2193,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
         if (broad_cast->get_n_uses() == 0) {
           broad_cast.destroy();
         }
-        return;
+        return true;
       }
     }
   }
@@ -2206,7 +2207,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       push_all_uses(worklist, instr);
       instr->replace_all_uses(a1->args[0]);
       instr.destroy();
-      return;
+      return true;
     }
   }
   if (instr->subtype == static_cast<u32>(fir::VectorISubType::ExtractHigh) &&
@@ -2219,7 +2220,7 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       if (a1->get_n_uses() == 0) {
         a1.destroy();
       }
-      return;
+      return true;
     }
   } else if (instr->subtype ==
                  static_cast<u32>(fir::VectorISubType::ExtractLow) &&
@@ -2232,9 +2233,10 @@ void simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       if (a1->get_n_uses() == 0) {
         a1.destroy();
       }
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 bool simplify_extract(fir::Instr instr, WorkList &worklist) {
@@ -2351,8 +2353,7 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   if (instr_ty == InstrType::VectorInstr ||
       (instr_ty == InstrType::LoadInstr && instr->get_type()->is_vec()) ||
       (instr_ty == InstrType::StoreInstr && instr->get_type()->is_vec())) {
-    simplify_vector(instr, bb, ctx, worklist);
-    return true;
+    return simplify_vector(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::FCmp) {
     return simplify_fcmp(instr, bb, ctx, worklist);
@@ -2396,6 +2397,7 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   AliasAnalyis anal{};
   InstSimp::ConstraintCache ccache{func};
   bool changed_cfg = false;
+  bool changed = false;
 
   // TODO: maybe replace with actual queue
   TVec<WorkItem> worklist;
@@ -2414,15 +2416,25 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     }
     // only terminators have targets, instr is gone after it got simplified
     const bool is_branching = !instr->bbs.empty();
+    // not every simplification reports an in place edit (flipped predicate,
+    // swapped operand, ...), so look at the instruction itself too
+    const u64 hash_before = AnalysisManager::hash_instr(instr);
     if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal, ccache)) {
       man.reset();
+      changed = true;
       changed_cfg |= is_branching;
       ccache.invalidate(is_branching);
+    } else if (!changed && instr.is_valid() && instr->parent.is_valid() &&
+               AnalysisManager::hash_instr(instr) != hash_before) {
+      changed = true;
     }
   }
   // Simplifications can fold branches (edges change), everything else only
   // touches instructions. Constraints refer to instructions so they go either
   // way, not every in place edit reports a change.
+  if (!changed) {
+    return PreservedAnalysis::all();
+  }
   return changed_cfg ? PreservedAnalysis::none()
                      : PreservedAnalysis::cfg_only();
 }

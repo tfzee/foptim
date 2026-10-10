@@ -239,7 +239,8 @@ fir::TypeR select_type(TVec<fir::TypeR> tys, fir::Instr instr, u32 /*arg_id*/) {
 //  this new function taking in arguments for the difference values
 // NOTE: difference values are assumed to be constants only!
 // returns true on success false otherwise
-bool merge_functions(MergableGroup &group, fir::Context &ctx) {
+bool merge_functions(MergableGroup &group, fir::Context &ctx,
+                     AnalysisManager &analyMan) {
   // TODO: Might create huge name
 
   auto diff_size = group.diffs.size();
@@ -326,6 +327,7 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx) {
                               ->instructions[diff.instr_id]
                               ->args[diff.arg_id]);
           }
+          analyMan.touched_body(*instr->get_parent()->get_parent().func);
         }
       }
     }
@@ -405,7 +407,8 @@ void collect_group(
 
 } // namespace
 
-PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx) {
+PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx,
+                                            AnalysisManager &analyMan) {
   ZoneScopedN("DeDup0Diff");
   auto saved_talloc = utils::TempAlloc<void *>::scoped();
   TMap<fir::ValueR, fir::ValueR> local_value_map;
@@ -466,6 +469,7 @@ PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx) {
           // other->replace_all_uses(fir::ValueR{target_ref});
           for (auto use : uses) {
             use.replace_use(fir::ValueR(target_ref));
+            analyMan.touched_body(*use.user->get_parent()->get_parent().func);
           }
           utils::StatCollector::get().addi(
               1, "funcDedup0Diff", utils::StatCollector::StatType::StatFOptim);
@@ -473,10 +477,11 @@ PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx) {
       }
     }
   }
-  return PreservedAnalysis::none();
+  return PreservedAnalysis::all();
 }
 
-PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
+PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed,
+                                  AnalysisManager &analyMan) {
   Mutex<FVec<MergableGroup>> prot_groups;
   // helpers
 
@@ -526,7 +531,7 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
         // fmt::println("Got group with size {} with {} diffs",
         // curr.funcs.size(),
         //              curr.diffs.size());
-        if (!merge_functions(curr, ctx)) {
+        if (!merge_functions(curr, ctx, analyMan)) {
           continue;
         }
         utils::StatCollector::get().addi(
@@ -557,7 +562,7 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed) {
       }
     }
   }
-  return PreservedAnalysis::none();
+  return PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

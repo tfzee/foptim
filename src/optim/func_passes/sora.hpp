@@ -53,7 +53,8 @@ class SORA final : public FunctionPass {
     return {UseRes{.offset = 0, .access_size = 0, .user = use}};
   }
 
-  void apply(fir::Context &ctx, fir::Instr alloca) {
+  // returns whether the alloca got split
+  bool apply(fir::Context &ctx, fir::Instr alloca) {
     struct Data {
       u64 size;
       TVec<fir::Use> uses;
@@ -119,13 +120,13 @@ class SORA final : public FunctionPass {
       }
     }
     if (cutoff == 0 || ress.size() <= 1) {
-      return;
+      return false;
     }
     std::erase_if(ress, [cutoff](const auto &x) {
       return (x.first + x.second.size) > cutoff || x.second.size == 0;
     });
     if (ress.size() <= 1) {
-      return;
+      return false;
     }
 
     // fmt::println("For alloca {} cutoff {}", alloca, cutoff);
@@ -139,6 +140,7 @@ class SORA final : public FunctionPass {
         // fmt::println("    USE: {}", u.user);
       }
     }
+    return true;
   }
 
 public:
@@ -148,13 +150,13 @@ public:
     // if (func.name != "_Z9WikiMergeP4Test5RangeS1_S1_PFbS_S_ES0_l") {
     //   return;
     // }
+    bool modified = false;
     for (auto instr : entry->instructions) {
       if (instr->is(fir::InstrType::AllocaInstr)) {
-        apply(ctx, instr);
+        modified |= apply(ctx, instr);
       }
     }
-    //TODO: actually check if modified
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 

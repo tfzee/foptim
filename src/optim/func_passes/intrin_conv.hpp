@@ -58,7 +58,7 @@ bool match_memsetcpy(fir::Function &func) {
     return false;
   }
   for (auto &l : linfo.info) {
-    if (l.body_nodes.size() != 1 && l.body_nodes[0] == l.head) {
+    if (l.body_nodes.size() != 1 || l.body_nodes[0] != l.head) {
       continue;
     }
     if (!range.update(cfg, l)) {
@@ -121,7 +121,6 @@ bool match_memsetcpy(fir::Function &func) {
           load_instr->Volatile || load_instr->Atomic) {
         continue;
       }
-      size_t type_multiplier = load_instr->get_type()->get_size();
       fir::Builder buh{store_instr};
       auto old_term = loop_bb->get_terminator();
       ASSERT(old_term->bbs.size() == 2);
@@ -131,10 +130,12 @@ bool match_memsetcpy(fir::Function &func) {
         continue;
       }
       buh.at_end(loop_bb);
-      buh.build_intrinsic(
+      auto memcpy_instr = buh.build_intrinsic(
           store_instr->args[0], load_instr->args[0],
-          fir::ValueR{func.ctx->get_constant_int(r * type_multiplier, 64)},
+          fir::ValueR{func.ctx->get_constant_int(r, 64)},
           fir::IntrinsicSubType::Memcpy, func.ctx->get_void_type());
+      // the count is in elements of this type
+      memcpy_instr.as_instr()->extra_type = load_instr->get_type();
       fir::BasicBlock target_bb{fir::BasicBlock::invalid()};
       if (old_term->bbs[0].bb == loop_bb) {
         target_bb = old_term->bbs[1].bb;
@@ -159,7 +160,7 @@ bool match_memsetcpy(fir::Function &func) {
         store_val.is_bb_arg() && loop_bb != store_val.as_bb_arg()->get_parent();
     if (!is_constant && !is_instr_loop_constant_value &&
         !is_bb_arg_loop_constant_value) {
-      return false;
+      continue;
     }
     fir::Builder buh{store_instr};
     auto old_term = loop_bb->get_terminator();

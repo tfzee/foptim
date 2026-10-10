@@ -56,16 +56,17 @@ class LegalizeStructs final : public FunctionPass {
 
  public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
+    bool modified = false;
     for (auto bb : func.basic_blocks) {
       for (size_t instr_id = 0; instr_id < bb->instructions.size();
            instr_id++) {
         if (legalize(ctx, bb->instructions[instr_id])) {
           instr_id = 0;
+          modified = true;
         }
       }
     }
-    //TODO: check if its actulal preserved
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 }  // namespace foptim::optim

@@ -13,6 +13,7 @@ class TailRecElim final : public FunctionPass {
   fir::BasicBlock old_entry = fir::BasicBlock(fir::BasicBlock::invalid());
   fir::BasicBlock new_entry = fir::BasicBlock(fir::BasicBlock::invalid());
   fir::TypeR ret_type = fir::TypeR(fir::TypeR::invalid());
+  bool modified = false;
 
   void setup(fir::Context &ctx, fir::Function &func, fir::BasicBlock bb) {
     (void)bb;
@@ -52,6 +53,7 @@ class TailRecElim final : public FunctionPass {
       return;
     }
     setup(ctx, func, bb);
+    modified = true;
 
     fir::Builder b{new_entry};
     b.at_penultimate(bb);
@@ -94,6 +96,7 @@ class TailRecElim final : public FunctionPass {
       return;
     }
     setup(ctx, func, bb);
+    modified = true;
     auto accum_type = ret_type;
     // add the default value for the accumulator
     auto bool_type = ctx->get_int_type(1);
@@ -179,8 +182,7 @@ public:
         handle_accum(ctx, func, bb);
       }
     }
-    // TODO: actually check if modified
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

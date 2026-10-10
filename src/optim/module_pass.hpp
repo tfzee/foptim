@@ -5,6 +5,7 @@
 #include "ir/IRLocation.hpp"
 #include "ir/context.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/pass_skipping.hpp"
 #include "utils/job_system.hpp"
 #include "utils/stats.hpp"
 
@@ -69,6 +70,8 @@ class ModulePassManager {
   FVec<conf::PassConfig *> dyn_passes;
 
 public:
+  CleanTracker *tracker = nullptr;
+
   void clear() { dyn_passes.clear(); }
 
   void push_pass(conf::PassConfig *pass) { dyn_passes.push_back(pass); }
@@ -76,12 +79,11 @@ public:
   void apply(fir::Context &ctx, JobSheduler *shed, AnalysisManager &analMan) {
     for (auto *p : dyn_passes) {
       auto *pass = p->_construct_module_pass();
+      analMan.begin_module_pass(ctx);
+      PreservedAnalysis r;
       if (ctx.config->debug.time_passes) {
         auto start_time = std::chrono::high_resolution_clock::now();
-        auto r = pass->apply(ctx, shed, analMan);
-        (void)r;
-        // module passes may touch any function: drop all cached analyses
-        AnalysisManager::invalidate_all(ctx);
+        r = pass->apply(ctx, shed, analMan);
         auto end_time = std::chrono::high_resolution_clock::now();
         auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
                         end_time - start_time)
@@ -91,10 +93,13 @@ public:
                                            utils::StatCollector::StatTiming);
         }
       } else {
-        auto r = pass->apply(ctx, shed, analMan);
-        (void)r;
-        // module passes may touch any function: drop all cached analyses
-        AnalysisManager::invalidate_all(ctx);
+        r = pass->apply(ctx, shed, analMan);
+      }
+      // all() = everything that changed was reported and only that was
+      // dropped, anything else drops all cached analyses and clean bits
+      if (analMan.end_module_pass(ctx, r, p->get_name()) && tracker) {
+        // function passes that read other functions
+        tracker->mark_dirty_interprocedural(ctx);
       }
       if (ctx.config->debug.print_optimization_failure_reasons) {
         pass->print_failures();

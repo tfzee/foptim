@@ -68,8 +68,10 @@ PreservedAnalysis LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
   Dominators &dom = AnalysisManager::dom(func);
   LoopInfoAnalysis linfo{dom};
 
+  bool modified = false;
   for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
     bool apply_res = apply(ctx, cfg, *loop);
+    modified |= apply_res;
     if (apply_res && linfo.info.size() > 1) {
       cfg.update(func, false);
       dom.update(cfg);
@@ -77,7 +79,7 @@ PreservedAnalysis LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
       loop = linfo.info.begin();
     }
   }
-  return PreservedAnalysis::none();
+  return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
 bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {

@@ -66,7 +66,8 @@ bool type_equal_enough_for_guess(fir::TypeR got, fir::TypeR exp) {
 //  we can check the loads/stores
 //  but if we hit a load that only is used in a store and vice verse the types
 //  of these can be freely changed aslong as the bitwidth matches
-void fix_types(fir::Function &func) {
+// returns whether a type was changed
+bool fix_types(fir::Function &func) {
   TSet<fir::Instr> convertable_set;
   for (auto bb : func.basic_blocks) {
     for (auto instr : bb->instructions) {
@@ -79,7 +80,7 @@ void fix_types(fir::Function &func) {
     }
   }
   if (convertable_set.empty()) {
-    return;
+    return false;
   }
   TMap<fir::Instr, fir::TypeR> convert_load_to_type;
   TVec<fir::Instr> convertable_uses;
@@ -124,6 +125,7 @@ void fix_types(fir::Function &func) {
       }
     }
   }
+  bool modified = false;
   if (!convert_load_to_type.empty()) {
     for (auto [cu, ty] : convert_load_to_type) {
       auto store = cu->uses[0].user;
@@ -132,17 +134,20 @@ void fix_types(fir::Function &func) {
           store->get_type()->get_bitwidth() != ty->get_bitwidth()) {
         continue;
       }
+      modified |= cu->get_type() != ty || store->get_type() != ty;
       const_cast<fir::InstrData *>(cu.get_raw_ptr())->value_type = ty;
       const_cast<fir::InstrData *>(cu->uses[0].user.get_raw_ptr())->value_type =
           ty;
     }
   }
+  return modified;
 }
 
 // For a alloca instruction get all basic blocks it needs an phi in.
 //  for this we look at all bbs that store to it
 void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
-                          AllocToPhiLoc &res, Dominators &dom) {
+                          AllocToPhiLoc &res, Dominators &dom,
+                          bool &modified) {
   if (!alloca_instr->is(fir::InstrType::AllocaInstr)) {
     return;
   }
@@ -184,6 +189,7 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
     }
     if (guessed_type.is_valid()) {
       alloca_instr->extra_type = guessed_type;
+      modified = true;
     }
   }
 
@@ -232,13 +238,14 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
   }
 }
 
-AllocToPhiLoc phi_insert_locations(fir::Function &func, Dominators &dom) {
+AllocToPhiLoc phi_insert_locations(fir::Function &func, Dominators &dom,
+                                   bool &modified) {
   AllocToPhiLoc res;
 
   // for every alloca instruction
   for (auto basic_block : func.basic_blocks) {
     for (auto instruction : basic_block->instructions) {
-      phi_insert_locations(func, instruction, res, dom);
+      phi_insert_locations(func, instruction, res, dom, modified);
     }
   }
 
@@ -443,7 +450,7 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
 PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("Mem2Reg");
 
-  fix_types(func);
+  bool modified = fix_types(func);
   // fmt::println("{:cd}", func);
 
   CFG &cfg = AnalysisManager::cfg(func);
@@ -456,7 +463,9 @@ PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
 
   TMap<fir::ValueR, fir::ValueR> bb_arg_to_alloca{};
   // create all 'phis'
-  auto insert_locations = phi_insert_locations(func, dom);
+  auto insert_locations = phi_insert_locations(func, dom, modified);
+  // every alloca in there gets promoted
+  modified |= !insert_locations.empty();
 
   for (auto &[instr, blocks] : insert_locations) {
     if (instr->extra_type.is_valid() && instr->get_n_uses() > 0) {
@@ -478,6 +487,6 @@ PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
                            func.get_entry(), visited, bb_arg_to_alloca,
                            insert_locations, current_variable_value);
   // only block arguments and instructions change, no edges
-  return PreservedAnalysis::cfg_only();
+  return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
 } // namespace foptim::optim

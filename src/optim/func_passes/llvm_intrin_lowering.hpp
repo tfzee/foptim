@@ -662,6 +662,9 @@ public:
     instr.destroy();
   }
 
+  // a lowered call counts as modified
+  bool modified = false;
+
   void apply(fir::BasicBlock bb, fir::Function &func) {
     // annoying copy
     //
@@ -683,67 +686,98 @@ public:
         auto callee = instr->args[0].as_constant()->as_func();
         if (callee.func->name.starts_with("llvm.memset.")) {
           handle_memset(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.memcpy.")) {
           handle_memcpy(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.fmuladd.")) {
           handle_fmuladd(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.trap")) {
           handle_trap(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.fabs")) {
           handle_fabs(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.abs")) {
           handle_abs(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.is.fpclass")) {
           handle_is_fpclass(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.expect")) {
           handle_expect(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.objectsize")) {
           handle_obj_size(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.va_start")) {
           handle_va(instr, func, callee, true);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.va_end")) {
           handle_va(instr, func, callee, false);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.umul.with.overflow")) {
           handle_umul_with_overflow(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.uadd.with.overflow")) {
           handle_uadd_with_overflow(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.lifetime.start") ||
                    callee.func->name.starts_with("llvm.lifetime.end")) {
           handle_lifetime(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.exp.f")) {
           handle_fexp(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.memmove")) {
           handle_memmove(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.ctlz")) {
           handle_ctlz(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.cttz")) {
           handle_cttz(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.is.constant")) {
           handle_is_constant(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.minnum")) {
           handle_minmaxnum(instr, func, callee, true);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.maxnum")) {
           handle_minmaxnum(instr, func, callee, false);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.maximum")) {
           handle_minmax(instr, func, callee, true);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.minimum")) {
           handle_minmax(instr, func, callee, false);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.trunc.")) {
           handle_trunc(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.ctpop.")) {
           handle_cntpop(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.round.")) {
           handle_round(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.ceil.")) {
           handle_ceil(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.floor.")) {
           handle_floor(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.rint.")) {
           handle_rint(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.nearbyint.")) {
           handle_nearbyint(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.copysign.")) {
           handle_copysign(instr, func, callee);
+          modified = true;
         }
       }
     }
@@ -755,8 +789,7 @@ public:
     for (auto bb : func.basic_blocks) {
       apply(bb, func);
     }
-    // TODO: check if actually modified
-    return PreservedAnalysis::none();
+    return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
 } // namespace foptim::optim

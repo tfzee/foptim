@@ -7,6 +7,7 @@
 #include "ir/attributable.hpp"
 #include "ir/helpers.hpp"
 #include "types_ref.hpp"
+#include "utils/bitset.hpp"
 #include "utils/string.hpp"
 #include "utils/todo.hpp"
 
@@ -57,6 +58,9 @@ class Function : public Attributable, public LockedUsed {
   // analyses cached by optim::AnalysisManager, see there
   std::unique_ptr<optim::FunctionAnalysisCache, AnalysisCacheDeleter>
       analysis_cache;
+  // bit per FIR function pass that is known to be a no-op on the function in
+  // its current state, see optim/pass_skipping.hpp. null = nothing known
+  std::unique_ptr<utils::BitSet<u64, utils::IRAlloc<u64>>> clean_passes;
 
   Function(ContextData *ctx, IRString name, FunctionTypeR type)
       : ctx(ctx), name(std::move(name)), func_ty(type), basic_blocks({}) {}

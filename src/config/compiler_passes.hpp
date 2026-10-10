@@ -113,6 +113,12 @@ public:
   [[nodiscard]] PassType pass_type() const final {
     return PassType::FIR_Function;
   }
+  [[nodiscard]] bool interprocedural_read() const final {
+    if constexpr (requires { T::Pass::InterproceduralRead; }) {
+      return T::Pass::InterproceduralRead;
+    }
+    return false;
+  }
   bool _pass_parse(void *arg) final {
     return (static_cast<T *>(this))
         ->pass_parse(*static_cast<toml::table *>(arg));
@@ -136,6 +142,7 @@ struct PrintFuncConf : public FunctionPassConf<PrintFuncConf>,
                        optim::PrintFunc::Config {
   static constexpr const char *BaseName = "PrintFunc";
   using Pass = optim::PrintFunc;
+  [[nodiscard]] bool can_skip_when_clean() const override { return false; }
   bool pass_parse(toml::table &tbl) {
     auto view = tbl["name_matching"].value_or<std::string_view>("");
     if (!view.empty()) {
@@ -172,6 +179,7 @@ struct DSEConf : public FunctionPassConf<DSEConf>, optim::DSE::Config {
 struct VerifyFuncConf : public FunctionPassConf<VerifyFuncConf> {
   static constexpr const char *BaseName = "VerifyFunc";
   using Pass = optim::VerifyFunc;
+  [[nodiscard]] bool can_skip_when_clean() const override { return false; }
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

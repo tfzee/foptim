@@ -294,7 +294,13 @@ class SCCP final : public FunctionPass {
 
   void eval_meets(fir::BasicBlock bb, size_t bb_id);
 
-  void execute(fir::Context &ctx) {
+  // the pass changed the function / the blocks and edges
+  bool modified = false;
+  bool cfg_modified = false;
+
+  // returns whether any use was replaced
+  bool execute(fir::Context &ctx) {
+    bool modified = false;
     for (auto &[val, consta] : values) {
       if (consta.is_const()) {
         fir::ValueR val_non_const = val;
@@ -302,10 +308,12 @@ class SCCP final : public FunctionPass {
         auto res_co = consta.toConstantValue(ctx, val.get_type());
         if (res_co) {
           // fmt::println("sccp> {:cd}", res_co.value());
+          modified |= val_non_const.get_n_uses() > 0;
           val_non_const.replace_all_uses(fir::ValueR{res_co.value()});
         }
       }
     }
+    return modified;
   }
 
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;

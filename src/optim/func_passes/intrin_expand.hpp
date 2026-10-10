@@ -12,6 +12,9 @@ class IntrinExpand final : public FunctionPass {
 
   std::optional<fir::BasicBlock>
   expand_memset(fir::Function &func, fir::BasicBlock bb, fir::Instr instr);
+  // the element type is the extra_type of the intrinsic (bytes if not set)
+  std::optional<fir::BasicBlock>
+  expand_memcpy(fir::Function &func, fir::BasicBlock bb, fir::Instr instr);
 
 public:
   class Config {};
@@ -30,7 +33,11 @@ public:
         if (!i->is(fir::InstrType::Intrinsic)) {
           continue;
         }
-        if (auto r = expand_memset(func, *bb_iter, i)) {
+        auto r = expand_memset(func, *bb_iter, i);
+        if (!r) {
+          r = expand_memcpy(func, *bb_iter, i);
+        }
+        if (r) {
           bb_iter = std::ranges::find(func.basic_blocks, r);
           modified = true;
           broke = true;

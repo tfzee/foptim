@@ -296,6 +296,7 @@ bool debug_parse(Debug &conf, toml::table &tbl) {
   conf.time_passes = tbl["time_passes"].value_or(conf.time_passes);
   conf.no_reorder_funcs =
       tbl["no_reorder_funcs"].value_or(conf.no_reorder_funcs);
+  conf.no_skip_clean = tbl["no_skip_clean"].value_or(conf.no_skip_clean);
 
   return true;
 }

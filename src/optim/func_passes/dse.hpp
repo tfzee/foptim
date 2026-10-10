@@ -338,8 +338,8 @@ public:
     Dominators &dom = AnalysisManager::dom(func);
     AliasAnalyis aa;
 
-    eliminate_dead_alloca_stores(ctx, func, dom, cfg, aa);
-    return PreservedAnalysis::cfg_only();
+    const bool changed = eliminate_dead_alloca_stores(ctx, func, dom, cfg, aa);
+    return changed ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
   }
 };
 

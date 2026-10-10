@@ -42,24 +42,24 @@ static bool delete_useless_memcpy(fir::Instr instr) {
   return true;
 }
 
-static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
+static bool simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context &ctx) {
   (void)instr;
   (void)bb;
   (void)ctx;
 
   if (!instr->args[3].is_constant()) {
-    return;
+    return false;
   }
   auto size = instr->args[3].as_constant()->as_int();
 
   // delete uselless memcpy
   if (delete_useless_memcpy(instr)) {
-    return;
+    return true;
   }
 
   if (size > 8 && size != 16 && size != 32) {
-    return;
+    return false;
   }
   auto dst_ptr = instr->args[1];
   auto src_ptr = instr->args[2];
@@ -86,35 +86,38 @@ static void simplify_memcpy(fir::Instr instr, fir::BasicBlock bb,
     auto input = b.build_load(selected_type, src_ptr, false, instr->Volatile);
     b.build_store(dst_ptr, input, false, instr->Volatile);
     instr.destroy();
-    return;
+    return true;
   }
+  return false;
 }
 
-static void simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx) {
+static bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx) {
   if (!instr->is(fir::InstrType::CallInstr)) {
-    return;
+    return false;
   }
   if (!instr->args[0].is_constant() ||
       !instr->args[0].as_constant()->is_func()) {
-    return;
+    return false;
   }
   auto f = instr->args[0].as_constant()->as_func();
   if (instr->args.size() == 4 && f.func->name == "foptim.memcpy") {
-    simplify_memcpy(instr, bb, ctx);
+    return simplify_memcpy(instr, bb, ctx);
   }
+  return false;
 }
 
 PreservedAnalysis IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("IntrinSimplify", COLOR_OPTIMF);
 
+  bool modified = false;
   for (foptim::fir::BasicBlock bb : func.basic_blocks) {
     auto &instrs = bb->get_instrs();
     for (size_t i = 0; i < instrs.size(); i++) {
       auto instr = instrs[i];
-      simplify(instr, bb, ctx);
+      modified |= simplify(instr, bb, ctx);
     }
   }
-  return PreservedAnalysis::none();
+  return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

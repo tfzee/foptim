@@ -508,7 +508,7 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
 
 PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
                                       JobSheduler * /*unused*/,
-                                      AnalysisManager & /*unused*/) {
+                                      AnalysisManager &analyMan) {
   ZoneScopedNC("ArgumentPromoition", COLOR_OPTIMM);
   // indices stay valid since renaming keeps the order and new functions are
   // appended
@@ -547,23 +547,17 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
         continue;
       }
     }
-    if (promote_ptr_to_value_return(f, ctx)) {
+    // the returns only say if the function got renamed (restart), not if it
+    // or its callers changed
+    AnalysisManager::ChangeWatch watch{analyMan, *f};
+    if (promote_ptr_to_value_return(f, ctx) ||
+        promote_ptr_to_value_args(f, ctx) ||
+        promote_vecvec_to_concat_vec(f, ctx) ||
+        return_vecvec_to_concat_vec(f, ctx)) {
       iter = static_cast<size_t>(-1);
-      continue;
     }
-    if (promote_ptr_to_value_args(f, ctx)) {
-      iter = static_cast<size_t>(-1);
-      continue;
-    }
-    if (promote_vecvec_to_concat_vec(f, ctx)) {
-      iter = static_cast<size_t>(-1);
-      continue;
-    }
-    if (return_vecvec_to_concat_vec(f, ctx)) {
-      iter = static_cast<size_t>(-1);
-      continue;
-    }
+    watch.report();
   }
-  return PreservedAnalysis::none();
+  return PreservedAnalysis::all();
 }
 } // namespace foptim::optim
