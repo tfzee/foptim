@@ -268,47 +268,47 @@ define i64 @spill_fcmp(ptr %p) {
 ; CHECK-NEXT:    $rsp: i64 -= 80: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rdi]: f64
-; CHECK-NEXT:    [$rbp + -24]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -24]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 16: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 16]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -32]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -32]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 32: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 32]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -40]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -40]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 48: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 48]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -48]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -48]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 64: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 64]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -56]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -56]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 80: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 80]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -64]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -64]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 96: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 96]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -72]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -72]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 112: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 112]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -80]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -80]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 128: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 128]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    [$rbp + -16]: i64 = $mm0: f64
+; CHECK-NEXT:    [$rbp + -16]: f64 = $mm0: f64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    $rax: i64 += 144: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 144]: f64
@@ -369,38 +369,38 @@ define i64 @spill_fcmp(ptr %p) {
 ; CHECK-NEXT:    $rax: i64 += 368: i64
 ; CHECK-NEXT:    $mm0: f64 = [$rdi + 368]: f64
 ; CHECK-NEXT:    $mm2: f64 = $mm0: f64 * [$rax]: f64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -24]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -24]: f64
 ; CHECK-NEXT:    fcmp_une($al: i8, $mm0: f64, $mm2: f64, )
 ; CHECK-NEXT:    mov_zx($rax: i64, $al: i8, )
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -32]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -32]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm14: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -40]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -40]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm13: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -48]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -48]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm12: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -56]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -56]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm11: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -64]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -64]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm9: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -72]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -72]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm8: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -80]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -80]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm7: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    $mm0: f64 = [$rbp + -16]: i64
+; CHECK-NEXT:    $mm0: f64 = [$rbp + -16]: f64
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm0: f64, $mm6: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
@@ -422,31 +422,31 @@ define i64 @spill_fcmp(ptr %p) {
 ; CHECK-NEXT:    fcmp_une($cl: i8, $mm5: f64, $mm15: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm6: f64, [$rbp + -16]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm6: f64, [$rbp + -16]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm7: f64, [$rbp + -80]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm7: f64, [$rbp + -80]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm8: f64, [$rbp + -72]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm8: f64, [$rbp + -72]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm9: f64, [$rbp + -64]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm9: f64, [$rbp + -64]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm11: f64, [$rbp + -56]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm11: f64, [$rbp + -56]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm12: f64, [$rbp + -48]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm12: f64, [$rbp + -48]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm13: f64, [$rbp + -40]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm13: f64, [$rbp + -40]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm14: f64, [$rbp + -32]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm14: f64, [$rbp + -32]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    fcmp_une($cl: i8, $mm2: f64, [$rbp + -24]: i64, )
+; CHECK-NEXT:    fcmp_une($cl: i8, $mm2: f64, [$rbp + -24]: f64, )
 ; CHECK-NEXT:    mov_zx($rcx: i64, $cl: i8, )
 ; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    $rsp: i64 += 80: i64

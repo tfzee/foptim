@@ -64,9 +64,15 @@ public:
             } else if (arg.scale == 16) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Float64x2);
             } else if (arg.scale == 8) {
-              arg = MArgument::MemOB(off, VReg::RBP(), Type::Int64);
+              // float slots keep their type, FL2SI/FL2UI pick the encoding
+              // from the type of a memory source
+              arg = MArgument::MemOB(off, VReg::RBP(),
+                                     arg.ty == Type::Float64 ? Type::Float64
+                                                             : Type::Int64);
             } else if (arg.scale == 4) {
-              arg = MArgument::MemOB(off, VReg::RBP(), Type::Int32);
+              arg = MArgument::MemOB(off, VReg::RBP(),
+                                     arg.ty == Type::Float32 ? Type::Float32
+                                                             : Type::Int32);
             } else if (arg.scale == 2) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Int16);
             } else if (arg.scale == 1) {

@@ -1300,7 +1300,6 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     bool out_32 = instr.args[0].ty == fmir::Type::Int32;
     bool is_unsigned = instr.is(fmir::GConvSubtype::FL2UI);
     ASSERT(req.operands[0].type == ZYDIS_OPERAND_TYPE_REGISTER);
-    ASSERT(req.operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER);
 
     req.mnemonic =
         is_f32 ? ZYDIS_MNEMONIC_VCVTTSS2SI : ZYDIS_MNEMONIC_VCVTTSD2SI;

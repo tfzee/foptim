@@ -539,6 +539,17 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
                                  c1.ty == Type::INVALID ? c2.ty : c1.ty);
     }
     return uv || u1 || u2;
+  } else if (instr.is(GConvSubtype::FL2SI) || instr.is(GConvSubtype::FL2UI)) {
+    // FL2xI(res, src) = cvttsd2si res, src; res has to stay a register, src
+    // may be memory
+    auto &res = instr.args[0];
+    auto &src = instr.args[1];
+    if (res.isMem() || src.isMem() || res.uses_same_vreg(spill_vreg) ||
+        !src.uses_same_vreg(spill_vreg)) {
+      return false;
+    }
+    src = MArgument::stack_slot(stack_slot_id, src.ty);
+    return true;
   } else {
     fmt::println(">> try mem insert spill >> {}", instr);
   }
