@@ -5,7 +5,6 @@ define i32 @udiv_i32_1(i32 %x) {
 ; CHECK: func udiv_i32_1 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 0: i32, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 1
   ret i32 %res
@@ -229,8 +228,6 @@ define i32 @sdiv_i32_1(i32 %x) {
 ; CHECK: func sdiv_i32_1 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 1: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 1
   ret i32 %res
@@ -464,9 +461,8 @@ define i32 @sdiv_i32_2147483647(i32 %x) {
 define i32 @sdiv_i32_m1(i32 %x) {
 ; CHECK: func sdiv_i32_m1 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -1: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    clear $eax: i32
+; CHECK-NEXT:    $eax: i32 -= $edi: i32
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, -1
   ret i32 %res

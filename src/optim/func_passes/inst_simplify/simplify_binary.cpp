@@ -965,6 +965,40 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         return true;
       }
     }
+    if (c_idx == 1 && c_val->is_int() &&
+        (instr->is(fir::BinaryInstrSubType::IntSDiv) ||
+         instr->is(fir::BinaryInstrSubType::IntUDiv) ||
+         instr->is(fir::BinaryInstrSubType::IntSRem) ||
+         instr->is(fir::BinaryInstrSubType::IntURem))) {
+      const bool is_div = instr->is(fir::BinaryInstrSubType::IntSDiv) ||
+                          instr->is(fir::BinaryInstrSubType::IntUDiv);
+      const auto val = c_val->as_int();
+      // x / 1 == x, x % 1 == 0
+      if (val == 1) {
+        push_all_uses(worklist, instr);
+        if (is_div) {
+          instr->replace_all_uses(instr->args[0]);
+        } else {
+          instr->replace_all_uses(
+              fir::ValueR{ctx->get_constant_value(0, instr->get_type())});
+        }
+        instr.destroy();
+        return true;
+      }
+      // x sdiv -1 == 0 - x (INT_MIN sdiv -1 is UB so no wrap special case)
+      const auto shift_width = 128 - instr->get_type()->as_int();
+      if (instr->is(fir::BinaryInstrSubType::IntSDiv) &&
+          ((val << shift_width) >> shift_width) == -1) {
+        fir::Builder bb{instr};
+        auto zero = fir::ValueR{ctx->get_constant_value(0, instr->get_type())};
+        auto neg = bb.build_binary_op(zero, instr->args[0],
+                                      fir::BinaryInstrSubType::IntSub);
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(neg);
+        instr.destroy();
+        return true;
+      }
+    }
     if (c_val->is_int() &&
         instr->get_instr_subtype() ==
             static_cast<u32>(fir::BinaryInstrSubType::IntURem)) {
