@@ -140,6 +140,7 @@ add_library (foptim OBJECT
                 ./src/optim/module_passes/arg_promotion.cpp
                 ./src/optim/module_passes/IPCP.cpp
                 ./src/optim/helper/inline.cpp
+                ./src/optim/helper/scev_expander.cpp
                 ./src/optim/helper/WFVector.cpp
                 ./src/optim/helper/helper.cpp
 
