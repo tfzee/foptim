@@ -67,6 +67,10 @@ bool match_memsetcpy(fir::Function &func) {
     if (!range.known_lower || !range.known_upper) {
       continue;
     }
+    // the element count and the contiguous layout only hold for a step of 1
+    if (range.a != 1) {
+      continue;
+    }
     auto r = range.upper_bound - range.lower_bound;
     auto loop_bb = cfg.bbrs[l.head].bb;
 

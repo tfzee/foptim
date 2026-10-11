@@ -1379,10 +1379,12 @@ bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
     return false;
   }
   foptim::IRString func_name = func.getName().str().c_str();
-  fctx.data->storage.functions.insert(
-      func_name, std::make_unique<foptim::fir::Function>(
-                      fctx.operator->(), func_name,
-                      convert_type(func.getFunctionType(), fctx, mod)));
+  if (!fctx->has_function(func_name.c_str())) {
+    fctx.data->storage.functions.insert(
+        func_name, std::make_unique<foptim::fir::Function>(
+                        fctx.operator->(), func_name,
+                        convert_type(func.getFunctionType(), fctx, mod)));
+  }
 
   const auto foff_func = fctx->get_function(func_name.c_str());
   const auto func_ptr = fctx->get_constant_value(foff_func);

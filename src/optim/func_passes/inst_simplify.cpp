@@ -643,7 +643,8 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     return true;
   }
   if (iszext && instr->args[0].is_instr() &&
-      instr->args[0].as_instr()->is(fir::InstrType::ITrunc)) {
+      instr->args[0].as_instr()->is(fir::InstrType::ITrunc) &&
+      instr->args[0].get_type()->get_bitwidth() < 64) {
     // a -> tr -> b
     auto trunc = instr->args[0].as_instr();
     auto input_ty = trunc->args[0].get_type();
@@ -651,7 +652,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto output_type = instr.get_type();
     auto output_width = output_type->get_bitwidth();
     fir::Builder b(instr);
-    auto bitwidth = trunc.get_type()->get_size() * 8;
+    auto bitwidth = trunc.get_type()->get_bitwidth();
     auto mask = ctx->get_constant_value((static_cast<u64>(1) << bitwidth) - 1,
                                         input_ty);
     auto new_result = b.build_binary_op(trunc->args[0], fir::ValueR{mask},

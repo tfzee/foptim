@@ -1206,6 +1206,24 @@ SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
   return Res::NoChange;
 }
 
+namespace {
+// the instruction ends up executing on both paths, so it must not trap or
+// touch memory (a load behind a null check would fault)
+bool safe_to_speculate(fir::Instr instr) {
+  if (instr->has_pot_sideeffects() || instr->pot_reads_mem() ||
+      instr->pot_modifies_mem()) {
+    return false;
+  }
+  if (instr->is(fir::BinaryInstrSubType::IntSDiv) ||
+      instr->is(fir::BinaryInstrSubType::IntUDiv) ||
+      instr->is(fir::BinaryInstrSubType::IntSRem) ||
+      instr->is(fir::BinaryInstrSubType::IntURem)) {
+    return false;
+  }
+  return true;
+}
+} // namespace
+
 bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
   auto terminator = curr.bb->get_terminator();
   if (curr.succ.size() == 2 &&
@@ -1234,7 +1252,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
           if (instr->is(fir::InstrType::ReturnInstr)) {
             continue;
           }
-          if (instr->has_pot_sideeffects()) {
+          if (!safe_to_speculate(instr)) {
             matched = false;
             break;
           }
@@ -1247,7 +1265,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
           if (instr->is(fir::InstrType::ReturnInstr)) {
             continue;
           }
-          if (instr->has_pot_sideeffects()) {
+          if (!safe_to_speculate(instr)) {
             matched = false;
             break;
           }

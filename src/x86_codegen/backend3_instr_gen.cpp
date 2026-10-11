@@ -742,8 +742,11 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
 
     // we need to clear the full reg if we want to be safe
     req.mnemonic = ZYDIS_MNEMONIC_MOV;
+    // operands[0] still holds the compare lhs (can be a memory operand)
+    req.operands[0] = targ;
     req.operands[0].reg.value =
         ZydisRegisterGetLargestEnclosing(req.machine_mode, targ.reg.value);
+    req.operands[1] = {};
     req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
     req.operands[1].imm.u = 0;
     req.operand_count = 2;

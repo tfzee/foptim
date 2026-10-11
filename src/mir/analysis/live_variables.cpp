@@ -1191,6 +1191,21 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func,
           }
         }
       }
+      // the pinned return registers of the following ret_setups of the same
+      // chunk still hold their value when this one writes its destination, so
+      // the destination must not be assigned to them
+      if (instr.is(GBaseSubtype::ret_setup) && instr.args[0].isReg() &&
+          !instr.args[0].reg.is_concrete()) {
+        for (size_t j = instridp1; j < bb.instrs.size() &&
+                                   bb.instrs[j].is(GBaseSubtype::ret_setup);
+             j++) {
+          const auto &later = bb.instrs[j];
+          if (later.n_args > 1 && later.args[1].isReg()) {
+            ranges[instr.args[0].reg].insert(reg_to_uid(later.args[1].reg));
+            ranges[later.args[1].reg].insert(reg_to_uid(instr.args[0].reg));
+          }
+        }
+      }
       helper.clear();
       written_args(instr, helper);
       // auto all defs

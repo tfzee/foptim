@@ -54,7 +54,11 @@ public:
             // TOOD: support other types
             // the slots live below rbp, in the area reserved by the
             // `sub rsp, stack_slots_size` in the prologue
-            ASSERT_M(arg.scale <= func.extra_stack_slots.at(arg.imm - 1).size,
+            // a push of a narrow spilled value (argument shuffling in the
+            // calling convention) has to read 8 bytes, the extra bytes
+            // are inside the frame and ignored by the later pop of the low part
+            ASSERT_M(arg.scale <= func.extra_stack_slots.at(arg.imm - 1).size ||
+                         i.is(GBaseSubtype::push),
                      "stack slot access wider than the slot");
             auto off = static_cast<u64>(
                 static_cast<i64>(index_to_mem_off.at(arg.imm - 1)) -

@@ -1,4 +1,5 @@
 #pragma once
+#include <cstring>
 #include "ir/builder.hpp"
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
@@ -100,7 +101,11 @@ public:
                 break;
               }
             }
-            if (target_f == nullptr || !target_f->attribs.no_recurse) {
+            // the alloca is fresh on every call, so the global's value would
+            // not persist between calls: only valid if the function runs at
+            // most once, which we only know for main
+            if (target_f == nullptr || !target_f->attribs.no_recurse ||
+                std::strcmp(target_f->getName().c_str(), "main") != 0) {
               continue;
             }
             fir::Builder b{target_f};

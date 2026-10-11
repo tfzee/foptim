@@ -268,6 +268,13 @@ public:
         auto n_uses = base.get_n_uses();
         for (auto uidp1 = n_uses; uidp1 > 0; uidp1--) {
           auto use = (*base.get_uses())[uidp1 - 1];
+          // the exit block can dominate the loop itself (nested loops), the
+          // uses inside the loop see the per iteration values
+          if (std::ranges::contains(
+                  loops.info[loop_i].body_nodes,
+                  cfg.get_bb_id(use.user->get_parent()))) {
+            continue;
+          }
           if (dominated_blocks.contains(use.user->get_parent())) {
             use.replace_use(fir::ValueR{
                 ctx->get_constant_value(known_val, use.get_type())});
