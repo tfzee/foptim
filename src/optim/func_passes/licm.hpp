@@ -28,6 +28,26 @@ public:
     return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
   }
 
+  // a load of a constant offset into a global that stays in the global's bounds
+  // can be executed speculatively
+  static bool is_dereferenceable(fir::ValueR ptr, u64 size) {
+    i128 offset = 0;
+    while (ptr.is_instr() && ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd)) {
+      auto off = ptr.as_instr()->get_arg(1);
+      if (!off.is_constant() || !off.as_constant()->is_int()) {
+        return false;
+      }
+      offset += off.as_constant()->as_int();
+      ptr = ptr.as_instr()->get_arg(0);
+    }
+    if (!ptr.is_constant() || !ptr.as_constant()->is_global()) {
+      return false;
+    }
+    auto glob = ptr.as_constant()->as_global();
+    return !glob->is_extern_decl() && offset >= 0 &&
+           offset + size <= glob->n_bytes;
+  }
+
   // returns whether anything was hoisted
   bool apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
              LoopInfo &info) {
@@ -61,11 +81,26 @@ public:
     std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
     TVec<fir::ValueR> invariant;
 
+    // loads can only be hoisted if nothing in the loop writes memory
+    bool loop_writes_mem = false;
+    for (auto bb : info.body_nodes) {
+      for (auto instr : cfg.bbrs[bb].bb->instructions) {
+        loop_writes_mem |= instr->pot_modifies_mem();
+      }
+    }
+
     for (auto bb : info.body_nodes) {
       for (auto instr : cfg.bbrs[bb].bb->instructions) {
         if (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
-            instr->is_critical() || instr->is(fir::InstrType::LoadInstr)) {
+            instr->is_critical()) {
           continue;
+        }
+        if (instr->is(fir::InstrType::LoadInstr)) {
+          if (loop_writes_mem || instr->Volatile || instr->Atomic ||
+              !is_dereferenceable(instr->get_arg(0),
+                                  instr->get_type()->get_size())) {
+            continue;
+          }
         }
         worklist.push_back(instr);
       }
