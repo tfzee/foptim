@@ -3,6 +3,7 @@
 #include <fmt/core.h>
 
 #include <algorithm>
+#include <array>
 
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
@@ -448,783 +449,1463 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
   return true;
 }
 
-std::optional<InductionVarAnalysis::InductionVar>
-InductionVarAnalysis::_check_if_direct_induct(
-    fir::BBArgument v, u32 arg_id,
-    TVec<std::pair<fir::Instr, u32>> backwards_jumps, CFG &cfg,
-    LoopInfo &info) {
-  (void)info;
-  (void)cfg;
+namespace {
+using ICmpSub = fir::ICmpInstrSubType;
 
-  bool first = true;
-  InductionVar var{
-      .def = fir::ValueR{v},
-      .consti = fir::ConstantValueR{fir::ConstantValueR::invalid()},
-      .type = IterationType::Other,
+// Interpret `v` as a `bw` bit integer.
+i128 wrap_int(i128 v, u32 bw, bool is_signed) {
+  if (bw == 0 || bw >= 128) {
+    return v;
+  }
+  const u128 mask = (static_cast<u128>(1) << bw) - 1;
+  const u128 u = static_cast<u128>(v) & mask;
+  if (is_signed && ((u >> (bw - 1)) & 1) != 0) {
+    return static_cast<i128>(u | ~mask);
+  }
+  return static_cast<i128>(u);
+}
+
+bool fits_int(i128 v, u32 bw, bool is_signed) {
+  return wrap_int(v, bw, is_signed) == v;
+}
+
+// predicate that holds exactly when `p` does not
+ICmpSub negate_pred(ICmpSub p) {
+  switch (p) {
+  case ICmpSub::SLT:
+    return ICmpSub::SGE;
+  case ICmpSub::ULT:
+    return ICmpSub::UGE;
+  case ICmpSub::SGT:
+    return ICmpSub::SLE;
+  case ICmpSub::UGT:
+    return ICmpSub::ULE;
+  case ICmpSub::SLE:
+    return ICmpSub::SGT;
+  case ICmpSub::ULE:
+    return ICmpSub::UGT;
+  case ICmpSub::SGE:
+    return ICmpSub::SLT;
+  case ICmpSub::UGE:
+    return ICmpSub::ULT;
+  case ICmpSub::NE:
+    return ICmpSub::EQ;
+  case ICmpSub::EQ:
+    return ICmpSub::NE;
+  default:
+    return ICmpSub::INVALID;
+  }
+}
+
+// predicate for swapped operands: `a p b` == `b swap(p) a`
+ICmpSub swap_pred(ICmpSub p) {
+  switch (p) {
+  case ICmpSub::SLT:
+    return ICmpSub::SGT;
+  case ICmpSub::ULT:
+    return ICmpSub::UGT;
+  case ICmpSub::SGT:
+    return ICmpSub::SLT;
+  case ICmpSub::UGT:
+    return ICmpSub::ULT;
+  case ICmpSub::SLE:
+    return ICmpSub::SGE;
+  case ICmpSub::ULE:
+    return ICmpSub::UGE;
+  case ICmpSub::SGE:
+    return ICmpSub::SLE;
+  case ICmpSub::UGE:
+    return ICmpSub::ULE;
+  case ICmpSub::NE:
+  case ICmpSub::EQ:
+    return p;
+  default:
+    return ICmpSub::INVALID;
+  }
+}
+
+bool pred_holds(ICmpSub p, i128 a, i128 b) {
+  switch (p) {
+  case ICmpSub::SLT:
+  case ICmpSub::ULT:
+    return a < b;
+  case ICmpSub::SLE:
+  case ICmpSub::ULE:
+    return a <= b;
+  case ICmpSub::SGT:
+  case ICmpSub::UGT:
+    return a > b;
+  case ICmpSub::SGE:
+  case ICmpSub::UGE:
+    return a >= b;
+  case ICmpSub::NE:
+    return a != b;
+  case ICmpSub::EQ:
+    return a == b;
+  default:
+    return false;
+  }
+}
+
+// num > 0, den > 0
+i128 ceil_div(i128 num, i128 den) { return (num + den - 1) / den; }
+
+// bit width of integers and pointers, 0 for everything else
+u32 value_bw(fir::ValueR v) {
+  auto ty = v.get_type();
+  if (ty->is_int()) {
+    return ty->get_bitwidth();
+  }
+  if (ty->is_ptr()) {
+    return 64;
+  }
+  return 0;
+}
+
+i128 add_mod(i128 a, i128 b, u32 bw) {
+  return wrap_int(
+      static_cast<i128>(static_cast<u128>(a) + static_cast<u128>(b)), bw, true);
+}
+
+i128 mul_mod(i128 a, i128 b, u32 bw) {
+  return wrap_int(
+      static_cast<i128>(static_cast<u128>(a) * static_cast<u128>(b)), bw, true);
+}
+
+constexpr u32 MaxExprDepth = 128;
+
+SCEVExpr node(SCEVExpr::Type t, bool invariant, u32 bw, i128 cval = 0,
+              fir::ValueR val = {}, SCEVRef a = InvalidSCEV,
+              SCEVRef b = InvalidSCEV, SCEVRef c = InvalidSCEV) {
+  SCEVExpr e;
+  e.t = t;
+  e.invariant = invariant;
+  e.bw = bw;
+  e.cval = cval;
+  e.val = val;
+  e.a = a;
+  e.b = b;
+  e.c = c;
+  return e;
+}
+
+bool cmp_is_signed(ICmpSub p) {
+  return p != ICmpSub::ULT && p != ICmpSub::ULE && p != ICmpSub::UGT &&
+         p != ICmpSub::UGE;
+}
+} // namespace
+
+SCEVRef ScalarEvo::push(const SCEVExpr &e) {
+  using T = SCEVExpr::Type;
+  u64 h = 0;
+  const bool share = e.t != T::Unknown && e.t != T::Input;
+  if (share) {
+    auto mix = [&h](u64 x) {
+      h ^= x + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+    };
+    mix(static_cast<u64>(e.t));
+    mix(e.bw);
+    mix(static_cast<u64>(e.cval));
+    mix(static_cast<u64>(e.cval >> 64));
+    mix(TMap<fir::ValueR, int>::hasher{}(e.val));
+    mix(e.a);
+    mix(e.b);
+    mix(e.c);
+    for (SCEVRef cand : interned[h]) {
+      const SCEVExpr &o = exprs[cand];
+      if (o.t == e.t && o.bw == e.bw && o.cval == e.cval && o.val == e.val &&
+          o.a == e.a && o.b == e.b && o.c == e.c) {
+        return cand;
+      }
+    }
+  }
+  exprs.push_back(e);
+  const auto ref = static_cast<SCEVRef>(exprs.size() - 1);
+  if (share) {
+    interned[h].push_back(ref);
+  }
+  return ref;
+}
+
+SCEVRef ScalarEvo::mk_const(i128 v, u32 bw) {
+  return push(node(SCEVExpr::Type::Const, true, bw, wrap_int(v, bw, true)));
+}
+
+SCEVRef ScalarEvo::mk_invariant(fir::ValueR v) {
+  return push(node(SCEVExpr::Type::Invariant, true, value_bw(v), 0, v));
+}
+
+SCEVRef ScalarEvo::mk_unknown(u32 bw) {
+  return push(node(SCEVExpr::Type::Unknown, false, bw));
+}
+
+SCEVRef ScalarEvo::mk_addrec(SCEVRef start, SCEVRef step) {
+  const SCEVExpr es = exprs[start];
+  const SCEVExpr ec = exprs[step];
+  ASSERT(es.invariant && ec.invariant);
+  if (ec.t == SCEVExpr::Type::Const && ec.cval == 0) {
+    return start;
+  }
+  return push(node(SCEVExpr::Type::AddRec, false, es.bw, 0, {}, start, step));
+}
+
+SCEVRef ScalarEvo::mk_add(SCEVRef a, SCEVRef b) {
+  SCEVExpr ea = exprs[a];
+  SCEVExpr eb = exprs[b];
+  const u32 bw = ea.bw;
+  using T = SCEVExpr::Type;
+  if (ea.t == T::Unknown || eb.t == T::Unknown || ea.bw != eb.bw) {
+    return mk_unknown(bw);
+  }
+  if (ea.t == T::Const && eb.t == T::Const) {
+    return mk_const(add_mod(ea.cval, eb.cval, bw), bw);
+  }
+  // constants to the right
+  if (ea.t == T::Const) {
+    std::swap(a, b);
+    std::swap(ea, eb);
+  }
+  if (eb.t == T::Const && eb.cval == 0) {
+    return a;
+  }
+  const bool rec_a = ea.t == T::AddRec;
+  const bool rec_b = eb.t == T::AddRec;
+  if (rec_a && rec_b) {
+    return mk_addrec(mk_add(ea.a, eb.a), mk_add(ea.b, eb.b));
+  }
+  if (rec_a && eb.invariant) {
+    return mk_addrec(mk_add(ea.a, b), ea.b);
+  }
+  if (rec_b && ea.invariant) {
+    return mk_addrec(mk_add(a, eb.a), eb.b);
+  }
+  return push(node(T::Add, ea.invariant && eb.invariant, bw, 0, {}, a, b));
+}
+
+SCEVRef ScalarEvo::mk_mul(SCEVRef a, SCEVRef b) {
+  SCEVExpr ea = exprs[a];
+  SCEVExpr eb = exprs[b];
+  const u32 bw = ea.bw;
+  using T = SCEVExpr::Type;
+  if (ea.t == T::Unknown || eb.t == T::Unknown || ea.bw != eb.bw) {
+    return mk_unknown(bw);
+  }
+  if (ea.t == T::Const && eb.t == T::Const) {
+    return mk_const(mul_mod(ea.cval, eb.cval, bw), bw);
+  }
+  if (ea.t == T::Const) {
+    std::swap(a, b);
+    std::swap(ea, eb);
+  }
+  if (eb.t == T::Const) {
+    if (eb.cval == 0) {
+      return b;
+    }
+    if (eb.cval == 1) {
+      return a;
+    }
+  }
+  const bool rec_a = ea.t == T::AddRec;
+  const bool rec_b = eb.t == T::AddRec;
+  if (rec_a && eb.invariant) {
+    return mk_addrec(mk_mul(ea.a, b), mk_mul(ea.b, b));
+  }
+  if (rec_b && ea.invariant) {
+    return mk_addrec(mk_mul(a, eb.a), mk_mul(a, eb.b));
+  }
+  return push(node(T::Mul, ea.invariant && eb.invariant, bw, 0, {}, a, b));
+}
+
+SCEVRef ScalarEvo::mk_ext(SCEVRef a, bool is_signed, u32 bw) {
+  const SCEVExpr ea = exprs[a];
+  using T = SCEVExpr::Type;
+  if (ea.t == T::Unknown || bw <= ea.bw) {
+    return mk_unknown(bw);
+  }
+  if (ea.t == T::Const) {
+    return mk_const(wrap_int(ea.cval, ea.bw, is_signed), bw);
+  }
+  return push(node(is_signed ? T::SExt : T::ZExt, ea.invariant, bw, 0, {}, a));
+}
+
+SCEVRef ScalarEvo::mk_trunc(SCEVRef a, u32 bw) {
+  const SCEVExpr ea = exprs[a];
+  using T = SCEVExpr::Type;
+  if (ea.t == T::Unknown || bw >= ea.bw || bw == 0) {
+    return mk_unknown(bw);
+  }
+  if (ea.t == T::Const) {
+    return mk_const(ea.cval, bw);
+  }
+  return push(node(T::Trunc, ea.invariant, bw, 0, {}, a));
+}
+
+SCEVRef ScalarEvo::mk_resize(SCEVRef a, u32 bw, bool is_signed) {
+  const u32 from = exprs[a].bw;
+  if (from == bw) {
+    return a;
+  }
+  return bw > from ? mk_ext(a, is_signed, bw) : mk_trunc(a, bw);
+}
+
+SCEVRef ScalarEvo::mk_max(SCEVRef a, SCEVRef b, bool is_signed) {
+  const SCEVExpr ea = exprs[a];
+  const SCEVExpr eb = exprs[b];
+  const u32 bw = ea.bw;
+  using T = SCEVExpr::Type;
+  if (ea.t == T::Unknown || eb.t == T::Unknown || ea.bw != eb.bw) {
+    return mk_unknown(bw);
+  }
+  if (ea.t == T::Const && eb.t == T::Const) {
+    const i128 x = wrap_int(ea.cval, bw, is_signed);
+    const i128 y = wrap_int(eb.cval, bw, is_signed);
+    return mk_const(std::max(x, y), bw);
+  }
+  if (same_expr(a, b)) {
+    return a;
+  }
+  return push(node(is_signed ? T::SMax : T::UMax, ea.invariant && eb.invariant,
+                   bw, 0, {}, a, b));
+}
+
+SCEVRef ScalarEvo::mk_cmp(ICmpSub pred, SCEVRef a, SCEVRef b) {
+  const SCEVExpr ea = exprs[a];
+  const SCEVExpr eb = exprs[b];
+  using T = SCEVExpr::Type;
+  if (ea.t == T::Unknown || eb.t == T::Unknown || ea.bw != eb.bw ||
+      pred == ICmpSub::INVALID) {
+    return mk_unknown(1);
+  }
+  if (ea.t == T::Const && eb.t == T::Const) {
+    const bool sgn = cmp_is_signed(pred);
+    return mk_const(pred_holds(pred, wrap_int(ea.cval, ea.bw, sgn),
+                               wrap_int(eb.cval, eb.bw, sgn))
+                        ? 1
+                        : 0,
+                    1);
+  }
+  return push(node(T::Cmp, ea.invariant && eb.invariant, 1,
+                   static_cast<i128>(pred), {}, a, b));
+}
+
+SCEVRef ScalarEvo::mk_select(SCEVRef cond, SCEVRef t, SCEVRef f) {
+  const SCEVExpr ec = exprs[cond];
+  const SCEVExpr et = exprs[t];
+  const SCEVExpr ef = exprs[f];
+  using T = SCEVExpr::Type;
+  if (ec.t == T::Unknown || et.t == T::Unknown || ef.t == T::Unknown ||
+      et.bw != ef.bw || ec.bw != 1) {
+    return mk_unknown(et.bw);
+  }
+  if (ec.t == T::Const) {
+    return ec.cval != 0 ? t : f;
+  }
+  if (same_expr(t, f)) {
+    return t;
+  }
+  return push(node(T::Select, ec.invariant && et.invariant && ef.invariant,
+                   et.bw, 0, {}, cond, t, f));
+}
+
+SCEVRef ScalarEvo::at_iteration(SCEVRef r, SCEVRef k) {
+  TMap<SCEVRef, SCEVRef> memo;
+  auto rec = [&](auto &&self, SCEVRef x) -> SCEVRef {
+    const SCEVExpr e = exprs[x];
+    using T = SCEVExpr::Type;
+    if (e.invariant) {
+      return x;
+    }
+    if (auto it = memo.find(x); it != memo.end()) {
+      return it->second;
+    }
+    SCEVRef res = InvalidSCEV;
+    switch (e.t) {
+    case T::AddRec:
+      res = mk_add(e.a, mk_mul(mk_resize(k, e.bw, false), e.b));
+      break;
+    case T::Add:
+    case T::Mul:
+    case T::SMax:
+    case T::UMax: {
+      const SCEVRef l = self(self, e.a);
+      const SCEVRef r2 = self(self, e.b);
+      if (l != InvalidSCEV && r2 != InvalidSCEV) {
+        res = e.t == T::Add   ? mk_add(l, r2)
+              : e.t == T::Mul ? mk_mul(l, r2)
+                              : mk_max(l, r2, e.t == T::SMax);
+      }
+      break;
+    }
+    case T::Cmp: {
+      const SCEVRef l = self(self, e.a);
+      const SCEVRef r2 = self(self, e.b);
+      if (l != InvalidSCEV && r2 != InvalidSCEV) {
+        res = mk_cmp(static_cast<ICmpSub>(e.cval), l, r2);
+      }
+      break;
+    }
+    case T::Select: {
+      const SCEVRef cnd = self(self, e.a);
+      const SCEVRef t = self(self, e.b);
+      const SCEVRef f = self(self, e.c);
+      if (cnd != InvalidSCEV && t != InvalidSCEV && f != InvalidSCEV) {
+        res = mk_select(cnd, t, f);
+      }
+      break;
+    }
+    case T::SExt:
+    case T::ZExt:
+    case T::Trunc: {
+      const SCEVRef l = self(self, e.a);
+      if (l != InvalidSCEV) {
+        res = e.t == T::Trunc ? mk_trunc(l, e.bw)
+                              : mk_ext(l, e.t == T::SExt, e.bw);
+      }
+      break;
+    }
+    default:
+      break;
+    }
+    if (res != InvalidSCEV && exprs[res].t == T::Unknown) {
+      res = InvalidSCEV;
+    }
+    memo.insert({x, res});
+    return res;
   };
-
-  for (auto &[term, target_idx] : backwards_jumps) {
-    if (arg_id >= term->bbs[target_idx].args.size()) {
-      continue;
-    }
-    auto backv = term->bbs.at(target_idx).args.at(arg_id);
-
-    if (!backv.is_instr()) {
-      return std::nullopt;
-    }
-
-    auto i = backv.as_instr();
-    if (!i->is(fir::InstrType::BinaryInstr)) {
-      return std::nullopt;
-    }
-
-    auto subty = static_cast<fir::BinaryInstrSubType>(i->subtype);
-
-    if ((subty != fir::BinaryInstrSubType::PtrAdd &&
-         subty != fir::BinaryInstrSubType::IntAdd &&
-         subty != fir::BinaryInstrSubType::IntSub) ||
-        (!i->args[0].is_bb_arg() && !i->args[1].is_bb_arg()) ||
-        (!i->args[0].is_constant() && !i->args[1].is_constant())) {
-      return std::nullopt;
-    }
-
-    // Normalize operands: `v +/- c` or `c +/- v` (commutative for Add)
-    fir::ValueR var_arg;
-    fir::ConstantValueR const_arg{fir::ConstantValueR::invalid()};
-    IterationType type = IterationType::Other;
-
-    if (i->args[0].is_bb_arg() && i->args[0].as_bb_arg() == v &&
-        i->args[1].is_constant()) {
-      var_arg = i->args[0];
-      const_arg = i->args[1].as_constant();
-      type = (subty == fir::BinaryInstrSubType::IntAdd ||
-              subty == fir::BinaryInstrSubType::PtrAdd)
-                 ? IterationType::PlusConst
-                 : IterationType::SubConst;
-    } else if ((subty == fir::BinaryInstrSubType::IntAdd ||
-                subty == fir::BinaryInstrSubType::PtrAdd) &&
-               i->args[1].is_bb_arg() && i->args[1].as_bb_arg() == v &&
-               i->args[0].is_constant()) {
-      // Commutative Add: allow `c + v`
-      var_arg = i->args[1];
-      const_arg = i->args[0].as_constant();
-      type = IterationType::PlusConst;
-    } else {
-      return std::nullopt;
-    }
-
-    if (first) {
-      first = false;
-      var.consti = const_arg;
-      var.type = type;
-    } else {
-      if (!var.consti.is_valid() || !const_arg.is_valid()) {
-        return std::nullopt;
-      }
-
-      if (var.consti->as_int() != const_arg->as_int() || var.type != type) {
-        return std::nullopt;
-      }
-    }
-  }
-
-  return var;
+  return rec(rec, r);
 }
 
-void InductionVarAnalysis::update(CFG &cfg, LoopInfo &info) {
-  ZoneScopedN("Induct var UPDATE");
-
-  direct_inductvars.clear();
-  indirect_inductvars.clear();
-
-  // --- Collect backward jumps for loop header phi analysis ---
-  TVec<std::pair<fir::Instr, u32>> backwards_jumps;
-  TSet<u32> body_node_set(info.body_nodes.begin(), info.body_nodes.end());
-
-  for (auto tail : info.tails) {
-    auto term = cfg.bbrs[tail].bb->get_terminator();
-    for (u32 i = 0; i < term->bbs.size(); ++i) {
-      const auto &target_bb = term->bbs[i];
-      u32 target_id = cfg.get_bb_id(target_bb.bb);
-      if (body_node_set.contains(target_id)) {
-        backwards_jumps.emplace_back(term, i);
-      }
+bool ScalarEvo::is_expandable(SCEVRef r) const {
+  TMap<SCEVRef, bool> memo;
+  auto rec = [&](auto &&self, SCEVRef x) -> bool {
+    const SCEVExpr &e = exprs[x];
+    using T = SCEVExpr::Type;
+    if (e.bw == 0 || !e.invariant) {
+      return false;
     }
-  }
-
-  // --- Identify direct induction variables from loop header phi args ---
-  auto &header = cfg.bbrs[info.head];
-  for (u32 arg_id = 0; arg_id < header.bb->args.size(); ++arg_id) {
-    auto arg = header.bb->args[arg_id];
-    if (!arg->get_type()->is_int() && !arg->get_type()->is_ptr()) {
-      continue;
+    if (auto it = memo.find(x); it != memo.end()) {
+      return it->second;
     }
-
-    if (auto v =
-            _check_if_direct_induct(arg, arg_id, backwards_jumps, cfg, info)) {
-      direct_inductvars.push_back(*v);
+    bool ok = false;
+    switch (e.t) {
+    case T::Const:
+      ok = true;
+      break;
+    case T::Invariant:
+      ok = e.val.get_type()->is_int();
+      break;
+    case T::Add:
+    case T::Mul:
+    case T::SMax:
+    case T::UMax:
+    case T::Cmp:
+      ok = self(self, e.a) && self(self, e.b);
+      break;
+    case T::Select:
+      ok = self(self, e.a) && self(self, e.b) && self(self, e.c);
+      break;
+    case T::SExt:
+    case T::ZExt:
+    case T::Trunc:
+      ok = self(self, e.a);
+      break;
+    default:
+      break;
     }
-  }
+    memo.insert({x, ok});
+    return ok;
+  };
+  return rec(rec, r);
+}
 
-  // --- Collect indirect induction variables from BinaryInstrs ---
-  TVec<fir::ValueR> worklist;
-  TSet<fir::ValueR> seen;
-  for (const auto &d : direct_inductvars) {
-    worklist.push_back(d.def);
-    seen.insert(d.def);
-  }
-
-  while (!worklist.empty()) {
-    fir::ValueR current = worklist.back();
-    worklist.pop_back();
-
-    auto *uses = current.get_uses();
-    if (uses == nullptr) {
-      continue;
-    }
-
-    for (const auto &use : *uses) {
-      auto user = use.user;
-
-      // Only consider binary operations on normal arg0
-      if (!user->is(fir::InstrType::BinaryInstr) ||
-          use.type != fir::UseType::NormalArg || use.argId != 0) {
-        continue;
-      }
-
-      // Check second arg is constant
-      const auto &rhs = user->args[1];
-      if (!rhs.is_constant()) {
-        continue;
-      }
-
-      auto subtype = static_cast<fir::BinaryInstrSubType>(user->subtype);
-      IterationType itype = IterationType::Other;
-
-      switch (subtype) {
-      case fir::BinaryInstrSubType::PtrAdd:
-      case fir::BinaryInstrSubType::IntAdd:
-        itype = IterationType::PlusConst;
-        break;
-      case fir::BinaryInstrSubType::IntSub:
-        itype = IterationType::SubConst;
-        break;
-      case fir::BinaryInstrSubType::IntMul:
-        itype = IterationType::MulConst;
-        break;
-      default:
-        continue;
-      }
-
-      fir::ValueR result{user};
-      if (!seen.contains(result)) {
-        indirect_inductvars.push_back({.def = result,
-                                       .arg1 = user->args[0],
-                                       .arg2 = user->args[1],
-                                       .type = itype});
-        worklist.push_back(result);
-        seen.insert(result);
-      }
-    }
+bool ScalarEvo::is_non_negative(SCEVRef r) const {
+  const SCEVExpr &e = exprs[r];
+  using T = SCEVExpr::Type;
+  switch (e.t) {
+  case T::Const:
+    return e.cval >= 0;
+  case T::ZExt:
+    return e.bw > exprs[e.a].bw;
+  case T::SMax:
+    return is_non_negative(e.a) || is_non_negative(e.b);
+  case T::Select:
+    return is_non_negative(e.b) && is_non_negative(e.c);
+  default:
+    return false;
   }
 }
 
-void InductionVarAnalysis::dump() const {
-  fmt::println("Induction vars: ");
-  for (const auto &ind : direct_inductvars) {
-    fmt::print("  {}", ind.def);
-    switch (ind.type) {
-    case PlusConst:
-      fmt::println(" + {}", ind.consti);
-      break;
-    case SubConst:
-      fmt::println(" - {}", ind.consti);
-      break;
-    case MulConst:
-      fmt::println(" * {}", ind.consti);
-      break;
-    case Other:
-      fmt::println(" ?\n");
+bool ScalarEvo::in_loop(fir::ValueR v) const {
+  fir::BasicBlock parent{fir::BasicBlock::invalid()};
+  if (v.is_instr()) {
+    parent = v.as_instr()->get_parent();
+  } else if (v.is_bb_arg()) {
+    parent = v.as_bb_arg()->get_parent();
+  } else {
+    return false;
+  }
+  return body.contains(cfg->get_bb_id(parent));
+}
+
+SCEVRef ScalarEvo::get(fir::ValueR v) { return expr_of(v, 0); }
+
+SCEVRef ScalarEvo::expr_of(fir::ValueR v, u32 depth) {
+  if (auto it = lookup.find(v); it != lookup.end()) {
+    return it->second;
+  }
+  const u32 bw = value_bw(v);
+  SCEVRef r = InvalidSCEV;
+  bool is_loop_val = false;
+  if (v.is_constant()) {
+    auto c = v.as_constant();
+    if (!c->is_poison() && (c->is_int() || c->is_null())) {
+      r = mk_const(c->as_int(), bw);
+    } else {
+      r = mk_invariant(v);
+    }
+  } else if (!v.is_instr() && !v.is_bb_arg()) {
+    r = mk_unknown(bw);
+  } else if (!in_loop(v)) {
+    r = mk_invariant(v);
+  } else {
+    is_loop_val = true;
+    r = mk_unknown(bw);
+    if (v.is_bb_arg() && bw != 0 && depth < MaxExprDepth) {
+      // provisional entry: a cycle through other blocks stays unknown
+      lookup.insert({v, r});
+      r = block_arg_expr(v, depth);
+    } else if (v.is_instr() && bw != 0 && depth < MaxExprDepth) {
+      auto instr = v.as_instr();
+      using BT = fir::BinaryInstrSubType;
+      if (instr->is(fir::InstrType::BinaryInstr)) {
+        const auto sub = static_cast<BT>(instr->subtype);
+        if (sub == BT::IntAdd || sub == BT::PtrAdd || sub == BT::IntSub ||
+            sub == BT::IntMul) {
+          // the offset of a ptr add has to be as wide as the pointer
+          if (value_bw(instr->args[0]) == bw &&
+              value_bw(instr->args[1]) == bw) {
+            const SCEVRef lhs = expr_of(instr->args[0], depth + 1);
+            const SCEVRef rhs = expr_of(instr->args[1], depth + 1);
+            if (sub == BT::IntMul) {
+              r = mk_mul(lhs, rhs);
+            } else if (sub == BT::IntSub) {
+              r = mk_add(lhs, mk_mul(rhs, mk_const(-1, bw)));
+            } else {
+              r = mk_add(lhs, rhs);
+            }
+          }
+        }
+      } else if (instr->is(fir::InstrType::ZExt) ||
+                 instr->is(fir::InstrType::SExt)) {
+        if (instr->args[0].get_type()->is_int()) {
+          r = mk_ext(expr_of(instr->args[0], depth + 1),
+                     instr->is(fir::InstrType::SExt), bw);
+        }
+      } else if (instr->is(fir::InstrType::ITrunc)) {
+        if (instr->args[0].get_type()->is_int()) {
+          r = mk_trunc(expr_of(instr->args[0], depth + 1), bw);
+        }
+      } else if (instr->is(fir::InstrType::SelectInstr)) {
+        const SCEVRef m = select_as_max(instr, depth + 1);
+        if (m != InvalidSCEV) {
+          r = m;
+        } else if (value_bw(instr->args[1]) == bw &&
+                   value_bw(instr->args[2]) == bw &&
+                   value_bw(instr->args[0]) == 1) {
+          r = mk_select(expr_of(instr->args[0], depth + 1),
+                        expr_of(instr->args[1], depth + 1),
+                        expr_of(instr->args[2], depth + 1));
+        }
+      } else if (instr->is(fir::IntrinsicSubType::SMax) ||
+                 instr->is(fir::IntrinsicSubType::UMax)) {
+        if (value_bw(instr->args[0]) == bw && value_bw(instr->args[1]) == bw) {
+          r = mk_max(expr_of(instr->args[0], depth + 1),
+                     expr_of(instr->args[1], depth + 1),
+                     instr->is(fir::IntrinsicSubType::SMax));
+        }
+      } else if (instr->is(fir::InstrType::ICmp)) {
+        const u32 obw = value_bw(instr->args[0]);
+        if (obw != 0 && value_bw(instr->args[1]) == obw) {
+          r = mk_cmp(static_cast<ICmpSub>(instr->subtype),
+                     expr_of(instr->args[0], depth + 1),
+                     expr_of(instr->args[1], depth + 1));
+        }
+      }
+    }
+  }
+  lookup[v] = r;
+  if (is_loop_val) {
+    loop_vals.push_back(v);
+  }
+  return r;
+}
+
+SCEVRef ScalarEvo::block_arg_expr(fir::ValueR v, u32 depth) {
+  const u32 bw = value_bw(v);
+  auto arg = v.as_bb_arg();
+  auto bb = arg->get_parent();
+  const u32 bb_id = cfg->get_bb_id(bb);
+  size_t idx = 0;
+  while (idx < bb->args.size() && !(bb->args[idx] == arg)) {
+    idx++;
+  }
+
+  // the value on every incoming edge and the block it comes from
+  struct Edge {
+    u32 pred;
+    fir::ValueR val;
+  };
+  TVec<Edge> edges;
+  for (auto pred : cfg->bbrs[bb_id].pred) {
+    auto term = cfg->bbrs[pred].bb->get_terminator();
+    for (auto &target : term->bbs) {
+      if (target.bb != bb) {
+        continue;
+      }
+      if (idx >= target.args.size()) {
+        return mk_unknown(bw);
+      }
+      edges.push_back({pred, target.args[idx]});
+    }
+  }
+  if (edges.empty()) {
+    return mk_unknown(bw);
+  }
+
+  // all edges agree
+  SCEVRef merged = expr_of(edges[0].val, depth + 1);
+  bool all_same = true;
+  for (size_t i = 1; i < edges.size(); i++) {
+    if (!same_expr(merged, expr_of(edges[i].val, depth + 1))) {
+      all_same = false;
       break;
     }
   }
-  for (const auto &ind : indirect_inductvars) {
-    fmt::print("  {} = ", ind.def);
-    switch (ind.type) {
-    case PlusConst:
-      fmt::println("{} + {}", ind.arg1, ind.arg2);
+  if (all_same) {
+    return merged;
+  }
+
+  // two edges that are told apart by one conditional branch (a triangle or a
+  // diamond, what SimplifyCFG turns into a select): cond ? a : b
+  if (edges.size() != 2 || edges[0].pred == edges[1].pred) {
+    return mk_unknown(bw);
+  }
+  auto single_pred = [&](u32 id) {
+    return cfg->bbrs[id].pred.size() == 1 ? cfg->bbrs[id].pred[0] : ~0U;
+  };
+  for (size_t x = 0; x < 2; x++) {
+    const Edge &first = edges[x];
+    const Edge &second = edges[1 - x];
+    auto first_term = cfg->bbrs[first.pred].bb->get_terminator();
+    // triangle: first branches to bb or to second, which only continues to bb
+    if (first_term->is(fir::InstrType::CondBranchInstr) &&
+        first_term->bbs.size() == 2 && single_pred(second.pred) == first.pred) {
+      const bool bb_is_true = first_term->bbs[0].bb == bb;
+      const fir::BasicBlock other = first_term->bbs[bb_is_true ? 1 : 0].bb;
+      if (first_term->bbs[bb_is_true ? 0 : 1].bb == bb &&
+          cfg->get_bb_id(other) == second.pred) {
+        const SCEVRef cond = expr_of(first_term->args[0], depth + 1);
+        const SCEVRef direct = expr_of(first.val, depth + 1);
+        const SCEVRef via = expr_of(second.val, depth + 1);
+        return bb_is_true ? mk_select(cond, direct, via)
+                          : mk_select(cond, via, direct);
+      }
+    }
+  }
+  // diamond: both edges come from blocks that only continue to bb and are the
+  // two targets of one conditional branch
+  const u32 d = single_pred(edges[0].pred);
+  if (d != ~0U && d == single_pred(edges[1].pred)) {
+    auto d_term = cfg->bbrs[d].bb->get_terminator();
+    if (d_term->is(fir::InstrType::CondBranchInstr) &&
+        d_term->bbs.size() == 2) {
+      const u32 t = cfg->get_bb_id(d_term->bbs[0].bb);
+      const u32 f = cfg->get_bb_id(d_term->bbs[1].bb);
+      for (size_t x = 0; x < 2; x++) {
+        if (edges[x].pred == t && edges[1 - x].pred == f) {
+          return mk_select(expr_of(d_term->args[0], depth + 1),
+                           expr_of(edges[x].val, depth + 1),
+                           expr_of(edges[1 - x].val, depth + 1));
+        }
+      }
+    }
+  }
+  return mk_unknown(bw);
+}
+
+// `select(x > y, x, y)` (any spelling of the compare) is max(x, y)
+SCEVRef ScalarEvo::select_as_max(fir::Instr sel, u32 depth) {
+  auto cond = sel->args[0];
+  if (!cond.is_instr() || !cond.as_instr()->is(fir::InstrType::ICmp)) {
+    return InvalidSCEV;
+  }
+  auto cmp = cond.as_instr();
+  auto pred = static_cast<ICmpSub>(cmp->subtype);
+  auto x = cmp->args[0];
+  auto y = cmp->args[1];
+  if (pred == ICmpSub::SLT || pred == ICmpSub::SLE || pred == ICmpSub::ULT ||
+      pred == ICmpSub::ULE) {
+    std::swap(x, y);
+    pred = swap_pred(pred);
+  }
+  const bool is_signed = pred == ICmpSub::SGT || pred == ICmpSub::SGE;
+  if (!is_signed && pred != ICmpSub::UGT && pred != ICmpSub::UGE) {
+    return InvalidSCEV;
+  }
+  // x > y ? x : y
+  if (!(sel->args[1] == x && sel->args[2] == y)) {
+    return InvalidSCEV;
+  }
+  return mk_max(expr_of(x, depth), expr_of(y, depth), is_signed);
+}
+
+bool ScalarEvo::same_expr(SCEVRef a, SCEVRef b) const {
+  if (a == b) {
+    return true;
+  }
+  const SCEVExpr &ea = exprs[a];
+  const SCEVExpr &eb = exprs[b];
+  if (ea.t != eb.t || ea.bw != eb.bw) {
+    return false;
+  }
+  using T = SCEVExpr::Type;
+  switch (ea.t) {
+  case T::Const:
+    return ea.cval == eb.cval;
+  case T::Invariant:
+    return ea.val == eb.val;
+  case T::Cmp:
+    return ea.cval == eb.cval && same_expr(ea.a, eb.a) && same_expr(ea.b, eb.b);
+  case T::Select:
+    return same_expr(ea.a, eb.a) && same_expr(ea.b, eb.b) &&
+           same_expr(ea.c, eb.c);
+  case T::Add:
+  case T::Mul:
+  case T::SMax:
+  case T::UMax:
+  case T::AddRec:
+    return same_expr(ea.a, eb.a) && same_expr(ea.b, eb.b);
+  case T::SExt:
+  case T::ZExt:
+  case T::Trunc:
+    return same_expr(ea.a, eb.a);
+  case T::Unknown:
+  case T::Input:
+    return false;
+  }
+  return false;
+}
+
+SCEVRef ScalarEvo::extract_step(SCEVRef e, fir::ValueR h) {
+  const SCEVExpr ex = exprs[e];
+  using T = SCEVExpr::Type;
+  if (ex.t == T::Input && ex.val == h) {
+    return mk_const(0, ex.bw);
+  }
+  if (ex.t == T::Select && exprs[ex.a].invariant) {
+    // c ? h + s1 : h + s2
+    const SCEVRef s1 = extract_step(ex.b, h);
+    const SCEVRef s2 = s1 == InvalidSCEV ? InvalidSCEV : extract_step(ex.c, h);
+    return s2 == InvalidSCEV ? s2 : mk_select(ex.a, s1, s2);
+  }
+  if (ex.t != T::Add) {
+    return InvalidSCEV;
+  }
+  const bool inv_a = exprs[ex.a].invariant;
+  const bool inv_b = exprs[ex.b].invariant;
+  if (!inv_a && inv_b) {
+    const SCEVRef s = extract_step(ex.a, h);
+    return s == InvalidSCEV ? s : mk_add(s, ex.b);
+  }
+  if (inv_a && !inv_b) {
+    const SCEVRef s = extract_step(ex.b, h);
+    return s == InvalidSCEV ? s : mk_add(s, ex.a);
+  }
+  return InvalidSCEV;
+}
+
+void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
+  cfg = &cfg_;
+  loop = &info;
+  exprs.clear();
+  interned.clear();
+  lookup.clear();
+  body.clear();
+  loop_vals.clear();
+  entry_bb = fir::BasicBlock{fir::BasicBlock::invalid()};
+  for (auto node : info.body_nodes) {
+    body.insert(node);
+  }
+
+  auto head = cfg->bbrs[info.head].bb;
+  const size_t n_args = head->args.size();
+
+  // incoming values of the header arguments: exactly one edge from outside is
+  // needed to know the start value
+  TVec<fir::ValueR> entering;
+  TVec<TVec<fir::ValueR>> backs(n_args);
+  u32 n_outside_edges = 0;
+  TSet<u32> seen_preds;
+  for (auto pred : cfg->bbrs[info.head].pred) {
+    if (!seen_preds.insert(pred).second) {
+      continue;
+    }
+    const bool inside = body.contains(pred);
+    auto term = cfg->bbrs[pred].bb->get_terminator();
+    for (auto &target : term->bbs) {
+      if (target.bb != head || target.args.size() != n_args) {
+        continue;
+      }
+      if (inside) {
+        for (size_t i = 0; i < n_args; i++) {
+          backs[i].push_back(target.args[i]);
+        }
+      } else {
+        n_outside_edges++;
+        entering.assign(target.args.begin(), target.args.end());
+        entry_bb = cfg->bbrs[pred].bb;
+      }
+    }
+  }
+  const bool know_start = n_outside_edges == 1;
+  if (!know_start) {
+    entry_bb = fir::BasicBlock{fir::BasicBlock::invalid()};
+  }
+
+  // 1. classify the header arguments: with every header argument as an opaque
+  //    input, the value on the back edge has to be `arg + invariant`
+  for (size_t i = 0; i < n_args; i++) {
+    const fir::ValueR arg{head->args[i]};
+    lookup.insert(
+        {arg, push(node(SCEVExpr::Type::Input, false, value_bw(arg), 0, arg))});
+  }
+  TVec<SCEVRef> rec_start(n_args, InvalidSCEV);
+  TVec<SCEVRef> rec_step(n_args, InvalidSCEV);
+  for (size_t i = 0; i < n_args; i++) {
+    const fir::ValueR arg{head->args[i]};
+    if (!know_start || value_bw(arg) == 0 || in_loop(entering[i])) {
+      continue;
+    }
+    const SCEVRef start = expr_of(entering[i], 0);
+    if (!exprs[start].invariant) {
+      continue;
+    }
+    SCEVRef step = InvalidSCEV;
+    bool ok = !backs[i].empty();
+    for (auto back : backs[i]) {
+      const SCEVRef st = extract_step(expr_of(back, 0), arg);
+      if (st == InvalidSCEV || (step != InvalidSCEV && !same_expr(step, st))) {
+        ok = false;
+        break;
+      }
+      step = st;
+    }
+    if (ok) {
+      rec_start[i] = start;
+      rec_step[i] = step;
+    }
+  }
+
+  // 2. everything again with the header arguments replaced by what they are
+  lookup.clear();
+  loop_vals.clear();
+  for (size_t i = 0; i < n_args; i++) {
+    const fir::ValueR arg{head->args[i]};
+    const SCEVRef r = rec_start[i] != InvalidSCEV
+                          ? mk_addrec(rec_start[i], rec_step[i])
+                          : mk_unknown(value_bw(arg));
+    lookup.insert({arg, r});
+    loop_vals.push_back(arg);
+  }
+  for (auto node : info.body_nodes) {
+    auto bb = cfg->bbrs[node].bb;
+    if (node != info.head) {
+      for (auto arg : bb->args) {
+        expr_of(fir::ValueR{arg}, 0);
+      }
+    }
+    for (auto instr : bb->instructions) {
+      if (value_bw(fir::ValueR{instr}) != 0) {
+        expr_of(fir::ValueR{instr}, 0);
+      }
+    }
+  }
+}
+
+std::optional<i128> ScalarEvo::eval_at(SCEVRef r, i128 k) const {
+  const SCEVExpr &e = exprs[r];
+  using T = SCEVExpr::Type;
+  if (e.t == T::Const) {
+    return e.cval;
+  }
+  if (e.bw == 0 || e.bw > 64) {
+    return std::nullopt;
+  }
+  switch (e.t) {
+  case T::AddRec: {
+    auto s = eval_at(e.a, 0);
+    auto c = eval_at(e.b, 0);
+    if (!s || !c) {
+      return std::nullopt;
+    }
+    return add_mod(*s, mul_mod(k, *c, e.bw), e.bw);
+  }
+  case T::Add:
+  case T::Mul:
+  case T::SMax:
+  case T::UMax: {
+    auto x = eval_at(e.a, k);
+    auto y = eval_at(e.b, k);
+    if (!x || !y) {
+      return std::nullopt;
+    }
+    if (e.t == T::SMax || e.t == T::UMax) {
+      const bool sgn = e.t == T::SMax;
+      return wrap_int(
+          std::max(wrap_int(*x, e.bw, sgn), wrap_int(*y, e.bw, sgn)), e.bw,
+          true);
+    }
+    return e.t == T::Add ? add_mod(*x, *y, e.bw) : mul_mod(*x, *y, e.bw);
+  }
+  case T::Trunc: {
+    auto x = eval_at(e.a, k);
+    if (!x) {
+      return std::nullopt;
+    }
+    return wrap_int(*x, e.bw, true);
+  }
+  case T::Cmp: {
+    auto x = eval_at(e.a, k);
+    auto y = eval_at(e.b, k);
+    if (!x || !y) {
+      return std::nullopt;
+    }
+    const auto pred = static_cast<ICmpSub>(e.cval);
+    const bool sgn = cmp_is_signed(pred);
+    const u32 obw = exprs[e.a].bw;
+    return pred_holds(pred, wrap_int(*x, obw, sgn), wrap_int(*y, obw, sgn)) ? 1
+                                                                            : 0;
+  }
+  case T::Select: {
+    auto c = eval_at(e.a, k);
+    if (!c) {
+      return std::nullopt;
+    }
+    return eval_at(*c != 0 ? e.b : e.c, k);
+  }
+  case T::SExt:
+  case T::ZExt: {
+    auto x = eval_at(e.a, k);
+    if (!x) {
+      return std::nullopt;
+    }
+    return wrap_int(wrap_int(*x, exprs[e.a].bw, e.t == T::SExt), e.bw, true);
+  }
+  default:
+    return std::nullopt;
+  }
+}
+
+void ScalarEvo::dump() const {
+  using T = SCEVExpr::Type;
+  fmt::println("Scalar evolution:");
+  for (size_t i = 0; i < exprs.size(); ++i) {
+    const auto &e = exprs[i];
+    fmt::print("  e{} (i{}{}): ", i, e.bw, e.invariant ? ", inv" : "");
+    switch (e.t) {
+    case T::Unknown:
+      fmt::println("?");
       break;
-    case SubConst:
-      fmt::println("{} - {}", ind.arg1, ind.arg2);
+    case T::Const:
+      fmt::println("{}", e.cval);
       break;
-    case MulConst:
-      fmt::println("{} * {}", ind.arg1, ind.arg2);
+    case T::Invariant:
+      fmt::println("invariant {}", e.val);
       break;
-    case Other:
-      fmt::println("{} ? {}", ind.arg1, ind.arg2);
+    case T::Input:
+      fmt::println("input {}", e.val);
       break;
+    case T::Add:
+      fmt::println("e{} + e{}", e.a, e.b);
+      break;
+    case T::Mul:
+      fmt::println("e{} * e{}", e.a, e.b);
+      break;
+    case T::SExt:
+      fmt::println("sext e{}", e.a);
+      break;
+    case T::ZExt:
+      fmt::println("zext e{}", e.a);
+      break;
+    case T::Trunc:
+      fmt::println("trunc e{}", e.a);
+      break;
+    case T::SMax:
+      fmt::println("smax(e{}, e{})", e.a, e.b);
+      break;
+    case T::UMax:
+      fmt::println("umax(e{}, e{})", e.a, e.b);
+      break;
+    case T::Cmp:
+      fmt::println("cmp {} e{}, e{}", e.cval, e.a, e.b);
+      break;
+    case T::Select:
+      fmt::println("e{} ? e{} : e{}", e.a, e.b, e.c);
+      break;
+    case T::AddRec:
+      fmt::println("{{e{},+,e{}}}", e.a, e.b);
+      break;
+    }
+  }
+  for (auto v : loop_vals) {
+    auto it = lookup.find(v);
+    if (it != lookup.end()) {
+      fmt::println("  {} = e{}", v, it->second);
     }
   }
 }
 
 namespace {
-std::optional<i128> get_constant(fir::ValueR v) {
-  return (v.is_constant() && v.as_constant()->is_int())
-             ? std::optional{(v.as_constant()->as_int())}
-             : std::nullopt;
-}
+// smallest k >= 0 with !pred(a + k * step, limit) for constants, nullopt if the
+// compared value could wrap on the way or there is no such k
+std::optional<i128> const_exit_iteration(ICmpSub pred, u32 bw, i128 a_raw,
+                                         i128 step, i128 limit_raw) {
+  const bool is_signed = pred == ICmpSub::SLT || pred == ICmpSub::SLE ||
+                         pred == ICmpSub::SGT || pred == ICmpSub::SGE ||
+                         pred == ICmpSub::NE || pred == ICmpSub::EQ;
+  const i128 a = wrap_int(a_raw, bw, is_signed);
+  const i128 limit = wrap_int(limit_raw, bw, is_signed);
 
-std::optional<InductionVarAnalysis::InductionVar>
-resolve_base_induction(const fir::ValueR &v, const InductionVarAnalysis &ianal,
-                       i128 &acc_offset) {
-  auto current = std::ranges::find_if(
-      ianal.indirect_inductvars, [&](const auto &iv) { return iv.def == v; });
-
-  if (current == ianal.indirect_inductvars.end() ||
-      ((current->type != InductionVarAnalysis::PlusConst &&
-        current->type != InductionVarAnalysis::SubConst) ||
-       !current->arg2.is_constant())) {
-    return {};
-  }
-
-  while (current != ianal.indirect_inductvars.end()) {
-    i128 delta = current->arg2.as_constant()->as_int();
-    if (current->type == InductionVarAnalysis::PlusConst) {
-      acc_offset += delta;
-    } else if (current->type == InductionVarAnalysis::SubConst) {
-      acc_offset -= delta;
-    }
-
-    const auto &parent_v = current->arg1;
-
-    auto neww =
-        std::ranges::find_if(ianal.indirect_inductvars, [&](const auto &iv) {
-          return iv.def == parent_v &&
-                 (iv.type == InductionVarAnalysis::PlusConst ||
-                  iv.type == InductionVarAnalysis::SubConst) &&
-                 iv.arg2.is_constant();
-        });
-    if (neww == ianal.indirect_inductvars.end()) {
+  i128 k = 0;
+  if (pred_holds(pred, a, limit)) {
+    switch (pred) {
+    case ICmpSub::SLT:
+    case ICmpSub::ULT:
+      if (step < 0) {
+        return std::nullopt;
+      }
+      k = ceil_div(limit - a, step);
+      break;
+    case ICmpSub::SLE:
+    case ICmpSub::ULE:
+      if (step < 0) {
+        return std::nullopt;
+      }
+      k = (limit - a) / step + 1;
+      break;
+    case ICmpSub::SGT:
+    case ICmpSub::UGT:
+      if (step > 0) {
+        return std::nullopt;
+      }
+      k = ceil_div(a - limit, -step);
+      break;
+    case ICmpSub::SGE:
+    case ICmpSub::UGE:
+      if (step > 0) {
+        return std::nullopt;
+      }
+      k = (a - limit) / (-step) + 1;
+      break;
+    case ICmpSub::NE: {
+      const i128 dist = limit - a;
+      if (dist % step != 0 || dist / step <= 0) {
+        return std::nullopt;
+      }
+      k = dist / step;
       break;
     }
-    current = neww;
+    case ICmpSub::EQ:
+      k = 1;
+      break;
+    default:
+      return std::nullopt;
+    }
   }
 
-  auto base =
-      std::ranges::find_if(ianal.direct_inductvars, [&](const auto &dv) {
-        return dv.def == current->arg1;
-      });
-
-  if (base != ianal.direct_inductvars.end()) {
-    return *base;
+  // the tested value must not wrap on the way (it is monotonic, so checking the
+  // last iteration is enough)
+  i128 delta = 0;
+  if (__builtin_mul_overflow(k, step, &delta) ||
+      !fits_int(a + delta, bw, is_signed)) {
+    return std::nullopt;
   }
+  return k;
+}
 
-  return std::nullopt;
+// Same as above for a start / limit that are only loop invariant:
+//   up   (step 1,  a + k < limit):  k = max(limit, a) - a
+//   down (step -1, a - k > limit):  k = max(a, limit) - limit
+// The tested value only moves towards the limit and stops on it, so it never
+// wraps. The difference is non negative, for signed compares it additionally
+// has to fit, which holds if the smaller side is non negative
+SCEVRef symbolic_exit_iteration(ScalarEvo &evo, ICmpSub pred, SCEVRef a,
+                                i128 step, SCEVRef limit) {
+  bool up = false;
+  bool is_signed = false;
+  switch (pred) {
+  case ICmpSub::SLT:
+    up = true;
+    is_signed = true;
+    break;
+  case ICmpSub::ULT:
+    up = true;
+    break;
+  case ICmpSub::SGT:
+    is_signed = true;
+    break;
+  case ICmpSub::UGT:
+    break;
+  default:
+    return InvalidSCEV;
+  }
+  if (step != (up ? 1 : -1)) {
+    return InvalidSCEV;
+  }
+  const SCEVRef lo = up ? a : limit;
+  const SCEVRef other = up ? limit : a;
+  if (is_signed && !evo.is_non_negative(lo)) {
+    return InvalidSCEV;
+  }
+  const u32 bw = evo.expr(a).bw;
+  const SCEVRef m = evo.mk_max(other, lo, is_signed);
+  const SCEVRef r = evo.mk_add(m, evo.mk_mul(lo, evo.mk_const(-1, bw)));
+  return evo.expr(r).t == SCEVExpr::Type::Unknown ? InvalidSCEV : r;
 }
 } // namespace
 
-void InductionEndValueAnalysis::update(CFG &cfg, LoopInfo &linfo,
-                                       InductionVarAnalysis &ianal) {
-  info.clear();
+namespace {
+// Polynomials in the iteration number k with exact (non wrapping) coefficients,
+// used for exit tests that are not affine (k * k < n).
+constexpr u32 MaxPolyDeg = 3;
+struct Poly {
+  std::array<i128, MaxPolyDeg + 1> c{};
+  u32 deg = 0;
 
-  TSet<fir::BasicBlock> loop_bbs;
-  loop_bbs.reserve(linfo.body_nodes.size());
-  for (auto node : linfo.body_nodes) {
-    loop_bbs.insert(cfg.bbrs[node].bb);
+  // all coefficients of k^1.. are >= 0 / <= 0
+  [[nodiscard]] bool non_decreasing() const {
+    return std::all_of(c.begin() + 1, c.end(), [](i128 x) { return x >= 0; });
   }
-
-  for (auto leav : linfo.leaving_nodes) {
-    auto &lbb = cfg.bbrs[leav];
-    if (lbb.succ.size() != 2) {
-      continue;
+  [[nodiscard]] bool non_increasing() const {
+    return std::all_of(c.begin() + 1, c.end(), [](i128 x) { return x <= 0; });
+  }
+  [[nodiscard]] std::optional<i128> eval(i128 k) const {
+    i128 acc = 0;
+    for (u32 i = deg + 1; i > 0; i--) {
+      if (__builtin_mul_overflow(acc, k, &acc) ||
+          __builtin_add_overflow(acc, c[i - 1], &acc)) {
+        return std::nullopt;
+      }
     }
+    return acc;
+  }
+};
 
-    auto term = lbb.bb->get_terminator();
-    fir::BasicBlock out_bb = term->bbs[1].bb;
-    if (loop_bbs.contains(out_bb)) {
-      continue;
+// A non constant node of the expression: its value must stay inside `bw` bits
+// (signed, optionally also non negative) for the polynomial to be the value
+// the program computes.
+struct PolyNode {
+  Poly p;
+  u32 bw;
+  bool non_neg;
+};
+
+std::optional<Poly> to_poly(const ScalarEvo &evo, SCEVRef r,
+                            TVec<PolyNode> &nodes) {
+  using T = SCEVExpr::Type;
+  const SCEVExpr &e = evo.expr(r);
+  if (e.bw == 0 || e.bw > 64) {
+    return std::nullopt;
+  }
+  Poly res;
+  switch (e.t) {
+  case T::Const:
+    res.c[0] = e.cval;
+    return res;
+  case T::AddRec: {
+    if (!evo.is_const_addrec(r)) {
+      return std::nullopt;
     }
-
-    auto condv = term->args[0];
-    if (!condv.is_instr()) {
-      continue;
+    res.c[0] = evo.expr(e.a).cval;
+    res.c[1] = evo.expr(e.b).cval;
+    res.deg = 1;
+    break;
+  }
+  case T::Add:
+  case T::Mul: {
+    auto x = to_poly(evo, e.a, nodes);
+    auto y = to_poly(evo, e.b, nodes);
+    if (!x || !y) {
+      return std::nullopt;
     }
-
-    auto cond = condv.as_instr();
-    if (!cond->is(fir::InstrType::ICmp)) {
-      continue;
-    }
-
-    auto subtype = static_cast<fir::ICmpInstrSubType>(cond->subtype);
-    bool is_leq_type = subtype == fir::ICmpInstrSubType::SLE ||
-                       subtype == fir::ICmpInstrSubType::ULE;
-    bool is_lt_type = subtype == fir::ICmpInstrSubType::SLT ||
-                      subtype == fir::ICmpInstrSubType::ULT;
-
-    if (!is_leq_type && !is_lt_type) {
-      continue;
-    }
-
-    const fir::ValueR &induct_candidate = cond->args[0];
-    const fir::ValueR &limit_candidate = cond->args[1];
-
-    auto cmp_val_opt = get_constant(limit_candidate);
-    if (!cmp_val_opt) {
-      continue;
-    }
-
-    i128 cmp_val = *cmp_val_opt;
-    i128 offset = 0;
-
-    auto base_induct_opt =
-        resolve_base_induction(induct_candidate, ianal, offset);
-    if (!base_induct_opt.has_value()) {
-      continue;
-    }
-
-    const auto &base_induct = base_induct_opt.value();
-
-    if (base_induct.type != InductionVarAnalysis::PlusConst) {
-      continue;
-    }
-
-    if (!base_induct.consti->is_int() || base_induct.consti->as_int() != 1) {
-      continue;
-    }
-
-    i128 base_val = cmp_val + (is_leq_type ? 1 : 0);
-    TMap<fir::ValueR, i128> values;
-    values.insert({base_induct.def, base_val - offset});
-    values.insert({induct_candidate, base_val});
-
-    bool changed = true;
-    while (changed) {
-      changed = false;
-      for (const auto &iv : ianal.indirect_inductvars) {
-        // skip if already computed
-        if (values.contains(iv.def)) {
-          continue;
+    if (e.t == T::Add) {
+      res.deg = std::max(x->deg, y->deg);
+      for (u32 i = 0; i <= res.deg; i++) {
+        if (__builtin_add_overflow(x->c[i], y->c[i], &res.c[i])) {
+          return std::nullopt;
         }
-
-        std::optional<i128> val1;
-        std::optional<i128> val2;
-
-        if (auto c1 = get_constant(iv.arg1); c1.has_value()) {
-          val1 = c1;
-        } else if (auto it = values.find(iv.arg1); it != values.end()) {
-          val1 = it->second;
-        }
-
-        if (auto c2 = get_constant(iv.arg2); c2.has_value()) {
-          val2 = c2;
-        } else if (auto it = values.find(iv.arg2); it != values.end()) {
-          val2 = it->second;
-        }
-
-        if (val1.has_value() && val2.has_value()) {
-          i128 result;
-          switch (iv.type) {
-          case InductionVarAnalysis::PlusConst:
-            result = *val1 + *val2;
-            break;
-          case InductionVarAnalysis::SubConst:
-            result = *val1 - *val2;
-            break;
-          case InductionVarAnalysis::MulConst:
-            result = *val1 * *val2;
-            break;
-          default:
-            continue;
+      }
+    } else {
+      if (x->deg + y->deg > MaxPolyDeg) {
+        return std::nullopt;
+      }
+      res.deg = x->deg + y->deg;
+      for (u32 i = 0; i <= x->deg; i++) {
+        for (u32 j = 0; j <= y->deg; j++) {
+          i128 t = 0;
+          if (__builtin_mul_overflow(x->c[i], y->c[j], &t) ||
+              __builtin_add_overflow(res.c[i + j], t, &res.c[i + j])) {
+            return std::nullopt;
           }
-          values.insert({iv.def, result});
-          changed = true;
         }
       }
     }
-
-    info.push_back(EndInfo{
-        .from_bb = lbb.bb,
-        .to_bb = out_bb,
-        .values = std::move(values),
-    });
+    break;
   }
+  case T::SExt:
+  case T::ZExt: {
+    // the operand is the same number as long as it stays inside its width
+    // (and is non negative for zext)
+    const size_t before = nodes.size();
+    auto x = to_poly(evo, e.a, nodes);
+    if (!x) {
+      return std::nullopt;
+    }
+    // a constant operand adds no node
+    if (e.t == T::ZExt && nodes.size() > before) {
+      nodes.back().non_neg = true;
+    }
+    return x;
+  }
+  default:
+    return std::nullopt;
+  }
+  // every node has to be monotonic, so being inside the width at the first and
+  // the last iteration means being inside it in between
+  if (!res.non_decreasing() && !res.non_increasing()) {
+    return std::nullopt;
+  }
+  nodes.push_back(PolyNode{.p = res, .bw = e.bw, .non_neg = false});
+  return res;
 }
 
-void InductionEndValueAnalysis::dump() {
+// smallest k >= 0 with !pred(q(k), limit) for a q that is a polynomial of k
+// with constant coefficients; nullopt if q could leave its bit width on the
+// way or is not monotonic in the direction the compare needs. q is monotonic,
+// so the iterations "still running and nothing wrapped" are a prefix and the
+// exit is found by doubling and bisection.
+std::optional<i128> poly_exit_iteration(const ScalarEvo &evo, ICmpSub pred,
+                                        SCEVRef q, i128 limit_raw) {
+  const bool is_signed = pred == ICmpSub::SLT || pred == ICmpSub::SLE ||
+                         pred == ICmpSub::SGT || pred == ICmpSub::SGE;
+  const bool up = pred == ICmpSub::SLT || pred == ICmpSub::SLE ||
+                  pred == ICmpSub::ULT || pred == ICmpSub::ULE;
+  const bool down = pred == ICmpSub::SGT || pred == ICmpSub::SGE ||
+                    pred == ICmpSub::UGT || pred == ICmpSub::UGE;
+  if (!up && !down) {
+    return std::nullopt;
+  }
+  const u32 bw = evo.expr(q).bw;
+  TVec<PolyNode> nodes;
+  auto poly = to_poly(evo, q, nodes);
+  if (!poly || nodes.empty()) {
+    return std::nullopt;
+  }
+  // the compared value is the last node; unsigned compares need it non negative
+  // (otherwise the reinterpretation is not monotonic)
+  nodes.back().non_neg = nodes.back().non_neg || !is_signed;
+  const i128 limit = wrap_int(limit_raw, bw, is_signed);
+
+  auto fits = [&](i128 k) {
+    return std::ranges::all_of(nodes, [&](const PolyNode &n) {
+      auto v = n.p.eval(k);
+      return v && fits_int(*v, n.bw, true) && (!n.non_neg || *v >= 0);
+    });
+  };
+  auto holds = [&](i128 k) { return pred_holds(pred, *poly->eval(k), limit); };
+  // still running at k without having wrapped
+  auto running = [&](i128 k) { return fits(k) && holds(k); };
+
+  if (!fits(0)) {
+    return std::nullopt;
+  }
+  if (!holds(0)) {
+    return 0;
+  }
+  if (up ? !poly->non_decreasing() : !poly->non_increasing()) {
+    return std::nullopt;
+  }
+  // running(lo) holds, running(hi) does not
+  i128 lo = 0;
+  i128 hi = 1;
+  while (running(hi)) {
+    lo = hi;
+    hi *= 2;
+    if (hi > (static_cast<i128>(1) << 62)) {
+      return std::nullopt;
+    }
+  }
+  while (hi - lo > 1) {
+    const i128 mid = lo + (hi - lo) / 2;
+    (running(mid) ? lo : hi) = mid;
+  }
+  // left because the test failed, not because the value left its width
+  if (!fits(hi)) {
+    return std::nullopt;
+  }
+  return hi;
+}
+} // namespace
+
+bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
+                               ScalarEvo &evo) {
+  if (linfo.leaving_nodes.size() != 1) {
+    return false;
+  }
+  auto in_loop = [&](fir::BasicBlock bb) {
+    return std::ranges::find(linfo.body_nodes, cfg.get_bb_id(bb)) !=
+           linfo.body_nodes.end();
+  };
+  const u32 leaving = linfo.leaving_nodes[0];
+
+  // the exit test has to be executed exactly once per header execution:
+  // it dominates every back edge and there are no inner loops
+  for (auto tail : linfo.tails) {
+    if (!dom.dominates(leaving, tail)) {
+      return false;
+    }
+  }
+  for (auto node : linfo.body_nodes) {
+    for (auto succ : cfg.bbrs[node].succ) {
+      if (succ != linfo.head && dom.dominates(succ, node) &&
+          std::ranges::find(linfo.body_nodes, succ) != linfo.body_nodes.end()) {
+        return false;
+      }
+    }
+  }
+
+  auto term = cfg.bbrs[leaving].bb->get_terminator();
+  if (!term->is(fir::InstrType::CondBranchInstr) || term->bbs.size() != 2) {
+    return false;
+  }
+  const bool in0 = in_loop(term->bbs[0].bb);
+  const bool in1 = in_loop(term->bbs[1].bb);
+  if (in0 == in1) {
+    return false;
+  }
+  auto condv = term->args[0];
+  if (!condv.is_instr() || !condv.as_instr()->is(fir::InstrType::ICmp)) {
+    return false;
+  }
+  auto cond = condv.as_instr();
+
+  // predicate under which the loop keeps running: `q pred limit`
+  auto pred = static_cast<ICmpSub>(cond->subtype);
+  SCEVRef q = evo.get(cond->args[0]);
+  SCEVRef limit_ref = evo.get(cond->args[1]);
+  if ((!evo.is_addrec(q) && evo.is_addrec(limit_ref)) ||
+      (evo.is_invariant(q) && !evo.is_invariant(limit_ref))) {
+    std::swap(q, limit_ref);
+    pred = swap_pred(pred);
+  }
+  if (!in0) {
+    pred = negate_pred(pred);
+  }
+  if (pred == ICmpSub::INVALID || !evo.is_invariant(limit_ref) ||
+      evo.is_invariant(q)) {
+    return false;
+  }
+  if (!evo.is_addrec(q)) {
+    // not affine: constant polynomials of the iteration number
+    if (!evo.is_const(limit_ref)) {
+      return false;
+    }
+    const auto k = poly_exit_iteration(evo, pred, q, evo.expr(limit_ref).cval);
+    if (!k) {
+      return false;
+    }
+    exit_iter = evo.mk_const(*k, evo.expr(q).bw);
+    const_exit_iter = k;
+    from_bb = cfg.bbrs[leaving].bb;
+    to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
+    return true;
+  }
+  const SCEVRef start_ref = evo.expr(q).a;
+  const SCEVRef step_ref = evo.expr(q).b;
+  const u32 bw = evo.expr(q).bw;
+  if (bw == 0 || bw > 64 || evo.expr(limit_ref).bw != bw ||
+      !evo.is_const(step_ref)) {
+    return false;
+  }
+  const i128 step = evo.expr(step_ref).cval;
+  if (step == 0) {
+    return false;
+  }
+
+  std::optional<i128> k;
+  if (evo.is_const(start_ref) && evo.is_const(limit_ref)) {
+    k = const_exit_iteration(pred, bw, evo.expr(start_ref).cval, step,
+                             evo.expr(limit_ref).cval);
+    if (!k) {
+      return false;
+    }
+    exit_iter = evo.mk_const(*k, bw);
+  } else {
+    exit_iter = symbolic_exit_iteration(evo, pred, start_ref, step, limit_ref);
+    if (exit_iter == InvalidSCEV) {
+      return false;
+    }
+  }
+  const_exit_iter = k;
+
+  from_bb = cfg.bbrs[leaving].bb;
+  to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
+  return true;
+}
+
+void InductionEndValueAnalysis::update(CFG &cfg, Dominators &dom,
+                                       LoopInfo &linfo, ScalarEvo &evo) {
+  info.clear();
+
+  TripCountAnalysis trip;
+  if (!trip.update(cfg, dom, linfo, evo)) {
+    return;
+  }
+
+  // value of everything we can express in the iteration the loop is left in
+  TMap<fir::ValueR, SCEVRef> values;
+  for (auto v : evo.loop_values()) {
+    if (!v.get_type()->is_int()) {
+      continue;
+    }
+    const SCEVRef cur = evo.get(v);
+    const SCEVRef end = evo.at_iteration(cur, trip.exit_iter);
+    if (end != InvalidSCEV && evo.is_expandable(end)) {
+      values.insert({v, end});
+    }
+  }
+  if (values.empty()) {
+    return;
+  }
+  info.push_back(EndInfo{
+      .from_bb = trip.from_bb,
+      .to_bb = trip.to_bb,
+      .values = std::move(values),
+  });
+}
+
+void InductionEndValueAnalysis::dump(const ScalarEvo &evo) {
   fmt::println("Known Ends:");
   for (const auto &i : info) {
     fmt::println("@ {}=>{}:", i.from_bb, i.to_bb);
     for (const auto &[b, v] : i.values) {
-      fmt::println("  {}: {}", b, v);
-    }
-  }
-}
-
-void ScalarEvo::update(CFG &cfg, LoopInfo &loop_info) {
-  constexpr bool debug_print = false;
-  exprs.clear();
-  direct_induct.clear();
-
-  auto make_expr = [&](const SCEVExpr &e) -> SCEVExpr::SCEVExprR {
-    exprs.push_back(e);
-    return exprs.size();
-  };
-
-  auto is_loop_invariant = [&](fir::ValueR v) -> bool {
-    if (v.is_constant()) {
-      return true;
-    }
-    fir::BasicBlock def_bb{fir::BasicBlock::invalid()};
-    if (v.is_instr()) {
-      def_bb = v.as_instr()->get_parent();
-    } else if (v.is_bb_arg()) {
-      def_bb = v.as_bb_arg()->get_parent();
-    } else {
-      fmt::println("{}", v);
-      TODO("Unhandled value type");
-    }
-
-    u32 bb_id = cfg.get_bb_id(def_bb);
-    return std::ranges::find(loop_info.body_nodes, bb_id) ==
-           loop_info.body_nodes.end();
-  };
-
-  TMap<fir::ValueR, SCEVExpr::SCEVExprR> lookup;
-  TVec<fir::Instr> worklist;
-  TSet<fir::ValueR> processed;
-  for (auto incoming_arg : cfg.bbrs[loop_info.head].bb->args) {
-    lookup.insert(
-        {fir::ValueR{incoming_arg},
-         make_expr(SCEVExpr{.t = SCEVExpr::Type::Input,
-                            .associated_val = fir::ValueR{incoming_arg},
-                            .args = {}})});
-    processed.insert(fir::ValueR{incoming_arg});
-    for (auto u : incoming_arg->uses) {
-      worklist.emplace_back(u.user);
-    }
-  }
-
-  while (!worklist.empty()) {
-    auto instr = worklist.back();
-    worklist.pop_back();
-    if (processed.contains(fir::ValueR{instr})) {
-      continue;
-    }
-
-    if (instr->is(fir::InstrType::ZExt) || instr->is(fir::InstrType::SExt)) {
-      auto is_signext = instr->is(fir::InstrType::SExt);
-      SCEVExpr::SCEVExprR lhs = 0;
-      SCEVExpr::SCEVExprR rhs = 0;
-      if (lookup.contains(instr->args[0])) {
-        lhs = lookup.at(instr->args[0]);
-      } else if (is_loop_invariant(instr->args[0])) {
-        lhs = make_expr(SCEVExpr{.t = SCEVExpr::Type::Invariant,
-                                 .associated_val = instr->args[0],
-                                 .args = {}});
+      if (evo.is_const(v)) {
+        fmt::println("  {}: {}", b, evo.expr(v).cval);
       } else {
-        if (instr->args[0].is_instr()) {
-          worklist.push_back(instr->args[0].as_instr());
-        }
-        continue;
+        fmt::println("  {}: e{}", b, v);
       }
-      auto newi = make_expr(SCEVExpr{.t = is_signext ? SCEVExpr::Type::SExt
-                                                     : SCEVExpr::Type::ZExt,
-                                     .associated_val = fir::ValueR{instr},
-                                     .args = {lhs, rhs}});
-      for (auto u : instr->get_uses()) {
-        worklist.push_back(u.user);
-      }
-      lookup.insert({fir::ValueR{instr}, newi});
-      processed.insert(fir::ValueR{instr});
-      continue;
-    }
-    if (instr->is(fir::InstrType::BinaryInstr)) {
-      SCEVExpr::SCEVExprR lhs = 0;
-      SCEVExpr::SCEVExprR rhs = 0;
-      if (lookup.contains(instr->args[0])) {
-        lhs = lookup.at(instr->args[0]);
-      } else if (is_loop_invariant(instr->args[0])) {
-        lhs = make_expr(SCEVExpr{.t = SCEVExpr::Type::Invariant,
-                                 .associated_val = instr->args[0],
-                                 .args = {}});
-      } else {
-        if (instr->args[0].is_instr()) {
-          worklist.push_back(instr->args[0].as_instr());
-        }
-        continue;
-      }
-      if (lookup.contains(instr->args[1])) {
-        rhs = lookup.at(instr->args[1]);
-      } else if (is_loop_invariant(instr->args[1])) {
-        rhs = make_expr(SCEVExpr{.t = SCEVExpr::Type::Invariant,
-                                 .associated_val = instr->args[1],
-                                 .args = {}});
-      } else {
-        if (instr->args[1].is_instr()) {
-          worklist.push_back(instr->args[1].as_instr());
-        }
-        continue;
-      }
-
-      SCEVExpr::Type ty = SCEVExpr::Type::Invalid;
-      switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
-      case fir::BinaryInstrSubType::IntAdd:
-      case fir::BinaryInstrSubType::PtrAdd:
-        ty = SCEVExpr::Type::Add;
-        break;
-      case fir::BinaryInstrSubType::IntSub:
-        ty = SCEVExpr::Type::Sub;
-        break;
-      case fir::BinaryInstrSubType::IntMul:
-        ty = SCEVExpr::Type::Mul;
-        break;
-      default:
-        if constexpr (debug_print) {
-          fmt::println("IV2 missed binary {}", instr);
-        }
-        processed.insert(fir::ValueR{instr});
-        continue;
-      }
-
-      auto newi = make_expr(SCEVExpr{
-          .t = ty, .associated_val = fir::ValueR{instr}, .args = {lhs, rhs}});
-      for (auto u : instr->get_uses()) {
-        worklist.push_back(u.user);
-      }
-      lookup.insert({fir::ValueR{instr}, newi});
-      processed.insert(fir::ValueR{instr});
-      continue;
-    }
-    if constexpr (debug_print) {
-      fmt::println("IV2 missed on {}", instr);
-    }
-    processed.emplace(instr);
-  }
-
-  auto is_direct_induct = [&](this const auto &self, const SCEVExpr &r,
-                              fir::BBArgument &arg) -> bool {
-    switch (r.t) {
-    case SCEVExpr::Type::Add:
-    case SCEVExpr::Type::Sub:
-    case SCEVExpr::Type::Mul:
-      return self(exprs[r.args[0] - 1], arg) &&
-             exprs[r.args[1] - 1].t == SCEVExpr::Type::Invariant;
-    case SCEVExpr::Type::SExt:
-    case SCEVExpr::Type::ZExt:
-      return self(exprs[r.args[0] - 1], arg);
-    case SCEVExpr::Type::Input:
-      return r.associated_val.as_bb_arg() == arg;
-    case SCEVExpr::Type::Invalid:
-    case SCEVExpr::Type::Invariant:
-      return false;
-    }
-  };
-
-  for (auto t : loop_info.tails) {
-    auto term = cfg.bbrs[t].bb->get_terminator();
-    auto v =
-        static_cast<u32>(std::ranges::find(cfg.bbrs[t].succ, loop_info.head) -
-                         cfg.bbrs[t].succ.begin());
-    size_t arg_id = 0;
-    for (auto a : term->bbs[v].args) {
-      if (lookup.contains(a) &&
-          is_direct_induct(exprs[lookup.at(a) - 1],
-                           cfg.bbrs[loop_info.head].bb->args[arg_id])) {
-        direct_induct.emplace_back(arg_id, lookup.at(a));
-      }
-      arg_id++;
     }
   }
-}
-
-void ScalarEvo::dump() const {
-  fmt::print("Expr 0: INVALID\n");
-  for (size_t i = 0; i < exprs.size(); ++i) {
-    fmt::print("Expr {}: ", i + 1);
-    const auto &e = exprs[i];
-    switch (e.t) {
-    case SCEVExpr::Type::Invalid:
-      fmt::print("INVALID\n");
-      break;
-    case SCEVExpr::Type::Input:
-      fmt::print("IN {}\n", e.associated_val);
-      break;
-    case SCEVExpr::Type::Add:
-      fmt::print("{} = Add({}, {})\n", e.associated_val, e.args[0], e.args[1]);
-      break;
-    case SCEVExpr::Type::Sub:
-      fmt::print("{} = Sub({}, {})\n", e.associated_val, e.args[0], e.args[1]);
-      break;
-    case SCEVExpr::Type::ZExt:
-      fmt::print("{} = ZExt({})\n", e.associated_val, e.args[0]);
-      break;
-    case SCEVExpr::Type::SExt:
-      fmt::print("{} = SExt({})\n", e.associated_val, e.args[0]);
-      break;
-    case SCEVExpr::Type::Mul:
-      fmt::print("{} = Mul({}, {})\n", e.associated_val, e.args[0], e.args[1]);
-      break;
-    case SCEVExpr::Type::Invariant:
-      fmt::print("Invariant({})\n", e.associated_val);
-      break;
-    }
-  }
-
-  fmt::print("Direct Induction Vars:\n");
-  for (auto [arg_id, idx] : direct_induct) {
-    fmt::print("  {}: {}\n", arg_id, idx);
-  }
-  fmt::print("\n");
-}
-
-bool LoopBoundsAnalysis::update(ScalarEvo &evo, CFG &cfg, LoopInfo &info) {
-  if (evo.direct_induct.empty()) {
-    return false;
-  }
-  if (info.leaving_nodes.size() != 1) {
-    return false;
-  }
-  // can only have 1 incoming value so we can use it as lower bound
-  if (cfg.bbrs[info.head].pred.size() != info.tails.size() + 1) {
-    return false;
-  }
-  auto leav_bb = cfg.bbrs[info.leaving_nodes[0]].bb;
-  auto leav_term = leav_bb->get_terminator();
-
-  if (!leav_term->is(fir::InstrType::CondBranchInstr)) {
-    return false;
-  }
-  auto loop_continue = static_cast<u32>(
-      std::ranges::find(cfg.bbrs[info.leaving_nodes[0]].succ, info.head) -
-      cfg.bbrs[info.leaving_nodes[0]].succ.begin());
-
-  auto cond = leav_term->args[0];
-  if (!cond.is_instr()) {
-    return false;
-  }
-  auto condi = cond.as_instr();
-  auto sub = static_cast<fir::ICmpInstrSubType>(condi->subtype);
-  bool is_eql_cond =
-      sub == fir::ICmpInstrSubType::NE || sub == fir::ICmpInstrSubType::EQ;
-  bool isle =
-      sub == fir::ICmpInstrSubType::SLE || sub == fir::ICmpInstrSubType::ULE;
-
-  if (!condi->is(fir::InstrType::ICmp) ||
-      (!is_eql_cond && sub != fir::ICmpInstrSubType::SLT &&
-       sub != fir::ICmpInstrSubType::ULT && !isle)) {
-    return false;
-  }
-  if (!condi->args[1].is_constant()) {
-    return false;
-  }
-  auto condi_const = condi->args[1].as_constant();
-  i128 condi_const_val = 0;
-  if (condi_const->is_int()) {
-    condi_const_val = condi_const->as_int();
-  } else if (condi_const->is_null()) {
-    condi_const_val = 0;
-  } else {
-    return false;
-  }
-  end_value = condi_const_val + (isle ? 1 : 0);
-  auto induct_id =
-      std::ranges::find_if(evo.direct_induct, [&](const auto &a) -> bool {
-        const SCEVExpr &expr = evo.exprs[a.second - 1];
-        return expr.associated_val == condi->args[0];
-      });
-  // TODO: this isnt very robust we might be using teh value oft he previous
-  // iteration as a condition
-  //  which then would fail this check
-  //  maybe implement a forwarding system??
-  if (induct_id == evo.direct_induct.end()) {
-    return false;
-  }
-  induct = induct_id->second;
-  auto &expr = evo.exprs[induct_id->second - 1];
-  if (expr.t != SCEVExpr::Type::Add ||
-      // TODO support other stuff like sub atleast
-      !evo.exprs[expr.args[1] - 1].associated_val.is_constant()) {
-    return false;
-  }
-  change_val =
-      evo.exprs[expr.args[1] - 1].associated_val.as_constant()->as_int();
-
-  // find out which incoming edge is the from outside the loop
-  // and then use its values if they are constant
-  u32 incoming_bb = 0;
-  for (auto incoming : cfg.bbrs[info.head].pred) {
-    if (std::ranges::find(info.body_nodes, incoming) == info.body_nodes.end()) {
-      incoming_bb = incoming;
-      break;
-    }
-  }
-  auto incoming_term = cfg.bbrs[incoming_bb].bb->get_terminator();
-  // TODO: support cbranch/switch
-  if (!incoming_term->is(fir::InstrType::BranchInstr)) {
-    return false;
-  }
-  auto lowwer_boundv = incoming_term->bbs[0].args[induct_id->first];
-  if (!lowwer_boundv.is_constant() ||
-      lowwer_boundv.as_constant()->is_poison()) {
-    return false;
-  }
-  start_value = lowwer_boundv.as_constant()->as_int();
-
-  if (is_eql_cond && change_val > 0) {
-    if (loop_continue == 0) {
-      // TODO: can atleast add it for cahnge_val < 0
-      //  means if the targets of the leaving cbranch are switched the condition
-      //  is effectively also switched
-      return false;
-    }
-    if ((change_val > 0 && start_value > end_value) ||
-        (change_val < 0 && start_value < end_value)) {
-      // it might overflow??
-      return false;
-    }
-    real_end_value = end_value;
-    i128 range = (end_value - start_value);
-    if (range % change_val != 0) {
-      // this would just cause garbage problems with overflow and shit right??
-      return false;
-      // real_end_value = end_value + (change_val - (range % change_val));
-    }
-    n_iter = (real_end_value - start_value) / change_val;
-  } else if (change_val > 0) {
-    if (loop_continue != 0) {
-      // means if the targets of the leaving cbranch are switched the condition
-      // is effectively also switched
-      // TODO("impl different continue");
-      return false;
-    }
-    if ((change_val > 0 && start_value > end_value) ||
-        (change_val < 0 && start_value < end_value)) {
-      // it might overflow??
-      return false;
-    }
-
-    // if the upper bound is not divisible by teh incr the final value of the
-    // induction variable will be higher and not equal to the upper bound
-    // the exact value depends on the starting value + upper_bound mod  incr
-    real_end_value = end_value;
-    i128 range = (end_value - start_value);
-    if (range % change_val != 0) {
-      real_end_value = end_value + (change_val - (range % change_val));
-    }
-    n_iter = (real_end_value - start_value) / change_val;
-  } else {
-    return false;
-  }
-  return true;
-}
-
-void LoopBoundsAnalysis::dump() const {
-  fmt::println("LoopsBoundAnalysis:");
-  fmt::println("  InductId:{}", induct);
-  fmt::println("  Iter:{}", n_iter);
-  fmt::println("  Start:{}", start_value);
-  fmt::println("  Change:{}", change_val);
-  fmt::println("  End:{}({})", end_value, real_end_value);
 }
 
 } // namespace foptim::optim

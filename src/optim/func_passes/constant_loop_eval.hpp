@@ -59,7 +59,6 @@ class ConstLoopEval final : public FunctionPass {
         case fir::InstrType::AllocaInstr:
         case fir::InstrType::ExtractValue:
         case fir::InstrType::InsertValue:
-        case fir::InstrType::ITrunc:
         case fir::InstrType::CallInstr:
         case fir::InstrType::ReturnInstr:
         case fir::InstrType::SwitchInstr:
@@ -76,6 +75,7 @@ class ConstLoopEval final : public FunctionPass {
         case fir::InstrType::BranchInstr:
         case fir::InstrType::ZExt:
         case fir::InstrType::SExt:
+        case fir::InstrType::ITrunc:
         }
         for (auto &bb : instr->bbs) {
           for (auto &arg : bb.args) {

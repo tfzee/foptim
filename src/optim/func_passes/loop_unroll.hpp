@@ -15,7 +15,7 @@ class LoopUnroll final : public FunctionPass {
   } config;
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
   bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
-                fir::Function &func, LoopBoundsAnalysis &lb);
+                fir::Function &func, TripCountAnalysis &tc);
 };
 
 void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,

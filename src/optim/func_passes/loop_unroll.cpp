@@ -12,9 +12,6 @@ namespace foptim::optim {
 
 void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
              fir::Function &func, bool known_to_iterate_more) {
-  // get which id in the new_bbs as wel as in the body notes matches the head
-  // this then we use to redirect the backwards edges to the next part of the
-  // loop
   i64 head_id = -1;
   for (u64 i = 0; i < loop.body_nodes.size(); i++) {
     if (loop.body_nodes[i] == loop.head) {
@@ -26,7 +23,6 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
   TVec<fir::BasicBlock> new_bbs[16];
   fir::ContextData::V2VMap subs;
 
-  // generate new bbs
   // for each peel we copy the body
   for (u8 u = 0; u < peel_factor; u++) {
     subs.clear();
@@ -34,7 +30,6 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
       auto new_bb = ctx->copy(cfg.bbrs[node].bb, subs, false);
       new_bbs[u].push_back(new_bb);
     }
-    // then update the newly generated bbs
     for (auto &bb : new_bbs[u]) {
       for (auto instr : bb->instructions) {
         instr.substitute(subs);
@@ -275,14 +270,7 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
       continue;
     }
     u32 evo_id = evo_var->get_parent()->get_arg_id(evo_var);
-    found = false;
-    for (const auto &x : evo.direct_induct) {
-      if (x.first == evo_id) {
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
+    if (!evo.is_addrec(evo.get(fir::ValueR{evo_var}))) {
       continue;
     }
 
@@ -322,7 +310,6 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   }
 
   // loop.dump();
-  // evo.dump();
   // fmt::println("Should prob peel {} X times", peel_count);
   ASSERT(peel_count == 1);
   peel_it(cfg, loop, 1, ctx, func, false);
@@ -337,30 +324,24 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
 } // namespace
 
 bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
-                          fir::Function &func, LoopBoundsAnalysis &lb) {
+                          fir::Function &func, TripCountAnalysis &tc) {
   (void)loop;
   (void)ctx;
   (void)func;
-  // loop.dump();
-  // ScalarEvo evo{cfg, loop};
-  // LoopBoundsAnalysis lb{};
-  // if (!lb.update(evo, cfg, loop)) {
-  //   failure(
-  //       {.reason = "Didnt find loop range", .loc =
-  //       {cfg.bbrs[loop.head].bb}});
-  //   return peel_condition(cfg, loop, ctx, func, evo);
-  // }
-
   size_t n_instrs = 0;
   for (auto i : loop.body_nodes) {
     n_instrs += cfg.bbrs[i].bb->n_instrs();
   }
 
-  // lb.dump();
-  auto iteration_count = lb.n_iter;
+  // number of times the body runs
+  const i128 iteration_count_full = *tc.const_exit_iter + 1;
+  if (iteration_count_full > (static_cast<i128>(1) << 62)) {
+    return false;
+  }
+  auto iteration_count = static_cast<u64>(iteration_count_full);
   u8 unroll_factor = 2;
   bool is_full_unroll = false;
-  bool did_peel;
+  bool did_peel = false;
   if (iteration_count > 2 && ((iteration_count - 1) % 2) == 0) {
     peel_it(cfg, loop, 1, ctx, func, true);
     did_peel = true;
@@ -378,7 +359,7 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   } else if (iteration_count > 1 && iteration_count <= 6 &&
              iteration_count * n_instrs < 64) {
     is_full_unroll = true;
-    unroll_factor = iteration_count;
+    unroll_factor = static_cast<u8>(iteration_count);
   } else if (iteration_count % 4 == 0) {
     unroll_factor = 4;
   } else {
@@ -418,17 +399,22 @@ PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   CFG &cfg = AnalysisManager::cfg(func);
   Dominators &dom = AnalysisManager::dom(func);
   LoopInfoAnalysis linfo{dom};
+  TripCountAnalysis tc{};
 
   for (auto &loop : linfo.info) {
     // ensure loop is do while loop
     ScalarEvo evo{cfg, loop};
-    LoopBoundsAnalysis lb{};
-    if (!lb.update(evo, cfg, loop)) {
+    if (!tc.update(cfg, dom, loop, evo)) {
       if (peel_condition(cfg, loop, ctx, func, evo)) {
         return PreservedAnalysis::none();
       }
       failure(
           {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
+      continue;
+    }
+    if (!tc.const_exit_iter) {
+      failure({.reason = "Trip count is not constant",
+               .loc = {cfg.bbrs[loop.head].bb}});
       continue;
     }
     if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
@@ -437,7 +423,7 @@ PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
       continue;
     }
 
-    if (apply_it(cfg, loop, ctx, func, lb)) {
+    if (apply_it(cfg, loop, ctx, func, tc)) {
       utils::StatCollector::get().addi(1, "loopUnrolled",
                                        utils::StatCollector::StatFOptim);
       return PreservedAnalysis::none();

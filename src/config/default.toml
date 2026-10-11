@@ -92,6 +92,7 @@ passes = [
 passes = [
   "InstSimplify", "LVN", "InstSimplify", "SCCP", "SimplifyCFG", "DCE", "SORA",
   "Mem2Reg", "InstSimplify", "LVN", "SCCP", "SimplifyCFG", "DCE", "DSE",
+  "LoopSimplify", "InstSimplify", "SimplifyCFG", "DCE",
 ]
 
 [pipeline.fir.default_release_cleanup]

@@ -19,6 +19,23 @@ std::optional<ConstantValue> get_constant_value(ValueR val, State &st) {
   return st.try_get(val);
 }
 
+// integers are kept sign extended to their bit width
+i128 wrap_to_type(i128 v, TypeR ty) {
+  if (!ty->is_int()) {
+    return v;
+  }
+  const u32 bw = ty->get_bitwidth();
+  if (bw >= 128) {
+    return v;
+  }
+  const u128 mask = (static_cast<u128>(1) << bw) - 1;
+  u128 u = static_cast<u128>(v) & mask;
+  if (((u >> (bw - 1)) & 1) != 0) {
+    u |= ~mask;
+  }
+  return static_cast<i128>(u);
+}
+
 bool interpret_branch(Instr instr, State &st, InstrPointer &ip) {
   auto &target_bb = instr->bbs[0];
   for (size_t i = 0; i < target_bb.args.size(); i++) {
@@ -62,15 +79,15 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
   }
   switch (static_cast<BinaryInstrSubType>(instr->subtype)) {
     case BinaryInstrSubType::IntAdd:
-      st.set_value(ValueR(instr), ConstantValue{v1->as_int() + v2->as_int(),
+      st.set_value(ValueR(instr), ConstantValue{wrap_to_type(v1->as_int() + v2->as_int(), instr.get_type()),
                                                 instr.get_type()});
       break;
     case BinaryInstrSubType::IntMul:
-      st.set_value(ValueR(instr), ConstantValue{v1->as_int() * v2->as_int(),
+      st.set_value(ValueR(instr), ConstantValue{wrap_to_type(v1->as_int() * v2->as_int(), instr.get_type()),
                                                 instr.get_type()});
       break;
     case BinaryInstrSubType::IntSub:
-      st.set_value(ValueR(instr), ConstantValue{v1->as_int() - v2->as_int(),
+      st.set_value(ValueR(instr), ConstantValue{wrap_to_type(v1->as_int() - v2->as_int(), instr.get_type()),
                                                 instr.get_type()});
       break;
     case BinaryInstrSubType::FloatAdd:
@@ -92,28 +109,80 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
       }
       break;
     case BinaryInstrSubType::And:
-      st.set_value(ValueR(instr), ConstantValue{v1->as_int() & v2->as_int(),
+      st.set_value(ValueR(instr), ConstantValue{wrap_to_type(v1->as_int() & v2->as_int(), instr.get_type()),
                                                 instr.get_type()});
       break;
     case BinaryInstrSubType::Or:
-      st.set_value(ValueR(instr), ConstantValue{v1->as_int() | v2->as_int(),
+      st.set_value(ValueR(instr), ConstantValue{wrap_to_type(v1->as_int() | v2->as_int(), instr.get_type()),
                                                 instr.get_type()});
+      break;
+    case BinaryInstrSubType::Xor:
+      st.set_value(ValueR(instr),
+                   ConstantValue{wrap_to_type(v1->as_int() ^ v2->as_int(),
+                                              instr.get_type()),
+                                 instr.get_type()});
       break;
     case BinaryInstrSubType::Shl:
-      st.set_value(ValueR(instr), ConstantValue{v1->as_int() << v2->as_int(),
-                                                instr.get_type()});
-      break;
-    case BinaryInstrSubType::IntSRem:
-      st.set_value(ValueR(instr), ConstantValue{v1->as_int() % v2->as_int(),
-                                                instr.get_type()});
-      break;
-    case BinaryInstrSubType::IntSDiv:
-    case BinaryInstrSubType::IntUDiv:
     case BinaryInstrSubType::Shr:
-    case BinaryInstrSubType::AShr:
-    case BinaryInstrSubType::Xor:
-      fmt::println("{:cd}", instr);
-      TODO("impl");
+    case BinaryInstrSubType::AShr: {
+      // out of range shifts are poison, do not evaluate them
+      if (!instr.get_type()->is_int()) {
+        return false;
+      }
+      const u32 bw = instr.get_type()->get_bitwidth();
+      const i128 amt = v2->as_int();
+      if (bw > 64 || amt < 0 || amt >= bw) {
+        return false;
+      }
+      const u128 mask = (static_cast<u128>(1) << bw) - 1;
+      const u128 uv = static_cast<u128>(v1->as_int()) & mask;
+      i128 res;
+      switch (static_cast<BinaryInstrSubType>(instr->subtype)) {
+      case BinaryInstrSubType::Shl:
+        res = static_cast<i128>(uv << amt);
+        break;
+      case BinaryInstrSubType::Shr:
+        res = static_cast<i128>(uv >> amt);
+        break;
+      default:
+        res = wrap_to_type(v1->as_int(), instr.get_type()) >> amt;
+        break;
+      }
+      st.set_value(ValueR(instr), ConstantValue{wrap_to_type(res, instr.get_type()),
+                                                instr.get_type()});
+      break;
+    }
+    case BinaryInstrSubType::IntSRem:
+    case BinaryInstrSubType::IntSDiv:
+    case BinaryInstrSubType::IntUDiv: {
+      if (!instr.get_type()->is_int()) {
+        return false;
+      }
+      const u32 bw = instr.get_type()->get_bitwidth();
+      if (bw > 64) {
+        return false;
+      }
+      const i128 a = wrap_to_type(v1->as_int(), instr.get_type());
+      const i128 b = wrap_to_type(v2->as_int(), instr.get_type());
+      if (b == 0) {
+        return false;
+      }
+      i128 res;
+      if (static_cast<BinaryInstrSubType>(instr->subtype) ==
+          BinaryInstrSubType::IntUDiv) {
+        const u128 mask = (static_cast<u128>(1) << bw) - 1;
+        res = static_cast<i128>((static_cast<u128>(a) & mask) /
+                                (static_cast<u128>(b) & mask));
+      } else if (static_cast<BinaryInstrSubType>(instr->subtype) ==
+                 BinaryInstrSubType::IntSDiv) {
+        res = a / b;
+      } else {
+        res = a % b;
+      }
+      st.set_value(ValueR(instr), ConstantValue{wrap_to_type(res, instr.get_type()),
+                                                instr.get_type()});
+      break;
+    }
     default:
       return false;
     case BinaryInstrSubType::INVALID:
@@ -222,10 +291,31 @@ bool interpret_zext(Instr instr, State &st, InstrPointer &ip) {
   if (!v1) {
     return false;
   }
-  auto bitwidth = instr->get_type()->as_int();
+  // the source value may be stored sign extended, only its own bits count
+  auto bitwidth = instr->args[0].get_type()->get_bitwidth();
   i128 mask = std::bit_cast<i128>(((static_cast<u128>(1)) << bitwidth) - 1);
   st.set_value(ValueR(instr),
                ConstantValue{v1->as_int() & mask, instr->get_type()});
+  ip.instr_id++;
+  return true;
+}
+
+bool interpret_itrunc(Instr instr, State &st, InstrPointer &ip) {
+  auto v1 = get_constant_value(instr->args[0], st);
+  if (!v1) {
+    return false;
+  }
+  const u32 bitwidth = instr->get_type()->get_bitwidth();
+  i128 res = v1->as_int();
+  if (bitwidth < 128) {
+    const u128 mask = (static_cast<u128>(1) << bitwidth) - 1;
+    u128 u = static_cast<u128>(res) & mask;
+    if (((u >> (bitwidth - 1)) & 1) != 0) {
+      u |= ~mask;
+    }
+    res = static_cast<i128>(u);
+  }
+  st.set_value(ValueR(instr), ConstantValue{res, instr->get_type()});
   ip.instr_id++;
   return true;
 }
@@ -259,6 +349,8 @@ bool Interpreter::step_instr() {
       return interpret_sext(curr_i, state, ip);
     case InstrType::ZExt:
       return interpret_zext(curr_i, state, ip);
+    case InstrType::ITrunc:
+      return interpret_itrunc(curr_i, state, ip);
     default:
   }
   fmt::println("{}", curr_i);

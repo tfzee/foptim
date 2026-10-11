@@ -3,6 +3,7 @@
 #include <fmt/core.h>
 
 #include <algorithm>
+#include <optional>
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -15,44 +16,59 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "optim/function_pass.hpp"
+#include "optim/helper/scev_expander.hpp"
 #include "utils/set.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
 class LoopSimplify final : public FunctionPass {
 public:
-  bool dead_loop_elimination(CFG &cfg, LoopInfoAnalysis &loops, u32 loop_i) {
-    auto &loop = loops.info.at(loop_i);
+  // calls f(value) for every value defined in the loop that is used outside of
+  // it (including as an argument of an edge leaving the loop)
+  template <class F>
+  static void for_each_outside_used(CFG &cfg, const LoopInfo &loop, F &&f) {
+    auto outside = [&](const fir::Use &u) {
+      if (u.type == fir::UseType::BBArg) {
+        return !std::ranges::contains(
+            loop.body_nodes, cfg.get_bb_id(u.user->bbs[u.argId].bb));
+      }
+      return !std::ranges::contains(loop.body_nodes,
+                                    cfg.get_bb_id(u.user->get_parent()));
+    };
     for (auto b : loop.body_nodes) {
       for (auto arg : cfg.bbrs[b].bb->args) {
-        for (auto u : arg->uses) {
-          auto use_bb = cfg.get_bb_id(u.user->get_parent());
-          if (u.type == fir::UseType::BBArg) {
-            if (!std::ranges::contains(
-                    loop.body_nodes, cfg.get_bb_id(u.user->bbs[u.argId].bb))) {
-              return false;
-            }
-          } else if (!std::ranges::contains(loop.body_nodes, use_bb)) {
-            return false;
-          }
+        if (std::ranges::any_of(arg->uses, outside)) {
+          f(fir::ValueR{arg});
         }
       }
       for (auto i : cfg.bbrs[b].bb->instructions) {
-        if (i->has_pot_sideeffects()) {
-          return false;
-        }
-        for (auto u : i->uses) {
-          auto use_bb = cfg.get_bb_id(u.user->get_parent());
-          if (u.type == fir::UseType::BBArg) {
-            if (!std::ranges::contains(
-                    loop.body_nodes, cfg.get_bb_id(u.user->bbs[u.argId].bb))) {
-              return false;
-            }
-          } else if (!std::ranges::contains(loop.body_nodes, use_bb)) {
-            return false;
-          }
+        if (std::ranges::any_of(i->uses, outside)) {
+          f(fir::ValueR{i});
         }
       }
+    }
+  }
+
+  static bool has_sideeffects(CFG &cfg, const LoopInfo &loop) {
+    for (auto b : loop.body_nodes) {
+      for (auto i : cfg.bbrs[b].bb->instructions) {
+        if (i->has_pot_sideeffects()) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool dead_loop_elimination(CFG &cfg, LoopInfoAnalysis &loops, u32 loop_i) {
+    auto &loop = loops.info.at(loop_i);
+    if (has_sideeffects(cfg, loop)) {
+      return false;
+    }
+    bool used_outside = false;
+    for_each_outside_used(cfg, loop, [&](fir::ValueR) { used_outside = true; });
+    if (used_outside) {
+      return false;
     }
     if (loop.leaving_nodes.size() == 1) {
       auto leaver_id = loop.leaving_nodes[0];
@@ -116,106 +132,70 @@ public:
 
   bool merge_same_diret_induct_var(CFG &cfg, LoopInfoAnalysis &loops,
                                    u32 loop_i) {
-    // if we have same direct induct var  with same ste and same starting valuep
-    //  we can merge them
-    //  if same size just merge otherwise need a itrunc to smaller
+    // two header arguments {s1,+,c1} (kept) and {s2,+,c2} with c2 = r * c1 and
+    // s2 = r * s1 are the same induction variable, the second one can be
+    // computed from the first (truncated to the narrower type if needed)
     auto &loop = loops.info[loop_i];
     if (cfg.bbrs[loop.head].pred.size() != loop.tails.size() + 1) {
       return false;
     }
 
-    u32 prehead_bb = 0;
-    fir::Instr prehead_bb_term;
-    u32 prehead_bb_id = 0;
-    for (auto pred : cfg.bbrs[loop.head].pred) {
-      if (std::ranges::find(loop.body_nodes, pred) == loop.body_nodes.end()) {
-        prehead_bb = pred;
-        prehead_bb_term = cfg.bbrs[prehead_bb].bb->get_terminator();
-        prehead_bb_id = prehead_bb_term.get_bb_id(cfg.bbrs[loop.head].bb);
-        break;
-      }
-    }
     auto *ctx = cfg.func->ctx;
-
-    InductionVarAnalysis ianal{cfg, loop};
-    for (size_t i1 = 0; i1 < ianal.direct_inductvars.size(); i1++) {
-      for (size_t i2 = i1 + 1; i2 < ianal.direct_inductvars.size(); i2++) {
-        ASSERT(ianal.direct_inductvars[i1].def.is_bb_arg())
-        ASSERT(ianal.direct_inductvars[i2].def.is_bb_arg())
-        ASSERT(cfg.bbrs[loop.head].bb ==
-               ianal.direct_inductvars[i1].def.as_bb_arg()->get_parent());
-        ASSERT(cfg.bbrs[loop.head].bb ==
-               ianal.direct_inductvars[i2].def.as_bb_arg()->get_parent());
-        if (ianal.direct_inductvars[i1].type !=
-            ianal.direct_inductvars[i2].type) {
+    ScalarEvo evo{cfg, loop};
+    auto head_bb = cfg.bbrs[loop.head].bb;
+    auto args = head_bb->args;
+    for (size_t i1 = 0; i1 < args.size(); i1++) {
+      for (size_t i2 = i1 + 1; i2 < args.size(); i2++) {
+        const fir::ValueR v1{args[i1]};
+        const fir::ValueR v2{args[i2]};
+        if (!v1.get_type()->is_int() || !v2.get_type()->is_int()) {
           continue;
         }
-        if (!ianal.direct_inductvars[i1].consti.is_valid() ||
-            !ianal.direct_inductvars[i2].consti.is_valid() ||
-            !ianal.direct_inductvars[i1].consti->is_int() ||
-            !ianal.direct_inductvars[i2].consti->is_int()) {
+        const SCEVRef r1 = evo.get(v1);
+        const SCEVRef r2 = evo.get(v2);
+        if (!evo.is_const_addrec(r1) || !evo.is_const_addrec(r2)) {
           continue;
         }
 
-        auto keep = i2;
-        auto repl = i1;
-        auto incr_keep = ianal.direct_inductvars[i2].consti->as_int();
-        auto incr_repl = ianal.direct_inductvars[i1].consti->as_int();
-        if (ianal.direct_inductvars[i1].def.get_type()->get_bitwidth() >
-            ianal.direct_inductvars[i2].def.get_type()->get_bitwidth()) {
-          keep = i1;
-          repl = i2;
-          incr_keep = ianal.direct_inductvars[i1].consti->as_int();
-          incr_repl = ianal.direct_inductvars[i2].consti->as_int();
+        // keep the wider one
+        auto keep = v2;
+        auto repl = v1;
+        auto rkeep = r2;
+        auto rrepl = r1;
+        if (v1.get_type()->get_bitwidth() > v2.get_type()->get_bitwidth()) {
+          keep = v1;
+          repl = v2;
+          rkeep = r1;
+          rrepl = r2;
         }
-        if ((ianal.direct_inductvars[i1].type !=
-                 InductionVarAnalysis::IterationType::PlusConst ||
-             incr_keep == 0 || incr_repl % incr_keep != 0) &&
-            (incr_repl != incr_keep)) {
+        const i128 step_keep = evo.expr(evo.expr(rkeep).b).cval;
+        const i128 step_repl = evo.expr(evo.expr(rrepl).b).cval;
+        const i128 start_keep = evo.expr(evo.expr(rkeep).a).cval;
+        const i128 start_repl = evo.expr(evo.expr(rrepl).a).cval;
+        const u32 repl_bw = repl.get_type()->get_bitwidth();
+        if (step_keep == 0 || step_repl % step_keep != 0) {
+          continue;
+        }
+        const i128 ratio = step_repl / step_keep;
+        // trunc(keep) * ratio has to start where repl starts
+        const i128 expected_start = static_cast<i128>(
+            static_cast<u128>(start_keep) * static_cast<u128>(ratio));
+        const i128 mask = (static_cast<i128>(1) << repl_bw) - 1;
+        if (((expected_start - start_repl) & mask) != 0) {
           continue;
         }
 
-        auto keepes = cfg.bbrs[loop.head].bb->get_arg_id(
-            ianal.direct_inductvars[keep].def.as_bb_arg());
-        auto repls = cfg.bbrs[loop.head].bb->get_arg_id(
-            ianal.direct_inductvars[repl].def.as_bb_arg());
-        if (!prehead_bb_term->bbs[prehead_bb_id].args[keepes].is_constant() ||
-            !prehead_bb_term->bbs[prehead_bb_id].args[repls].is_constant() ||
-            !prehead_bb_term->bbs[prehead_bb_id]
-                 .args[keepes]
-                 .as_constant()
-                 ->is_int() ||
-            !prehead_bb_term->bbs[prehead_bb_id]
-                 .args[repls]
-                 .as_constant()
-                 ->is_int()) {
-          continue;
+        fir::Builder b{head_bb};
+        fir::ValueR new_repl = keep;
+        if (keep.get_type()->get_bitwidth() != repl_bw) {
+          new_repl = b.build_itrunc(keep, repl.get_type());
         }
-
-        auto starting_valuekeep = prehead_bb_term->bbs[prehead_bb_id]
-                                      .args[keepes]
-                                      .as_constant()
-                                      ->as_int();
-        auto starting_valueirepl = prehead_bb_term->bbs[prehead_bb_id]
-                                       .args[repls]
-                                       .as_constant()
-                                       ->as_int();
-
-        if (starting_valuekeep != starting_valueirepl) {
-          // TOOD: could also use other ones
-          continue;
+        if (ratio != 1) {
+          new_repl = b.build_int_mul(
+              new_repl,
+              fir::ValueR{ctx->get_constant_value(ratio, repl.get_type())});
         }
-        fir::Builder b{
-            ianal.direct_inductvars[keep].def.as_bb_arg()->get_parent()};
-        auto repl_type = ianal.direct_inductvars[repl].def.get_type();
-        auto new_repl =
-            b.build_itrunc(ianal.direct_inductvars[keep].def, repl_type);
-        if (incr_repl != incr_keep) {
-          new_repl =
-              b.build_int_mul(new_repl, fir::ValueR{ctx->get_constant_value(
-                                            incr_repl / incr_keep, repl_type)});
-        }
-        ianal.direct_inductvars[repl].def.replace_all_uses(new_repl);
+        repl.replace_all_uses(new_repl);
 
         return true;
       }
@@ -226,21 +206,51 @@ public:
 
   bool const_exit_value(fir::Context &ctx, CFG &cfg, Dominators &dom,
                         LoopInfoAnalysis &loops, u32 loop_i) {
-    // TODO: fix this is kinda dumb
-    // return false;
-    // if we can calculate the exit value of a a induction variable we can
-    // constant "propagate" it into other bbs following this
-    (void)dom;
-    InductionVarAnalysis ianal{cfg, loops.info[loop_i]};
-    if (ianal.direct_inductvars.empty() && ianal.indirect_inductvars.empty()) {
-      return false;
-    }
-    InductionEndValueAnalysis iranal{cfg, loops.info[loop_i], ianal};
+    // if we can calculate the exit value of an induction variable (a constant
+    // or a closed form of loop invariants) we can "propagate" it into the
+    // blocks following the loop
+    auto &loop = loops.info[loop_i];
+    ScalarEvo evo{cfg, loop};
+    InductionEndValueAnalysis iranal{cfg, dom, loop, evo};
     if (iranal.info.empty()) {
       return false;
     }
     bool modified = false;
-    for (auto v : iranal.info) {
+    for (const auto &v : iranal.info) {
+      // Closed forms that are not constants cost instructions in front of the
+      // loop, they are only worth it if nothing is left that keeps the loop
+      // alive: no side effects and every value used after the loop has one.
+      bool removable = !has_sideeffects(cfg, loop);
+      for_each_outside_used(cfg, loop, [&](fir::ValueR used) {
+        removable = removable && v.values.contains(used);
+      });
+      // closed forms are computed in the block that enters the loop
+      std::optional<SCEVExpander> expander;
+      TMap<fir::ValueR, fir::ValueR> end_values;
+      auto end_value = [&](fir::ValueR base) -> std::optional<fir::ValueR> {
+        if (auto it = end_values.find(base); it != end_values.end()) {
+          return it->second;
+        }
+        const SCEVRef r = v.values.at(base);
+        fir::ValueR res;
+        if (!evo.is_const(r) && !removable) {
+          return std::nullopt;
+        } else if (evo.is_const(r)) {
+          res = fir::ValueR{ctx->get_constant_int(
+              evo.expr(r).cval, base.get_type()->get_bitwidth())};
+        } else {
+          if (!evo.entry_block().is_valid()) {
+            return std::nullopt;
+          }
+          if (!expander) {
+            expander.emplace(ctx, evo, evo.entry_block()->get_terminator());
+          }
+          res = expander->expand(r);
+        }
+        end_values.insert({base, res});
+        return res;
+      };
+
       auto term = v.from_bb->get_terminator();
       auto out_bbarg_id = term.get_bb_id(v.to_bb);
       auto out_bb_id = cfg.get_bb_id(v.to_bb);
@@ -248,10 +258,11 @@ public:
       auto &out_bb_arg = term->bbs[out_bbarg_id];
       for (u32 bb_arg_id = 0; bb_arg_id < out_bb_arg.args.size(); bb_arg_id++) {
         if (v.values.contains(out_bb_arg.args[bb_arg_id])) {
-          auto val = ctx->get_constant_int(
-              v.values.at(out_bb_arg.args[bb_arg_id]),
-              out_bb_arg.args[bb_arg_id].get_type()->get_bitwidth());
-          term.replace_bb_arg(out_bbarg_id, bb_arg_id, fir::ValueR{val}, true);
+          const auto val = end_value(out_bb_arg.args[bb_arg_id]);
+          if (!val) {
+            continue;
+          }
+          term.replace_bb_arg(out_bbarg_id, bb_arg_id, *val, true);
           modified = true;
         }
       }
@@ -271,13 +282,16 @@ public:
           // the exit block can dominate the loop itself (nested loops), the
           // uses inside the loop see the per iteration values
           if (std::ranges::contains(
-                  loops.info[loop_i].body_nodes,
+                  loop.body_nodes,
                   cfg.get_bb_id(use.user->get_parent()))) {
             continue;
           }
           if (dominated_blocks.contains(use.user->get_parent())) {
-            use.replace_use(fir::ValueR{
-                ctx->get_constant_value(known_val, use.get_type())});
+            const auto val = end_value(base);
+            if (!val) {
+              continue;
+            }
+            use.replace_use(*val);
             modified = true;
           }
         }

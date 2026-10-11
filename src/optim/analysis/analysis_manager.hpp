@@ -67,7 +67,7 @@ return the matching PreservedAnalysis, in assert builds this is checked by
 verify_preserved.
 
 Not cached yet (still built by each user, candidates in this order):
- - LiveVariables, LoopInfoAnalysis (+ DominatorTree), InductionVarAnalysis
+ - LiveVariables, LoopInfoAnalysis (+ DominatorTree), ScalarEvo (per loop)
  - AliasAnalyis, AllocaEscape, AccessAnalysis
  - CallGraph (module level, not per function)
  - AttributerManager / KnownBits (instruction level, cheap to invalidate on
