@@ -147,6 +147,11 @@ maxUnroll = 32
 maxInstr = 32
 [pass.fir.SLPVectorizer]
 reductions = true
+loops = true
+# 0 = only the target decides
+maxVF = 0
+# trip count of the loop cost model when it is not a constant
+assumedTrip = 64
 [pass.fir.DCE]
 [pass.fir.LegalizeStructs]
 [pass.fir.LLVMIntrinsicLowering]

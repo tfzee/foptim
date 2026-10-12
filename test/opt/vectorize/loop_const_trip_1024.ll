@@ -7,20 +7,26 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr, %2{noalias; }: ptr):
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i64)>(){} NUses:0
-; CHECK-NEXT:  bb1(%4{}: i64):
-; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %6: ptr = PtrAdd(%1, %5){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%2, %5){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %5){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %9: i32 = Load(%6){} NUses:1
-; CHECK-NEXT:    %10: i32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %11: i32 = IntAdd(%9, %10){} NUses:1
-; CHECK-NEXT:    %12: i32 = Store(%8, %11){} NUses:0
-; CHECK-NEXT:    %13: i64 = IntAdd(%4, 1:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %14: i1 = IntULT(%13, 1024:i64){} NUses:1
-; CHECK-NEXT:    %15: () = CondBranch<bb1(%13), bb2()>(%14){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %16: () = Return(){} NUses:0
+; CHECK-NEXT:    %4: () = Return(){} NUses:0
+; CHECK-NEXT:  bb1(%5{}: i64):
+; CHECK-NEXT:    %6: i64 = IntAdd(%5, 1023:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: () = Branch<bb3(%5)>(){} NUses:0
+; CHECK-NEXT:  bb3(%9{}: i64):
+; CHECK-NEXT:    %10: i64 = IntMul(%9, 4:i64){NSW; NUW; } NUses:3
+; CHECK-NEXT:    %11: ptr = PtrAdd(%1, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%2, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %14: 8@i32 = Load(%11){} NUses:1
+; CHECK-NEXT:    %15: 8@i32 = Load(%12){} NUses:1
+; CHECK-NEXT:    %16: 8@i32 = IntAdd(%14, %15){} NUses:1
+; CHECK-NEXT:    %17: 8@i32 = Store(%13, %16){} NUses:0
+; CHECK-NEXT:    %18: i64 = IntAdd(%9, 8:i64){} NUses:3
+; CHECK-NEXT:    %19: i1 = IntNE(%18, %7){} NUses:1
+; CHECK-NEXT:    %20: () = CondBranch<bb3(%18), bb4(%18)>(%19){} NUses:0
+; CHECK-NEXT:  bb4(%21{}: i64):
+; CHECK-NEXT:    %22: () = Branch<bb2()>(){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %loop

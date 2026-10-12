@@ -109,7 +109,10 @@ static bool canNarrowFpCompare(double C, fir::FCmpInstrSubType op) {
   TODO("UNREACH");
 }
 
-inline bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
+inline bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock bb,
+                               fir::Context &ctx, WorkList &worklist);
+
+inline bool simplify_fcmp(fir::Instr instr, fir::BasicBlock bb,
                           fir::Context &ctx, WorkList &worklist) {
   bool normalized = false;
   if ((instr->args[0].is_constant() &&

@@ -63,7 +63,11 @@ inline void swap_args_icmp(fir::Instr instr) {
   }
 }
 
-inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
+inline bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock bb,
+                               fir::Context &ctx, WorkList &worklist,
+                               AttributerManager &man, ConstraintCache &ccache);
+
+inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock bb,
                           fir::Context &ctx, WorkList &worklist,
                           AttributerManager &man, ConstraintCache &ccache) {
   bool normalized = false;

@@ -684,7 +684,8 @@ void node_dump(const Plan &plan, u32 id, u32 indent = 0) {
       "broadcast", "gather", "horiz_red", "binary",  "zext",   "itrunc",
       "call",      "unary",  "extract",   "store",   "intrin", "constant",
       "conversion", "select", "load"};
-  static constexpr const char *shapes[] = {"uniform", "consecutive", "varying"};
+  static constexpr const char *shapes[] = {"uniform", "consecutive", "varying",
+                                           "strided", "recurrence"};
   const auto &n = plan.nodes[id];
   fmt::println("{:{}}{}<{}> x{}", "", indent * 2,
                names[static_cast<u32>(n.kind)],

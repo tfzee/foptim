@@ -298,6 +298,9 @@ struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf>,
   using Pass = optim::SLPVectorizer;
   bool pass_parse(toml::table &tbl) {
     reductions = tbl["reductions"].value_or(reductions);
+    loops = tbl["loops"].value_or(loops);
+    max_vf = tbl["maxVF"].value_or(max_vf);
+    assumed_trip = tbl["assumedTrip"].value_or(assumed_trip);
     return true;
   }
   void construct_function_pass(Pass &p) {

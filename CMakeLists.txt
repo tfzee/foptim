@@ -135,6 +135,7 @@ add_library (foptim OBJECT
                 ./src/optim/func_passes/loop_unswitch.cpp
                 ./src/optim/func_passes/loop_rotate.cpp
                 ./src/optim/func_passes/slp_vectorizer.cpp
+                ./src/optim/func_passes/slp_loops.cpp
                 ./src/optim/func_passes/simplify_cfg.cpp
                 ./src/optim/func_passes/double_load.cpp
                 ./src/optim/func_passes/intrin_simplify.cpp
