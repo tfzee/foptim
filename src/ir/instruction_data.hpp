@@ -219,6 +219,9 @@ public:
   IRVec<ValueR> args;
   IRVec<BBRefWithArgs> bbs;
   BasicBlock parent;
+  // where the instruction was last found in `parent->instructions`, only a
+  // hint (see BasicBlockData::find_instr), never trust it
+  u32 pos_hint = 0;
 
   InstrData(InstrType ty, TypeR vty, BasicBlock parent)
       : instr_type(ty), subtype(0), value_type(vty), parent(parent) {}

@@ -29,14 +29,7 @@ void Instr::remove_from_parent() {
   auto *self = operator->();
   BasicBlock parent = self->get_parent();
   assert(parent.is_valid());
-  for (size_t indx = 0; indx < parent->instructions.size(); indx++) {
-    auto instr = parent->instructions[indx];
-    if (static_cast<const void *>(get_raw_ptr()) ==
-        static_cast<const void *>(instr.get_raw_ptr())) {
-      parent->remove_instr(indx, false);
-      return;
-    }
-  }
+  parent->remove_instr(parent->get_instr_id(*this), false);
 }
 
 namespace {

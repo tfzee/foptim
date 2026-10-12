@@ -6,6 +6,25 @@
 
 namespace foptim::fir {
 
+u64 BasicBlockData::get_instr_id(fir::Instr instr) {
+  const size_t n = instructions.size();
+  ASSERT(n > 0);
+  const size_t hint = std::min<size_t>(instr->pos_hint, n - 1);
+  const size_t max_dist = std::max(hint, n - 1 - hint);
+  for (size_t d = 0; d <= max_dist; d++) {
+    if (hint + d < n && instructions[hint + d] == instr) {
+      instr->pos_hint = static_cast<u32>(hint + d);
+      return hint + d;
+    }
+    if (d <= hint && instructions[hint - d] == instr) {
+      instr->pos_hint = static_cast<u32>(hint - d);
+      return hint - d;
+    }
+  }
+  ASSERT_M(false, "instruction is not in the block it claims to be in");
+  return 0;
+}
+
 // Also handles a bunch of cleanup stuff
 void BasicBlockData::remove_instr(size_t indx, bool delete_instr) {
   if (delete_instr) {

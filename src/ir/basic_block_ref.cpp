@@ -22,12 +22,14 @@ Builder BasicBlock::builder_at_end() {
 void BasicBlock::insert_instr(size_t indx, Instr instr) {
   auto *self = operator->();
   instr->set_parent(*this);
+  instr->pos_hint = static_cast<u32>(indx);
   self->instructions.insert(self->instructions.begin() + indx, instr);
 }
 
 void BasicBlock::push_instr(Instr instr) {
   auto *self = operator->();
   instr->set_parent(*this);
+  instr->pos_hint = static_cast<u32>(self->instructions.size());
   self->instructions.push_back(instr);
 }
 

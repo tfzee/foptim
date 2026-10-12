@@ -48,11 +48,12 @@ public:
     return instructions.back();
   }
 
-  u64 get_instr_id(fir::Instr instr) {
-    auto r = std::ranges::find(instructions, instr);
-    ASSERT(r != instructions.end());
-    return r - instructions.begin();
-  }
+  // Position of an instruction of this block. Instructions remember where they
+  // were last found, so the search starts there and walks outwards: nearly
+  // O(1) for the usual pattern (look up what was just inserted / its
+  // neighbours) instead of O(size of the block), which made everything that
+  // looks up instructions quadratic in huge blocks.
+  u64 get_instr_id(fir::Instr instr);
 
   auto &get_args() { return args; }
 };

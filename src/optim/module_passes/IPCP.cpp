@@ -14,7 +14,8 @@ namespace {
 u64 ipcp_unique_name_number = 0;
 
 // returns whether the results of calls were replaced
-bool constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
+bool constant_prop_return(fir::FunctionR func, fir::Context &ctx,
+                          AnalysisManager &analyMan) {
   TVec<fir::ValueR> ret_vals;
   if (func->func_ty->as_func().return_type->is_void()) {
     return false;
@@ -82,10 +83,13 @@ bool constant_prop_return(fir::FunctionR func, fir::Context &ctx) {
       use.user->replace_all_uses(res_val);
     }
   }
+  // only the uses of the call results in the callers were rewritten
+  analyMan.touched_callers(*func.func);
   return !func->get_uses().empty();
 }
 
-bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
+bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
+                        AnalysisManager &analyMan) {
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
@@ -143,6 +147,7 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
+    analyMan.touched_signature(*func.func);
     // we need renaming
     if (func->attribs.linkage == fir::Linkage::LinkOnceODR ||
         func->getName().starts_with("foptim.")) {
@@ -161,7 +166,8 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx) {
   return false;
 }
 
-bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
+bool kill_dead_args(fir::FunctionR func, fir::Context &ctx,
+                    AnalysisManager &analyMan) {
   // constant propagate arguments
   auto entry_block = func->get_entry();
   auto func_ty = func.func->func_ty->as_func();
@@ -192,6 +198,7 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx) {
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
+    analyMan.touched_signature(*func.func);
 
     if (func->attribs.linkage == fir::Linkage::LinkOnceODR ||
         func->getName().starts_with("foptim.")) {
@@ -247,13 +254,12 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
     // if (constant_prop_args(fir::FunctionR(f), ctx)) {
     //   continue;
     // }
-    // changes f (arguments) and its call sites (arguments, results), the
-    // returns only say if the function got renamed, not if it changed
-    AnalysisManager::ChangeWatch watch{analyMan, *f};
-    if (!kill_dead_args(f, ctx) && !constant_prop_args(fir::FunctionR(f), ctx)) {
-      constant_prop_return(fir::FunctionR(f), ctx);
+    // each transformation reports what it changed (f and its call sites), the
+    // returns only say if the function got renamed
+    if (!kill_dead_args(f, ctx, analyMan) &&
+        !constant_prop_args(fir::FunctionR(f), ctx, analyMan)) {
+      constant_prop_return(fir::FunctionR(f), ctx, analyMan);
     }
-    watch.report();
   }
   return PreservedAnalysis::all();
 }

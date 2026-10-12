@@ -60,8 +60,8 @@ bool ArgPromotion::are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
   return false;
 }
 
-bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
-                                               fir::Context &ctx) {
+bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx,
+                                               AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
   if (!func_ty.return_type->is_struct()) {
     return false;
@@ -133,6 +133,7 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
       use.user->value_type = res_type;
     }
   }
+  analyMan.touched_signature(*func.func);
   if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
     auto old_name = func->name;
     arg_prom_unique_name_number++;
@@ -154,8 +155,8 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
   return true;
 }
 
-bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
-                                                fir::Context &ctx) {
+bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx,
+                                                AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
   auto n_args_original = func_ty.arg_types.size();
   auto entry_block = func->get_entry();
@@ -209,6 +210,7 @@ bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
+    analyMan.touched_signature(*func.func);
 
     // // we need renaming
     if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
@@ -226,8 +228,8 @@ bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
   return false;
 }
 
-bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
-                                               fir::Context &ctx) {
+bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func, fir::Context &ctx,
+                                               AnalysisManager &analyMan) {
   if (!func->func_ty->as_func().return_type->is_ptr()) {
     return false;
   }
@@ -316,6 +318,7 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
     use.user->extra_type = func.func->func_ty;
     use.user->value_type = res_type;
   }
+  analyMan.touched_signature(*func.func);
 
   // we need renaming
   if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
@@ -357,8 +360,8 @@ bool ArgPromotion::all_exits_are_dominated(const CFG &cfg,
   return true;
 }
 
-bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
-                                             fir::Context &ctx) {
+bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func, fir::Context &ctx,
+                                             AnalysisManager &analyMan) {
   CFG cfg{*func.func};
   Dominators dom{cfg};
   AliasAnalyis aa;
@@ -489,6 +492,7 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
+    analyMan.touched_signature(*func.func);
 
     // // we need renaming
     if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
@@ -547,16 +551,14 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
         continue;
       }
     }
-    // the returns only say if the function got renamed (restart), not if it
-    // or its callers changed
-    AnalysisManager::ChangeWatch watch{analyMan, *f};
-    if (promote_ptr_to_value_return(f, ctx) ||
-        promote_ptr_to_value_args(f, ctx) ||
-        promote_vecvec_to_concat_vec(f, ctx) ||
-        return_vecvec_to_concat_vec(f, ctx)) {
+    // the returns only say if the function got renamed (restart), every
+    // transformation reports what it changed itself
+    if (promote_ptr_to_value_return(f, ctx, analyMan) ||
+        promote_ptr_to_value_args(f, ctx, analyMan) ||
+        promote_vecvec_to_concat_vec(f, ctx, analyMan) ||
+        return_vecvec_to_concat_vec(f, ctx, analyMan)) {
       iter = static_cast<size_t>(-1);
     }
-    watch.report();
   }
   return PreservedAnalysis::all();
 }

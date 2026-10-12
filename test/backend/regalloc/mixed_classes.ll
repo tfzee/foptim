@@ -7,18 +7,20 @@ define double @int_and_float(ptr %pi, ptr %pf) {
 ; CHECK: func int_and_float ($2: i64, $3: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rcx: i64 = $rsi: i64
-; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rax: i64 += 8: i64
-; CHECK-NEXT:    $xmm0: f64x2 = [$rcx]: f64x2
+; CHECK-NEXT:    $mm0: f64 = [$rcx]: f64
 ; CHECK-NEXT:    $rdx: i64 = $rdi: i64
-; CHECK-NEXT:    $rdx: i64 += 16: i64
+; CHECK-NEXT:    $rdx: i64 += 8: i64
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    $rax: i64 += 8: i64
+; CHECK-NEXT:    $rsi: i64 = $rdi: i64
+; CHECK-NEXT:    $rsi: i64 += 16: i64
 ; CHECK-NEXT:    $rcx: i64 += 16: i64
-; CHECK-NEXT:    HAdd($mm0: f64, $xmm0: f64x2, )
+; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rax]: f64
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + [$rcx]: f64
-; CHECK-NEXT:    $rcx: i64 = [$rdi]: i64
-; CHECK-NEXT:    $rcx: i64 += [$rax]: i64
-; CHECK-NEXT:    $rcx: i64 += [$rdx]: i64
-; CHECK-NEXT:    SI2FL($mm1: f64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = [$rdi]: i64
+; CHECK-NEXT:    $rax: i64 += [$rdx]: i64
+; CHECK-NEXT:    $rax: i64 += [$rsi]: i64
+; CHECK-NEXT:    SI2FL($mm1: f64, $rax: i64, )
 ; CHECK-NEXT:    $mm0: f64 = $mm0: f64 + $mm1: f64
 ; CHECK-NEXT:    ret($mm0: f64, )
   %i0 = load volatile i64, ptr %pi

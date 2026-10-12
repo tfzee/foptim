@@ -175,6 +175,20 @@ void AnalysisManager::touched_interface(fir::Function &g) {
   reported_interfaces.insert(&g);
 }
 
+void AnalysisManager::touched_callers(fir::Function &f) {
+  for (const auto &use : f.get_uses()) {
+    if (use.user.is_valid() && use.user->get_parent().is_valid()) {
+      touched_body(*use.user->get_parent()->get_parent().func);
+    }
+  }
+}
+
+void AnalysisManager::touched_signature(fir::Function &f) {
+  touched_body(f);
+  touched_interface(f);
+  touched_callers(f);
+}
+
 void AnalysisManager::touched_global(fir::Global g) {
   std::lock_guard<std::mutex> lock{report_mutex};
   drop_bits_of_users(g->get_uses());
@@ -183,7 +197,7 @@ void AnalysisManager::touched_global(fir::Global g) {
 void AnalysisManager::begin_module_pass([[maybe_unused]] fir::Context &ctx) {
   reported_bodies.clear();
   reported_interfaces.clear();
-#ifdef ASSERT_ENABLED
+#ifdef HASH_CHECKS_ENABLED
   before_module_pass.clear();
   for (auto *f : ctx->storage.functions.all()) {
     before_module_pass.insert(
@@ -200,7 +214,7 @@ bool AnalysisManager::end_module_pass(fir::Context &ctx,
   if (!reported) {
     invalidate_all(ctx);
   }
-#ifdef ASSERT_ENABLED
+#ifdef HASH_CHECKS_ENABLED
   if (reported) {
     for (auto *f : ctx->storage.functions.all()) {
       auto before = before_module_pass.find(f);

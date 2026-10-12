@@ -66,6 +66,23 @@ inline void swap_args_icmp(fir::Instr instr) {
 inline bool simplify_icmp(fir::Instr instr, fir::BasicBlock /*bb*/,
                           fir::Context &ctx, WorkList &worklist,
                           AttributerManager &man, ConstraintCache &ccache) {
+  bool normalized = false;
+  if ((instr->args[0].is_constant() &&
+         (!instr->args[0].as_constant()->is_global() &&
+          !instr->args[0].as_constant()->is_func())) &&
+        (!instr->args[1].is_constant() ||
+         (instr->args[1].as_constant()->is_global() ||
+          instr->args[1].as_constant()->is_func()))) {
+    const auto before = instr->args[0];
+    swap_args_icmp(instr);
+    normalized = instr->args[0] != before;
+  }
+  return simplify_icmp_impl(instr, bb, ctx, worklist, man, ccache) || normalized;
+}
+
+inline bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
+                               fir::Context &ctx, WorkList &worklist,
+                               AttributerManager &man, ConstraintCache &ccache) {
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyICMP");
   }

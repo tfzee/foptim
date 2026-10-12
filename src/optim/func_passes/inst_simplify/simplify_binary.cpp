@@ -236,8 +236,12 @@ void promote_constant_type(fir::Context &ctx, fir::Instr instr, u32 arg_id,
 }
 } // namespace
 
-bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                     WorkList &worklist, AttributerManager &man) {
+// `normalized` is set when the instruction was edited in place (operands
+// swapped, constant retyped) even if nothing else was simplified: that has to
+// be reported as a change.
+static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
+                                 fir::Context &ctx, WorkList &worklist,
+                                 AttributerManager &man, bool &normalized) {
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyBinary");
   }
@@ -256,6 +260,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                               instr->args[1].as_constant()->is_func());
     if (swap_const_back || swap_bb_arg_back || swap_global_front) {
       swap_args(instr, 0, 1);
+      normalized = true;
     }
   }
   // x & x -> x, x | x -> x
@@ -269,6 +274,7 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr->args[1].is_constant() &&
       instr->args[0].get_type() != instr->args[1].get_type()) {
+    const auto const_before = instr->args[1];
     auto t1 = instr->args[0].get_type();
     auto t2 = instr->args[1].get_type();
     // skip converting integer constants to ptr type instead extend to same
@@ -290,6 +296,9 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     } else {
       promote_constant_type(ctx, instr, 1, instr->args[0].get_type());
     }
+      // constants of different types may compare equal, look at the type too
+    normalized |= instr->args[1] != const_before ||
+                  instr->args[1].get_type() != const_before.get_type();
   }
 
   // CONSTANT EVAL
@@ -1303,6 +1312,14 @@ bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return true;
   }
   return false;
+}
+
+bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                     WorkList &worklist, AttributerManager &man) {
+  bool normalized = false;
+  const bool simplified =
+      simplify_binary_impl(instr, bb, ctx, worklist, man, normalized);
+  return simplified || normalized;
 }
 
 } // namespace foptim::optim::InstSimp

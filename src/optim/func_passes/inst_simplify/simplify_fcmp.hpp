@@ -111,6 +111,22 @@ static bool canNarrowFpCompare(double C, fir::FCmpInstrSubType op) {
 
 inline bool simplify_fcmp(fir::Instr instr, fir::BasicBlock /*bb*/,
                           fir::Context &ctx, WorkList &worklist) {
+  bool normalized = false;
+  if ((instr->args[0].is_constant() &&
+         (!instr->args[0].as_constant()->is_global() &&
+          !instr->args[0].as_constant()->is_func())) &&
+        (!instr->args[1].is_constant() ||
+         (instr->args[1].as_constant()->is_global() ||
+          instr->args[1].as_constant()->is_func()))) {
+    const auto before = instr->args[0];
+    swap_args_fcmp(instr);
+    normalized = instr->args[0] != before;
+  }
+  return simplify_fcmp_impl(instr, bb, ctx, worklist) || normalized;
+}
+
+inline bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
+                               fir::Context &ctx, WorkList &worklist) {
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyFCMP");
   }

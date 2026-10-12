@@ -48,9 +48,7 @@ void Builder::after(fir::Instr i) {
     bb = i->get_parent();
     func = bb->get_parent();
   }
-  auto r = std::ranges::find(bb->instructions, i);
-  ASSERT(r != bb->instructions.end());
-  indx = r - bb->instructions.begin() + 1;
+  indx = bb->get_instr_id(i) + 1;
 }
 
 void Builder::at_end(BasicBlock bbr) {
@@ -663,16 +661,8 @@ BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap &subs) {
 Instr Builder::move_instr(Instr instr) {
   check_bb_set();
 
-  size_t instr_id = 0;
   auto parent = instr->parent;
-  auto r = std::ranges::find(parent->instructions, instr);
-  if (r == parent->instructions.end()) {
-    ASSERT_M(false, "Failed to find instruction in bb it is supposedly in")
-  }
-  // while (parent->instructions[instr_id] != instr) {
-  //   instr_id++;
-  //   ASSERT(instr_id < parent->instructions.size());
-  // }
+  const size_t instr_id = parent->get_instr_id(instr);
   parent->instructions.erase(parent->instructions.begin() +
                              static_cast<i64>(instr_id));
 

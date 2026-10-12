@@ -97,8 +97,8 @@ public:
   pass is a no-op on the function" bits (pass_skipping.hpp) of everything else
   survive. Call these AFTER making the change, from any thread.
   A module pass that returns PreservedAnalysis::all() promises that everything
-  it changed on the functions that still exist was reported (assert builds
-  check this by hashing every function before and after). Any other return value
+  it changed on the functions that still exist was reported (builds with
+  -Dhash_checks=ON check this by hashing every function before and after). Any other return value
   means the pass did not report and everything is dropped.
   */
   // instructions or blocks of f changed: drops f's analyses and bits
@@ -108,6 +108,12 @@ public:
   void touched_interface(fir::Function &g);
   // constness or initializer of a global changed: drops the bits of its users
   void touched_global(fir::Global g);
+  // the bodies of all functions that contain a call to f changed (arguments or
+  // results of the calls were rewritten)
+  void touched_callers(fir::Function &f);
+  // f got a new signature (arguments / return type removed, promoted, ...):
+  // its body and interface changed and every call site was rewritten
+  void touched_signature(fir::Function &f);
 
   // called by the ModulePassManager around each module pass
   void begin_module_pass(fir::Context &ctx);
@@ -116,54 +122,6 @@ public:
                        std::string_view pass_name);
 
   static u64 hash_interface(const fir::Function &func);
-
-  /*
-  For module passes that transform one function plus its call sites and can not
-  tell exactly what changed: snapshot f and its callers, run the
-  transformation, then report() calls touched_body/touched_interface for what
-  actually differs.
-  */
-  class ChangeWatch {
-    AnalysisManager &manager;
-    struct Entry {
-      fir::Function *func;
-      u64 body;
-      u64 interface;
-    };
-    TVec<Entry> entries;
-
-    void add(fir::Function &f) {
-      for (const auto &e : entries) {
-        if (e.func == &f) {
-          return;
-        }
-      }
-      entries.push_back(Entry{.func = &f,
-                              .body = f.is_decl() ? 0 : hash_function(f),
-                              .interface = hash_interface(f)});
-    }
-
-  public:
-    ChangeWatch(AnalysisManager &manager, fir::Function &f)
-        : manager(manager) {
-      add(f);
-      for (const auto &use : f.get_uses()) {
-        if (use.user.is_valid() && use.user->get_parent().is_valid()) {
-          add(*use.user->get_parent()->get_parent().func);
-        }
-      }
-    }
-    void report() {
-      for (const auto &e : entries) {
-        if (!e.func->is_decl() && hash_function(*e.func) != e.body) {
-          manager.touched_body(*e.func);
-        }
-        if (hash_interface(*e.func) != e.interface) {
-          manager.touched_interface(*e.func);
-        }
-      }
-    }
-  };
 
   // drop all cached analyses of every function (used after module passes), this
   // also forgets which function passes were known to be a no-op on a function

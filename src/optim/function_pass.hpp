@@ -150,7 +150,7 @@ class ParallelFunctionPassManager {
     bool changed = true;
     {
       auto *pass = conf->_construct_function_pass();
-#ifdef ASSERT_ENABLED
+#ifdef HASH_CHECKS_ENABLED
       const u64 hash_before = AnalysisManager::hash_function(f);
 #endif
       PreservedAnalysis r;
@@ -172,7 +172,7 @@ class ParallelFunctionPassManager {
       }
       changed = r.mask != PreservedAnalysis::all().mask;
       bool conservative = false;
-#ifdef ASSERT_ENABLED
+#ifdef HASH_CHECKS_ENABLED
       const u64 hash_after = AnalysisManager::hash_function(f);
       if (!changed) {
         ASSERT(AnalysisManager::verify_unchanged(f, hash_before, hash_after,

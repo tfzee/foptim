@@ -2417,18 +2417,30 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     }
     // only terminators have targets, instr is gone after it got simplified
     const bool is_branching = !instr->bbs.empty();
-    // not every simplification reports an in place edit (flipped predicate,
-    // swapped operand, ...), so look at the instruction itself too
+    // Every simplification, including in place edits like swapping the operands
+    // of a commutative instruction, has to return true. The hash checks
+    // (-Dhash_checks=ON) verify that, it is too expensive to do all the time.
+#ifdef HASH_CHECKS_ENABLED
     const u64 hash_before = AnalysisManager::hash_instr(instr);
+    const std::string instr_before = fmt::format("{}", instr);
+#endif
     if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal, ccache)) {
       man.reset();
       changed = true;
       changed_cfg |= is_branching;
       ccache.invalidate(is_branching);
-    } else if (!changed && instr.is_valid() && instr->parent.is_valid() &&
-               AnalysisManager::hash_instr(instr) != hash_before) {
-      changed = true;
     }
+#ifdef HASH_CHECKS_ENABLED
+    else if (instr.is_valid() && instr->parent.is_valid() &&
+             AnalysisManager::hash_instr(instr) != hash_before) {
+      fmt::println(stderr,
+                   "InstSimplify: simplification edited an instruction in "
+                   "place without reporting a change:\n  before: {}\n  after:  "
+                   "{}",
+                   instr_before, instr);
+      ASSERT(false);
+    }
+#endif
   }
   // Simplifications can fold branches (edges change), everything else only
   // touches instructions. Constraints refer to instructions so they go either

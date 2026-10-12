@@ -335,11 +335,15 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
   if (curr.pred.empty()) {
     is_dead = true;
   }
-  // or all bs that jump into this bb are all dominated by this bb
+  // or all bs that jump into this bb are all dominated by this bb. A back edge
+  // from the block to itself counts (a block does not strictly dominate
+  // itself): a loop with no other way in is dead as well. If it stays, its block
+  // arguments only have the back edge values as incoming values and get
+  // replaced by them, which makes instructions use their own result.
   if (!is_dead) {
     is_dead = true;
     for (auto pred : curr.pred) {
-      if (dom.strict_dominates(bb_id, pred)) {
+      if (pred == bb_id || dom.strict_dominates(bb_id, pred)) {
         continue;
       }
       is_dead = false;
