@@ -8,10 +8,60 @@
 #include "ir/function.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
+#include "optim/analysis/block_mem_access.hpp"
 #include "optim/function_pass.hpp"
 #include "utils/arena.hpp"
 
 namespace foptim::optim {
+
+// Program order of the instructions of one block. Vector code is emitted next
+// to the program-last lane of a node, so the order has to know the
+// instructions earlier bundles inserted: it is rebuilt after a bundle was
+// applied. Must be refreshed (`ensure`) outside of a `TempAlloc` save/restore
+// window, the map lives in the temp arena.
+class BlockOrder {
+public:
+  explicit BlockOrder(fir::BasicBlock bb_) : bb(bb_) {}
+  void invalidate() { stale = true; }
+  void ensure() {
+    if (!stale) {
+      return;
+    }
+    pos_of.clear();
+    const auto &instrs = bb->instructions;
+    for (u32 i = 0; i < instrs.size(); i++) {
+      pos_of[fir::ValueR{instrs[i]}] = i;
+    }
+    stale = false;
+  }
+  // position of an instruction of this block, nullopt for other blocks
+  [[nodiscard]] std::optional<u32> pos(fir::Instr i) const {
+    auto it = pos_of.find(fir::ValueR{i});
+    return it == pos_of.end() ? std::nullopt : std::optional<u32>{it->second};
+  }
+
+private:
+  fir::BasicBlock bb;
+  TMap<fir::ValueR, u32> pos_of;
+  bool stale = true;
+};
+
+// per block data shared by the seed providers and the plan builder
+struct BlockInfo {
+  fir::BasicBlock bb;
+  BlockOrder order;
+  std::optional<BlockMemAccesses> mem_;
+
+  explicit BlockInfo(fir::BasicBlock bb_) : bb(bb_), order(bb_) {}
+  // snapshot of the memory operations, built on first use (and so has to be
+  // asked for outside of a `TempAlloc` window, see `BlockOrder`)
+  BlockMemAccesses &mem() {
+    if (!mem_) {
+      mem_.emplace(bb);
+    }
+    return *mem_;
+  }
+};
 
 class SLPVectorizer final : public FunctionPass {
 public:
@@ -32,6 +82,8 @@ public:
     fir::TypeR type;
     //(base*a + b)
     TVec<SeedInstrData> data;
+    // block the bundle lives in (the block of the stores / of the base)
+    BlockInfo *block = nullptr;
   };
   // How the lanes of a node relate to each other. Only `Uniform` nodes could
   // stay scalar, `Consecutive` is a unit stride access of adjacent memory.
@@ -80,10 +132,9 @@ public:
     TVec<PlanNode> nodes;
   };
 
-  // what a seed provider looks at: one block, it is asked about every
-  // instruction in order
+  // what a seed provider looks at: one block
   struct SeedRegion {
-    fir::BasicBlock bb;
+    BlockInfo &info;
     AliasAnalyis &aa;
     const conf::CompConf &conf;
     bool reductions;
@@ -91,8 +142,8 @@ public:
   class SeedProvider {
   public:
     TVec<SeedBundle> bundles;
-    virtual void visit(SeedRegion &region, size_t instr_id) = 0;
-    // sort / trim / drop unusable bundles after the scan
+    virtual void scan(SeedRegion &region) = 0;
+    // drop unusable bundles / trim them after the scan
     virtual void finalize(const conf::CompConf &conf) = 0;
     virtual ~SeedProvider() = default;
   };
@@ -101,100 +152,73 @@ public:
   get_storeload_data(fir::Instr storeload);
 
   static std::optional<SeedBundle>
-  find_successive_loads(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa);
-
-  static std::optional<SeedBundle>
-  find_reduction(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa,
-                 const conf::CompConf &conf);
-
-  static std::optional<SeedBundle>
-  find_successive_stores(fir::BasicBlock bb, size_t instr_id, AliasAnalyis &aa);
+  find_reduction(fir::BasicBlock bb, size_t instr_id, const conf::CompConf &conf);
 
 private:
-
-  void find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
+  void find_seeds(const conf::CompConf &conf, BlockInfo &info,
                   TVec<SeedBundle> &store_bundles,
-                  TVec<SeedBundle> &load_bundles,
                   TVec<SeedBundle> &reduction_bundles, AliasAnalyis &aa);
 
-  bool constant_vector_store(fir::Context &ctx, SeedBundle &bundle);
-
-  void continious_vector_store(SeedBundle &bundle, fir::ValueR value);
   // Failed: no valid tree, NotWorth: valid tree but not profitable (both leave
   // the IR untouched), Applied: the IR was rewritten
   enum class VecResult : u8 { Failed, NotWorth, Applied };
   bool build_plan(fir::Context &ctx, const conf::Target::Features &features,
-                  SeedBundle &bundle, const TVec<SeedBundle> &load_bundles,
-                  bool reduction, Plan &plan);
+                  SeedBundle &bundle, bool reduction, Plan &plan);
   VecResult tree_vectorize(fir::Context &ctx, SeedBundle &bundle,
-                           const TVec<SeedBundle> &load_bundles,
                            bool reduction = false);
 
 public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("SLPVectorizer");
     AliasAnalyis aa{};
-    // if (func.name != "_Z19_nettle_aes_encryptjPKjPK9aes_tablemPhPKh") {
-    //   return;
-    // }
-    // fmt::println("{:cd}", func);
-    TVec<SeedBundle> store_bundles;
-    TVec<SeedBundle> load_bundles;
-    TVec<SeedBundle> reduction_bundles;
+    // one entry per block, must not move once bundles point into it
+    TVec<BlockInfo> blocks;
     for (auto bb : func.basic_blocks) {
-      find_seeds(*ctx.config, bb, store_bundles, load_bundles,
-                 reduction_bundles, aa);
+      blocks.emplace_back(bb);
+    }
+    TVec<SeedBundle> store_bundles;
+    TVec<SeedBundle> reduction_bundles;
+    for (auto &info : blocks) {
+      find_seeds(*ctx.config, info, store_bundles, reduction_bundles, aa);
     }
     if (store_bundles.empty() && reduction_bundles.empty()) {
       return PreservedAnalysis::all();
     }
     if constexpr (debug_print) {
-      fmt::println("Stor {} Lod {} Red {}", store_bundles.size(),
-                   load_bundles.size(), reduction_bundles.size());
+      fmt::println("Stor {} Red {}", store_bundles.size(),
+                   reduction_bundles.size());
     }
 
     bool modified = false;
-    for (auto &b : store_bundles) {
-      bool already_used = false;
-      for (const auto &data : b.data) {
-        if (!data.instr.is_valid()) {
-          already_used = true;
-          break;
+    auto run = [&](TVec<SeedBundle> &bundles, bool reduction) {
+      for (auto &b : bundles) {
+        bool already_used = false;
+        for (const auto &data : b.data) {
+          if (!data.instr.is_valid()) {
+            already_used = true;
+            break;
+          }
+        }
+        if (already_used) {
+          continue;
+        }
+        // these live in the temp arena and are used by the plan, so they must
+        // not be (re)built inside the window below
+        b.block->order.ensure();
+        b.block->mem();
+        auto stor = utils::TempAlloc<void *>::save();
+        auto res = tree_vectorize(ctx, b, reduction);
+        if (res != VecResult::Failed) {
+          if (res == VecResult::Applied) {
+            modified = true;
+            b.block->order.invalidate();
+          }
+          utils::TempAlloc<void *>::restore(stor);
         }
       }
-      if (already_used) {
-        continue;
-      }
-      // if (constant_vector_store(ctx, b)) {
-      //   continue;
-      // }
-      auto stor = utils::TempAlloc<void *>::save();
-      auto res = tree_vectorize(ctx, b, load_bundles);
-      if (res != VecResult::Failed) {
-        modified |= res == VecResult::Applied;
-        utils::TempAlloc<void *>::restore(stor);
-        continue;
-      }
-    }
-    for (auto &b : reduction_bundles) {
-      bool already_used = false;
-      for (const auto &data : b.data) {
-        if (!data.instr.is_valid()) {
-          already_used = true;
-          break;
-        }
-      }
-      if (already_used) {
-        continue;
-      }
-      auto stor = utils::TempAlloc<void *>::save();
-      auto res = tree_vectorize(ctx, b, load_bundles, true);
-      if (res != VecResult::Failed) {
-        modified |= res == VecResult::Applied;
-        utils::TempAlloc<void *>::restore(stor);
-        continue;
-      }
-    }
+    };
+    run(store_bundles, false);
+    run(reduction_bundles, true);
 
     // only instructions change, never blocks or edges
     return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();

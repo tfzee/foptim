@@ -35,22 +35,50 @@ fir::Instr pick_instr(const TVec<fir::ValueR> &values) {
   return values.back().is_instr() ? values.back().as_instr()
                                   : values.front().as_instr();
 }
-void init_flex(PlanNode &n, const TVec<fir::ValueR> &values) {
+// what a node is initialized with: the seed block and where the node's parent
+// is emitted (invalid for the root)
+struct InitCtx {
+  BlockInfo &info;
+  fir::Instr parent_loc;
+};
+
+// The widened code of a node is emitted next to the program-last lane in the
+// seed block: every operand of every lane is defined before its lane, so it
+// dominates that point, and the (already emitted) operand nodes sit before it.
+// Lanes that are not instructions of the seed block (constants, arguments,
+// values of other blocks) dominate all of the seed block anyway. If there is no
+// lane in the block the node goes in front of its parent.
+fir::Instr last_lane(const TVec<fir::ValueR> &values, const InitCtx &c) {
+  fir::Instr best = c.parent_loc;
+  std::optional<u32> best_pos;
+  for (auto v : values) {
+    if (!v.is_instr()) {
+      continue;
+    }
+    auto p = c.info.order.pos(v.as_instr());
+    if (p && (!best_pos || *p > *best_pos)) {
+      best = v.as_instr();
+      best_pos = p;
+    }
+  }
+  ASSERT(best.is_valid());
+  return best;
+}
+void init_flex(PlanNode &n, const TVec<fir::ValueR> &values,
+               const InitCtx &c) {
   n.n_lanes = values.size();
   auto pick = pick_instr(values);
-  if (values.back().is_bb_arg()) {
-    n.insert_loc = values.back().as_bb_arg()->get_parent()->instructions[0];
-  } else {
-    n.insert_loc = pick;
-  }
+  n.insert_loc = last_lane(values, c);
   n.type = pick->get_type();
   n.sub = pick->subtype;
 }
-void init_back(PlanNode &n, const TVec<fir::ValueR> &values) {
+void init_back(PlanNode &n, const TVec<fir::ValueR> &values,
+               const InitCtx &c) {
   n.n_lanes = values.size();
-  n.insert_loc = values.back().as_instr();
-  n.type = n.insert_loc->get_type();
-  n.sub = n.insert_loc->subtype;
+  n.insert_loc = last_lane(values, c);
+  auto lane = values.back().as_instr();
+  n.type = lane->get_type();
+  n.sub = lane->subtype;
 }
 bool same_kind_instrs(const TVec<fir::ValueR> &values, fir::Instr base_v) {
   for (auto i_v : values) {
@@ -97,7 +125,8 @@ void broadcast_init(PlanNode &n, const TVec<fir::ValueR> &values) {
 
 // ---- recipes: match = do the lanes agree, legal = can the target do it ----
 struct RecipeCtx {
-  const TVec<SeedBundle> &load_bundles;
+  BlockInfo &info;
+  AliasAnalyis &aa;
   const Features &features;
   // out: one lane is the first operand of the base lane (x + (x + y))
   bool potential_neutral = false;
@@ -108,7 +137,7 @@ struct Recipe {
   const char *name;
   bool (*match)(const TVec<fir::ValueR> &, RecipeCtx &);
   bool (*legal)(const TVec<fir::ValueR> &, RecipeCtx &);
-  void (*init)(PlanNode &, const TVec<fir::ValueR> &);
+  void (*init)(PlanNode &, const TVec<fir::ValueR> &, const InitCtx &);
   size_t (*n_args)(const TVec<fir::ValueR> &);
 };
 
@@ -132,8 +161,9 @@ bool store_match(const TVec<fir::ValueR> & /*values*/, RecipeCtx & /*ctx*/) {
   // assuming it works out ?
   return true;
 }
-void store_init(PlanNode &n, const TVec<fir::ValueR> &values) {
-  init_back(n, values);
+void store_init(PlanNode &n, const TVec<fir::ValueR> &values,
+                const InitCtx &c) {
+  init_back(n, values, c);
   n.aux = values[0].as_instr();
   n.shape = LaneShape::Consecutive;
 }
@@ -189,7 +219,7 @@ bool binary_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
   }
 }
 
-bool load_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
+bool load_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   for (auto v : values) {
     if (!v.is_instr()) {
       return false;
@@ -202,30 +232,12 @@ bool load_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
   }
   for (auto i_v : values) {
     auto i = i_v.as_instr();
-    if (i->instr_type != base_v->instr_type || i->subtype != base_v->subtype) {
+    if (i->instr_type != base_v->instr_type || i->subtype != base_v->subtype ||
+        i->get_type() != base_v->get_type()) {
       return false;
     }
   }
-  for (const auto &load_bundle : ctx.load_bundles) {
-    bool found_all = true;
-    for (const auto &value : values) {
-      bool inside_bundle = false;
-      for (const auto &bundle_vals : load_bundle.data) {
-        if (bundle_vals.instr == value.as_instr()) {
-          inside_bundle = true;
-          break;
-        }
-      }
-      if (!inside_bundle) {
-        found_all = false;
-        break;
-      }
-    }
-    if (found_all) {
-      return true;
-    }
-  }
-  return false;
+  return true;
 }
 bool load_legal(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
   auto base_v = values.back().as_instr();
@@ -234,11 +246,25 @@ bool load_legal(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
     return false;
   }
   // TODO impl vec for bigger sizes
-  return !(values.size() > 8 ||
-           (!ctx.features.avx512f && values.size() > 4));
+  if (values.size() > 8 || (!ctx.features.avx512f && values.size() > 4)) {
+    return false;
+  }
+  // the loads are all emitted at the last one, so they have to be plain
+  // loads of the seed block that can move there
+  const auto &mem = ctx.info.mem();
+  TVec<u32> members;
+  for (auto v : values) {
+    auto idx = mem.index_of(v.as_instr());
+    if (!idx || mem.accesses()[*idx].kind != BlockMemAccess::Kind::Load) {
+      return false;
+    }
+    members.push_back(*idx);
+  }
+  return mem.can_sink(members, ctx.aa) == MemDep::Independent;
 }
-void load_init(PlanNode &n, const TVec<fir::ValueR> &values) {
-  init_back(n, values);
+void load_init(PlanNode &n, const TVec<fir::ValueR> &values,
+               const InitCtx &c) {
+  init_back(n, values, c);
   n.aux = values[0].as_instr();
   n.shape = LaneShape::Consecutive;
 }
@@ -312,9 +338,17 @@ bool call_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   }
   return true;
 }
-void call_init(PlanNode &n, const TVec<fir::ValueR> &values) {
-  init_back(n, values);
+void call_init(PlanNode &n, const TVec<fir::ValueR> &values,
+               const InitCtx &c) {
+  init_back(n, values, c);
   n.value = values.back().as_instr()->args[0];
+}
+
+// A vector select needs a `<N x i1>` condition, which the backend cannot select
+// yet (`TODO("Impl")` for bit width 1 vectors in matcher.cpp). Re-enable with
+// the masks of milestone 4.
+bool select_legal(const TVec<fir::ValueR> & /*values*/, RecipeCtx & /*ctx*/) {
+  return false;
 }
 
 bool conversion_legal(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
@@ -410,7 +444,7 @@ const Recipe Recipes[] = {
     {fir::InstrType::Conversion, NodeKind::Conversion, "conversion",
      match_same_instr, conversion_legal, init_flex, n_args_1},
     {fir::InstrType::SelectInstr, NodeKind::Select, "select", match_same_instr,
-     always_legal, init_flex,
+     select_legal, init_flex,
      [](const TVec<fir::ValueR> &) -> size_t { return 3; }},
 };
 
@@ -663,14 +697,13 @@ void node_dump(const Plan &plan, u32 id, u32 indent = 0) {
 
 SLPVectorizer::VecResult
 SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
-                              const TVec<SeedBundle> &load_bundles,
                               bool reduction) {
   const auto &features = ctx.config->target.features;
   auto &stats = utils::StatCollector::get();
   // planning is read only (it may only intern constants), the IR is only
   // mutated by `node_emit` below
   Plan plan;
-  if (!build_plan(ctx, features, b, load_bundles, reduction, plan)) {
+  if (!build_plan(ctx, features, b, reduction, plan)) {
     stats.addi(1, "SLPRejectedNoPlan", utils::StatCollector::StatFOptim);
     return VecResult::Failed;
   }
@@ -700,9 +733,10 @@ SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
 }
 
 bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
-                               SeedBundle &b,
-                               const TVec<SeedBundle> &load_bundles,
-                               bool reduction, Plan &plan) {
+                               SeedBundle &b, bool reduction, Plan &plan) {
+  // lives in the temp arena like the plan, the caller releases both
+  AliasAnalyis aa{};
+  auto &info = *b.block;
   auto add_node = [&](u32 parent, PlanNode node) {
     plan.nodes.push_back(std::move(node));
     auto id = static_cast<u32>(plan.nodes.size() - 1);
@@ -718,7 +752,7 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
     PlanNode red;
     red.kind = NodeKind::HorizRed;
     TVec<fir::ValueR> base{b.base};
-    init_back(red, base);
+    init_back(red, base, InitCtx{.info = info, .parent_loc = {}});
     root_parent = add_node(NoNode, std::move(red));
   }
   TVec<std::pair<u32, TVec<fir::ValueR>>> worklist;
@@ -750,7 +784,7 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
 
     if (test_i.is_instr()) {
       const Recipe *recipe = find_recipe(test_i.as_instr()->instr_type);
-      RecipeCtx rctx{.load_bundles = load_bundles, .features = features};
+      RecipeCtx rctx{.info = info, .aa = aa, .features = features};
       if (recipe == nullptr || !recipe->match(curr, rctx) ||
           !recipe->legal(curr, rctx)) {
         if (recipe == nullptr && gather_legal(curr, features)) {
@@ -772,7 +806,11 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
       }
       PlanNode n;
       n.kind = recipe->kind;
-      recipe->init(n, curr);
+      InitCtx ictx{.info = info,
+                   .parent_loc = parent != NoNode
+                                     ? plan.nodes[parent].insert_loc
+                                     : fir::Instr{}};
+      recipe->init(n, curr, ictx);
       auto n_args = recipe->n_args(curr);
       if (recipe->kind == NodeKind::Store) {
         ASSERT(parent == NoNode);
@@ -880,55 +918,6 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
   return true;
 }
 
-void SLPVectorizer::continious_vector_store(SeedBundle &bundle,
-                                            fir::ValueR value) {
-  TVec<i128> offsets;
-  // collect constant offsets
-  for (const auto &data : bundle.data) {
-    if (!data.instr->args[1].is_constant()) {
-      ASSERT(false);
-    }
-    if (!data.a.is_invalid() ||
-        (!data.b.is_invalid() &&
-         (!data.b.is_constant() || !data.b.as_constant()->is_int()))) {
-      ASSERT(false);
-    }
-    i128 consti = 0;
-    if (data.b.is_constant()) {
-      consti = data.b.as_constant()->as_int();
-    }
-    offsets.push_back(consti);
-  }
-
-  // check they are continious
-  for (size_t i = 1; i < offsets.size(); i++) {
-    if (offsets[i] - offsets[i - 1] != bundle.type->get_size()) {
-      ASSERT(false);
-    }
-  }
-
-  size_t last_indx = 0;
-  fir::Instr last_instr;
-  for (const auto &data : bundle.data) {
-    auto bb = data.instr->parent;
-    for (size_t i = 0; i < bb->instructions.size(); i++) {
-      if (bb->instructions[i] == data.instr) {
-        if (i > last_indx) {
-          last_indx = i;
-          last_instr = data.instr;
-        }
-        break;
-      }
-    }
-  }
-
-  fir::Builder bb{last_instr};
-  bb.build_store(bundle.data[0].instr->args[0], value, false, false);
-  for (auto &b : bundle.data) {
-    b.instr.destroy();
-  }
-}
-
 std::pair<SLPVectorizer::SeedInstrData, fir::ValueR>
 SLPVectorizer::get_storeload_data(fir::Instr storeload) {
   SeedInstrData data;
@@ -953,59 +942,6 @@ SLPVectorizer::get_storeload_data(fir::Instr storeload) {
     return {data, arg->args[0]};
   }
   return {data, storeload->args[0]};
-}
-
-std::optional<SLPVectorizer::SeedBundle>
-SLPVectorizer::find_successive_loads(fir::BasicBlock bb, size_t instr_id,
-                                     AliasAnalyis &aa) {
-  SeedBundle curr;
-  auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
-  curr.base = base;
-  curr.type = bb->instructions[instr_id].get_type();
-  curr.data.push_back(data);
-
-  TVec<fir::Instr> pot_aliasing_stores;
-
-  for (auto i = instr_id + 1; i < bb->instructions.size(); i++) {
-    auto instr = bb->instructions[i];
-    if (instr->is(fir::InstrType::LoadInstr) && curr.type == instr.get_type() &&
-        !instr->Atomic) {
-      auto [sdata, sbase] = get_storeload_data(instr);
-      // if (curr.base == sbase) {
-      curr.data.push_back(sdata);
-      // }
-    } else if (instr->is(fir::InstrType::StoreInstr)) {
-      bool might_alias = false;
-      for (const auto &load : curr.data) {
-        if (aa.alias(instr->args[0], load.instr->args[0]) !=
-            AliasAnalyis::AAResult::NoAlias) {
-          might_alias = true;
-          break;
-        }
-      }
-      if (might_alias) {
-        break;
-      }
-      pot_aliasing_stores.push_back(instr);
-    } else if (instr->pot_modifies_mem()) {
-      // TODO if it writes we could use aliasing to still apply this
-      break;
-    }
-  }
-  // if we alias with anything just abort for now
-  // TODO: could just remove the aliasing loads from the set
-  // for (auto pot_stor : pot_aliasing_stores) {
-  //   for (u32 lid = curr.data.size(); lid > 0; lid--) {
-  //     if (aa.alias(pot_stor->args[0], curr.data[lid - 1].instr->args[0]) !=
-  //         AliasAnalyis::AAResult::NoAlias) {
-  //       curr.data.erase(curr.data.begin() + lid);
-  //     }
-  //   }
-  // }
-  if (curr.data.size() > 1) {
-    return curr;
-  }
-  return {};
 }
 
 namespace {
@@ -1096,11 +1032,8 @@ void red_search_assoc(TVec<fir::ValueR> &reduction_inputs,
 
 std::optional<SLPVectorizer::SeedBundle>
 SLPVectorizer::find_reduction(fir::BasicBlock bb, size_t instr_id,
-                              AliasAnalyis &aa, const conf::CompConf &conf) {
+                              const conf::CompConf &conf) {
   SeedBundle curr;
-  (void)bb;
-  (void)aa;
-  (void)instr_id;
   auto base_instr = bb->instructions[instr_id];
   auto subtype = base_instr->subtype;
 
@@ -1168,61 +1101,6 @@ SLPVectorizer::find_reduction(fir::BasicBlock bb, size_t instr_id,
   //             .instr = base_instr->args[1].as_instr(), .a = {}, .b = {}}}};
 }
 
-std::optional<SLPVectorizer::SeedBundle>
-SLPVectorizer::find_successive_stores(fir::BasicBlock bb, size_t instr_id,
-                                      AliasAnalyis &aa) {
-  SeedBundle curr;
-  auto [data, base] = get_storeload_data(bb->instructions[instr_id]);
-  curr.base = base;
-  curr.type = bb->instructions[instr_id].get_type();
-  curr.data.push_back(data);
-
-  // fmt::print("===============Col store================\n{}\n",
-  //            bb->instructions[instr_id]);
-  for (auto i = instr_id + 1; i < bb->instructions.size(); i++) {
-    auto instr = bb->instructions[i];
-    if (instr->is(fir::InstrType::StoreInstr) &&
-        curr.type == instr.get_type() && !instr->Atomic) {
-      auto [sdata, sbase] = get_storeload_data(instr);
-      // fmt::println("{} =?= {} => {}\n", curr.base, sbase, curr.base ==
-      // sbase);
-      if (curr.base == sbase) {
-        curr.data.push_back(sdata);
-      } else if (aa.alias(curr.base, sbase) !=
-                 AliasAnalyis::AAResult::NoAlias) {
-        // fmt::println("Failed aliasing store {}\n", instr);
-        break;
-      }
-    } else if (instr->is(fir::InstrType::LoadInstr)) {
-      // this load could load one of the previous stores
-      //  if that is the case we cannot simply transform it into vector code
-      //  since it would need to be placed before this load
-      // TODO: we could transform it but leave the store that is associated
-      // to this load alive to keep it correct? (would need to check if
-      // thats even worth it)
-      bool might_alias = false;
-      for (const auto &s : curr.data) {
-        if (aa.alias(instr->args[0], s.instr->args[0]) !=
-            AliasAnalyis::AAResult::NoAlias) {
-          might_alias = true;
-          break;
-        }
-      }
-      if (might_alias) {
-        // fmt::println("Failed aliasing load {}\n", instr);
-        break;
-      }
-    } else if (instr->pot_modifies_mem() || instr->pot_reads_mem()) {
-      // fmt::println("Failed pot aliasing operation {}\n", instr);
-      // TODO if it writes we could use aliasing to still apply this
-      break;
-    }
-  }
-  if (curr.data.size() > 1) {
-    return curr;
-  }
-  return {};
-}
 namespace {
 using SeedBundle = SLPVectorizer::SeedBundle;
 
@@ -1230,28 +1108,6 @@ void sort_by_size(TVec<SeedBundle> &bundles) {
   std::ranges::sort(bundles, [](const SeedBundle &b1, const SeedBundle &b2) {
     return b1.data.size() > b2.data.size();
   });
-}
-
-void finalize_loads(TVec<SeedBundle> &load_bundles) {
-  sort_by_size(load_bundles);
-  for (auto bi = load_bundles.size(); bi > 0; bi--) {
-    auto &b = load_bundles[bi - 1];
-    {
-      // sort the loads
-      std::ranges::sort(b.data, [](const auto &a, const auto &b) {
-        i128 av = 0;
-        i128 bv = 0;
-        if (a.b.is_constant() && a.b.as_constant()->is_int()) {
-          av = a.b.as_constant()->as_int();
-        }
-        if (b.b.is_constant() && b.b.as_constant()->is_int()) {
-          bv = b.b.as_constant()->as_int();
-        }
-        return av < bv;
-      });
-    }
-  }
-  // fmt::println("F1 {}  {}", store_bundles.size(), load_bundles.size());
 }
 
 void finalize_reductions(TVec<SeedBundle> &reduction_bundles) {
@@ -1322,168 +1178,162 @@ void finalize_reductions(TVec<SeedBundle> &reduction_bundles) {
   }
 }
 
-void finalize_stores(TVec<SeedBundle> &store_bundles,
-                     const conf::CompConf &conf) {
-  sort_by_size(store_bundles);
-  for (auto bi = store_bundles.size(); bi > 0; bi--) {
-    auto &b = store_bundles[bi - 1];
-    {
-      auto n_stor = b.data.size();
-      if (n_stor != 2 && n_stor != 4 && n_stor != 8 && n_stor != 16 &&
-          n_stor != 32) {
-        // just cut it off 4head
-        if (n_stor > 32) {
-          b.data.resize(32);
-        } else if (n_stor > 16) {
-          b.data.resize(16);
-        } else if (n_stor > 8) {
-          b.data.resize(8);
-        } else if (n_stor > 4) {
-          b.data.resize(4);
-        } else if (n_stor > 2) {
-          b.data.resize(2);
-        } else {
-          store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
-          continue;
-        }
-      }
-      auto overall_width = n_stor * b.type->get_bitwidth();
-      while (overall_width > 512 ||
-             (!conf.target.features.avx512f && overall_width > 256)) {
-        b.data.erase(b.data.end());
-        n_stor = b.data.size();
-        overall_width = n_stor * b.type->get_bitwidth();
-      }
-
-      while (b.type->get_size() == 1 &&
-             (n_stor % 16 != 0 && n_stor % 32 != 0)) {
-        b.data.erase(b.data.end());
-        n_stor = b.data.size();
-        overall_width = n_stor * b.type->get_bitwidth();
-      }
-      while (b.type->get_size() == 2 && (n_stor % 8 != 0 && n_stor % 16 != 0)) {
-        b.data.erase(b.data.end());
-        n_stor = b.data.size();
-        overall_width = n_stor * b.type->get_bitwidth();
-      }
-      while (b.type->get_size() == 4 && (n_stor % 4 != 0 && n_stor % 8 != 0)) {
-        b.data.erase(b.data.end());
-        n_stor = b.data.size();
-        overall_width = n_stor * b.type->get_bitwidth();
-      }
-      while (b.type->get_size() == 8 && (n_stor % 2 != 0 && n_stor % 4 != 0)) {
-        b.data.erase(b.data.end());
-        n_stor = b.data.size();
-        overall_width = n_stor * b.type->get_bitwidth();
-      }
-      // in case we need it earlier we want to make sure its correct for now
-      // even tough the compiler is unhappy that i dont read it
-      (void)overall_width;
-
-      // TODO disable them for now
-      if (b.type->get_size() == 1 || b.type->get_size() == 2) {
-        store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
-        continue;
-      }
-      auto c1 = b.type->get_size() == 1 && n_stor < 16;
-      auto c2 = b.type->get_size() == 2 && n_stor < 8;
-      auto c3 = b.type->get_size() == 4 && n_stor < 4;
-      auto c4 = b.type->get_size() == 8 && n_stor < 2;
-
-      if (c1 || c2 || c3 || c4) {
-        store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
-        continue;
-      }
-
-      // sort the stores
-      std::ranges::sort(b.data, [](const auto &a, const auto &b) {
-        i128 av = 0;
-        i128 bv = 0;
-        if (a.b.is_constant() && a.b.as_constant()->is_int()) {
-          av = a.b.as_constant()->as_int();
-        }
-        if (b.b.is_constant() && b.b.as_constant()->is_int()) {
-          bv = b.b.as_constant()->as_int();
-        }
-        return av < bv;
-      });
-      // check if continious
-      {
-        TVec<i128> offsets;
-        // collect constant offsets
-        bool failed = false;
-        for (const auto &data : b.data) {
-          if (!data.a.is_invalid() ||
-              (!data.b.is_invalid() &&
-               (!data.b.is_constant() || !data.b.as_constant()->is_int()))) {
-            failed = true;
-            break;
-          }
-          i128 consti = 0;
-          if (data.b.is_constant()) {
-            consti = data.b.as_constant()->as_int();
-          }
-          offsets.push_back(consti);
-        }
-        if (failed) {
-          store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
-          continue;
-        }
-
-        // check they are continious
-        for (size_t i = 1; i < offsets.size(); i++) {
-          if (offsets[i] - offsets[i - 1] != b.type->get_size()) {
-            failed = true;
-            break;
-          }
-        }
-        if (failed) {
-          store_bundles.erase(store_bundles.begin() + static_cast<i64>(bi) - 1);
-          continue;
-        }
-      }
-    }
-  }
-}
-
+// Stores that write adjacent memory become seeds. Three stages:
+//  1. every store with a constant offset from a base, of a type we can widen,
+//     is a candidate (the block's `BlockMemAccesses` snapshot has them, with
+//     barriers numbered as epochs)
+//  2. candidates are grouped by base, sorted by (epoch, offset) and cut into
+//     runs of adjacent, same typed stores (no barrier in between, no two
+//     stores to the same address)
+//  3. a run is cut into windows of a width the target supports (widest first),
+//     each window has to pass `BlockMemAccesses::can_sink`
+// Windows never overlap and each store is in at most one bundle.
 class StoreSeedProvider final : public SLPVectorizer::SeedProvider {
-public:
-  void visit(SLPVectorizer::SeedRegion &r, size_t i) final {
-    if (r.bb->instructions[i]->is(fir::InstrType::StoreInstr)) {
-      if (auto res = SLPVectorizer::find_successive_stores(r.bb, i, r.aa)) {
-        bundles.push_back(res.value());
-      }
-    }
-  }
-  void finalize(const conf::CompConf &conf) final {
-    finalize_stores(bundles, conf);
-  }
-};
+  struct Cand {
+    u32 access;
+    fir::ValueR base;
+    SLPVectorizer::SeedInstrData data;
+    i128 offset;
+    fir::TypeR type;
+    u32 epoch;
+  };
 
-// load bundles are no seeds, they only tell the tree builder which loads are
-// adjacent
-class LoadSeedProvider final : public SLPVectorizer::SeedProvider {
 public:
-  void visit(SLPVectorizer::SeedRegion &r, size_t i) final {
-    if (r.bb->instructions[i]->is(fir::InstrType::LoadInstr)) {
-      if (auto res = SLPVectorizer::find_successive_loads(r.bb, i, r.aa)) {
-        bundles.push_back(res.value());
+  void scan(SLPVectorizer::SeedRegion &r) final {
+    const auto &features = r.conf.target.features;
+    const auto &mem = r.info.mem();
+    const auto &acc = mem.accesses();
+
+    // stage 1
+    TVec<Cand> cands;
+    for (u32 i = 0; i < acc.size(); i++) {
+      if (acc[i].kind != BlockMemAccess::Kind::Store) {
+        continue;
+      }
+      auto instr = acc[i].instr;
+      auto ty = instr.get_type();
+      if (!ty->is_int() && !ty->is_float() && !ty->is_ptr()) {
+        continue;
+      }
+      // smaller elements are not worth it (yet), bigger ones are unsupported
+      if (ty->get_size() != 4 && ty->get_size() != 8) {
+        continue;
+      }
+      auto [data, base] = SLPVectorizer::get_storeload_data(instr);
+      if (!data.a.is_invalid()) {
+        continue;
+      }
+      i128 offset = 0;
+      if (!data.b.is_invalid()) {
+        if (!data.b.is_constant() || !data.b.as_constant()->is_int()) {
+          continue;
+        }
+        offset = data.b.as_constant()->as_int();
+      }
+      cands.push_back(Cand{.access = i,
+                           .base = base,
+                           .data = data,
+                           .offset = offset,
+                           .type = ty,
+                           .epoch = acc[i].epoch});
+    }
+
+    // stage 2, groups are in order of the first store of each base
+    TMap<fir::ValueR, TVec<u32>> groups;
+    for (u32 i = 0; i < cands.size(); i++) {
+      groups[cands[i].base].push_back(i);
+    }
+    u32 max_bits = features.avx512f ? 512 : 256;
+    for (auto &[base, group] : groups) {
+      std::ranges::sort(group, [&](u32 a, u32 b) {
+        const auto &ca = cands[a];
+        const auto &cb = cands[b];
+        if (ca.epoch != cb.epoch) {
+          return ca.epoch < cb.epoch;
+        }
+        if (ca.offset != cb.offset) {
+          return ca.offset < cb.offset;
+        }
+        return ca.access < cb.access;
+      });
+      size_t run_start = 0;
+      for (size_t i = 1; i <= group.size(); i++) {
+        bool extends = false;
+        if (i < group.size()) {
+          const auto &prev = cands[group[i - 1]];
+          const auto &cur = cands[group[i]];
+          extends = cur.epoch == prev.epoch && cur.type == prev.type &&
+                    cur.offset == prev.offset + prev.type->get_size();
+        }
+        if (extends) {
+          continue;
+        }
+        if (i - run_start >= 2) {
+          cut_run(r, cands, std::span{group}.subspan(run_start, i - run_start),
+                  max_bits);
+        }
+        run_start = i;
       }
     }
   }
+
   void finalize(const conf::CompConf & /*conf*/) final {
-    finalize_loads(bundles);
+    std::ranges::stable_sort(bundles,
+                             [](const SeedBundle &b1, const SeedBundle &b2) {
+                               return b1.data.size() > b2.data.size();
+                             });
+  }
+
+private:
+  // stage 3
+  void cut_run(SLPVectorizer::SeedRegion &r, const TVec<Cand> &cands,
+               std::span<const u32> run, u32 max_bits) {
+    auto &mem = r.info.mem();
+    u32 bits = cands[run[0]].type->get_size() * 8;
+    size_t i = 0;
+    while (i < run.size()) {
+      bool cut = false;
+      for (u32 w = 32; w >= 2 && !cut; w /= 2) {
+        // at least 128 bit vectors
+        if (i + w > run.size() || w * bits < 128 || w * bits > max_bits) {
+          continue;
+        }
+        TVec<u32> members;
+        for (size_t j = 0; j < w; j++) {
+          members.push_back(cands[run[i + j]].access);
+        }
+        if (mem.can_sink(members, r.aa) != MemDep::Independent) {
+          continue;
+        }
+        SeedBundle bundle;
+        bundle.base = cands[run[i]].base;
+        bundle.type = cands[run[i]].type;
+        bundle.block = &r.info;
+        for (size_t j = 0; j < w; j++) {
+          bundle.data.push_back(cands[run[i + j]].data);
+        }
+        bundles.push_back(std::move(bundle));
+        i += w;
+        cut = true;
+      }
+      if (!cut) {
+        i++;
+      }
+    }
   }
 };
 
 class ReductionSeedProvider final : public SLPVectorizer::SeedProvider {
 public:
-  void visit(SLPVectorizer::SeedRegion &r, size_t i) final {
+  void scan(SLPVectorizer::SeedRegion &r) final {
     if (!r.reductions) {
       return;
     }
-    if (auto res = SLPVectorizer::find_reduction(r.bb, i, r.aa, r.conf)) {
-      bundles.push_back(res.value());
+    for (size_t i = 0; i < r.info.bb->instructions.size(); i++) {
+      if (auto res = SLPVectorizer::find_reduction(r.info.bb, i, r.conf)) {
+        res->block = &r.info;
+        bundles.push_back(res.value());
+      }
     }
   }
   void finalize(const conf::CompConf & /*conf*/) final {
@@ -1492,32 +1342,22 @@ public:
 };
 } // namespace
 
-void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
+void SLPVectorizer::find_seeds(const conf::CompConf &conf, BlockInfo &info,
                                TVec<SeedBundle> &store_bundles,
-                               TVec<SeedBundle> &load_bundles,
                                TVec<SeedBundle> &reduction_bundles,
                                AliasAnalyis &aa) {
-  // load bundles are collected too since that simplifies checking later on if
-  // a load is valid to vectorize
   StoreSeedProvider stores;
-  LoadSeedProvider loads;
   ReductionSeedProvider reductions;
-  SeedProvider *providers[] = {&stores, &loads, &reductions};
-  SeedRegion region{.bb = bb, .aa = aa, .conf = conf,
-                    .reductions = config.reductions};
-  for (size_t i = 0; i < bb->instructions.size(); i++) {
-    for (auto *p : providers) {
-      p->visit(region, i);
-    }
-  }
-  auto &stats = utils::StatCollector::get();
-  const char *seen_names[] = {"SLPSeedsStore", "SLPSeedsLoad",
-                              "SLPSeedsReduction"};
+  SeedProvider *providers[] = {&stores, &reductions};
+  const char *seen_names[] = {"SLPSeedsStore", "SLPSeedsReduction"};
   const char *rejected_names[] = {"SLPSeedsRejectedStore",
-                                  "SLPSeedsRejectedLoad",
                                   "SLPSeedsRejectedReduction"};
+  SeedRegion region{
+      .info = info, .aa = aa, .conf = conf, .reductions = config.reductions};
+  auto &stats = utils::StatCollector::get();
   size_t idx = 0;
   for (auto *p : providers) {
+    p->scan(region);
     auto found = p->bundles.size();
     p->finalize(conf);
     stats.addi(static_cast<i64>(found), seen_names[idx],
@@ -1526,26 +1366,12 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, fir::BasicBlock bb,
                rejected_names[idx], utils::StatCollector::StatFOptim);
     idx++;
   }
-  store_bundles = std::move(stores.bundles);
-  load_bundles = std::move(loads.bundles);
-  reduction_bundles = std::move(reductions.bundles);
-}
-
-bool SLPVectorizer::constant_vector_store(fir::Context &ctx,
-                                          SeedBundle &bundle) {
-  IRVec<fir::ConstantValueR> args;
-  for (const auto &data : bundle.data) {
-    if (!data.instr->args[1].is_constant()) {
-      return false;
-    }
+  for (auto &b : stores.bundles) {
+    store_bundles.push_back(std::move(b));
   }
-  for (const auto &b : bundle.data) {
-    args.push_back(b.instr->args[1].as_constant());
+  for (auto &b : reductions.bundles) {
+    reduction_bundles.push_back(std::move(b));
   }
-  auto constant_data = ctx->get_constant_value(
-      std::move(args), ctx->get_vec_type(bundle.type, bundle.data.size()));
-  continious_vector_store(bundle, fir::ValueR{constant_data});
-  return true;
 }
 
 } // namespace foptim::optim
