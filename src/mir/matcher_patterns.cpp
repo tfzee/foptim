@@ -2579,11 +2579,31 @@ void base_patterns(IRVec<Pattern> &pats) {
           break;
         }
         case Type::Int32x8:
-        case Type::Int32x4:
-          fmt::println("{:cd}", hred_instr->args[0].get_type());
-          fmt::println("{:cd}", hred_instr);
-          TODO("impl");
+        case Type::Int32x4: {
+          // fold the upper half onto the lower one, then add the 4 lanes in
+          // a gpr
+          auto vec128 = a1;
+          if (a1.ty == Type::Int32x8) {
+            auto helper_vec = data.alloc.get_new_register(Type::Int32x4);
+            vec128 = MArgument{helper_vec, Type::Int32x4};
+            res.result.emplace_back(X86Subtype::vextract128, vec128, a1,
+                                    MArgument(static_cast<u8>(1)));
+            ASSERT(a1.isReg());
+            res.result.emplace_back(
+                GVecSubtype::vadd, vec128, vec128,
+                MArgument{a1.reg.retype(Type::Int32x4), Type::Int32x4});
+          }
+          res.result.emplace_back(X86Subtype::vpextr, res_reg, vec128,
+                                  MArgument(static_cast<u8>(0)));
+          for (u8 lane = 1; lane < 4; lane++) {
+            auto lane_reg = data.alloc.get_new_register(Type::Int32);
+            auto lane_arg = MArgument{lane_reg, Type::Int32};
+            res.result.emplace_back(X86Subtype::vpextr, lane_arg, vec128,
+                                    MArgument(lane));
+            res.result.emplace_back(GArithSubtype::add2, res_reg, lane_arg);
+          }
           break;
+        }
         }
         return true;
       }});

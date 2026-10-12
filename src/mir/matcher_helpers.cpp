@@ -192,6 +192,21 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     res.emplace_back(X86Subtype::lea, helper, arg);
     return helper;
   }
+  if (consti->is_vec()) {
+    const bool all_zero = std::ranges::all_of(
+        consti->as_vec().members, [](const fir::ConstantValueR &m) {
+          return (m->is_int() && m->as_int() == 0) ||
+                 (m->is_float() && m->as_f64() == 0.0 &&
+                  !std::signbit(m->as_f64())) ||
+                 m->is_null();
+        });
+    if (all_zero) {
+      Type type_id = convert_type(val.get_type());
+      auto arg = MArgument{alloc.get_new_register(type_id), type_id};
+      res.emplace_back(GVecSubtype::vXor, arg, arg, arg);
+      return arg;
+    }
+  }
   if (consti->is_poison()) {
     switch (consti->type->ty) {
     case fir::AnyTypeType::Integer:
