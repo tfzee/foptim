@@ -56,6 +56,9 @@ set_property(CACHE slot_check_level PROPERTY STRINGS 0 1 2)
 option(tracy_perf "tracy" OFF)
 option(optim_stats "optimization stats" OFF)
 option(assert_check "Assertion Checks" ON)
+# hashing every function around every pass (and every function around module
+# passes) to check that passes report their changes truthfully, expensive
+option(hash_checks "Hash checks of the pass change reporting (slow)" OFF)
 option(fail_on_impl "Abort when impl gets hit" ON)
 if(fail_on_impl)
   add_definitions(-DIMPL_ABORT)
@@ -82,6 +85,11 @@ if(assert_check)
   add_definitions(-DASSERT_ENABLED)
 else()
   remove_definitions(-DASSERT_ENABLED)
+endif()
+if(hash_checks)
+  add_definitions(-DHASH_CHECKS_ENABLED)
+else()
+  remove_definitions(-DHASH_CHECKS_ENABLED)
 endif()
 
 
@@ -119,6 +127,7 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/analysis_manager.cpp
                 ./src/optim/pass_skipping.cpp
                 ./src/optim/analysis/basic_alias_test.cpp
+                ./src/optim/analysis/block_mem_access.cpp
                 ./src/optim/analysis/constraint_analysis.cpp
                 ./src/optim/analysis/attributer/KnownBits.cpp
                 ./src/optim/func_passes/mem2reg.cpp
