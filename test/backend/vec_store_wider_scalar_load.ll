@@ -14,31 +14,10 @@ define i64 @f(ptr %x, ptr %y) {
 ; CHECK-NEXT:    $rax: i64 = $xmm0: i64x2
 ; CHECK-NEXT:    ret($rax: i64, )
   %r = alloca [4 x i32], align 16
-  %x0 = load i32, ptr %x
-  %y0 = load i32, ptr %y
-  %s0 = sub i32 %x0, %y0
-  store i32 %s0, ptr %r
-  %x1p = getelementptr inbounds i8, ptr %x, i64 4
-  %y1p = getelementptr inbounds i8, ptr %y, i64 4
-  %r1 = getelementptr inbounds i8, ptr %r, i64 4
-  %x1 = load i32, ptr %x1p
-  %y1 = load i32, ptr %y1p
-  %s1 = sub i32 %x1, %y1
-  store i32 %s1, ptr %r1
-  %x2p = getelementptr inbounds i8, ptr %x, i64 8
-  %y2p = getelementptr inbounds i8, ptr %y, i64 8
-  %r2 = getelementptr inbounds i8, ptr %r, i64 8
-  %x2 = load i32, ptr %x2p
-  %y2 = load i32, ptr %y2p
-  %s2 = sub i32 %x2, %y2
-  store i32 %s2, ptr %r2
-  %x3p = getelementptr inbounds i8, ptr %x, i64 12
-  %y3p = getelementptr inbounds i8, ptr %y, i64 12
-  %r3 = getelementptr inbounds i8, ptr %r, i64 12
-  %x3 = load i32, ptr %x3p
-  %y3 = load i32, ptr %y3p
-  %s3 = sub i32 %x3, %y3
-  store i32 %s3, ptr %r3
+  %xv = load <4 x i32>, ptr %x
+  %yv = load <4 x i32>, ptr %y
+  %sv = sub <4 x i32> %xv, %yv
+  store <4 x i32> %sv, ptr %r
   %lo = load i64, ptr %r
   ret i64 %lo
 }
