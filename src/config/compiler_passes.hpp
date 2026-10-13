@@ -320,6 +320,12 @@ struct IntrinExpandConf : public FunctionPassConf<IntrinExpandConf> {
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };
+struct IntrinLowerCallsConf : public FunctionPassConf<IntrinLowerCallsConf> {
+  static constexpr const char *BaseName = "IntrinLowerCalls";
+  using Pass = optim::IntrinLowerCalls;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
 struct MergeAllocaConf : public FunctionPassConf<MergeAllocaConf> {
   static constexpr const char *BaseName = "MergeAlloca";
   using Pass = optim::MergeAllocaPass;
