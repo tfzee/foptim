@@ -99,7 +99,8 @@ public:
     Uniform,
     Consecutive,
     Varying,
-    // loops, lane i is base plus i times stride, only kept as the scalar of lane 0
+    // loops, lane i is base plus i times stride, only kept as the scalar of
+    // lane 0
     Strided,
     // loops: loop carried vector (reduction accumulator)
     Recurrence,
@@ -167,9 +168,9 @@ public:
   static std::pair<SeedInstrData, fir::ValueR>
   get_storeload_data(fir::Instr storeload);
 
-  static std::optional<SeedBundle>
-  find_reduction(fir::BasicBlock bb, size_t instr_id, const conf::CompConf &conf);
-
+  static std::optional<SeedBundle> find_reduction(fir::BasicBlock bb,
+                                                  size_t instr_id,
+                                                  const conf::CompConf &conf);
 
   // Loop vectorization. Lane i of a vector is iteration i of an innermost
   // single block countable loop. Planning is read only and emit_loop rewrites
@@ -224,8 +225,8 @@ public:
                          const conf::Target::Features &features);
   // estimated cost of the whole loop, scalar_total is the cost of the original
   static i64 loop_cost(const LoopPlan &plan, u32 vf,
-                       const conf::Target::Features &features,
-                       u32 assumed_trip, i64 &scalar_total);
+                       const conf::Target::Features &features, u32 assumed_trip,
+                       i64 &scalar_total);
   static u32 max_vector_bits(const conf::Target::Features &features);
 
 private:
@@ -259,16 +260,19 @@ public:
     }
     TVec<SeedBundle> store_bundles;
     TVec<SeedBundle> reduction_bundles;
-    for (auto &info : blocks) {
-      find_seeds(*ctx.config, info, store_bundles, reduction_bundles, aa);
-    }
-    if (store_bundles.empty() && reduction_bundles.empty()) {
-      return loops_changed ? PreservedAnalysis::none()
-                           : PreservedAnalysis::all();
-    }
-    if constexpr (debug_print) {
-      fmt::println("Stor {} Red {}", store_bundles.size(),
-                   reduction_bundles.size());
+    {
+      ZoneScopedN("Find Seeds");
+      for (auto &info : blocks) {
+        find_seeds(*ctx.config, info, store_bundles, reduction_bundles, aa);
+      }
+      if (store_bundles.empty() && reduction_bundles.empty()) {
+        return loops_changed ? PreservedAnalysis::none()
+                             : PreservedAnalysis::all();
+      }
+      if constexpr (debug_print) {
+        fmt::println("Stor {} Red {}", store_bundles.size(),
+                     reduction_bundles.size());
+      }
     }
 
     bool modified = false;
@@ -299,8 +303,11 @@ public:
         }
       }
     };
-    run(store_bundles, false);
-    run(reduction_bundles, true);
+    {
+      ZoneScopedN("Run");
+      run(store_bundles, false);
+      run(reduction_bundles, true);
+    }
 
     if (loops_changed) {
       return PreservedAnalysis::none();

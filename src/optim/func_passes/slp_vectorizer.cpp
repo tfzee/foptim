@@ -15,7 +15,6 @@
 #include "ir/types.hpp"
 #include "ir/value.hpp"
 #include "optim/helper/WFVector.hpp"
-#include "utils/arena.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
@@ -64,16 +63,14 @@ fir::Instr last_lane(const TVec<fir::ValueR> &values, const InitCtx &c) {
   ASSERT(best.is_valid());
   return best;
 }
-void init_flex(PlanNode &n, const TVec<fir::ValueR> &values,
-               const InitCtx &c) {
+void init_flex(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   n.n_lanes = values.size();
   auto pick = pick_instr(values);
   n.insert_loc = last_lane(values, c);
   n.type = pick->get_type();
   n.sub = pick->subtype;
 }
-void init_back(PlanNode &n, const TVec<fir::ValueR> &values,
-               const InitCtx &c) {
+void init_back(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   n.n_lanes = values.size();
   n.insert_loc = last_lane(values, c);
   auto lane = values.back().as_instr();
@@ -262,8 +259,7 @@ bool load_legal(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
   }
   return mem.can_sink(members, ctx.aa) == MemDep::Independent;
 }
-void load_init(PlanNode &n, const TVec<fir::ValueR> &values,
-               const InitCtx &c) {
+void load_init(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   init_back(n, values, c);
   n.aux = values[0].as_instr();
   n.shape = LaneShape::Consecutive;
@@ -273,8 +269,8 @@ bool unary_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
   if (!match_same_instr_back(values, ctx)) {
     return false;
   }
-  switch (static_cast<fir::UnaryInstrSubType>(
-      values.back().as_instr()->subtype)) {
+  switch (
+      static_cast<fir::UnaryInstrSubType>(values.back().as_instr()->subtype)) {
   case fir::UnaryInstrSubType::INVALID:
     return false;
   case fir::UnaryInstrSubType::IntNeg:
@@ -338,8 +334,7 @@ bool call_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   }
   return true;
 }
-void call_init(PlanNode &n, const TVec<fir::ValueR> &values,
-               const InitCtx &c) {
+void call_init(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   init_back(n, values, c);
   n.value = values.back().as_instr()->args[0];
 }
@@ -364,7 +359,8 @@ bool conversion_legal(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
 }
 
 bool intrin_legal(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
-  switch (static_cast<fir::IntrinsicSubType>(values.back().as_instr()->subtype)) {
+  switch (
+      static_cast<fir::IntrinsicSubType>(values.back().as_instr()->subtype)) {
   case fir::IntrinsicSubType::INVALID:
   case fir::IntrinsicSubType::VA_start:
   case fir::IntrinsicSubType::VA_end:
@@ -420,32 +416,83 @@ bool gather_legal(const TVec<fir::ValueR> & /*values*/,
 }
 
 const Recipe Recipes[] = {
-    {fir::InstrType::StoreInstr, NodeKind::Store, "store", store_match,
-     always_legal, store_init, [](const TVec<fir::ValueR> &) -> size_t {
-       return 2;
-     }},
-    {fir::InstrType::BinaryInstr, NodeKind::Binary, "binary", binary_match,
-     always_legal, init_flex,
-     [](const TVec<fir::ValueR> &) -> size_t { return 2; }},
-    {fir::InstrType::LoadInstr, NodeKind::Load, "load", load_match, load_legal,
-     load_init, n_args_1},
-    {fir::InstrType::Intrinsic, NodeKind::Intrin, "intrinsic",
-     match_same_instr_back, intrin_legal, init_back, n_args_instr},
-    {fir::InstrType::ITrunc, NodeKind::ITrunc, "itrunc", match_same_instr_back,
-     always_legal, init_back, n_args_1},
-    {fir::InstrType::ZExt, NodeKind::Zext, "zext", match_same_instr,
-     always_legal, init_flex, n_args_1},
-    {fir::InstrType::UnaryInstr, NodeKind::Unary, "unary", unary_match,
-     always_legal, init_back, n_args_1},
-    {fir::InstrType::ExtractValue, NodeKind::Extract, "extract", extract_match,
-     always_legal, init_back, n_args_0},
-    {fir::InstrType::CallInstr, NodeKind::Call, "call", call_match,
-     always_legal, call_init, n_args_instr},
-    {fir::InstrType::Conversion, NodeKind::Conversion, "conversion",
-     match_same_instr, conversion_legal, init_flex, n_args_1},
-    {fir::InstrType::SelectInstr, NodeKind::Select, "select", match_same_instr,
-     select_legal, init_flex,
-     [](const TVec<fir::ValueR> &) -> size_t { return 3; }},
+    {.type = fir::InstrType::StoreInstr,
+     .kind = NodeKind::Store,
+     .name = "store",
+     .match = store_match,
+     .legal = always_legal,
+     .init = store_init,
+     .n_args = [](const TVec<fir::ValueR> &) -> size_t { return 2; }},
+    {.type = fir::InstrType::BinaryInstr,
+     .kind = NodeKind::Binary,
+     .name = "binary",
+     .match = binary_match,
+     .legal = always_legal,
+     .init = init_flex,
+     .n_args = [](const TVec<fir::ValueR> &) -> size_t { return 2; }},
+    {.type = fir::InstrType::LoadInstr,
+     .kind = NodeKind::Load,
+     .name = "load",
+     .match = load_match,
+     .legal = load_legal,
+     .init = load_init,
+     .n_args = n_args_1},
+    {.type = fir::InstrType::Intrinsic,
+     .kind = NodeKind::Intrin,
+     .name = "intrinsic",
+     .match = match_same_instr_back,
+     .legal = intrin_legal,
+     .init = init_back,
+     .n_args = n_args_instr},
+    {.type = fir::InstrType::ITrunc,
+     .kind = NodeKind::ITrunc,
+     .name = "itrunc",
+     .match = match_same_instr_back,
+     .legal = always_legal,
+     .init = init_back,
+     .n_args = n_args_1},
+    {.type = fir::InstrType::ZExt,
+     .kind = NodeKind::Zext,
+     .name = "zext",
+     .match = match_same_instr,
+     .legal = always_legal,
+     .init = init_flex,
+     .n_args = n_args_1},
+    {.type = fir::InstrType::UnaryInstr,
+     .kind = NodeKind::Unary,
+     .name = "unary",
+     .match = unary_match,
+     .legal = always_legal,
+     .init = init_back,
+     .n_args = n_args_1},
+    {.type = fir::InstrType::ExtractValue,
+     .kind = NodeKind::Extract,
+     .name = "extract",
+     .match = extract_match,
+     .legal = always_legal,
+     .init = init_back,
+     .n_args = n_args_0},
+    {.type = fir::InstrType::CallInstr,
+     .kind = NodeKind::Call,
+     .name = "call",
+     .match = call_match,
+     .legal = always_legal,
+     .init = call_init,
+     .n_args = n_args_instr},
+    {.type = fir::InstrType::Conversion,
+     .kind = NodeKind::Conversion,
+     .name = "conversion",
+     .match = match_same_instr,
+     .legal = conversion_legal,
+     .init = init_flex,
+     .n_args = n_args_1},
+    {.type = fir::InstrType::SelectInstr,
+     .kind = NodeKind::Select,
+     .name = "select",
+     .match = match_same_instr,
+     .legal = select_legal,
+     .init = init_flex,
+     .n_args = [](const TVec<fir::ValueR> &) -> size_t { return 3; }},
 };
 
 const Recipe *find_recipe(fir::InstrType type) {
@@ -460,7 +507,9 @@ const Recipe *find_recipe(fir::InstrType type) {
 // ---- cost, higher = better ----
 i64 node_cost(const Plan &plan, u32 id, const Features &features) {
   const auto &n = plan.nodes[id];
-  auto child = [&](size_t i) { return node_cost(plan, n.children.at(i), features); };
+  auto child = [&](size_t i) {
+    return node_cost(plan, n.children.at(i), features);
+  };
   auto lanes = static_cast<i64>(n.n_lanes);
   switch (n.kind) {
   case NodeKind::Broadcast:
@@ -522,8 +571,8 @@ fir::ValueR node_emit(fir::Context &ctx, const Plan &plan, u32 id,
     if (n.after) {
       bb.after(n.insert_loc);
     }
-    return bb.build_vbroadcast(n.value,
-                               ctx->get_vec_type(n.value.get_type(), n.n_lanes));
+    return bb.build_vbroadcast(
+        n.value, ctx->get_vec_type(n.value.get_type(), n.n_lanes));
   }
   case NodeKind::Gather:
     TODO("gather emission is not implemented, see gather_legal");
@@ -681,9 +730,9 @@ fir::ValueR node_emit(fir::Context &ctx, const Plan &plan, u32 id,
 
 void node_dump(const Plan &plan, u32 id, u32 indent = 0) {
   static constexpr const char *names[] = {
-      "broadcast", "gather", "horiz_red", "binary",  "zext",   "itrunc",
-      "call",      "unary",  "extract",   "store",   "intrin", "constant",
-      "conversion", "select", "load"};
+      "broadcast", "gather",   "horiz_red",  "binary",  "zext",
+      "itrunc",    "call",     "unary",      "extract", "store",
+      "intrin",    "constant", "conversion", "select",  "load"};
   static constexpr const char *shapes[] = {"uniform", "consecutive", "varying",
                                            "strided", "recurrence"};
   const auto &n = plan.nodes[id];
@@ -696,9 +745,9 @@ void node_dump(const Plan &plan, u32 id, u32 indent = 0) {
 }
 } // namespace
 
-SLPVectorizer::VecResult
-SLPVectorizer::tree_vectorize(fir::Context &ctx, SeedBundle &b,
-                              bool reduction) {
+SLPVectorizer::VecResult SLPVectorizer::tree_vectorize(fir::Context &ctx,
+                                                       SeedBundle &b,
+                                                       bool reduction) {
   const auto &features = ctx.config->target.features;
   auto &stats = utils::StatCollector::get();
   // planning is read only (it may only intern constants), the IR is only
@@ -1159,7 +1208,8 @@ void finalize_reductions(TVec<SeedBundle> &reduction_bundles) {
 
       // TODO disable them for now
       if (b.type->get_size() == 1 || b.type->get_size() == 2) {
-        reduction_bundles.erase(reduction_bundles.begin() + static_cast<i64>(bi) - 1);
+        reduction_bundles.erase(reduction_bundles.begin() +
+                                static_cast<i64>(bi) - 1);
         continue;
       }
 
