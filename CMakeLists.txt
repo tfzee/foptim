@@ -237,6 +237,7 @@ target_precompile_headers(foptim_main PRIVATE ${FOPTIM_PCH})
 ###############################################
 #foptim lit test
 set_property(GLOBAL PROPERTY GLOBAL_LIT_TARGETS)
+set_property(GLOBAL PROPERTY GLOBAL_LIT_DIRS)
 function(add_my_lit_suite target_name test_dir dependency_target)
     add_custom_target(${target_name}
         COMMAND lit "${test_dir}" -v
@@ -245,9 +246,11 @@ function(add_my_lit_suite target_name test_dir dependency_target)
         USES_TERMINAL
     )   
     set_property(GLOBAL APPEND PROPERTY GLOBAL_LIT_TARGETS ${target_name})
+    set_property(GLOBAL APPEND PROPERTY GLOBAL_LIT_DIRS "${test_dir}")
 endfunction()
 add_subdirectory(test)
 get_property(ALL_LIT_TESTS GLOBAL PROPERTY GLOBAL_LIT_TARGETS)
+get_property(ALL_LIT_DIRS GLOBAL PROPERTY GLOBAL_LIT_DIRS)
 add_custom_target(check-unit
     COMMAND foptim_unit_test
     DEPENDS foptim_unit_test
@@ -255,6 +258,9 @@ add_custom_target(check-unit
     USES_TERMINAL
 )
 add_custom_target(check-all
+    COMMAND foptim_unit_test
+    COMMAND lit ${ALL_LIT_DIRS} -v
+    DEPENDS foptim_unit_test foptim_main
     COMMENT "Running all registered test suites..."
+    USES_TERMINAL
 )
-add_dependencies(check-all check-unit ${ALL_LIT_TESTS})
