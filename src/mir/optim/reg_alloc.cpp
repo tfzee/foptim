@@ -761,11 +761,17 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
         // a read that can be served by the cached temp, a memory operand is
         // only worth it if we would have to reload otherwise
         if (cached == nullptr || writes_vreg(bb.instrs[instr_id], spill_vreg)) {
+          const MInstr before = bb.instrs[instr_id];
           if (handle_spill_addr_mode(bb.instrs, instr_id, spill_vreg,
                                      stack_slot_id)) {
-            // the slot may have been modified, the temp is stale
-            cache.erase(spill);
-            continue;
+            if (!bb.instrs[instr_id].uses_vreg(spill_vreg)) {
+              // the slot may have been modified, the temp is stale
+              cache.erase(spill);
+              continue;
+            }
+            // the vreg is used by another operand as well (x + x), a later
+            // round would spill the remaining use into a slot nobody writes
+            bb.instrs[instr_id] = before;
           }
         }
         if (handle_spill_scavenger()) {
