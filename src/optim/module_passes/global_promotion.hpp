@@ -1,5 +1,4 @@
 #pragma once
-#include <cstring>
 #include "ir/builder.hpp"
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
@@ -9,6 +8,8 @@
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
 #include "utils/tracy.hpp"
+#include <cstring>
+#include <fmt/base.h>
 
 namespace foptim::optim {
 
@@ -38,6 +39,28 @@ public:
       }
     }
 
+    const auto is_written = [](fir::Global x) -> bool {
+      TVec<fir::Use> uses;
+      uses.reserve(x->get_n_uses());
+      for (auto use : x->get_uses()) {
+        uses.push_back(use);
+      }
+      while (!uses.empty()) {
+        fir::Use c = uses.back();
+        uses.pop_back();
+        // TODO expand ot more shit i guess
+        if (c.user->is(fir::BinaryInstrSubType::PtrAdd) ||
+            c.user->is(fir::InstrType::SelectInstr)) {
+          for (auto u : c.user->get_uses()) {
+            uses.push_back(u);
+          }
+        } else if (!c.user->is(fir::InstrType::LoadInstr)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     {
       auto *slab = ctx->storage.storage_global._slot_start.load();
       while (slab != nullptr) {
@@ -60,20 +83,28 @@ public:
             case fir::Linkage::Weak:
             case fir::Linkage::WeakODR:
             case fir::Linkage::LinkOnce:
-            case fir::Linkage::LinkOnceODR:
               continue;
+            case fir::Linkage::LinkOnceODR:
             case fir::Linkage::Internal:
               break;
             }
-            // TODO: tweak
-            if (global->n_bytes > 8) {
-              continue;
-            }
-            if (global->is_constant) {
+
+            if (global->n_bytes >= 8) {
               continue;
             }
             if (global_global_reffed.contains(global)) {
               continue;
+            }
+            if (!global->is_constant) {
+              // if internal and no writes and no global_global_reffed just mark
+              // it as constant
+              if (global->linkage == fir::Linkage::Internal &&
+                  !is_written(global)) {
+                global->is_constant = true;
+                analyMan.touched_global(global);
+              } else {
+                continue;
+              }
             }
             fir::Function *target_f = nullptr;
             TVec<fir::Use> uses{global->get_uses().begin(),

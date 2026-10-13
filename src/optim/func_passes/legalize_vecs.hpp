@@ -23,7 +23,7 @@ class LegalizeVecs final : public FunctionPass {
     fmt::format_to(std::back_inserter(name), "const_legalizeVec_{}",
                    helper_index_name.load());
     helper_index_name++;
-    const auto size = constant->type->get_bitwidth();
+    const auto size = (constant->type->get_bitwidth() + 7) / 8;
     auto global = ctx->insert_global(name, size);
     global->is_constant = true;
     global->linkage = fir::Linkage::Internal;

@@ -137,6 +137,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new FuncPropAnnotatorConf{};
     } else if (name == "GlobalPromotion") {
       pass = new GlobalPromotionConf{};
+    } else if (name == "PrintModule") {
+      pass = new PrintModuleConf{};
     } else if (name == "ArgPromotion") {
       pass = new ArgPromotionConf{};
     } else if (name == "GDCE") {

@@ -137,7 +137,7 @@ allow_builtins = false
 [pass.fir.IPCP]
 [pass.fir.FunctionDedupSame]
 [pass.fir.FunctionDedupDiff]
-# [pass.PrintModule]
+[pass.fir.PrintModule]
 # [pass.VerifyModule]
 
 #func

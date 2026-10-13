@@ -42,6 +42,7 @@
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/global_promotion.hpp"
 #include "optim/module_passes/inline.hpp"
+#include "optim/module_passes/print_module.hpp"
 #include "utils/arena.hpp"
 
 namespace foptim::conf {
@@ -378,6 +379,12 @@ struct FuncPropAnnotatorConf : public ModulePassConf<FuncPropAnnotatorConf> {
 struct GlobalPromotionConf : public ModulePassConf<GlobalPromotionConf> {
   static constexpr const char *BaseName = "GlobalPromotion";
   using Pass = optim::GlobalPromotion;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_module_pass(Pass & /*unused*/) {};
+};
+struct PrintModuleConf : public ModulePassConf<PrintModuleConf> {
+  static constexpr const char *BaseName = "PrintModule";
+  using Pass = optim::PrintModule;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_module_pass(Pass & /*unused*/) {};
 };

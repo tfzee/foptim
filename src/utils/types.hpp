@@ -56,6 +56,7 @@ struct ConstantValue;
 class ConstantValueR;
 class Attribute;
 class Use;
+struct Global;
 struct IRLocation;
 class Context;
 struct ContextData;

@@ -70,3 +70,11 @@ fmt::appender fmt::formatter<foptim::fir::GlobalData>::format(
   }
   return app;
 }
+
+fmt::appender fmt::formatter<foptim::fir::Global>::format(
+    foptim::fir::Global const &v, format_context &ctx) const {
+  if (!v.is_valid()) {
+    return fmt::format_to(ctx.out(), "INVALID");
+  }
+  return fmt::format_to(ctx.out(), "{}", **v.get_raw_ptr());
+}

@@ -141,6 +141,13 @@ public:
 };
 
 template <>
+class fmt::formatter<foptim::fir::Global>
+    : public BaseIRFormatter<foptim::fir::Global> {
+public:
+  appender format(foptim::fir::Global const &v, format_context &ctx) const;
+};
+
+template <>
 class fmt::formatter<foptim::fir::ConstantValueR>
     : public BaseIRFormatter<foptim::fir::ConstantValueR> {
 public:
