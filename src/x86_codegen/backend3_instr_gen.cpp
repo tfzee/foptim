@@ -555,7 +555,7 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       u64 off = 0;
       auto real_arg = req.operands[0];
       auto size = get_size(instr.args[0].ty);
-      ASSERT(size == 4 || size == 8 || size == 32);
+      ASSERT(size == 4 || size == 8 || size == 16 || size == 32);
       req.mnemonic = ZYDIS_MNEMONIC_SUB;
       req.operand_count = 2;
       req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
@@ -564,7 +564,7 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       req.operands[1].imm.u = std::max(size, 8U);
       off = emit(out_buff, off, &req);
 
-      if (size == 32) {
+      if (size == 32 || size == 16) {
         req.mnemonic = ZYDIS_MNEMONIC_VMOVUPD;
       } else if (size == 8) {
         req.mnemonic = ZYDIS_MNEMONIC_MOVSD;
@@ -662,9 +662,9 @@ size_t emit_gbase(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       u64 off = 0;
       auto real_arg = req.operands[0];
       auto size = get_size(instr.args[0].ty);
-      ASSERT(size == 4 || size == 8 || size == 32)
+      ASSERT(size == 4 || size == 8 || size == 16 || size == 32)
 
-      if (size == 32) {
+      if (size == 32 || size == 16) {
         req.mnemonic = ZYDIS_MNEMONIC_VMOVUPD;
       } else if (size == 8) {
         req.mnemonic = ZYDIS_MNEMONIC_MOVSD;
