@@ -48,6 +48,142 @@ public:
            offset + size <= glob->n_bytes;
   }
 
+  // defined outside of the loop or a constant
+  static bool defined_outside(const CFG &cfg, const LoopInfo &info,
+                              fir::ValueR v) {
+    fir::BasicBlock vbb{fir::BasicBlock::invalid()};
+    if (v.is_instr()) {
+      vbb = v.as_instr()->get_parent();
+    } else if (v.is_bb_arg()) {
+      vbb = v.as_bb_arg()->get_parent();
+    } else {
+      return true;
+    }
+    return std::ranges::find(info.body_nodes, cfg.get_bb_id(vbb)) ==
+           info.body_nodes.end();
+  }
+
+  // (x op c1) op c2 with invariant c1 and c2 becomes x op (c1 op c2) so the
+  // inner operation can leave the loop. Returns whether anything changed.
+  bool reassociate(const CFG &cfg, const LoopInfo &info,
+                   fir::BasicBlock pre_header) {
+    using ST = fir::BinaryInstrSubType;
+    auto is_assoc = [](ST t) {
+      return t == ST::IntAdd || t == ST::IntMul || t == ST::And ||
+             t == ST::Or || t == ST::Xor;
+    };
+    bool modified = false;
+    TVec<fir::Instr> candidates;
+    for (auto bb : info.body_nodes) {
+      for (auto instr : cfg.bbrs[bb].bb->instructions) {
+        if (instr->is(fir::InstrType::BinaryInstr)) {
+          candidates.push_back(instr);
+        }
+      }
+    }
+    for (auto instr : candidates) {
+      const auto t = static_cast<ST>(instr->subtype);
+      if (!is_assoc(t) && t != ST::IntSub) {
+        continue;
+      }
+      if (!instr->get_type()->is_int()) {
+        continue;
+      }
+      // outer operands: j is the inner instruction, c the invariant side
+      fir::ValueR c;
+      fir::ValueR jv;
+      bool j_is_lhs = true;
+      if (defined_outside(cfg, info, instr->args[1]) &&
+          !defined_outside(cfg, info, instr->args[0])) {
+        jv = instr->args[0];
+        c = instr->args[1];
+      } else if (t != ST::IntSub && defined_outside(cfg, info, instr->args[0]) &&
+                 !defined_outside(cfg, info, instr->args[1])) {
+        jv = instr->args[1];
+        c = instr->args[0];
+        j_is_lhs = false;
+      } else {
+        continue;
+      }
+      if (!jv.is_instr() || jv.as_instr()->get_n_uses() != 1 ||
+          !jv.as_instr()->is(fir::InstrType::BinaryInstr) ||
+          jv.as_instr()->get_type() != instr->get_type()) {
+        continue;
+      }
+      auto j = jv.as_instr();
+      const auto jt = static_cast<ST>(j->subtype);
+      if (!is_assoc(jt) && jt != ST::IntSub) {
+        continue;
+      }
+      // k is the variant operand of j, d the invariant one
+      fir::ValueR k;
+      fir::ValueR d;
+      bool d_is_rhs = true;
+      if (defined_outside(cfg, info, j->args[1]) &&
+          !defined_outside(cfg, info, j->args[0])) {
+        k = j->args[0];
+        d = j->args[1];
+      } else if (jt != ST::IntSub && defined_outside(cfg, info, j->args[0]) &&
+                 !defined_outside(cfg, info, j->args[1])) {
+        k = j->args[1];
+        d = j->args[0];
+      } else {
+        continue;
+      }
+      (void)d_is_rhs;
+      // result = k (+|-) merged, merged is built from d and c
+      ST outer;
+      ST merge;
+      fir::ValueR ma;
+      fir::ValueR mb;
+      if (t == jt && t != ST::IntSub) {
+        outer = t;
+        merge = t;
+        ma = d;
+        mb = c;
+      } else if (t == ST::IntSub && jt == ST::IntSub) {
+        // (k - d) - c = k - (d + c)
+        outer = ST::IntSub;
+        merge = ST::IntAdd;
+        ma = d;
+        mb = c;
+      } else if (t == ST::IntAdd && jt == ST::IntSub && j_is_lhs == false) {
+        // c + (k - d) = k + (c - d)
+        outer = ST::IntAdd;
+        merge = ST::IntSub;
+        ma = c;
+        mb = d;
+      } else if (t == ST::IntAdd && jt == ST::IntSub) {
+        outer = ST::IntAdd;
+        merge = ST::IntSub;
+        ma = c;
+        mb = d;
+      } else if (t == ST::IntSub && jt == ST::IntAdd) {
+        // (k + d) - c = k + (d - c)
+        outer = ST::IntAdd;
+        merge = ST::IntSub;
+        ma = d;
+        mb = c;
+      } else {
+        continue;
+      }
+      // j = d - k (invariant minus variant) is not handled above
+      if (jt == ST::IntSub && j->args[0] != k) {
+        continue;
+      }
+      fir::Builder pb{pre_header};
+      pb.at_penultimate(pre_header);
+      auto merged = pb.build_binary_op(ma, mb, merge);
+      fir::Builder ib{instr};
+      auto res = ib.build_binary_op(k, merged, outer);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      j.destroy();
+      modified = true;
+    }
+    return modified;
+  }
+
   // returns whether anything was hoisted
   bool apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
              LoopInfo &info) {
@@ -77,6 +213,8 @@ public:
                .loc = cfg.bbrs[info.head].bb});
       return false;
     }
+
+    const bool reassociated = reassociate(cfg, info, pre_header);
 
     std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
     TVec<fir::ValueR> invariant;
@@ -141,7 +279,7 @@ public:
       }
     }
     if (invariant.empty()) {
-      return false;
+      return reassociated;
     }
 
     fir::Builder bb{pre_header};

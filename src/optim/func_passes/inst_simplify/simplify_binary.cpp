@@ -806,6 +806,19 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
       }
     }
 
+    // the zero extended bits are all shifted out
+    if (instr->is(fir::BinaryInstrSubType::Shr) && instr->args[0].is_instr() &&
+        instr->args[0].as_instr()->is(fir::InstrType::ZExt) &&
+        instr->args[1].is_constant_int() &&
+        instr->args[1].as_constant()->as_int() >=
+            instr->args[0].as_instr()->args[0].get_type()->get_bitwidth()) {
+      auto zero = fir::ValueR{ctx->get_constant_value(0, instr->get_type())};
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(zero);
+      instr.destroy();
+      return true;
+    }
+
     if ((instr->is(fir::BinaryInstrSubType::Shl) ||
          instr->is(fir::BinaryInstrSubType::Shr) ||
          instr->is(fir::BinaryInstrSubType::AShr)) &&

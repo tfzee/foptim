@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <limits>
 
 #include "../function_pass.hpp"
@@ -51,6 +52,120 @@ class SORA final : public FunctionPass {
       break;
     }
     return {UseRes{.offset = 0, .access_size = 0, .user = use}};
+  }
+
+  // Splits wide integer loads/stores of a non escaping alloca into the pieces
+  // that other accesses of the alloca use, so the alloca can be split later.
+  // Returns whether anything was split.
+  bool split_wide_accesses(fir::Context &ctx, fir::Instr alloca) {
+    struct Acc {
+      fir::Instr instr;
+      u64 off;
+      u64 size;
+    };
+    TVec<Acc> accs;
+    for (auto use : alloca->uses) {
+      for (auto v : handle_use(use)) {
+        if (v.access_size == 0) {
+          return false;
+        }
+        accs.push_back({v.user.user, v.offset, v.access_size});
+      }
+    }
+    if (accs.size() < 3) {
+      return false;
+    }
+    bool modified = false;
+    for (auto &w : accs) {
+      auto wty = w.instr->get_type();
+      if (!wty->is_int() || w.size < 2 || w.size > 8 ||
+          wty->get_bitwidth() % 8 != 0 || w.instr->Volatile ||
+          w.instr->Atomic) {
+        continue;
+      }
+      // cut points inside w, every overlapping access has to be inside
+      TVec<u64> cuts{0, w.size};
+      bool ok = true;
+      bool any_inside = false;
+      for (auto &o : accs) {
+        if (&o == &w || o.off + o.size <= w.off || w.off + w.size <= o.off) {
+          continue;
+        }
+        if (o.off < w.off || o.off + o.size > w.off + w.size) {
+          ok = false;
+          break;
+        }
+        if (o.size != w.size) {
+          any_inside = true;
+          cuts.push_back(o.off - w.off);
+          cuts.push_back(o.off - w.off + o.size);
+        }
+      }
+      if (!ok || !any_inside) {
+        continue;
+      }
+      std::ranges::sort(cuts);
+      cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+      for (size_t i = 0; i + 1 < cuts.size() && ok; i++) {
+        auto len = cuts[i + 1] - cuts[i];
+        ok = len == 1 || len == 2 || len == 4 || len == 8;
+      }
+      if (!ok) {
+        continue;
+      }
+      fir::Builder b{w.instr};
+      auto piece_ptr = [&](u64 rel) {
+        if (rel == 0) {
+          return w.instr->args[0];
+        }
+        return b.build_binary_op(
+            w.instr->args[0], fir::ValueR{ctx->get_constant_int(rel, 64)},
+            fir::BinaryInstrSubType::PtrAdd);
+      };
+      if (w.instr->is(fir::InstrType::StoreInstr)) {
+        for (size_t i = 0; i + 1 < cuts.size(); i++) {
+          auto len = cuts[i + 1] - cuts[i];
+          fir::ValueR v = w.instr->args[1];
+          if (cuts[i] != 0) {
+            v = b.build_binary_op(
+                v,
+                fir::ValueR{ctx->get_constant_int(cuts[i] * 8,
+                                                  wty->get_bitwidth())},
+                fir::BinaryInstrSubType::Shr);
+          }
+          if (len != w.size) {
+            v = b.build_itrunc(v, ctx->get_int_type(len * 8));
+          }
+          b.build_store(piece_ptr(cuts[i]), v, false, false);
+        }
+      } else if (w.instr->is(fir::InstrType::LoadInstr)) {
+        fir::ValueR res;
+        for (size_t i = 0; i + 1 < cuts.size(); i++) {
+          auto len = cuts[i + 1] - cuts[i];
+          fir::ValueR v =
+              b.build_load(ctx->get_int_type(len * 8), piece_ptr(cuts[i]), false, false);
+          if (len != w.size) {
+            v = b.build_zext(v, wty);
+          }
+          if (cuts[i] != 0) {
+            v = b.build_binary_op(
+                v,
+                fir::ValueR{ctx->get_constant_int(cuts[i] * 8,
+                                                  wty->get_bitwidth())},
+                fir::BinaryInstrSubType::Shl);
+          }
+          res = i == 0 ? v
+                       : b.build_binary_op(res, v, fir::BinaryInstrSubType::Or);
+        }
+        w.instr->replace_all_uses(res);
+      } else {
+        continue;
+      }
+      w.instr.destroy();
+      // the use lists changed, the caller redoes the analysis
+      return true;
+    }
+    return modified;
   }
 
   // returns whether the alloca got split
@@ -153,6 +268,9 @@ public:
     bool modified = false;
     for (auto instr : entry->instructions) {
       if (instr->is(fir::InstrType::AllocaInstr)) {
+        while (split_wide_accesses(ctx, instr)) {
+          modified = true;
+        }
         modified |= apply(ctx, instr);
       }
     }
