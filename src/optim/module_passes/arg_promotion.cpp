@@ -60,7 +60,8 @@ bool ArgPromotion::are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
   return false;
 }
 
-bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx,
+bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
+                                               fir::Context &ctx,
                                                AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
   if (!func_ty.return_type->is_struct()) {
@@ -155,7 +156,8 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func, fir::Context
   return true;
 }
 
-bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx,
+bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
+                                                fir::Context &ctx,
                                                 AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
   auto n_args_original = func_ty.arg_types.size();
@@ -228,7 +230,8 @@ bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func, fir::Contex
   return false;
 }
 
-bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func, fir::Context &ctx,
+bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
+                                               fir::Context &ctx,
                                                AnalysisManager &analyMan) {
   if (!func->func_ty->as_func().return_type->is_ptr()) {
     return false;
@@ -360,7 +363,8 @@ bool ArgPromotion::all_exits_are_dominated(const CFG &cfg,
   return true;
 }
 
-bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func, fir::Context &ctx,
+bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
+                                             fir::Context &ctx,
                                              AnalysisManager &analyMan) {
   CFG cfg{*func.func};
   Dominators dom{cfg};

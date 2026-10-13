@@ -110,6 +110,12 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
     fir::ConstantValueR consti =
         fir::ConstantValueR(fir::ConstantValueR::invalid());
     for (auto use : func.func->get_uses()) {
+      // recursive case
+      if (use.user->get_parent()->get_parent() == func.func &&
+          use.user->args[i].is_bb_arg() &&
+          use.user->args[i].as_bb_arg() == entry_block->args[i - 1]) {
+        continue;
+      }
       if (!use.user->args[i].is_constant()) {
         can_convert = false;
         break;
@@ -120,6 +126,11 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
         break;
       }
       consti = new_const;
+    }
+
+    // only recursive calls pass the argument on, nothing to propagate
+    if (!consti.is_valid()) {
+      can_convert = false;
     }
 
     if (can_convert) {
@@ -136,7 +147,7 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
         use.user.remove_arg(i, true);
         // use.user->args.erase(use.user->args.begin() + i);
       }
-      arg_tys.erase(arg_tys.begin() + (i - 1));
+      arg_tys.erase(arg_tys.begin() + static_cast<i64>(i - 1));
       // fmt::println("{:cd}", *func.func);
       modified = true;
     }
