@@ -93,6 +93,127 @@ bool eql_instr_expr(fir::Instr a, fir::Instr b) {
   return false;
 }
 
+
+struct PtrOff {
+  fir::ValueR base;
+  i64 off;
+};
+
+PtrOff decompose_ptr(fir::ValueR ptr) {
+  if (ptr.is_instr()) {
+    auto in = ptr.as_instr();
+    if (in->is(fir::BinaryInstrSubType::PtrAdd) &&
+        in->args[1].is_constant_int()) {
+      return {in->args[0],
+              static_cast<i64>(in->args[1].as_constant()->as_int())};
+    }
+  }
+  return {ptr, 0};
+}
+
+// Rebuilds an integer load from earlier integer stores into the same object
+// that are narrower than the load (they tile it) or wider than it (it is a
+// slice). Little endian byte order.
+bool forward_int_load_partial(fir::BasicBlock bb, fir::Instr load,
+                              AliasAnalyis &aa) {
+  constexpr size_t MaxScan = 128;
+  auto lty = load->get_type();
+  if (!lty->is_int() || load->Volatile || lty->get_bitwidth() % 8 != 0 ||
+      lty->get_bitwidth() > 64) {
+    return false;
+  }
+  auto *ctx = bb->get_parent()->ctx;
+  const i64 lsize = lty->get_bitwidth() / 8;
+  const auto lp = decompose_ptr(load->args[0]);
+  const u64 full = (1ULL << lsize) - 1;
+  struct Piece {
+    fir::Instr store;
+    i64 off;
+  };
+  TVec<Piece> pieces;
+  u64 mask = 0;
+  const size_t pos = bb->get_instr_id(load);
+  size_t scanned = 0;
+  for (size_t k = pos; k-- > 0 && scanned < MaxScan; scanned++) {
+    auto s = bb->instructions[k];
+    if (s->is(fir::InstrType::StoreInstr)) {
+      auto sty = s->get_type();
+      if (s->Volatile) {
+        return false;
+      }
+      const auto sp = decompose_ptr(s->args[0]);
+      if (sp.base != lp.base) {
+        if (aa.alias(s->args[0], load->args[0], sty->get_size(), lsize) !=
+            AliasAnalyis::AAResult::NoAlias) {
+          return false;
+        }
+        continue;
+      }
+      const i64 ssize = sty->get_size();
+      if (sp.off + ssize <= lp.off || lp.off + lsize <= sp.off) {
+        continue;
+      }
+      if (!sty->is_int() || sty->get_bitwidth() % 8 != 0) {
+        return false;
+      }
+      if (sp.off <= lp.off && lp.off + lsize <= sp.off + ssize) {
+        if (mask != 0) {
+          return false;
+        }
+        fir::Builder buh{load};
+        fir::ValueR v = s->args[1];
+        if (sp.off != lp.off) {
+          v = buh.build_binary_op(
+              v,
+              fir::ValueR{ctx->get_constant_int((lp.off - sp.off) * 8,
+                                                sty->get_bitwidth())},
+              fir::BinaryInstrSubType::Shr);
+        }
+        if (sty->get_bitwidth() != lty->get_bitwidth()) {
+          v = buh.build_itrunc(v, lty);
+        }
+        load->replace_all_uses(v);
+        load.destroy();
+        return true;
+      }
+      if (sp.off < lp.off || sp.off + ssize > lp.off + lsize) {
+        return false;
+      }
+      const u64 bits = ((1ULL << ssize) - 1)
+                       << (sp.off - lp.off);
+      if ((mask & bits) != 0) {
+        return false;
+      }
+      mask |= bits;
+      pieces.push_back({s, sp.off - lp.off});
+      if (mask == full) {
+        break;
+      }
+    } else if (s->pot_modifies_mem()) {
+      return false;
+    }
+  }
+  if (mask != full || pieces.size() < 2) {
+    return false;
+  }
+  fir::Builder buh{load};
+  fir::ValueR res;
+  bool first = true;
+  for (auto &p : pieces) {
+    fir::ValueR v = buh.build_zext(p.store->args[1], lty);
+    if (p.off != 0) {
+      v = buh.build_binary_op(
+          v, fir::ValueR{ctx->get_constant_int(p.off * 8, lty->get_bitwidth())},
+          fir::BinaryInstrSubType::Shl);
+    }
+    res = first ? v : buh.build_binary_op(res, v, fir::BinaryInstrSubType::Or);
+    first = false;
+  }
+  load->replace_all_uses(res);
+  load.destroy();
+  return true;
+}
+
 bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
                const Dominators &dom) {
   auto bb_id = cfg.get_bb_id(bb);
@@ -593,6 +714,16 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
         }
       }
     }
+  }
+  // loads that are only partially covered by earlier stores
+  TVec<fir::Instr> loads;
+  for (auto in : bb->instructions) {
+    if (in->is(fir::InstrType::LoadInstr)) {
+      loads.push_back(in);
+    }
+  }
+  for (auto ld : loads) {
+    modified |= forward_int_load_partial(bb, ld, aa);
   }
   return modified;
 }
