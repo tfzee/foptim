@@ -2,8 +2,8 @@
 
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/access_analysis.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/helper/helper.hpp"
 
@@ -43,6 +43,42 @@ static bool delete_useless_memcpy(fir::Instr instr) {
       copy_len.as_constant()->as_int() *
           static_cast<i128>(instr->memcpy_elem_size())) {
     return false;
+  }
+  auto bb = instr->get_parent();
+  const size_t copy_pos = bb->get_instr_id(instr);
+  size_t last_read = copy_pos;
+  auto block_local_reads = [&](auto &&self, fir::ValueR ptr) -> bool {
+    for (auto u : *ptr.get_uses()) {
+      if (u.user == instr && u.argId == 0) {
+        continue;
+      }
+      if (u.user->get_parent() != bb) {
+        return false;
+      }
+      const size_t pos = bb->get_instr_id(u.user);
+      if (pos < copy_pos) {
+        return false;
+      }
+      last_read = std::max(last_read, pos);
+      if (u.user->is(fir::InstrType::LoadInstr) && u.argId == 0) {
+        continue;
+      }
+      if (u.user->is(fir::BinaryInstrSubType::PtrAdd) && u.argId == 0 &&
+          self(self, fir::ValueR{u.user})) {
+        continue;
+      }
+      return false;
+    }
+    return true;
+  };
+  if (!block_local_reads(block_local_reads, fir::ValueR{target_ptr_instr})) {
+    return false;
+  }
+  for (size_t i = copy_pos + 1; i < last_read; i++) {
+    auto between = bb->instructions[i];
+    if (between->pot_modifies_mem() || between->has_pot_sideeffects()) {
+      return false;
+    }
   }
   for (auto u : target_ptr_instr->get_uses()) {
     if (u.user == instr && u.argId == 0) {
@@ -185,10 +221,8 @@ static bool simplify_memset(fir::Instr instr, fir::Context &ctx) {
           splat = (splat << 8) | 1;
         }
         auto wide = b.build_zext(value, ctx->get_int_type(len * 8));
-        chunk = b.build_int_mul(
-            wide,
-            fir::ValueR{
-                ctx->get_constant_value(splat, ctx->get_int_type(len * 8))});
+        chunk = b.build_int_mul(wide, fir::ValueR{ctx->get_constant_value(
+                                          splat, ctx->get_int_type(len * 8))});
       }
     }
     b.build_store(offset_ptr(ctx, b, dst_ptr, off), chunk, false,
@@ -209,10 +243,10 @@ static bool simplify_memmove(fir::Instr instr, fir::Context &ctx,
   auto dst_ptr = instr->args[0];
   auto src_ptr = instr->args[1];
   const bool const_count = instr->args[2].is_constant_int();
-  const i128 size =
-      const_count ? instr->args[2].as_constant()->as_int() *
-                        static_cast<i128>(instr->memcpy_elem_size())
-                  : 0;
+  const i128 size = const_count
+                        ? instr->args[2].as_constant()->as_int() *
+                              static_cast<i128>(instr->memcpy_elem_size())
+                        : 0;
   if ((const_count && size == 0) || dst_ptr == src_ptr) {
     instr.destroy();
     return true;
@@ -242,8 +276,9 @@ static bool simplify_memmove(fir::Instr instr, fir::Context &ctx,
     fir::TypeR ty = len == 32   ? ctx->get_vec_type(ctx->get_int_type(64), 4)
                     : len == 16 ? ctx->get_vec_type(ctx->get_int_type(64), 2)
                                 : ctx->get_int_type(len * 8);
-    chunks.push_back({off, ty, b.build_load(ty, offset_ptr(ctx, b, src_ptr, off),
-                                            false, false)});
+    chunks.push_back(
+        {off, ty,
+         b.build_load(ty, offset_ptr(ctx, b, src_ptr, off), false, false)});
     off += len;
   }
   for (auto &c : chunks) {
@@ -273,8 +308,10 @@ static bool simplify_memcmp(fir::Instr instr, fir::Context &ctx) {
   const i128 size = count.as_constant()->as_int();
   fir::Builder bld{instr};
   if (size == 1) {
-    auto la = bld.build_zext(bld.build_load(ctx->get_int_type(8), a, false, false), i32_ty);
-    auto lb = bld.build_zext(bld.build_load(ctx->get_int_type(8), b, false, false), i32_ty);
+    auto la = bld.build_zext(
+        bld.build_load(ctx->get_int_type(8), a, false, false), i32_ty);
+    auto lb = bld.build_zext(
+        bld.build_load(ctx->get_int_type(8), b, false, false), i32_ty);
     instr->replace_all_uses(bld.build_int_sub(la, lb));
     instr.destroy();
     return true;
@@ -283,12 +320,11 @@ static bool simplify_memcmp(fir::Instr instr, fir::Context &ctx) {
     return false;
   }
   for (auto u : instr->uses) {
-    const bool eq_zero_cmp =
-        u.user->is(fir::InstrType::ICmp) && u.argId == 0 &&
-        (u.user->is(fir::ICmpInstrSubType::EQ) ||
-         u.user->is(fir::ICmpInstrSubType::NE)) &&
-        u.user->args[1].is_constant_int() &&
-        u.user->args[1].as_constant()->as_int() == 0;
+    const bool eq_zero_cmp = u.user->is(fir::InstrType::ICmp) && u.argId == 0 &&
+                             (u.user->is(fir::ICmpInstrSubType::EQ) ||
+                              u.user->is(fir::ICmpInstrSubType::NE)) &&
+                             u.user->args[1].is_constant_int() &&
+                             u.user->args[1].as_constant()->as_int() == 0;
     if (!eq_zero_cmp) {
       return false;
     }
@@ -299,7 +335,8 @@ static bool simplify_memcmp(fir::Instr instr, fir::Context &ctx) {
     auto ty = ctx->get_int_type(len * 8);
     auto la = bld.build_load(ty, offset_ptr(ctx, bld, a, off), false, false);
     auto lb = bld.build_load(ty, offset_ptr(ctx, bld, b, off), false, false);
-    fir::ValueR diff = bld.build_binary_op(la, lb, fir::BinaryInstrSubType::Xor);
+    fir::ValueR diff =
+        bld.build_binary_op(la, lb, fir::BinaryInstrSubType::Xor);
     acc = acc ? bld.build_binary_op(*acc, diff, fir::BinaryInstrSubType::Or)
               : diff;
   };
@@ -322,7 +359,8 @@ static bool simplify_memcmp(fir::Instr instr, fir::Context &ctx) {
   }
   // all chunks have the same width
   auto differs = bld.build_int_cmp(
-      *acc, fir::ValueR{ctx->get_constant_int(0, acc->get_type()->get_bitwidth())},
+      *acc,
+      fir::ValueR{ctx->get_constant_int(0, acc->get_type()->get_bitwidth())},
       fir::ICmpInstrSubType::NE);
   instr->replace_all_uses(bld.build_zext(differs, i32_ty));
   instr.destroy();
@@ -346,7 +384,8 @@ static bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   return false;
 }
 
-PreservedAnalysis IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis IntrinSimplify::apply(fir::Context &ctx,
+                                        fir::Function &func) {
   ZoneScopedNC("IntrinSimplify", COLOR_OPTIMF);
 
   bool modified = false;
