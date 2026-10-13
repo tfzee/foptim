@@ -12,6 +12,20 @@
 #include <fmt/base.h>
 namespace foptim::optim {
 
+namespace {
+// The loops are do while loops so they need a skip when the count can be 0.
+fir::Instr guarded_entry(fir::Builder &buh, fir::ContextData *ctx, fir::ValueR num,
+                         fir::BasicBlock loop_bb, fir::BasicBlock skip_bb) {
+  if (num.is_constant_int() && num.as_constant()->as_int() != 0) {
+    return buh.build_branch(loop_bb);
+  }
+  auto not_empty = buh.build_int_cmp(
+      num, fir::ValueR{ctx->get_constant_int(0, 64)},
+      fir::ICmpInstrSubType::NE);
+  return buh.build_cond_branch(not_empty, loop_bb, skip_bb);
+}
+} // namespace
+
 std::optional<fir::BasicBlock> IntrinExpand::expand_memset(fir::Function &func,
                                                            fir::BasicBlock bb,
                                                            fir::Instr instr) {
@@ -34,7 +48,7 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memset(fir::Function &func,
   auto curr_off = fir::ValueR{loop_bb.add_arg(
       ctx->storage.insert_bb_arg(loop_bb, ctx->get_int_type(64)))};
   buh.at_end(bb);
-  auto b = buh.build_branch(loop_bb);
+  auto b = guarded_entry(buh, ctx, num, loop_bb, new_block);
   b.add_bb_arg(0, ptr);
   b.add_bb_arg(0, fir::ValueR{ctx->get_constant_int(0, 64)});
   buh.at_end(loop_bb);
@@ -80,7 +94,7 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memcpy(fir::Function &func,
   auto curr_off = fir::ValueR{loop_bb.add_arg(
       ctx->storage.insert_bb_arg(loop_bb, ctx->get_int_type(64)))};
   buh.at_end(bb);
-  auto b = buh.build_branch(loop_bb);
+  auto b = guarded_entry(buh, ctx, num, loop_bb, new_block);
   b.add_bb_arg(0, dst);
   b.add_bb_arg(0, src);
   b.add_bb_arg(0, fir::ValueR{ctx->get_constant_int(0, 64)});

@@ -38,7 +38,9 @@ public:
           r = expand_memcpy(func, *bb_iter, i);
         }
         if (r) {
-          bb_iter = std::ranges::find(func.basic_blocks, r);
+          // blocks were appended, the old iterator is gone and the tail of
+          // the split block can hold more intrinsics
+          bb_iter = func.basic_blocks.begin();
           modified = true;
           broke = true;
           break;
