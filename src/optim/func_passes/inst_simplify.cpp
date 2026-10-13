@@ -39,6 +39,11 @@ namespace {
 //  then we can use this to just create a load of the type y
 bool load_into_conversion_simpl(fir::Instr instr, fir::Instr a0,
                                 WorkList &worklist) {
+  // a gather has one pointer per lane, a load of another type would change
+  // the number of lanes read
+  if (a0->args[0].get_type()->is_vec()) {
+    return false;
+  }
   if (a0->get_n_uses() == 1 || (!a0->Volatile && !a0->Atomic)) {
     // the new load replaces the old one, so it has to read the memory at the
     // old loads position (a store to the address may sit between it and the

@@ -260,7 +260,8 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               modified = true;
               continue;
             }
-            if (t1->is_vec() && !t2->is_vec()) {
+            if (t1->is_vec() && !t2->is_vec() &&
+                t1->as_vec().bitwidth == t2->get_bitwidth()) {
               fir::Builder buh{instr2};
               auto *ctx = instr->get_parent()->get_parent()->ctx;
               std::array<fir::ValueR, 1> indicies(
@@ -283,6 +284,30 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
                   fir::ValueR{cfg.func->ctx->get_constant_int(0, 32)},
               };
               auto res = buh.build_extract_value(instr->args[1], index0, t2);
+              instr2->replace_all_uses(res);
+              instr2.destroy();
+              i2--;
+              modified = true;
+              continue;
+            }
+            // narrower than the vector but wider than a lane, the low bytes
+            // are lane 0 of the vector reinterpreted with lanes of that width
+            if (t1->is_vec() && (t2->is_int() || t2->is_float()) &&
+                t2->get_bitwidth() > t1->as_vec().bitwidth &&
+                t2->get_bitwidth() < t1->get_bitwidth() &&
+                t1->get_bitwidth() % t2->get_bitwidth() == 0) {
+              auto *ctx = cfg.func->ctx;
+              auto lane_kind = t2->is_float()
+                                   ? fir::VectorType::SubType::Floating
+                                   : fir::VectorType::SubType::Integer;
+              auto cast_ty = ctx->get_vec_type(
+                  lane_kind, t2->get_bitwidth(),
+                  t1->get_bitwidth() / t2->get_bitwidth());
+              fir::Builder buh{instr2};
+              auto casted = buh.build_conversion_op(
+                  instr->args[1], cast_ty, fir::ConversionSubType::BitCast);
+              fir::ValueR index0[1] = {fir::ValueR{ctx->get_constant_int(0, 32)}};
+              auto res = buh.build_extract_value(casted, index0, t2);
               instr2->replace_all_uses(res);
               instr2.destroy();
               i2--;
