@@ -347,27 +347,34 @@ ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
 
   // integer vector to integer vector with other lane width (little endian)
   if (is_vec() && old_ty->is_vec() && target_type->is_vec() &&
-      old_ty->get_bitwidth() <= 128) {
+      old_ty->get_bitwidth() <= 512) {
     const auto src = old_ty->as_vec();
     const auto target = target_type->as_vec();
     bool all_int = src.type == VectorType::SubType::Integer &&
-                   target.type == VectorType::SubType::Integer;
+                   target.type == VectorType::SubType::Integer &&
+                   src.bitwidth % 8 == 0 && target.bitwidth % 8 == 0 &&
+                   target.bitwidth <= 64;
     for (auto m : as_vec().members) {
       all_int = all_int && m->is_int();
     }
     if (all_int) {
-      u128 value = 0;
+      u8 bytes[64] = {};
+      const u32 src_bytes = src.bitwidth / 8;
       for (size_t i = 0; i < as_vec().members.size(); i++) {
-        u128 lane = std::bit_cast<u128>(as_vec().members[i]->as_int()) &
-                    utils::get_mask(src.bitwidth);
-        value |= lane << (i * src.bitwidth);
+        auto lane = std::bit_cast<u128>(as_vec().members[i]->as_int());
+        for (u32 j = 0; j < src_bytes && j < 16; j++) {
+          bytes[i * src_bytes + j] = static_cast<u8>(lane >> (8 * j));
+        }
       }
       IRVec<ConstantValueR> values;
+      const u32 target_bytes = target.bitwidth / 8;
       for (u32 i = 0; i < target.member_number; i++) {
-        i128 curr_val =
-            std::bit_cast<i128>(value & utils::get_mask(target.bitwidth));
-        value = value >> target.bitwidth;
-        values.push_back(ctx->get_constant_int(curr_val, target.bitwidth));
+        u64 lane = 0;
+        for (u32 j = 0; j < target_bytes; j++) {
+          lane |= static_cast<u64>(bytes[i * target_bytes + j]) << (8 * j);
+        }
+        values.push_back(ctx->get_constant_int(static_cast<i128>(lane),
+                                               target.bitwidth));
       }
       return {ctx->get_constant_value(std::move(values), target_type)};
     }

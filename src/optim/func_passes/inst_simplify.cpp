@@ -1484,39 +1484,6 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         TODO("emit unreach");
       }
 
-      // void * memset(void * dest, int c, size_t len)
-      if (funci->name == "memset" && funci->is_decl() &&
-          instr->args.size() == 4 && instr->args[1].get_type()->is_ptr() &&
-          instr->args[2].get_type()->get_bitwidth() == 32 &&
-          instr->args[3].get_type()->get_bitwidth() == 64) {
-        fir::Builder buh{instr};
-        auto new_c = buh.build_itrunc(instr->args[2], ctx->get_int_type(8));
-        auto memset_instr = buh.build_intrinsic(
-            instr->args[1], new_c, instr->args[3],
-            fir::IntrinsicSubType::Memset, ctx->get_void_type());
-        memset_instr.as_instr()->Volatile = instr->Volatile;
-        // memset returns its destination
-        instr->replace_all_uses(instr->args[1]);
-        instr.destroy();
-        return true;
-      }
-      // void * memcpy(void * dest, const void * src, size_t len)
-      if (funci->name == "memcpy" && funci->is_decl() &&
-          instr->args.size() == 4 && instr->args[1].get_type()->is_ptr() &&
-          instr->args[2].get_type()->is_ptr() &&
-          instr->args[3].get_type()->get_bitwidth() == 64) {
-        fir::Builder buh{instr};
-        auto memcpy_instr = buh.build_intrinsic(
-            instr->args[1], instr->args[2], instr->args[3],
-            fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
-        memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
-        memcpy_instr.as_instr()->Volatile = instr->Volatile;
-        // memcpy returns its destination
-        instr->replace_all_uses(instr->args[1]);
-        instr.destroy();
-        return true;
-      }
-
       // NOTE: this current version does not work cause it does not append
       //  printf(lit) -> fputs(lit, stdout)
       //  if (funci->name == "printf" && instr->args.size() == 2 &&
