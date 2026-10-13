@@ -46,9 +46,11 @@ approx_func = false
 
 [pipeline.fir.default_release_early]
 passes = [
-        "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "SORA", "Mem2Reg", "DoubleLoadElim",
+        "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "IntrinSimplify", "SORA", "Mem2Reg", "DoubleLoadElim",
         "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DSE", "DCE",
-        "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler"
+        "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler",
+        "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
+        "SimplifyCFG", "DCE", "IntrinConv",
 ]
 
 [pipeline.fir.default_release_middle]
@@ -67,6 +69,7 @@ passes = [
       "StackKnownBits", "SORA", "Mem2Reg", "SimplifyCFG", "DSE", "DCE",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "GDCE", "IPCP",
       "GlobalPromotion", "Inline", "Inline", "GDCE", "FuncPropAnnotator",
+      "IntrinExpand", "SimplifyCFG", "DCE",
 ]
 
 [pipeline.fir.default_release_late]
@@ -84,10 +87,9 @@ passes = [
       "SimplifyCFG", "LVN", "SCCP", "DCE", "IntrinSimplify", "InstSimplify", "DCE",
       "SLPVectorizer", "InstSimplify", "SimplifyCFG",
       "LegalizeVecs", "SCCP", "LVN", "InstSimplify", "DCE", "LVN", "InstSimplify", "DCE",  
+      "IntrinSimplify", "IntrinExpand", "SimplifyCFG", "DCE",
 ]
 
-# late inlining exposes work that each pass only peels one layer of, so
-# iterate a few times before the final cleanup
 [pipeline.fir.default_release_cleanup_round]
 passes = [
   "InstSimplify", "LVN", "InstSimplify", "SCCP", "SimplifyCFG", "DCE", "LICM", "SORA",
@@ -104,17 +106,10 @@ passes = [
   "SCCP", "LegalizeVecs", "DCE",
 ]
 
-# IntrinConv needs single block do-while loops (LoopRotate, with invariants
-# hoisted by LICM) and has to run before the middle section unrolls them. The
-# backend can not lower the memset/memcpy intrinsics, so IntrinExpand turns the
-# ones that are left back into loops after the middle section.
 [pipeline.fir.default_release]
 passes = [
   "pipeline:default_release_early",
-  "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
-  "SimplifyCFG", "DCE", "IntrinConv",
   "pipeline:default_release_middle",
-  "IntrinExpand", "SimplifyCFG", "DCE",
   "pipeline:default_release_late",
   "pipeline:default_release_cleanup",
 ]
