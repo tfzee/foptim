@@ -1688,7 +1688,10 @@ bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           bool in_bounds = global_v->init_value != nullptr && offset_v >= 0 &&
                            static_cast<u64>(offset_v) + load_size <=
                                global_v->n_bytes;
-          if (!any_reloc_overlap && in_bounds) {
+          // vectors and structs are not folded
+          const bool scalar_ty =
+              res_ty->is_int() || res_ty->is_ptr() || res_ty->is_float();
+          if (!any_reloc_overlap && in_bounds && scalar_ty) {
             auto *data_ptr = &global_v->init_value[offset_v];
             fir::ValueR v;
             if (res_ty->is_int() || res_ty->is_ptr()) {
