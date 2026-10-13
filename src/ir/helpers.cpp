@@ -101,7 +101,8 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to) {
     edge_term.add_bb_arg(0, old_arg);
   }
 
-  bb_term.replace_bb(bb_indx, edge_bb, true);
+  // the arguments now belong to the branch of the new block
+  bb_term.replace_bb(bb_indx, edge_bb, false);
   return edge_bb;
 }
 

@@ -1,4 +1,5 @@
 #include "matcher.hpp"
+#include "ir/helpers.hpp"
 
 #include <algorithm>
 #include <ranges>
@@ -14,6 +15,7 @@
 #include "mir/matcher_helpers.hpp"
 #include "mir/matcher_patterns.hpp"
 #include "mir/reg_alloc.hpp"
+#include "utils/set.hpp"
 #include "utils/tracy.hpp"
 
 namespace foptim::fmir {
@@ -298,8 +300,68 @@ Type convert_type(fir::TypeR type) {
   std::abort();
 }
 
+// The moves for the arguments of the first edge of a conditional branch are
+// emitted in front of the jump, so they also run on the other path. When that
+// path or the condition still reads one of the parameters that are written, the
+// edge gets a block of its own for the moves.
+static void split_cond_branch_edges(fir::Function &func) {
+  const TVec<fir::BasicBlock> blocks(func.basic_blocks.begin(),
+                                     func.basic_blocks.end());
+  for (auto bb : blocks) {
+    auto term = bb->get_terminator();
+    if (!term->is(fir::InstrType::CondBranchInstr) || term->bbs.size() != 2) {
+      continue;
+    }
+    const auto target = term->bbs[0].bb;
+    const auto other = term->bbs[1].bb;
+    if (term->bbs[0].args.empty() || target == other) {
+      continue;
+    }
+
+    // blocks the other path reaches before the target rewrites its parameters
+    TSet<fir::BasicBlock> other_path;
+    TVec<fir::BasicBlock> work = {other};
+    while (!work.empty()) {
+      auto curr = work.back();
+      work.pop_back();
+      if (curr == target || !other_path.insert(curr).second) {
+        continue;
+      }
+      for (const auto &edge : curr->get_terminator()->bbs) {
+        work.push_back(edge.bb);
+      }
+    }
+
+    // the fused compare reads its operands after the moves
+    fir::Instr cond_instr;
+    bool has_cond_instr = false;
+    if (term->args[0].is_instr()) {
+      cond_instr = term->args[0].as_instr();
+      has_cond_instr = true;
+    }
+    bool unsafe = false;
+    for (auto param : target->args) {
+      for (const auto &use : param->uses) {
+        if ((has_cond_instr && use.user == cond_instr) ||
+            other_path.contains(use.user->get_parent())) {
+          unsafe = true;
+        }
+      }
+      for (const auto &arg : term->bbs[1].args) {
+        if (arg.is_bb_arg() && arg.as_bb_arg() == param) {
+          unsafe = true;
+        }
+      }
+    }
+    if (unsafe) {
+      fir::insert_bb_between(bb, target);
+    }
+  }
+}
+
 MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
   ZoneScopedN("Greedy Matcher");
+  split_cond_branch_edges(func);
   MFunc res_func;
   res_func.name = func.name;
   res_func.align = func.attribs.min_align;

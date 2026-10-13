@@ -7,8 +7,8 @@
 
 define void @f(ptr %src, ptr %d1, ptr %d2) {
 ; CHECK: func f
-; CHECK: $xmm0: i64x2 = $ymm0: i64x4
-; ASM: vmovupd xmm0, xmm0
+; CHECK: $xmm0: i64x2 = [$rdi]: i64x2
+; ASM: vmovupd xmm0, xmmword ptr [rdi]
   %v = load <4 x i64>, ptr %src, align 8
   store <4 x i64> %v, ptr %d1, align 8
   %a = load i64, ptr %src, align 8

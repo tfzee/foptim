@@ -2665,6 +2665,12 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
           break;
         case Type::Int64x2:
+          if (res_reg.is_vec_reg()) {
+            res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg,
+                                    res_reg);
+            res.result.emplace_back(X86Subtype::movhlps, res_reg, res_reg, a1);
+            break;
+          }
           res.result.emplace_back(X86Subtype::vpextr, res_reg, a1,
                                   MArgument(static_cast<u8>(1)));
           break;
@@ -2702,12 +2708,12 @@ void base_patterns(IRVec<Pattern> &pats) {
         case Type::Int64x4:
         case Type::Float64x4:
         case Type::Int32x8:
-          res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
-          break;
-        case Type::Float32x2:
         case Type::Float64x2:
         case Type::Int64x2:
         case Type::Int32x4:
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
+          break;
+        case Type::Float32x2:
           fmt::println("{:cd}", extract_instr->args[0].get_type());
           fmt::println("{:cd}", extract_instr);
           TODO("impl");

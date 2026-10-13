@@ -2222,7 +2222,7 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto a1 = instr->args[0].as_instr();
     if (a1->is(fir::VectorISubType::Concat)) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(a1->args[0]);
+      instr->replace_all_uses(a1->args[1]);
       instr.destroy();
       if (a1->get_n_uses() == 0) {
         a1.destroy();
@@ -2235,7 +2235,7 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto a1 = instr->args[0].as_instr();
     if (a1->is(fir::VectorISubType::Concat)) {
       push_all_uses(worklist, instr);
-      instr->replace_all_uses(a1->args[1]);
+      instr->replace_all_uses(a1->args[0]);
       instr.destroy();
       if (a1->get_n_uses() == 0) {
         a1.destroy();
@@ -2282,7 +2282,7 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
         fir::ValueR indicies[1] = {
             fir::ValueR{ctx->get_constant_int(index, 32)}};
         auto new_v =
-            buh.build_extract_value(a1->args[1], indicies, instr->get_type());
+            buh.build_extract_value(a1->args[0], indicies, instr->get_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_v);
         instr.destroy();
@@ -2296,7 +2296,7 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
         fir::ValueR indicies[1] = {
             fir::ValueR{ctx->get_constant_int(index - 2, 32)}};
         auto new_v =
-            buh.build_extract_value(a1->args[0], indicies, instr->get_type());
+            buh.build_extract_value(a1->args[1], indicies, instr->get_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_v);
         instr.destroy();

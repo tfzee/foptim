@@ -281,19 +281,26 @@ bool vstore_vload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   const auto &load_ty = load_instr->get_type();
 
   // TODO: can also forward other cases
-  if (load_ty->get_bitwidth() * 2 == store_ty.get_bitwidth()) {
-    fir::Builder buh{load_instr};
-    auto res = buh.build_vector_op(store_instr->args[1], load_ty,
-                                   fir::VectorISubType::ExtractLow);
-    load_instr->replace_all_uses(res);
-    load_instr.destroy();
-    if (a0->get_n_uses() == 0) {
-      a0.destroy();
-    }
-    return true;
+  if (load_ty->get_bitwidth() * 2 != store_ty.get_bitwidth() ||
+      !a0->is(fir::BinaryInstrSubType::PtrAdd) ||
+      a0->args[0] != store_instr->args[0] || !a0->args[1].is_constant_int()) {
+    return false;
   }
-
-  return false;
+  const auto offset = a0->args[1].as_constant()->as_int();
+  const auto half_bytes = load_ty->get_bitwidth() / 8;
+  if (offset != 0 && offset != half_bytes) {
+    return false;
+  }
+  fir::Builder buh{load_instr};
+  auto res = buh.build_vector_op(store_instr->args[1], load_ty,
+                                 offset == 0 ? fir::VectorISubType::ExtractLow
+                                             : fir::VectorISubType::ExtractHigh);
+  load_instr->replace_all_uses(res);
+  load_instr.destroy();
+  if (a0->get_n_uses() == 0) {
+    a0.destroy();
+  }
+  return true;
 }
 
 bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
