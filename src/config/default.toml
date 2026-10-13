@@ -103,7 +103,7 @@ passes = [
   "pipeline:default_release_cleanup_round", "pipeline:default_release_cleanup_round",
   "MergeAlloca", "EarlySheduler", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
   "InstSimplify", "SimplifyCFG", "DCE", "LegalizeVecs", "InstSimplify",
-  "SCCP", "LegalizeVecs", "DCE",
+  "SCCP", "LegalizeVecs", "DCE", "IntrinLowerCalls",
 ]
 
 [pipeline.fir.default_release]
@@ -170,6 +170,7 @@ assumedTrip = 64
 [pass.fir.DSE]
 [pass.fir.IntrinConv]
 [pass.fir.IntrinExpand]
+[pass.fir.IntrinLowerCalls]
 [pass.fir.LegalizeVecs]
 [pass.fir.PrintFunc]
 name_matching = ""
