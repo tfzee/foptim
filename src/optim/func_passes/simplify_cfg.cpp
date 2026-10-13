@@ -915,6 +915,8 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
       case fir::IntrinsicSubType::IsConstant:
       case fir::IntrinsicSubType::Memset:
       case fir::IntrinsicSubType::Memcpy:
+      case fir::IntrinsicSubType::Memmove:
+      case fir::IntrinsicSubType::Memcmp:
         break;
       }
     case fir::InstrType::VectorInstr:

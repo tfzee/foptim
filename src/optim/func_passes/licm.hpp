@@ -233,6 +233,10 @@ public:
             instr->is_critical()) {
           continue;
         }
+        // other reads (memcmp) are not speculated, they can fault
+        if (instr->pot_reads_mem() && !instr->is(fir::InstrType::LoadInstr)) {
+          continue;
+        }
         if (instr->is(fir::InstrType::LoadInstr)) {
           if (loop_writes_mem || instr->Volatile || instr->Atomic ||
               !is_dereferenceable(instr->get_arg(0),
@@ -248,7 +252,8 @@ public:
       auto instr = worklist.front();
       worklist.pop_front();
       if (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
-          instr->is_critical()) {
+          instr->is_critical() ||
+          (instr->pot_reads_mem() && !instr->is(fir::InstrType::LoadInstr))) {
         continue;
       }
 

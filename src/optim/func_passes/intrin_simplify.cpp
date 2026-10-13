@@ -4,12 +4,15 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/access_analysis.hpp"
+#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
 
 // copies and fills up to this many bytes become plain moves
 constexpr i128 MaxInlineCopy = 64;
+// memcmp compared for (in)equality only up to this many bytes become loads
+constexpr i128 MaxMemcmpEq = 32;
 
 static fir::ValueR offset_ptr(fir::Context &ctx, fir::Builder &b,
                               fir::ValueR base, i128 off) {
@@ -196,12 +199,149 @@ static bool simplify_memset(fir::Instr instr, fir::Context &ctx) {
   return true;
 }
 
-static bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx) {
+// A memmove that provably does not overlap is a memcpy, small ones read
+// everything before they write anything.
+static bool simplify_memmove(fir::Instr instr, fir::Context &ctx,
+                             AliasAnalyis &aa) {
+  if (instr->Volatile) {
+    return false;
+  }
+  auto dst_ptr = instr->args[0];
+  auto src_ptr = instr->args[1];
+  const bool const_count = instr->args[2].is_constant_int();
+  const i128 size =
+      const_count ? instr->args[2].as_constant()->as_int() *
+                        static_cast<i128>(instr->memcpy_elem_size())
+                  : 0;
+  if ((const_count && size == 0) || dst_ptr == src_ptr) {
+    instr.destroy();
+    return true;
+  }
+  const auto aa_size = const_count ? static_cast<u64>(size) : 0;
+  if (aa.alias(dst_ptr, src_ptr, aa_size, aa_size) ==
+      AliasAnalyis::AAResult::NoAlias) {
+    instr->subtype = static_cast<u32>(fir::IntrinsicSubType::Memcpy);
+    return true;
+  }
+  if (!const_count || size > MaxInlineCopy) {
+    return false;
+  }
+  struct Chunk {
+    i128 off;
+    fir::TypeR ty;
+    fir::ValueR val;
+  };
+  fir::Builder b{instr};
+  TVec<Chunk> chunks;
+  i128 off = 0;
+  while (off < size) {
+    i128 len = 32;
+    while (len > size - off) {
+      len /= 2;
+    }
+    fir::TypeR ty = len == 32   ? ctx->get_vec_type(ctx->get_int_type(64), 4)
+                    : len == 16 ? ctx->get_vec_type(ctx->get_int_type(64), 2)
+                                : ctx->get_int_type(len * 8);
+    chunks.push_back({off, ty, b.build_load(ty, offset_ptr(ctx, b, src_ptr, off),
+                                            false, false)});
+    off += len;
+  }
+  for (auto &c : chunks) {
+    b.build_store(offset_ptr(ctx, b, dst_ptr, c.off), c.val, false, false);
+  }
+  instr.destroy();
+  return true;
+}
+
+// Compares of the result against zero only need to know if the bytes differ
+// and the sign of one byte compare is a subtraction.
+static bool simplify_memcmp(fir::Instr instr, fir::Context &ctx) {
+  auto a = instr->args[0];
+  auto b = instr->args[1];
+  auto count = instr->args[2];
+  auto i32_ty = ctx->get_int_type(32);
+  auto zero = fir::ValueR{ctx->get_constant_int(0, 32)};
+  if ((count.is_constant_int() && count.as_constant()->as_int() == 0) ||
+      a == b) {
+    instr->replace_all_uses(zero);
+    instr.destroy();
+    return true;
+  }
+  if (!count.is_constant_int()) {
+    return false;
+  }
+  const i128 size = count.as_constant()->as_int();
+  fir::Builder bld{instr};
+  if (size == 1) {
+    auto la = bld.build_zext(bld.build_load(ctx->get_int_type(8), a, false, false), i32_ty);
+    auto lb = bld.build_zext(bld.build_load(ctx->get_int_type(8), b, false, false), i32_ty);
+    instr->replace_all_uses(bld.build_int_sub(la, lb));
+    instr.destroy();
+    return true;
+  }
+  if (size > MaxMemcmpEq) {
+    return false;
+  }
+  for (auto u : instr->uses) {
+    const bool eq_zero_cmp =
+        u.user->is(fir::InstrType::ICmp) && u.argId == 0 &&
+        (u.user->is(fir::ICmpInstrSubType::EQ) ||
+         u.user->is(fir::ICmpInstrSubType::NE)) &&
+        u.user->args[1].is_constant_int() &&
+        u.user->args[1].as_constant()->as_int() == 0;
+    if (!eq_zero_cmp) {
+      return false;
+    }
+  }
+  // chunks may overlap, this only reads
+  std::optional<fir::ValueR> acc;
+  auto add_chunk = [&](i128 off, i128 len) {
+    auto ty = ctx->get_int_type(len * 8);
+    auto la = bld.build_load(ty, offset_ptr(ctx, bld, a, off), false, false);
+    auto lb = bld.build_load(ty, offset_ptr(ctx, bld, b, off), false, false);
+    fir::ValueR diff = bld.build_binary_op(la, lb, fir::BinaryInstrSubType::Xor);
+    acc = acc ? bld.build_binary_op(*acc, diff, fir::BinaryInstrSubType::Or)
+              : diff;
+  };
+  if (size >= 8) {
+    for (i128 off = 0; off + 8 <= size; off += 8) {
+      add_chunk(off, 8);
+    }
+    if (size % 8 != 0) {
+      add_chunk(size - 8, 8);
+    }
+  } else {
+    i128 len = 1;
+    while (len * 2 <= size) {
+      len *= 2;
+    }
+    add_chunk(0, len);
+    if (len < size) {
+      add_chunk(size - len, len);
+    }
+  }
+  // all chunks have the same width
+  auto differs = bld.build_int_cmp(
+      *acc, fir::ValueR{ctx->get_constant_int(0, acc->get_type()->get_bitwidth())},
+      fir::ICmpInstrSubType::NE);
+  instr->replace_all_uses(bld.build_zext(differs, i32_ty));
+  instr.destroy();
+  return true;
+}
+
+static bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
+                     AliasAnalyis &aa) {
   if (instr->is(fir::IntrinsicSubType::Memcpy)) {
     return simplify_memcpy(instr, bb, ctx);
   }
   if (instr->is(fir::IntrinsicSubType::Memset)) {
     return simplify_memset(instr, ctx);
+  }
+  if (instr->is(fir::IntrinsicSubType::Memmove)) {
+    return simplify_memmove(instr, ctx, aa);
+  }
+  if (instr->is(fir::IntrinsicSubType::Memcmp)) {
+    return simplify_memcmp(instr, ctx);
   }
   return false;
 }
@@ -210,11 +350,12 @@ PreservedAnalysis IntrinSimplify::apply(fir::Context &ctx, fir::Function &func) 
   ZoneScopedNC("IntrinSimplify", COLOR_OPTIMF);
 
   bool modified = false;
+  AliasAnalyis aa;
   for (foptim::fir::BasicBlock bb : func.basic_blocks) {
     auto &instrs = bb->get_instrs();
     for (size_t i = 0; i < instrs.size(); i++) {
       auto instr = instrs[i];
-      modified |= simplify(instr, bb, ctx);
+      modified |= simplify(instr, bb, ctx, aa);
     }
   }
   return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();

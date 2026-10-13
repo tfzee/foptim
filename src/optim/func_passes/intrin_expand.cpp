@@ -118,4 +118,45 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memcpy(fir::Function &func,
   return {new_block};
 }
 
+static bool expand_to_libc_call(fir::Function &func, fir::Instr instr) {
+  const bool is_memmove = instr->is(fir::IntrinsicSubType::Memmove);
+  if (!is_memmove && !instr->is(fir::IntrinsicSubType::Memcmp)) {
+    return false;
+  }
+  auto *ctx = func.ctx;
+  auto callee = ctx->get_function(is_memmove ? "memmove" : "memcmp");
+
+  fir::Builder buh{instr};
+  auto len = instr->args[2];
+  if (is_memmove && instr->memcpy_elem_size() != 1) {
+    len = buh.build_int_mul(
+        len, fir::ValueR{ctx->get_constant_int(instr->memcpy_elem_size(), 64)});
+  }
+  fir::ValueR args[3] = {instr->args[0], instr->args[1], len};
+  auto call = buh.build_call(
+      fir::ValueR{ctx->get_constant_value(callee)}, callee->func_ty,
+      is_memmove ? ctx->get_ptr_type() : ctx->get_int_type(32), args);
+  if (!is_memmove) {
+    instr->replace_all_uses(call);
+  }
+  instr.destroy();
+  return true;
+}
+
+PreservedAnalysis IntrinLowerCalls::apply(fir::Context & /*ctx*/,
+                                          fir::Function &func) {
+  ZoneScopedNC("IntrinLowerCalls", COLOR_OPTIMF);
+  bool modified = false;
+  for (auto bb : func.basic_blocks) {
+    // the instruction is replaced by a call, iterate over a copy
+    const auto instrs = bb->get_instrs();
+    for (auto i : std::vector(instrs.begin(), instrs.end())) {
+      if (i->is(fir::InstrType::Intrinsic)) {
+        modified |= expand_to_libc_call(func, i);
+      }
+    }
+  }
+  return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
+}
+
 } // namespace foptim::optim

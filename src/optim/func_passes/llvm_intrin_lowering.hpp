@@ -15,6 +15,8 @@
 namespace foptim::optim {
 
 class LLVMInstrinsicLowering final : public FunctionPass {
+  bool assume_cstdlib = false;
+
 public:
   void handle_memset(fir::Instr instr, fir::Function &func,
                      fir::FunctionR /*callee*/) {
@@ -252,21 +254,59 @@ public:
     instr.destroy();
   }
 
-  void handle_memmove(fir::Instr instr, fir::Function &funcy,
+  // llvm.memmove(dst, src, len, volatile) becomes the memmove intrinsic with a
+  // byte count
+  void handle_memmove(fir::Instr instr, fir::Function &func,
                       fir::FunctionR /*callee*/) {
+    auto *ctx = func.ctx;
     fir::Builder bb{instr};
-    auto *ctx = funcy.ctx;
-    auto memmove_func = ctx->get_function("memmove");
-    auto ptr_type = ctx->get_ptr_type();
-    auto dst_ptr = instr->args[1];
-    auto src_ptr = instr->args[2];
-    auto len = instr->args[3];
-    fir::ValueR args[3] = {dst_ptr, src_ptr, len};
-
-    bb.build_call(fir::ValueR{ctx->get_constant_value(memmove_func)},
-                  memmove_func->func_ty, ptr_type, args);
+    auto size = instr->args[3];
+    if (size.get_type()->get_bitwidth() < 64) {
+      size = bb.build_zext(size, ctx->get_int_type(64));
+    }
+    auto memmove_instr = bb.build_intrinsic(
+        instr->args[1], instr->args[2], size, fir::IntrinsicSubType::Memmove,
+        ctx->get_void_type());
+    memmove_instr.as_instr()->extra_type = ctx->get_int_type(8);
+    memmove_instr.as_instr()->Volatile = instr->Volatile;
     instr.destroy();
   }
+  // memmove and memcmp calls become the intrinsics (and calls again at the
+  // very end), so they can be folded in between
+  bool handle_libc_call(fir::Instr instr, fir::Function &func,
+                        fir::FunctionR callee) {
+    auto *ctx = func.ctx;
+    const bool is_memmove = callee.func->name == "memmove";
+    const bool is_memcmp = callee.func->name == "memcmp";
+    if ((!is_memmove && !is_memcmp) || instr->args.size() != 4 ||
+        !instr->args[1].get_type()->is_ptr() ||
+        !instr->args[2].get_type()->is_ptr() ||
+        !instr->args[3].get_type()->is_int() ||
+        instr->args[3].get_type()->get_bitwidth() != 64) {
+      return false;
+    }
+    fir::Builder bb{instr};
+    if (is_memmove) {
+      auto mm = bb.build_intrinsic(instr->args[1], instr->args[2],
+                                   instr->args[3],
+                                   fir::IntrinsicSubType::Memmove,
+                                   ctx->get_void_type());
+      mm.as_instr()->extra_type = ctx->get_int_type(8);
+      instr->replace_all_uses(instr->args[1]);
+    } else {
+      if (!instr.get_type()->is_int() || instr.get_type()->get_bitwidth() != 32) {
+        return false;
+      }
+      auto cmp = bb.build_intrinsic(instr->args[1], instr->args[2],
+                                    instr->args[3],
+                                    fir::IntrinsicSubType::Memcmp,
+                                    ctx->get_int_type(32));
+      instr->replace_all_uses(cmp);
+    }
+    instr.destroy();
+    return true;
+  }
+
   void handle_trap(fir::Instr instr, fir::Function &funcy,
                    fir::FunctionR /*callee*/) {
     fir::Builder bb{instr};
@@ -598,7 +638,10 @@ public:
           continue;
         }
         auto callee = instr->args[0].as_constant()->as_func();
-        if (callee.func->name.starts_with("llvm.memset.")) {
+        if (assume_cstdlib &&
+            handle_libc_call(instr, func, callee)) {
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.memset.")) {
           handle_memset(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.memcpy.")) {
@@ -697,9 +740,9 @@ public:
     }
   }
 
-  PreservedAnalysis apply(fir::Context & /*unused*/,
-                          fir::Function &func) override {
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("LLVMInstrinsLowering");
+    assume_cstdlib = ctx.config->optim.assume_cstdlib_beheaviour;
     for (auto bb : func.basic_blocks) {
       apply(bb, func);
     }

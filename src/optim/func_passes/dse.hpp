@@ -254,7 +254,8 @@ public:
                 }
                 covered = std::move(kept);
               }
-            } else if (cur->is(fir::IntrinsicSubType::Memcpy)) {
+            } else if (cur->is(fir::IntrinsicSubType::Memcpy) ||
+                       cur->is(fir::IntrinsicSubType::Memmove)) {
               fir::ValueR src = cur->args[1];
               u64 load_size =
                   cur->args[2].is_constant_int()

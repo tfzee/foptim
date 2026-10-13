@@ -480,7 +480,8 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
         load_stores.push_back(instr);
         // fmt::println("CALL\n{}\n{}", new_in_zero, new_in_one);
       } else if (instr->is(fir::IntrinsicSubType::Memset) ||
-                 instr->is(fir::IntrinsicSubType::Memcpy)) {
+                 instr->is(fir::IntrinsicSubType::Memcpy) ||
+                 instr->is(fir::IntrinsicSubType::Memmove)) {
         update_mem_intrinsic(instr, new_in_one, new_in_zero, cache);
       } else if (instr->is(fir::InstrType::StoreInstr)) {
         // important to not have escaping pointers

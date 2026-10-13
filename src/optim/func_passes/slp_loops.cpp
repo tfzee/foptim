@@ -438,7 +438,8 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
       plan.n_vector_ops++;
     } else {
       // computes the value of lane 0 (addresses, induction math), copied
-      if (instr->has_pot_sideeffects() || instr->get_type()->is_vec() ||
+      if (instr->has_pot_sideeffects() || instr->pot_reads_mem() ||
+          instr->get_type()->is_vec() ||
           instr->get_type()->is_struct()) {
         return false;
       }

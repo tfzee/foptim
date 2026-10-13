@@ -333,8 +333,12 @@ public:
       case fir::IntrinsicSubType::INVALID:
       case fir::IntrinsicSubType::VA_start:
       case fir::IntrinsicSubType::VA_end:
+      case fir::IntrinsicSubType::Memcmp:
+        // an arbitrary int
+        break;
       case fir::IntrinsicSubType::Memset:
       case fir::IntrinsicSubType::Memcpy:
+      case fir::IntrinsicSubType::Memmove:
         TODO("UNREACH");
       }
     } else if (instr->is(fir::InstrType::ITrunc)) {

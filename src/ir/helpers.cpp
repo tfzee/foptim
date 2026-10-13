@@ -34,16 +34,35 @@ void generate_trunc(foptim::fir::Context &fctx) {
   }
 }
 
-void generate_memmove(foptim::fir::Context &fctx) {
-  if (fctx->has_function("memmove")) {
+// Lowering of the memmove / memcmp intrinsics calls these late, in a function
+// pass, where no function can be added anymore. So the declarations stay in the
+// module even when nothing calls them yet, which needs external linkage
+// (GDCE keeps those).
+static void declare_external(foptim::fir::Context &fctx, const char *name,
+                             foptim::fir::FunctionTypeR func_ty) {
+  if (fctx->has_function(name)) {
     return;
   }
-  auto func_ty = fctx->get_func_ty(
-      fctx->get_ptr_type(),
-      {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)});
-  fctx.data->storage.functions.insert(
-      "memmove", std::make_unique<foptim::fir::Function>(fctx.operator->(),
-                                                          "memmove", func_ty));
+  auto *f = fctx.data->storage.functions.insert(
+      name, std::make_unique<foptim::fir::Function>(fctx.operator->(), name,
+                                                     func_ty));
+  f->attribs.linkage = Linkage::External;
+}
+
+void generate_memmove(foptim::fir::Context &fctx) {
+  declare_external(
+      fctx, "memmove",
+      fctx->get_func_ty(
+          fctx->get_ptr_type(),
+          {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)}));
+}
+
+void generate_memcmp(foptim::fir::Context &fctx) {
+  declare_external(
+      fctx, "memcmp",
+      fctx->get_func_ty(
+          fctx->get_int_type(32),
+          {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)}));
 }
 
 void generate_trap(foptim::fir::Context &fctx) {

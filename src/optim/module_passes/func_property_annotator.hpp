@@ -40,7 +40,13 @@ public:
             r.does_write = true;
             r.does_read = true;
           }
-        } else if (instr->is(fir::IntrinsicSubType::Memcpy)) {
+        } else if (instr->is(fir::IntrinsicSubType::Memcmp)) {
+          if (!aa.is_known_local_stack(instr->args[0]) ||
+              !aa.is_known_local_stack(instr->args[1])) {
+            r.does_read = true;
+          }
+        } else if (instr->is(fir::IntrinsicSubType::Memcpy) ||
+                   instr->is(fir::IntrinsicSubType::Memmove)) {
           if (!aa.is_known_local_stack(instr->args[0])) {
             r.does_write = true;
           }

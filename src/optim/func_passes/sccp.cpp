@@ -958,8 +958,11 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     case fir::IntrinsicSubType::INVALID:
     case fir::IntrinsicSubType::VA_start:
     case fir::IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::Memcmp:
+      return ConstantValue::Top();
     case fir::IntrinsicSubType::Memset:
     case fir::IntrinsicSubType::Memcpy:
+    case fir::IntrinsicSubType::Memmove:
       break;
     }
     return ConstantValue::Bottom();

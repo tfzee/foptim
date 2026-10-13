@@ -56,3 +56,20 @@ public:
 };
 
 } // namespace foptim::optim
+
+namespace foptim::optim {
+
+/*
+memmove and memcmp stay intrinsics until the very end so the passes in between
+can fold them, then they become calls of the libc function (declared in the
+module already, see generate_memmove). Has to run after the last pass that
+creates them.
+*/
+class IntrinLowerCalls final : public FunctionPass {
+public:
+  class Config {};
+
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
+};
+
+} // namespace foptim::optim

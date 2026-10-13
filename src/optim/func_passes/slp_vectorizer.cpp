@@ -367,6 +367,8 @@ bool intrin_legal(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   case fir::IntrinsicSubType::IsConstant:
   case fir::IntrinsicSubType::Memset:
   case fir::IntrinsicSubType::Memcpy:
+  case fir::IntrinsicSubType::Memmove:
+  case fir::IntrinsicSubType::Memcmp:
     return false;
   case fir::IntrinsicSubType::PopCnt:
   case fir::IntrinsicSubType::CTLZ:

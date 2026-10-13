@@ -111,6 +111,18 @@ enum class IntrinsicSubType : u32 {
   // result, the backend can not emit it so IntrinExpand turns what is left
   // into a loop.
   Memcpy,
+  // Memmove(dst, src, count): like Memcpy (count elements of extra_type, bytes
+  // when it is not set) but the regions may overlap, so the result is as if
+  // all of src was read before dst was written. Volatile applies to every
+  // element access. Has no result, the backend can not emit it so
+  // IntrinLowerCalls turns what is left into a call to memmove.
+  Memmove,
+  // Memcmp(a, b, count): compares count bytes of a and b like libc memcmp
+  // (negative, zero or positive i32, the sign is only specified for the first
+  // differing byte compared as unsigned char). Only reads memory. The backend
+  // can not emit it, IntrinLowerCalls turns what is left into a call to
+  // memcmp.
+  Memcmp,
 };
 
 enum class ConversionSubType : u32 {

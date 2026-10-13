@@ -141,7 +141,8 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
           break;
         }
         case fir::InstrType::Intrinsic: {
-          if (user->is(fir::IntrinsicSubType::Memcpy) &&
+          if ((user->is(fir::IntrinsicSubType::Memcpy) ||
+               user->is(fir::IntrinsicSubType::Memmove)) &&
               (use.argId == 0 || use.argId == 1)) {
             if (use.argId == 1) {
               memcpy_reads = true;

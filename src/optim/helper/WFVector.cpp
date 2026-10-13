@@ -113,6 +113,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
           // TODO: prob can do them aswell
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::Memcmp:
           return {};
         }
         break;
@@ -301,6 +303,8 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
         } break;
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::Memcmp:
           return {};
         case fir::IntrinsicSubType::INVALID:
         case fir::IntrinsicSubType::CTLZ:

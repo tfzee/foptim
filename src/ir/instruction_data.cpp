@@ -129,6 +129,10 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
       return "INTRIN:MemCpy";
     case IntrinsicSubType::Memset:
       return "INTRIN:MemSet";
+    case IntrinsicSubType::Memmove:
+      return "INTRIN:MemMove";
+    case IntrinsicSubType::Memcmp:
+      return "INTRIN:MemCmp";
     }
   case InstrType::Unreachable:
     return "unreachable";
@@ -567,6 +571,8 @@ bool InstrData::is_critical() const {
     case IntrinsicSubType::CTTZ:
     case fir::IntrinsicSubType::Memset:
     case fir::IntrinsicSubType::Memcpy:
+    case fir::IntrinsicSubType::Memmove:
+    case fir::IntrinsicSubType::Memcmp:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
@@ -637,6 +643,8 @@ bool InstrData::is_commutative() const {
     case IntrinsicSubType::CTTZ:
     case fir::IntrinsicSubType::Memset:
     case fir::IntrinsicSubType::Memcpy:
+    case fir::IntrinsicSubType::Memmove:
+    case fir::IntrinsicSubType::Memcmp:
       return false;
     case IntrinsicSubType::UMin:
     case IntrinsicSubType::UMax:
@@ -734,11 +742,13 @@ bool InstrData::pot_modifies_mem() const {
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:
     case IntrinsicSubType::FTrunc:
+    case IntrinsicSubType::Memcmp:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
     case fir::IntrinsicSubType::Memset:
     case fir::IntrinsicSubType::Memcpy:
+    case fir::IntrinsicSubType::Memmove:
       return true;
     }
   case InstrType::InsertValue:
@@ -798,6 +808,8 @@ bool InstrData::pot_reads_mem() const {
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
     case fir::IntrinsicSubType::Memcpy:
+    case fir::IntrinsicSubType::Memmove:
+    case fir::IntrinsicSubType::Memcmp:
       return true;
     }
     // TODO: not sure fences kinda dont do this but can kinda kinda lead to
@@ -861,11 +873,13 @@ bool InstrData::has_pot_sideeffects() const {
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:
     case IntrinsicSubType::FTrunc:
+    case IntrinsicSubType::Memcmp:
       return false;
     case IntrinsicSubType::VA_start:
     case IntrinsicSubType::VA_end:
     case fir::IntrinsicSubType::Memset:
     case fir::IntrinsicSubType::Memcpy:
+    case fir::IntrinsicSubType::Memmove:
       return true;
     }
   case InstrType::InsertValue:
