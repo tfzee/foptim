@@ -15,58 +15,50 @@
 
 namespace foptim::optim {
 
-void StackKnownBits::update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
-                                 utils::BitSet<> &new_in_zero,
-                                 StackKnowCache &cache) {
-  if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_func() &&
-      (instr->args[0].as_constant()->as_func()->name == "foptim.memset") &&
-      instr->args.size() == 4) {
-    auto ptr = instr->args[1];
-    auto val = instr->args[2];
-    auto size = instr->args[3];
-    u64 offset = 0;
-    auto result = get_stack_offset(offset, ptr, cache);
-    cache.insert({ptr, {.result = result, .offset = offset}});
-    if (result == StackOffsetResult::KnownNonLocal) {
-      return;
-    }
-    if (!val.is_constant()) {
-      new_in_one.reset(false);
-      new_in_zero.reset(false);
-      return;
-    }
-    auto cval = val.as_constant()->as_int();
+void StackKnownBits::update_mem_intrinsic(fir::Instr instr,
+                                          utils::BitSet<> &new_in_one,
+                                          utils::BitSet<> &new_in_zero,
+                                          StackKnowCache &cache) {
+  auto ptr = instr->args[0];
+  u64 offset = 0;
+  auto result = get_stack_offset(offset, ptr, cache);
+  cache.insert({ptr, {.result = result, .offset = offset}});
+  if (result == StackOffsetResult::KnownNonLocal) {
+    return;
+  }
+  // a copy or a wide value we know nothing about
+  if (!instr->is(fir::IntrinsicSubType::Memset) ||
+      instr->args[1].get_type()->get_size() != 1 ||
+      !instr->args[1].is_constant()) {
+    new_in_one.reset(false);
+    new_in_zero.reset(false);
+    return;
+  }
+  auto size = instr->args[2];
+  auto cval = instr->args[1].as_constant()->as_int();
+  if (!size.is_constant() || result != StackOffsetResult::KnownLocal) {
+    // TODO: can improve this to only clear above the offset
     if (cval == 0 && result == StackOffsetResult::UnknownLocal) {
       new_in_one.reset(false);
-      return;
-    }
-    if (cval == 255 && result == StackOffsetResult::UnknownLocal) {
+    } else if (cval == 255 && result == StackOffsetResult::UnknownLocal) {
       new_in_zero.reset(false);
-      return;
-    }
-    if (!size.is_constant()) {
-      // TODO: can improve this to only clear above the offset
-      if (cval == 0) {
-        new_in_one.reset(false);
-        return;
-      }
-      if (cval == 255) {
-        new_in_zero.reset(false);
-        return;
-      }
-    }
-
-    auto csize = size.as_constant()->as_int();
-    ASSERT(result == StackOffsetResult::KnownLocal);
-
-    for (u64 i = 0; i < csize; i++) {
-      auto curr_off = offset + i;
-      new_in_one.set(curr_off * 8, 8, static_cast<u8>(cval));
-      new_in_zero.set(curr_off * 8, 8, ~static_cast<u8>(cval));
+    } else {
+      new_in_one.reset(false);
+      new_in_zero.reset(false);
     }
     return;
   }
+  auto csize = size.as_constant()->as_int();
+  for (u64 i = 0; i < csize; i++) {
+    auto curr_off = offset + i;
+    new_in_one.set(curr_off * 8, 8, static_cast<u8>(cval));
+    new_in_zero.set(curr_off * 8, 8, ~static_cast<u8>(cval));
+  }
+}
 
+void StackKnownBits::update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
+                                 utils::BitSet<> &new_in_zero,
+                                 StackKnowCache &cache) {
   for (auto arg : instr->args) {
     if (arg.get_type()->is_ptr()) {
       u64 offset = 0;
@@ -487,6 +479,9 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
         update_call(instr, new_in_one, new_in_zero, cache);
         load_stores.push_back(instr);
         // fmt::println("CALL\n{}\n{}", new_in_zero, new_in_one);
+      } else if (instr->is(fir::IntrinsicSubType::Memset) ||
+                 instr->is(fir::IntrinsicSubType::Memcpy)) {
+        update_mem_intrinsic(instr, new_in_one, new_in_zero, cache);
       } else if (instr->is(fir::InstrType::StoreInstr)) {
         // important to not have escaping pointers
         if (!update_store(instr, new_in_one, new_in_zero, cache)) {

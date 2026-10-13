@@ -695,6 +695,10 @@ bool InstrData::is_commutative() const {
   UNREACH();
 }
 
+u64 InstrData::memcpy_elem_size() const {
+  return extra_type.is_valid() ? extra_type->get_size() : 1;
+}
+
 bool InstrData::pot_modifies_mem() const {
   switch (instr_type) {
   case InstrType::CallInstr:

@@ -1453,15 +1453,13 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         auto destlen =
             std::bit_cast<u128>(instr->args[4].as_constant()->as_int());
         if (len <= destlen) {
-          fir::generate_memset(ctx);
           fir::Builder buh{instr};
           auto new_c = buh.build_itrunc(instr->args[2], ctx->get_int_type(8));
-          auto memset = ctx->get_function("foptim.memset");
-          instr.replace_arg(0, fir::ValueR{ctx->get_constant_value(memset)});
-          instr.replace_arg(2, new_c);
-          instr.remove_arg(4);
-          instr->value_type = ctx->get_void_type();
-          instr->extra_type = memset->func_ty;
+          auto memset_instr = buh.build_intrinsic(
+              instr->args[1], new_c, instr->args[3],
+              fir::IntrinsicSubType::Memset, ctx->get_void_type());
+          memset_instr.as_instr()->Volatile = instr->Volatile;
+          instr.destroy();
           return true;
         }
         TODO("emit unreach");
@@ -1474,16 +1472,49 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         auto destlen =
             std::bit_cast<u128>(instr->args[4].as_constant()->as_int());
         if (len <= destlen) {
-          fir::generate_memcpy(ctx);
           fir::Builder buh{instr};
-          auto memcpy = ctx->get_function("foptim.memcpy");
-          instr.replace_arg(0, fir::ValueR{ctx->get_constant_value(memcpy)});
-          instr.remove_arg(4);
-          instr->value_type = ctx->get_void_type();
-          instr->extra_type = memcpy->func_ty;
+          auto memcpy_instr = buh.build_intrinsic(
+              instr->args[1], instr->args[2], instr->args[3],
+              fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
+          memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
+          memcpy_instr.as_instr()->Volatile = instr->Volatile;
+          instr.destroy();
           return true;
         }
         TODO("emit unreach");
+      }
+
+      // void * memset(void * dest, int c, size_t len)
+      if (funci->name == "memset" && funci->is_decl() &&
+          instr->args.size() == 4 && instr->args[1].get_type()->is_ptr() &&
+          instr->args[2].get_type()->get_bitwidth() == 32 &&
+          instr->args[3].get_type()->get_bitwidth() == 64) {
+        fir::Builder buh{instr};
+        auto new_c = buh.build_itrunc(instr->args[2], ctx->get_int_type(8));
+        auto memset_instr = buh.build_intrinsic(
+            instr->args[1], new_c, instr->args[3],
+            fir::IntrinsicSubType::Memset, ctx->get_void_type());
+        memset_instr.as_instr()->Volatile = instr->Volatile;
+        // memset returns its destination
+        instr->replace_all_uses(instr->args[1]);
+        instr.destroy();
+        return true;
+      }
+      // void * memcpy(void * dest, const void * src, size_t len)
+      if (funci->name == "memcpy" && funci->is_decl() &&
+          instr->args.size() == 4 && instr->args[1].get_type()->is_ptr() &&
+          instr->args[2].get_type()->is_ptr() &&
+          instr->args[3].get_type()->get_bitwidth() == 64) {
+        fir::Builder buh{instr};
+        auto memcpy_instr = buh.build_intrinsic(
+            instr->args[1], instr->args[2], instr->args[3],
+            fir::IntrinsicSubType::Memcpy, ctx->get_void_type());
+        memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
+        memcpy_instr.as_instr()->Volatile = instr->Volatile;
+        // memcpy returns its destination
+        instr->replace_all_uses(instr->args[1]);
+        instr.destroy();
+        return true;
       }
 
       // NOTE: this current version does not work cause it does not append

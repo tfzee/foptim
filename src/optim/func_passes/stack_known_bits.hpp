@@ -39,6 +39,9 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
 // if possible
 // TODO: should be overwritten to handle each alloca on its own
 class StackKnownBits final : public FunctionPass {
+  void update_mem_intrinsic(fir::Instr instr, utils::BitSet<> &new_in_one,
+                            utils::BitSet<> &new_in_zero,
+                            StackKnowCache &cache);
   void update_call(fir::Instr instr, utils::BitSet<> &new_in_one,
                    utils::BitSet<> &new_in_zero, StackKnowCache &cache);
   // returns false if the optimization failed

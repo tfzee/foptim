@@ -70,6 +70,20 @@ static void useptr_access_analysis(fir::Use u, AccessResult &res,
     res.IsRead = true;
     return;
   }
+  if (i->is(fir::IntrinsicSubType::Memcpy) ||
+      i->is(fir::IntrinsicSubType::Memset)) {
+    // operand 0 is the destination, memcpy reads operand 1
+    if (u.argId == 0) {
+      res.IsWriten = true;
+      res.VolatileWrite |= i->Volatile;
+    } else if (u.argId == 1 && i->is(fir::IntrinsicSubType::Memcpy)) {
+      res.IsRead = true;
+      res.VolatileRead |= i->Volatile;
+    } else if (u.argId == 1) {
+      res.Escapes = true;
+    }
+    return;
+  }
   if (i->is(fir::VectorISubType::Broadcast)) {
     res.Escapes = true;
     return;

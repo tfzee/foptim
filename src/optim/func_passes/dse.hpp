@@ -33,18 +33,22 @@ public:
       out.static_size = i->get_type()->get_size();
       return true;
     }
-    case fir::InstrType::CallInstr: {
-      if (i->args[0].is_constant_func()) {
-        auto name = i->args[0].as_constant()->as_func()->name;
-        if (name == "foptim.memcpy" || name == "foptim.memset") {
-          out.instr = i;
-          out.ptr = i->args[1];  // dst
-          out.size = i->args[3]; // len
-          out.static_size = 0;
-          return true;
-        }
+    case fir::InstrType::Intrinsic: {
+      const bool is_memset = i->is(fir::IntrinsicSubType::Memset);
+      if (!i->is(fir::IntrinsicSubType::Memcpy) && !is_memset) {
+        return false;
       }
-      return false;
+      out.instr = i;
+      out.ptr = i->args[0];
+      out.size = fir::ValueR{};
+      // the count is in elements, memset stores copies of its value
+      const u64 elem_size = is_memset ? i->args[1].get_type()->get_size()
+                                      : i->memcpy_elem_size();
+      out.static_size =
+          i->args[2].is_constant_int()
+              ? static_cast<u64>(i->args[2].as_constant()->as_int()) * elem_size
+              : ~0ULL;
+      return true;
     }
     default:
       return false;
@@ -62,12 +66,12 @@ public:
 
       MemWrite w;
       if (is_dead_store_candidate(fir::Instr{user}, w)) {
-        // dst position differs by instr kind: Store's dst is argId 0,
-        // memcpy/memset's dst is argId 1. Only collect this use as a write if
+        // the destination is argId 0 for stores and the memcpy/memset
+        // intrinsics. Only collect this use as a write if
         // it's actually the destination-operand use, not an incidental one
         bool is_dest_use =
             (user->is(fir::InstrType::StoreInstr) && use.argId == 0) ||
-            (user->is(fir::InstrType::CallInstr) && use.argId == 1);
+            (user->is(fir::InstrType::Intrinsic) && use.argId == 0);
         if (is_dest_use) {
           out.push_back(w);
         }
@@ -250,14 +254,12 @@ public:
                 }
                 covered = std::move(kept);
               }
-            } else if (cur->is(fir::InstrType::CallInstr) &&
-                       cur->args[0].is_constant_func() &&
-                       cur->args[0].as_constant()->as_func()->name ==
-                           "foptim.memcpy") {
-              fir::ValueR src = cur->args[2];
+            } else if (cur->is(fir::IntrinsicSubType::Memcpy)) {
+              fir::ValueR src = cur->args[1];
               u64 load_size =
-                  cur->args[3].is_constant_int()
-                      ? static_cast<u64>(cur->args[3].as_constant()->as_int())
+                  cur->args[2].is_constant_int()
+                      ? static_cast<u64>(cur->args[2].as_constant()->as_int()) *
+                            cur->memcpy_elem_size()
                       : ~0ULL;
 
               if (reads_alloca(src) ||

@@ -23,53 +23,14 @@ public:
     auto target_ptr = instr->args[1];
     auto value = instr->args[2];
     auto size = instr->args[3];
-
-    // TODO: impl optimizations
-    if (size.is_constant() && value.is_constant() &&
-        value.as_constant()->is_int()) {
-      auto out_size = size.as_constant()->as_int();
-      if (out_size <= 8) {
-        u8 constant = value.as_constant()->as_int();
-        u64 value = 0;
-        for (u32 i = 0; i < out_size; i++) {
-          value = (value << 8) | constant;
-        }
-        bb.build_store(target_ptr,
-                       fir::ValueR{ctx->get_constant_value(
-                           value, ctx->get_int_type(8 * out_size))},
-                       false, false);
-        instr.destroy();
-        return;
-      }
-
-      bool is_mod8 = out_size % 8 == 0;
-      if ((is_mod8 || out_size % 4 == 0) && out_size <= 32) {
-        u8 constant = value.as_constant()->as_int();
-        u64 value = 0;
-        for (u32 i = 0; i < (is_mod8 ? 8 : 4); i++) {
-          value = (value << 8) | constant;
-        }
-        for (auto i = 0; i < out_size; i += 8) {
-          // TODO directly vectorize??
-          auto ptr = bb.build_int_add(
-              target_ptr, fir::ValueR{ctx->get_constant_int(i, 64)});
-          bb.build_store(ptr,
-                         fir::ValueR{ctx->get_constant_value(
-                             value, ctx->get_int_type(is_mod8 ? 64 : 32))},
-                         false, false);
-        }
-        instr.destroy();
-        return;
-      }
+    if (size.get_type()->get_bitwidth() < 64) {
+      size = bb.build_zext(size, ctx->get_int_type(64));
     }
-
-    auto void_ty = ctx->get_void_type();
-    auto func_ty = instr->extra_type;
-
-    fir::ValueR args[3] = {target_ptr, value, size};
-    bb.build_call(fir::ValueR(ctx->get_constant_value(
-                      ctx->get_function("foptim.memset"))),
-                  func_ty, void_ty, args);
+    // the value is a byte so the count is in bytes
+    auto memset_instr =
+        bb.build_intrinsic(target_ptr, value, size,
+                           fir::IntrinsicSubType::Memset, ctx->get_void_type());
+    memset_instr.as_instr()->Volatile = instr->Volatile;
     instr.destroy();
   }
 
@@ -271,6 +232,8 @@ public:
     instr.destroy();
   }
 
+  // llvm.memcpy(dst, src, len, volatile) becomes the memcpy intrinsic with a
+  // byte count
   void handle_memcpy(fir::Instr instr, fir::Function &func,
                      fir::FunctionR /*callee*/) {
     auto *ctx = func.ctx;
@@ -278,63 +241,14 @@ public:
     auto dst_ptr = instr->args[1];
     auto src_ptr = instr->args[2];
     auto size = instr->args[3];
-
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_func() && size.is_constant() &&
-        instr->args.size() == 5) {
-      auto *called_func = instr->args[0].as_constant()->as_func().func;
-      auto csize = size.as_constant()->as_int();
-      u32 copy_size = csize;
-      if (copy_size > 8) {
-        copy_size = (copy_size % 8 == 0 ? 8 : 4);
-      }
-      bool supported_func = ((called_func->name == "llvm.memcpy.p0.p0.i64") ||
-                             (called_func->name == "llvm.memcpy.p0.p0.i32"));
-      if (supported_func && (csize == 16 || csize == 8 || csize == 4 ||
-                             csize == 2 || csize == 1)) {
-        auto input_ty = guessType(src_ptr);
-        auto output_ty = guessType(dst_ptr);
-        if ((input_ty.typeless && output_ty.typeless) ||
-            (input_ty.type.is_valid() && output_ty.type.is_valid() &&
-             input_ty.type->eql(*output_ty.type.get_raw_ptr()))) {
-          size_t off = 0;
-          while (csize > 0) {
-            auto in_off = bb.build_int_add(
-                src_ptr, fir::ValueR{ctx->get_constant_int(off, 64)});
-            auto out_off = bb.build_int_add(
-                dst_ptr, fir::ValueR{ctx->get_constant_int(off, 64)});
-            auto input =
-                bb.build_load(input_ty.type.is_valid() &&
-                                      input_ty.type->get_size() == copy_size
-                                  ? input_ty.type
-                                  : ctx->get_int_type(copy_size * 8),
-                              in_off, false, false);
-            bb.build_store(out_off, input, false, instr->Volatile);
-            csize -= copy_size;
-            off += copy_size;
-          }
-          instr.destroy();
-          return;
-        }
-      } else {
-        // fmt::println("TODO {}", instr);
-        // TODO("okak");
-      }
+    if (size.get_type()->get_bitwidth() < 64) {
+      size = bb.build_zext(size, ctx->get_int_type(64));
     }
-
-    auto void_ty = ctx->get_void_type();
-    auto old_func_ty = instr->extra_type;
-    auto old_func_ty_f = old_func_ty->as_func();
-    IRVec<fir::TypeR> arg_types = {old_func_ty_f.arg_types[0],
-                                   old_func_ty_f.arg_types[1],
-                                   old_func_ty_f.arg_types[2]};
-    fir::TypeR func_ty = ctx->get_func_ty(void_ty, std::move(arg_types));
-
-    fir::ValueR args[3] = {dst_ptr, src_ptr, size};
-    bb.build_call(fir::ValueR(ctx->get_constant_value(
-                      ctx->get_function("foptim.memcpy"))),
-                  func_ty, void_ty, args);
-
+    auto memcpy_instr = bb.build_intrinsic(
+        dst_ptr, src_ptr, size, fir::IntrinsicSubType::Memcpy,
+        ctx->get_void_type());
+    memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
+    memcpy_instr.as_instr()->Volatile = instr->Volatile;
     instr.destroy();
   }
 

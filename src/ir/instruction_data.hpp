@@ -99,9 +99,17 @@ enum class IntrinsicSubType : u32 {
 
   IsConstant,
 
-  // ptr, val, u64 n_elements
+  // Memset(dst, val, count): stores val (any sized type, a byte for the C
+  // memset) count times in a row starting at dst, so it writes count * size of
+  // val bytes. Volatile applies to every store. Has no result, the backend can
+  // not emit it so IntrinExpand turns what is left into a loop.
   Memset,
-  // ptr, ptr, u64 bytes
+  // Memcpy(dst, src, count): copies count elements of extra_type (bytes when
+  // extra_type is not set) from src to dst, the regions must not overlap.
+  // The element type can be any sized type, so the copied byte size is
+  // count * extra_type size. Volatile applies to every element access. Has no
+  // result, the backend can not emit it so IntrinExpand turns what is left
+  // into a loop.
   Memcpy,
 };
 
@@ -252,6 +260,8 @@ public:
    * result*/
   [[nodiscard]] bool is_commutative() const;
   [[nodiscard]] bool pot_modifies_mem() const;
+  // element size in bytes of a memcpy intrinsic, its count counts elements
+  [[nodiscard]] u64 memcpy_elem_size() const;
   [[nodiscard]] bool pot_reads_mem() const;
   [[nodiscard]] bool has_pot_sideeffects() const;
 

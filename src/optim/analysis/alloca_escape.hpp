@@ -140,21 +140,26 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
           self_stores.push_back({.store = user, .ptr_stored = v});
           break;
         }
+        case fir::InstrType::Intrinsic: {
+          if (user->is(fir::IntrinsicSubType::Memcpy) &&
+              (use.argId == 0 || use.argId == 1)) {
+            if (use.argId == 1) {
+              memcpy_reads = true;
+            }
+            break;
+          }
+          if (user->is(fir::IntrinsicSubType::Memset) && use.argId == 0) {
+            break;
+          }
+          escape();
+          return info;
+        }
         case fir::InstrType::CallInstr: {
           if (!user->args[0].is_constant_func()) {
             escape();
             return info;
           }
           auto name = user->args[0].as_constant()->as_func()->name;
-          if (name == "foptim.memcpy" && (use.argId == 1 || use.argId == 2)) {
-            if (use.argId == 2) {
-              memcpy_reads = true;
-            }
-            break;
-          }
-          if (name == "foptim.memset" && use.argId == 1) {
-            break;
-          }
           escape();
           return info;
         }

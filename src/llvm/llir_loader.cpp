@@ -1362,11 +1362,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
 
 bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
                   V2VMap &valueToValue, llvm::Module &mod) {
-  if (func.getName().starts_with("llvm.memset")) {
-    generate_memset(fctx);
-  } else if (func.getName().starts_with("llvm.memcpy")) {
-    generate_memcpy(fctx);
-  } else if (func.getName().starts_with("llvm.trap")) {
+  if (func.getName().starts_with("llvm.trap")) {
     generate_trap(fctx);
   } else if (func.getName().starts_with("llvm.fabs") ||
              func.getName().starts_with("llvm.abs")) {

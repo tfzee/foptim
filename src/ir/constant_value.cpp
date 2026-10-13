@@ -345,6 +345,34 @@ ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
     return {ctx->get_constant_value(std::move(values), target_type)};
   }
 
+  // integer vector to integer vector with other lane width (little endian)
+  if (is_vec() && old_ty->is_vec() && target_type->is_vec() &&
+      old_ty->get_bitwidth() <= 128) {
+    const auto src = old_ty->as_vec();
+    const auto target = target_type->as_vec();
+    bool all_int = src.type == VectorType::SubType::Integer &&
+                   target.type == VectorType::SubType::Integer;
+    for (auto m : as_vec().members) {
+      all_int = all_int && m->is_int();
+    }
+    if (all_int) {
+      u128 value = 0;
+      for (size_t i = 0; i < as_vec().members.size(); i++) {
+        u128 lane = std::bit_cast<u128>(as_vec().members[i]->as_int()) &
+                    utils::get_mask(src.bitwidth);
+        value |= lane << (i * src.bitwidth);
+      }
+      IRVec<ConstantValueR> values;
+      for (u32 i = 0; i < target.member_number; i++) {
+        i128 curr_val =
+            std::bit_cast<i128>(value & utils::get_mask(target.bitwidth));
+        value = value >> target.bitwidth;
+        values.push_back(ctx->get_constant_int(curr_val, target.bitwidth));
+      }
+      return {ctx->get_constant_value(std::move(values), target_type)};
+    }
+  }
+
   (void)ctx;
   fmt::println("{:cd}", *this);
   fmt::println("{:cd}", target_type);
