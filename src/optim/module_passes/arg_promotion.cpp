@@ -518,14 +518,26 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
                                       JobSheduler * /*unused*/,
                                       AnalysisManager &analyMan) {
   ZoneScopedNC("ArgumentPromoition", COLOR_OPTIMM);
-  // indices stay valid since renaming keeps the order and new functions are
-  // appended
-  size_t iter = 0;
-  for (; iter < ctx.data->storage.functions.size(); iter++) {
-    auto *f = ctx.data->storage.functions.all()[iter];
-    // fmt::println("RUNNING ON {}", f->name);
-    // fmt::println("RUNNING ON {}", f->func_ty);
-    // fmt::println("RUNNING ON {}", *f);
+  // A function whose signature changed gets loads in front of its calls, which
+  // can make arguments of its callers promotable. Only those callers (and the
+  // function itself) are looked at again.
+  constexpr u32 MaxVisits = 8;
+  TVec<fir::Function *> work;
+  TSet<fir::Function *> queued;
+  TMap<fir::Function *, u32> visits;
+  for (auto *f : ctx.data->storage.functions.all()) {
+    work.push_back(f);
+    queued.insert(f);
+  }
+  const auto enqueue = [&](fir::Function *f) {
+    if (visits[f] < MaxVisits && queued.insert(f).second) {
+      work.push_back(f);
+    }
+  };
+  for (size_t head = 0; head < work.size(); head++) {
+    auto *f = work[head];
+    queued.erase(f);
+    visits[f]++;
     switch (f->attribs.linkage) {
     case fir::Linkage::External:
     case fir::Linkage::Weak:
@@ -540,28 +552,24 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
     if (f->is_decl() || f->attribs.variadic) {
       continue;
     }
-
-    const auto &func_ty = f->func_ty->as_func();
-    auto n_args_original = func_ty.arg_types.size();
     // if we have no args skip
-    if (n_args_original == 0) {
+    if (f->func_ty->as_func().arg_types.empty()) {
       continue;
     }
 
-    // if any uses are not
-    for (auto use : f->get_uses()) {
-      if (!use.user->is(fir::InstrType::CallInstr) ||
-          use.type != fir::UseType::NormalArg || use.argId != 0) {
-        continue;
-      }
+    const auto old_func_ty = f->func_ty;
+    // the returns only say if the function got renamed, every transformation
+    // reports what it changed itself
+    (void)(promote_ptr_to_value_return(f, ctx, analyMan) ||
+           promote_ptr_to_value_args(f, ctx, analyMan) ||
+           promote_vecvec_to_concat_vec(f, ctx, analyMan) ||
+           return_vecvec_to_concat_vec(f, ctx, analyMan));
+    if (f->func_ty == old_func_ty) {
+      continue;
     }
-    // the returns only say if the function got renamed (restart), every
-    // transformation reports what it changed itself
-    if (promote_ptr_to_value_return(f, ctx, analyMan) ||
-        promote_ptr_to_value_args(f, ctx, analyMan) ||
-        promote_vecvec_to_concat_vec(f, ctx, analyMan) ||
-        return_vecvec_to_concat_vec(f, ctx, analyMan)) {
-      iter = static_cast<size_t>(-1);
+    enqueue(f);
+    for (auto use : f->get_uses()) {
+      enqueue(use.user->get_parent()->get_parent().func);
     }
   }
   return PreservedAnalysis::all();

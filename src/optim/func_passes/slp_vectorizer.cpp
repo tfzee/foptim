@@ -288,7 +288,9 @@ bool extract_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   auto base_v = values.back().as_instr();
   auto exp_off = 0;
   auto input_val = base_v->args[0];
-  if (!input_val.get_type()->is_vec()) {
+  // the lanes have to be all of the vector
+  if (!input_val.get_type()->is_vec() ||
+      input_val.get_type()->as_vec().member_number != values.size()) {
     return false;
   }
   for (auto i_v : values) {
@@ -307,6 +309,12 @@ bool extract_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   return true;
 }
 size_t n_args_0(const TVec<fir::ValueR> & /*values*/) { return 0; }
+// the lanes can be in another block than the seed, so remember the last one
+void extract_init(PlanNode &n, const TVec<fir::ValueR> &values,
+                  const InitCtx &c) {
+  init_back(n, values, c);
+  n.value = values.back();
+}
 
 bool call_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   auto base_v = pick_instr(values);
@@ -473,7 +481,7 @@ const Recipe Recipes[] = {
      .name = "extract",
      .match = extract_match,
      .legal = always_legal,
-     .init = init_back,
+     .init = extract_init,
      .n_args = n_args_0},
     {.type = fir::InstrType::CallInstr,
      .kind = NodeKind::Call,
@@ -639,7 +647,7 @@ fir::ValueR node_emit(fir::Context &ctx, const Plan &plan, u32 id,
     return bb.build_unary_op(val, static_cast<fir::UnaryInstrSubType>(n.sub));
   }
   case NodeKind::Extract:
-    return n.insert_loc->args[0];
+    return n.value.as_instr()->args[0];
   case NodeKind::Store: {
     auto val = emit_child(0);
     fir::Builder bb{n.insert_loc};

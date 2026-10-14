@@ -127,7 +127,13 @@ public:
           if (stat.ty == stat_type) {
             switch (stat.type) {
             case StatValType::I64:
-              fmt::println("{: <25}: {: >5}", name, stat.iv);
+              if (stat.ty == StatTiming) {
+                // microseconds
+                fmt::println("{: <25}: {: >9.1f} ms", name,
+                             static_cast<f64>(stat.iv) / 1000.0);
+              } else {
+                fmt::println("{: <25}: {: >5}", name, stat.iv);
+              }
               break;
             case StatValType::F64:
               fmt::println("{: <25}: {: >5}", name, stat.dv);

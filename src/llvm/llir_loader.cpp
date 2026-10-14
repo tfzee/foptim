@@ -64,7 +64,37 @@ bool warned_fastcc = false;
 using foptim::u32;
 using foptim::u64;
 
-using V2VMap = foptim::TMap<const llvm::Value *, foptim::fir::ValueR>;
+// The values of the globals are shared, every function adds its own values on
+// top of them.
+class V2VMap {
+  using Map = foptim::TMap<const llvm::Value *, foptim::fir::ValueR>;
+  const V2VMap *parent = nullptr;
+  Map local;
+
+public:
+  V2VMap() = default;
+  explicit V2VMap(const V2VMap &shared) : parent(&shared) {}
+
+  [[nodiscard]] bool contains(const llvm::Value *key) const {
+    return local.contains(key) || (parent != nullptr && parent->contains(key));
+  }
+
+  [[nodiscard]] const foptim::fir::ValueR &at(const llvm::Value *key) const {
+    if (auto it = local.find(key); it != local.end()) {
+      return it->second;
+    }
+    ASSERT(parent != nullptr);
+    return parent->at(key);
+  }
+
+  std::pair<Map::iterator, bool>
+  insert(std::pair<const llvm::Value *, foptim::fir::ValueR> kv) {
+    if (parent != nullptr && parent->contains(kv.first)) {
+      return {local.end(), false};
+    }
+    return local.insert(kv);
+  }
+};
 using B2BMap = foptim::TMap<llvm::BasicBlock *, foptim::fir::BasicBlock>;
 
 inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
@@ -2000,11 +2030,8 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     for (auto &func : mod.functions()) {
       shed.push(nullptr, [&func, &fctx, &valueToValue]() {
         auto v = foptim::utils::TempAlloc<void *>::save();
-        // TODO: shouldnt copy here instead should contain a ref to global
-        //  and a seperate local map and then fallback to global if nothin
-        //  locally found
-        V2VMap v2v_map_copy = valueToValue;
-        convert(func, fctx, v2v_map_copy);
+        V2VMap func_values{valueToValue};
+        convert(func, fctx, func_values);
         foptim::utils::TempAlloc<void *>::restore(v);
       });
       // convert(func, fctx, valueToValue);

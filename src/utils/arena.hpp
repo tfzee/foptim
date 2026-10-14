@@ -17,6 +17,8 @@ using Arena = struct {
 using Arena_Mark = struct {
   Region *region;
   size_t count;
+  // bytes the allocator had handed out, only filled in by TempAlloc::save
+  unsigned long tracked_size;
 };
 
 void *arena_alloc(Arena *a, size_t size_bytes);
@@ -66,9 +68,16 @@ class TempAlloc {
 
   constexpr void deallocate(T * /*unused*/, size_t /*unused*/) {}
 
-  static Arena_Mark save() { return arena_snapshot(&temp_arena); }
+  static Arena_Mark save() {
+    auto mark = arena_snapshot(&temp_arena);
+    mark.tracked_size = temp_arena_size;
+    return mark;
+  }
 
-  static void restore(Arena_Mark mark) { arena_rewind(&temp_arena, mark); }
+  static void restore(Arena_Mark mark) {
+    arena_rewind(&temp_arena, mark);
+    temp_arena_size = mark.tracked_size;
+  }
 
   static void reset() {
     temp_arena_size = 0;

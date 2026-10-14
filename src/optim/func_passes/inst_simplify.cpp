@@ -1742,6 +1742,8 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
     bool is_read = false;
     bool is_written = false;
     bool escapes = false;
+    // every load and store of the alloca, also through other values
+    TVec<fir::Instr> accesses;
     TVec<fir::Use> mem2reg_blockers{};
     while (!alloca_worklist.empty()) {
       if (escapes) {
@@ -1753,9 +1755,11 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
       case fir::UseType::NormalArg:
         if (curr.user->is(fir::InstrType::LoadInstr) && curr.argId == 0) {
           is_read |= curr.user->get_n_uses() > 0;
+          accesses.push_back(curr.user);
         } else if (curr.user->is(fir::InstrType::StoreInstr) &&
                    curr.argId == 0) {
           is_written = true;
+          accesses.push_back(curr.user);
         } else if ((curr.user->is(fir::InstrType::VectorInstr)) ||
                    (curr.user->is(fir::InstrType::BinaryInstr)) ||
                    (curr.user->is(fir::InstrType::SelectInstr) &&
@@ -1814,8 +1818,22 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
     if ((!is_written && is_read) || (is_written && !is_read)) {
       push_all_uses(worklist, instr);
-      TVec<fir::Use> use_copy{instr->uses.begin(), instr->uses.end()};
       auto p_val = fir::ValueR{ctx->get_poisson_value(ctx->get_ptr_type())};
+      // also the accesses through block arguments and the like, afterwards
+      // the alloca only feeds values nothing reads memory through
+      TSet<fir::Instr> seen;
+      for (auto access : accesses) {
+        if (!seen.insert(access).second) {
+          continue;
+        }
+        if (access->is(fir::InstrType::LoadInstr)) {
+          push_all_uses(worklist, access);
+          access->replace_all_uses(
+              fir::ValueR{ctx->get_poisson_value(access->get_type())});
+        }
+        access.destroy();
+      }
+      TVec<fir::Use> use_copy{instr->uses.begin(), instr->uses.end()};
       // TODO: idk if replacing justany use with poision is always legal
       // had issue before where replacing some arithmentics ended up with
       // poision load later one with segfaultedcould be similar cases that
@@ -2071,8 +2089,11 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
       instr.destroy();
       return true;
     }
-    if (argi->is(fir::InstrType::InsertValue)) {
-      if (instr->args[1].eql(argi->args[2])) {
+    if (argi->is(fir::InstrType::InsertValue) &&
+        instr->args[1].is_constant_int() && argi->args[2].is_constant_int()) {
+      // the indices can have different integer types
+      if (instr->args[1].as_constant()->as_int() ==
+          argi->args[2].as_constant()->as_int()) {
         push_all_uses(worklist, instr);
         instr->replace_all_uses(argi->args[1]);
         instr.destroy();

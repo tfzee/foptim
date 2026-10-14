@@ -224,6 +224,7 @@ void *arena_memdup(Arena *a, void *data, size_t size) {
 
 Arena_Mark arena_snapshot(Arena *a) {
   Arena_Mark m;
+  m.tracked_size = 0;
   if (a->end == NULL) {  // snapshot of uninitialized arena
     ARENA_ASSERT(a->begin == NULL);
     m.region = a->end;

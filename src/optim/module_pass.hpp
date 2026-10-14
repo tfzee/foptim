@@ -85,7 +85,7 @@ public:
         auto start_time = std::chrono::high_resolution_clock::now();
         r = pass->apply(ctx, shed, analMan);
         auto end_time = std::chrono::high_resolution_clock::now();
-        auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
+        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
                         end_time - start_time)
                         .count();
         if (time > 0) {

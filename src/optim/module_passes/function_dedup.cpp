@@ -193,9 +193,9 @@ bool check_match(fir::Function *f1, fir::Function *f2,
   return true;
 }
 
-bool is_function_applicable(const fir::Function *f) {
-  if (f->is_decl() || f->attribs.variadic || f->get_n_uses() == 0 ||
-      f->get_entry()->n_args() > 4) {
+// what never changes while merging
+bool is_function_mergeable(const fir::Function *f) {
+  if (f->is_decl() || f->attribs.variadic || f->get_entry()->n_args() > 4) {
     return false;
   }
   // TODO: should work for linkonce odr aswell
@@ -207,6 +207,77 @@ bool is_function_applicable(const fir::Function *f) {
   }
   return true;
 }
+
+bool is_function_applicable(const fir::Function *f) {
+  return f->get_n_uses() != 0 && is_function_mergeable(f);
+}
+
+u64 mix_hash(u64 h, u64 v) {
+  h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+  return h;
+}
+
+u64 type_key(fir::TypeR ty) {
+  return reinterpret_cast<u64>(ty.get_raw_ptr());
+}
+
+// Only functions with the same key can match: same type, blocks, and per
+// instruction the kind, operand count and result type.
+u64 structure_key(const fir::Function *f) {
+  u64 h = type_key(f->func_ty);
+  for (const auto &bb : f->basic_blocks) {
+    h = mix_hash(h, bb->n_instrs());
+    h = mix_hash(h, bb->n_args());
+    for (size_t i = 0; i < bb->n_args(); i++) {
+      h = mix_hash(h, type_key(bb->args[i]->get_type()));
+    }
+    for (auto instr : bb->instructions) {
+      h = mix_hash(h, static_cast<u64>(instr->instr_type));
+      h = mix_hash(h, instr->subtype);
+      h = mix_hash(h, instr->args.size());
+      h = mix_hash(h, instr->bbs.size());
+      h = mix_hash(h, type_key(instr.get_type()));
+    }
+  }
+  return h;
+}
+
+// The functions that can be merged sorted by key, functions with the same key
+// stay in function order. A function only needs to look at the ones after it
+// in its own run.
+struct Candidates {
+  TVec<u32> sorted;
+  // position in sorted and end of the run, per function index
+  TVec<u32> rank;
+  TVec<u32> run_end;
+
+  explicit Candidates(const fir::FunctionStorage &storage) {
+    const auto &all_funcs = storage.all();
+    TVec<std::pair<u64, u32>> keyed;
+    for (u32 i = 0; i < all_funcs.size(); i++) {
+      if (is_function_mergeable(all_funcs[i])) {
+        keyed.emplace_back(structure_key(all_funcs[i]), i);
+      }
+    }
+    std::ranges::sort(keyed);
+    rank.assign(all_funcs.size(), 0);
+    run_end.assign(all_funcs.size(), 0);
+    for (u32 k = 0; k < keyed.size(); k++) {
+      sorted.push_back(keyed[k].second);
+      rank[keyed[k].second] = k;
+    }
+    for (u32 k = 0; k < keyed.size();) {
+      u32 e = k;
+      while (e < keyed.size() && keyed[e].first == keyed[k].first) {
+        e++;
+      }
+      for (u32 j = k; j < e; j++) {
+        run_end[keyed[j].second] = e;
+      }
+      k = e;
+    }
+  }
+};
 
 // select a fitting type based on the value types + potential constriants by the
 // instruction
@@ -336,7 +407,7 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx,
 }
 
 void collect_group(
-    const fir::Context &ctx, size_t idx1,
+    const fir::Context &ctx, const Candidates &cands, size_t idx1,
     foptim::Mutex<FVec<MergableGroup>> &groups) {
   TMap<fir::ValueR, fir::ValueR> local_value_map;
   TVec<DiffConst> difference_values;
@@ -346,11 +417,10 @@ void collect_group(
   auto f1_ninstrs = f1->n_instrs();
   MergableGroup group{};
 
-  auto iter2 = idx1 + 1;
   // we just use the first match to then collect a group
   //  which could be a non optimal group
-  for (; iter2 < all_funcs.size(); iter2++) {
-    auto *f2 = all_funcs[iter2];
+  for (u32 k = cands.rank[idx1] + 1; k < cands.run_end[idx1]; k++) {
+    auto *f2 = all_funcs[cands.sorted[k]];
     if (!is_function_applicable(f2)) {
       continue;
     }
@@ -416,6 +486,7 @@ PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx,
   TVec<fir::Use> uses;
 
   const auto &all_funcs = ctx.data->storage.functions.all();
+  const Candidates cands{ctx.data->storage.functions};
   for (size_t iter1 = 0; iter1 < all_funcs.size(); iter1++) {
     // helpers
     auto *f1 = all_funcs[iter1];
@@ -424,12 +495,11 @@ PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx,
     }
     auto f1_ninstrs = f1->n_instrs();
 
-    auto iter2 = iter1 + 1;
     // we just use the first match to then collect a group
     //  which could be a non optimal group
     {
-      for (; iter2 < all_funcs.size(); iter2++) {
-        auto *f2 = all_funcs[iter2];
+      for (u32 k = cands.rank[iter1] + 1; k < cands.run_end[iter1]; k++) {
+        auto *f2 = all_funcs[cands.sorted[k]];
         if (!is_function_applicable(f2)) {
           continue;
         }
@@ -492,15 +562,16 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed,
     auto *waits = utils::TempAlloc<std::atomic<bool>>{}.allocate(n_funcs);
     size_t i = 0;
     const auto &all_funcs = ctx.data->storage.functions.all();
+    const Candidates cands{ctx.data->storage.functions};
     for (size_t iter1 = 0; iter1 < all_funcs.size(); iter1++) {
       auto *f1 = all_funcs[iter1];
       if (!is_function_applicable(f1)) {
         continue;
       }
       waits[i].store(false, std::memory_order_release);
-      shed->push(&waits[i], [&ctx, iter1, &prot_groups]() {
+      shed->push(&waits[i], [&ctx, &cands, iter1, &prot_groups]() {
         ZoneScopedN("CollectingGroup");
-        collect_group(ctx, iter1, prot_groups);
+        collect_group(ctx, cands, iter1, prot_groups);
       });
       i++;
     }
