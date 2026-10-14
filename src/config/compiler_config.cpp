@@ -318,12 +318,13 @@ bool include_parse(CompConf &conf, toml::array &arr) {
 bool config_parse(CompConf &conf, toml::table &tbl) {
   uint64_t version = tbl["config_version"].value_or(1);
   ASSERT(version == 1);
-  target_parse(conf.target, tbl["target"]);
   if (tbl["include"].is_array()) {
     if (!include_parse(conf, *tbl["include"].as_array())) {
       return false;
     }
   }
+  // after the includes so this file overrides what they set
+  target_parse(conf.target, tbl["target"]);
   if (tbl["pass"]["fir"].is_table()) {
     if (!passes_parse<IRType::FIR>(conf, *tbl["pass"]["fir"].as_table())) {
       return false;
