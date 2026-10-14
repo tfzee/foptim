@@ -197,6 +197,7 @@ enum class X86Subtype : u32 {
   lzcnt,
   tzcnt,
   popcnt,
+  bswap,
   ffmadd132,
   ffmadd213,
   ffmadd231,

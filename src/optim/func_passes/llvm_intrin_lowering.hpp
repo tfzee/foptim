@@ -17,6 +17,13 @@ namespace foptim::optim {
 class LLVMInstrinsicLowering final : public FunctionPass {
   bool assume_cstdlib = false;
 
+  // the last operand of llvm.memset/memcpy/memmove is the volatile flag
+  static bool is_volatile_call(fir::Instr instr) {
+    return instr->Volatile ||
+           (instr->args.size() > 4 && instr->args[4].is_constant_int() &&
+            instr->args[4].as_constant()->as_int() != 0);
+  }
+
 public:
   void handle_memset(fir::Instr instr, fir::Function &func,
                      fir::FunctionR /*callee*/) {
@@ -32,7 +39,7 @@ public:
     auto memset_instr =
         bb.build_intrinsic(target_ptr, value, size,
                            fir::IntrinsicSubType::Memset, ctx->get_void_type());
-    memset_instr.as_instr()->Volatile = instr->Volatile;
+    memset_instr.as_instr()->Volatile = is_volatile_call(instr);
     instr.destroy();
   }
 
@@ -250,7 +257,7 @@ public:
         dst_ptr, src_ptr, size, fir::IntrinsicSubType::Memcpy,
         ctx->get_void_type());
     memcpy_instr.as_instr()->extra_type = ctx->get_int_type(8);
-    memcpy_instr.as_instr()->Volatile = instr->Volatile;
+    memcpy_instr.as_instr()->Volatile = is_volatile_call(instr);
     instr.destroy();
   }
 
@@ -268,7 +275,7 @@ public:
         instr->args[1], instr->args[2], size, fir::IntrinsicSubType::Memmove,
         ctx->get_void_type());
     memmove_instr.as_instr()->extra_type = ctx->get_int_type(8);
-    memmove_instr.as_instr()->Volatile = instr->Volatile;
+    memmove_instr.as_instr()->Volatile = is_volatile_call(instr);
     instr.destroy();
   }
   // memmove and memcmp calls become the intrinsics (and calls again at the
@@ -616,6 +623,14 @@ public:
     instr.destroy();
   }
 
+  void handle_bswap(fir::Instr instr, fir::Function & /*funcy*/,
+                    fir::FunctionR /*callee*/) {
+    fir::Builder buh{instr};
+    auto res = buh.build_intrinsic(instr->args[1], fir::IntrinsicSubType::Bswap);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
   // a lowered call counts as modified
   bool modified = false;
 
@@ -719,6 +734,12 @@ public:
           modified = true;
         } else if (callee.func->name.starts_with("llvm.round.")) {
           handle_round(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.bswap.") &&
+                   instr->get_type()->is_int() &&
+                   instr->get_type()->get_bitwidth() >= 16 &&
+                   instr->get_type()->get_bitwidth() <= 64) {
+          handle_bswap(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.ceil.")) {
           handle_ceil(instr, func, callee);

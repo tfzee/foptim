@@ -3599,6 +3599,8 @@ void intrin_patterns(IRVec<Pattern> &pats) {
                        static_cast<u32>(fir::IntrinsicSubType::CTTZ)};
   auto popCntNode = Node{NodeType::Instr, InstrType::Intrinsic,
                          static_cast<u32>(fir::IntrinsicSubType::PopCnt)};
+  auto bswapNode = Node{NodeType::Instr, InstrType::Intrinsic,
+                        static_cast<u32>(fir::IntrinsicSubType::Bswap)};
   auto va_endNode = Node{NodeType::Instr, InstrType::Intrinsic,
                          static_cast<u32>(fir::IntrinsicSubType::VA_end)};
   auto va_startNode = Node{NodeType::Instr, InstrType::Intrinsic,
@@ -3781,6 +3783,16 @@ void intrin_patterns(IRVec<Pattern> &pats) {
           arg = res_reg;
         }
         res.result.emplace_back(X86Subtype::tzcnt, res_reg, arg);
+        return true;
+      }});
+  pats.push_back(Pattern{
+      .nodes = {bswapNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        auto instr = res.matched_instrs[0];
+        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        res.result.emplace_back(X86Subtype::bswap, res_reg, arg);
         return true;
       }});
   pats.push_back(Pattern{

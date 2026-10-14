@@ -125,6 +125,8 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
       return "INTRIN:IsConstant";
     case IntrinsicSubType::PopCnt:
       return "INTRIN:PopCnt";
+    case IntrinsicSubType::Bswap:
+      return "INTRIN:Bswap";
     case IntrinsicSubType::Memcpy:
       return "INTRIN:MemCpy";
     case IntrinsicSubType::Memset:
@@ -564,6 +566,7 @@ bool InstrData::is_critical() const {
     case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
+    case IntrinsicSubType::Bswap:
     case IntrinsicSubType::FRound:
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:
@@ -636,6 +639,7 @@ bool InstrData::is_commutative() const {
     case IntrinsicSubType::FAbs:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
+    case IntrinsicSubType::Bswap:
     case IntrinsicSubType::FRound:
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:
@@ -738,6 +742,7 @@ bool InstrData::pot_modifies_mem() const {
     case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
+    case IntrinsicSubType::Bswap:
     case IntrinsicSubType::FRound:
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:
@@ -799,6 +804,7 @@ bool InstrData::pot_reads_mem() const {
     case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
+    case IntrinsicSubType::Bswap:
     case IntrinsicSubType::FRound:
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:
@@ -869,6 +875,7 @@ bool InstrData::has_pot_sideeffects() const {
     case IntrinsicSubType::FMaximum:
     case IntrinsicSubType::IsConstant:
     case IntrinsicSubType::PopCnt:
+    case IntrinsicSubType::Bswap:
     case IntrinsicSubType::FRound:
     case IntrinsicSubType::FFloor:
     case IntrinsicSubType::FCeil:

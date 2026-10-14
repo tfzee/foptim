@@ -106,6 +106,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
           fmt::println("{}", instr);
           IMPL("impl wfvector intrinsic");
           return {};
+        case fir::IntrinsicSubType::Bswap:
+          return {};
         case fir::IntrinsicSubType::INVALID:
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:
@@ -312,6 +314,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:
         case fir::IntrinsicSubType::PopCnt:
+        case fir::IntrinsicSubType::Bswap:
         case fir::IntrinsicSubType::FRound:
         case fir::IntrinsicSubType::FCeil:
         case fir::IntrinsicSubType::FFloor:

@@ -91,6 +91,8 @@ enum class IntrinsicSubType : u32 {
   FMaximum,
 
   PopCnt,
+  // reverses the bytes of an integer (llvm.bswap), widths 16, 32, 64
+  Bswap,
 
   FRound,
   FCeil,

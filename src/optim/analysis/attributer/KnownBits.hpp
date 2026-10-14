@@ -330,6 +330,26 @@ public:
         fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
                      associatedValue.as_instr());
         TODO("impl");
+      case fir::IntrinsicSubType::Bswap: {
+        const auto *known_arg_bits =
+            m.get_or_create_analysis<KnownBits>(instr->args[0], &worklist);
+        const u32 width = instr->get_type()->get_bitwidth();
+        // the bytes move as a whole, bits above the width are unknown
+        new_known_one = 0;
+        new_known_zero = 0;
+        for (u32 byte = 0; byte < width / 8; byte++) {
+          const u64 byte_mask = static_cast<u64>(0xff) << (8 * byte);
+          const u32 dst = width - 8 - 8 * byte;
+          new_known_one |= ((known_arg_bits->known_one & byte_mask) >> (8 * byte))
+                           << dst;
+          new_known_zero |=
+              ((known_arg_bits->known_zero & byte_mask) >> (8 * byte)) << dst;
+        }
+        if (width < 64) {
+          new_known_zero |= ~static_cast<u64>(0) << width;
+        }
+        break;
+      }
       case fir::IntrinsicSubType::INVALID:
       case fir::IntrinsicSubType::VA_start:
       case fir::IntrinsicSubType::VA_end:

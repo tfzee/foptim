@@ -955,6 +955,27 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       }
       TODO("popcnt impl sccp");
     }
+    case fir::IntrinsicSubType::Bswap: {
+      auto a = eval(instr->get_arg(0));
+      if (a.is_bottom()) {
+        return ConstantValue::Bottom();
+      }
+      if (!a.is_const()) {
+        return ConstantValue::Top();
+      }
+      const auto arg_ty = instr->get_arg(0).get_type();
+      const u32 width =
+          arg_ty->is_vec() ? arg_ty->as_vec().bitwidth : arg_ty->get_bitwidth();
+      for (auto &val : a.vals) {
+        const u128 x = std::bit_cast<u128>(val.i);
+        u128 res = 0;
+        for (u32 byte = 0; byte < width / 8; byte++) {
+          res |= ((x >> (8 * byte)) & 0xff) << (width - 8 - 8 * byte);
+        }
+        val.i = std::bit_cast<i128>(res);
+      }
+      return a;
+    }
     case fir::IntrinsicSubType::INVALID:
     case fir::IntrinsicSubType::VA_start:
     case fir::IntrinsicSubType::VA_end:

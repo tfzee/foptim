@@ -910,6 +910,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
       case fir::IntrinsicSubType::FRound:
       case fir::IntrinsicSubType::FFloor:
       case fir::IntrinsicSubType::PopCnt:
+      case fir::IntrinsicSubType::Bswap:
       case fir::IntrinsicSubType::FCeil:
       case fir::IntrinsicSubType::FTrunc:
       case fir::IntrinsicSubType::IsConstant:
