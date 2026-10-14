@@ -185,6 +185,8 @@ public:
     Load,
     Store,
     Binary,
+    // Abs and FAbs
+    Intrinsic,
   };
   // nodes are in program order (header arguments first), operands are indices
   struct LoopNode {

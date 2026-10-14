@@ -33,9 +33,10 @@ namespace foptim::codegen {
 #define emit(buff, off, req) emit_impl(buff, off, req, __LINE__)
 
 // The encoder lists the write mask of an evex instruction as an operand right
-// after the destination. Plain avx512 forms (zmm without masking) get k0.
+// after the destination. Plain avx512 forms (zmm without masking) get k0, so do
+// the instructions that only exist as evex (vpabsq) on smaller registers.
 inline void add_zmm_mask_operand(ZydisEncoderRequest *req) {
-  bool has_zmm = false;
+  bool has_zmm = req->mnemonic == ZYDIS_MNEMONIC_VPABSQ;
   for (u8 i = 0; i < req->operand_count; i++) {
     const auto &op = req->operands[i];
     if (op.type == ZYDIS_OPERAND_TYPE_REGISTER &&

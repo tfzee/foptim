@@ -953,6 +953,7 @@ void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf &conf) {
       case GOpcode::X86:
         switch (static_cast<X86Subtype>(bb.instrs[i].sop)) {
         case X86Subtype::sqrt:
+        case X86Subtype::vpabs:
           if (legalize_sqrt(bb, i)) {
             ioff = 0;
           }

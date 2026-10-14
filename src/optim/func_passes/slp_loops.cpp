@@ -133,6 +133,21 @@ bool binary_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
   return true;
 }
 
+bool intrinsic_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
+  const auto ty = i->get_type();
+  const bool abs = i->is(fir::IntrinsicSubType::Abs) && ty->is_int();
+  const bool fabs = i->is(fir::IntrinsicSubType::FAbs) && ty->is_float();
+  if (!(abs || fabs) || !vector_operand_ok(c, i->args[0])) {
+    return false;
+  }
+  n.kind = LoopNodeKind::Intrinsic;
+  n.shape = LaneShape::Varying;
+  n.type = ty;
+  n.sub = i->subtype;
+  n.ops = {shape_node(c, i->args[0])};
+  return true;
+}
+
 bool always_legal(const LoopNode &, const LoopPlan &, u32, const Features &) {
   return true;
 }
@@ -168,6 +183,8 @@ constexpr LoopRecipe LoopRecipes[] = {
      unit_cost},
     {fir::InstrType::BinaryInstr, "binary", binary_match, binary_legal,
      binary_cost},
+    {fir::InstrType::Intrinsic, "intrinsic", intrinsic_match, always_legal,
+     unit_cost},
 };
 
 const LoopRecipe *find_loop_recipe(fir::InstrType type) {
@@ -242,6 +259,9 @@ bool SLPVectorizer::loop_legal(const LoopPlan &plan, u32 vf, const Features &fea
     case LoopNodeKind::Binary:
       r = find_loop_recipe(fir::InstrType::BinaryInstr);
       break;
+    case LoopNodeKind::Intrinsic:
+      r = find_loop_recipe(fir::InstrType::Intrinsic);
+      break;
     default:
       break;
     }
@@ -270,6 +290,9 @@ i64 SLPVectorizer::loop_cost(const LoopPlan &plan, u32 vf,
       break;
     case LoopNodeKind::Binary:
       body += binary_cost(n, plan, vf, features);
+      break;
+    case LoopNodeKind::Intrinsic:
+      body += unit_cost(n, plan, vf, features);
       break;
     case LoopNodeKind::Scalar:
       body += 1;
@@ -661,6 +684,11 @@ bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
         vm[n.value] = b.build_binary_op(operand(instr->args[0]),
                                         operand(instr->args[1]),
                                         static_cast<BinSub>(n.sub));
+        break;
+      case LoopNodeKind::Intrinsic:
+        vm[n.value] = b.build_intrinsic(
+            operand(instr->args[0]),
+            static_cast<fir::IntrinsicSubType>(n.sub));
         break;
       default:
         UNREACH();

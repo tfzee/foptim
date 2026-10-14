@@ -2091,6 +2091,26 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
   (void)proepiloguetype;
   size_t length = 9999;
   switch (static_cast<fmir::X86Subtype>(instr.sop)) {
+  case fmir::X86Subtype::vpabs: {
+    for (auto i = 0; i < req.operand_count; i++) {
+      emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+    }
+    switch (instr.args[0].ty) {
+    default:
+      TODO("UNREACH");
+    case fmir::Type::Int32x4:
+    case fmir::Type::Int32x8:
+    case fmir::Type::Int32x16:
+      req.mnemonic = ZYDIS_MNEMONIC_VPABSD;
+      break;
+    case fmir::Type::Int64x2:
+    case fmir::Type::Int64x4:
+    case fmir::Type::Int64x8:
+      req.mnemonic = ZYDIS_MNEMONIC_VPABSQ;
+      break;
+    }
+    return emit(out_buff, 0, &req);
+  }
   case fmir::X86Subtype::sqrt: {
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);

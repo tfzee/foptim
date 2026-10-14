@@ -1686,6 +1686,9 @@ bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   case fir::IntrinsicSubType::Abs: {
+    if (!instr->get_type()->is_int()) {
+      break;
+    }
     auto *a0 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
     man.run(ctx);
     auto r = a0->msb_info();

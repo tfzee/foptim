@@ -175,6 +175,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       ReturnString(X86Subtype, movhlps);
       ReturnString(X86Subtype, vpermil);
       ReturnString(X86Subtype, sqrt);
+      ReturnString(X86Subtype, vpabs);
       ReturnString(X86Subtype, vmovshdup);
       ReturnString(X86Subtype, HAdd);
       ReturnString(X86Subtype, vpshuf);
@@ -353,6 +354,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
     case X86Subtype::vextractf64x2:
     case X86Subtype::vpermil:
     case X86Subtype::sqrt:
+    case X86Subtype::vpabs:
     case X86Subtype::HAdd:
     case X86Subtype::movlhps:
     case X86Subtype::movhlps:
@@ -636,6 +638,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     case X86Subtype::lzcnt:
     case X86Subtype::vmovshdup:
     case X86Subtype::sqrt:
+    case X86Subtype::vpabs:
     case X86Subtype::HAdd:
       out.push_back({1, instr.args[1]});
       return;

@@ -3820,6 +3820,24 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto instr = res.matched_instrs[0];
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        if (instr->get_type()->is_vec()) {
+          const bool i64_lanes = res_reg.ty == Type::Int64x2 ||
+                                 res_reg.ty == Type::Int64x4;
+          if (i64_lanes && !data.config.target.features.avx512vl) {
+            // vpabsq is evex only: blend x and 0 - x on the sign of x
+            auto zero = MArgument(data.alloc.get_new_register(res_reg.ty),
+                                  res_reg.ty);
+            auto neg = MArgument(data.alloc.get_new_register(res_reg.ty),
+                                 res_reg.ty);
+            res.result.emplace_back(GVecSubtype::vXor, zero, arg, arg);
+            res.result.emplace_back(GVecSubtype::vsub, neg, zero, arg);
+            res.result.emplace_back(X86Subtype::vblendv, res_reg, arg, neg,
+                                    arg);
+            return true;
+          }
+          res.result.emplace_back(X86Subtype::vpabs, res_reg, arg);
+          return true;
+        }
         if (arg.ty == Type::Int8) {
           // there is no 8 bit cmov, take the low byte of the 32 bit abs
           auto wide =
