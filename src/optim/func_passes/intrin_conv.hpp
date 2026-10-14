@@ -12,6 +12,7 @@ namespace foptim::optim {
 
 bool match_memsetcpy(fir::Function &func);
 bool match_abs(fir::Context &ctx, fir::Function &func);
+bool match_bswap(fir::Context &ctx, fir::Function &func);
 
 class IntrinConv final : public FunctionPass {
 public:
@@ -22,6 +23,7 @@ public:
     ZoneScopedNC("IntrinConv", COLOR_OPTIMF);
     bool modified = match_memsetcpy(func);
     modified |= match_abs(ctx, func);
+    modified |= match_bswap(ctx, func);
     return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };

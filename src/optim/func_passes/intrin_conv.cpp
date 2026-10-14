@@ -8,6 +8,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <optional>
 
@@ -609,6 +610,202 @@ bool match_abs(fir::Context &ctx, fir::Function &func) {
     fir::Builder b{instr};
     auto res = b.build_intrinsic(x, is_float ? fir::IntrinsicSubType::FAbs
                                              : fir::IntrinsicSubType::Abs);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    modified = true;
+  }
+  return modified;
+}
+
+
+namespace {
+
+// Where every byte of an integer value comes from: a byte of the leaf value
+// or a known zero.
+struct ByteSrc {
+  bool zero = true;
+  u32 idx = 0;
+};
+struct ByteMap {
+  std::array<ByteSrc, 8> bytes{};
+};
+
+constexpr size_t MaxBswapNodes = 64;
+
+// Per byte provenance of v, nullopt if some bit is not a plain copy of a bit
+// of one common leaf value.
+std::optional<ByteMap> byte_map(fir::ValueR v, fir::ValueR &leaf, size_t &budget) {
+  using Sub = fir::BinaryInstrSubType;
+  if (!v.get_type()->is_int()) {
+    return std::nullopt;
+  }
+  const u32 bits = v.get_type()->get_bitwidth();
+  if (bits % 8 != 0 || bits > 64 || budget == 0) {
+    return std::nullopt;
+  }
+  budget--;
+  const u32 n = bits / 8;
+  ByteMap res;
+  const auto as_leaf = [&]() -> std::optional<ByteMap> {
+    if (!leaf.is_invalid() && !(leaf == v)) {
+      return std::nullopt;
+    }
+    leaf = v;
+    for (u32 i = 0; i < n; i++) {
+      res.bytes[i] = ByteSrc{.zero = false, .idx = i};
+    }
+    return res;
+  };
+  if (v.is_constant_int()) {
+    if (v.as_constant()->as_int() != 0) {
+      return std::nullopt;
+    }
+    return res;
+  }
+  if (!v.is_instr()) {
+    return as_leaf();
+  }
+  auto i = v.as_instr();
+  if (i->is(fir::IntrinsicSubType::Bswap) && i->args[0].get_type()->is_int() &&
+      i->args[0].get_type()->get_bitwidth() == bits) {
+    auto inner = byte_map(i->args[0], leaf, budget);
+    if (!inner) {
+      return std::nullopt;
+    }
+    for (u32 b = 0; b < n; b++) {
+      res.bytes[b] = inner->bytes[n - 1 - b];
+    }
+    return res;
+  }
+  if (i->is(fir::InstrType::ITrunc) || i->is(fir::InstrType::ZExt)) {
+    auto inner = byte_map(i->args[0], leaf, budget);
+    if (!inner) {
+      return std::nullopt;
+    }
+    for (u32 b = 0; b < n; b++) {
+      res.bytes[b] = inner->bytes[b];
+    }
+    return res;
+  }
+  if (!i->is(fir::InstrType::BinaryInstr)) {
+    return as_leaf();
+  }
+  if (i->is(Sub::Shl) || i->is(Sub::Shr)) {
+    if (!i->args[1].is_constant_int()) {
+      return as_leaf();
+    }
+    const i128 amount = i->args[1].as_constant()->as_int();
+    if (amount < 0 || amount >= bits || amount % 8 != 0) {
+      return std::nullopt;
+    }
+    auto inner = byte_map(i->args[0], leaf, budget);
+    if (!inner) {
+      return std::nullopt;
+    }
+    const u32 by = static_cast<u32>(amount / 8);
+    for (u32 b = 0; b < n; b++) {
+      if (i->is(Sub::Shl)) {
+        if (b >= by) {
+          res.bytes[b] = inner->bytes[b - by];
+        }
+      } else if (b + by < n) {
+        res.bytes[b] = inner->bytes[b + by];
+      }
+    }
+    return res;
+  }
+  if (i->is(Sub::And)) {
+    if (!i->args[1].is_constant_int()) {
+      return as_leaf();
+    }
+    const u64 mask = static_cast<u64>(i->args[1].as_constant()->as_int());
+    auto inner = byte_map(i->args[0], leaf, budget);
+    if (!inner) {
+      return std::nullopt;
+    }
+    for (u32 b = 0; b < n; b++) {
+      const u64 m = (mask >> (8 * b)) & 0xFF;
+      if (m == 0xFF) {
+        res.bytes[b] = inner->bytes[b];
+      } else if (m != 0 && !inner->bytes[b].zero) {
+        return std::nullopt;
+      }
+    }
+    return res;
+  }
+  if (i->is(Sub::Or) || i->is(Sub::Xor) || i->is(Sub::IntAdd)) {
+    auto l = byte_map(i->args[0], leaf, budget);
+    auto r = l ? byte_map(i->args[1], leaf, budget) : std::nullopt;
+    if (!l || !r) {
+      return std::nullopt;
+    }
+    // bytes with a single non zero side behave like an or
+    for (u32 b = 0; b < n; b++) {
+      if (!l->bytes[b].zero && !r->bytes[b].zero) {
+        return std::nullopt;
+      }
+      res.bytes[b] = l->bytes[b].zero ? r->bytes[b] : l->bytes[b];
+    }
+    return res;
+  }
+  return as_leaf();
+}
+
+// the leaf value that root is a byte reversal of, invalid if it is none
+fir::ValueR bswap_operand(fir::Instr root) {
+  if (!root->get_type()->is_int()) {
+    return {};
+  }
+  const u32 bits = root->get_type()->get_bitwidth();
+  if (bits != 16 && bits != 32 && bits != 64) {
+    return {};
+  }
+  fir::ValueR leaf{};
+  size_t budget = MaxBswapNodes;
+  auto map = byte_map(fir::ValueR{root}, leaf, budget);
+  if (!map || leaf.is_invalid()) {
+    return {};
+  }
+  const u32 n = bits / 8;
+  for (u32 b = 0; b < n; b++) {
+    if (map->bytes[b].zero || map->bytes[b].idx != n - 1 - b) {
+      return {};
+    }
+  }
+  // the leaf has to cover all bytes, a wider one is truncated by the caller
+  if (leaf.get_type()->get_bitwidth() < bits) {
+    return {};
+  }
+  return leaf;
+}
+
+} // namespace
+
+bool match_bswap(fir::Context &ctx, fir::Function &func) {
+  (void)ctx;
+  TVec<fir::Instr> candidates;
+  for (auto bb : func.basic_blocks) {
+    for (auto instr : bb->get_instrs()) {
+      // a root is the last or like op of a chain, parts of one are skipped
+      if (instr->is(fir::BinaryInstrSubType::Or) ||
+          instr->is(fir::BinaryInstrSubType::Xor) ||
+          instr->is(fir::BinaryInstrSubType::IntAdd) ||
+          instr->is(fir::InstrType::ITrunc)) {
+        candidates.push_back(instr);
+      }
+    }
+  }
+  bool modified = false;
+  for (auto instr : candidates) {
+    auto x = bswap_operand(instr);
+    if (x.is_invalid()) {
+      continue;
+    }
+    fir::Builder b{instr};
+    if (x.get_type() != instr->get_type()) {
+      x = b.build_itrunc(x, instr->get_type());
+    }
+    auto res = b.build_intrinsic(x, fir::IntrinsicSubType::Bswap);
     instr->replace_all_uses(res);
     instr.destroy();
     modified = true;
