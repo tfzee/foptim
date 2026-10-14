@@ -2811,6 +2811,8 @@ void base_patterns(IRVec<Pattern> &pats) {
           break;
         case Type::Int64x4:
         case Type::Float64x4:
+        case Type::Int64x8:
+        case Type::Float64x8:
           can_vbroadcast = true;
           res_reg_smoll.ty = Type::Float64;
           res_reg_smoll.reg.ty = Type::Float64;
