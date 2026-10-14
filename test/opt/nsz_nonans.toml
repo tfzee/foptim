@@ -1,0 +1,6 @@
+config_version = 1
+include = ["Default"]
+
+[optimize.float]
+no_nans = true
+no_signed_zeros = true

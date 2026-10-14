@@ -70,6 +70,8 @@ class BasicBlockData;
 class BBArgument;
 class Instr;
 class Builder;
+enum class InstrType : uint8_t;
+enum class BinaryInstrSubType : uint32_t;
 } // namespace fir
 
 using u8 = uint8_t;

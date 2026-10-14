@@ -84,6 +84,8 @@ public:
   [[nodiscard]] constexpr bool is_instr() const {
     return ty == ValueType::Instr;
   }
+  [[nodiscard]] bool is_instr(fir::InstrType exp) const;
+  [[nodiscard]] bool is_instr(fir::BinaryInstrSubType sub_ty) const;
   [[nodiscard]] constexpr bool is_bb() const {
     return ty == ValueType::BasicBlock;
   }

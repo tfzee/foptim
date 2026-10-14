@@ -84,188 +84,6 @@ bool is_constant_float_zero(fir::ValueR r) {
   return c->as_float() == 0;
 }
 
-bool select_to_abs(fir::Instr instr, WorkList &worklist) {
-  auto icmp = instr->args[0].as_instr();
-  bool negated = false;
-  bool positive = false;
-  // fmt::println("{:cd}", icmp);
-  // fmt::println("{:cd}", instr);
-  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
-      instr->args[2].as_instr()->args[0] == icmp->args[0]) {
-    positive = true;
-  }
-  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
-      is_constant_int_zero(instr->args[2].as_instr()->args[0]) &&
-      instr->args[2].as_instr()->args[1] == icmp->args[0]) {
-    positive = true;
-  }
-  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
-      instr->args[1].as_instr()->args[0] == icmp->args[0]) {
-    negated = true;
-  }
-  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
-      is_constant_int_zero(instr->args[1].as_instr()->args[0]) &&
-      instr->args[1].as_instr()->args[1] == icmp->args[0]) {
-    negated = true;
-  }
-  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
-      instr->args[2].as_instr()->args[0] == icmp->args[1]) {
-    negated = true;
-  }
-  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
-      is_constant_int_zero(instr->args[2].as_instr()->args[0]) &&
-      instr->args[2].as_instr()->args[1] == icmp->args[1]) {
-    negated = true;
-  }
-  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::IntNeg) &&
-      instr->args[1].as_instr()->args[0] == icmp->args[1]) {
-    positive = true;
-  }
-  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::IntSub) &&
-      is_constant_int_zero(instr->args[1].as_instr()->args[0]) &&
-      instr->args[1].as_instr()->args[1] == icmp->args[1]) {
-    positive = true;
-  }
-  ASSERT(!negated || !positive);
-  if (negated || positive) {
-    fir::Builder b{instr};
-    fir::ValueR new_val;
-    switch (static_cast<fir::ICmpInstrSubType>(icmp->subtype)) {
-    case fir::ICmpInstrSubType::SGT:
-    case fir::ICmpInstrSubType::SGE:
-    case fir::ICmpInstrSubType::UGT:
-    case fir::ICmpInstrSubType::UGE:
-      if (positive) {
-        new_val = b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::Abs);
-        break;
-      }
-      break;
-    case fir::ICmpInstrSubType::SLT:
-    case fir::ICmpInstrSubType::SLE:
-    case fir::ICmpInstrSubType::ULT:
-    case fir::ICmpInstrSubType::ULE:
-      if (negated) {
-        new_val = b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::Abs);
-        break;
-      }
-      break;
-    default:
-      fmt::println("{:cd}", icmp);
-      fmt::println("{:cd}", instr);
-      TODO("okak");
-      break;
-    }
-    if (!new_val.is_invalid()) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(new_val);
-      instr.destroy();
-      return true;
-    }
-  }
-  return false;
-}
-
-bool select_to_fabs(fir::Instr instr, WorkList &worklist) {
-  auto icmp = instr->args[0].as_instr();
-  bool negated = false;
-  bool positive = false;
-  // fmt::println("{:cd}", icmp);
-  // fmt::println("{:cd}", instr);
-  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
-      instr->args[2].as_instr()->args[0] == icmp->args[0]) {
-    positive = true;
-  }
-  if (icmp->args[0] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
-      is_constant_float_zero(instr->args[2].as_instr()->args[0]) &&
-      instr->args[2].as_instr()->args[1] == icmp->args[0]) {
-    positive = true;
-  }
-  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
-      instr->args[1].as_instr()->args[0] == icmp->args[0]) {
-    negated = true;
-  }
-  if (icmp->args[0] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
-      is_constant_float_zero(instr->args[1].as_instr()->args[0]) &&
-      instr->args[1].as_instr()->args[1] == icmp->args[0]) {
-    negated = true;
-  }
-  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
-      instr->args[2].as_instr()->args[0] == icmp->args[1]) {
-    negated = true;
-  }
-  if (icmp->args[1] == instr->args[1] && instr->args[2].is_instr() &&
-      instr->args[2].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
-      is_constant_float_zero(instr->args[2].as_instr()->args[0]) &&
-      instr->args[2].as_instr()->args[1] == icmp->args[1]) {
-    negated = true;
-  }
-  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::UnaryInstrSubType::FloatNeg) &&
-      instr->args[1].as_instr()->args[0] == icmp->args[1]) {
-    positive = true;
-  }
-  if (icmp->args[1] == instr->args[2] && instr->args[1].is_instr() &&
-      instr->args[1].as_instr()->is(fir::BinaryInstrSubType::FloatSub) &&
-      is_constant_float_zero(instr->args[1].as_instr()->args[0]) &&
-      instr->args[1].as_instr()->args[1] == icmp->args[1]) {
-    positive = true;
-  }
-  ASSERT(!negated || !positive);
-  if (negated || positive) {
-    fir::Builder b{instr};
-    fir::ValueR new_val;
-    switch (static_cast<fir::FCmpInstrSubType>(icmp->subtype)) {
-    case fir::FCmpInstrSubType::OGE:
-    case fir::FCmpInstrSubType::UGT:
-    case fir::FCmpInstrSubType::UGE:
-    case fir::FCmpInstrSubType::OGT:
-      if (positive) {
-        new_val = b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::FAbs);
-        break;
-      }
-      break;
-    case fir::FCmpInstrSubType::ULT:
-    case fir::FCmpInstrSubType::ULE:
-    case fir::FCmpInstrSubType::OLT:
-    case fir::FCmpInstrSubType::OLE:
-      if (negated) {
-        new_val = b.build_intrinsic(icmp->args[0], fir::IntrinsicSubType::FAbs);
-        break;
-      }
-      break;
-    case fir::FCmpInstrSubType::OEQ:
-    case fir::FCmpInstrSubType::ONE:
-    case fir::FCmpInstrSubType::UEQ:
-    case fir::FCmpInstrSubType::UNE:
-    default:
-      fmt::println("{:cd}", icmp);
-      fmt::println("{:cd}", instr);
-      TODO("okak");
-      break;
-    }
-    if (!new_val.is_invalid()) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(new_val);
-      instr.destroy();
-      return true;
-    }
-  }
-  return false;
-}
-
 bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context & /*ctx*/, WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
@@ -319,20 +137,6 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr.destroy();
         return true;
       }
-    }
-  }
-  if (instr->args[0].is_instr() &&
-      instr->args[0].as_instr()->is(fir::InstrType::ICmp) &&
-      is_constant_int_zero(instr->args[0].as_instr()->args[1])) {
-    if (select_to_abs(instr, worklist)) {
-      return true;
-    }
-  }
-  if (instr->args[0].is_instr() &&
-      instr->args[0].as_instr()->is(fir::InstrType::FCmp) &&
-      is_constant_float_zero(instr->args[0].as_instr()->args[1])) {
-    if (select_to_fabs(instr, worklist)) {
-      return true;
     }
   }
   if (instr->args[0].is_instr() &&
@@ -1277,7 +1081,7 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   case fir::ConversionSubType::FPTOUI:
     if (instr->args[0].is_constant() &&
         instr->args[0].as_constant()->is_float()) {
-      auto val = instr->args[0].as_constant()->as_float();
+      auto val = const_fp(instr->args[0].as_constant());
       push_all_uses(worklist, instr);
       instr->replace_all_uses(fir::ValueR{
           ctx->get_constant_value(static_cast<u64>(val), instr->get_type())});
@@ -1810,19 +1614,25 @@ bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
       case fir::IntrinsicSubType::FMax: {
         push_all_uses(worklist, instr);
-        auto val = std::max(instr->args[0].as_constant()->as_float(),
-                            instr->args[1].as_constant()->as_float());
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+        auto val = std::max(const_fp(instr->args[0].as_constant()),
+                            const_fp(instr->args[1].as_constant()));
+        auto ty = instr->get_type();
+        instr->replace_all_uses(fir::ValueR{
+            ty->as_float() == 32
+                ? ctx->get_constant_value(static_cast<f32>(val), ty)
+                : ctx->get_constant_value(val, ty)});
         instr.destroy();
         return true;
       }
       case fir::IntrinsicSubType::FMin: {
         push_all_uses(worklist, instr);
-        auto val = std::min(instr->args[0].as_constant()->as_float(),
-                            instr->args[1].as_constant()->as_float());
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
+        auto val = std::min(const_fp(instr->args[0].as_constant()),
+                            const_fp(instr->args[1].as_constant()));
+        auto ty = instr->get_type();
+        instr->replace_all_uses(fir::ValueR{
+            ty->as_float() == 32
+                ? ctx->get_constant_value(static_cast<f32>(val), ty)
+                : ctx->get_constant_value(val, ty)});
         instr.destroy();
         return true;
       }
