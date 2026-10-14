@@ -83,12 +83,25 @@ int main(int argc, char *argv[]) {
     foptim::FVec<foptim::IRString> decls;
     {
       auto a1 = t.scopedTimer("Mir");
-      for (auto *f : ctx.data->storage.functions.all()) {
-        if (f->is_decl()) {
-          decls.push_back(f->name);
-        }
-      }
       lower_to_mir_and_optimize(ctx, funcs, globals, &shed);
+      for (auto *f : ctx.data->storage.functions.all()) {
+        if (!f->is_decl()) {
+          continue;
+        }
+        // the loader declares these for the passes that lower to them, only
+        // keep them if the code really calls them
+        const bool libc_helper = f->name == "memcpy" || f->name == "memset" ||
+                                 f->name == "memmove" || f->name == "memcmp";
+        if (libc_helper && f->get_n_uses() == 0 &&
+            std::ranges::none_of(globals, [&](const auto &g) {
+              return std::ranges::any_of(g.reloc_info, [&](const auto &r) {
+                return r.name == f->name;
+              });
+            })) {
+          continue;
+        }
+        decls.push_back(f->name);
+      }
     }
     {
       auto a1 = t.scopedTimer("Codegen");
