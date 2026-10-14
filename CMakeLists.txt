@@ -140,6 +140,7 @@ add_library (foptim OBJECT
                 ./src/optim/func_passes/double_load.cpp
                 ./src/optim/func_passes/intrin_simplify.cpp
                 ./src/optim/func_passes/intrin_expand.cpp
+                ./src/optim/func_passes/intrin_conv.cpp
                 ./src/optim/func_passes/inst_simplify.cpp
                 ./src/optim/func_passes/lvn.cpp
                 ./src/optim/func_passes/sccp.cpp
