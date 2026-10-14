@@ -3820,6 +3820,20 @@ void intrin_patterns(IRVec<Pattern> &pats) {
         auto instr = res.matched_instrs[0];
         auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
         auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        if (arg.ty == Type::Int8) {
+          // there is no 8 bit cmov, take the low byte of the 32 bit abs
+          auto wide =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          auto wide_abs =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          auto low = wide_abs;
+          low.ty = Type::Int8;
+          low.reg.ty = Type::Int8;
+          res.result.emplace_back(GConvSubtype::mov_sx, wide, arg);
+          res.result.emplace_back(GArithSubtype::abs, wide_abs, wide);
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, low);
+          return true;
+        }
         res.result.emplace_back(GArithSubtype::abs, res_reg, arg);
         return true;
       }});

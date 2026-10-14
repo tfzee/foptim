@@ -207,7 +207,7 @@ class SCCP final : public FunctionPass {
     bool storeConstant(u8 *v, fir::TypeR c) {
       auto bitwidth = c->get_bitwidth();
       if (c->is_float() && bitwidth == 32) {
-        auto val = static_cast<f32>(vals[0].f);
+        auto val = as_f32();
         std::memcpy(v, &val, sizeof(f32));
         return true;
       }
@@ -236,17 +236,17 @@ class SCCP final : public FunctionPass {
         for (size_t i = 0; i < vals.size(); i++) {
           if (cv.type == fir::VectorType::SubType::Floating &&
               cv.bitwidth == 32) {
-            auto val = static_cast<f32>(vals[0].f);
+            auto val = as_f32(i);
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(f32));
             // *(((f32 *)(v + (i * cv.bitwidth / 8)))) = (f32)vals[i].f;
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 32) {
-            auto val = static_cast<i32>(vals[0].i);
+            auto val = static_cast<i32>(vals[i].i);
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i32));
             // *(((i32 *)(v + (i * cv.bitwidth / 8)))) = (i32)vals[i].i;
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 64) {
-            auto val = static_cast<i64>(vals[0].i);
+            auto val = static_cast<i64>(vals[i].i);
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i64));
             // *(((u64 *)(v + (i * cv.bitwidth / 8)))) = (i64)vals[i].i;
           } else {

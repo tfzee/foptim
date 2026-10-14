@@ -109,6 +109,12 @@ static bool canNarrowFpCompare(double C, fir::FCmpInstrSubType op) {
   TODO("UNREACH");
 }
 
+// f32 constants keep their bit pattern in the f64 slot
+inline f64 const_fp(fir::ConstantValueR c) {
+  return c->get_type()->as_float() == 32 ? static_cast<f64>(c->as_f32())
+                                         : c->as_f64();
+}
+
 inline bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock bb,
                                fir::Context &ctx, WorkList &worklist);
 
@@ -245,8 +251,8 @@ inline bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       return true;
     }
     ASSERT(c1->is_float());
-    const auto v1 = c1->as_float();
-    const auto v2 = c2->as_float();
+    const auto v1 = const_fp(c1);
+    const auto v2 = const_fp(c2);
 
     bool is_true = false;
     const bool uno = std::isnan(v1) || std::isnan(v2);
