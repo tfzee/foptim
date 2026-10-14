@@ -96,21 +96,21 @@ ZydisRegister convert_reg(const fmir::VReg &reg) {
   constexpr ZydisRegister xmm1_regs[] = {
       ZYDIS_REGISTER_XMM1, ZYDIS_REGISTER_YMM1, ZYDIS_REGISTER_ZMM1};
   constexpr ZydisRegister xmm2_regs[] = {
-      ZYDIS_REGISTER_XMM2, ZYDIS_REGISTER_YMM2, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM2, ZYDIS_REGISTER_YMM2, ZYDIS_REGISTER_ZMM2};
   constexpr ZydisRegister xmm3_regs[] = {
-      ZYDIS_REGISTER_XMM3, ZYDIS_REGISTER_YMM3, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM3, ZYDIS_REGISTER_YMM3, ZYDIS_REGISTER_ZMM3};
   constexpr ZydisRegister xmm4_regs[] = {
-      ZYDIS_REGISTER_XMM4, ZYDIS_REGISTER_YMM4, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM4, ZYDIS_REGISTER_YMM4, ZYDIS_REGISTER_ZMM4};
   constexpr ZydisRegister xmm5_regs[] = {
-      ZYDIS_REGISTER_XMM5, ZYDIS_REGISTER_YMM5, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM5, ZYDIS_REGISTER_YMM5, ZYDIS_REGISTER_ZMM5};
   constexpr ZydisRegister xmm6_regs[] = {
-      ZYDIS_REGISTER_XMM6, ZYDIS_REGISTER_YMM6, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM6, ZYDIS_REGISTER_YMM6, ZYDIS_REGISTER_ZMM6};
   constexpr ZydisRegister xmm7_regs[] = {
-      ZYDIS_REGISTER_XMM7, ZYDIS_REGISTER_YMM7, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM7, ZYDIS_REGISTER_YMM7, ZYDIS_REGISTER_ZMM7};
   constexpr ZydisRegister xmm8_regs[] = {
-      ZYDIS_REGISTER_XMM8, ZYDIS_REGISTER_YMM8, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM8, ZYDIS_REGISTER_YMM8, ZYDIS_REGISTER_ZMM8};
   constexpr ZydisRegister xmm9_regs[] = {
-      ZYDIS_REGISTER_XMM9, ZYDIS_REGISTER_YMM9, ZYDIS_REGISTER_ZMM0};
+      ZYDIS_REGISTER_XMM9, ZYDIS_REGISTER_YMM9, ZYDIS_REGISTER_ZMM9};
   constexpr ZydisRegister xmm10_regs[] = {
       ZYDIS_REGISTER_XMM10, ZYDIS_REGISTER_YMM10, ZYDIS_REGISTER_ZMM10};
   constexpr ZydisRegister xmm11_regs[] = {
@@ -394,12 +394,16 @@ size_t emit_move(const fmir::MInstr &instr, ZydisEncoderRequest &req,
     case fmir::Type::Int32x4:
     case fmir::Type::Float32x8:
     case fmir::Type::Int32x8:
+    case fmir::Type::Float32x16:
+    case fmir::Type::Int32x16:
       req.mnemonic = ZYDIS_MNEMONIC_VMOVUPS;
       break;
     case fmir::Type::Int64x2:
     case fmir::Type::Float64x2:
     case fmir::Type::Int64x4:
     case fmir::Type::Float64x4:
+    case fmir::Type::Int64x8:
+    case fmir::Type::Float64x8:
       req.mnemonic = ZYDIS_MNEMONIC_VMOVUPD;
       break;
     default:
@@ -1956,6 +1960,11 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
     }
+    // the float forms of zmm xor need avx512dq
+    if (instr.args[0].reg.size() == 64) {
+      req.mnemonic = ZYDIS_MNEMONIC_VPXORQ;
+      return emit(out_buff, 0, &req);
+    }
     req.mnemonic = instr.args[0].ty == fmir::Type::Float32
                        ? ZYDIS_MNEMONIC_VXORPS
                        : ZYDIS_MNEMONIC_VXORPD;
@@ -2411,6 +2420,40 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     }
     req.mnemonic = ZYDIS_MNEMONIC_LZCNT;
     return emit(out_buff, 0, &req);
+  case fmir::X86Subtype::bswap: {
+    // bswap works in place, a 16 bit swap is a rotate
+    ASSERT(instr.args[0].isReg());
+    const auto dst = convert_reg(instr.args[0].reg);
+    u64 off = 0;
+    if (instr.args[1].isReg() &&
+        convert_reg(instr.args[1].reg) == dst) {
+      // already in place
+    } else {
+      ZydisEncoderRequest mov_req;
+      memset(&mov_req, 0, sizeof(mov_req));
+      mov_req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+      mov_req.operand_count = 2;
+      emit_operand(instr.args[0], mov_req.operands[0], reloc_map, out_buff, 0);
+      emit_operand(instr.args[1], mov_req.operands[1], reloc_map, out_buff, 1);
+      mov_req.mnemonic = ZYDIS_MNEMONIC_MOV;
+      off = emit(out_buff, 0, &mov_req);
+    }
+    ZydisEncoderRequest swap_req;
+    memset(&swap_req, 0, sizeof(swap_req));
+    swap_req.machine_mode = ZYDIS_MACHINE_MODE_LONG_64;
+    swap_req.operands[0].type = ZYDIS_OPERAND_TYPE_REGISTER;
+    swap_req.operands[0].reg.value = dst;
+    if (instr.args[0].reg.size() == 2) {
+      swap_req.mnemonic = ZYDIS_MNEMONIC_ROL;
+      swap_req.operand_count = 2;
+      swap_req.operands[1].type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+      swap_req.operands[1].imm.s = 8;
+    } else {
+      swap_req.mnemonic = ZYDIS_MNEMONIC_BSWAP;
+      swap_req.operand_count = 1;
+    }
+    return emit(out_buff, off, &swap_req);
+  }
   case fmir::X86Subtype::popcnt:
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -2663,6 +2706,8 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     case fmir::Type::Float32x4:
     case fmir::Type::Int32x8:
     case fmir::Type::Float32x8:
+    case fmir::Type::Int32x16:
+    case fmir::Type::Float32x16:
       req.mnemonic = ZYDIS_MNEMONIC_VBROADCASTSS;
       break;
     case fmir::Type::Float64x2:
@@ -2670,6 +2715,8 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
           reg_with_type(instr.args[0].reg, fmir::Type::Float64x4);
     case fmir::Type::Int64x4:
     case fmir::Type::Float64x4:
+    case fmir::Type::Int64x8:
+    case fmir::Type::Float64x8:
       req.mnemonic = ZYDIS_MNEMONIC_VBROADCASTSD;
       break;
     }

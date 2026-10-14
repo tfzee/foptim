@@ -61,6 +61,12 @@ OpData get_op_addr(u8 *buff, u8 op_num) {
   // diss_print(buff_instr);
   ZY_ASS(ZydisDecoderDecodeFull(&decoder, buff, 999, &instruction, operands));
 
+  // evex forms list the write mask as an operand after the destination
+  if (op_num >= 1 && operands[1].type == ZYDIS_OPERAND_TYPE_REGISTER &&
+      operands[1].reg.value >= ZYDIS_REGISTER_K0 &&
+      operands[1].reg.value <= ZYDIS_REGISTER_K7) {
+    op_num++;
+  }
   assert(op_num < instruction.operand_count_visible);
   auto &op = operands[op_num];
   assert(op.type == ZYDIS_OPERAND_TYPE_IMMEDIATE ||
