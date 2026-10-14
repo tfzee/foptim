@@ -897,6 +897,43 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
           instr.destroy();
           return true;
         }
+        if (argi->is(fir::BinaryInstrSubType::Shr) &&
+            instr->args[1].is_constant_int() &&
+            argi->args[1].is_constant_int() &&
+            instr->args[1] != argi->args[1]) {
+          // (x >> a) << b is a single shift and a mask
+          const i128 right = argi->args[1].as_constant()->as_int();
+          const i128 left = instr->args[1].as_constant()->as_int();
+          const i128 bitwidth = instr->get_type()->get_bitwidth();
+          if (right >= 0 && left >= 0 && right < bitwidth && left < bitwidth) {
+            fir::Builder buh{argi};
+            const i128 all = (static_cast<i128>(1) << bitwidth) - 1;
+            const i128 mask = all & ~((static_cast<i128>(1) << left) - 1);
+            fir::ValueR shifted;
+            if (left > right) {
+              shifted = buh.build_binary_op(
+                  argi->args[0],
+                  fir::ValueR{ctx->get_constant_value(left - right,
+                                                      instr->get_type())},
+                  fir::BinaryInstrSubType::Shl);
+            } else {
+              shifted = buh.build_binary_op(
+                  argi->args[0],
+                  fir::ValueR{ctx->get_constant_value(right - left,
+                                                      instr->get_type())},
+                  fir::BinaryInstrSubType::Shr);
+            }
+            auto res = buh.build_binary_op(
+                shifted,
+                fir::ValueR{ctx->get_constant_value(mask, instr->get_type())},
+                fir::BinaryInstrSubType::And);
+            worklist.emplace_back(res.as_instr(), bb);
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(res);
+            instr.destroy();
+            return true;
+          }
+        }
         if (instr->args[1].is_constant_int() &&
             argi->args[1].is_constant_int() &&
             argi->is(fir::BinaryInstrSubType::AShr)) {
