@@ -562,7 +562,7 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     }
     a0 = MArgument::stack_slot(stack_slot_id, a0.ty);
     return true;
-  } else if (!instr.is(X86Subtype::lea)) {
+  } else if (!instr.is(X86Subtype::lea) && !instr.is(GVecSubtype::vXor)) {
     // lea needs a register destination and has no memory form for the address
     fmt::println(">> try mem insert spill >> {}", instr);
   }
@@ -613,8 +613,12 @@ void handle_spill_move(IRVec<MInstr> &bbm, size_t &instr_id, VReg spill_vreg,
   read_args(instr, args);
   bool read = false;
   bool written = false;
+  // a clear (x ^ x) does not depend on the old value, so it needs no reload
+  const bool is_clear = instr.is(GVecSubtype::vXor) &&
+                        instr.args[0] == instr.args[1] &&
+                        instr.args[0] == instr.args[2];
   for (auto &arg : args) {
-    if (arg.arg.uses_same_vreg(spill_vreg)) {
+    if (!is_clear && arg.arg.uses_same_vreg(spill_vreg)) {
       read = true;
     }
   }
