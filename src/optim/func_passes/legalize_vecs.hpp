@@ -39,6 +39,20 @@ class LegalizeVecs final : public FunctionPass {
     instr.replace_arg(arg_indx, load_val);
   }
 
+  // the matcher builds these with a vxor, no load from a constant needed
+  static bool is_zero_vec(fir::ConstantValueR c) {
+    for (const auto &m : c->as_vec().members) {
+      const bool zero = (m->is_int() && m->as_int() == 0) ||
+                        (m->is_float() && m->as_f64() == 0.0 &&
+                         !std::signbit(m->as_f64())) ||
+                        m->is_null();
+      if (!zero) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   static void push_all_uses(TVec<fir::Instr> &worklist, fir::Instr instr) {
     for (auto u : instr->get_uses()) {
       worklist.push_back(u.user);
@@ -52,7 +66,8 @@ class LegalizeVecs final : public FunctionPass {
     for (size_t arg_indx = 0; arg_indx < instr->args.size(); arg_indx++) {
       auto arg = instr->args[arg_indx];
       // replace vec with reference to global variable
-      if (arg.is_constant() && arg.as_constant()->is_vec()) {
+      if (arg.is_constant() && arg.as_constant()->is_vec() &&
+          !is_zero_vec(arg.as_constant())) {
         make_constant_global(ctx, instr, arg_indx);
         changed = true;
       }

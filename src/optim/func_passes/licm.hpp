@@ -227,20 +227,40 @@ public:
       }
     }
 
+    // Reads can fault, so they only leave the loop if they run on every entry
+    // anyway: in the header, behind an unconditional edge from the
+    // preheader, with nothing before them that has an effect.
+    TSet<fir::Instr> runs_on_entry;
+    if (!loop_writes_mem &&
+        pre_header->get_terminator()->is(fir::InstrType::BranchInstr)) {
+      for (auto instr : cfg.bbrs[info.head].bb->instructions) {
+        if (instr->has_pot_sideeffects() || instr->is_critical()) {
+          break;
+        }
+        runs_on_entry.insert(instr);
+      }
+    }
+    auto is_hoistable_read = [&](fir::Instr instr) {
+      if (instr->Volatile || instr->Atomic || loop_writes_mem) {
+        return false;
+      }
+      if (instr->is(fir::InstrType::LoadInstr) &&
+          is_dereferenceable(instr->get_arg(0), instr->get_type()->get_size())) {
+        return true;
+      }
+      return runs_on_entry.contains(instr);
+    };
+
     for (auto bb : info.body_nodes) {
       for (auto instr : cfg.bbrs[bb].bb->instructions) {
         if (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
             instr->is_critical()) {
           continue;
         }
-        // other reads (memcmp) are not speculated, they can fault
-        if (instr->pot_reads_mem() && !instr->is(fir::InstrType::LoadInstr)) {
-          continue;
-        }
-        if (instr->is(fir::InstrType::LoadInstr)) {
-          if (loop_writes_mem || instr->Volatile || instr->Atomic ||
-              !is_dereferenceable(instr->get_arg(0),
-                                  instr->get_type()->get_size())) {
+        if (instr->pot_reads_mem()) {
+          const bool is_load = instr->is(fir::InstrType::LoadInstr);
+          const bool is_memcmp = instr->is(fir::IntrinsicSubType::Memcmp);
+          if ((!is_load && !is_memcmp) || !is_hoistable_read(instr)) {
             continue;
           }
         }
@@ -253,7 +273,7 @@ public:
       worklist.pop_front();
       if (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
           instr->is_critical() ||
-          (instr->pot_reads_mem() && !instr->is(fir::InstrType::LoadInstr))) {
+          (instr->pot_reads_mem() && !is_hoistable_read(instr))) {
         continue;
       }
 

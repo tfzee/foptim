@@ -1580,6 +1580,9 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     ASSERT(c.vals.size() <= 1);
     auto ty = instr->get_type();
     auto glob = c.vals[0].gptr;
+    if (!glob->reloc_info.empty()) {
+      return ConstantValue::Top();
+    }
     auto res = ConstantValue::loadConstant(glob->init_value, ty, ctx);
     if (res) {
       return res.value();
