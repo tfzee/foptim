@@ -38,10 +38,10 @@ exit:
   ret void
 }
 
-define void @copy_i16(ptr %d, ptr %s) {
+define void @copy_i16(ptr noalias %d, ptr %s) {
 ; CHECK-LABEL: func copy_i16<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
+; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 2:i32){NSW; NUW; } NUses:1

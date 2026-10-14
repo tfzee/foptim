@@ -5,6 +5,7 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
@@ -36,6 +37,130 @@ std::optional<TVec<fir::ValueR>> exit_edge_args(fir::Instr term,
   return res;
 }
 
+// A pointer of a single block loop as base + off0 + stride * k in iteration k.
+struct PtrForm {
+  fir::ValueR base;
+  i128 off0 = 0;
+  i128 stride = 0;
+};
+
+struct LinearIdx {
+  i128 scale = 0;
+  i128 off = 0;
+};
+
+// the induction variable is the first header argument
+struct LoopCtx {
+  fir::BasicBlock bb;
+  fir::BBArgument iv;
+  i128 lower;
+  TVec<fir::ValueR> incoming;
+};
+
+static std::optional<LinearIdx> linear_idx(fir::ValueR v, const LoopCtx &lc) {
+  if (v.is_bb_arg() && v.as_bb_arg() == lc.iv) {
+    return LinearIdx{.scale = 1, .off = 0};
+  }
+  if (v.is_constant_int()) {
+    return LinearIdx{.scale = 0, .off = v.as_constant()->as_int()};
+  }
+  if (!v.is_instr() || v.as_instr()->get_parent() != lc.bb) {
+    return std::nullopt;
+  }
+  auto i = v.as_instr();
+  if (i->is(fir::BinaryInstrSubType::IntAdd) ||
+      i->is(fir::BinaryInstrSubType::IntSub)) {
+    auto a = linear_idx(i->args[0], lc);
+    auto b = linear_idx(i->args[1], lc);
+    if (!a || !b) {
+      return std::nullopt;
+    }
+    const i128 sign = i->is(fir::BinaryInstrSubType::IntAdd) ? 1 : -1;
+    return LinearIdx{.scale = a->scale + sign * b->scale,
+                     .off = a->off + sign * b->off};
+  }
+  if (i->is(fir::BinaryInstrSubType::IntMul)) {
+    auto a = linear_idx(i->args[0], lc);
+    auto b = linear_idx(i->args[1], lc);
+    if (!a || !b || (a->scale != 0 && b->scale != 0)) {
+      return std::nullopt;
+    }
+    if (a->scale == 0) {
+      std::swap(a, b);
+    }
+    return LinearIdx{.scale = a->scale * b->off, .off = a->off * b->off};
+  }
+  return std::nullopt;
+}
+
+static std::optional<PtrForm> ptr_form(fir::ValueR v, const LoopCtx &lc) {
+  if (v.is_instr() && v.as_instr()->get_parent() == lc.bb) {
+    auto i = v.as_instr();
+    if (!i->is(fir::BinaryInstrSubType::PtrAdd)) {
+      return std::nullopt;
+    }
+    auto p = ptr_form(i->args[0], lc);
+    auto idx = linear_idx(i->args[1], lc);
+    if (!p || !idx) {
+      return std::nullopt;
+    }
+    p->off0 += idx->scale * lc.lower + idx->off;
+    p->stride += idx->scale;
+    return p;
+  }
+  if (v.is_bb_arg() && v.as_bb_arg()->get_parent() == lc.bb) {
+    if (v.as_bb_arg() == lc.iv) {
+      return std::nullopt;
+    }
+    // a pointer that is bumped by a constant every iteration
+    size_t pos = 0;
+    while (lc.bb->args[pos] != v.as_bb_arg()) {
+      pos++;
+    }
+    auto term = lc.bb->get_terminator();
+    for (size_t e = 0; e < term->bbs.size(); e++) {
+      if (term->bbs[e].bb != lc.bb) {
+        continue;
+      }
+      auto back = term->bbs[e].args[pos];
+      if (!back.is_instr() ||
+          !back.as_instr()->is(fir::BinaryInstrSubType::PtrAdd) ||
+          back.as_instr()->args[0] != v ||
+          !back.as_instr()->args[1].is_constant_int()) {
+        return std::nullopt;
+      }
+      return PtrForm{.base = lc.incoming[pos],
+                     .off0 = 0,
+                     .stride = back.as_instr()->args[1].as_constant()->as_int()};
+    }
+    return std::nullopt;
+  }
+  return PtrForm{.base = v};
+}
+
+enum class CopyKind : u8 { Memcpy, Memmove, None };
+
+static CopyKind classify_copy(const PtrForm &dst, const PtrForm &src, i128 bytes,
+                       i128 elem_size, AliasAnalyis &aa) {
+  if (dst.stride != elem_size || src.stride != elem_size) {
+    return CopyKind::None;
+  }
+  if (dst.base == src.base) {
+    if (dst.off0 + bytes <= src.off0 || src.off0 + bytes <= dst.off0) {
+      return CopyKind::Memcpy;
+    }
+    // dst in front of src is a forward memmove
+    return dst.off0 < src.off0 ? CopyKind::Memmove : CopyKind::None;
+  }
+  const auto extent = [&](const PtrForm &f) {
+    return f.off0 >= 0 ? static_cast<size_t>(f.off0 + bytes) : size_t{0};
+  };
+  return aa.alias(dst.base, src.base, extent(dst), extent(src)) ==
+                 AliasAnalyis::AAResult::NoAlias
+             ? CopyKind::Memcpy
+             : CopyKind::None;
+}
+
 // detect single basicblock memset/memcpy
 bool match_memsetcpy(fir::Function &func) {
   /*
@@ -53,6 +178,7 @@ bool match_memsetcpy(fir::Function &func) {
   DominatorTree dom2{cfg};
   LoopInfoAnalysis linfo{dom2};
   LoopRangeAnalysis range{};
+  AliasAnalyis aa;
 
   if (linfo.info.empty()) {
     return false;
@@ -73,6 +199,23 @@ bool match_memsetcpy(fir::Function &func) {
     }
     auto r = range.upper_bound - range.lower_bound;
     auto loop_bb = cfg.bbrs[l.head].bb;
+    LoopCtx lc{.bb = loop_bb,
+               .iv = loop_bb->args[0],
+               .lower = range.lower_bound,
+               .incoming = {}};
+    for (u32 p : cfg.bbrs[l.head].pred) {
+      if (std::ranges::find(l.body_nodes, p) == l.body_nodes.end()) {
+        auto pred_term = cfg.bbrs[p].bb->get_terminator();
+        auto edge = pred_term.get_bb_id(loop_bb);
+        for (auto a : pred_term->bbs[edge].args) {
+          lc.incoming.push_back(a);
+        }
+        break;
+      }
+    }
+    if (lc.incoming.size() != loop_bb->args.size()) {
+      continue;
+    }
 
     // if all vlaues in this loop arent used afterwards && we dont load we only
     // have a store of a constant we can conver it
@@ -125,6 +268,17 @@ bool match_memsetcpy(fir::Function &func) {
           load_instr->Volatile || load_instr->Atomic) {
         continue;
       }
+      auto dst_form = ptr_form(store_instr->args[0], lc);
+      auto src_form = ptr_form(load_instr->args[0], lc);
+      if (!dst_form || !src_form) {
+        continue;
+      }
+      const i128 elem_size = load_instr->get_type()->get_size();
+      const auto kind =
+          classify_copy(*dst_form, *src_form, r * elem_size, elem_size, aa);
+      if (kind == CopyKind::None) {
+        continue;
+      }
       fir::Builder buh{store_instr};
       auto old_term = loop_bb->get_terminator();
       ASSERT(old_term->bbs.size() == 2);
@@ -137,7 +291,9 @@ bool match_memsetcpy(fir::Function &func) {
       auto memcpy_instr = buh.build_intrinsic(
           store_instr->args[0], load_instr->args[0],
           fir::ValueR{func.ctx->get_constant_int(r, 64)},
-          fir::IntrinsicSubType::Memcpy, func.ctx->get_void_type());
+          kind == CopyKind::Memcpy ? fir::IntrinsicSubType::Memcpy
+                                   : fir::IntrinsicSubType::Memmove,
+          func.ctx->get_void_type());
       // the count is in elements of this type
       memcpy_instr.as_instr()->extra_type = load_instr->get_type();
       fir::BasicBlock target_bb{fir::BasicBlock::invalid()};
@@ -164,6 +320,12 @@ bool match_memsetcpy(fir::Function &func) {
         store_val.is_bb_arg() && loop_bb != store_val.as_bb_arg()->get_parent();
     if (!is_constant && !is_instr_loop_constant_value &&
         !is_bb_arg_loop_constant_value) {
+      continue;
+    }
+    auto dst_form = ptr_form(store_instr->args[0], lc);
+    if (!dst_form ||
+        dst_form->stride !=
+            static_cast<i128>(store_val.get_type()->get_size())) {
       continue;
     }
     fir::Builder buh{store_instr};

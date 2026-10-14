@@ -53,7 +53,7 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memset(fir::Function &func,
   b.add_bb_arg(0, fir::ValueR{ctx->get_constant_int(0, 64)});
   buh.at_end(loop_bb);
 
-  buh.build_store(curr_ptr, value, false, false);
+  buh.build_store(curr_ptr, value, false, instr->Volatile);
   auto next_ptr =
       buh.build_ptr_add(curr_ptr, fir::ValueR{ctx->get_constant_int(
                                       value.get_type()->get_size(), 64)});
@@ -101,8 +101,8 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memcpy(fir::Function &func,
   buh.at_end(loop_bb);
 
   // forward element by element, exactly what the loop this came from did
-  auto loaded = buh.build_load(elem_ty, curr_src, false, false);
-  buh.build_store(curr_dst, loaded, false, false);
+  auto loaded = buh.build_load(elem_ty, curr_src, false, instr->Volatile);
+  buh.build_store(curr_dst, loaded, false, instr->Volatile);
   auto elem_size = fir::ValueR{ctx->get_constant_int(elem_ty->get_size(), 64)};
   auto next_dst = buh.build_ptr_add(curr_dst, elem_size);
   auto next_src = buh.build_ptr_add(curr_src, elem_size);
@@ -118,25 +118,65 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memcpy(fir::Function &func,
   return {new_block};
 }
 
+static const char *libc_name(fir::Instr instr) {
+  if (instr->is(fir::IntrinsicSubType::Memcpy)) {
+    return "memcpy";
+  }
+  if (instr->is(fir::IntrinsicSubType::Memset)) {
+    return "memset";
+  }
+  if (instr->is(fir::IntrinsicSubType::Memmove)) {
+    return "memmove";
+  }
+  if (instr->is(fir::IntrinsicSubType::Memcmp)) {
+    return "memcmp";
+  }
+  return nullptr;
+}
+
 static bool expand_to_libc_call(fir::Function &func, fir::Instr instr) {
-  const bool is_memmove = instr->is(fir::IntrinsicSubType::Memmove);
-  if (!is_memmove && !instr->is(fir::IntrinsicSubType::Memcmp)) {
+  const char *name = libc_name(instr);
+  if (name == nullptr) {
     return false;
   }
   auto *ctx = func.ctx;
-  auto callee = ctx->get_function(is_memmove ? "memmove" : "memcmp");
-
+  const bool is_memcmp = instr->is(fir::IntrinsicSubType::Memcmp);
+  const bool is_memset = instr->is(fir::IntrinsicSubType::Memset);
+  // a volatile copy is not what the libc function does, and the libc
+  // functions themselves must not call each other (or themselves)
+  const bool volatile_copy = instr->Volatile && !is_memcmp;
+  if (volatile_copy || !ctx->has_function(name) ||
+      func.name == "memcpy" || func.name == "memset" ||
+      func.name == "memmove" || func.name == "memcmp") {
+    return false;
+  }
   fir::Builder buh{instr};
   auto len = instr->args[2];
-  if (is_memmove && instr->memcpy_elem_size() != 1) {
+  fir::ValueR val = instr->args[1];
+  if (is_memset) {
+    // the call fills bytes, a wider value is only the same when it is zero
+    const auto val_size = val.get_type()->get_size();
+    if (val_size != 1) {
+      if (!val.is_constant_int() || val.as_constant()->as_int() != 0) {
+        return false;
+      }
+      val = fir::ValueR{ctx->get_constant_int(0, 8)};
+    }
+    len = val_size != 1
+              ? buh.build_int_mul(
+                    len, fir::ValueR{ctx->get_constant_int(val_size, 64)})
+              : len;
+    val = buh.build_zext(val, ctx->get_int_type(32));
+  } else if (!is_memcmp && instr->memcpy_elem_size() != 1) {
     len = buh.build_int_mul(
         len, fir::ValueR{ctx->get_constant_int(instr->memcpy_elem_size(), 64)});
   }
-  fir::ValueR args[3] = {instr->args[0], instr->args[1], len};
+  auto callee = ctx->get_function(name);
+  fir::ValueR args[3] = {instr->args[0], is_memset ? val : instr->args[1], len};
   auto call = buh.build_call(
       fir::ValueR{ctx->get_constant_value(callee)}, callee->func_ty,
-      is_memmove ? ctx->get_ptr_type() : ctx->get_int_type(32), args);
-  if (!is_memmove) {
+      is_memcmp ? ctx->get_int_type(32) : ctx->get_ptr_type(), args);
+  if (is_memcmp) {
     instr->replace_all_uses(call);
   }
   instr.destroy();

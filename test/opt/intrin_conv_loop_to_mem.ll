@@ -30,10 +30,10 @@ exit:
   ret void
 }
 
-define void @copy(ptr %d, ptr %s) {
+define void @copy(ptr noalias %d, ptr %s) {
 ; CHECK-LABEL: func copy<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
+; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 4:i32){NSW; NUW; } NUses:1

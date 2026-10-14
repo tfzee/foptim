@@ -38,10 +38,10 @@ exit:
   ret void
 }
 
-define void @copy_v4i64(ptr %d, ptr %s) {
+define void @copy_v4i64(ptr noalias %d, ptr %s) {
 ; CHECK-LABEL: func copy_v4i64<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
+; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 32:i32){NSW; NUW; } NUses:1
@@ -114,10 +114,10 @@ exit:
   ret void
 }
 
-define void @copy_i8(ptr %d, ptr %s) {
+define void @copy_i8(ptr noalias %d, ptr %s) {
 ; CHECK-LABEL: func copy_i8<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
+; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 1:i32){NSW; NUW; } NUses:1

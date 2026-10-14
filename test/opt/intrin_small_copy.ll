@@ -1,5 +1,5 @@
-; Copies and fills of at most 64 bytes with a constant count become plain
-; loads and stores.
+; Copies and fills of a constant count become plain loads and stores of at most
+; 8 chunks of up to 32 bytes.
 ; RUN: %foffcc %s --print-fir --passes "LLVMIntrinsicLowering,IntrinSimplify" | FileCheck %s
 
 declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1)
@@ -8,11 +8,9 @@ declare void @llvm.memset.p0.i64(ptr, i8, i64, i1)
 define void @copy24(ptr %d, ptr %s) {
 ; CHECK-LABEL: func copy24
 ; CHECK-NOT: INTRIN
-; CHECK: Load
+; CHECK: 2@i64 = Load
 ; CHECK: Store
-; CHECK: Load
-; CHECK: Store
-; CHECK: Load
+; CHECK: i64 = Load
 ; CHECK: Store
   call void @llvm.memcpy.p0.p0.i64(ptr %d, ptr %s, i64 24, i1 false)
   ret void
@@ -38,6 +36,6 @@ define void @fill_var(ptr %d, i8 %c) {
 define void @big(ptr %d, ptr %s) {
 ; CHECK-LABEL: func big
 ; CHECK: INTRIN:MemCpy
-  call void @llvm.memcpy.p0.p0.i64(ptr %d, ptr %s, i64 65, i1 false)
+  call void @llvm.memcpy.p0.p0.i64(ptr %d, ptr %s, i64 300, i1 false)
   ret void
 }

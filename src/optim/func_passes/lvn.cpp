@@ -266,7 +266,18 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   auto *ctx = load_instr->get_parent()->get_parent()->ctx;
   fir::Builder buh{load_instr};
   fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(index, 32)}};
-  auto res = buh.build_extract_value(store_instr->args[1], indicies, load_ty);
+  // the load may see the lane as another type of the same size
+  const bool lane_is_float =
+      store_ty.type == fir::VectorType::SubType::Floating;
+  fir::TypeR elem_ty =
+      lane_is_float == load_ty->is_float()
+          ? load_ty
+          : (lane_is_float ? fir::TypeR{ctx->get_float_type(store_ty.bitwidth)}
+                           : fir::TypeR{ctx->get_int_type(store_ty.bitwidth)});
+  auto res = buh.build_extract_value(store_instr->args[1], indicies, elem_ty);
+  if (elem_ty != load_ty) {
+    res = buh.build_conversion_op(res, load_ty, fir::ConversionSubType::BitCast);
+  }
   load_instr->replace_all_uses(res);
   load_instr.destroy();
   if (a0->get_n_uses() == 0) {
@@ -395,8 +406,22 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               auto *ctx = instr->get_parent()->get_parent()->ctx;
               std::array<fir::ValueR, 1> indicies(
                   {fir::ValueR{ctx->get_constant_int(0, 32)}});
-              auto r = buh.build_extract_value(instr->get_arg(1), indicies,
-                                               instr2->get_type());
+              // the load may see the lane as another type of the same size
+              const auto vt = t1->as_vec();
+              const bool lane_is_float =
+                  vt.type == fir::VectorType::SubType::Floating;
+              fir::TypeR lane_ty =
+                  lane_is_float == instr2->get_type()->is_float()
+                      ? instr2->get_type()
+                      : (lane_is_float
+                             ? fir::TypeR{ctx->get_float_type(vt.bitwidth)}
+                             : fir::TypeR{ctx->get_int_type(vt.bitwidth)});
+              fir::ValueR r = buh.build_extract_value(instr->get_arg(1),
+                                                      indicies, lane_ty);
+              if (lane_ty != instr2->get_type()) {
+                r = buh.build_conversion_op(r, instr2->get_type(),
+                                            fir::ConversionSubType::BitCast);
+              }
               instr2->replace_all_uses(r);
               instr2.destroy();
               i2--;

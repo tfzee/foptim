@@ -70,17 +70,18 @@ exit:
   ret i32 %acc.n
 }
 
-; out of bounds loads must not be speculated into the preheader
+; a load in the header runs on every entry anyway, so it moves even when it is out
+; of bounds
 define i32 @oob(i32 %n) {
 ; CHECK-LABEL: func oob<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
 ; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 32:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
-; CHECK-NEXT:  bb1(%3{}: i32, %4{}: i32):
-; CHECK-NEXT:    %5: i32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %6: i32 = IntAdd(%5, %4){} NUses:2
-; CHECK-NEXT:    %7: i32 = IntAdd(%3, 1:i32){} NUses:2
+; CHECK-NEXT:    %2: i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %3: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
+; CHECK-NEXT:  bb1(%4{}: i32, %5{}: i32):
+; CHECK-NEXT:    %6: i32 = IntAdd(%2, %5){} NUses:2
+; CHECK-NEXT:    %7: i32 = IntAdd(%4, 1:i32){} NUses:2
 ; CHECK-NEXT:    %8: i1 = IntSLT(%7, %0){} NUses:1
 ; CHECK-NEXT:    %9: () = CondBranch<bb1(%7, %6), bb2()>(%8){} NUses:0
 ; CHECK-NEXT:  bb2():
@@ -94,6 +95,50 @@ loop:
   %p = getelementptr i32, ptr @arr, i64 8
   %v = load i32, ptr %p
   %acc.n = add i32 %acc, %v
+  %i.n = add i32 %i, 1
+  %c = icmp slt i32 %i.n, %n
+  br i1 %c, label %loop, label %exit
+exit:
+  ret i32 %acc.n
+}
+
+; out of bounds loads that only run on some iterations must not be speculated
+define i32 @oob_conditional(i32 %n) {
+; CHECK-LABEL: func oob_conditional<CC: C, LINK: external, > Uses: 0
+; CHECK-NEXT:{
+; CHECK-NEXT:  bb0(%0{}: i32):
+; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 32:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
+; CHECK-NEXT:  bb1(%3{}: i32, %4{}: i32):
+; CHECK-NEXT:    %5: i32 = And(%3, 1:i32){} NUses:0
+; CHECK-NEXT:    %6: i1 = ITrunc(%3){} NUses:1
+; CHECK-NEXT:    %7: () = CondBranch<bb2(), bb3(0:i32)>(%6){} NUses:0
+; CHECK-NEXT:  bb2():
+; CHECK-NEXT:    %8: i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %9: () = Branch<bb3(%8)>(){} NUses:0
+; CHECK-NEXT:  bb3(%10{}: i32):
+; CHECK-NEXT:    %11: i32 = IntAdd(%4, %10){} NUses:2
+; CHECK-NEXT:    %12: i32 = IntAdd(%3, 1:i32){} NUses:2
+; CHECK-NEXT:    %13: i1 = IntSLT(%12, %0){} NUses:1
+; CHECK-NEXT:    %14: () = CondBranch<bb1(%12, %11), bb4()>(%13){} NUses:0
+; CHECK-NEXT:  bb4():
+; CHECK-NEXT:    %15: i32 = Return(%11){} NUses:0
+; CHECK-NEXT:}
+entry:
+  br label %loop
+loop:
+  %i = phi i32 [ 0, %entry ], [ %i.n, %cont ]
+  %acc = phi i32 [ 0, %entry ], [ %acc.n, %cont ]
+  %odd = and i32 %i, 1
+  %is_odd = icmp ne i32 %odd, 0
+  br i1 %is_odd, label %then, label %cont
+then:
+  %p = getelementptr i32, ptr @arr, i64 8
+  %v = load i32, ptr %p
+  br label %cont
+cont:
+  %x = phi i32 [ 0, %loop ], [ %v, %then ]
+  %acc.n = add i32 %acc, %x
   %i.n = add i32 %i, 1
   %c = icmp slt i32 %i.n, %n
   br i1 %c, label %loop, label %exit
