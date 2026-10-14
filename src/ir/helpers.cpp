@@ -49,6 +49,22 @@ static void declare_external(foptim::fir::Context &fctx, const char *name,
   f->attribs.linkage = Linkage::External;
 }
 
+void generate_memcpy(foptim::fir::Context &fctx) {
+  declare_external(
+      fctx, "memcpy",
+      fctx->get_func_ty(
+          fctx->get_ptr_type(),
+          {fctx->get_ptr_type(), fctx->get_ptr_type(), fctx->get_int_type(64)}));
+}
+
+void generate_memset(foptim::fir::Context &fctx) {
+  declare_external(
+      fctx, "memset",
+      fctx->get_func_ty(
+          fctx->get_ptr_type(),
+          {fctx->get_ptr_type(), fctx->get_int_type(32), fctx->get_int_type(64)}));
+}
+
 void generate_memmove(foptim::fir::Context &fctx) {
   declare_external(
       fctx, "memmove",

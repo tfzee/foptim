@@ -1987,6 +1987,10 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     for (auto &func : mod.functions()) {
       setup_function(func, fctx, valueToValue, mod);
     }
+    // IntrinLowerCalls turns the copy and fill intrinsics into these calls,
+    // unless the module defines them itself
+    generate_memcpy(fctx);
+    generate_memset(fctx);
   }
   {
     ZoneScopedN("Populating Globals + Functions");

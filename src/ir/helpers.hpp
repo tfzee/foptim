@@ -40,6 +40,8 @@ BasicBlock insert_bb_between(BasicBlock from, BasicBlock to);
 
 void convert_constant_init(u8 *output, ConstantValueR val, Global glob);
 
+void generate_memcpy(fir::Context &fctx);
+void generate_memset(fir::Context &fctx);
 void generate_memmove(fir::Context &fctx);
 void generate_memcmp(fir::Context &fctx);
 void generate_fexp(fir::Context &fctx);
