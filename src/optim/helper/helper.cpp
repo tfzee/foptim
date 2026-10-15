@@ -6,6 +6,7 @@
 #include "ir/use.hpp"
 #include "optim/analysis/dominators.hpp"
 #include <fmt/base.h>
+#include <cmath>
 #include <functional>
 
 namespace foptim::optim {
@@ -264,4 +265,23 @@ bool cond_tail_duplication(foptim::fir::Context &ctx, foptim::optim::CFG &cfg,
   return true;
 }
 
+
+bool is_cheap_splat_constant(fir::ValueR v) {
+  if (!v.is_constant()) {
+    return false;
+  }
+  auto c = v.as_constant();
+  if (c->is_int()) {
+    const i128 x = c->as_int();
+    const u32 bw = c->type->get_bitwidth();
+    return x == 0 || x == -1 ||
+           (bw < 64 && x == (static_cast<i128>(1) << bw) - 1);
+  }
+  return c->is_float() && c->as_f64() == 0.0 && !std::signbit(c->as_f64());
+}
+
+bool is_cheap_to_rematerialize(fir::Instr instr) {
+  return instr->is(fir::VectorISubType::Broadcast) &&
+         is_cheap_splat_constant(instr->args[0]);
+}
 } // namespace foptim::optim

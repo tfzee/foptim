@@ -16,6 +16,14 @@ GuessTypeResult guessType(fir::ValueR ptr);
 
 void swap_args(fir::Instr instr, u32 a1, u32 a2);
 
+// zero and all ones constants are splatted with one instruction, hoisting
+// them out of a loop only keeps a vector register busy
+bool is_cheap_splat_constant(fir::ValueR v);
+
+// recomputing the instruction where it is used costs about as much as keeping
+// its result alive, so passes should not hoist or share it
+bool is_cheap_to_rematerialize(fir::Instr instr);
+
 struct IncomingData {
   fir::Instr term;
   u32 inc_bb_id;

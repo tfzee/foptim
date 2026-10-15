@@ -2804,6 +2804,19 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg, res_reg);
           return true;
         }
+        if (arg.isImm() && !arg.is_fp() && get_size(res_reg.ty) <= 32 &&
+            get_size(res_reg.ty) >= 16) {
+          const u32 bits = get_size(arg.ty) * 8;
+          const u64 mask = bits >= 64 ? ~0ULL : ((1ULL << bits) - 1);
+          if ((arg.imm & mask) == mask) {
+            // all ones is a compare of a register with itself
+            const Type dwords =
+                get_size(res_reg.ty) == 16 ? Type::Int32x4 : Type::Int32x8;
+            const auto ones = MArgument{res_reg.reg.retype(dwords), dwords};
+            res.result.emplace_back(X86Subtype::vpcmpeq, ones, ones, ones);
+            return true;
+          }
+        }
         if (res_reg.ty == Type::Int8x16 || res_reg.ty == Type::Int8x32 ||
             res_reg.ty == Type::Int16x8 || res_reg.ty == Type::Int16x16) {
           // vpbroadcastb/w read the low lane of an xmm, only the low bits of

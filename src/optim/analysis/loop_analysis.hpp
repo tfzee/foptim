@@ -123,6 +123,16 @@ class ScalarEvo {
   CFG *cfg = nullptr;
   LoopInfo *loop = nullptr;
 
+  TVec<SCEVRef> rec_start;
+  TVec<SCEVRef> rec_step;
+  // narrow recurrences known not to wrap in the executed iterations
+  struct NoWrap {
+    SCEVRef rec;
+    bool is_signed;
+  };
+  TVec<NoWrap> no_wrap;
+  void classify_values();
+
   // set by update: the unique block outside of the loop that branches to the
   // header (invalid if there is none or more than one)
   fir::BasicBlock entry_bb{fir::BasicBlock::invalid()};
@@ -154,6 +164,9 @@ public:
   SCEVRef mk_ext(SCEVRef a, bool is_signed, u32 bw);
   SCEVRef mk_trunc(SCEVRef a, u32 bw);
   SCEVRef mk_addrec(SCEVRef start, SCEVRef step);
+  // q (constant step) does not wrap in the executed iterations, so ext of q
+  // and of q - step become recurrences of the wide type
+  void assume_no_wrap(SCEVRef q, bool is_signed);
   bool same_expr(SCEVRef a, SCEVRef b) const;
 
   // The expression of r in iteration k (a loop invariant expression of the
@@ -218,6 +231,10 @@ public:
   SCEVRef exit_iter = InvalidSCEV;
   // exit_iter if it is a compile time constant (not wrapped to the bit width)
   std::optional<i128> const_exit_iter;
+  // the compared recurrence and the signedness of its predicate
+  SCEVRef cmp_rec = InvalidSCEV;
+  bool cmp_signed = false;
+  bool cmp_unsigned = false;
 
   TripCountAnalysis() = default;
   bool update(CFG &cfg, Dominators &dom, LoopInfo &info, ScalarEvo &evo);

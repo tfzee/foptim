@@ -9,6 +9,7 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
+#include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
 
@@ -269,6 +270,9 @@ public:
           if ((!is_load && !is_memcmp) || !is_hoistable_read(instr)) {
             continue;
           }
+        }
+        if (is_cheap_to_rematerialize(instr)) {
+          continue;
         }
         worklist.push_back(instr);
       }
