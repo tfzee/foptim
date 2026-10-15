@@ -360,7 +360,13 @@ PreservedAnalysis LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
       .map = fir::ContextData::V2VMap{},
   };
   bool modified = false;
+  // every unswitch duplicates a loop, and the copies can be unswitched on
+  // their other conditions again, so the growth of the function is bounded
+  const size_t max_blocks = std::max<size_t>(cfg.bbrs.size() * 2, 64);
   for (auto loop = linfo.info.begin(); loop != linfo.info.end(); loop++) {
+    if (cfg.bbrs.size() >= max_blocks) {
+      break;
+    }
     helper.reset(cfg);
     bool apply_res = apply(ctx, cfg, *loop, helper);
     modified |= apply_res;
