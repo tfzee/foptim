@@ -2800,7 +2800,7 @@ void base_patterns(IRVec<Pattern> &pats) {
             valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
         auto arg = valueToArg(broad_instr->args[0], res.result, data.alloc);
         if (arg.isImm() && ((!arg.is_fp() && arg.imm == 0) ||
-                            (arg.is_fp() && arg.immf == 0))) {
+                            (arg.is_fp() && arg.immf == 0 && !std::signbit(arg.immf)))) {
           res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg, res_reg);
           return true;
         }
@@ -3370,8 +3370,11 @@ void base_patterns(IRVec<Pattern> &pats) {
         auto res_reg =
             valueToArg(fir::ValueR(f_neg_instr), res.result, data.alloc);
 
+        const bool is_f64 =
+            res_reg.ty == Type::Float64 || res_reg.ty == Type::Float64x2 ||
+            res_reg.ty == Type::Float64x4 || res_reg.ty == Type::Float64x8;
         MArgument a2;
-        if (res_reg.ty == Type::Float64) {
+        if (is_f64) {
           u64 val = 0x8000000000000000UL;
           f64 v;
           std::memcpy(&v, &val, sizeof(f64));
@@ -3381,6 +3384,17 @@ void base_patterns(IRVec<Pattern> &pats) {
           f32 v;
           std::memcpy(&v, &val, sizeof(f32));
           a2 = MArgument{v};
+        }
+        if (res_reg.ty != Type::Float32 && res_reg.ty != Type::Float64) {
+          // splat the scalar sign mask over all lanes
+          auto scalar_ty = is_f64 ? Type::Float64 : Type::Float32;
+          auto scalar = MArgument(data.alloc.get_new_register(scalar_ty),
+                                  scalar_ty);
+          res.result.emplace_back(GBaseSubtype::mov, scalar, a2);
+          auto mask = MArgument(data.alloc.get_new_register(res_reg.ty),
+                                res_reg.ty);
+          res.result.emplace_back(X86Subtype::vbroadcast, mask, scalar);
+          a2 = mask;
         }
         res.result.emplace_back(GVecSubtype::vXor, res_reg, a1, a2);
         return true;

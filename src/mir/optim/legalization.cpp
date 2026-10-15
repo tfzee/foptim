@@ -316,7 +316,8 @@ bool Legalizer::legalize_move(MBB &bb, u32 indx) {
   if (instr.args[0].isReg() && instr.args[0].reg.is_vec_reg() &&
       instr.args[1].isImm()) {
     // cant jsut check on == 0 on a floating point
-    if (instr.args[1].is_fp() && instr.args[1].immf == 0) {
+    if (instr.args[1].is_fp() && instr.args[1].immf == 0 &&
+        !std::signbit(instr.args[1].immf)) {
       instr.bop = GOpcode::GVec;
       instr.sop = static_cast<u32>(GVecSubtype::vXor);
       instr.args[1] = instr.args[0];

@@ -350,18 +350,29 @@ ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
       old_ty->get_bitwidth() <= 512) {
     const auto src = old_ty->as_vec();
     const auto target = target_type->as_vec();
-    bool all_int = src.type == VectorType::SubType::Integer &&
-                   target.type == VectorType::SubType::Integer &&
-                   src.bitwidth % 8 == 0 && target.bitwidth % 8 == 0 &&
-                   target.bitwidth <= 64;
+    auto lane_ok = [](const VectorType &v) {
+      return v.type == VectorType::SubType::Integer ||
+             (v.type == VectorType::SubType::Floating &&
+              (v.bitwidth == 32 || v.bitwidth == 64));
+    };
+    bool all_int = lane_ok(src) && lane_ok(target) && src.bitwidth % 8 == 0 &&
+                   target.bitwidth % 8 == 0 && target.bitwidth <= 64;
     for (auto m : as_vec().members) {
-      all_int = all_int && m->is_int();
+      all_int = all_int && (m->is_int() || m->is_float());
     }
     if (all_int) {
       u8 bytes[64] = {};
       const u32 src_bytes = src.bitwidth / 8;
       for (size_t i = 0; i < as_vec().members.size(); i++) {
-        auto lane = std::bit_cast<u128>(as_vec().members[i]->as_int());
+        auto m = as_vec().members[i];
+        u128 lane;
+        if (m->is_float() && src.bitwidth == 32) {
+          lane = std::bit_cast<u32>(m->as_f32());
+        } else if (m->is_float()) {
+          lane = std::bit_cast<u64>(m->as_f64());
+        } else {
+          lane = std::bit_cast<u128>(m->as_int());
+        }
         for (u32 j = 0; j < src_bytes && j < 16; j++) {
           bytes[i * src_bytes + j] = static_cast<u8>(lane >> (8 * j));
         }
@@ -373,8 +384,19 @@ ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
         for (u32 j = 0; j < target_bytes; j++) {
           lane |= static_cast<u64>(bytes[i * target_bytes + j]) << (8 * j);
         }
-        values.push_back(ctx->get_constant_int(static_cast<i128>(lane),
-                                               target.bitwidth));
+        if (target.type == VectorType::SubType::Floating) {
+          auto ft = ctx->get_float_type(target.bitwidth);
+          if (target.bitwidth == 32) {
+            values.push_back(ctx->get_constant_value(
+                std::bit_cast<f32>(static_cast<u32>(lane)), ft));
+          } else {
+            values.push_back(
+                ctx->get_constant_value(std::bit_cast<f64>(lane), ft));
+          }
+        } else {
+          values.push_back(ctx->get_constant_int(static_cast<i128>(lane),
+                                                 target.bitwidth));
+        }
       }
       return {ctx->get_constant_value(std::move(values), target_type)};
     }

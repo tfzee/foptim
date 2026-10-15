@@ -1291,7 +1291,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   } else if (op_code == llvm::Instruction::FNeg) {
     auto left = convert_instr_arg(any_instr->getOperand(0), fctx, ffunc,
                                   builder, valueToValue, mod, b2b);
-    ASSERT(any_instr->getType()->isFloatingPointTy());
+    ASSERT(any_instr->getType()->isFPOrFPVectorTy());
     auto add =
         builder.build_unary_op(left, foptim::fir::UnaryInstrSubType::FloatNeg);
     valueToValue.insert({any_instr, add});
