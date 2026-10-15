@@ -81,7 +81,11 @@ public:
         }
       }
     }
+    TSet<fir::Instr> destroyed;
     for (auto instr : candidates) {
+      if (destroyed.contains(instr)) {
+        continue;
+      }
       const auto t = static_cast<ST>(instr->subtype);
       if (!is_assoc(t) && t != ST::IntSub) {
         continue;
@@ -177,6 +181,8 @@ public:
       fir::Builder ib{instr};
       auto res = ib.build_binary_op(k, merged, outer);
       instr->replace_all_uses(res);
+      destroyed.insert(instr);
+      destroyed.insert(j);
       instr.destroy();
       j.destroy();
       modified = true;

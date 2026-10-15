@@ -338,6 +338,9 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
   if (!entry.is_valid()) {
     return false;
   }
+  if (tc.cmp_rec != InvalidSCEV && (tc.cmp_signed || tc.cmp_unsigned)) {
+    evo.assume_no_wrap(tc.cmp_rec, tc.cmp_signed);
+  }
   {
     auto eterm = entry->get_terminator();
     u32 edges = 0;
