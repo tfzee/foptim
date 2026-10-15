@@ -1341,10 +1341,33 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto val = convert_instr_arg(instr->getVectorOperand(), fctx, ffunc,
                                  builder, valueToValue, mod, b2b);
     auto *out_type = instr->getType();
+    auto fir_out_type = convert_type(out_type, fctx, mod);
+    if (!indx.is_constant_int()) {
+      // the backend only extracts constant lanes, pick the lane with selects
+      const auto lanes = llvm::cast<llvm::FixedVectorType>(
+                             instr->getVectorOperand()->getType())
+                             ->getNumElements();
+      const auto idx_bits = indx.get_type()->get_bitwidth();
+      foptim::fir::ValueR res;
+      for (u32 lane = 0; lane < lanes; lane++) {
+        foptim::fir::ValueR lane_idx[1] = {
+            foptim::fir::ValueR(fctx->get_constant_int(lane, 32))};
+        auto elem = builder.build_extract_value(val, lane_idx, fir_out_type);
+        if (lane == 0) {
+          res = elem;
+          continue;
+        }
+        auto is_lane = builder.build_int_cmp(
+            indx, foptim::fir::ValueR(fctx->get_constant_int(lane, idx_bits)),
+            foptim::fir::ICmpInstrSubType::EQ);
+        res = builder.build_select(fir_out_type, is_lane, elem, res);
+      }
+      valueToValue.insert({any_instr, res});
+      return;
+    }
     foptim::TVec<foptim::fir::ValueR> args;
     args.emplace_back(indx);
-    auto add = builder.build_extract_value(val, args,
-                                           convert_type(out_type, fctx, mod));
+    auto add = builder.build_extract_value(val, args, fir_out_type);
     valueToValue.insert({any_instr, add});
     return;
   } else if (auto *instr =
@@ -1375,9 +1398,30 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     foptim::fir::ValueR indices[1] = {index};
 
     auto *out_type = instr->getType();
-    foptim::TVec<foptim::fir::ValueR> args;
-    auto add = builder.build_insert_value(stru, v, indices,
-                                          convert_type(out_type, fctx, mod));
+    auto fir_out_type = convert_type(out_type, fctx, mod);
+    if (!index.is_constant_int()) {
+      // the backend only inserts into constant lanes, rewrite every lane
+      const auto lanes = llvm::cast<llvm::FixedVectorType>(out_type)
+                             ->getNumElements();
+      const auto idx_bits = index.get_type()->get_bitwidth();
+      auto elem_type = convert_type(out_type->getScalarType(), fctx, mod);
+      auto res = stru;
+      for (u32 lane = 0; lane < lanes; lane++) {
+        foptim::fir::ValueR lane_idx[1] = {
+            foptim::fir::ValueR(fctx->get_constant_int(lane, 32))};
+        auto old_elem = builder.build_extract_value(stru, lane_idx, elem_type);
+        auto is_lane = builder.build_int_cmp(
+            index,
+            foptim::fir::ValueR(fctx->get_constant_int(lane, idx_bits)),
+            foptim::fir::ICmpInstrSubType::EQ);
+        auto new_elem = builder.build_select(elem_type, is_lane, v, old_elem);
+        res = builder.build_insert_value(res, new_elem, lane_idx,
+                                         fir_out_type);
+      }
+      valueToValue.insert({any_instr, res});
+      return;
+    }
+    auto add = builder.build_insert_value(stru, v, indices, fir_out_type);
     valueToValue.insert({any_instr, add});
     return;
   } else if (op_code == llvm::Instruction::Unreachable) {

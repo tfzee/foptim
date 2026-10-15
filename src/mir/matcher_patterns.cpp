@@ -1919,9 +1919,29 @@ void base_binary_patterns(IRVec<Pattern> &pats) {
         if (res_reg.is_vec_reg()) {
           switch (shift_instr->get_type()->as_vec().bitwidth) {
           case 32:
-          case 64:
             res.result.emplace_back(GVecSubtype::vSar, res_reg, a, b);
             return true;
+          case 64: {
+            // no 64 bit lane arithmetic shift before avx512: for negative
+            // lanes shift the complement instead, ~((~x) >>l n)
+            auto ty = res_reg.ty;
+            auto fresh = [&] {
+              return MArgument(data.alloc.get_new_register(ty), ty);
+            };
+            auto ones = fresh();
+            auto not_a = fresh();
+            auto lo = fresh();
+            auto lo_neg = fresh();
+            auto hi_neg = fresh();
+            res.result.emplace_back(X86Subtype::vpcmpeq, ones, ones, ones);
+            res.result.emplace_back(GVecSubtype::vXor, not_a, a, ones);
+            res.result.emplace_back(GVecSubtype::vShr, lo, a, b);
+            res.result.emplace_back(GVecSubtype::vShr, lo_neg, not_a, b);
+            res.result.emplace_back(GVecSubtype::vXor, hi_neg, lo_neg, ones);
+            res.result.emplace_back(X86Subtype::vblendv, res_reg, lo, hi_neg,
+                                    a);
+            return true;
+          }
           default:
             fmt::println("{}", shift_instr);
             TODO("impl");
@@ -3453,6 +3473,27 @@ void base_patterns(IRVec<Pattern> &pats) {
             TODO("UNREACH");
           };
           auto helper_ty = get_xmm_version_ty(input.ty);
+          if ((target.ty == Type::Int64x4 || target.ty == Type::Float64x4) &&
+              (input.ty == Type::Int64 || input.ty == Type::Float64)) {
+            // patch the lane in its 128 bit half and put the half back
+            auto half = static_cast<u8>(rev_indx >> 1);
+            auto half_reg = data.alloc.get_new_register(helper_ty);
+            auto half_arg = MArgument(half_reg, helper_ty);
+            res.result.emplace_back(GBaseSubtype::mov, target, input_vec);
+            res.result.emplace_back(X86Subtype::vextract128, half_arg, target,
+                                    MArgument(half));
+            // vpinsr takes the integer lane from a general purpose register
+            auto lane_src = input.ty == Type::Int64
+                                ? input
+                                : MArgument(input.reg.retype(helper_ty),
+                                            helper_ty);
+            res.result.emplace_back(X86Subtype::vpinsr, half_arg, half_arg,
+                                    lane_src,
+                                    MArgument(static_cast<u8>(rev_indx & 1)));
+            res.result.emplace_back(X86Subtype::vinsert128, target, target,
+                                    half_arg, MArgument(half));
+            return true;
+          }
           if (rev_indx == 0) {
             ASSERT(input.isReg())
             res.result.emplace_back(GBaseSubtype::mov, target, input_vec);
