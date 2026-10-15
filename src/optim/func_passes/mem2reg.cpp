@@ -73,7 +73,10 @@ bool fix_types(fir::Function &func) {
     for (auto instr : bb->instructions) {
       if (instr->is(fir::InstrType::LoadInstr) && instr->get_n_uses() == 1 &&
           instr->uses[0].user->is(fir::InstrType::StoreInstr) &&
-          instr->uses[0].argId == 1) {
+          instr->uses[0].argId == 1 &&
+          // gathers and scatters have a lane count tied to the pointer vector
+          !instr->args[0].get_type()->is_vec() &&
+          !instr->uses[0].user->args[0].get_type()->is_vec()) {
         convertable_set.emplace(instr);
         // convertable_set.emplace(instr->uses[0].user);
       }
