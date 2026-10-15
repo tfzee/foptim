@@ -49,6 +49,9 @@ static TVec<Chunk> plan_chunks(i128 size, i128 max_len, bool overlap) {
   while (size - off > max_len) {
     res.push_back({off, max_len});
     off += max_len;
+    if (res.size() > MaxInlineChunks) {
+      return res;
+    }
   }
   const i128 rem = size - off;
   if (rem == 0) {
