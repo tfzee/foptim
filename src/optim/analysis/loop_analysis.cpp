@@ -32,6 +32,24 @@ template <class DomType> void LoopInfoAnalysis::update_impl(DomType &dom) {
 
   utils::BitSet backward{cfg.bbrs.size(), false};
 
+  // dominance holds vacuously for unreachable blocks, so they must not become
+  // part of a loop body
+  utils::BitSet reachable{cfg.bbrs.size(), false};
+  if (!cfg.bbrs.empty()) {
+    reachable[cfg.entry].set(true);
+    deq.push_back(cfg.entry);
+    while (!deq.empty()) {
+      u32 curr = deq.back();
+      deq.pop_back();
+      for (auto succ : cfg.bbrs[curr].succ) {
+        if (!reachable[succ]) {
+          reachable[succ].set(true);
+          deq.push_back(succ);
+        }
+      }
+    }
+  }
+
   // if a bb has a incoming edge from a block that it dominates we found a loop
   // header
   TVec<u32> tails;
@@ -69,7 +87,8 @@ template <class DomType> void LoopInfoAnalysis::update_impl(DomType &dom) {
       u32 curr = deq.back();
       deq.pop_back();
       for (auto pred : cfg.bbrs[curr].pred) {
-        if (!backward[pred] && dom.dominates(bb_id, pred)) {
+        if (reachable[pred] && !backward[pred] &&
+            dom.dominates(bb_id, pred)) {
           backward[pred].set(true);
           // if () {
           //   fmt::println(" INVALID {}", pred);
