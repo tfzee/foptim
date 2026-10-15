@@ -235,19 +235,23 @@ enum class Type : u16 {
   // NOTE: ORDER matters then vec smallest to biggest
   // xmm
   Float32x2 = 7,
-  Int32x4 = 8,
-  Int64x2 = 9,
-  Float32x4 = 10,
-  Float64x2 = 11,
+  Int8x16 = 8,
+  Int16x8 = 9,
+  Int32x4 = 10,
+  Int64x2 = 11,
+  Float32x4 = 12,
+  Float64x2 = 13,
   // ymm
-  Int32x8 = 12,
-  Int64x4 = 13,
-  Float32x8 = 14,
-  Float64x4 = 15,
-  Int32x16 = 16,
-  Int64x8 = 17,
-  Float32x16 = 18,
-  Float64x8 = 19,
+  Int8x32 = 14,
+  Int16x16 = 15,
+  Int32x8 = 16,
+  Int64x4 = 17,
+  Float32x8 = 18,
+  Float64x4 = 19,
+  Int32x16 = 20,
+  Int64x8 = 21,
+  Float32x16 = 22,
+  Float64x8 = 23,
 };
 
 /*Returns the size in bytes of the given type*/
@@ -291,6 +295,14 @@ static constexpr u32 get_size(fmir::Type type) {
     return 4 * 16;
   case Type::Float64x8:
     return 8 * 8;
+  case Type::Int8x16:
+    return 16;
+  case Type::Int16x8:
+    return 16;
+  case Type::Int8x32:
+    return 32;
+  case Type::Int16x16:
+    return 32;
   case fmir::Type::INVALID:
     TODO("INVALID TYPE");
   }
@@ -809,6 +821,10 @@ public:
     case Type::Int64x4:
     case Type::Int32x16:
     case Type::Int64x8:
+    case Type::Int8x16:
+    case Type::Int16x8:
+    case Type::Int8x32:
+    case Type::Int16x16:
       return true;
     }
     return ty == Type::Float32 || ty == Type::Float64;

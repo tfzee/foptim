@@ -1275,6 +1275,14 @@ fmt::formatter<foptim::fmir::Type>::format(foptim::fmir::Type const &v,
     return fmt::format_to(app, col, "f32");
   case foptim::fmir::Type::Float64:
     return fmt::format_to(app, col, "f64");
+  case foptim::fmir::Type::Int8x16:
+    return fmt::format_to(app, col, "i8x16");
+  case foptim::fmir::Type::Int16x8:
+    return fmt::format_to(app, col, "i16x8");
+  case foptim::fmir::Type::Int8x32:
+    return fmt::format_to(app, col, "i8x32");
+  case foptim::fmir::Type::Int16x16:
+    return fmt::format_to(app, col, "i16x16");
   case foptim::fmir::Type::Int32x4:
     return fmt::format_to(app, col, "i32x4");
   case foptim::fmir::Type::Int64x2:

@@ -251,6 +251,18 @@ Type convert_type(fir::TypeR type) {
         //   todo not sure should prob not make this legal
         // }
       }
+      if (d.bitwidth == 8 && d.member_number == 16) {
+        return Type::Int8x16;
+      }
+      if (d.bitwidth == 8 && d.member_number == 32) {
+        return Type::Int8x32;
+      }
+      if (d.bitwidth == 16 && d.member_number == 8) {
+        return Type::Int16x8;
+      }
+      if (d.bitwidth == 16 && d.member_number == 16) {
+        return Type::Int16x16;
+      }
       if (d.bitwidth == 32 && d.member_number == 4) {
         return Type::Int32x4;
       }

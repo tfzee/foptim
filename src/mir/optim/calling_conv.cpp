@@ -195,6 +195,10 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
     case Type::Float64x8:
     case Type::Int32x16:
     case Type::Int64x8:
+    case Type::Int8x16:
+    case Type::Int16x8:
+    case Type::Int8x32:
+    case Type::Int16x16:
       instrs[instr_call_id + i].n_args = 2;
       instrs[instr_call_id + i].args[1] =
           MArgument({conv.rets.fvr[ret_fvr_indx], arg_ty}, arg_ty);
@@ -1019,6 +1023,10 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
     case Type::Float64x8:
     case Type::Int32x16:
     case Type::Int64x8:
+    case Type::Int8x16:
+    case Type::Int16x8:
+    case Type::Int8x32:
+    case Type::Int16x16:
       out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
                         {
                             GBaseSubtype::mov,
