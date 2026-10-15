@@ -30,7 +30,6 @@ template <class DomType> void LoopInfoAnalysis::update_impl(DomType &dom) {
   TVec<u32> deq{};
   deq.reserve(32);
 
-  utils::BitSet forward{cfg.bbrs.size(), false};
   utils::BitSet backward{cfg.bbrs.size(), false};
 
   // if a bb has a incoming edge from a block that it dominates we found a loop
@@ -49,23 +48,8 @@ template <class DomType> void LoopInfoAnalysis::update_impl(DomType &dom) {
       continue;
     }
 
-    forward.reset(false);
     backward.reset(false);
-
-    forward[bb_id].set(true);
     deq.clear();
-    deq.push_back(bb_id);
-
-    while (!deq.empty()) {
-      u32 curr = deq.back();
-      deq.pop_back();
-      for (auto succ : cfg.bbrs[curr].succ) {
-        if (!forward[succ]) {
-          forward[succ].set(true);
-          deq.push_back(succ);
-        }
-      }
-    }
 
     TVec<u32> body_nodes;
     body_nodes.reserve(2 + (tails.size() * 2));
@@ -85,7 +69,7 @@ template <class DomType> void LoopInfoAnalysis::update_impl(DomType &dom) {
       u32 curr = deq.back();
       deq.pop_back();
       for (auto pred : cfg.bbrs[curr].pred) {
-        if (forward[pred] && !backward[pred] && dom.dominates(bb_id, pred)) {
+        if (!backward[pred] && dom.dominates(bb_id, pred)) {
           backward[pred].set(true);
           // if () {
           //   fmt::println(" INVALID {}", pred);
