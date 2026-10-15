@@ -247,6 +247,21 @@ public:
         runs_on_entry.insert(instr);
       }
     }
+    // division traps on a zero divisor (and on INT_MIN / -1), so it only
+    // leaves the loop if the divisor is a constant that rules both out
+    auto may_trap = [](fir::Instr instr) {
+      using ST = fir::BinaryInstrSubType;
+      if (!instr->is(ST::IntSDiv) && !instr->is(ST::IntUDiv) &&
+          !instr->is(ST::IntSRem) && !instr->is(ST::IntURem)) {
+        return false;
+      }
+      auto d = instr->get_arg(1);
+      if (!d.is_constant() || !d.as_constant()->is_int()) {
+        return true;
+      }
+      auto v = d.as_constant()->as_int();
+      return v == 0 || v == -1;
+    };
     auto is_hoistable_read = [&](fir::Instr instr) {
       if (instr->Volatile || instr->Atomic || loop_writes_mem) {
         return false;
@@ -271,7 +286,7 @@ public:
             continue;
           }
         }
-        if (is_cheap_to_rematerialize(instr)) {
+        if (is_cheap_to_rematerialize(instr) || may_trap(instr)) {
           continue;
         }
         worklist.push_back(instr);
@@ -283,7 +298,8 @@ public:
       worklist.pop_front();
       if (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
           instr->is_critical() ||
-          (instr->pot_reads_mem() && !is_hoistable_read(instr))) {
+          (instr->pot_reads_mem() && !is_hoistable_read(instr)) ||
+          may_trap(instr)) {
         continue;
       }
 

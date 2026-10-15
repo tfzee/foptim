@@ -239,6 +239,18 @@ class SCCP final : public FunctionPass {
             auto val = as_f32(i);
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(f32));
             // *(((f32 *)(v + (i * cv.bitwidth / 8)))) = (f32)vals[i].f;
+          } else if (cv.type == fir::VectorType::SubType::Floating &&
+                     cv.bitwidth == 64) {
+            auto val = vals[i].f;
+            std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(f64));
+          } else if (cv.type == fir::VectorType::SubType::Integer &&
+                     cv.bitwidth == 8) {
+            auto val = static_cast<i8>(vals[i].i);
+            std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i8));
+          } else if (cv.type == fir::VectorType::SubType::Integer &&
+                     cv.bitwidth == 16) {
+            auto val = static_cast<i16>(vals[i].i);
+            std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i16));
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 32) {
             auto val = static_cast<i32>(vals[i].i);
