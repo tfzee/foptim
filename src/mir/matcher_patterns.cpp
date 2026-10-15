@@ -260,6 +260,10 @@ void move_patterns(IRVec<Pattern> &pats) {
         case Type::Int64x8:
         case Type::Float32x16:
         case Type::Float64x8:
+        case Type::Int8x16:
+        case Type::Int16x8:
+        case Type::Int8x32:
+        case Type::Int16x16:
           return false;
         case Type::INVALID:
           fmt::println("{}", cmp_instr);
@@ -2604,6 +2608,58 @@ void base_patterns(IRVec<Pattern> &pats) {
           }
           break;
         }
+        case Type::Int8x16:
+        case Type::Int8x32:
+        case Type::Int16x8:
+        case Type::Int16x16: {
+          // fold the halves onto each other with shuffles (raw bits, so the
+          // 128 bit value is treated as 4 dwords) until lane 0 holds the sum
+          const bool bytes = a1.ty == Type::Int8x16 || a1.ty == Type::Int8x32;
+          const Type v128 = bytes ? Type::Int8x16 : Type::Int16x8;
+          auto vec128 = a1;
+          if (a1.ty != v128) {
+            auto helper_vec = data.alloc.get_new_register(v128);
+            vec128 = MArgument{helper_vec, v128};
+            res.result.emplace_back(X86Subtype::vextract128, vec128, a1,
+                                    MArgument(static_cast<u8>(1)));
+            ASSERT(a1.isReg());
+            res.result.emplace_back(GVecSubtype::vadd, vec128, vec128,
+                                    MArgument{a1.reg.retype(v128), v128});
+          }
+          auto as_dwords = [](MArgument v) {
+            return MArgument{v.reg.retype(Type::Int32x4), Type::Int32x4};
+          };
+          auto fold = [&](bool shift, u8 imm) {
+            auto moved_reg = data.alloc.get_new_register(Type::Int32x4);
+            auto moved = MArgument{moved_reg, Type::Int32x4};
+            if (shift) {
+              res.result.emplace_back(X86Subtype::psrl, moved,
+                                      as_dwords(vec128),
+                                      MArgument::Int(imm, Type::Int8));
+            } else {
+              res.result.emplace_back(X86Subtype::vpshuf, moved,
+                                      as_dwords(vec128), MArgument(imm));
+            }
+            auto next = MArgument{data.alloc.get_new_register(v128), v128};
+            res.result.emplace_back(GVecSubtype::vadd, next, vec128,
+                                    MArgument{moved_reg.retype(v128), v128});
+            vec128 = next;
+          };
+          fold(false, 0xEE);
+          fold(false, 0x55);
+          fold(true, 16);
+          if (bytes) {
+            fold(true, 8);
+          }
+          auto lane_reg = data.alloc.get_new_register(Type::Int32);
+          res.result.emplace_back(X86Subtype::vpextr,
+                                  MArgument{lane_reg, Type::Int32},
+                                  as_dwords(vec128), MArgument(static_cast<u8>(0)));
+          const Type scalar = bytes ? Type::Int8 : Type::Int16;
+          res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                                  MArgument{lane_reg.retype(scalar), scalar});
+          break;
+        }
         }
         return true;
       }});
@@ -2748,6 +2804,25 @@ void base_patterns(IRVec<Pattern> &pats) {
           res.result.emplace_back(GVecSubtype::vXor, res_reg, res_reg, res_reg);
           return true;
         }
+        if (res_reg.ty == Type::Int8x16 || res_reg.ty == Type::Int8x32 ||
+            res_reg.ty == Type::Int16x8 || res_reg.ty == Type::Int16x16) {
+          // vpbroadcastb/w read the low lane of an xmm, only the low bits of
+          // the gpr matter
+          auto gpr = arg;
+          if (arg.isImm()) {
+            gpr = MArgument{data.alloc.get_new_register(Type::Int32),
+                            Type::Int32};
+            res.result.emplace_back(GBaseSubtype::mov, gpr,
+                                    MArgument::Int(arg.imm, Type::Int32));
+          } else {
+            gpr = MArgument{arg.reg.retype(Type::Int32), Type::Int32};
+          }
+          auto xmm = MArgument{data.alloc.get_new_register(Type::Float32),
+                               Type::Float32};
+          res.result.emplace_back(GBaseSubtype::mov, xmm, gpr);
+          res.result.emplace_back(X86Subtype::vbroadcast, res_reg, xmm);
+          return true;
+        }
         // TODO: better way to generate if the lowest or the upper n bits
         // set
         //  if (arg.isImm() && !arg.is_fp() && arg.imm == 1) {
@@ -2797,8 +2872,6 @@ void base_patterns(IRVec<Pattern> &pats) {
         switch (res_reg.ty) {
         case Type::INVALID:
         case Type::Int32x4:
-        case Type::Int32x8:
-        case Type::Float32x8:
         case Type::Float32x4:
           can_pshuf = true;
           res_reg_smoll.ty = Type::Float32;
@@ -2808,6 +2881,13 @@ void base_patterns(IRVec<Pattern> &pats) {
           can_punpckl = true;
           res_reg_smoll.ty = Type::Float64;
           res_reg_smoll.reg.ty = Type::Float64;
+          break;
+        case Type::Int32x8:
+        case Type::Float32x8:
+          // vpshufd only shuffles inside each 128 bit lane
+          can_vbroadcast = true;
+          res_reg_smoll.ty = Type::Float32;
+          res_reg_smoll.reg.ty = Type::Float32;
           break;
         case Type::Int64x4:
         case Type::Float64x4:

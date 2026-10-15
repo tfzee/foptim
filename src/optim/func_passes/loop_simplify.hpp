@@ -102,12 +102,31 @@ public:
       body_nodes_lut.insert(cfg.bbrs[b_id].bb);
     }
     bool modified = false;
+    // expressions of loaded values stay in the loop, copying them behind it
+    // keeps the loads alive there and hides reductions from the vectorizer
+    TMap<fir::Instr, bool> loaded;
+    auto depends_on_load = [&](auto &self, fir::Instr i) -> bool {
+      if (auto it = loaded.find(i); it != loaded.end()) {
+        return it->second;
+      }
+      loaded.insert({i, false});
+      bool res = i->pot_reads_mem();
+      for (auto a : i->args) {
+        if (!res && a.is_instr() &&
+            body_nodes_lut.contains(a.as_instr()->get_parent())) {
+          res = self(self, a.as_instr());
+        }
+      }
+      loaded[i] = res;
+      return res;
+    };
     for (auto b_id : loop.body_nodes) {
       for (auto instr : cfg.bbrs[b_id].bb->instructions) {
         // TODO(PERF): could move loads but only if theres no interfering writes
         // before this instruction and any potential exit
         if (instr->has_pot_sideeffects() || instr->pot_reads_mem() ||
-            instr->pot_modifies_mem() || instr->is_critical()) {
+            instr->pot_modifies_mem() || instr->is_critical() ||
+            depends_on_load(depends_on_load, instr)) {
           continue;
         }
         TVec<fir::Use> uses;

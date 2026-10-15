@@ -329,8 +329,17 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   (void)ctx;
   (void)func;
   size_t n_instrs = 0;
+  bool has_call = false;
   for (auto i : loop.body_nodes) {
     n_instrs += cfg.bbrs[i].bb->n_instrs();
+    for (auto instr : cfg.bbrs[i].bb->instructions) {
+      has_call |= instr->is(fir::InstrType::CallInstr);
+    }
+  }
+  // the call may be inlined later, afterwards the loop is a vectorizer
+  // candidate, which an unrolled body is not
+  if (has_call) {
+    return false;
   }
 
   // number of times the body runs
