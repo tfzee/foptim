@@ -826,7 +826,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
       auto argi = instr->args[0].as_instr();
       if (instr->is(fir::BinaryInstrSubType::Shr) &&
           argi->is(fir::BinaryInstrSubType::Shl) &&
-          instr->args[1].is_constant() && argi->args[1].is_constant()) {
+          instr->args[1].is_constant_int() &&
+          argi->args[1].is_constant_int()) {
         auto shiftl_amount = argi->args[1].as_constant()->as_int();
         auto shiftr_amount = instr->args[1].as_constant()->as_int();
         fir::Builder buh{argi};
@@ -881,7 +882,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
       if (instr->is(fir::BinaryInstrSubType::Shl) &&
           (argi->is(fir::BinaryInstrSubType::Shr) ||
            argi->is(fir::BinaryInstrSubType::AShr))) {
-        if (instr->args[1].is_constant() && instr->args[1] == argi->args[1]) {
+        if (instr->args[1].is_constant_int() &&
+            instr->args[1] == argi->args[1]) {
           fir::Builder buh{argi};
           // (x & (-1 << n)) clears the low n bits
           auto shift_amount = instr->args[1].as_constant()->as_int();

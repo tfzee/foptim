@@ -2107,7 +2107,8 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
       instr.destroy();
       return true;
     }
-    if (instr->is(fir::InstrType::ExtractValue) && instr->args[0].is_instr()) {
+    if (instr->is(fir::InstrType::ExtractValue) && instr->args[0].is_instr() &&
+        instr->args[1].is_constant_int()) {
       auto *ctx = instr->get_parent()->get_parent()->ctx;
       auto a1 = instr->args[0].as_instr();
       auto index = instr->args[1].as_constant()->as_int();

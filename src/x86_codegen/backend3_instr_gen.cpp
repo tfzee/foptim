@@ -2673,6 +2673,12 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
     }
+    if (!instr.args[2].is_vec_reg()) {
+      // integer lane from a general purpose register
+      ASSERT(instr.args[3].isImm() && instr.args[3].imm <= 1);
+      req.mnemonic = ZYDIS_MNEMONIC_VPINSRQ;
+      return emit(out_buff, 0, &req);
+    }
     // the matcher only inserts a scalar that already lives in an xmm into
     // one of the two 64bit lanes: lane 1 dst = [src.lo, scalar.lo],
     // lane 0 dst = [scalar.lo, src.hi]
