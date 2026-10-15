@@ -725,7 +725,29 @@ SCEVRef ScalarEvo::mk_ext(SCEVRef a, bool is_signed, u32 bw) {
   if (ea.t == T::Const) {
     return mk_const(wrap_int(ea.cval, ea.bw, is_signed), bw);
   }
+  if (ea.t == T::AddRec && is_const(ea.b)) {
+    for (const auto &nw : no_wrap) {
+      if (nw.is_signed == is_signed && same_expr(nw.rec, a)) {
+        return mk_addrec(mk_ext(ea.a, is_signed, bw),
+                         mk_ext(ea.b, true, bw));
+      }
+    }
+  }
   return push(node(is_signed ? T::SExt : T::ZExt, ea.invariant, bw, 0, {}, a));
+}
+
+void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed) {
+  if (!is_addrec(q) || !is_const(exprs[q].b)) {
+    return;
+  }
+  const SCEVExpr eq = exprs[q];
+  no_wrap.push_back({q, is_signed});
+  const SCEVRef pre = mk_addrec(
+      mk_add(eq.a, mk_mul(eq.b, mk_const(-1, eq.bw))), eq.b);
+  if (is_addrec(pre)) {
+    no_wrap.push_back({pre, is_signed});
+  }
+  classify_values();
 }
 
 SCEVRef ScalarEvo::mk_trunc(SCEVRef a, u32 bw) {
@@ -1279,8 +1301,9 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
     lookup.insert(
         {arg, push(node(SCEVExpr::Type::Input, false, value_bw(arg), 0, arg))});
   }
-  TVec<SCEVRef> rec_start(n_args, InvalidSCEV);
-  TVec<SCEVRef> rec_step(n_args, InvalidSCEV);
+  rec_start.assign(n_args, InvalidSCEV);
+  rec_step.assign(n_args, InvalidSCEV);
+  no_wrap.clear();
   for (size_t i = 0; i < n_args; i++) {
     const fir::ValueR arg{head->args[i]};
     if (!know_start || value_bw(arg) == 0 || in_loop(entering[i])) {
@@ -1306,9 +1329,15 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
     }
   }
 
+  classify_values();
+}
+
+void ScalarEvo::classify_values() {
   // 2. everything again with the header arguments replaced by what they are
   lookup.clear();
   loop_vals.clear();
+  auto head = cfg->bbrs[loop->head].bb;
+  const size_t n_args = head->args.size();
   for (size_t i = 0; i < n_args; i++) {
     const fir::ValueR arg{head->args[i]};
     const SCEVRef r = rec_start[i] != InvalidSCEV
@@ -1317,9 +1346,9 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
     lookup.insert({arg, r});
     loop_vals.push_back(arg);
   }
-  for (auto node : info.body_nodes) {
+  for (auto node : loop->body_nodes) {
     auto bb = cfg->bbrs[node].bb;
-    if (node != info.head) {
+    if (node != loop->head) {
       for (auto arg : bb->args) {
         expr_of(fir::ValueR{arg}, 0);
       }
@@ -1759,6 +1788,8 @@ std::optional<i128> poly_exit_iteration(const ScalarEvo &evo, ICmpSub pred,
 
 bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
                                ScalarEvo &evo) {
+  cmp_rec = InvalidSCEV;
+  cmp_signed = cmp_unsigned = false;
   if (linfo.leaving_nodes.size() != 1) {
     return false;
   }
@@ -1830,6 +1861,11 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
     to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
     return true;
   }
+  cmp_rec = q;
+  cmp_signed = pred == ICmpSub::SLT || pred == ICmpSub::SLE ||
+               pred == ICmpSub::SGT || pred == ICmpSub::SGE;
+  cmp_unsigned = pred == ICmpSub::ULT || pred == ICmpSub::ULE ||
+                 pred == ICmpSub::UGT || pred == ICmpSub::UGE;
   const SCEVRef start_ref = evo.expr(q).a;
   const SCEVRef step_ref = evo.expr(q).b;
   const u32 bw = evo.expr(q).bw;

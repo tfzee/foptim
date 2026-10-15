@@ -8,6 +8,7 @@
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/block_mem_access.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/helper/helper.hpp"
 #include "optim/helper/scev_expander.hpp"
 #include "utils/stats.hpp"
 
@@ -137,7 +138,8 @@ bool intrinsic_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
   const auto ty = i->get_type();
   const bool abs = i->is(fir::IntrinsicSubType::Abs) && ty->is_int();
   const bool fabs = i->is(fir::IntrinsicSubType::FAbs) && ty->is_float();
-  if (!(abs || fabs) || !vector_operand_ok(c, i->args[0])) {
+  if (!(abs || fabs) || ty->get_bitwidth() < 32 ||
+      !vector_operand_ok(c, i->args[0])) {
     return false;
   }
   n.kind = LoopNodeKind::Intrinsic;
@@ -155,6 +157,11 @@ bool always_legal(const LoopNode &, const LoopPlan &, u32, const Features &) {
 bool binary_legal(const LoopNode &n, const LoopPlan &, u32 /*vf*/,
                   const Features &features) {
   const auto sub = static_cast<BinSub>(n.sub);
+  if (n.type->is_int() && n.type->get_bitwidth() < 32 &&
+      (sub == BinSub::Shl || sub == BinSub::Shr || sub == BinSub::AShr ||
+       (sub == BinSub::IntMul && n.type->get_bitwidth() == 8))) {
+    return false;
+  }
   // no 64 bit vector multiply before avx512dq
   if (sub == BinSub::IntMul && n.type->get_bitwidth() == 64 &&
       !features.avx512dq) {
@@ -219,6 +226,47 @@ fir::ValueR reduction_identity(fir::Context &ctx, fir::TypeR ty, BinSub sub) {
   }
   return fir::ValueR{ctx->get_constant_value(mul ? 1.0 : 0.0, ty)};
 }
+
+// values used behind a single block loop become exit block arguments
+bool route_exit_uses(fir::Context &ctx, CFG &cfg, LoopInfo &loop) {
+  if (loop.body_nodes.size() != 1 || loop.tails.size() != 1 ||
+      loop.head != loop.tails[0]) {
+    return false;
+  }
+  auto hdr = cfg.bbrs[loop.head].bb;
+  auto term = hdr->get_terminator();
+  if (!term->is(fir::InstrType::CondBranchInstr) || term->bbs.size() != 2) {
+    return false;
+  }
+  const u16 exit_edge = term->bbs[0].bb == hdr ? 1 : 0;
+  auto exit_bb = term->bbs[exit_edge].bb;
+  if (exit_bb == hdr || term->bbs[1 - exit_edge].bb != hdr ||
+      cfg.bbrs[cfg.get_bb_id(exit_bb)].pred.size() != 1) {
+    return false;
+  }
+  bool changed = false;
+  const size_t n_instrs = hdr->instructions.size();
+  for (size_t idx = 0; idx + 1 < n_instrs; idx++) {
+    auto instr = hdr->instructions[idx];
+    if (instr.get_type()->is_void()) {
+      continue;
+    }
+    bool used_outside = false;
+    for (const auto &u : instr->uses) {
+      used_outside |= u.user->get_parent() != hdr;
+    }
+    if (!used_outside) {
+      continue;
+    }
+    auto arg = ctx->storage.insert_bb_arg(
+        fir::BBArgumentData{exit_bb, instr.get_type()});
+    exit_bb.add_arg(arg);
+    term.add_bb_arg(exit_edge, fir::ValueR{instr});
+    fir::ValueR{instr}.replace_uses_outside_block(hdr, fir::ValueR{arg});
+    changed = true;
+  }
+  return changed;
+}
 } // namespace
 
 u32 SLPVectorizer::max_vector_bits(const Features &features) {
@@ -226,11 +274,18 @@ u32 SLPVectorizer::max_vector_bits(const Features &features) {
 }
 
 bool SLPVectorizer::loop_legal(const LoopPlan &plan, u32 vf, const Features &features) {
-  // backend support is only verified for 32 and 64 bit elements
-  if (plan.elem_bits != 32 && plan.elem_bits != 64) {
+  if (plan.elem_bits != 8 && plan.elem_bits != 16 && plan.elem_bits != 32 &&
+      plan.elem_bits != 64) {
     return false;
   }
   const u32 bits = vf * plan.elem_bits;
+  // no 512 bit byte or word vectors, InstSimplify widens byte vectors <= 16
+  if (plan.elem_bits < 32 && bits > 256) {
+    return false;
+  }
+  if (plan.elem_bits == 8 && vf < 32) {
+    return false;
+  }
   if (vf < 2 || !std::has_single_bit(vf) || bits < 128 ||
       bits > max_vector_bits(features)) {
     return false;
@@ -654,7 +709,18 @@ bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
       if (auto bc = broadcasts.find(scalar); bc != broadcasts.end()) {
         return bc->second;
       }
-      auto res = b.build_vbroadcast(scalar, vec_ty(scalar.get_type()));
+      const bool in_loop =
+          is_cheap_splat_constant(scalar) ||
+          (scalar.is_instr() && scalar.as_instr()->get_parent() == vloop) ||
+          (scalar.is_bb_arg() && scalar.as_bb_arg()->get_parent() == vloop);
+      fir::ValueR res;
+      if (in_loop) {
+        res = b.build_vbroadcast(scalar, vec_ty(scalar.get_type()));
+      } else {
+        fir::Builder pb{vpre};
+        pb.at_penultimate(vpre);
+        res = pb.build_vbroadcast(scalar, vec_ty(scalar.get_type()));
+      }
       broadcasts[scalar] = res;
       return res;
     };
@@ -766,6 +832,7 @@ bool SLPVectorizer::vectorize_loops(fir::Context &ctx, fir::Function &func) {
   for (u32 round = 0; round < 64; round++) {
     bool vectorized = false;
     for (auto &loop : linfo.info) {
+      changed |= route_exit_uses(ctx, cfg, loop);
       ScalarEvo evo{cfg, loop};
       LoopPlan plan;
       if (!build_loop_plan(ctx, cfg, dom, loop, evo, plan)) {

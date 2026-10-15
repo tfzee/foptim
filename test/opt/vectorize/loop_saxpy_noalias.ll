@@ -26,18 +26,18 @@ define void @f(ptr noalias %a, ptr noalias %b, float %s, i64 %n) {
 ; CHECK-NEXT:    %21: i64 = And(%5, -8:i64){} NUses:3
 ; CHECK-NEXT:    %22: i64 = IntAdd(%21, %20){NSW; } NUses:1
 ; CHECK-NEXT:    %23: i1 = IntEQ(%21, 0:i64){} NUses:1
-; CHECK-NEXT:    %24: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
-; CHECK-NEXT:  bb4(%25{}: i64):
-; CHECK-NEXT:    %26: i64 = IntMul(%25, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %27: ptr = PtrAdd(%1, %26){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %28: ptr = PtrAdd(%0, %26){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %29: 8@f32 = Load(%27){} NUses:1
+; CHECK-NEXT:    %24: 8@f32 = V.Broadcast(%2){} NUses:1
+; CHECK-NEXT:    %25: () = CondBranch<bb3(%20), bb4(%20)>(%23){} NUses:0
+; CHECK-NEXT:  bb4(%26{}: i64):
+; CHECK-NEXT:    %27: i64 = IntMul(%26, 4:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %28: ptr = PtrAdd(%1, %27){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %29: ptr = PtrAdd(%0, %27){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %30: 8@f32 = Load(%28){} NUses:1
-; CHECK-NEXT:    %31: 8@f32 = V.Broadcast(%2){} NUses:1
-; CHECK-NEXT:    %32: 8@f32 = FloatMul(%29, %31){} NUses:1
-; CHECK-NEXT:    %33: 8@f32 = FloatAdd(%32, %30){} NUses:1
-; CHECK-NEXT:    %34: 8@f32 = Store(%28, %33){} NUses:0
-; CHECK-NEXT:    %35: i64 = IntAdd(%25, 8:i64){} NUses:3
+; CHECK-NEXT:    %31: 8@f32 = Load(%29){} NUses:1
+; CHECK-NEXT:    %32: 8@f32 = FloatMul(%30, %24){} NUses:1
+; CHECK-NEXT:    %33: 8@f32 = FloatAdd(%32, %31){} NUses:1
+; CHECK-NEXT:    %34: 8@f32 = Store(%29, %33){} NUses:0
+; CHECK-NEXT:    %35: i64 = IntAdd(%26, 8:i64){} NUses:3
 ; CHECK-NEXT:    %36: i1 = IntNE(%35, %22){} NUses:1
 ; CHECK-NEXT:    %37: () = CondBranch<bb4(%35), bb5(%35)>(%36){} NUses:0
 ; CHECK-NEXT:  bb5(%38{}: i64):
