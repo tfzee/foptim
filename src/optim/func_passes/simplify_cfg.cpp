@@ -337,8 +337,8 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
   }
   // or all bs that jump into this bb are all dominated by this bb. A back edge
   // from the block to itself counts (a block does not strictly dominate
-  // itself): a loop with no other way in is dead as well. If it stays, its block
-  // arguments only have the back edge values as incoming values and get
+  // itself): a loop with no other way in is dead as well. If it stays, its
+  // block arguments only have the back edge values as incoming values and get
   // replaced by them, which makes instructions use their own result.
   if (!is_dead) {
     is_dead = true;
@@ -593,12 +593,25 @@ struct DiffValues {
   return res;
 }
 
+u64 bb_signature(fir::BasicBlock bb) {
+  u64 h = bb->instructions.size();
+  for (auto instr : bb->instructions) {
+    h = (h * 0x100000001b3ULL) ^ static_cast<u64>(instr->instr_type);
+    h = (h * 0x100000001b3ULL) ^ static_cast<u64>(instr->subtype);
+    h = (h * 0x100000001b3ULL) ^ instr->args.size();
+  }
+  return h;
+}
+
 bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
-                           size_t &bb_id, TVec<DiffValues> &difference_values,
+                           size_t &bb_id, TVec<u64> &sigs, bool &cfg_dirty,
+                           TVec<DiffValues> &difference_values,
                            TMap<fir::Instr, fir::Instr> &local_value_map,
                            TVec<fir::BBArgument> &new_bb_args_helper,
                            CFG &cfg) {
   constexpr u32 N_INSTRS_UPPERBOUND = 20;
+  constexpr u32 MAX_COMPARISONS = 32;
+  u32 comparisons = 0;
   auto *ctx = func.ctx;
   bool modified = false;
   const auto bb1n_instr = bb1->instructions.size();
@@ -612,6 +625,9 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     // if (bb1->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
     //   continue;
     // }
+    if (sigs[bb2_id] != sigs[bb_id]) {
+      continue;
+    }
     auto &bb2 = func.basic_blocks[bb2_id];
     if (bb2->n_args() != 0 ||
         bb1->instructions.size() != bb2->instructions.size()) {
@@ -630,6 +646,23 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     }
     if (!found) {
       continue;
+    }
+    if (++comparisons > MAX_COMPARISONS) {
+      break;
+    }
+    // match_term needs identical jump targets, check that before building the
+    // value map
+    {
+      auto t1 = bb1->get_terminator();
+      auto t2 = bb2->get_terminator();
+      bool same_targets = t1->bbs.size() == t2->bbs.size();
+      for (size_t t = 0; same_targets && t < t1->bbs.size(); t++) {
+        same_targets = t1->bbs[t].bb == t2->bbs[t].bb &&
+                       t1->bbs[t].args.size() == t2->bbs[t].args.size();
+      }
+      if (!same_targets) {
+        continue;
+      }
     }
     size_t cost = 0;
     local_value_map.clear();
@@ -661,6 +694,11 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     }
     if (!found) {
       continue;
+    }
+    if (cfg_dirty) {
+      // only needed here, rebuilding after every merge is quadratic
+      cfg = CFG{func};
+      cfg_dirty = false;
     }
     if (std::ranges::equal(cfg.bbrs[cfg.get_bb_id(bb1)].pred,
                            cfg.bbrs[cfg.get_bb_id(bb2)].pred)) {
@@ -698,6 +736,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       ASSERT(res_bb2->get_n_uses() == 0);
       res_bb2->remove_from_parent(true, true, true);
       utils::StatCollector::get().addi(1, "MergedBBBlocks");
+      sigs.erase(sigs.begin() + static_cast<i64>(bb2_id));
       bb2_id--;
       bb_id--;
       modified = true;
@@ -719,13 +758,18 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func, CFG &cfg) {
   // difference_values.reserve(32);
   // new_bb_args_helper.reserve(32);
 
+  bool cfg_dirty = false;
+  TVec<u64> sigs;
+  sigs.reserve(func.basic_blocks.size());
+  for (size_t i = 0; i < func.basic_blocks.size(); i++) {
+    sigs.push_back(bb_signature(func.basic_blocks[i]));
+  }
+
   for (size_t bb_id = 1; bb_id < func.basic_blocks.size(); bb_id++) {
     bool mod = dup_bb_to_args_per_bb(func.basic_blocks[bb_id], func, bb_id,
-                                     difference_values, local_value_map,
-                                     new_bb_args_helper, cfg);
-    if (mod) {
-      cfg = CFG{func};
-    }
+                                     sigs, cfg_dirty, difference_values,
+                                     local_value_map, new_bb_args_helper, cfg);
+    cfg_dirty |= mod;
     modified |= mod;
   }
   return modified;
