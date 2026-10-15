@@ -119,11 +119,6 @@ public:
     }
     auto v = called_func.as_constant()->as_func();
     const auto called_n_instrs = v->n_instrs();
-    if (!conf.allow_builtins) {
-      // llvm. just as fixup incase we havent converted yet but shouldnt really
-      // happen
-      return v->name.starts_with("foptim.") || v->name.starts_with("llvm.");
-    }
     if (v->is_decl() || v->attribs.variadic) {
       if (v->attribs.must_inline) {
         fmt::print(fg(fmt::color::red),
