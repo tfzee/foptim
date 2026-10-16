@@ -13,8 +13,9 @@ define i32 @udiv_i32_1(i32 %x) {
 define i32 @udiv_i32_2(i32 %x) {
 ; CHECK: func udiv_i32_2 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 1: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    shr2($rax: i64, 1: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 2
   ret i32 %res
@@ -23,9 +24,11 @@ define i32 @udiv_i32_2(i32 %x) {
 define i32 @udiv_i32_3(i32 %x) {
 ; CHECK: func udiv_i32_3 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 3: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2863311531: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    shr2($rax: i64, 33: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 3
   ret i32 %res
@@ -34,8 +37,9 @@ define i32 @udiv_i32_3(i32 %x) {
 define i32 @udiv_i32_4(i32 %x) {
 ; CHECK: func udiv_i32_4 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 2: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    shr2($rax: i64, 2: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 4
   ret i32 %res
@@ -44,9 +48,11 @@ define i32 @udiv_i32_4(i32 %x) {
 define i32 @udiv_i32_5(i32 %x) {
 ; CHECK: func udiv_i32_5 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 5: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 3435973837: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    shr2($rax: i64, 34: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 5
   ret i32 %res
@@ -55,9 +61,11 @@ define i32 @udiv_i32_5(i32 %x) {
 define i32 @udiv_i32_6(i32 %x) {
 ; CHECK: func udiv_i32_6 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 6: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2863311531: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    shr2($rax: i64, 34: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 6
   ret i32 %res
@@ -66,9 +74,15 @@ define i32 @udiv_i32_6(i32 %x) {
 define i32 @udiv_i32_7(i32 %x) {
 ; CHECK: func udiv_i32_7 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 7: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    $rax: i64 *= 613566757: i64
+; CHECK-NEXT:    shr2($rax: i64, 32: i8, )
+; CHECK-NEXT:    $rcx: i64 -= $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 1: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 2: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 7
   ret i32 %res
@@ -77,8 +91,9 @@ define i32 @udiv_i32_7(i32 %x) {
 define i32 @udiv_i32_8(i32 %x) {
 ; CHECK: func udiv_i32_8 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 3: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    shr2($rax: i64, 3: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 8
   ret i32 %res
@@ -87,9 +102,10 @@ define i32 @udiv_i32_8(i32 %x) {
 define i32 @udiv_i32_9(i32 %x) {
 ; CHECK: func udiv_i32_9 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 9: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 954437177: i64
+; CHECK-NEXT:    shr2($rax: i64, 33: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 9
   ret i32 %res
@@ -98,9 +114,11 @@ define i32 @udiv_i32_9(i32 %x) {
 define i32 @udiv_i32_10(i32 %x) {
 ; CHECK: func udiv_i32_10 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 10: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 3435973837: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    shr2($rax: i64, 35: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 10
   ret i32 %res
@@ -109,9 +127,11 @@ define i32 @udiv_i32_10(i32 %x) {
 define i32 @udiv_i32_12(i32 %x) {
 ; CHECK: func udiv_i32_12 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 12: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2863311531: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    shr2($rax: i64, 35: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 12
   ret i32 %res
@@ -120,8 +140,9 @@ define i32 @udiv_i32_12(i32 %x) {
 define i32 @udiv_i32_16(i32 %x) {
 ; CHECK: func udiv_i32_16 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 4: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    shr2($rax: i64, 4: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 16
   ret i32 %res
@@ -130,9 +151,10 @@ define i32 @udiv_i32_16(i32 %x) {
 define i32 @udiv_i32_25(i32 %x) {
 ; CHECK: func udiv_i32_25 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 25: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 1374389535: i64
+; CHECK-NEXT:    shr2($rax: i64, 35: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 25
   ret i32 %res
@@ -141,9 +163,10 @@ define i32 @udiv_i32_25(i32 %x) {
 define i32 @udiv_i32_100(i32 %x) {
 ; CHECK: func udiv_i32_100 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 100: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 1374389535: i64
+; CHECK-NEXT:    shr2($rax: i64, 37: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 100
   ret i32 %res
@@ -152,9 +175,11 @@ define i32 @udiv_i32_100(i32 %x) {
 define i32 @udiv_i32_255(i32 %x) {
 ; CHECK: func udiv_i32_255 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 255: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2155905153: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    shr2($rax: i64, 39: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 255
   ret i32 %res
@@ -163,8 +188,9 @@ define i32 @udiv_i32_255(i32 %x) {
 define i32 @udiv_i32_256(i32 %x) {
 ; CHECK: func udiv_i32_256 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 8: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    shr2($rax: i64, 8: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 256
   ret i32 %res
@@ -173,9 +199,10 @@ define i32 @udiv_i32_256(i32 %x) {
 define i32 @udiv_i32_641(i32 %x) {
 ; CHECK: func udiv_i32_641 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 641: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 6700417: i64
+; CHECK-NEXT:    shr2($rax: i64, 32: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 641
   ret i32 %res
@@ -184,9 +211,10 @@ define i32 @udiv_i32_641(i32 %x) {
 define i32 @udiv_i32_1000(i32 %x) {
 ; CHECK: func udiv_i32_1000 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 1000: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 274877907: i64
+; CHECK-NEXT:    shr2($rax: i64, 38: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 1000
   ret i32 %res
@@ -195,9 +223,11 @@ define i32 @udiv_i32_1000(i32 %x) {
 define i32 @udiv_i32_65535(i32 %x) {
 ; CHECK: func udiv_i32_65535 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 65535: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2147516417: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    shr2($rax: i64, 47: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 65535
   ret i32 %res
@@ -206,8 +236,9 @@ define i32 @udiv_i32_65535(i32 %x) {
 define i32 @udiv_i32_65536(i32 %x) {
 ; CHECK: func udiv_i32_65536 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 16: i32, )
+; CHECK-NEXT:    mov_zx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    shr2($rax: i64, 16: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 65536
   ret i32 %res
@@ -216,9 +247,15 @@ define i32 @udiv_i32_65536(i32 %x) {
 define i32 @udiv_i32_2147483647(i32 %x) {
 ; CHECK: func udiv_i32_2147483647 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 2147483647: i32
-; CHECK-NEXT:    udiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_zx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    $rax: i64 *= 3: i64
+; CHECK-NEXT:    shr2($rax: i64, 32: i8, )
+; CHECK-NEXT:    $rcx: i64 -= $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 1: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 30: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = udiv i32 %x, 2147483647
   ret i32 %res
@@ -236,11 +273,13 @@ define i32 @sdiv_i32_1(i32 %x) {
 define i32 @sdiv_i32_2(i32 %x) {
 ; CHECK: func sdiv_i32_2 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    shr2($eax: i32, 31: i8, )
-; CHECK-NEXT:    $eax: i32 += $edi: i32
-; CHECK-NEXT:    cmov_ns($eax: i32, $edi: i32, $edi: i32, $edi: i32, )
-; CHECK-NEXT:    sar2($eax: i32, 1: i8, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 63: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 1: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 2
   ret i32 %res
@@ -249,9 +288,13 @@ define i32 @sdiv_i32_2(i32 %x) {
 define i32 @sdiv_i32_3(i32 %x) {
 ; CHECK: func sdiv_i32_3 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 3: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 715827883: i64
+; CHECK-NEXT:    sar2($rax: i64, 31: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 3
   ret i32 %res
@@ -260,9 +303,13 @@ define i32 @sdiv_i32_3(i32 %x) {
 define i32 @sdiv_i32_4(i32 %x) {
 ; CHECK: func sdiv_i32_4 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    lea($eax: i32, [$edi + 3]: i32, )
-; CHECK-NEXT:    cmov_ns($eax: i32, $edi: i32, $edi: i32, $edi: i32, )
-; CHECK-NEXT:    sar2($eax: i32, 2: i8, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 62: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 2: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 4
   ret i32 %res
@@ -271,9 +318,13 @@ define i32 @sdiv_i32_4(i32 %x) {
 define i32 @sdiv_i32_5(i32 %x) {
 ; CHECK: func sdiv_i32_5 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 5: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 1717986919: i64
+; CHECK-NEXT:    sar2($rax: i64, 33: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 5
   ret i32 %res
@@ -282,9 +333,13 @@ define i32 @sdiv_i32_5(i32 %x) {
 define i32 @sdiv_i32_6(i32 %x) {
 ; CHECK: func sdiv_i32_6 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 6: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 715827883: i64
+; CHECK-NEXT:    sar2($rax: i64, 32: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 6
   ret i32 %res
@@ -293,9 +348,14 @@ define i32 @sdiv_i32_6(i32 %x) {
 define i32 @sdiv_i32_7(i32 %x) {
 ; CHECK: func sdiv_i32_7 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 7: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2454267027: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 34: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 7
   ret i32 %res
@@ -304,9 +364,13 @@ define i32 @sdiv_i32_7(i32 %x) {
 define i32 @sdiv_i32_8(i32 %x) {
 ; CHECK: func sdiv_i32_8 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    lea($eax: i32, [$edi + 7]: i32, )
-; CHECK-NEXT:    cmov_ns($eax: i32, $edi: i32, $edi: i32, $edi: i32, )
-; CHECK-NEXT:    sar2($eax: i32, 3: i8, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 61: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 3: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 8
   ret i32 %res
@@ -315,9 +379,13 @@ define i32 @sdiv_i32_8(i32 %x) {
 define i32 @sdiv_i32_9(i32 %x) {
 ; CHECK: func sdiv_i32_9 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 9: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 954437177: i64
+; CHECK-NEXT:    sar2($rax: i64, 33: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 9
   ret i32 %res
@@ -327,11 +395,12 @@ define i32 @sdiv_i32_10(i32 %x) {
 ; CHECK: func sdiv_i32_10 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
-; CHECK-NEXT:    smul3($rax: i64, $rax: i64, 1717986919: i32, )
+; CHECK-NEXT:    $rax: i64 *= 1717986919: i64
+; CHECK-NEXT:    sar2($rax: i64, 34: i8, )
 ; CHECK-NEXT:    $rcx: i64 = $rax: i64
 ; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
-; CHECK-NEXT:    sar2($rax: i64, 34: i8, )
-; CHECK-NEXT:    $eax: i32 += $ecx: i32
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 10
   ret i32 %res
@@ -340,9 +409,13 @@ define i32 @sdiv_i32_10(i32 %x) {
 define i32 @sdiv_i32_12(i32 %x) {
 ; CHECK: func sdiv_i32_12 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 12: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 715827883: i64
+; CHECK-NEXT:    sar2($rax: i64, 33: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 12
   ret i32 %res
@@ -351,9 +424,13 @@ define i32 @sdiv_i32_12(i32 %x) {
 define i32 @sdiv_i32_16(i32 %x) {
 ; CHECK: func sdiv_i32_16 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    lea($eax: i32, [$edi + 15]: i32, )
-; CHECK-NEXT:    cmov_ns($eax: i32, $edi: i32, $edi: i32, $edi: i32, )
-; CHECK-NEXT:    sar2($eax: i32, 4: i8, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 60: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 4: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 16
   ret i32 %res
@@ -362,9 +439,13 @@ define i32 @sdiv_i32_16(i32 %x) {
 define i32 @sdiv_i32_25(i32 %x) {
 ; CHECK: func sdiv_i32_25 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 25: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 1374389535: i64
+; CHECK-NEXT:    sar2($rax: i64, 35: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 25
   ret i32 %res
@@ -373,9 +454,13 @@ define i32 @sdiv_i32_25(i32 %x) {
 define i32 @sdiv_i32_100(i32 %x) {
 ; CHECK: func sdiv_i32_100 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 100: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 1374389535: i64
+; CHECK-NEXT:    sar2($rax: i64, 37: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 100
   ret i32 %res
@@ -384,9 +469,14 @@ define i32 @sdiv_i32_100(i32 %x) {
 define i32 @sdiv_i32_255(i32 %x) {
 ; CHECK: func sdiv_i32_255 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 255: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2155905153: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 39: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 255
   ret i32 %res
@@ -395,9 +485,13 @@ define i32 @sdiv_i32_255(i32 %x) {
 define i32 @sdiv_i32_256(i32 %x) {
 ; CHECK: func sdiv_i32_256 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 256: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 56: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 8: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 256
   ret i32 %res
@@ -406,9 +500,13 @@ define i32 @sdiv_i32_256(i32 %x) {
 define i32 @sdiv_i32_641(i32 %x) {
 ; CHECK: func sdiv_i32_641 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 641: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 6700417: i64
+; CHECK-NEXT:    sar2($rax: i64, 32: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 641
   ret i32 %res
@@ -417,9 +515,13 @@ define i32 @sdiv_i32_641(i32 %x) {
 define i32 @sdiv_i32_1000(i32 %x) {
 ; CHECK: func sdiv_i32_1000 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 1000: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 274877907: i64
+; CHECK-NEXT:    sar2($rax: i64, 38: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 1000
   ret i32 %res
@@ -428,9 +530,14 @@ define i32 @sdiv_i32_1000(i32 %x) {
 define i32 @sdiv_i32_65535(i32 %x) {
 ; CHECK: func sdiv_i32_65535 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 65535: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2147516417: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 47: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 65535
   ret i32 %res
@@ -439,9 +546,13 @@ define i32 @sdiv_i32_65535(i32 %x) {
 define i32 @sdiv_i32_65536(i32 %x) {
 ; CHECK: func sdiv_i32_65536 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 65536: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 48: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 16: i8, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 65536
   ret i32 %res
@@ -450,9 +561,13 @@ define i32 @sdiv_i32_65536(i32 %x) {
 define i32 @sdiv_i32_2147483647(i32 %x) {
 ; CHECK: func sdiv_i32_2147483647 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = 2147483647: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 1073741825: i64
+; CHECK-NEXT:    sar2($rax: i64, 61: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, 2147483647
   ret i32 %res
@@ -471,9 +586,14 @@ define i32 @sdiv_i32_m1(i32 %x) {
 define i32 @sdiv_i32_m2(i32 %x) {
 ; CHECK: func sdiv_i32_m2 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -2: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 63: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 1: i8, )
+; CHECK-NEXT:    neg1($rcx: i64, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, -2
   ret i32 %res
@@ -482,9 +602,14 @@ define i32 @sdiv_i32_m2(i32 %x) {
 define i32 @sdiv_i32_m3(i32 %x) {
 ; CHECK: func sdiv_i32_m3 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -3: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 715827883: i64
+; CHECK-NEXT:    sar2($rax: i64, 31: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    neg1($rax: i64, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, -3
   ret i32 %res
@@ -493,9 +618,15 @@ define i32 @sdiv_i32_m3(i32 %x) {
 define i32 @sdiv_i32_m7(i32 %x) {
 ; CHECK: func sdiv_i32_m7 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -7: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rcx: i64 = 2454267027: i64
+; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 34: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    neg1($rax: i64, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, -7
   ret i32 %res
@@ -504,9 +635,14 @@ define i32 @sdiv_i32_m7(i32 %x) {
 define i32 @sdiv_i32_m8(i32 %x) {
 ; CHECK: func sdiv_i32_m8 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -8: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rcx: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 61: i8, )
+; CHECK-NEXT:    $rcx: i64 += $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 3: i8, )
+; CHECK-NEXT:    neg1($rcx: i64, )
+; CHECK-NEXT:    itrunc($eax: i32, $rcx: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, -8
   ret i32 %res
@@ -515,9 +651,14 @@ define i32 @sdiv_i32_m8(i32 %x) {
 define i32 @sdiv_i32_m1000(i32 %x) {
 ; CHECK: func sdiv_i32_m1000 ($2: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -1000: i32
-; CHECK-NEXT:    idiv($eax: i32, $edx: i32, $eax: i32, $ecx: i32, )
+; CHECK-NEXT:    mov_sx($rax: i64, $edi: i32, )
+; CHECK-NEXT:    $rax: i64 *= 274877907: i64
+; CHECK-NEXT:    sar2($rax: i64, 38: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    neg1($rax: i64, )
+; CHECK-NEXT:    itrunc($eax: i32, $rax: i64, )
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = sdiv i32 %x, -1000
   ret i32 %res
@@ -527,8 +668,10 @@ define i64 @udiv_i64_3(i64 %x) {
 ; CHECK: func udiv_i64_3 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 3: i64
-; CHECK-NEXT:    udiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = -6148914691236517205: i64
+; CHECK-NEXT:    umulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    shr2($rax: i64, 1: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 3
   ret i64 %res
@@ -537,9 +680,14 @@ define i64 @udiv_i64_3(i64 %x) {
 define i64 @udiv_i64_7(i64 %x) {
 ; CHECK: func udiv_i64_7 ($2: i64, )
 ; CHECK-NEXT:  0:
+; CHECK-NEXT:    $rcx: i64 = 2635249153387078803: i64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 7: i64
-; CHECK-NEXT:    udiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    umulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rdi: i64 -= $rdx: i64
+; CHECK-NEXT:    shr2($rdi: i64, 1: i8, )
+; CHECK-NEXT:    $rdi: i64 += $rdx: i64
+; CHECK-NEXT:    shr2($rdi: i64, 2: i8, )
+; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 7
   ret i64 %res
@@ -549,8 +697,10 @@ define i64 @udiv_i64_10(i64 %x) {
 ; CHECK: func udiv_i64_10 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 10: i64
-; CHECK-NEXT:    udiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = -3689348814741910323: i64
+; CHECK-NEXT:    umulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    shr2($rax: i64, 3: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 10
   ret i64 %res
@@ -560,8 +710,11 @@ define i64 @udiv_i64_1000(i64 %x) {
 ; CHECK: func udiv_i64_1000 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 1000: i64
-; CHECK-NEXT:    udiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    shr2($rax: i64, 3: i8, )
+; CHECK-NEXT:    $rcx: i64 = 2361183241434822607: i64
+; CHECK-NEXT:    umulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    shr2($rax: i64, 4: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 1000
   ret i64 %res
@@ -571,8 +724,7 @@ define i64 @udiv_i64_4294967296(i64 %x) {
 ; CHECK: func udiv_i64_4294967296 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 4294967296: i64
-; CHECK-NEXT:    udiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    shr2($rax: i64, 32: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 4294967296
   ret i64 %res
@@ -582,8 +734,10 @@ define i64 @udiv_i64_4294967297(i64 %x) {
 ; CHECK: func udiv_i64_4294967297 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 4294967297: i64
-; CHECK-NEXT:    udiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = -4294967295: i64
+; CHECK-NEXT:    umulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    shr2($rax: i64, 32: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 4294967297
   ret i64 %res
@@ -593,8 +747,10 @@ define i64 @udiv_i64_1000000007(i64 %x) {
 ; CHECK: func udiv_i64_1000000007 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 1000000007: i64
-; CHECK-NEXT:    udiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = -8543223828751151131: i64
+; CHECK-NEXT:    umulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    shr2($rax: i64, 29: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 1000000007
   ret i64 %res
@@ -604,8 +760,13 @@ define i64 @sdiv_i64_3(i64 %x) {
 ; CHECK: func sdiv_i64_3 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 3: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 6148914691236517206: i64
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    sar2($rax: i64, 0: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 3
   ret i64 %res
@@ -615,8 +776,13 @@ define i64 @sdiv_i64_7(i64 %x) {
 ; CHECK: func sdiv_i64_7 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 7: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 5270498306774157605: i64
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    sar2($rax: i64, 1: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 7
   ret i64 %res
@@ -626,8 +792,13 @@ define i64 @sdiv_i64_10(i64 %x) {
 ; CHECK: func sdiv_i64_10 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 10: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 7378697629483820647: i64
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    sar2($rax: i64, 2: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 10
   ret i64 %res
@@ -637,8 +808,13 @@ define i64 @sdiv_i64_1000(i64 %x) {
 ; CHECK: func sdiv_i64_1000 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 1000: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 2361183241434822607: i64
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    sar2($rax: i64, 7: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 1000
   ret i64 %res
@@ -648,8 +824,11 @@ define i64 @sdiv_i64_4294967296(i64 %x) {
 ; CHECK: func sdiv_i64_4294967296 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 4294967296: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    shr2($rcx: i64, 32: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    sar2($rax: i64, 32: i8, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 4294967296
   ret i64 %res
@@ -659,8 +838,13 @@ define i64 @sdiv_i64_4294967297(i64 %x) {
 ; CHECK: func sdiv_i64_4294967297 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 4294967297: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 9223372034707292161: i64
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    sar2($rax: i64, 31: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 4294967297
   ret i64 %res
@@ -669,9 +853,15 @@ define i64 @sdiv_i64_4294967297(i64 %x) {
 define i64 @sdiv_i64_1000000007(i64 %x) {
 ; CHECK: func sdiv_i64_1000000007 ($2: i64, )
 ; CHECK-NEXT:  0:
+; CHECK-NEXT:    $rcx: i64 = -8543223828751151131: i64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = 1000000007: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    $rax: i64 += $rdi: i64
+; CHECK-NEXT:    sar2($rax: i64, 29: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 1000000007
   ret i64 %res
@@ -681,8 +871,14 @@ define i64 @sdiv_i64_m3(i64 %x) {
 ; CHECK: func sdiv_i64_m3 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = -3: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 6148914691236517206: i64
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    sar2($rax: i64, 0: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    neg1($rax: i64, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, -3
   ret i64 %res
@@ -692,8 +888,14 @@ define i64 @sdiv_i64_m1000(i64 %x) {
 ; CHECK: func sdiv_i64_m1000 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = -1000: i64
-; CHECK-NEXT:    idiv($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rcx: i64 = 2361183241434822607: i64
+; CHECK-NEXT:    smulh($rax: i64, $rdx: i64, $rax: i64, $rcx: i64, )
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    sar2($rax: i64, 7: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    neg1($rax: i64, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, -1000
   ret i64 %res

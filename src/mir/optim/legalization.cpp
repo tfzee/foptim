@@ -909,6 +909,8 @@ void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf &conf) {
           break;
         case GArithSubtype::udiv:
         case GArithSubtype::idiv:
+        case GArithSubtype::umulh:
+        case GArithSubtype::smulh:
           if (legalize_idiv(bb, i)) {
             ioff = 0;
           }

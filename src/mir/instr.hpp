@@ -117,6 +117,10 @@ enum class GArithSubtype : u32 {
   idiv,
   udiv,
   smul3,
+  // high half of the double width product, operands like idiv: A and D are
+  // the results, the 3rd is the multiplicand in A
+  umulh,
+  smulh,
 };
 
 enum class GConvSubtype : u32 {

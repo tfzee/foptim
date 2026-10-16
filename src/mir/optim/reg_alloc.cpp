@@ -393,7 +393,8 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     }
     a2 = MArgument::stack_slot(stack_slot_id, a2.ty);
     return true;
-  } else if (instr.is(GArithSubtype::udiv) || instr.is(GArithSubtype::idiv)) {
+  } else if (instr.is(GArithSubtype::udiv) || instr.is(GArithSubtype::idiv) ||
+             instr.is(GArithSubtype::umulh) || instr.is(GArithSubtype::smulh)) {
     auto &a3 = instr.args[3];
     if (a3.isMem()) {
       return false;

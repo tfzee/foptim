@@ -169,6 +169,8 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
       return;
     case GArithSubtype::idiv:
     case GArithSubtype::udiv:
+    case GArithSubtype::umulh:
+    case GArithSubtype::smulh:
       def[reg_to_uid(instr.args[0].reg)].set(true);
       def[reg_to_uid(instr.args[1].reg)].set(true);
       return;
@@ -475,6 +477,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       return;
     case GArithSubtype::idiv:
     case GArithSubtype::udiv:
+    case GArithSubtype::umulh:
+    case GArithSubtype::smulh:
       // 0 and 1 are fixed regs
       update_uses(instr.args[2], uses);
       update_uses(instr.args[3], uses);

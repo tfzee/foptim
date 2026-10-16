@@ -972,6 +972,8 @@ void arith_patterns(IRVec<Pattern> &pats) {
                          static_cast<u32>(fir::BinaryInstrSubType::IntMul)};
   auto SRemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        static_cast<u32>(fir::BinaryInstrSubType::IntSRem)};
+  auto URemNode = Node{NodeType::Instr, InstrType::BinaryInstr,
+                       static_cast<u32>(fir::BinaryInstrSubType::IntURem)};
   auto UDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
                        static_cast<u32>(fir::BinaryInstrSubType::IntUDiv)};
   auto SDivNode = Node{NodeType::Instr, InstrType::BinaryInstr,
@@ -998,132 +1000,25 @@ void arith_patterns(IRVec<Pattern> &pats) {
       .nodes = {SDivNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
-        (void)data;
-        auto div_instr = res.matched_instrs[0];
-        if (!div_instr->args[1].is_constant()) {
-          return false;
-        }
-        auto cc = div_instr->args[1].as_constant();
-        if (!cc->is_int()) {
-          return false;
-        }
-
-        auto c = cc->as_int();
-        auto out_type = convert_type(div_instr->get_type());
-        switch (c) {
-        default:
-          fmt::println("OPTIMIZE SDIV ?? x/{}", c);
-          return false;
-        case 2: {
-          // TODO: is that right??
-          if (get_size(out_type) != 4) {
-            return false;
-          }
-          auto res_reg =
-              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-          // mov     eax, edi
-          // shr     eax, 31
-          // add     eax, edi
-          // sar     eax
-          res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
-          res.result.emplace_back(GArithSubtype::shr2, res_reg,
-                                  MArgument(static_cast<u8>(31)));
-          res.result.emplace_back(GArithSubtype::add2, res_reg, base);
-          res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
-                                  base);
-          res.result.emplace_back(GArithSubtype::sar2, res_reg,
-                                  MArgument(static_cast<u8>(1)));
-          break;
-        }
-        case 4:
-        case 8:
-        case 16:
-        case 32:
-        case 64:
-        case 128: {
-          auto res_reg =
-              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-          // lea eax, [rdi + 7]
-          ASSERT(base.isReg());
-          res.result.emplace_back(X86Subtype::lea, res_reg,
-                                  MArgument::MemOB(c - 1, base.reg, out_type));
-          // test edi, edi
-          // cmovns eax, edi
-          res.result.emplace_back(GCMovSubtype::cmov_ns, res_reg, base, base,
-                                  base);
-          // sar eax, 3
-          res.result.emplace_back(GArithSubtype::sar2, res_reg,
-                                  MArgument(static_cast<u8>(utils::npow2(c))));
-          break;
-        }
-        case 10: {
-          // TODO: is that rightt???
-          if (get_size(out_type) != 4) {
-            return false;
-          }
-          auto res_reg32 =
-              valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-          auto res_reg64 = res_reg32;
-          res_reg64.ty = Type::Int64;
-          res_reg64.reg.ty = Type::Int64;
-          auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-          auto helper64 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto helper32 = helper64;
-          helper32.ty = Type::Int32;
-          helper32.reg.ty = Type::Int32;
-
-          ASSERT(base.isReg());
-          // movsxd  target64, edi
-          res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, base);
-          // imul    target64, target64, 1717986919
-          res.result.emplace_back(GArithSubtype::smul3, res_reg64, res_reg64,
-                                  MArgument(static_cast<u32>(1717986919)));
-          // mov     helper64, target64
-          res.result.emplace_back(GBaseSubtype::mov, helper64, res_reg64);
-          // shr     helper64, 63
-          res.result.emplace_back(GArithSubtype::shr2, helper64,
-                                  MArgument(static_cast<u8>(63)));
-          // sar     target64, 34
-          res.result.emplace_back(GArithSubtype::sar2, res_reg64,
-                                  MArgument(static_cast<u8>(34)));
-          // add     target32, helper32
-          res.result.emplace_back(GArithSubtype::add2, res_reg32, helper32);
-          break;
-        }
-        }
-
-        return true;
+        return generate_const_div(res.matched_instrs[0], true, false, res, data);
       }});
   pats.push_back(Pattern{
       .nodes = {UDivNode},
       .edges = {},
       .generator = [](MatchResult &res, ExtraMatchData &data) {
-        (void)data;
-        auto div_instr = res.matched_instrs[0];
-        if (!div_instr->args[1].is_constant()) {
-          return false;
-        }
-        if (!div_instr->args[1].as_constant()->is_int()) {
-          return false;
-        }
-
-        auto c = div_instr->args[1].as_constant()->as_int();
-        if (c <= 0 || c > std::numeric_limits<u32>::max() ||
-            (c & (c - 1)) != 0) {
-          return false;
-        }
-        auto power = std::bit_width(static_cast<u32>(c)) - 1;
-
-        auto res_reg =
-            valueToArg(fir::ValueR(div_instr), res.result, data.alloc);
-        auto base = valueToArg(div_instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
-        res.result.emplace_back(GArithSubtype::shr2, res_reg,
-                                MArgument(static_cast<u32>(power)));
-        return true;
+        return generate_const_div(res.matched_instrs[0], false, false, res, data);
+      }});
+  pats.push_back(Pattern{
+      .nodes = {SRemNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        return generate_const_div(res.matched_instrs[0], true, true, res, data);
+      }});
+  pats.push_back(Pattern{
+      .nodes = {URemNode},
+      .edges = {},
+      .generator = [](MatchResult &res, ExtraMatchData &data) {
+        return generate_const_div(res.matched_instrs[0], false, true, res, data);
       }});
   pats.push_back(Pattern{
       .nodes = {IntMulNode, PtrAddNode},
@@ -1344,93 +1239,6 @@ void arith_patterns(IRVec<Pattern> &pats) {
                                   add_arg2);
         }
         return true;
-      }});
-  pats.push_back(Pattern{
-      .nodes = {SRemNode},
-      .edges = {},
-      .generator = [](MatchResult &res, ExtraMatchData &data) {
-        auto srem_instr = res.matched_instrs[0];
-        if (!srem_instr->args[1].is_constant()) {
-          return false;
-        }
-        auto res_reg =
-            valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
-        auto arg = valueToArg(srem_instr->args[0], res.result, data.alloc);
-        auto const_arg =
-            valueToArg(srem_instr->args[1], res.result, data.alloc);
-
-        if (!const_arg.isImm()) {
-          return false;
-        }
-        if (srem_instr.get_type()->as_int() != 32) {
-          return false;
-        }
-        switch (const_arg.imm) {
-        default:
-          return false;
-        case 2: {
-          auto h32 =
-              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
-          // mov     out32, in32
-          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
-          // mov     h32, in32
-          res.result.emplace_back(GBaseSubtype::mov, h32, arg);
-          // shr     h32, 31
-          res.result.emplace_back(GArithSubtype::shr2, h32,
-                                  MArgument(static_cast<u8>(31)));
-          // add     h32, in32
-          res.result.emplace_back(GArithSubtype::add2, h32, arg);
-          // and     h32, -2
-          res.result.emplace_back(GArithSubtype::land2, h32,
-                                  MArgument::Int(-2, Type::Int32));
-          // sub     out32, h32
-          res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
-          return true;
-        }
-        case 5: {
-          auto h64 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto h32 = h64;
-          h32.ty = Type::Int32;
-          h32.reg.ty = Type::Int32;
-          auto g64 =
-              MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
-          auto g32 = g64;
-          g32.ty = Type::Int32;
-          g32.reg.ty = Type::Int32;
-          auto res_reg64 = res_reg;
-          res_reg64.ty = Type::Int64;
-          res_reg64.reg.ty = Type::Int64;
-
-          // movsxd  out64, inp32
-          res.result.emplace_back(GConvSubtype::mov_sx, res_reg64, arg);
-          // imul    h64, out64, 1717986919
-          res.result.emplace_back(GArithSubtype::smul3, h64, res_reg64,
-                                  MArgument(static_cast<u64>(1717986919)));
-          // mov     g64, h64
-          res.result.emplace_back(GBaseSubtype::mov, g64, h64);
-          // shr     g64, 63
-          res.result.emplace_back(GArithSubtype::shr2, g64,
-                                  MArgument(static_cast<u8>(63)));
-          // sar     h64, 33
-          res.result.emplace_back(GArithSubtype::sar2, h64,
-                                  MArgument(static_cast<u8>(33)));
-          // add     h32, g32
-          res.result.emplace_back(GArithSubtype::add2, h32, g32);
-          // lea     h32, [h64 + 4*h64]
-          res.result.emplace_back(
-              X86Subtype::lea, h32,
-              MArgument::MemBIS(h32.reg, h32.reg, 2, Type::Int32));
-          // sub     out32, h32
-          res.result.emplace_back(GArithSubtype::sub2, res_reg, h32);
-          return true;
-        }
-        }
-        fmt::println("Could have optimized the matchign of srem x%{}",
-                     const_arg.imm);
-        TODO("impl");
-
-        return false;
       }});
   pats.push_back(Pattern{
       .nodes = {IntMulNode},

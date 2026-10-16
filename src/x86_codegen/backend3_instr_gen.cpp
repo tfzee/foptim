@@ -1527,6 +1527,19 @@ size_t emit_garith(ZydisEncoderRequest &req, const fmir::MInstr &orig_instr,
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
     }
     return emit_div(instr, req, out_buff);
+  case fmir::GArithSubtype::umulh:
+  case fmir::GArithSubtype::smulh: {
+    for (auto i = 0; i < req.operand_count; i++) {
+      emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+    }
+    // rdx:rax = rax * src
+    req.mnemonic = instr.is(fmir::GArithSubtype::umulh) ? ZYDIS_MNEMONIC_MUL
+                                                        : ZYDIS_MNEMONIC_IMUL;
+    req.operand_count = 1;
+    req.operands[0] = req.operands[3];
+    ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+    return length;
+  }
   case fmir::GArithSubtype::add2:
     for (auto i = 0; i < req.operand_count; i++) {
       emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);

@@ -121,6 +121,8 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       ReturnString(GArithSubtype, idiv);
       ReturnString(GArithSubtype, udiv);
       ReturnString(GArithSubtype, smul3);
+      ReturnString(GArithSubtype, umulh);
+      ReturnString(GArithSubtype, smulh);
     }
   case GOpcode::GCMov:
     switch (static_cast<GCMovSubtype>(sop)) {
@@ -318,6 +320,8 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
       return;
     case GArithSubtype::idiv:
     case GArithSubtype::udiv:
+    case GArithSubtype::umulh:
+    case GArithSubtype::smulh:
       out.push_back({0, instr.args[0]});
       out.push_back({1, instr.args[1]});
       return;
@@ -566,6 +570,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
       return;
     case GArithSubtype::idiv:
     case GArithSubtype::udiv:
+    case GArithSubtype::umulh:
+    case GArithSubtype::smulh:
       out.push_back({2, instr.args[2]});
       out.push_back({3, instr.args[3]});
       return;

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include "test_bitset.hpp"
+#include "test_const_div.hpp"
 #include "test_general.hpp"
 #include "test_int128.hpp"
 #include "test_ir_liveness.hpp"

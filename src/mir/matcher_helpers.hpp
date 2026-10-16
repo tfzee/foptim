@@ -41,6 +41,11 @@ void setup_va_start(fir::Instr &call_instr, MatchResult &res,
 void setup_va_end(fir::Instr &call_instr, MatchResult &res,
                   ExtraMatchData &data);
 
+// sdiv, udiv, srem and urem by an integer constant as multiply, shift and add.
+// Returns false (and emits nothing) for operations it does not handle.
+bool generate_const_div(fir::Instr instr, bool is_signed, bool is_rem,
+                        MatchResult &res, ExtraMatchData &data);
+
 bool generate_lea_from_cmult(MArgument res_reg, VReg helper_reg, VReg arg0,
                              i128 consti_val, TVec<MInstr> &result,
                              Type res_ty);
