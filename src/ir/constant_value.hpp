@@ -3,16 +3,16 @@
 #include "ir/function_ref.hpp"
 #include "ir/global.hpp"
 #include "types_ref.hpp"
+#include "utils/APInt.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
 
 namespace foptim::fir {
 
 struct IntValue {
-  i128 data;
-  [[gnu::always_inline]] constexpr bool
-  operator==(const IntValue &other) const {
-    return data == other.data;
+  APInt data;
+  [[gnu::always_inline]] bool operator==(const IntValue &other) const {
+    return data.bits() == other.data.bits() && data == other.data;
   }
 };
 
@@ -105,14 +105,13 @@ struct ConstantValue {
   ConstantValue(const ConstantValue &);
   ConstantValue &operator=(const ConstantValue &);
 
-  constexpr ConstantValue(i128 v, TypeR typee)
-      : type(typee), int_u({._ty = ConstantType::IntValue, .v = IntValue{v}}) {}
-
-  constexpr ConstantValue(i64 v, TypeR typee)
-      : type(typee), int_u({._ty = ConstantType::IntValue, .v = IntValue{v}}) {}
-
-  constexpr ConstantValue(u64 v, TypeR typee)
-      : type(typee), int_u({._ty = ConstantType::IntValue, .v = IntValue{v}}) {}
+  // integers are truncated / sign extended to the width of the type
+  ConstantValue(i128 v, TypeR typee);
+  ConstantValue(i64 v, TypeR typee);
+  ConstantValue(u64 v, TypeR typee);
+  ConstantValue(APInt v, TypeR typee)
+      : type(typee), int_u({._ty = ConstantType::IntValue,
+                            .v = IntValue{std::move(v)}}) {}
 
   constexpr ConstantValue(f64 v, TypeR typee)
       : type(typee),
@@ -214,7 +213,8 @@ struct ConstantValue {
     return float_u.v.data;
   }
 
-  [[nodiscard]] constexpr i128 as_int() const {
+  // sign extended value, i1 is 0 or 1. Wider than 128 bits is truncated
+  [[nodiscard]] i128 as_int() const {
     if (is_null()) {
       return 0;
     }
@@ -222,6 +222,22 @@ struct ConstantValue {
       fmt::println("{}", *this);
       TODO("");
     }
+    const APInt &d = int_u.v.data;
+    return d.bits() == 1 ? static_cast<i128>(d.to_u64()) : d.to_i128();
+  }
+
+  // the value at another width, i1 is zero extended and wider ones sign
+  // extended like as_int
+  [[nodiscard]] APInt as_apint_resized(u32 bits) const {
+    const APInt &d = as_apint();
+    if (d.bits() == 1 && bits > 1) {
+      return d.zext(bits);
+    }
+    return d.sext_or_trunc(bits);
+  }
+
+  [[nodiscard]] const APInt &as_apint() const {
+    ASSERT(is_int());
     return int_u.v.data;
   }
 

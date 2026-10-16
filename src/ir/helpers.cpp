@@ -146,16 +146,16 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
   case ConstantType::IntValue:
     switch (val->type->get_bitwidth()) {
     case 8:
-      *output = static_cast<u8>(val->int_u.v.data);
+      *output = static_cast<u8>(val->int_u.v.data.to_u64());
       return;
     case 16:
-      *(reinterpret_cast<u16 *>(output)) = static_cast<u16>(val->int_u.v.data);
+      *(reinterpret_cast<u16 *>(output)) = static_cast<u16>(val->int_u.v.data.to_u64());
       return;
     case 32:
-      *(reinterpret_cast<u32 *>(output)) = static_cast<u32>(val->int_u.v.data);
+      *(reinterpret_cast<u32 *>(output)) = static_cast<u32>(val->int_u.v.data.to_u64());
       return;
     case 64:
-      *(reinterpret_cast<u64 *>(output)) = static_cast<u64>(val->int_u.v.data);
+      *(reinterpret_cast<u64 *>(output)) = static_cast<u64>(val->int_u.v.data.to_u64());
       return;
     default:
       fmt::println("{}", val);

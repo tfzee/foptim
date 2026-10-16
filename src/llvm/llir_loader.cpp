@@ -39,12 +39,18 @@
 #include "ir/types.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
+#include "utils/APInt.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/set.hpp"
 #include "utils/vec.hpp"
 
 namespace {
+foptim::APInt to_apint(const llvm::APInt &v) {
+  return foptim::APInt::from_words(v.getBitWidth(), v.getRawData(),
+                                   v.getNumWords());
+}
+
 // keep track of which warnings we have done so we dont spam them too much
 bool warned_f16_ty = false;
 bool warned_f80_ty = false;
@@ -142,15 +148,8 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
 
   if (const auto *int_constant =
           llvm::dyn_cast_or_null<llvm::ConstantInt>(value)) {
-    u32 bitwidth = int_constant->getBitWidth();
-    auto value = int_constant->getValue();
-
-    if (value.isNegative() && bitwidth != 1) {
-      return foptim::fir::ValueR(
-          fctx->get_constant_int(value.getSExtValue(), bitwidth));
-    }
     return foptim::fir::ValueR(
-        fctx->get_constant_int(value.getZExtValue(), bitwidth));
+        fctx->get_constant_int(to_apint(int_constant->getValue())));
   }
   if (nullptr != llvm::dyn_cast_or_null<llvm::ConstantPointerNull>(value)) {
     return foptim::fir::ValueR(fctx->get_constant_null());
@@ -570,15 +569,10 @@ void convert_switch(llvm::SwitchInst *switch_instr, foptim::fir::Context &fctx,
       cases;
   for (auto cass : switch_instr->cases()) {
     const auto *case_llvm_value = cass.getCaseValue();
-    foptim::i128 val = 0;
-    if (case_llvm_value->isNegative() && case_llvm_value->getBitWidth() != 1) {
-      val = case_llvm_value->getSExtValue();
-    } else {
-      val = case_llvm_value->getZExtValue();
-    }
     auto target_bb = b2b.at(cass.getCaseSuccessor());
     cases.emplace_back(
-        fctx->get_constant_int(val, case_llvm_value->getBitWidth()), target_bb);
+        fctx->get_constant_int(to_apint(case_llvm_value->getValue())),
+        target_bb);
   }
 
   auto value = convert_instr_arg(switch_instr->getCondition(), fctx, ffunc,

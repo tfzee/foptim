@@ -20,7 +20,7 @@ define i64 @g(i64 %x) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i64):
 ; CHECK-NEXT:    %1: i64 = LShR(%0, 24:i64){} NUses:1
-; CHECK-NEXT:    %2: i64 = And(%1, 18446744073709486080:i64){} NUses:1
+; CHECK-NEXT:    %2: i64 = And(%1, -65536:i64){} NUses:1
 ; CHECK-NEXT:    %3: i64 = Return(%2){} NUses:0
 ; CHECK-NEXT:}
   %a = lshr i64 %x, 40

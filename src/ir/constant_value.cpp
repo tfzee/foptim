@@ -35,6 +35,15 @@ bool ConstantStruct::operator==(const ConstantStruct &other) const {
   return true;
 }
 
+ConstantValue::ConstantValue(i128 v, TypeR typee)
+    : ConstantValue(APInt::from_i128(typee->get_bitwidth(), v), typee) {}
+
+ConstantValue::ConstantValue(i64 v, TypeR typee)
+    : ConstantValue(APInt::from_i64(typee->get_bitwidth(), v), typee) {}
+
+ConstantValue::ConstantValue(u64 v, TypeR typee)
+    : ConstantValue(APInt::from_u64(typee->get_bitwidth(), v), typee) {}
+
 u64 ConstantValue::hash() const {
   u64 h = hash_mix(static_cast<u64>(ty),
                    reinterpret_cast<uintptr_t>(type.data_ref));
@@ -43,8 +52,7 @@ u64 ConstantValue::hash() const {
   case ConstantType::PoisonValue:
     return h;
   case ConstantType::IntValue: {
-    const auto v = static_cast<u128>(int_u.v.data);
-    return hash_mix(hash_mix(h, static_cast<u64>(v)), static_cast<u64>(v >> 64));
+    return hash_mix(hash_mix(h, int_u.v.data.bits()), int_u.v.data.hash());
   }
   case ConstantType::FloatValue:
     return hash_mix(h, std::bit_cast<u64>(float_u.v.data));
@@ -184,11 +192,13 @@ void ConstantValue::replace_all_uses(ValueR v) {
 ConstantValue::~ConstantValue() {
   switch (ty) {
   case ConstantType::PoisonValue:
-  case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::GlobalPtr:
   case ConstantType::FuncPtr:
   case ConstantType::NullPtr:
+    return;
+  case ConstantType::IntValue:
+    int_u.v.~IntValue();
     return;
   case ConstantType::ConstantStruct:
     stru_u.v.v.~vector();
@@ -211,7 +221,7 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
     ty = old.ty;
     return *this;
   case ConstantType::IntValue:
-    int_u = old.int_u;
+    new (&int_u.v) IntValue(old.int_u.v);
     int_u._ty = old.int_u._ty;
     return *this;
   case ConstantType::FloatValue:
@@ -247,7 +257,7 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
     ty = old.ty;
     return;
   case ConstantType::IntValue:
-    int_u = old.int_u;
+    new (&int_u.v) IntValue(old.int_u.v);
     int_u._ty = old.int_u._ty;
     return;
   case ConstantType::FloatValue:
@@ -330,44 +340,44 @@ ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
   if ((old_ty->is_int() || old_ty->is_ptr()) && target_type->is_float()) {
     if (old_ty->get_bitwidth() == 32) {
       return {ctx->get_constant_value(
-          std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u128>(as_int()))),
+          std::bit_cast<f32>(static_cast<u32>(as_apint().to_u64())),
           target_type)};
     }
     if (old_ty->get_bitwidth() == 64) {
       return {ctx->get_constant_value(
-          std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u128>(as_int()))),
+          std::bit_cast<f64>(as_apint().to_u64()),
           target_type)};
     }
   }
   if (!old_ty->is_vec() && target_type->is_vec()) {
     auto target = target_type->as_vec();
-    u128 value;
+    const u32 total = old_ty->get_bitwidth();
+    APInt value = APInt::zero(total);
     if (old_ty->is_int() || old_ty->is_ptr()) {
-      value = as_int();
+      value = is_null() ? APInt::zero(total) : as_apint();
     } else if (old_ty->is_f32()) {
-      value = std::bit_cast<u32>(as_f32());
+      value = APInt(total, u64{std::bit_cast<u32>(as_f32())});
     } else if (old_ty->is_f64()) {
-      value = std::bit_cast<u64>(as_f64());
+      value = APInt(total, std::bit_cast<u64>(as_f64()));
     } else {
       TODO("UNREACH?");
     }
     IRVec<ConstantValueR> values;
 
     for (u32 i = 0; i < target.member_number; i++) {
-      i128 curr_val =
-          std::bit_cast<i128>(value & utils::get_mask(target.bitwidth));
-      value = value >> target.bitwidth;
+      const APInt curr_val =
+          value.lshr(i * target.bitwidth).trunc(target.bitwidth);
       if (target.type == VectorType::SubType::Integer) {
-        values.push_back(ctx->get_constant_int(curr_val, target.bitwidth));
+        values.push_back(ctx->get_constant_int(curr_val));
       } else if (target.type == VectorType::SubType::Floating &&
                  target.bitwidth == 32) {
         values.push_back(ctx->get_constant_value(
-            std::bit_cast<f32>(static_cast<u32>(curr_val)),
+            std::bit_cast<f32>(static_cast<u32>(curr_val.to_u64())),
             ctx->get_float_type(target.bitwidth)));
       } else if (target.type == VectorType::SubType::Floating &&
                  target.bitwidth == 64) {
         values.push_back(ctx->get_constant_value(
-            std::bit_cast<f64>(static_cast<u64>(curr_val)),
+            std::bit_cast<f64>(curr_val.to_u64()),
             ctx->get_float_type(target.bitwidth)));
       }
     }
@@ -395,16 +405,16 @@ ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
       const u32 src_bytes = src.bitwidth / 8;
       for (size_t i = 0; i < as_vec().members.size(); i++) {
         auto m = as_vec().members[i];
-        u128 lane;
+        APInt lane = APInt::zero(src.bitwidth);
         if (m->is_float() && src.bitwidth == 32) {
-          lane = std::bit_cast<u32>(m->as_f32());
+          lane = APInt(src.bitwidth, u64{std::bit_cast<u32>(m->as_f32())});
         } else if (m->is_float()) {
-          lane = std::bit_cast<u64>(m->as_f64());
+          lane = APInt(src.bitwidth, std::bit_cast<u64>(m->as_f64()));
         } else {
-          lane = std::bit_cast<u128>(m->as_int());
+          lane = m->as_apint();
         }
-        for (u32 j = 0; j < src_bytes && j < 16; j++) {
-          bytes[i * src_bytes + j] = static_cast<u8>(lane >> (8 * j));
+        for (u32 j = 0; j < src_bytes; j++) {
+          bytes[i * src_bytes + j] = static_cast<u8>(lane.lshr(8 * j).to_u64());
         }
       }
       IRVec<ConstantValueR> values;
@@ -424,8 +434,7 @@ ConstantValue::bit_cast(Context &ctx, fir::TypeR target_type) {
                 ctx->get_constant_value(std::bit_cast<f64>(lane), ft));
           }
         } else {
-          values.push_back(ctx->get_constant_int(static_cast<i128>(lane),
-                                                 target.bitwidth));
+          values.push_back(ctx->get_constant_int(APInt(target.bitwidth, lane)));
         }
       }
       return {ctx->get_constant_value(std::move(values), target_type)};
@@ -466,10 +475,10 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
     return fmt::format_to(ctx.out(), colconst, "POISON");
   case foptim::fir::ConstantType::IntValue:
     if (color) {
-      return fmt::format_to(ctx.out(), colnumber, "{}:{:c}", v.int_u.v.data,
+      return fmt::format_to(ctx.out(), colnumber, "{}:{:c}", v.as_int(),
                             v.type);
     } else {
-      return fmt::format_to(ctx.out(), "{}:{}", v.int_u.v.data, v.type);
+      return fmt::format_to(ctx.out(), "{}:{}", v.as_int(), v.type);
     }
   case foptim::fir::ConstantType::FloatValue:
     if (debug) {

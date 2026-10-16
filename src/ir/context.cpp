@@ -315,6 +315,12 @@ ConstantValueR ContextData::get_constant_int(i128 val, u32 bitwidth) {
   return intern_constant(constant);
 }
 
+ConstantValueR ContextData::get_constant_int(APInt val) {
+  const auto ty = get_int_type(val.bits());
+  const auto constant = ConstantValue(std::move(val), ty);
+  return intern_constant(constant);
+}
+
 ConstantValueR ContextData::get_constant_value(IRVec<ConstantValueR> data,
                                                TypeR vec_ty) {
   const auto constant = ConstantValue(std::move(data), vec_ty);
