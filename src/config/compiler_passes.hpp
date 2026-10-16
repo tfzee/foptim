@@ -352,6 +352,8 @@ struct LoopUnrollConf : public FunctionPassConf<LoopUnrollConf>,
   bool pass_parse(toml::table &tbl) {
     max_unroll = tbl["maxUnroll"].value_or(max_unroll);
     max_instr = tbl["maxInstr"].value_or(max_instr);
+    max_full_unroll = tbl["maxFullUnroll"].value_or(max_full_unroll);
+    max_full_instr = tbl["maxFullInstr"].value_or(max_full_instr);
     return true;
   }
   void construct_function_pass(Pass &p) {

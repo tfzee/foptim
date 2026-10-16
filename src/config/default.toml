@@ -80,7 +80,7 @@ passes = [
       "LateInline", "GDCE", "IPCP", "FuncPropAnnotator", "SORA", "Mem2Reg",
       "SimplifyCFG", "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "SimplifyCFG",
       "InstSimplify", "SCCP", "DCE", "InstSimplify", "ConstLoopEval", "LoopSimplify",
-      "LoopUnswitch", "DSE", "DCE", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer", "InstSimplify",
+      "LoopRotate", "SimplifyCFG", "LoopUnswitch", "DSE", "DCE", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer", "InstSimplify",
       "SimplifyCFG",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "LateInline", "LateInline",
       "GDCE", "IPCP", "FuncPropAnnotator", "SORA", "Mem2Reg",
@@ -140,6 +140,8 @@ allow_builtins = false
 [pass.fir.LoopUnroll]
 maxUnroll = 32
 maxInstr = 32
+maxFullUnroll = 8
+maxFullInstr = 256
 [pass.fir.SLPVectorizer]
 reductions = true
 loops = true

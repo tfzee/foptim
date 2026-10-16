@@ -12,6 +12,8 @@ class LoopUnroll final : public FunctionPass {
   struct Config {
     u32 max_unroll = 1024;
     u32 max_instr = 32;
+    u32 max_full_unroll = 8;
+    u32 max_full_instr = 256;
   } config;
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
   bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,

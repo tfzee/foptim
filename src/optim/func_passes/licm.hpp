@@ -14,6 +14,8 @@
 namespace foptim::optim {
 
 class LICM final : public FunctionPass {
+  bool split_edges = false;
+
 public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("LICM");
@@ -22,8 +24,17 @@ public:
     LoopInfoAnalysis linfo{dom};
 
     bool modified = false;
+    split_edges = false;
     for (auto &info : linfo.info) {
       modified |= apply(ctx, func, cfg, info);
+      if (split_edges) {
+        // the cfg is stale now
+        modified = true;
+        break;
+      }
+    }
+    if (split_edges) {
+      return PreservedAnalysis::none();
     }
     // instructions get moved, blocks and edges stay
     return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
@@ -191,6 +202,81 @@ public:
     return modified;
   }
 
+  // the loop is entered through an unconditional edge from the preheader and
+  // the compare of the header (a header argument that starts as a constant
+  // against a constant) sends the first iteration into the loop body, so
+  // everything that runs on each iteration runs at least once
+  static bool body_runs_on_entry(const CFG &cfg, const LoopInfo &info,
+                                 fir::BasicBlock pre_header) {
+    auto header = cfg.bbrs[info.head].bb;
+    auto term = header->get_terminator();
+    auto pre_term = pre_header->get_terminator();
+    size_t edge = 0;
+    size_t edges = 0;
+    for (size_t i = 0; i < pre_term->bbs.size(); i++) {
+      if (pre_term->bbs[i].bb == header) {
+        edge = i;
+        edges++;
+      }
+    }
+    if (!term->is(fir::InstrType::CondBranchInstr) || edges != 1 ||
+        info.leaving_nodes.size() != 1 || info.leaving_nodes[0] != info.head) {
+      return false;
+    }
+    auto cond = term->get_arg(0);
+    if (!cond.is_instr() || !cond.as_instr()->is(fir::InstrType::ICmp) ||
+        cond.as_instr()->get_parent() != header) {
+      return false;
+    }
+    auto cmp = cond.as_instr();
+    auto start = [&](fir::ValueR v) -> std::optional<i128> {
+      if (v.is_constant() && v.as_constant()->is_int()) {
+        return v.as_constant()->as_int();
+      }
+      if (v.is_bb_arg()) {
+        for (size_t i = 0; i < header->args.size(); i++) {
+          if (header->args[i] != v.as_bb_arg()) {
+            continue;
+          }
+          auto inc = pre_term->bbs[edge].args[i];
+          if (inc.is_constant() && inc.as_constant()->is_int()) {
+            return inc.as_constant()->as_int();
+          }
+        }
+      }
+      return std::nullopt;
+    };
+    auto a = start(cmp->get_arg(0));
+    auto b = start(cmp->get_arg(1));
+    if (!a || !b) {
+      return false;
+    }
+    bool taken;
+    using ST = fir::ICmpInstrSubType;
+    if (cmp->is(ST::SLT)) {
+      taken = *a < *b;
+    } else if (cmp->is(ST::SLE)) {
+      taken = *a <= *b;
+    } else if (cmp->is(ST::SGT)) {
+      taken = *a > *b;
+    } else if (cmp->is(ST::SGE)) {
+      taken = *a >= *b;
+    } else if (cmp->is(ST::EQ)) {
+      taken = *a == *b;
+    } else if (cmp->is(ST::NE)) {
+      taken = *a != *b;
+    } else {
+      return false;
+    }
+    // true target index 0, false target index 1
+    auto inside = [&](size_t i) {
+      return std::ranges::find(info.body_nodes,
+                               cfg.get_bb_id(term->bbs[i].bb)) !=
+             info.body_nodes.end();
+    };
+    return inside(taken ? 0 : 1);
+  }
+
   // returns whether anything was hoisted
   bool apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
              LoopInfo &info) {
@@ -221,6 +307,41 @@ public:
       return false;
     }
 
+    // a division that runs on every entry of the loop still must not move in
+    // front of a guard, so the entry edge gets its own block
+    bool split_edge = false;
+    if (pre_header->get_terminator()->is(fir::InstrType::CondBranchInstr) &&
+        info.body_nodes.size() == 2 &&
+        body_runs_on_entry(cfg, info, pre_header)) {
+      bool has_div = false;
+      for (auto bb : info.body_nodes) {
+        for (auto instr : cfg.bbrs[bb].bb->instructions) {
+          has_div |= instr->is(fir::BinaryInstrSubType::IntSDiv) ||
+                     instr->is(fir::BinaryInstrSubType::IntUDiv) ||
+                     instr->is(fir::BinaryInstrSubType::IntSRem) ||
+                     instr->is(fir::BinaryInstrSubType::IntURem);
+        }
+      }
+      if (has_div) {
+        auto header = cfg.bbrs[info.head].bb;
+        auto pre_term = pre_header->get_terminator();
+        u16 edge = pre_term.get_bb_id(header);
+        TVec<fir::ValueR> edge_args{pre_term->bbs[edge].args.begin(),
+                                    pre_term->bbs[edge].args.end()};
+        fir::Builder b{pre_header};
+        auto entry = b.append_bb();
+        b.at_end(entry);
+        auto br = b.build_branch(header);
+        for (auto arg : edge_args) {
+          br.add_bb_arg(0, arg);
+        }
+        pre_term.replace_bb(edge, entry, false);
+        pre_header = entry;
+        split_edge = true;
+      }
+    }
+    split_edges |= split_edge;
+
     const bool reassociated = reassociate(cfg, info, pre_header);
 
     std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
@@ -238,8 +359,7 @@ public:
     // anyway: in the header, behind an unconditional edge from the
     // preheader, with nothing before them that has an effect.
     TSet<fir::Instr> runs_on_entry;
-    if (!loop_writes_mem &&
-        pre_header->get_terminator()->is(fir::InstrType::BranchInstr)) {
+    if (pre_header->get_terminator()->is(fir::InstrType::BranchInstr)) {
       for (auto instr : cfg.bbrs[info.head].bb->instructions) {
         if (instr->has_pot_sideeffects() || instr->is_critical()) {
           break;
@@ -248,11 +368,21 @@ public:
       }
     }
     // division traps on a zero divisor (and on INT_MIN / -1), so it only
-    // leaves the loop if the divisor is a constant that rules both out
-    auto may_trap = [](fir::Instr instr) {
+    // leaves the loop if the divisor is a constant that rules both out or if
+    // it runs on every entry anyway
+    // with a header and a single body block, the body is the only way on
+    const bool body_entered = info.body_nodes.size() == 2 &&
+                              body_runs_on_entry(cfg, info, pre_header);
+    auto may_trap = [&](fir::Instr instr) {
       using ST = fir::BinaryInstrSubType;
       if (!instr->is(ST::IntSDiv) && !instr->is(ST::IntUDiv) &&
           !instr->is(ST::IntSRem) && !instr->is(ST::IntURem)) {
+        return false;
+      }
+      if (runs_on_entry.contains(instr)) {
+        return false;
+      }
+      if (body_entered) {
         return false;
       }
       auto d = instr->get_arg(1);
@@ -330,7 +460,7 @@ public:
       }
     }
     if (invariant.empty()) {
-      return reassociated;
+      return reassociated || split_edge;
     }
 
     fir::Builder bb{pre_header};

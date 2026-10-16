@@ -351,7 +351,10 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   u8 unroll_factor = 2;
   bool is_full_unroll = false;
   bool did_peel = false;
-  if (iteration_count > 2 && ((iteration_count - 1) % 2) == 0) {
+  const bool small_full = iteration_count > 1 &&
+                          iteration_count <= config.max_full_unroll &&
+                          iteration_count * n_instrs <= config.max_full_instr;
+  if (!small_full && iteration_count > 2 && ((iteration_count - 1) % 2) == 0) {
     peel_it(cfg, loop, 1, ctx, func, true);
     did_peel = true;
     iteration_count--;
@@ -359,16 +362,15 @@ bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   }
   // fmt::println("{:cd}", func);
   // fmt::println("{}", iteration_count);
-  if (iteration_count % 32 == 0) {
+  if (small_full) {
+    is_full_unroll = true;
+    unroll_factor = static_cast<u8>(iteration_count);
+  } else if (iteration_count % 32 == 0) {
     unroll_factor = 32;
   } else if (iteration_count % 16 == 0) {
     unroll_factor = 16;
   } else if (iteration_count % 8 == 0) {
     unroll_factor = 8;
-  } else if (iteration_count > 1 && iteration_count <= 6 &&
-             iteration_count * n_instrs < 64) {
-    is_full_unroll = true;
-    unroll_factor = static_cast<u8>(iteration_count);
   } else if (iteration_count % 4 == 0) {
     unroll_factor = 4;
   } else {
@@ -410,35 +412,53 @@ PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   LoopInfoAnalysis linfo{dom};
   TripCountAnalysis tc{};
 
-  for (auto &loop : linfo.info) {
-    // ensure loop is do while loop
-    ScalarEvo evo{cfg, loop};
-    if (!tc.update(cfg, dom, loop, evo)) {
-      if (peel_condition(cfg, loop, ctx, func, evo)) {
-        return PreservedAnalysis::none();
+  // unrolling one loop invalidates the loop info, so start over but never
+  // touch a loop twice
+  TVec<fir::BasicBlock> done;
+  bool changed = false;
+  bool restart = true;
+  while (restart) {
+    restart = false;
+    for (auto &loop : linfo.info) {
+      if (std::ranges::contains(done, cfg.bbrs[loop.head].bb)) {
+        continue;
       }
-      failure(
-          {.reason = "Didnt find loop range", .loc = {cfg.bbrs[loop.head].bb}});
-      continue;
-    }
-    if (!tc.const_exit_iter) {
-      failure({.reason = "Trip count is not constant",
-               .loc = {cfg.bbrs[loop.head].bb}});
-      continue;
-    }
-    if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
-      failure({.reason = "Need a simple do while loop",
-               .loc = {cfg.bbrs[loop.head].bb}});
-      continue;
-    }
+      // ensure loop is do while loop
+      ScalarEvo evo{cfg, loop};
+      if (!tc.update(cfg, dom, loop, evo)) {
+        if (peel_condition(cfg, loop, ctx, func, evo)) {
+          return PreservedAnalysis::none();
+        }
+        failure({.reason = "Didnt find loop range",
+                 .loc = {cfg.bbrs[loop.head].bb}});
+        continue;
+      }
+      if (!tc.const_exit_iter) {
+        failure({.reason = "Trip count is not constant",
+                 .loc = {cfg.bbrs[loop.head].bb}});
+        continue;
+      }
+      if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
+        failure({.reason = "Need a simple do while loop",
+                 .loc = {cfg.bbrs[loop.head].bb}});
+        continue;
+      }
 
-    if (apply_it(cfg, loop, ctx, func, tc)) {
-      utils::StatCollector::get().addi(1, "loopUnrolled",
-                                       utils::StatCollector::StatFOptim);
-      return PreservedAnalysis::none();
+      auto head_bb = cfg.bbrs[loop.head].bb;
+      if (apply_it(cfg, loop, ctx, func, tc)) {
+        utils::StatCollector::get().addi(1, "loopUnrolled",
+                                         utils::StatCollector::StatFOptim);
+        done.push_back(head_bb);
+        changed = true;
+        cfg.update(func, false);
+        dom.update(cfg);
+        linfo.update(dom);
+        restart = true;
+        break;
+      }
     }
   }
-  return PreservedAnalysis::all();
+  return changed ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
 } // namespace foptim::optim

@@ -19,7 +19,8 @@ namespace {
 void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
                                 uint8_t non_exiting_target,
                                 fir::BasicBlock header_bb,
-                                fir::BasicBlock head_pred) {
+                                fir::BasicBlock head_pred,
+                                const TVec<fir::Instr> &carried) {
   repl_map.clear();
   fir::Instr old_terminator = head_pred->get_terminator();
   auto &old_terminator_args = old_terminator->bbs[0].args;
@@ -54,6 +55,9 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
     new_term.replace_bb(non_exiting_target, header_bb, false);
     for (auto arg : old_terminator_args) {
       new_term.add_bb_arg(non_exiting_target, arg);
+    }
+    for (auto c : carried) {
+      new_term.add_bb_arg(non_exiting_target, repl_map.at(fir::ValueR(c)));
     }
     flip_cond_branch(new_term);
   }
@@ -95,58 +99,19 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     return false;
   }
   auto header_bb = cfg.bbrs[linfo.head].bb;
+  // a header that jumps back to itself is already rotated
+  if (std::ranges::contains(linfo.tails, linfo.head)) {
+    failure({.reason = "Header is already the latch",
+             .loc = {cfg.bbrs[linfo.head].bb}});
+    return false;
+  }
   // only worth it if the header aint to big
   // TODO: magic number parameter
   if (header_bb->instructions.size() > 10) {
     failure({.reason = "Header to big ", .loc = {cfg.bbrs[linfo.head].bb}});
     return false;
   }
-  // only if all of the operations in the header dont have sideeffects
-  for (auto instr : header_bb->instructions) {
-    bool has_uses_outside = false;
-    for (auto use : instr->uses) {
-      if (use.user->parent != header_bb) {
-        has_uses_outside = true;
-        break;
-      }
-    }
-    if (has_uses_outside) {
-      failure({.reason = "Header values are used later",
-               .loc = {cfg.bbrs[linfo.head].bb}});
-      return false;
-    }
-    if (instr->has_pot_sideeffects()) {
-      failure({.reason = "Header has side effects ",
-               .loc = {cfg.bbrs[linfo.head].bb}});
-      return false;
-    }
-  }
-
-  // if theres multiple incoming edges(from outside the loop) or one of the
-  // incoming edges is conditional
-  bool needs_preheader =
-      cfg.bbrs[linfo.head].pred.size() > 1 + linfo.tails.size();
-  if (!needs_preheader) {
-    for (auto pred : cfg.bbrs[linfo.head].pred) {
-      if (!cfg.bbrs[pred].bb->get_terminator()->is(
-              fir::InstrType::BranchInstr)) {
-        needs_preheader = true;
-      }
-    }
-  }
-
-  if (needs_preheader) {
-    // also needs to updated cfg
-    failure({.reason = "TODO: Impl preheader insertion",
-             .loc = {cfg.bbrs[linfo.head].bb}});
-    return false;
-
-    TODO("TODO preheader insertion");
-  }
-
-  // now the header only got predecessors that use a simple jump to it
-  // we need to figure out the headers_terminator which of the two targets is
-  // the non exiting one
+  // which of the two targets of the header terminator is the non exiting one
   uint8_t non_exiting_target = 1;
   {
     auto first_target = header_bb->get_terminator()->bbs[0].bb;
@@ -159,6 +124,71 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
       }
     }
   }
+  // header values that the loop body uses stay available as extra arguments of
+  // the header, values used behind the loop would need a merge of the exits
+  TVec<fir::Instr> carried;
+  for (auto instr : header_bb->instructions) {
+    bool used_in_body = false;
+    for (auto use : instr->uses) {
+      if (use.user->parent == header_bb) {
+        // the arguments of the edge into the body are rebuilt from the
+        // surviving header, so they count as body uses
+        used_in_body |= use.type == fir::UseType::BBArg &&
+                        use.argId == non_exiting_target;
+        continue;
+      }
+      if (!std::ranges::contains(linfo.body_nodes,
+                                 cfg.get_bb_id(use.user->get_parent()))) {
+        failure({.reason = "Header values are used later",
+                 .loc = {cfg.bbrs[linfo.head].bb}});
+        return false;
+      }
+      used_in_body = true;
+    }
+    if (instr->has_pot_sideeffects()) {
+      failure({.reason = "Header has side effects ",
+               .loc = {cfg.bbrs[linfo.head].bb}});
+      return false;
+    }
+    if (used_in_body) {
+      carried.push_back(instr);
+    }
+  }
+
+  if (cfg.bbrs[linfo.head].pred.size() > 1 + linfo.tails.size()) {
+    failure({.reason = "TODO: Impl preheader insertion",
+             .loc = {cfg.bbrs[linfo.head].bb}});
+    return false;
+  }
+  TVec<fir::BasicBlock> head_preds;
+  for (auto pred : cfg.bbrs[linfo.head].pred) {
+    head_preds.push_back(cfg.bbrs[pred].bb);
+  }
+  // every predecessor gets a copy of the header so it has to end in a plain
+  // jump, split the other edges
+  for (auto &pred : head_preds) {
+    auto term = pred->get_terminator();
+    if (term->is(fir::InstrType::BranchInstr)) {
+      continue;
+    }
+    auto split = fir::Builder(header_bb).append_bb();
+    for (auto arg : header_bb->args) {
+      split.add_arg(ctx->storage.insert_bb_arg(split, arg->get_type()));
+    }
+    fir::Builder sb{split};
+    sb.at_end(split);
+    auto jmp = sb.build_branch(header_bb);
+    for (auto arg : split->args) {
+      jmp.add_bb_arg(0, fir::ValueR{arg});
+    }
+    for (u16 i = 0; i < term->bbs.size(); i++) {
+      if (term->bbs[i].bb == header_bb) {
+        term.replace_bb(i, split, true);
+      }
+    }
+    pred = split;
+  }
+
   uint8_t exiting_target = 1 - non_exiting_target;
 
   // if the header gets bbargs and these bb args are used *after* the loop
@@ -239,20 +269,30 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     // return false;
   }
 
+  for (auto c : carried) {
+    auto arg = header_bb.add_arg(
+        ctx->storage.insert_bb_arg(header_bb, c->get_type()));
+    TVec<fir::Use> outside;
+    for (auto use : c->uses) {
+      if (use.user->parent != header_bb ||
+          (use.type == fir::UseType::BBArg &&
+           use.argId == non_exiting_target)) {
+        outside.push_back(use);
+      }
+    }
+    for (auto use : outside) {
+      use.replace_use(fir::ValueR{arg});
+    }
+  }
+
   // TODO: prob want to replace this map since its never gonna be more then a
   // handful of bb_block args
   TMap<fir::ValueR, fir::ValueR> repl_map;
   // replace all incoming branch instructions with the full header
   {
-    // if we inserted preheader we can just replace it and all the tails
-    // if not we can just replace all predecessors
-    if (needs_preheader) {
-      TODO("repl preheader + tails");
-    } else {
-      for (auto head_pred : cfg.bbrs[linfo.head].pred) {
-        replace_branch_with_header(repl_map, non_exiting_target, header_bb,
-                                   cfg.bbrs[head_pred].bb);
-      }
+    for (auto head_pred : head_preds) {
+      replace_branch_with_header(repl_map, non_exiting_target, header_bb,
+                                 head_pred, carried);
     }
   }
 

@@ -1087,7 +1087,8 @@ SCEVRef ScalarEvo::block_arg_expr(fir::ValueR v, u32 depth) {
       if (target.bb != bb) {
         continue;
       }
-      if (idx >= target.args.size()) {
+      // DCE leaves dead block arguments with invalid edge values
+      if (idx >= target.args.size() || target.args[idx].is_invalid()) {
         return mk_unknown(bw);
       }
       edges.push_back({pred, target.args[idx]});
