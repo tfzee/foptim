@@ -719,6 +719,20 @@ void convert_landingpad(const llvm::Instruction *any_instr,
                       convert_type(instr->getType(), fctx, mod))}});
 }
 
+bool module_has_eh_instr(const llvm::Module &mod) {
+  for (const auto &func : mod) {
+    for (const auto &bb : func) {
+      for (const auto &instr : bb) {
+        if (llvm::isa<llvm::LandingPadInst>(instr) ||
+            llvm::isa<llvm::ResumeInst>(instr)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 void convert_resume(foptim::fir::Context &fctx, foptim::fir::Builder &builder) {
   generate_trap(fctx);
   auto target_func = fctx->get_function("abort");
@@ -2067,6 +2081,11 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     // unless the module defines them itself
     generate_memcpy(fctx);
     generate_memset(fctx);
+    // landingpad and resume become calls to abort, the function bodies are
+    // converted in parallel so it has to exist before
+    if (module_has_eh_instr(mod)) {
+      generate_trap(fctx);
+    }
   }
   {
     ZoneScopedN("Populating Globals + Functions");
