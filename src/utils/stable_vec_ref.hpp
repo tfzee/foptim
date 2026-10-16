@@ -11,11 +11,11 @@ namespace foptim::utils {
 template <class T> class SRef {
 public:
   Slot<T> *data_ref;
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
   u32 generation;
 #endif
   constexpr bool operator==(const SRef<T> &other) const {
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     return generation == other.generation && data_ref == other.data_ref;
 #else
     return data_ref == other.data_ref;
@@ -23,7 +23,7 @@ public:
   }
 
   constexpr bool operator<(const SRef<T> &other) const {
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     if (generation == other.generation) {
       return data_ref < other.data_ref;
     }
@@ -35,7 +35,7 @@ public:
 
   constexpr void _invalidate() {
     ASSERT(data_ref != nullptr);
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     ASSERT(generation != 0);
     ASSERT(data_ref->generation() == generation);
 #endif
@@ -80,7 +80,7 @@ private:
       std::memory_order order = std::memory_order_acquire) const {
     // a live slot never has generation 0, so a ref with 0 never matches
     return data_ref->word.load(order) ==
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
            slot_word(generation, SlotState::Used);
 #else
            slot_word(0, SlotState::Used);
@@ -105,7 +105,7 @@ public:
   //     : data_ref(old.data_ref), generation(old.generation) {}
   // constexpr SRef(SRef<T> &old)
   //     : data_ref(old.data_ref), generation(old.generation) {}
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
   constexpr SRef(std::nullptr_t) noexcept : data_ref(nullptr), generation(0) {}
   constexpr SRef() noexcept : data_ref(nullptr), generation(0) {}
   constexpr SRef(Slot<T> *ref, u32 gen) noexcept
@@ -120,7 +120,7 @@ public:
 
 template <class T>
 constexpr bool operator==(const SRef<T> &self, const SRef<T> &other) {
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
   return self.data_ref == other.data_ref && self.generation == other.generation;
 #else
   return self.data_ref == other.data_ref;
@@ -136,7 +136,7 @@ struct ankerl::unordered_dense::hash<foptim::utils::SRef<T>> {
   [[nodiscard]] auto operator()(const foptim::utils::SRef<T> &k) const noexcept
       -> uint64_t {
     using foptim::u32;
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     return hash<const void *>()(static_cast<const void *>(k.data_ref)) ^
            hash<u32>()(k.generation);
 #else
@@ -150,7 +150,7 @@ template <class T> struct std::hash<foptim::utils::SRef<T>> {
     using foptim::u32;
     using std::hash;
 
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     return hash<const void *>()(static_cast<const void *>(k.data_ref)) ^
            hash<u32>()(k.generation);
 #else

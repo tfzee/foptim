@@ -8,7 +8,7 @@ class Instr : public utils::SRef<InstrData> {
  public:
   constexpr explicit Instr(utils::SRef<InstrData> &&crtp) noexcept {
     this->data_ref = crtp.data_ref;
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     this->generation = crtp.generation;
 #endif
   }

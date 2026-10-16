@@ -15,7 +15,7 @@ TEST(StableVecTest, BasicInsertDelete) {
   EXPECT_EQ(r1.is_valid(), true);
   EXPECT_EQ(r2.is_valid(), true);
   EXPECT_EQ(r3.is_valid(), true);
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
   EXPECT_EQ(r1.generation, 1);
   EXPECT_EQ(r2.generation, 1);
   EXPECT_EQ(r3.generation, 1);
@@ -26,13 +26,15 @@ TEST(StableVecTest, BasicInsertDelete) {
   const auto *r1_ptr = r1.get_raw_ptr();
   vec.remove(r1);
 
-  EXPECT_EQ(r1.data_ref->state(), foptim::utils::SlotState::FreeList);
+  EXPECT_EQ(r1.data_ref->state(), foptim::utils::SlotState::Free);
   EXPECT_EQ(r1.is_valid(), false);
+  vec.collect_garbage();
+  EXPECT_EQ(r1.data_ref->state(), foptim::utils::SlotState::FreeList);
   EXPECT_EQ(r2.is_valid(), true);
   EXPECT_EQ(r3.is_valid(), true);
 
   auto r4 = vec.push_back(4);
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
   EXPECT_EQ(r2.generation, 1);
   EXPECT_EQ(r4.generation, 2);
 #endif
@@ -122,4 +124,28 @@ TEST(StableVecTest, IterationSkipsUnusedSlots) {
   EXPECT_EQ(sum, 4);
   EXPECT_TRUE(r1.is_valid());
   EXPECT_TRUE(r3.is_valid());
+}
+
+TEST(StableVecTest, DestroysOnlyLiveAndErasedData) {
+  static int alive = 0;
+  struct Counted {
+    Counted() { alive++; }
+    Counted(const Counted &) { alive++; }
+    Counted(Counted &&) noexcept { alive++; }
+    ~Counted() { alive--; }
+  };
+  {
+    foptim::utils::StableVec<Counted> vec;
+    auto r1 = vec.push_back(Counted{});
+    auto r2 = vec.push_back(Counted{});
+    EXPECT_EQ(alive, 2);
+    r1._invalidate();
+    // destroyed when collected, not when erased
+    EXPECT_EQ(alive, 2);
+    vec.collect_garbage();
+    EXPECT_EQ(alive, 1);
+    EXPECT_TRUE(r2.is_valid());
+  }
+  // never constructed and already destroyed slots must not be destroyed again
+  EXPECT_EQ(alive, 0);
 }

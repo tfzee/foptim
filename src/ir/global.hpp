@@ -15,7 +15,7 @@ struct Global : public utils::SRef<std::unique_ptr<GlobalData>> {
 public:
   constexpr explicit Global(utils::SRef<std::unique_ptr<GlobalData>> &&crtp) {
     this->data_ref = crtp.data_ref;
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     this->generation = crtp.generation;
 #endif
   }

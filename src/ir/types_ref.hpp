@@ -9,7 +9,7 @@ class TypeR : public utils::SRef<AnyType> {
  public:
   constexpr explicit TypeR(utils::SRef<AnyType> &&crtp) {
     this->data_ref = crtp.data_ref;
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     this->generation = crtp.generation;
 #endif
   }

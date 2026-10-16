@@ -2,6 +2,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #include "helpers.hpp"
@@ -70,7 +71,7 @@ template <class T, u32 slot_slab_len = 128,
           class AllocFreeList = FAlloc<FreeInfo<T>>,
           class AllocSlabs = FAlloc<Slab<T, slot_slab_len>>>
 class StableVec {
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
   std::atomic<u32> curr_gen = 1;
 #endif
   foptim::Mutex<std::vector<FreeInfo<T>, AllocFreeList>> _free_list;
@@ -129,7 +130,10 @@ class StableVec {
     Slab *start = _slot_start;
     while (start != nullptr) {
       for (u32 i = 0; i < slot_slab_len; i++) {
-        start->data[i].~Slot<T>();
+        // slots on the free list hold no live T
+        if (start->data[i].state() != SlotState::FreeList) {
+          std::destroy_at(&start->data[i].data);
+        }
       }
       // TracyFree(slot_alloc);
       auto next = start->next;
@@ -139,27 +143,16 @@ class StableVec {
     }
   }
 
-  constexpr void remove(SRef<T> s) {
-    {
-#ifdef SLOT_CHECK_GENERATION
-      curr_gen++;
-      if (curr_gen == 0) {
-        curr_gen++;
-      }
-#endif
-      s.data_ref->data.~T();
-      s.data_ref->mark_free_list();
-      auto free_list = _free_list.scoped_lock();
-      free_list->emplace_back(s.data_ref, 1);
-    }
-  }
+  // The slot is only reusable (and its data destroyed) after collect_garbage
+  // so refs held by other threads stay detectable until then.
+  constexpr void remove(SRef<T> s) { s._invalidate(); }
 
   void collect_garbage() {
     ZoneScopedN("Collect Garbage");
     auto save_point = TempAlloc<void *>::save();
     TVec<FreeInfo<T>> temp_info;
     {
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
       curr_gen.fetch_add(1);
       if (curr_gen.load() == 0) {
         curr_gen.fetch_add(1);
@@ -169,6 +162,7 @@ class StableVec {
       while (slot_slab_start) {
         for (u32 i = 0; i < slot_slab_len; i++) {
           if (slot_slab_start->data[i].try_collect()) {
+            std::destroy_at(&slot_slab_start->data[i].data);
             temp_info.emplace_back(&slot_slab_start->data[i], 1);
           }
         }
@@ -235,7 +229,7 @@ class StableVec {
         auto free_list = _free_list.scoped_lock();
         free_list->push_back(target);
       }
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
       res_ptr->publish(curr_gen.load(std::memory_order::acquire));
 #else
       res_ptr->publish(0);

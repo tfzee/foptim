@@ -26,7 +26,7 @@ class BBArgument : public utils::SRef<BBArgumentData> {
   }
   constexpr explicit BBArgument(utils::SRef<BBArgumentData> &&crtp) {
     this->data_ref = crtp.data_ref;
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
     this->generation = crtp.generation;
 #endif
   }

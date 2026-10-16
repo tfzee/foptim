@@ -68,7 +68,7 @@ public:
           const auto *v = &i;
           if (v->is_used()) {
             //! CANCER!
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
             auto sref = utils::SRef<std::unique_ptr<fir::GlobalData>>{
                 const_cast<utils::Slot<std::unique_ptr<fir::GlobalData>> *>(v),
                 v->generation()};

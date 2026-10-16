@@ -56,7 +56,7 @@ public:
             auto g = fir::Global{
                 utils::SRef<std::unique_ptr<foptim::fir::GlobalData>>{
                     v,
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
                     v->generation()
 #else
                     0
@@ -99,7 +99,7 @@ public:
                 auto *v = &i;
                 if (v->is_used() &&
                     v->data.is_global() && v->data.as_global() == g) {
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
                   auto r = utils::SRef<fir::ConstantValue>{v, v->generation()};
 #else
                   auto r = utils::SRef<fir::ConstantValue>{v, 0};
@@ -156,7 +156,7 @@ public:
             auto *v = &i;
             if (v->is_used() &&
                 v->data.is_func() && v->data.as_func().func == f) {
-#ifdef SLOT_CHECK_GENERATION
+#if SLOT_CHECK_LEVEL >= 2
               auto r = utils::SRef<fir::ConstantValue>{v, v->generation()};
 #else
               auto r = utils::SRef<fir::ConstantValue>{v, 0};

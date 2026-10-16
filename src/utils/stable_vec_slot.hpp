@@ -6,11 +6,7 @@
 // How much SRef checks on every dereference (0: none, 1: slot in use,
 // 2: additionally the generation), set by CMake (slot_check_level)
 #ifndef SLOT_CHECK_LEVEL
-#ifdef SLOT_CHECK_GENERATION
-#define SLOT_CHECK_LEVEL 2
-#else
 #define SLOT_CHECK_LEVEL 1
-#endif
 #endif
 
 namespace foptim::utils {
