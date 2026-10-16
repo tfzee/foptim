@@ -18,43 +18,43 @@ void swap_args_fcmp(fir::Instr instr) {
     swap_args(instr, 0, 1);
   };
   switch (static_cast<FCmpInstrSubType>(instr->subtype)) {
-  case FCmpInstrSubType::INVALID:
-  case FCmpInstrSubType::AlwFalse:
-  case FCmpInstrSubType::OEQ:
-  case FCmpInstrSubType::UEQ:
-  case FCmpInstrSubType::ONE:
-  case FCmpInstrSubType::UNE:
-  case FCmpInstrSubType::ORD:
-  case FCmpInstrSubType::UNO:
-  case FCmpInstrSubType::AlwTrue:
-    swap_args(instr, 0, 1);
-    break;
-  case FCmpInstrSubType::OGT:
-    flip(FCmpInstrSubType::OLT);
-    break;
-  case FCmpInstrSubType::OGE:
-    flip(FCmpInstrSubType::OLE);
-    break;
-  case FCmpInstrSubType::OLT:
-    flip(FCmpInstrSubType::OGT);
-    break;
-  case FCmpInstrSubType::OLE:
-    flip(FCmpInstrSubType::OGE);
-    break;
-  case FCmpInstrSubType::UGT:
-    flip(FCmpInstrSubType::ULT);
-    break;
-  case FCmpInstrSubType::UGE:
-    flip(FCmpInstrSubType::ULE);
-    break;
-  case FCmpInstrSubType::ULT:
-    flip(FCmpInstrSubType::UGT);
-    break;
-  case FCmpInstrSubType::ULE:
-    flip(FCmpInstrSubType::UGE);
-    break;
-  case FCmpInstrSubType::IsNaN:
-    break;
+    case FCmpInstrSubType::INVALID:
+    case FCmpInstrSubType::AlwFalse:
+    case FCmpInstrSubType::OEQ:
+    case FCmpInstrSubType::UEQ:
+    case FCmpInstrSubType::ONE:
+    case FCmpInstrSubType::UNE:
+    case FCmpInstrSubType::ORD:
+    case FCmpInstrSubType::UNO:
+    case FCmpInstrSubType::AlwTrue:
+      swap_args(instr, 0, 1);
+      break;
+    case FCmpInstrSubType::OGT:
+      flip(FCmpInstrSubType::OLT);
+      break;
+    case FCmpInstrSubType::OGE:
+      flip(FCmpInstrSubType::OLE);
+      break;
+    case FCmpInstrSubType::OLT:
+      flip(FCmpInstrSubType::OGT);
+      break;
+    case FCmpInstrSubType::OLE:
+      flip(FCmpInstrSubType::OGE);
+      break;
+    case FCmpInstrSubType::UGT:
+      flip(FCmpInstrSubType::ULT);
+      break;
+    case FCmpInstrSubType::UGE:
+      flip(FCmpInstrSubType::ULE);
+      break;
+    case FCmpInstrSubType::ULT:
+      flip(FCmpInstrSubType::UGT);
+      break;
+    case FCmpInstrSubType::ULE:
+      flip(FCmpInstrSubType::UGE);
+      break;
+    case FCmpInstrSubType::IsNaN:
+      break;
   }
 }
 
@@ -80,37 +80,37 @@ bool canNarrowFpCompare(double C, fir::FCmpInstrSubType op) {
   auto n = static_cast<f64>(next_f);
 
   switch (op) {
-  case fir::FCmpInstrSubType::OGT:
-  case fir::FCmpInstrSubType::OLT:
-    return p < C && C < n;
-  case fir::FCmpInstrSubType::OLE:
-    return p < C && C <= static_cast<double>(Cf);
-  case fir::FCmpInstrSubType::OGE:
-    return static_cast<double>(Cf) <= C && C < n;
-  case fir::FCmpInstrSubType::UGT:
-  case fir::FCmpInstrSubType::ULT:
-    return p < C && C < n;
-  case fir::FCmpInstrSubType::ULE:
-    return p < C && C <= static_cast<double>(Cf);
-  case fir::FCmpInstrSubType::UGE:
-    return static_cast<double>(Cf) <= C && C < n;
-  case fir::FCmpInstrSubType::OEQ:
-  case fir::FCmpInstrSubType::UEQ:
-  case fir::FCmpInstrSubType::ONE:
-  case fir::FCmpInstrSubType::UNE:
-    return static_cast<double>(Cf) == C;
-  case fir::FCmpInstrSubType::ORD:
-  case fir::FCmpInstrSubType::UNO:
-  case fir::FCmpInstrSubType::INVALID:
-  case fir::FCmpInstrSubType::AlwFalse:
-  case fir::FCmpInstrSubType::AlwTrue:
-  case fir::FCmpInstrSubType::IsNaN:
-    return false;
+    case fir::FCmpInstrSubType::OGT:
+    case fir::FCmpInstrSubType::OLT:
+      return p < C && C < n;
+    case fir::FCmpInstrSubType::OLE:
+      return p < C && C <= static_cast<double>(Cf);
+    case fir::FCmpInstrSubType::OGE:
+      return static_cast<double>(Cf) <= C && C < n;
+    case fir::FCmpInstrSubType::UGT:
+    case fir::FCmpInstrSubType::ULT:
+      return p < C && C < n;
+    case fir::FCmpInstrSubType::ULE:
+      return p < C && C <= static_cast<double>(Cf);
+    case fir::FCmpInstrSubType::UGE:
+      return static_cast<double>(Cf) <= C && C < n;
+    case fir::FCmpInstrSubType::OEQ:
+    case fir::FCmpInstrSubType::UEQ:
+    case fir::FCmpInstrSubType::ONE:
+    case fir::FCmpInstrSubType::UNE:
+      return static_cast<double>(Cf) == C;
+    case fir::FCmpInstrSubType::ORD:
+    case fir::FCmpInstrSubType::UNO:
+    case fir::FCmpInstrSubType::INVALID:
+    case fir::FCmpInstrSubType::AlwFalse:
+    case fir::FCmpInstrSubType::AlwTrue:
+    case fir::FCmpInstrSubType::IsNaN:
+      return false;
   }
 
   TODO("UNREACH");
 }
-} // namespace
+}  // namespace
 
 f64 const_fp(fir::ConstantValueR c) {
   return c->get_type()->as_float() == 32 ? static_cast<f64>(c->as_f32())
@@ -120,7 +120,7 @@ f64 const_fp(fir::ConstantValueR c) {
 namespace {
 bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                         WorkList &worklist);
-} // namespace
+}  // namespace
 
 bool simplify_fcmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
@@ -192,55 +192,55 @@ bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto const_val = const1_i->as_f64();
 
       switch (fcmp_subtype) {
-      case fir::FCmpInstrSubType::OLT: {
-        auto r = b.build_int_cmp(arg0_i->args[0],
-                                 fir::ValueR{ctx->get_constant_value(
-                                     static_cast<i128>(ceil(const_val)),
-                                     arg0_i->args[0].get_type())},
-                                 fir::ICmpInstrSubType::SLT);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return true;
-      }
-      case fir::FCmpInstrSubType::OGT: {
-        auto r = b.build_int_cmp(arg0_i->args[0],
-                                 fir::ValueR{ctx->get_constant_value(
-                                     static_cast<i128>(floor(const_val)),
-                                     arg0_i->args[0].get_type())},
-                                 fir::ICmpInstrSubType::SGT);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return true;
-      }
-      case fir::FCmpInstrSubType::UNE: {
-        auto r = b.build_int_cmp(arg0_i->args[0],
-                                 fir::ValueR{ctx->get_constant_value(
-                                     static_cast<i128>(floor(const_val)),
-                                     arg0_i->args[0].get_type())},
-                                 fir::ICmpInstrSubType::NE);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(r);
-        instr.destroy();
-        return true;
-      }
-      case fir::FCmpInstrSubType::INVALID:
-      case fir::FCmpInstrSubType::AlwFalse:
-      case fir::FCmpInstrSubType::OEQ:
-      case fir::FCmpInstrSubType::OGE:
-      case fir::FCmpInstrSubType::OLE:
-      case fir::FCmpInstrSubType::ONE:
-      case fir::FCmpInstrSubType::ORD:
-      case fir::FCmpInstrSubType::UNO:
-      case fir::FCmpInstrSubType::UEQ:
-      case fir::FCmpInstrSubType::UGT:
-      case fir::FCmpInstrSubType::UGE:
-      case fir::FCmpInstrSubType::ULT:
-      case fir::FCmpInstrSubType::ULE:
-      case fir::FCmpInstrSubType::AlwTrue:
-      case fir::FCmpInstrSubType::IsNaN:
-        break;
+        case fir::FCmpInstrSubType::OLT: {
+          auto r = b.build_int_cmp(arg0_i->args[0],
+                                   fir::ValueR{ctx->get_constant_value(
+                                       static_cast<i128>(ceil(const_val)),
+                                       arg0_i->args[0].get_type())},
+                                   fir::ICmpInstrSubType::SLT);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(r);
+          instr.destroy();
+          return true;
+        }
+        case fir::FCmpInstrSubType::OGT: {
+          auto r = b.build_int_cmp(arg0_i->args[0],
+                                   fir::ValueR{ctx->get_constant_value(
+                                       static_cast<i128>(floor(const_val)),
+                                       arg0_i->args[0].get_type())},
+                                   fir::ICmpInstrSubType::SGT);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(r);
+          instr.destroy();
+          return true;
+        }
+        case fir::FCmpInstrSubType::UNE: {
+          auto r = b.build_int_cmp(arg0_i->args[0],
+                                   fir::ValueR{ctx->get_constant_value(
+                                       static_cast<i128>(floor(const_val)),
+                                       arg0_i->args[0].get_type())},
+                                   fir::ICmpInstrSubType::NE);
+          push_all_uses(worklist, instr);
+          instr->replace_all_uses(r);
+          instr.destroy();
+          return true;
+        }
+        case fir::FCmpInstrSubType::INVALID:
+        case fir::FCmpInstrSubType::AlwFalse:
+        case fir::FCmpInstrSubType::OEQ:
+        case fir::FCmpInstrSubType::OGE:
+        case fir::FCmpInstrSubType::OLE:
+        case fir::FCmpInstrSubType::ONE:
+        case fir::FCmpInstrSubType::ORD:
+        case fir::FCmpInstrSubType::UNO:
+        case fir::FCmpInstrSubType::UEQ:
+        case fir::FCmpInstrSubType::UGT:
+        case fir::FCmpInstrSubType::UGE:
+        case fir::FCmpInstrSubType::ULT:
+        case fir::FCmpInstrSubType::ULE:
+        case fir::FCmpInstrSubType::AlwTrue:
+        case fir::FCmpInstrSubType::IsNaN:
+          break;
       }
     }
   }
@@ -262,53 +262,53 @@ bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     bool is_true = false;
     const bool uno = std::isnan(v1) || std::isnan(v2);
     switch (fcmp_subtype) {
-    case fir::FCmpInstrSubType::IsNaN:
-    case fir::FCmpInstrSubType::UNO:
-      is_true = uno;
-      break;
-    case fir::FCmpInstrSubType::ORD:
-      is_true = !uno;
-      break;
-    case fir::FCmpInstrSubType::OEQ:
-      is_true = !uno && v1 == v2;
-      break;
-    case fir::FCmpInstrSubType::OGT:
-      is_true = !uno && v1 > v2;
-      break;
-    case fir::FCmpInstrSubType::OGE:
-      is_true = !uno && v1 >= v2;
-      break;
-    case fir::FCmpInstrSubType::OLT:
-      is_true = !uno && v1 < v2;
-      break;
-    case fir::FCmpInstrSubType::OLE:
-      is_true = !uno && v1 <= v2;
-      break;
-    case fir::FCmpInstrSubType::ONE:
-      is_true = !uno && v1 != v2;
-      break;
-    case fir::FCmpInstrSubType::UEQ:
-      is_true = uno || v1 == v2;
-      break;
-    case fir::FCmpInstrSubType::UGT:
-      is_true = uno || v1 > v2;
-      break;
-    case fir::FCmpInstrSubType::UGE:
-      is_true = uno || v1 >= v2;
-      break;
-    case fir::FCmpInstrSubType::ULT:
-      is_true = uno || v1 < v2;
-      break;
-    case fir::FCmpInstrSubType::ULE:
-      is_true = uno || v1 <= v2;
-      break;
-    case fir::FCmpInstrSubType::UNE:
-      is_true = uno || v1 != v2;
-      break;
-    case fir::FCmpInstrSubType::INVALID:
-    case fir::FCmpInstrSubType::AlwFalse:
-    case fir::FCmpInstrSubType::AlwTrue:
-      return true;
+      case fir::FCmpInstrSubType::IsNaN:
+      case fir::FCmpInstrSubType::UNO:
+        is_true = uno;
+        break;
+      case fir::FCmpInstrSubType::ORD:
+        is_true = !uno;
+        break;
+      case fir::FCmpInstrSubType::OEQ:
+        is_true = !uno && v1 == v2;
+        break;
+      case fir::FCmpInstrSubType::OGT:
+        is_true = !uno && v1 > v2;
+        break;
+      case fir::FCmpInstrSubType::OGE:
+        is_true = !uno && v1 >= v2;
+        break;
+      case fir::FCmpInstrSubType::OLT:
+        is_true = !uno && v1 < v2;
+        break;
+      case fir::FCmpInstrSubType::OLE:
+        is_true = !uno && v1 <= v2;
+        break;
+      case fir::FCmpInstrSubType::ONE:
+        is_true = !uno && v1 != v2;
+        break;
+      case fir::FCmpInstrSubType::UEQ:
+        is_true = uno || v1 == v2;
+        break;
+      case fir::FCmpInstrSubType::UGT:
+        is_true = uno || v1 > v2;
+        break;
+      case fir::FCmpInstrSubType::UGE:
+        is_true = uno || v1 >= v2;
+        break;
+      case fir::FCmpInstrSubType::ULT:
+        is_true = uno || v1 < v2;
+        break;
+      case fir::FCmpInstrSubType::ULE:
+        is_true = uno || v1 <= v2;
+        break;
+      case fir::FCmpInstrSubType::UNE:
+        is_true = uno || v1 != v2;
+        break;
+      case fir::FCmpInstrSubType::INVALID:
+      case fir::FCmpInstrSubType::AlwFalse:
+      case fir::FCmpInstrSubType::AlwTrue:
+        return true;
     }
     auto new_const_value = ctx->get_constant_int(static_cast<u64>(is_true), 8);
     push_all_uses(worklist, instr);
@@ -319,6 +319,6 @@ bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
   return false;
 }
-} // namespace
+}  // namespace
 
-} // namespace foptim::optim::InstSimp
+}  // namespace foptim::optim::InstSimp

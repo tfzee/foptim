@@ -127,7 +127,7 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
     }
   }
 
-  { // type cleanup
+  {  // type cleanup
     func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
@@ -546,14 +546,14 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
     queued.erase(f);
     visits[f]++;
     switch (f->attribs.linkage) {
-    case fir::Linkage::External:
-    case fir::Linkage::Weak:
-    case fir::Linkage::LinkOnce:
-    case fir::Linkage::WeakODR:
-      continue;
-    case fir::Linkage::LinkOnceODR:
-    case fir::Linkage::Internal:
-      break;
+      case fir::Linkage::External:
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+      case fir::Linkage::WeakODR:
+        continue;
+      case fir::Linkage::LinkOnceODR:
+      case fir::Linkage::Internal:
+        break;
     }
 
     if (f->is_decl() || f->attribs.variadic) {
@@ -581,4 +581,4 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
   }
   return PreservedAnalysis::all();
 }
-} // namespace foptim::optim
+}  // namespace foptim::optim

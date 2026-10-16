@@ -10,4 +10,4 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist, AttributerManager &man,
                    ConstraintCache &ccache);
 
-} // namespace foptim::optim::InstSimp
+}  // namespace foptim::optim::InstSimp

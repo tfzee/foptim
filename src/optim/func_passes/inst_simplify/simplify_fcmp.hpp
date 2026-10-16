@@ -12,4 +12,4 @@ f64 const_fp(fir::ConstantValueR c);
 bool simplify_fcmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist);
 
-} // namespace foptim::optim::InstSimp
+}  // namespace foptim::optim::InstSimp
