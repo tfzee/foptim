@@ -468,8 +468,15 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
         use.user->replace_all_uses(fir::ValueR{arg});
       } else {
         fir::Builder buh{use.user};
-        auto load1 = buh.build_load(load_type, use.user->args[1], false, false);
-        auto load2 = buh.build_load(load_type, use.user->args[2], false, false);
+        // the promoted argument already is the loaded value
+        auto load_of = [&](fir::ValueR ptr) {
+          if (ptr == fir::ValueR{arg}) {
+            return fir::ValueR{arg};
+          }
+          return buh.build_load(load_type, ptr, false, false);
+        };
+        auto load1 = load_of(use.user->args[1]);
+        auto load2 = load_of(use.user->args[2]);
         auto res = buh.build_select(load_type, use.user->args[0], load1, load2);
         for (auto subuse : use.user->uses) {
           subuse.user->replace_all_uses(res);
