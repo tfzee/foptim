@@ -1027,6 +1027,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     case llvm::AtomicRMWInst::FSub:
     case llvm::AtomicRMWInst::FMax:
     case llvm::AtomicRMWInst::FMin:
+    case llvm::AtomicRMWInst::FMaximum:
+    case llvm::AtomicRMWInst::FMinimum:
     case llvm::AtomicRMWInst::UIncWrap:
     case llvm::AtomicRMWInst::UDecWrap:
     case llvm::AtomicRMWInst::USubCond:
