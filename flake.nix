@@ -16,10 +16,10 @@
           };
           nativeBuildInputs = with pkgs; [
             # IMPORTANT CLANG TOOLS AT START
-            llvmPackages_20.clang-tools
+            llvmPackages_22.clang-tools
 
             #depend
-            llvmPackages_20.libllvm
+            llvmPackages_22.libllvm
             argparse
             fmt
             unordered_dense
@@ -29,7 +29,8 @@
             #build tools
             cmake
             ninja
-            llvmPackages_20.clang
+            mold
+            llvmPackages_22.clang
             gtest
             lit
 

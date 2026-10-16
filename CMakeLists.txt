@@ -94,6 +94,14 @@ endif()
 
 
 link_libraries(fmt)
+# the linker is a big part of an incremental rebuild, use mold or lld when installed
+if(FOPTIM_FAST_LINKER AND NOT EXISTS ${FOPTIM_FAST_LINKER})
+  unset(FOPTIM_FAST_LINKER CACHE)
+endif()
+find_program(FOPTIM_FAST_LINKER NAMES mold ld.lld)
+if(FOPTIM_FAST_LINKER)
+  add_link_options(-fuse-ld=${FOPTIM_FAST_LINKER})
+endif()
 # add_link_options(-fsanitize=thread -fPIE -pie)
 
 add_library (foptim OBJECT
@@ -147,6 +155,8 @@ add_library (foptim OBJECT
                 ./src/optim/func_passes/stack_known_bits.cpp
                 ./src/optim/func_passes/simple_vectorize.cpp
                 ./src/optim/func_passes/inst_simplify/simplify_binary.cpp
+                ./src/optim/func_passes/inst_simplify/simplify_icmp.cpp
+                ./src/optim/func_passes/inst_simplify/simplify_fcmp.cpp
                 ./src/optim/module_passes/function_dedup.cpp
                 ./src/optim/module_passes/arg_promotion.cpp
                 ./src/optim/module_passes/IPCP.cpp
