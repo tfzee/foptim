@@ -168,11 +168,7 @@ TypeR ContextData::get_ptr_type() {
 
 StructTypeR ContextData::get_struct_type(IRVec<StructType::StructElem> elems) {
   auto ty = StructType(std::move(elems));
-  auto maybeT = try_reuse_type(ty);
-  if (maybeT.is_valid()) {
-    return maybeT;
-  }
-  return storage.insert_type(AnyType(ty));
+  return intern_type(ty);
 }
 
 TypeR ContextData::get_vec_type(fir::TypeR elem_ty, u16 n_lanes) {
@@ -193,21 +189,13 @@ TypeR ContextData::get_vec_type(fir::TypeR elem_ty, u16 n_lanes) {
   }
 
   auto ty = VectorType(elemy, width, n_lanes);
-  auto maybeT = try_reuse_type(ty);
-  if (maybeT.is_valid()) {
-    return maybeT;
-  }
-  return storage.insert_type(AnyType(ty));
+  return intern_type(ty);
 }
 
 TypeR ContextData::get_vec_type(fir::VectorType::SubType elem_ty, u16 width,
                                 u16 n_lanes) {
   auto ty = VectorType(elem_ty, width, n_lanes);
-  auto maybeT = try_reuse_type(ty);
-  if (maybeT.is_valid()) {
-    return maybeT;
-  }
-  return storage.insert_type(AnyType(ty));
+  return intern_type(ty);
 }
 
 IntTypeR ContextData::get_float_type(u16 bitwidth) {
@@ -219,11 +207,7 @@ IntTypeR ContextData::get_float_type(u16 bitwidth) {
   if (bitwidth == 64) {
     return f64_type;
   }
-  auto maybeT = try_reuse_type(FloatType(bitwidth));
-  if (maybeT.is_valid()) {
-    return maybeT;
-  }
-  return storage.insert_type(FloatType{bitwidth});
+  return intern_type(FloatType(bitwidth));
 }
 
 IntTypeR ContextData::get_int_type(u16 bitwidth) {
@@ -247,134 +231,72 @@ IntTypeR ContextData::get_int_type(u16 bitwidth) {
   if (bitwidth == 64) {
     return u64_type;
   }
-  auto maybeT = try_reuse_type(IntegerType(bitwidth));
-  if (maybeT.is_valid()) {
-    return maybeT;
-  }
-  return storage.insert_type(IntegerType{bitwidth});
+  return intern_type(IntegerType(bitwidth));
 }
 
 FunctionTypeR ContextData::get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
   auto func_ty =
       FunctionType{.return_type = ret_type, .arg_types = std::move(args)};
-  auto maybeT = try_reuse_type(func_ty);
-  if (maybeT.is_valid()) {
-    return maybeT;
-  }
-  return storage.insert_type(func_ty);
+  return intern_type(func_ty);
 }
 
 ConstantValueR ContextData::get_poisson_value(TypeR type) {
   auto ty = ConstantValue(type);
-  auto maybeT = try_reuse_constant(ty);
-  if (maybeT.is_valid()) {
-    return maybeT;
-  }
-  return storage.insert_constant(ty);
+  return intern_constant(ty);
 }
 
-ConstantValueR ContextData::try_reuse_constant(const ConstantValue &val) {
-  auto *slot = storage.storage_constant._slot_start.load();
-  while (slot != nullptr) {
-    for (auto &i : slot->data) {
-      auto *constant = &i;
-      if (constant->is_used()) {
-        if (constant->data.ty == val.ty &&
-            constant->data.get_type() == val.get_type() &&
-            constant->data.eql(val)) {
-#ifdef SLOT_CHECK_GENERATION
-          return ConstantValueR{utils::SRef{constant, constant->generation()}};
-#else
-          return ConstantValueR{utils::SRef{constant, 0}};
-#endif
-        }
-      }
-    }
-    slot = slot->next;
-  }
-  return ConstantValueR{ConstantValueR::invalid()};
+ConstantValueR ContextData::intern_constant(const ConstantValue &val) {
+  return ConstantValueR(constant_table.intern(
+      val.hash(),
+      [&](const utils::SRef<ConstantValue> &r) {
+        return r.is_valid() && r.data_ref->data.ty == val.ty &&
+               r.data_ref->data.get_type() == val.get_type() &&
+               r.data_ref->data.eql(val);
+      },
+      [&] { return utils::SRef<ConstantValue>(storage.insert_constant(val)); }));
 }
 
-TypeR ContextData::try_reuse_type(const AnyType &val) {
-  auto *slot = storage.storage_type._slot_start.load();
-  while (slot != nullptr) {
-    for (auto &i : slot->data) {
-      auto *typee = &i;
-      if (typee->is_used()) {
-        if (typee->data.eql(val)) {
-#ifdef SLOT_CHECK_GENERATION
-          return TypeR{utils::SRef{typee, typee->generation()}};
-#else
-          return TypeR{utils::SRef{typee, 0}};
-#endif
-        }
-      }
-    }
-    slot = slot->next;
-  }
-  return TypeR{TypeR::invalid()};
+TypeR ContextData::intern_type(const AnyType &val) {
+  return TypeR(type_table.intern(
+      val.hash(),
+      [&](const utils::SRef<AnyType> &r) {
+        return r.is_valid() && r.data_ref->data.eql(val);
+      },
+      [&] { return utils::SRef<AnyType>(storage.insert_type(val)); }));
 }
 
 ConstantValueR ContextData::get_constant_value(FunctionR func) {
   const auto constant = ConstantValue(func, get_ptr_type());
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(ConstantValue constant) {
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(f32 val, FloatTypeR ty) {
   const auto constant = ConstantValue(val, ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(f64 val, FloatTypeR ty) {
   const auto constant = ConstantValue(val, ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(u64 val, IntTypeR ty) {
   const auto constant = ConstantValue(val, ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(i64 val, IntTypeR ty) {
   const auto constant = ConstantValue(val, ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(i32 val, IntTypeR ty) {
   const auto constant = ConstantValue(static_cast<i64>(val), ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_null() {
@@ -385,50 +307,30 @@ ConstantValueR ContextData::get_constant_null() {
 
 ConstantValueR ContextData::get_constant_value(i128 val, IntTypeR ty) {
   const auto constant = ConstantValue(val, ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_int(i128 val, u32 bitwidth) {
   const auto constant = ConstantValue(val, get_int_type(bitwidth));
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(IRVec<ConstantValueR> data,
                                                TypeR vec_ty) {
   const auto constant = ConstantValue(std::move(data), vec_ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(u32 val, IntTypeR ty) {
   const auto constant = ConstantValue(static_cast<u64>(val), ty);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 
 ConstantValueR ContextData::get_constant_value(Global glob) {
   static auto global_ptr_typee = get_ptr_type();
 
   const auto constant = ConstantValue(glob, global_ptr_typee);
-  auto maybeR = try_reuse_constant(constant);
-  if (maybeR.is_valid()) {
-    return maybeR;
-  }
-  return storage.insert_constant(constant);
+  return intern_constant(constant);
 }
 void ContextData::dump_graph(const char *filename) {
   // digraph G {

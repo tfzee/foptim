@@ -4,6 +4,7 @@
 #include "utils/types.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/intern_table.hpp"
 #include "storage.hpp"
 #include "types.hpp"
 #include "types_ref.hpp"
@@ -13,6 +14,8 @@ namespace foptim::fir {
 
 struct ContextData {
   IRStorage storage = {};
+  InternTable<ConstantValue> constant_table;
+  InternTable<AnyType> type_table;
   using V2VMap = TMap<ValueR, ValueR>;
 
   BasicBlock copy(BasicBlock bb, V2VMap &subs, bool apply_subs = true);
@@ -54,8 +57,9 @@ struct ContextData {
   ConstantValueR get_constant_int(i128 val, u32 bitwidth);
   ConstantValueR get_constant_value(u32 val, IntTypeR ty);
   ConstantValueR get_constant_value(IRVec<ConstantValueR> data, TypeR vec_ty);
-  ConstantValueR try_reuse_constant(const ConstantValue &val);
-  TypeR try_reuse_type(const AnyType &val);
+  // returns the one constant / type with this value, creating it if needed
+  ConstantValueR intern_constant(const ConstantValue &val);
+  TypeR intern_type(const AnyType &val);
   ConstantValueR get_constant_value(Global glob);
 
   bool has_global(IRString name) const;

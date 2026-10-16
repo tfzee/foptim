@@ -35,6 +35,36 @@ bool ConstantStruct::operator==(const ConstantStruct &other) const {
   return true;
 }
 
+u64 ConstantValue::hash() const {
+  u64 h = hash_mix(static_cast<u64>(ty),
+                   reinterpret_cast<uintptr_t>(type.data_ref));
+  switch (ty) {
+  case ConstantType::NullPtr:
+  case ConstantType::PoisonValue:
+    return h;
+  case ConstantType::IntValue: {
+    const auto v = static_cast<u128>(int_u.v.data);
+    return hash_mix(hash_mix(h, static_cast<u64>(v)), static_cast<u64>(v >> 64));
+  }
+  case ConstantType::FloatValue:
+    return hash_mix(h, std::bit_cast<u64>(float_u.v.data));
+  case ConstantType::VectorValue:
+    for (const auto &m : vec_u.v.members) {
+      h = hash_mix(h, m->hash());
+    }
+    return h;
+  case ConstantType::ConstantStruct:
+    for (const auto &m : stru_u.v.v) {
+      h = hash_mix(h, m.hash());
+    }
+    return h;
+  case ConstantType::GlobalPtr:
+    return hash_mix(h, reinterpret_cast<uintptr_t>(gp_u.v.glob.data_ref));
+  case ConstantType::FuncPtr:
+    return hash_mix(h, reinterpret_cast<uintptr_t>(fup_u.v.func.func));
+  }
+}
+
 void ConstantValue::add_usage(Use u) {
   switch (ty) {
   case ConstantType::NullPtr:

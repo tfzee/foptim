@@ -42,7 +42,7 @@ class StructType {
     }
     for (size_t i = 0; i < elems.size(); i++) {
       if (elems[i].ty != other.elems[i].ty ||
-          elems[i].offset != elems[i].offset) {
+          elems[i].offset != other.elems[i].offset) {
         return false;
       }
     }
@@ -151,6 +151,8 @@ class AnyType {
   [[nodiscard]] u32 get_bitwidth() const;
   [[nodiscard]] u32 get_align() const;
   [[nodiscard]] bool eql(const AnyType &other) const;
+  // structural hash that agrees with eql
+  [[nodiscard]] u64 hash() const;
 
   [[nodiscard]] bool is_struct() const { return ty == AnyTypeType::Struct; }
   [[nodiscard]] bool is_func() const { return ty == AnyTypeType::Function; }

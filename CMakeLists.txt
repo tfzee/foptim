@@ -17,6 +17,11 @@ add_compile_options(-fvisibility=hidden -ggdb
   -Wall -Wextra -Werror -Wno-c23-extensions -Wno-unused-const-variable
   -Wno-unused-function -Wno-unused-private-field -Wno-implicit-fallthrough)
 
+# The compiler is built for the same baseline it generates code for (x86-64-v3).
+if(host_v3)
+  add_compile_options(-march=x86-64-v3)
+endif()
+
 include(FetchContent)
 
 ################################################

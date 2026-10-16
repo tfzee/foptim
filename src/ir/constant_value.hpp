@@ -24,7 +24,8 @@ struct FloatValue {
       : data(std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(d)))) {}
   [[gnu::always_inline]] constexpr bool
   operator==(const FloatValue &other) const {
-    return data == other.data;
+    // bitwise, so 0.0 and -0.0 differ and a NaN equals itself
+    return std::bit_cast<u64>(data) == std::bit_cast<u64>(other.data);
   }
 };
 
@@ -229,6 +230,8 @@ struct ConstantValue {
     return gp_u.v.glob;
   }
   [[nodiscard]] TypeR get_type() const { return type; }
+  // structural hash that agrees with eql and the type
+  [[nodiscard]] u64 hash() const;
   [[nodiscard]] bool eql(const ConstantValue &other) const {
     if (ty != other.ty) {
       return false;

@@ -1,5 +1,9 @@
 #include "ir/types.hpp"
 
+#include "ir/intern_table.hpp"
+
+#include "ir/intern_table.hpp"
+
 #include <fmt/color.h>
 
 namespace foptim::fir {
@@ -92,6 +96,35 @@ u32 AnyType::get_align() const {
       return struct_u.v.eql(other.struct_u.v);
     case AnyTypeType::Vector:
       return vec_u.v.eql(other.vec_u.v);
+  }
+}
+
+u64 AnyType::hash() const {
+  u64 h = static_cast<u64>(ty) + 1;
+  switch (ty) {
+    case AnyTypeType::Void:
+    case AnyTypeType::Ptr:
+      return h;
+    case AnyTypeType::Integer:
+      return hash_mix(h, int_u.v.bitwidth);
+    case AnyTypeType::Float:
+      return hash_mix(h, float_u.v.bitwidth);
+    case AnyTypeType::Function:
+      h = hash_mix(h, func_u.v.return_type->hash());
+      for (const auto &arg : func_u.v.arg_types) {
+        h = hash_mix(h, arg->hash());
+      }
+      return h;
+    case AnyTypeType::Struct:
+      for (const auto &e : struct_u.v.elems) {
+        h = hash_mix(h, e.offset);
+        h = hash_mix(h, reinterpret_cast<uintptr_t>(e.ty.data_ref));
+      }
+      return h;
+    case AnyTypeType::Vector:
+      h = hash_mix(h, static_cast<u64>(vec_u.v.type));
+      h = hash_mix(h, vec_u.v.bitwidth);
+      return hash_mix(h, vec_u.v.member_number);
   }
 }
 
