@@ -61,67 +61,35 @@ class CmpKnownValProp final : public FunctionPass {
     }
   }
 
-  void propagate_known_cond(fir::Instr term, CFG &cfg) {
+  void propagate_known_cond(fir::Instr term, CFG &cfg, Dominators &dom) {
     // only if we have multiple uses
     if (term->args[0].get_n_uses() < 2) {
       return;
     }
-    utils::BitSet reachable_bbs_true(cfg.bbrs.size(), false);
-    utils::BitSet reachable_bbs_false(cfg.bbrs.size(), false);
-    {
-      // collect all the reachable blocks
-      auto next_bb_true = cfg.get_bb_id(term->bbs[0].bb);
-      reachable_bbs_true[next_bb_true].set(true);
-      TVec<u32> worklist;
-      worklist.push_back(next_bb_true);
-      while (!worklist.empty()) {
-        u32 c = worklist.back();
-        worklist.pop_back();
-        for (auto n : cfg.bbrs[c].succ) {
-          if (!reachable_bbs_true[n]) {
-            reachable_bbs_true[n].set(true);
-            worklist.push_back(n);
-          }
+    // a use is only known if every execution of it came through the edge, so
+    // the target has to be entered only by this edge and dominate the use.
+    // Blocks that merely can be reached from the target are not enough, the
+    // value may be recomputed on the way (loops through its definition).
+    const auto replace_dominated = [&](fir::BasicBlock target, i64 val) {
+      auto target_id = cfg.get_bb_id(target);
+      if (cfg.bbrs[target_id].pred.size() != 1) {
+        return;
+      }
+      TVec<fir::Use> uses_copy{term->args[0].get_uses()->begin(),
+                               term->args[0].get_uses()->end()};
+      for (auto use : uses_copy) {
+        auto user_bb = cfg.get_bb_id(use.user->get_parent());
+        if (dom.dominates(target_id, user_bb)) {
+          use.replace_use(fir::ValueR{cfg.func->ctx->get_constant_int(val, 1)});
+          modified = true;
         }
       }
-
-      auto next_bb_false = cfg.get_bb_id(term->bbs[1].bb);
-      reachable_bbs_false[next_bb_false].set(true);
-      worklist.push_back(next_bb_false);
-      while (!worklist.empty()) {
-        u32 c = worklist.back();
-        worklist.pop_back();
-        for (auto n : cfg.bbrs[c].succ) {
-          if (!reachable_bbs_false[n]) {
-            reachable_bbs_false[n].set(true);
-            worklist.push_back(n);
-          }
-        }
-      }
-    }
-    // we only care about blocks that can only be reached by one of the two
-    // paths
-    auto overlap = reachable_bbs_true;
-    overlap.mul(reachable_bbs_false);
-    overlap[cfg.get_bb_id(term->get_parent())].set(true);
-    reachable_bbs_true.mul_not(overlap);
-    reachable_bbs_false.mul_not(overlap);
-    TVec<fir::Use> uses_copy{term->args[0].get_uses()->begin(),
-                             term->args[0].get_uses()->end()};
-    for (auto use : uses_copy) {
-      auto user_bb = cfg.get_bb_id(use.user->get_parent());
-      if (reachable_bbs_true[user_bb]) {
-        use.replace_use(fir::ValueR{cfg.func->ctx->get_constant_int(1, 1)});
-        modified = true;
-      }
-      if (reachable_bbs_false[user_bb]) {
-        use.replace_use(fir::ValueR{cfg.func->ctx->get_constant_int(0, 1)});
-        modified = true;
-      }
-    }
+    };
+    replace_dominated(term->bbs[0].bb, 1);
+    replace_dominated(term->bbs[1].bb, 0);
   }
 
-public:
+ public:
   PreservedAnalysis apply(fir::Context & /*ctx*/,
                           fir::Function &func) override {
     ZoneScopedNC("CmpKnownValProp", COLOR_OPTIMF);
@@ -134,11 +102,11 @@ public:
           term->args[0].is_instr() && term->bbs[0].bb != term->bbs[1].bb) {
         auto cond = term->args[0].as_instr();
         handle_cbranch(cond, term, cfg, dom, true, true);
-        propagate_known_cond(term, cfg);
+        propagate_known_cond(term, cfg, dom);
       }
     }
     // only uses get replaced by constants
     return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim
