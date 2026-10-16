@@ -9,6 +9,7 @@
 
 #include "config/compiler_config.hpp"
 #include "ir/print_ids.hpp"
+#include "utils/cpuFeatures.hpp"
 #include "utils/tracy.hpp"
 
 void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
@@ -55,6 +56,10 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .default_value("Default")
       .help("where the cconf.toml is located at")
       .default_value("default");
+  program.add_argument("--march")
+      .help("overwrite the configured target features, only 'native' is "
+            "supported")
+      .default_value(std::string{});
   program.add_argument("input").default_value("-").help(
       "specify the input .ll file.");
   program.add_argument("output")
@@ -70,6 +75,11 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
 
   fmt::println(stderr, "Using config '{}'", config);
   ASSERT(conf.parse(config));
+
+  if (program.is_used("--march")) {
+    foptim::populateConfig(conf.target.features,
+                           program.get<std::string>("--march"));
+  }
 
   conf.number_worker_threads = program.get<int>("workers");
   assert(conf.number_worker_threads >= 0 && conf.number_worker_threads <= 8 &&

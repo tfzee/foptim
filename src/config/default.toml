@@ -12,6 +12,11 @@ avx512bw = false
 avx512cd = false
 avx512dq = false
 avx512vl = false
+avx512vpopcntdq = false
+avx512bitalg = false
+avx512vbmi = false
+avx512ifma = false
+avxvnni = false
 bmi2 = true
 
 # ------------------------------------------------------------------------------------------------

@@ -25,7 +25,12 @@ struct Target {
     bool avx512cd;
     bool avx512dq;
     bool avx512vl;
+    bool avx512vpopcntdq;
+    bool avx512bitalg;
+    bool avx512vbmi;
+    bool avx512ifma;
 
+    bool avxvnni;
     bool bmi2;
   } features;
 };
@@ -157,7 +162,8 @@ struct CompConf {
 
   CompConf() = default;
 
-  template <IRType Ty> std::optional<PipelineRef> lookup_pipeline(std::string_view name) {
+  template <IRType Ty>
+  std::optional<PipelineRef> lookup_pipeline(std::string_view name) {
     auto &pipelines = Ty == IRType::FIR ? fir_pipelines : mir_pipelines;
     for (auto pipe : pipelines) {
       if (pipe->name == name) {
@@ -166,7 +172,8 @@ struct CompConf {
     }
     return std::nullopt;
   }
-  template <IRType Ty> std::optional<PassRef> lookup_pass(std::string_view name) {
+  template <IRType Ty>
+  std::optional<PassRef> lookup_pass(std::string_view name) {
     auto &passes = Ty == IRType::FIR ? fir_passes : mir_passes;
     for (auto pass : passes) {
       if (name == (*pass.get_raw_ptr())->get_name()) {
@@ -175,7 +182,8 @@ struct CompConf {
     }
     return std::nullopt;
   }
-  template <IRType Ty> void print_available_pipelines() {
+  template <IRType Ty>
+  void print_available_pipelines() {
     auto &pipelines = Ty == IRType::FIR ? fir_pipelines : mir_pipelines;
     constexpr auto ty_name = Ty == IRType::FIR ? "FIR" : "MIR";
     fmt::println(stderr, "Available {} Pipelines:", ty_name);
@@ -183,7 +191,8 @@ struct CompConf {
       fmt::println(stderr, "- {}", pipe->name);
     }
   }
-  template <IRType Ty> void print_available_passes() {
+  template <IRType Ty>
+  void print_available_passes() {
     auto &passes = Ty == IRType::FIR ? fir_passes : mir_passes;
     constexpr auto ty_name = Ty == IRType::FIR ? "FIR" : "MIR";
     fmt::println(stderr, "Available {} Passes:", ty_name);
@@ -192,7 +201,8 @@ struct CompConf {
     }
   }
 
-  template <IRType Ty> PipelineRef find_pipeline(std::string_view name) {
+  template <IRType Ty>
+  PipelineRef find_pipeline(std::string_view name) {
     if (auto r = lookup_pipeline<Ty>(name)) {
       return *r;
     }
@@ -201,7 +211,8 @@ struct CompConf {
     print_available_pipelines<Ty>();
     TODO("Failed to find pipeline with that name");
   }
-  template <IRType Ty> PassRef find_pass(std::string_view name) {
+  template <IRType Ty>
+  PassRef find_pass(std::string_view name) {
     if (auto r = lookup_pass<Ty>(name)) {
       return *r;
     }
@@ -220,4 +231,4 @@ struct CompConf {
   bool parse(std::string_view filename);
 };
 
-} // namespace foptim::conf
+}  // namespace foptim::conf

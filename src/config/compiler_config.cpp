@@ -27,6 +27,16 @@ bool target_parse(Target &target, toml::node_view<toml::node> cnf) {
       features["avx512dq"].value_or(target.features.avx512dq);
   target.features.avx512vl =
       features["avx512vl"].value_or(target.features.avx512vl);
+  target.features.avx512vpopcntdq =
+      features["avx512vpopcntdq"].value_or(target.features.avx512vpopcntdq);
+  target.features.avx512bitalg =
+      features["avx512bitalg"].value_or(target.features.avx512bitalg);
+  target.features.avx512vbmi =
+      features["avx512vbmi"].value_or(target.features.avx512vbmi);
+  target.features.avx512ifma =
+      features["avx512ifma"].value_or(target.features.avx512ifma);
+  target.features.avxvnni =
+      features["avxvnni"].value_or(target.features.avxvnni);
   target.features.bmi2 = features["bmi2"].value_or(target.features.bmi2);
   return true;
 }
