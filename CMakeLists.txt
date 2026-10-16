@@ -198,6 +198,7 @@ add_library (foptim OBJECT
                 #utils
                 ./src/utils/job_system.cpp
                 ./src/utils/arena.cpp
+                ./src/utils/APInt.cpp
 
                )
 
