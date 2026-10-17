@@ -1,3 +1,4 @@
+#include "utils/verbosity.hpp"
 #include "reg_alloc.hpp"
 
 #include <algorithm>
@@ -565,7 +566,9 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
     return true;
   } else if (!instr.is(X86Subtype::lea) && !instr.is(GVecSubtype::vXor)) {
     // lea needs a register destination and has no memory form for the address
-    fmt::println(">> try mem insert spill >> {}", instr);
+    if (utils::verbose()) {
+      fmt::println(">> try mem insert spill >> {}", instr);
+    }
   }
   return false;
 }

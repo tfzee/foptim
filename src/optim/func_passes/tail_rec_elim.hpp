@@ -131,7 +131,6 @@ class TailRecElim final : public FunctionPass {
         }
         fir::Builder b{term};
         auto new_add = b.insert_copy(add);
-        fmt::println("{}", new_add);
         new_add.replace_arg(accum_rec_arg_id, term->args[0]);
         // since we do not dominate this block potentially we need to add a
         // select

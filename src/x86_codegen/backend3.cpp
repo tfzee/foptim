@@ -1,3 +1,4 @@
+#include "utils/verbosity.hpp"
 #include "backend3.hpp"
 
 #include <fmt/base.h>
@@ -663,8 +664,10 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   TLabelUsageMap label_usages;
   auto *end_buff_ptr = assemble(funcs, output_buffer, label_usages, conf);
 
-  fmt::println(" Needs {} Relocations\n Generated {} Bytes\n",
-               label_usages.label_map.size(), end_buff_ptr - output_buffer);
+  if (utils::verbose()) {
+    fmt::println(" Needs {} Relocations\n Generated {} Bytes\n",
+                 label_usages.label_map.size(), end_buff_ptr - output_buffer);
+  }
 
   switch (conf.output.type) {
   case conf::Output::OutputType::PrintIR:

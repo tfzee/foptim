@@ -1,3 +1,4 @@
+#include "utils/verbosity.hpp"
 #include "mir_pipeline.hpp"
 #include "config/compiler_config.hpp"
 #include "config/compiler_mir_passes.hpp"
@@ -57,7 +58,9 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
     }
   }
   foptim::utils::TempAlloc<void *>::reset();
-  fmt::println("Running {} MIR passes", passes_worklist.size());
+  if (utils::verbose()) {
+    fmt::println("Running {} MIR passes", passes_worklist.size());
+  }
 
   // with bisect just disable parralelism
   if (enable_bisect) {

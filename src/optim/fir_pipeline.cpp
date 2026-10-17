@@ -1,3 +1,4 @@
+#include "utils/verbosity.hpp"
 #include "fir_pipeline.hpp"
 
 #include <fmt/base.h>
@@ -54,9 +55,12 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
                                passes_worklist.size())
                     : passes_worklist.size();
   const auto n_passes = passes_worklist.size();
-  fmt::println(stderr, "Having {} FIR passes and running {} passes on {} Functions",
-               passes_worklist.size(), n_actual_run,
-               ctx->storage.functions.size());
+  if (utils::verbose()) {
+    fmt::println(stderr,
+                 "Having {} FIR passes and running {} passes on {} Functions",
+                 passes_worklist.size(), n_actual_run,
+                 ctx->storage.functions.size());
+  }
   size_t curr_pass = 0;
   conf::PrintFuncConf print_debug_func{};
   conf::VerifyFuncConf verify_debug_func{};
