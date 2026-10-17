@@ -2988,18 +2988,19 @@ void base_patterns(IRVec<Pattern> &pats) {
               valueToArg(ret_instr->args[0], res.result, data.alloc);
           auto ret_val1 =
               valueToArg(ret_instr->args[1], res.result, data.alloc);
-          auto is_float_val = ret_val0.is_vec_reg();
-          auto converted_type0 =
-              convert_type(ret_instr.get_type()->as_struct().elems[0].ty);
-          auto converted_type1 =
-              convert_type(ret_instr.get_type()->as_struct().elems[1].ty);
-
-          auto res1_reg = VReg{CReg::A, converted_type0};
-          auto res2_reg = VReg{CReg::D, converted_type1};
-          if (is_float_val) {
-            res1_reg = VReg{CReg::mm0, converted_type0};
-            res2_reg = VReg{CReg::mm1, converted_type1};
-          }
+          const auto &ret_elems = ret_instr.get_type()->as_struct().elems;
+          auto converted_type0 = convert_type(ret_elems[0].ty);
+          auto converted_type1 = convert_type(ret_elems[1].ty);
+          // every member takes the next free register of its own class
+          const bool sse0 = ret_elems[0].ty->is_float() ||
+                            ret_elems[0].ty->is_vec();
+          const bool sse1 = ret_elems[1].ty->is_float() ||
+                            ret_elems[1].ty->is_vec();
+          auto res1_reg =
+              VReg{sse0 ? CReg::mm0 : CReg::A, converted_type0};
+          auto res2_reg = VReg{
+              sse1 ? (sse0 ? CReg::mm1 : CReg::mm0) : (sse0 ? CReg::A : CReg::D),
+              converted_type1};
           auto res1_arg = MArgument(res1_reg, converted_type0);
           auto res2_arg = MArgument(res2_reg, converted_type1);
           res.result.emplace_back(GBaseSubtype::mov, res1_arg, ret_val0);

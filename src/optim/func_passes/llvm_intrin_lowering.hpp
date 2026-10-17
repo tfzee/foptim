@@ -516,6 +516,15 @@ public:
     instr.destroy();
   }
 
+  void handle_int_minmax(fir::Instr instr, fir::Function & /*funcy*/,
+                         fir::FunctionR /*callee*/,
+                         fir::IntrinsicSubType sub_type) {
+    fir::Builder bb{instr};
+    auto res = bb.build_intrinsic(instr->args[1], instr->args[2], sub_type);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
   void handle_minmax(fir::Instr instr, fir::Function & /*funcy*/,
                         fir::FunctionR /*callee*/, bool is_min) {
     fir::Builder bb{instr};
@@ -713,6 +722,18 @@ public:
           modified = true;
         } else if (callee.func->name.starts_with("llvm.is.constant")) {
           handle_is_constant(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.smin.")) {
+          handle_int_minmax(instr, func, callee, fir::IntrinsicSubType::SMin);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.smax.")) {
+          handle_int_minmax(instr, func, callee, fir::IntrinsicSubType::SMax);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.umin.")) {
+          handle_int_minmax(instr, func, callee, fir::IntrinsicSubType::UMin);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.umax.")) {
+          handle_int_minmax(instr, func, callee, fir::IntrinsicSubType::UMax);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.minnum")) {
           handle_minmaxnum(instr, func, callee, true);
