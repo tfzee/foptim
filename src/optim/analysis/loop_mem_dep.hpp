@@ -42,10 +42,10 @@ inline MemDep LoopMemDep::query(const Access &a, const Access &b, u32 vf) {
   const auto &eb = evo.expr(b.addr);
   if (ea.t != SCEVExpr::Type::AddRec || eb.t != SCEVExpr::Type::AddRec ||
       !evo.is_const(ea.b) || !evo.is_const(eb.b) ||
-      evo.expr(ea.b).cval != evo.expr(eb.b).cval) {
+      evo.expr(ea.b).cval_i() != evo.expr(eb.b).cval_i()) {
     return MemDep::Dependent;
   }
-  const i128 step = evo.expr(ea.b).cval;
+  const i128 step = evo.expr(ea.b).cval_i();
   if (step <= 0 || step < static_cast<i128>(a.size) ||
       a.size != b.size) {
     return MemDep::Dependent;
@@ -59,7 +59,7 @@ inline MemDep LoopMemDep::query(const Access &a, const Access &b, u32 vf) {
   if (!evo.is_const(diff)) {
     return MemDep::Dependent;
   }
-  const i128 d = evo.expr(diff).cval;
+  const i128 d = evo.expr(diff).cval_i();
   if (d == 0) {
     return MemDep::Independent;
   }

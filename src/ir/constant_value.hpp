@@ -223,6 +223,9 @@ struct ConstantValue {
       TODO("");
     }
     const APInt &d = int_u.v.data;
+    // wider constants do not fit the compatibility view, use as_apint
+    ASSERT_M(d.bits() <= 128 || d.sext_or_trunc(128).sext(d.bits()) == d,
+             "integer constant does not fit 128 bits");
     return d.bits() == 1 ? static_cast<i128>(d.to_u64()) : d.to_i128();
   }
 

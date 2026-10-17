@@ -82,7 +82,7 @@ TEST(ScalarEvoTest, InductionVariables) {
   auto at4 = evo.at_iteration(i1, evo.mk_const(4, 32));
   ASSERT_NE(at4, foptim::optim::InvalidSCEV);
   EXPECT_TRUE(evo.is_const(at4));
-  EXPECT_EQ(evo.expr(at4).cval, 5);
+  EXPECT_EQ(evo.expr(at4).cval_i(), 5);
 }
 
 TEST(ScalarEvoTest, FoldingAndMax) {
@@ -93,15 +93,15 @@ TEST(ScalarEvoTest, FoldingAndMax) {
 
   auto c3 = evo.mk_const(3, 32);
   auto c5 = evo.mk_const(5, 32);
-  EXPECT_EQ(evo.expr(evo.mk_add(c3, c5)).cval, 8);
-  EXPECT_EQ(evo.expr(evo.mk_mul(c3, c5)).cval, 15);
-  EXPECT_EQ(evo.expr(evo.mk_max(c3, evo.mk_const(-7, 32), true)).cval, 3);
+  EXPECT_EQ(evo.expr(evo.mk_add(c3, c5)).cval_i(), 8);
+  EXPECT_EQ(evo.expr(evo.mk_mul(c3, c5)).cval_i(), 15);
+  EXPECT_EQ(evo.expr(evo.mk_max(c3, evo.mk_const(-7, 32), true)).cval_i(), 3);
   // -7 is a huge unsigned number
-  EXPECT_EQ(evo.expr(evo.mk_max(c3, evo.mk_const(-7, 32), false)).cval, -7);
-  EXPECT_EQ(evo.expr(evo.mk_resize(evo.mk_const(-1, 32), 64, false)).cval,
+  EXPECT_EQ(evo.expr(evo.mk_max(c3, evo.mk_const(-7, 32), false)).cval_i(), -7);
+  EXPECT_EQ(evo.expr(evo.mk_resize(evo.mk_const(-1, 32), 64, false)).cval_i(),
             0xFFFFFFFFLL);
   EXPECT_EQ(evo.expr(evo.mk_resize(evo.mk_const(0x1ffffffffLL, 64), 32, false))
-                .cval,
+                .cval_i(),
             -1);
   // a width mismatch is not an expression
   EXPECT_EQ(evo.expr(evo.mk_add(c3, evo.mk_const(1, 64))).t,
@@ -124,7 +124,7 @@ TEST(TripCountTest, ConstantAffine) {
   ASSERT_TRUE(tc.update(s.cfg, s.dom, s.loops.info[0], evo));
   ASSERT_TRUE(tc.const_exit_iter.has_value());
   EXPECT_EQ(*tc.const_exit_iter, 3);
-  EXPECT_EQ(evo.expr(tc.exit_iter).cval, 3);
+  EXPECT_EQ(evo.expr(tc.exit_iter).cval_i(), 3);
 }
 
 TEST(TripCountTest, SymbolicLimit) {

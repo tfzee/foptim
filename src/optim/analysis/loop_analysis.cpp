@@ -550,6 +550,33 @@ bool pred_holds(ICmpSub p, i128 a, i128 b) {
   }
 }
 
+bool apint_pred_holds(ICmpSub p, const APInt &a, const APInt &b) {
+  switch (p) {
+  case ICmpSub::SLT:
+    return a.slt(b);
+  case ICmpSub::ULT:
+    return a.ult(b);
+  case ICmpSub::SLE:
+    return a.sle(b);
+  case ICmpSub::ULE:
+    return a.ule(b);
+  case ICmpSub::SGT:
+    return a.sgt(b);
+  case ICmpSub::UGT:
+    return a.ugt(b);
+  case ICmpSub::SGE:
+    return a.sge(b);
+  case ICmpSub::UGE:
+    return a.uge(b);
+  case ICmpSub::NE:
+    return a != b;
+  case ICmpSub::EQ:
+    return a == b;
+  default:
+    return false;
+  }
+}
+
 // num > 0, den > 0
 i128 ceil_div(i128 num, i128 den) { return (num + den - 1) / den; }
 
@@ -577,14 +604,14 @@ i128 mul_mod(i128 a, i128 b, u32 bw) {
 
 constexpr u32 MaxExprDepth = 128;
 
-SCEVExpr node(SCEVExpr::Type t, bool invariant, u32 bw, i128 cval = 0,
+SCEVExpr node(SCEVExpr::Type t, bool invariant, u32 bw, APInt cval = APInt(),
               fir::ValueR val = {}, SCEVRef a = InvalidSCEV,
               SCEVRef b = InvalidSCEV, SCEVRef c = InvalidSCEV) {
   SCEVExpr e;
   e.t = t;
   e.invariant = invariant;
   e.bw = bw;
-  e.cval = cval;
+  e.cval = std::move(cval);
   e.val = val;
   e.a = a;
   e.b = b;
@@ -608,15 +635,16 @@ SCEVRef ScalarEvo::push(const SCEVExpr &e) {
     };
     mix(static_cast<u64>(e.t));
     mix(e.bw);
-    mix(static_cast<u64>(e.cval));
-    mix(static_cast<u64>(e.cval >> 64));
+    mix(e.cval.hash());
+    mix(e.pred);
     mix(TMap<fir::ValueR, int>::hasher{}(e.val));
     mix(e.a);
     mix(e.b);
     mix(e.c);
     for (SCEVRef cand : interned[h]) {
       const SCEVExpr &o = exprs[cand];
-      if (o.t == e.t && o.bw == e.bw && o.cval == e.cval && o.val == e.val &&
+      if (o.t == e.t && o.bw == e.bw && o.pred == e.pred && o.cval.bits() == e.cval.bits() &&
+          o.cval == e.cval && o.val == e.val &&
           o.a == e.a && o.b == e.b && o.c == e.c) {
         return cand;
       }
@@ -631,11 +659,16 @@ SCEVRef ScalarEvo::push(const SCEVExpr &e) {
 }
 
 SCEVRef ScalarEvo::mk_const(i128 v, u32 bw) {
-  return push(node(SCEVExpr::Type::Const, true, bw, wrap_int(v, bw, true)));
+  return mk_const(APInt::from_i128(bw, v));
+}
+
+SCEVRef ScalarEvo::mk_const(APInt v) {
+  const u32 bw = v.bits();
+  return push(node(SCEVExpr::Type::Const, true, bw, std::move(v)));
 }
 
 SCEVRef ScalarEvo::mk_invariant(fir::ValueR v) {
-  return push(node(SCEVExpr::Type::Invariant, true, value_bw(v), 0, v));
+  return push(node(SCEVExpr::Type::Invariant, true, value_bw(v), APInt(), v));
 }
 
 SCEVRef ScalarEvo::mk_unknown(u32 bw) {
@@ -646,10 +679,10 @@ SCEVRef ScalarEvo::mk_addrec(SCEVRef start, SCEVRef step) {
   const SCEVExpr es = exprs[start];
   const SCEVExpr ec = exprs[step];
   ASSERT(es.invariant && ec.invariant);
-  if (ec.t == SCEVExpr::Type::Const && ec.cval == 0) {
+  if (ec.t == SCEVExpr::Type::Const && ec.cval.is_zero()) {
     return start;
   }
-  return push(node(SCEVExpr::Type::AddRec, false, es.bw, 0, {}, start, step));
+  return push(node(SCEVExpr::Type::AddRec, false, es.bw, APInt(), {}, start, step));
 }
 
 SCEVRef ScalarEvo::mk_add(SCEVRef a, SCEVRef b) {
@@ -661,14 +694,14 @@ SCEVRef ScalarEvo::mk_add(SCEVRef a, SCEVRef b) {
     return mk_unknown(bw);
   }
   if (ea.t == T::Const && eb.t == T::Const) {
-    return mk_const(add_mod(ea.cval, eb.cval, bw), bw);
+    return mk_const(ea.cval + eb.cval);
   }
   // constants to the right
   if (ea.t == T::Const) {
     std::swap(a, b);
     std::swap(ea, eb);
   }
-  if (eb.t == T::Const && eb.cval == 0) {
+  if (eb.t == T::Const && eb.cval.is_zero()) {
     return a;
   }
   const bool rec_a = ea.t == T::AddRec;
@@ -682,7 +715,7 @@ SCEVRef ScalarEvo::mk_add(SCEVRef a, SCEVRef b) {
   if (rec_b && ea.invariant) {
     return mk_addrec(mk_add(a, eb.a), eb.b);
   }
-  return push(node(T::Add, ea.invariant && eb.invariant, bw, 0, {}, a, b));
+  return push(node(T::Add, ea.invariant && eb.invariant, bw, APInt(), {}, a, b));
 }
 
 SCEVRef ScalarEvo::mk_mul(SCEVRef a, SCEVRef b) {
@@ -694,17 +727,17 @@ SCEVRef ScalarEvo::mk_mul(SCEVRef a, SCEVRef b) {
     return mk_unknown(bw);
   }
   if (ea.t == T::Const && eb.t == T::Const) {
-    return mk_const(mul_mod(ea.cval, eb.cval, bw), bw);
+    return mk_const(ea.cval * eb.cval);
   }
   if (ea.t == T::Const) {
     std::swap(a, b);
     std::swap(ea, eb);
   }
   if (eb.t == T::Const) {
-    if (eb.cval == 0) {
+    if (eb.cval.is_zero()) {
       return b;
     }
-    if (eb.cval == 1) {
+    if (eb.cval.is_one()) {
       return a;
     }
   }
@@ -716,7 +749,7 @@ SCEVRef ScalarEvo::mk_mul(SCEVRef a, SCEVRef b) {
   if (rec_b && ea.invariant) {
     return mk_addrec(mk_mul(a, eb.a), mk_mul(a, eb.b));
   }
-  return push(node(T::Mul, ea.invariant && eb.invariant, bw, 0, {}, a, b));
+  return push(node(T::Mul, ea.invariant && eb.invariant, bw, APInt(), {}, a, b));
 }
 
 SCEVRef ScalarEvo::mk_ext(SCEVRef a, bool is_signed, u32 bw) {
@@ -726,7 +759,7 @@ SCEVRef ScalarEvo::mk_ext(SCEVRef a, bool is_signed, u32 bw) {
     return mk_unknown(bw);
   }
   if (ea.t == T::Const) {
-    return mk_const(wrap_int(ea.cval, ea.bw, is_signed), bw);
+    return mk_const(is_signed ? ea.cval.sext(bw) : ea.cval.zext(bw));
   }
   if (ea.t == T::AddRec && is_const(ea.b)) {
     for (const auto &nw : no_wrap) {
@@ -736,7 +769,8 @@ SCEVRef ScalarEvo::mk_ext(SCEVRef a, bool is_signed, u32 bw) {
       }
     }
   }
-  return push(node(is_signed ? T::SExt : T::ZExt, ea.invariant, bw, 0, {}, a));
+  return push(
+      node(is_signed ? T::SExt : T::ZExt, ea.invariant, bw, APInt(), {}, a));
 }
 
 void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed) {
@@ -760,9 +794,9 @@ SCEVRef ScalarEvo::mk_trunc(SCEVRef a, u32 bw) {
     return mk_unknown(bw);
   }
   if (ea.t == T::Const) {
-    return mk_const(ea.cval, bw);
+    return mk_const(ea.cval.trunc(bw));
   }
-  return push(node(T::Trunc, ea.invariant, bw, 0, {}, a));
+  return push(node(T::Trunc, ea.invariant, bw, APInt(), {}, a));
 }
 
 SCEVRef ScalarEvo::mk_resize(SCEVRef a, u32 bw, bool is_signed) {
@@ -782,15 +816,15 @@ SCEVRef ScalarEvo::mk_max(SCEVRef a, SCEVRef b, bool is_signed) {
     return mk_unknown(bw);
   }
   if (ea.t == T::Const && eb.t == T::Const) {
-    const i128 x = wrap_int(ea.cval, bw, is_signed);
-    const i128 y = wrap_int(eb.cval, bw, is_signed);
-    return mk_const(std::max(x, y), bw);
+    const bool b_greater =
+        is_signed ? ea.cval.slt(eb.cval) : ea.cval.ult(eb.cval);
+    return mk_const(b_greater ? eb.cval : ea.cval);
   }
   if (same_expr(a, b)) {
     return a;
   }
   return push(node(is_signed ? T::SMax : T::UMax, ea.invariant && eb.invariant,
-                   bw, 0, {}, a, b));
+                   bw, APInt(), {}, a, b));
 }
 
 SCEVRef ScalarEvo::mk_cmp(ICmpSub pred, SCEVRef a, SCEVRef b) {
@@ -802,15 +836,11 @@ SCEVRef ScalarEvo::mk_cmp(ICmpSub pred, SCEVRef a, SCEVRef b) {
     return mk_unknown(1);
   }
   if (ea.t == T::Const && eb.t == T::Const) {
-    const bool sgn = cmp_is_signed(pred);
-    return mk_const(pred_holds(pred, wrap_int(ea.cval, ea.bw, sgn),
-                               wrap_int(eb.cval, eb.bw, sgn))
-                        ? 1
-                        : 0,
-                    1);
+    return mk_const(APInt(1, u64{apint_pred_holds(pred, ea.cval, eb.cval)}));
   }
-  return push(node(T::Cmp, ea.invariant && eb.invariant, 1,
-                   static_cast<i128>(pred), {}, a, b));
+  auto cmp = node(T::Cmp, ea.invariant && eb.invariant, 1, APInt(), {}, a, b);
+  cmp.pred = static_cast<u32>(pred);
+  return push(cmp);
 }
 
 SCEVRef ScalarEvo::mk_select(SCEVRef cond, SCEVRef t, SCEVRef f) {
@@ -823,13 +853,13 @@ SCEVRef ScalarEvo::mk_select(SCEVRef cond, SCEVRef t, SCEVRef f) {
     return mk_unknown(et.bw);
   }
   if (ec.t == T::Const) {
-    return ec.cval != 0 ? t : f;
+    return !ec.cval.is_zero() ? t : f;
   }
   if (same_expr(t, f)) {
     return t;
   }
   return push(node(T::Select, ec.invariant && et.invariant && ef.invariant,
-                   et.bw, 0, {}, cond, t, f));
+                   et.bw, APInt(), {}, cond, t, f));
 }
 
 SCEVRef ScalarEvo::at_iteration(SCEVRef r, SCEVRef k) {
@@ -865,7 +895,7 @@ SCEVRef ScalarEvo::at_iteration(SCEVRef r, SCEVRef k) {
       const SCEVRef l = self(self, e.a);
       const SCEVRef r2 = self(self, e.b);
       if (l != InvalidSCEV && r2 != InvalidSCEV) {
-        res = mk_cmp(static_cast<ICmpSub>(e.cval), l, r2);
+        res = mk_cmp(static_cast<ICmpSub>(e.pred), l, r2);
       }
       break;
     }
@@ -948,7 +978,7 @@ bool ScalarEvo::is_non_negative(SCEVRef r) const {
   using T = SCEVExpr::Type;
   switch (e.t) {
   case T::Const:
-    return e.cval >= 0;
+    return !e.cval.is_neg();
   case T::ZExt:
     return e.bw > exprs[e.a].bw;
   case T::SMax:
@@ -1201,7 +1231,8 @@ bool ScalarEvo::same_expr(SCEVRef a, SCEVRef b) const {
   case T::Invariant:
     return ea.val == eb.val;
   case T::Cmp:
-    return ea.cval == eb.cval && same_expr(ea.a, eb.a) && same_expr(ea.b, eb.b);
+    return ea.pred == eb.pred && same_expr(ea.a, eb.a) &&
+           same_expr(ea.b, eb.b);
   case T::Select:
     return same_expr(ea.a, eb.a) && same_expr(ea.b, eb.b) &&
            same_expr(ea.c, eb.c);
@@ -1303,7 +1334,7 @@ void ScalarEvo::update(CFG &cfg_, LoopInfo &info) {
   for (size_t i = 0; i < n_args; i++) {
     const fir::ValueR arg{head->args[i]};
     lookup.insert(
-        {arg, push(node(SCEVExpr::Type::Input, false, value_bw(arg), 0, arg))});
+        {arg, push(node(SCEVExpr::Type::Input, false, value_bw(arg), APInt(), arg))});
   }
   rec_start.assign(n_args, InvalidSCEV);
   rec_step.assign(n_args, InvalidSCEV);
@@ -1369,7 +1400,7 @@ std::optional<i128> ScalarEvo::eval_at(SCEVRef r, i128 k) const {
   const SCEVExpr &e = exprs[r];
   using T = SCEVExpr::Type;
   if (e.t == T::Const) {
-    return e.cval;
+    return e.bw <= 128 ? std::optional<i128>(e.cval_i()) : std::nullopt;
   }
   if (e.bw == 0 || e.bw > 64) {
     return std::nullopt;
@@ -1413,7 +1444,7 @@ std::optional<i128> ScalarEvo::eval_at(SCEVRef r, i128 k) const {
     if (!x || !y) {
       return std::nullopt;
     }
-    const auto pred = static_cast<ICmpSub>(e.cval);
+    const auto pred = static_cast<ICmpSub>(e.pred);
     const bool sgn = cmp_is_signed(pred);
     const u32 obw = exprs[e.a].bw;
     return pred_holds(pred, wrap_int(*x, obw, sgn), wrap_int(*y, obw, sgn)) ? 1
@@ -1450,7 +1481,7 @@ void ScalarEvo::dump() const {
       fmt::println("?");
       break;
     case T::Const:
-      fmt::println("{}", e.cval);
+      fmt::println("{}", e.cval.to_string(true));
       break;
     case T::Invariant:
       fmt::println("invariant {}", e.val);
@@ -1480,7 +1511,7 @@ void ScalarEvo::dump() const {
       fmt::println("umax(e{}, e{})", e.a, e.b);
       break;
     case T::Cmp:
-      fmt::println("cmp {} e{}, e{}", e.cval, e.a, e.b);
+      fmt::println("cmp {} e{}, e{}", e.pred, e.a, e.b);
       break;
     case T::Select:
       fmt::println("e{} ? e{} : e{}", e.a, e.b, e.c);
@@ -1653,14 +1684,14 @@ std::optional<Poly> to_poly(const ScalarEvo &evo, SCEVRef r,
   Poly res;
   switch (e.t) {
   case T::Const:
-    res.c[0] = e.cval;
+    res.c[0] = e.cval_i();
     return res;
   case T::AddRec: {
     if (!evo.is_const_addrec(r)) {
       return std::nullopt;
     }
-    res.c[0] = evo.expr(e.a).cval;
-    res.c[1] = evo.expr(e.b).cval;
+    res.c[0] = evo.expr(e.a).cval_i();
+    res.c[1] = evo.expr(e.b).cval_i();
     res.deg = 1;
     break;
   }
@@ -1855,7 +1886,7 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
     if (!evo.is_const(limit_ref)) {
       return false;
     }
-    const auto k = poly_exit_iteration(evo, pred, q, evo.expr(limit_ref).cval);
+    const auto k = poly_exit_iteration(evo, pred, q, evo.expr(limit_ref).cval_i());
     if (!k) {
       return false;
     }
@@ -1877,15 +1908,15 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
       !evo.is_const(step_ref)) {
     return false;
   }
-  const i128 step = evo.expr(step_ref).cval;
+  const i128 step = evo.expr(step_ref).cval_i();
   if (step == 0) {
     return false;
   }
 
   std::optional<i128> k;
   if (evo.is_const(start_ref) && evo.is_const(limit_ref)) {
-    k = const_exit_iteration(pred, bw, evo.expr(start_ref).cval, step,
-                             evo.expr(limit_ref).cval);
+    k = const_exit_iteration(pred, bw, evo.expr(start_ref).cval_i(), step,
+                             evo.expr(limit_ref).cval_i());
     if (!k) {
       return false;
     }
@@ -1940,7 +1971,7 @@ void InductionEndValueAnalysis::dump(const ScalarEvo &evo) {
     fmt::println("@ {}=>{}:", i.from_bb, i.to_bb);
     for (const auto &[b, v] : i.values) {
       if (evo.is_const(v)) {
-        fmt::println("  {}: {}", b, evo.expr(v).cval);
+        fmt::println("  {}: {}", b, evo.expr(v).cval_i());
       } else {
         fmt::println("  {}: e{}", b, v);
       }

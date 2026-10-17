@@ -1,4 +1,5 @@
 #pragma once
+#include "utils/APInt.hpp"
 #include <optional>
 
 #include "ir/basic_block_arg.hpp"
@@ -95,8 +96,10 @@ struct SCEVExpr {
   // value is the same in every iteration
   bool invariant = false;
   u32 bw = 0;
-  // Const, Cmp: the predicate
-  i128 cval = 0;
+  // Const: the value, bw bits
+  APInt cval{};
+  // Cmp: the predicate
+  u32 pred = 0;
   // Invariant: the value, Input: the header argument. Otherwise the value
   // the expression was first built for (if any)
   fir::ValueR val;
@@ -105,6 +108,9 @@ struct SCEVExpr {
   SCEVRef a = InvalidSCEV;
   SCEVRef b = InvalidSCEV;
   SCEVRef c = InvalidSCEV;
+
+  // the constant as a signed number (truncated above 128 bits)
+  [[nodiscard]] i128 cval_i() const { return cval.to_i128(); }
 };
 
 // Scalar evolution of the values of one loop. The single source of truth for
@@ -152,6 +158,7 @@ public:
   void update(CFG &cfg, LoopInfo &info);
 
   SCEVRef mk_const(i128 v, u32 bw);
+  SCEVRef mk_const(APInt v);
   SCEVRef mk_invariant(fir::ValueR v);
   SCEVRef mk_unknown(u32 bw);
   SCEVRef mk_add(SCEVRef a, SCEVRef b);
