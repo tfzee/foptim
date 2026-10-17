@@ -137,7 +137,11 @@ class ValueR {
   }
 };
 
+#if SLOT_CHECK_LEVEL >= 2
+static_assert(sizeof(ValueR) == 24, "the result index must fit the padding");
+#else
 static_assert(sizeof(ValueR) == 16, "the result index must fit the padding");
+#endif
 
 inline ValueR Instr::result() const {
   ASSERT(n_results() <= 1);

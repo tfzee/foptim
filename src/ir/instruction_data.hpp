@@ -529,6 +529,11 @@ public:
   [[nodiscard]] bool eql_expr(const InstrData &other) const;
 };
 
+// the generation field of the refs (slot_check_level 2) makes every ref bigger
+#if SLOT_CHECK_LEVEL >= 2
+static_assert(sizeof(InstrData) == 120, "keep InstrData small");
+#else
 static_assert(sizeof(InstrData) == 96, "keep InstrData small");
+#endif
 
 } // namespace foptim::fir
