@@ -10,6 +10,7 @@
 #include "optim/func_passes/double_load.hpp"
 #include "optim/func_passes/dse.hpp"
 #include "optim/func_passes/early_sheduler.hpp"
+#include "optim/func_passes/inst_fold.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/intrin_conv.hpp"
 #include "optim/func_passes/intrin_expand.hpp"
@@ -224,6 +225,12 @@ struct DoubleLoadElimConf : public FunctionPassConf<DoubleLoadElimConf> {
 struct IntrinSimplifyConf : public FunctionPassConf<IntrinSimplifyConf> {
   static constexpr const char *BaseName = "IntrinSimplify";
   using Pass = optim::IntrinSimplify;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct InstFoldConf : public FunctionPassConf<InstFoldConf> {
+  static constexpr const char *BaseName = "InstFold";
+  using Pass = optim::InstFoldPass;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

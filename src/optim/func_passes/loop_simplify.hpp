@@ -187,11 +187,15 @@ public:
           rkeep = r1;
           rrepl = r2;
         }
-        const i128 step_keep = evo.expr(evo.expr(rkeep).b).cval;
-        const i128 step_repl = evo.expr(evo.expr(rrepl).b).cval;
-        const i128 start_keep = evo.expr(evo.expr(rkeep).a).cval;
-        const i128 start_repl = evo.expr(evo.expr(rrepl).a).cval;
+        const i128 step_keep = evo.expr(evo.expr(rkeep).b).cval_i();
+        const i128 step_repl = evo.expr(evo.expr(rrepl).b).cval_i();
+        const i128 start_keep = evo.expr(evo.expr(rkeep).a).cval_i();
+        const i128 start_repl = evo.expr(evo.expr(rrepl).a).cval_i();
         const u32 repl_bw = repl.get_type()->get_bitwidth();
+        // the constants are compared as numbers of at most 64 bits
+        if (repl_bw > 64 || keep.get_type()->get_bitwidth() > 64) {
+          continue;
+        }
         if (step_keep == 0 || step_repl % step_keep != 0) {
           continue;
         }
@@ -199,8 +203,8 @@ public:
         // trunc(keep) * ratio has to start where repl starts
         const i128 expected_start = static_cast<i128>(
             static_cast<u128>(start_keep) * static_cast<u128>(ratio));
-        const i128 mask = (static_cast<i128>(1) << repl_bw) - 1;
-        if (((expected_start - start_repl) & mask) != 0) {
+        if (!APInt::from_i128(repl_bw, expected_start - start_repl)
+                 .is_zero()) {
           continue;
         }
 
@@ -256,7 +260,7 @@ public:
           return std::nullopt;
         } else if (evo.is_const(r)) {
           res = fir::ValueR{ctx->get_constant_int(
-              evo.expr(r).cval, base.get_type()->get_bitwidth())};
+              evo.expr(r).cval_i(), base.get_type()->get_bitwidth())};
         } else {
           if (!evo.entry_block().is_valid()) {
             return std::nullopt;

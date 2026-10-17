@@ -161,6 +161,7 @@ assumedTrip = 64
 [pass.fir.Mem2Reg]
 [pass.fir.DoubleLoadElim]
 [pass.fir.IntrinSimplify]
+[pass.fir.InstFold]
 [pass.fir.InstSimplify]
 [pass.fir.SimplifyCFG]
 [pass.fir.LVN]

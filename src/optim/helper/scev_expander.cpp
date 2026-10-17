@@ -18,7 +18,7 @@ fir::ValueR SCEVExpander::expand(SCEVRef r) {
   fir::ValueR res;
   switch (e.t) {
   case T::Const:
-    res = fir::ValueR{ctx->get_constant_int(e.cval, e.bw)};
+    res = fir::ValueR{ctx->get_constant_int(e.cval)};
     break;
   case T::Invariant:
     res = e.val;
@@ -26,7 +26,7 @@ fir::ValueR SCEVExpander::expand(SCEVRef r) {
   case T::Add: {
     // x + (y * -1) is how a subtraction is done
     const SCEVExpr &eb = evo.expr(e.b);
-    if (eb.t == T::Mul && evo.is_const(eb.b) && evo.expr(eb.b).cval == -1) {
+    if (eb.t == T::Mul && evo.is_const(eb.b) && evo.expr(eb.b).cval.is_all_ones()) {
       res = builder.build_int_sub(expand(e.a), expand(eb.a));
     } else {
       res = builder.build_int_add(expand(e.a), expand(e.b));
@@ -44,7 +44,7 @@ fir::ValueR SCEVExpander::expand(SCEVRef r) {
     break;
   case T::Cmp:
     res = builder.build_int_cmp(expand(e.a), expand(e.b),
-                                static_cast<fir::ICmpInstrSubType>(e.cval));
+                                static_cast<fir::ICmpInstrSubType>(e.pred));
     break;
   case T::Select: {
     const auto cond = expand(e.a);

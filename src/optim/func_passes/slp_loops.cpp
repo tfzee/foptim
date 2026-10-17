@@ -62,7 +62,7 @@ struct LoopRecipe {
 bool unit_stride(MatchCtx &c, fir::ValueR ptr, u32 size) {
   const auto r = c.evo.get(ptr);
   return c.evo.is_addrec(r) && c.evo.is_const(c.evo.expr(r).b) &&
-         c.evo.expr(c.evo.expr(r).b).cval == static_cast<i128>(size);
+         c.evo.expr(c.evo.expr(r).b).cval_i() == static_cast<i128>(size);
 }
 
 bool load_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
@@ -431,7 +431,7 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
     if (ty->is_int() && evo.is_const_addrec(r)) {
       n.kind = LoopNodeKind::Induction;
       n.shape = LaneShape::Strided;
-      n.stride = static_cast<i64>(evo.expr(evo.expr(r).b).cval);
+      n.stride = static_cast<i64>(evo.expr(evo.expr(r).b).cval_i());
       if (n.stride == 1 && !have_counter && ty->get_bitwidth() == trip_bw) {
         have_counter = true;
         plan.counter = k;

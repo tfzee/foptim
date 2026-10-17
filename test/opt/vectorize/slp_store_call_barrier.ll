@@ -13,12 +13,12 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
 ; CHECK-NEXT:    %5: 4@i64 = V.Broadcast(%2){} NUses:1
 ; CHECK-NEXT:    %6: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 32:ptr){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 32:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %8: 4@i64 = Load(G(const_legalizeVec_3)){} NUses:1
 ; CHECK-NEXT:    %9: 4@i64 = PtrAdd(%6, %8){} NUses:1
 ; CHECK-NEXT:    %10: 4@i64 = Load(G(const_legalizeVec_2)){} NUses:1
 ; CHECK-NEXT:    %11: 4@i64 = PtrAdd(%5, %10){} NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%0, 48:ptr){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, 48:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %13: 4@i64 = Load(G(const_legalizeVec_1)){} NUses:1
 ; CHECK-NEXT:    %14: 4@i64 = PtrAdd(%4, %13){} NUses:1
 ; CHECK-NEXT:    %15: 4@i64 = Load(G(const_legalizeVec_0)){} NUses:1

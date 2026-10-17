@@ -22,6 +22,7 @@
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
+#include "optim/func_passes/inst_fold.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/inst_simplify/simplify_binary.hpp"
 #include "optim/func_passes/inst_simplify/simplify_fcmp.hpp"
@@ -88,24 +89,6 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context & /*ctx*/, WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifySelect");
-  }
-  if (instr->args[0].is_constant()) {
-    auto v1c = instr->args[0].as_constant();
-    auto v1 = v1c->is_poison() ? 0 : v1c->as_int();
-    push_all_uses(worklist, instr);
-    if (v1 == 0) {
-      instr->replace_all_uses(instr->args[2]);
-    } else {
-      instr->replace_all_uses(instr->args[1]);
-    }
-    instr.destroy();
-    return true;
-  }
-  if (instr->args[1] == instr->args[2]) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(instr->args[1]);
-    instr.destroy();
-    return true;
   }
   if (instr->args[1].is_constant() && instr->args[2].is_constant()) {
     auto arg1C = instr->args[1].as_constant();
@@ -401,36 +384,6 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   // into higher bitwidth
   (void)ctx;
   auto iszext = instr->is(fir::InstrType::ZExt);
-  if (instr->args[0].get_type() == instr.get_type()) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(instr->args[0]);
-    instr.destroy();
-    return true;
-  }
-  if (instr->args[0].is_constant() &&
-      instr->args[0].as_constant()->is_poison()) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(
-        fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-    instr.destroy();
-    return true;
-  }
-  if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_int()) {
-    auto c = instr->args[0].as_constant()->as_int();
-    push_all_uses(worklist, instr);
-    if (iszext) {
-      auto mask =
-          (static_cast<u128>(1) << instr->args[0].get_type()->get_bitwidth()) -
-          1;
-      instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-          std::bit_cast<i128>(c & mask), instr->get_type())});
-    } else {
-      instr->replace_all_uses(fir::ValueR{
-          ctx->get_constant_value(std::bit_cast<i128>(c), instr->get_type())});
-    }
-    instr.destroy();
-    return true;
-  }
   if (instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::VectorISubType::Broadcast)) {
     auto arg = instr->args[0].as_instr();
@@ -462,8 +415,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto output_width = output_type->get_bitwidth();
     fir::Builder b(instr);
     auto bitwidth = trunc.get_type()->get_bitwidth();
-    auto mask = ctx->get_constant_value((static_cast<u64>(1) << bitwidth) - 1,
-                                        input_ty);
+    auto mask = ctx->get_constant_int(APInt::low_bits(input_width, bitwidth));
     auto new_result = b.build_binary_op(trunc->args[0], fir::ValueR{mask},
                                         fir::BinaryInstrSubType::And);
     push_all_uses(worklist, instr);
@@ -546,37 +498,8 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   // itrunc
   // = +-* on smaller bitwidth
   // since lea doesnt like 1byte value we skip those for now
-  auto old_bitwidth = instr->args[0].get_type()->get_bitwidth();
   auto new_bitwidth = instr.get_type()->get_bitwidth();
-  auto mask = (static_cast<i128>(1) << new_bitwidth) - 1;
 
-  if (instr->args[0].get_type() == instr.get_type()) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(instr->args[0]);
-    instr.destroy();
-    return true;
-  }
-  if (instr->args[0].is_constant() && !instr->args[0].is_constant_global() &&
-      !instr->args[0].is_constant_func()) {
-    auto c = instr->args[0].as_constant();
-    if (c->is_poison()) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-      instr.destroy();
-      return true;
-    }
-    auto v = c->as_int();
-
-    ASSERT(new_bitwidth < old_bitwidth);
-
-    auto truncated_v = v & mask;
-    auto new_v = ctx->get_constant_int(truncated_v, new_bitwidth);
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(fir::ValueR{new_v});
-    instr.destroy();
-    return true;
-  }
   if (instr->args[0].is_bb_arg()) {
     auto arg = instr->args[0].as_bb_arg();
     auto origin_bb = arg->get_parent();
@@ -644,7 +567,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
             instr.destroy();
             return true;
           }
-          if (i_arg1c >= 0 &&
+          if (i_arg1c >= 0 && new_bitwidth < 127 &&
               i_arg1c < (static_cast<i128>(1) << new_bitwidth)) {
             push_all_uses(worklist, instr);
             auto v0 = b.build_itrunc(i_arg0, out_type);
@@ -690,10 +613,12 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 
   auto *arg_known_bits = man.get_or_create_analysis<KnownBits>(instr->args[0]);
   man.run(ctx);
-  if (((arg_known_bits->known_one ^ arg_known_bits->known_zero) & mask) ==
-      mask) {
+  if (arg_known_bits->width() > new_bitwidth &&
+      (arg_known_bits->known_one | arg_known_bits->known_zero)
+          .trunc(new_bitwidth)
+          .is_all_ones()) {
     auto val =
-        ctx->get_constant_int((arg_known_bits->known_one & mask), new_bitwidth);
+        ctx->get_constant_int(arg_known_bits->known_one.trunc(new_bitwidth));
     push_all_uses(worklist, instr);
     instr->replace_all_uses(fir::ValueR{val});
     instr.destroy();
@@ -702,18 +627,11 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   return false;
 }
 
-bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
+bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
+                    fir::Context & /*ctx*/,
                     WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyUnary");
-  }
-  if (instr->args[0].is_constant() &&
-      instr->args[0].as_constant()->is_poison()) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(
-        fir::ValueR{ctx->get_poisson_value(instr.get_type())});
-    instr.destroy();
-    return true;
   }
   if (instr->is(fir::UnaryInstrSubType::IntNeg) &&
       instr->get_type()->get_bitwidth() == 1) {
@@ -721,15 +639,6 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     worklist.push_back(
         InstSimplify::WorkItem{.instr = instr, .b = instr->get_parent()});
     return true;
-  }
-  if (instr->is(fir::UnaryInstrSubType::Not) && instr->args[0].is_instr()) {
-    auto input_instr = instr->args[0].as_instr();
-    if (input_instr->is(fir::UnaryInstrSubType::Not)) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(input_instr->args[0]);
-      instr.destroy();
-      return true;
-    }
   }
   if (instr->is(fir::UnaryInstrSubType::Not) && instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::InstrType::ICmp)) {
@@ -848,41 +757,6 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/, fir::Context &ctx,
     instr.destroy();
     return true;
   }
-  if (instr->args[0].is_constant()) {
-    if (instr->is(fir::UnaryInstrSubType::Not)) {
-      push_all_uses(worklist, instr);
-      auto out_type = instr.get_type();
-      ASSERT(out_type->is_int());
-      auto width = out_type->as_int();
-      auto shift_amount = 128 - width;
-      auto v = (~instr->args[0].as_constant()->as_int());
-      auto res_v = (v << shift_amount >> shift_amount);
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value(res_v, out_type)});
-      instr.destroy();
-      return true;
-    }
-    if (instr->is(fir::UnaryInstrSubType::FloatNeg)) {
-      push_all_uses(worklist, instr);
-      auto out_type = instr.get_type();
-      ASSERT(out_type->is_float());
-      auto width = out_type->as_float();
-
-      push_all_uses(worklist, instr);
-      if (width == 32) {
-        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-            -instr->args[0].as_constant()->as_f32(), out_type)});
-      } else if (width == 64) {
-        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-            -instr->args[0].as_constant()->as_f64(), out_type)});
-      } else {
-        TODO("UNREACH?");
-      }
-      instr.destroy();
-      return true;
-    }
-  }
   return false;
 }
 
@@ -893,13 +767,6 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
   (void)ctx;
   (void)worklist;
-  if (instr->get_n_args() == 1 && instr->args[0].is_poison()) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(
-        fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-    instr.destroy();
-    return true;
-  }
   switch (static_cast<fir::ConversionSubType>(instr->subtype)) {
   case fir::ConversionSubType::INVALID:
     TODO("unreach");
@@ -922,23 +789,10 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr.destroy();
       return true;
     }
-    if (instr->args[0].get_type() == instr->get_type()) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
-      instr.destroy();
-      return true;
-    }
     if (instr->args[0].is_instr()) {
       auto a0 = instr->args[0].as_instr();
       if (a0->is(fir::InstrType::LoadInstr) &&
           load_into_conversion_simpl(instr, a0, worklist)) {
-        return true;
-      }
-      if (a0->is(fir::ConversionSubType::BitCast) &&
-          a0->args[0].get_type() == instr.get_type()) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(a0->args[0]);
-        instr.destroy();
         return true;
       }
       if ((a0->is(fir::BinaryInstrSubType::And) ||
@@ -991,137 +845,24 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
         }
       }
     }
-    if (instr->args[0].is_constant()) {
-      auto r = instr->args[0].as_constant()->bit_cast(ctx, instr->get_type());
-      ASSERT(r.has_value());
-      instr->replace_all_uses(fir::ValueR{r.value()});
-      return true;
-    }
     break;
   case fir::ConversionSubType::SITOFP:
   case fir::ConversionSubType::UITOFP:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_int()) {
-      auto val = instr->args[0].as_constant()->as_int();
-      push_all_uses(worklist, instr);
-      auto out_width = instr->get_type()->as_float();
-      if (out_width == 32) {
-        instr->replace_all_uses(fir::ValueR{
-            ctx->get_constant_value(static_cast<f32>(val), instr->get_type())});
-      } else if (out_width == 64) {
-        instr->replace_all_uses(fir::ValueR{
-            ctx->get_constant_value(static_cast<f64>(val), instr->get_type())});
-      } else {
-        TODO("Not supported other float bitwidths");
-      }
-      instr.destroy();
-      return true;
-    }
     break;
   case fir::ConversionSubType::PtrToInt:
-    if (instr->args[0].is_constant() || instr->args[0].get_type()->is_int()) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
-      instr.destroy();
-      return true;
-    }
-    if (instr->args[0].is_instr()) {
-      auto a0 = instr->args[0].as_instr();
-      if (a0->is(fir::InstrType::LoadInstr) &&
-          load_into_conversion_simpl(instr, a0, worklist)) {
-        return true;
-      }
-      if (a0->is(fir::ConversionSubType::IntToPtr)) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(a0->args[0]);
-        instr.destroy();
-        return true;
-      }
-    }
-    break;
   case fir::ConversionSubType::IntToPtr:
-    if (instr->args[0].is_constant() || instr->args[0].get_type()->is_ptr()) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(instr->args[0]);
-      instr.destroy();
-      return true;
-    }
     if (instr->args[0].is_instr()) {
       auto a0 = instr->args[0].as_instr();
       if (a0->is(fir::InstrType::LoadInstr) &&
           load_into_conversion_simpl(instr, a0, worklist)) {
-        return true;
-      }
-      if (a0->is(fir::ConversionSubType::PtrToInt)) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(a0->args[0]);
-        instr.destroy();
         return true;
       }
     }
     break;
   case fir::ConversionSubType::FPTOSI:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      auto cval = instr->args[0].as_constant();
-      auto val = static_cast<i128>(0);
-      if (instr->args[0].get_type()->get_bitwidth() == 32) {
-        val = static_cast<i128>(cval->as_f32());
-      } else {
-        val = static_cast<i128>(cval->as_f64());
-      }
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-      instr.destroy();
-      // TODO("OKAK IMPL");
-      return true;
-    }
-    break;
   case fir::ConversionSubType::FPTOUI:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      auto val = const_fp(instr->args[0].as_constant());
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(fir::ValueR{
-          ctx->get_constant_value(static_cast<u64>(val), instr->get_type())});
-      instr.destroy();
-      return true;
-    }
-    break;
   case fir::ConversionSubType::FPEXT:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      if (instr->args[0].get_type() == instr.get_type()) {
-        auto val = instr->args[0].as_constant()->as_f64();
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-        instr.destroy();
-        return true;
-      }
-      ASSERT(instr->args[0].get_type()->as_float() == 32);
-      ASSERT(instr.get_type()->as_float() == 64);
-      auto val = instr->args[0].as_constant()->as_f32();
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(fir::ValueR{
-          ctx->get_constant_value(static_cast<f64>(val), instr->get_type())});
-      instr.destroy();
-      return true;
-    }
-    break;
   case fir::ConversionSubType::FPTRUNC:
-    if (instr->args[0].is_constant() &&
-        instr->args[0].as_constant()->is_float()) {
-      ASSERT(instr->args[0].get_type()->as_float() == 64);
-      ASSERT(instr.get_type()->as_float() == 32);
-      auto val = instr->args[0].as_constant()->as_f64();
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(fir::ValueR{
-          ctx->get_constant_value(static_cast<f32>(val), instr->get_type())});
-      instr.destroy();
-      return true;
-    }
     break;
   }
   return false;
@@ -1356,195 +1097,6 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   return false;
 }
 
-bool simplify_load(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                   WorkList &worklist) {
-  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
-    ZoneScopedN("SimplifyLoad");
-  }
-  (void)bb;
-  (void)ctx;
-  (void)worklist;
-  if (instr->args[0].is_constant() && !instr->Volatile) {
-    auto arg0_const = instr->args[0].as_constant();
-    if (arg0_const->is_poison() || arg0_const->is_null() ||
-        (arg0_const->is_int() && arg0_const->as_int() <= 0)) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-      instr.destroy();
-      return true;
-    }
-    // if (arg0_const->is_null() ||
-    //     (arg0_const->is_int() && arg0_const->as_int() == 0)) {
-    //   push_all_uses(worklist, instr);
-    //   // TODO: in theory could just put an unreach here
-    //   instr->replace_all_uses(
-    //       fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-    //   return;
-    // }
-    if (arg0_const->is_global()) {
-      auto glob = arg0_const->as_global();
-      if (glob->reloc_info.empty() && glob->is_constant &&
-          (glob->linkage == fir::Linkage::Internal ||
-           glob->linkage == fir::Linkage::LinkOnceODR)) {
-        auto load_type = instr->get_type();
-        auto out_bitwidth = load_type->get_bitwidth();
-        if (load_type->is_int()) {
-          if (out_bitwidth <= 64) {
-            i128 val = 0;
-            // TODO: kinda iffy with the loading oversize - prob not a problem
-            // since the pages prob >8 byte aligned anyway :)
-            if (out_bitwidth < 8) {
-              val = *glob->init_value & ((1 << out_bitwidth) - 1);
-            } else if (out_bitwidth == 8) {
-              val = *glob->init_value;
-            } else if (out_bitwidth < 16) {
-              val = (*reinterpret_cast<u16 *>(glob->init_value)) &
-                    ((1 << out_bitwidth) - 1);
-            } else if (out_bitwidth == 16) {
-              val = (*reinterpret_cast<u16 *>(glob->init_value));
-            } else if (out_bitwidth < 32) {
-              val = (*reinterpret_cast<u32 *>(glob->init_value)) &
-                    ((1 << out_bitwidth) - 1);
-            } else if (out_bitwidth == 32) {
-              val = (*reinterpret_cast<u32 *>(glob->init_value));
-            } else if (out_bitwidth < 64) {
-              val = (*reinterpret_cast<u64 *>(glob->init_value)) &
-                    ((1 << out_bitwidth) - 1);
-            } else if (out_bitwidth == 64) {
-              val = (*reinterpret_cast<u64 *>(glob->init_value));
-            } else {
-              UNREACH();
-            }
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(
-                fir::ValueR{ctx->get_constant_int(val, out_bitwidth)});
-            instr.destroy();
-            return true;
-          }
-        } else if (load_type->is_float()) {
-          fir::ValueR new_val;
-          if (out_bitwidth == 32) {
-            f32 val = *reinterpret_cast<f32 *>(glob->init_value);
-            new_val = fir::ValueR{
-                ctx->get_constant_value(val, ctx->get_float_type(32))};
-          } else if (out_bitwidth == 64) {
-            f64 val = *reinterpret_cast<f64 *>(glob->init_value);
-            new_val = fir::ValueR{
-                ctx->get_constant_value(val, ctx->get_float_type(64))};
-          } else {
-            TODO("prob unsupported");
-          }
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(new_val);
-          instr.destroy();
-          return true;
-        } else if (load_type->is_vec()) {
-          // TODO: implement
-        } else if (load_type->is_ptr()) {
-          i128 val = 0;
-          val = (*reinterpret_cast<u64 *>(glob->init_value));
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(
-              fir::ValueR{ctx->get_constant_int(val, out_bitwidth)});
-          instr.destroy();
-          return true;
-        } else {
-          fmt::println("{:cd}", instr);
-          TODO("implement global constant loading");
-        }
-      }
-    }
-  }
-  // handle constant global + offset
-  if (instr->args[0].is_instr()) {
-    auto arg_instr = instr->args[0].as_instr();
-    if (arg_instr->is(fir::InstrType::BinaryInstr) &&
-        arg_instr->subtype ==
-            static_cast<u32>(fir::BinaryInstrSubType::PtrAdd) &&
-        arg_instr->args[0].is_constant() && arg_instr->args[1].is_constant()) {
-      auto base_global = arg_instr->args[0].as_constant();
-      auto offset = arg_instr->args[1].as_constant();
-      auto res_ty = instr->get_type();
-      auto load_size = res_ty->get_size();
-      auto load_width = res_ty->get_bitwidth();
-      if (base_global->is_global() && offset->is_int()) {
-        auto offset_v = offset->as_int();
-        auto global_v = base_global->as_global();
-        if (global_v->is_constant) {
-          bool any_reloc_overlap = false;
-          for (auto reloc : global_v->reloc_info) {
-            if ((reloc.insert_offset <= (offset_v + load_size) &&
-                 reloc.insert_offset + load_size >= offset_v)) {
-              any_reloc_overlap = true;
-            }
-            if (reloc.insert_offset == offset_v &&
-                instr->get_type()->is_ptr()) {
-              push_all_uses(worklist, instr);
-              instr->replace_all_uses(fir::ValueR{reloc.ref});
-              instr.destroy();
-              return true;
-            }
-          }
-          // TODO: cant do it easily if we have relocs in there
-          // BUT could do it
-          // out of bounds / uninitialized reads are not foldable
-          bool in_bounds = global_v->init_value != nullptr && offset_v >= 0 &&
-                           static_cast<u64>(offset_v) + load_size <=
-                               global_v->n_bytes;
-          // vectors and structs are not folded
-          const bool scalar_ty =
-              res_ty->is_int() || res_ty->is_ptr() || res_ty->is_float();
-          if (!any_reloc_overlap && in_bounds && scalar_ty) {
-            auto *data_ptr = &global_v->init_value[offset_v];
-            fir::ValueR v;
-            if (res_ty->is_int() || res_ty->is_ptr()) {
-              if (load_width == 8) {
-                v = fir::ValueR{ctx->get_constant_value(
-                    static_cast<i128>(*reinterpret_cast<i8 *>(data_ptr)),
-                    res_ty)};
-              } else if (load_width == 16) {
-                v = fir::ValueR{ctx->get_constant_value(
-                    static_cast<i128>(*reinterpret_cast<i16 *>(data_ptr)),
-                    res_ty)};
-              } else if (load_width == 32) {
-                v = fir::ValueR{ctx->get_constant_value(
-                    static_cast<i128>(*reinterpret_cast<i32 *>(data_ptr)),
-                    res_ty)};
-              } else if (load_width == 64) {
-                v = fir::ValueR{ctx->get_constant_value(
-                    static_cast<i128>(*reinterpret_cast<i64 *>(data_ptr)),
-                    res_ty)};
-              } else {
-                TODO("UNREACH?");
-              }
-            } else if (res_ty->is_float()) {
-              if (load_width == 32) {
-                v = fir::ValueR{ctx->get_constant_value(
-                    *reinterpret_cast<f32 *>(data_ptr), res_ty)};
-              } else if (load_width == 64) {
-                v = fir::ValueR{ctx->get_constant_value(
-                    *reinterpret_cast<f64 *>(data_ptr), res_ty)};
-              } else {
-                TODO("UNREACH?");
-              }
-            } else {
-              fmt::println("{:cd}", instr);
-              fmt::println("{:cd}", arg_instr);
-              TODO("IMPL?");
-            }
-            push_all_uses(worklist, instr);
-            instr->replace_all_uses(v);
-            instr.destroy();
-            return true;
-          }
-        }
-      }
-    }
-  }
-  return false;
-}
-
 bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
                         fir::Context &ctx, WorkList &worklist,
                         AttributerManager &man) {
@@ -1552,122 +1104,18 @@ bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
     ZoneScopedN("SimplifyIntrin");
   }
   auto sub_type = static_cast<fir::IntrinsicSubType>(instr->subtype);
-  if (sub_type == fir::IntrinsicSubType::Abs && instr->args[0].is_constant()) {
-    push_all_uses(worklist, instr);
-    auto c = instr->args[0].as_constant();
-    if (c->is_int()) {
-      auto val = std::abs(c->as_int());
-      instr->replace_all_uses(
-          fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-      instr.destroy();
-    }
-    return true;
-  }
   if (sub_type == fir::IntrinsicSubType::UMin ||
       sub_type == fir::IntrinsicSubType::UMax ||
       sub_type == fir::IntrinsicSubType::SMin ||
       sub_type == fir::IntrinsicSubType::SMax ||
       sub_type == fir::IntrinsicSubType::FMin ||
       sub_type == fir::IntrinsicSubType::FMax) {
-    if (instr->args[0].is_constant() && instr->args[1].is_constant()) {
-      push_all_uses(worklist, instr);
-      switch (sub_type) {
-      default:
-        TODO("UNREACH");
-      case fir::IntrinsicSubType::SMax: {
-        push_all_uses(worklist, instr);
-        auto val = std::max(instr->args[0].as_constant()->as_int(),
-                            instr->args[1].as_constant()->as_int());
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-        instr.destroy();
-        return true;
-      }
-      case fir::IntrinsicSubType::SMin: {
-        push_all_uses(worklist, instr);
-        auto val = std::min(instr->args[0].as_constant()->as_int(),
-                            instr->args[1].as_constant()->as_int());
-        instr->replace_all_uses(
-            fir::ValueR{ctx->get_constant_value(val, instr->get_type())});
-        instr.destroy();
-        return true;
-      }
-      case fir::IntrinsicSubType::UMin: {
-        push_all_uses(worklist, instr);
-        auto val = std::min(
-            std::bit_cast<u128>(instr->args[0].as_constant()->as_int()),
-            std::bit_cast<u128>(instr->args[1].as_constant()->as_int()));
-        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-            std::bit_cast<i128>(val), instr->get_type())});
-        instr.destroy();
-        return true;
-      }
-      case fir::IntrinsicSubType::UMax: {
-        push_all_uses(worklist, instr);
-        auto val = std::max(
-            std::bit_cast<u128>(instr->args[0].as_constant()->as_int()),
-            std::bit_cast<u128>(instr->args[1].as_constant()->as_int()));
-        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-            std::bit_cast<i128>(val), instr->get_type())});
-        instr.destroy();
-        return true;
-      }
-      case fir::IntrinsicSubType::FMax: {
-        push_all_uses(worklist, instr);
-        auto val = std::max(const_fp(instr->args[0].as_constant()),
-                            const_fp(instr->args[1].as_constant()));
-        auto ty = instr->get_type();
-        instr->replace_all_uses(fir::ValueR{
-            ty->as_float() == 32
-                ? ctx->get_constant_value(static_cast<f32>(val), ty)
-                : ctx->get_constant_value(val, ty)});
-        instr.destroy();
-        return true;
-      }
-      case fir::IntrinsicSubType::FMin: {
-        push_all_uses(worklist, instr);
-        auto val = std::min(const_fp(instr->args[0].as_constant()),
-                            const_fp(instr->args[1].as_constant()));
-        auto ty = instr->get_type();
-        instr->replace_all_uses(fir::ValueR{
-            ty->as_float() == 32
-                ? ctx->get_constant_value(static_cast<f32>(val), ty)
-                : ctx->get_constant_value(val, ty)});
-        instr.destroy();
-        return true;
-      }
-      }
-      return true;
-    }
+    // constants to the right
     if (instr->args[0].is_constant() && !instr->args[1].is_constant()) {
       auto old0 = instr->args[0];
       auto old1 = instr->args[1];
       instr.replace_arg(0, old1);
       instr.replace_arg(1, old0);
-      return true;
-    }
-  }
-  if (sub_type == fir::IntrinsicSubType::FAbs && instr->args[0].is_constant()) {
-    auto ty = instr->get_type();
-    if (instr->args[0].is_poison()) {
-      instr->replace_all_uses(fir::ValueR{ctx->get_poisson_value(ty)});
-      instr.destroy();
-      return true;
-    }
-    if (ty->is_float()) {
-      auto width = ty->as_float();
-
-      push_all_uses(worklist, instr);
-      if (width == 32) {
-        auto val = std::fabs(instr->args[0].as_constant()->as_f32());
-        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
-      } else if (width == 64) {
-        auto val = std::fabs(instr->args[0].as_constant()->as_f64());
-        instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(val, ty)});
-      } else {
-        TODO("IMPL");
-      }
-      instr.destroy();
       return true;
     }
   }
@@ -2083,22 +1531,9 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
   }
   if (instr->args[0].is_instr()) {
     auto argi = instr->args[0].as_instr();
-    if (argi->is(fir::VectorISubType::Broadcast)) {
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(argi->args[0]);
-      instr.destroy();
-      return true;
-    }
     if (argi->is(fir::InstrType::InsertValue) &&
         instr->args[1].is_constant_int() && argi->args[2].is_constant_int()) {
-      // the indices can have different integer types
-      if (instr->args[1].as_constant()->as_int() ==
-          argi->args[2].as_constant()->as_int()) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(argi->args[1]);
-        instr.destroy();
-        return true;
-      }
+      // the same index is folded by InstFold, the others skip the insert
       fir::Builder bb{instr};
       fir::ValueR v[1] = {instr->args[1]};
       auto res = bb.build_extract_value(argi->args[0], v, instr->get_type());
@@ -2145,20 +1580,6 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
   return false;
 }
 
-bool simplify_insert(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
-  if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
-    ZoneScopedN("SimplifyInsert");
-  }
-  if (instr->args[0].is_poison() && instr->args[1].is_poison()) {
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(
-        fir::ValueR{ctx->get_poisson_value(instr->get_type())});
-    instr.destroy();
-    return true;
-  }
-  return false;
-}
-
 bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
               WorkList &worklist, AttributerManager &man, AliasAnalyis &anal,
               ConstraintCache &ccache) {
@@ -2180,16 +1601,8 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       return true;
     }
   }
-  if (instr_ty == InstrType::LoadInstr &&
-      simplify_load(instr, bb, ctx, worklist)) {
-    return true;
-  }
   if (instr_ty == InstrType::ExtractValue &&
       simplify_extract(instr, worklist)) {
-    return true;
-  }
-  if (instr_ty == InstrType::InsertValue &&
-      simplify_insert(instr, ctx, worklist)) {
     return true;
   }
   if (instr_ty == InstrType::VectorInstr ||
@@ -2265,6 +1678,16 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
     const u64 hash_before = AnalysisManager::hash_instr(instr);
     const std::string instr_before = fmt::format("{}", instr);
 #endif
+    // folding comes first, the simplifications below rely on it
+    if (auto folded = InstFold::fold(instr, ctx, man)) {
+      InstSimp::push_all_uses(worklist, instr);
+      instr->replace_all_uses(*folded);
+      instr.destroy();
+      man.reset();
+      changed = true;
+      ccache.invalidate(false);
+      continue;
+    }
     if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal, ccache)) {
       man.reset();
       changed = true;

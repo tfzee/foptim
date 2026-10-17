@@ -91,7 +91,7 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
 namespace {
 bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
                         fir::Context &ctx, WorkList &worklist,
-                        AttributerManager &man, ConstraintCache &ccache) {
+                        AttributerManager & /*man*/, ConstraintCache &ccache) {
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyICMP");
   }
@@ -113,192 +113,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
-  bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
-
-  // x cmp x, only for non constants so the constant paths stay untouched
-  if (!first_constant && instr->args[0] == instr->args[1]) {
-    bool known = true;
-    bool is_true = false;
-    switch (static_cast<ICmpInstrSubType>(instr->get_instr_subtype())) {
-      case ICmpInstrSubType::EQ:
-      case ICmpInstrSubType::ULE:
-      case ICmpInstrSubType::UGE:
-      case ICmpInstrSubType::SLE:
-      case ICmpInstrSubType::SGE:
-        is_true = true;
-        break;
-      case ICmpInstrSubType::NE:
-      case ICmpInstrSubType::ULT:
-      case ICmpInstrSubType::UGT:
-      case ICmpInstrSubType::SLT:
-      case ICmpInstrSubType::SGT:
-        is_true = false;
-        break;
-      default:
-        known = false;
-        break;
-    }
-    if (known) {
-      auto new_const_value =
-          ctx->get_constant_int(static_cast<u32>(is_true), 8);
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR(new_const_value));
-      instr.destroy();
-      return true;
-    }
-  }
-
-  if (first_constant && second_constant) {
-    const auto c1 = instr->args[0].as_constant();
-    const auto c2 = instr->args[1].as_constant();
-    // TODO: poisson should just return a poisson value
-    if (c1->is_poison() || c2->is_poison()) {
-      auto new_const_value = ctx->get_poisson_value(ctx->get_int_type(8));
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(ValueR(new_const_value));
-      ASSERT(instr->bbs.size() == 0);
-      instr.destroy();
-      return true;
-    }
-    if (c1->is_global() && c2->is_global()) {
-      bool are_equal = c1->as_global() == c2->as_global();
-      if ((are_equal && instr->is(ICmpInstrSubType::EQ)) ||
-          (!are_equal && instr->is(ICmpInstrSubType::NE))) {
-        auto new_const_value = ctx->get_constant_int(1, 8);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(ValueR(new_const_value));
-        ASSERT(instr->bbs.size() == 0);
-        instr.destroy();
-        return true;
-      } else if ((!are_equal && instr->is(ICmpInstrSubType::EQ)) ||
-                 (are_equal && instr->is(ICmpInstrSubType::NE))) {
-        auto new_const_value = ctx->get_constant_int(0, 8);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(ValueR(new_const_value));
-        ASSERT(instr->bbs.size() == 0);
-        instr.destroy();
-        return true;
-      }
-    }
-
-    {
-      bool is_eq = static_cast<ICmpInstrSubType>(instr->get_instr_subtype()) ==
-                   ICmpInstrSubType::EQ;
-      bool is_neq = static_cast<ICmpInstrSubType>(instr->get_instr_subtype()) ==
-                    ICmpInstrSubType::NE;
-      if ((is_eq || is_neq)) {
-        bool first_known_non_null =
-            (c1->is_global() || (c1->is_func() && !c1->as_func()->is_decl()));
-        bool second_known_non_null =
-            (c2->is_global() || (c2->is_func() && !c1->as_func()->is_decl()));
-        bool first_known_null = c1->is_null() || c1->is_poison();
-        bool second_known_null = c2->is_null() || c2->is_poison();
-        bool is_true = false;
-        bool is_known = false;
-        if (first_known_non_null && second_known_null) {
-          is_true = is_neq;
-          is_known = true;
-        }
-        if (first_known_null && second_known_non_null) {
-          is_true = is_neq;
-          is_known = true;
-        }
-        if (first_known_null && second_known_null) {
-          is_true = is_eq;
-          is_known = true;
-        }
-
-        if (is_known) {
-          auto new_const_value =
-              ctx->get_constant_int(static_cast<u32>(is_true), 8);
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(ValueR(new_const_value));
-          instr.destroy();
-          return true;
-        }
-      }
-    }
-    if (c1->is_global() || c1->is_func() || c2->is_global() || c2->is_func()) {
-      return false;
-    }
-    i128 v1 = 0;
-    i128 v2 = 0;
-    if (c1->is_int()) {
-      v1 = c1->as_int();
-    } else if (c1->is_null() || c1->is_poison()) {
-    } else {
-      fmt::println("{}", instr);
-      fmt::println("{}", c1);
-      TODO("IMPL");
-    }
-    if (c2->is_int()) {
-      v2 = c2->as_int();
-    } else if (c2->is_null() || c2->is_poison()) {
-    } else {
-      fmt::println("{}", instr);
-      fmt::println("{}", c2);
-      TODO("IMPL");
-    }
-
-    auto bitwidth =
-        std::max(c1->type->get_bitwidth(), c2->type->get_bitwidth());
-    auto mask = (static_cast<i128>(1) << bitwidth) - 1;
-    auto rest_width = (128 - bitwidth);
-    v1 = ((v1 & mask) << rest_width) >> rest_width;
-    v2 = ((v2 & mask) << rest_width) >> rest_width;
-    bool is_true = false;
-    switch (static_cast<ICmpInstrSubType>(instr->get_instr_subtype())) {
-      case fir::ICmpInstrSubType::INVALID:
-        UNREACH();
-      case fir::ICmpInstrSubType::SLT:
-        is_true = static_cast<i64>(v1) < static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::ULT:
-        is_true = static_cast<u64>(v1) < static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::NE:
-        is_true = v1 != v2;
-        break;
-      case fir::ICmpInstrSubType::EQ:
-        is_true = v1 == v2;
-        break;
-      case fir::ICmpInstrSubType::SGT:
-        is_true = static_cast<i64>(v1) > static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::UGT:
-        is_true = static_cast<u64>(v1) > static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::UGE:
-        is_true = static_cast<u64>(v1) >= static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::ULE:
-        is_true = static_cast<u64>(v1) <= static_cast<u64>(v2);
-        break;
-      case fir::ICmpInstrSubType::SGE:
-        is_true = static_cast<i64>(v1) >= static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::SLE:
-        is_true = static_cast<i64>(v1) <= static_cast<i64>(v2);
-        break;
-      case fir::ICmpInstrSubType::MulOverflow: {
-        i128 output = v1 * v2;
-        i128 mask = ~((static_cast<i128>(1) << bitwidth) - 1);
-        is_true = (output & mask) != 0;
-      } break;
-
-      case fir::ICmpInstrSubType::AddOverflow: {
-        i128 output = v1 + v2;
-        i128 mask = ~((static_cast<i128>(1) << bitwidth) - 1);
-        is_true = (output & mask) != 0;
-      } break;
-    }
-    auto new_const_value = ctx->get_constant_int(static_cast<u64>(is_true), 1);
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(ValueR(new_const_value));
-    instr.destroy();
-    return true;
-  }
 
   if (second_constant && instr->args[1].as_constant()->is_int()) {
     auto sub_type = static_cast<ICmpInstrSubType>(instr->get_instr_subtype());
@@ -429,7 +244,9 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       // if we multiply 2 32bit values with 1 being sign extended it can
       // only be the case if
       //  the sign extnded one was negative
-      if (static_cast<u128>(c_val) <= std::numeric_limits<u32>::max()) {
+      const APInt &c_apint = instr->args[1].as_constant()->as_apint();
+      if (c_apint.fits_u64() &&
+          c_apint.to_u64() <= std::numeric_limits<u32>::max()) {
         auto x = instr->args[0].as_instr()->args[0];
         Builder bb{instr};
         auto new_val = bb.build_int_cmp(
@@ -491,32 +308,6 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     }
 
-    bool check_negative = false;
-    bool check_positive = false;
-
-    // TODO : theres more cases like eq with a positive constant
-    check_negative = (sub_type == fir::ICmpInstrSubType::SLT && c_val == 0) ||
-                     (sub_type == fir::ICmpInstrSubType::SLE && c_val == -1);
-    check_positive = (sub_type == fir::ICmpInstrSubType::SGT && c_val == 0) ||
-                     (sub_type == fir::ICmpInstrSubType::SGE && c_val == 1);
-    if (check_positive || check_negative) {
-      const auto *bits = man.get_or_create_analysis<KnownBits>(instr->args[0]);
-      man.run(ctx);
-      auto msb_res = bits->msb_info();
-      bool value_known_negative = msb_res == KnownBits::KnownOne;
-      bool value_known_positive = msb_res == KnownBits::KnownZero;
-      bool evals_to_true = (value_known_negative && check_negative) ||
-                           (value_known_positive && check_positive);
-      bool evals_to_false = (value_known_negative && check_positive) ||
-                            (value_known_positive && check_negative);
-      if (evals_to_false || evals_to_true) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
-        instr.destroy();
-        return true;
-      }
-    }
   }
 
   if (instr->args[0].is_instr()) {
@@ -608,114 +399,6 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr.replace_arg(1, truncated_o);
           return true;
         }
-      }
-    }
-  }
-
-  auto sub_type = static_cast<ICmpInstrSubType>(instr->get_instr_subtype());
-  {
-    const auto *bits1 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
-    const auto *bits2 = man.get_or_create_analysis<KnownBits>(instr->args[1]);
-    man.run(ctx);
-    if (sub_type == ICmpInstrSubType::UGT ||
-        sub_type == ICmpInstrSubType::UGE ||
-        sub_type == ICmpInstrSubType::ULT ||
-        sub_type == ICmpInstrSubType::ULE) {
-      bool evals_to_true = false;
-      bool evals_to_false = false;
-      if (sub_type == ICmpInstrSubType::UGT) {
-        evals_to_true =
-            bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
-        evals_to_false =
-            bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
-      } else if (sub_type == ICmpInstrSubType::UGE) {
-        evals_to_true =
-            bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
-        evals_to_false =
-            bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
-      } else if (sub_type == ICmpInstrSubType::ULT) {
-        evals_to_true =
-            bits1->get_unsigned_max_value() < bits2->get_unsigned_min_value();
-        evals_to_false =
-            bits1->get_unsigned_min_value() >= bits2->get_unsigned_max_value();
-      } else if (sub_type == ICmpInstrSubType::ULE) {
-        evals_to_true =
-            bits1->get_unsigned_max_value() <= bits2->get_unsigned_min_value();
-        evals_to_false =
-            bits1->get_unsigned_min_value() > bits2->get_unsigned_max_value();
-      }
-
-      ASSERT(!evals_to_false || !evals_to_true);
-      if (evals_to_true || evals_to_false) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
-        instr.destroy();
-        return true;
-      }
-    }
-
-    if (sub_type == ICmpInstrSubType::SGT ||
-        sub_type == ICmpInstrSubType::SGE ||
-        sub_type == ICmpInstrSubType::SLT ||
-        sub_type == ICmpInstrSubType::SLE) {
-      bool evals_to_true = false;
-      bool evals_to_false = false;
-      if (sub_type == ICmpInstrSubType::SGT) {
-        evals_to_true =
-            bits1->get_signed_min_value() > bits2->get_signed_max_value();
-        evals_to_false =
-            bits1->get_signed_max_value() <= bits2->get_signed_min_value();
-      } else if (sub_type == ICmpInstrSubType::SGE) {
-        evals_to_true =
-            bits1->get_signed_min_value() >= bits2->get_signed_max_value();
-        evals_to_false =
-            bits1->get_signed_max_value() < bits2->get_signed_min_value();
-      } else if (sub_type == ICmpInstrSubType::SLT) {
-        evals_to_true =
-            bits1->get_signed_max_value() < bits2->get_signed_min_value();
-        evals_to_false =
-            bits1->get_signed_min_value() >= bits2->get_signed_max_value();
-      } else if (sub_type == ICmpInstrSubType::SLE) {
-        evals_to_true =
-            bits1->get_signed_max_value() <= bits2->get_signed_min_value();
-        evals_to_false =
-            bits1->get_signed_min_value() > bits2->get_signed_max_value();
-      }
-
-      ASSERT(!evals_to_false || !evals_to_true);
-      if (evals_to_true || evals_to_false) {
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
-        instr.destroy();
-        return true;
-      }
-    }
-
-    if (sub_type == ICmpInstrSubType::EQ || sub_type == ICmpInstrSubType::NE) {
-      bool evals_to_true = false;
-      bool evals_to_false = false;
-      if (sub_type == ICmpInstrSubType::EQ) {
-        evals_to_false = (bits1->known_one & bits2->known_zero) != 0 ||
-                         (bits1->known_zero & bits2->known_one) != 0;
-      } else if (sub_type == ICmpInstrSubType::NE) {
-        evals_to_true = (bits1->known_one & bits2->known_zero) != 0 ||
-                        (bits1->known_zero & bits2->known_one) != 0;
-      }
-
-      if (evals_to_true || evals_to_false) {
-        // fmt::println("{:cd}", instr->get_parent());
-        // fmt::println("{}\n{}", *bits1, *bits2);
-        // fmt::println("{:b}", bits1->known_one & bits2->known_zero);
-        // fmt::println("{:b}", bits1->known_zero & bits2->known_one);
-        // fmt::println("cc {} {}", evals_to_true, evals_to_false);
-        // TODO("okak??");
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(
-            ValueR(ctx->get_constant_int(evals_to_true ? 1 : 0, 1)));
-        instr.destroy();
-        return true;
       }
     }
   }

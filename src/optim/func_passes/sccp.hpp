@@ -42,11 +42,12 @@ class SCCP final : public FunctionPass {
     };
 
     enum class ConstantType {};
-    union Value {
-      f64 f;
-      i128 i;
-      fir::Global gptr;
-      fir::FunctionR fptr;
+    // only the field matching the value type is meaningful
+    struct Value {
+      f64 f = 0;
+      APInt i{};
+      fir::Global gptr = fir::Global();
+      fir::FunctionR fptr = nullptr;
     };
     ValueType type;
     TVec<Value> vals;
@@ -89,11 +90,16 @@ class SCCP final : public FunctionPass {
     [[nodiscard]] constexpr f64 as_f64(u32 idx = 0) const {
       return vals.at(idx).f;
     }
-    [[nodiscard]] constexpr i128 as_int(u32 idx = 0) const {
+    [[nodiscard]] APInt as_apint(u32 idx = 0) const {
       if (type == ValueType::NullPtr) {
-        return 0;
+        return APInt::zero(vtype->get_bitwidth());
       }
       return vals.at(idx).i;
+    }
+
+    // width of one lane, the whole value for scalars
+    [[nodiscard]] static u32 lane_bits(fir::TypeR t) {
+      return t->is_vec() ? t->as_vec().bitwidth : t->get_bitwidth();
     }
 
     static ConstantValue Top() {
@@ -114,7 +120,7 @@ class SCCP final : public FunctionPass {
       }
       if (v->is_null()) {
         return ConstantValue{.type = ValueType::NullPtr,
-                             .vals = {{.i = 0}},
+                             .vals = {{.i = APInt::zero(64)}},
                              .vtype = v->get_type()};
       }
       if (c->is_float()) {
@@ -132,14 +138,15 @@ class SCCP final : public FunctionPass {
           if (v->is_float()) {
             r.vals.push_back({.f = v->as_float()});
           } else {
-            r.vals.push_back({.i = v->as_int()});
+            r.vals.push_back(
+                {.i = v->as_apint().zext_or_trunc(c->as_vec().bitwidth)});
           }
         }
         return r;
       }
       if (c->is_int() || (c->is_ptr() && v->is_int())) {
         return ConstantValue{.type = ValueType::Int,
-                             .vals = {{.i = v->as_int()}},
+                             .vals = {{.i = v->as_apint()}},
                              .vtype = v->get_type()};
       }
       if (v->is_global()) {
@@ -165,8 +172,10 @@ class SCCP final : public FunctionPass {
         for (auto m : tv.members) {
           if (m->is_float()) {
             r.vals.push_back({.f = m->as_float()});
-          } else if (m->is_int() || m->is_null()) {
-            r.vals.push_back({.i = m->as_int()});
+          } else if (m->is_int()) {
+            r.vals.push_back({.i = m->as_apint()});
+          } else if (m->is_null()) {
+            r.vals.push_back({.i = APInt::zero(64)});
           } else if (m->is_global()) {
             r.vals.push_back({.gptr = m->as_global()});
           } else {
@@ -197,9 +206,9 @@ class SCCP final : public FunctionPass {
       return ConstantValue{
           .type = ValueType::Float, .vals = {{.f = v}}, .vtype = t};
     }
-    static ConstantValue Constant(i128 v, fir::TypeR t) {
+    static ConstantValue Constant(APInt v, fir::TypeR t) {
       return ConstantValue{
-          .type = ValueType::Int, .vals = {{.i = v}}, .vtype = t};
+          .type = ValueType::Int, .vals = {{.i = std::move(v)}}, .vtype = t};
     }
     static std::optional<ConstantValue> loadConstant(u8 *v, fir::TypeR c,
                                                      fir::Context &ctx);
@@ -218,16 +227,16 @@ class SCCP final : public FunctionPass {
       }
 
       if (c->is_int() && bitwidth == 8) {
-        *(reinterpret_cast<i8 *>(v)) = static_cast<i8>(vals[0].i);
+        *(reinterpret_cast<i8 *>(v)) = static_cast<i8>(vals[0].i.to_u64());
         return true;
       }
       if (c->is_int() && bitwidth == 32) {
-        auto val = static_cast<i32>(vals[0].i);
+        auto val = static_cast<i32>(vals[0].i.to_u64());
         std::memcpy(v, &val, sizeof(i32));
         return true;
       }
       if ((c->is_ptr() || c->is_int()) && bitwidth == 64) {
-        auto val = static_cast<i64>(vals[0].i);
+        auto val = static_cast<i64>(vals[0].i.to_u64());
         std::memcpy(v, &val, sizeof(i64));
         return true;
       }
@@ -245,20 +254,20 @@ class SCCP final : public FunctionPass {
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(f64));
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 8) {
-            auto val = static_cast<i8>(vals[i].i);
+            auto val = static_cast<i8>(vals[i].i.to_u64());
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i8));
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 16) {
-            auto val = static_cast<i16>(vals[i].i);
+            auto val = static_cast<i16>(vals[i].i.to_u64());
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i16));
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 32) {
-            auto val = static_cast<i32>(vals[i].i);
+            auto val = static_cast<i32>(vals[i].i.to_u64());
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i32));
             // *(((i32 *)(v + (i * cv.bitwidth / 8)))) = (i32)vals[i].i;
           } else if (cv.type == fir::VectorType::SubType::Integer &&
                      cv.bitwidth == 64) {
-            auto val = static_cast<i64>(vals[i].i);
+            auto val = static_cast<i64>(vals[i].i.to_u64());
             std::memcpy((v + (i * cv.bitwidth / 8)), &val, sizeof(i64));
             // *(((u64 *)(v + (i * cv.bitwidth / 8)))) = (i64)vals[i].i;
           } else {

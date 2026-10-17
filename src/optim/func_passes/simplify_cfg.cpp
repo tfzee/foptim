@@ -103,8 +103,8 @@ SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
       // is iether itruncd or 1bit width so we can just steal that lowest bit
       // we only care that both incoming ones are hitting the condition
       // differntly
-      if (!(((res1->known_one & 0x1) ^ (res2->known_one & 0x1)) == 0U) &&
-          !(((res1->known_zero & 0x1) ^ (res2->known_zero & 0x1)) == 0U)) {
+      if (res1->known_one.bit(0) != res2->known_one.bit(0) &&
+          res1->known_zero.bit(0) != res2->known_zero.bit(0)) {
         found_path = true;
       }
     }

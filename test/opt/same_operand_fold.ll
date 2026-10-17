@@ -17,7 +17,7 @@ define i1 @g(i64 %n) {
 ; CHECK-LABEL: func g<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i64):
-; CHECK-NEXT:    %1: i1 = Return(0:i8){} NUses:0
+; CHECK-NEXT:    %1: i1 = Return(0:i1){} NUses:0
 ; CHECK-NEXT:}
   %c = icmp ult i64 %n, %n
   ret i1 %c

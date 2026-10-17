@@ -155,7 +155,6 @@ bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
-  bool first_constant = instr->args[0].is_constant();
   bool second_constant = instr->args[1].is_constant();
   auto fcmp_subtype =
       static_cast<fir::FCmpInstrSubType>(instr->get_instr_subtype());
@@ -245,78 +244,6 @@ bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
   }
 
-  if (first_constant && second_constant) {
-    const auto c1 = instr->args[0].as_constant();
-    const auto c2 = instr->args[1].as_constant();
-    if (c1->is_poison() || c2->is_poison()) {
-      auto new_const_value = ctx->get_poisson_value(ctx->get_int_type(8));
-      push_all_uses(worklist, instr);
-      instr->replace_all_uses(fir::ValueR(new_const_value));
-      instr.destroy();
-      return true;
-    }
-    ASSERT(c1->is_float());
-    const auto v1 = const_fp(c1);
-    const auto v2 = const_fp(c2);
-
-    bool is_true = false;
-    const bool uno = std::isnan(v1) || std::isnan(v2);
-    switch (fcmp_subtype) {
-      case fir::FCmpInstrSubType::IsNaN:
-      case fir::FCmpInstrSubType::UNO:
-        is_true = uno;
-        break;
-      case fir::FCmpInstrSubType::ORD:
-        is_true = !uno;
-        break;
-      case fir::FCmpInstrSubType::OEQ:
-        is_true = !uno && v1 == v2;
-        break;
-      case fir::FCmpInstrSubType::OGT:
-        is_true = !uno && v1 > v2;
-        break;
-      case fir::FCmpInstrSubType::OGE:
-        is_true = !uno && v1 >= v2;
-        break;
-      case fir::FCmpInstrSubType::OLT:
-        is_true = !uno && v1 < v2;
-        break;
-      case fir::FCmpInstrSubType::OLE:
-        is_true = !uno && v1 <= v2;
-        break;
-      case fir::FCmpInstrSubType::ONE:
-        is_true = !uno && v1 != v2;
-        break;
-      case fir::FCmpInstrSubType::UEQ:
-        is_true = uno || v1 == v2;
-        break;
-      case fir::FCmpInstrSubType::UGT:
-        is_true = uno || v1 > v2;
-        break;
-      case fir::FCmpInstrSubType::UGE:
-        is_true = uno || v1 >= v2;
-        break;
-      case fir::FCmpInstrSubType::ULT:
-        is_true = uno || v1 < v2;
-        break;
-      case fir::FCmpInstrSubType::ULE:
-        is_true = uno || v1 <= v2;
-        break;
-      case fir::FCmpInstrSubType::UNE:
-        is_true = uno || v1 != v2;
-        break;
-      case fir::FCmpInstrSubType::INVALID:
-      case fir::FCmpInstrSubType::AlwFalse:
-      case fir::FCmpInstrSubType::AlwTrue:
-        return true;
-    }
-    auto new_const_value = ctx->get_constant_int(static_cast<u64>(is_true), 8);
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(fir::ValueR(new_const_value));
-    ASSERT(instr->bbs.size() == 0);
-    instr.destroy();
-    return true;
-  }
   return false;
 }
 }  // namespace

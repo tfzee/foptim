@@ -6,7 +6,7 @@ define i1 @ult() {
 ; CHECK-LABEL: func ult<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0():
-; CHECK-NEXT:    %0: i1 = Return(1:i8){} NUses:0
+; CHECK-NEXT:    %0: i1 = Return(1:i1){} NUses:0
 ; CHECK-NEXT:}
   %c = fcmp ult double 1.0, 2.0
   ret i1 %c
@@ -16,7 +16,7 @@ define i1 @ugt_nan() {
 ; CHECK-LABEL: func ugt_nan<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0():
-; CHECK-NEXT:    %0: i1 = Return(1:i8){} NUses:0
+; CHECK-NEXT:    %0: i1 = Return(1:i1){} NUses:0
 ; CHECK-NEXT:}
   %c = fcmp ugt double 0x7FF8000000000000, 2.0
   ret i1 %c
@@ -26,7 +26,7 @@ define i1 @one_nan() {
 ; CHECK-LABEL: func one_nan<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0():
-; CHECK-NEXT:    %0: i1 = Return(0:i8){} NUses:0
+; CHECK-NEXT:    %0: i1 = Return(0:i1){} NUses:0
 ; CHECK-NEXT:}
   %c = fcmp one double 0x7FF8000000000000, 2.0
   ret i1 %c

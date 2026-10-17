@@ -6,9 +6,9 @@ define i64 @f(ptr %a) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
-; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 8:ptr){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 16:ptr){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 24:ptr){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 24:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %4: i64 = Load(%0){} NUses:1
 ; CHECK-NEXT:    %5: i64 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %6: i64 = Load(%2){} NUses:1

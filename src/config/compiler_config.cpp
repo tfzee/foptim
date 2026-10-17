@@ -109,6 +109,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new DoubleLoadElimConf{};
     } else if (name == "IntrinSimplify") {
       pass = new IntrinSimplifyConf{};
+    } else if (name == "InstFold") {
+      pass = new InstFoldConf{};
     } else if (name == "InstSimplify") {
       pass = new InstSimplifyConf{};
     } else if (name == "SimplifyCFG") {

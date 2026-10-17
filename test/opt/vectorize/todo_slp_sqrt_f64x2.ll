@@ -7,8 +7,8 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 8:ptr){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 8:ptr){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %5: f64 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %6: f64 = Call(llvm.sqrt.f64, %5){extTy: f64(f64 ); } NUses:1
 ; CHECK-NEXT:    %7: f64 = Store(%0, %6){} NUses:0

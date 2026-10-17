@@ -15,7 +15,7 @@ define i32 @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %9: 4@i32 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %10: 4@i32 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %11: 4@i32 = IntAdd(%9, %10){} NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%0, 32:ptr){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, 32:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %13: i32 = Load(%12){} NUses:1
 ; CHECK-NEXT:    %14: 4@i32 = Store(%0, %11){} NUses:0
 ; CHECK-NEXT:    %15: i32 = Return(%13){} NUses:0

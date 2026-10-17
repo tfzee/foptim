@@ -6,8 +6,8 @@ define void @f(ptr %a) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
-; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:ptr){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 12:ptr){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %3: i32 = Store(%0, 1:i32){} NUses:0
 ; CHECK-NEXT:    %4: i64 = Store(%1, 12884901890:i64){} NUses:0
 ; CHECK-NEXT:    %5: i32 = Store(%2, 4:i32){} NUses:0

@@ -23,7 +23,7 @@ define void @f(ptr %a, ptr %b, ptr %c, i1 %cond) {
 ; CHECK-NEXT:    %16: 4@i32 = Store(%0, %15){} NUses:0
 ; CHECK-NEXT:    %17: () = Branch<bb3()>(){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 32:ptr){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 32:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %19: 4@i64 = Load(G(const_legalizeVec_1)){} NUses:1
 ; CHECK-NEXT:    %20: 4@i64 = PtrAdd(%5, %19){} NUses:1
 ; CHECK-NEXT:    %21: 4@i64 = Load(G(const_legalizeVec_0)){} NUses:1
