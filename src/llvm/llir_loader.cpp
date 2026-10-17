@@ -1,3 +1,4 @@
+#include "utils/verbosity.hpp"
 #include "llir_loader.hpp"
 
 #include "llvm/IR/BasicBlock.h"
@@ -64,7 +65,9 @@ bool warned_fastcc = false;
 #define WARN_UNSUPPORTED_O(name, warning)                                      \
   if (!(name)) {                                                               \
     (name) = true;                                                             \
-    fmt::print(fg(fmt::color::red), warning);                                  \
+    if (foptim::utils::verbose()) {                                            \
+      fmt::print(stderr, fg(fmt::color::red), warning);                        \
+    }                                                                          \
   }
 
 using foptim::u32;
