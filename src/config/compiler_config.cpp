@@ -1,3 +1,4 @@
+#include "utils/verbosity.hpp"
 #include "compiler_config.hpp"
 
 #include <fmt/base.h>
@@ -313,6 +314,7 @@ bool debug_parse(Debug &conf, toml::table &tbl) {
   conf.no_reorder_funcs =
       tbl["no_reorder_funcs"].value_or(conf.no_reorder_funcs);
   conf.no_skip_clean = tbl["no_skip_clean"].value_or(conf.no_skip_clean);
+  utils::verbosity = tbl["verbosity"].value_or(utils::verbosity);
 
   return true;
 }

@@ -19,6 +19,7 @@
 #include "utils/stats.hpp"
 #include "utils/timer.hpp"
 #include "utils/tracy.hpp"
+#include "utils/verbosity.hpp"
 #include "x86_codegen/backend.hpp"
 #include "llvm/llir_loader.hpp"
 
@@ -43,7 +44,7 @@ int main(int argc, char *argv[]) {
   foptim::JobSheduler shed;
 
   shed.init(conf.number_worker_threads);
-  if (conf.debug.verbosity > 0) {
+  if (foptim::utils::verbose()) {
     fmt::println(stderr, "Running with {} Workers", conf.number_worker_threads);
   }
 
@@ -107,17 +108,21 @@ int main(int argc, char *argv[]) {
       auto a1 = t.scopedTimer("Codegen");
       // asm
       codegen(funcs, decls, globals, conf);
-      if (conf.debug.verbosity > 0) {
+      if (foptim::utils::verbose()) {
         ctx.data->print_stats();
       }
     }
 
-    foptim::utils::StatCollector::get().dump();
+    if (foptim::utils::verbose()) {
+      foptim::utils::StatCollector::get().dump();
+    }
     shed.wait_till_done();
     ctx.free();
     shed.deinit();
   }
-  t.print();
+  if (foptim::utils::verbose()) {
+    t.print();
+  }
   // cleanup
   foptim::utils::TempAlloc<void *>::free();
   foptim::utils::IRAlloc<void *>::free();
@@ -181,8 +186,30 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
     }
   }
 
+  {
+    // passes create globals from parallel jobs in any order, so the ones they
+    // generated go last in name order and equal ones are emitted once
+    constexpr std::string_view generated = "const_legalizeVec_";
+    const auto is_generated = [&](const foptim::fmir::Global &g) {
+      return std::string_view{g.name}.starts_with(generated);
+    };
+    std::ranges::stable_sort(globals, [&](const auto &a, const auto &b) {
+      const bool ag = is_generated(a);
+      const bool bg = is_generated(b);
+      if (ag != bg) {
+        return bg;
+      }
+      return ag && std::string_view{a.name} < std::string_view{b.name};
+    });
+    const auto [dup_begin, dup_end] = std::ranges::unique(
+        globals, [&](const auto &a, const auto &b) {
+          return is_generated(a) && std::string_view{a.name} == b.name;
+        });
+    globals.erase(dup_begin, dup_end);
+  }
+
   auto reordered_funcs = foptim::fmir::get_lowering_order(ctx);
-  if (ctx.config->debug.verbosity > 0) {
+  if (foptim::utils::verbose()) {
     fmt::print(stderr, "================MATCHING====================\n");
     fmt::println(stderr, " Got {} functions", reordered_funcs.size());
   }
@@ -205,6 +232,8 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              const foptim::conf::CompConf &conf) {
   ZoneScopedN("Codegen");
   foptim::codegen::run(funcs, decls, globals, conf);
-  fmt::println("Done!");
+  if (foptim::utils::verbose()) {
+    fmt::println("Done!");
+  }
 }
 } // namespace

@@ -1,3 +1,4 @@
+#include "utils/verbosity.hpp"
 #include "parser.hpp"
 
 #include <fmt/base.h>
@@ -22,9 +23,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .scan<'i', int>()
       .default_value(0);
   program.add_argument("--verbosity")
-      .help("verbosity")
-      .scan<'i', int>()
-      .default_value(254);
+      .help("overwrites the verbosity of the config, 0 only prints what was "
+            "asked for")
+      .scan<'i', int>();
   program.add_argument("--print-mir")
       .help("print MIR instead of outputing an object")
       .flag();
@@ -73,8 +74,14 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
     std::exit(1);
   }
 
-  fmt::println(stderr, "Using config '{}'", config);
   ASSERT(conf.parse(config));
+  if (program.is_used("--verbosity")) {
+    foptim::utils::verbosity =
+        static_cast<foptim::u8>(program.get<int>("verbosity"));
+  }
+  if (foptim::utils::verbose()) {
+    fmt::println(stderr, "Using config '{}'", config);
+  }
 
   if (program.is_used("--march")) {
     foptim::populateConfig(conf.target.features,
@@ -84,7 +91,6 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   conf.number_worker_threads = program.get<int>("workers");
   assert(conf.number_worker_threads >= 0 && conf.number_worker_threads <= 8 &&
          "Invalid number of worker threads");
-  conf.debug.verbosity = static_cast<foptim::u8>(program.get<int>("verbosity"));
   conf.input.in_file = program.get<std::string>("input");
   conf.output.out_file = program.get<std::string>("output");
   if (program.is_used("--bisect")) {

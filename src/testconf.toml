@@ -40,7 +40,7 @@ passes = [
 
 [debug]
 verify_between_passes = true
-# bisect = 999999
+verbosity = 254
 
 
 

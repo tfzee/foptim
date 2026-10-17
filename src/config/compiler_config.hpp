@@ -135,7 +135,6 @@ struct Debug {
   bool verify_between_passes;
   bool time_passes;
   bool print_color;
-  u8 verbosity;
   // keep functions in input order instead of sorting them for MIR lowering
   bool no_reorder_funcs = false;
   // always rerun FIR function passes, even if they were a no-op on the
