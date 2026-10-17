@@ -15,7 +15,6 @@
 #include "optim/func_passes/intrin_conv.hpp"
 #include "optim/func_passes/intrin_expand.hpp"
 #include "optim/func_passes/intrin_simplify.hpp"
-#include "optim/func_passes/legalize_struct.hpp"
 #include "optim/func_passes/legalize_vecs.hpp"
 #include "optim/func_passes/licm.hpp"
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
@@ -188,12 +187,6 @@ struct VerifyFuncConf : public FunctionPassConf<VerifyFuncConf> {
 struct DCEConf : public FunctionPassConf<DCEConf> {
   static constexpr const char *BaseName = "DCE";
   using Pass = optim::DCE;
-  bool pass_parse(toml::table & /*unused*/) { return true; }
-  void construct_function_pass(Pass & /*unused*/) {};
-};
-struct LegalizeStructsConf : public FunctionPassConf<LegalizeStructsConf> {
-  static constexpr const char *BaseName = "LegalizeStructs";
-  using Pass = optim::LegalizeStructs;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

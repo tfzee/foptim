@@ -26,8 +26,8 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %21: f32 = FloatAdd(%15, %16){} NUses:1
 ; CHECK-NEXT:    %22: f32 = FloatAdd(%17, %18){} NUses:1
 ; CHECK-NEXT:    %23: f32 = Store(%0, %19){} NUses:0
-; CHECK-NEXT:    %24: 2@f32 = InsertValue(POISON, %20, 0:i32){} NUses:1
-; CHECK-NEXT:    %25: 2@f32 = InsertValue(%24, %21, 1:i32){} NUses:1
+; CHECK-NEXT:    %24: 2@f32 = InsertElement(POISON, %20, 0:i32){} NUses:1
+; CHECK-NEXT:    %25: 2@f32 = InsertElement(%24, %21, 1:i32){} NUses:1
 ; CHECK-NEXT:    %26: 2@f32 = Store(%3, %25){} NUses:0
 ; CHECK-NEXT:    %27: f32 = Store(%8, %22){} NUses:0
 ; CHECK-NEXT:    %28: () = Return(){} NUses:0

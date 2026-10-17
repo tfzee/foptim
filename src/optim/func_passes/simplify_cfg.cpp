@@ -169,7 +169,7 @@ SimplifyCFG::Res SimplifyCFG::pull_through_bb_args(CFG &cfg, CFG::Node &curr,
     auto &use = arg->uses[0];
 
     if (use.user->is(fir::InstrType::ITrunc)) {
-      auto target_ty = use.user->get_type();
+      auto target_ty = use.user->result_type();
 
       for (auto incoming_bb_id : cfg.bbrs[bb_id].pred) {
         auto incoming_bb = cfg.bbrs[incoming_bb_id].bb;
@@ -195,65 +195,6 @@ SimplifyCFG::Res SimplifyCFG::pull_through_bb_args(CFG &cfg, CFG::Node &curr,
   }
 
   return Res::NoChange;
-}
-
-SimplifyCFG::Res SimplifyCFG::remove_struct_bb_arg(CFG &cfg, CFG::Node &curr) {
-  (void)cfg;
-  auto *ctx = curr.bb->get_parent()->ctx;
-  TVec<fir::BBArgument> args{curr.bb->args.begin(), curr.bb->args.end()};
-  for (size_t arg_id = 0; arg_id < args.size(); arg_id++) {
-    auto arg = args[arg_id];
-    if (!arg->_type->is_struct()) {
-      continue;
-    }
-    auto res_ty = arg->_type;
-    auto stru_ty = res_ty->as_struct();
-    TVec<fir::ValueR> new_args;
-    for (auto &member : stru_ty.elems) {
-      auto new_arg =
-          ctx->storage.insert_bb_arg(fir::BBArgumentData{curr.bb, member.ty});
-      curr.bb.add_arg(new_arg);
-      new_args.emplace_back(new_arg);
-    }
-    // setup the destructuring at the branch sites
-    {
-      for (auto _use : curr.bb->get_uses()) {
-        auto user = _use.user;
-        auto bb_arg_id = user.get_bb_id(curr.bb);
-        fir::Builder buh{user->get_parent()};
-        buh.at_penultimate(user->get_parent());
-        for (size_t i = 0; i < stru_ty.elems.size(); i++) {
-          fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(i, 32)}};
-          auto extr_val =
-              buh.build_extract_value(user->bbs[bb_arg_id].args[arg_id],
-                                      {indicies}, stru_ty.elems[i].ty);
-          user.add_bb_arg(bb_arg_id, extr_val);
-        }
-        user.remove_bb_arg(bb_arg_id, arg_id);
-      }
-    }
-    // setup the constructing at the end
-    {
-      fir::Builder buh{curr.bb};
-      buh.at_start(curr.bb);
-      fir::ValueR curr_v = fir::ValueR{ctx->get_poisson_value(res_ty)};
-      for (size_t i = 0; i < stru_ty.elems.size(); i++) {
-        fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(i, 32)}};
-        curr_v =
-            buh.build_insert_value(curr_v, new_args[i], {indicies}, res_ty);
-      }
-      arg->replace_all_uses(curr_v);
-    }
-    curr.bb->remove_arg(arg_id);
-    // for (auto use : curr.bb->get_uses()) {
-    //   fmt::println("{:cd}", use.user->get_parent());
-    // }
-    // fmt::println("===================={:cd}", arg);
-    // fmt::println("{:cd}", curr.bb);
-    // TODO("okak");
-    return SimplifyCFG::Res::Changed;
-  }
-  return SimplifyCFG::Res::NoChange;
 }
 
 SimplifyCFG::Res
@@ -286,7 +227,7 @@ SimplifyCFG::static_select_call_into_branch(fir::Function &func,
 
     if (call_res_used) {
       auto res_arg = ctx->storage.insert_bb_arg(
-          fir::BBArgumentData{end_bb, i->get_type()});
+          fir::BBArgumentData{end_bb, i->result_type()});
       end_bb.add_arg(res_arg);
       i->replace_all_uses(fir::ValueR{res_arg});
     }
@@ -298,7 +239,7 @@ SimplifyCFG::static_select_call_into_branch(fir::Function &func,
       buh.at_end(true_bb);
       auto call_res =
           buh.build_call(func_arg->args[1], ptr1->as_func()->func_ty,
-                         i->get_type(), {++i->args.begin(), i->args.end()});
+                         i->result_type(), {++i->args.begin(), i->args.end()});
       auto b = buh.build_branch(end_bb);
       if (call_res_used) {
         b.add_bb_arg(0, call_res);
@@ -309,7 +250,7 @@ SimplifyCFG::static_select_call_into_branch(fir::Function &func,
       buh.at_end(false_bb);
       auto call_res =
           buh.build_call(func_arg->args[2], ptr1->as_func()->func_ty,
-                         i->get_type(), {++i->args.begin(), i->args.end()});
+                         i->result_type(), {++i->args.begin(), i->args.end()});
       auto b = buh.build_branch(end_bb);
       if (call_res_used) {
         b.add_bb_arg(0, call_res);
@@ -390,7 +331,8 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
     }
     for (auto i : func.basic_blocks[bb_id]->instructions) {
       if (i->get_n_uses() > 0) {
-        i->replace_all_uses(fir::ValueR{ctx->get_poisson_value(i.get_type())});
+        i->replace_all_uses(
+            fir::ValueR{ctx->get_poisson_value(i.result_type())});
       }
     }
     func.basic_blocks[bb_id]->remove_from_parent(true, true, true);
@@ -637,9 +579,10 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     for (size_t i = 0; i < bb1->instructions.size(); i++) {
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
-      if (i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
+      if (i1->is_multi_result() || i2->is_multi_result() ||
+          i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
           i1->args.size() != i2->args.size() ||
-          i1->get_type() != i2->get_type()) {
+          i1->result_type() != i2->result_type()) {
         found = false;
         break;
       }
@@ -970,8 +913,8 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
     case fir::InstrType::BinaryInstr:
     case fir::InstrType::UnaryInstr:
     case fir::InstrType::AllocaInstr:
-    case fir::InstrType::ExtractValue:
-    case fir::InstrType::InsertValue:
+    case fir::InstrType::ExtractElement:
+    case fir::InstrType::InsertElement:
     case fir::InstrType::ITrunc:
     case fir::InstrType::ZExt:
     case fir::InstrType::SExt:
@@ -1245,7 +1188,7 @@ SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
     for (auto instr : old_bb->instructions) {
       auto new_instr = bb.insert_copy(instr);
       new_instr.substitute(subs);
-      subs.insert({fir::ValueR{instr}, fir::ValueR{new_instr}});
+      fir::map_results(instr, new_instr, subs);
     }
     old_first_term.destroy();
     // fmt::println("{:cd}\n+++++++++++++++++++++++++++++++++++++++",
@@ -1327,7 +1270,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
     }
     if (matched) {
       fir::Builder bb{terminator};
-      auto res_t = t1->get_terminator()->get_type();
+      auto res_t = t1->get_terminator()->result_type();
       // fmt::println("{:cd}", *t1->get_parent().func);
       ASSERT(!res_t->is_void());
       fir::ValueR v1;
@@ -1342,7 +1285,7 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
         for (auto i : extra_instrs) {
           auto r = bb.insert_copy(i);
           new_instr.push_back(r);
-          subs.insert({fir::ValueR{i}, fir::ValueR{r}});
+          fir::map_results(i, r, subs);
         }
         for (auto i : new_instr) {
           i.substitute(subs);
@@ -1535,8 +1478,7 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
   for (size_t merge_i = 0; merge_i < merge_target->instructions.size() - 1;
        merge_i++) {
     auto n_instr = buh.insert_copy(merge_target->instructions[merge_i]);
-    subs.insert({fir::ValueR{merge_target->instructions[merge_i]},
-                 fir::ValueR{n_instr}});
+    fir::map_results(merge_target->instructions[merge_i], n_instr, subs);
     n_instr.substitute(subs);
   }
   auto &out_target =
@@ -1588,20 +1530,15 @@ bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
       }
     }
     for (auto instr : merge_target->instructions) {
-      if (!instr->has_result()) {
-        continue;
-      }
+      // a use knows the result it reads from its operand
       to_repl_uses.clear();
       for (auto use : instr->get_uses()) {
         if (use.user->get_parent() != merge_target) {
           to_repl_uses.push_back(use);
         }
       }
-      if (!to_repl_uses.empty()) {
-        auto sub = subs.at(fir::ValueR{instr});
-        for (auto use : to_repl_uses) {
-          use.replace_use(sub);
-        }
+      for (auto use : to_repl_uses) {
+        use.replace_use(subs.at(use.get_value()));
       }
     }
   }
@@ -1734,13 +1671,6 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
   //   return r;
   // }
   (void)ctx;
-  auto r = remove_struct_bb_arg(cfg, curr);
-  if (r != Res::NoChange) {
-    if constexpr (debug_print) {
-      fmt::println("6");
-    }
-    return r;
-  }
   return Res::NoChange;
 }
 

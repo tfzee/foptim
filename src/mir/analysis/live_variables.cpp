@@ -94,8 +94,6 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     case GJumpSubtype::icmp_ule:
     case GJumpSubtype::icmp_sge:
     case GJumpSubtype::icmp_sle:
-    case GJumpSubtype::icmp_mul_overflow:
-    case GJumpSubtype::icmp_add_overflow:
     case GJumpSubtype::fcmp_isNaN:
     case GJumpSubtype::fcmp_oeq:
     case GJumpSubtype::fcmp_ogt:
@@ -334,8 +332,6 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     case GJumpSubtype::icmp_ule:
     case GJumpSubtype::icmp_sge:
     case GJumpSubtype::icmp_sle:
-    case GJumpSubtype::icmp_mul_overflow:
-    case GJumpSubtype::icmp_add_overflow:
     case GJumpSubtype::fcmp_isNaN:
     case GJumpSubtype::fcmp_oeq:
     case GJumpSubtype::fcmp_ogt:
@@ -575,11 +571,8 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       update_uses(instr.args[0], uses);
       return;
     case GBaseSubtype::ret:
-      if (instr.n_args > 0) {
-        update_uses(instr.args[0], uses);
-        if (instr.n_args > 1) {
-          update_uses(instr.args[1], uses);
-        }
+      for (u32 i = 0; i < instr.n_args; i++) {
+        update_uses(instr.args[i], uses);
       }
       return;
     case GBaseSubtype::arg_setup:

@@ -31,8 +31,8 @@ constexpr u32 NoNode = std::numeric_limits<u32>::max();
 // the three lane variants most node kinds pick their instruction from: the
 // last lane if it is an instruction, otherwise the first one
 fir::Instr pick_instr(const TVec<fir::ValueR> &values) {
-  return values.back().is_instr() ? values.back().as_instr()
-                                  : values.front().as_instr();
+  return lane_instr(values.back()) ? values.back().as_instr()
+                                   : values.front().as_instr();
 }
 // what a node is initialized with: the seed block and where the node's parent
 // is emitted (invalid for the root)
@@ -51,7 +51,7 @@ fir::Instr last_lane(const TVec<fir::ValueR> &values, const InitCtx &c) {
   fir::Instr best = c.parent_loc;
   std::optional<u32> best_pos;
   for (auto v : values) {
-    if (!v.is_instr()) {
+    if (!lane_instr(v)) {
       continue;
     }
     auto p = c.info.order.pos(v.as_instr());
@@ -67,19 +67,19 @@ void init_flex(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   n.n_lanes = values.size();
   auto pick = pick_instr(values);
   n.insert_loc = last_lane(values, c);
-  n.type = pick->get_type();
+  n.type = pick->result_type();
   n.sub = pick->subtype;
 }
 void init_back(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   n.n_lanes = values.size();
   n.insert_loc = last_lane(values, c);
   auto lane = values.back().as_instr();
-  n.type = lane->get_type();
+  n.type = lane->result_type();
   n.sub = lane->subtype;
 }
 bool same_kind_instrs(const TVec<fir::ValueR> &values, fir::Instr base_v) {
   for (auto i_v : values) {
-    if (!i_v.is_instr()) {
+    if (!lane_instr(i_v)) {
       return false;
     }
     auto i = i_v.as_instr();
@@ -172,7 +172,7 @@ bool binary_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
       ctx.potential_neutral = true;
       continue;
     }
-    if (!i_v.is_instr()) {
+    if (!lane_instr(i_v)) {
       return false;
     }
     auto i = i_v.as_instr();
@@ -218,19 +218,19 @@ bool binary_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
 
 bool load_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   for (auto v : values) {
-    if (!v.is_instr()) {
+    if (!lane_instr(v)) {
       return false;
     }
   }
   auto base_v = values.back().as_instr();
-  if (base_v->get_type()->is_vec()) {
+  if (base_v->result_type()->is_vec()) {
     // already vec
     return false;
   }
   for (auto i_v : values) {
     auto i = i_v.as_instr();
     if (i->instr_type != base_v->instr_type || i->subtype != base_v->subtype ||
-        i->get_type() != base_v->get_type()) {
+        i->result_type() != base_v->result_type()) {
       return false;
     }
   }
@@ -239,7 +239,7 @@ bool load_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
 bool load_legal(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
   auto base_v = values.back().as_instr();
   // TODO dont know how to grather i8 and stuff efficiently
-  if (base_v->get_type()->get_bitwidth() <= 16) {
+  if (base_v->result_type()->get_bitwidth() <= 16) {
     return false;
   }
   // TODO impl vec for bigger sizes
@@ -294,7 +294,7 @@ bool extract_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
     return false;
   }
   for (auto i_v : values) {
-    if (!i_v.is_instr()) {
+    if (!lane_instr(i_v)) {
       return false;
     }
     auto i = i_v.as_instr();
@@ -326,7 +326,7 @@ bool call_match(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
     return false;
   }
   for (auto i_v : values) {
-    if (!i_v.is_instr()) {
+    if (!lane_instr(i_v)) {
       return false;
     }
     auto i = i_v.as_instr();
@@ -476,7 +476,7 @@ const Recipe Recipes[] = {
      .legal = always_legal,
      .init = init_back,
      .n_args = n_args_1},
-    {.type = fir::InstrType::ExtractValue,
+    {.type = fir::InstrType::ExtractElement,
      .kind = NodeKind::Extract,
      .name = "extract",
      .match = extract_match,
@@ -602,7 +602,7 @@ fir::ValueR node_emit(fir::Context &ctx, const Plan &plan, u32 id,
     fir::Builder bb{orig_instr};
     bb.after(orig_instr);
     auto new_v =
-        bb.build_vector_op(vec, orig_instr->get_type(),
+        bb.build_vector_op(vec, orig_instr->result_type(),
                            isProd ? fir::VectorISubType::HorizontalMul
                                   : fir::VectorISubType::HorizontalAdd);
     // the scalar chain is erased by the driver once everything is emitted
@@ -639,7 +639,7 @@ fir::ValueR node_emit(fir::Context &ctx, const Plan &plan, u32 id,
     ASSERT(new_func.has_value())
     auto ftype = new_func.value()->func_ty;
     return bb.build_call(fir::ValueR{ctx->get_constant_value(new_func.value())},
-                         ftype, ftype->as_func().return_type, args);
+                         ftype, ftype->as_func().return_type(), args);
   }
   case NodeKind::Unary: {
     auto val = emit_child(0);
@@ -725,14 +725,14 @@ fir::ValueR node_emit(fir::Context &ctx, const Plan &plan, u32 id,
     auto val = emit_child(0);
     fir::Builder bb{n.insert_loc};
     bb.after(n.insert_loc);
-    if (n.insert_loc->get_type()->is_vec()) {
-      auto vec_loads = n.insert_loc->get_type()->as_vec();
+    if (n.insert_loc->result_type()->is_vec()) {
+      auto vec_loads = n.insert_loc->result_type()->as_vec();
       auto vec_ty = ctx->get_vec_type(
           vec_loads.type, vec_loads.bitwidth * vec_loads.member_number,
           n.n_lanes);
       return bb.build_load(vec_ty, val, false, false);
     }
-    auto vec_ty = ctx->get_vec_type(n.insert_loc->get_type(), n.n_lanes);
+    auto vec_ty = ctx->get_vec_type(n.insert_loc->result_type(), n.n_lanes);
     return bb.build_load(vec_ty, val, false, false);
   }
   }
@@ -820,7 +820,7 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
   {
     TVec<fir::ValueR> v;
     for (auto &va : b.data) {
-      v.emplace_back(va.instr);
+      v.push_back(va.instr.result());
     }
     worklist.emplace_back(root_parent, std::move(v));
   }
@@ -839,11 +839,11 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
       add_node(parent, std::move(n));
       continue;
     }
-    if (!test_i.is_instr() && curr.front().is_instr()) {
+    if (!lane_instr(test_i) && lane_instr(curr.front())) {
       test_i = curr.front();
     }
 
-    if (test_i.is_instr()) {
+    if (lane_instr(test_i)) {
       const Recipe *recipe = find_recipe(test_i.as_instr()->instr_type);
       RecipeCtx rctx{.info = info, .aa = aa, .features = features};
       if (recipe == nullptr || !recipe->match(curr, rctx) ||
@@ -983,7 +983,7 @@ std::pair<SLPVectorizer::SeedInstrData, fir::ValueR>
 SLPVectorizer::get_storeload_data(fir::Instr storeload) {
   SeedInstrData data;
   data.instr = storeload;
-  if (!storeload->args[0].is_instr()) {
+  if (!lane_instr(storeload->args[0])) {
     return {data, storeload->args[0]};
   }
   auto arg = storeload->args[0].as_instr();
@@ -992,7 +992,7 @@ SLPVectorizer::get_storeload_data(fir::Instr storeload) {
     return {data, arg->args[0]};
   }
   if (arg->is(fir::BinaryInstrSubType::IntMul)) {
-    if (arg->args[0].is_instr() &&
+    if (lane_instr(arg->args[0]) &&
         arg->args[0].as_instr()->is(fir::BinaryInstrSubType::PtrAdd)) {
       auto sub_val = arg->args[0].as_instr();
       data.a = arg->args[1];
@@ -1014,7 +1014,7 @@ namespace {
   */
 void left_red_search(TVec<fir::ValueR> &reduction_inputs, fir::ValueR curr_base,
                      u32 exp_sub_type) {
-  if (!curr_base.is_instr()) {
+  if (!lane_instr(curr_base)) {
     reduction_inputs.clear();
     return;
   }
@@ -1025,15 +1025,15 @@ void left_red_search(TVec<fir::ValueR> &reduction_inputs, fir::ValueR curr_base,
     reduction_inputs.push_back(curr_base);
     return;
   }
-  if ((curr_i->args[0].is_instr() &&
+  if ((lane_instr(curr_i->args[0]) &&
        curr_i->args[0].as_instr()->instr_type == fir::InstrType::BinaryInstr &&
        curr_i->args[0].as_instr()->subtype == exp_sub_type) &&
-      curr_i->args[1].is_instr()) {
+      lane_instr(curr_i->args[1])) {
     left_red_search(reduction_inputs, curr_i->args[0], exp_sub_type);
     reduction_inputs.push_back(curr_i->args[1]);
     return;
   }
-  if (curr_i->args[0].is_instr() && curr_i->args[1].is_instr()) {
+  if (lane_instr(curr_i->args[0]) && lane_instr(curr_i->args[1])) {
     reduction_inputs.push_back(curr_i->args[0]);
     reduction_inputs.push_back(curr_i->args[1]);
   } else {
@@ -1042,7 +1042,7 @@ void left_red_search(TVec<fir::ValueR> &reduction_inputs, fir::ValueR curr_base,
 }
 void right_red_search(TVec<fir::ValueR> &reduction_inputs,
                       fir::ValueR curr_base, u32 exp_sub_type) {
-  if (!curr_base.is_instr()) {
+  if (!lane_instr(curr_base)) {
     reduction_inputs.clear();
     return;
   }
@@ -1053,15 +1053,15 @@ void right_red_search(TVec<fir::ValueR> &reduction_inputs,
     reduction_inputs.push_back(curr_base);
     return;
   }
-  if ((curr_i->args[1].is_instr() &&
+  if ((lane_instr(curr_i->args[1]) &&
        curr_i->args[1].as_instr()->instr_type == fir::InstrType::BinaryInstr &&
        curr_i->args[1].as_instr()->subtype == exp_sub_type) &&
-      curr_i->args[0].is_instr()) {
+      lane_instr(curr_i->args[0])) {
     right_red_search(reduction_inputs, curr_i->args[1], exp_sub_type);
     reduction_inputs.push_back(curr_i->args[0]);
     return;
   }
-  if (curr_i->args[0].is_instr() && curr_i->args[1].is_instr()) {
+  if (lane_instr(curr_i->args[0]) && lane_instr(curr_i->args[1])) {
     reduction_inputs.push_back(curr_i->args[1]);
     reduction_inputs.push_back(curr_i->args[0]);
   } else {
@@ -1074,7 +1074,7 @@ void right_red_search(TVec<fir::ValueR> &reduction_inputs,
 // reorder them to improve chances for stuff like loads to be contininous
 void red_search_assoc(TVec<fir::ValueR> &reduction_inputs,
                       fir::ValueR curr_base, u32 exp_sub_type) {
-  ASSERT(curr_base.is_instr());
+  ASSERT(lane_instr(curr_base));
   auto curr_i = curr_base.as_instr();
 
   if (curr_i->instr_type != fir::InstrType::BinaryInstr ||
@@ -1082,7 +1082,7 @@ void red_search_assoc(TVec<fir::ValueR> &reduction_inputs,
     reduction_inputs.push_back(curr_base);
     return;
   }
-  if (curr_i->args[0].is_instr() || curr_i->args[1].is_instr()) {
+  if (lane_instr(curr_i->args[0]) || lane_instr(curr_i->args[1])) {
     reduction_inputs.push_back(curr_base);
     return;
   }
@@ -1119,22 +1119,22 @@ SLPVectorizer::find_reduction(fir::BasicBlock bb, size_t instr_id,
   }
 
   // TODO: find bigger ones
-  if (!base_instr->args[0].is_instr() || !base_instr->args[1].is_instr()) {
+  if (!lane_instr(base_instr->args[0]) || !lane_instr(base_instr->args[1])) {
     return {};
   }
   {
     TVec<fir::ValueR> res1;
     TVec<fir::ValueR> res2;
     if (is_associative) {
-      red_search_assoc(res1, fir::ValueR{base_instr}, subtype);
+      red_search_assoc(res1, base_instr.result(), subtype);
     } else {
-      left_red_search(res1, fir::ValueR{base_instr}, subtype);
-      right_red_search(res2, fir::ValueR{base_instr}, subtype);
+      left_red_search(res1, base_instr.result(), subtype);
+      right_red_search(res2, base_instr.result(), subtype);
     }
     auto max_size = std::max(res1.size(), res2.size());
 
     if (max_size == 2 || max_size == 4 ||
-        (max_size == 8 && base_instr.get_type()->get_bitwidth() == 4)) {
+        (max_size == 8 && base_instr.result_type()->get_bitwidth() == 4)) {
       TVec<SeedInstrData> out;
       if (max_size == res1.size()) {
         for (auto r : res1) {
@@ -1145,8 +1145,8 @@ SLPVectorizer::find_reduction(fir::BasicBlock bb, size_t instr_id,
           out.push_back(SeedInstrData{.instr = r.as_instr(), .a = {}, .b = {}});
         }
       }
-      return SeedBundle{.base = fir::ValueR{base_instr},
-                        .type = base_instr.get_type(),
+      return SeedBundle{.base = base_instr.result(),
+                        .type = base_instr.result_type(),
                         .data = out};
       // fmt::println("FOUND RED WITH SIZE {}", res.size());
     }
@@ -1273,7 +1273,7 @@ public:
         continue;
       }
       auto instr = acc[i].instr;
-      auto ty = instr.get_type();
+      auto ty = instr.result_type();
       if (!ty->is_int() && !ty->is_float() && !ty->is_ptr()) {
         continue;
       }

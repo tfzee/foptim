@@ -44,8 +44,6 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
       ReturnString(GJumpSubtype, icmp_ule);
       ReturnString(GJumpSubtype, icmp_sge);
       ReturnString(GJumpSubtype, icmp_sle);
-      ReturnString(GJumpSubtype, icmp_mul_overflow);
-      ReturnString(GJumpSubtype, icmp_add_overflow);
       ReturnString(GJumpSubtype, fcmp_isNaN);
       ReturnString(GJumpSubtype, fcmp_oeq);
       ReturnString(GJumpSubtype, fcmp_ogt);
@@ -214,8 +212,6 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
     case GJumpSubtype::icmp_ule:
     case GJumpSubtype::icmp_sge:
     case GJumpSubtype::icmp_sle:
-    case GJumpSubtype::icmp_mul_overflow:
-    case GJumpSubtype::icmp_add_overflow:
     case GJumpSubtype::fcmp_isNaN:
     case GJumpSubtype::fcmp_oeq:
     case GJumpSubtype::fcmp_ogt:
@@ -443,11 +439,8 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     case GBaseSubtype::pop:
       return;
     case GBaseSubtype::ret:
-      if (instr.n_args > 0) {
-        out.push_back({0, instr.args[0]});
-        if (instr.n_args > 1) {
-          out.push_back({1, instr.args[1]});
-        }
+      for (u8 i = 0; i < instr.n_args; i++) {
+        out.push_back({i, instr.args[i]});
       }
       return;
     }
@@ -469,8 +462,6 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     case GJumpSubtype::icmp_ule:
     case GJumpSubtype::icmp_sge:
     case GJumpSubtype::icmp_sle:
-    case GJumpSubtype::icmp_mul_overflow:
-    case GJumpSubtype::icmp_add_overflow:
     case GJumpSubtype::fcmp_isNaN:
     case GJumpSubtype::fcmp_oeq:
     case GJumpSubtype::fcmp_ogt:

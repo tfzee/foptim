@@ -84,14 +84,14 @@ void move_rules(RuleSet &rules) {
     if (!pm::match(slct_instr,
                    pm::Select(pm::capture(cmp_instr, pm::ICmp()),
                               pm::const_int(c1), pm::const_int(c2))) ||
-        !slct_instr->value_type->is_int()) {
+        !slct_instr->result_type()->is_int()) {
       return false;
     }
 
     auto dir1 = (c1 != 0 && c2 == 0);
     auto dir2 = (c1 == 0 && c2 != 0);
     // no direct imul on i8
-    if (slct_instr->get_type()->as_int() == 8 &&
+    if (slct_instr->result_type()->as_int() == 8 &&
         ((!dir1 || !foptim::utils::is_pow2(c1)) &&
          (!dir2 || !foptim::utils::is_pow2(c2)))) {
       return false;
@@ -99,7 +99,7 @@ void move_rules(RuleSet &rules) {
     if (!dir1 && !dir2) {
       return false;
     }
-    auto res_arg = valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+    auto res_arg = valueToArg(slct_instr.result(), res.result, data.alloc);
     auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
     auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
     GJumpSubtype op = GJumpSubtype::icmp_eq;
@@ -138,18 +138,6 @@ void move_rules(RuleSet &rules) {
         break;
       case fir::ICmpInstrSubType::INVALID:
         UNREACH();
-      case fir::ICmpInstrSubType::MulOverflow:
-        if (!dir1) {
-          return false;
-        }
-        op = GJumpSubtype::icmp_mul_overflow;
-        break;
-      case fir::ICmpInstrSubType::AddOverflow:
-        if (!dir1) {
-          return false;
-        }
-        op = GJumpSubtype::icmp_add_overflow;
-        break;
     }
     // Do a little cheating
     auto res_arg_smol = res_arg;
@@ -177,15 +165,7 @@ void move_rules(RuleSet &rules) {
       return false;
     }
 
-    switch (
-        static_cast<fir::ICmpInstrSubType>(cmp_instr->get_instr_subtype())) {
-      case fir::ICmpInstrSubType::MulOverflow:
-      case fir::ICmpInstrSubType::AddOverflow:
-        // TODO: impl
-        return false;
-      default:
-    }
-    auto res_arg = valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+    auto res_arg = valueToArg(slct_instr.result(), res.result, data.alloc);
     if (res_arg.is_vec_reg() || res_arg.ty == Type::Int8) {
       return false;
     }
@@ -227,8 +207,6 @@ void move_rules(RuleSet &rules) {
       case fir::ICmpInstrSubType::ULE:
         op = GCMovSubtype::cmov_ule;
         break;
-      case fir::ICmpInstrSubType::MulOverflow:
-      case fir::ICmpInstrSubType::AddOverflow:
       case fir::ICmpInstrSubType::INVALID:
         UNREACH();
     }
@@ -245,7 +223,7 @@ void move_rules(RuleSet &rules) {
       return false;
     }
 
-    auto res_arg = valueToArg(fir::ValueR(slct_instr), res.result, data.alloc);
+    auto res_arg = valueToArg(slct_instr.result(), res.result, data.alloc);
     auto c1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
     auto c2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
     auto arg1 = valueToArg(slct_instr->args[1], res.result, data.alloc);
@@ -379,8 +357,8 @@ void memory_rules(RuleSet &rules) {
       return false;
     }
 
-    auto load_ty = convert_type(load_instr.get_type());
-    auto add_ty = convert_type(add_instr.get_type());
+    auto load_ty = convert_type(load_instr.result_type());
+    auto add_ty = convert_type(add_instr.result_type());
     if (load_instr->args[0].get_type()->is_vec()) {
       return false;
     }
@@ -397,7 +375,7 @@ void memory_rules(RuleSet &rules) {
     // $1 = $0 * C
     // R = $2 + $1
     // where $0 and $2 must be regs and C in [1,2,4,8]
-    auto res_reg = valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
     auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
     auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
     ASSERT(base.isReg());
@@ -431,8 +409,8 @@ void memory_rules(RuleSet &rules) {
       return false;
     }
 
-    auto store_ty = convert_type(store_instr.get_type());
-    auto add_ty = convert_type(add_instr.get_type());
+    auto store_ty = convert_type(store_instr.result_type());
+    auto add_ty = convert_type(add_instr.result_type());
     if (store_instr->args[0].get_type()->is_vec()) {
       return false;
     }
@@ -477,11 +455,11 @@ void memory_rules(RuleSet &rules) {
                            RegV(indx)))))) {
       return false;
     }
-    auto load_ty = convert_type(load_instr.get_type());
+    auto load_ty = convert_type(load_instr.result_type());
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
     auto indx_arg = valueToArg(indx, res.result, data.alloc);
-    auto res_reg = valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
     res.result.emplace_back(
         GBaseSubtype::mov, res_reg,
         MArgument::MemOBI(disp_arg.imm, base_arg.reg, indx_arg.reg, load_ty));
@@ -500,11 +478,11 @@ void memory_rules(RuleSet &rules) {
                                 ImmV(disp)))))) {
       return false;
     }
-    auto load_ty = convert_type(load_instr.get_type());
+    auto load_ty = convert_type(load_instr.result_type());
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto indx_arg = valueToArg(indx, res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
-    auto res_reg = valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
     res.result.emplace_back(
         GBaseSubtype::mov, res_reg,
         MArgument::MemOBI(disp_arg.imm, base_arg.reg, indx_arg.reg, load_ty));
@@ -524,7 +502,7 @@ void memory_rules(RuleSet &rules) {
                            RegV(indx)))))) {
       return false;
     }
-    auto store_ty = convert_type(store_instr.get_type());
+    auto store_ty = convert_type(store_instr.result_type());
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
     auto indx_arg = valueToArg(indx, res.result, data.alloc);
@@ -548,7 +526,7 @@ void memory_rules(RuleSet &rules) {
                                 ImmV(disp)))))) {
       return false;
     }
-    auto store_ty = convert_type(store_instr.get_type());
+    auto store_ty = convert_type(store_instr.result_type());
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto indx_arg = valueToArg(indx, res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
@@ -572,8 +550,8 @@ void memory_rules(RuleSet &rules) {
                                            ImmV(disp)))))) {
       return false;
     }
-    auto load_ty = convert_type(load_instr.get_type());
-    auto res_reg = valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+    auto load_ty = convert_type(load_instr.result_type());
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
     auto label = valueToArgPtr(global, Type::Int64, res.result, data.alloc);
     ASSERT(label.type == MArgument::ArgumentType::MemLabel);
@@ -594,11 +572,7 @@ void memory_rules(RuleSet &rules) {
                                            ImmV(disp)))))) {
       return false;
     }
-    // TODO: can do it for structs in theory
-    if (store_instr.get_type()->is_struct()) {
-      return false;
-    }
-    auto store_ty = convert_type(store_instr.get_type());
+    auto store_ty = convert_type(store_instr.result_type());
     auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
     auto label = valueToArgPtr(global, Type::Int64, res.result, data.alloc);
@@ -622,8 +596,8 @@ void memory_rules(RuleSet &rules) {
                        pm::commutative(pm::PtrAdd, RegV(base), ImmV(disp)))))) {
       return false;
     }
-    auto load_ty = convert_type(load_instr.get_type());
-    auto res_reg = valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+    auto load_ty = convert_type(load_instr.result_type());
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
     res.result.emplace_back(
@@ -642,11 +616,7 @@ void memory_rules(RuleSet &rules) {
                                                          NonNegImmV(disp)))))) {
       return false;
     }
-    // TODO: can do it for structs in theory
-    if (store_instr.get_type()->is_struct()) {
-      return false;
-    }
-    auto store_ty = convert_type(store_instr.get_type());
+    auto store_ty = convert_type(store_instr.result_type());
     auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto disp_arg = valueToArg(disp, res.result, data.alloc);
@@ -666,8 +636,8 @@ void memory_rules(RuleSet &rules) {
                                         pm::PtrAdd(RegV(base), RegV(indx)))))) {
       return false;
     }
-    auto load_ty = convert_type(load_instr.get_type());
-    auto res_reg = valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+    auto load_ty = convert_type(load_instr.result_type());
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto indx_arg = valueToArg(indx, res.result, data.alloc);
     auto max_type = std::max(base_arg.reg.ty, indx_arg.reg.ty);
@@ -688,11 +658,7 @@ void memory_rules(RuleSet &rules) {
                        is_scalar, pm::PtrAdd(RegV(base), RegV(indx)))))) {
       return false;
     }
-    // TODO: can do it for structs in theory
-    if (store_instr.get_type()->is_struct()) {
-      return false;
-    }
-    auto store_ty = convert_type(store_instr.get_type());
+    auto store_ty = convert_type(store_instr.result_type());
     auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
     auto base_arg = valueToArg(base, res.result, data.alloc);
     auto indx_arg = valueToArg(indx, res.result, data.alloc);
@@ -910,12 +876,12 @@ void arith_rules(RuleSet &rules) {
     }
 
     // x + y * 1|2|4|8
-    auto add_ty = convert_type(add_instr.get_type());
+    auto add_ty = convert_type(add_instr.result_type());
     if (add_ty >= Type::Float32) {
       // cant do it on vector regs
       return false;
     }
-    auto res_ty = convert_type(add_instr.get_type());
+    auto res_ty = convert_type(add_instr.result_type());
     auto res_ty_size = get_size(res_ty);
     if (res_ty_size != 8 && res_ty_size != 4) {
       return false;
@@ -925,7 +891,7 @@ void arith_rules(RuleSet &rules) {
     // $1 = $0 * C
     // R = $2 + $1
     // where $0 and $2 must be regs and C in [1,2,4,8]
-    auto res_reg = valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
     auto base = valueToArg(add_instr->args[0], res.result, data.alloc);
     auto indx = valueToArg(mul_instr->args[0], res.result, data.alloc);
     if (!base.isReg() || !indx.isReg()) {
@@ -963,17 +929,17 @@ void arith_rules(RuleSet &rules) {
 
     // x + y + c
     // x + c + y
-    auto add_ty = convert_type(add1_instr.get_type());
+    auto add_ty = convert_type(add1_instr.result_type());
     if (add_ty >= Type::Float32) {
       // cant do it on vector regs
       return false;
     }
-    auto res_ty = convert_type(add1_instr.get_type());
+    auto res_ty = convert_type(add1_instr.result_type());
     auto res_ty_size = get_size(res_ty);
     if (res_ty_size != 8 && res_ty_size != 4) {
       return false;
     }
-    auto res_reg = valueToArg(fir::ValueR(add1_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(add1_instr.result(), res.result, data.alloc);
     auto a = valueToArg(add0_instr->args[0], res.result, data.alloc);
     auto b = valueToArg(add1_instr->args[1], res.result, data.alloc);
     if (!a.isReg() || !b.isReg()) {
@@ -992,7 +958,7 @@ void arith_rules(RuleSet &rules) {
   rules.add(pm::IntMul, [](fir::Instr mul_instr, MatchResult &res,
                            ExtraMatchData &data) {
     // x*c where c is either 2 4 8  or 3 5 9
-    auto res_ty = convert_type(mul_instr.get_type());
+    auto res_ty = convert_type(mul_instr.result_type());
     auto res_ty_size = get_size(res_ty);
     if (res_ty_size != 8 && res_ty_size != 4) {
       return false;
@@ -1002,7 +968,7 @@ void arith_rules(RuleSet &rules) {
       return false;
     }
     auto helper_reg = data.alloc.get_new_register(res_ty);
-    auto res_reg = valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(mul_instr.result(), res.result, data.alloc);
 
     auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
     ASSERT(base.isReg());
@@ -1012,7 +978,7 @@ void arith_rules(RuleSet &rules) {
   rules.add(pm::IntMul, [](fir::Instr mul_instr, MatchResult &res,
                            ExtraMatchData &data) {
     // x*c where c is a power of 2
-    auto res_ty = convert_type(mul_instr.get_type());
+    auto res_ty = convert_type(mul_instr.result_type());
     auto res_ty_size = get_size(res_ty);
     if (res_ty_size != 8 && res_ty_size != 4) {
       return false;
@@ -1037,7 +1003,7 @@ void arith_rules(RuleSet &rules) {
     //     sizeof(i128) * CHAR_BIT - __builtin_clzg((u128)consti_val) - 1;
 
     ASSERT(shift_width < 256);
-    auto res_reg = valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(mul_instr.result(), res.result, data.alloc);
     auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
     ASSERT(base.isReg());
     res.result.emplace_back(GBaseSubtype::mov, res_reg, base);
@@ -1057,7 +1023,7 @@ void arith_rules(RuleSet &rules) {
       return false;
     }
 
-    auto res_reg = valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
     auto mul_arg1 = valueToArg(mul_instr->args[0], res.result, data.alloc);
     auto mul_arg2 = valueToArg(mul_instr->args[1], res.result, data.alloc);
     auto add_arg2 = valueToArg(addend, res.result, data.alloc);
@@ -1080,7 +1046,7 @@ void arith_rules(RuleSet &rules) {
                            ExtraMatchData &data) {
     // x*c where c can be split into powers of two that can be added or
     // substracted and this list must be short
-    auto res_ty = convert_type(mul_instr.get_type());
+    auto res_ty = convert_type(mul_instr.result_type());
     auto res_ty_size = get_size(res_ty);
 
     if (res_ty_size != 4) {
@@ -1136,7 +1102,7 @@ void arith_rules(RuleSet &rules) {
       }
     }
 
-    auto res_reg = valueToArg(fir::ValueR(mul_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(mul_instr.result(), res.result, data.alloc);
     res_reg.ty = res_ty;
     res_reg.reg.ty = res_ty;
     auto base = valueToArg(mul_instr->args[0], res.result, data.alloc);
@@ -1205,7 +1171,7 @@ void vec_rules(RuleSet &rules) {
       return false;
     }
 
-    auto res_reg = valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(broad_instr.result(), res.result, data.alloc);
     auto arg = valueToArgPosMem(broad_instr->args[0], res.result, data.alloc,
                                 broad_instr);
     if (arg.isReg() && !arg.is_fp()) {
@@ -1225,7 +1191,7 @@ void base_binary_rules(RuleSet &rules) {
     auto a1 = valueToArg(f_add_instr->args[0], res.result, data.alloc);
     auto a2 = valueToArgPosMem(f_add_instr->args[1], res.result, data.alloc,
                                f_add_instr);
-    auto res_reg = valueToArg(fir::ValueR(f_add_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(f_add_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GVecSubtype::vadd, res_reg, a1, a2);
     return true;
@@ -1235,7 +1201,7 @@ void base_binary_rules(RuleSet &rules) {
     auto a1 = valueToArg(f_sub_instr->args[0], res.result, data.alloc);
     auto a2 = valueToArgPosMem(f_sub_instr->args[1], res.result, data.alloc,
                                f_sub_instr);
-    auto res_reg = valueToArg(fir::ValueR(f_sub_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(f_sub_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GVecSubtype::vsub, res_reg, a1, a2);
     return true;
@@ -1245,7 +1211,7 @@ void base_binary_rules(RuleSet &rules) {
     auto a1 = valueToArg(f_mul_instr->args[0], res.result, data.alloc);
     auto a2 = valueToArgPosMem(f_mul_instr->args[1], res.result, data.alloc,
                                f_mul_instr);
-    auto res_reg = valueToArg(fir::ValueR(f_mul_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(f_mul_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GVecSubtype::vmul, res_reg, a1, a2);
     return true;
@@ -1255,16 +1221,16 @@ void base_binary_rules(RuleSet &rules) {
     auto a1 = valueToArg(f_div_instr->args[0], res.result, data.alloc);
     auto a2 = valueToArgPosMem(f_div_instr->args[1], res.result, data.alloc,
                                f_div_instr);
-    auto res_reg = valueToArg(fir::ValueR(f_div_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(f_div_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GVecSubtype::vdiv, res_reg, a1, a2);
     return true;
   });
   rules.add(pm::IntAdd, [](fir::Instr add_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
 
-    auto res_ty = convert_type(add_instr.get_type());
+    auto res_ty = convert_type(add_instr.result_type());
     if (res_ty >= Type::Float32) {
       // int vector add has different 3 oeprand operation
       auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
@@ -1306,9 +1272,9 @@ void base_binary_rules(RuleSet &rules) {
   });
   rules.add(pm::PtrAdd, [](fir::Instr add_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
 
-    auto res_ty = convert_type(add_instr.get_type());
+    auto res_ty = convert_type(add_instr.result_type());
     if (res_ty >= Type::Float32) {
       // int vector add has different 3 oeprand operation
       auto a0 = valueToArg(add_instr->args[0], res.result, data.alloc);
@@ -1351,8 +1317,8 @@ void base_binary_rules(RuleSet &rules) {
 
   rules.add(pm::IntSub, [](fir::Instr sub_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(sub_instr), res.result, data.alloc);
-    auto res_ty = convert_type(sub_instr.get_type());
+    auto res_reg = valueToArg(sub_instr.result(), res.result, data.alloc);
+    auto res_ty = convert_type(sub_instr.result_type());
     if (res_ty >= Type::Float32) {
       // int vector add has different 3 oeprand operation
       auto a0 = valueToArg(sub_instr->args[0], res.result, data.alloc);
@@ -1386,12 +1352,12 @@ void base_binary_rules(RuleSet &rules) {
   });
   rules.add(pm::Shl, [](fir::Instr shift_instr, MatchResult &res,
                         ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(shift_instr.result(), res.result, data.alloc);
 
     auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
     auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
     if (res_reg.is_vec_reg()) {
-      switch (shift_instr->get_type()->as_vec().bitwidth) {
+      switch (shift_instr->result_type()->as_vec().bitwidth) {
         case 32:
         case 64:
           // vpsllvd ymm0, ymm1, ymm2
@@ -1422,13 +1388,13 @@ void base_binary_rules(RuleSet &rules) {
   });
   rules.add(pm::Shr, [](fir::Instr shift_instr, MatchResult &res,
                         ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(shift_instr.result(), res.result, data.alloc);
 
     auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
     auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
     if (res_reg.is_vec_reg()) {
-      switch (shift_instr->get_type()->as_vec().bitwidth) {
+      switch (shift_instr->result_type()->as_vec().bitwidth) {
         case 32:
         case 64:
           res.result.emplace_back(GVecSubtype::vShr, res_reg, a, b);
@@ -1457,13 +1423,13 @@ void base_binary_rules(RuleSet &rules) {
   });
   rules.add(pm::AShr, [](fir::Instr shift_instr, MatchResult &res,
                          ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(shift_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(shift_instr.result(), res.result, data.alloc);
 
     auto a = valueToArg(shift_instr->args[0], res.result, data.alloc);
     auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
 
     if (res_reg.is_vec_reg()) {
-      switch (shift_instr->get_type()->as_vec().bitwidth) {
+      switch (shift_instr->result_type()->as_vec().bitwidth) {
         case 32:
           res.result.emplace_back(GVecSubtype::vSar, res_reg, a, b);
           return true;
@@ -1511,7 +1477,7 @@ void base_binary_rules(RuleSet &rules) {
   });
   rules.add(pm::IntMul, [](fir::Instr add_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(add_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
     if (res_reg.ty == Type::Int8) {
       // cant do mul2 on a int8 atleast not as easy
       // since there is only a version which multiplies by al
@@ -1555,28 +1521,28 @@ void base_binary_rules(RuleSet &rules) {
     }
     return true;
   });
-  rules.add(pm::Or, [](fir::Instr or_instr, MatchResult &res,
-                       ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(or_instr), res.result, data.alloc);
+  rules.add(
+      pm::Or, [](fir::Instr or_instr, MatchResult &res, ExtraMatchData &data) {
+        auto res_reg = valueToArg(or_instr.result(), res.result, data.alloc);
 
-    if (res_reg.is_vec_reg()) {
-      res.result.emplace_back(
-          GVecSubtype::vOr, res_reg,
-          valueToArg(or_instr->args[0], res.result, data.alloc),
-          valueToArg(or_instr->args[1], res.result, data.alloc));
-    } else {
-      res.result.emplace_back(
-          GBaseSubtype::mov, res_reg,
-          valueToArg(or_instr->args[0], res.result, data.alloc));
-      res.result.emplace_back(
-          GArithSubtype::lor2, res_reg,
-          valueToArg(or_instr->args[1], res.result, data.alloc));
-    }
-    return true;
-  });
+        if (res_reg.is_vec_reg()) {
+          res.result.emplace_back(
+              GVecSubtype::vOr, res_reg,
+              valueToArg(or_instr->args[0], res.result, data.alloc),
+              valueToArg(or_instr->args[1], res.result, data.alloc));
+        } else {
+          res.result.emplace_back(
+              GBaseSubtype::mov, res_reg,
+              valueToArg(or_instr->args[0], res.result, data.alloc));
+          res.result.emplace_back(
+              GArithSubtype::lor2, res_reg,
+              valueToArg(or_instr->args[1], res.result, data.alloc));
+        }
+        return true;
+      });
   rules.add(pm::And, [](fir::Instr and_instr, MatchResult &res,
                         ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(and_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(and_instr.result(), res.result, data.alloc);
 
     if (res_reg.is_vec_reg()) {
       res.result.emplace_back(
@@ -1596,7 +1562,7 @@ void base_binary_rules(RuleSet &rules) {
   });
   rules.add(pm::Xor, [](fir::Instr xor_instr, MatchResult &res,
                         ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(xor_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(xor_instr.result(), res.result, data.alloc);
 
     if (res_reg.is_vec_reg()) {
       res.result.emplace_back(
@@ -1618,9 +1584,11 @@ void base_binary_rules(RuleSet &rules) {
     // FIXME: variable size
     auto res_div = VReg::EAX();
     auto res_rem = VReg::EDX();
-    auto res_reg = valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
-    auto res_div_arg = MArgument(res_div, convert_type(srem_instr.get_type()));
-    auto res_rem_arg = MArgument(res_rem, convert_type(srem_instr.get_type()));
+    auto res_reg = valueToArg(srem_instr.result(), res.result, data.alloc);
+    auto res_div_arg =
+        MArgument(res_div, convert_type(srem_instr.result_type()));
+    auto res_rem_arg =
+        MArgument(res_rem, convert_type(srem_instr.result_type()));
 
     res.result.emplace_back(
         GArithSubtype::idiv, res_div_arg, res_rem_arg,
@@ -1634,9 +1602,11 @@ void base_binary_rules(RuleSet &rules) {
     // FIXME: variable size
     auto res_div = VReg::EAX();
     auto res_rem = VReg::EDX();
-    auto res_reg = valueToArg(fir::ValueR(srem_instr), res.result, data.alloc);
-    auto res_div_arg = MArgument(res_div, convert_type(srem_instr.get_type()));
-    auto res_rem_arg = MArgument(res_rem, convert_type(srem_instr.get_type()));
+    auto res_reg = valueToArg(srem_instr.result(), res.result, data.alloc);
+    auto res_div_arg =
+        MArgument(res_div, convert_type(srem_instr.result_type()));
+    auto res_rem_arg =
+        MArgument(res_rem, convert_type(srem_instr.result_type()));
 
     res.result.emplace_back(
         GArithSubtype::udiv, res_div_arg, res_rem_arg,
@@ -1650,9 +1620,11 @@ void base_binary_rules(RuleSet &rules) {
     // FIXME: variable size
     auto res_div = VReg::EAX();
     auto res_rem = VReg::EDX();
-    auto res_reg = valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
-    auto res_div_arg = MArgument(res_div, convert_type(sdiv_instr.get_type()));
-    auto res_rem_arg = MArgument(res_rem, convert_type(sdiv_instr.get_type()));
+    auto res_reg = valueToArg(sdiv_instr.result(), res.result, data.alloc);
+    auto res_div_arg =
+        MArgument(res_div, convert_type(sdiv_instr.result_type()));
+    auto res_rem_arg =
+        MArgument(res_rem, convert_type(sdiv_instr.result_type()));
 
     res.result.emplace_back(
         GArithSubtype::idiv, res_div_arg, res_rem_arg,
@@ -1666,9 +1638,11 @@ void base_binary_rules(RuleSet &rules) {
     // FIXME: variable size
     auto res_div = VReg::EAX();
     auto res_rem = VReg::EDX();
-    auto res_reg = valueToArg(fir::ValueR(sdiv_instr), res.result, data.alloc);
-    auto res_div_arg = MArgument(res_div, convert_type(sdiv_instr.get_type()));
-    auto res_rem_arg = MArgument(res_rem, convert_type(sdiv_instr.get_type()));
+    auto res_reg = valueToArg(sdiv_instr.result(), res.result, data.alloc);
+    auto res_div_arg =
+        MArgument(res_div, convert_type(sdiv_instr.result_type()));
+    auto res_rem_arg =
+        MArgument(res_rem, convert_type(sdiv_instr.result_type()));
 
     res.result.emplace_back(
         GArithSubtype::udiv, res_div_arg, res_rem_arg,
@@ -1685,8 +1659,7 @@ void base_rules(RuleSet &rules) {
   rules.add(pm::AtomicRMW, [](fir::Instr atomic_instr, MatchResult &res,
                               ExtraMatchData &data) {
     (void)data;
-    auto res_reg =
-        valueToArg(fir::ValueR(atomic_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(atomic_instr.result(), res.result, data.alloc);
 
     auto order = static_cast<fir::Ordering>(atomic_instr->Ordering);
     auto ptr = valueToArg(atomic_instr->args[0], res.result, data.alloc);
@@ -1703,7 +1676,7 @@ void base_rules(RuleSet &rules) {
         ASSERT(ptr.isReg());
         res.result.emplace_back(
             X86Subtype::LockXAdd2,
-            MArgument::MemB(ptr.reg, convert_type(atomic_instr.get_type())),
+            MArgument::MemB(ptr.reg, convert_type(atomic_instr.result_type())),
             res_reg);
         return true;
       case fir::AtomicRMWSubType::Xchg:
@@ -1724,8 +1697,7 @@ void base_rules(RuleSet &rules) {
     auto rsp_reg = VReg::RSP();
     auto rsp_arg = MArgument{rsp_reg, Type::Int64};
 
-    auto res_reg =
-        valueToArg(fir::ValueR(alloca_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(alloca_instr.result(), res.result, data.alloc);
     if (!alloca_instr->args[0].is_constant()) {
       return false;
     }
@@ -1754,10 +1726,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::Load, [](fir::Instr load_instr, MatchResult &res,
                          ExtraMatchData &data) {
-    if (load_instr->get_type()->is_struct()) {
-      TODO("struct loading should prob be legalized");
-    }
-    auto res_reg = valueToArg(fir::ValueR(load_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
     if (load_instr->args[0].get_type()->is_vec()) {
       auto base_reg = data.alloc.get_new_register(Type::Int64);
       auto base_arg = MArgument{base_reg, Type::Int64};
@@ -1772,45 +1741,17 @@ void base_rules(RuleSet &rules) {
                               mask);
       return true;
     }
-    auto arg =
-        valueToArgPtr(load_instr->args[0], convert_type(load_instr.get_type()),
-                      res.result, data.alloc);
-    arg.ty = convert_type(load_instr.get_type());
+    auto arg = valueToArgPtr(load_instr->args[0],
+                             convert_type(load_instr.result_type()), res.result,
+                             data.alloc);
+    arg.ty = convert_type(load_instr.result_type());
     res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
     return true;
   });
   rules.add(pm::Store, [](fir::Instr store_instr, MatchResult &res,
                           ExtraMatchData &data) {
-    auto store_ty = store_instr.get_type();
+    auto store_ty = store_instr.result_type();
 
-    if (store_ty->is_struct()) {
-      auto ptr_target =
-          valueToArg(store_instr->args[0], res.result, data.alloc);
-      auto helper_indx = data.alloc.get_new_register(ptr_target.ty);
-      auto helper_indx_arg = MArgument{helper_indx, ptr_target.ty};
-      auto stru_ty = store_ty->as_struct();
-      auto args =
-          valueToArgStruct(store_instr->args[1], res.result, data.alloc);
-      res.result.emplace_back(GBaseSubtype::mov, helper_indx_arg, ptr_target);
-      for (size_t i = 0; i < stru_ty.elems.size(); i++) {
-        // if (stru_ty.elems[i].offset != 0) {
-        //   res.result.emplace_back(GArithSubtype::add2,
-        //   helper_indx_arg,
-        //                           stru_ty.elems[i].offset);
-        // }
-        res.result.emplace_back(
-            GBaseSubtype::mov,
-            MArgument::MemOB(stru_ty.elems[i].offset, helper_indx,
-                             convert_type(stru_ty.elems[i].ty)),
-            args[i]);
-      }
-      // fmt::println("<<<<\n{:cd}", store_instr);
-      // for (auto &b : res.result) {
-      //   fmt::println("{:cd}", b);
-      // }
-      // TODO("impl");
-      return true;
-    }
     auto value = valueToArg(store_instr->args[1], res.result, data.alloc);
     auto ptr_target = valueToArgPtr(
         store_instr->args[0], convert_type(store_instr->args[0].get_type()),
@@ -1822,8 +1763,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::Select, [](fir::Instr select_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg =
-        valueToArg(fir::ValueR(select_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(select_instr.result(), res.result, data.alloc);
     auto cond = valueToArg(select_instr->args[0], res.result, data.alloc);
     auto a = valueToArg(select_instr->args[1], res.result, data.alloc);
     auto b = valueToArg(select_instr->args[2], res.result, data.alloc);
@@ -1855,7 +1795,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::Not, [](fir::Instr not_instr, MatchResult &res,
                         ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(not_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(not_instr.result(), res.result, data.alloc);
 
     if (res_reg.is_fp()) {
       res.result.emplace_back(X86Subtype::vpcmpeq, res_reg, res_reg, res_reg);
@@ -1866,7 +1806,7 @@ void base_rules(RuleSet &rules) {
       fmt::print("{:cd}", not_instr);
       TODO("impl");
     } else {
-      auto bitwidth = not_instr.get_type()->as_int();
+      auto bitwidth = not_instr.result_type()->as_int();
       if (bitwidth == 1) {
         res.result.emplace_back(
             GBaseSubtype::mov, res_reg,
@@ -1885,7 +1825,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::FloatSqrt, [](fir::Instr sqrt_instr, MatchResult &res,
                               ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(sqrt_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(sqrt_instr.result(), res.result, data.alloc);
 
     ASSERT(res_reg.is_fp());
     res.result.emplace_back(
@@ -1895,7 +1835,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::HorizontalMul, [](fir::Instr hred_instr, MatchResult &res,
                                   ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(hred_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
     (void)res_reg;
 
@@ -1927,7 +1867,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::HorizontalAdd, [](fir::Instr hred_instr, MatchResult &res,
                                   ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(hred_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(hred_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
 
     switch (a1.ty) {
@@ -2107,8 +2047,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::Concat, [](fir::Instr concat_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg =
-        valueToArg(fir::ValueR(concat_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(concat_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(concat_instr->args[0], res.result, data.alloc);
     auto a2 = valueToArg(concat_instr->args[1], res.result, data.alloc);
     ASSERT(a1.ty == a2.ty);
@@ -2145,8 +2084,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::ExtractHigh, [](fir::Instr extract_instr, MatchResult &res,
                                 ExtraMatchData &data) {
-    auto res_reg =
-        valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(extract_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
 
     switch (a1.ty) {
@@ -2184,8 +2122,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::ExtractLow, [](fir::Instr extract_instr, MatchResult &res,
                                ExtraMatchData &data) {
-    auto res_reg =
-        valueToArg(fir::ValueR(extract_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(extract_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(extract_instr->args[0], res.result, data.alloc);
 
     switch (a1.ty) {
@@ -2211,8 +2148,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::IntNeg, [](fir::Instr negate_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg =
-        valueToArg(fir::ValueR(negate_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(negate_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(
         GBaseSubtype::mov, res_reg,
@@ -2222,7 +2158,7 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::Broadcast, [](fir::Instr broad_instr, MatchResult &res,
                               ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(broad_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(broad_instr.result(), res.result, data.alloc);
     auto arg = valueToArg(broad_instr->args[0], res.result, data.alloc);
     if (arg.isImm() &&
         ((!arg.is_fp() && arg.imm == 0) ||
@@ -2356,9 +2292,9 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::FCmp, [](fir::Instr cmp_instr, MatchResult &res,
                          ExtraMatchData &data) {
-    auto res_reg = data.alloc.get_register(fir::ValueR(cmp_instr));
+    auto res_reg = data.alloc.get_register(cmp_instr.result());
 
-    auto res_arg = MArgument(res_reg, convert_type(cmp_instr.get_type()));
+    auto res_arg = MArgument(res_reg, convert_type(cmp_instr.result_type()));
 
     auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
     auto arg2 =
@@ -2426,9 +2362,9 @@ void base_rules(RuleSet &rules) {
   rules.add(pm::ICmp, [](fir::Instr cmp_instr, MatchResult &res,
                          ExtraMatchData &data) {
     // TODO: kinda sus
-    auto res_reg = data.alloc.get_register(fir::ValueR(cmp_instr));
+    auto res_reg = data.alloc.get_register(cmp_instr.result());
 
-    auto res_arg = MArgument(res_reg, convert_type(cmp_instr.get_type()));
+    auto res_arg = MArgument(res_reg, convert_type(cmp_instr.result_type()));
 
     auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
     auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
@@ -2466,12 +2402,6 @@ void base_rules(RuleSet &rules) {
         break;
       case fir::ICmpInstrSubType::SLE:
         op = GJumpSubtype::icmp_sle;
-        break;
-      case fir::ICmpInstrSubType::MulOverflow:
-        op = GJumpSubtype::icmp_mul_overflow;
-        break;
-      case fir::ICmpInstrSubType::AddOverflow:
-        op = GJumpSubtype::icmp_add_overflow;
         break;
       case fir::ICmpInstrSubType::INVALID:
         UNREACH();
@@ -2557,25 +2487,29 @@ void base_rules(RuleSet &rules) {
       return true;
     }
     if (ret_instr->args.size() > 1) {
-      auto ret_val0 = valueToArg(ret_instr->args[0], res.result, data.alloc);
-      auto ret_val1 = valueToArg(ret_instr->args[1], res.result, data.alloc);
-      const auto &ret_elems = ret_instr.get_type()->as_struct().elems;
-      auto converted_type0 = convert_type(ret_elems[0].ty);
-      auto converted_type1 = convert_type(ret_elems[1].ty);
-      // every member takes the next free register of its own class
-      const bool sse0 =
-          ret_elems[0].ty->is_float() || ret_elems[0].ty->is_vec();
-      const bool sse1 =
-          ret_elems[1].ty->is_float() || ret_elems[1].ty->is_vec();
-      auto res1_reg = VReg{sse0 ? CReg::mm0 : CReg::A, converted_type0};
-      auto res2_reg = VReg{
-          sse1 ? (sse0 ? CReg::mm1 : CReg::mm0) : (sse0 ? CReg::A : CReg::D),
-          converted_type1};
-      auto res1_arg = MArgument(res1_reg, converted_type0);
-      auto res2_arg = MArgument(res2_reg, converted_type1);
-      res.result.emplace_back(GBaseSubtype::mov, res1_arg, ret_val0);
-      res.result.emplace_back(GBaseSubtype::mov, res2_arg, ret_val1);
-      res.result.emplace_back(GBaseSubtype::ret, res1_arg, res2_arg);
+      // every value takes the next free return register of its own class
+      TVec<MArgument> vals;
+      for (const auto &arg : ret_instr->args) {
+        vals.push_back(valueToArg(arg, res.result, data.alloc));
+      }
+      MInstr ret{GBaseSubtype::ret};
+      ASSERT_M(vals.size() <= 4, "more return values than the 2 + 2 registers");
+      u32 n_gpr = 0;
+      u32 n_sse = 0;
+      for (size_t i = 0; i < vals.size(); i++) {
+        const auto fir_ty = ret_instr->args[i].get_type();
+        const bool sse = fir_ty->is_float() || fir_ty->is_vec();
+        const auto ty = vals[i].ty;
+        const auto reg =
+            sse ? (n_sse++ == 0 ? CReg::mm0 : CReg::mm1)
+                : (n_gpr++ == 0 ? CReg::A : CReg::D);
+        ASSERT_M(n_gpr <= 2 && n_sse <= 2,
+                 "more return values than the 2 + 2 registers");
+        const auto ret_arg = MArgument(VReg{reg, ty}, ty);
+        res.result.emplace_back(GBaseSubtype::mov, ret_arg, vals[i]);
+        ret.args[ret.n_args++] = ret_arg;
+      }
+      res.result.push_back(ret);
       return true;
     }
 
@@ -2585,7 +2519,7 @@ void base_rules(RuleSet &rules) {
 
     if (!is_float_val && (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
                           ret_val.reg.c_reg() != CReg::A)) {
-      auto converted_type = convert_type(ret_instr.get_type());
+      auto converted_type = convert_type(ret_instr.result_type());
       auto res_reg = VReg{CReg::A, converted_type};
       auto res_arg = MArgument(res_reg, converted_type);
       res.result.emplace_back(GBaseSubtype::mov, res_arg, ret_val);
@@ -2593,7 +2527,7 @@ void base_rules(RuleSet &rules) {
     } else if (is_float_val &&
                (!ret_val.isReg() || !ret_val.reg.is_concrete() ||
                 ret_val.reg.c_reg() != CReg::mm0)) {
-      auto converted_type = convert_type(ret_instr.get_type());
+      auto converted_type = convert_type(ret_instr.result_type());
       auto res_reg = VReg{CReg::mm0, converted_type};
       auto res_arg = MArgument(res_reg, converted_type);
       res.result.emplace_back(GBaseSubtype::mov, res_arg, ret_val);
@@ -2606,7 +2540,7 @@ void base_rules(RuleSet &rules) {
   rules.add(pm::SExt, [](fir::Instr sext_instr, MatchResult &res,
                          ExtraMatchData &data) {
     auto val = valueToArg(sext_instr->args[0], res.result, data.alloc);
-    auto res_reg = valueToArg(fir::ValueR(sext_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(sext_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GConvSubtype::mov_sx, res_reg, val);
     return true;
@@ -2614,7 +2548,7 @@ void base_rules(RuleSet &rules) {
   rules.add(pm::ZExt, [](fir::Instr zext_instr, MatchResult &res,
                          ExtraMatchData &data) {
     auto val = valueToArg(zext_instr->args[0], res.result, data.alloc);
-    auto res_reg = valueToArg(fir::ValueR(zext_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(zext_instr.result(), res.result, data.alloc);
 
     res.result.emplace_back(GConvSubtype::mov_zx, res_reg, val);
     return true;
@@ -2623,7 +2557,7 @@ void base_rules(RuleSet &rules) {
                                ExtraMatchData &data) {
     auto val = valueToArg(conversion_instr->args[0], res.result, data.alloc);
     auto res_reg =
-        valueToArg(fir::ValueR(conversion_instr), res.result, data.alloc);
+        valueToArg(conversion_instr.result(), res.result, data.alloc);
     auto res_opcode = GConvSubtype::FL2SI;
     switch (static_cast<fir::ConversionSubType>(conversion_instr->subtype)) {
       case fir::ConversionSubType::INVALID:
@@ -2692,12 +2626,11 @@ void base_rules(RuleSet &rules) {
   rules.add(pm::ITrunc, [](fir::Instr itrunc_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto val = valueToArg(itrunc_instr->args[0], res.result, data.alloc);
-    auto res_reg =
-        valueToArg(fir::ValueR(itrunc_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(itrunc_instr.result(), res.result, data.alloc);
     res.result.emplace_back(GConvSubtype::itrunc, res_reg, val);
     // i1 lives in a byte that consumers (cjmp, zext) assume to be 0/1
-    if (itrunc_instr.get_type()->is_int() &&
-        itrunc_instr.get_type()->as_int() == 1) {
+    if (itrunc_instr.result_type()->is_int() &&
+        itrunc_instr.result_type()->as_int() == 1) {
       res.result.emplace_back(GArithSubtype::land2, res_reg,
                               MArgument::Int(1, res_reg.ty));
     }
@@ -2718,25 +2651,27 @@ void base_rules(RuleSet &rules) {
       calee = valueToArg(call_instr->args[0], res.result, data.alloc);
     }
 
-    auto res_type = call_instr.get_type();
     res.result.emplace_back(GBaseSubtype::invoke, calee);
     res.result.back().is_var_arg_call = is_var_arg;
 
+    if (call_instr.is_multi_result()) {
+      // result i is the next return register of its class, an unused result
+      // still gets its ret_setup to keep the positions
+      for (u8 i = 0; i < call_instr.n_results(); i++) {
+        auto res_reg = valueToArg(call_instr.result(i), res.result, data.alloc);
+        res.result.emplace_back(GBaseSubtype::ret_setup, res_reg);
+      }
+      return true;
+    }
+
+    auto res_type = call_instr.result_type();
     if (res_type->is_void()) {
       return true;
     }
     if (res_type->is_int() || res_type->is_ptr() || res_type->is_float() ||
         res_type->is_vec()) {
-      auto res_reg =
-          valueToArg(fir::ValueR(call_instr), res.result, data.alloc);
+      auto res_reg = valueToArg(call_instr.result(), res.result, data.alloc);
       res.result.emplace_back(GBaseSubtype::ret_setup, res_reg);
-      return true;
-    }
-    if (res_type->is_struct()) {
-      auto res_reg =
-          valueToArgStruct(fir::ValueR(call_instr), res.result, data.alloc);
-      res.result.emplace_back(GBaseSubtype::ret_setup, res_reg[0]);
-      res.result.emplace_back(GBaseSubtype::ret_setup, res_reg[1]);
       return true;
     }
     TODO("impl ret value");
@@ -2744,7 +2679,7 @@ void base_rules(RuleSet &rules) {
   rules.add(pm::FloatNeg, [](fir::Instr f_neg_instr, MatchResult &res,
                              ExtraMatchData &data) {
     auto a1 = valueToArg(f_neg_instr->args[0], res.result, data.alloc);
-    auto res_reg = valueToArg(fir::ValueR(f_neg_instr), res.result, data.alloc);
+    auto res_reg = valueToArg(f_neg_instr.result(), res.result, data.alloc);
 
     const bool is_f64 =
         res_reg.ty == Type::Float64 || res_reg.ty == Type::Float64x2 ||
@@ -2783,7 +2718,7 @@ void base_rules(RuleSet &rules) {
               res.result.emplace_back(GBaseSubtype::unreach);
               return true;
             });
-  rules.add(pm::InsertValue, [](fir::Instr insert_instr, MatchResult &res,
+  rules.add(pm::InsertElement, [](fir::Instr insert_instr, MatchResult &res,
                                 ExtraMatchData &data) {
     ASSERT(insert_instr->args[2].is_constant() &&
            insert_instr->args[2].as_constant()->is_int());
@@ -2800,8 +2735,7 @@ void base_rules(RuleSet &rules) {
                                 MArgument(const_reg, input.ty), input);
         input = MArgument(const_reg, input.ty);
       }
-      auto target =
-          valueToArg(fir::ValueR{insert_instr}, res.result, data.alloc);
+      auto target = valueToArg(insert_instr.result(), res.result, data.alloc);
       auto vec_ty = insert_instr->args[0].get_type()->as_vec();
       (void)vec_ty;
       // lane i of the FIR vector lives in lane i of the register
@@ -2929,25 +2863,9 @@ void base_rules(RuleSet &rules) {
       }
       return true;
     }
-    ASSERT(insert_instr->args.size() == 3);
-    auto input =
-        valueToArgStruct(insert_instr->args[0], res.result, data.alloc);
-    auto val = valueToArg(insert_instr->args[1], res.result, data.alloc);
-
-    auto target =
-        valueToArgStruct(fir::ValueR{insert_instr}, res.result, data.alloc);
-    ASSERT(input.size() == target.size() && input.size() > indx);
-
-    for (size_t i = 0; i < input.size(); i++) {
-      if (i == indx) {
-        res.result.emplace_back(GBaseSubtype::mov, target[i], val);
-      } else {
-        res.result.emplace_back(GBaseSubtype::mov, target[i], input[i]);
-      }
-    }
-    return true;
+    UNREACH();
   });
-  rules.add(pm::ExtractValue, [](fir::Instr extract_instr, MatchResult &res,
+  rules.add(pm::ExtractElement, [](fir::Instr extract_instr, MatchResult &res,
                                  ExtraMatchData &data) {
     ASSERT(extract_instr->args.size() == 2);
     auto indx = extract_instr->args[1].as_constant()->as_int();
@@ -2955,8 +2873,7 @@ void base_rules(RuleSet &rules) {
       auto input = valueToArg(extract_instr->args[0], res.result, data.alloc);
       ASSERT(extract_instr->args[1].is_constant() &&
              extract_instr->args[1].as_constant()->is_int());
-      auto target =
-          valueToArg(fir::ValueR{extract_instr}, res.result, data.alloc);
+      auto target = valueToArg(extract_instr.result(), res.result, data.alloc);
       auto get_xmm_version_ty = [](Type t) {
         if (t == Type::Float32) {
           return Type::Float32x4;
@@ -3064,78 +2981,68 @@ void base_rules(RuleSet &rules) {
       }
       return true;
     }
-    auto input =
-        valueToArgStruct(extract_instr->args[0], res.result, data.alloc);
-    ASSERT(extract_instr->args[1].is_constant() &&
-           extract_instr->args[1].as_constant()->is_int());
-
-    auto target =
-        valueToArg(fir::ValueR{extract_instr}, res.result, data.alloc);
-    ASSERT(input.size() > indx);
-
-    res.result.emplace_back(GBaseSubtype::mov, target, input[indx]);
-    return true;
+    UNREACH();
   });
 }
 
 void intrin_rules(RuleSet &rules) {
-  rules.add(
-      pm::FRound, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument(static_cast<u8>(0b00)));
-        return true;
-      });
-  rules.add(pm::IsConstant, [](fir::Instr instr, MatchResult &res,
-                               ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-    res.result.emplace_back(GArithSubtype::lxor2, res_reg, res_reg);
-    return true;
-  });
-  rules.add(
-      pm::FCeil, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument(static_cast<u8>(0b10)));
-        return true;
-      });
-  rules.add(
-      pm::FFloor, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument(static_cast<u8>(0b01)));
-        return true;
-      });
-  rules.add(
-      pm::FTrunc, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
-                                MArgument(static_cast<u8>(0b11)));
-        return true;
-      });
-  rules.add(
-      pm::FMin, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto a = valueToArg(instr->args[0], res.result, data.alloc);
-        auto b = valueToArg(instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(GVecSubtype::fMin, res_reg, a, b);
-        return true;
-      });
-  rules.add(
-      pm::FMax, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto a = valueToArg(instr->args[0], res.result, data.alloc);
-        auto b = valueToArg(instr->args[1], res.result, data.alloc);
-        res.result.emplace_back(GVecSubtype::fMax, res_reg, a, b);
-        return true;
-      });
+  rules.add(pm::FRound,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+              res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
+                                      MArgument(static_cast<u8>(0b00)));
+              return true;
+            });
+  rules.add(pm::IsConstant,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              res.result.emplace_back(GArithSubtype::lxor2, res_reg, res_reg);
+              return true;
+            });
+  rules.add(pm::FCeil,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+              res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
+                                      MArgument(static_cast<u8>(0b10)));
+              return true;
+            });
+  rules.add(pm::FFloor,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+              res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
+                                      MArgument(static_cast<u8>(0b01)));
+              return true;
+            });
+  rules.add(pm::FTrunc,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+              res.result.emplace_back(X86Subtype::vround, res_reg, arg, arg,
+                                      MArgument(static_cast<u8>(0b11)));
+              return true;
+            });
+  rules.add(pm::FMin,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto a = valueToArg(instr->args[0], res.result, data.alloc);
+              auto b = valueToArg(instr->args[1], res.result, data.alloc);
+              res.result.emplace_back(GVecSubtype::fMin, res_reg, a, b);
+              return true;
+            });
+  rules.add(pm::FMax,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto a = valueToArg(instr->args[0], res.result, data.alloc);
+              auto b = valueToArg(instr->args[1], res.result, data.alloc);
+              res.result.emplace_back(GVecSubtype::fMax, res_reg, a, b);
+              return true;
+            });
   rules.add(
       pm::SMax, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
@@ -3144,7 +3051,7 @@ void intrin_rules(RuleSet &rules) {
       });
   rules.add(
       pm::UMax, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
@@ -3153,7 +3060,7 @@ void intrin_rules(RuleSet &rules) {
       });
   rules.add(
       pm::SMin, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
@@ -3162,47 +3069,47 @@ void intrin_rules(RuleSet &rules) {
       });
   rules.add(
       pm::UMin, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
         res.result.emplace_back(GCMovSubtype::cmov_ugt, res_reg, a, res_reg, a);
         return true;
       });
-  rules.add(
-      pm::Ctlz, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        if (arg.isImm()) {
-          // no immediate source operand
-          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
-          arg = res_reg;
-        }
-        res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
-        return true;
-      });
-  rules.add(
-      pm::Cttz, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        if (arg.isImm()) {
-          // no immediate source operand
-          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
-          arg = res_reg;
-        }
-        res.result.emplace_back(X86Subtype::tzcnt, res_reg, arg);
-        return true;
-      });
-  rules.add(
-      pm::Bswap, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-        auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
-        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-        res.result.emplace_back(X86Subtype::bswap, res_reg, arg);
-        return true;
-      });
+  rules.add(pm::Ctlz,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+              if (arg.isImm()) {
+                // no immediate source operand
+                res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+                arg = res_reg;
+              }
+              res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
+              return true;
+            });
+  rules.add(pm::Cttz,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+              if (arg.isImm()) {
+                // no immediate source operand
+                res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+                arg = res_reg;
+              }
+              res.result.emplace_back(X86Subtype::tzcnt, res_reg, arg);
+              return true;
+            });
+  rules.add(pm::Bswap,
+            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+              res.result.emplace_back(X86Subtype::bswap, res_reg, arg);
+              return true;
+            });
   rules.add(pm::PopCnt, [](fir::Instr instr, MatchResult &res,
                            ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
     auto arg = valueToArgPosMem(instr->args[0], res.result, data.alloc, instr);
     if (arg.isImm()) {
       // no immediate source operand
@@ -3214,9 +3121,9 @@ void intrin_rules(RuleSet &rules) {
   });
   rules.add(pm::Abs, [](fir::Instr instr, MatchResult &res,
                         ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
     auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-    if (instr->get_type()->is_vec()) {
+    if (instr->result_type()->is_vec()) {
       const bool i64_lanes =
           res_reg.ty == Type::Int64x2 || res_reg.ty == Type::Int64x4;
       if (i64_lanes && !data.config.target.features.avx512vl) {
@@ -3252,7 +3159,7 @@ void intrin_rules(RuleSet &rules) {
   });
   rules.add(pm::FAbs, [](fir::Instr instr, MatchResult &res,
                          ExtraMatchData &data) {
-    auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
     auto arg = valueToArg(instr->args[0], res.result, data.alloc);
     if (arg.ty == Type::Float32) {
       res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);

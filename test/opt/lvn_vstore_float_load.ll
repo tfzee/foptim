@@ -4,7 +4,7 @@
 
 define double @lane0(ptr %p, <4 x i64> %v) {
 ; CHECK-LABEL: func lane0
-; CHECK: i64 = ExtractValue(%1, 0:i32)
+; CHECK: i64 = ExtractElement(%1, 0:i32)
 ; CHECK-NEXT: f64 = BITCAST
   store <4 x i64> %v, ptr %p
   %r = load double, ptr %p
@@ -13,7 +13,7 @@ define double @lane0(ptr %p, <4 x i64> %v) {
 
 define double @lane2(ptr %p, <4 x i64> %v) {
 ; CHECK-LABEL: func lane2
-; CHECK: i64 = ExtractValue(%1, 2:i32)
+; CHECK: i64 = ExtractElement(%1, 2:i32)
 ; CHECK-NEXT: f64 = BITCAST
   store <4 x i64> %v, ptr %p
   %q = getelementptr i8, ptr %p, i64 16

@@ -1,9 +1,10 @@
-#include "ir/print_ids.hpp"
 #include "ir/function.hpp"
+
 #include <fmt/color.h>
 
 #include "builder.hpp"
 #include "ir/basic_block_ref.hpp"
+#include "ir/print_ids.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/logging.hpp"
 #include "utils/todo.hpp"
@@ -88,7 +89,7 @@ bool Function::verify() const {
     // if this bb is *not* dominated by the entry its unreachable and as such we
     // dont care
     auto i_bb = cfg.get_bb_id(bb);
-    if (dom.dominates(cfg.entry, i_bb)) {
+    if (!dom.dom_bbs[i_bb].reachable) {
       continue;
     }
     if (!bb.is_valid() || !bb->verify(this)) {
@@ -98,7 +99,8 @@ bool Function::verify() const {
     for (auto i : bb->args) {
       for (auto u : i->get_uses()) {
         auto u_bb = cfg.get_bb_id(u.user->get_parent());
-        if (!dom.dominates(i_bb, u_bb)) {
+        // everything is dominated in unreachable code
+        if (dom.dom_bbs[u_bb].reachable && !dom.dominates(i_bb, u_bb)) {
           fmt::println("An bb_arg doesnt dominate all uses {}  {}", i, u);
           return false;
         }
@@ -107,7 +109,7 @@ bool Function::verify() const {
     for (auto i : bb->instructions) {
       for (auto u : i->get_uses()) {
         auto u_bb = cfg.get_bb_id(u.user->get_parent());
-        if (!dom.dominates(i_bb, u_bb)) {
+        if (dom.dom_bbs[u_bb].reachable && !dom.dominates(i_bb, u_bb)) {
           fmt::println("An instruction doesnt dominate all uses {}  {}", i, u);
           return false;
         }

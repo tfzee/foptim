@@ -33,15 +33,6 @@ TEST(InternTest, FloatsCompareBitwise) {
             ctx->get_constant_value(nan, f64));
 }
 
-TEST(InternTest, StructOffsetsDistinguishTypes) {
-  fir::Context ctx{nullptr};
-  const auto i32 = ctx->get_int_type(32);
-  const auto s1 = ctx->get_struct_type({{0, i32}, {4, i32}});
-  const auto s2 = ctx->get_struct_type({{0, i32}, {8, i32}});
-  EXPECT_NE(s1, s2);
-  EXPECT_EQ(s1, ctx->get_struct_type({{0, i32}, {4, i32}}));
-}
-
 TEST(InternTest, ConcurrentRequestsAgree) {
   fir::Context ctx{nullptr};
   constexpr int N = 2000;

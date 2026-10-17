@@ -166,7 +166,7 @@ bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (const1_i->is_float() && arg0_i->is(fir::ConversionSubType::FPEXT)) {
       auto const_val = const1_i->as_f64();
       if (arg0_i->args[0].get_type()->as_float() == 32 &&
-          arg0_i.get_type()->as_float() == 64 &&
+          arg0_i.result_type()->as_float() == 64 &&
           canNarrowFpCompare(const_val, fcmp_subtype)) {
         fir::Builder buh{instr};
         auto new_cmp = buh.build_float_cmp(

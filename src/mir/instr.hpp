@@ -50,8 +50,6 @@ enum class GJumpSubtype : u32 {
   icmp_ule,
   icmp_sge,
   icmp_sle,
-  icmp_mul_overflow,
-  icmp_add_overflow,
 
   fcmp_isNaN,
   fcmp_oeq,

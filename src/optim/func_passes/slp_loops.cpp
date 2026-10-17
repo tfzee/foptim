@@ -66,7 +66,7 @@ bool unit_stride(MatchCtx &c, fir::ValueR ptr, u32 size) {
 }
 
 bool load_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
-  const auto ty = i->get_type();
+  const auto ty = i->result_type();
   if (!elem_type_ok(ty) || !unit_stride(c, i->args[0], ty->get_size())) {
     return false;
   }
@@ -121,7 +121,7 @@ bool binary_sub_ok(BinSub sub) {
 }
 
 bool binary_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
-  const auto ty = i->get_type();
+  const auto ty = i->result_type();
   if (!elem_type_ok(ty) || !binary_sub_ok(static_cast<BinSub>(i->subtype)) ||
       !vector_operand_ok(c, i->args[0]) || !vector_operand_ok(c, i->args[1])) {
     return false;
@@ -135,7 +135,7 @@ bool binary_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
 }
 
 bool intrinsic_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
-  const auto ty = i->get_type();
+  const auto ty = i->result_type();
   const bool abs = i->is(fir::IntrinsicSubType::Abs) && ty->is_int();
   const bool fabs = i->is(fir::IntrinsicSubType::FAbs) && ty->is_float();
   if (!(abs || fabs) || ty->get_bitwidth() < 32 ||
@@ -248,7 +248,7 @@ bool route_exit_uses(fir::Context &ctx, CFG &cfg, LoopInfo &loop) {
   const size_t n_instrs = hdr->instructions.size();
   for (size_t idx = 0; idx + 1 < n_instrs; idx++) {
     auto instr = hdr->instructions[idx];
-    if (instr.get_type()->is_void()) {
+    if (instr.is_multi_result() || instr.result_type()->is_void()) {
       continue;
     }
     bool used_outside = false;
@@ -259,10 +259,10 @@ bool route_exit_uses(fir::Context &ctx, CFG &cfg, LoopInfo &loop) {
       continue;
     }
     auto arg = ctx->storage.insert_bb_arg(
-        fir::BBArgumentData{exit_bb, instr.get_type()});
+        fir::BBArgumentData{exit_bb, instr.result_type()});
     exit_bb.add_arg(arg);
-    term.add_bb_arg(exit_edge, fir::ValueR{instr});
-    fir::ValueR{instr}.replace_uses_outside_block(hdr, fir::ValueR{arg});
+    term.add_bb_arg(exit_edge, instr.result());
+    instr.result().replace_uses_outside_block(hdr, fir::ValueR{arg});
     changed = true;
   }
   return changed;
@@ -489,7 +489,7 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
   plan.scalar_cost = static_cast<u32>(n_instrs - 1);
   for (size_t idx = 0; idx + 1 < n_instrs; idx++) {
     auto instr = hdr->instructions[idx];
-    fir::ValueR iv{instr};
+    fir::ValueR iv = instr.result();
     LoopNode n;
     n.value = iv;
     const LoopRecipe *recipe = find_loop_recipe(instr->instr_type);
@@ -520,12 +520,11 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
     } else {
       // computes the value of lane 0 (addresses, induction math), copied
       if (instr->has_pot_sideeffects() || instr->pot_reads_mem() ||
-          instr->get_type()->is_vec() ||
-          instr->get_type()->is_struct()) {
+          instr->result_type()->is_vec()) {
         return false;
       }
       n.kind = LoopNodeKind::Scalar;
-      n.type = instr->get_type();
+      n.type = instr->result_type();
       n.shape = evo.is_invariant(evo.get(iv)) ? LaneShape::Uniform
                                               : LaneShape::Strided;
       for (auto a : instr->args) {
@@ -586,8 +585,8 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
   }
   for (size_t idx = 0; idx + 1 < n_instrs; idx++) {
     auto instr = hdr->instructions[idx];
-    if (!check_uses(fir::ValueR{instr}, &plan.nodes[plan.node_of.at(
-                                            fir::ValueR{instr})])) {
+    if (!check_uses(instr.result(),
+                    &plan.nodes[plan.node_of.at(instr.result())])) {
       return false;
     }
   }
@@ -738,7 +737,7 @@ bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
         }
         auto c = b.insert_copy(instr);
         c.substitute(vm);
-        vm[n.value] = fir::ValueR{c};
+        vm[n.value] = c.result();
         break;
       }
       case LoopNodeKind::Load:

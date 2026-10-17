@@ -237,7 +237,6 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
     }
     case fir::AnyTypeType::Function:
     case fir::AnyTypeType::Void:
-    case fir::AnyTypeType::Struct:
       fmt::println("{} with type {}", consti, consti->type);
       UNREACH();
       break;
@@ -283,37 +282,13 @@ MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
       if (user->get_parent() == load->get_parent() &&
           no_memory_write_between(load, user)) {
         auto ptr = valueToArgPtrSmart(
-            load->args[0], convert_type(load.get_type()), res, alloc);
+            load->args[0], convert_type(load.result_type()), res, alloc);
         return ptr;
       }
     }
   }
   Type type_id = convert_type(val.get_type());
   return {alloc.get_register(val), type_id};
-}
-
-TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
-                                 DumbRegAlloc &alloc) {
-  if (!val.get_type()->is_struct()) {
-    return {valueToArg(val, res, alloc)};
-  }
-  auto t = val.get_type()->as_struct();
-  if (val.is_constant() && !val.as_constant()->is_poison()) {
-    TODO("impl struct constant");
-  }
-  TVec<MArgument> result;
-  result.reserve(t.elems.size());
-
-  u32 id = 0;
-  for (auto m : t.elems) {
-    Type type_id = convert_type(m.ty);
-    auto new_reg = alloc.get_struct_register(val, m.ty, id);
-    result.emplace_back(new_reg, type_id);
-    // res.emplace_back(GBaseSubtype::mov, MArgument{new_reg, type_id},
-    //                  MArgument::Int(0, type_id));
-    id++;
-  }
-  return result;
 }
 
 MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,

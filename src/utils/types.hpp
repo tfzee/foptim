@@ -71,7 +71,14 @@ class BBArgument;
 class Instr;
 class Builder;
 enum class InstrType : uint8_t;
-enum class BinaryInstrSubType : uint32_t;
+enum class AtomicRMWSubType : uint16_t;
+enum class VectorISubType : uint16_t;
+enum class IntrinsicSubType : uint16_t;
+enum class ConversionSubType : uint16_t;
+enum class ICmpInstrSubType : uint16_t;
+enum class FCmpInstrSubType : uint16_t;
+enum class UnaryInstrSubType : uint16_t;
+enum class BinaryInstrSubType : uint16_t;
 } // namespace fir
 
 using u8 = uint8_t;

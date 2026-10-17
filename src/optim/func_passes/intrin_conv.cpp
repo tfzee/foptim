@@ -244,7 +244,7 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
   if (!is_float && x.is_instr() && x.as_instr()->is(fir::InstrType::SExt)) {
     x = x.as_instr()->args[0];
   }
-  if (x.get_type() != sel->get_type()) {
+  if (x.get_type() != sel->result_type()) {
     return {};
   }
   const auto arm_form = [&](fir::ValueR arm) {
@@ -302,7 +302,7 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
       src.as_instr()->is(fir::InstrType::SExt)) {
     src = src.as_instr()->args[0];
   }
-  const i128 shift_width = shr->get_type()->get_bitwidth();
+  const i128 shift_width = shr->result_type()->get_bitwidth();
   return src == x && shr->args[1].is_constant_int() &&
          shr->args[1].as_constant()->as_int() >= width - 1 &&
          shr->args[1].as_constant()->as_int() < shift_width;
@@ -365,13 +365,13 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
 
 // and with the mask that clears the sign bit of a float
  bool is_fabs_mask_and(fir::Instr instr) {
-  if (!instr->is(fir::BinaryInstrSubType::And) ||
-      !instr->get_type()->is_float() || !instr->args[1].is_constant() ||
-      !instr->args[1].as_constant()->is_float()) {
-    return false;
-  }
+   if (!instr->is(fir::BinaryInstrSubType::And) ||
+       !instr->result_type()->is_float() || !instr->args[1].is_constant() ||
+       !instr->args[1].as_constant()->is_float()) {
+     return false;
+   }
   auto c = instr->args[1].as_constant();
-  return instr->get_type()->get_bitwidth() == 32
+  return instr->result_type()->get_bitwidth() == 32
              ? std::bit_cast<u32>(c->as_f32()) == 0x7FFFFFFFU
              : std::bit_cast<u64>(c->as_f64()) == 0x7FFFFFFFFFFFFFFFULL;
 }
@@ -480,9 +480,9 @@ bool match_memsetcpy(fir::Function &func) {
 
     // if we get load into store then we can do memcpy instead
     if (load_instr.is_valid()) {
-      if (load_instr->get_type() != store_instr.get_type() ||
-          store_instr->args[1] != fir::ValueR{load_instr} ||
-          load_instr->Volatile || load_instr->Atomic) {
+      if (load_instr->result_type() != store_instr.result_type() ||
+          store_instr->args[1] != load_instr.result() || load_instr->Volatile ||
+          load_instr->Atomic) {
         continue;
       }
       auto dst_form = ptr_form(store_instr->args[0], lc);
@@ -490,7 +490,7 @@ bool match_memsetcpy(fir::Function &func) {
       if (!dst_form || !src_form) {
         continue;
       }
-      const i128 elem_size = load_instr->get_type()->get_size();
+      const i128 elem_size = load_instr->result_type()->get_size();
       const auto kind =
           classify_copy(*dst_form, *src_form, r * elem_size, elem_size, aa);
       if (kind == CopyKind::None) {
@@ -512,7 +512,7 @@ bool match_memsetcpy(fir::Function &func) {
                                    : fir::IntrinsicSubType::Memmove,
           func.ctx->get_void_type());
       // the count is in elements of this type
-      memcpy_instr.as_instr()->extra_type = load_instr->get_type();
+      memcpy_instr.as_instr()->extra_type = load_instr->result_type();
       fir::BasicBlock target_bb{fir::BasicBlock::invalid()};
       if (old_term->bbs[0].bb == loop_bb) {
         target_bb = old_term->bbs[1].bb;
@@ -597,7 +597,7 @@ bool match_abs(fir::Context &ctx, fir::Function &func) {
     bool is_float = false;
     if (instr->is(fir::InstrType::SelectInstr)) {
       x = select_abs_operand(instr, exact_neg);
-      is_float = instr->get_type()->is_float();
+      is_float = instr->result_type()->is_float();
     } else if (is_fabs_mask_and(instr)) {
       x = instr->args[0];
       is_float = true;
@@ -753,16 +753,16 @@ std::optional<ByteMap> byte_map(fir::ValueR v, fir::ValueR &leaf, size_t &budget
 
 // the leaf value that root is a byte reversal of, invalid if it is none
 fir::ValueR bswap_operand(fir::Instr root) {
-  if (!root->get_type()->is_int()) {
+  if (!root->result_type()->is_int()) {
     return {};
   }
-  const u32 bits = root->get_type()->get_bitwidth();
+  const u32 bits = root->result_type()->get_bitwidth();
   if (bits != 16 && bits != 32 && bits != 64) {
     return {};
   }
   fir::ValueR leaf{};
   size_t budget = MaxBswapNodes;
-  auto map = byte_map(fir::ValueR{root}, leaf, budget);
+  auto map = byte_map(root.result(), leaf, budget);
   if (!map || leaf.is_invalid()) {
     return {};
   }
@@ -802,8 +802,8 @@ bool match_bswap(fir::Context &ctx, fir::Function &func) {
       continue;
     }
     fir::Builder b{instr};
-    if (x.get_type() != instr->get_type()) {
-      x = b.build_itrunc(x, instr->get_type());
+    if (x.get_type() != instr->result_type()) {
+      x = b.build_itrunc(x, instr->result_type());
     }
     auto res = b.build_intrinsic(x, fir::IntrinsicSubType::Bswap);
     instr->replace_all_uses(res);

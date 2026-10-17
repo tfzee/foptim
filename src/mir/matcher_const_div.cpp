@@ -138,7 +138,7 @@ bool generate_const_div(fir::Instr instr, bool is_signed, bool is_rem,
       !instr->args[1].as_constant()->is_int()) {
     return false;
   }
-  auto ty = convert_type(instr.get_type());
+  auto ty = convert_type(instr.result_type());
   if (ty != Type::Int8 && ty != Type::Int16 && ty != Type::Int32 &&
       ty != Type::Int64) {
     return false;
@@ -163,7 +163,7 @@ bool generate_const_div(fir::Instr instr, bool is_signed, bool is_rem,
   if (!x_in.isReg()) {
     return false;
   }
-  auto res_reg = valueToArg(fir::ValueR(instr), res.result, data.alloc);
+  auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
 
   ConstDivEmitter e{.out = res.result, .alloc = data.alloc};
   MArgument x = x_in;

@@ -161,7 +161,7 @@ public:
           }
 
           instr->replace_all_uses(
-              fir::ValueR{ctx->get_poisson_value(instr.get_type())});
+              fir::ValueR{ctx->get_poisson_value(instr.result_type())});
           bb->remove_instr(instr_id_p1 - 1, true);
           modified = true;
         }

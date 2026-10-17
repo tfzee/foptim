@@ -21,6 +21,12 @@ namespace foptim::optim {
 // instructions earlier bundles inserted: it is rebuilt after a bundle was
 // applied. Must be refreshed (`ensure`) outside of a `TempAlloc` save/restore
 // window, the map lives in the temp arena.
+// an instruction result the planner can take as a lane, results of multi result
+// calls are plain external values
+inline bool lane_instr(fir::ValueR v) {
+  return v.is_instr() && !v.as_instr().is_multi_result();
+}
+
 class BlockOrder {
 public:
   explicit BlockOrder(fir::BasicBlock bb_) : bb(bb_) {}
@@ -32,17 +38,21 @@ public:
     pos_of.clear();
     const auto &instrs = bb->instructions;
     for (u32 i = 0; i < instrs.size(); i++) {
-      pos_of[fir::ValueR{instrs[i]}] = i;
+      pos_of[key(instrs[i])] = i;
     }
     stale = false;
   }
   // position of an instruction of this block, nullopt for other blocks
   [[nodiscard]] std::optional<u32> pos(fir::Instr i) const {
-    auto it = pos_of.find(fir::ValueR{i});
+    auto it = pos_of.find(key(i));
     return it == pos_of.end() ? std::nullopt : std::optional<u32>{it->second};
   }
 
 private:
+  // a multi result call is keyed by its first result
+  static fir::ValueR key(fir::Instr i) {
+    return i.is_multi_result() ? i.result(0) : i.result();
+  }
   fir::BasicBlock bb;
   TMap<fir::ValueR, u32> pos_of;
   bool stale = true;

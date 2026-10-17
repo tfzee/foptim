@@ -98,8 +98,6 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new DCEConf{};
     } else if (name == "DSE") {
       pass = new DSEConf{};
-    } else if (name == "LegalizeStructs") {
-      pass = new LegalizeStructsConf{};
     } else if (name == "LLVMIntrinsicLowering") {
       pass = new LLVMIntrinsicLoweringConf{};
     } else if (name == "SORA") {

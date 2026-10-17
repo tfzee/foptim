@@ -8,7 +8,7 @@ define <4 x i64> @f(ptr %p, ptr %a, <4 x i64> %v) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: 4@i64):
 ; CHECK-NEXT:    %3: 4@i64 = Store(%1, %2){} NUses:0
-; CHECK-NEXT:    %4: ptr = ExtractValue(%2, 0:i32){} NUses:1
+; CHECK-NEXT:    %4: ptr = ExtractElement(%2, 0:i32){} NUses:1
 ; CHECK-NEXT:    %5: ptr = Store(%0, %4){} NUses:0
 ; CHECK-NEXT:    %6: 4@i64 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %7: 4@i64 = Return(%6){} NUses:0

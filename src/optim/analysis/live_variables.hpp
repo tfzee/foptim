@@ -134,8 +134,8 @@ class LiveVariables {
         value_id++;
       }
       for (auto instr : bb->instructions) {
-        if (instr->has_result()) {
-          auto [_, ins] = values.insert({fir::ValueR{instr}, value_id});
+        for (u8 i = 0; i < instr->n_results(); i++) {
+          auto [_, ins] = values.insert({instr.result(i), value_id});
           ASSERT(ins);
           value_id++;
         }

@@ -57,8 +57,8 @@ class ConstLoopEval final : public FunctionPass {
         case fir::InstrType::Intrinsic:
           // TODO: later one these above too
         case fir::InstrType::AllocaInstr:
-        case fir::InstrType::ExtractValue:
-        case fir::InstrType::InsertValue:
+        case fir::InstrType::ExtractElement:
+        case fir::InstrType::InsertElement:
         case fir::InstrType::CallInstr:
         case fir::InstrType::ReturnInstr:
         case fir::InstrType::SwitchInstr:

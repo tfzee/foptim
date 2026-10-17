@@ -104,7 +104,17 @@ void Instr::clear_bb_args(u16 indx) {
   bbs[indx].args.clear();
 }
 
-TypeR Instr::get_type() const { return (this->operator->())->get_type(); }
+TypeR Instr::result_type() const { return (this->operator->())->result_type(); }
+
+TypeR Instr::result_type(u32 idx) const {
+  return (this->operator->())->result_type(idx);
+}
+
+u32 Instr::n_results() const { return (this->operator->())->n_results(); }
+
+bool Instr::is_multi_result() const {
+  return (this->operator->())->is_multi_result();
+}
 
 u16 Instr::get_bb_id(BasicBlock target) const {
   const InstrData *self = operator->();
@@ -326,20 +336,33 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
     return fmt::format_to(app, "INVALID\n");
   }
 
+  const auto id =
+      foptim::fir::IRId{static_cast<const void *>(instr.get_raw_ptr()), "%"};
   if (color) {
-    app = fmt::format_to(
-        app, "{}: {:c} = {}",
-        fmt::styled(
-            foptim::fir::IRId{static_cast<const void *>(instr.get_raw_ptr()),
-                              "%"},
-            color_value),
-        instr->get_type(), instr->get_name());
+    app = fmt::format_to(app, "{}: ", fmt::styled(id, color_value));
   } else {
-    app = fmt::format_to(app, "{}: {} = {}",
-                         foptim::fir::IRId{
-                             static_cast<const void *>(instr.get_raw_ptr()),
-                             "%"},
-                         instr->get_type(), instr->get_name());
+    app = fmt::format_to(app, "{}: ", id);
+  }
+  if (instr->is_multi_result()) {
+    // %5: [i32 f64] = call
+    app = fmt::format_to(app, "[");
+    for (foptim::u32 i = 0; i < instr->n_results(); i++) {
+      if (i != 0) {
+        app = fmt::format_to(app, " ");
+      }
+      if (color) {
+        app = fmt::format_to(app, "{:c}", instr->result_type(i));
+      } else {
+        app = fmt::format_to(app, "{}", instr->result_type(i));
+      }
+    }
+    app = fmt::format_to(app, "] = {}", instr->get_name());
+  } else if (color) {
+    app = fmt::format_to(app, "{:c} = {}", instr->result_type(),
+                         instr->get_name());
+  } else {
+    app =
+        fmt::format_to(app, "{} = {}", instr->result_type(), instr->get_name());
   }
   const auto &bb_args = instr->get_bb_args();
   if (bb_args.size() > 0) {

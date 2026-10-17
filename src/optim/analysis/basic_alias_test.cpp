@@ -60,7 +60,7 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
       // return analyze(i->args[0]);
       return {.heap = any_h, .offset = {}};
     }
-    if (i->is(fir::InstrType::ExtractValue)) {
+    if (i->is(fir::InstrType::ExtractElement)) {
       // TODO: need to analyze through this ?
       return {.heap = any_h, .offset = {}};
     }

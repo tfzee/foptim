@@ -162,7 +162,11 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
   if (instr.bop == GOpcode::GJmp) {
     switch (static_cast<GJumpSubtype>(instr.sop)) {
     case GJumpSubtype::icmp_eq:
+    case GJumpSubtype::icmp_ne:
     case GJumpSubtype::icmp_ugt:
+    case GJumpSubtype::icmp_ult:
+    case GJumpSubtype::icmp_uge:
+    case GJumpSubtype::icmp_ule:
       if (big_unsigned_const2) {
         move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
         return true;
@@ -170,6 +174,8 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
       break;
     case GJumpSubtype::icmp_sgt:
     case GJumpSubtype::icmp_slt:
+    case GJumpSubtype::icmp_sge:
+    case GJumpSubtype::icmp_sle:
       if (big_signed_const2) {
         move_arg_to_reg(bb, indx, 2, instr.args[1].ty);
         return true;
@@ -901,8 +907,10 @@ void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf &conf) {
         switch (static_cast<GArithSubtype>(bb.instrs[i].sop)) {
         case GArithSubtype::land2:
         case GArithSubtype::lor2:
+        case GArithSubtype::lxor2:
         case GArithSubtype::mul2:
         case GArithSubtype::add2:
+        case GArithSubtype::sub2:
           if (legalize_arith_op(bb, i)) {
             ioff = 0;
           }

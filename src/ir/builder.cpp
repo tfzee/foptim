@@ -77,8 +77,18 @@ void Builder::check_bb_set() {
 
 ValueR Builder::build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
                            std::span<ValueR> args) {
+  return build_call(func_ptr, func_type, std::span<const TypeR>{&ret_type, 1},
+                    args)
+      .result();
+}
+
+Instr Builder::build_call(ValueR func_ptr, TypeR func_type,
+                          std::span<const TypeR> ret_types,
+                          std::span<ValueR> args) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(InstrData::get_call(ret_type));
+  ASSERT(!ret_types.empty());
+  Instr instr = ctx->storage.insert_instr(InstrData::get_call(ret_types[0]));
+  instr->set_result_types(ret_types);
   instr.add_arg(func_ptr);
   instr->extra_type = func_type;
   for (auto arg : args) {
@@ -86,7 +96,7 @@ ValueR Builder::build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
   }
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr;
 }
 
 ValueR Builder::build_int_srem(ValueR a, ValueR b) {
@@ -96,7 +106,7 @@ ValueR Builder::build_int_srem(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_int_urem(ValueR a, ValueR b) {
@@ -106,7 +116,7 @@ ValueR Builder::build_int_urem(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_ctlz(ValueR a, ValueR b) {
@@ -117,7 +127,7 @@ ValueR Builder::build_ctlz(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_cttz(ValueR a, ValueR b) {
@@ -128,7 +138,7 @@ ValueR Builder::build_cttz(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_va_start(ValueR a) {
@@ -138,7 +148,7 @@ ValueR Builder::build_va_start(ValueR a) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_va_end(ValueR a) {
@@ -148,7 +158,7 @@ ValueR Builder::build_va_end(ValueR a) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_fabs(ValueR a) {
@@ -158,7 +168,7 @@ ValueR Builder::build_fabs(ValueR a) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_abs(ValueR a) {
@@ -168,7 +178,7 @@ ValueR Builder::build_abs(ValueR a) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_intrinsic(ValueR a, IntrinsicSubType type,
@@ -182,7 +192,7 @@ ValueR Builder::build_intrinsic(ValueR a, IntrinsicSubType type,
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type) {
@@ -193,7 +203,7 @@ ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_intrinsic(ValueR a, ValueR b, ValueR c,
@@ -209,7 +219,7 @@ ValueR Builder::build_intrinsic(ValueR a, ValueR b, ValueR c,
   instr.add_arg(c);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_binary_op(ValueR a, ValueR b,
@@ -221,7 +231,7 @@ ValueR Builder::build_binary_op(ValueR a, ValueR b,
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_binary_op(ValueR a, ValueR b, fir::TypeR res_type,
@@ -233,7 +243,7 @@ ValueR Builder::build_binary_op(ValueR a, ValueR b, fir::TypeR res_type,
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
@@ -243,26 +253,26 @@ ValueR Builder::build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
-ValueR Builder::build_extract_value(ValueR stru, std::span<ValueR> indicies,
+ValueR Builder::build_extract_element(ValueR stru, std::span<ValueR> indicies,
                                     TypeR out_ty) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(InstrData::get_extract_value(out_ty));
+  Instr instr = ctx->storage.insert_instr(InstrData::get_extract_element(out_ty));
   instr.add_arg(stru);
   for (auto ar : indicies) {
     instr.add_arg(ar);
   }
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
-ValueR Builder::build_insert_value(ValueR stru, ValueR v,
+ValueR Builder::build_insert_element(ValueR stru, ValueR v,
                                    std::span<ValueR> indicies, TypeR out_ty) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(InstrData::get_insert_value(out_ty));
+  Instr instr = ctx->storage.insert_instr(InstrData::get_insert_element(out_ty));
   instr.add_arg(stru);
   instr.add_arg(v);
   for (auto ar : indicies) {
@@ -270,7 +280,7 @@ ValueR Builder::build_insert_value(ValueR stru, ValueR v,
   }
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_conversion_op(ValueR a, TypeR res_type,
@@ -281,7 +291,7 @@ ValueR Builder::build_conversion_op(ValueR a, TypeR res_type,
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_vector_op(ValueR val, TypeR res_type,
@@ -292,7 +302,7 @@ ValueR Builder::build_vector_op(ValueR val, TypeR res_type,
   instr.add_arg(val);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_vector_op(ValueR v1, ValueR v2, TypeR res_type,
@@ -304,7 +314,7 @@ ValueR Builder::build_vector_op(ValueR v1, ValueR v2, TypeR res_type,
   instr.add_arg(v2);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_vector_op(ValueR v1, ValueR v2, ValueR v3, TypeR res_type,
@@ -317,7 +327,7 @@ ValueR Builder::build_vector_op(ValueR v1, ValueR v2, ValueR v3, TypeR res_type,
   instr.add_arg(v3);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_int_add(ValueR a, ValueR b, bool nuw, bool nsw) {
@@ -329,7 +339,7 @@ ValueR Builder::build_int_add(ValueR a, ValueR b, bool nuw, bool nsw) {
   instr->NSW = nsw;
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_ptr_add(ValueR ptr, ValueR b, bool inBounds) {
@@ -343,7 +353,7 @@ ValueR Builder::build_ptr_add(ValueR ptr, ValueR b, bool inBounds) {
   instr->InBounds = inBounds;
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_float_add(ValueR a, ValueR b) {
@@ -354,7 +364,7 @@ ValueR Builder::build_float_add(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_float_sub(ValueR a, ValueR b) {
@@ -365,7 +375,7 @@ ValueR Builder::build_float_sub(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_float_mul(ValueR a, ValueR b) {
@@ -376,7 +386,7 @@ ValueR Builder::build_float_mul(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_float_div(ValueR a, ValueR b) {
@@ -387,7 +397,7 @@ ValueR Builder::build_float_div(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_itrunc(ValueR a, TypeR ty) {
@@ -396,7 +406,7 @@ ValueR Builder::build_itrunc(ValueR a, TypeR ty) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_sext(ValueR a, TypeR ty) {
@@ -405,7 +415,7 @@ ValueR Builder::build_sext(ValueR a, TypeR ty) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_zext(ValueR a, TypeR ty) {
@@ -414,7 +424,7 @@ ValueR Builder::build_zext(ValueR a, TypeR ty) {
   instr.add_arg(a);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_atomic_rmw(ValueR ptr, ValueR val,
@@ -427,7 +437,7 @@ ValueR Builder::build_atomic_rmw(ValueR ptr, ValueR val,
   instr.add_arg(val);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_fence(Ordering ordering) {
@@ -437,7 +447,7 @@ ValueR Builder::build_fence(Ordering ordering) {
   instr->Ordering = static_cast<u64>(ordering);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_int_mul(ValueR a, ValueR b, bool nuw, bool nsw) {
@@ -449,7 +459,7 @@ ValueR Builder::build_int_mul(ValueR a, ValueR b, bool nuw, bool nsw) {
   instr->NSW = nsw;
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_int_sub(ValueR a, ValueR b) {
@@ -459,7 +469,7 @@ ValueR Builder::build_int_sub(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_shl(ValueR a, ValueR b) {
@@ -469,7 +479,7 @@ ValueR Builder::build_shl(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_ashr(ValueR a, ValueR b) {
@@ -479,7 +489,7 @@ ValueR Builder::build_ashr(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_lshr(ValueR a, ValueR b) {
@@ -489,7 +499,7 @@ ValueR Builder::build_lshr(ValueR a, ValueR b) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty) {
@@ -506,7 +516,7 @@ ValueR Builder::build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_float_cmp(ValueR a, ValueR b, FCmpInstrSubType ty) {
@@ -523,7 +533,7 @@ ValueR Builder::build_float_cmp(ValueR a, ValueR b, FCmpInstrSubType ty) {
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_alloca(ValueR size) {
@@ -533,7 +543,7 @@ ValueR Builder::build_alloca(ValueR size) {
   instr.add_arg(size);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_vbroadcast(ValueR v, TypeR type) {
@@ -543,7 +553,7 @@ ValueR Builder::build_vbroadcast(ValueR v, TypeR type) {
   instr.add_arg(v);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 Instr Builder::build_branch(BasicBlock target_bb) {
@@ -595,7 +605,7 @@ ValueR Builder::build_select(TypeR type, ValueR cond, ValueR v1, ValueR v2) {
   instr.add_arg(v2);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_load(TypeR type, ValueR ptr, bool is_atomic,
@@ -607,7 +617,7 @@ ValueR Builder::build_load(TypeR type, ValueR ptr, bool is_atomic,
   instr.add_arg(ptr);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 ValueR Builder::build_store(ValueR ptr, ValueR value, bool is_atomic,
@@ -621,7 +631,7 @@ ValueR Builder::build_store(ValueR ptr, ValueR value, bool is_atomic,
   instr.add_arg(value);
   bb.insert_instr(indx, instr);
   indx++;
-  return ValueR(instr);
+  return instr.result();
 }
 
 Instr Builder::build_unreach() {
@@ -646,6 +656,19 @@ Instr Builder::build_return(ValueR v) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_return(v.get_type()));
   instr.add_arg(v);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr;
+}
+
+Instr Builder::build_return(std::span<const ValueR> vals) {
+  check_bb_set();
+  ASSERT(!vals.empty());
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_return(vals[0].get_type()));
+  for (auto v : vals) {
+    instr.add_arg(v);
+  }
   bb.insert_instr(indx, instr);
   indx++;
   return instr;

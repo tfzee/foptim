@@ -52,6 +52,9 @@ def add_custom_mir_checks(output_lines, check_indent, run_list, func_dict, func_
             # 2. Output the body lines: `; CHECK-NEXT: 0:`
             for line in func_info.scrub.splitlines():
                 if not line.strip():
+                    # an empty line inside the body, e.g. in front of the
+                    # list of undefined functions after the last function
+                    output_lines.append(f"{check_indent} {prefix}-EMPTY:")
                     continue
                 # Keep the right-side spacing of the instruction
                 output_lines.append(f"{check_indent} {prefix}-NEXT:{line}")

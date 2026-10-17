@@ -1389,8 +1389,11 @@ void ScalarEvo::classify_values() {
       }
     }
     for (auto instr : bb->instructions) {
-      if (value_bw(fir::ValueR{instr}) != 0) {
-        expr_of(fir::ValueR{instr}, 0);
+      if (instr.is_multi_result()) {
+        continue;
+      }
+      if (value_bw(instr.result()) != 0) {
+        expr_of(instr.result(), 0);
       }
     }
   }

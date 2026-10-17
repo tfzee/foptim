@@ -28,8 +28,8 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %22: f32 = FloatAdd(%20, %21){} NUses:1
 ; CHECK-NEXT:    %23: i32 = Store(%0, %8){} NUses:0
 ; CHECK-NEXT:    %24: i32 = Store(%5, %11){} NUses:0
-; CHECK-NEXT:    %25: 2@f32 = InsertValue(POISON, %19, 0:i32){} NUses:1
-; CHECK-NEXT:    %26: 2@f32 = InsertValue(%25, %22, 1:i32){} NUses:1
+; CHECK-NEXT:    %25: 2@f32 = InsertElement(POISON, %19, 0:i32){} NUses:1
+; CHECK-NEXT:    %26: 2@f32 = InsertElement(%25, %22, 1:i32){} NUses:1
 ; CHECK-NEXT:    %27: 2@f32 = Store(%14, %26){} NUses:0
 ; CHECK-NEXT:    %28: () = Return(){} NUses:0
 ; CHECK-NEXT:}

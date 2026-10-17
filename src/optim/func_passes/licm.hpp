@@ -102,7 +102,7 @@ public:
       if (!is_assoc(t) && t != ST::IntSub) {
         continue;
       }
-      if (!instr->get_type()->is_int()) {
+      if (!instr->result_type()->is_int()) {
         continue;
       }
       // outer operands: j is the inner instruction, c the invariant side
@@ -123,7 +123,7 @@ public:
       }
       if (!jv.is_instr() || jv.as_instr()->get_n_uses() != 1 ||
           !jv.as_instr()->is(fir::InstrType::BinaryInstr) ||
-          jv.as_instr()->get_type() != instr->get_type()) {
+          jv.as_instr()->result_type() != instr->result_type()) {
         continue;
       }
       auto j = jv.as_instr();
@@ -397,7 +397,8 @@ public:
         return false;
       }
       if (instr->is(fir::InstrType::LoadInstr) &&
-          is_dereferenceable(instr->get_arg(0), instr->get_type()->get_size())) {
+          is_dereferenceable(instr->get_arg(0),
+                             instr->result_type()->get_size())) {
         return true;
       }
       return runs_on_entry.contains(instr);
@@ -455,7 +456,7 @@ public:
         }
       }
       if (all_args_are_invariant) {
-        invariant.emplace_back(instr);
+        invariant.push_back(instr.result());
         // TODO: push uses into worklist but only if they are still in teh loop
       }
     }
@@ -468,7 +469,7 @@ public:
     for (auto inv : invariant) {
       auto old = inv.as_instr();
       auto copy = bb.insert_copy(old);
-      old->replace_all_uses(fir::ValueR{copy});
+      old->replace_all_uses(copy.result());
     }
 
     for (auto inv : invariant) {

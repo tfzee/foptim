@@ -46,7 +46,6 @@ class DumbRegAlloc {
   constexpr DumbRegAlloc() { reset(); }
   // void alloc_func(fir::Function &, optim::LiveVariables &lives);
   VReg get_register(fir::ValueR valu);
-  VReg get_struct_register(fir::ValueR valu, fir::TypeR t, u32 id);
 };
 
 }  // namespace foptim::fmir

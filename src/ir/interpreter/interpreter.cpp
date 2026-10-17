@@ -72,7 +72,7 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
   if (!v1 || !v2) {
     return false;
   }
-  const auto ty = instr.get_type();
+  const auto ty = instr.result_type();
   const auto sub = static_cast<BinaryInstrSubType>(instr->subtype);
   switch (sub) {
     case BinaryInstrSubType::IntAdd:
@@ -108,25 +108,25 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
           res = a ^ b;
           break;
       }
-      st.set_value(ValueR(instr), ConstantValue{std::move(res), ty});
+      st.set_value(instr.result(), ConstantValue{std::move(res), ty});
       break;
     }
     case BinaryInstrSubType::FloatAdd:
-      if (instr.get_type()->as_float() == 32) {
-        st.set_value(ValueR(instr), ConstantValue{v1->as_f32() + v2->as_f32(),
-                                                  instr.get_type()});
+      if (instr.result_type()->as_float() == 32) {
+        st.set_value(instr.result(), ConstantValue{v1->as_f32() + v2->as_f32(),
+                                                   instr.result_type()});
       } else {
-        st.set_value(ValueR(instr), ConstantValue{v1->as_f64() + v2->as_f64(),
-                                                  instr.get_type()});
+        st.set_value(instr.result(), ConstantValue{v1->as_f64() + v2->as_f64(),
+                                                   instr.result_type()});
       }
       break;
     case BinaryInstrSubType::FloatMul:
-      if (instr.get_type()->as_float() == 32) {
-        st.set_value(ValueR(instr), ConstantValue{v1->as_f32() * v2->as_f32(),
-                                                  instr.get_type()});
+      if (instr.result_type()->as_float() == 32) {
+        st.set_value(instr.result(), ConstantValue{v1->as_f32() * v2->as_f32(),
+                                                   instr.result_type()});
       } else {
-        st.set_value(ValueR(instr), ConstantValue{v1->as_f64() * v2->as_f64(),
-                                                  instr.get_type()});
+        st.set_value(instr.result(), ConstantValue{v1->as_f64() * v2->as_f64(),
+                                                   instr.result_type()});
       }
       break;
     case BinaryInstrSubType::Shl:
@@ -146,7 +146,7 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
       APInt res = sub == BinaryInstrSubType::Shl    ? a.shl(n)
                   : sub == BinaryInstrSubType::Shr ? a.lshr(n)
                                                     : a.ashr(n);
-      st.set_value(ValueR(instr), ConstantValue{std::move(res), ty});
+      st.set_value(instr.result(), ConstantValue{std::move(res), ty});
       break;
     }
     case BinaryInstrSubType::IntSRem:
@@ -171,7 +171,7 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
         }
         res = sub == BinaryInstrSubType::IntSDiv ? a.sdiv(b) : a.srem(b);
       }
-      st.set_value(ValueR(instr), ConstantValue{std::move(res), ty});
+      st.set_value(instr.result(), ConstantValue{std::move(res), ty});
       break;
     }
     default:
@@ -229,7 +229,7 @@ bool interpret_icmp(Instr instr, State &st, InstrPointer &ip) {
     case ICmpInstrSubType::INVALID:
       TODO("INVALID");
   }
-  st.set_value(ValueR(instr), bool_value(res, instr->get_type()));
+  st.set_value(instr.result(), bool_value(res, instr->result_type()));
   ip.instr_id++;
   return true;
 }
@@ -240,12 +240,13 @@ bool interpret_int_cast(Instr instr, State &st, InstrPointer &ip) {
     return false;
   }
   const u32 from = instr->args[0].get_type()->get_bitwidth();
-  const u32 to = instr->get_type()->get_bitwidth();
+  const u32 to = instr->result_type()->get_bitwidth();
   const APInt a = int_of(*v1, from);
   APInt res = instr->is(InstrType::SExt)   ? a.sext(to)
               : instr->is(InstrType::ZExt) ? a.zext(to)
                                            : a.trunc(to);
-  st.set_value(ValueR(instr), ConstantValue{std::move(res), instr->get_type()});
+  st.set_value(instr.result(),
+               ConstantValue{std::move(res), instr->result_type()});
   ip.instr_id++;
   return true;
 }
@@ -281,10 +282,66 @@ bool Interpreter::step_instr() {
       return interpret_int_cast(curr_i, state, ip);
     case InstrType::ITrunc:
       return interpret_int_cast(curr_i, state, ip);
+    case InstrType::CallInstr:
+      return interpret_call(curr_i);
+    case InstrType::ReturnInstr:
+      return interpret_ret(curr_i);
     default:
   }
   fmt::println("{}", curr_i);
   TODO("impl interpreter instr");
+}
+
+bool Interpreter::interpret_ret(Instr ret) {
+  ret_vals.clear();
+  for (const auto &arg : ret->args) {
+    auto v = get_constant_value(arg, state);
+    if (!v) {
+      return false;
+    }
+    ret_vals.push_back(v.value());
+  }
+  returned = true;
+  return true;
+}
+
+bool Interpreter::interpret_call(Instr call) {
+  const auto &callee = call->args[0];
+  if (!callee.is_constant_func()) {
+    return false;
+  }
+  auto *func = callee.as_constant()->as_func().func;
+  if (func->is_decl()) {
+    return false;
+  }
+  Interpreter sub{func};
+  const auto &entry = func->basic_blocks[0];
+  ASSERT(entry->args.size() == call->args.size() - 1);
+  for (size_t i = 0; i < entry->args.size(); i++) {
+    auto v = get_constant_value(call->args[i + 1], state);
+    if (!v) {
+      return false;
+    }
+    sub.set(ValueR(entry->args[i]), v.value());
+  }
+  if (!sub.run()) {
+    return false;
+  }
+  ASSERT(sub.return_values().size() == call->n_results());
+  for (u32 i = 0; i < call->n_results(); i++) {
+    state.set_value(call.result(i), sub.return_values()[i]);
+  }
+  ip.instr_id++;
+  return true;
+}
+
+bool Interpreter::run() {
+  while (!returned) {
+    if (!step_instr()) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool Interpreter::step_till_end_of_bb() {

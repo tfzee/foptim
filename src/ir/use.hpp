@@ -40,7 +40,7 @@ class Use {
   }
 
   TypeR get_type();
-  ValueR get_value();
+  ValueR get_value() const;
   void replace_use(ValueR new_value);
 
   [[nodiscard]] bool operator==(const Use &other) const;
@@ -56,6 +56,11 @@ class Used {
 
   void replace_all_uses(ValueR new_value);
   void replace_uses_outside_block(fir::BasicBlock bb, ValueR new_value);
+  // only the uses of result idx of a multi result instruction
+  void replace_result_uses(u8 idx, ValueR new_value);
+  void replace_result_uses_outside_block(u8 idx, fir::BasicBlock bb,
+                                         ValueR new_value);
+  [[nodiscard]] size_t get_n_result_uses(u8 idx) const;
   void remove_usage(const Use &use, bool verify);
   void remove_all_usages();
 };

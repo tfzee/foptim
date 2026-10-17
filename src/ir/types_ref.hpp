@@ -18,7 +18,6 @@ class TypeR : public utils::SRef<AnyType> {
 
 using FunctionTypeR = TypeR;
 using IntTypeR = TypeR;
-using StructTypeR = TypeR;
 using FloatTypeR = TypeR;
 using VoidTypeR = TypeR;
 

@@ -64,40 +64,27 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
                                                fir::Context &ctx,
                                                AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
-  if (!func_ty.return_type->is_struct()) {
+  if (func_ty.n_results() != 2 || !func_ty.return_types[0]->is_vec() ||
+      func_ty.return_types[0] != func_ty.return_types[1]) {
     return false;
   }
-  const auto &elems = func_ty.return_type->as_struct().elems;
-  if (elems.size() != 2 || !elems[0].ty->is_vec() ||
-      elems[0].ty != elems[1].ty) {
-    return false;
-  }
-  const auto &inp_vec_ty = elems[0].ty->as_vec();
+  const auto &inp_vec_ty = func_ty.return_types[0]->as_vec();
   if (inp_vec_ty.get_size() >= 64 ||
       (!ctx.config->target.features.avx512f && inp_vec_ty.get_size() >= 32)) {
     return false;
   }
 
+  // every use of a result has to be the concat of both results
   for (auto use : func->get_uses()) {
     if (use.type != fir::UseType::NormalArg ||
         !use.user->is(fir::InstrType::CallInstr) || use.argId != 0) {
-      // fmt::println("FailCall");
       return false;
     }
-    // if all uses are Extract values which are only used in concats
     for (auto suse : use.user->get_uses()) {
-      if (!suse.user->is(fir::InstrType::ExtractValue)) {
-        // fmt::println("FailExtract");
+      if (!suse.user->is(fir::VectorISubType::Concat) ||
+          suse.user->args[0] != use.user.result(0) ||
+          suse.user->args[1] != use.user.result(1)) {
         return false;
-      }
-      auto exp_index = suse.user->args[1].as_constant()->as_int();
-      for (auto ssuse : suse.user->get_uses()) {
-        // TODO: could also handle shuffles
-        if (!ssuse.user->is(fir::VectorISubType::Concat) ||
-            ssuse.argId != exp_index) {
-          // fmt::println("FailCOncat");
-          return false;
-        }
       }
     }
   }
@@ -112,26 +99,30 @@ bool ArgPromotion::return_vecvec_to_concat_vec(fir::FunctionR func,
                                      fir::VectorISubType::Concat);
       term.remove_arg(1);
       term.replace_arg(0, res);
-      term->value_type = res_type;
+      term->set_result_type(res_type);
     }
   }
   for (auto use : func->get_uses()) {
     auto call_instr = use.user;
-    for (auto suse : use.user->get_uses()) {
-      for (auto ssuse : suse.user->get_uses()) {
-        // replace the concat with the new return value
-        ssuse.user->replace_all_uses(fir::ValueR{call_instr});
-        ssuse.user.destroy();
+    TVec<fir::Instr> concats;
+    for (auto suse : call_instr->get_uses()) {
+      if (std::ranges::find(concats, suse.user) == concats.end()) {
+        concats.push_back(suse.user);
       }
-      suse.user.destroy();
     }
+    // the concat becomes the only result of the call
+    for (auto concat : concats) {
+      concat.result().replace_all_uses(call_instr.result(0));
+      concat.destroy();
+    }
+    fir::TypeR new_res[1] = {res_type};
+    call_instr->set_result_types(new_res);
   }
 
   {  // type cleanup
     func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
-      use.user->value_type = res_type;
     }
   }
   analyMan.touched_signature(*func.func);
@@ -208,7 +199,7 @@ bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
   }
   if (modified) {
     func.func->func_ty =
-        ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+        ctx->get_func_ty(func_ty.return_types, std::move(arg_tys));
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
@@ -233,7 +224,8 @@ bool ArgPromotion::promote_vecvec_to_concat_vec(fir::FunctionR func,
 bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
                                                fir::Context &ctx,
                                                AnalysisManager &analyMan) {
-  if (!func->func_ty->as_func().return_type->is_ptr()) {
+  if (func->func_ty->as_func().n_results() != 1 ||
+      !func->func_ty->as_func().return_type()->is_ptr()) {
     return false;
   }
 
@@ -258,8 +250,8 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
       }
       // needs consistent typing
       if (!res_type.is_valid()) {
-        res_type = load_i.get_type();
-      } else if (res_type != load_i.get_type()) {
+        res_type = load_i.result_type();
+      } else if (res_type != load_i.result_type()) {
         return false;
       }
       // need to verify no writes inbetween
@@ -295,7 +287,7 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
   // remove the loads from the function calls
   for (auto use : func->get_uses()) {
     for (auto ret_use : use.user->uses) {
-      ret_use.user->replace_all_uses(fir::ValueR{use.user});
+      ret_use.user->replace_all_uses(use.user.result());
       ret_use.user.destroy();
     }
   }
@@ -319,7 +311,7 @@ bool ArgPromotion::promote_ptr_to_value_return(fir::FunctionR func,
   func.func->func_ty = ctx->get_func_ty(res_type, func_ty.arg_types);
   for (auto use : func.func->get_uses()) {
     use.user->extra_type = func.func->func_ty;
-    use.user->value_type = res_type;
+    use.user->set_result_type(res_type);
   }
   analyMan.touched_signature(*func.func);
 
@@ -404,8 +396,8 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
           break;
         }
         if (!load_type.is_valid()) {
-          load_type = use.user.get_type();
-        } else if (load_type != use.user.get_type()) {
+          load_type = use.user.result_type();
+        } else if (load_type != use.user.result_type()) {
           can_promote = false;
           break;
         }
@@ -426,8 +418,8 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
             break;
           }
           if (!load_type.is_valid()) {
-            load_type = sub_use.user.get_type();
-          } else if (load_type != sub_use.user.get_type()) {
+            load_type = sub_use.user.result_type();
+          } else if (load_type != sub_use.user.result_type()) {
             can_promote = false;
             break;
           }
@@ -499,7 +491,7 @@ bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
   }
   if (modified) {
     func.func->func_ty =
-        ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+        ctx->get_func_ty(func_ty.return_types, std::move(arg_tys));
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }

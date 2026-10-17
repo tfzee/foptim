@@ -51,7 +51,7 @@ approx_func = false
 
 [pipeline.fir.default_release_early]
 passes = [
-        "DCE", "LegalizeStructs", "LLVMIntrinsicLowering", "IntrinSimplify", "SORA", "Mem2Reg", "DoubleLoadElim",
+        "DCE", "LLVMIntrinsicLowering", "IntrinSimplify", "SORA", "Mem2Reg", "DoubleLoadElim",
         "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DSE", "DCE",
         "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler",
         "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
@@ -155,7 +155,6 @@ maxVF = 0
 # trip count of the loop cost model when it is not a constant
 assumedTrip = 64
 [pass.fir.DCE]
-[pass.fir.LegalizeStructs]
 [pass.fir.LLVMIntrinsicLowering]
 [pass.fir.SORA]
 [pass.fir.Mem2Reg]

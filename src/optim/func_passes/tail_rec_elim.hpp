@@ -27,7 +27,9 @@ class TailRecElim final : public FunctionPass {
     for (auto arg : new_entry->args) {
       branch.add_bb_arg(0, fir::ValueR{arg});
     }
-    ret_type = func.func_ty->as_func().return_type;
+    if (!func.func_ty->as_func().is_multi_return()) {
+      ret_type = func.func_ty->as_func().return_type();
+    }
     func.basic_blocks.insert(func.basic_blocks.begin() + 0, new_entry);
   }
 
@@ -38,8 +40,14 @@ class TailRecElim final : public FunctionPass {
     // TODO: if all of the returns return the same constant we could still
     // apply it see:
     // https://github.com/llvm/llvm-project/blob/main/llvm/lib/Transforms/Scalar/TailRecursionElimination.cpp
-    if (term->args.size() != 1 || term->args[0] != fir::ValueR{call}) {
+    const u32 n_results = call->n_results();
+    if (n_results == 0 || term->args.size() != n_results) {
       return;
+    }
+    for (u32 i = 0; i < n_results; i++) {
+      if (term->args[i] != call.result(i)) {
+        return;
+      }
     }
     if (!call->args[0].is_constant()) {
       return;
@@ -76,12 +84,14 @@ class TailRecElim final : public FunctionPass {
         add->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntSub)) {
       return;
     }
-    if (term->args.size() != 1 || term->args[0] != fir::ValueR{add}) {
+    if (term->args.size() != 1 || term->args[0] != add.result()) {
       return;
     }
-    u16 accum_rec_arg_id = add->args[0] == fir::ValueR{call} ? 1 : 0;
-    if (add->args[0] != fir::ValueR{call} &&
-        add->args[1] != fir::ValueR{call}) {
+    if (call.is_multi_result()) {
+      return;
+    }
+    u16 accum_rec_arg_id = add->args[0] == call.result() ? 1 : 0;
+    if (add->args[0] != call.result() && add->args[1] != call.result()) {
       return;
     }
     if (!call->args[0].is_constant()) {
@@ -117,7 +127,7 @@ class TailRecElim final : public FunctionPass {
          call_iter != call->args.end(); call_iter++) {
       new_term.add_bb_arg(0, *call_iter);
     }
-    new_term.add_bb_arg(0, fir::ValueR{add});
+    new_term.add_bb_arg(0, add.result());
     new_term.add_bb_arg(0, fir::ValueR{ctx->get_constant_value(1, bool_type)});
 
     bb->get_terminator().destroy();
@@ -136,9 +146,9 @@ class TailRecElim final : public FunctionPass {
         // select
         //  to only choose the add version if we went trhough our loop
         //  otherwise the default return
-        auto select = b.build_select(new_add.get_type(),
+        auto select = b.build_select(new_add.result_type(),
                                      fir::ValueR{has_entered_loop_cond},
-                                     fir::ValueR{new_add}, term->args[0]);
+                                     new_add.result(), term->args[0]);
         term.replace_arg(0, fir::ValueR{select});
       }
     }

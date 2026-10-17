@@ -16,17 +16,17 @@
 namespace foptim::fir {
 
 bool ValueR::is_valid(bool check_refs) const {
-  switch (ty) {
-  case ValueType::InvalidValue:
-    return false;
-  case ValueType::Instr:
-    return instr.is_valid();
-  case ValueType::BBArg:
-    return bb_arg.is_valid();
-  case ValueType::ConstantValueR:
-    return const_val.is_valid() && (!check_refs || const_val->is_valid());
-  case ValueType::BasicBlock:
-    return bb.is_valid();
+  switch (kind) {
+    case ValueType::InvalidValue:
+      return false;
+    case ValueType::Instr:
+      return instr.is_valid();
+    case ValueType::BBArg:
+      return bb_arg.is_valid();
+    case ValueType::ConstantValueR:
+      return const_val.is_valid() && (!check_refs || const_val->is_valid());
+    case ValueType::BasicBlock:
+      return bb.is_valid();
   }
 }
 
@@ -38,162 +38,175 @@ bool ValueR::is_instr(fir::BinaryInstrSubType sub_ty) const {
 }
 
 bool ValueR::eql(const ValueR &other) const {
-  if (ty != other.ty) {
+  if (kind != other.kind) {
     return false;
   }
   if (!is_valid(false) || !other.is_valid(false)) {
     return false;
   }
-  switch (ty) {
-  case ValueType::InvalidValue:
-    return false;
-  case ValueType::Instr:
-    return static_cast<const void *>(instr.get_raw_ptr()) ==
-           static_cast<const void *>(other.instr.get_raw_ptr());
-  case ValueType::BasicBlock:
-    return static_cast<const void *>(bb.get_raw_ptr()) ==
-           static_cast<const void *>(other.bb.get_raw_ptr());
-  case ValueType::BBArg:
-    return static_cast<const void *>(bb_arg.get_raw_ptr()) ==
-           static_cast<const void *>(other.bb_arg.get_raw_ptr());
-  case ValueType::ConstantValueR:
-    return const_val->eql(*other.const_val.get_raw_ptr());
+  switch (kind) {
+    case ValueType::InvalidValue:
+      return false;
+    case ValueType::Instr:
+      return idx == other.idx &&
+             static_cast<const void *>(instr.get_raw_ptr()) ==
+                 static_cast<const void *>(other.instr.get_raw_ptr());
+    case ValueType::BasicBlock:
+      return static_cast<const void *>(bb.get_raw_ptr()) ==
+             static_cast<const void *>(other.bb.get_raw_ptr());
+    case ValueType::BBArg:
+      return static_cast<const void *>(bb_arg.get_raw_ptr()) ==
+             static_cast<const void *>(other.bb_arg.get_raw_ptr());
+    case ValueType::ConstantValueR:
+      return const_val->eql(*other.const_val.get_raw_ptr());
   }
 }
 
 TypeR ValueR::get_type() const {
-  switch (ty) {
-  case ValueType::InvalidValue:
-    return TypeR(TypeR::invalid());
-  case ValueType::Instr:
-    return instr.get_type();
-  case ValueType::BasicBlock:
-    return foptim::fir::BasicBlockData::get_type();
-  case ValueType::BBArg:
-    return bb_arg->get_type();
-  case ValueType::ConstantValueR:
-    return const_val->get_type();
+  switch (kind) {
+    case ValueType::InvalidValue:
+      return TypeR(TypeR::invalid());
+    case ValueType::Instr:
+      // result 0 of an instruction without result is void
+      return idx == 0 ? instr->result_type_0() : instr.result_type(idx);
+    case ValueType::BasicBlock:
+      return foptim::fir::BasicBlockData::get_type();
+    case ValueType::BBArg:
+      return bb_arg->get_type();
+    case ValueType::ConstantValueR:
+      return const_val->get_type();
   }
 }
 
 void ValueR::add_usage(Use u) {
-  switch (ty) {
-  case ValueType::Instr:
-    instr->add_usage(u);
-    return;
-  case ValueType::BBArg:
-    bb_arg->add_usage(u);
-    return;
-  case ValueType::BasicBlock:
-    bb->add_usage(u);
-    return;
-  case ValueType::ConstantValueR:
-    const_val->add_usage(u);
-    return;
-  case ValueType::InvalidValue:
-    return;
+  switch (kind) {
+    case ValueType::Instr:
+      instr->add_usage(u);
+      return;
+    case ValueType::BBArg:
+      bb_arg->add_usage(u);
+      return;
+    case ValueType::BasicBlock:
+      bb->add_usage(u);
+      return;
+    case ValueType::ConstantValueR:
+      const_val->add_usage(u);
+      return;
+    case ValueType::InvalidValue:
+      return;
   }
 }
 
 IRVec<Use> *ValueR::get_uses() {
-  switch (ty) {
-  case ValueType::Instr:
-    return &instr->uses;
-  case ValueType::BBArg:
-    return &bb_arg->uses;
-  case ValueType::BasicBlock:
-    return &bb->uses;
-  case ValueType::ConstantValueR:
-    return const_val->get_uses();
-  case ValueType::InvalidValue:
-    return nullptr;
+  switch (kind) {
+    case ValueType::Instr:
+      return &instr->uses;
+    case ValueType::BBArg:
+      return &bb_arg->uses;
+    case ValueType::BasicBlock:
+      return &bb->uses;
+    case ValueType::ConstantValueR:
+      return const_val->get_uses();
+    case ValueType::InvalidValue:
+      return nullptr;
   }
 }
 
 const IRVec<Use> *ValueR::get_uses() const {
-  switch (ty) {
-  case ValueType::Instr:
-    return &instr->uses;
-  case ValueType::BBArg:
-    return &bb_arg->uses;
-  case ValueType::BasicBlock:
-    return &bb->uses;
-  case ValueType::ConstantValueR:
-    return const_val->get_uses();
-  case ValueType::InvalidValue:
-    return nullptr;
+  switch (kind) {
+    case ValueType::Instr:
+      return &instr->uses;
+    case ValueType::BBArg:
+      return &bb_arg->uses;
+    case ValueType::BasicBlock:
+      return &bb->uses;
+    case ValueType::ConstantValueR:
+      return const_val->get_uses();
+    case ValueType::InvalidValue:
+      return nullptr;
   }
 }
 
 size_t ValueR::get_n_uses() const {
-  switch (ty) {
-  case ValueType::Instr:
-    return instr->get_n_uses();
-  case ValueType::BBArg:
-    return bb_arg->get_n_uses();
-  case ValueType::BasicBlock:
-    return bb->get_n_uses();
-  case ValueType::ConstantValueR:
-    return const_val->get_n_uses();
-  case ValueType::InvalidValue:
-    return 0;
+  switch (kind) {
+    case ValueType::Instr:
+      if (instr->is_multi_result()) {
+        return instr->get_n_result_uses(idx);
+      }
+      return instr->get_n_uses();
+    case ValueType::BBArg:
+      return bb_arg->get_n_uses();
+    case ValueType::BasicBlock:
+      return bb->get_n_uses();
+    case ValueType::ConstantValueR:
+      return const_val->get_n_uses();
+    case ValueType::InvalidValue:
+      return 0;
   }
 }
 
 void ValueR::remove_usage(Use u, bool verify) {
-  switch (ty) {
-  case ValueType::Instr:
-    instr->remove_usage(u, verify);
-    return;
-  case ValueType::BBArg:
-    bb_arg->remove_usage(u, verify);
-    return;
-  case ValueType::BasicBlock:
-    bb->remove_usage(u, verify);
-    return;
-  case ValueType::ConstantValueR:
-    const_val->remove_usage(u, verify);
-    return;
-  case ValueType::InvalidValue:
-    return;
+  switch (kind) {
+    case ValueType::Instr:
+      instr->remove_usage(u, verify);
+      return;
+    case ValueType::BBArg:
+      bb_arg->remove_usage(u, verify);
+      return;
+    case ValueType::BasicBlock:
+      bb->remove_usage(u, verify);
+      return;
+    case ValueType::ConstantValueR:
+      const_val->remove_usage(u, verify);
+      return;
+    case ValueType::InvalidValue:
+      return;
   }
 }
 
 void ValueR::replace_uses_outside_block(fir::BasicBlock bb, ValueR new_value) {
-  switch (ty) {
-  case ValueType::Instr:
-    instr->replace_uses_outside_block(bb, new_value);
-    return;
-  case ValueType::BBArg:
-    bb_arg->replace_uses_outside_block(bb, new_value);
-    return;
-  case ValueType::BasicBlock:
-    bb->replace_uses_outside_block(bb, new_value);
-    return;
-  case ValueType::ConstantValueR:
-    const_val->replace_uses_outside_block(bb, new_value);
-    return;
-  case ValueType::InvalidValue:
-    return;
+  switch (kind) {
+    case ValueType::Instr:
+      if (instr->is_multi_result()) {
+        instr->replace_result_uses_outside_block(idx, bb, new_value);
+        return;
+      }
+      instr->replace_uses_outside_block(bb, new_value);
+      return;
+    case ValueType::BBArg:
+      bb_arg->replace_uses_outside_block(bb, new_value);
+      return;
+    case ValueType::BasicBlock:
+      bb->replace_uses_outside_block(bb, new_value);
+      return;
+    case ValueType::ConstantValueR:
+      const_val->replace_uses_outside_block(bb, new_value);
+      return;
+    case ValueType::InvalidValue:
+      return;
   }
 }
 
 void ValueR::replace_all_uses(ValueR new_value) {
-  switch (ty) {
-  case ValueType::Instr:
-    instr->replace_all_uses(new_value);
-    return;
-  case ValueType::BBArg:
-    bb_arg->replace_all_uses(new_value);
-    return;
-  case ValueType::BasicBlock:
-    bb->replace_all_uses(new_value);
-    return;
-  case ValueType::ConstantValueR:
-    const_val->replace_all_uses(new_value);
-    return;
-  case ValueType::InvalidValue:
-    return;
+  switch (kind) {
+    case ValueType::Instr:
+      if (instr->is_multi_result()) {
+        instr->replace_result_uses(idx, new_value);
+        return;
+      }
+      instr->replace_all_uses(new_value);
+      return;
+    case ValueType::BBArg:
+      bb_arg->replace_all_uses(new_value);
+      return;
+    case ValueType::BasicBlock:
+      bb->replace_all_uses(new_value);
+      return;
+    case ValueType::ConstantValueR:
+      const_val->replace_all_uses(new_value);
+      return;
+    case ValueType::InvalidValue:
+      return;
   }
 }
 
@@ -205,39 +218,47 @@ fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
   auto col1 = color ? color_value : text_style{};
   auto col2 = color ? color_value2 : text_style{};
   auto colbb = color ? color_bb : text_style{};
-  switch (k.ty) {
-  case foptim::fir::ValueType::InvalidValue:
-    return fmt::format_to(ctx.out(), "INVALID");
-  case foptim::fir::ValueType::Instr:
-    return fmt::format_to(
-        ctx.out(), col1, "{}",
-        foptim::fir::IRId{static_cast<const void *>(k.instr.get_raw_ptr()),
-                          "%"});
-  case foptim::fir::ValueType::BasicBlock:
-    return fmt::format_to(
-        ctx.out(), colbb, "{}",
-        foptim::fir::IRId{static_cast<const void *>(k.bb.get_raw_ptr()), "bb"});
-  case foptim::fir::ValueType::BBArg:
-    if (debug && color) {
-      return fmt::format_to(ctx.out(), col2, "{:cd}", k.bb_arg);
-    }
-    if (color) {
-      return fmt::format_to(ctx.out(), col2, "{:c}", k.bb_arg);
-    }
-    if (debug) {
-      return fmt::format_to(ctx.out(), col2, "{:d}", k.bb_arg);
-    }
-    return fmt::format_to(ctx.out(), col2, "{}", k.bb_arg);
+  switch (k.kind) {
+    case foptim::fir::ValueType::InvalidValue:
+      return fmt::format_to(ctx.out(), "INVALID");
+    case foptim::fir::ValueType::Instr:
+      if (k.instr.is_valid() && k.instr->is_multi_result()) {
+        return fmt::format_to(
+            ctx.out(), col1, "{}.{}",
+            foptim::fir::IRId{static_cast<const void *>(k.instr.get_raw_ptr()),
+                              "%"},
+            k.idx);
+      }
+      return fmt::format_to(
+          ctx.out(), col1, "{}",
+          foptim::fir::IRId{static_cast<const void *>(k.instr.get_raw_ptr()),
+                            "%"});
+    case foptim::fir::ValueType::BasicBlock:
+      return fmt::format_to(
+          ctx.out(), colbb, "{}",
+          foptim::fir::IRId{static_cast<const void *>(k.bb.get_raw_ptr()),
+                            "bb"});
+    case foptim::fir::ValueType::BBArg:
+      if (debug && color) {
+        return fmt::format_to(ctx.out(), col2, "{:cd}", k.bb_arg);
+      }
+      if (color) {
+        return fmt::format_to(ctx.out(), col2, "{:c}", k.bb_arg);
+      }
+      if (debug) {
+        return fmt::format_to(ctx.out(), col2, "{:d}", k.bb_arg);
+      }
+      return fmt::format_to(ctx.out(), col2, "{}", k.bb_arg);
 
-  case foptim::fir::ValueType::ConstantValueR:
-    if (debug && color) {
-      return fmt::format_to(ctx.out(), "{:cd}", k.const_val);
-    } else if (color) {
-      return fmt::format_to(ctx.out(), "{:c}", k.const_val);
-    } else if (debug) {
-      return fmt::format_to(ctx.out(), "{:d}", k.const_val);
-    } else {
-      return fmt::format_to(ctx.out(), "{}", k.const_val);
-    }
+    case foptim::fir::ValueType::ConstantValueR:
+      if (debug && color) {
+        return fmt::format_to(ctx.out(), "{:cd}", k.const_val);
+      } else if (color) {
+        return fmt::format_to(ctx.out(), "{:c}", k.const_val);
+      } else if (debug) {
+        return fmt::format_to(ctx.out(), "{:d}", k.const_val);
+      } else {
+        return fmt::format_to(ctx.out(), "{}", k.const_val);
+      }
   }
 }

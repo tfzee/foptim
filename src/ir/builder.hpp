@@ -10,9 +10,6 @@ namespace foptim::fir {
 struct ContextData;
 class TypeR;
 class ValueR;
-enum class BinaryInstrSubType : u32;
-enum class ICmpInstrSubType : u32;
-enum class UnaryInstrSubType : u32;
 
 class Builder {
   ContextData *ctx;
@@ -39,8 +36,12 @@ public:
   void at_penultimate(BasicBlock bbr);
   void check_bb_set();
 
+  // single result (void for none), the value of the result
   ValueR build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
                     std::span<ValueR> args);
+  // any number of results, a single void entry means none
+  Instr build_call(ValueR func_ptr, TypeR func_type,
+                   std::span<const TypeR> ret_types, std::span<ValueR> args);
   ValueR build_int_srem(ValueR a, ValueR b);
   ValueR build_int_urem(ValueR a, ValueR b);
   ValueR build_binary_op(ValueR a, ValueR b, BinaryInstrSubType sub_type);
@@ -75,9 +76,9 @@ public:
   ValueR build_float_mul(ValueR a, ValueR b);
   ValueR build_float_div(ValueR a, ValueR b);
   ValueR build_itrunc(ValueR a, TypeR ty);
-  ValueR build_extract_value(ValueR stru, std::span<ValueR> indicies,
+  ValueR build_extract_element(ValueR stru, std::span<ValueR> indicies,
                              TypeR out_ty);
-  ValueR build_insert_value(ValueR stru, ValueR v, std::span<ValueR> indicies,
+  ValueR build_insert_element(ValueR stru, ValueR v, std::span<ValueR> indicies,
                             TypeR out_ty);
   ValueR build_sext(ValueR a, TypeR ty);
   ValueR build_zext(ValueR a, TypeR ty);
@@ -103,6 +104,7 @@ public:
   Instr build_unreach();
   Instr build_return();
   Instr build_return(ValueR v);
+  Instr build_return(std::span<const ValueR> vals);
 
   BasicBlock insert_copy(BasicBlock bb, ContextData::V2VMap &subs);
   Instr insert_copy(Instr instr);

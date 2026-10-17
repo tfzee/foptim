@@ -20,8 +20,8 @@ define void @f(ptr %a, ptr %b) {
 ; CHECK-NEXT:    %13: f32 = SI_FP(%9){} NUses:1
 ; CHECK-NEXT:    %14: f32 = SI_FP(%10){} NUses:1
 ; CHECK-NEXT:    %15: f32 = Store(%0, %11){} NUses:0
-; CHECK-NEXT:    %16: 2@f32 = InsertValue(POISON, %12, 0:i32){} NUses:1
-; CHECK-NEXT:    %17: 2@f32 = InsertValue(%16, %13, 1:i32){} NUses:1
+; CHECK-NEXT:    %16: 2@f32 = InsertElement(POISON, %12, 0:i32){} NUses:1
+; CHECK-NEXT:    %17: 2@f32 = InsertElement(%16, %13, 1:i32){} NUses:1
 ; CHECK-NEXT:    %18: 2@f32 = Store(%5, %17){} NUses:0
 ; CHECK-NEXT:    %19: f32 = Store(%6, %14){} NUses:0
 ; CHECK-NEXT:    %20: () = Return(){} NUses:0

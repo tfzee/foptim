@@ -140,8 +140,8 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
           if (l->args[0] != instr->args[0]) {
             continue;
           }
-          auto ity = instr->get_type();
-          auto lty = l->get_type();
+          auto ity = instr->result_type();
+          auto lty = l->result_type();
           if (lty != ity && ((!lty->is_int() && !lty->is_ptr()) ||
                              (!ity->is_int() && !ity->is_ptr()) ||
                              ity->get_bitwidth() != lty->get_bitwidth())) {
@@ -151,7 +151,7 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
           //   continue;
           // }
           changed |= instr->get_n_uses() > 0;
-          instr->replace_all_uses(fir::ValueR{l});
+          instr->replace_all_uses(l.result());
           utils::StatCollector::get().addi(1, "Num_DoubleLoadElim");
           // instr.destroy();
           break;

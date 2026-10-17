@@ -26,10 +26,6 @@ MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
 // (a load is only folded if nothing between it and `user` writes memory)
 MArgument valueToArgPosMem(fir::ValueR val, TVec<MInstr> &res,
                            DumbRegAlloc &alloc, fir::Instr user);
-// converts value to an operand argument but it handles structs which are split
-// over multiple registers
-TVec<MArgument> valueToArgStruct(fir::ValueR val, TVec<MInstr> &res,
-                                 DumbRegAlloc &alloc);
 MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
                           DumbRegAlloc &alloc);
 void setup_callargs(fir::Instr &call_instr, MatchResult &res,

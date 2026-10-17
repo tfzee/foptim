@@ -43,7 +43,9 @@ public:
       }
       for (auto i : cfg.bbrs[b].bb->instructions) {
         if (std::ranges::any_of(i->uses, outside)) {
-          f(fir::ValueR{i});
+          for (u8 r = 0; r < std::max<u8>(i->n_results(), 1); r++) {
+            f(i.is_multi_result() ? i.result(r) : i.result());
+          }
         }
       }
     }
@@ -139,7 +141,7 @@ public:
         for (auto use : uses) {
           fir::Builder b{use.user};
           auto copied = b.insert_copy(instr);
-          use.replace_use(fir::ValueR{copied});
+          use.replace_use(copied.result());
           modified = true;
           utils::StatCollector::get().addi(1, "PropagateUseAfter",
                                            utils::StatCollector::StatFOptim);

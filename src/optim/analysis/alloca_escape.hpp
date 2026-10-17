@@ -115,10 +115,10 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
           // comparing an address does not give access to the memory
           break;
         case fir::InstrType::LoadInstr: {
-          auto ty = user->get_type();
+          auto ty = user->result_type();
           if (ty->is_ptr()) {
             if (info.has_self_ptr) {
-              add(fir::ValueR{user});
+              add(user.result());
             }
           } else {
             non_ptr_loads.push_back({.addr = v, .size = ty->get_size()});
@@ -169,14 +169,14 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
             escape();
             return info;
           }
-          add(fir::ValueR{user});
+          add(user.result());
           break;
         case fir::InstrType::BinaryInstr:
         case fir::InstrType::Conversion:
         case fir::InstrType::ITrunc:
         case fir::InstrType::ZExt:
         case fir::InstrType::SExt:
-          add(fir::ValueR{user});
+          add(user.result());
           break;
         default:
           escape();

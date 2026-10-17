@@ -14,7 +14,7 @@ bool ConstraintAnalysis::get_bin_expr(fir::Instr i, u32 depth) {
   if (node_type != ExprNode::INVALID) {
     auto v1 = get_expr(i->args[0], depth + 1);
     auto v2 = get_expr(i->args[1], depth + 1);
-    exprs.push_back({node_type, fir::ValueR{i}, v1, v2});
+    exprs.push_back({node_type, i.result(), v1, v2});
     return true;
   }
   return false;

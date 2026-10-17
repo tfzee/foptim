@@ -39,7 +39,8 @@ bool inline_call(fir::Instr call) {
     return false;
   }
 
-  bool has_ret_value = call->has_result();
+  const u32 n_results = call->n_results();
+  bool has_ret_value = n_results > 0;
 
   auto *ctx = call->get_parent()->get_parent()->ctx;
   fir::BasicBlock call_bb = call->get_parent();
@@ -88,8 +89,9 @@ bool inline_call(fir::Instr call) {
   auto end_bb = split_block(call);
 
   if (has_ret_value) {
-    auto new_arg = ctx->storage.insert_bb_arg(end_bb, call->get_type());
-    end_bb.add_arg(new_arg);
+    for (u32 i = 0; i < n_results; i++) {
+      end_bb.add_arg(ctx->storage.insert_bb_arg(end_bb, call->result_type(i)));
+    }
   }
 
   // make copy and then insert otherwise we get infinite loop when inlining
@@ -120,7 +122,9 @@ bool inline_call(fir::Instr call) {
   // replace every return isntruction with a jump to the resulting bb
   // who gets an bb_arg that holds the value
   if (has_ret_value) {
-    call->replace_all_uses(fir::ValueR{end_bb->args[0]});
+    for (u32 i = 0; i < n_results; i++) {
+      call.result(i).replace_all_uses(fir::ValueR{end_bb->args[i]});
+    }
   }
   for (auto bb : new_bbs) {
     fir::Builder ret_bb = bb.builder_at_end();
@@ -129,18 +133,23 @@ bool inline_call(fir::Instr call) {
         auto end_branch = ret_bb.build_branch(end_bb);
         if (has_ret_value) {
           ASSERT(bb->instructions[instr_id]->has_args());
-          if (bb->instructions[instr_id]->args.size() == 1) {
+          if (call->is_multi_result()) {
+            ASSERT(bb->instructions[instr_id]->args.size() == n_results);
+            for (auto a : bb->instructions[instr_id]->args) {
+              end_branch.add_bb_arg(0, a);
+            }
+          } else if (bb->instructions[instr_id]->args.size() == 1) {
             end_branch.add_bb_arg(0, bb->instructions[instr_id]->get_arg(0));
           } else {
             auto old_ret = bb->instructions[instr_id];
             fir::Builder buh{end_branch};
-            auto res_typ = old_ret.get_type();
+            auto res_typ = old_ret.result_type();
             auto v = fir::ValueR{ctx->get_poisson_value(res_typ)};
             u32 index = 0;
             for (auto a : old_ret->args) {
               fir::ValueR args[1] = {
                   fir::ValueR{ctx->get_constant_int(index, 64)}};
-              v = buh.build_insert_value(v, a, args, res_typ);
+              v = buh.build_insert_element(v, a, args, res_typ);
               index++;
             }
             end_branch.add_bb_arg(0, v);
@@ -153,7 +162,7 @@ bool inline_call(fir::Instr call) {
 
   if (!entry_allocas.empty()) {
     for (auto old_alloca : entry_allocas) {
-      auto alloca = subs.at(fir::ValueR{old_alloca}).as_instr();
+      auto alloca = subs.at(old_alloca.result()).as_instr();
       auto entry = call_func->get_entry();
       fir::Builder buh{entry};
       auto new_alloca = buh.build_alloca(alloca->args[0]);

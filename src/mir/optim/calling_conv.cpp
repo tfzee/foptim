@@ -175,6 +175,8 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
     case Type::Int16:
     case Type::Int32:
     case Type::Int64:
+      ASSERT_M(ret_gpr_indx < conv.rets.gpr.size(),
+               "more integer results than return registers");
       instrs[instr_call_id + i].n_args = 2;
       instrs[instr_call_id + i].args[1] =
           MArgument({conv.rets.gpr[ret_gpr_indx], arg_ty}, arg_ty);
@@ -199,6 +201,8 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
     case Type::Int16x8:
     case Type::Int8x32:
     case Type::Int16x16:
+      ASSERT_M(ret_fvr_indx < conv.rets.fvr.size(),
+               "more vector results than return registers");
       instrs[instr_call_id + i].n_args = 2;
       instrs[instr_call_id + i].args[1] =
           MArgument({conv.rets.fvr[ret_fvr_indx], arg_ty}, arg_ty);

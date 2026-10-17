@@ -1106,65 +1106,6 @@ size_t emit_gjmp(ZydisEncoderRequest &req, const fmir::MInstr &instr,
                             RelocSection::Text);
     return emit(out_buff, off, &req);
   }
-  case fmir::GJumpSubtype::icmp_mul_overflow: {
-    for (auto i = 0; i < req.operand_count; i++) {
-      emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
-    }
-    auto targ = req.operands[0];
-    auto a = req.operands[1];
-    auto b = req.operands[2];
-    auto targ_expanded = reg_with_type(instr.args[0].reg, instr.args[1].ty);
-
-    u64 off = 0;
-    if (b.type == ZYDIS_OPERAND_TYPE_IMMEDIATE) {
-      req.mnemonic = ZYDIS_MNEMONIC_IMUL;
-      req.operand_count = 3;
-      req.operands[0].reg.value = targ_expanded;
-      req.operands[1] = a;
-      req.operands[2] = b;
-      off = emit(out_buff, off, &req);
-    } else {
-      req.mnemonic = ZYDIS_MNEMONIC_MOV;
-      req.operand_count = 2;
-      req.operands[0].reg.value = targ_expanded;
-      req.operands[1] = a;
-      off = emit(out_buff, off, &req);
-      req.mnemonic = ZYDIS_MNEMONIC_IMUL;
-      req.operand_count = 2;
-      req.operands[0].reg.value = targ_expanded;
-      req.operands[1] = b;
-      off = emit(out_buff, off, &req);
-    }
-    req.mnemonic = ZYDIS_MNEMONIC_SETO;
-    req.operand_count = 1;
-    req.operands[0] = targ;
-    return emit(out_buff, off, &req);
-  }
-  case fmir::GJumpSubtype::icmp_add_overflow: {
-    for (auto i = 0; i < req.operand_count; i++) {
-      emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
-    }
-    auto targ = req.operands[0];
-    auto a = req.operands[1];
-    auto b = req.operands[2];
-    auto targ_expanded = reg_with_type(instr.args[0].reg, instr.args[1].ty);
-
-    u64 off = 0;
-    req.mnemonic = ZYDIS_MNEMONIC_MOV;
-    req.operand_count = 2;
-    req.operands[0].reg.value = targ_expanded;
-    req.operands[1] = a;
-    off = emit(out_buff, off, &req);
-    req.mnemonic = ZYDIS_MNEMONIC_IMUL;
-    req.operand_count = 2;
-    req.operands[0].reg.value = targ_expanded;
-    req.operands[1] = b;
-    off = emit(out_buff, off, &req);
-    req.mnemonic = ZYDIS_MNEMONIC_SETO;
-    req.operand_count = 1;
-    req.operands[0] = targ;
-    return emit(out_buff, off, &req);
-  }
   case fmir::GJumpSubtype::INVALID:
     fmt::println("{:cd}", instr);
     TODO("impl");

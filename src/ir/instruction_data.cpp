@@ -215,10 +215,10 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
     case ConversionSubType::FPTRUNC:
       return "FP_TRUNC";
     }
-  case InstrType::InsertValue:
-    return "InsertValue";
-  case InstrType::ExtractValue:
-    return "ExtractValue";
+  case InstrType::InsertElement:
+    return "InsertElement";
+  case InstrType::ExtractElement:
+    return "ExtractElement";
   case InstrType::ITrunc:
     return "ITrunc";
   case InstrType::SExt:
@@ -267,10 +267,6 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
       return "IntSGE";
     case ICmpInstrSubType::SLE:
       return "IntSLE";
-    case ICmpInstrSubType::MulOverflow:
-      return "IntMulOverflow";
-    case ICmpInstrSubType::AddOverflow:
-      return "IntAddOverflow";
     }
   case InstrType::FCmp:
     switch (static_cast<FCmpInstrSubType>(subtype)) {
@@ -352,6 +348,12 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
         fmt::print("Value: {}\n", bb_arg);
         return false;
       }
+      if (bb_arg.is_instr() && bb_arg.idx >= bb_arg.as_instr()->n_results()) {
+        fmt::print(
+            "Block argument is a result the instruction does not have\n");
+        fmt::print("Value: {}\n", bb_arg);
+        return false;
+      }
       if (!bb_arg.is_constant()) {
         if (bb_arg.get_n_uses() == 0) {
           fmt::print("BB Arg does have 0 uses but its used here\n");
@@ -412,6 +414,11 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
         fmt::print("Got invalid instruction as argument\n");
         return false;
       }
+      if (arg.idx >= arg_i->n_results()) {
+        fmt::print("Argument is a result the instruction does not have\n");
+        fmt::print("In Arg: {}\n", arg);
+        return false;
+      }
     }
     arg_id++;
   }
@@ -424,8 +431,44 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
       return false;
     }
   }
+  if (is(InstrType::CallInstr)) {
+    // the result types are the ones of the function type, the callee's if it
+    // is known, otherwise the one the call site carries
+    const fir::FunctionType *callee_ty = nullptr;
+    if (args[0].is_constant() && args[0].as_constant()->is_func()) {
+      callee_ty = &args[0].as_constant()->as_func().func->func_ty->as_func();
+    } else if (extra_type.is_valid() && extra_type->is_func()) {
+      callee_ty = &extra_type->as_func();
+    }
+    if (callee_ty != nullptr) {
+      bool same =
+          callee_ty->return_types.size() == std::max<u32>(1, n_results());
+      for (u32 i = 0; same && i < n_results(); i++) {
+        same = callee_ty->return_types[i] == result_type(i);
+      }
+      if (same && n_results() == 0) {
+        same = callee_ty->return_types[0]->is_void();
+      }
+      if (!same) {
+        fmt::print("Call result types do not match the function type\n");
+        return false;
+      }
+    }
+  }
+  if (is(InstrType::ReturnInstr) && exp_parent->get_parent().func != nullptr) {
+    const auto &fty = exp_parent->get_parent()->func_ty->as_func();
+    bool same = args.size() == fty.n_results();
+    for (size_t i = 0; same && i < args.size(); i++) {
+      same = args[i].get_type() == fty.return_types[i];
+    }
+    if (!same) {
+      fmt::print(
+          "Return values do not match the result types of the function\n");
+      return false;
+    }
+  }
   if (is(InstrType::StoreInstr)) {
-    if (get_type()->get_bitwidth() != args[1].get_type()->get_bitwidth()) {
+    if (result_type()->get_bitwidth() != args[1].get_type()->get_bitwidth()) {
       fmt::print("Trying to store value with wrong size\n");
       return false;
     }
@@ -442,7 +485,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   }
   if (is(BinaryInstrSubType::And) || is(BinaryInstrSubType::Or) ||
       is(BinaryInstrSubType::Xor)) {
-    auto t0 = get_type();
+    auto t0 = result_type();
     auto t1 = args[0].get_type();
     auto t2 = args[1].get_type();
     bool type_missmatch =
@@ -457,16 +500,16 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
     }
   }
   if (is(ConversionSubType::BitCast)) {
-    if (get_type()->get_bitwidth() != args[0].get_type()->get_bitwidth()) {
+    if (result_type()->get_bitwidth() != args[0].get_type()->get_bitwidth()) {
       fmt::print("Trying to bitcast value with wrong size {} != {}\n",
-                 get_type()->get_bitwidth(),
+                 result_type()->get_bitwidth(),
                  args[0].get_type()->get_bitwidth());
       return false;
     }
   }
-  if (is(InstrType::ExtractValue)) {
-    if (!args[0].get_type()->is_struct() && !args[0].get_type()->is_vec()) {
-      fmt::print("ExtractValue only works on a vec/struct argument not on {}\n",
+  if (is(InstrType::ExtractElement)) {
+    if (!args[0].get_type()->is_vec()) {
+      fmt::print("ExtractElement only works on a vec argument not on {}\n",
                  args[0].get_type());
       return false;
     }
@@ -474,18 +517,18 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
         args[0].get_type()->as_vec().member_number <=
             args[1].as_constant()->as_int()) {
       fmt::print(
-          "ExtractValue index gotta be smaller then size of the input size({}) "
+          "ExtractElement index gotta be smaller then size of the input size({}) "
           "<= {}\n",
           args[0], args[1]);
       return false;
     }
   }
   if (is(BinaryInstrSubType::IntAdd)) {
-    if (get_type()->get_bitwidth() < args[0].get_type()->get_bitwidth() ||
-        get_type()->get_bitwidth() < args[1].get_type()->get_bitwidth()) {
+    if (result_type()->get_bitwidth() < args[0].get_type()->get_bitwidth() ||
+        result_type()->get_bitwidth() < args[1].get_type()->get_bitwidth()) {
       fmt::print(
           "Result of add cant be smaller then the inputs {:c} vs {:c} + {:c}\n",
-          get_type(), args[0].get_type(), args[1].get_type());
+          result_type(), args[0].get_type(), args[1].get_type());
       return false;
     }
   }
@@ -497,37 +540,54 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
   return true;
 }
 
-bool InstrData::has_result() const {
-  switch (instr_type) {
-  case InstrType::BinaryInstr:
-  case InstrType::ExtractValue:
-  case InstrType::UnaryInstr:
-  case InstrType::AllocaInstr:
-  case InstrType::LoadInstr:
-  case InstrType::SelectInstr:
-  case InstrType::ICmp:
-  case InstrType::FCmp:
-  case InstrType::ITrunc:
-  case InstrType::SExt:
-  case InstrType::ZExt:
-  case InstrType::Conversion:
-  case InstrType::VectorInstr:
-  case InstrType::AtomicRMW:
-    return true;
-  case InstrType::CallInstr:
-    return !this->get_type()->is_void();
-  case InstrType::InsertValue:
-  case InstrType::ReturnInstr:
-  case InstrType::Unreachable:
-  case InstrType::BranchInstr:
-  case InstrType::SwitchInstr:
-  case InstrType::CondBranchInstr:
-  case InstrType::StoreInstr:
-  case InstrType::Fence:
-    return false;
-  case InstrType::Intrinsic:
-    return !this->get_type()->is_void();
+u8 InstrData::default_n_results(InstrType ty, TypeR vty) {
+  switch (ty) {
+    case InstrType::BinaryInstr:
+    case InstrType::ExtractElement:
+    case InstrType::InsertElement:
+    case InstrType::UnaryInstr:
+    case InstrType::AllocaInstr:
+    case InstrType::LoadInstr:
+    case InstrType::SelectInstr:
+    case InstrType::ICmp:
+    case InstrType::FCmp:
+    case InstrType::ITrunc:
+    case InstrType::SExt:
+    case InstrType::ZExt:
+    case InstrType::Conversion:
+    case InstrType::VectorInstr:
+    case InstrType::AtomicRMW:
+      return 1;
+    case InstrType::CallInstr:
+    case InstrType::Intrinsic:
+      return vty->is_void() ? 0 : 1;
+    case InstrType::ReturnInstr:
+    case InstrType::Unreachable:
+    case InstrType::BranchInstr:
+    case InstrType::SwitchInstr:
+    case InstrType::CondBranchInstr:
+    case InstrType::StoreInstr:
+    case InstrType::Fence:
+      return 0;
   }
+  TODO("unreachable");
+}
+
+void InstrData::set_result_types(std::span<const TypeR> tys) {
+  ASSERT(!tys.empty());
+  ASSERT_M(instr_type == InstrType::CallInstr,
+           "only calls can have several results for now");
+  value_type_ = tys[0];
+  if (tys.size() == 1) {
+    bbs.clear_types();
+    n_results_ = default_n_results(instr_type, tys[0]);
+    return;
+  }
+  ASSERT(tys.size() <= 255);
+  auto *types = utils::IRAlloc<TypeR>().allocate(tys.size());
+  std::ranges::copy(tys, types);
+  bbs.set_types(types);
+  n_results_ = static_cast<u8>(tys.size());
 }
 
 bool InstrData::is_critical() const {
@@ -583,8 +643,8 @@ bool InstrData::is_critical() const {
       break;
     }
   case InstrType::VectorInstr:
-  case InstrType::InsertValue:
-  case InstrType::ExtractValue:
+  case InstrType::InsertElement:
+  case InstrType::ExtractElement:
   case InstrType::AllocaInstr:
   case InstrType::LoadInstr:
   case InstrType::BinaryInstr:
@@ -699,9 +759,9 @@ bool InstrData::is_commutative() const {
   case InstrType::ZExt:
   case InstrType::ITrunc:
   case InstrType::Conversion:
-  case InstrType::InsertValue:
+  case InstrType::InsertElement:
   case InstrType::VectorInstr:
-  case InstrType::ExtractValue:
+  case InstrType::ExtractElement:
     return false;
   }
   UNREACH();
@@ -756,8 +816,8 @@ bool InstrData::pot_modifies_mem() const {
     case fir::IntrinsicSubType::Memmove:
       return true;
     }
-  case InstrType::InsertValue:
-  case InstrType::ExtractValue:
+  case InstrType::InsertElement:
+  case InstrType::ExtractElement:
   case InstrType::AllocaInstr:
   case InstrType::BranchInstr:
   case InstrType::SwitchInstr:
@@ -825,8 +885,8 @@ bool InstrData::pot_reads_mem() const {
   case InstrType::LoadInstr:
     return true;
   case InstrType::StoreInstr:
-  case InstrType::InsertValue:
-  case InstrType::ExtractValue:
+  case InstrType::InsertElement:
+  case InstrType::ExtractElement:
   case InstrType::AllocaInstr:
   case InstrType::BranchInstr:
   case InstrType::SwitchInstr:
@@ -889,8 +949,8 @@ bool InstrData::has_pot_sideeffects() const {
     case fir::IntrinsicSubType::Memmove:
       return true;
     }
-  case InstrType::InsertValue:
-  case InstrType::ExtractValue:
+  case InstrType::InsertElement:
+  case InstrType::ExtractElement:
   case InstrType::ReturnInstr:
   case InstrType::Unreachable:
   case InstrType::SwitchInstr:
@@ -1085,14 +1145,14 @@ InstrData InstrData::get_float_cmp(TypeR ty, FCmpInstrSubType cmp_ty) {
   return res;
 }
 
-InstrData InstrData::get_extract_value(TypeR ty) {
-  auto res = InstrData{InstrType::ExtractValue, 0, ty,
+InstrData InstrData::get_extract_element(TypeR ty) {
+  auto res = InstrData{InstrType::ExtractElement, 0, ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }
 
-InstrData InstrData::get_insert_value(TypeR ty) {
-  auto res = InstrData{InstrType::InsertValue, 0, ty,
+InstrData InstrData::get_insert_element(TypeR ty) {
+  auto res = InstrData{InstrType::InsertElement, 0, ty,
                        BasicBlock(BasicBlock::invalid())};
   return res;
 }

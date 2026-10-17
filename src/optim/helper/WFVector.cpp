@@ -18,7 +18,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
   // just ignore control flow for now
   // also ignore memory stuff for now
   if (!func.attribs.mem_read_none || func.attribs.variadic ||
-      func.attribs.no_return) {
+      func.attribs.no_return || func.func_ty->as_func().is_multi_return()) {
     return {};
   }
   switch (func.attribs.linkage) {
@@ -169,8 +169,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
       case fir::InstrType::BranchInstr:
         break;
       case fir::InstrType::AllocaInstr:
-      case fir::InstrType::ExtractValue:
-      case fir::InstrType::InsertValue:
+      case fir::InstrType::ExtractElement:
+      case fir::InstrType::InsertElement:
       case fir::InstrType::VectorInstr:
       case fir::InstrType::CondBranchInstr:
       case fir::InstrType::SwitchInstr:
@@ -221,7 +221,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
   }
 
   auto new_func_type = ctx->get_func_ty(
-      ctx->get_vec_type(func.func_ty->as_func().return_type, n_lanes),
+      ctx->get_vec_type(func.func_ty->as_func().return_type(), n_lanes),
       std::move(new_args));
 
   auto new_f = ctx->create_function(new_name.c_str(), new_func_type);
@@ -259,7 +259,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
               convert_value(ctx, buh, instr->args[0], n_lanes, subs),
               convert_value(ctx, buh, instr->args[1], n_lanes, subs),
               static_cast<fir::BinaryInstrSubType>(instr->subtype));
-          subs.insert({fir::ValueR{instr}, new_i});
+          subs.insert({instr.result(), new_i});
           break;
         }
         case fir::BinaryInstrSubType::INVALID:
@@ -287,7 +287,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
           auto new_i = buh.build_intrinsic(
               convert_value(ctx, buh, instr->args[0], n_lanes, subs),
               static_cast<fir::IntrinsicSubType>(instr->subtype));
-          subs.insert({fir::ValueR{instr}, new_i});
+          subs.insert({instr.result(), new_i});
         } break;
         case fir::IntrinsicSubType::UMin:
         case fir::IntrinsicSubType::UMax:
@@ -301,7 +301,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
               convert_value(ctx, buh, instr->args[0], n_lanes, subs),
               convert_value(ctx, buh, instr->args[1], n_lanes, subs),
               static_cast<fir::IntrinsicSubType>(instr->subtype));
-          subs.insert({fir::ValueR{instr}, new_i});
+          subs.insert({instr.result(), new_i});
         } break;
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memset:
@@ -329,7 +329,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             convert_value(ctx, buh, instr->args[0], n_lanes, subs),
             convert_value(ctx, buh, instr->args[1], n_lanes, subs),
             static_cast<fir::FCmpInstrSubType>(instr->subtype));
-        subs.insert({fir::ValueR{instr}, new_i});
+        subs.insert({instr.result(), new_i});
         break;
       }
       case fir::InstrType::SelectInstr: {
@@ -337,13 +337,13 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
         auto a = convert_value(ctx, buh, instr->args[1], n_lanes, subs);
         auto b = convert_value(ctx, buh, instr->args[2], n_lanes, subs);
         auto new_i = buh.build_select(a.get_type(), cond, a, b);
-        subs.insert({fir::ValueR{instr}, new_i});
+        subs.insert({instr.result(), new_i});
         break;
       }
       case fir::InstrType::ICmp:
       case fir::InstrType::UnaryInstr:
-      case fir::InstrType::ExtractValue:
-      case fir::InstrType::InsertValue:
+      case fir::InstrType::ExtractElement:
+      case fir::InstrType::InsertElement:
       case fir::InstrType::VectorInstr:
       case fir::InstrType::ITrunc:
       case fir::InstrType::ZExt:

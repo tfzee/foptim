@@ -185,10 +185,6 @@ class SCCP final : public FunctionPass {
         }
         return r;
       }
-      if (v->is_struct()) {
-        // aggregate constants are not tracked
-        return Bottom();
-      }
       fmt::println("{:cd}", v);
       TODO("impl");
     }
@@ -309,7 +305,7 @@ class SCCP final : public FunctionPass {
   ConstantValue eval_binary_instr(fir::Context &ctx, fir::Instr instr);
   ConstantValue eval_instr(fir::Context &ctx, fir::Instr instr);
 
-  void eval_and_update(fir::Context &ctx, fir::ValueR value);
+  void eval_and_update(fir::Context &ctx, fir::Instr instr);
 
   void dump();
 

@@ -23,18 +23,6 @@ bool VectorValue::operator==(const VectorValue &other) const {
   return true;
 }
 
-bool ConstantStruct::operator==(const ConstantStruct &other) const {
-  if (v.size() != other.v.size()) {
-    return false;
-  }
-  for (size_t i = 0; i < v.size(); i++) {
-    if (!v[i].eql(other.v[i])) {
-      return false;
-    }
-  }
-  return true;
-}
-
 ConstantValue::ConstantValue(i128 v, TypeR typee)
     : ConstantValue(APInt::from_i128(typee->get_bitwidth(), v), typee) {}
 
@@ -61,11 +49,6 @@ u64 ConstantValue::hash() const {
       h = hash_mix(h, m->hash());
     }
     return h;
-  case ConstantType::ConstantStruct:
-    for (const auto &m : stru_u.v.v) {
-      h = hash_mix(h, m.hash());
-    }
-    return h;
   case ConstantType::GlobalPtr:
     return hash_mix(h, reinterpret_cast<uintptr_t>(gp_u.v.glob.data_ref));
   case ConstantType::FuncPtr:
@@ -80,7 +63,6 @@ void ConstantValue::add_usage(Use u) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
-  case ConstantType::ConstantStruct:
     return;
   case ConstantType::GlobalPtr:
     gp_u.v.glob->add_usage(u);
@@ -97,7 +79,6 @@ void ConstantValue::add_usage(Use u) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
-  case ConstantType::ConstantStruct:
     return 0;
   case ConstantType::GlobalPtr:
     return gp_u.v.glob->get_n_uses();
@@ -112,7 +93,6 @@ void ConstantValue::remove_usage(Use u, bool verify) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
-  case ConstantType::ConstantStruct:
     return;
   case ConstantType::GlobalPtr:
     gp_u.v.glob->remove_usage(u, verify);
@@ -130,7 +110,6 @@ void ConstantValue::replace_uses_outside_block(fir::BasicBlock bb,
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
-  case ConstantType::ConstantStruct:
     return;
   case ConstantType::GlobalPtr:
     gp_u.v.glob->replace_uses_outside_block(bb, new_value);
@@ -147,7 +126,6 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
-  case ConstantType::ConstantStruct:
     return;
   case ConstantType::GlobalPtr:
     gp_u.v.glob->replace_all_uses(v);
@@ -164,7 +142,6 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
-  case ConstantType::ConstantStruct:
     return nullptr;
   case ConstantType::GlobalPtr:
     // return gp_u.v.glob->get_uses();
@@ -180,7 +157,6 @@ void ConstantValue::replace_all_uses(ValueR v) {
   case ConstantType::IntValue:
   case ConstantType::FloatValue:
   case ConstantType::VectorValue:
-  case ConstantType::ConstantStruct:
     return nullptr;
   case ConstantType::GlobalPtr:
     return &gp_u.v.glob->get_uses();
@@ -199,9 +175,6 @@ ConstantValue::~ConstantValue() {
     return;
   case ConstantType::IntValue:
     int_u.v.~IntValue();
-    return;
-  case ConstantType::ConstantStruct:
-    stru_u.v.v.~vector();
     return;
   case ConstantType::VectorValue:
     vec_u.v.members.~vector();
@@ -241,11 +214,6 @@ ConstantValue &ConstantValue::operator=(const ConstantValue &old) {
     vec_u._ty = old.ty;
     // vec_u = {._ty = old.ty, .v = old.vec_u.v};
     return *this;
-  case ConstantType::ConstantStruct:
-    new (&stru_u.v) ConstantStruct(old.stru_u.v);
-    stru_u._ty = old.ty;
-    // stru_u = {._ty = old.ty, .v = old.stru_u.v};
-    return *this;
   }
 }
 
@@ -277,11 +245,6 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
     vec_u._ty = old.ty;
     // vec_u = {old.ty, old.vec_u.v};
     return;
-  case ConstantType::ConstantStruct:
-    new (&stru_u.v) ConstantStruct(old.stru_u.v);
-    stru_u._ty = old.ty;
-    // stru_u = {old.ty, old.stru_u.v};
-    return;
   }
 }
 
@@ -311,11 +274,6 @@ ConstantValue::ConstantValue(const ConstantValue &old) : type(old.type) {
        ty != ConstantType::FuncPtr && ty != ConstantType::IntValue &&
        ty != ConstantType::NullPtr)) {
     fmt::println("Type is ptr but constant is not\n");
-    return false;
-  }
-  if (type->is_struct() && ty != ConstantType::PoisonValue &&
-      ty != ConstantType::ConstantStruct) {
-    fmt::println("Type is struct but constant is not\n");
     return false;
   }
   return true;
@@ -513,7 +471,5 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
     }
     return fmt::format_to(ct, colconst, ">:{}", v.type);
   }
-  case foptim::fir::ConstantType::ConstantStruct:
-    return fmt::format_to(ctx.out(), colconst, "STRUCT");
   }
 }

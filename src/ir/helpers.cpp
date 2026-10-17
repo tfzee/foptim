@@ -191,8 +191,6 @@ void convert_constant_init(u8 *output, fir::ConstantValueR val, Global glob) {
     return;
     return;
   }
-  case ConstantType::ConstantStruct:
-    break;
   }
   fmt::println("{}", val);
   TODO("okaku");

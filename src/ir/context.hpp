@@ -27,7 +27,6 @@ struct ContextData {
 
   VoidTypeR get_void_type();
   TypeR get_ptr_type();
-  StructTypeR get_struct_type(IRVec<StructType::StructElem> elems);
   TypeR get_vec_type(fir::TypeR elem_ty, u16 n_lanes);
   TypeR get_vec_type(fir::VectorType::SubType elem_ty, u16 width, u16 n_lanes);
 
@@ -43,7 +42,10 @@ struct ContextData {
 
   void print_stats() const;
 
+  // single result (void for none)
   FunctionTypeR get_func_ty(TypeR ret_type, IRVec<TypeR> args);
+  FunctionTypeR get_func_ty(std::span<const TypeR> ret_types,
+                            IRVec<TypeR> args);
   ConstantValueR get_poisson_value(TypeR type);
   ConstantValueR get_constant_null();
   ConstantValueR get_constant_value(FunctionR func);

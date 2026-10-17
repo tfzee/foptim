@@ -377,6 +377,12 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
           get_size(a1.ty) > get_size(a0.ty)) {
         return false;
       }
+      // a 64 bit immediate cannot be stored to memory directly
+      if (a1.isImm() && get_size(own_type ? a0.ty : a1.ty) == 8 &&
+          (a1.is_fp() || static_cast<i64>(a1.imm) !=
+                             static_cast<i64>(static_cast<i32>(a1.imm)))) {
+        return false;
+      }
       a0 = MArgument::stack_slot(stack_slot_id, own_type ? a0.ty : a1.ty);
       return true;
     }

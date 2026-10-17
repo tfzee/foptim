@@ -1,17 +1,20 @@
 #include "ir/types.hpp"
 
-#include "ir/intern_table.hpp"
-
-#include "ir/intern_table.hpp"
-
 #include <fmt/color.h>
+
+#include "ir/intern_table.hpp"
 
 namespace foptim::fir {
 
 [[nodiscard]] bool FunctionType::eql(const FunctionType &other) const {
-  if (!return_type->eql(*other.return_type.get_raw_ptr()) ||
+  if (return_types.size() != other.return_types.size() ||
       arg_types.size() != other.arg_types.size()) {
     return false;
+  }
+  fori(return_types) {
+    if (!return_types[i]->eql(*other.return_types[i].get_raw_ptr())) {
+      return false;
+    }
   }
   fori(arg_types) {
     if (!arg_types[i]->eql(*other.arg_types[i].get_raw_ptr())) {
@@ -19,6 +22,12 @@ namespace foptim::fir {
     }
   }
   return true;
+}
+
+u32 FunctionType::n_results() const {
+  return return_types.size() == 1 && return_types[0]->is_void()
+             ? 0
+             : return_types.size();
 }
 
 u32 AnyType::get_size() const {
@@ -33,8 +42,6 @@ u32 AnyType::get_size() const {
       return float_u.v.get_size();
     case AnyTypeType::Function:
       return func_u.v.get_size();
-    case AnyTypeType::Struct:
-      return struct_u.v.get_size();
     case AnyTypeType::Vector:
       return vec_u.v.get_size();
   }
@@ -52,8 +59,6 @@ u32 AnyType::get_bitwidth() const {
       return float_u.v.bitwidth;
     case AnyTypeType::Function:
       return func_u.v.get_bitwidth();
-    case AnyTypeType::Struct:
-      return struct_u.v.get_bitwidth();
     case AnyTypeType::Vector:
       return vec_u.v.bitwidth * vec_u.v.member_number;
   }
@@ -71,8 +76,6 @@ u32 AnyType::get_align() const {
       return float_u.v.get_align();
     case AnyTypeType::Function:
       return func_u.v.get_align();
-    case AnyTypeType::Struct:
-      return struct_u.v.get_align();
     case AnyTypeType::Vector:
       return vec_u.v.get_align();
   }
@@ -92,8 +95,6 @@ u32 AnyType::get_align() const {
       return float_u.v.eql(other.float_u.v);
     case AnyTypeType::Function:
       return func_u.v.eql(other.func_u.v);
-    case AnyTypeType::Struct:
-      return struct_u.v.eql(other.struct_u.v);
     case AnyTypeType::Vector:
       return vec_u.v.eql(other.vec_u.v);
   }
@@ -110,15 +111,13 @@ u64 AnyType::hash() const {
     case AnyTypeType::Float:
       return hash_mix(h, float_u.v.bitwidth);
     case AnyTypeType::Function:
-      h = hash_mix(h, func_u.v.return_type->hash());
+      for (const auto &ret : func_u.v.return_types) {
+        h = hash_mix(h, ret->hash());
+      }
+      // keeps (a) -> b and () -> a, b apart
+      h = hash_mix(h, func_u.v.return_types.size());
       for (const auto &arg : func_u.v.arg_types) {
         h = hash_mix(h, arg->hash());
-      }
-      return h;
-    case AnyTypeType::Struct:
-      for (const auto &e : struct_u.v.elems) {
-        h = hash_mix(h, e.offset);
-        h = hash_mix(h, reinterpret_cast<uintptr_t>(e.ty.data_ref));
       }
       return h;
     case AnyTypeType::Vector:
@@ -149,9 +148,6 @@ AnyType &AnyType::operator=(const AnyType &old) {
     case AnyTypeType::Function:
       new (&func_u.v) auto(old.func_u.v);
       return *this;
-    case AnyTypeType::Struct:
-      new (&struct_u.v) auto(old.struct_u.v);
-      return *this;
     default:
       return *this;
   }
@@ -174,9 +170,6 @@ AnyType::AnyType(const AnyType &old) : ty(old.ty) {
     case AnyTypeType::Function:
       new (&func_u.v) auto(old.func_u.v);
       break;
-    case AnyTypeType::Struct:
-      new (&struct_u.v) auto(old.struct_u.v);
-      break;
   }
 }
 
@@ -193,9 +186,6 @@ AnyType::AnyType(AnyType &&old) noexcept : ty(old.ty) {
       break;
     case AnyTypeType::Function:
       new (&func_u.v) auto(std::move(old.func_u.v));
-      break;
-    case AnyTypeType::Struct:
-      new (&struct_u.v) auto(std::move(old.struct_u.v));
       break;
     default:
       break;
@@ -222,9 +212,6 @@ AnyType &AnyType::operator=(AnyType &&old) noexcept {
     case AnyTypeType::Function:
       new (&func_u.v) auto(std::move(old.func_u.v));
       break;
-    case AnyTypeType::Struct:
-      new (&struct_u.v) auto(std::move(old.struct_u.v));
-      break;
     default:
       break;
   }
@@ -244,38 +231,7 @@ AnyType::~AnyType() {
     case AnyTypeType::Function:
       func_u.v.arg_types.~vector();
       return;
-    case AnyTypeType::Struct:
-      struct_u.v.elems.~vector();
-      return;
   }
-}
-
-u32 StructType::get_align() const {
-  u32 align = 0;
-  for (auto [_, elem] : elems) {
-    align = std::max(elem->get_align(), align);
-  }
-  return align;
-}
-
-u32 StructType::get_size() const {
-  if (elems.size() > 0) {
-    auto [off, ty] = elems.back();
-    auto size = off + ty->get_size();
-    auto align_off = size % get_align();
-    return size + align_off;
-  }
-  return 0;
-}
-
-u32 StructType::get_bitwidth() const {
-  if (elems.size() > 0) {
-    auto [off, ty] = elems.back();
-    auto size = off + ty->get_bitwidth();
-    auto align_off = (ty->get_size() % get_align()) * 8;
-    return size + align_off;
-  }
-  return 0;
 }
 
 }  // namespace foptim::fir
@@ -295,7 +251,19 @@ fmt::appender fmt::formatter<foptim::fir::AnyType>::format(
       return fmt::format_to(app, col, "ptr");
     case foptim::fir::AnyTypeType::Function: {
       auto func = v.as_func();
-      app = fmt::format_to(app, col, "{}(", func.return_type);
+      if (func.return_types.size() == 1) {
+        app = fmt::format_to(app, col, "{}", func.return_types[0]);
+      } else {
+        app = fmt::format_to(app, col, "[");
+        for (size_t i = 0; i < func.return_types.size(); i++) {
+          if (i != 0) {
+            app = fmt::format_to(app, col, " ");
+          }
+          app = fmt::format_to(app, col, "{}", func.return_types[i]);
+        }
+        app = fmt::format_to(app, col, "]");
+      }
+      app = fmt::format_to(app, col, "(");
       for (auto arg : func.arg_types) {
         app = fmt::format_to(app, col, "{} ", arg);
       }
@@ -312,11 +280,5 @@ fmt::appender fmt::formatter<foptim::fir::AnyType>::format(
                                 v.vec_u.v.bitwidth);
           break;
       }
-    case foptim::fir::AnyTypeType::Struct:
-      app = fmt::format_to(app, col, "{{");
-      for (auto member : v.as_struct().elems) {
-        app = fmt::format_to(app, col, "{} ", member.ty);
-      }
-      return fmt::format_to(app, col, "}}");
   }
 }

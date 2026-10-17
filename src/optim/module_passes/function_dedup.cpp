@@ -28,7 +28,21 @@ struct DiffConst {
 struct MergableGroup {
   TVec<DiffConst> diffs;
   TVec<fir::Function *> funcs;
+  // position of the function the group was collected for, jobs finish in any
+  // order so this keeps the merge order (and the merged names) stable
+  size_t origin = 0;
 };
+
+// the group that gets merged first is the last one
+bool merge_order_less(const MergableGroup &a, const MergableGroup &b) {
+  if (a.funcs.size() != b.funcs.size()) {
+    return a.funcs.size() < b.funcs.size();
+  }
+  if (a.diffs.size() != b.diffs.size()) {
+    return a.diffs.size() > b.diffs.size();
+  }
+  return a.origin > b.origin;
+}
 
 [[nodiscard]] bool check_args2(fir::Instr i1, fir::Instr i2, u32 bb_id,
                                u32 instr_id,
@@ -146,7 +160,11 @@ bool check_match(fir::Function *f1, fir::Function *f2,
           i1->bbs.size() != i2->bbs.size()) {
         return false;
       }
-      if (i1.get_type() != i2.get_type()) {
+      if (i1.is_multi_result() || i2.is_multi_result()) {
+        if (!std::ranges::equal(i1->result_types(), i2->result_types())) {
+          return false;
+        }
+      } else if (i1.result_type() != i2.result_type()) {
         return false;
       }
     }
@@ -165,7 +183,7 @@ bool check_match(fir::Function *f1, fir::Function *f2,
       auto i1 = bb1->instructions[i];
       auto i2 = bb2->instructions[i];
       if (i1->has_result()) {
-        local_value_map.insert({fir::ValueR(i1), fir::ValueR(i2)});
+        fir::map_results(i1, i2, local_value_map);
       }
     }
   }
@@ -236,7 +254,13 @@ u64 structure_key(const fir::Function *f) {
       h = mix_hash(h, instr->subtype);
       h = mix_hash(h, instr->args.size());
       h = mix_hash(h, instr->bbs.size());
-      h = mix_hash(h, type_key(instr.get_type()));
+      if (instr.is_multi_result()) {
+        for (auto res_ty : instr->result_types()) {
+          h = mix_hash(h, type_key(res_ty));
+        }
+      } else {
+        h = mix_hash(h, type_key(instr.result_type()));
+      }
     }
   }
   return h;
@@ -299,8 +323,8 @@ fir::TypeR select_type(TVec<fir::TypeR> tys, fir::Instr instr, u32 /*arg_id*/) {
   }
   if ((instr->is(fir::InstrType::UnaryInstr) ||
        instr->is(fir::InstrType::BinaryInstr)) &&
-      biggest_width < instr.get_type()->get_bitwidth()) {
-    return instr.get_type();
+      biggest_width < instr.result_type()->get_bitwidth()) {
+    return instr.result_type();
   }
 
   return biggest_type;
@@ -349,7 +373,7 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx,
   }
 
   auto new_type =
-      ctx->get_func_ty(f1->func_ty->as_func().return_type, new_arg_ty);
+      ctx->get_func_ty(f1->func_ty->as_func().return_types, new_arg_ty);
   auto new_func = ctx->create_function(new_name, new_type);
   // delete the automatically inserted bb
   ASSERT(new_func->basic_blocks.size() == 1);
@@ -374,7 +398,8 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx,
   auto i = 0;
   for (auto diff : group.diffs) {
     auto instr1 = f1->basic_blocks[diff.bb_id]->instructions[diff.instr_id];
-    auto instr = subs.at(fir::ValueR(instr1)).as_instr();
+    auto key = instr1->is_multi_result() ? instr1.result(0) : instr1.result();
+    auto instr = subs.at(key).as_instr();
     instr.replace_arg(diff.arg_id,
                       fir::ValueR{new_entry->args[n_orig_args + i]});
     i++;
@@ -416,6 +441,7 @@ void collect_group(
   auto *f1 = all_funcs[idx1];
   auto f1_ninstrs = f1->n_instrs();
   MergableGroup group{};
+  group.origin = idx1;
 
   // we just use the first match to then collect a group
   //  which could be a non optimal group
@@ -586,14 +612,7 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed,
     ZoneScopedN("DiffMerging");
     // since functions could be in multiple groups we will sort them to first
     // merge the biggest groups
-    std::ranges::sort(groups, [](auto &a, auto &b) {
-      auto a_size = a.funcs.size();
-      auto b_size = b.funcs.size();
-      if (a_size == b_size) {
-        return a.diffs.size() > b.diffs.size();
-      }
-      return a_size < b_size;
-    });
+    std::ranges::sort(groups, merge_order_less);
 
     while (!groups.empty()) {
       auto &curr = groups.back();
@@ -622,14 +641,7 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed,
         }
 
         // after we did cleanup we should resort
-        std::ranges::sort(groups, [](auto &a, auto &b) {
-          auto a_size = a.funcs.size();
-          auto b_size = b.funcs.size();
-          if (a_size == b_size) {
-            return a.diffs.size() > b.diffs.size();
-          }
-          return a_size < b_size;
-        });
+        std::ranges::sort(groups, merge_order_less);
       }
     }
   }

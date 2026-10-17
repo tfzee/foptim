@@ -30,7 +30,7 @@ public:
       out.instr = i;
       out.ptr = i->args[0];
       out.size = fir::ValueR{};
-      out.static_size = i->get_type()->get_size();
+      out.static_size = i->result_type()->get_size();
       return true;
     }
     case fir::InstrType::Intrinsic: {
@@ -79,7 +79,7 @@ public:
       if (user->is(fir::BinaryInstrSubType::PtrAdd) ||
           user->is(fir::BinaryInstrSubType::IntAdd) ||
           user->is(fir::ConversionSubType::PtrToInt)) {
-        collect_writes_to_alloca(fir::ValueR{user}, seen, out);
+        collect_writes_to_alloca(user.result(), seen, out);
       }
     }
   }
@@ -151,7 +151,7 @@ public:
         if (!instr->is(fir::InstrType::AllocaInstr)) {
           continue;
         }
-        fir::ValueR alloca_val{instr};
+        fir::ValueR alloca_val = instr.result();
 
         auto escape_info = analyze_alloca_escape(alloca_val);
         if (escape_info.escapes) {
@@ -240,7 +240,7 @@ public:
             // Use AliasAnalysis to safely check if reads intersect with our
             // alloca
             if (cur->is(fir::InstrType::LoadInstr)) {
-              u64 load_size = cur->get_type()->get_size();
+              u64 load_size = cur->result_type()->get_size();
 
               if (reads_alloca(cur->args[0]) ||
                   aa.alias(cur->args[0], alloca_val, load_size, 0) !=

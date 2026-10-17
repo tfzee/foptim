@@ -43,7 +43,7 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
     if (apply_subs) {
       new_instr.substitute(subs);
     }
-    subs.insert({ValueR{instr}, ValueR{new_instr}});
+    map_results(instr, new_instr, subs);
   }
   return res;
 }
@@ -166,11 +166,6 @@ TypeR ContextData::get_ptr_type() {
   return ptr_type;
 }
 
-StructTypeR ContextData::get_struct_type(IRVec<StructType::StructElem> elems) {
-  auto ty = StructType(std::move(elems));
-  return intern_type(ty);
-}
-
 TypeR ContextData::get_vec_type(fir::TypeR elem_ty, u16 n_lanes) {
   VectorType::SubType elemy = VectorType::SubType::Integer;
   u16 width = 0;
@@ -235,8 +230,19 @@ IntTypeR ContextData::get_int_type(u16 bitwidth) {
 }
 
 FunctionTypeR ContextData::get_func_ty(TypeR ret_type, IRVec<TypeR> args) {
+  return get_func_ty(std::span<const TypeR>{&ret_type, 1}, std::move(args));
+}
+
+FunctionTypeR ContextData::get_func_ty(std::span<const TypeR> ret_types,
+                                       IRVec<TypeR> args) {
+  ASSERT(!ret_types.empty());
+  ASSERT_M(
+      ret_types.size() == 1 ||
+          std::ranges::none_of(ret_types, [](TypeR t) { return t->is_void(); }),
+      "void can only be the single result type");
   auto func_ty =
-      FunctionType{.return_type = ret_type, .arg_types = std::move(args)};
+      FunctionType{.return_types = {ret_types.begin(), ret_types.end()},
+                   .arg_types = std::move(args)};
   return intern_type(func_ty);
 }
 

@@ -73,9 +73,9 @@ void LiveVariables::update(fir::Function &func, CFG &cfg) {
       defs[bb_id][all_values.at(fir::ValueR(bb->args[arg_id]))].set(true);
     }
     for (auto instr : bb->instructions) {
-      if (all_values.contains(fir::ValueR(instr))) {
+      for (u8 i = 0; i < instr->n_results(); i++) {
         ASSERT(instr->get_parent() == bb);
-        defs[bb_id][all_values.at(fir::ValueR(instr))].set(true);
+        defs[bb_id][all_values.at(instr.result(i))].set(true);
       }
 
       for (auto arg : instr->args) {

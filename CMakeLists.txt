@@ -231,8 +231,11 @@ target_precompile_headers(foptim PRIVATE ${FOPTIM_PCH})
 #foptim unit test
 add_executable (foptim_unit_test
                 ./src/test/test_main.cpp
+                ./src/config/compiler_config.cpp
                )
 target_compile_options(foptim_unit_test PRIVATE -fno-exceptions)
+# the toml parser needs exceptions
+set_source_files_properties(./src/config/compiler_config.cpp PROPERTIES COMPILE_OPTIONS -fexceptions SKIP_PRECOMPILE_HEADERS ON)
 target_link_libraries(foptim_unit_test PRIVATE foptim gtest)
 target_include_directories(foptim_unit_test PRIVATE ./src/)
 

@@ -25,6 +25,12 @@ struct InstrPointer {
 class Interpreter {
   State state;
   InstrPointer ip;
+  TVec<ConstantValue> ret_vals;
+  bool returned = false;
+  // calls get their own interpreter for the (defined) callee, every result of
+  // the call gets the matching value of the callee's ret
+  bool interpret_call(Instr call);
+  bool interpret_ret(Instr ret);
 
  public:
   Interpreter(Function *func)
@@ -35,6 +41,14 @@ class Interpreter {
       : state(), ip({.func = func, .bb_id = bb_id, .instr_id = instr_id}) {};
 
   void dump_state();
+  // steps until the function returned, false if an instruction could not be
+  // interpreted
+  bool run();
+  [[nodiscard]] bool has_returned() const { return returned; }
+  // the values of the ret that was interpreted, one per result of the function
+  [[nodiscard]] const TVec<ConstantValue> &return_values() const {
+    return ret_vals;
+  }
   // returns true if and only if the instruction got correctly interpreted
   bool step_instr();
   // returns true if and only if the bb got correctly interpreted till the end

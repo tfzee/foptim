@@ -13,79 +13,213 @@ namespace {
 
 u64 ipcp_unique_name_number = 0;
 
-// returns whether the results of calls were replaced
-bool constant_prop_return(fir::FunctionR func, fir::Context &ctx,
-                          AnalysisManager &analyMan) {
-  TVec<fir::ValueR> ret_vals;
-  if (func->func_ty->as_func().return_type->is_void()) {
+bool is_direct_call_use(const fir::Use &use) {
+  return use.type == fir::UseType::NormalArg && use.argId == 0 &&
+         use.user->is(fir::InstrType::CallInstr);
+}
+
+// the result i of a call of func itself, as returned by a return of func
+bool is_self_forward(fir::ValueR v, u8 i, fir::FunctionR func) {
+  if (!v.is_instr() || v.idx != i || !v.as_instr()->is(fir::InstrType::CallInstr)) {
     return false;
   }
-  for (auto bb : func->basic_blocks) {
-    for (auto instr : bb->instructions) {
-      if (!instr->is(fir::InstrType::ReturnInstr)) {
+  auto callee = v.as_instr()->args[0];
+  return callee.is_constant() && callee.as_constant()->is_func() &&
+         callee.as_constant()->as_func().func == func.func;
+}
+
+// Results that are the same constant (or entry argument) on every return are
+// replaced in the callers, a result that only forwards the recursive call does
+// not count as a different value.
+bool constant_prop_return(fir::FunctionR func, const TVec<fir::Instr> &rets,
+                          AnalysisManager &analyMan) {
+  const auto n_results = func->func_ty->as_func().n_results();
+  bool modified = false;
+  for (u8 i = 0; i < n_results; i++) {
+    bool same = true;
+    bool found = false;
+    bool forwards = false;
+    fir::ValueR val;
+    for (auto ret : rets) {
+      auto v = ret->args[i];
+      if (is_self_forward(v, i, func)) {
+        forwards = true;
         continue;
       }
-      ASSERT(!instr->args.empty());
-      if (ret_vals.empty()) {
-        for (auto ret_val : instr->args) {
-          if (!ret_val.is_constant() &&
-              (!ret_val.is_bb_arg() ||
-               ret_val.as_bb_arg()->get_parent() != func->get_entry())) {
-            return false;
-          }
-          ret_vals.push_back(ret_val);
-        }
-      } else {
-        if (instr->args.size() != ret_vals.size()) {
-          return false;
-        }
-        for (size_t i = 0; i < ret_vals.size(); i++) {
-          if (ret_vals[i] != instr->args[i]) {
-            return false;
-          }
-        }
+      if (!v.is_constant() &&
+          (!v.is_bb_arg() || v.as_bb_arg()->get_parent() != func->get_entry())) {
+        same = false;
+        break;
       }
+      if (found && v != val) {
+        same = false;
+        break;
+      }
+      val = v;
+      found = true;
+    }
+    // an argument has another value in the recursive call, only a constant
+    // is the same in all the invocations
+    if (!same || !found || (forwards && !val.is_constant())) {
+      continue;
+    }
+    for (auto use : func->get_uses()) {
+      if (!is_direct_call_use(use) || use.user.result(i).get_n_uses() == 0) {
+        continue;
+      }
+      auto repl = val.is_constant()
+                      ? val
+                      : use.user->args[func->get_entry()->get_arg_id(
+                                           val.as_bb_arg()) +
+                                       1];
+      use.user.result(i).replace_all_uses(repl);
+      modified = true;
     }
   }
+  if (modified) {
+    // only the uses of the call results in the callers were rewritten
+    analyMan.touched_callers(*func.func);
+  }
+  return modified;
+}
 
-  if (ret_vals.size() == 1) {
-    for (auto use : func->get_uses()) {
-      if (ret_vals[0].is_constant()) {
-        use.user->replace_all_uses(ret_vals[0]);
-      } else if (ret_vals[0].is_bb_arg()) {
-        auto id = ret_vals[0].as_bb_arg()->get_parent()->get_arg_id(
-            ret_vals[0].as_bb_arg());
-        use.user->replace_all_uses(use.user->args[id + 1]);
-      } else {
-        TODO("unreach?");
-      }
-    }
-  } else {
-    auto res_ty = func->func_ty->as_func().return_type;
-    for (auto use : func->get_uses()) {
-      fir::Builder buh(use.user);
-      auto res_val = fir::ValueR{ctx->get_poisson_value(res_ty)};
-      auto i = 0;
-      for (auto ret_val : ret_vals) {
-        fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(i, 32)}};
-        i++;
-        if (ret_val.is_constant()) {
-          res_val = buh.build_insert_value(res_val, ret_val, indicies, res_ty);
-        } else if (ret_val.is_bb_arg()) {
-          auto id = ret_val.as_bb_arg()->get_parent()->get_arg_id(
-              ret_val.as_bb_arg());
-          res_val = buh.build_insert_value(res_val, use.user->args[id + 1],
-                                           indicies, res_ty);
-        } else {
-          TODO("unreach?");
+// Results that are the same value on every return are merged into the first
+// one, the callers use that result for both.
+bool merge_equal_results(fir::FunctionR func, const TVec<fir::Instr> &rets,
+                         AnalysisManager &analyMan) {
+  const auto n_results = func->func_ty->as_func().n_results();
+  bool modified = false;
+  for (u8 j = 1; j < n_results; j++) {
+    for (u8 i = 0; i < j; i++) {
+      bool same = true;
+      for (auto ret : rets) {
+        if (ret->args[i] != ret->args[j]) {
+          same = false;
+          break;
         }
       }
-      use.user->replace_all_uses(res_val);
+      if (!same) {
+        continue;
+      }
+      for (auto use : func->get_uses()) {
+        if (is_direct_call_use(use) && use.user.result(j).get_n_uses() != 0) {
+          use.user.result(j).replace_all_uses(use.user.result(i));
+          modified = true;
+        }
+      }
+      break;
     }
   }
-  // only the uses of the call results in the callers were rewritten
-  analyMan.touched_callers(*func.func);
-  return !func->get_uses().empty();
+  if (modified) {
+    analyMan.touched_callers(*func.func);
+  }
+  return modified;
+}
+
+// A result is dead if no caller reads it, the recursive call whose result is
+// only returned at the same position does not count as a read.
+bool result_is_dead(fir::FunctionR func, u8 i) {
+  for (auto use : func->get_uses()) {
+    auto call = use.user;
+    const bool rec = call->get_parent()->get_parent() == func.func;
+    u32 forwarded = 0;
+    if (rec) {
+      for (auto u : call->get_uses()) {
+        if (u.type == fir::UseType::NormalArg &&
+            u.user->is(fir::InstrType::ReturnInstr) &&
+            u.user->get_parent()->get_parent() == func.func && u.argId == i &&
+            u.user->args[i] == call.result(i)) {
+          forwarded++;
+        }
+      }
+    }
+    if (call.result(i).get_n_uses() != forwarded) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Drops results nobody reads from the function, its returns and its calls.
+bool kill_dead_results(fir::FunctionR func, fir::Context &ctx,
+                       const TVec<fir::Instr> &rets, AnalysisManager &analyMan) {
+  const auto func_ty = func->func_ty->as_func();
+  const auto n_results = func_ty.n_results();
+  TVec<u8> new_index(n_results);
+  IRVec<fir::TypeR> new_rets;
+  bool any_dead = false;
+  for (u8 i = 0; i < n_results; i++) {
+    if (result_is_dead(func, i)) {
+      any_dead = true;
+      new_index[i] = 255;
+    } else {
+      new_index[i] = static_cast<u8>(new_rets.size());
+      new_rets.push_back(func_ty.return_types[i]);
+    }
+  }
+  if (!any_dead) {
+    return false;
+  }
+  for (auto ret : rets) {
+    for (u8 i = n_results; i > 0; i--) {
+      if (new_index[i - 1] == 255) {
+        ret.remove_arg(i - 1);
+      }
+    }
+    ret->set_result_type(ret->args.empty() ? ctx->get_void_type()
+                                           : ret->args[0].get_type());
+  }
+  const bool no_results = new_rets.empty();
+  if (no_results) {
+    new_rets.push_back(ctx->get_void_type());
+  }
+  func.func->func_ty = ctx->get_func_ty(new_rets, func_ty.arg_types);
+  for (auto use : func->get_uses()) {
+    auto call = use.user;
+    // ascending, a result only moves to a lower index
+    for (u8 j = 0; j < n_results; j++) {
+      if (new_index[j] != 255 && new_index[j] != j) {
+        call.result(j).replace_all_uses(call.result(new_index[j]));
+      }
+    }
+    call->set_result_types(new_rets);
+    call->extra_type = func.func->func_ty;
+  }
+  analyMan.touched_signature(*func.func);
+  if (func->attribs.linkage == fir::Linkage::LinkOnceODR ||
+      func->getName().starts_with("foptim.")) {
+    auto old_name = func->name;
+    ipcp_unique_name_number++;
+    auto new_name = old_name + "MODIPCP";
+    new_name += std::to_string(ipcp_unique_name_number);
+    ASSERT(!ctx->storage.functions.contains(new_name.c_str()));
+    auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+    ctx->storage.functions.rename(old_name.c_str(), new_name);
+    func_renamed->attribs.linkage = fir::Linkage::Internal;
+    func_renamed->attribs.no_inline = false;
+  }
+  return true;
+}
+
+void optimize_returns(fir::FunctionR func, fir::Context &ctx,
+                      AnalysisManager &analyMan) {
+  if (func->func_ty->as_func().n_results() == 0 || func->get_n_uses() == 0) {
+    return;
+  }
+  TVec<fir::Instr> rets;
+  for (auto bb : func->basic_blocks) {
+    for (auto instr : bb->instructions) {
+      if (instr->is(fir::InstrType::ReturnInstr)) {
+        rets.push_back(instr);
+      }
+    }
+  }
+  if (rets.empty()) {
+    return;
+  }
+  constant_prop_return(func, rets, analyMan);
+  merge_equal_results(func, rets, analyMan);
+  kill_dead_results(func, ctx, rets, analyMan);
 }
 
 bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
@@ -154,7 +288,7 @@ bool constant_prop_args(fir::FunctionR func, fir::Context &ctx,
   }
   if (modified) {
     func.func->func_ty =
-        ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+        ctx->get_func_ty(func_ty.return_types, std::move(arg_tys));
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
@@ -205,7 +339,7 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx,
   }
   if (modified) {
     func.func->func_ty =
-        ctx->get_func_ty(func_ty.return_type, std::move(arg_tys));
+        ctx->get_func_ty(func_ty.return_types, std::move(arg_tys));
     for (auto use : func.func->get_uses()) {
       use.user->extra_type = func.func->func_ty;
     }
@@ -269,7 +403,7 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
     // returns only say if the function got renamed
     if (!kill_dead_args(f, ctx, analyMan) &&
         !constant_prop_args(fir::FunctionR(f), ctx, analyMan)) {
-      constant_prop_return(fir::FunctionR(f), ctx, analyMan);
+      optimize_returns(fir::FunctionR(f), ctx, analyMan);
     }
   }
   return PreservedAnalysis::all();

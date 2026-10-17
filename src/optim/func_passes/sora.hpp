@@ -26,7 +26,7 @@ class SORA final : public FunctionPass {
         break;
       }
       return {UseRes{.offset = 0,
-                     .access_size = use.user->get_type()->get_size(),
+                     .access_size = use.user->result_type()->get_size(),
                      .user = use}};
     case fir::InstrType::BinaryInstr:
       switch (static_cast<fir::BinaryInstrSubType>(use.user->subtype)) {
@@ -78,7 +78,7 @@ class SORA final : public FunctionPass {
     }
     bool modified = false;
     for (auto &w : accs) {
-      auto wty = w.instr->get_type();
+      auto wty = w.instr->result_type();
       const bool int_vec =
           wty->is_vec() &&
           wty->as_vec().type == fir::VectorType::SubType::Integer &&
@@ -143,7 +143,7 @@ class SORA final : public FunctionPass {
           for (size_t i = 0; i + 1 < cuts.size(); i++) {
             fir::ValueR idx[1] = {
                 fir::ValueR{ctx->get_constant_int(static_cast<i128>(i), 32)}};
-            auto lane = b.build_extract_value(vec, idx, lane_ty);
+            auto lane = b.build_extract_element(vec, idx, lane_ty);
             b.build_store(piece_ptr(cuts[i]), lane, false, false);
           }
         } else if (w.instr->is(fir::InstrType::LoadInstr)) {
@@ -153,7 +153,7 @@ class SORA final : public FunctionPass {
           for (auto u : w.instr->uses) {
             only_copies &= u.user->is(fir::InstrType::StoreInstr) &&
                            u.argId == 1 && !u.user->Volatile &&
-                           !u.user->Atomic && u.user->get_type() == wty;
+                           !u.user->Atomic && u.user->result_type() == wty;
           }
           if (!only_copies || w.instr->uses.empty()) {
             continue;

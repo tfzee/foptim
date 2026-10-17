@@ -35,7 +35,7 @@ bool is_pot_store_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
   for (size_t between_i = from; between_i < to; between_i++) {
     auto binstr = bb->instructions[between_i];
     if (binstr->is(fir::InstrType::StoreInstr)) {
-      if (aa.alias(binstr->args[0], ptr, binstr->get_type()->get_size(),
+      if (aa.alias(binstr->args[0], ptr, binstr->result_type()->get_size(),
                    size) != AliasAnalyis::AAResult::NoAlias) {
         return true;
       }
@@ -51,7 +51,7 @@ bool is_pot_load_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
   for (size_t between_i = from; between_i < to; between_i++) {
     auto binstr = bb->instructions[between_i];
     if (binstr->is(fir::InstrType::LoadInstr)) {
-      if (aa.alias(binstr->args[0], ptr, binstr->get_type()->get_size(),
+      if (aa.alias(binstr->args[0], ptr, binstr->result_type()->get_size(),
                    size) != AliasAnalyis::AAResult::NoAlias) {
         return true;
       }
@@ -68,7 +68,7 @@ bool is_pot_loadstore_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
     auto binstr = bb->instructions[between_i];
     if (binstr->is(fir::InstrType::StoreInstr) ||
         binstr->is(fir::InstrType::LoadInstr)) {
-      if (aa.alias(binstr->args[0], ptr, binstr->get_type()->get_size(),
+      if (aa.alias(binstr->args[0], ptr, binstr->result_type()->get_size(),
                    size) != AliasAnalyis::AAResult::NoAlias) {
         return true;
       }
@@ -80,14 +80,14 @@ bool is_pot_loadstore_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
 }
 
 bool eql_instr_expr(fir::Instr a, fir::Instr b) {
-  if (a->eql_expr(*b.get_raw_ptr()) && a->get_type() == b.get_type()) {
+  if (a->eql_expr(*b.get_raw_ptr()) && a->result_type() == b.result_type()) {
     return true;
   }
   if (a->is(fir::InstrType::BinaryInstr) &&
       b->is(fir::InstrType::BinaryInstr) && a->subtype == b->subtype &&
       a->is_commutative() && a->args[0].eql(b->args[1]) &&
       a->args[1].eql(b->args[0]) &&
-      a->get_type()->get_bitwidth() == a->get_type()->get_bitwidth()) {
+      a->result_type()->get_bitwidth() == a->result_type()->get_bitwidth()) {
     return true;
   }
 
@@ -118,7 +118,7 @@ PtrOff decompose_ptr(fir::ValueR ptr) {
 bool forward_int_load_partial(fir::BasicBlock bb, fir::Instr load,
                               AliasAnalyis &aa) {
   constexpr size_t MaxScan = 128;
-  auto lty = load->get_type();
+  auto lty = load->result_type();
   if (!lty->is_int() || load->Volatile || lty->get_bitwidth() % 8 != 0 ||
       lty->get_bitwidth() > 64) {
     return false;
@@ -138,7 +138,7 @@ bool forward_int_load_partial(fir::BasicBlock bb, fir::Instr load,
   for (size_t k = pos; k-- > 0 && scanned < MaxScan; scanned++) {
     auto s = bb->instructions[k];
     if (s->is(fir::InstrType::StoreInstr)) {
-      auto sty = s->get_type();
+      auto sty = s->result_type();
       if (s->Volatile) {
         return false;
       }
@@ -223,7 +223,7 @@ bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
   const auto instr_type = data.instr_type;
   const auto subtype = data.subtype;
   const auto n_args = data.args.size();
-  const auto type = instr.get_type();
+  const auto type = instr.result_type();
   // walk up the dominator tree (nearest dominator first)
   for (u32 d = bb_id; d != cfg.entry;) {
     d = dom.idom(d);
@@ -235,8 +235,8 @@ bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
           data2.args.size() != n_args) {
         continue;
       }
-      if (data.eql_expr(data2) && type == instr2.get_type()) {
-        instr->replace_all_uses(fir::ValueR{instr2});
+      if (data.eql_expr(data2) && type == instr2.result_type()) {
+        instr->replace_all_uses(instr2.result());
         instr.destroy();
         return true;
       }
@@ -247,8 +247,8 @@ bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
 
 bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   auto a0 = load_instr->args[0].as_instr();
-  const auto &store_ty = store_instr->get_type()->as_vec();
-  auto load_ty = load_instr->get_type();
+  const auto &store_ty = store_instr->result_type()->as_vec();
+  auto load_ty = load_instr->result_type();
   if (load_ty->get_bitwidth() != store_ty.bitwidth ||
       !a0->is(fir::BinaryInstrSubType::PtrAdd) ||
       a0->args[0] != store_instr->args[0] || !a0->args[1].is_constant_int()) {
@@ -274,7 +274,7 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
           ? load_ty
           : (lane_is_float ? fir::TypeR{ctx->get_float_type(store_ty.bitwidth)}
                            : fir::TypeR{ctx->get_int_type(store_ty.bitwidth)});
-  auto res = buh.build_extract_value(store_instr->args[1], indicies, elem_ty);
+  auto res = buh.build_extract_element(store_instr->args[1], indicies, elem_ty);
   if (elem_ty != load_ty) {
     res = buh.build_conversion_op(res, load_ty, fir::ConversionSubType::BitCast);
   }
@@ -287,9 +287,9 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
 }
 
 bool vstore_vload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
-  const auto &store_ty = store_instr->get_type()->as_vec();
+  const auto &store_ty = store_instr->result_type()->as_vec();
   auto a0 = load_instr->args[0].as_instr();
-  const auto &load_ty = load_instr->get_type();
+  const auto &load_ty = load_instr->result_type();
 
   // TODO: can also forward other cases
   if (load_ty->get_bitwidth() * 2 != store_ty.get_bitwidth() ||
@@ -337,7 +337,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       }
       if (lvn_applicable(instr2)) {
         if (eql_instr_expr(instr, instr2)) {
-          instr2->replace_all_uses(fir::ValueR{instr});
+          instr2->replace_all_uses(instr.result());
           ASSERT(instr2->get_n_uses() == 0);
           instr2.destroy();
           i2--;
@@ -356,8 +356,8 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
                instr2->subtype == static_cast<u32>(fir::ICmpInstrSubType::EQ));
           if (opposite_eql) {
             fir::Builder bb{instr2};
-            auto res = bb.build_unary_op(fir::ValueR{instr},
-                                         fir::UnaryInstrSubType::Not);
+            auto res =
+                bb.build_unary_op(instr.result(), fir::UnaryInstrSubType::Not);
             instr2->replace_all_uses(res);
             instr2.destroy();
             i2--;
@@ -374,11 +374,12 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           instr2->is(fir::InstrType::LoadInstr) && !instr->Volatile &&
           !instr2->Volatile) {
         if (instr->get_arg(0) == instr2->get_arg(0)) {
-          auto t1 = instr->get_type();
-          auto t2 = instr2->get_type();
+          auto t1 = instr->result_type();
+          auto t2 = instr2->result_type();
 
           bool pot_store_between = is_pot_store_between(
-              bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
+              bb, instr->args[0], instr->result_type()->get_size(), i + 1, i2,
+              aa);
           if (!pot_store_between) {
             if (t1 == t2) {
               instr2->replace_all_uses(instr->get_arg(1));
@@ -391,9 +392,9 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               // insert before the load: inserting before the store would shift
               // it to index i + 1 and the i2 scan would meet the store itself
               fir::Builder buh{instr2};
-              auto r =
-                  buh.build_conversion_op(instr->get_arg(1), instr2->get_type(),
-                                          fir::ConversionSubType::BitCast);
+              auto r = buh.build_conversion_op(instr->get_arg(1),
+                                               instr2->result_type(),
+                                               fir::ConversionSubType::BitCast);
               instr2->replace_all_uses(r);
               instr2.destroy();
               i2--;
@@ -411,15 +412,15 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               const bool lane_is_float =
                   vt.type == fir::VectorType::SubType::Floating;
               fir::TypeR lane_ty =
-                  lane_is_float == instr2->get_type()->is_float()
-                      ? instr2->get_type()
+                  lane_is_float == instr2->result_type()->is_float()
+                      ? instr2->result_type()
                       : (lane_is_float
                              ? fir::TypeR{ctx->get_float_type(vt.bitwidth)}
                              : fir::TypeR{ctx->get_int_type(vt.bitwidth)});
-              fir::ValueR r = buh.build_extract_value(instr->get_arg(1),
+              fir::ValueR r = buh.build_extract_element(instr->get_arg(1),
                                                       indicies, lane_ty);
-              if (lane_ty != instr2->get_type()) {
-                r = buh.build_conversion_op(r, instr2->get_type(),
+              if (lane_ty != instr2->result_type()) {
+                r = buh.build_conversion_op(r, instr2->result_type(),
                                             fir::ConversionSubType::BitCast);
               }
               instr2->replace_all_uses(r);
@@ -437,7 +438,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               fir::ValueR index0[1] = {
                   fir::ValueR{cfg.func->ctx->get_constant_int(0, 32)},
               };
-              auto res = buh.build_extract_value(instr->args[1], index0, t2);
+              auto res = buh.build_extract_element(instr->args[1], index0, t2);
               instr2->replace_all_uses(res);
               instr2.destroy();
               i2--;
@@ -461,7 +462,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               auto casted = buh.build_conversion_op(
                   instr->args[1], cast_ty, fir::ConversionSubType::BitCast);
               fir::ValueR index0[1] = {fir::ValueR{ctx->get_constant_int(0, 32)}};
-              auto res = buh.build_extract_value(casted, index0, t2);
+              auto res = buh.build_extract_element(casted, index0, t2);
               instr2->replace_all_uses(res);
               instr2.destroy();
               i2--;
@@ -469,10 +470,11 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               continue;
             }
           }
-        } else if (instr2->args[0].is_instr() && instr->get_type()->is_vec() &&
-                   !instr2->get_type()->is_vec()) {
+        } else if (instr2->args[0].is_instr() &&
+                   instr->result_type()->is_vec() &&
+                   !instr2->result_type()->is_vec()) {
           bool pot_store_between = is_pot_store_between(
-              bb, instr2->args[0], instr2->get_type()->get_size(), i + 1, i2,
+              bb, instr2->args[0], instr2->result_type()->get_size(), i + 1, i2,
               aa);
           // TODO: for now only for vector
           if (!pot_store_between && vstore_sload_forwarding(instr, instr2)) {
@@ -480,12 +482,13 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             modified = true;
             continue;
           }
-        } else if (instr2->args[0].is_instr() && instr->get_type()->is_vec() &&
-                   instr2->get_type()->is_vec() &&
-                   instr2->get_type()->get_bitwidth() <
-                       instr->get_type()->get_bitwidth()) {
+        } else if (instr2->args[0].is_instr() &&
+                   instr->result_type()->is_vec() &&
+                   instr2->result_type()->is_vec() &&
+                   instr2->result_type()->get_bitwidth() <
+                       instr->result_type()->get_bitwidth()) {
           bool pot_store_between = is_pot_store_between(
-              bb, instr2->args[0], instr2->get_type()->get_size(), i + 1, i2,
+              bb, instr2->args[0], instr2->result_type()->get_size(), i + 1, i2,
               aa);
           // TODO: for now only for vector
           if (!pot_store_between && vstore_vload_forwarding(instr, instr2)) {
@@ -501,12 +504,13 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       //  delete the first store
       if (instr->is(fir::InstrType::StoreInstr) &&
           instr2->is(fir::InstrType::StoreInstr) &&
-          instr->get_type()->get_bitwidth() ==
-              instr2.get_type()->get_bitwidth() &&
+          instr->result_type()->get_bitwidth() ==
+              instr2.result_type()->get_bitwidth() &&
           instr->get_arg(0) == instr2->get_arg(0) && !instr->Volatile &&
           !instr2->Volatile) {
         bool pot_load_between = is_pot_load_between(
-            bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
+            bb, instr->args[0], instr->result_type()->get_size(), i + 1, i2,
+            aa);
         if (!pot_load_between) {
           instr.destroy();
           i--;
@@ -518,16 +522,16 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       // merge two stores of for example i8 into 1 i16 store
       if (instr->is(fir::InstrType::StoreInstr) &&
           instr2->is(fir::InstrType::StoreInstr) &&
-          instr->get_type()->get_bitwidth() ==
-              instr2.get_type()->get_bitwidth() &&
+          instr->result_type()->get_bitwidth() ==
+              instr2.result_type()->get_bitwidth() &&
           instr->args[0].is_instr() && instr2->args[0].is_instr() &&
           !instr->Volatile && !instr2->Volatile) {
         auto arg1 = instr->args[0].as_instr();
         auto arg2 = instr2->args[0].as_instr();
-        auto old_width = instr->get_type()->get_size();
-        fir::ValueR base1_addr = fir::ValueR{arg1};
+        auto old_width = instr->result_type()->get_size();
+        fir::ValueR base1_addr = instr->args[0];
         i128 base1_off = 0;
-        fir::ValueR base2_addr = fir::ValueR{arg2};
+        fir::ValueR base2_addr = instr2->args[0];
         i128 base2_off = 0;
         if (arg1->is(fir::BinaryInstrSubType::PtrAdd) &&
             arg1->args[1].is_constant() &&
@@ -541,10 +545,10 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           base2_addr = arg2->args[0];
           base2_off = arg2->args[1].as_constant()->as_int();
         }
-        if (instr->get_type()->is_vec() && old_width <= 16 &&
+        if (instr->result_type()->is_vec() && old_width <= 16 &&
             base1_addr == base2_addr && base1_off + old_width == base2_off &&
-            instr->get_type() == instr2->get_type()) {
-          auto v1_type = instr->get_type()->as_vec();
+            instr->result_type() == instr2->result_type()) {
+          auto v1_type = instr->result_type()->as_vec();
           bool pot_load_between = is_pot_loadstore_between(
               bb, instr->args[0], old_width * 2, i + 1, i2, aa);
           if (!pot_load_between) {
@@ -564,28 +568,28 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             modified = true;
             break;
           }
-        } else if (instr->get_type()->is_float() && old_width <= 16 &&
+        } else if (instr->result_type()->is_float() && old_width <= 16 &&
                    base1_addr == base2_addr &&
                    base1_off + old_width == base2_off &&
-                   instr->get_type() == instr2->get_type()) {
+                   instr->result_type() == instr2->result_type()) {
           bool pot_load_between = is_pot_loadstore_between(
               bb, instr->args[0], old_width * 2, i + 1, i2, aa);
           if (!pot_load_between) {
             fir::Builder buh{instr2};
             auto *ctx = bb->get_parent()->ctx;
-            auto base_ty = instr->get_type();
+            auto base_ty = instr->result_type();
             auto new_type = ctx->get_vec_type(
                 fir::VectorType::SubType::Floating, base_ty->as_float(), 2);
             auto v1 = instr->args[1];
             auto v2 = instr2->args[1];
             fir::ValueR indices[1] = {
                 fir::ValueR{ctx->get_constant_int(0, 32)}};
-            auto res = buh.build_insert_value(
+            auto res = buh.build_insert_element(
                 fir::ValueR{ctx->get_poisson_value(new_type)}, v1, indices,
                 new_type);
             fir::ValueR indices2[1] = {
                 fir::ValueR{ctx->get_constant_int(1, 32)}};
-            res = buh.build_insert_value(res, v2, indices2, new_type);
+            res = buh.build_insert_element(res, v2, indices2, new_type);
             buh.build_store(instr->args[0], res,
                             instr->Atomic || instr2->Atomic, false);
             instr.destroy();
@@ -596,7 +600,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           }
         }
         // merge integers into bigger integers
-        if (instr->get_type()->is_int() && old_width <= 4 &&
+        if (instr->result_type()->is_int() && old_width <= 4 &&
             base1_addr == base2_addr && base1_off + old_width == base2_off &&
             instr->args[1].is_constant() && instr2->args[1].is_constant()) {
           bool pot_load_between = is_pot_loadstore_between(
@@ -648,19 +652,20 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
 
       if (instr->is(fir::InstrType::LoadInstr) &&
           instr2->is(fir::InstrType::LoadInstr) &&
-          instr->get_type()->get_bitwidth() ==
-              instr2.get_type()->get_bitwidth()) {
+          instr->result_type()->get_bitwidth() ==
+              instr2.result_type()->get_bitwidth()) {
         // if we load and afterwards load form the same address
         //  and there is nobody storing that memory inbetween we can
         //  delete the first load(TOOD: unless its volatile)
         // the types have to match too, a ptr and a <2 x f32> load of the same
         // address are not interchangeable
         if (instr->get_arg(0) == instr2->get_arg(0) &&
-            instr->get_type() == instr2->get_type()) {
+            instr->result_type() == instr2->result_type()) {
           bool pot_store_between = is_pot_store_between(
-              bb, instr->args[0], instr->get_type()->get_size(), i + 1, i2, aa);
+              bb, instr->args[0], instr->result_type()->get_size(), i + 1, i2,
+              aa);
           if (!pot_store_between) {
-            instr2->replace_all_uses(fir::ValueR{instr});
+            instr2->replace_all_uses(instr.result());
             instr2.destroy();
             i2--;
             modified = true;
@@ -672,10 +677,10 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             !instr->Volatile && !instr2->Volatile) {
           auto arg1 = instr->args[0].as_instr();
           auto arg2 = instr2->args[0].as_instr();
-          auto old_width = instr->get_type()->get_size();
-          fir::ValueR base1_addr = fir::ValueR{arg1};
+          auto old_width = instr->result_type()->get_size();
+          fir::ValueR base1_addr = instr->args[0];
           i128 base1_off = 0;
-          fir::ValueR base2_addr = fir::ValueR{arg2};
+          fir::ValueR base2_addr = instr2->args[0];
           i128 base2_off = 0;
           if (arg1->is(fir::BinaryInstrSubType::PtrAdd) &&
               arg1->args[1].is_constant() &&
@@ -689,10 +694,10 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
             base2_addr = arg2->args[0];
             base2_off = arg2->args[1].as_constant()->as_int();
           }
-          if (instr->get_type()->is_vec() && old_width <= 16 &&
+          if (instr->result_type()->is_vec() && old_width <= 16 &&
               base1_addr == base2_addr && base1_off + old_width == base2_off &&
-              instr->get_type() == instr2->get_type()) {
-            auto v1_type = instr->get_type()->as_vec();
+              instr->result_type() == instr2->result_type()) {
+            auto v1_type = instr->result_type()->as_vec();
             bool pot_store_between = is_pot_store_between(
                 bb, instr->args[0], old_width * 2, i + 1, i2, aa);
             if (!pot_store_between) {
@@ -701,12 +706,13 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               auto new_type = ctx->get_vec_type(v1_type.type, v1_type.bitwidth,
                                                 v1_type.member_number * 2);
               auto loaded_data =
-                  buh.build_load(new_type, fir::ValueR{arg1},
+                  buh.build_load(new_type, instr->args[0],
                                  instr->Atomic || instr2->Atomic, false);
-              auto data1 = buh.build_vector_op(loaded_data, instr->get_type(),
-                                               fir::VectorISubType::ExtractLow);
+              auto data1 =
+                  buh.build_vector_op(loaded_data, instr->result_type(),
+                                      fir::VectorISubType::ExtractLow);
               auto data2 =
-                  buh.build_vector_op(loaded_data, instr->get_type(),
+                  buh.build_vector_op(loaded_data, instr->result_type(),
                                       fir::VectorISubType::ExtractHigh);
               instr->replace_all_uses(data1);
               instr2->replace_all_uses(data2);

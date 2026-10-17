@@ -26,22 +26,22 @@ using ICmpSub = fir::ICmpInstrSubType;
 fir::ValueR val(fir::ConstantValueR c) { return fir::ValueR{c}; }
 
 Res poison_of(fir::Instr instr, fir::Context &ctx) {
-  return val(ctx->get_poisson_value(instr->get_type()));
+  return val(ctx->get_poisson_value(instr->result_type()));
 }
 
 // a constant of the type of the instruction, only for plain integers
 Res int_result(fir::Instr instr, fir::Context &ctx, APInt v) {
   return val(ctx->intern_constant(
-      fir::ConstantValue(std::move(v), instr->get_type())));
+      fir::ConstantValue(std::move(v), instr->result_type())));
 }
 
 // the result of a compare, i1 (or any integer) typed
 Res bool_result(fir::Instr instr, fir::Context &ctx, bool b) {
-  if (!instr->get_type()->is_int()) {
+  if (!instr->result_type()->is_int()) {
     return std::nullopt;
   }
   return int_result(instr, ctx,
-                    APInt(instr->get_type()->get_bitwidth(), u64{b}));
+                    APInt(instr->result_type()->get_bitwidth(), u64{b}));
 }
 
 // null pointers are the zero integer
@@ -60,7 +60,7 @@ bool lane_safe(BinSub sub) {
 Res fold_int_binary(fir::Instr instr, fir::Context &ctx, BinSub sub,
                     const fir::ConstantValue &ca,
                     const fir::ConstantValue &cb) {
-  const auto type = instr->get_type();
+  const auto type = instr->result_type();
   if (type->is_vec() ? !lane_safe(sub) : !type->is_int_or_ptr()) {
     return std::nullopt;
   }
@@ -120,7 +120,7 @@ template <class T>
 Res fold_float_binary(fir::Instr instr, fir::Context &ctx, BinSub sub, T a,
                       T b) {
   using Bits = std::conditional_t<std::is_same_v<T, f32>, u32, u64>;
-  const auto type = instr->get_type();
+  const auto type = instr->result_type();
   auto result = [&](T v) { return val(ctx->get_constant_value(v, type)); };
   switch (sub) {
     case BinSub::FloatAdd:
@@ -151,7 +151,7 @@ Res fold_float_binary(fir::Instr instr, fir::Context &ctx, BinSub sub, T a,
 // operations with one constant operand that give a constant or the other
 // operand
 Res fold_int_identity(fir::Instr instr, fir::Context &ctx, BinSub sub) {
-  const auto type = instr->get_type();
+  const auto type = instr->result_type();
   if (!type->is_int_or_ptr() && !type->is_vec()) {
     return std::nullopt;
   }
@@ -284,10 +284,10 @@ Res fold_binary(fir::Instr instr, fir::Context &ctx) {
     return a;
   }
   // x - x, x ^ x
-  if (!a.is_constant() && a == b && instr->get_type()->is_int() &&
+  if (!a.is_constant() && a == b && instr->result_type()->is_int() &&
       (sub == BinSub::IntSub || sub == BinSub::Xor)) {
     return int_result(instr, ctx,
-                      APInt::zero(instr->get_type()->get_bitwidth()));
+                      APInt::zero(instr->result_type()->get_bitwidth()));
   }
   return fold_int_identity(instr, ctx, sub);
 }
@@ -306,7 +306,7 @@ Res fold_unary(fir::Instr instr, fir::Context &ctx) {
     return std::nullopt;
   }
   const auto c = a.as_constant();
-  const auto type = instr->get_type();
+  const auto type = instr->result_type();
   if (sub == fir::UnaryInstrSubType::Not && type->is_int() && c->is_int()) {
     return int_result(instr, ctx, ~c->as_apint_resized(type->get_bitwidth()));
   }
@@ -327,7 +327,7 @@ Res fold_unary(fir::Instr instr, fir::Context &ctx) {
 
 Res fold_extend(fir::Instr instr, fir::Context &ctx) {
   const fir::ValueR a = instr->args[0];
-  if (a.get_type() == instr->get_type()) {
+  if (a.get_type() == instr->result_type()) {
     return a;
   }
   if (a.is_poison()) {
@@ -335,7 +335,7 @@ Res fold_extend(fir::Instr instr, fir::Context &ctx) {
   }
   if (a.is_constant() && a.as_constant()->is_int()) {
     const APInt &c = a.as_constant()->as_apint();
-    const u32 out_width = instr->get_type()->get_bitwidth();
+    const u32 out_width = instr->result_type()->get_bitwidth();
     return int_result(instr, ctx,
                       instr->is(fir::InstrType::ZExt)
                           ? c.zext_or_trunc(out_width)
@@ -346,7 +346,7 @@ Res fold_extend(fir::Instr instr, fir::Context &ctx) {
 
 Res fold_itrunc(fir::Instr instr, fir::Context &ctx) {
   const fir::ValueR a = instr->args[0];
-  if (a.get_type() == instr->get_type()) {
+  if (a.get_type() == instr->result_type()) {
     return a;
   }
   if (a.is_constant() && !a.is_constant_global() && !a.is_constant_func()) {
@@ -355,9 +355,9 @@ Res fold_itrunc(fir::Instr instr, fir::Context &ctx) {
       return poison_of(instr, ctx);
     }
     if (c->is_int() &&
-        instr->get_type()->get_bitwidth() < a.get_type()->get_bitwidth()) {
+        instr->result_type()->get_bitwidth() < a.get_type()->get_bitwidth()) {
       return val(ctx->get_constant_int(
-          c->as_apint().trunc(instr->get_type()->get_bitwidth())));
+          c->as_apint().trunc(instr->result_type()->get_bitwidth())));
     }
   }
   return std::nullopt;
@@ -365,7 +365,7 @@ Res fold_itrunc(fir::Instr instr, fir::Context &ctx) {
 
 Res fold_conversion(fir::Instr instr, fir::Context &ctx) {
   const fir::ValueR a = instr->args[0];
-  const auto type = instr->get_type();
+  const auto type = instr->result_type();
   if (instr->get_n_args() == 1 && a.is_poison()) {
     return poison_of(instr, ctx);
   }
@@ -576,7 +576,7 @@ Res icmp_known_bits(fir::Instr instr, fir::Context &ctx,
 }
 
 Res fold_icmp(fir::Instr instr, fir::Context &ctx, AttributerManager &man) {
-  if (!instr->get_type()->is_int()) {
+  if (!instr->result_type()->is_int()) {
     return std::nullopt;
   }
   const auto sub = static_cast<ICmpSub>(instr->get_instr_subtype());
@@ -686,15 +686,6 @@ Res fold_icmp(fir::Instr instr, fir::Context &ctx, AttributerManager &man) {
       case ICmpSub::SLE:
         is_true = v1->sle(*v2);
         break;
-      case ICmpSub::MulOverflow: {
-        // bits of the exact product that do not fit the width
-        const APInt output = v1->sext(2 * bitwidth) * v2->sext(2 * bitwidth);
-        is_true = !output.lshr(bitwidth).is_zero();
-      } break;
-      case ICmpSub::AddOverflow: {
-        const APInt output = v1->sext(2 * bitwidth) + v2->sext(2 * bitwidth);
-        is_true = !output.lshr(bitwidth).is_zero();
-      } break;
       case ICmpSub::INVALID:
         return std::nullopt;
     }
@@ -711,7 +702,7 @@ Res fold_icmp(fir::Instr instr, fir::Context &ctx, AttributerManager &man) {
 }
 
 Res fold_fcmp(fir::Instr instr, fir::Context &ctx) {
-  if (!instr->get_type()->is_int()) {
+  if (!instr->result_type()->is_int()) {
     return std::nullopt;
   }
   const fir::ValueR a = instr->args[0];
@@ -789,7 +780,7 @@ Res fold_fcmp(fir::Instr instr, fir::Context &ctx) {
 
 Res fold_intrinsic(fir::Instr instr, fir::Context &ctx) {
   const auto sub = static_cast<fir::IntrinsicSubType>(instr->subtype);
-  const auto type = instr->get_type();
+  const auto type = instr->result_type();
   switch (sub) {
     case fir::IntrinsicSubType::Abs: {
       if (!instr->args[0].is_constant() ||
@@ -878,7 +869,7 @@ Res fold_global_load(fir::Instr instr, fir::Context &ctx) {
        glob->linkage != fir::Linkage::LinkOnceODR)) {
     return std::nullopt;
   }
-  auto load_type = instr->get_type();
+  auto load_type = instr->result_type();
   const auto out_bitwidth = load_type->get_bitwidth();
   if (load_type->is_int()) {
     if (out_bitwidth > 64) {
@@ -932,7 +923,7 @@ Res fold_global_offset_load(fir::Instr instr, fir::Context &ctx) {
   }
   auto base_global = arg_instr->args[0].as_constant();
   auto offset = arg_instr->args[1].as_constant();
-  auto res_ty = instr->get_type();
+  auto res_ty = instr->result_type();
   auto load_size = res_ty->get_size();
   auto load_width = res_ty->get_bitwidth();
   if (!base_global->is_global() || !offset->is_int()) {
@@ -949,7 +940,7 @@ Res fold_global_offset_load(fir::Instr instr, fir::Context &ctx) {
          reloc.insert_offset + load_size >= offset_v)) {
       any_reloc_overlap = true;
     }
-    if (reloc.insert_offset == offset_v && instr->get_type()->is_ptr()) {
+    if (reloc.insert_offset == offset_v && instr->result_type()->is_ptr()) {
       return fir::ValueR{reloc.ref};
     }
   }
@@ -1018,7 +1009,7 @@ Res fold_extract(fir::Instr instr) {
   if (argi->is(fir::VectorISubType::Broadcast)) {
     return argi->args[0];
   }
-  if (argi->is(fir::InstrType::InsertValue) &&
+  if (argi->is(fir::InstrType::InsertElement) &&
       instr->args[1].is_constant_int() && argi->args[2].is_constant_int() &&
       // the indices can have different integer types
       instr->args[1].as_constant()->as_int() ==
@@ -1053,9 +1044,9 @@ Res fold(fir::Instr instr, fir::Context &ctx, AttributerManager &man) {
       return fold_intrinsic(instr, ctx);
     case fir::InstrType::LoadInstr:
       return fold_load(instr, ctx);
-    case fir::InstrType::ExtractValue:
+    case fir::InstrType::ExtractElement:
       return fold_extract(instr);
-    case fir::InstrType::InsertValue:
+    case fir::InstrType::InsertElement:
       if (instr->args[0].is_poison() && instr->args[1].is_poison()) {
         return poison_of(instr, ctx);
       }

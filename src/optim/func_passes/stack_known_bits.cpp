@@ -92,7 +92,7 @@ void StackKnownBits::update_load(fir::Instr instr, utils::BitSet<> &new_in_one,
     return;
   }
 
-  auto load_width = instr->get_type()->get_size() * 8;
+  auto load_width = instr->result_type()->get_size() * 8;
   if (load_width > 64) {
     return;
     // TODO: impl;
@@ -110,10 +110,10 @@ void StackKnownBits::update_load(fir::Instr instr, utils::BitSet<> &new_in_one,
                               : ((1ULL << load_width) - 1);
   if ((known_bits & mask) != mask) {
     // in case it is in here from previous iteration
-    known_load_values.erase(fir::ValueR(instr));
+    known_load_values.erase(instr.result());
     return;
   }
-  known_load_values[fir::ValueR(instr)] = in_one;
+  known_load_values[instr.result()] = in_one;
 }
 
 bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
@@ -145,7 +145,7 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
       UNREACH();
     }
     if (result == StackOffsetResult::KnownLocal) {
-      auto size = instr->get_type()->get_size() * 8;
+      auto size = instr->result_type()->get_size() * 8;
       u64 mask = 0;
       if (size == 64) {
         mask = ~mask;
@@ -181,7 +181,7 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
 
   // we dont know what we write so just reset the bits accordingly
   if (result == StackOffsetResult::KnownLocal) {
-    auto size = instr->get_type()->get_size() * 8;
+    auto size = instr->result_type()->get_size() * 8;
     // TOOD: impl
     if (offset * 8 >= new_in_one.bit_size()) {
       return false;
@@ -355,7 +355,7 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
             fir::ConversionSubType::IntToPtr) {
       return StackOffsetResult::UnknownLocal;
     }
-    if (ptr_instr->is(fir::InstrType::ExtractValue)) {
+    if (ptr_instr->is(fir::InstrType::ExtractElement)) {
       return StackOffsetResult::UnknownLocal;
     }
 
@@ -407,7 +407,7 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
         failure({.reason = "Failed cause of dynamic alloca", .loc = instr});
         return PreservedAnalysis::all();
       }
-      cache.insert({fir::ValueR{instr},
+      cache.insert({instr.result(),
                     {.result = StackOffsetResult::KnownLocal,
                      .offset = stack_size / 8}});
       stack_size += a1.as_constant()->as_int() * 8;

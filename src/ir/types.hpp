@@ -26,34 +26,19 @@ class FloatType {
   }
 };
 
-class StructType {
- public:
-  struct StructElem {
-    u64 offset;
-    TypeR ty;
-  };
-  IRVec<StructElem> elems;
-  [[nodiscard]] u32 get_size() const;
-  [[nodiscard]] u32 get_bitwidth() const;
-  [[nodiscard]] u32 get_align() const;
-  [[nodiscard]] constexpr bool eql(const StructType &other) const {
-    if (elems.size() != other.elems.size()) {
-      return false;
-    }
-    for (size_t i = 0; i < elems.size(); i++) {
-      if (elems[i].ty != other.elems[i].ty ||
-          elems[i].offset != other.elems[i].offset) {
-        return false;
-      }
-    }
-    return true;
-  }
-};
-
 class FunctionType {
  public:
-  TypeR return_type;
+  // the result types, a function without result has the single entry void
+  // (no other list contains void)
+  IRVec<TypeR> return_types;
   IRVec<TypeR> arg_types;
+  // type of the only result, void if there is none
+  [[nodiscard]] TypeR return_type() const {
+    ASSERT(return_types.size() == 1);
+    return return_types[0];
+  }
+  [[nodiscard]] u32 n_results() const;
+  [[nodiscard]] bool is_multi_return() const { return n_results() > 1; }
   [[nodiscard]] constexpr u32 get_size() const { return 8; }
   [[nodiscard]] constexpr u32 get_bitwidth() const { return 8 * 8; }
   [[nodiscard]] constexpr u32 get_align() const { return 8; }
@@ -93,7 +78,6 @@ enum class AnyTypeType : u8 {
   Ptr,
   Function,
   Vector,
-  Struct,
 };
 
 class AnyType {
@@ -116,10 +100,6 @@ class AnyType {
       AnyTypeType _ty;
       FunctionType v;
     } func_u;
-    struct {
-      AnyTypeType _ty;
-      StructType v;
-    } struct_u;
   };
 
   consteval AnyType() : ty(AnyTypeType::Void) {}
@@ -137,8 +117,6 @@ class AnyType {
       : func_u({._ty = AnyTypeType::Function, .v = t}) {}
   constexpr AnyType(VectorType t)
       : vec_u({._ty = AnyTypeType::Vector, .v = t}) {}
-  constexpr AnyType(StructType t)
-      : struct_u({._ty = AnyTypeType::Struct, .v = t}) {}
 
   static AnyType Ptr() {
     auto out = AnyType();
@@ -154,7 +132,6 @@ class AnyType {
   // structural hash that agrees with eql
   [[nodiscard]] u64 hash() const;
 
-  [[nodiscard]] bool is_struct() const { return ty == AnyTypeType::Struct; }
   [[nodiscard]] bool is_func() const { return ty == AnyTypeType::Function; }
   [[nodiscard]] bool is_int() const { return ty == AnyTypeType::Integer; }
   [[nodiscard]] bool is_float() const { return ty == AnyTypeType::Float; }
@@ -164,11 +141,6 @@ class AnyType {
   [[nodiscard]] bool is_ptr() const { return ty == AnyTypeType::Ptr; }
   [[nodiscard]] bool is_int_or_ptr() const { return is_int() || is_ptr(); }
   [[nodiscard]] bool is_vec() const { return ty == AnyTypeType::Vector; }
-
-  [[nodiscard]] const StructType &as_struct() const {
-    ASSERT(is_struct());
-    return struct_u.v;
-  }
 
   [[nodiscard]] const VectorType &as_vec() const {
     ASSERT(is_vec());

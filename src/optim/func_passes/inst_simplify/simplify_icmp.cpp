@@ -54,10 +54,6 @@ void swap_args_icmp(fir::Instr instr) {
       instr->subtype = static_cast<u32>(fir::ICmpInstrSubType::SGE);
       swap_args(instr, 0, 1);
       return;
-    case fir::ICmpInstrSubType::AddOverflow:
-    case fir::ICmpInstrSubType::MulOverflow:
-      // swap_args(instr, 0, 1);
-      return;
     case fir::ICmpInstrSubType::INVALID:
       UNREACH();
   }
@@ -65,6 +61,39 @@ void swap_args_icmp(fir::Instr instr) {
 }  // namespace
 
 namespace {
+// (x & (2^n - 1)) compared with y can be done on the low n bits only if y has
+// no bits above them (otherwise the compare sees different values) and the
+// predicate does not care about the sign.
+static bool icmp_fits_narrow_compare(fir::Instr icmp, u32 n_bits) {
+  switch (static_cast<fir::ICmpInstrSubType>(icmp->subtype)) {
+  case fir::ICmpInstrSubType::EQ:
+  case fir::ICmpInstrSubType::NE:
+  case fir::ICmpInstrSubType::ULT:
+  case fir::ICmpInstrSubType::ULE:
+  case fir::ICmpInstrSubType::UGT:
+  case fir::ICmpInstrSubType::UGE:
+    break;
+  default:
+    return false;
+  }
+  auto other = icmp->args[1];
+  if (other.is_constant_int()) {
+    auto c = other.as_constant()->as_apint();
+    return c.active_bits() <= n_bits;
+  }
+  if (!other.is_instr()) {
+    return false;
+  }
+  auto oi = other.as_instr();
+  if (oi->is(fir::InstrType::ZExt)) {
+    return oi->args[0].get_type()->get_bitwidth() <= n_bits;
+  }
+  if (oi->is(fir::BinaryInstrSubType::And) && oi->args[1].is_constant_int()) {
+    return oi->args[1].as_constant()->as_apint().active_bits() <= n_bits;
+  }
+  return false;
+}
+
 bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                         WorkList &worklist, AttributerManager &man,
                         ConstraintCache &ccache);
@@ -163,7 +192,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
           arg0->args[1].as_constant()->is_int()) {
         // auto a = instr->args[1].as_constant()->as_int();
         auto x = arg0->args[1].as_constant()->as_int();
-        if (x > 0 && (x & (x - 1)) == 0 && x < arg0->get_type()->as_int()) {
+        if (x > 0 && (x & (x - 1)) == 0 && x < arg0->result_type()->as_int()) {
           Builder bb{instr};
           auto new_val = bb.build_int_cmp(arg0->args[0], arg0->args[1],
                                           ICmpInstrSubType::SGE);
@@ -238,27 +267,6 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     }
 
-    if ((sub_type == ICmpInstrSubType::MulOverflow) &&
-        instr->args[0].is_instr() &&
-        instr->args[0].as_instr()->is(fir::InstrType::SExt)) {
-      // if we multiply 2 32bit values with 1 being sign extended it can
-      // only be the case if
-      //  the sign extnded one was negative
-      const APInt &c_apint = instr->args[1].as_constant()->as_apint();
-      if (c_apint.fits_u64() &&
-          c_apint.to_u64() <= std::numeric_limits<u32>::max()) {
-        auto x = instr->args[0].as_instr()->args[0];
-        Builder bb{instr};
-        auto new_val = bb.build_int_cmp(
-            x, fir::ValueR{ctx->get_constant_value(0, x.get_type())},
-            ICmpInstrSubType::SLT);
-        push_all_uses(worklist, instr);
-        instr->replace_all_uses(ValueR(new_val));
-        instr.destroy();
-        return true;
-      }
-    }
-
     if ((sub_type == ICmpInstrSubType::EQ ||
          sub_type == ICmpInstrSubType::NE) &&
         instr->args[0].is_instr()) {
@@ -273,7 +281,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
         instr.destroy();
         return true;
       }
-      auto arg0Ty = arg0->get_type();
+      auto arg0Ty = instr->args[0].get_type();
       if (arg0Ty->is_int() && arg0Ty->as_int() == 1 && c_val == 0) {
         bool needs_negation = sub_type == ICmpInstrSubType::EQ;
         if (needs_negation) {
@@ -381,7 +389,8 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto const_and = a1i->args[1].as_constant()->as_int();
       // could also check <= and insert a itrunc previously
       for (auto amount : {8, 16, 32}) {
-        if (const_and == (1UL << amount) - 1) {
+        if (const_and == (1UL << amount) - 1 &&
+            icmp_fits_narrow_compare(instr, static_cast<u32>(amount))) {
           fir::Builder b{instr};
           auto truncated_val =
               b.build_itrunc(a1i->args[0], ctx->get_int_type(amount));

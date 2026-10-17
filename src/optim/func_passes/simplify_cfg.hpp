@@ -53,9 +53,6 @@ private:
                            bool is_entry);
   // if we got a bb arg that got no use remove it
   bool remove_dead_bb_arg(CFG::Node &curr, fir::Function &func, bool is_entry);
-  // if we got a bb arg thats a struct just split them and do a destructuring
-  // and constructing before and after
-  Res remove_struct_bb_arg(CFG &cfg, CFG::Node &curr);
   // if only 1 pred we can replace all the bb args with just the values of
   // the pred
   bool remove_useless_bb_args(CFG &cfg, CFG::Node &curr);

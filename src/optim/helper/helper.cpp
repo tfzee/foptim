@@ -114,7 +114,7 @@ bool cond_tail_duplication(foptim::fir::Context &ctx, foptim::optim::CFG &cfg,
       }
     }
     if (needs_merge) {
-      to_merge.emplace_back(instr);
+      to_merge.push_back(instr.result());
     }
   }
 

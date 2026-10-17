@@ -129,10 +129,9 @@ static std::optional<size_t> find_covering_writer(fir::BasicBlock bb,
   for (size_t k = pos; k-- > 0 && scanned < MaxForwardScan; scanned++) {
     auto s = bb->instructions[k];
     if (s->is(fir::InstrType::StoreInstr)) {
-      if (s->Volatile ||
-          aa.alias(s->args[0], ptr, s->get_type()->get_size(),
-                   static_cast<size_t>(size)) !=
-              AliasAnalyis::AAResult::NoAlias) {
+      if (s->Volatile || aa.alias(s->args[0], ptr, s->result_type()->get_size(),
+                                  static_cast<size_t>(size)) !=
+                             AliasAnalyis::AAResult::NoAlias) {
         return std::nullopt;
       }
       continue;
@@ -167,7 +166,7 @@ static bool unmodified_between(fir::BasicBlock bb, size_t from, size_t to,
   for (size_t k = from + 1; k < to; k++) {
     auto s = bb->instructions[k];
     if (s->is(fir::InstrType::StoreInstr)) {
-      if (aa.alias(s->args[0], ptr, s->get_type()->get_size(),
+      if (aa.alias(s->args[0], ptr, s->result_type()->get_size(),
                    static_cast<size_t>(size)) !=
           AliasAnalyis::AAResult::NoAlias) {
         return false;
@@ -183,9 +182,8 @@ static bool unmodified_between(fir::BasicBlock bb, size_t from, size_t to,
 // a load of the copied from bytes.
 static bool forward_load_from_mem_intrin(fir::Instr load, fir::BasicBlock bb,
                                          fir::Context &ctx, AliasAnalyis &aa) {
-  auto ty = load->get_type();
-  if (load->Volatile || load->Atomic || ty->is_struct() ||
-      ty->get_size() == 0) {
+  auto ty = load->result_type();
+  if (load->Volatile || load->Atomic || ty->get_size() == 0) {
     return false;
   }
   const i128 lsize = ty->get_size();
@@ -346,14 +344,14 @@ static bool delete_useless_memcpy(fir::Instr instr) {
         continue;
       }
       if (u.user->is(fir::BinaryInstrSubType::PtrAdd) && u.argId == 0 &&
-          self(self, fir::ValueR{u.user})) {
+          self(self, u.user.result())) {
         continue;
       }
       return false;
     }
     return true;
   };
-  if (!block_local_reads(block_local_reads, fir::ValueR{target_ptr_instr})) {
+  if (!block_local_reads(block_local_reads, target_ptr_instr.result())) {
     return false;
   }
   for (size_t i = copy_pos + 1; i < last_read; i++) {
@@ -441,8 +439,7 @@ static bool simplify_memset(fir::Instr instr, fir::Context &ctx) {
   auto dst_ptr = instr->args[0];
   auto value = instr->args[1];
   auto val_ty = value.get_type();
-  if (!instr->args[2].is_constant_int() || val_ty->is_vec() ||
-      val_ty->is_struct()) {
+  if (!instr->args[2].is_constant_int() || val_ty->is_vec()) {
     return false;
   }
   const i128 count = instr->args[2].as_constant()->as_int();

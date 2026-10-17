@@ -30,7 +30,7 @@ bool can_be_converted_into_phi(fir::Instr instr) {
   for (auto usage : instr->uses) {
     if (usage.user->is(fir::InstrType::LoadInstr) ||
         (usage.user->is(fir::InstrType::StoreInstr) && usage.argId == 0)) {
-      if (!same_layout(usage.user.get_type())) {
+      if (!same_layout(usage.user.result_type())) {
         return false;
       }
       continue;
@@ -99,6 +99,9 @@ bool fix_types(fir::Function &func) {
       fir::TypeR real_type;
       // fir::TypeR backup_type;
       for (auto use : instr->uses) {
+        if (use.user->is_multi_result()) {
+          continue;
+        }
         if (convertable_set.contains(use.user)) {
           convertable_uses.push_back(use.user);
         } else if (use.user->is(fir::InstrType::StoreInstr) &&
@@ -107,8 +110,8 @@ bool fix_types(fir::Function &func) {
           convertable_uses.push_back(use.user->args[1].as_instr());
         } else if (!real_type.is_valid() ||
                    type_equal_enough_for_guess(real_type,
-                                               use.user->get_type())) {
-          real_type = use.user.get_type();
+                                               use.user->result_type())) {
+          real_type = use.user.result_type();
         }
       }
 
@@ -133,14 +136,14 @@ bool fix_types(fir::Function &func) {
     for (auto [cu, ty] : convert_load_to_type) {
       auto store = cu->uses[0].user;
       if (!ty.is_valid() ||
-          cu->get_type()->get_bitwidth() != ty->get_bitwidth() ||
-          store->get_type()->get_bitwidth() != ty->get_bitwidth()) {
+          cu->result_type()->get_bitwidth() != ty->get_bitwidth() ||
+          store->result_type()->get_bitwidth() != ty->get_bitwidth()) {
         continue;
       }
-      modified |= cu->get_type() != ty || store->get_type() != ty;
-      const_cast<fir::InstrData *>(cu.get_raw_ptr())->value_type = ty;
-      const_cast<fir::InstrData *>(cu->uses[0].user.get_raw_ptr())->value_type =
-          ty;
+      modified |= cu->result_type() != ty || store->result_type() != ty;
+      const_cast<fir::InstrData *>(cu.get_raw_ptr())->set_result_type(ty);
+      const_cast<fir::InstrData *>(cu->uses[0].user.get_raw_ptr())
+          ->set_result_type(ty);
     }
   }
   return modified;
@@ -165,8 +168,9 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
       // bool is_add =;
       if (is_load || is_store) {
         if (!guessed_type.is_valid() ||
-            type_equal_enough_for_guess(usage.user.get_type(), guessed_type)) {
-          guessed_type = usage.user.get_type();
+            type_equal_enough_for_guess(usage.user.result_type(),
+                                        guessed_type)) {
+          guessed_type = usage.user.result_type();
         } else {
           guessed_type = fir::TypeR{fir::TypeR::invalid()};
           break;
@@ -174,7 +178,7 @@ void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
       } else if ((usage.user->is(fir::BinaryInstrSubType::IntAdd) ||
                   usage.user->is(fir::BinaryInstrSubType::PtrAdd)) &&
                  usage.argId == 0) {
-        auto guess = guessType(fir::ValueR{usage.user});
+        auto guess = guessType(usage.user.result());
         if (guess.typeless) {
           continue;
         }
@@ -311,9 +315,9 @@ void decide_value_store(fir::Instr instr, size_t &i, fir::BasicBlock block,
   auto val = instr->args[1];
   if (val.is_constant() && val.as_constant()->is_int()) {
     auto cval = val.as_constant();
-    if (cval->type != instr.get_type()) {
+    if (cval->type != instr.result_type()) {
       val = fir::ValueR{block->get_parent()->ctx->get_constant_value(
-          cval->as_int(), instr.get_type())};
+          cval->as_int(), instr.result_type())};
     }
   }
   if (back_ref.contains(instr->args[0])) {
@@ -347,24 +351,24 @@ void decide_value_load(fir::Instr instr, size_t &i,
   if (!decide_variable_value(instr->args[0], current_variable_value,
                              load_val)) {
     auto *ctx = instr->get_parent()->get_parent().func->ctx;
-    load_val = fir::ValueR(ctx->get_poisson_value(instr.get_type()));
+    load_val = fir::ValueR(ctx->get_poisson_value(instr.result_type()));
   }
-  if (load_val.get_type() != instr.get_type()) {
+  if (load_val.get_type() != instr.result_type()) {
     if (load_val.is_constant() && load_val.as_constant()->is_poison()) {
       auto *ctx = instr->get_parent()->get_parent()->ctx;
-      load_val = fir::ValueR{ctx->get_poisson_value(instr.get_type())};
+      load_val = fir::ValueR{ctx->get_poisson_value(instr.result_type())};
     } else if (load_val.get_type()->get_size() !=
-                   instr.get_type()->get_size() ||
+                   instr.result_type()->get_size() ||
                load_val.get_type()->get_align() !=
-                   instr.get_type()->get_align()) {
+                   instr.result_type()->get_align()) {
       fmt::println("{} != {}", instr, load_val);
-      fmt::println("{} != {}", instr.get_type(), load_val.get_type());
+      fmt::println("{} != {}", instr.result_type(), load_val.get_type());
       TODO("wrong typein alloca?");
     } else {
       fir::Builder buh{instr};
       buh.after(instr);
       load_val = fir::ValueR{buh.build_conversion_op(
-          load_val, instr->get_type(), fir::ConversionSubType::BitCast)};
+          load_val, instr->result_type(), fir::ConversionSubType::BitCast)};
     }
   }
 
@@ -478,7 +482,7 @@ PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
         cfg.bbrs[block].bb->args.emplace_back(new_arg);
         const auto key = fir::ValueR{new_arg};
         ASSERT(!bb_arg_to_alloca.contains(key));
-        bb_arg_to_alloca.insert({key, fir::ValueR(instr)});
+        bb_arg_to_alloca.insert({key, instr.result()});
       }
     }
   }

@@ -79,10 +79,27 @@ class V2VMap {
   using Map = foptim::TMap<const llvm::Value *, foptim::fir::ValueR>;
   const V2VMap *parent = nullptr;
   Map local;
+  // aggregates (structs and arrays) are never a value in FIR, they are the
+  // list of their scalar leaves in LLVM order
+  foptim::TMap<const llvm::Value *, foptim::TVec<foptim::fir::ValueR>> aggs;
 
 public:
   V2VMap() = default;
   explicit V2VMap(const V2VMap &shared) : parent(&shared) {}
+
+  [[nodiscard]] bool contains_agg(const llvm::Value *key) const {
+    return aggs.contains(key);
+  }
+
+  [[nodiscard]] const foptim::TVec<foptim::fir::ValueR> &
+  agg_at(const llvm::Value *key) const {
+    return aggs.at(key);
+  }
+
+  void insert_agg(const llvm::Value *key,
+                  foptim::TVec<foptim::fir::ValueR> leaves) {
+    aggs.insert_or_assign(key, std::move(leaves));
+  }
 
   [[nodiscard]] bool contains(const llvm::Value *key) const {
     return local.contains(key) || (parent != nullptr && parent->contains(key));
@@ -111,6 +128,73 @@ inline void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                     V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b);
 foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
                                 llvm::Module &module);
+
+// The scalar leaves of an aggregate in LLVM order, nested structs and arrays
+// are flattened.
+struct Leaf {
+  foptim::fir::TypeR ty;
+  u64 offset;
+};
+
+void collect_leaves(llvm::Type *ty, u64 base, foptim::fir::Context &ctx,
+                    llvm::Module &module, foptim::TVec<Leaf> &out) {
+  const auto &layout = module.getDataLayout();
+  if (auto *stru = llvm::dyn_cast<llvm::StructType>(ty)) {
+    const auto *sl = layout.getStructLayout(stru);
+    for (u32 i = 0; i < stru->getNumElements(); i++) {
+      collect_leaves(stru->getElementType(i), base + sl->getElementOffset(i),
+                     ctx, module, out);
+    }
+    return;
+  }
+  if (auto *arr = llvm::dyn_cast<llvm::ArrayType>(ty)) {
+    auto stride = layout.getTypeAllocSize(arr->getElementType()).getFixedValue();
+    for (u64 i = 0; i < arr->getNumElements(); i++) {
+      collect_leaves(arr->getElementType(), base + i * stride, ctx, module,
+                     out);
+    }
+    return;
+  }
+  out.push_back({convert_type(ty, ctx, module), base});
+}
+
+u32 count_leaves(const llvm::Type *ty) {
+  if (const auto *stru = llvm::dyn_cast<llvm::StructType>(ty)) {
+    u32 n = 0;
+    for (const auto *elem : stru->elements()) {
+      n += count_leaves(elem);
+    }
+    return n;
+  }
+  if (const auto *arr = llvm::dyn_cast<llvm::ArrayType>(ty)) {
+    return arr->getNumElements() * count_leaves(arr->getElementType());
+  }
+  return 1;
+}
+
+// First leaf and number of leaves of the member at the given index path.
+std::pair<u32, u32> leaf_range(const llvm::Type *ty,
+                               llvm::ArrayRef<unsigned> path) {
+  u32 first = 0;
+  for (auto idx : path) {
+    if (const auto *stru = llvm::dyn_cast<llvm::StructType>(ty)) {
+      for (u32 i = 0; i < idx; i++) {
+        first += count_leaves(stru->getElementType(i));
+      }
+      ty = stru->getElementType(idx);
+    } else {
+      const auto *arr = llvm::cast<llvm::ArrayType>(ty);
+      first += idx * count_leaves(arr->getElementType());
+      ty = arr->getElementType();
+    }
+  }
+  return {first, count_leaves(ty)};
+}
+
+foptim::IRVec<foptim::fir::TypeR>
+convert_ret_types(llvm::Type *ret, foptim::fir::Context &ctx,
+                  llvm::Module &module);
+
 
 constexpr foptim::fir::Ordering
 convert_ordering(llvm::AtomicOrdering ordering) {
@@ -233,41 +317,8 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
     llvm::errs() << *vec_const << "\n";
     TODO("impl");
   }
-  if (const auto *stru_const =
-          llvm::dyn_cast_or_null<llvm::ConstantStruct>(value)) {
-    // stru_const->dump();
-    auto res_ty = convert_type(stru_const->getType(), fctx, mod);
-    auto res_ty_stru = res_ty->as_struct();
-    auto ress = foptim::fir::ValueR{fctx->get_poisson_value(res_ty)};
-    foptim::fir::ValueR index_v[1];
-    for (size_t arg_id = 0; arg_id < res_ty_stru.elems.size(); arg_id++) {
-      auto *v = stru_const->getOperand(arg_id);
-      auto v_res =
-          convert_instr_arg(v, fctx, ffunc, builder, valueToValue, mod, b2b);
-      index_v[0] = foptim::fir::ValueR{fctx->get_constant_int(arg_id, 32)};
-      ress = builder.build_insert_value(ress, v_res, index_v, res_ty);
-    }
-    return ress;
-  }
   if (const auto *constant =
           llvm::dyn_cast_or_null<llvm::ConstantAggregateZero>(value)) {
-    auto res_ty = convert_type(constant->getType(), fctx, mod);
-    // construct struct with inserts
-    if (res_ty->is_struct()) {
-      auto res_ty_stru = res_ty->as_struct();
-      auto ress = foptim::fir::ValueR{fctx->get_poisson_value(res_ty)};
-      for (size_t i = 0; i < res_ty_stru.elems.size(); i++) {
-        auto *llvm_field_ty = constant->getType()->getStructElementType(i);
-        auto *zero_field = llvm::Constant::getNullValue(llvm_field_ty);
-        auto v_res = convert_instr_arg(zero_field, fctx, ffunc, builder,
-                                       valueToValue, mod, b2b);
-        foptim::fir::ValueR index_v[1] = {
-            foptim::fir::ValueR{fctx->get_constant_int(i, 32)}};
-        ress = builder.build_insert_value(ress, v_res, index_v, res_ty);
-      }
-      return ress;
-    }
-
     // vectors
     if (auto *vec_ty =
             llvm::dyn_cast<llvm::FixedVectorType>(constant->getType())) {
@@ -315,10 +366,6 @@ convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
       ASSERT(v->getElementCount().isFixed());
       return foptim::fir::ValueR(fctx->get_poisson_value(
           fctx->get_vec_type(t, v->getElementCount().getFixedValue())));
-    }
-    if (llvm::isa<llvm::StructType>(value->getType())) {
-      auto t = convert_type(value->getType(), fctx, mod);
-      return foptim::fir::ValueR(fctx->get_poisson_value(t));
     }
     if (auto *v = dyn_cast_or_null<llvm::IntegerType>(value->getType())) {
       return foptim::fir::ValueR(
@@ -372,29 +419,24 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
   if (any_ty->isVoidTy()) {
     return ctx->get_void_type();
   }
-  if (auto *stru = llvm::dyn_cast_or_null<llvm::StructType>(any_ty)) {
-    foptim::IRVec<foptim::fir::StructType::StructElem> elems(
-        stru->getStructNumElements());
-    const auto *struct_layout = module.getDataLayout().getStructLayout(stru);
-    for (u32 member_id = 0; member_id < stru->getStructNumElements();
-         member_id++) {
-      auto offset = struct_layout->getElementOffset(member_id);
-      auto ty =
-          convert_type(stru->getStructElementType(member_id), ctx, module);
-      elems[member_id] = {.offset = offset, .ty = ty};
-    }
-    return ctx->get_struct_type(std::move(elems));
-  }
   if (auto *v = llvm::dyn_cast_or_null<llvm::FunctionType>(any_ty)) {
-    auto ret_type = convert_type(v->getReturnType(), ctx, module);
+    auto rets = convert_ret_types(v->getReturnType(), ctx, module);
 
     foptim::IRVec<foptim::fir::TypeR> args;
     args.reserve(v->getNumParams());
     for (size_t i = 0; i < v->getNumParams(); i++) {
       auto *param = v->getParamType(i);
+      if (param->isAggregateType()) {
+        foptim::TVec<Leaf> leaves;
+        collect_leaves(param, 0, ctx, module, leaves);
+        for (const auto &leaf : leaves) {
+          args.push_back(leaf.ty);
+        }
+        continue;
+      }
       args.push_back(convert_type(param, ctx, module));
     }
-    return ctx->get_func_ty(ret_type, args);
+    return ctx->get_func_ty(std::span<const foptim::fir::TypeR>{rets}, args);
   }
   if (auto *v = llvm::dyn_cast_or_null<llvm::VectorType>(any_ty)) {
     auto sub_type = convert_type(v->getElementType(), ctx, module);
@@ -409,6 +451,117 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
   llvm::errs() << "FAILED TO CONVERT LLVM IR TYPE TO NORMAL TYPE TODO\n";
   llvm::errs() << *any_ty << "\n" << "TODO\n";
   std::abort();
+}
+
+foptim::IRVec<foptim::fir::TypeR>
+convert_ret_types(llvm::Type *ret, foptim::fir::Context &ctx,
+                  llvm::Module &module) {
+  foptim::IRVec<foptim::fir::TypeR> res;
+  if (ret->isAggregateType()) {
+    foptim::TVec<Leaf> leaves;
+    collect_leaves(ret, 0, ctx, module, leaves);
+    u32 n_int = 0;
+    u32 n_sse = 0;
+    for (const auto &leaf : leaves) {
+      res.push_back(leaf.ty);
+      (leaf.ty->is_float() || leaf.ty->is_vec() ? n_sse : n_int)++;
+    }
+    if (n_int > 2 || n_sse > 2) {
+      IMPL("aggregate result that does not fit the return registers");
+    }
+    if (res.empty()) {
+      res.push_back(ctx->get_void_type());
+    }
+  } else {
+    res.push_back(convert_type(ret, ctx, module));
+  }
+  return res;
+}
+
+// Scalar leaves of any LLVM value of aggregate type.
+foptim::TVec<foptim::fir::ValueR>
+agg_leaves(const llvm::Value *value, foptim::fir::Context &fctx,
+           foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
+           V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
+  if (valueToValue.contains_agg(value)) {
+    return valueToValue.agg_at(value);
+  }
+  foptim::TVec<foptim::fir::ValueR> res;
+  if (const auto *c = llvm::dyn_cast<llvm::Constant>(value)) {
+    auto *ty = value->getType();
+    u32 n = ty->isStructTy() ? ty->getStructNumElements()
+                             : ty->getArrayNumElements();
+    for (u32 i = 0; i < n; i++) {
+      const auto *sub = c->getAggregateElement(i);
+      if (sub->getType()->isAggregateType()) {
+        for (auto v : agg_leaves(sub, fctx, ffunc, builder, valueToValue, mod,
+                                 b2b)) {
+          res.push_back(v);
+        }
+      } else {
+        res.push_back(convert_instr_arg(sub, fctx, ffunc, builder,
+                                        valueToValue, mod, b2b));
+      }
+    }
+    return res;
+  }
+  llvm::errs() << *value << "\n";
+  TODO("unhandled aggregate value");
+}
+
+// Address of a leaf at a byte offset from the base pointer.
+foptim::fir::ValueR leaf_addr(foptim::fir::ValueR ptr, u64 offset,
+                              foptim::fir::Context &fctx,
+                              foptim::fir::Builder &builder) {
+  if (offset == 0) {
+    return ptr;
+  }
+  return builder.build_ptr_add(
+      ptr, foptim::fir::ValueR{fctx->get_constant_int(offset, 64)});
+}
+
+// Builds the call. An aggregate result is one result per leaf, they are put
+// into leaves and the returned value is not meaningful.
+foptim::fir::ValueR emit_call(const llvm::CallBase *call,
+                              foptim::fir::ValueR function_ptr,
+                              foptim::TVec<foptim::fir::ValueR> &args,
+                              foptim::TVec<foptim::fir::ValueR> &leaves,
+                              foptim::fir::Context &fctx,
+                              foptim::fir::Builder &builder,
+                              llvm::Module &mod) {
+  auto *ret_type = call->getFunctionType()->getReturnType();
+  auto func_type_foptim = convert_type(call->getFunctionType(), fctx, mod);
+  if (!ret_type->isAggregateType()) {
+    return builder.build_call(function_ptr, func_type_foptim,
+                              convert_type(ret_type, fctx, mod), args);
+  }
+  auto rets = convert_ret_types(ret_type, fctx, mod);
+  auto instr = builder.build_call(
+      function_ptr, func_type_foptim,
+      std::span<const foptim::fir::TypeR>{rets}, args);
+  if (count_leaves(ret_type) != 0) {
+    for (foptim::u8 i = 0; i < rets.size(); i++) {
+      leaves.push_back(instr.result(i));
+    }
+  }
+  return foptim::fir::ValueR{fctx->get_poisson_value(fctx->get_void_type())};
+}
+
+// An aggregate argument is passed as its leaves.
+void push_call_arg(const llvm::Value *arg,
+                   foptim::TVec<foptim::fir::ValueR> &args,
+                   foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
+                   foptim::fir::Builder &builder, V2VMap &valueToValue,
+                   llvm::Module &mod, B2BMap &b2b) {
+  if (arg->getType()->isAggregateType()) {
+    for (auto v :
+         agg_leaves(arg, fctx, ffunc, builder, valueToValue, mod, b2b)) {
+      args.push_back(v);
+    }
+    return;
+  }
+  args.push_back(
+      convert_instr_arg(arg, fctx, ffunc, builder, valueToValue, mod, b2b));
 }
 
 void convert_alloca(const llvm::Instruction *any_instr,
@@ -609,23 +762,20 @@ void convert_call(const llvm::Instruction *any_instr,
     }
   }
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {
-    auto *arg = call_instr->getOperand(i);
-    auto arg_foptim =
-        convert_instr_arg(arg, fctx, ffunc, builder, valueToValue, mod, b2b);
-    args.push_back(arg_foptim);
+    push_call_arg(call_instr->getOperand(i), args, fctx, ffunc, builder,
+                  valueToValue, mod, b2b);
   }
-
-  auto *ret_type = call_instr->getFunctionType()->getReturnType();
-  auto func_type_foptim =
-      convert_type(call_instr->getFunctionType(), fctx, mod);
-  auto ret_type_foptim = convert_type(ret_type, fctx, mod);
-  foptim::fir::ValueR res;
 
   auto function_ptr = convert_instr_arg(call_instr->getCalledOperand(), fctx,
                                         ffunc, builder, valueToValue, mod, b2b);
-  res =
-      builder.build_call(function_ptr, func_type_foptim, ret_type_foptim, args);
-  valueToValue.insert({any_instr, res});
+  foptim::TVec<foptim::fir::ValueR> leaves;
+  auto res =
+      emit_call(call_instr, function_ptr, args, leaves, fctx, builder, mod);
+  if (call_instr->getType()->isAggregateType()) {
+    valueToValue.insert_agg(any_instr, std::move(leaves));
+  } else {
+    valueToValue.insert({any_instr, res});
+  }
 }
 
 void convert_shuffle(const llvm::Instruction *any_instr,
@@ -670,26 +820,23 @@ void convert_invoke(const llvm::Instruction *any_instr,
                     llvm::Module &mod, B2BMap &b2b) {
   foptim::TVec<foptim::fir::ValueR> args = {};
   for (size_t i = 0; i < invoke_instr->getNumOperands() - 3; i++) {
-    auto *arg = invoke_instr->getOperand(i);
-    auto arg_foptim =
-        convert_instr_arg(arg, fctx, ffunc, builder, valueToValue, mod, b2b);
-    args.push_back(arg_foptim);
+    push_call_arg(invoke_instr->getOperand(i), args, fctx, ffunc, builder,
+                  valueToValue, mod, b2b);
   }
-
-  auto *ret_type = invoke_instr->getFunctionType()->getReturnType();
-  auto func_type_foptim =
-      convert_type(invoke_instr->getFunctionType(), fctx, mod);
-  auto ret_type_foptim = convert_type(ret_type, fctx, mod);
-  foptim::fir::ValueR res;
 
   auto function_ptr = convert_instr_arg(invoke_instr->getCalledOperand(), fctx,
                                         ffunc, builder, valueToValue, mod, b2b);
   WARN_UNSUPPORTED_O(warned_invoke,
                      "[WARNING] Unsupported invoke instruction will try to run "
                      "with it as normal call\n");
-  res =
-      builder.build_call(function_ptr, func_type_foptim, ret_type_foptim, args);
-  valueToValue.insert({any_instr, res});
+  foptim::TVec<foptim::fir::ValueR> leaves;
+  auto res =
+      emit_call(invoke_instr, function_ptr, args, leaves, fctx, builder, mod);
+  if (invoke_instr->getType()->isAggregateType()) {
+    valueToValue.insert_agg(any_instr, std::move(leaves));
+  } else {
+    valueToValue.insert({any_instr, res});
+  }
   auto cond = foptim::fir::ValueR{fctx->get_constant_int(1, 1)};
   auto targNorm = b2b.at(invoke_instr->getNormalDest());
   auto targExc = b2b.at(invoke_instr->getUnwindDest());
@@ -710,13 +857,17 @@ void convert_landingpad(const llvm::Instruction *any_instr,
       warned_landing_pad,
       "[WARNING] Unsupported landingpad instruction will try to run "
       "with just aborting\n");
-  auto ret_type = target_func->func_ty->as_func().return_type;
+  auto ret_type = target_func->func_ty->as_func().return_type();
   builder.build_call(foptim::fir::ValueR{fctx->get_constant_value(target_func)},
                      target_func->func_ty, ret_type, {});
 
-  valueToValue.insert(
-      {any_instr, foptim::fir::ValueR{fctx->get_poisson_value(
-                      convert_type(instr->getType(), fctx, mod))}});
+  foptim::TVec<Leaf> info;
+  collect_leaves(instr->getType(), 0, fctx, mod, info);
+  foptim::TVec<foptim::fir::ValueR> leaves;
+  for (const auto &leaf : info) {
+    leaves.push_back(foptim::fir::ValueR{fctx->get_poisson_value(leaf.ty)});
+  }
+  valueToValue.insert_agg(any_instr, std::move(leaves));
 }
 
 bool module_has_eh_instr(const llvm::Module &mod) {
@@ -741,7 +892,7 @@ void convert_resume(foptim::fir::Context &fctx, foptim::fir::Builder &builder) {
                      "with just aborting\n");
   builder.build_call(foptim::fir::ValueR{fctx->get_constant_value(target_func)},
                      target_func->func_ty,
-                     target_func->func_ty->as_func().return_type, {});
+                     target_func->func_ty->as_func().return_type(), {});
   builder.build_unreach();
 }
 
@@ -868,9 +1019,18 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   auto op_code = any_instr->getOpcode();
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::ReturnInst>(any_instr)) {
     if (auto *v = instr->getReturnValue()) {
-      auto fv =
-          convert_instr_arg(v, fctx, ffunc, builder, valueToValue, mod, b2b);
-      builder.build_return(fv);
+      if (v->getType()->isAggregateType()) {
+        auto leaves =
+            agg_leaves(v, fctx, ffunc, builder, valueToValue, mod, b2b);
+        if (leaves.empty()) {
+          builder.build_return();
+        } else {
+          builder.build_return(leaves);
+        }
+      } else {
+        builder.build_return(
+            convert_instr_arg(v, fctx, ffunc, builder, valueToValue, mod, b2b));
+      }
     } else {
       builder.build_return();
     }
@@ -878,6 +1038,20 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::StoreInst>(any_instr)) {
     assert(instr->getNumOperands() == 2);
+    if (instr->getOperand(0)->getType()->isAggregateType()) {
+      auto leaves = agg_leaves(instr->getOperand(0), fctx, ffunc, builder,
+                               valueToValue, mod, b2b);
+      auto ptr = convert_instr_arg(instr->getOperand(1), fctx, ffunc, builder,
+                                   valueToValue, mod, b2b);
+      foptim::TVec<Leaf> info;
+      collect_leaves(instr->getOperand(0)->getType(), 0, fctx, mod, info);
+      for (size_t i = 0; i < leaves.size(); i++) {
+        auto addr = leaf_addr(ptr, info[i].offset, fctx, builder);
+        builder.build_store(addr, leaves[i], instr->isAtomic(),
+                            instr->isVolatile());
+      }
+      return;
+    }
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
     auto ptr = convert_instr_arg(instr->getOperand(1), fctx, ffunc, builder,
@@ -914,6 +1088,18 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     assert(instr->getNumOperands() == 1);
     auto value = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                    valueToValue, mod, b2b);
+    if (instr->getAccessType()->isAggregateType()) {
+      foptim::TVec<Leaf> info;
+      collect_leaves(instr->getAccessType(), 0, fctx, mod, info);
+      foptim::TVec<foptim::fir::ValueR> leaves;
+      for (const auto &leaf : info) {
+        auto addr = leaf_addr(value, leaf.offset, fctx, builder);
+        leaves.push_back(builder.build_load(leaf.ty, addr, instr->isAtomic(),
+                                            instr->isVolatile()));
+      }
+      valueToValue.insert_agg(any_instr, std::move(leaves));
+      return;
+    }
     auto type = convert_type(instr->getAccessType(), fctx, mod);
     auto load =
         builder.build_load(type, value, instr->isAtomic(), instr->isVolatile());
@@ -924,6 +1110,20 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     assert(instr->getNumOperands() == 3);
     auto cond = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                   valueToValue, mod, b2b);
+    if (instr->getType()->isAggregateType()) {
+      auto l1 = agg_leaves(instr->getOperand(1), fctx, ffunc, builder,
+                           valueToValue, mod, b2b);
+      auto l2 = agg_leaves(instr->getOperand(2), fctx, ffunc, builder,
+                           valueToValue, mod, b2b);
+      foptim::TVec<Leaf> info;
+      collect_leaves(instr->getType(), 0, fctx, mod, info);
+      foptim::TVec<foptim::fir::ValueR> leaves;
+      for (size_t i = 0; i < info.size(); i++) {
+        leaves.push_back(builder.build_select(info[i].ty, cond, l1[i], l2[i]));
+      }
+      valueToValue.insert_agg(any_instr, std::move(leaves));
+      return;
+    }
     auto v1 = convert_instr_arg(instr->getOperand(1), fctx, ffunc, builder,
                                 valueToValue, mod, b2b);
     auto v2 = convert_instr_arg(instr->getOperand(2), fctx, ffunc, builder,
@@ -1317,8 +1517,19 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
         {any_instr, valueToValue.at(any_instr->operands().begin()->get())});
     return;
   } else if (op_code == llvm::Instruction::PHI) {
-    auto ftype = convert_type(any_instr->getType(), fctx, mod);
     auto curr_bb = builder.get_curr_bb();
+    if (any_instr->getType()->isAggregateType()) {
+      foptim::TVec<Leaf> info;
+      collect_leaves(any_instr->getType(), 0, fctx, mod, info);
+      foptim::TVec<foptim::fir::ValueR> leaves;
+      for (const auto &leaf : info) {
+        auto arg = curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, leaf.ty));
+        leaves.push_back(foptim::fir::ValueR{arg});
+      }
+      valueToValue.insert_agg(any_instr, std::move(leaves));
+      return;
+    }
+    auto ftype = convert_type(any_instr->getType(), fctx, mod);
     auto new_arg = curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, ftype));
     valueToValue.insert({any_instr, foptim::fir::ValueR{new_arg}});
     return;
@@ -1338,17 +1549,17 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     return;
   } else if (auto *instr =
                  llvm::dyn_cast_or_null<llvm::ExtractValueInst>(any_instr)) {
-    auto stru = convert_instr_arg(instr->getAggregateOperand(), fctx, ffunc,
-                                  builder, valueToValue, mod, b2b);
-    auto indicies = instr->getIndices();
-    auto *out_type = instr->getType();
-    foptim::TVec<foptim::fir::ValueR> args;
-    for (auto index : indicies) {
-      args.emplace_back(fctx->get_constant_int(index, 32));
+    auto leaves = agg_leaves(instr->getAggregateOperand(), fctx, ffunc,
+                             builder, valueToValue, mod, b2b);
+    auto [first, count] = leaf_range(instr->getAggregateOperand()->getType(),
+                                     instr->getIndices());
+    if (instr->getType()->isAggregateType()) {
+      valueToValue.insert_agg(
+          any_instr, foptim::TVec<foptim::fir::ValueR>(
+                         leaves.begin() + first, leaves.begin() + first + count));
+    } else {
+      valueToValue.insert({any_instr, leaves[first]});
     }
-    auto add = builder.build_extract_value(stru, args,
-                                           convert_type(out_type, fctx, mod));
-    valueToValue.insert({any_instr, add});
     return;
   } else if (auto *instr =
                  llvm::dyn_cast_or_null<llvm::ExtractElementInst>(any_instr)) {
@@ -1368,7 +1579,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       for (u32 lane = 0; lane < lanes; lane++) {
         foptim::fir::ValueR lane_idx[1] = {
             foptim::fir::ValueR(fctx->get_constant_int(lane, 32))};
-        auto elem = builder.build_extract_value(val, lane_idx, fir_out_type);
+        auto elem = builder.build_extract_element(val, lane_idx, fir_out_type);
         if (lane == 0) {
           res = elem;
           continue;
@@ -1383,24 +1594,26 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     }
     foptim::TVec<foptim::fir::ValueR> args;
     args.emplace_back(indx);
-    auto add = builder.build_extract_value(val, args, fir_out_type);
+    auto add = builder.build_extract_element(val, args, fir_out_type);
     valueToValue.insert({any_instr, add});
     return;
   } else if (auto *instr =
                  llvm::dyn_cast_or_null<llvm::InsertValueInst>(any_instr)) {
-    auto stru = convert_instr_arg(instr->getAggregateOperand(), fctx, ffunc,
-                                  builder, valueToValue, mod, b2b);
-    auto v = convert_instr_arg(instr->getInsertedValueOperand(), fctx, ffunc,
-                               builder, valueToValue, mod, b2b);
-    auto indicies = instr->getIndices();
-    auto *out_type = instr->getType();
-    foptim::TVec<foptim::fir::ValueR> args;
-    for (auto index : indicies) {
-      args.emplace_back(fctx->get_constant_int(index, 32));
+    auto leaves = agg_leaves(instr->getAggregateOperand(), fctx, ffunc,
+                             builder, valueToValue, mod, b2b);
+    auto [first, count] = leaf_range(instr->getAggregateOperand()->getType(),
+                                     instr->getIndices());
+    if (instr->getInsertedValueOperand()->getType()->isAggregateType()) {
+      auto sub = agg_leaves(instr->getInsertedValueOperand(), fctx, ffunc,
+                            builder, valueToValue, mod, b2b);
+      for (u32 i = 0; i < count; i++) {
+        leaves[first + i] = sub[i];
+      }
+    } else {
+      leaves[first] = convert_instr_arg(instr->getInsertedValueOperand(), fctx,
+                                        ffunc, builder, valueToValue, mod, b2b);
     }
-    auto add = builder.build_insert_value(stru, v, args,
-                                          convert_type(out_type, fctx, mod));
-    valueToValue.insert({any_instr, add});
+    valueToValue.insert_agg(any_instr, std::move(leaves));
     return;
   } else if (auto *instr =
                  llvm::dyn_cast_or_null<llvm::InsertElementInst>(any_instr)) {
@@ -1425,19 +1638,19 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       for (u32 lane = 0; lane < lanes; lane++) {
         foptim::fir::ValueR lane_idx[1] = {
             foptim::fir::ValueR(fctx->get_constant_int(lane, 32))};
-        auto old_elem = builder.build_extract_value(stru, lane_idx, elem_type);
+        auto old_elem = builder.build_extract_element(stru, lane_idx, elem_type);
         auto is_lane = builder.build_int_cmp(
             index,
             foptim::fir::ValueR(fctx->get_constant_int(lane, idx_bits)),
             foptim::fir::ICmpInstrSubType::EQ);
         auto new_elem = builder.build_select(elem_type, is_lane, v, old_elem);
-        res = builder.build_insert_value(res, new_elem, lane_idx,
+        res = builder.build_insert_element(res, new_elem, lane_idx,
                                          fir_out_type);
       }
       valueToValue.insert({any_instr, res});
       return;
     }
-    auto add = builder.build_insert_value(stru, v, indices, fir_out_type);
+    auto add = builder.build_insert_element(stru, v, indices, fir_out_type);
     valueToValue.insert({any_instr, add});
     return;
   } else if (op_code == llvm::Instruction::Unreachable) {
@@ -1497,9 +1710,14 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     valueToValue.insert({&func, foptim::fir::ValueR{func_ptr}});
     {
       auto entry = foff_func->get_entry();
+      size_t fir_idx = 0;
       for (size_t i = 0; i < func.arg_size(); i++) {
         auto *const la = func.getArg(i);
-        auto fa = entry->args[i];
+        if (la->getType()->isAggregateType()) {
+          fir_idx += count_leaves(la->getType());
+          continue;
+        }
+        auto fa = entry->args[fir_idx++];
         if (la->hasNoAliasAttr()) {
           fa->noalias = true;
         }
@@ -1619,10 +1837,19 @@ void convert(llvm::Function &func, foptim::fir::Context &fctx,
   auto fentry_bb = ffunc->get_entry();
   b2b.insert({&entry_bb, fentry_bb});
 
-  auto &fargs = fentry_bb->get_args();
-  for (size_t arg_idx = 0; arg_idx < fargs.size(); arg_idx++) {
+  size_t fir_arg_idx = 0;
+  for (size_t arg_idx = 0; arg_idx < func.arg_size(); arg_idx++) {
+    auto *larg = func.getArg(arg_idx);
+    if (larg->getType()->isAggregateType()) {
+      foptim::TVec<foptim::fir::ValueR> leaves;
+      for (u32 i = 0; i < count_leaves(larg->getType()); i++) {
+        leaves.push_back(foptim::fir::ValueR(fentry_bb->args[fir_arg_idx++]));
+      }
+      valueToValue.insert_agg(larg, std::move(leaves));
+      continue;
+    }
     valueToValue.insert(
-        {func.getArg(arg_idx), foptim::fir::ValueR(fentry_bb->args[arg_idx])});
+        {larg, foptim::fir::ValueR(fentry_bb->args[fir_arg_idx++])});
   }
 
   ASSERT(entry_bb.phis().empty());
@@ -1690,15 +1917,16 @@ void convert(llvm::Function &func, foptim::fir::Context &fctx,
           auto from_fbb = b2b.at(incoming_llvm_bb);
           build.at_penultimate(from_fbb);
 
-          auto value =
-              convert_instr_arg(phi.getIncomingValue(phi_arg_id), fctx, ffunc,
-                                build, valueToValue, *func.getParent(), b2b);
-          // auto value = valueToValue.at(phi.getIncomingValue(phi_arg_id));
+          foptim::TVec<foptim::fir::ValueR> values;
+          push_call_arg(phi.getIncomingValue(phi_arg_id), values, fctx, ffunc,
+                        build, valueToValue, *func.getParent(), b2b);
 
           auto term = from_fbb->get_terminator();
           for (size_t i = 0; i < term->bbs.size(); i++) {
             if (term->bbs[i].bb == to_fbb) {
-              term.add_bb_arg(i, value);
+              for (auto value : values) {
+                term.add_bb_arg(i, value);
+              }
             }
           }
         }

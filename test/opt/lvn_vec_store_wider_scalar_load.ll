@@ -9,7 +9,7 @@ define i64 @f(ptr %p, <4 x i32> %v) {
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: 4@i32):
 ; CHECK-NEXT:    %2: 4@i32 = Store(%0, %1){} NUses:0
 ; CHECK-NEXT:    %3: 2@i64 = BITCAST(%1){} NUses:1
-; CHECK-NEXT:    %4: i64 = ExtractValue(%3, 0:i32){} NUses:1
+; CHECK-NEXT:    %4: i64 = ExtractElement(%3, 0:i32){} NUses:1
 ; CHECK-NEXT:    %5: i64 = Return(%4){} NUses:0
 ; CHECK-NEXT:}
   store <4 x i32> %v, ptr %p, align 16

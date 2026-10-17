@@ -96,7 +96,7 @@ public:
 
     auto bb = cfg.bbrs[curr_bb_id_target].bb.builder();
     auto new_instr = bb.insert_copy(instr);
-    instr->replace_all_uses(fir::ValueR{new_instr});
+    instr->replace_all_uses(new_instr.result());
     return true;
   }
 

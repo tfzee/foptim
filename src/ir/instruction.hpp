@@ -4,6 +4,8 @@
 
 namespace foptim::fir {
 
+class ValueR;
+
 class Instr : public utils::SRef<InstrData> {
  public:
   constexpr explicit Instr(utils::SRef<InstrData> &&crtp) noexcept {
@@ -15,7 +17,14 @@ class Instr : public utils::SRef<InstrData> {
   consteval Instr() noexcept
       : utils::SRef<InstrData>(utils::SRef<InstrData>::invalid()) {}
 
-  [[nodiscard]] TypeR get_type() const;
+  // type of the only result, void for instructions without a result
+  [[nodiscard]] TypeR result_type() const;
+  [[nodiscard]] TypeR result_type(u32 idx) const;
+  [[nodiscard]] u32 n_results() const;
+  [[nodiscard]] bool is_multi_result() const;
+  // the value of the only result, defined in value.hpp
+  [[nodiscard]] ValueR result() const;
+  [[nodiscard]] ValueR result(u8 idx) const;
   void clear_args();
   void clear_bbs();
   void clear_bb_args(u16 indx);

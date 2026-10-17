@@ -44,7 +44,7 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
   for (auto instr : header_bb->instructions) {
     fir::Instr new_instr = bb.insert_copy(instr);
     new_instr.substitute(repl_map);
-    repl_map.insert({fir::ValueR(instr), fir::ValueR(new_instr)});
+    fir::map_results(instr, new_instr, repl_map);
   }
 
   // clean up the arguments going into the loop based on the args of the old
@@ -57,7 +57,7 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
       new_term.add_bb_arg(non_exiting_target, arg);
     }
     for (auto c : carried) {
-      new_term.add_bb_arg(non_exiting_target, repl_map.at(fir::ValueR(c)));
+      new_term.add_bb_arg(non_exiting_target, repl_map.at(c.result()));
     }
     flip_cond_branch(new_term);
   }
@@ -271,7 +271,7 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
 
   for (auto c : carried) {
     auto arg = header_bb.add_arg(
-        ctx->storage.insert_bb_arg(header_bb, c->get_type()));
+        ctx->storage.insert_bb_arg(header_bb, c->result_type()));
     TVec<fir::Use> outside;
     for (auto use : c->uses) {
       if (use.user->parent != header_bb ||

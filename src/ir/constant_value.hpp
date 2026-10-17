@@ -37,11 +37,6 @@ struct FunctionPtr {
   }
 };
 
-struct ConstantStruct {
-  IRVec<ConstantValue> v;
-  bool operator==(const ConstantStruct &other) const;
-};
-
 struct GlobalPointer {
   Global glob;
   [[gnu::always_inline]] constexpr bool
@@ -65,7 +60,6 @@ enum class ConstantType : u8 {
   GlobalPtr,
   FuncPtr,
   NullPtr,
-  ConstantStruct,
 };
 
 struct ConstantValue {
@@ -94,10 +88,6 @@ struct ConstantValue {
       ConstantType _ty;
       FunctionPtr v;
     } fup_u;
-    struct {
-      ConstantType _ty;
-      ConstantStruct v;
-    } stru_u;
   };
 
   constexpr ConstantValue(TypeR typee) : type(typee) {}
@@ -129,8 +119,6 @@ struct ConstantValue {
       : type(typee),
         fup_u({._ty = ConstantType::FuncPtr, .v = FunctionPtr{f}}) {}
 
-  constexpr ConstantValue(ConstantStruct stru, TypeR typee)
-      : type(typee), stru_u({._ty = ConstantType::ConstantStruct, .v = stru}) {}
 
   constexpr ConstantValue(IRVec<ConstantValueR> members, TypeR typee)
       : type(typee), vec_u({._ty = ConstantType::VectorValue,
@@ -176,10 +164,6 @@ struct ConstantValue {
 
   [[nodiscard]] constexpr bool is_poison() const {
     return ty == ConstantType::PoisonValue;
-  }
-
-  [[nodiscard]] constexpr bool is_struct() const {
-    return ty == ConstantType::ConstantStruct;
   }
 
   [[nodiscard]] constexpr bool is_vec() const {
@@ -259,8 +243,6 @@ struct ConstantValue {
     case ConstantType::NullPtr:
     case ConstantType::PoisonValue:
       return true;
-    case ConstantType::ConstantStruct:
-      return stru_u.v == other.stru_u.v;
     case ConstantType::IntValue:
       return int_u.v == other.int_u.v;
     case ConstantType::FloatValue:

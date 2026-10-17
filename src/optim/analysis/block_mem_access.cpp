@@ -43,11 +43,11 @@ BlockMemAccesses::BlockMemAccesses(fir::BasicBlock bb) {
     if (instr->is(fir::InstrType::LoadInstr) && !ordered) {
       a.kind = Kind::Load;
       a.addr = instr->args[0];
-      a.size = instr.get_type()->get_size();
+      a.size = instr.result_type()->get_size();
     } else if (instr->is(fir::InstrType::StoreInstr) && !ordered) {
       a.kind = Kind::Store;
       a.addr = instr->args[0];
-      a.size = instr.get_type()->get_size();
+      a.size = instr.result_type()->get_size();
     } else if (instr->is(fir::InstrType::LoadInstr) ||
                instr->is(fir::InstrType::StoreInstr) ||
                instr->pot_modifies_mem()) {
@@ -61,14 +61,14 @@ BlockMemAccesses::BlockMemAccesses(fir::BasicBlock bb) {
     }
     if (a.kind == Kind::Load || a.kind == Kind::Store) {
       split_addr(a.addr, a.base, a.offset);
-      index.insert({fir::ValueR{instr}, static_cast<u32>(acc.size())});
+      index.insert({instr.result(), static_cast<u32>(acc.size())});
     }
     acc.push_back(a);
   }
 }
 
 std::optional<u32> BlockMemAccesses::index_of(fir::Instr instr) const {
-  auto it = index.find(fir::ValueR{instr});
+  auto it = index.find(instr.result());
   if (it == index.end()) {
     return std::nullopt;
   }

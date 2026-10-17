@@ -197,7 +197,13 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
           ok = ok && collect(fir::ValueR{arg});
         }
         for (auto instr : cfg.bbrs[node].bb->instructions) {
-          ok = ok && collect(fir::ValueR{instr});
+          if (instr.is_multi_result()) {
+            for (u8 r = 0; r < instr->n_results(); r++) {
+              ok = ok && collect(instr.result(r));
+            }
+          } else {
+            ok = ok && collect(instr.result());
+          }
         }
       }
       // exit targets must only be entered from the loop

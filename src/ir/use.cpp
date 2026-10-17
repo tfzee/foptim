@@ -19,7 +19,7 @@ TypeR Use::get_type() {
   }
 }
 
-ValueR Use::get_value() {
+ValueR Use::get_value() const {
   switch (type) {
   case UseType::NormalArg:
     return user->args[argId];
@@ -61,6 +61,38 @@ void Used::replace_all_uses(ValueR new_value) {
   for (Use &u : uses_copy) {
     u.replace_use(new_value);
   }
+}
+
+static bool uses_result(const Use &u, u8 idx) {
+  ValueR v = u.get_value();
+  return v.kind == ValueType::Instr && v.idx == idx;
+}
+
+void Used::replace_result_uses(u8 idx, ValueR new_value) {
+  TVec<Use> uses_copy{uses.begin(), uses.end()};
+  for (Use &u : uses_copy) {
+    if (uses_result(u, idx)) {
+      u.replace_use(new_value);
+    }
+  }
+}
+
+void Used::replace_result_uses_outside_block(u8 idx, fir::BasicBlock bb,
+                                             ValueR new_value) {
+  TVec<Use> uses_copy{uses.begin(), uses.end()};
+  for (Use &u : uses_copy) {
+    if (u.user->get_parent() != bb && uses_result(u, idx)) {
+      u.replace_use(new_value);
+    }
+  }
+}
+
+size_t Used::get_n_result_uses(u8 idx) const {
+  size_t n = 0;
+  for (const Use &u : uses) {
+    n += uses_result(u, idx);
+  }
+  return n;
 }
 
 void Used::remove_usage(const Use &u, bool verify) {

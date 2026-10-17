@@ -50,7 +50,7 @@ bool load_into_conversion_simpl(fir::Instr instr, fir::Instr a0,
     // old loads position (a store to the address may sit between it and the
     // conversion)
     fir::Builder buh{a0};
-    auto new_val = buh.build_load(instr->get_type(), a0->args[0], a0->Atomic,
+    auto new_val = buh.build_load(instr->result_type(), a0->args[0], a0->Atomic,
                                   a0->Volatile);
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_val);
@@ -96,12 +96,12 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (arg1C->is_int() && arg2C->is_int()) {
       auto arg1 = arg1C->as_int();
       auto arg2 = arg2C->as_int();
-      auto output_width = instr->get_type()->get_bitwidth();
+      auto output_width = instr->result_type()->get_bitwidth();
       if ((arg1 == 1 || (output_width == 1 && arg1 != 0)) && arg2 == 0) {
         auto new_val = instr->args[0];
         if (output_width != 1) {
           fir::Builder b(instr);
-          new_val = b.build_zext(new_val, instr->get_type());
+          new_val = b.build_zext(new_val, instr->result_type());
         }
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_val);
@@ -113,7 +113,7 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
         auto new_val =
             b.build_unary_op(instr->args[0], fir::UnaryInstrSubType::Not);
         if (output_width != 1) {
-          new_val = b.build_zext(new_val, instr->get_type());
+          new_val = b.build_zext(new_val, instr->result_type());
         }
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_val);
@@ -260,7 +260,7 @@ bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
     fir::Builder b(bb);
     b.at_end(bb);
 
-    auto *target = instr->bbs.data();
+    auto *target = &instr->bbs[0];
 
     if (c->is_poison()) {
       // TODO: Could also pplace some unreach??
@@ -387,7 +387,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (instr->args[0].is_instr() &&
       instr->args[0].as_instr()->is(fir::VectorISubType::Broadcast)) {
     auto arg = instr->args[0].as_instr();
-    auto res_subty = ctx->get_int_type(instr->get_type()->as_vec().bitwidth);
+    auto res_subty = ctx->get_int_type(instr->result_type()->as_vec().bitwidth);
     fir::Builder b(instr);
     fir::ValueR extended;
     if (iszext) {
@@ -395,7 +395,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     } else {
       extended = b.build_sext(arg->args[0], res_subty);
     }
-    auto new_res = b.build_vbroadcast(extended, instr->get_type());
+    auto new_res = b.build_vbroadcast(extended, instr->result_type());
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_res);
     if (arg->get_n_uses() == 1) {
@@ -411,10 +411,10 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto trunc = instr->args[0].as_instr();
     auto input_ty = trunc->args[0].get_type();
     auto input_width = input_ty->get_bitwidth();
-    auto output_type = instr.get_type();
+    auto output_type = instr.result_type();
     auto output_width = output_type->get_bitwidth();
     fir::Builder b(instr);
-    auto bitwidth = trunc.get_type()->get_bitwidth();
+    auto bitwidth = trunc.result_type()->get_bitwidth();
     auto mask = ctx->get_constant_int(APInt::low_bits(input_width, bitwidth));
     auto new_result = b.build_binary_op(trunc->args[0], fir::ValueR{mask},
                                         fir::BinaryInstrSubType::And);
@@ -436,9 +436,9 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto argi = instr->args[0].as_instr();
     if (argi->is(fir::InstrType::ZExt)) {
       // just to make sure incase that didnt get cleaned up yet
-      if (argi->args[0].get_type() != argi.get_type()) {
+      if (argi->args[0].get_type() != argi.result_type()) {
         fir::Builder b(instr);
-        auto new_result = b.build_zext(argi->args[0], instr->get_type());
+        auto new_result = b.build_zext(argi->args[0], instr->result_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_result);
         instr.destroy();
@@ -454,7 +454,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
         (argi->is(fir::BinaryInstrSubType::IntMul) && is_non_overflowing) ||
         (iszext && argi->is(fir::BinaryInstrSubType::Shr))) {
       fir::Builder buh{argi};
-      auto ext_ty = instr->get_type();
+      auto ext_ty = instr->result_type();
       fir::ValueR arg1Ext;
       fir::ValueR arg2Ext;
       if (iszext) {
@@ -477,7 +477,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
       instr->args[0].as_instr()->is(fir::InstrType::SExt)) {
     auto sext = instr->args[0].as_instr();
     fir::Builder b(instr);
-    auto new_result = b.build_sext(sext->args[0], instr->get_type());
+    auto new_result = b.build_sext(sext->args[0], instr->result_type());
     push_all_uses(worklist, instr);
     instr->replace_all_uses(new_result);
     instr.destroy();
@@ -498,7 +498,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   // itrunc
   // = +-* on smaller bitwidth
   // since lea doesnt like 1byte value we skip those for now
-  auto new_bitwidth = instr.get_type()->get_bitwidth();
+  auto new_bitwidth = instr.result_type()->get_bitwidth();
 
   if (instr->args[0].is_bb_arg()) {
     auto arg = instr->args[0].as_bb_arg();
@@ -524,11 +524,11 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           auto user = u.user;
           fir::Builder buh{user};
           auto new_trunc_val = buh.build_itrunc(user->bbs[u.argId].args[arg_id],
-                                                instr->get_type());
+                                                instr->result_type());
           user.replace_bb_arg(u.argId, arg_id, new_trunc_val);
           // fmt::println("{:cd}", user->get_parent());
         }
-        arg->_type = instr.get_type();
+        arg->_type = instr.result_type();
         instr->replace_all_uses(fir::ValueR{arg});
         instr.destroy();
         // fmt::println("{:cd}", origin_bb);
@@ -540,11 +540,11 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   }
   if (instr->args[0].is_instr()) {
     auto arg_i = instr->args[0].as_instr();
-    auto out_type = instr->get_type();
+    auto out_type = instr->result_type();
     (void)out_type;
 
     if ((arg_i->is(fir::InstrType::SExt) || arg_i->is(fir::InstrType::ZExt)) &&
-        arg_i->args[0].get_type() == instr.get_type()) {
+        arg_i->args[0].get_type() == instr.result_type()) {
       push_all_uses(worklist, instr);
       instr->replace_all_uses(arg_i->args[0]);
       instr.destroy();
@@ -563,7 +563,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
           if (i_arg1c >= new_bitwidth) {
             push_all_uses(worklist, instr);
             instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-                static_cast<i128>(0), instr->get_type())});
+                static_cast<i128>(0), instr->result_type())});
             instr.destroy();
             return true;
           }
@@ -634,7 +634,7 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
     ZoneScopedN("SimplifyUnary");
   }
   if (instr->is(fir::UnaryInstrSubType::IntNeg) &&
-      instr->get_type()->get_bitwidth() == 1) {
+      instr->result_type()->get_bitwidth() == 1) {
     instr->subtype = static_cast<u32>(fir::UnaryInstrSubType::Not);
     worklist.push_back(
         InstSimplify::WorkItem{.instr = instr, .b = instr->get_parent()});
@@ -678,10 +678,6 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ICmpInstrSubType::SLE:
       new_subtype = fir::ICmpInstrSubType::SGT;
       break;
-    case fir::ICmpInstrSubType::MulOverflow:
-    case fir::ICmpInstrSubType::AddOverflow:
-      // TODO: impl
-      return true;
     }
     ASSERT(new_subtype != fir::ICmpInstrSubType::INVALID);
 
@@ -771,18 +767,18 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
   case fir::ConversionSubType::INVALID:
     TODO("unreach");
   case fir::ConversionSubType::BitCast:
-    if (instr->args[0].get_type()->is_int() && instr->get_type()->is_ptr()) {
+    if (instr->args[0].get_type()->is_int() && instr->result_type()->is_ptr()) {
       fir::Builder buh{instr};
-      auto r = buh.build_conversion_op(instr->args[0], instr.get_type(),
+      auto r = buh.build_conversion_op(instr->args[0], instr.result_type(),
                                        fir::ConversionSubType::IntToPtr);
       push_all_uses(worklist, instr);
       instr->replace_all_uses(r);
       instr.destroy();
       return true;
     }
-    if (instr->get_type()->is_int() && instr->args[0].get_type()->is_ptr()) {
+    if (instr->result_type()->is_int() && instr->args[0].get_type()->is_ptr()) {
       fir::Builder buh{instr};
-      auto r = buh.build_conversion_op(instr->args[0], instr.get_type(),
+      auto r = buh.build_conversion_op(instr->args[0], instr.result_type(),
                                        fir::ConversionSubType::PtrToInt);
       push_all_uses(worklist, instr);
       instr->replace_all_uses(r);
@@ -814,21 +810,23 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
           auto arg0_casted = arg0;
           auto arg1_casted = arg1;
           if (arg0.is_constant()) {
-            auto r = arg0_casted.as_constant()->bit_cast(ctx, instr.get_type());
+            auto r =
+                arg0_casted.as_constant()->bit_cast(ctx, instr.result_type());
             ASSERT(r.has_value());
             arg0_casted = fir::ValueR{r.value()};
           } else {
             arg0_casted = arg0.as_instr()->args[0];
           }
           if (arg1.is_constant()) {
-            auto r = arg1_casted.as_constant()->bit_cast(ctx, instr.get_type());
+            auto r =
+                arg1_casted.as_constant()->bit_cast(ctx, instr.result_type());
             ASSERT(r.has_value());
             arg1_casted = fir::ValueR{r.value()};
           } else {
             arg1_casted = arg1.as_instr()->args[0];
           }
           auto r = buh.build_binary_op(
-              arg0_casted, arg1_casted, instr.get_type(),
+              arg0_casted, arg1_casted, instr.result_type(),
               static_cast<fir::BinaryInstrSubType>(a0->subtype));
           instr->replace_all_uses(r);
           instr.destroy();
@@ -881,44 +879,6 @@ bool simplify_store(fir::Instr instr) {
   }
   if (instr->args[1].is_instr()) {
     auto val_i = instr->args[1].as_instr();
-    if (instr->get_type()->is_struct() &&
-        (!instr->Volatile && !instr->Atomic) &&
-        val_i->is(fir::InstrType::InsertValue)) {
-      const auto &out_ty = instr->get_type()->as_struct();
-      fir::Builder buh{instr};
-      TVec<fir::Instr> maybe_destory;
-      buh.after(instr);
-      auto *ctx = buh.get_curr_bb()->get_parent()->ctx;
-      while (true) {
-        auto offset = val_i->args[2].as_constant()->as_int();
-        if (offset != 0) {
-          auto b = ctx->get_constant_int(out_ty.elems[offset].offset, 64);
-          auto off = buh.build_binary_op(instr->args[0], fir::ValueR{b},
-                                         fir::BinaryInstrSubType::PtrAdd);
-          buh.build_store(off, val_i->args[1], instr->Atomic, instr->Volatile);
-        } else {
-          buh.build_store(instr->args[0], val_i->args[1], instr->Atomic,
-                          instr->Volatile);
-        }
-        instr.replace_arg(1, val_i->args[0]);
-        if (!val_i->args[0].is_instr()) {
-          // then we got the whole thingy no point  in storing a poision
-          if (val_i->args[0].is_poison()) {
-            maybe_destory.push_back(instr);
-          }
-          maybe_destory.push_back(val_i);
-          break;
-        }
-        maybe_destory.push_back(val_i);
-        val_i = val_i->args[0].as_instr();
-      }
-      for (auto &instr : maybe_destory) {
-        if (instr->get_n_uses() == 0) {
-          instr.destroy();
-        }
-      }
-      return true;
-    }
     if (val_i->is(fir::ConversionSubType::PtrToInt) ||
         val_i->is(fir::ConversionSubType::IntToPtr) ||
         val_i->is(fir::ConversionSubType::BitCast)) {
@@ -933,30 +893,6 @@ bool simplify_store(fir::Instr instr) {
         return true;
       }
     }
-    // TODO: is this correct double check
-    // if (val_i->is(fir::InstrType::InsertValue)) {
-    //   fir::Builder buh{instr};
-    //   // skip if its a insert(posion ...)
-    //   if (!val_i->args[0].is_constant() ||
-    //       !val_i->args[0].as_constant()->is_poison()) {
-    //     buh.build_store(instr->args[0], val_i->args[0]);
-    //   }
-    //   auto stru_ty = val_i.get_type()->as_struct();
-    //   auto *ctx = instr->get_parent()->get_parent()->ctx;
-    //   auto offset = buh.build_int_add(
-    //       instr->args[0],
-    //       fir::ValueR{ctx->get_constant_int(
-    //           stru_ty.elems[val_i->args[2].as_constant()->as_int()].offset,
-    //           32)});
-    //   buh.build_store(offset, val_i->args[1]);
-    //   instr.destroy();
-    //   if (val_i->get_n_uses() == 0) {
-    //     val_i.destroy();
-    //   }
-    //   // fmt::println("{:cd}", buh.get_curr_bb());
-    //   // TODO("okak");
-    //   return true;
-    // }
   }
   return false;
 }
@@ -1134,7 +1070,7 @@ bool simplify_intrinsic(fir::Instr instr, fir::BasicBlock /*bb*/,
   }
 
   case fir::IntrinsicSubType::Abs: {
-    if (!instr->get_type()->is_int()) {
+    if (!instr->result_type()->is_int()) {
       break;
     }
     auto *a0 = man.get_or_create_analysis<KnownBits>(instr->args[0]);
@@ -1169,7 +1105,7 @@ fir::ValueR propagate_load_through_select(fir::Instr select) {
   ASSERT(select->uses[0].user->is(fir::InstrType::LoadInstr));
   auto load = select->uses[0];
   fir::Builder bu{select};
-  auto n_type = load.user.get_type();
+  auto n_type = load.user.result_type();
   auto a = bu.build_load(n_type, select->args[1], false, false);
   auto b = bu.build_load(n_type, select->args[2], false, false);
   auto r = bu.build_select(n_type, select->args[0], a, b);
@@ -1228,7 +1164,7 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                    curr.user->is(fir::InstrType::Intrinsic) ||
                    curr.user->is(fir::InstrType::ReturnInstr) ||
                    curr.user->is(fir::InstrType::ICmp) ||
-                   curr.user->is(fir::InstrType::InsertValue) ||
+                   curr.user->is(fir::InstrType::InsertElement) ||
                    curr.user->is(fir::BinaryInstrSubType::IntSDiv) ||
                    curr.user->is(fir::UnaryInstrSubType::Not)) {
           mem2reg_blockers.push_back(curr);
@@ -1277,7 +1213,7 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
         if (access->is(fir::InstrType::LoadInstr)) {
           push_all_uses(worklist, access);
           access->replace_all_uses(
-              fir::ValueR{ctx->get_poisson_value(access->get_type())});
+              fir::ValueR{ctx->get_poisson_value(access->result_type())});
         }
         access.destroy();
       }
@@ -1387,7 +1323,7 @@ bool simplify_ext_byte_vector(fir::Instr instr, fir::Context &ctx,
     if (n_out_elems != 1) {
       v = bb.build_vbroadcast(v, ctx->get_vec_type(out_type, n_out_elems));
     }
-    auto res = bb.build_conversion_op(v, instr->get_type(),
+    auto res = bb.build_conversion_op(v, instr->result_type(),
                                       fir::ConversionSubType::BitCast);
     worklist.push_back({orig_v.as_instr(), orig_v.as_instr()->get_parent()});
     push_all_uses(worklist, instr);
@@ -1403,10 +1339,10 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyVector");
   }
-  if (!instr->get_type()->is_vec()) {
+  if (!instr->result_type()->is_vec()) {
     return false;
   }
-  const auto &v_t = instr->get_type()->as_vec();
+  const auto &v_t = instr->result_type()->as_vec();
   if (v_t.type == fir::VectorType::SubType::Integer && v_t.bitwidth == 8) {
     auto extend_to = v_t.member_number;
     if ((extend_to % 8 == 0 && extend_to / 8 <= 2) ||
@@ -1430,7 +1366,8 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
     elems.insert(elems.end(), a1.begin(), a1.end());
     elems.insert(elems.end(), a2.begin(), a2.end());
 
-    auto res = fir::ValueR{ctx->get_constant_value(elems, instr->get_type())};
+    auto res =
+        fir::ValueR{ctx->get_constant_value(elems, instr->result_type())};
     push_all_uses(worklist, instr);
     instr->replace_all_uses(res);
     instr.destroy();
@@ -1445,7 +1382,7 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto broad_cast = argi->args[0].as_instr();
       auto arg_broad = broad_cast->args[0];
       auto arg_argc = argi->args[1].as_constant()->as_vec();
-      auto expected_spacing = instr->get_type()->as_vec().bitwidth;
+      auto expected_spacing = instr->result_type()->as_vec().bitwidth;
       bool spacing_matches = true;
       u32 base_offset = 0;
       if (arg_argc.members[0]->is_int()) {
@@ -1469,7 +1406,7 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
         fir::Builder buh{instr};
         auto ptr = buh.build_int_add(
             arg_broad, fir::ValueR{ctx->get_constant_int(base_offset, 64)});
-        auto r = buh.build_load(instr->get_type(), ptr, instr->Atomic,
+        auto r = buh.build_load(instr->result_type(), ptr, instr->Atomic,
                                 instr->Volatile);
         instr->replace_all_uses(r);
         instr.destroy();
@@ -1531,18 +1468,18 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
   }
   if (instr->args[0].is_instr()) {
     auto argi = instr->args[0].as_instr();
-    if (argi->is(fir::InstrType::InsertValue) &&
+    if (argi->is(fir::InstrType::InsertElement) &&
         instr->args[1].is_constant_int() && argi->args[2].is_constant_int()) {
       // the same index is folded by InstFold, the others skip the insert
       fir::Builder bb{instr};
       fir::ValueR v[1] = {instr->args[1]};
-      auto res = bb.build_extract_value(argi->args[0], v, instr->get_type());
+      auto res = bb.build_extract_element(argi->args[0], v, instr->result_type());
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
       instr.destroy();
       return true;
     }
-    if (instr->is(fir::InstrType::ExtractValue) && instr->args[0].is_instr() &&
+    if (instr->is(fir::InstrType::ExtractElement) && instr->args[0].is_instr() &&
         instr->args[1].is_constant_int()) {
       auto *ctx = instr->get_parent()->get_parent()->ctx;
       auto a1 = instr->args[0].as_instr();
@@ -1551,8 +1488,8 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
         fir::Builder buh{instr};
         fir::ValueR indicies[1] = {
             fir::ValueR{ctx->get_constant_int(index, 32)}};
-        auto new_v =
-            buh.build_extract_value(a1->args[0], indicies, instr->get_type());
+        auto new_v = buh.build_extract_element(a1->args[0], indicies,
+                                             instr->result_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_v);
         instr.destroy();
@@ -1565,8 +1502,8 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
         fir::Builder buh{instr};
         fir::ValueR indicies[1] = {
             fir::ValueR{ctx->get_constant_int(index - 2, 32)}};
-        auto new_v =
-            buh.build_extract_value(a1->args[1], indicies, instr->get_type());
+        auto new_v = buh.build_extract_element(a1->args[1], indicies,
+                                             instr->result_type());
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_v);
         instr.destroy();
@@ -1601,13 +1538,13 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       return true;
     }
   }
-  if (instr_ty == InstrType::ExtractValue &&
+  if (instr_ty == InstrType::ExtractElement &&
       simplify_extract(instr, worklist)) {
     return true;
   }
   if (instr_ty == InstrType::VectorInstr ||
-      (instr_ty == InstrType::LoadInstr && instr->get_type()->is_vec()) ||
-      (instr_ty == InstrType::StoreInstr && instr->get_type()->is_vec())) {
+      (instr_ty == InstrType::LoadInstr && instr->result_type()->is_vec()) ||
+      (instr_ty == InstrType::StoreInstr && instr->result_type()->is_vec())) {
     return simplify_vector(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::FCmp) {

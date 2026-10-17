@@ -301,7 +301,8 @@ public:
       mm.as_instr()->extra_type = ctx->get_int_type(8);
       instr->replace_all_uses(instr->args[1]);
     } else {
-      if (!instr.get_type()->is_int() || instr.get_type()->get_bitwidth() != 32) {
+      if (!instr.result_type()->is_int() ||
+          instr.result_type()->get_bitwidth() != 32) {
         return false;
       }
       auto cmp = bb.build_intrinsic(instr->args[1], instr->args[2],
@@ -395,61 +396,134 @@ public:
     instr.destroy();
   }
 
-  void handle_umul_with_overflow(fir::Instr instr, fir::Function & /*funcy*/,
+  void handle_umul_with_overflow(fir::Instr instr, fir::Function &funcy,
                                  fir::FunctionR /*callee*/) {
-    // auto width = instr.get_type()->as_struct().elems[0].ty->as_int();
     fir::Builder bb{instr};
-
-    auto mul_result = bb.build_int_mul(instr->args[1], instr->args[2]);
-    auto overflow_result = bb.build_int_cmp(instr->args[1], instr->args[2],
-                                            fir::ICmpInstrSubType::MulOverflow);
-
-    // annoying copy
-    auto uses = instr->uses;
-    for (auto use : uses) {
-      ASSERT(use.user->is(fir::InstrType::ExtractValue));
-      ASSERT(use.user->args.size() == 2);
-      ASSERT(use.argId == 0);
-      auto index = use.user->args[1].as_constant()->as_int();
-      if (index == 0) {
-        use.user->replace_all_uses(mul_result);
-        use.user.destroy();
-      } else if (index == 1) {
-        use.user->replace_all_uses(overflow_result);
-        use.user.destroy();
-      } else {
-        UNREACH();
-      }
+    auto *ctx = funcy.ctx;
+    auto a = instr->args[1];
+    auto b = instr->args[2];
+    auto ty = a.get_type();
+    const auto width = ty->get_bitwidth();
+    if (width <= 32) {
+      // the exact product fits into 64 bits
+      auto wide_ty = ctx->get_int_type(64);
+      auto wide = bb.build_int_mul(bb.build_zext(a, wide_ty),
+                                   bb.build_zext(b, wide_ty));
+      auto res = bb.build_itrunc(wide, ty);
+      auto overflow = bb.build_int_cmp(bb.build_zext(res, wide_ty), wide,
+                                       fir::ICmpInstrSubType::NE);
+      instr.result(0).replace_all_uses(res);
+      instr.result(1).replace_all_uses(overflow);
+      instr.destroy();
+      return;
     }
+    // 64 bit: overflow if a != 0 and res / a != b
+    auto res = bb.build_int_mul(a, b);
+    auto zero = fir::ValueR{ctx->get_constant_int(0, width)};
+    auto one = fir::ValueR{ctx->get_constant_int(1, width)};
+    auto a_zero = bb.build_int_cmp(a, zero, fir::ICmpInstrSubType::EQ);
+    auto divisor = bb.build_select(ty, a_zero, one, a);
+    auto quot = bb.build_binary_op(res, divisor, fir::BinaryInstrSubType::IntUDiv);
+    auto differs = bb.build_int_cmp(quot, b, fir::ICmpInstrSubType::NE);
+    auto a_nonzero = bb.build_int_cmp(a, zero, fir::ICmpInstrSubType::NE);
+    auto overflow =
+        bb.build_binary_op(differs, a_nonzero, fir::BinaryInstrSubType::And);
+    instr.result(0).replace_all_uses(res);
+    instr.result(1).replace_all_uses(overflow);
     instr.destroy();
   }
 
   void handle_uadd_with_overflow(fir::Instr instr, fir::Function & /*funcy*/,
                                  fir::FunctionR /*callee*/) {
-    // auto width = instr.get_type()->as_struct().elems[0].ty->as_int();
     fir::Builder bb{instr};
+    auto sum = bb.build_int_add(instr->args[1], instr->args[2]);
+    // the sum wrapped around if it is smaller than an operand
+    auto overflow = bb.build_int_cmp(sum, instr->args[1],
+                                     fir::ICmpInstrSubType::ULT);
+    instr.result(0).replace_all_uses(sum);
+    instr.result(1).replace_all_uses(overflow);
+    instr.destroy();
+  }
 
-    auto add_result = bb.build_int_add(instr->args[1], instr->args[2]);
-    auto overflow_result = bb.build_int_cmp(instr->args[1], instr->args[2],
-                                            fir::ICmpInstrSubType::AddOverflow);
+  // Signed overflow of a +- b from the sign bits: for the sum both operands
+  // differ in sign from the result, for the difference the operands differ and
+  // the result differs from the first one.
+  void handle_signed_add_sub_with_overflow(fir::Instr instr,
+                                           fir::Function &funcy, bool is_add) {
+    fir::Builder bb{instr};
+    auto a = instr->args[1];
+    auto b = instr->args[2];
+    auto res = is_add ? bb.build_int_add(a, b) : bb.build_int_sub(a, b);
+    auto zero = fir::ValueR{funcy.ctx->get_constant_int(0, a.get_type()->get_bitwidth())};
+    auto xor_res = bb.build_binary_op(a, res, fir::BinaryInstrSubType::Xor);
+    // sum: b ^ res, difference: a ^ b
+    auto xor_other = is_add
+                         ? bb.build_binary_op(b, res, fir::BinaryInstrSubType::Xor)
+                         : bb.build_binary_op(a, b, fir::BinaryInstrSubType::Xor);
+    auto both = bb.build_binary_op(xor_res, xor_other, fir::BinaryInstrSubType::And);
+    auto overflow = bb.build_int_cmp(both, zero, fir::ICmpInstrSubType::SLT);
+    instr.result(0).replace_all_uses(res);
+    instr.result(1).replace_all_uses(overflow);
+    instr.destroy();
+  }
 
-    // annoying copy
-    auto uses = instr->uses;
-    for (auto use : uses) {
-      ASSERT(use.user->is(fir::InstrType::ExtractValue));
-      ASSERT(use.user->args.size() == 2);
-      ASSERT(use.argId == 0);
-      auto index = use.user->args[1].as_constant()->as_int();
-      if (index == 0) {
-        use.user->replace_all_uses(add_result);
-        use.user.destroy();
-      } else if (index == 1) {
-        use.user->replace_all_uses(overflow_result);
-        use.user.destroy();
-      } else {
-        UNREACH();
-      }
+  void handle_usub_with_overflow(fir::Instr instr, fir::Function & /*funcy*/,
+                                 fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = bb.build_int_sub(instr->args[1], instr->args[2]);
+    auto overflow = bb.build_int_cmp(instr->args[1], instr->args[2],
+                                     fir::ICmpInstrSubType::ULT);
+    instr.result(0).replace_all_uses(res);
+    instr.result(1).replace_all_uses(overflow);
+    instr.destroy();
+  }
+
+  void handle_smul_with_overflow(fir::Instr instr, fir::Function &funcy,
+                                 fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto *ctx = funcy.ctx;
+    auto a = instr->args[1];
+    auto b = instr->args[2];
+    auto ty = a.get_type();
+    const auto width = ty->get_bitwidth();
+    if (width <= 32) {
+      // the exact product fits into 64 bits, overflow if the truncated
+      // product is not the exact one
+      auto wide_ty = ctx->get_int_type(64);
+      auto wide = bb.build_int_mul(bb.build_sext(a, wide_ty),
+                                   bb.build_sext(b, wide_ty));
+      auto res = bb.build_itrunc(wide, ty);
+      auto overflow = bb.build_int_cmp(bb.build_sext(res, wide_ty), wide,
+                                       fir::ICmpInstrSubType::NE);
+      instr.result(0).replace_all_uses(res);
+      instr.result(1).replace_all_uses(overflow);
+      instr.destroy();
+      return;
     }
+    // 64 bit: overflow if res / a != b, with a = 0 and a = -1 handled apart
+    // since the division would trap (INT_MIN / -1) or divide by zero
+    auto res = bb.build_int_mul(a, b);
+    auto zero = fir::ValueR{ctx->get_constant_int(0, width)};
+    auto one = fir::ValueR{ctx->get_constant_int(1, width)};
+    auto minus_one = fir::ValueR{ctx->get_constant_int(-1, width)};
+    auto int_min = fir::ValueR{ctx->get_constant_int(
+        APInt::signed_min(width))};
+    auto a_zero = bb.build_int_cmp(a, zero, fir::ICmpInstrSubType::EQ);
+    auto a_m1 = bb.build_int_cmp(a, minus_one, fir::ICmpInstrSubType::EQ);
+    auto special = bb.build_binary_op(a_zero, a_m1, fir::BinaryInstrSubType::Or);
+    auto divisor = bb.build_select(ty, special, one, a);
+    auto quot = bb.build_binary_op(res, divisor, fir::BinaryInstrSubType::IntSDiv);
+    auto differs = bb.build_int_cmp(quot, b, fir::ICmpInstrSubType::NE);
+    auto not_special = bb.build_binary_op(
+        special, fir::ValueR{ctx->get_constant_int(1, 1)},
+        fir::BinaryInstrSubType::Xor);
+    auto ov_div =
+        bb.build_binary_op(differs, not_special, fir::BinaryInstrSubType::And);
+    auto b_min = bb.build_int_cmp(b, int_min, fir::ICmpInstrSubType::EQ);
+    auto ov_min = bb.build_binary_op(a_m1, b_min, fir::BinaryInstrSubType::And);
+    auto overflow = bb.build_binary_op(ov_div, ov_min, fir::BinaryInstrSubType::Or);
+    instr.result(0).replace_all_uses(res);
+    instr.result(1).replace_all_uses(overflow);
     instr.destroy();
   }
 
@@ -464,7 +538,7 @@ public:
     auto *ctx = funcy.ctx;
     auto ret_type = instr->args[2].as_constant()->as_int();
     instr->replace_all_uses(fir::ValueR{
-        ctx->get_constant_value(ret_type == 0 ? -1 : 0, instr->get_type())});
+        ctx->get_constant_value(ret_type == 0 ? -1 : 0, instr->result_type())});
     instr.destroy();
   }
 
@@ -598,7 +672,7 @@ public:
                        fir::FunctionR /*callee*/) {
     fir::Builder buh{instr};
     auto *ctx = funcy.ctx;
-    auto ty = instr->get_type();
+    auto ty = instr->result_type();
     auto mag_inp = instr->args[1];
     auto sign_inp = instr->args[2];
 
@@ -704,6 +778,18 @@ public:
         } else if (callee.func->name.starts_with("llvm.uadd.with.overflow")) {
           handle_uadd_with_overflow(instr, func, callee);
           modified = true;
+        } else if (callee.func->name.starts_with("llvm.sadd.with.overflow")) {
+          handle_signed_add_sub_with_overflow(instr, func, true);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.ssub.with.overflow")) {
+          handle_signed_add_sub_with_overflow(instr, func, false);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.usub.with.overflow")) {
+          handle_usub_with_overflow(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.smul.with.overflow")) {
+          handle_smul_with_overflow(instr, func, callee);
+          modified = true;
         } else if (callee.func->name.starts_with("llvm.lifetime.start") ||
                    callee.func->name.starts_with("llvm.lifetime.end")) {
           handle_lifetime(instr, func, callee);
@@ -757,9 +843,9 @@ public:
           handle_round(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.bswap.") &&
-                   instr->get_type()->is_int() &&
-                   instr->get_type()->get_bitwidth() >= 16 &&
-                   instr->get_type()->get_bitwidth() <= 64) {
+                   instr->result_type()->is_int() &&
+                   instr->result_type()->get_bitwidth() >= 16 &&
+                   instr->result_type()->get_bitwidth() <= 64) {
           handle_bswap(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.ceil.")) {

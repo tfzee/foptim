@@ -90,7 +90,7 @@ class LegalizeVecs final : public FunctionPass {
          instr->is(fir::BinaryInstrSubType::FloatMul) ||
          instr->is(fir::BinaryInstrSubType::FloatDiv) ||
          instr->is(fir::InstrType::FCmp)) &&
-        instr->get_type()->is_vec()) {
+        instr->result_type()->is_vec()) {
       if (instr->args[0].is_constant_float()) {
         make_constant_global(ctx, instr, 0);
         return true;
@@ -101,9 +101,10 @@ class LegalizeVecs final : public FunctionPass {
       }
     }
 
-    if (instr->is(fir::IntrinsicSubType::FAbs) && instr->get_type()->is_vec()) {
+    if (instr->is(fir::IntrinsicSubType::FAbs) &&
+        instr->result_type()->is_vec()) {
       fir::Builder b{instr};
-      auto width = instr->get_type()->as_vec().bitwidth;
+      auto width = instr->result_type()->as_vec().bitwidth;
       auto f_type = ctx->get_float_type(width);
       ASSERT(width == 64 || width == 32);
       fir::ValueR broad{};
@@ -112,12 +113,12 @@ class LegalizeVecs final : public FunctionPass {
             fir::ValueR{ctx->get_constant_value(
                 std::bit_cast<f64>(static_cast<u64>(0x7fffffffffffffff)),
                 f_type)},
-            instr->get_type());
+            instr->result_type());
       } else {
         broad = b.build_vbroadcast(
             fir::ValueR{ctx->get_constant_value(
                 std::bit_cast<f32>(static_cast<u32>(0x7fffffff)), f_type)},
-            instr->get_type());
+            instr->result_type());
       }
       auto r = b.build_binary_op(instr->args[0], broad,
                                  fir::BinaryInstrSubType::And);
@@ -134,17 +135,17 @@ class LegalizeVecs final : public FunctionPass {
         return true;
       }
       if (!ctx.config->target.features.avx512f &&
-          instr->get_type()->get_bitwidth() >= 512) {
+          instr->result_type()->get_bitwidth() >= 512) {
         // auto funcy = instr->get_parent()->get_parent().func;
         // fmt::println("{:cd}", *funcy);
         // fmt::println("{}", instr);
         fir::Builder buh{instr};
-        auto old_type = instr->get_type()->as_vec();
+        auto old_type = instr->result_type()->as_vec();
         auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
                                           old_type.member_number / 2);
         auto a1 = buh.build_vbroadcast(instr->args[0], new_type);
         auto a2 = buh.build_vbroadcast(instr->args[0], new_type);
-        auto r = buh.build_vector_op(a1, a2, instr->get_type(),
+        auto r = buh.build_vector_op(a1, a2, instr->result_type(),
                                      fir::VectorISubType::Concat);
         push_all_uses(worklist, instr);
         instr->replace_all_uses(r);
@@ -159,7 +160,7 @@ class LegalizeVecs final : public FunctionPass {
         !ctx.config->target.features.avx512f &&
         instr->args[0].get_type()->get_bitwidth() >= 512) {
       fir::Builder buh{instr};
-      auto out_type = instr->get_type();
+      auto out_type = instr->result_type();
       auto old_type = instr->args[0].get_type()->as_vec();
       auto new_type = ctx->get_vec_type(old_type.type, old_type.bitwidth,
                                         old_type.member_number / 2);

@@ -89,7 +89,7 @@ public:
       if ((known_arg0_bits == nullptr) || (known_arg1_bits == nullptr)) {
         return false;
       }
-      const u32 bitwidth = instr->get_type()->get_bitwidth();
+      const u32 bitwidth = instr->result_type()->get_bitwidth();
       if (known_arg0_bits->width() != bitwidth ||
           known_arg1_bits->width() != bitwidth) {
         return false;
@@ -178,9 +178,8 @@ public:
 
   Result update_impl_instr(AttributerManager &m, Worklist &worklist) {
     const u32 W = width();
-    // lanes of vectors and fields of structs do not behave like one integer
-    if (associatedValue.get_type()->is_vec() ||
-        associatedValue.get_type()->is_struct()) {
+    // lanes of vectors do not behave like one integer
+    if (associatedValue.get_type()->is_vec()) {
       return Result::Fixed;
     }
     APInt new_known_one = known_one;
@@ -504,7 +503,7 @@ public:
         new_known_zero = APInt::zero(W);
         break;
       }
-    } else if (instr->is(fir::InstrType::ExtractValue)) {
+    } else if (instr->is(fir::InstrType::ExtractElement)) {
       // TODO: can propagate in certain conditions (but then we prob removing
       // this extract value later one hm)
     } else if (instr->is(fir::InstrType::LoadInstr)) {
@@ -587,7 +586,6 @@ public:
       }
     } break;
     case fir::ConstantType::VectorValue:
-    case fir::ConstantType::ConstantStruct:
       break;
     }
 
