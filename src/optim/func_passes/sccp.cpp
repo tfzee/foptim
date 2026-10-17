@@ -714,8 +714,32 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
       if (!a.is_const() && (!a.is_float())) {
         return ConstantValue::Top();
       }
-      fmt::println("{:cd}", instr);
-      TODO("Impl");
+      if (!a.vtype->is_float() || !a.is_const()) {
+        return ConstantValue::Top();
+      }
+      const auto sub =
+          static_cast<fir::IntrinsicSubType>(instr->get_instr_subtype());
+      const auto round_f = [&](auto x) {
+        switch (sub) {
+        case fir::IntrinsicSubType::FCeil:
+          return std::ceil(x);
+        case fir::IntrinsicSubType::FFloor:
+          return std::floor(x);
+        case fir::IntrinsicSubType::FTrunc:
+          return std::trunc(x);
+        default:
+          return std::round(x);
+        }
+      };
+      if (a.vtype->as_float() == 32) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(round_f(a.as_f32()), a.vtype));
+      }
+      if (a.vtype->as_float() == 64) {
+        return ConstantValue::Constant(
+            ctx->get_constant_value(round_f(a.as_f64()), a.vtype));
+      }
+      return ConstantValue::Top();
     }
     case fir::IntrinsicSubType::FAbs: {
       auto a = eval(instr->get_arg(0));

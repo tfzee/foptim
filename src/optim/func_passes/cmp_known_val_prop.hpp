@@ -63,7 +63,8 @@ class CmpKnownValProp final : public FunctionPass {
 
   void propagate_known_cond(fir::Instr term, CFG &cfg, Dominators &dom) {
     // only if we have multiple uses
-    if (term->args[0].get_n_uses() < 2) {
+    const auto cond = term->args[0];
+    if (cond.get_n_uses() < 2) {
       return;
     }
     // a use is only known if every execution of it came through the edge, so
@@ -75,8 +76,11 @@ class CmpKnownValProp final : public FunctionPass {
       if (cfg.bbrs[target_id].pred.size() != 1) {
         return;
       }
-      TVec<fir::Use> uses_copy{term->args[0].get_uses()->begin(),
-                               term->args[0].get_uses()->end()};
+      const auto *uses = cond.get_uses();
+      if (uses == nullptr) {
+        return;
+      }
+      TVec<fir::Use> uses_copy{uses->begin(), uses->end()};
       for (auto use : uses_copy) {
         auto user_bb = cfg.get_bb_id(use.user->get_parent());
         if (dom.dominates(target_id, user_bb)) {
