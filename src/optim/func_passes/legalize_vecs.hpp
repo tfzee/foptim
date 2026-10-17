@@ -14,17 +14,16 @@
 
 namespace foptim::optim {
 
-static std::atomic<u32> helper_index_name = 0;
-
 class LegalizeVecs final : public FunctionPass {
   void make_constant_global(fir::Context &ctx, fir::Instr instr, u32 arg_indx) {
     auto constant = instr->args[arg_indx].as_constant();
-    IRString name;
-    fmt::format_to(std::back_inserter(name), "const_legalizeVec_{}",
-                   helper_index_name.load());
-    helper_index_name++;
     const auto size = (constant->type->get_bitwidth() + 7) / 8;
-    auto global = ctx->insert_global(name, size);
+    // numbered per function so the name does not depend on the job order
+    auto func = instr->get_parent()->get_parent();
+    IRString name;
+    fmt::format_to(std::back_inserter(name), "const_legalizeVec_{}_{}",
+                   func->name.c_str(), func->n_vec_constants++);
+    auto global = ctx->insert_global(std::move(name), size);
     global->is_constant = true;
     global->linkage = fir::Linkage::Internal;
     global->init_value = foptim::utils::IRAlloc<uint8_t>{}.allocate(size);

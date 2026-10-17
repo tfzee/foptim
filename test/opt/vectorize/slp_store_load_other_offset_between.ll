@@ -8,9 +8,9 @@ define i32 @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
 ; CHECK-NEXT:    %3: 4@i64 = V.Broadcast(%2){} NUses:1
 ; CHECK-NEXT:    %4: 4@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: 4@i64 = Load(G(const_legalizeVec_1)){} NUses:1
+; CHECK-NEXT:    %5: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %6: 4@i64 = PtrAdd(%4, %5){} NUses:1
-; CHECK-NEXT:    %7: 4@i64 = Load(G(const_legalizeVec_0)){} NUses:1
+; CHECK-NEXT:    %7: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %8: 4@i64 = PtrAdd(%3, %7){} NUses:1
 ; CHECK-NEXT:    %9: 4@i32 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %10: 4@i32 = Load(%8){} NUses:1

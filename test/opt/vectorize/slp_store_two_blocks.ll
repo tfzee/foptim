@@ -13,9 +13,9 @@ define void @f(ptr %a, ptr %b, ptr %c, i1 %cond) {
 ; CHECK-NEXT:    %7: 4@i64 = V.Broadcast(%1){} NUses:1
 ; CHECK-NEXT:    %8: () = CondBranch<bb1(), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %9: 4@i64 = Load(G(const_legalizeVec_3)){} NUses:1
+; CHECK-NEXT:    %9: 4@i64 = Load(G(const_legalizeVec_f_3)){} NUses:1
 ; CHECK-NEXT:    %10: 4@i64 = PtrAdd(%7, %9){} NUses:1
-; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_2)){} NUses:1
+; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
 ; CHECK-NEXT:    %12: 4@i64 = PtrAdd(%6, %11){} NUses:1
 ; CHECK-NEXT:    %13: 4@i32 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %14: 4@i32 = Load(%12){} NUses:1
@@ -24,9 +24,9 @@ define void @f(ptr %a, ptr %b, ptr %c, i1 %cond) {
 ; CHECK-NEXT:    %17: () = Branch<bb3()>(){} NUses:0
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 32:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %19: 4@i64 = Load(G(const_legalizeVec_1)){} NUses:1
+; CHECK-NEXT:    %19: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %20: 4@i64 = PtrAdd(%5, %19){} NUses:1
-; CHECK-NEXT:    %21: 4@i64 = Load(G(const_legalizeVec_0)){} NUses:1
+; CHECK-NEXT:    %21: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %22: 4@i64 = PtrAdd(%4, %21){} NUses:1
 ; CHECK-NEXT:    %23: 4@i32 = Load(%20){} NUses:1
 ; CHECK-NEXT:    %24: 4@i32 = Load(%22){} NUses:1

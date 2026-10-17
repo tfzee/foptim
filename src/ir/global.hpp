@@ -53,7 +53,7 @@ struct GlobalData : public LockedUsed {
   // TypeR type;
   IRString name;
   u64 n_bytes;
-  u32 min_align;
+  u32 min_align = 0;
   bool is_constant = false;
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;

@@ -7,7 +7,7 @@ define float @f(ptr %a) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: 4@i64 = V.Broadcast(%0){} NUses:1
-; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_0)){} NUses:1
+; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %3: 4@i64 = PtrAdd(%1, %2){} NUses:1
 ; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 20:i64){NSW; NUW; } NUses:1

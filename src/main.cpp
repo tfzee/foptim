@@ -188,10 +188,9 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
 
   {
     // passes create globals from parallel jobs in any order, so the ones they
-    // generated go last in name order and equal ones are emitted once
-    constexpr std::string_view generated = "const_legalizeVec_";
-    const auto is_generated = [&](const foptim::fmir::Global &g) {
-      return std::string_view{g.name}.starts_with(generated);
+    // generated go last in name order
+    const auto is_generated = [](const foptim::fmir::Global &g) {
+      return std::string_view{g.name}.starts_with("const_legalizeVec_");
     };
     std::ranges::stable_sort(globals, [&](const auto &a, const auto &b) {
       const bool ag = is_generated(a);
@@ -201,11 +200,6 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
       }
       return ag && std::string_view{a.name} < std::string_view{b.name};
     });
-    const auto [dup_begin, dup_end] = std::ranges::unique(
-        globals, [&](const auto &a, const auto &b) {
-          return is_generated(a) && std::string_view{a.name} == b.name;
-        });
-    globals.erase(dup_begin, dup_end);
   }
 
   auto reordered_funcs = foptim::fmir::get_lowering_order(ctx);

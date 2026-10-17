@@ -8,9 +8,9 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
 ; CHECK-NEXT:    %3: 2@i64 = V.Broadcast(%2){} NUses:1
 ; CHECK-NEXT:    %4: 2@i64 = V.Broadcast(%1){} NUses:1
-; CHECK-NEXT:    %5: 2@i64 = Load(G(const_legalizeVec_1)){} NUses:1
+; CHECK-NEXT:    %5: 2@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %6: 2@i64 = PtrAdd(%4, %5){} NUses:1
-; CHECK-NEXT:    %7: 2@i64 = Load(G(const_legalizeVec_0)){} NUses:1
+; CHECK-NEXT:    %7: 2@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %8: 2@i64 = PtrAdd(%3, %7){} NUses:1
 ; CHECK-NEXT:    %9: 2@f64 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %10: 2@f64 = Load(%8){} NUses:1
