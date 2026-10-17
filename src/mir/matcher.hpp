@@ -1,4 +1,6 @@
 #pragma once
+#include <array>
+
 #include "config/compiler_config.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/function_ref.hpp"
@@ -19,46 +21,48 @@ struct ExtraMatchData {
 };
 
 struct MatchResult {
-  // has the same order as the pattern the match originates from
-  TVec<fir::Instr> matched_instrs;
   TVec<fmir::MInstr> result;
-  size_t match_id;
 };
 
-struct Pattern {
-  enum class NodeType {
-    Instr,
-    Imm,
-  };
+// A rule is tried on instructions of its kind (and subtype, 0 means any).
+// It checks the tree below the instruction, emits the MIR into
+// `MatchResult::result` and returns false if it does not apply.
+struct Rule {
+  using Generator = bool (*)(fir::Instr, MatchResult &, ExtraMatchData &);
 
-  struct Node {
-    NodeType type;
-
-    fir::InstrType instr_type;
-    u32 instr_subtype;
-  };
-
-  struct Edge {
-    u32 from_instr;
-    u32 to_instr;
-    u32 to_arg;
-  };
-
-  IRVec<Node> nodes;
-  IRVec<Edge> edges;
-
-  bool (*generator)(MatchResult &, ExtraMatchData &);
+  u32 subtype;
+  Generator generate;
 };
 
-class Matcher {
+// Rules are bucketed by the kind of the instruction they start at. Within a
+// bucket the order of registration is the priority, the first rule that
+// succeeds wins.
+class RuleSet {
  public:
-  IRVec<Pattern> patterns;
+  static constexpr size_t NKinds =
+      static_cast<size_t>(fir::InstrType::Intrinsic) + 1;
+
+  template <class OpKind>
+  void add(OpKind, Rule::Generator generate) {
+    by_kind_[static_cast<size_t>(OpKind::type)].push_back(
+        Rule{.subtype = OpKind::subtype, .generate = generate});
+  }
+
+  [[nodiscard]] const FVec<Rule> &rules_for(fir::InstrType type) const {
+    return by_kind_[static_cast<size_t>(type)];
+  }
+
+ private:
+  std::array<FVec<Rule>, NKinds> by_kind_;
 };
 
-class GreedyMatcher : public Matcher {
+class GreedyMatcher {
  public:
   GreedyMatcher();
   MFunc apply(fir::Function &func, const conf::CompConf &config);
+
+ private:
+  const RuleSet &rules;
 };
 
 Type convert_type(fir::TypeR type);

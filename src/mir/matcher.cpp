@@ -1,5 +1,4 @@
 #include "matcher.hpp"
-#include "ir/helpers.hpp"
 
 #include <algorithm>
 #include <ranges>
@@ -7,6 +6,7 @@
 #include "config/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/function.hpp"
+#include "ir/helpers.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
@@ -47,108 +47,17 @@ namespace {
 //   return false;
 // }
 
-bool try_match(fir::ValueR value, const Pattern::Node &patt) {
-  if (value.is_instr() && patt.type == Pattern::NodeType::Instr) {
-    auto instr = value.as_instr();
-    return instr->get_instr_type() == patt.instr_type &&
-           (patt.instr_subtype == 0 ||
-            instr->get_instr_subtype() == patt.instr_subtype);
-  }
-  if (value.is_constant() && patt.type == Pattern::NodeType::Imm) {
-    return true;
-  }
-  return false;
-}
-
-struct MatchTodos {
-  fir::ValueR child;
-  u32 node_id;
-};
-
-bool try_match(fir::Instr instr, const Pattern &patt, MatchResult &res,
-               TVec<MatchTodos> &match_todos) {
-  // for now TREE only matching
-  //  for (size_t start_node_id = 0; start_node_id < patt.nodes.size();
-  //       start_node_id++) {
-  size_t start_node_id = patt.nodes.size() - 1;
-  {
-    uint32_t n_nodes_matched = 0;
-    // iterate over all the possible initial notes since there can be multiple
-    // candidates we need to iter over this
-
-    // if it doesnt match check next
-    if (!try_match(fir::ValueR(instr), patt.nodes[start_node_id])) {
-      return false;
-      // continue;
-    }
-    n_nodes_matched++;
-    match_todos.clear();
-    // if it matches setup the children inthe worklist if there is any
-    {
-      res.matched_instrs[start_node_id] = instr;
-      for (auto edge : patt.edges) {
-        if (edge.to_instr == start_node_id) {
-          if (instr->args.size() > edge.to_arg) {
-            match_todos.push_back({instr->args[edge.to_arg], edge.from_instr});
-          } else {
-            ASSERT(false);
-            // return false;
-          }
-        }
-      }
-    }
-
-    // do the actualy matching by searching "recursively" up the use chain to
-    // find matches
-    {
-      while (!match_todos.empty()) {
-        auto [child_arg, node_id] = match_todos.back();
-        match_todos.pop_back();
-        if (!try_match(child_arg, patt.nodes[node_id])) {
-          return false;
-        }
-        auto as_instr = child_arg.as_instr();
-        res.matched_instrs[node_id] = as_instr;
-        n_nodes_matched++;
-        for (auto edge : patt.edges) {
-          if (edge.to_instr != node_id) {
-            continue;
-          }
-          ASSERT(as_instr->args.size() > edge.to_arg);
-          if (!as_instr->args[edge.to_arg].is_instr()) {
-            return false;
-          }
-          match_todos.push_back({as_instr->args[edge.to_arg], edge.from_instr});
-        }
-      }
-      // all matches worked out in the worklist then we good
-      //  just need to make sure we actually matched all of the nodes
-      ASSERT(n_nodes_matched <= patt.nodes.size());
-      if (n_nodes_matched == patt.nodes.size()) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
+void find_match(fir::Instr instr, const RuleSet &rules, MatchResult &res,
                 ExtraMatchData &data) {
   ZoneScopedN("Find Match");
-  TVec<MatchTodos> match_todos;
-  match_todos.reserve(5);
-  for (size_t match_id = 0; match_id < patts.size(); match_id++) {
+  const auto subtype = instr->get_instr_subtype();
+  for (const auto &rule : rules.rules_for(instr->get_instr_type())) {
+    if (rule.subtype != 0 && rule.subtype != subtype) {
+      continue;
+    }
     res.result.clear();
-    // if (res.matched_instrs.size() > patts[match_id].nodes.size()) {
-    res.matched_instrs.resize(patts[match_id].nodes.size(),
-                              fir::Instr(fir::Instr::invalid()));
-    // }
-    if (try_match(instr, patts[match_id], res, match_todos)) {
-      if (patts[match_id].generator(res, data)) {
-        res.match_id = match_id;
-        return;
-      }
+    if (rule.generate(instr, res, data)) {
+      return;
     }
   }
 
@@ -166,7 +75,7 @@ void find_match(fir::Instr instr, IRVec<Pattern> &patts, MatchResult &res,
 //   fmt::println("}}");
 // }
 
-MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
+MBB apply_bb(fir::BasicBlock &bb, const RuleSet &rules,
              MatchResult &match_result, ExtraMatchData &data) {
   ZoneScopedN("Apply BB");
   MBB result_bb;
@@ -178,7 +87,7 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
     // worklist.pop_front();
 
     // match it
-    find_match(cur_instr, patterns, match_result, data);
+    find_match(cur_instr, rules, match_result, data);
 
     // insert instrs this generates
     {
@@ -208,7 +117,7 @@ MBB apply_bb(fir::BasicBlock &bb, IRVec<Pattern> &patterns,
   std::ranges::reverse(result_bb.instrs);
   return result_bb;
 }
-} // namespace
+}  // namespace
 
 Type convert_type(fir::TypeR type) {
   if (type->is_int()) {
@@ -242,68 +151,68 @@ Type convert_type(fir::TypeR type) {
   } else if (type->is_vec()) {
     auto d = type->as_vec();
     switch (d.type) {
-    case fir::VectorType::SubType::Integer:
-      // if its a boolean width just extend so it fits with number of expected
-      // values
-      if (d.bitwidth == 1) {
-        // if(d.member_number == 4){
-        TODO("Impl");
-        //   todo not sure should prob not make this legal
-        // }
-      }
-      if (d.bitwidth == 8 && d.member_number == 16) {
-        return Type::Int8x16;
-      }
-      if (d.bitwidth == 8 && d.member_number == 32) {
-        return Type::Int8x32;
-      }
-      if (d.bitwidth == 16 && d.member_number == 8) {
-        return Type::Int16x8;
-      }
-      if (d.bitwidth == 16 && d.member_number == 16) {
-        return Type::Int16x16;
-      }
-      if (d.bitwidth == 32 && d.member_number == 4) {
-        return Type::Int32x4;
-      }
-      if (d.bitwidth == 32 && d.member_number == 8) {
-        return Type::Int32x8;
-      }
-      if (d.bitwidth == 64 && d.member_number == 2) {
-        return Type::Int64x2;
-      }
-      if (d.bitwidth == 64 && d.member_number == 4) {
-        return Type::Int64x4;
-      }
-      if (d.bitwidth == 64 && d.member_number == 8) {
-        return Type::Int64x8;
-      }
-      fmt::println("{}", type);
-      ASSERT(false);
-    case fir::VectorType::SubType::Floating:
-      if (d.bitwidth == 32 && d.member_number == 2) {
-        return Type::Float32x2;
-      }
-      if (d.bitwidth == 32 && d.member_number == 4) {
-        return Type::Float32x4;
-      }
-      if (d.bitwidth == 32 && d.member_number == 8) {
-        return Type::Float32x8;
-      }
-      if (d.bitwidth == 32 && d.member_number == 16) {
-        return Type::Float32x16;
-      }
-      if (d.bitwidth == 64 && d.member_number == 2) {
-        return Type::Float64x2;
-      }
-      if (d.bitwidth == 64 && d.member_number == 4) {
-        return Type::Float64x4;
-      }
-      if (d.bitwidth == 64 && d.member_number == 8) {
-        return Type::Float64x8;
-      }
-      fmt::println("{}", type);
-      ASSERT(false);
+      case fir::VectorType::SubType::Integer:
+        // if its a boolean width just extend so it fits with number of expected
+        // values
+        if (d.bitwidth == 1) {
+          // if(d.member_number == 4){
+          TODO("Impl");
+          //   todo not sure should prob not make this legal
+          // }
+        }
+        if (d.bitwidth == 8 && d.member_number == 16) {
+          return Type::Int8x16;
+        }
+        if (d.bitwidth == 8 && d.member_number == 32) {
+          return Type::Int8x32;
+        }
+        if (d.bitwidth == 16 && d.member_number == 8) {
+          return Type::Int16x8;
+        }
+        if (d.bitwidth == 16 && d.member_number == 16) {
+          return Type::Int16x16;
+        }
+        if (d.bitwidth == 32 && d.member_number == 4) {
+          return Type::Int32x4;
+        }
+        if (d.bitwidth == 32 && d.member_number == 8) {
+          return Type::Int32x8;
+        }
+        if (d.bitwidth == 64 && d.member_number == 2) {
+          return Type::Int64x2;
+        }
+        if (d.bitwidth == 64 && d.member_number == 4) {
+          return Type::Int64x4;
+        }
+        if (d.bitwidth == 64 && d.member_number == 8) {
+          return Type::Int64x8;
+        }
+        fmt::println("{}", type);
+        ASSERT(false);
+      case fir::VectorType::SubType::Floating:
+        if (d.bitwidth == 32 && d.member_number == 2) {
+          return Type::Float32x2;
+        }
+        if (d.bitwidth == 32 && d.member_number == 4) {
+          return Type::Float32x4;
+        }
+        if (d.bitwidth == 32 && d.member_number == 8) {
+          return Type::Float32x8;
+        }
+        if (d.bitwidth == 32 && d.member_number == 16) {
+          return Type::Float32x16;
+        }
+        if (d.bitwidth == 64 && d.member_number == 2) {
+          return Type::Float64x2;
+        }
+        if (d.bitwidth == 64 && d.member_number == 4) {
+          return Type::Float64x4;
+        }
+        if (d.bitwidth == 64 && d.member_number == 8) {
+          return Type::Float64x8;
+        }
+        fmt::println("{}", type);
+        ASSERT(false);
     }
   } else {
     fmt::println("{}", type);
@@ -443,12 +352,10 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
 
   // so we dont need to realloc
   MatchResult match_result{};
-  match_result.matched_instrs.reserve(5);
   match_result.result.reserve(5);
 
   for (auto bb : func.basic_blocks) {
-    res_func.bbs.push_back(
-        apply_bb(bb, this->patterns, match_result, extra_data));
+    res_func.bbs.push_back(apply_bb(bb, this->rules, match_result, extra_data));
   }
 
   // res_func.clone_attribs(func);
@@ -531,5 +438,5 @@ void generate_bb_args(fir::BBRefWithArgs &args, MatchResult &res,
   ASSERT(pairs.empty());
 }
 
-GreedyMatcher::GreedyMatcher() : Matcher(get_pats()) {}
-} // namespace foptim::fmir
+GreedyMatcher::GreedyMatcher() : rules(builtin_rules()) {}
+}  // namespace foptim::fmir

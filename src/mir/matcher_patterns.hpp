@@ -1,9 +1,9 @@
 #pragma once
-#include "utils/vec.hpp"
 
 namespace foptim::fmir {
 
-struct Pattern;
+class RuleSet;
 
-IRVec<Pattern> get_pats();
+// all instruction selection rules, built once
+const RuleSet &builtin_rules();
 }  // namespace foptim::fmir

@@ -8,6 +8,7 @@
 #include "test_intern.hpp"
 #include "test_ir_liveness.hpp"
 #include "test_loop_analysis.hpp"
+#include "test_matcher_pm.hpp"
 #include "test_reg_alloc_solver.hpp"
 #include "test_stable_vec.hpp"
 
