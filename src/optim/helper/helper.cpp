@@ -272,10 +272,8 @@ bool is_cheap_splat_constant(fir::ValueR v) {
   }
   auto c = v.as_constant();
   if (c->is_int()) {
-    const i128 x = c->as_int();
-    const u32 bw = c->type->get_bitwidth();
-    return x == 0 || x == -1 ||
-           (bw < 64 && x == (static_cast<i128>(1) << bw) - 1);
+    const APInt &x = c->as_apint();
+    return x.is_zero() || x.is_all_ones();
   }
   return c->is_float() && c->as_f64() == 0.0 && !std::signbit(c->as_f64());
 }
