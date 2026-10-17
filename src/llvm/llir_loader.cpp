@@ -589,7 +589,8 @@ void convert_call(const llvm::Instruction *any_instr,
                   V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   foptim::TVec<foptim::fir::ValueR> args = {};
   if (const auto *c = call_instr->getCalledFunction()) {
-    if (c->getName().starts_with("llvm.experimental.noalias.scope.decl")) {
+    if (c->getName().starts_with("llvm.experimental.noalias.scope.decl") ||
+        c->getName().starts_with("llvm.assume")) {
       return;
     }
     if (c->getName() == "sqrt") {
