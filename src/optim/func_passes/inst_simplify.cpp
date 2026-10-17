@@ -1518,8 +1518,7 @@ bool simplify_extract(fir::Instr instr, WorkList &worklist) {
 }
 
 bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-              WorkList &worklist, AttributerManager &man, AliasAnalyis &anal,
-              ConstraintCache &ccache) {
+              WorkList &worklist, AttributerManager &man, AliasAnalyis &anal) {
   ZoneScopedN("SimplifyInstr");
   using foptim::fir::InstrType;
 
@@ -1531,7 +1530,7 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return simplify_unary(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::ICmp) {
-    return simplify_icmp(instr, bb, ctx, worklist, man, ccache);
+    return simplify_icmp(instr, bb, ctx, worklist, man);
   }
   if (instr_ty == InstrType::StoreInstr) {
     if (simplify_store(instr)) {
@@ -1587,7 +1586,6 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedNC("InstSimplify", COLOR_OPTIMF);
   AttributerManager man;
   AliasAnalyis anal{};
-  InstSimp::ConstraintCache ccache{func};
   bool changed_cfg = false;
   bool changed = false;
 
@@ -1622,14 +1620,12 @@ PreservedAnalysis InstSimplify::apply(fir::Context &ctx, fir::Function &func) {
       instr.destroy();
       man.reset();
       changed = true;
-      ccache.invalidate(false);
       continue;
     }
-    if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal, ccache)) {
+    if (InstSimp::simplify(instr, bb, ctx, worklist, man, anal)) {
       man.reset();
       changed = true;
       changed_cfg |= is_branching;
-      ccache.invalidate(is_branching);
     }
 #ifdef HASH_CHECKS_ENABLED
     else if (instr.is_valid() && instr->parent.is_valid() &&

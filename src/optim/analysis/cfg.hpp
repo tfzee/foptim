@@ -76,13 +76,25 @@ class CFG {
     ZoneScopedNC("CFG UPDATE", COLOR_ANALY);
     entry = 0;
 
-    bbrs.clear();
-    bbrs.reserve(func.n_bbs());
-    for (auto &bb : func.get_bbs()) {
-      if (bb == func.get_entry()) {
-        entry = bbrs.size();
+    // reuse the nodes of the last build, rebuilds happen after every change
+    // in some passes
+    const auto &func_bbs = func.get_bbs();
+    while (bbrs.size() > func_bbs.size()) {
+      bbrs.pop_back();
+    }
+    bbrs.reserve(func_bbs.size());
+    for (size_t i = 0; i < func_bbs.size(); i++) {
+      if (func_bbs[i] == func.get_entry()) {
+        entry = i;
       }
-      bbrs.push_back(Node{.bb = bb, .pred = {}, .succ = {}});
+      if (i < bbrs.size()) {
+        auto &node = bbrs[i];
+        node.bb = func_bbs[i];
+        node.pred.clear();
+        node.succ.clear();
+      } else {
+        bbrs.push_back(Node{.bb = func_bbs[i], .pred = {}, .succ = {}});
+      }
     }
 
     rebuild_id_map();

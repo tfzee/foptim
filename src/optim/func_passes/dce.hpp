@@ -36,8 +36,6 @@ public:
     ZoneScopedNC("DCE", COLOR_OPTIMF);
     bool modified = false;
     {
-      CFG rev_cfg{func, true};
-      BitsetDominators rev_dom{rev_cfg};
       // if (func.linkage == fir::Function::Linkage::Internal &&
       //     func.get_n_uses() == 0) {
       //   // fmt::println("{}", func.name.c_str());
@@ -100,17 +98,6 @@ public:
             }
           }
         }
-
-        // furthermore all blocks in the reverse domintor frontier become also
-        // critical since they decide if this instruction gets executed to mark
-        // them as critical we mark the last branch isntruction as such
-        const size_t bb_id = rev_cfg.get_bb_id(curr_i->get_parent());
-        for (auto bb_id : rev_dom.dom_bbs.at(bb_id).frontier) {
-          auto term = func.basic_blocks[bb_id]->get_terminator();
-          if (term.is_valid() && std::get<1>(marked.insert(term))) {
-            worklist.push_back(term);
-          }
-        }
       }
 
       // then all critical operations should be marked
@@ -170,7 +157,7 @@ public:
     }
 
     {
-      CFG cfg{func};
+      CFG &cfg = AnalysisManager::cfg(func);
       TSet<size_t> seen;
       reachable_from_entry(cfg, seen);
       // reverse so we remove high ones first

@@ -7,7 +7,6 @@
 #include "ir/value.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
-#include "optim/analysis/constraint_analysis.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/helper/helper.hpp"
@@ -95,13 +94,11 @@ static bool icmp_fits_narrow_compare(fir::Instr icmp, u32 n_bits) {
 }
 
 bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                        WorkList &worklist, AttributerManager &man,
-                        ConstraintCache &ccache);
+                        WorkList &worklist, AttributerManager &man);
 }  // namespace
 
 bool simplify_icmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                   WorkList &worklist, AttributerManager &man,
-                   ConstraintCache &ccache) {
+                   WorkList &worklist, AttributerManager &man) {
   bool normalized = false;
   if ((instr->args[0].is_constant() &&
        (!instr->args[0].as_constant()->is_global() &&
@@ -113,14 +110,14 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     swap_args_icmp(instr);
     normalized = instr->args[0] != before;
   }
-  return simplify_icmp_impl(instr, bb, ctx, worklist, man, ccache) ||
+  return simplify_icmp_impl(instr, bb, ctx, worklist, man) ||
          normalized;
 }
 
 namespace {
 bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
                         fir::Context &ctx, WorkList &worklist,
-                        AttributerManager & /*man*/, ConstraintCache &ccache) {
+                        AttributerManager & /*man*/) {
   if (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyICMP");
   }
@@ -433,24 +430,6 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
   //     return;
   //   }
   // }
-  {
-    // expiremental constraint pass
-    if (auto *constr_ptr = ccache.get()) {
-      auto &constr = *constr_ptr;
-      auto bb_id = ccache.get_cfg().get_bb_id(instr->get_parent());
-      auto &b = constr.bb_to_constraints[bb_id];
-      auto cond_constr = constr.get_constraint(instr);
-      if (cond_constr.has_value() &&
-          constr.contradicts(cond_constr.value(), b.active_constraints)) {
-        instr->replace_all_uses(fir::ValueR{ctx->get_constant_int(0, 1)});
-        return true;
-      }
-    }
-    // else if (constr.supported(b.terminator_constraint,
-    // b.active_constraints)) {
-    //   TODO("okak");
-    // }
-  }
   return false;
 }
 }  // namespace

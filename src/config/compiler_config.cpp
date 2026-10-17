@@ -124,6 +124,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new IntrinExpandConf{};
     } else if (name == "IntrinLowerCalls") {
       pass = new IntrinLowerCallsConf{};
+    } else if (name == "ConstraintProp") {
+      pass = new ConstraintPropConf{};
     } else if (name == "CmpKnownValProp") {
       pass = new CmpKnownValPropConf{};
     } else if (name == "TailRecElim") {

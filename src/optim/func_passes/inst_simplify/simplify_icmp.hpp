@@ -7,7 +7,6 @@
 
 namespace foptim::optim::InstSimp {
 bool simplify_icmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                   WorkList &worklist, AttributerManager &man,
-                   ConstraintCache &ccache);
+                   WorkList &worklist, AttributerManager &man);
 
 }  // namespace foptim::optim::InstSimp

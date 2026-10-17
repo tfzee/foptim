@@ -98,7 +98,10 @@ class SmallVec {
   static_assert(sizeof(size_t) >= sizeof(SizeTy),
                 "Having SizeTy greater then size_t can lead to issues");
 
-  constexpr void clear() { destroy_and_free_all_elems(); }
+  constexpr void clear() {
+    destroy_and_free_all_elems();
+    data = inline_ptr();
+  }
   // reserver atleast wanted_new_size.
   //  However it might allocate more if the size of the wanted_new_size is very
   //  close to the old size. This is to prevent some edgecases where people call

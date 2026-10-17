@@ -6,6 +6,7 @@
 #include "compiler_config.hpp"
 #include "optim/func_passes/cmp_known_val_prop.hpp"
 #include "optim/func_passes/constant_loop_eval.hpp"
+#include "optim/func_passes/constraint_prop.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/double_load.hpp"
 #include "optim/func_passes/dse.hpp"
@@ -242,6 +243,12 @@ struct SimplifyCFGConf : public FunctionPassConf<SimplifyCFGConf> {
 struct LVNConf : public FunctionPassConf<LVNConf> {
   static constexpr const char *BaseName = "LVN";
   using Pass = optim::LVN;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct ConstraintPropConf : public FunctionPassConf<ConstraintPropConf> {
+  static constexpr const char *BaseName = "ConstraintProp";
+  using Pass = optim::ConstraintProp;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };

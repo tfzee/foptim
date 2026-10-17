@@ -87,6 +87,12 @@ private:
   bool merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
                                   fir::Function &func, size_t bb_id,
                                   bool is_entry);
+  // merges every block that is only entered by the unconditional branch of
+  // its predecessor into it, without needing the cfg
+  bool merge_linear_blocks(fir::Function &func);
+  // same for blocks that only hold an unconditional branch: their incoming
+  // edges jump to the target directly
+  bool forward_empty_blocks(fir::Function &func);
   // if 1 to 1 relation between blocks we can merge them
   // TODO: this should in theory even work with multiple incmoing and then use a
   // heuristic so it can do it for any short enough block

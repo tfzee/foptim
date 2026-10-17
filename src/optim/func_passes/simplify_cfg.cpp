@@ -1,3 +1,4 @@
+#include <optional>
 #include "simplify_cfg.hpp"
 
 #include <fmt/base.h>
@@ -349,24 +350,23 @@ namespace {
 //  have uses but all are just forwarding to the next bb
 bool has_true_use(fir::BBArgument v, TVec<fir::Use> &worklist,
                   TSet<fir::Use> &seen) {
-  for (auto use : v->get_uses()) {
-    worklist.push_back(use);
-  }
+  // every use is queued at most once
+  auto push_uses = [&](auto &&uses) {
+    for (auto use : uses) {
+      if (seen.insert(use).second) {
+        worklist.push_back(use);
+      }
+    }
+  };
+  push_uses(v->get_uses());
   while (!worklist.empty()) {
     auto item = worklist.back();
     worklist.pop_back();
 
-    if (seen.contains(item)) {
-      continue;
-    }
-    seen.insert(item);
-
     if (item.type == fir::UseType::NormalArg) {
       if (!item.user->is_critical() && !item.user->pot_modifies_mem() &&
           !item.user->has_pot_sideeffects()) {
-        for (auto use : item.user->get_uses()) {
-          worklist.push_back(use);
-        }
+        push_uses(item.user->get_uses());
       } else {
         return true;
       }
@@ -374,9 +374,7 @@ bool has_true_use(fir::BBArgument v, TVec<fir::Use> &worklist,
       UNREACH();
     } else if (item.type == fir::UseType::BBArg) {
       auto new_item = item.user->bbs[item.argId].bb->args[item.bbArgId];
-      for (auto use : new_item->get_uses()) {
-        worklist.push_back(use);
-      }
+      push_uses(new_item->get_uses());
     }
   }
   return false;
@@ -677,6 +675,13 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       }
       res_bb2->replace_all_uses(fir::ValueR(res_bb1));
       ASSERT(res_bb2->get_n_uses() == 0);
+      // code that is not reachable anymore may still use values of the block
+      for (auto instr : res_bb2->instructions) {
+        if (instr->get_n_uses() > 0) {
+          instr->replace_all_uses(
+              fir::ValueR{ctx->get_poisson_value(instr.result_type())});
+        }
+      }
       res_bb2->remove_from_parent(true, true, true);
       utils::StatCollector::get().addi(1, "MergedBBBlocks");
       sigs.erase(sigs.begin() + static_cast<i64>(bb2_id));
@@ -823,12 +828,12 @@ bool SimplifyCFG::remove_constant_bb_args(CFG::Node &curr, bool is_entry) {
   ZoneScopedN("rem const bb args");
   auto n_args = curr.bb->n_args();
   bool modified = false;
+  // the uses of the block itself do not change while its args are removed
+  TVec<fir::Use> uses{curr.bb->uses.begin(), curr.bb->uses.end()};
   for (u32 ip1 = n_args; ip1 > 0; ip1--) {
     auto i = ip1 - 1;
     fir::ValueR c_value{};
     bool is_c = true;
-
-    TVec<fir::Use> uses{curr.bb->uses.begin(), curr.bb->uses.end()};
 
     for (auto use : uses) {
       ASSERT(use.type == fir::UseType::BB);
@@ -1108,6 +1113,153 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
   return false;
 }
 
+namespace {
+// succ has exactly one incoming edge, the unconditional branch at the end of
+// bb. Moves its instructions into bb and deletes it.
+void merge_into_predecessor(fir::Function &func, fir::BasicBlock bb,
+                            fir::BasicBlock succ) {
+  auto old_first_term = bb->get_terminator();
+  if (succ->n_args() != 0) {
+    for (u32 i = 0; i < succ->n_args(); i++) {
+      succ->args[i]->replace_all_uses(old_first_term->bbs[0].args[i]);
+    }
+    succ->clear_args();
+  }
+
+  fir::Builder b{bb};
+  b.at_end(bb);
+  while (!succ->instructions.empty()) {
+    b.move_instr(succ->instructions[0]);
+  }
+  old_first_term.remove_from_parent();
+  succ->remove_from_parent(true, true, true);
+  (void)func;
+}
+
+// succ is entered from several blocks but short and only used inside itself, so
+// it can be copied into bb instead of the branch to it
+bool merge_short_successor(fir::BasicBlock bb, fir::BasicBlock succ) {
+  if (succ->n_args() * 1UL + 1 < succ->instructions.size()) {
+    return false;
+  }
+  // a block looping on itself would be copied again and again
+  for (const auto &target : succ->get_terminator()->get_bb_args()) {
+    if (target.bb == succ) {
+      return false;
+    }
+  }
+  // we just check that all the bbargs and values inside the bb are *only*
+  // used within this bb to not destroy any indirect usages when copying the
+  // instruction
+  for (auto arg : succ->args) {
+    for (auto use : arg->uses) {
+      if (use.user->get_parent() != succ) {
+        return false;
+      }
+    }
+  }
+  for (auto instr : succ->instructions) {
+    for (auto use : instr->uses) {
+      if (use.user->get_parent() != succ) {
+        return false;
+      }
+    }
+  }
+  auto old_first_term = bb->get_terminator();
+  fir::ContextData::V2VMap subs;
+  for (u32 i = 0; i < succ->n_args(); i++) {
+    subs.insert({fir::ValueR{succ->args[i]},
+                 fir::ValueR{old_first_term->bbs[0].args[i]}});
+  }
+  fir::Builder b{bb};
+  b.at_end(bb);
+  for (auto instr : succ->instructions) {
+    auto new_instr = b.insert_copy(instr);
+    new_instr.substitute(subs);
+    fir::map_results(instr, new_instr, subs);
+  }
+  old_first_term.destroy();
+  utils::StatCollector::get().addi(1, "MergedShort+ManyArgsIntoTerm");
+  return true;
+}
+} // namespace
+
+bool SimplifyCFG::merge_linear_blocks(fir::Function &func) {
+  ZoneScopedN("merge linear blocks");
+  bool modified = false;
+  // merging removes blocks from the function
+  TVec<fir::BasicBlock> blocks{func.get_bbs().begin(), func.get_bbs().end()};
+  const auto entry = func.get_entry();
+  for (auto bb : blocks) {
+    // a merged away block is only taken out of the function, it stays valid
+    // but has no instructions left
+    if (!bb.is_valid() || bb->instructions.empty()) {
+      continue;
+    }
+    // follow the whole chain
+    while (true) {
+      auto term = bb->get_terminator();
+      if (!term->is(fir::InstrType::BranchInstr)) {
+        break;
+      }
+      auto succ = term->bbs[0].bb;
+      if (succ == bb) {
+        break;
+      }
+      if (succ != entry && succ->uses.size() == 1) {
+        merge_into_predecessor(func, bb, succ);
+        modified = true;
+        continue;
+      }
+      // copying can go on forever around a cycle of short blocks, once is
+      // enough
+      modified |= merge_short_successor(bb, succ);
+      break;
+    }
+  }
+  return modified;
+}
+
+bool SimplifyCFG::forward_empty_blocks(fir::Function &func) {
+  ZoneScopedN("forward empty blocks");
+  bool modified = false;
+  TVec<fir::BasicBlock> blocks{func.get_bbs().begin(), func.get_bbs().end()};
+  const auto entry = func.get_entry();
+  for (auto bb : blocks) {
+    if (!bb.is_valid() || bb == entry || bb->n_instrs() != 1 ||
+        bb->n_args() != 0) {
+      continue;
+    }
+    auto term = bb->get_terminator();
+    if (!term->is(fir::InstrType::BranchInstr)) {
+      continue;
+    }
+    auto succ = term->bbs[0].bb;
+    // a successor that is only entered from here is merged into this block
+    // instead, forwarding would hide its block arguments behind several edges
+    if (succ == bb || succ == entry || succ->uses.size() == 1) {
+      continue;
+    }
+    // all incoming edges jump to the successor directly
+    const TVec<fir::ValueR> terminator_args{term->bbs[0].args.begin(),
+                                            term->bbs[0].args.end()};
+    TVec<fir::Use> uses(bb->get_uses().begin(), bb->get_uses().end());
+    for (const auto &use : uses) {
+      ASSERT(use.type == fir::UseType::BB);
+      auto user = use.user;
+      ASSERT(user->bbs[use.argId].args.size() == 0);
+      user.replace_bb(use.argId, succ, false);
+      for (auto old_arg : terminator_args) {
+        user.add_bb_arg(use.argId, old_arg);
+      }
+    }
+    ASSERT(bb->get_n_uses() == 0);
+    bb->remove_from_parent(true, true, true);
+    modified = true;
+  }
+  return modified;
+}
+
 SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
                                                     CFG::Node &curr,
                                                     fir::Function &func,
@@ -1116,85 +1268,19 @@ SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
     return Res::NoChange;
   }
   auto succ_id = curr.succ[0];
-  u32 secon_n_args = func.basic_blocks.at(succ_id)->n_args();
-  auto old_first_term = func.basic_blocks[bb_id]->get_terminator();
-  if (!old_first_term->is(fir::InstrType::BranchInstr)) {
+  if (!func.basic_blocks[bb_id]->get_terminator()->is(
+          fir::InstrType::BranchInstr)) {
     return Res::NoChange;
   }
 
-  if (cfg.bbrs[curr.succ[0]].pred.size() == 1) {
+  if (cfg.bbrs[succ_id].pred.size() == 1) {
     ZoneScopedN("merge linrel basic");
-    bool secon_has_args = secon_n_args != 0;
-
-    if (secon_has_args) {
-      auto succ = func.basic_blocks[succ_id];
-      for (u32 i = 0; i < succ->n_args(); i++) {
-        succ->args[i]->replace_all_uses(old_first_term->bbs[0].args[i]);
-      }
-      succ->clear_args();
-    }
-
-    fir::Builder bb{curr.bb};
-    bb.at_end(curr.bb);
-
-    for (size_t instr_id = 0;
-         !func.basic_blocks[succ_id]->instructions.empty();) {
-      auto &instr = func.basic_blocks[succ_id]->instructions[instr_id];
-      bb.move_instr(instr);
-    }
-
-    old_first_term.remove_from_parent();
-    func.basic_blocks[succ_id]->remove_from_parent(true, true, true);
+    merge_into_predecessor(func, curr.bb, func.basic_blocks[succ_id]);
     (void)dom;
-    // cfg.update_merge_succ(bb_id, succ_id);
-    // cfg.update_delete(succ_id);
-    // dom.update(cfg);
     return Res::NeedUpdate;
   }
-  if (secon_n_args * 1UL + 1 >=
-      func.basic_blocks[succ_id]->instructions.size()) {
-    ZoneScopedN("merge linrel adv");
-    // TODO this can be improved for now
-    //  we just check that all the bbargs and values inside the bb are *only*
-    //  used within this bb to not destroy any indirect usages when copying the
-    //  instruction
-
-    fir::BasicBlock old_bb = func.basic_blocks[succ_id];
-    for (auto arg : old_bb->args) {
-      for (auto use : arg->uses) {
-        if (use.user->get_parent() != old_bb) {
-          return Res::NoChange;
-        }
-      }
-    }
-    for (auto instr : old_bb->instructions) {
-      for (auto use : instr->uses) {
-        if (use.user->get_parent() != old_bb) {
-          return Res::NoChange;
-        }
-      }
-    }
-    // fmt::println("==============================\n{:cd}",
-    //              *curr.bb->get_parent().func);
-    // fmt::println("{:cd}", old_bb);
-    fir::ContextData::V2VMap subs;
-    for (u32 i = 0; i < old_bb->n_args(); i++) {
-      subs.insert({fir::ValueR{old_bb->args[i]},
-                   fir::ValueR{old_first_term->bbs[0].args[i]}});
-    }
-    fir::Builder bb{curr.bb};
-    bb.at_end(curr.bb);
-
-    for (auto instr : old_bb->instructions) {
-      auto new_instr = bb.insert_copy(instr);
-      new_instr.substitute(subs);
-      fir::map_results(instr, new_instr, subs);
-    }
-    old_first_term.destroy();
-    // fmt::println("{:cd}\n+++++++++++++++++++++++++++++++++++++++",
-    //              *curr.bb->get_parent().func);
-    // fmt::println("applied");
-    utils::StatCollector::get().addi(1, "MergedShort+ManyArgsIntoTerm");
+  ZoneScopedN("merge linrel adv");
+  if (merge_short_successor(curr.bb, func.basic_blocks[succ_id])) {
     return Res::NeedUpdate;
   }
   return Res::NoChange;
@@ -1789,33 +1875,76 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
   bool modified = true;
   bool any_modified = false;
   bool needs_update = true;
+  // After a rebuild the sweep goes on at the block that caused it instead of
+  // starting over. A sweep that started in the middle is never the last one,
+  // so the result is still a fixpoint of a full sweep.
+  bool resume_second_phase = false;
+  std::optional<fir::BasicBlock> resume_bb;
+  size_t resume_id = 0;
   while (modified) {
     modified = false;
     needs_update = false;
-    for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
-      auto r1 = simplify_bb_args(ctx, cfg, dom, func, bb_id - 1);
-      modified |= (r1 == Res::Changed || r1 == Res::NeedUpdate);
-      if (r1 == Res::NeedUpdate) {
-        needs_update = true;
-        break;
+    const bool partial_sweep = resume_bb.has_value();
+    bool batch_modified = false;
+    if (!partial_sweep) {
+      // forwarding first, it exposes more linear chains
+      batch_modified |= forward_empty_blocks(func);
+      batch_modified |= merge_linear_blocks(func);
+    }
+    if (batch_modified) {
+      // the sweep below has to clean up after it
+      modified = true;
+      any_modified = true;
+      cfg.update(func, false);
+      dom = Dominators(cfg);
+    }
+    size_t start_id = 0;
+    if (partial_sweep) {
+      start_id = std::min(resume_id, cfg.bbrs.size());
+      for (size_t id = 0; id < cfg.bbrs.size(); id++) {
+        if (cfg.bbrs[id].bb == *resume_bb) {
+          start_id = id;
+          break;
+        }
       }
     }
+    if (!resume_second_phase) {
+      for (size_t bb_id = start_id + 1; bb_id <= cfg.bbrs.size(); bb_id++) {
+        auto r1 = simplify_bb_args(ctx, cfg, dom, func, bb_id - 1);
+        modified |= (r1 == Res::Changed || r1 == Res::NeedUpdate);
+        if (r1 == Res::NeedUpdate) {
+          needs_update = true;
+          resume_bb = cfg.bbrs[bb_id - 1].bb;
+          resume_id = bb_id - 1;
+          resume_second_phase = false;
+          break;
+        }
+      }
+      start_id = 0;
+    }
     if (!needs_update) {
-      for (size_t bb_id = 1; bb_id <= cfg.bbrs.size(); bb_id++) {
+      for (size_t bb_id = start_id + 1; bb_id <= cfg.bbrs.size(); bb_id++) {
         auto r2 = simplify_cfg(cfg, dom, func, bb_id - 1);
         modified |= (r2 == Res::Changed || r2 == Res::NeedUpdate);
         if (r2 == Res::NeedUpdate) {
           needs_update = true;
+          resume_bb = cfg.bbrs[bb_id - 1].bb;
+          resume_id = bb_id - 1;
+          resume_second_phase = true;
           break;
         }
       }
+    }
+    if (!needs_update) {
+      resume_bb.reset();
+      resume_second_phase = false;
     }
     if (iter++ > 100) {
       failure(
           {.reason = "Didnt converge fixme\n", .loc = func.basic_blocks[0]});
       break;
     }
-    if (!modified) {
+    if (!modified && !partial_sweep) {
       break;
     }
     any_modified = true;
@@ -1825,6 +1954,7 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
       cfg.update(func, false);
       dom = Dominators(cfg);
     }
+    modified = true;
   }
   const bool dup_modified = dup_bb_to_args(func, cfg);
   return any_modified || dup_modified ? PreservedAnalysis::none()

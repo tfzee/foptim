@@ -54,7 +54,7 @@ passes = [
         "DCE", "LLVMIntrinsicLowering", "IntrinSimplify", "SORA", "Mem2Reg", "DoubleLoadElim",
         "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DSE", "DCE",
         "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler",
-        "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
+        "DCE", "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
         "SimplifyCFG", "DCE", "IntrinConv",
 ]
 
@@ -65,7 +65,7 @@ passes = [
       "DoubleLoadElim", "DCE", "SimplifyCFG", "StackKnownBits", "SORA", "Mem2Reg",
       "SimplifyCFG", "DCE", "LVN", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "InstSimplify", "SimplifyCFG", "FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline", "Inline", "Inline",
-      "ArgPromotion", "GDCE", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "CmpKnownValProp",
+      "ArgPromotion", "GDCE", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "CmpKnownValProp", "ConstraintProp",
       "InstSimplify", "SimplifyCFG", "LICM", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer",
       "LVN", "SCCP", "IntrinSimplify", "InstSimplify", "ConstLoopEval", "InstSimplify",
       "CmpKnownValProp", "SimplifyCFG", "DCE","FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline", "Inline", "Inline",
@@ -80,7 +80,7 @@ passes = [
 [pipeline.fir.default_release_late]
 passes = [
       "LVN", "SCCP", "DoubleLoadElim", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
-      "CmpKnownValProp", "SimplifyCFG", "SCCP",
+      "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "SCCP",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "LateInline", "LateInline",
       "LateInline", "GDCE", "IPCP", "FuncPropAnnotator", "SORA", "Mem2Reg",
       "SimplifyCFG", "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "SimplifyCFG",
@@ -165,6 +165,7 @@ assumedTrip = 64
 [pass.fir.SimplifyCFG]
 [pass.fir.LVN]
 [pass.fir.EarlySheduler]
+[pass.fir.ConstraintProp]
 [pass.fir.CmpKnownValProp]
 [pass.fir.TailRecElim]
 [pass.fir.LICM]
