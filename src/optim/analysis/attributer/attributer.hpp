@@ -57,8 +57,12 @@ public:
   };
   fir::ValueR associatedValue;
   bool force_update = false;
+  // already in the worklist, an analysis is queued at most once
+  bool queued = false;
 
   AttributeAnalysis() = default;
+  // called once associatedValue is set, before the first update
+  virtual void init() {}
   // returns whether it changed the IR
   virtual bool materialize_impl(fir::Context &, const AttributerManager &m) = 0;
   virtual Result update_impl(AttributerManager & /*unused*/,
@@ -119,11 +123,13 @@ public:
       ASSERT(analysis);
       // ASSERT(((size_t)analysis) % alignof(AAna) == 0);
       // std::construct_at(analysis);
+      new (analysis) AAna();
       if (worklist) {
         worklist->push_back(analysis);
+        analysis->queued = true;
       }
-      new (analysis) AAna();
       analysis->associatedValue = loc;
+      analysis->init();
       _attribs.at(aa_typeid).insert({loc, analysis});
     } else {
       analysis = std::launder(
@@ -156,7 +162,10 @@ public:
     for (auto &[_, loc] : _attribs) {
       for (auto &[_, att] : loc) {
         if (att->force_update) {
-          worklist.push_back(att);
+          if (!att->queued) {
+            worklist.push_back(att);
+            att->queued = true;
+          }
           att->force_update = false;
         }
       }
@@ -175,16 +184,23 @@ public:
       // auto *curr_ptr = worklist.back();
       // worklist.pop_back();
       worklist.pop_front();
+      curr_ptr->queued = false;
       _currently_updating = curr_ptr;
       ASSERT(curr_ptr->associatedValue.is_valid(true));
       if (curr_ptr->update_impl(*this, worklist) ==
           AttributeAnalysis::Result::Changed) {
         if (_inverse_dependencies.contains(curr_ptr)) {
           for (auto *dependencie : _inverse_dependencies.at(curr_ptr)) {
-            worklist.push_back(dependencie);
+            if (!dependencie->queued) {
+              worklist.push_back(dependencie);
+              dependencie->queued = true;
+            }
           }
         }
-        worklist.push_back(curr_ptr);
+        if (!curr_ptr->queued) {
+          worklist.push_back(curr_ptr);
+          curr_ptr->queued = true;
+        }
       }
     }
     _currently_updating = nullptr;

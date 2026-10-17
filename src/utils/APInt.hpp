@@ -108,6 +108,9 @@ class APInt {
   static APInt from_words(u32 bits, const u64 *words, u32 count);
   static APInt zero(u32 bits) { return {bits, u64{0}}; }
   static APInt all_ones(u32 bits);
+  // the low / high n bits set, n is at most bits
+  static APInt low_bits(u32 bits, u32 n);
+  static APInt high_bits(u32 bits, u32 n);
   static APInt signed_max(u32 bits);
   static APInt signed_min(u32 bits);
 

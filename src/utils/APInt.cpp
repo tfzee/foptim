@@ -211,6 +211,16 @@ APInt APInt::all_ones(u32 bits) {
   return r;
 }
 
+APInt APInt::low_bits(u32 bits, u32 n) {
+  ASSERT(n <= bits);
+  return n == 0 ? zero(bits) : all_ones(bits).lshr(bits - n);
+}
+
+APInt APInt::high_bits(u32 bits, u32 n) {
+  ASSERT(n <= bits);
+  return all_ones(bits).shl(n == 0 ? bits : bits - n);
+}
+
 APInt APInt::signed_max(u32 bits) {
   APInt r = all_ones(bits);
   r.set_bit(bits - 1, false);

@@ -186,6 +186,13 @@ TEST(APIntTest, CopyMove) {
   EXPECT_EQ(a.hash(), s.hash());
   EXPECT_EQ(APInt::signed_max(65).to_string(true), "18446744073709551615");
   EXPECT_TRUE(APInt::all_ones(77).is_all_ones());
+  for (u32 w : {1u, 8u, 64u, 65u, 130u}) {
+    for (u32 n : {0u, 1u, w / 2, w}) {
+      EXPECT_EQ(APInt::low_bits(w, n).popcount(), n);
+      EXPECT_EQ(APInt::high_bits(w, n).popcount(), n);
+      EXPECT_EQ(APInt::low_bits(w, n), ~APInt::high_bits(w, w - n));
+    }
+  }
   EXPECT_EQ(APInt(77, 8).ctz(), 3u);
   EXPECT_EQ(APInt(77, 8).log2(), 3u);
 }
