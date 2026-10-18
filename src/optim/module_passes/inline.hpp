@@ -35,12 +35,177 @@ inline bool points_into_alloca(fir::ValueR v) {
   return false;
 }
 
-class AlwaysInlineAdvisor {
-  static constexpr bool debug_print = false;
+// Facts about a callee that do not depend on the call site. Computed once per
+// pass run and reused by all its call sites.
+struct InlineCallee {
+  // declaration, variadic, no_inline, bad linkage or dynamic alloca
+  bool never = false;
+  u32 n_instrs = 0;
+  u32 n_bbs = 0;
+  u32 n_args = 0;
+};
+
+class InlineCalleeInfos {
+  TMap<fir::Function *, InlineCallee> infos;
+
+  static InlineCallee compute(fir::Function &v, bool honor_no_inline) {
+    InlineCallee res;
+    res.n_instrs = static_cast<u32>(v.n_instrs());
+    res.n_bbs = static_cast<u32>(v.n_bbs());
+    if (v.is_decl() || v.attribs.variadic) {
+      if (v.attribs.must_inline) {
+        fmt::print(fg(fmt::color::red),
+                   "Had must_inline but is variadic or only decl {:cd}", v);
+      }
+      res.never = true;
+      return res;
+    }
+    res.n_args = static_cast<u32>(v.get_entry()->n_args());
+    if (honor_no_inline && v.attribs.no_inline) {
+      res.never = true;
+      return res;
+    }
+    switch (v.attribs.linkage) {
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+        ASSERT(!v.attribs.must_inline);
+        res.never = true;
+        return res;
+      case fir::Linkage::Internal:
+      case fir::Linkage::External:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::LinkOnceODR:
+        break;
+    }
+    // TODO: impl to hndle this correctly
+    for (auto instr : v.basic_blocks[0]->instructions) {
+      if (instr->is(fir::InstrType::AllocaInstr) &&
+          !instr->args[0].is_constant()) {
+        ASSERT(!v.attribs.must_inline);
+        res.never = true;
+        return res;
+      }
+    }
+    return res;
+  }
 
  public:
-  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG & /*cfg*/,
-                                       Dominators & /*dom*/,
+  const InlineCallee &get(fir::Function &v, bool honor_no_inline) {
+    auto it = infos.find(&v);
+    if (it == infos.end()) {
+      it = infos.emplace(&v, compute(v, honor_no_inline)).first;
+    }
+    return it->second;
+  }
+  // the body of f changed
+  void invalidate(fir::Function &f) { infos.erase(&f); }
+};
+
+// What the advisor knows about the caller. CFG and dominators are only built
+// when a call site reaches a rule that needs them, and the per block answers
+// are computed once. The caller must not change while the context is in use.
+class InlineCallerCtx {
+  fir::Function &func_;
+  size_t base_n_instrs_;
+  size_t pending_growth_ = 0;
+  CFG *cfg_ = nullptr;
+  Dominators *dom_ = nullptr;
+  // per block: all returns are strictly dominated by it
+  TVec<bool> always_executed_;
+
+  void ensure_analyses() {
+    if (cfg_ == nullptr) {
+      cfg_ = &AnalysisManager::cfg(func_);
+      dom_ = &AnalysisManager::dom(func_);
+    }
+  }
+
+  void compute_always_executed() {
+    ensure_analyses();
+    const auto &dom = *dom_;
+    const size_t n_bbs = func_.n_bbs();
+    // number of returns each block strictly dominates
+    TVec<u32> dominated_returns(n_bbs, 0);
+    u32 n_returns = 0;
+    u32 n_unreachable_returns = 0;
+    TVec<bool> is_unreachable_return(n_bbs, false);
+    for (u32 r = 0; r < n_bbs; r++) {
+      if (!func_.basic_blocks[r]->get_terminator()->is(
+              fir::InstrType::ReturnInstr)) {
+        continue;
+      }
+      n_returns++;
+      if (!dom.is_reachable(r)) {
+        // dominated by every other block
+        n_unreachable_returns++;
+        is_unreachable_return[r] = true;
+        continue;
+      }
+      if (r == cfg_->entry) {
+        continue;
+      }
+      u32 b = dom.idom(r);
+      while (true) {
+        dominated_returns[b]++;
+        if (b == cfg_->entry) {
+          break;
+        }
+        b = dom.idom(b);
+      }
+    }
+    always_executed_.assign(n_bbs, false);
+    for (u32 bb = 0; bb < n_bbs; bb++) {
+      if (bb == cfg_->entry) {
+        always_executed_[bb] = true;
+        continue;
+      }
+      const u32 n_dominated =
+          dominated_returns[bb] +
+          (n_unreachable_returns - (is_unreachable_return[bb] ? 1 : 0));
+      always_executed_[bb] = n_dominated == n_returns;
+    }
+  }
+
+ public:
+  explicit InlineCallerCtx(fir::Function &func)
+      : func_(func), base_n_instrs_(func.n_instrs()) {}
+
+  [[nodiscard]] fir::Function &func() const { return func_; }
+  // size when the round started
+  [[nodiscard]] size_t base_n_instrs() const { return base_n_instrs_; }
+  // size including the callees accepted earlier in this round
+  [[nodiscard]] size_t n_instrs() const {
+    return base_n_instrs_ + pending_growth_;
+  }
+  void add_growth(size_t n) { pending_growth_ += n; }
+
+  [[nodiscard]] bool is_always_executed(fir::BasicBlock bb) {
+    if (always_executed_.empty()) {
+      compute_always_executed();
+    }
+    return always_executed_[func_.bb_id(bb)];
+  }
+
+  // no predecessor is dominated by the block, i.e. the block is not in a loop
+  [[nodiscard]] bool is_in_straightline_section(fir::BasicBlock bb) {
+    ensure_analyses();
+    const auto bb_id = static_cast<u32>(func_.bb_id(bb));
+    for (auto pred : cfg_->bbrs[bb_id].pred) {
+      if (dom_->strict_dominates(bb_id, pred)) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+class AlwaysInlineAdvisor {
+ public:
+  void begin_round() {}
+
+  [[nodiscard]] bool should_be_inlined(const fir::Instr instr,
+                                       InlineCallerCtx & /*caller*/,
+                                       InlineCalleeInfos &callees,
                                        InlineConfig &conf) {
     auto called_func = instr->get_arg(0);
     auto self_func = instr->get_parent()->get_parent();
@@ -48,134 +213,55 @@ class AlwaysInlineAdvisor {
       return false;
     }
     auto v = called_func.as_constant()->as_func();
-    if (v->is_decl() || v->attribs.variadic) {
-      ASSERT(!v->attribs.must_inline);
-      return false;
-    }
-    if (debug_print) {
-      fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
-    }
     if (self_func == v && !conf.allow_recursive) {
       return false;
     }
-    switch (v->attribs.linkage) {
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-        if (debug_print) {
-          fmt::println("N Bad linkage");
-        }
-        ASSERT(!v->attribs.must_inline);
-        return false;
-      case fir::Linkage::Internal:
-      case fir::Linkage::External:
-      case fir::Linkage::WeakODR:
-      case fir::Linkage::LinkOnceODR:
-        break;
-    }
-
-    // TODO: impl to hndle this correctly
-    for (auto instr : v->basic_blocks[0]->instructions) {
-      if (instr->is(fir::InstrType::AllocaInstr) &&
-          !instr->args[0].is_constant()) {
-        if (debug_print) {
-          fmt::println("{:cd}", instr);
-          fmt::println("N dyn Alloca");
-        }
-        ASSERT(!v->attribs.must_inline);
-        return false;
-      }
-    }
-    if (debug_print) {
-      fmt::println("Y");
-    }
-    return true;
+    return !callees.get(*v.func, false).never;
   }
 };
 
 class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
-  // growth of the caller by the calls accepted in this round, they are only
-  // applied after all decisions are made
-  u32 pending_growth = 0;
 
   static constexpr bool debug_print = false;
 
  public:
-  void begin_round() { pending_growth = 0; }
+  void begin_round() {}
 
-  [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG &cfg,
-                                       Dominators &dom, InlineConfig &conf) {
-    if (_should_be_inlined(instr, cfg, dom, conf)) {
-      auto v = instr->get_arg(0).as_constant()->as_func();
+  [[nodiscard]] bool should_be_inlined(const fir::Instr instr,
+                                       InlineCallerCtx &caller,
+                                       InlineCalleeInfos &callees,
+                                       InlineConfig &conf) {
+    auto called_func = instr->get_arg(0);
+    if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
+      return false;
+    }
+    auto v = called_func.as_constant()->as_func();
+    // the size of the function being visited changes while it is inlined into
+    const bool is_self = &caller.func() == v.func;
+    const auto &info = callees.get(*v.func, true);
+    if (info.never || (is_self && !conf.allow_recursive)) {
+      return false;
+    }
+    const size_t called_n_instrs =
+        is_self ? caller.base_n_instrs() : info.n_instrs;
+    if (_should_be_inlined(instr, v, info, called_n_instrs, caller, conf)) {
       n_inlined_calls += 1;
-      n_inlined_instructions += v->n_instrs();
-      pending_growth += static_cast<u32>(v->n_instrs());
+      n_inlined_instructions += static_cast<u32>(called_n_instrs);
+      caller.add_growth(called_n_instrs);
       return true;
     }
     return false;
   }
 
-  [[nodiscard]] bool _should_be_inlined(const fir::Instr instr, CFG &cfg,
-                                        Dominators &dom,
-                                        InlineConfig &conf) const {
-    auto called_func = instr->get_arg(0);
+ private:
+  [[nodiscard]] bool _should_be_inlined(
+      const fir::Instr instr, fir::FunctionR v, const InlineCallee &info,
+      size_t called_n_instrs, InlineCallerCtx &caller,
+      InlineConfig &conf) const {
     auto self_func = instr->get_parent()->get_parent();
-    auto self_n_instrs = self_func->n_instrs() + pending_growth;
-    if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
-      return false;
-    }
-    auto v = called_func.as_constant()->as_func();
-    const auto called_n_instrs = v->n_instrs();
-    if (v->is_decl() || v->attribs.variadic) {
-      if (v->attribs.must_inline) {
-        fmt::print(fg(fmt::color::red),
-                   "Had must_inline but is variadic or only decl {:cd}",
-                   *v.func);
-      }
-      return false;
-    }
-    if (debug_print) {
-      fmt::println("Maybe inlining {} <- {}", self_func.func->name, v->name);
-    }
-    if (self_func == v && !conf.allow_recursive) {
-      return false;
-    }
-
-    if (v->attribs.no_inline) {
-      if (debug_print) {
-        fmt::println("N No inline");
-      }
-      return false;
-    }
-
-    switch (v->attribs.linkage) {
-      case fir::Linkage::Weak:
-      case fir::Linkage::LinkOnce:
-        if (debug_print) {
-          fmt::println("N Bad linkage");
-        }
-        ASSERT(!v->attribs.must_inline);
-        return false;
-      case fir::Linkage::Internal:
-      case fir::Linkage::External:
-      case fir::Linkage::WeakODR:
-      case fir::Linkage::LinkOnceODR:
-        break;
-    }
-
-    // TODO: impl to hndle this correctly
-    for (auto instr : v->basic_blocks[0]->instructions) {
-      if (instr->is(fir::InstrType::AllocaInstr) &&
-          !instr->args[0].is_constant()) {
-        if (debug_print) {
-          fmt::println("{:cd}", instr);
-          fmt::println("N dyn Alloca");
-        }
-        ASSERT(!v->attribs.must_inline);
-        return false;
-      }
-    }
+    const size_t self_n_instrs = caller.n_instrs();
 
     if (v->attribs.must_inline) {
       if (debug_print) {
@@ -184,8 +270,7 @@ class BaseInlineAdvisor {
       return true;
     }
 
-    if (called_n_instrs <=
-        (4 + v.func->get_entry()->n_args() + (instr->has_result() ? 4 : 0))) {
+    if (called_n_instrs <= (4 + info.n_args + (instr->has_result() ? 4 : 0))) {
       if (debug_print) {
         fmt::println("Y Shorter then setting up args");
       }
@@ -236,7 +321,7 @@ class BaseInlineAdvisor {
       return false;
     }
 
-    if (self_func->basic_blocks.size() == 1 && v->basic_blocks.size() == 1 &&
+    if (self_func->basic_blocks.size() == 1 && info.n_bbs == 1 &&
         self_n_instrs <= 5 && called_n_instrs <= 5) {
       if (debug_print) {
         fmt::println("Y self really small");
@@ -254,48 +339,20 @@ class BaseInlineAdvisor {
       return true;
     }
 
-    bool is_in_straightline_section = true;
-    bool is_always_executed = true;
-    {
-      auto par_bb = instr->get_parent();
-      auto par_func = par_bb->get_parent();
-      auto par_bb_id = par_func->bb_id(par_bb);
-      for (auto pred : cfg.bbrs[par_bb_id].pred) {
-        if (dom.strict_dominates(par_bb_id, pred)) {
-          is_in_straightline_section = false;
-          break;
+    if (info.n_bbs == 1) {
+      if (caller.is_always_executed(instr->get_parent())) {
+        if (debug_print) {
+          fmt::println("Y straight so always on hot parth");
         }
+        return true;
       }
-      if (par_bb_id != cfg.entry) {
-        auto sub_bb_id = 0;
-        for (auto bb : par_func->basic_blocks) {
-          if (bb->get_terminator()->is(fir::InstrType::ReturnInstr) &&
-              !dom.strict_dominates(par_bb_id, sub_bb_id)) {
-            is_always_executed = false;
-            break;
-          }
-          sub_bb_id++;
+      if (called_n_instrs < 30 &&
+          caller.is_in_straightline_section(instr->get_parent())) {
+        if (debug_print) {
+          fmt::println("Y straight and short");
         }
+        return true;
       }
-      // TODO need to check if dominates all exits
-    }
-
-    // fmt::println("{}, {}, {}, {}, {}", is_in_straightline_section,
-    //              is_always_executed, v.func->n_bbs(), self_n_instrs,
-    //              called_n_instrs);
-    if (is_always_executed && v.func->n_bbs() == 1) {
-      if (debug_print) {
-        fmt::println("Y straight so always on hot parth");
-      }
-      return true;
-    }
-
-    if (is_in_straightline_section &&
-        ((v.func->n_bbs() == 1 && called_n_instrs < 30))) {
-      if (debug_print) {
-        fmt::println("Y straight and short");
-      }
-      return true;
     }
 
     if (all_args_are_constant_or_allocas && self_n_instrs < 50 &&
@@ -308,7 +365,7 @@ class BaseInlineAdvisor {
       return true;
     }
 
-    if ((v.func->n_bbs() == 1 && called_n_instrs < 20) || called_n_instrs < 5 ||
+    if ((info.n_bbs == 1 && called_n_instrs < 20) || called_n_instrs < 5 ||
         (self_func->name == "main" && called_n_instrs < 10)) {
       if (debug_print) {
         fmt::println("Y short");
@@ -348,9 +405,10 @@ class BaseInlineAdvisor {
 };
 
 template <typename T>
-concept InlineAdvisor = requires(T v, fir::Instr instr, CFG &cfg,
-                                 Dominators &dom, InlineConfig &conf) {
-  { v.should_be_inlined(instr, cfg, dom, conf) } -> std::same_as<bool>;
+concept InlineAdvisor = requires(T v, fir::Instr instr, InlineCallerCtx &caller,
+                                 InlineCalleeInfos &callees,
+                                 InlineConfig &conf) {
+  { v.should_be_inlined(instr, caller, callees, conf) } -> std::same_as<bool>;
   v.begin_round();
 };
 
@@ -369,14 +427,15 @@ class Inline final : public ModulePass {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
     // callees are final before their callers are visited
     CallSCCs sccs{ctx};
+    InlineCalleeInfos callees;
     for (auto *f : sccs.order) {
-      apply(*f, sccs, analyMan);
+      apply(*f, sccs, callees, analyMan);
     }
     return PreservedAnalysis::all();
   }
 
   void apply(fir::Function &func, const CallSCCs &sccs,
-             AnalysisManager &analyMan) {
+             InlineCalleeInfos &callees, AnalysisManager &analyMan) {
     Advisor adv;
     TVec<fir::Instr> calls;
     // call sites that were already decided, they are not looked at again
@@ -403,8 +462,7 @@ class Inline final : public ModulePass {
       if (!has_candidate) {
         break;
       }
-      CFG cfg{func};
-      Dominators dom{cfg};
+      InlineCallerCtx caller{func};
       adv.begin_round();
 
       for (size_t bb_id = first_bb; bb_id < n_bbs_before; bb_id++) {
@@ -424,7 +482,7 @@ class Inline final : public ModulePass {
               continue;
             }
           }
-          if (adv.should_be_inlined(instr, cfg, dom, config)) {
+          if (adv.should_be_inlined(instr, caller, callees, config)) {
             calls.push_back(instr);
           }
         }
@@ -444,6 +502,7 @@ class Inline final : public ModulePass {
       }
       if (changed) {
         analyMan.touched_body(func);
+        callees.invalidate(func);
       }
     }
   }
