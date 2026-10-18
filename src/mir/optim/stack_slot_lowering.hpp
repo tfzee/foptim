@@ -33,9 +33,19 @@ class StackSlotLowering : public FunctionPass {
 
     auto stack_ptr = MArgument{VReg::RSP(), Type::Int64};
 
+    // the register save area of variadic functions has to stay directly below
+    // rbp (va_start hands out rbp - size), so the slots go below it
+    u64 above_slots = 0;
+    auto slots_pos = func.bbs[0].instrs.begin();
+    if (func.needs_register_save_area) {
+      ASSERT(slots_pos->is(GArithSubtype::sub2) &&
+             slots_pos->args[0].reg == VReg::RSP() &&
+             slots_pos->args[1].isImm());
+      above_slots = slots_pos->args[1].imm;
+      ++slots_pos;
+    }
     func.bbs[0].instrs.insert(
-        func.bbs[0].instrs.begin(),
-        MInstr{GArithSubtype::sub2, stack_ptr, stack_slots_size});
+        slots_pos, MInstr{GArithSubtype::sub2, stack_ptr, stack_slots_size});
     for (auto &bb : func.bbs) {
       auto r = bb.instrs.back();
       if (!r.is(GBaseSubtype::ret)) {
@@ -62,7 +72,7 @@ class StackSlotLowering : public FunctionPass {
                      "stack slot access wider than the slot");
             auto off = static_cast<u64>(
                 static_cast<i64>(index_to_mem_off.at(arg.imm - 1)) -
-                static_cast<i64>(stack_slots_size));
+                static_cast<i64>(stack_slots_size + above_slots));
             if (arg.scale == 32) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Float64x4);
             } else if (arg.scale == 16) {

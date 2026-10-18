@@ -655,11 +655,15 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     //     // {VReg{CReg::mm15, Type::Float64}, 176},
     // };
 
+    // the area is addressed from rbp (the slots of StackSlotLowering are
+    // placed below it), va_start hands out rbp - 176
+    const u32 total = offset;
     for (auto [reg, offset] : arg_int_regs) {
       first_bb.instrs.insert(first_bb.instrs.begin() + 0,
                              MInstr{GBaseSubtype::mov,
-                                    MArgument::MemOB(static_cast<i32>(offset),
-                                                     VReg::RSP(), reg.ty),
+                                    MArgument::MemOB(static_cast<i32>(offset) -
+                                                         static_cast<i32>(total),
+                                                     VReg::RBP(), reg.ty),
                                     MArgument{reg, reg.ty}});
     }
 
@@ -671,8 +675,9 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     for (auto [reg, offset] : arg_xmm_regs) {
       first_bb.instrs.insert(first_bb.instrs.begin() + 0,
                              MInstr{GBaseSubtype::mov,
-                                    MArgument::MemOB(static_cast<i32>(offset),
-                                                     VReg::RSP(), reg.ty),
+                                    MArgument::MemOB(static_cast<i32>(offset) -
+                                                         static_cast<i32>(total),
+                                                     VReg::RBP(), reg.ty),
                                     MArgument{reg, reg.ty}});
     }
     size_register_save_area = offset;
