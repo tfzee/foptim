@@ -9,6 +9,7 @@
 #include "ir/context.hpp"
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
+#include "llvm/llir_loader.hpp"
 #include "mir/func.hpp"
 #include "mir/func_order.hpp"
 #include "mir/optim/mir_pipeline.hpp"
@@ -21,7 +22,6 @@
 #include "utils/tracy.hpp"
 #include "utils/verbosity.hpp"
 #include "x86_codegen/backend.hpp"
-#include "llvm/llir_loader.hpp"
 
 namespace {
 void parse_llvm_ir(foptim::fir::Context &ctx, foptim::JobSheduler &shed);
@@ -34,7 +34,7 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
              foptim::FVec<foptim::fmir::Global> &globals,
              const foptim::conf::CompConf &conf);
 
-} // namespace
+}  // namespace
 
 int main(int argc, char *argv[]) {
   ZoneScopedN("BASE");
@@ -140,7 +140,6 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
                                foptim::FVec<foptim::fmir::MFunc> &funcs,
                                foptim::FVec<foptim::fmir::Global> &globals,
                                foptim::JobSheduler *shed) {
-
   ZoneScopedN("MIR stuff");
   globals.reserve(ctx->storage.storage_global.n_used());
 
@@ -230,4 +229,4 @@ void codegen(foptim::FVec<foptim::fmir::MFunc> &funcs,
     fmt::println("Done!");
   }
 }
-} // namespace
+}  // namespace

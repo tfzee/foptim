@@ -28,7 +28,7 @@ inline bool lane_instr(fir::ValueR v) {
 }
 
 class BlockOrder {
-public:
+ public:
   explicit BlockOrder(fir::BasicBlock bb_) : bb(bb_) {}
   void invalidate() { stale = true; }
   void ensure() {
@@ -48,7 +48,7 @@ public:
     return it == pos_of.end() ? std::nullopt : std::optional<u32>{it->second};
   }
 
-private:
+ private:
   // a multi result call is keyed by its first result
   static fir::ValueR key(fir::Instr i) {
     return i.is_multi_result() ? i.result(0) : i.result();
@@ -76,7 +76,7 @@ struct BlockInfo {
 };
 
 class SLPVectorizer final : public FunctionPass {
-public:
+ public:
   struct Config {
     bool reductions = true;
     // loop vectorization
@@ -167,7 +167,7 @@ public:
     bool reductions;
   };
   class SeedProvider {
-  public:
+   public:
     TVec<SeedBundle> bundles;
     virtual void scan(SeedRegion &region) = 0;
     // drop unusable bundles / trim them after the scan
@@ -175,8 +175,8 @@ public:
     virtual ~SeedProvider() = default;
   };
 
-  static std::pair<SeedInstrData, fir::ValueR>
-  get_storeload_data(fir::Instr storeload);
+  static std::pair<SeedInstrData, fir::ValueR> get_storeload_data(
+      fir::Instr storeload);
 
   static std::optional<SeedBundle> find_reduction(fir::BasicBlock bb,
                                                   size_t instr_id,
@@ -241,7 +241,7 @@ public:
                        i64 &scalar_total);
   static u32 max_vector_bits(const conf::Target::Features &features);
 
-private:
+ private:
   bool vectorize_loops(fir::Context &ctx, fir::Function &func);
   bool build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom,
                        LoopInfo &loop, ScalarEvo &evo, LoopPlan &plan);
@@ -260,7 +260,7 @@ private:
   VecResult tree_vectorize(fir::Context &ctx, SeedBundle &bundle,
                            bool reduction = false);
 
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("SLPVectorizer");
     const bool loops_changed = config.loops && vectorize_loops(ctx, func);
@@ -329,4 +329,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

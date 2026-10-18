@@ -6,12 +6,12 @@
 namespace foptim::fmir {
 
 class MBB {
-public:
+ public:
   IRVec<MInstr> instrs;
 };
 
 class MFunc {
-public:
+ public:
   IRVec<MBB> bbs;
   IRVec<VReg> args;
 
@@ -39,4 +39,4 @@ public:
   }
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

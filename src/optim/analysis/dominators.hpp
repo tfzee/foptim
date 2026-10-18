@@ -1,6 +1,7 @@
 #pragma once
-#include <deque>
 #include <fmt/base.h>
+
+#include <deque>
 #include <optional>
 
 #include "ir/basic_block_ref.hpp"
@@ -14,7 +15,7 @@ using utils::BitSet;
 // frontier, whose results depend on how this treats blocks that are
 // unreachable from the entry (everything in a reversed CFG). Use Dominators.
 class BitsetDominators {
-public:
+ public:
   struct Node {
     fir::BasicBlock bb;
     BitSet<> dominators;
@@ -200,13 +201,13 @@ public:
 };
 
 class DominatorTree {
-public:
+ public:
   struct Node {
-    u32 idom = ~0U;  // immediate dominator (bb id); entry's idom == its own id
-    u32 depth = 0;   // depth in the dominator tree, entry == 0
-    u32 dfs_in = 0;  // preorder index of this node's Euler-tour entry
-    u32 dfs_out = 0; // one-past the largest dfs_in in this node's subtree
-    bool reachable = true; // reachable from the entry (else idom is fake)
+    u32 idom = ~0U;   // immediate dominator (bb id); entry's idom == its own id
+    u32 depth = 0;    // depth in the dominator tree, entry == 0
+    u32 dfs_in = 0;   // preorder index of this node's Euler-tour entry
+    u32 dfs_out = 0;  // one-past the largest dfs_in in this node's subtree
+    bool reachable = true;  // reachable from the entry (else idom is fake)
   };
 
   FVec<Node> dom_bbs;
@@ -262,10 +263,10 @@ public:
     fmt::println("DUMP DOM");
     for (u32 i = 0; i < dom_bbs.size(); i++) {
       const auto &node = dom_bbs[i];
-      fmt::println("BB {}: {:p} idom={} depth={}", i,
-                   reinterpret_cast<const void *>(
-                       cfg->bbrs[i].bb.get_raw_ptr()),
-                   node.idom, node.depth);
+      fmt::println(
+          "BB {}: {:p} idom={} depth={}", i,
+          reinterpret_cast<const void *>(cfg->bbrs[i].bb.get_raw_ptr()),
+          node.idom, node.depth);
     }
   }
 
@@ -340,7 +341,7 @@ public:
         u32 new_idom = ~0U;
         for (u32 p : pred) {
           if (dom_bbs[p].idom == ~0U) {
-            continue; // predecessor not processed yet
+            continue;  // predecessor not processed yet
           }
           new_idom = (new_idom == ~0U) ? p : intersect(p, new_idom);
         }
@@ -412,7 +413,7 @@ public:
 // every block (like the old bitset implementation) and dont take part in
 // frontiers. The frontier is computed on first use.
 class Dominators {
-public:
+ public:
   DominatorTree tree;
   const CFG *cfg;
 
@@ -464,7 +465,7 @@ public:
     frontier_valid = false;
   }
 
-private:
+ private:
   mutable FVec<FVec<u32>> frontier;
   mutable bool frontier_valid = false;
 
@@ -505,4 +506,4 @@ private:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

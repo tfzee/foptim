@@ -1,7 +1,6 @@
 #pragma once
 #include <fmt/format.h>
 
-#include "utils/types.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/intern_table.hpp"
@@ -9,6 +8,7 @@
 #include "types.hpp"
 #include "types_ref.hpp"
 #include "utils/logging.hpp"
+#include "utils/types.hpp"
 
 namespace foptim::fir {
 

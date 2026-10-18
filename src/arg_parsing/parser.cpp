@@ -1,4 +1,3 @@
-#include "utils/verbosity.hpp"
 #include "parser.hpp"
 
 #include <fmt/base.h>
@@ -12,6 +11,7 @@
 #include "ir/print_ids.hpp"
 #include "utils/cpuFeatures.hpp"
 #include "utils/tracy.hpp"
+#include "utils/verbosity.hpp"
 
 void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   ZoneScopedN("Arg Parsing");
@@ -23,8 +23,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .scan<'i', int>()
       .default_value(0);
   program.add_argument("--verbosity")
-      .help("overwrites the verbosity of the config, 0 only prints what was "
-            "asked for")
+      .help(
+          "overwrites the verbosity of the config, 0 only prints what was "
+          "asked for")
       .scan<'i', int>();
   program.add_argument("--print-mir")
       .help("print MIR instead of outputing an object")
@@ -37,19 +38,22 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .help("colored output for --print-fir and --print-mir")
       .flag();
   program.add_argument("--passes")
-      .help("comma separated FIR pass list replacing the configured FIR "
-            "pipeline; a leading '+' appends to it instead (e.g. '+PrintFunc')")
+      .help(
+          "comma separated FIR pass list replacing the configured FIR "
+          "pipeline; a leading '+' appends to it instead (e.g. '+PrintFunc')")
       .default_value(std::string{});
   program.add_argument("--no-reorder-funcs")
       .help("keep functions in input order (deterministic output order)")
       .flag();
   program.add_argument("--no-skip-clean")
-      .help("always rerun FIR function passes, even if they were a no-op on "
-            "the unchanged function the last time")
+      .help(
+          "always rerun FIR function passes, even if they were a no-op on "
+          "the unchanged function the last time")
       .flag();
   program.add_argument("--bisect")
-      .help("only run the FIR passes up to and including pass index N combine "
-            "with --print-fir to inspect or diff the IR at a given depth")
+      .help(
+          "only run the FIR passes up to and including pass index N combine "
+          "with --print-fir to inspect or diff the IR at a given depth")
       .scan<'i', int>()
       .default_value(-1);
   program.add_argument("--cconffile")
@@ -58,8 +62,9 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       .help("where the cconf.toml is located at")
       .default_value("default");
   program.add_argument("--march")
-      .help("overwrite the configured target features, only 'native' is "
-            "supported")
+      .help(
+          "overwrite the configured target features, only 'native' is "
+          "supported")
       .default_value(std::string{});
   program.add_argument("input").default_value("-").help(
       "specify the input .ll file.");

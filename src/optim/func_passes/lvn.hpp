@@ -11,6 +11,7 @@ namespace foptim::optim {
 
 class LVN final : public FunctionPass {
  public:
-  PreservedAnalysis apply(fir::Context & /*unused*/, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context & /*unused*/,
+                          fir::Function &func) override;
 };
 }  // namespace foptim::optim

@@ -1,12 +1,13 @@
-#include "ir/print_ids.hpp"
+#include "basic_block_ref.hpp"
+
 #include <fmt/color.h>
 #include <fmt/core.h>
 
-#include "basic_block_ref.hpp"
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/print_ids.hpp"
 #include "utils/logging.hpp"
 
 namespace foptim::fir {
@@ -40,7 +41,7 @@ BBArgument BasicBlock::add_arg(BBArgument arg) {
   return arg;
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 fmt::appender fmt::formatter<foptim::fir::BasicBlock>::format(
     foptim::fir::BasicBlock const &bb, format_context &ctx) const {

@@ -1,7 +1,8 @@
 #include "optim/func_passes/loop_unswitch.hpp"
 
-#include <algorithm>
 #include <fmt/base.h>
+
+#include <algorithm>
 
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -388,4 +389,4 @@ PreservedAnalysis LoopUnswitch::apply(fir::Context &ctx, fir::Function &func) {
   return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -1,13 +1,15 @@
 #include "helper.hpp"
 
+#include <fmt/base.h>
+
+#include <cmath>
+#include <functional>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "optim/analysis/dominators.hpp"
-#include <fmt/base.h>
-#include <cmath>
-#include <functional>
 
 namespace foptim::optim {
 
@@ -125,8 +127,8 @@ bool cond_tail_duplication(foptim::fir::Context &ctx, foptim::optim::CFG &cfg,
     auto merge2_bb = bb.append_bb();
     TVec<fir::BBArgument> merge_args[2];
 
-    auto setup_merge_bb = [&bb, &to_merge, &ctx, &term,
-                           &merge_args](fir::BasicBlock target_bb, size_t off) {
+    auto setup_merge_bb = [&bb, &to_merge, &ctx, &term, &merge_args](
+                              fir::BasicBlock target_bb, size_t off) {
       bb.at_end(target_bb);
       merge_args[off].reserve(to_merge.size());
       for (auto v : to_merge) {
@@ -265,7 +267,6 @@ bool cond_tail_duplication(foptim::fir::Context &ctx, foptim::optim::CFG &cfg,
   return true;
 }
 
-
 bool is_cheap_splat_constant(fir::ValueR v) {
   if (!v.is_constant()) {
     return false;
@@ -282,4 +283,4 @@ bool is_cheap_to_rematerialize(fir::Instr instr) {
   return instr->is(fir::VectorISubType::Broadcast) &&
          is_cheap_splat_constant(instr->args[0]);
 }
-} // namespace foptim::optim
+}  // namespace foptim::optim

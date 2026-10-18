@@ -189,7 +189,7 @@ bool multi_simplify(IRVec<MInstr> &instrs, size_t instr_id) {
   }
   return false;
 }
-} // namespace
+}  // namespace
 
 void InstSimplifyImpl::impl_apply(MFunc &func) {
   for (auto &bb : func.bbs) {
@@ -222,4 +222,4 @@ void InstSimplifyImpl::impl_early(MFunc &func) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

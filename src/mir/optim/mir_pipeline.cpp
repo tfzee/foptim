@@ -1,14 +1,17 @@
-#include "utils/verbosity.hpp"
 #include "mir_pipeline.hpp"
+
+#include <fmt/base.h>
+
+#include <deque>
+#include <ranges>
+
 #include "config/compiler_config.hpp"
 #include "config/compiler_mir_passes.hpp"
 #include "ir/function.hpp"
 #include "mir/matcher.hpp"
 #include "mir/optim/register_joining.hpp"
 #include "utils/todo.hpp"
-#include <deque>
-#include <fmt/base.h>
-#include <ranges>
+#include "utils/verbosity.hpp"
 
 namespace foptim::fmir::pipeline {
 
@@ -78,7 +81,6 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
       curr_pass++;
     }
   } else {
-
     // TODO destruction of stuff kinda iffy
     for (auto &func : funcs) {
       ASSERT(!func.bbs.empty());
@@ -100,4 +102,4 @@ void optimize_mir(foptim::FVec<foptim::fmir::MFunc> &funcs,
   }
 }
 
-} // namespace foptim::fmir::pipeline
+}  // namespace foptim::fmir::pipeline

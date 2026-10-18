@@ -24,7 +24,8 @@ void CleanTracker::print_stats() const {
   u64 tot_skipped = 0;
   fmt::println(stderr, "FIR pass skipping ({}):", enabled ? "on" : "off");
   fmt::println(stderr, "  {: <20} {: >8} {: >8} {: >7} {: >8} {: >12}", "pass",
-               "executed", enabled ? "skipped" : "w.skip", "skip%", "changed", "conserv.");
+               "executed", enabled ? "skipped" : "w.skip", "skip%", "changed",
+               "conserv.");
   for (auto i : order) {
     const u64 skipped = counters[i].skipped.load();
     const u64 runs = counters[i].runs.load();
@@ -33,10 +34,9 @@ void CleanTracker::print_stats() const {
     tot_skipped += skipped;
     fmt::println(stderr, "  {: <20} {: >8} {: >8} {: >6.1f}% {: >8} {: >12}",
                  names[i], executed, skipped,
-                 runs == 0
-                     ? 0.0
-                     : 100.0 * static_cast<double>(skipped) /
-                           static_cast<double>(counters[i].runs),
+                 runs == 0 ? 0.0
+                           : 100.0 * static_cast<double>(skipped) /
+                                 static_cast<double>(counters[i].runs),
                  counters[i].changed.load(), counters[i].conservative.load());
   }
   fmt::println(stderr, "  total: {} of {} pass runs {} ({:.1f}%)", tot_skipped,
@@ -46,4 +46,4 @@ void CleanTracker::print_stats() const {
                                    static_cast<double>(tot_runs));
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

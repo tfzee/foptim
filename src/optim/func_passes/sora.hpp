@@ -13,44 +13,44 @@ namespace foptim::optim {
 class SORA final : public FunctionPass {
   struct UseRes {
     u64 offset;
-    u64 access_size; // 0 means infinite
+    u64 access_size;  // 0 means infinite
     fir::Use user;
   };
 
   TVec<UseRes> handle_use(const fir::Use &use) {
     switch (use.user->instr_type) {
-    case fir::InstrType::LoadInstr:
-    case fir::InstrType::StoreInstr:
-      // the pointer being the stored value escapes it
-      if (use.argId != 0) {
-        break;
-      }
-      return {UseRes{.offset = 0,
-                     .access_size = use.user->result_type()->get_size(),
-                     .user = use}};
-    case fir::InstrType::BinaryInstr:
-      switch (static_cast<fir::BinaryInstrSubType>(use.user->subtype)) {
-      case fir::BinaryInstrSubType::PtrAdd:
-        if (use.argId == 0 && use.user->args[1].is_constant() &&
-            use.user->args[1].as_constant()->is_int()) {
-          TVec<UseRes> ress;
-          auto myoff = use.user->args[1].as_constant()->as_int();
-          for (auto sub_use : use.user->uses) {
-            auto v = handle_use(sub_use);
-            for (auto sv : v) {
-              sv.offset += myoff;
-              ress.push_back(sv);
-            }
-          }
-          return ress;
+      case fir::InstrType::LoadInstr:
+      case fir::InstrType::StoreInstr:
+        // the pointer being the stored value escapes it
+        if (use.argId != 0) {
+          break;
         }
+        return {UseRes{.offset = 0,
+                       .access_size = use.user->result_type()->get_size(),
+                       .user = use}};
+      case fir::InstrType::BinaryInstr:
+        switch (static_cast<fir::BinaryInstrSubType>(use.user->subtype)) {
+          case fir::BinaryInstrSubType::PtrAdd:
+            if (use.argId == 0 && use.user->args[1].is_constant() &&
+                use.user->args[1].as_constant()->is_int()) {
+              TVec<UseRes> ress;
+              auto myoff = use.user->args[1].as_constant()->as_int();
+              for (auto sub_use : use.user->uses) {
+                auto v = handle_use(sub_use);
+                for (auto sv : v) {
+                  sv.offset += myoff;
+                  ress.push_back(sv);
+                }
+              }
+              return ress;
+            }
+          default:
+        }
+        break;
       default:
-      }
-      break;
-    default:
-    case fir::InstrType::CallInstr:
-      // fmt::println("Failed with user {}", use.user);
-      break;
+      case fir::InstrType::CallInstr:
+        // fmt::println("Failed with user {}", use.user);
+        break;
     }
     return {UseRes{.offset = 0, .access_size = 0, .user = use}};
   }
@@ -319,7 +319,7 @@ class SORA final : public FunctionPass {
     return true;
   }
 
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("SORA", COLOR_OPTIMF);
     auto entry = func.get_entry();
@@ -344,4 +344,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

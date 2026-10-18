@@ -65,15 +65,15 @@ namespace {
 // predicate does not care about the sign.
 static bool icmp_fits_narrow_compare(fir::Instr icmp, u32 n_bits) {
   switch (static_cast<fir::ICmpInstrSubType>(icmp->subtype)) {
-  case fir::ICmpInstrSubType::EQ:
-  case fir::ICmpInstrSubType::NE:
-  case fir::ICmpInstrSubType::ULT:
-  case fir::ICmpInstrSubType::ULE:
-  case fir::ICmpInstrSubType::UGT:
-  case fir::ICmpInstrSubType::UGE:
-    break;
-  default:
-    return false;
+    case fir::ICmpInstrSubType::EQ:
+    case fir::ICmpInstrSubType::NE:
+    case fir::ICmpInstrSubType::ULT:
+    case fir::ICmpInstrSubType::ULE:
+    case fir::ICmpInstrSubType::UGT:
+    case fir::ICmpInstrSubType::UGE:
+      break;
+    default:
+      return false;
   }
   auto other = icmp->args[1];
   if (other.is_constant_int()) {
@@ -110,8 +110,7 @@ bool simplify_icmp(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     swap_args_icmp(instr);
     normalized = instr->args[0] != before;
   }
-  return simplify_icmp_impl(instr, bb, ctx, worklist, man) ||
-         normalized;
+  return simplify_icmp_impl(instr, bb, ctx, worklist, man) || normalized;
 }
 
 namespace {
@@ -312,7 +311,6 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
         return true;
       }
     }
-
   }
 
   if (instr->args[0].is_instr()) {

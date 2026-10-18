@@ -1,4 +1,3 @@
-#include "ir/print_ids.hpp"
 #include "ir/instruction.hpp"
 
 #include <fmt/color.h>
@@ -6,6 +5,7 @@
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/print_ids.hpp"
 #include "ir/types.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
@@ -34,7 +34,8 @@ void Instr::remove_from_parent() {
 
 namespace {
 
-template <class T> bool substitute_impl(Instr &t, const T &repl) {
+template <class T>
+bool substitute_impl(Instr &t, const T &repl) {
   auto *self = t.operator->();
   const auto n_args = self->args.size();
   bool replaced = false;
@@ -62,7 +63,7 @@ template <class T> bool substitute_impl(Instr &t, const T &repl) {
   return replaced;
 }
 
-} // namespace
+}  // namespace
 
 bool Instr::substitute(const FMap<ValueR, ValueR> &repl) {
   return substitute_impl(*this, repl);
@@ -293,7 +294,7 @@ u16 Instr::add_bb(BasicBlock val) {
   return self->bbs.size() - 1;
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
     foptim::fir::BBRefWithArgs const &bb_with_args, format_context &ctx) const {
@@ -328,9 +329,8 @@ fmt::appender fmt::formatter<foptim::fir::BBRefWithArgs>::format(
   return app;
 }
 
-fmt::appender
-fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
-                                           format_context &ctx) const {
+fmt::appender fmt::formatter<foptim::fir::Instr>::format(
+    foptim::fir::Instr const &instr, format_context &ctx) const {
   auto app = ctx.out();
   if (!instr.is_valid()) {
     return fmt::format_to(app, "INVALID\n");
@@ -435,27 +435,27 @@ fmt::formatter<foptim::fir::Instr>::format(foptim::fir::Instr const &instr,
   }
   if (instr->Ordering != 0) {
     switch (static_cast<foptim::fir::Ordering>(instr->Ordering)) {
-    case foptim::fir::NonAtomic:
-      app = fmt::format_to(app, "ORDER(NONE); ");
-      break;
-    case foptim::fir::Unorderd:
-      app = fmt::format_to(app, "ORDER(UNORDERED); ");
-      break;
-    case foptim::fir::Monotone:
-      app = fmt::format_to(app, "ORDER(Monotone); ");
-      break;
-    case foptim::fir::Acquire:
-      app = fmt::format_to(app, "ORDER(ACQUIRE); ");
-      break;
-    case foptim::fir::Release:
-      app = fmt::format_to(app, "ORDER(RELEASE); ");
-      break;
-    case foptim::fir::Acq_Rel:
-      app = fmt::format_to(app, "ORDER(ACQ_REL); ");
-      break;
-    case foptim::fir::Seq_Cst:
-      app = fmt::format_to(app, "ORDER(SEQ_CST); ");
-      break;
+      case foptim::fir::NonAtomic:
+        app = fmt::format_to(app, "ORDER(NONE); ");
+        break;
+      case foptim::fir::Unorderd:
+        app = fmt::format_to(app, "ORDER(UNORDERED); ");
+        break;
+      case foptim::fir::Monotone:
+        app = fmt::format_to(app, "ORDER(Monotone); ");
+        break;
+      case foptim::fir::Acquire:
+        app = fmt::format_to(app, "ORDER(ACQUIRE); ");
+        break;
+      case foptim::fir::Release:
+        app = fmt::format_to(app, "ORDER(RELEASE); ");
+        break;
+      case foptim::fir::Acq_Rel:
+        app = fmt::format_to(app, "ORDER(ACQ_REL); ");
+        break;
+      case foptim::fir::Seq_Cst:
+        app = fmt::format_to(app, "ORDER(SEQ_CST); ");
+        break;
     }
   }
   // fmt::println("TODO print attribs");

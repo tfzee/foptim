@@ -83,7 +83,7 @@ void collect_calls(TVec<FuncInfo> &infos,
   }
 }
 
-} // namespace
+}  // namespace
 
 // Roughly based on the C3 algorithm (Ottoni & Maher, "Optimizing Function
 // Placement for Large-Scale Data-Center Applications"):
@@ -207,4 +207,4 @@ TVec<fir::Function *> get_lowering_order(fir::Context &ctx) {
   return order;
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

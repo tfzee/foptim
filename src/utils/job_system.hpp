@@ -30,7 +30,7 @@ struct Worker {
 // helps to run them in wait_till_done. Idle workers spin briefly and then
 // sleep until the next push.
 class JobSheduler {
-public:
+ public:
   std::mutex job_queue;
   foptim::IRVec<Job> jobs;
   // number of jobs in the queue, lets idle threads check without locking
@@ -155,4 +155,4 @@ public:
   }
 };
 
-} // namespace foptim
+}  // namespace foptim

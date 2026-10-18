@@ -64,7 +64,7 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
 
   old_terminator.remove_from_parent();
 }
-} // namespace
+}  // namespace
 
 PreservedAnalysis LoopRotate::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("LoopRotate");
@@ -138,8 +138,8 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
       if (use.user->parent == header_bb) {
         // the arguments of the edge into the body are rebuilt from the
         // surviving header, so they count as body uses
-        used_in_body |= use.type == fir::UseType::BBArg &&
-                        use.argId == non_exiting_target;
+        used_in_body |=
+            use.type == fir::UseType::BBArg && use.argId == non_exiting_target;
         continue;
       }
       if (!std::ranges::contains(linfo.body_nodes,
@@ -279,9 +279,8 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
         ctx->storage.insert_bb_arg(header_bb, c->result_type()));
     TVec<fir::Use> outside;
     for (auto use : c->uses) {
-      if (use.user->parent != header_bb ||
-          (use.type == fir::UseType::BBArg &&
-           use.argId == non_exiting_target)) {
+      if (use.user->parent != header_bb || (use.type == fir::UseType::BBArg &&
+                                            use.argId == non_exiting_target)) {
         outside.push_back(use);
       }
     }
@@ -323,4 +322,4 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
   return true;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

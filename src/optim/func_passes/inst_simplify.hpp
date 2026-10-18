@@ -12,7 +12,7 @@ namespace foptim::optim {
 constexpr bool TRACY_DEBUG_INST_SIMPLIFY = false;
 
 class InstSimplify final : public FunctionPass {
-public:
+ public:
   struct WorkItem {
     fir::Instr instr;
     fir::BasicBlock b;
@@ -31,5 +31,5 @@ inline void push_all_uses(WorkList &worklist, fir::Instr instr) {
   }
 }
 
-} // namespace InstSimp
-} // namespace foptim::optim
+}  // namespace InstSimp
+}  // namespace foptim::optim

@@ -73,7 +73,9 @@ class LegalizeBBForm : public FunctionPass {
   }
 
  public:
-  void apply(MFunc &func, const conf::CompConf &) final override { apply_impl(func); }
+  void apply(MFunc &func, const conf::CompConf &) final override {
+    apply_impl(func);
+  }
 };
 
 }  // namespace foptim::fmir

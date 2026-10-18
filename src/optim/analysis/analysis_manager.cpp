@@ -1,14 +1,15 @@
 #include "optim/analysis/analysis_manager.hpp"
 
+#include <fmt/base.h>
+
 #include "ir/context.hpp"
 #include "utils/todo.hpp"
-#include <fmt/base.h>
 
 namespace foptim::fir {
 void AnalysisCacheDeleter::operator()(optim::FunctionAnalysisCache *p) const {
   delete p;
 }
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
 namespace foptim::optim {
 
@@ -19,7 +20,7 @@ FunctionAnalysisCache &get_cache(fir::Function &func) {
   }
   return *func.analysis_cache;
 }
-} // namespace
+}  // namespace
 
 CFG &AnalysisManager::cfg(fir::Function &func) {
   auto &cache = get_cache(func);
@@ -80,7 +81,7 @@ u64 mix(u64 h, u64 v) {
   h *= 0xFF51AFD7ED558CCDULL;
   return h ^ (h >> 32);
 }
-} // namespace
+}  // namespace
 
 void AnalysisManager::invalidate_all(fir::Context &ctx) {
   for (auto *func : ctx->storage.functions.all()) {
@@ -90,7 +91,6 @@ void AnalysisManager::invalidate_all(fir::Context &ctx) {
     }
   }
 }
-
 
 u64 AnalysisManager::hash_instr(fir::Instr instr) {
   const ankerl::unordered_dense::hash<fir::ValueR> hv{};
@@ -160,7 +160,7 @@ void drop_bits_of_users(const IRVec<fir::Use> &uses) {
     }
   }
 }
-} // namespace
+}  // namespace
 
 void AnalysisManager::touched_body(fir::Function &f) {
   std::lock_guard<std::mutex> lock{report_mutex};
@@ -266,7 +266,6 @@ bool AnalysisManager::verify_unchanged(const fir::Function &func,
   return false;
 }
 
-
 bool AnalysisManager::verify_preserved(fir::Function &func,
                                        PreservedAnalysis pres) {
   if (!func.analysis_cache || func.is_decl()) {
@@ -316,4 +315,4 @@ bool AnalysisManager::verify_preserved(fir::Function &func,
   return true;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

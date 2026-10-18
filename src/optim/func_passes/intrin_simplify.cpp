@@ -98,7 +98,8 @@ struct PtrOffset {
 
 static PtrOffset split_ptr(fir::ValueR ptr) {
   i128 off = 0;
-  while (ptr.is_instr() && ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd) &&
+  while (ptr.is_instr() &&
+         ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd) &&
          ptr.as_instr()->args[1].is_constant_int()) {
     off += ptr.as_instr()->args[1].as_constant()->as_int();
     ptr = ptr.as_instr()->args[0];
@@ -233,9 +234,9 @@ static bool forward_load_from_mem_intrin(fir::Instr load, fir::BasicBlock bb,
       return true;
     }
     if (ty->is_float() && ty->get_bitwidth() == 32) {
-      load->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-          std::bit_cast<f32>(static_cast<u32>(pattern)),
-          ctx->get_float_type(32))});
+      load->replace_all_uses(fir::ValueR{
+          ctx->get_constant_value(std::bit_cast<f32>(static_cast<u32>(pattern)),
+                                  ctx->get_float_type(32))});
       load.destroy();
       return true;
     }
@@ -253,9 +254,8 @@ static bool forward_load_from_mem_intrin(fir::Instr load, fir::BasicBlock bb,
     for (i128 i = 0; i < lsize; i++) {
       splat |= u64{1} << (8 * i);
     }
-    auto res = b.build_int_mul(
-        wide, fir::ValueR{ctx->get_constant_value(
-                  splat, ctx->get_int_type(lsize * 8))});
+    auto res = b.build_int_mul(wide, fir::ValueR{ctx->get_constant_value(
+                                         splat, ctx->get_int_type(lsize * 8))});
     load->replace_all_uses(res);
     load.destroy();
     return true;
@@ -293,7 +293,8 @@ static bool forward_memcpy_chain(fir::Instr instr, fir::BasicBlock bb,
   auto src = offset_ptr(ctx, b, def->args[1], rel);
   if (!unmodified_between(bb, *def_pos, pos, src, *bytes, aa) ||
       aa.alias(instr->args[0], src, static_cast<size_t>(*bytes),
-               static_cast<size_t>(*bytes)) != AliasAnalyis::AAResult::NoAlias) {
+               static_cast<size_t>(*bytes)) !=
+          AliasAnalyis::AAResult::NoAlias) {
     if (rel != 0) {
       src.as_instr().destroy();
     }
@@ -467,17 +468,17 @@ static bool simplify_memset(fir::Instr instr, fir::Context &ctx) {
     return false;
   }
   const bool const_val = value.is_constant_int();
-  const u64 byte = const_val ? static_cast<u8>(value.as_constant()->as_int())
-                             : 0;
+  const u64 byte =
+      const_val ? static_cast<u8>(value.as_constant()->as_int()) : 0;
   // the value in all bytes of an i64
   std::optional<fir::ValueR> splat64;
   auto get_splat64 = [&]() {
     if (!splat64) {
       auto wide = b.build_zext(value, ctx->get_int_type(64));
       splat64 = b.build_int_mul(
-          wide, fir::ValueR{ctx->get_constant_value(
-                    static_cast<u64>(0x0101010101010101ULL),
-                    ctx->get_int_type(64))});
+          wide,
+          fir::ValueR{ctx->get_constant_value(
+              static_cast<u64>(0x0101010101010101ULL), ctx->get_int_type(64))});
     }
     return *splat64;
   };
@@ -582,10 +583,10 @@ static bool memcmp_ordered(fir::Instr instr, fir::Context &ctx, i128 size) {
   TVec<fir::ValueR> diffs;
   for (auto c : chunks) {
     auto ty = ctx->get_int_type(c.len * 8);
-    fir::ValueR la = bld.build_load(ty, offset_ptr(ctx, bld, a, c.off), false,
-                                    false);
-    fir::ValueR lb = bld.build_load(ty, offset_ptr(ctx, bld, b, c.off), false,
-                                    false);
+    fir::ValueR la =
+        bld.build_load(ty, offset_ptr(ctx, bld, a, c.off), false, false);
+    fir::ValueR lb =
+        bld.build_load(ty, offset_ptr(ctx, bld, b, c.off), false, false);
     if (c.len > 1) {
       la = bld.build_intrinsic(la, fir::IntrinsicSubType::Bswap);
       lb = bld.build_intrinsic(lb, fir::IntrinsicSubType::Bswap);
@@ -599,7 +600,8 @@ static bool memcmp_ordered(fir::Instr instr, fir::Context &ctx, i128 size) {
   auto zero = fir::ValueR{ctx->get_constant_int(0, 32)};
   fir::ValueR res = diffs.back();
   for (size_t i = diffs.size() - 1; i > 0; i--) {
-    auto same = bld.build_int_cmp(diffs[i - 1], zero, fir::ICmpInstrSubType::EQ);
+    auto same =
+        bld.build_int_cmp(diffs[i - 1], zero, fir::ICmpInstrSubType::EQ);
     res = bld.build_select(i32_ty, same, res, diffs[i - 1]);
   }
   instr->replace_all_uses(res);
@@ -730,4 +732,4 @@ PreservedAnalysis IntrinSimplify::apply(fir::Context &ctx,
   return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

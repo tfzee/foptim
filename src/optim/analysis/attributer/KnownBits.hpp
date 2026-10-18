@@ -26,7 +26,7 @@ static KnownBits abs_known_bits(const KnownBits &input);
 // the bitwidth of the type of the value.
 class KnownBits final : public AttributeAnalysis,
                         public AttributeInfo<KnownBits> {
-public:
+ public:
   static AttributeKey Key;
   KnownBits() = default;
   ~KnownBits() override = default;
@@ -202,124 +202,124 @@ public:
       new_known_zero = APInt::high_bits(W, W - 1);
     } else if (instr->is(fir::InstrType::Intrinsic)) {
       switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
-      case fir::IntrinsicSubType::IsConstant: {
-        const auto *known_arg_bits = arg_bits(0);
-        const bool all_known = known_arg_bits->is_constant();
-        new_known_one = APInt(W, u64{all_known});
-        new_known_zero = APInt::zero(W);
-        break;
-      }
-      case fir::IntrinsicSubType::Abs: {
-        const auto *known_arg_bits = arg_bits(0);
-        auto res = abs_known_bits(*known_arg_bits);
-        new_known_one = res.known_one;
-        new_known_zero = res.known_zero;
-        break;
-      }
-      case fir::IntrinsicSubType::UMax:
-      case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::SMax:
-      case fir::IntrinsicSubType::SMin: {
-        const auto sub = static_cast<fir::IntrinsicSubType>(instr->subtype);
-        const auto *a = arg_bits(0);
-        const auto *b = arg_bits(1);
-        const bool is_signed = sub == fir::IntrinsicSubType::SMax ||
-                               sub == fir::IntrinsicSubType::SMin;
-        const bool is_max = sub == fir::IntrinsicSubType::UMax ||
-                            sub == fir::IntrinsicSubType::SMax;
-        const APInt a_min =
-            is_signed ? a->get_signed_min_value() : a->get_unsigned_min_value();
-        const APInt a_max =
-            is_signed ? a->get_signed_max_value() : a->get_unsigned_max_value();
-        const APInt b_min =
-            is_signed ? b->get_signed_min_value() : b->get_unsigned_min_value();
-        const APInt b_max =
-            is_signed ? b->get_signed_max_value() : b->get_unsigned_max_value();
-        auto ge = [&](const APInt &x, const APInt &y) {
-          return is_signed ? x.sge(y) : x.uge(y);
-        };
-        // one operand is always the result when the ranges do not overlap
-        const bool take_a = is_max ? ge(a_min, b_max) : ge(b_min, a_max);
-        const bool take_b = is_max ? ge(b_min, a_max) : ge(a_min, b_max);
-        if (take_a) {
-          new_known_one = a->known_one;
-          new_known_zero = a->known_zero;
-        } else if (take_b) {
-          new_known_one = b->known_one;
-          new_known_zero = b->known_zero;
-        } else {
-          new_known_one = a->known_one & b->known_one;
-          new_known_zero = a->known_zero & b->known_zero;
+        case fir::IntrinsicSubType::IsConstant: {
+          const auto *known_arg_bits = arg_bits(0);
+          const bool all_known = known_arg_bits->is_constant();
+          new_known_one = APInt(W, u64{all_known});
+          new_known_zero = APInt::zero(W);
+          break;
         }
-        break;
-      }
-      case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::CTTZ:
-      case fir::IntrinsicSubType::PopCnt: {
-        const auto sub = static_cast<fir::IntrinsicSubType>(instr->subtype);
-        const auto *a = arg_bits(0);
-        const u32 aw = a->width();
-        if (a->is_constant()) {
-          const APInt &v = a->known_one;
-          const u32 r = sub == fir::IntrinsicSubType::CTLZ   ? v.clz()
-                        : sub == fir::IntrinsicSubType::CTTZ ? v.ctz()
-                                                             : v.popcount();
-          new_known_one = APInt(W, u64{r});
-          new_known_zero = ~new_known_one;
-        } else if (sub == fir::IntrinsicSubType::PopCnt) {
-          const APInt lo(W, u64{a->known_one.popcount()});
-          const APInt hi(W, u64{aw - a->known_zero.popcount()});
-          KnownBits res = KnownBits::from_umin_umax(lo, hi);
-          new_known_zero = res.known_zero;
+        case fir::IntrinsicSubType::Abs: {
+          const auto *known_arg_bits = arg_bits(0);
+          auto res = abs_known_bits(*known_arg_bits);
           new_known_one = res.known_one;
-        } else {
-          // the result is at most the width of the argument
-          const u32 needed = std::bit_width(aw);
+          new_known_zero = res.known_zero;
+          break;
+        }
+        case fir::IntrinsicSubType::UMax:
+        case fir::IntrinsicSubType::UMin:
+        case fir::IntrinsicSubType::SMax:
+        case fir::IntrinsicSubType::SMin: {
+          const auto sub = static_cast<fir::IntrinsicSubType>(instr->subtype);
+          const auto *a = arg_bits(0);
+          const auto *b = arg_bits(1);
+          const bool is_signed = sub == fir::IntrinsicSubType::SMax ||
+                                 sub == fir::IntrinsicSubType::SMin;
+          const bool is_max = sub == fir::IntrinsicSubType::UMax ||
+                              sub == fir::IntrinsicSubType::SMax;
+          const APInt a_min = is_signed ? a->get_signed_min_value()
+                                        : a->get_unsigned_min_value();
+          const APInt a_max = is_signed ? a->get_signed_max_value()
+                                        : a->get_unsigned_max_value();
+          const APInt b_min = is_signed ? b->get_signed_min_value()
+                                        : b->get_unsigned_min_value();
+          const APInt b_max = is_signed ? b->get_signed_max_value()
+                                        : b->get_unsigned_max_value();
+          auto ge = [&](const APInt &x, const APInt &y) {
+            return is_signed ? x.sge(y) : x.uge(y);
+          };
+          // one operand is always the result when the ranges do not overlap
+          const bool take_a = is_max ? ge(a_min, b_max) : ge(b_min, a_max);
+          const bool take_b = is_max ? ge(b_min, a_max) : ge(a_min, b_max);
+          if (take_a) {
+            new_known_one = a->known_one;
+            new_known_zero = a->known_zero;
+          } else if (take_b) {
+            new_known_one = b->known_one;
+            new_known_zero = b->known_zero;
+          } else {
+            new_known_one = a->known_one & b->known_one;
+            new_known_zero = a->known_zero & b->known_zero;
+          }
+          break;
+        }
+        case fir::IntrinsicSubType::CTLZ:
+        case fir::IntrinsicSubType::CTTZ:
+        case fir::IntrinsicSubType::PopCnt: {
+          const auto sub = static_cast<fir::IntrinsicSubType>(instr->subtype);
+          const auto *a = arg_bits(0);
+          const u32 aw = a->width();
+          if (a->is_constant()) {
+            const APInt &v = a->known_one;
+            const u32 r = sub == fir::IntrinsicSubType::CTLZ   ? v.clz()
+                          : sub == fir::IntrinsicSubType::CTTZ ? v.ctz()
+                                                               : v.popcount();
+            new_known_one = APInt(W, u64{r});
+            new_known_zero = ~new_known_one;
+          } else if (sub == fir::IntrinsicSubType::PopCnt) {
+            const APInt lo(W, u64{a->known_one.popcount()});
+            const APInt hi(W, u64{aw - a->known_zero.popcount()});
+            KnownBits res = KnownBits::from_umin_umax(lo, hi);
+            new_known_zero = res.known_zero;
+            new_known_one = res.known_one;
+          } else {
+            // the result is at most the width of the argument
+            const u32 needed = std::bit_width(aw);
+            new_known_one = APInt::zero(W);
+            new_known_zero =
+                needed >= W ? APInt::zero(W) : APInt::high_bits(W, W - needed);
+          }
+          break;
+        }
+        case fir::IntrinsicSubType::FAbs:
+        case fir::IntrinsicSubType::FMin:
+        case fir::IntrinsicSubType::FMax:
+        case fir::IntrinsicSubType::FMinimum:
+        case fir::IntrinsicSubType::FMaximum:
+        case fir::IntrinsicSubType::FRound:
+        case fir::IntrinsicSubType::FCeil:
+        case fir::IntrinsicSubType::FFloor:
+        case fir::IntrinsicSubType::FTrunc:
+          fmt::println("BITS KNOWN {}", *this);
+          fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
+                       associatedValue.as_instr());
+          TODO("impl");
+        case fir::IntrinsicSubType::Bswap: {
+          const auto *known_arg_bits = arg_bits(0);
+          // the bytes move as a whole
           new_known_one = APInt::zero(W);
-          new_known_zero = needed >= W ? APInt::zero(W)
-                                       : APInt::high_bits(W, W - needed);
+          new_known_zero = APInt::zero(W);
+          for (u32 byte = 0; byte < W / 8; byte++) {
+            const u32 dst = W - 8 - 8 * byte;
+            const APInt one_byte =
+                known_arg_bits->known_one.lshr(8 * byte).trunc(8).zext(W);
+            const APInt zero_byte =
+                known_arg_bits->known_zero.lshr(8 * byte).trunc(8).zext(W);
+            new_known_one |= one_byte.shl(dst);
+            new_known_zero |= zero_byte.shl(dst);
+          }
+          break;
         }
-        break;
-      }
-      case fir::IntrinsicSubType::FAbs:
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
-      case fir::IntrinsicSubType::FMinimum:
-      case fir::IntrinsicSubType::FMaximum:
-      case fir::IntrinsicSubType::FRound:
-      case fir::IntrinsicSubType::FCeil:
-      case fir::IntrinsicSubType::FFloor:
-      case fir::IntrinsicSubType::FTrunc:
-        fmt::println("BITS KNOWN {}", *this);
-        fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
-                     associatedValue.as_instr());
-        TODO("impl");
-      case fir::IntrinsicSubType::Bswap: {
-        const auto *known_arg_bits = arg_bits(0);
-        // the bytes move as a whole
-        new_known_one = APInt::zero(W);
-        new_known_zero = APInt::zero(W);
-        for (u32 byte = 0; byte < W / 8; byte++) {
-          const u32 dst = W - 8 - 8 * byte;
-          const APInt one_byte =
-              known_arg_bits->known_one.lshr(8 * byte).trunc(8).zext(W);
-          const APInt zero_byte =
-              known_arg_bits->known_zero.lshr(8 * byte).trunc(8).zext(W);
-          new_known_one |= one_byte.shl(dst);
-          new_known_zero |= zero_byte.shl(dst);
-        }
-        break;
-      }
-      case fir::IntrinsicSubType::INVALID:
-      case fir::IntrinsicSubType::VA_start:
-      case fir::IntrinsicSubType::VA_end:
-      case fir::IntrinsicSubType::Memcmp:
-        // an arbitrary int
-        break;
-      case fir::IntrinsicSubType::Memset:
-      case fir::IntrinsicSubType::Memcpy:
-      case fir::IntrinsicSubType::Memmove:
-        TODO("UNREACH");
+        case fir::IntrinsicSubType::INVALID:
+        case fir::IntrinsicSubType::VA_start:
+        case fir::IntrinsicSubType::VA_end:
+        case fir::IntrinsicSubType::Memcmp:
+          // an arbitrary int
+          break;
+        case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memmove:
+          TODO("UNREACH");
       }
     } else if (instr->is(fir::InstrType::ITrunc)) {
       const auto *known_arg_bits = arg_bits(0);
@@ -350,39 +350,39 @@ public:
       }
     } else if (instr->is(fir::InstrType::Conversion)) {
       switch (static_cast<fir::ConversionSubType>(instr->subtype)) {
-      case fir::ConversionSubType::PtrToInt:
-      case fir::ConversionSubType::IntToPtr: {
-        const auto *a = arg_bits(0);
-        const u32 aw = a->width();
-        new_known_one = a->known_one.zext_or_trunc(W);
-        new_known_zero = a->known_zero.zext_or_trunc(W);
-        if (W > aw) {
-          new_known_zero |= APInt::high_bits(W, W - aw);
-        }
-      } break;
-      case fir::ConversionSubType::BitCast:
-      case fir::ConversionSubType::INVALID:
-      case fir::ConversionSubType::FPEXT:
-      case fir::ConversionSubType::FPTRUNC:
-      case fir::ConversionSubType::FPTOUI:
-      case fir::ConversionSubType::FPTOSI:
-      case fir::ConversionSubType::UITOFP:
-      case fir::ConversionSubType::SITOFP:
-        break;
+        case fir::ConversionSubType::PtrToInt:
+        case fir::ConversionSubType::IntToPtr: {
+          const auto *a = arg_bits(0);
+          const u32 aw = a->width();
+          new_known_one = a->known_one.zext_or_trunc(W);
+          new_known_zero = a->known_zero.zext_or_trunc(W);
+          if (W > aw) {
+            new_known_zero |= APInt::high_bits(W, W - aw);
+          }
+        } break;
+        case fir::ConversionSubType::BitCast:
+        case fir::ConversionSubType::INVALID:
+        case fir::ConversionSubType::FPEXT:
+        case fir::ConversionSubType::FPTRUNC:
+        case fir::ConversionSubType::FPTOUI:
+        case fir::ConversionSubType::FPTOSI:
+        case fir::ConversionSubType::UITOFP:
+        case fir::ConversionSubType::SITOFP:
+          break;
       }
     } else if (instr->is(fir::InstrType::UnaryInstr)) {
       const auto *a = arg_bits(0);
       switch (static_cast<fir::UnaryInstrSubType>(instr->subtype)) {
-      case fir::UnaryInstrSubType::INVALID:
-        TODO("UNREACH");
-      case fir::UnaryInstrSubType::FloatSqrt:
-      case fir::UnaryInstrSubType::FloatNeg:
-      case fir::UnaryInstrSubType::IntNeg:
-        break;
-      case fir::UnaryInstrSubType::Not:
-        new_known_zero = a->known_one;
-        new_known_one = a->known_zero;
-        break;
+        case fir::UnaryInstrSubType::INVALID:
+          TODO("UNREACH");
+        case fir::UnaryInstrSubType::FloatSqrt:
+        case fir::UnaryInstrSubType::FloatNeg:
+        case fir::UnaryInstrSubType::IntNeg:
+          break;
+        case fir::UnaryInstrSubType::Not:
+          new_known_zero = a->known_one;
+          new_known_one = a->known_zero;
+          break;
       }
     } else if (instr->is(fir::InstrType::BinaryInstr)) {
       const auto *a = arg_bits(0);
@@ -475,8 +475,7 @@ public:
           // we don't know the shifted bits, but the sign propagates
           new_known_one = APInt::zero(W);
           new_known_zero = APInt::zero(W);
-          const APInt sign_extension =
-              APInt::high_bits(W, min_shift(*b, W));
+          const APInt sign_extension = APInt::high_bits(W, min_shift(*b, W));
           const auto msb = a->msb_info();
           if (msb == KnownOne) {
             new_known_one |= sign_extension;
@@ -491,17 +490,17 @@ public:
       }
     } else if (instr->is(fir::InstrType::VectorInstr)) {
       switch (static_cast<fir::VectorISubType>(instr->subtype)) {
-      case fir::VectorISubType::INVALID:
-      case fir::VectorISubType::Broadcast:
-      case fir::VectorISubType::Shuffle:
-      case fir::VectorISubType::Concat:
-      case fir::VectorISubType::ExtractHigh:
-      case fir::VectorISubType::ExtractLow:
-      case fir::VectorISubType::HorizontalAdd:
-      case fir::VectorISubType::HorizontalMul:
-        new_known_one = APInt::zero(W);
-        new_known_zero = APInt::zero(W);
-        break;
+        case fir::VectorISubType::INVALID:
+        case fir::VectorISubType::Broadcast:
+        case fir::VectorISubType::Shuffle:
+        case fir::VectorISubType::Concat:
+        case fir::VectorISubType::ExtractHigh:
+        case fir::VectorISubType::ExtractLow:
+        case fir::VectorISubType::HorizontalAdd:
+        case fir::VectorISubType::HorizontalMul:
+          new_known_one = APInt::zero(W);
+          new_known_zero = APInt::zero(W);
+          break;
       }
     } else if (instr->is(fir::InstrType::ExtractElement)) {
       // TODO: can propagate in certain conditions (but then we prob removing
@@ -549,44 +548,44 @@ public:
 
     auto constant = associatedValue.as_constant();
     switch (constant->ty) {
-    case fir::ConstantType::PoisonValue:
-      new_known_one = APInt::zero(W);
-      new_known_zero = APInt::all_ones(W);
-      break;
-    case fir::ConstantType::IntValue: {
-      new_known_one = constant->as_apint().zext_or_trunc(W);
-      new_known_zero = ~new_known_one;
-    } break;
-    case fir::ConstantType::FloatValue: {
-      auto bitwidth = constant->get_type()->as_float();
-      if (bitwidth == 64) {
-        new_known_one = APInt(W, std::bit_cast<u64>(constant->as_f64()));
-        new_known_zero = ~new_known_one;
-      } else if (bitwidth == 32) {
-        new_known_one = APInt(W, u64{std::bit_cast<u32>(constant->as_f32())});
-        new_known_zero = ~new_known_one;
-      }
-    } break;
-    case fir::ConstantType::NullPtr: {
-      new_known_one = APInt::zero(W);
-      new_known_zero = APInt::all_ones(W);
-    } break;
-    case fir::ConstantType::FuncPtr: {
-      auto min_align = constant->as_func().func->attribs.min_align;
-      if (min_align > 0) {
+      case fir::ConstantType::PoisonValue:
         new_known_one = APInt::zero(W);
-        new_known_zero = APInt(W, static_cast<u64>(min_align) - 1);
-      }
-    } break;
-    case fir::ConstantType::GlobalPtr: {
-      auto min_align = constant->as_global()->min_align;
-      if (min_align > 0) {
+        new_known_zero = APInt::all_ones(W);
+        break;
+      case fir::ConstantType::IntValue: {
+        new_known_one = constant->as_apint().zext_or_trunc(W);
+        new_known_zero = ~new_known_one;
+      } break;
+      case fir::ConstantType::FloatValue: {
+        auto bitwidth = constant->get_type()->as_float();
+        if (bitwidth == 64) {
+          new_known_one = APInt(W, std::bit_cast<u64>(constant->as_f64()));
+          new_known_zero = ~new_known_one;
+        } else if (bitwidth == 32) {
+          new_known_one = APInt(W, u64{std::bit_cast<u32>(constant->as_f32())});
+          new_known_zero = ~new_known_one;
+        }
+      } break;
+      case fir::ConstantType::NullPtr: {
         new_known_one = APInt::zero(W);
-        new_known_zero = APInt(W, static_cast<u64>(min_align) - 1);
-      }
-    } break;
-    case fir::ConstantType::VectorValue:
-      break;
+        new_known_zero = APInt::all_ones(W);
+      } break;
+      case fir::ConstantType::FuncPtr: {
+        auto min_align = constant->as_func().func->attribs.min_align;
+        if (min_align > 0) {
+          new_known_one = APInt::zero(W);
+          new_known_zero = APInt(W, static_cast<u64>(min_align) - 1);
+        }
+      } break;
+      case fir::ConstantType::GlobalPtr: {
+        auto min_align = constant->as_global()->min_align;
+        if (min_align > 0) {
+          new_known_one = APInt::zero(W);
+          new_known_zero = APInt(W, static_cast<u64>(min_align) - 1);
+        }
+      } break;
+      case fir::ConstantType::VectorValue:
+        break;
     }
 
     if (new_known_one != known_one || new_known_zero != known_zero) {
@@ -679,7 +678,8 @@ static KnownBits computeForAddCarry(const KnownBits &LHS, const KnownBits &RHS,
                                APInt(W, u64{CarryOne});
 
   // Compute known bits of the carry.
-  const APInt CarryKnownZero = ~(PossibleSumZero ^ LHS.known_zero ^ RHS.known_zero);
+  const APInt CarryKnownZero =
+      ~(PossibleSumZero ^ LHS.known_zero ^ RHS.known_zero);
   const APInt CarryKnownOne = PossibleSumOne ^ LHS.known_one ^ RHS.known_one;
 
   // Compute set of known bits (where all three relevant bits are known).
@@ -767,7 +767,7 @@ static KnownBits abs_known_bits(const KnownBits &input) {
   return res;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim
 
 inline fmt::appender fmt::formatter<foptim::optim::KnownBits>::format(
     foptim::optim::KnownBits const &v, format_context &ctx) const {

@@ -59,14 +59,16 @@ struct IRId {
   const char *prefix;
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct fmt::formatter<foptim::fir::IRId> {
+template <>
+struct fmt::formatter<foptim::fir::IRId> {
   constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
   auto format(foptim::fir::IRId const &id, format_context &ctx) const {
     if (foptim::fir::PrintIds::deterministic_ids) {
-      return fmt::format_to(ctx.out(), "{}{}", id.prefix,
-                            foptim::fir::PrintIds::get(id.ptr, id.prefix[0] == 'b'));
+      return fmt::format_to(
+          ctx.out(), "{}{}", id.prefix,
+          foptim::fir::PrintIds::get(id.ptr, id.prefix[0] == 'b'));
     }
     return fmt::format_to(ctx.out(), "{:p}", id.ptr);
   }

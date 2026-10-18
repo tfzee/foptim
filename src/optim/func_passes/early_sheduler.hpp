@@ -1,4 +1,8 @@
 #pragma once
+#include <fmt/base.h>
+
+#include <optional>
+
 #include "../function_pass.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -9,8 +13,6 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
 #include "utils/todo.hpp"
-#include <fmt/base.h>
-#include <optional>
 
 namespace foptim::optim {
 
@@ -18,7 +20,7 @@ namespace foptim::optim {
 Try to move instructions to later position to shorten livespans
 */
 class EarlySheduler final : public FunctionPass {
-public:
+ public:
   struct Config {};
   Config config;
 
@@ -120,4 +122,4 @@ public:
     return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

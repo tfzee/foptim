@@ -1,4 +1,10 @@
 #include "intrin_conv.hpp"
+
+#include <algorithm>
+#include <array>
+#include <bit>
+#include <optional>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction.hpp"
@@ -7,10 +13,6 @@
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
-#include <algorithm>
-#include <array>
-#include <bit>
-#include <optional>
 
 namespace foptim::optim {
 
@@ -18,8 +20,9 @@ namespace {
 
 // the block args passed on the loop exit edge, empty optional if one is
 // defined inside the loop (the loop is removed so it can not be forwarded)
-std::optional<TVec<fir::ValueR>>
-exit_edge_args(fir::Instr term, fir::BasicBlock loop_bb, size_t exit_idx) {
+std::optional<TVec<fir::ValueR>> exit_edge_args(fir::Instr term,
+                                                fir::BasicBlock loop_bb,
+                                                size_t exit_idx) {
   TVec<fir::ValueR> res;
   for (auto arg : term->get_bb_args()[exit_idx].args) {
     if ((arg.is_instr() && arg.as_instr()->get_parent() == loop_bb) ||
@@ -51,7 +54,7 @@ struct LoopCtx {
   TVec<fir::ValueR> incoming;
 };
 
- std::optional<LinearIdx> linear_idx(fir::ValueR v, const LoopCtx &lc) {
+std::optional<LinearIdx> linear_idx(fir::ValueR v, const LoopCtx &lc) {
   if (v.is_bb_arg() && v.as_bb_arg() == lc.iv) {
     return LinearIdx{.scale = 1, .off = 0};
   }
@@ -123,10 +126,10 @@ std::optional<PtrForm> ptr_form(fir::ValueR v, const LoopCtx &lc) {
           !back.as_instr()->args[1].is_constant_int()) {
         return std::nullopt;
       }
-      return PtrForm{.base = lc.incoming[pos],
-                     .off0 = 0,
-                     .stride =
-                         back.as_instr()->args[1].as_constant()->as_int()};
+      return PtrForm{
+          .base = lc.incoming[pos],
+          .off0 = 0,
+          .stride = back.as_instr()->args[1].as_constant()->as_int()};
     }
     return std::nullopt;
   }
@@ -135,8 +138,8 @@ std::optional<PtrForm> ptr_form(fir::ValueR v, const LoopCtx &lc) {
 
 enum class CopyKind : u8 { Memcpy, Memmove, None };
 
- CopyKind classify_copy(const PtrForm &dst, const PtrForm &src,
-                              i128 bytes, i128 elem_size, AliasAnalyis &aa) {
+CopyKind classify_copy(const PtrForm &dst, const PtrForm &src, i128 bytes,
+                       i128 elem_size, AliasAnalyis &aa) {
   if (dst.stride != elem_size || src.stride != elem_size) {
     return CopyKind::None;
   }
@@ -157,7 +160,7 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
 }
 
 // x if v is -x
- fir::ValueR negated_operand(fir::ValueR v) {
+fir::ValueR negated_operand(fir::ValueR v) {
   if (!v.is_instr()) {
     return {};
   }
@@ -181,50 +184,49 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
 
 // Whether the select condition being true means the value is negative, for
 // value cmp c. Nothing if the compare says nothing about the sign.
- std::optional<bool> true_means_negative(fir::ICmpInstrSubType pred,
-                                               i128 c) {
+std::optional<bool> true_means_negative(fir::ICmpInstrSubType pred, i128 c) {
   using fir::ICmpInstrSubType;
   switch (pred) {
-  case ICmpInstrSubType::SLT:
-    return c == 0 || c == 1 ? std::optional{true} : std::nullopt;
-  case ICmpInstrSubType::SLE:
-    return c == 0 || c == -1 ? std::optional{true} : std::nullopt;
-  case ICmpInstrSubType::SGT:
-    return c == 0 || c == -1 ? std::optional{false} : std::nullopt;
-  case ICmpInstrSubType::SGE:
-    return c == 0 || c == 1 ? std::optional{false} : std::nullopt;
-  default:
-    return std::nullopt;
+    case ICmpInstrSubType::SLT:
+      return c == 0 || c == 1 ? std::optional{true} : std::nullopt;
+    case ICmpInstrSubType::SLE:
+      return c == 0 || c == -1 ? std::optional{true} : std::nullopt;
+    case ICmpInstrSubType::SGT:
+      return c == 0 || c == -1 ? std::optional{false} : std::nullopt;
+    case ICmpInstrSubType::SGE:
+      return c == 0 || c == 1 ? std::optional{false} : std::nullopt;
+    default:
+      return std::nullopt;
   }
 }
 
 // The fabs arm is only exact when the other arm is taken for strictly positive
 // values and the compare is false for NaN exactly when the fabs arm is the one
 // taken for it.
- std::optional<bool> true_means_negative(fir::FCmpInstrSubType pred,
-                                               bool fabs_arm) {
+std::optional<bool> true_means_negative(fir::FCmpInstrSubType pred,
+                                        bool fabs_arm) {
   using fir::FCmpInstrSubType;
   switch (pred) {
-  case FCmpInstrSubType::OLT:
-  case FCmpInstrSubType::ULT:
-  case FCmpInstrSubType::OLE:
-    return fabs_arm ? std::nullopt : std::optional{true};
-  case FCmpInstrSubType::ULE:
-    return true;
-  case FCmpInstrSubType::OGT:
-    return false;
-  case FCmpInstrSubType::UGT:
-  case FCmpInstrSubType::OGE:
-  case FCmpInstrSubType::UGE:
-    return fabs_arm ? std::nullopt : std::optional{false};
-  default:
-    return std::nullopt;
+    case FCmpInstrSubType::OLT:
+    case FCmpInstrSubType::ULT:
+    case FCmpInstrSubType::OLE:
+      return fabs_arm ? std::nullopt : std::optional{true};
+    case FCmpInstrSubType::ULE:
+      return true;
+    case FCmpInstrSubType::OGT:
+      return false;
+    case FCmpInstrSubType::UGT:
+    case FCmpInstrSubType::OGE:
+    case FCmpInstrSubType::UGE:
+      return fabs_arm ? std::nullopt : std::optional{false};
+    default:
+      return std::nullopt;
   }
 }
 
 // select (x < 0), -x, x and its variants, also with a fabs of x as the arm for
 // negative values
- fir::ValueR select_abs_operand(fir::Instr sel, bool exact_neg) {
+fir::ValueR select_abs_operand(fir::Instr sel, bool exact_neg) {
   if (!sel->args[0].is_instr()) {
     return {};
   }
@@ -282,7 +284,7 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
 }
 
 // m is x >> (bitwidth - 1), narrow values are shifted as sign extended i32
- bool is_sign_mask(fir::ValueR m, fir::ValueR x) {
+bool is_sign_mask(fir::ValueR m, fir::ValueR x) {
   if (!m.is_instr() || !x.get_type()->is_int()) {
     return false;
   }
@@ -309,7 +311,7 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
 }
 
 // x if p is x op m or m op x with m the sign mask of x
- fir::ValueR operand_with_sign_mask(fir::ValueR p, fir::ValueR m) {
+fir::ValueR operand_with_sign_mask(fir::ValueR p, fir::ValueR m) {
   auto u = p.as_instr()->args[0];
   auto v = p.as_instr()->args[1];
   if (m == v && is_sign_mask(v, u)) {
@@ -321,13 +323,13 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
   return {};
 }
 
- bool is_instr_of(fir::ValueR v, fir::BinaryInstrSubType sub) {
+bool is_instr_of(fir::ValueR v, fir::BinaryInstrSubType sub) {
   return v.is_instr() && v.as_instr()->is(sub);
 }
 
 // The branch free forms (x + m) ^ m, (x ^ m) - m and (x ^ m) + (m & 1) with
 // m = x >> (bitwidth - 1).
- fir::ValueR bit_trick_abs_operand(fir::Instr instr) {
+fir::ValueR bit_trick_abs_operand(fir::Instr instr) {
   using Sub = fir::BinaryInstrSubType;
   if (instr->is(Sub::Xor)) {
     for (size_t k = 0; k < 2; k++) {
@@ -364,19 +366,19 @@ enum class CopyKind : u8 { Memcpy, Memmove, None };
 }
 
 // and with the mask that clears the sign bit of a float
- bool is_fabs_mask_and(fir::Instr instr) {
-   if (!instr->is(fir::BinaryInstrSubType::And) ||
-       !instr->result_type()->is_float() || !instr->args[1].is_constant() ||
-       !instr->args[1].as_constant()->is_float()) {
-     return false;
-   }
+bool is_fabs_mask_and(fir::Instr instr) {
+  if (!instr->is(fir::BinaryInstrSubType::And) ||
+      !instr->result_type()->is_float() || !instr->args[1].is_constant() ||
+      !instr->args[1].as_constant()->is_float()) {
+    return false;
+  }
   auto c = instr->args[1].as_constant();
   return instr->result_type()->get_bitwidth() == 32
              ? std::bit_cast<u32>(c->as_f32()) == 0x7FFFFFFFU
              : std::bit_cast<u64>(c->as_f64()) == 0x7FFFFFFFFFFFFFFFULL;
 }
 
-}; // namespace
+};  // namespace
 
 // detect single basicblock memset/memcpy
 bool match_memsetcpy(fir::Function &func) {
@@ -608,15 +610,14 @@ bool match_abs(fir::Context &ctx, fir::Function &func) {
       continue;
     }
     fir::Builder b{instr};
-    auto res = b.build_intrinsic(x, is_float ? fir::IntrinsicSubType::FAbs
-                                             : fir::IntrinsicSubType::Abs);
+    auto res = b.build_intrinsic(
+        x, is_float ? fir::IntrinsicSubType::FAbs : fir::IntrinsicSubType::Abs);
     instr->replace_all_uses(res);
     instr.destroy();
     modified = true;
   }
   return modified;
 }
-
 
 namespace {
 
@@ -634,7 +635,8 @@ constexpr size_t MaxBswapNodes = 64;
 
 // Per byte provenance of v, nullopt if some bit is not a plain copy of a bit
 // of one common leaf value.
-std::optional<ByteMap> byte_map(fir::ValueR v, fir::ValueR &leaf, size_t &budget) {
+std::optional<ByteMap> byte_map(fir::ValueR v, fir::ValueR &leaf,
+                                size_t &budget) {
   using Sub = fir::BinaryInstrSubType;
   if (!v.get_type()->is_int()) {
     return std::nullopt;
@@ -779,7 +781,7 @@ fir::ValueR bswap_operand(fir::Instr root) {
   return leaf;
 }
 
-} // namespace
+}  // namespace
 
 bool match_bswap(fir::Context &ctx, fir::Function &func) {
   (void)ctx;
@@ -813,4 +815,4 @@ bool match_bswap(fir::Context &ctx, fir::Function &func) {
   return modified;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

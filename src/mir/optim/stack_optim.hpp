@@ -9,7 +9,7 @@
 namespace foptim::fmir {
 
 class StackOptim : public FunctionPass {
-public:
+ public:
   void apply(MFunc &funcs, const conf::CompConf &) {
     TVec<ArgData> helper;
     for (auto &bb : funcs.bbs) {
@@ -110,4 +110,4 @@ public:
     }
   }
 };
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

@@ -7,8 +7,9 @@ namespace foptim::optim {
 // lanes are optional to check for specific widths or if 0 checks if theres any
 // instructiosn/control flow blocking
 std::optional<i64> can_whole_function_vectorize(fir::Function& func,
-                                                       u64 lanes = 0);
+                                                u64 lanes = 0);
 
 // vectorizes a whole function returns a refernce to the vectorized function
-std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func, u64 n_lanes);
+std::optional<fir::FunctionR> whole_function_vectorize(fir::Function& func,
+                                                       u64 n_lanes);
 }  // namespace foptim::optim

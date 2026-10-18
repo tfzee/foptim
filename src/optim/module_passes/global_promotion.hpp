@@ -1,4 +1,8 @@
 #pragma once
+#include <fmt/base.h>
+
+#include <cstring>
+
 #include "ir/builder.hpp"
 #include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
@@ -8,13 +12,11 @@
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
 #include "utils/tracy.hpp"
-#include <cstring>
-#include <fmt/base.h>
 
 namespace foptim::optim {
 
 class GlobalPromotion final : public ModulePass {
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
                           AnalysisManager &analyMan) override {
     ZoneScopedNC("GlobalPromotion", COLOR_OPTIMF);
@@ -79,14 +81,14 @@ public:
 #endif
             auto global = fir::Global{std::move(sref)};
             switch (global->linkage) {
-            case fir::Linkage::External:
-            case fir::Linkage::Weak:
-            case fir::Linkage::WeakODR:
-            case fir::Linkage::LinkOnce:
-              continue;
-            case fir::Linkage::LinkOnceODR:
-            case fir::Linkage::Internal:
-              break;
+              case fir::Linkage::External:
+              case fir::Linkage::Weak:
+              case fir::Linkage::WeakODR:
+              case fir::Linkage::LinkOnce:
+                continue;
+              case fir::Linkage::LinkOnceODR:
+              case fir::Linkage::Internal:
+                break;
             }
 
             if (global->n_bytes >= 8) {
@@ -190,4 +192,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

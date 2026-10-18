@@ -1,6 +1,7 @@
 #pragma once
-#include <atomic>
 #include <ankerl/unordered_dense.h>
+
+#include <atomic>
 
 #include "stable_vec_slot.hpp"
 #include "types.hpp"
@@ -8,8 +9,9 @@
 
 namespace foptim::utils {
 
-template <class T> class SRef {
-public:
+template <class T>
+class SRef {
+ public:
   Slot<T> *data_ref;
 #if SLOT_CHECK_LEVEL >= 2
   u32 generation;
@@ -75,7 +77,7 @@ public:
   }
 #endif
 
-private:
+ private:
   [[nodiscard]] constexpr bool slot_matches(
       std::memory_order order = std::memory_order_acquire) const {
     // a live slot never has generation 0, so a ref with 0 never matches
@@ -87,7 +89,7 @@ private:
 #endif
   }
 
-public:
+ public:
   constexpr const T *get_raw_ptr() const {
     verify_validness();
     return &data_ref->data;
@@ -127,7 +129,7 @@ constexpr bool operator==(const SRef<T> &self, const SRef<T> &other) {
 #endif
 }
 
-} // namespace foptim::utils
+}  // namespace foptim::utils
 
 template <class T>
 struct ankerl::unordered_dense::hash<foptim::utils::SRef<T>> {
@@ -145,7 +147,8 @@ struct ankerl::unordered_dense::hash<foptim::utils::SRef<T>> {
   }
 };
 
-template <class T> struct std::hash<foptim::utils::SRef<T>> {
+template <class T>
+struct std::hash<foptim::utils::SRef<T>> {
   std::size_t operator()(const foptim::utils::SRef<T> &k) const {
     using foptim::u32;
     using std::hash;

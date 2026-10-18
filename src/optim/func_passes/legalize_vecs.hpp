@@ -41,10 +41,10 @@ class LegalizeVecs final : public FunctionPass {
   // the matcher builds these with a vxor, no load from a constant needed
   static bool is_zero_vec(fir::ConstantValueR c) {
     for (const auto &m : c->as_vec().members) {
-      const bool zero = (m->is_int() && m->as_int() == 0) ||
-                        (m->is_float() && m->as_f64() == 0.0 &&
-                         !std::signbit(m->as_f64())) ||
-                        m->is_null();
+      const bool zero =
+          (m->is_int() && m->as_int() == 0) ||
+          (m->is_float() && m->as_f64() == 0.0 && !std::signbit(m->as_f64())) ||
+          m->is_null();
       if (!zero) {
         return false;
       }
@@ -172,7 +172,7 @@ class LegalizeVecs final : public FunctionPass {
                                     fir::VectorISubType::HorizontalAdd);
       auto a2 = buh.build_vector_op(a_high, out_type,
                                     fir::VectorISubType::HorizontalAdd);
-      ASSERT(out_type->is_float()); // TODO: impl for int
+      ASSERT(out_type->is_float());  // TODO: impl for int
       auto r = buh.build_float_add(a1, a2);
       push_all_uses(worklist, instr);
       instr->replace_all_uses(r);
@@ -182,7 +182,7 @@ class LegalizeVecs final : public FunctionPass {
     return changed;
   }
 
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     TVec<fir::Instr> worklist;
     // TODO(PERF): do prefiltering
@@ -201,4 +201,4 @@ public:
     return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

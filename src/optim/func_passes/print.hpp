@@ -6,7 +6,7 @@
 
 namespace foptim::optim {
 class PrintFunc final : public FunctionPass {
-public:
+ public:
   struct Config {
     FString name_match;
   };
@@ -25,4 +25,4 @@ public:
     return PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

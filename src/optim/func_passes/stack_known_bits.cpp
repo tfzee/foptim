@@ -543,4 +543,4 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
   return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -17,7 +17,7 @@ class Builder {
   BasicBlock bb;
   size_t indx;
 
-public:
+ public:
   Builder(FunctionR func);
   Builder(BasicBlock bb);
   Builder(Instr instr);
@@ -77,9 +77,9 @@ public:
   ValueR build_float_div(ValueR a, ValueR b);
   ValueR build_itrunc(ValueR a, TypeR ty);
   ValueR build_extract_element(ValueR stru, std::span<ValueR> indicies,
-                             TypeR out_ty);
+                               TypeR out_ty);
   ValueR build_insert_element(ValueR stru, ValueR v, std::span<ValueR> indicies,
-                            TypeR out_ty);
+                              TypeR out_ty);
   ValueR build_sext(ValueR a, TypeR ty);
   ValueR build_zext(ValueR a, TypeR ty);
   ValueR build_int_mul(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
@@ -111,4 +111,4 @@ public:
   Instr move_instr(Instr instr);
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

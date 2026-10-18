@@ -152,8 +152,7 @@ bool fix_types(fir::Function &func) {
 // For a alloca instruction get all basic blocks it needs an phi in.
 //  for this we look at all bbs that store to it
 void phi_insert_locations(fir::Function &func, fir::Instr alloca_instr,
-                          AllocToPhiLoc &res, Dominators &dom,
-                          bool &modified) {
+                          AllocToPhiLoc &res, Dominators &dom, bool &modified) {
   if (!alloca_instr->is(fir::InstrType::AllocaInstr)) {
     return;
   }
@@ -452,7 +451,7 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
     current_variable_value.pop_back();
   }
 }
-} // namespace
+}  // namespace
 
 PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   ZoneScopedN("Mem2Reg");
@@ -496,4 +495,4 @@ PreservedAnalysis Mem2Reg::apply(fir::Context &ctx, fir::Function &func) {
   // only block arguments and instructions change, no edges
   return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
-} // namespace foptim::optim
+}  // namespace foptim::optim

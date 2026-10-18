@@ -43,9 +43,9 @@ struct CountingLoop {
     i_arg = ValueR{loop_bb->args[0]};
     i_next = builder.build_int_add(
         i_arg, ValueR{ctx.data->get_constant_value(step, i32)});
-    ValueR limit = const_limit ? ValueR{ctx.data->get_constant_value(
-                                     *const_limit, i32)}
-                               : ValueR{entry_bb->args[0]};
+    ValueR limit = const_limit
+                       ? ValueR{ctx.data->get_constant_value(*const_limit, i32)}
+                       : ValueR{entry_bb->args[0]};
     auto cond = builder.build_int_cmp(i_next, limit, pred);
     auto cbr = builder.build_cond_branch(cond, loop_bb, exit_bb);
     cbr.add_bb_arg(0, i_next);
@@ -59,10 +59,9 @@ struct LoopSetup {
   foptim::optim::CFG cfg;
   foptim::optim::Dominators dom;
   foptim::optim::LoopInfoAnalysis loops;
-  explicit LoopSetup(foptim::fir::Function &f)
-      : cfg(f), dom(cfg), loops(dom) {}
+  explicit LoopSetup(foptim::fir::Function &f) : cfg(f), dom(cfg), loops(dom) {}
 };
-} // namespace
+}  // namespace
 
 TEST(ScalarEvoTest, InductionVariables) {
   using foptim::fir::ICmpInstrSubType;

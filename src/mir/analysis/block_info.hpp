@@ -26,7 +26,7 @@ inline BlockInfo analyze_blocks(const MFunc &func, const CFG &cfg) {
   enum : u8 { White = 0, Grey = 1, Black = 2 };
   TVec<u8> color(n, White);
   TVec<TVec<u32>> tails(n);
-  TVec<std::pair<u32, u32>> stack; // (block, next succ index)
+  TVec<std::pair<u32, u32>> stack;  // (block, next succ index)
   color[0] = Grey;
   stack.emplace_back(0, 0);
   while (!stack.empty()) {
@@ -116,4 +116,4 @@ inline f32 block_weight(u32 loop_depth, bool cold) {
   return std::pow(8.F, static_cast<f32>(std::min<u32>(loop_depth, 5)));
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

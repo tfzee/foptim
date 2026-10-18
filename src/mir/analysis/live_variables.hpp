@@ -7,7 +7,7 @@
 namespace foptim::fmir {
 
 class LiveVariables {
-public:
+ public:
   const CFG &cfg;
   TVec<utils::BitSet<>> _live;
   TVec<utils::BitSet<>> _liveIn;
@@ -181,4 +181,4 @@ TMap<VReg, TSet<size_t>> reg_coll(const MFunc &func,
                                   const TVec<f32> *block_weights = nullptr,
                                   TMap<size_t, f32> *call_crossings = nullptr);
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

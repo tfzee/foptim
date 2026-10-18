@@ -10,4 +10,4 @@ inline u8 verbosity = 254;
 
 [[nodiscard]] inline bool verbose() { return verbosity > 0; }
 
-} // namespace foptim::utils
+}  // namespace foptim::utils

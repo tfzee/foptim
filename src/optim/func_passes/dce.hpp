@@ -1,4 +1,6 @@
 #pragma once
+#include <fmt/base.h>
+
 #include "../function_pass.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
@@ -6,7 +8,6 @@
 #include "optim/analysis/dominators.hpp"
 #include "utils/arena.hpp"
 #include "utils/set.hpp"
-#include <fmt/base.h>
 
 namespace foptim::optim {
 
@@ -31,7 +32,7 @@ static void reachable_from_entry(CFG &cfg, TSet<size_t> &seen) {
 }
 
 class DCE final : public FunctionPass {
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("DCE", COLOR_OPTIMF);
     bool modified = false;
@@ -185,4 +186,4 @@ public:
     }
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

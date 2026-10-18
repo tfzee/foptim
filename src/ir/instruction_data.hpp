@@ -54,7 +54,6 @@ struct BBRefWithArgs {
   bool operator==(const BBRefWithArgs &other) const;
 };
 
-
 // The branch targets of a terminator, allocated on first use since almost no
 // instruction has any. The same pointer slot holds the result types of a call
 // with several results (tagged in the lowest bit), a call never has targets.
@@ -122,19 +121,20 @@ class BBList {
     return vec_or_empty()[i];
   }
   BBRefWithArgs &operator[](size_t i) { return vec_mut()[i]; }
-  [[nodiscard]] const BBRefWithArgs &at(size_t i) const { return vec_or_empty().at(i); }
-  [[nodiscard]] const BBRefWithArgs &back() const { return vec_or_empty().back(); }
+  [[nodiscard]] const BBRefWithArgs &at(size_t i) const {
+    return vec_or_empty().at(i);
+  }
+  [[nodiscard]] const BBRefWithArgs &back() const {
+    return vec_or_empty().back();
+  }
   BBRefWithArgs &back() { return vec_mut().back(); }
-  [[nodiscard]] const_iterator begin() const {
-    return vec_or_empty().begin();
-  }
-  [[nodiscard]] const_iterator end() const {
-    return vec_or_empty().end();
-  }
+  [[nodiscard]] const_iterator begin() const { return vec_or_empty().begin(); }
+  [[nodiscard]] const_iterator end() const { return vec_or_empty().end(); }
   iterator begin() { return vec() == nullptr ? iterator{} : vec_mut().begin(); }
   iterator end() { return vec() == nullptr ? iterator{} : vec_mut().end(); }
   void push_back(BBRefWithArgs v) { vec_mut().push_back(std::move(v)); }
-  template <class... A> BBRefWithArgs &emplace_back(A &&...a) {
+  template <class... A>
+  BBRefWithArgs &emplace_back(A &&...a) {
     return vec_mut().emplace_back(std::forward<A>(a)...);
   }
   void reserve(size_t n) { vec_mut().reserve(n); }
@@ -329,7 +329,7 @@ struct InstrAttribs {
 };
 
 class InstrData : public Used, public InstrAttribs {
-public:
+ public:
   InstrType instr_type;
   u16 subtype;
 
@@ -465,26 +465,26 @@ public:
 
   constexpr void verify() const {
     switch (instr_type) {
-    case InstrType::BinaryInstr:
-      ASSERT(args.size() == 2);
-      break;
-    case InstrType::ICmp:
-      ASSERT(args.size() == 2);
-      break;
-    case InstrType::CallInstr:
-      ASSERT(args.size() >= 1);
-      break;
-    case InstrType::AllocaInstr:
-      ASSERT(args.size() == 1);
-      break;
-    case InstrType::LoadInstr:
-      ASSERT(args.size() == 1);
-      break;
-    case InstrType::StoreInstr:
-      ASSERT(args.size() == 2);
-      break;
-    default:
-      break;
+      case InstrType::BinaryInstr:
+        ASSERT(args.size() == 2);
+        break;
+      case InstrType::ICmp:
+        ASSERT(args.size() == 2);
+        break;
+      case InstrType::CallInstr:
+        ASSERT(args.size() >= 1);
+        break;
+      case InstrType::AllocaInstr:
+        ASSERT(args.size() == 1);
+        break;
+      case InstrType::LoadInstr:
+        ASSERT(args.size() == 1);
+        break;
+      case InstrType::StoreInstr:
+        ASSERT(args.size() == 2);
+        break;
+      default:
+        break;
     }
   }
 
@@ -536,4 +536,4 @@ static_assert(sizeof(InstrData) == 120, "keep InstrData small");
 static_assert(sizeof(InstrData) == 96, "keep InstrData small");
 #endif
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

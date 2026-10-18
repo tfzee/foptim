@@ -48,7 +48,7 @@ class CleanTracker {
   FVec<std::string_view> names;
   FVec<u32> interprocedural_ids;
 
-public:
+ public:
   void init(const std::vector<conf::PassConfig *> &passes, bool enable) {
     enabled = enable;
     for (auto *p : passes) {
@@ -144,4 +144,4 @@ public:
   void print_stats() const;
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

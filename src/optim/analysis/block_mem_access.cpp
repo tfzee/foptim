@@ -24,7 +24,7 @@ void split_addr(fir::ValueR addr, fir::ValueR &base, i128 &offset) {
     base = i->args[0];
   }
 }
-} // namespace
+}  // namespace
 
 BlockMemAccesses::BlockMemAccesses(fir::BasicBlock bb) {
   using Kind = BlockMemAccess::Kind;
@@ -113,20 +113,20 @@ MemDep BlockMemAccesses::can_sink(std::span<const u32> members,
     }
     const auto &c = acc[i];
     switch (c.kind) {
-    case Kind::BarrierRW:
-      return MemDep::Dependent;
-    case Kind::BarrierR:
-      if (kind == Kind::Store) {
+      case Kind::BarrierRW:
         return MemDep::Dependent;
-      }
-      continue;
-    case Kind::Load:
-      if (kind == Kind::Load) {
+      case Kind::BarrierR:
+        if (kind == Kind::Store) {
+          return MemDep::Dependent;
+        }
         continue;
-      }
-      break;
-    case Kind::Store:
-      break;
+      case Kind::Load:
+        if (kind == Kind::Load) {
+          continue;
+        }
+        break;
+      case Kind::Store:
+        break;
     }
     for (size_t j = 0; j < n_before; j++) {
       const auto &m = acc[sorted[j]];
@@ -145,4 +145,4 @@ MemDep BlockMemAccesses::can_sink(std::span<const u32> members,
   return MemDep::Independent;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

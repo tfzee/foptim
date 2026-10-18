@@ -20,7 +20,8 @@ bool is_direct_call_use(const fir::Use &use) {
 
 // the result i of a call of func itself, as returned by a return of func
 bool is_self_forward(fir::ValueR v, u8 i, fir::FunctionR func) {
-  if (!v.is_instr() || v.idx != i || !v.as_instr()->is(fir::InstrType::CallInstr)) {
+  if (!v.is_instr() || v.idx != i ||
+      !v.as_instr()->is(fir::InstrType::CallInstr)) {
     return false;
   }
   auto callee = v.as_instr()->args[0];
@@ -46,8 +47,8 @@ bool constant_prop_return(fir::FunctionR func, const TVec<fir::Instr> &rets,
         forwards = true;
         continue;
       }
-      if (!v.is_constant() &&
-          (!v.is_bb_arg() || v.as_bb_arg()->get_parent() != func->get_entry())) {
+      if (!v.is_constant() && (!v.is_bb_arg() || v.as_bb_arg()->get_parent() !=
+                                                     func->get_entry())) {
         same = false;
         break;
       }
@@ -67,11 +68,11 @@ bool constant_prop_return(fir::FunctionR func, const TVec<fir::Instr> &rets,
       if (!is_direct_call_use(use) || use.user.result(i).get_n_uses() == 0) {
         continue;
       }
-      auto repl = val.is_constant()
-                      ? val
-                      : use.user->args[func->get_entry()->get_arg_id(
-                                           val.as_bb_arg()) +
-                                       1];
+      auto repl =
+          val.is_constant()
+              ? val
+              : use.user
+                    ->args[func->get_entry()->get_arg_id(val.as_bb_arg()) + 1];
       use.user.result(i).replace_all_uses(repl);
       modified = true;
     }
@@ -142,7 +143,8 @@ bool result_is_dead(fir::FunctionR func, u8 i) {
 
 // Drops results nobody reads from the function, its returns and its calls.
 bool kill_dead_results(fir::FunctionR func, fir::Context &ctx,
-                       const TVec<fir::Instr> &rets, AnalysisManager &analyMan) {
+                       const TVec<fir::Instr> &rets,
+                       AnalysisManager &analyMan) {
   const auto func_ty = func->func_ty->as_func();
   const auto n_results = func_ty.n_results();
   TVec<u8> new_index(n_results);
@@ -362,7 +364,7 @@ bool kill_dead_args(fir::FunctionR func, fir::Context &ctx,
   }
   return false;
 }
-} // namespace
+}  // namespace
 
 PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
                               AnalysisManager &analyMan) {
@@ -371,14 +373,14 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
   const auto funcs = ctx.data->storage.functions.all();
   for (auto *f : funcs) {
     switch (f->attribs.linkage) {
-    case fir::Linkage::External:
-    case fir::Linkage::Weak:
-    case fir::Linkage::LinkOnce:
-    case fir::Linkage::WeakODR:
-      continue;
-    case fir::Linkage::LinkOnceODR:
-    case fir::Linkage::Internal:
-      break;
+      case fir::Linkage::External:
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+      case fir::Linkage::WeakODR:
+        continue;
+      case fir::Linkage::LinkOnceODR:
+      case fir::Linkage::Internal:
+        break;
     }
 
     if (f->is_decl() || f->attribs.variadic) {
@@ -409,4 +411,4 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
   return PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -6,7 +6,7 @@
 namespace foptim::optim {
 
 class SimpleVectorizer final : public FunctionPass {
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

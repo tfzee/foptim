@@ -259,7 +259,9 @@ ConstantValueR ContextData::intern_constant(const ConstantValue &val) {
                r.data_ref->data.get_type() == val.get_type() &&
                r.data_ref->data.eql(val);
       },
-      [&] { return utils::SRef<ConstantValue>(storage.insert_constant(val)); }));
+      [&] {
+        return utils::SRef<ConstantValue>(storage.insert_constant(val));
+      }));
 }
 
 TypeR ContextData::intern_type(const AnyType &val) {

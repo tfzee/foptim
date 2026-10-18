@@ -1,12 +1,12 @@
-#include "utils/verbosity.hpp"
 #include "reg_alloc.hpp"
 
-#include <algorithm>
 #include <ankerl/unordered_dense.h>
-#include <array>
-#include <cstring>
 #include <fmt/base.h>
 #include <fmt/ranges.h>
+
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <limits>
 #include <ranges>
 
@@ -20,6 +20,7 @@
 #include "utils/set.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
+#include "utils/verbosity.hpp"
 
 namespace foptim::fmir {
 void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
@@ -33,49 +34,49 @@ void replace_vargs(IRVec<MBB> &bbs, const TMap<u64, CReg> &reg_mapping) {
 void replace_vargs(MInstr &instr, const TMap<u64, CReg> &reg_mapping) {
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
-    case MArgument::ArgumentType::StackSlot:
-    case MArgument::ArgumentType::Imm:
-    case MArgument::ArgumentType::Label:
-    case MArgument::ArgumentType::MemLabel:
-    case MArgument::ArgumentType::MemImmLabel:
-    case MArgument::ArgumentType::MemImm:
-      break;
-    case MArgument::ArgumentType::VReg:
-    case MArgument::ArgumentType::MemImmVReg:
-    case MArgument::ArgumentType::MemVReg: {
-      auto reg = instr.args[i].reg;
-      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-        instr.args[i].reg.rty = VReg::RegType::Concrete;
-        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+      case MArgument::ArgumentType::StackSlot:
+      case MArgument::ArgumentType::Imm:
+      case MArgument::ArgumentType::Label:
+      case MArgument::ArgumentType::MemLabel:
+      case MArgument::ArgumentType::MemImmLabel:
+      case MArgument::ArgumentType::MemImm:
+        break;
+      case MArgument::ArgumentType::VReg:
+      case MArgument::ArgumentType::MemImmVReg:
+      case MArgument::ArgumentType::MemVReg: {
+        auto reg = instr.args[i].reg;
+        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+          instr.args[i].reg.rty = VReg::RegType::Concrete;
+          instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+        }
+        break;
       }
-      break;
-    }
-    case MArgument::ArgumentType::MemVRegVRegScale:
-    case MArgument::ArgumentType::MemImmVRegVReg:
-    case MArgument::ArgumentType::MemVRegVReg:
-    case MArgument::ArgumentType::MemImmVRegVRegScale: {
-      auto reg = instr.args[i].reg;
-      auto indx = instr.args[i].indx;
-      if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
-        instr.args[i].reg.rty = VReg::RegType::Concrete;
-        instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+      case MArgument::ArgumentType::MemVRegVRegScale:
+      case MArgument::ArgumentType::MemImmVRegVReg:
+      case MArgument::ArgumentType::MemVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVRegScale: {
+        auto reg = instr.args[i].reg;
+        auto indx = instr.args[i].indx;
+        if (!reg.is_concrete() && reg_mapping.contains(reg.virt_id())) {
+          instr.args[i].reg.rty = VReg::RegType::Concrete;
+          instr.args[i].reg.conc.creg = reg_mapping.at(reg.virt_id());
+        }
+        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+          instr.args[i].indx.rty = VReg::RegType::Concrete;
+          instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
+        }
+        break;
       }
-      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-        instr.args[i].indx.rty = VReg::RegType::Concrete;
-        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
+      case MArgument::ArgumentType::MemLabelVregScale:
+      case MArgument::ArgumentType::MemLabelVreg:
+      case MArgument::ArgumentType::MemImmVRegScale: {
+        auto indx = instr.args[i].indx;
+        if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
+          instr.args[i].indx.rty = VReg::RegType::Concrete;
+          instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
+        }
+        break;
       }
-      break;
-    }
-    case MArgument::ArgumentType::MemLabelVregScale:
-    case MArgument::ArgumentType::MemLabelVreg:
-    case MArgument::ArgumentType::MemImmVRegScale: {
-      auto indx = instr.args[i].indx;
-      if (!indx.is_concrete() && reg_mapping.contains(indx.virt_id())) {
-        instr.args[i].indx.rty = VReg::RegType::Concrete;
-        instr.args[i].indx.conc.creg = reg_mapping.at(indx.virt_id());
-      }
-      break;
-    }
     }
   }
 }
@@ -95,33 +96,33 @@ void replace_varg(MInstr &instr, u64 from, VReg to, bool keep_type) {
 
   for (u32 i = 0; i < instr.n_args; i++) {
     switch (instr.args[i].type) {
-    case MArgument::ArgumentType::StackSlot:
-    case MArgument::ArgumentType::Imm:
-    case MArgument::ArgumentType::Label:
-    case MArgument::ArgumentType::MemLabel:
-    case MArgument::ArgumentType::MemImmLabel:
-    case MArgument::ArgumentType::MemImm:
-      break;
-    case MArgument::ArgumentType::VReg:
-    case MArgument::ArgumentType::MemImmVReg:
-    case MArgument::ArgumentType::MemVReg: {
-      replace(instr.args[i].reg);
-      break;
-    }
-    case MArgument::ArgumentType::MemVRegVRegScale:
-    case MArgument::ArgumentType::MemImmVRegVReg:
-    case MArgument::ArgumentType::MemVRegVReg:
-    case MArgument::ArgumentType::MemImmVRegVRegScale: {
-      replace(instr.args[i].reg);
-      replace(instr.args[i].indx);
-      break;
-    }
-    case MArgument::ArgumentType::MemLabelVregScale:
-    case MArgument::ArgumentType::MemLabelVreg:
-    case MArgument::ArgumentType::MemImmVRegScale: {
-      replace(instr.args[i].indx);
-      break;
-    }
+      case MArgument::ArgumentType::StackSlot:
+      case MArgument::ArgumentType::Imm:
+      case MArgument::ArgumentType::Label:
+      case MArgument::ArgumentType::MemLabel:
+      case MArgument::ArgumentType::MemImmLabel:
+      case MArgument::ArgumentType::MemImm:
+        break;
+      case MArgument::ArgumentType::VReg:
+      case MArgument::ArgumentType::MemImmVReg:
+      case MArgument::ArgumentType::MemVReg: {
+        replace(instr.args[i].reg);
+        break;
+      }
+      case MArgument::ArgumentType::MemVRegVRegScale:
+      case MArgument::ArgumentType::MemImmVRegVReg:
+      case MArgument::ArgumentType::MemVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVRegScale: {
+        replace(instr.args[i].reg);
+        replace(instr.args[i].indx);
+        break;
+      }
+      case MArgument::ArgumentType::MemLabelVregScale:
+      case MArgument::ArgumentType::MemLabelVreg:
+      case MArgument::ArgumentType::MemImmVRegScale: {
+        replace(instr.args[i].indx);
+        break;
+      }
     }
   }
 }
@@ -194,30 +195,30 @@ void setup_costs(const MFunc &func, CostGraph &graph,
     for (const auto &instr : func.bbs[bb_id].instrs) {
       for (size_t i_arg = 0; i_arg < instr.n_args; i_arg++) {
         switch (instr.args[i_arg].type) {
-        case MArgument::ArgumentType::StackSlot:
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-          break;
-        case MArgument::ArgumentType::VReg:
-        case MArgument::ArgumentType::MemImmVReg:
-        case MArgument::ArgumentType::MemVReg:
-          ensure_node(instr.args[i_arg].reg);
-          break;
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          ensure_node(instr.args[i_arg].reg);
-          ensure_node(instr.args[i_arg].indx);
-          break;
-        case MArgument::ArgumentType::MemLabelVregScale:
-        case MArgument::ArgumentType::MemLabelVreg:
-        case MArgument::ArgumentType::MemImmVRegScale:
-          ensure_node(instr.args[i_arg].indx);
-          break;
+          case MArgument::ArgumentType::StackSlot:
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemImmVReg:
+          case MArgument::ArgumentType::MemVReg:
+            ensure_node(instr.args[i_arg].reg);
+            break;
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            ensure_node(instr.args[i_arg].reg);
+            ensure_node(instr.args[i_arg].indx);
+            break;
+          case MArgument::ArgumentType::MemLabelVregScale:
+          case MArgument::ArgumentType::MemLabelVreg:
+          case MArgument::ArgumentType::MemImmVRegScale:
+            ensure_node(instr.args[i_arg].indx);
+            break;
         }
       }
 
@@ -368,8 +369,8 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
       }
       // the destination of a truncation is narrower than its source, the slot
       // must only be written with the destination size
-      const bool own_type = instr.is(GConvSubtype::itrunc) ||
-                            a1.ty == Type::INVALID;
+      const bool own_type =
+          instr.is(GConvSubtype::itrunc) || a1.ty == Type::INVALID;
       // never write more than the destination holds (mov i32, xmm only moves
       // 4 bytes but the source is the whole vector), let the normal spill
       // path insert a correctly sized temp instead
@@ -809,8 +810,8 @@ bool do_spilling(MFunc &func, TVec<u64> &needs_spilling,
   return !inserted_moves;
 }
 
-} // namespace
-} // namespace foptim::fmir
+}  // namespace
+}  // namespace foptim::fmir
 
 namespace foptim::fmir {
 
@@ -831,42 +832,42 @@ void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
       for (size_t arg_id = 0; arg_id < instr.n_args; arg_id++) {
         auto &arg = instr.args[arg_id];
         switch (arg.type) {
-        case MArgument::ArgumentType::StackSlot:
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-          break;
-        case MArgument::ArgumentType::VReg:
-        case MArgument::ArgumentType::MemImmVReg:
-        case MArgument::ArgumentType::MemVReg:
-          if (!arg.reg.is_concrete()) {
-            new_virtual_reg_id =
-                std::max(new_virtual_reg_id, arg.reg.virt_id());
-          }
-          break;
-        case MArgument::ArgumentType::MemVRegVRegScale:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-          if (!arg.reg.is_concrete()) {
-            new_virtual_reg_id =
-                std::max(new_virtual_reg_id, arg.reg.virt_id());
-          }
-          if (!arg.indx.is_concrete()) {
-            new_virtual_reg_id =
-                std::max(new_virtual_reg_id, arg.indx.virt_id());
-          }
-          break;
-        case MArgument::ArgumentType::MemImmVRegScale:
-        case MArgument::ArgumentType::MemLabelVreg:
-        case MArgument::ArgumentType::MemLabelVregScale:
-          if (!arg.indx.is_concrete()) {
-            new_virtual_reg_id =
-                std::max(new_virtual_reg_id, arg.indx.virt_id());
-          }
-          break;
+          case MArgument::ArgumentType::StackSlot:
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::VReg:
+          case MArgument::ArgumentType::MemImmVReg:
+          case MArgument::ArgumentType::MemVReg:
+            if (!arg.reg.is_concrete()) {
+              new_virtual_reg_id =
+                  std::max(new_virtual_reg_id, arg.reg.virt_id());
+            }
+            break;
+          case MArgument::ArgumentType::MemVRegVRegScale:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+            if (!arg.reg.is_concrete()) {
+              new_virtual_reg_id =
+                  std::max(new_virtual_reg_id, arg.reg.virt_id());
+            }
+            if (!arg.indx.is_concrete()) {
+              new_virtual_reg_id =
+                  std::max(new_virtual_reg_id, arg.indx.virt_id());
+            }
+            break;
+          case MArgument::ArgumentType::MemImmVRegScale:
+          case MArgument::ArgumentType::MemLabelVreg:
+          case MArgument::ArgumentType::MemLabelVregScale:
+            if (!arg.indx.is_concrete()) {
+              new_virtual_reg_id =
+                  std::max(new_virtual_reg_id, arg.indx.virt_id());
+            }
+            break;
         }
       }
     }
@@ -952,4 +953,4 @@ void RegAlloc2::apply(MFunc &func, const conf::CompConf & /*config*/) {
   // }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

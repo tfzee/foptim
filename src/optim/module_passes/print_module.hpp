@@ -6,7 +6,7 @@
 namespace foptim::optim {
 
 class PrintModule final : public ModulePass {
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
                           AnalysisManager & /*analyMan*/) override {
     if (ctx.config->debug.print_color) {
@@ -18,4 +18,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

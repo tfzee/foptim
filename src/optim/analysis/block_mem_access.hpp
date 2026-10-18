@@ -51,7 +51,7 @@ struct BlockMemAccess {
   It answers what the SLP (and later the loop) vectorizer needs if you can sink
 */
 class BlockMemAccesses {
-public:
+ public:
   static constexpr u32 MaxScan = 256;
 
   explicit BlockMemAccesses(fir::BasicBlock bb);
@@ -66,10 +66,10 @@ public:
   // any order) be moved down to the position of the last of them?
   MemDep can_sink(std::span<const u32> members, AliasAnalyis &aa) const;
 
-private:
+ private:
   TVec<BlockMemAccess> acc;
   TMap<fir::ValueR, u32> index;
   u32 barriers = 0;
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

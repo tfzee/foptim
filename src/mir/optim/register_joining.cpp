@@ -1,8 +1,9 @@
+#include "register_joining.hpp"
+
 #include "mir/analysis/live_variables.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/optim/reg_alloc.hpp"
-#include "register_joining.hpp"
 
 namespace foptim::fmir {
 
@@ -72,7 +73,8 @@ void RegisterJoining::apply_impl(MFunc &func) {
   replace_vargs(func.bbs, reg_mapping);
 }
 
-void RegisterJoining::apply(MFunc &func, const conf::CompConf&) { apply_impl(func); }
-
+void RegisterJoining::apply(MFunc &func, const conf::CompConf &) {
+  apply_impl(func);
+}
 
 }  // namespace foptim::fmir

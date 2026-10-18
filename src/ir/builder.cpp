@@ -19,7 +19,8 @@ Builder::Builder(BasicBlock bb)
     : ctx(bb->get_parent()->ctx), func(bb->get_parent()), bb(bb), indx(0) {}
 Builder::Builder(Instr instr)
     : ctx(instr->get_parent()->get_parent()->ctx),
-      func(instr->get_parent()->get_parent()), bb(instr->get_parent()),
+      func(instr->get_parent()->get_parent()),
+      bb(instr->get_parent()),
       indx(0) {
   indx = bb->get_instr_id(instr);
 }
@@ -71,8 +72,9 @@ void Builder::at_penultimate(BasicBlock bbr) {
 }
 
 void Builder::check_bb_set() {
-  ASSERT_M(bb.is_valid(), "Need to set basicblock insert location first with "
-                          "funtions like at_end for exmaple");
+  ASSERT_M(bb.is_valid(),
+           "Need to set basicblock insert location first with "
+           "funtions like at_end for exmaple");
 }
 
 ValueR Builder::build_call(ValueR func_ptr, TypeR func_type, TypeR ret_type,
@@ -257,9 +259,10 @@ ValueR Builder::build_unary_op(ValueR a, UnaryInstrSubType sub_type) {
 }
 
 ValueR Builder::build_extract_element(ValueR stru, std::span<ValueR> indicies,
-                                    TypeR out_ty) {
+                                      TypeR out_ty) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(InstrData::get_extract_element(out_ty));
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_extract_element(out_ty));
   instr.add_arg(stru);
   for (auto ar : indicies) {
     instr.add_arg(ar);
@@ -270,9 +273,10 @@ ValueR Builder::build_extract_element(ValueR stru, std::span<ValueR> indicies,
 }
 
 ValueR Builder::build_insert_element(ValueR stru, ValueR v,
-                                   std::span<ValueR> indicies, TypeR out_ty) {
+                                     std::span<ValueR> indicies, TypeR out_ty) {
   check_bb_set();
-  Instr instr = ctx->storage.insert_instr(InstrData::get_insert_element(out_ty));
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_insert_element(out_ty));
   instr.add_arg(stru);
   instr.add_arg(v);
   for (auto ar : indicies) {
@@ -720,4 +724,4 @@ Instr Builder::insert_copy(Instr instr) {
   return res;
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

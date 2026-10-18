@@ -235,9 +235,7 @@ u64 mix_hash(u64 h, u64 v) {
   return h;
 }
 
-u64 type_key(fir::TypeR ty) {
-  return reinterpret_cast<u64>(ty.get_raw_ptr());
-}
+u64 type_key(fir::TypeR ty) { return reinterpret_cast<u64>(ty.get_raw_ptr()); }
 
 // Only functions with the same key can match: same type, blocks, and per
 // instruction the kind, operand count and result type.
@@ -431,9 +429,8 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx,
   return true;
 }
 
-void collect_group(
-    const fir::Context &ctx, const Candidates &cands, size_t idx1,
-    foptim::Mutex<FVec<MergableGroup>> &groups) {
+void collect_group(const fir::Context &ctx, const Candidates &cands,
+                   size_t idx1, foptim::Mutex<FVec<MergableGroup>> &groups) {
   TMap<fir::ValueR, fir::ValueR> local_value_map;
   TVec<DiffConst> difference_values;
 
@@ -501,7 +498,7 @@ void collect_group(
   }
 }
 
-} // namespace
+}  // namespace
 
 PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx,
                                             AnalysisManager &analyMan) {
@@ -648,4 +645,4 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed,
   return PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

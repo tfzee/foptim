@@ -15,7 +15,7 @@
 namespace foptim::optim {
 
 class ArgPromotion final : public ModulePass {
-public:
+ public:
   bool are_there_potential_aliasing_stores(fir::FunctionR /*func*/,
                                            fir::BBArgument /*barg*/,
                                            fir::Use use, CFG &cfg,
@@ -24,19 +24,19 @@ public:
   // if we return 2 vectors and then instant concat them we can also concat them
   // inside of the function
   bool return_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx,
-                                 AnalysisManager &analyMan);
+                                   AnalysisManager &analyMan);
 
   // if we get vector args and all we do is concat them concat them prior and
   // only give in 1 arg
   bool promote_vecvec_to_concat_vec(fir::FunctionR func, fir::Context &ctx,
-                                  AnalysisManager &analyMan);
+                                    AnalysisManager &analyMan);
 
   // if we return a pointer and its just loaded once just load on the inside so
   // we dont have pointers getting handed arround
   //  allos will allows for further optimizations possibly on the pointer that
   //  would otherwise escape
   bool promote_ptr_to_value_return(fir::FunctionR func, fir::Context &ctx,
-                                 AnalysisManager &analyMan);
+                                   AnalysisManager &analyMan);
 
   // if *some* load of the value *always* executes.
   // (dominates all exits)
@@ -48,10 +48,10 @@ public:
   //  we can isntead do the load before the call allowing potentialy more
   //  optimizations on that side like mem2reg
   bool promote_ptr_to_value_args(fir::FunctionR func, fir::Context &ctx,
-                               AnalysisManager &analyMan);
+                                 AnalysisManager &analyMan);
 
   PreservedAnalysis apply(fir::Context & /*unused*/, JobSheduler * /*shed*/,
                           AnalysisManager & /*analyMan*/) override;
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

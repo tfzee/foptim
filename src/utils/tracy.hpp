@@ -7,5 +7,5 @@
 #define ZoneScopedNC(name, color)
 #define TracyAlloc(ptr, size)
 #define TracyFree(ptr)
-#define TracyPlot(name, value);
+#define TracyPlot(name, value) ;
 #endif

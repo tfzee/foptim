@@ -130,7 +130,7 @@ struct ConstDivEmitter {
     return d < 0 ? neg(q) : q;
   }
 };
-} // namespace
+}  // namespace
 
 bool generate_const_div(fir::Instr instr, bool is_signed, bool is_rem,
                         MatchResult &res, ExtraMatchData &data) {
@@ -199,4 +199,4 @@ bool generate_const_div(fir::Instr instr, bool is_signed, bool is_rem,
   return true;
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

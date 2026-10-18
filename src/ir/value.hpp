@@ -154,7 +154,8 @@ inline ValueR Instr::result(u8 idx) const {
 }
 
 // maps every result of from to the same result of to
-template <class Map> void map_results(Instr from, Instr to, Map &map) {
+template <class Map>
+void map_results(Instr from, Instr to, Map &map) {
   if (!from.is_multi_result()) {
     map.insert({from.result(), to.result()});
     return;
@@ -163,9 +164,10 @@ template <class Map> void map_results(Instr from, Instr to, Map &map) {
     map.insert({from.result(i), to.result(i)});
   }
 }
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-template <> struct ankerl::unordered_dense::hash<foptim::fir::ValueR> {
+template <>
+struct ankerl::unordered_dense::hash<foptim::fir::ValueR> {
   using is_avalanching = void;
 
   [[nodiscard]] auto operator()(const foptim::fir::ValueR &k) const noexcept
@@ -185,7 +187,8 @@ template <> struct ankerl::unordered_dense::hash<foptim::fir::ValueR> {
   }
 };
 
-template <> struct std::hash<foptim::fir::ValueR> {
+template <>
+struct std::hash<foptim::fir::ValueR> {
   std::size_t operator()(const foptim::fir::ValueR &k) const {
     using foptim::u32;
     using std::hash;

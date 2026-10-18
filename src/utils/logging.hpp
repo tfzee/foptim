@@ -3,13 +3,15 @@
 #include <fmt/format.h>
 
 #include "types.hpp"
-template <class T, class Ctx> struct PrintWrapper {
+template <class T, class Ctx>
+struct PrintWrapper {
   T data;
   Ctx ctx;
 };
 
-template <class T> class BaseIRFormatter {
-public:
+template <class T>
+class BaseIRFormatter {
+ public:
   bool debug = false;
   bool color = false;
   bool extended = false;
@@ -20,20 +22,20 @@ public:
 
     while (it != end && *it != '}') {
       switch (*it) {
-      case 'd':
-        debug = true;
-        break;
-      case 'e':
-        extended = true;
-        break;
-      case 'c':
-        color = true;
-        break;
-      case 'p':
-        debug = false;
-        break;
-      default:
-        return it;
+        case 'd':
+          debug = true;
+          break;
+        case 'e':
+          extended = true;
+          break;
+        case 'c':
+          color = true;
+          break;
+        case 'p':
+          debug = false;
+          break;
+        default:
+          return it;
       }
       ++it;
     }
@@ -41,7 +43,8 @@ public:
     return it;
   }
 
-  template <class D> void forward_it(BaseIRFormatter<D> &out) const {
+  template <class D>
+  void forward_it(BaseIRFormatter<D> &out) const {
     out.color = color;
     out.debug = debug;
     out.extended = extended;
@@ -54,9 +57,11 @@ concept IsSRef = requires(T t) {
   t.get_raw_ptr();
 };
 
-template <IsSRef T> class fmt::formatter<T> : public BaseIRFormatter<T> {
-public:
-  template <class CTX> appender format(const T &k, CTX &ctx) const {
+template <IsSRef T>
+class fmt::formatter<T> : public BaseIRFormatter<T> {
+ public:
+  template <class CTX>
+  appender format(const T &k, CTX &ctx) const {
     auto app = ctx.out();
     if (!k.is_valid()) {
       return fmt::format_to(ctx.out(), "INVALID");
@@ -86,21 +91,21 @@ constexpr auto color_type = fg(fmt::color::light_coral);
 template <>
 class fmt::formatter<foptim::optim::KnownBits>
     : public BaseIRFormatter<foptim::optim::KnownBits> {
-public:
+ public:
   appender format(foptim::optim::KnownBits const &k, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::ValueR>
     : public BaseIRFormatter<foptim::fir::ValueR> {
-public:
+ public:
   appender format(foptim::fir::ValueR const &k, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::Attribute>
     : public BaseIRFormatter<foptim::fir::Attribute> {
-public:
+ public:
   appender format(foptim::fir::Attribute const &attrib,
                   format_context &ctx) const;
 };
@@ -108,49 +113,49 @@ public:
 template <>
 class fmt::formatter<foptim::fir::Function>
     : public BaseIRFormatter<foptim::fir::Function> {
-public:
+ public:
   appender format(foptim::fir::Function const &func, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::BasicBlock>
     : public BaseIRFormatter<foptim::fir::BasicBlock> {
-public:
+ public:
   appender format(foptim::fir::BasicBlock const &bb, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::BBArgument>
     : public BaseIRFormatter<foptim::fir::BBArgument> {
-public:
+ public:
   appender format(foptim::fir::BBArgument const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::Instr>
     : public BaseIRFormatter<foptim::fir::Instr> {
-public:
+ public:
   appender format(foptim::fir::Instr const &instr, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::Use>
     : public BaseIRFormatter<foptim::fir::Use> {
-public:
+ public:
   appender format(foptim::fir::Use const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::Global>
     : public BaseIRFormatter<foptim::fir::Global> {
-public:
+ public:
   appender format(foptim::fir::Global const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::ConstantValueR>
     : public BaseIRFormatter<foptim::fir::ConstantValueR> {
-public:
+ public:
   appender format(foptim::fir::ConstantValueR const &v,
                   format_context &ctx) const;
 };
@@ -158,7 +163,7 @@ public:
 template <>
 class fmt::formatter<foptim::fir::ConstantValue>
     : public BaseIRFormatter<foptim::fir::ConstantValue> {
-public:
+ public:
   appender format(foptim::fir::ConstantValue const &v,
                   format_context &ctx) const;
 };
@@ -166,63 +171,63 @@ public:
 template <>
 class fmt::formatter<foptim::fir::AnyType>
     : public BaseIRFormatter<foptim::fir::AnyType> {
-public:
+ public:
   appender format(foptim::fir::AnyType const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::MFunc>
     : public BaseIRFormatter<foptim::fmir::MFunc> {
-public:
+ public:
   appender format(foptim::fmir::MFunc const &func, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::Global>
     : public BaseIRFormatter<foptim::fmir::Global> {
-public:
+ public:
   appender format(foptim::fmir::Global const &glob, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::MInstr>
     : public BaseIRFormatter<foptim::fmir::MInstr> {
-public:
+ public:
   appender format(foptim::fmir::MInstr const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::VReg>
     : public BaseIRFormatter<foptim::fmir::VReg> {
-public:
+ public:
   appender format(foptim::fmir::VReg const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::MBB>
     : public BaseIRFormatter<foptim::fmir::MBB> {
-public:
+ public:
   appender format(foptim::fmir::MBB const &bb, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::MArgument>
     : public BaseIRFormatter<foptim::fmir::MArgument> {
-public:
+ public:
   appender format(foptim::fmir::MArgument const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fmir::Type>
     : public BaseIRFormatter<foptim::fmir::Type> {
-public:
+ public:
   appender format(foptim::fmir::Type const &v, format_context &ctx) const;
 };
 
 template <>
 class fmt::formatter<foptim::fir::BBRefWithArgs>
     : public BaseIRFormatter<foptim::fir::BBRefWithArgs> {
-public:
+ public:
   appender format(foptim::fir::BBRefWithArgs const &bb_with_args,
                   format_context &ctx) const;
 };

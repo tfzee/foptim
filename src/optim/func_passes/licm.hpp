@@ -16,7 +16,7 @@ namespace foptim::optim {
 class LICM final : public FunctionPass {
   bool split_edges = false;
 
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedN("LICM");
     CFG &cfg = AnalysisManager::cfg(func);
@@ -44,7 +44,8 @@ public:
   // can be executed speculatively
   static bool is_dereferenceable(fir::ValueR ptr, u64 size) {
     i128 offset = 0;
-    while (ptr.is_instr() && ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd)) {
+    while (ptr.is_instr() &&
+           ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd)) {
       auto off = ptr.as_instr()->get_arg(1);
       if (!off.is_constant() || !off.as_constant()->is_int()) {
         return false;
@@ -113,7 +114,8 @@ public:
           !defined_outside(cfg, info, instr->args[0])) {
         jv = instr->args[0];
         c = instr->args[1];
-      } else if (t != ST::IntSub && defined_outside(cfg, info, instr->args[0]) &&
+      } else if (t != ST::IntSub &&
+                 defined_outside(cfg, info, instr->args[0]) &&
                  !defined_outside(cfg, info, instr->args[1])) {
         jv = instr->args[1];
         c = instr->args[0];
@@ -479,4 +481,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

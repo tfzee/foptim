@@ -18,7 +18,7 @@ class SCEVExpander {
   fir::Builder builder;
   TMap<SCEVRef, fir::ValueR> cache;
 
-public:
+ public:
   SCEVExpander(fir::Context &ctx, ScalarEvo &evo, fir::Instr insert_before)
       : ctx(ctx), evo(evo), builder(insert_before) {}
 
@@ -26,4 +26,4 @@ public:
   fir::ValueR expand(SCEVRef r);
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

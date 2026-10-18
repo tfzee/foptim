@@ -22,7 +22,8 @@ concept PtrAnalysisInput = requires(T v) { v->get_uses(); };
 
 /*runs only locally within a single function used in a function call is
  * considered escaped*/
-template <PtrAnalysisInput T> AccessResult ptr_access_analysis(T ptr);
+template <PtrAnalysisInput T>
+AccessResult ptr_access_analysis(T ptr);
 
 /*run access analyis but starting from a use*/
 static void useptr_access_analysis(fir::Use u, AccessResult &res,
@@ -33,7 +34,8 @@ static void useptr_access_analysis(fir::Use u, AccessResult &res,
     res.Escapes = true;
     return;
   }
-  if (i->is(fir::BinaryInstrSubType::IntAdd) || i->is(fir::BinaryInstrSubType::PtrAdd)) {
+  if (i->is(fir::BinaryInstrSubType::IntAdd) ||
+      i->is(fir::BinaryInstrSubType::PtrAdd)) {
     if (worklist != nullptr) {
       for (auto u : i->get_uses()) {
         worklist->push_back(u);
@@ -129,7 +131,8 @@ static void useptr_access_analysis(fir::Use u, AccessResult &res,
   TODO("okak");
 }
 
-template <PtrAnalysisInput T> AccessResult ptr_access_analysis(T ptr) {
+template <PtrAnalysisInput T>
+AccessResult ptr_access_analysis(T ptr) {
   AccessResult res{.IsWriten = 0, .IsRead = 0, .Escapes = 0};
   TVec<fir::Use> worklist;
   for (auto u : ptr->get_uses()) {
@@ -144,4 +147,4 @@ template <PtrAnalysisInput T> AccessResult ptr_access_analysis(T ptr) {
   return res;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

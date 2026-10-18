@@ -13,7 +13,7 @@ namespace {
 void intersection(TSet<fir::Instr> &curr, const TSet<fir::Instr> &remove_data) {
   for (auto it = curr.begin(); it != curr.end();) {
     if (!remove_data.contains(*it)) {
-      it = curr.erase(it); // erase returns the next iterator
+      it = curr.erase(it);  // erase returns the next iterator
     } else {
       ++it;
     }
@@ -44,9 +44,10 @@ void cut(TSet<fir::Instr> &curr, AliasAnalyis &aa, bool all_overwritten,
     }
   }
 }
-} // namespace
+}  // namespace
 
-PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) {
+PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx,
+                                        fir::Function &func) {
   ZoneScopedNC("DoubleLoadElim", COLOR_OPTIMF);
   (void)ctx;
   TVec<TSet<fir::Instr>> active_loads;
@@ -180,4 +181,4 @@ PreservedAnalysis DoubleLoadElim::apply(fir::Context &ctx, fir::Function &func) 
   return changed ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -1,4 +1,3 @@
-#include "utils/verbosity.hpp"
 #include "compiler_config.hpp"
 
 #include <fmt/base.h>
@@ -11,6 +10,7 @@
 #include "compiler_passes.hpp"
 #include "utils/string.hpp"
 #include "utils/todo.hpp"
+#include "utils/verbosity.hpp"
 namespace foptim::conf {
 
 namespace {
@@ -220,7 +220,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
 }
 
 // TODO out of order parsing might be an issue here like it was with pipelines
-template <IRType Ty> bool passes_parse(CompConf &conf, toml::table &tbl) {
+template <IRType Ty>
+bool passes_parse(CompConf &conf, toml::table &tbl) {
   auto &target_arr = Ty == IRType::FIR ? conf.fir_passes : conf.mir_passes;
   for (auto &&[name, data] : tbl) {
     auto str_name = name.str();
@@ -264,7 +265,8 @@ bool pipeline_parse(PipelineRef pipeline, CompConf &conf,
   return true;
 }
 
-template <IRType Ty> bool pipelines_parse(CompConf &conf, toml::table &tbl) {
+template <IRType Ty>
+bool pipelines_parse(CompConf &conf, toml::table &tbl) {
   TVec<std::pair<std::string_view, toml::node_view<toml::node>>> overwrites;
   auto &target_arr =
       Ty == IRType::FIR ? conf.fir_pipelines : conf.mir_pipelines;
@@ -407,7 +409,7 @@ void setup_builtin(CompConf &conf, BuiltinConfig config) {
   // conf.parse("../src/default.toml");
 }
 
-} // namespace
+}  // namespace
 
 bool CompConf::set_fir_pass_list(std::string_view list, bool append) {
   constexpr std::string_view pipe_name = "cli_override";
@@ -479,4 +481,4 @@ bool CompConf::parse(std::string_view filename) {
 
   return true;
 }
-} // namespace foptim::conf
+}  // namespace foptim::conf

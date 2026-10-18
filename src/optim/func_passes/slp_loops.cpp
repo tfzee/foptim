@@ -1,5 +1,3 @@
-#include "slp_vectorizer.hpp"
-
 #include <algorithm>
 #include <bit>
 
@@ -10,6 +8,7 @@
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/helper.hpp"
 #include "optim/helper/scev_expander.hpp"
+#include "slp_vectorizer.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
@@ -100,23 +99,23 @@ bool store_match(MatchCtx &c, fir::Instr i, LoopNode &n) {
 
 bool binary_sub_ok(BinSub sub) {
   switch (sub) {
-  case BinSub::IntAdd:
-  case BinSub::IntSub:
-  case BinSub::IntMul:
-  case BinSub::Shl:
-  case BinSub::Shr:
-  case BinSub::AShr:
-  case BinSub::And:
-  case BinSub::Or:
-  case BinSub::Xor:
-  case BinSub::FloatAdd:
-  case BinSub::FloatSub:
-  case BinSub::FloatMul:
-  case BinSub::FloatDiv:
-    return true;
-  default:
-    // division could trap in lanes the scalar loop never runs
-    return false;
+    case BinSub::IntAdd:
+    case BinSub::IntSub:
+    case BinSub::IntMul:
+    case BinSub::Shl:
+    case BinSub::Shr:
+    case BinSub::AShr:
+    case BinSub::And:
+    case BinSub::Or:
+    case BinSub::Xor:
+    case BinSub::FloatAdd:
+    case BinSub::FloatSub:
+    case BinSub::FloatMul:
+    case BinSub::FloatDiv:
+      return true;
+    default:
+      // division could trap in lanes the scalar loop never runs
+      return false;
   }
 }
 
@@ -186,8 +185,7 @@ i64 binary_cost(const LoopNode &n, const LoopPlan &, u32, const Features &) {
 
 constexpr LoopRecipe LoopRecipes[] = {
     {fir::InstrType::LoadInstr, "load", load_match, always_legal, unit_cost},
-    {fir::InstrType::StoreInstr, "store", store_match, always_legal,
-     unit_cost},
+    {fir::InstrType::StoreInstr, "store", store_match, always_legal, unit_cost},
     {fir::InstrType::BinaryInstr, "binary", binary_match, binary_legal,
      binary_cost},
     {fir::InstrType::Intrinsic, "intrinsic", intrinsic_match, always_legal,
@@ -205,14 +203,14 @@ const LoopRecipe *find_loop_recipe(fir::InstrType type) {
 
 bool is_reduction_sub(BinSub sub, bool assoc_float) {
   switch (sub) {
-  case BinSub::IntAdd:
-  case BinSub::IntMul:
-    return true;
-  case BinSub::FloatAdd:
-  case BinSub::FloatMul:
-    return assoc_float;
-  default:
-    return false;
+    case BinSub::IntAdd:
+    case BinSub::IntMul:
+      return true;
+    case BinSub::FloatAdd:
+    case BinSub::FloatMul:
+      return assoc_float;
+    default:
+      return false;
   }
 }
 
@@ -267,13 +265,14 @@ bool route_exit_uses(fir::Context &ctx, CFG &cfg, LoopInfo &loop) {
   }
   return changed;
 }
-} // namespace
+}  // namespace
 
 u32 SLPVectorizer::max_vector_bits(const Features &features) {
   return features.avx512f ? 512 : 256;
 }
 
-bool SLPVectorizer::loop_legal(const LoopPlan &plan, u32 vf, const Features &features) {
+bool SLPVectorizer::loop_legal(const LoopPlan &plan, u32 vf,
+                               const Features &features) {
   if (plan.elem_bits != 8 && plan.elem_bits != 16 && plan.elem_bits != 32 &&
       plan.elem_bits != 64) {
     return false;
@@ -305,20 +304,20 @@ bool SLPVectorizer::loop_legal(const LoopPlan &plan, u32 vf, const Features &fea
     }
     const LoopRecipe *r = nullptr;
     switch (n.kind) {
-    case LoopNodeKind::Load:
-      r = find_loop_recipe(fir::InstrType::LoadInstr);
-      break;
-    case LoopNodeKind::Store:
-      r = find_loop_recipe(fir::InstrType::StoreInstr);
-      break;
-    case LoopNodeKind::Binary:
-      r = find_loop_recipe(fir::InstrType::BinaryInstr);
-      break;
-    case LoopNodeKind::Intrinsic:
-      r = find_loop_recipe(fir::InstrType::Intrinsic);
-      break;
-    default:
-      break;
+      case LoopNodeKind::Load:
+        r = find_loop_recipe(fir::InstrType::LoadInstr);
+        break;
+      case LoopNodeKind::Store:
+        r = find_loop_recipe(fir::InstrType::StoreInstr);
+        break;
+      case LoopNodeKind::Binary:
+        r = find_loop_recipe(fir::InstrType::BinaryInstr);
+        break;
+      case LoopNodeKind::Intrinsic:
+        r = find_loop_recipe(fir::InstrType::Intrinsic);
+        break;
+      default:
+        break;
     }
     if (r != nullptr && !r->legal(n, plan, vf, features)) {
       return false;
@@ -328,8 +327,8 @@ bool SLPVectorizer::loop_legal(const LoopPlan &plan, u32 vf, const Features &fea
 }
 
 i64 SLPVectorizer::loop_cost(const LoopPlan &plan, u32 vf,
-                                const Features &features, u32 assumed_trip,
-                                i64 &scalar_total) {
+                             const Features &features, u32 assumed_trip,
+                             i64 &scalar_total) {
   const i64 trip =
       plan.const_trip ? static_cast<i64>(*plan.const_trip) : assumed_trip;
   const i64 s = plan.scalar_cost;
@@ -337,23 +336,23 @@ i64 SLPVectorizer::loop_cost(const LoopPlan &plan, u32 vf,
   i64 body = 0;
   for (const auto &n : plan.nodes) {
     switch (n.kind) {
-    case LoopNodeKind::Load:
-      body += unit_cost(n, plan, vf, features);
-      break;
-    case LoopNodeKind::Store:
-      body += unit_cost(n, plan, vf, features);
-      break;
-    case LoopNodeKind::Binary:
-      body += binary_cost(n, plan, vf, features);
-      break;
-    case LoopNodeKind::Intrinsic:
-      body += unit_cost(n, plan, vf, features);
-      break;
-    case LoopNodeKind::Scalar:
-      body += 1;
-      break;
-    default:
-      break;
+      case LoopNodeKind::Load:
+        body += unit_cost(n, plan, vf, features);
+        break;
+      case LoopNodeKind::Store:
+        body += unit_cost(n, plan, vf, features);
+        break;
+      case LoopNodeKind::Binary:
+        body += binary_cost(n, plan, vf, features);
+        break;
+      case LoopNodeKind::Intrinsic:
+        body += unit_cost(n, plan, vf, features);
+        break;
+      case LoopNodeKind::Scalar:
+        body += 1;
+        break;
+      default:
+        break;
     }
   }
   body += 3;
@@ -363,8 +362,9 @@ i64 SLPVectorizer::loop_cost(const LoopPlan &plan, u32 vf,
   return overhead + (vtrip / vf) * body + rest * s;
 }
 
-bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom,
-                                LoopInfo &loop, ScalarEvo &evo, LoopPlan &plan) {
+bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg,
+                                    Dominators &dom, LoopInfo &loop,
+                                    ScalarEvo &evo, LoopPlan &plan) {
   if (loop.body_nodes.size() != 1 || loop.tails.size() != 1 ||
       loop.head != loop.tails[0]) {
     return false;
@@ -606,8 +606,7 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
   }
   for (u32 k = 0; k < back_args.size(); k++) {
     if (plan.nodes[k].kind == LoopNodeKind::Reduction &&
-        !(back_args[k].is_instr() &&
-          plan.node_of.contains(back_args[k]))) {
+        !(back_args[k].is_instr() && plan.node_of.contains(back_args[k]))) {
       return false;
     }
   }
@@ -615,7 +614,7 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg, Dominators &dom
 }
 
 bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
-                          ScalarEvo &evo, LoopPlan &plan, u32 vf) {
+                              ScalarEvo &evo, LoopPlan &plan, u32 vf) {
   (void)func;
   (void)cfg;
   auto hdr = plan.header;
@@ -665,12 +664,11 @@ bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
   {
     fir::Builder b{vpre};
     b.at_end(vpre);
-    vtrip = b.build_binary_op(total_trip,
-                              cint(~static_cast<i128>(vf - 1), trip_bw),
-                              BinSub::And);
+    vtrip = b.build_binary_op(
+        total_trip, cint(~static_cast<i128>(vf - 1), trip_bw), BinSub::And);
     end_counter = b.build_int_add(pre_args[plan.counter], vtrip);
-    auto none = b.build_int_cmp(vtrip, cint(0, trip_bw),
-                                fir::ICmpInstrSubType::EQ);
+    auto none =
+        b.build_int_cmp(vtrip, cint(0, trip_bw), fir::ICmpInstrSubType::EQ);
     TVec<fir::ValueR> vec_init;
     for (u32 k = 0; k < n_args; k++) {
       const auto &n = plan.nodes[k];
@@ -731,43 +729,43 @@ bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
       const auto &n = plan.nodes[k];
       auto instr = n.value.as_instr();
       switch (n.kind) {
-      case LoopNodeKind::Scalar: {
-        if (instr == cond_instr) {
+        case LoopNodeKind::Scalar: {
+          if (instr == cond_instr) {
+            break;
+          }
+          auto c = b.insert_copy(instr);
+          c.substitute(vm);
+          vm[n.value] = c.result();
           break;
         }
-        auto c = b.insert_copy(instr);
-        c.substitute(vm);
-        vm[n.value] = c.result();
-        break;
-      }
-      case LoopNodeKind::Load:
-        vm[n.value] = b.build_load(vec_ty(n.type), vm.at(instr->args[0]), false,
-                                   false);
-        break;
-      case LoopNodeKind::Store:
-        b.build_store(vm.at(instr->args[0]), operand(instr->args[1]), false,
-                      false);
-        break;
-      case LoopNodeKind::Binary:
-        vm[n.value] = b.build_binary_op(operand(instr->args[0]),
-                                        operand(instr->args[1]),
-                                        static_cast<BinSub>(n.sub));
-        break;
-      case LoopNodeKind::Intrinsic:
-        vm[n.value] = b.build_intrinsic(
-            operand(instr->args[0]),
-            static_cast<fir::IntrinsicSubType>(n.sub));
-        break;
-      default:
-        UNREACH();
+        case LoopNodeKind::Load:
+          vm[n.value] =
+              b.build_load(vec_ty(n.type), vm.at(instr->args[0]), false, false);
+          break;
+        case LoopNodeKind::Store:
+          b.build_store(vm.at(instr->args[0]), operand(instr->args[1]), false,
+                        false);
+          break;
+        case LoopNodeKind::Binary:
+          vm[n.value] = b.build_binary_op(operand(instr->args[0]),
+                                          operand(instr->args[1]),
+                                          static_cast<BinSub>(n.sub));
+          break;
+        case LoopNodeKind::Intrinsic:
+          vm[n.value] =
+              b.build_intrinsic(operand(instr->args[0]),
+                                static_cast<fir::IntrinsicSubType>(n.sub));
+          break;
+        default:
+          UNREACH();
       }
     }
     for (u32 k = 0; k < n_args; k++) {
       const auto &n = plan.nodes[k];
       if (n.kind == LoopNodeKind::Induction) {
         next_vals.push_back(b.build_int_add(
-            vec_args[k], cint(static_cast<i128>(vf) * n.stride,
-                              n.type->get_bitwidth())));
+            vec_args[k],
+            cint(static_cast<i128>(vf) * n.stride, n.type->get_bitwidth())));
       } else {
         next_vals.push_back(vm.at(back_args[k]));
       }
@@ -859,8 +857,8 @@ bool SLPVectorizer::vectorize_loops(fir::Context &ctx, fir::Function &func) {
           continue;
         }
         i64 scalar_total = 0;
-        const i64 cost = loop_cost(plan, vf, features, config.assumed_trip,
-                                     scalar_total);
+        const i64 cost =
+            loop_cost(plan, vf, features, config.assumed_trip, scalar_total);
         if (cost >= scalar_total) {
           continue;
         }
@@ -889,4 +887,4 @@ bool SLPVectorizer::vectorize_loops(fir::Context &ctx, fir::Function &func) {
   return changed;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

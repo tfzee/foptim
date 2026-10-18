@@ -20,10 +20,10 @@ class ConstLoopEval final : public FunctionPass {
     for (auto id : info.body_nodes) {
       for (auto use : f.basic_blocks[id]->uses) {
         switch (use.type) {
-        case fir::UseType::NormalArg:
-        case fir::UseType::BBArg:
-          return false;
-        case fir::UseType::BB:
+          case fir::UseType::NormalArg:
+          case fir::UseType::BBArg:
+            return false;
+          case fir::UseType::BB:
         }
         for (size_t bb_arg_id = 0; bb_arg_id < f.basic_blocks[id]->args.size();
              bb_arg_id++) {
@@ -50,32 +50,32 @@ class ConstLoopEval final : public FunctionPass {
       }
       for (auto instr : f.basic_blocks[id]->instructions) {
         switch (instr->instr_type) {
-        case fir::InstrType::FCmp:
-        case fir::InstrType::UnaryInstr:
-        case fir::InstrType::Conversion:
-        case fir::InstrType::SelectInstr:
-        case fir::InstrType::Intrinsic:
-          // TODO: later one these above too
-        case fir::InstrType::AllocaInstr:
-        case fir::InstrType::ExtractElement:
-        case fir::InstrType::InsertElement:
-        case fir::InstrType::CallInstr:
-        case fir::InstrType::ReturnInstr:
-        case fir::InstrType::SwitchInstr:
-        case fir::InstrType::Unreachable:
-        case fir::InstrType::LoadInstr:
-        case fir::InstrType::StoreInstr:
-        case fir::InstrType::AtomicRMW:
-        case fir::InstrType::Fence:
-        case fir::InstrType::VectorInstr:
-          return false;
-        case fir::InstrType::BinaryInstr:
-        case fir::InstrType::ICmp:
-        case fir::InstrType::CondBranchInstr:
-        case fir::InstrType::BranchInstr:
-        case fir::InstrType::ZExt:
-        case fir::InstrType::SExt:
-        case fir::InstrType::ITrunc:
+          case fir::InstrType::FCmp:
+          case fir::InstrType::UnaryInstr:
+          case fir::InstrType::Conversion:
+          case fir::InstrType::SelectInstr:
+          case fir::InstrType::Intrinsic:
+            // TODO: later one these above too
+          case fir::InstrType::AllocaInstr:
+          case fir::InstrType::ExtractElement:
+          case fir::InstrType::InsertElement:
+          case fir::InstrType::CallInstr:
+          case fir::InstrType::ReturnInstr:
+          case fir::InstrType::SwitchInstr:
+          case fir::InstrType::Unreachable:
+          case fir::InstrType::LoadInstr:
+          case fir::InstrType::StoreInstr:
+          case fir::InstrType::AtomicRMW:
+          case fir::InstrType::Fence:
+          case fir::InstrType::VectorInstr:
+            return false;
+          case fir::InstrType::BinaryInstr:
+          case fir::InstrType::ICmp:
+          case fir::InstrType::CondBranchInstr:
+          case fir::InstrType::BranchInstr:
+          case fir::InstrType::ZExt:
+          case fir::InstrType::SExt:
+          case fir::InstrType::ITrunc:
         }
         for (auto &bb : instr->bbs) {
           for (auto &arg : bb.args) {
@@ -124,7 +124,7 @@ class ConstLoopEval final : public FunctionPass {
     return true;
   }
 
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("ConstLoopEval", COLOR_OPTIMF);
     // if a loop only contains 'pure' instrutions that can be evaluated at
@@ -235,4 +235,4 @@ public:
     return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

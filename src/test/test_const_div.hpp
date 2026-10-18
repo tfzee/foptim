@@ -60,7 +60,7 @@ std::vector<u64> edge_xs(unsigned w, u64 d, std::mt19937_64 &rng) {
   }
   return xs;
 }
-} // namespace
+}  // namespace
 
 TEST(ConstDiv, UDiv8Exhaustive) {
   for (u64 d = 3; d < 128; d++) {
@@ -115,14 +115,14 @@ TEST(ConstDiv, RandomWide) {
     for (int it = 0; it < 20000; it++) {
       u64 d;
       switch (it % 4) {
-      case 0:
-        d = 3 + rng() % 100;
-        break;
-      case 1:
-        d = (rng() & mask) >> (rng() % (w - 1));
-        break;
-      default:
-        d = rng() & (mask >> 1);
+        case 0:
+          d = 3 + rng() % 100;
+          break;
+        case 1:
+          d = (rng() & mask) >> (rng() % (w - 1));
+          break;
+        default:
+          d = rng() & (mask >> 1);
       }
       if (d < 3 || std::has_single_bit(d) || d > (mask >> 1)) {
         continue;

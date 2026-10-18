@@ -1,6 +1,7 @@
 #include "WFVector.hpp"
 
 #include <fmt/base.h>
+
 #include <optional>
 
 #include "ir/builder.hpp"
@@ -22,166 +23,166 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
     return {};
   }
   switch (func.attribs.linkage) {
-  case fir::Linkage::Weak:
-  case fir::Linkage::WeakODR:
-  case fir::Linkage::LinkOnce:
-    return {};
-  case fir::Linkage::External:
-  case fir::Linkage::Internal:
-  case fir::Linkage::LinkOnceODR:
-    break;
+    case fir::Linkage::Weak:
+    case fir::Linkage::WeakODR:
+    case fir::Linkage::LinkOnce:
+      return {};
+    case fir::Linkage::External:
+    case fir::Linkage::Internal:
+    case fir::Linkage::LinkOnceODR:
+      break;
   }
   i64 cost = 0;
   for (auto bb : func.basic_blocks) {
     for (auto instr : bb->instructions) {
       switch (instr->instr_type) {
-      case fir::InstrType::CallInstr:
-        if (instr->args[0].is_constant_func()) {
-          if (!instr->args[0]
-                   .as_constant()
-                   ->as_func()
-                   .func->attribs.maybe_can_wfvec) {
+        case fir::InstrType::CallInstr:
+          if (instr->args[0].is_constant_func()) {
+            if (!instr->args[0]
+                     .as_constant()
+                     ->as_func()
+                     .func->attribs.maybe_can_wfvec) {
+              return {};
+            }
+          }
+          break;
+        case fir::InstrType::BinaryInstr:
+          switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
+            case fir::BinaryInstrSubType::FloatAdd:
+            case fir::BinaryInstrSubType::FloatMul:
+            case fir::BinaryInstrSubType::PtrAdd:
+            case fir::BinaryInstrSubType::IntAdd:
+            case fir::BinaryInstrSubType::IntSub:
+            case fir::BinaryInstrSubType::IntMul:
+            case fir::BinaryInstrSubType::FloatSub:
+            case fir::BinaryInstrSubType::And:
+            case fir::BinaryInstrSubType::Or:
+            case fir::BinaryInstrSubType::Xor:
+            case fir::BinaryInstrSubType::FloatDiv:
+            case fir::BinaryInstrSubType::Shl:
+            case fir::BinaryInstrSubType::Shr:
+            case fir::BinaryInstrSubType::AShr:
+              cost -= static_cast<i64>(lanes);
+              break;
+            case fir::BinaryInstrSubType::INVALID:
+            case fir::BinaryInstrSubType::IntSRem:
+            case fir::BinaryInstrSubType::IntURem:
+            case fir::BinaryInstrSubType::IntSDiv:
+            case fir::BinaryInstrSubType::IntUDiv:
+              if (debug_print) {
+                fmt::println("FAILED {}", instr);
+              }
+              return {};
+          }
+          break;
+        case fir::InstrType::ReturnInstr:
+          if (instr->args.size() != 1) {
             return {};
           }
+          break;
+        case fir::InstrType::Intrinsic:
+          switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
+            case fir::IntrinsicSubType::FAbs:
+            case fir::IntrinsicSubType::Abs:
+            case fir::IntrinsicSubType::UMin:
+            case fir::IntrinsicSubType::UMax:
+            case fir::IntrinsicSubType::SMin:
+            case fir::IntrinsicSubType::SMax:
+            case fir::IntrinsicSubType::FMin:
+            case fir::IntrinsicSubType::FMax:
+            case fir::IntrinsicSubType::FMinimum:
+            case fir::IntrinsicSubType::FMaximum:
+            case fir::IntrinsicSubType::FRound:
+            case fir::IntrinsicSubType::FCeil:
+            case fir::IntrinsicSubType::FFloor:
+            case fir::IntrinsicSubType::FTrunc:
+              cost -= static_cast<i64>(lanes);
+              break;
+            case fir::IntrinsicSubType::CTTZ:
+            case fir::IntrinsicSubType::CTLZ:
+              // TODO: expensive but how expensive
+              cost += 10;
+              break;
+            case fir::IntrinsicSubType::PopCnt:
+              fmt::println("{}", instr);
+              IMPL("impl wfvector intrinsic");
+              return {};
+            case fir::IntrinsicSubType::Bswap:
+              return {};
+            case fir::IntrinsicSubType::INVALID:
+            case fir::IntrinsicSubType::VA_start:
+            case fir::IntrinsicSubType::VA_end:
+            case fir::IntrinsicSubType::IsConstant:
+              // TODO: prob can do them aswell
+            case fir::IntrinsicSubType::Memcpy:
+            case fir::IntrinsicSubType::Memset:
+            case fir::IntrinsicSubType::Memmove:
+            case fir::IntrinsicSubType::Memcmp:
+              return {};
+          }
+          break;
+        case fir::InstrType::UnaryInstr:
+          switch (static_cast<fir::UnaryInstrSubType>(instr->subtype)) {
+            case fir::UnaryInstrSubType::INVALID:
+              return {};
+            case fir::UnaryInstrSubType::FloatNeg:
+            case fir::UnaryInstrSubType::IntNeg:
+            case fir::UnaryInstrSubType::Not:
+            case fir::UnaryInstrSubType::FloatSqrt:
+              cost -= static_cast<i64>(lanes);
+              break;
+              fmt::println("{}", instr);
+              IMPL("impl wfvector unary");
+              return {};
+          }
+        case fir::InstrType::ZExt:
+          break;
+        case fir::InstrType::Conversion: {
+          switch (static_cast<fir::ConversionSubType>(instr->subtype)) {
+            case fir::ConversionSubType::BitCast:
+            case fir::ConversionSubType::SITOFP:
+            case fir::ConversionSubType::FPTOUI:
+            case fir::ConversionSubType::FPTOSI:
+            case fir::ConversionSubType::UITOFP:
+            case fir::ConversionSubType::FPEXT:
+            case fir::ConversionSubType::FPTRUNC:
+              cost += 1;
+              break;
+            case fir::ConversionSubType::PtrToInt:
+            case fir::ConversionSubType::IntToPtr:
+              break;
+            case fir::ConversionSubType::INVALID:
+              fmt::println("{}", instr);
+              IMPL("impl wfvector conversion");
+              return {};
+          }
+          break;
         }
-        break;
-      case fir::InstrType::BinaryInstr:
-        switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
-        case fir::BinaryInstrSubType::FloatAdd:
-        case fir::BinaryInstrSubType::FloatMul:
-        case fir::BinaryInstrSubType::PtrAdd:
-        case fir::BinaryInstrSubType::IntAdd:
-        case fir::BinaryInstrSubType::IntSub:
-        case fir::BinaryInstrSubType::IntMul:
-        case fir::BinaryInstrSubType::FloatSub:
-        case fir::BinaryInstrSubType::And:
-        case fir::BinaryInstrSubType::Or:
-        case fir::BinaryInstrSubType::Xor:
-        case fir::BinaryInstrSubType::FloatDiv:
-        case fir::BinaryInstrSubType::Shl:
-        case fir::BinaryInstrSubType::Shr:
-        case fir::BinaryInstrSubType::AShr:
+        case fir::InstrType::SelectInstr:
+        case fir::InstrType::ITrunc:
+        case fir::InstrType::SExt:
+          break;
+        case fir::InstrType::ICmp:
+        case fir::InstrType::FCmp:
           cost -= static_cast<i64>(lanes);
           break;
-        case fir::BinaryInstrSubType::INVALID:
-        case fir::BinaryInstrSubType::IntSRem:
-        case fir::BinaryInstrSubType::IntURem:
-        case fir::BinaryInstrSubType::IntSDiv:
-        case fir::BinaryInstrSubType::IntUDiv:
+        case fir::InstrType::Unreachable:
+        case fir::InstrType::BranchInstr:
+          break;
+        case fir::InstrType::AllocaInstr:
+        case fir::InstrType::ExtractElement:
+        case fir::InstrType::InsertElement:
+        case fir::InstrType::VectorInstr:
+        case fir::InstrType::CondBranchInstr:
+        case fir::InstrType::SwitchInstr:
+        case fir::InstrType::LoadInstr:
+        case fir::InstrType::StoreInstr:
+        case fir::InstrType::AtomicRMW:
+        case fir::InstrType::Fence:
           if (debug_print) {
             fmt::println("FAILED {}", instr);
           }
           return {};
-        }
-        break;
-      case fir::InstrType::ReturnInstr:
-        if (instr->args.size() != 1) {
-          return {};
-        }
-        break;
-      case fir::InstrType::Intrinsic:
-        switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
-        case fir::IntrinsicSubType::FAbs:
-        case fir::IntrinsicSubType::Abs:
-        case fir::IntrinsicSubType::UMin:
-        case fir::IntrinsicSubType::UMax:
-        case fir::IntrinsicSubType::SMin:
-        case fir::IntrinsicSubType::SMax:
-        case fir::IntrinsicSubType::FMin:
-        case fir::IntrinsicSubType::FMax:
-        case fir::IntrinsicSubType::FMinimum:
-        case fir::IntrinsicSubType::FMaximum:
-        case fir::IntrinsicSubType::FRound:
-        case fir::IntrinsicSubType::FCeil:
-        case fir::IntrinsicSubType::FFloor:
-        case fir::IntrinsicSubType::FTrunc:
-          cost -= static_cast<i64>(lanes);
-          break;
-        case fir::IntrinsicSubType::CTTZ:
-        case fir::IntrinsicSubType::CTLZ:
-          // TODO: expensive but how expensive
-          cost += 10;
-          break;
-        case fir::IntrinsicSubType::PopCnt:
-          fmt::println("{}", instr);
-          IMPL("impl wfvector intrinsic");
-          return {};
-        case fir::IntrinsicSubType::Bswap:
-          return {};
-        case fir::IntrinsicSubType::INVALID:
-        case fir::IntrinsicSubType::VA_start:
-        case fir::IntrinsicSubType::VA_end:
-        case fir::IntrinsicSubType::IsConstant:
-          // TODO: prob can do them aswell
-        case fir::IntrinsicSubType::Memcpy:
-        case fir::IntrinsicSubType::Memset:
-        case fir::IntrinsicSubType::Memmove:
-        case fir::IntrinsicSubType::Memcmp:
-          return {};
-        }
-        break;
-      case fir::InstrType::UnaryInstr:
-        switch (static_cast<fir::UnaryInstrSubType>(instr->subtype)) {
-        case fir::UnaryInstrSubType::INVALID:
-          return {};
-        case fir::UnaryInstrSubType::FloatNeg:
-        case fir::UnaryInstrSubType::IntNeg:
-        case fir::UnaryInstrSubType::Not:
-        case fir::UnaryInstrSubType::FloatSqrt:
-          cost -= static_cast<i64>(lanes);
-          break;
-          fmt::println("{}", instr);
-          IMPL("impl wfvector unary");
-          return {};
-        }
-      case fir::InstrType::ZExt:
-        break;
-      case fir::InstrType::Conversion: {
-        switch (static_cast<fir::ConversionSubType>(instr->subtype)) {
-        case fir::ConversionSubType::BitCast:
-        case fir::ConversionSubType::SITOFP:
-        case fir::ConversionSubType::FPTOUI:
-        case fir::ConversionSubType::FPTOSI:
-        case fir::ConversionSubType::UITOFP:
-        case fir::ConversionSubType::FPEXT:
-        case fir::ConversionSubType::FPTRUNC:
-          cost += 1;
-          break;
-        case fir::ConversionSubType::PtrToInt:
-        case fir::ConversionSubType::IntToPtr:
-          break;
-        case fir::ConversionSubType::INVALID:
-          fmt::println("{}", instr);
-          IMPL("impl wfvector conversion");
-          return {};
-        }
-        break;
-      }
-      case fir::InstrType::SelectInstr:
-      case fir::InstrType::ITrunc:
-      case fir::InstrType::SExt:
-        break;
-      case fir::InstrType::ICmp:
-      case fir::InstrType::FCmp:
-        cost -= static_cast<i64>(lanes);
-        break;
-      case fir::InstrType::Unreachable:
-      case fir::InstrType::BranchInstr:
-        break;
-      case fir::InstrType::AllocaInstr:
-      case fir::InstrType::ExtractElement:
-      case fir::InstrType::InsertElement:
-      case fir::InstrType::VectorInstr:
-      case fir::InstrType::CondBranchInstr:
-      case fir::InstrType::SwitchInstr:
-      case fir::InstrType::LoadInstr:
-      case fir::InstrType::StoreInstr:
-      case fir::InstrType::AtomicRMW:
-      case fir::InstrType::Fence:
-        if (debug_print) {
-          fmt::println("FAILED {}", instr);
-        }
-        return {};
       }
     }
   }
@@ -240,131 +241,131 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
     }
     for (auto instr : bb->instructions) {
       switch (instr->instr_type) {
-      case fir::InstrType::BinaryInstr:
-        switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
-        case fir::BinaryInstrSubType::PtrAdd:
-        case fir::BinaryInstrSubType::IntAdd:
-        case fir::BinaryInstrSubType::IntSub:
-        case fir::BinaryInstrSubType::IntMul:
-        case fir::BinaryInstrSubType::FloatSub:
-        case fir::BinaryInstrSubType::FloatAdd:
-        case fir::BinaryInstrSubType::FloatDiv:
-        case fir::BinaryInstrSubType::And:
-        case fir::BinaryInstrSubType::Or:
-        case fir::BinaryInstrSubType::Xor:
-        case fir::BinaryInstrSubType::Shr:
-        case fir::BinaryInstrSubType::Shl:
-        case fir::BinaryInstrSubType::FloatMul: {
-          auto new_i = buh.build_binary_op(
+        case fir::InstrType::BinaryInstr:
+          switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
+            case fir::BinaryInstrSubType::PtrAdd:
+            case fir::BinaryInstrSubType::IntAdd:
+            case fir::BinaryInstrSubType::IntSub:
+            case fir::BinaryInstrSubType::IntMul:
+            case fir::BinaryInstrSubType::FloatSub:
+            case fir::BinaryInstrSubType::FloatAdd:
+            case fir::BinaryInstrSubType::FloatDiv:
+            case fir::BinaryInstrSubType::And:
+            case fir::BinaryInstrSubType::Or:
+            case fir::BinaryInstrSubType::Xor:
+            case fir::BinaryInstrSubType::Shr:
+            case fir::BinaryInstrSubType::Shl:
+            case fir::BinaryInstrSubType::FloatMul: {
+              auto new_i = buh.build_binary_op(
+                  convert_value(ctx, buh, instr->args[0], n_lanes, subs),
+                  convert_value(ctx, buh, instr->args[1], n_lanes, subs),
+                  static_cast<fir::BinaryInstrSubType>(instr->subtype));
+              subs.insert({instr.result(), new_i});
+              break;
+            }
+            case fir::BinaryInstrSubType::INVALID:
+            case fir::BinaryInstrSubType::IntSRem:
+            case fir::BinaryInstrSubType::IntURem:
+            case fir::BinaryInstrSubType::IntSDiv:
+            case fir::BinaryInstrSubType::IntUDiv:
+            case fir::BinaryInstrSubType::AShr:
+              fmt::println("{}", instr);
+              TODO("impl");
+          }
+          break;
+        case fir::InstrType::ReturnInstr: {
+          if (instr->args.size() == 1) {
+            buh.build_return(
+                convert_value(ctx, buh, instr->args[0], n_lanes, subs));
+          } else {
+            TODO("impl");
+          }
+        } break;
+        case fir::InstrType::Intrinsic:
+          switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
+            case fir::IntrinsicSubType::Abs:
+            case fir::IntrinsicSubType::FAbs: {
+              auto new_i = buh.build_intrinsic(
+                  convert_value(ctx, buh, instr->args[0], n_lanes, subs),
+                  static_cast<fir::IntrinsicSubType>(instr->subtype));
+              subs.insert({instr.result(), new_i});
+            } break;
+            case fir::IntrinsicSubType::UMin:
+            case fir::IntrinsicSubType::UMax:
+            case fir::IntrinsicSubType::SMin:
+            case fir::IntrinsicSubType::SMax:
+            case fir::IntrinsicSubType::FMinimum:
+            case fir::IntrinsicSubType::FMaximum:
+            case fir::IntrinsicSubType::FMin:
+            case fir::IntrinsicSubType::FMax: {
+              auto new_i = buh.build_intrinsic(
+                  convert_value(ctx, buh, instr->args[0], n_lanes, subs),
+                  convert_value(ctx, buh, instr->args[1], n_lanes, subs),
+                  static_cast<fir::IntrinsicSubType>(instr->subtype));
+              subs.insert({instr.result(), new_i});
+            } break;
+            case fir::IntrinsicSubType::Memcpy:
+            case fir::IntrinsicSubType::Memset:
+            case fir::IntrinsicSubType::Memmove:
+            case fir::IntrinsicSubType::Memcmp:
+              return {};
+            case fir::IntrinsicSubType::INVALID:
+            case fir::IntrinsicSubType::CTLZ:
+            case fir::IntrinsicSubType::CTTZ:
+            case fir::IntrinsicSubType::VA_start:
+            case fir::IntrinsicSubType::VA_end:
+            case fir::IntrinsicSubType::PopCnt:
+            case fir::IntrinsicSubType::Bswap:
+            case fir::IntrinsicSubType::FRound:
+            case fir::IntrinsicSubType::FCeil:
+            case fir::IntrinsicSubType::FFloor:
+            case fir::IntrinsicSubType::FTrunc:
+            case fir::IntrinsicSubType::IsConstant:
+              fmt::println("{}", instr);
+              TODO("impl");
+          }
+          break;
+        case fir::InstrType::FCmp: {
+          auto new_i = buh.build_float_cmp(
               convert_value(ctx, buh, instr->args[0], n_lanes, subs),
               convert_value(ctx, buh, instr->args[1], n_lanes, subs),
-              static_cast<fir::BinaryInstrSubType>(instr->subtype));
+              static_cast<fir::FCmpInstrSubType>(instr->subtype));
           subs.insert({instr.result(), new_i});
           break;
         }
-        case fir::BinaryInstrSubType::INVALID:
-        case fir::BinaryInstrSubType::IntSRem:
-        case fir::BinaryInstrSubType::IntURem:
-        case fir::BinaryInstrSubType::IntSDiv:
-        case fir::BinaryInstrSubType::IntUDiv:
-        case fir::BinaryInstrSubType::AShr:
+        case fir::InstrType::SelectInstr: {
+          auto cond = convert_value(ctx, buh, instr->args[0], n_lanes, subs);
+          auto a = convert_value(ctx, buh, instr->args[1], n_lanes, subs);
+          auto b = convert_value(ctx, buh, instr->args[2], n_lanes, subs);
+          auto new_i = buh.build_select(a.get_type(), cond, a, b);
+          subs.insert({instr.result(), new_i});
+          break;
+        }
+        case fir::InstrType::ICmp:
+        case fir::InstrType::UnaryInstr:
+        case fir::InstrType::ExtractElement:
+        case fir::InstrType::InsertElement:
+        case fir::InstrType::VectorInstr:
+        case fir::InstrType::ITrunc:
+        case fir::InstrType::ZExt:
+        case fir::InstrType::SExt:
+        case fir::InstrType::Conversion:
+        case fir::InstrType::CallInstr:
+        case fir::InstrType::BranchInstr:
+        case fir::InstrType::CondBranchInstr:
+        case fir::InstrType::SwitchInstr:
+        case fir::InstrType::Unreachable:
+        case fir::InstrType::AllocaInstr:
+        case fir::InstrType::LoadInstr:
+        case fir::InstrType::StoreInstr:
+        case fir::InstrType::AtomicRMW:
+        case fir::InstrType::Fence:
           fmt::println("{}", instr);
           TODO("impl");
-        }
-        break;
-      case fir::InstrType::ReturnInstr: {
-        if (instr->args.size() == 1) {
-          buh.build_return(
-              convert_value(ctx, buh, instr->args[0], n_lanes, subs));
-        } else {
-          TODO("impl");
-        }
-      } break;
-      case fir::InstrType::Intrinsic:
-        switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
-        case fir::IntrinsicSubType::Abs:
-        case fir::IntrinsicSubType::FAbs: {
-          auto new_i = buh.build_intrinsic(
-              convert_value(ctx, buh, instr->args[0], n_lanes, subs),
-              static_cast<fir::IntrinsicSubType>(instr->subtype));
-          subs.insert({instr.result(), new_i});
-        } break;
-        case fir::IntrinsicSubType::UMin:
-        case fir::IntrinsicSubType::UMax:
-        case fir::IntrinsicSubType::SMin:
-        case fir::IntrinsicSubType::SMax:
-        case fir::IntrinsicSubType::FMinimum:
-        case fir::IntrinsicSubType::FMaximum:
-        case fir::IntrinsicSubType::FMin:
-        case fir::IntrinsicSubType::FMax: {
-          auto new_i = buh.build_intrinsic(
-              convert_value(ctx, buh, instr->args[0], n_lanes, subs),
-              convert_value(ctx, buh, instr->args[1], n_lanes, subs),
-              static_cast<fir::IntrinsicSubType>(instr->subtype));
-          subs.insert({instr.result(), new_i});
-        } break;
-        case fir::IntrinsicSubType::Memcpy:
-        case fir::IntrinsicSubType::Memset:
-        case fir::IntrinsicSubType::Memmove:
-        case fir::IntrinsicSubType::Memcmp:
-          return {};
-        case fir::IntrinsicSubType::INVALID:
-        case fir::IntrinsicSubType::CTLZ:
-        case fir::IntrinsicSubType::CTTZ:
-        case fir::IntrinsicSubType::VA_start:
-        case fir::IntrinsicSubType::VA_end:
-        case fir::IntrinsicSubType::PopCnt:
-        case fir::IntrinsicSubType::Bswap:
-        case fir::IntrinsicSubType::FRound:
-        case fir::IntrinsicSubType::FCeil:
-        case fir::IntrinsicSubType::FFloor:
-        case fir::IntrinsicSubType::FTrunc:
-        case fir::IntrinsicSubType::IsConstant:
-          fmt::println("{}", instr);
-          TODO("impl");
-        }
-        break;
-      case fir::InstrType::FCmp: {
-        auto new_i = buh.build_float_cmp(
-            convert_value(ctx, buh, instr->args[0], n_lanes, subs),
-            convert_value(ctx, buh, instr->args[1], n_lanes, subs),
-            static_cast<fir::FCmpInstrSubType>(instr->subtype));
-        subs.insert({instr.result(), new_i});
-        break;
-      }
-      case fir::InstrType::SelectInstr: {
-        auto cond = convert_value(ctx, buh, instr->args[0], n_lanes, subs);
-        auto a = convert_value(ctx, buh, instr->args[1], n_lanes, subs);
-        auto b = convert_value(ctx, buh, instr->args[2], n_lanes, subs);
-        auto new_i = buh.build_select(a.get_type(), cond, a, b);
-        subs.insert({instr.result(), new_i});
-        break;
-      }
-      case fir::InstrType::ICmp:
-      case fir::InstrType::UnaryInstr:
-      case fir::InstrType::ExtractElement:
-      case fir::InstrType::InsertElement:
-      case fir::InstrType::VectorInstr:
-      case fir::InstrType::ITrunc:
-      case fir::InstrType::ZExt:
-      case fir::InstrType::SExt:
-      case fir::InstrType::Conversion:
-      case fir::InstrType::CallInstr:
-      case fir::InstrType::BranchInstr:
-      case fir::InstrType::CondBranchInstr:
-      case fir::InstrType::SwitchInstr:
-      case fir::InstrType::Unreachable:
-      case fir::InstrType::AllocaInstr:
-      case fir::InstrType::LoadInstr:
-      case fir::InstrType::StoreInstr:
-      case fir::InstrType::AtomicRMW:
-      case fir::InstrType::Fence:
-        fmt::println("{}", instr);
-        TODO("impl");
       }
     }
   }
   // fmt::println("{:cd}", *new_f.func);
   return {new_f};
 }
-} // namespace foptim::optim
+}  // namespace foptim::optim

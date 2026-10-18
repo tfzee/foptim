@@ -138,7 +138,7 @@ const CallingConvDefinition CCallHelper = {
                 .n_fvr_regs_stor = {CReg::A}},
 };
 class CallingConvImpl {
-public:
+ public:
   // run before final  register alloc
   // sets up argument loading
   void first_stage(MFunc &func, const CallingConvDefinition &cc,
@@ -151,17 +151,17 @@ public:
 };
 
 class CallingConvFirst : public FunctionPass, CallingConvImpl {
-public:
+ public:
   void apply(MFunc &func, const conf::CompConf &conf) final override {
     first_stage(func, CCallHelper, conf);
   }
 };
 
 class CallingConvSecond : public FunctionPass, CallingConvImpl {
-public:
+ public:
   void apply(MFunc &func, const conf::CompConf &conf) final override {
     second_stage(func, CCallHelper, conf);
   }
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

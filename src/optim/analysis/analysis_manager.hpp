@@ -1,9 +1,9 @@
 #pragma once
 #include <memory>
 #include <mutex>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
-#include <string_view>
 
 #include "ir/function.hpp"
 #include "ir/global.hpp"
@@ -33,9 +33,9 @@ struct PreservedAnalysis {
   // The block structure (blocks and their edges) was not touched, but
   // instructions may have changed.
   static PreservedAnalysis cfg_only() {
-    return PreservedAnalysis{
-        .mask = static_cast<u32>(AnalysisKind::CFG) |
-                static_cast<u32>(AnalysisKind::Dominators)};
+    return PreservedAnalysis{.mask =
+                                 static_cast<u32>(AnalysisKind::CFG) |
+                                 static_cast<u32>(AnalysisKind::Dominators)};
   }
   [[nodiscard]] bool preserves(AnalysisKind k) const {
     return (mask & static_cast<u32>(k)) != 0;
@@ -85,7 +85,7 @@ class AnalysisManager {
   };
   std::unordered_map<const fir::Function *, Snapshot> before_module_pass;
 
-public:
+ public:
   static CFG &cfg(fir::Function &func);
   static Dominators &dom(fir::Function &func);
   static ConstraintAnalysis &constraints(fir::Function &func);
@@ -98,8 +98,8 @@ public:
   survive. Call these AFTER making the change, from any thread.
   A module pass that returns PreservedAnalysis::all() promises that everything
   it changed on the functions that still exist was reported (builds with
-  -Dhash_checks=ON check this by hashing every function before and after). Any other return value
-  means the pass did not report and everything is dropped.
+  -Dhash_checks=ON check this by hashing every function before and after). Any
+  other return value means the pass did not report and everything is dropped.
   */
   // instructions or blocks of f changed: drops f's analyses and bits
   void touched_body(fir::Function &f);
@@ -142,4 +142,4 @@ public:
                                u64 hash_after, std::string_view pass_name);
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -5,10 +5,10 @@
 namespace foptim::fmir {
 class MFunc;
 
-class RegisterJoining: public FunctionPass {
+class RegisterJoining : public FunctionPass {
   void apply_impl(MFunc &func);
 
  public:
-  void apply(MFunc &func, const conf::CompConf&);
+  void apply(MFunc &func, const conf::CompConf &);
 };
 }  // namespace foptim::fmir

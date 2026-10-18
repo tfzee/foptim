@@ -1,4 +1,3 @@
-#include <optional>
 #include "simplify_cfg.hpp"
 
 #include <fmt/base.h>
@@ -6,6 +5,7 @@
 #include <fmt/std.h>
 
 #include <algorithm>
+#include <optional>
 
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
@@ -51,11 +51,9 @@ SimplifyCFG::Res SimplifyCFG::flip_cold_cond(CFG &cfg, CFG::Node &curr) {
   return SimplifyCFG::Res::Changed;
 }
 
-SimplifyCFG::Res
-SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
-                                           Dominators &dom, CFG::Node &curr,
-                                           size_t bb_id, bool is_entry) {
-
+SimplifyCFG::Res SimplifyCFG::conditional_block_duplication(
+    fir::Context &ctx, CFG &cfg, Dominators &dom, CFG::Node &curr, size_t bb_id,
+    bool is_entry) {
   if (is_entry) {
     return Res::NoChange;
   }
@@ -198,9 +196,8 @@ SimplifyCFG::Res SimplifyCFG::pull_through_bb_args(CFG &cfg, CFG::Node &curr,
   return Res::NoChange;
 }
 
-SimplifyCFG::Res
-SimplifyCFG::static_select_call_into_branch(fir::Function &func,
-                                            CFG::Node &curr) {
+SimplifyCFG::Res SimplifyCFG::static_select_call_into_branch(
+    fir::Function &func, CFG::Node &curr) {
   auto *ctx = func.ctx;
   for (auto i : curr.bb->instructions) {
     if (!i->is(fir::InstrType::CallInstr) || !i->args[0].is_instr()) {
@@ -379,7 +376,7 @@ bool has_true_use(fir::BBArgument v, TVec<fir::Use> &worklist,
   }
   return false;
 }
-} // namespace
+}  // namespace
 
 bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
                                      bool is_entry) {
@@ -695,7 +692,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
 
   return modified;
 }
-} // namespace
+}  // namespace
 
 bool SimplifyCFG::dup_bb_to_args(fir::Function &func, CFG &cfg) {
   ZoneScopedN("dup bb to arg");
@@ -880,61 +877,61 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
   for (auto instr : curr.bb->instructions) {
     // just switching to make sure to update this
     switch (instr->instr_type) {
-    case fir::InstrType::CallInstr:
-      return false;
-    case fir::InstrType::Intrinsic:
-      switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
-      case fir::IntrinsicSubType::INVALID:
-      case fir::IntrinsicSubType::CTLZ:
-      case fir::IntrinsicSubType::CTTZ:
-      case fir::IntrinsicSubType::Abs:
-      case fir::IntrinsicSubType::FAbs:
-      case fir::IntrinsicSubType::VA_end:
-      case fir::IntrinsicSubType::VA_start:
-      case fir::IntrinsicSubType::UMin:
-      case fir::IntrinsicSubType::UMax:
-      case fir::IntrinsicSubType::SMin:
-      case fir::IntrinsicSubType::SMax:
-      case fir::IntrinsicSubType::FMin:
-      case fir::IntrinsicSubType::FMax:
-      case fir::IntrinsicSubType::FMinimum:
-      case fir::IntrinsicSubType::FMaximum:
-      case fir::IntrinsicSubType::FRound:
-      case fir::IntrinsicSubType::FFloor:
-      case fir::IntrinsicSubType::PopCnt:
-      case fir::IntrinsicSubType::Bswap:
-      case fir::IntrinsicSubType::FCeil:
-      case fir::IntrinsicSubType::FTrunc:
-      case fir::IntrinsicSubType::IsConstant:
-      case fir::IntrinsicSubType::Memset:
-      case fir::IntrinsicSubType::Memcpy:
-      case fir::IntrinsicSubType::Memmove:
-      case fir::IntrinsicSubType::Memcmp:
+      case fir::InstrType::CallInstr:
+        return false;
+      case fir::InstrType::Intrinsic:
+        switch (static_cast<fir::IntrinsicSubType>(instr->subtype)) {
+          case fir::IntrinsicSubType::INVALID:
+          case fir::IntrinsicSubType::CTLZ:
+          case fir::IntrinsicSubType::CTTZ:
+          case fir::IntrinsicSubType::Abs:
+          case fir::IntrinsicSubType::FAbs:
+          case fir::IntrinsicSubType::VA_end:
+          case fir::IntrinsicSubType::VA_start:
+          case fir::IntrinsicSubType::UMin:
+          case fir::IntrinsicSubType::UMax:
+          case fir::IntrinsicSubType::SMin:
+          case fir::IntrinsicSubType::SMax:
+          case fir::IntrinsicSubType::FMin:
+          case fir::IntrinsicSubType::FMax:
+          case fir::IntrinsicSubType::FMinimum:
+          case fir::IntrinsicSubType::FMaximum:
+          case fir::IntrinsicSubType::FRound:
+          case fir::IntrinsicSubType::FFloor:
+          case fir::IntrinsicSubType::PopCnt:
+          case fir::IntrinsicSubType::Bswap:
+          case fir::IntrinsicSubType::FCeil:
+          case fir::IntrinsicSubType::FTrunc:
+          case fir::IntrinsicSubType::IsConstant:
+          case fir::IntrinsicSubType::Memset:
+          case fir::IntrinsicSubType::Memcpy:
+          case fir::IntrinsicSubType::Memmove:
+          case fir::IntrinsicSubType::Memcmp:
+            break;
+        }
+      case fir::InstrType::VectorInstr:
+      case fir::InstrType::ICmp:
+      case fir::InstrType::FCmp:
+      case fir::InstrType::BinaryInstr:
+      case fir::InstrType::UnaryInstr:
+      case fir::InstrType::AllocaInstr:
+      case fir::InstrType::ExtractElement:
+      case fir::InstrType::InsertElement:
+      case fir::InstrType::ITrunc:
+      case fir::InstrType::ZExt:
+      case fir::InstrType::SExt:
+      case fir::InstrType::Conversion:
+      case fir::InstrType::SelectInstr:
+      case fir::InstrType::ReturnInstr:
+      case fir::InstrType::BranchInstr:
+      case fir::InstrType::CondBranchInstr:
+      case fir::InstrType::SwitchInstr:
+      case fir::InstrType::Unreachable:
+      case fir::InstrType::LoadInstr:
+      case fir::InstrType::StoreInstr:
+      case fir::InstrType::AtomicRMW:
+      case fir::InstrType::Fence:
         break;
-      }
-    case fir::InstrType::VectorInstr:
-    case fir::InstrType::ICmp:
-    case fir::InstrType::FCmp:
-    case fir::InstrType::BinaryInstr:
-    case fir::InstrType::UnaryInstr:
-    case fir::InstrType::AllocaInstr:
-    case fir::InstrType::ExtractElement:
-    case fir::InstrType::InsertElement:
-    case fir::InstrType::ITrunc:
-    case fir::InstrType::ZExt:
-    case fir::InstrType::SExt:
-    case fir::InstrType::Conversion:
-    case fir::InstrType::SelectInstr:
-    case fir::InstrType::ReturnInstr:
-    case fir::InstrType::BranchInstr:
-    case fir::InstrType::CondBranchInstr:
-    case fir::InstrType::SwitchInstr:
-    case fir::InstrType::Unreachable:
-    case fir::InstrType::LoadInstr:
-    case fir::InstrType::StoreInstr:
-    case fir::InstrType::AtomicRMW:
-    case fir::InstrType::Fence:
-      break;
     }
   }
 
@@ -1182,7 +1179,7 @@ bool merge_short_successor(fir::BasicBlock bb, fir::BasicBlock succ) {
   utils::StatCollector::get().addi(1, "MergedShort+ManyArgsIntoTerm");
   return true;
 }
-} // namespace
+}  // namespace
 
 bool SimplifyCFG::merge_linear_blocks(fir::Function &func) {
   ZoneScopedN("merge linear blocks");
@@ -1302,7 +1299,7 @@ bool safe_to_speculate(fir::Instr instr) {
   }
   return true;
 }
-} // namespace
+}  // namespace
 
 bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
   auto terminator = curr.bb->get_terminator();
@@ -1508,7 +1505,7 @@ bool can_merge(const fir::BasicBlock bb1, u32 next_id, bool &sec_neg,
   }
   return true;
 }
-} // namespace
+}  // namespace
 
 bool SimplifyCFG::merge_term_cond(CFG &cfg, CFG::Node &curr) {
   auto terminator = curr.bb->get_terminator();
@@ -1961,4 +1958,4 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
                                       : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

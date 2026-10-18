@@ -52,7 +52,8 @@ void LVN::apply_impl(MBB &bb) {
       auto &in2 = bb.instrs[i2];
       if (equal_enough(in1, in2)) {
         // fmt::println("{} {}", bb.instrs[i1], bb.instrs[i2]);
-        if (in1.bop == GOpcode::X86 && static_cast<X86Subtype>(in1.sop) == X86Subtype::lea) {
+        if (in1.bop == GOpcode::X86 &&
+            static_cast<X86Subtype>(in1.sop) == X86Subtype::lea) {
           if (in1.args[1].type == MArgument::ArgumentType::MemLabel &&
               in1.args[1] == in2.args[1]) {
             auto new_reg = get_reg(in1.args[0].ty);

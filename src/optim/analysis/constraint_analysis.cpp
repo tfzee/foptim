@@ -1,9 +1,12 @@
 #include "constraint_analysis.hpp"
-#include "ir/instruction.hpp"
-#include "ir/instruction_data.hpp"
+
 #include <fmt/base.h>
+
 #include <algorithm>
 #include <optional>
+
+#include "ir/instruction.hpp"
+#include "ir/instruction_data.hpp"
 
 namespace foptim::optim {
 
@@ -52,8 +55,8 @@ ConstraintAnalysis::ExprId ConstraintAnalysis::get_expr(fir::ValueR v,
   return exprs.size();
 }
 
-std::optional<ConstraintAnalysis::ConstrId>
-ConstraintAnalysis::get_constraint(fir::Instr cond) {
+std::optional<ConstraintAnalysis::ConstrId> ConstraintAnalysis::get_constraint(
+    fir::Instr cond) {
   auto cond_res = Constraint::INVALID;
   // auto inv_cond_res = Constraint::INVALID;
   if (cond->is(fir::ICmpInstrSubType::EQ)) {
@@ -95,10 +98,9 @@ ConstraintAnalysis::get_constraint(fir::Instr cond) {
   return std::nullopt;
 }
 
-ConstraintAnalysis::ConstrId
-ConstraintAnalysis::get_constraint(Constraint::ConstraintType ty, ExprId v1,
-                                   ExprId v2, fir::Instr origin_instr) {
-
+ConstraintAnalysis::ConstrId ConstraintAnalysis::get_constraint(
+    Constraint::ConstraintType ty, ExprId v1, ExprId v2,
+    fir::Instr origin_instr) {
   const ConstrKey key{ty, v1, v2, origin_instr};
   if (const auto it = constraint_ids.find(key); it != constraint_ids.end()) {
     return it->second;
@@ -204,31 +206,31 @@ void ConstraintAnalysis::setup_inferred_constraints() {
   }
 }
 
-ConstraintAnalysis::Constraint::ConstraintType
-ConstraintAnalysis::inverse(Constraint::ConstraintType t) {
+ConstraintAnalysis::Constraint::ConstraintType ConstraintAnalysis::inverse(
+    Constraint::ConstraintType t) {
   switch (t) {
-  case Constraint::EQ:
-    return Constraint::NE;
-  case Constraint::NE:
-    return Constraint::EQ;
-  case Constraint::ULT:
-    return Constraint::UGE;
-  case Constraint::SLT:
-    return Constraint::SGE;
-  case Constraint::ULE:
-    return Constraint::UGT;
-  case Constraint::SLE:
-    return Constraint::SGT;
-  case Constraint::UGT:
-    return Constraint::ULE;
-  case Constraint::SGT:
-    return Constraint::SLE;
-  case Constraint::UGE:
-    return Constraint::ULT;
-  case Constraint::SGE:
-    return Constraint::SLT;
-  case Constraint::INVALID:
-    break;
+    case Constraint::EQ:
+      return Constraint::NE;
+    case Constraint::NE:
+      return Constraint::EQ;
+    case Constraint::ULT:
+      return Constraint::UGE;
+    case Constraint::SLT:
+      return Constraint::SGE;
+    case Constraint::ULE:
+      return Constraint::UGT;
+    case Constraint::SLE:
+      return Constraint::SGT;
+    case Constraint::UGT:
+      return Constraint::ULE;
+    case Constraint::SGT:
+      return Constraint::SLE;
+    case Constraint::UGE:
+      return Constraint::ULT;
+    case Constraint::SGE:
+      return Constraint::SLT;
+    case Constraint::INVALID:
+      break;
   }
   return Constraint::INVALID;
 }
@@ -240,8 +242,7 @@ void ConstraintAnalysis::add_fact(u32 bb, ConstrId c) {
   }
 }
 
-bool ConstraintAnalysis::implied(ConstrId c,
-                                 std::span<const ConstrId> facts) {
+bool ConstraintAnalysis::implied(ConstrId c, std::span<const ConstrId> facts) {
   const auto con = constraints[c - 1];
   const auto inv = inverse(con.type);
   if (inv == Constraint::INVALID) {
@@ -277,8 +278,8 @@ void ConstraintAnalysis::setup_switch_constraints(fir::Instr term) {
   }
 }
 
-void ConstraintAnalysis::add_condition_facts(
-    fir::ValueR cond, bool holds, u32 bb, u32 depth) {
+void ConstraintAnalysis::add_condition_facts(fir::ValueR cond, bool holds,
+                                             u32 bb, u32 depth) {
   constexpr u32 MaxCondDepth = 4;
   if (!cond.is_instr() || depth > MaxCondDepth) {
     return;
@@ -294,8 +295,8 @@ void ConstraintAnalysis::add_condition_facts(
     return;
   }
   // xor with true is a not
-  if (instr->is(fir::BinaryInstrSubType::Xor) &&
-      instr->args[1].is_constant() && instr->args[1].is_constant_int() &&
+  if (instr->is(fir::BinaryInstrSubType::Xor) && instr->args[1].is_constant() &&
+      instr->args[1].is_constant_int() &&
       instr->args[1].as_constant()->as_int() == 1) {
     add_condition_facts(instr->args[0], !holds, bb, depth + 1);
     return;
@@ -384,28 +385,28 @@ bool ConstraintAnalysis::contradicts(ConstrId x, ConstrId y) {
   // both constraints are expressed over (cx.e1, cx.e2).
   auto flip = [](Constraint::ConstraintType t) {
     switch (t) {
-    case Constraint::EQ:
-      return Constraint::EQ;
-    case Constraint::NE:
-      return Constraint::NE;
-    case Constraint::UGT:
-      return Constraint::ULT;
-    case Constraint::UGE:
-      return Constraint::ULE;
-    case Constraint::ULT:
-      return Constraint::UGT;
-    case Constraint::ULE:
-      return Constraint::UGE;
-    case Constraint::SGT:
-      return Constraint::SLT;
-    case Constraint::SGE:
-      return Constraint::SLE;
-    case Constraint::SLT:
-      return Constraint::SGT;
-    case Constraint::SLE:
-      return Constraint::SGE;
-    default:
-      return Constraint::INVALID;
+      case Constraint::EQ:
+        return Constraint::EQ;
+      case Constraint::NE:
+        return Constraint::NE;
+      case Constraint::UGT:
+        return Constraint::ULT;
+      case Constraint::UGE:
+        return Constraint::ULE;
+      case Constraint::ULT:
+        return Constraint::UGT;
+      case Constraint::ULE:
+        return Constraint::UGE;
+      case Constraint::SGT:
+        return Constraint::SLT;
+      case Constraint::SGE:
+        return Constraint::SLE;
+      case Constraint::SLT:
+        return Constraint::SGT;
+      case Constraint::SLE:
+        return Constraint::SGE;
+      default:
+        return Constraint::INVALID;
     }
   };
   if (swapped) {
@@ -437,26 +438,26 @@ bool ConstraintAnalysis::contradicts(ConstrId x, ConstrId y) {
   // EQ vs everything
   if (tx == Constraint::EQ) {
     switch (ty) {
-    case Constraint::NE:
-    case Constraint::UGT:
-    case Constraint::ULT:
-    case Constraint::SGT:
-    case Constraint::SLT:
-      return true; // EQ contradicts strict inequality/NE
-    default:
-      return false; // EQ vs GE/LE/EQ is consistent
+      case Constraint::NE:
+      case Constraint::UGT:
+      case Constraint::ULT:
+      case Constraint::SGT:
+      case Constraint::SLT:
+        return true;  // EQ contradicts strict inequality/NE
+      default:
+        return false;  // EQ vs GE/LE/EQ is consistent
     }
   }
   if (ty == Constraint::EQ) {
     switch (tx) {
-    case Constraint::NE:
-    case Constraint::UGT:
-    case Constraint::ULT:
-    case Constraint::SGT:
-    case Constraint::SLT:
-      return true;
-    default:
-      return false;
+      case Constraint::NE:
+      case Constraint::UGT:
+      case Constraint::ULT:
+      case Constraint::SGT:
+      case Constraint::SLT:
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -470,20 +471,20 @@ bool ConstraintAnalysis::contradicts(ConstrId x, ConstrId y) {
   // Map to a common "greater" orientation: GT=2, GE=1, LT=-2, LE=-1
   auto rank = [](Constraint::ConstraintType t) -> int {
     switch (t) {
-    case Constraint::UGT:
-    case Constraint::SGT:
-      return 2;
-    case Constraint::UGE:
-    case Constraint::SGE:
-      return 1;
-    case Constraint::ULE:
-    case Constraint::SLE:
-      return -1;
-    case Constraint::ULT:
-    case Constraint::SLT:
-      return -2;
-    default:
-      return 0;
+      case Constraint::UGT:
+      case Constraint::SGT:
+        return 2;
+      case Constraint::UGE:
+      case Constraint::SGE:
+        return 1;
+      case Constraint::ULE:
+      case Constraint::SLE:
+        return -1;
+      case Constraint::ULT:
+      case Constraint::SLT:
+        return -2;
+      default:
+        return 0;
     }
   };
 
@@ -496,11 +497,11 @@ bool ConstraintAnalysis::contradicts(ConstrId x, ConstrId y) {
   // rx, ry describe relation of e1 vs e2 (>, >=, <, <=).
   // Contradiction happens when the signs disagree and at least one is strict,
   // or they disagree entirely (one says >, other says <=, etc.)
-  bool x_pos = rx > 0; // e1 > e2 in some sense
+  bool x_pos = rx > 0;  // e1 > e2 in some sense
   bool y_pos = ry > 0;
 
   if (x_pos == y_pos) {
-    return false; // same direction, can't contradict (e.g. GT & GE fine)
+    return false;  // same direction, can't contradict (e.g. GT & GE fine)
   }
 
   // Opposite directions: e.g. x says e1 > e2 (or >=), y says e1 < e2 (or <=)
@@ -529,4 +530,4 @@ bool ConstraintAnalysis::contradicts(ConstrId v,
   return false;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

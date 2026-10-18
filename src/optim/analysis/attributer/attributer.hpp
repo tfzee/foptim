@@ -10,7 +10,8 @@
 
 namespace foptim::optim {
 struct AttributeKey {};
-template <class DerivedT> struct AttributeInfo {
+template <class DerivedT>
+struct AttributeInfo {
   static AttributeKey *ID() { return &DerivedT::Key; }
 };
 
@@ -20,7 +21,8 @@ using Worklist =
     std::deque<AttributeAnalysis *, utils::TempAlloc<AttributeAnalysis *>>;
 // using Worklist = TVec<AttributeAnalysis *>;
 
-template <class Int, Int best, Int worst> struct IntegerLattice {
+template <class Int, Int best, Int worst>
+struct IntegerLattice {
   Int value;
 
   constexpr IntegerLattice() : value(worst) {}
@@ -50,7 +52,7 @@ struct PairLattice {
 };
 
 class AttributeAnalysis {
-public:
+ public:
   enum class Result {
     Changed,
     Fixed,
@@ -74,7 +76,7 @@ public:
 };
 
 class AttributerManager {
-public:
+ public:
   // Set once run() materialized something that changed the IR (e.g. nsw/nuw on
   // an add). run() materializes everything the manager holds, so this changes
   // instructions other than the one the caller asked about, even if the caller
@@ -92,7 +94,8 @@ public:
     _inverse_dependencies.clear();
   }
 
-  template <class AAna> const AAna *get_analysis(fir::ValueR loc) const {
+  template <class AAna>
+  const AAna *get_analysis(fir::ValueR loc) const {
     static_assert(std::is_base_of_v<AttributeAnalysis, AAna>,
                   "AAna must inherit AttributeAnalysis");
     // ASSERT(loc.is_valid(true) && "must be valid");
@@ -210,4 +213,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

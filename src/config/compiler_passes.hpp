@@ -63,11 +63,12 @@ concept has_construct_function_pass_func = requires {
   } -> std::same_as<void>;
 };
 
-template <class T> struct ModulePassConf : public PassConfig {
-private:
+template <class T>
+struct ModulePassConf : public PassConfig {
+ private:
   ModulePassConf() = default;
 
-public:
+ public:
   [[nodiscard]] PassConfig *clone() const final {
     return new T(static_cast<const T &>(*this));
   }
@@ -99,11 +100,12 @@ public:
   friend T;
 };
 
-template <class T> struct FunctionPassConf : public PassConfig {
-private:
+template <class T>
+struct FunctionPassConf : public PassConfig {
+ private:
   FunctionPassConf() = default;
 
-public:
+ public:
   [[nodiscard]] PassConfig *clone() const final {
     return new T(static_cast<const T &>(*this));
   }
@@ -452,4 +454,4 @@ struct FunctionDedupDiffConf : public ModulePassConf<FunctionDedupDiffConf> {
   void construct_module_pass(Pass & /*unused*/) {};
 };
 
-} // namespace foptim::conf
+}  // namespace foptim::conf

@@ -1,5 +1,7 @@
 #include "lvn.hpp"
 
+#include <fmt/base.h>
+
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
@@ -10,7 +12,6 @@
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
-#include <fmt/base.h>
 
 namespace foptim::optim {
 
@@ -93,7 +94,6 @@ bool eql_instr_expr(fir::Instr a, fir::Instr b) {
 
   return false;
 }
-
 
 struct PtrOff {
   fir::ValueR base;
@@ -180,8 +180,7 @@ bool forward_int_load_partial(fir::BasicBlock bb, fir::Instr load,
       if (sp.off < lp.off || sp.off + ssize > lp.off + lsize) {
         return false;
       }
-      const u64 bits = ((1ULL << ssize) - 1)
-                       << (sp.off - lp.off);
+      const u64 bits = ((1ULL << ssize) - 1) << (sp.off - lp.off);
       if ((mask & bits) != 0) {
         return false;
       }
@@ -276,7 +275,8 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
                            : fir::TypeR{ctx->get_int_type(store_ty.bitwidth)});
   auto res = buh.build_extract_element(store_instr->args[1], indicies, elem_ty);
   if (elem_ty != load_ty) {
-    res = buh.build_conversion_op(res, load_ty, fir::ConversionSubType::BitCast);
+    res =
+        buh.build_conversion_op(res, load_ty, fir::ConversionSubType::BitCast);
   }
   load_instr->replace_all_uses(res);
   load_instr.destroy();
@@ -303,9 +303,10 @@ bool vstore_vload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
     return false;
   }
   fir::Builder buh{load_instr};
-  auto res = buh.build_vector_op(store_instr->args[1], load_ty,
-                                 offset == 0 ? fir::VectorISubType::ExtractLow
-                                             : fir::VectorISubType::ExtractHigh);
+  auto res =
+      buh.build_vector_op(store_instr->args[1], load_ty,
+                          offset == 0 ? fir::VectorISubType::ExtractLow
+                                      : fir::VectorISubType::ExtractHigh);
   load_instr->replace_all_uses(res);
   load_instr.destroy();
   if (a0->get_n_uses() == 0) {
@@ -418,7 +419,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
                              ? fir::TypeR{ctx->get_float_type(vt.bitwidth)}
                              : fir::TypeR{ctx->get_int_type(vt.bitwidth)});
               fir::ValueR r = buh.build_extract_element(instr->get_arg(1),
-                                                      indicies, lane_ty);
+                                                        indicies, lane_ty);
               if (lane_ty != instr2->result_type()) {
                 r = buh.build_conversion_op(r, instr2->result_type(),
                                             fir::ConversionSubType::BitCast);
@@ -455,13 +456,14 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
               auto lane_kind = t2->is_float()
                                    ? fir::VectorType::SubType::Floating
                                    : fir::VectorType::SubType::Integer;
-              auto cast_ty = ctx->get_vec_type(
-                  lane_kind, t2->get_bitwidth(),
-                  t1->get_bitwidth() / t2->get_bitwidth());
+              auto cast_ty =
+                  ctx->get_vec_type(lane_kind, t2->get_bitwidth(),
+                                    t1->get_bitwidth() / t2->get_bitwidth());
               fir::Builder buh{instr2};
               auto casted = buh.build_conversion_op(
                   instr->args[1], cast_ty, fir::ConversionSubType::BitCast);
-              fir::ValueR index0[1] = {fir::ValueR{ctx->get_constant_int(0, 32)}};
+              fir::ValueR index0[1] = {
+                  fir::ValueR{ctx->get_constant_int(0, 32)}};
               auto res = buh.build_extract_element(casted, index0, t2);
               instr2->replace_all_uses(res);
               instr2.destroy();
@@ -767,7 +769,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
   return modified;
 }
 
-} // namespace
+}  // namespace
 
 PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("LVN", COLOR_OPTIMF);
@@ -782,4 +784,4 @@ PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

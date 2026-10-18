@@ -1,4 +1,3 @@
-#include "utils/verbosity.hpp"
 #include "fir_pipeline.hpp"
 
 #include <fmt/base.h>
@@ -13,6 +12,7 @@
 #include "config/compiler_passes.hpp"
 #include "ir/context.hpp"
 #include "ir/helpers.hpp"
+#include "llvm/llir_loader.hpp"
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_pass.hpp"
@@ -20,7 +20,7 @@
 #include "utils/job_system.hpp"
 #include "utils/todo.hpp"
 #include "utils/tracy.hpp"
-#include "llvm/llir_loader.hpp"
+#include "utils/verbosity.hpp"
 
 namespace foptim::optim::pipeline {
 
@@ -56,10 +56,9 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
                     : passes_worklist.size();
   const auto n_passes = passes_worklist.size();
   if (utils::verbose()) {
-    fmt::println(stderr,
-                 "Having {} FIR passes and running {} passes on {} Functions",
-                 passes_worklist.size(), n_actual_run,
-                 ctx->storage.functions.size());
+    fmt::println(
+        stderr, "Having {} FIR passes and running {} passes on {} Functions",
+        passes_worklist.size(), n_actual_run, ctx->storage.functions.size());
   }
   size_t curr_pass = 0;
   conf::PrintFuncConf print_debug_func{};
@@ -86,48 +85,48 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
     }
     curr_pass++;
     switch (pass->pass_type()) {
-      // merge function passes so we can run them in parralel
-    case PassConfig::FIR_Function: {
-      fman.clear();
-      fman.push_pass(pass);
-      if (ctx.config->debug.print_between_passes) {
-        fman.push_pass(&print_debug_func);
-      }
-      if (ctx.config->debug.verify_between_passes) {
-        fman.push_pass(&verify_debug_func);
-      }
-      while (!enable_bisect && curr_pass < n_actual_run &&
-             passes_worklist[curr_pass]->pass_type() ==
-                 PassConfig::PassType::FIR_Function) {
-        fman.push_pass(passes_worklist[curr_pass]);
+        // merge function passes so we can run them in parralel
+      case PassConfig::FIR_Function: {
+        fman.clear();
+        fman.push_pass(pass);
         if (ctx.config->debug.print_between_passes) {
           fman.push_pass(&print_debug_func);
         }
         if (ctx.config->debug.verify_between_passes) {
           fman.push_pass(&verify_debug_func);
         }
-        curr_pass++;
+        while (!enable_bisect && curr_pass < n_actual_run &&
+               passes_worklist[curr_pass]->pass_type() ==
+                   PassConfig::PassType::FIR_Function) {
+          fman.push_pass(passes_worklist[curr_pass]);
+          if (ctx.config->debug.print_between_passes) {
+            fman.push_pass(&print_debug_func);
+          }
+          if (ctx.config->debug.verify_between_passes) {
+            fman.push_pass(&verify_debug_func);
+          }
+          curr_pass++;
+        }
+        fman.apply(ctx, shed, analysisMan);
+        break;
       }
-      fman.apply(ctx, shed, analysisMan);
-      break;
-    }
-    case PassConfig::FIR_Module: {
-      mman.clear();
-      mman.push_pass(pass);
-      while (!enable_bisect && curr_pass < n_actual_run &&
-             passes_worklist[curr_pass]->pass_type() ==
-                 PassConfig::PassType::FIR_Module) {
-        mman.push_pass(passes_worklist[curr_pass]);
-        curr_pass++;
+      case PassConfig::FIR_Module: {
+        mman.clear();
+        mman.push_pass(pass);
+        while (!enable_bisect && curr_pass < n_actual_run &&
+               passes_worklist[curr_pass]->pass_type() ==
+                   PassConfig::PassType::FIR_Module) {
+          mman.push_pass(passes_worklist[curr_pass]);
+          curr_pass++;
+        }
+        mman.apply(ctx, shed, analysisMan);
+        break;
       }
-      mman.apply(ctx, shed, analysisMan);
-      break;
-    }
-    default: {
-      fmt::println("Cant run the pass '{}' in the FIR pipeline",
-                   pass->get_name());
-      ASSERT(false);
-    }
+      default: {
+        fmt::println("Cant run the pass '{}' in the FIR pipeline",
+                     pass->get_name());
+        ASSERT(false);
+      }
     }
   }
 
@@ -139,4 +138,4 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
 #endif
 }
 
-} // namespace foptim::optim::pipeline
+}  // namespace foptim::optim::pipeline

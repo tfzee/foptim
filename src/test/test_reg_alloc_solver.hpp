@@ -52,7 +52,7 @@ struct SolverFixture {
   }
   [[nodiscard]] bool is_vec(u32 n) const { return reg(n) >= CReg::mm0; }
 };
-} // namespace
+}  // namespace
 
 TEST(RegAllocDomains, GprDomain) {
   const auto &d = kKinds[kind::Gpr];
@@ -171,9 +171,9 @@ TEST(RegAllocMatrix, CopyDiscountDoesNotRelaxInterference) {
   f.interfere(a, b);
   f.g.add_copy_discount(a, b);
   const auto &m = f.g.edges[f.g.find_edge(a, b)];
-  EXPECT_EQ(m.get_cost(true, static_cast<u32>(CReg::A),
-                       static_cast<u32>(CReg::A)),
-            infCost);
+  EXPECT_EQ(
+      m.get_cost(true, static_cast<u32>(CReg::A), static_cast<u32>(CReg::A)),
+      infCost);
 }
 
 TEST(RegAllocSolver, IndependentNodesAreAssigned) {
@@ -438,7 +438,7 @@ const std::array<u8, numRegs> &test_save_classes() {
 f32 cost_of(const CostVector &v, u8 k, CReg r) {
   return v.cost[kKinds[k].local[static_cast<u8>(r)]];
 }
-} // namespace
+}  // namespace
 
 TEST(RegAllocCostModel, SpillCostIsWeightedUseCount) {
   CostVector v = initial_costs(kind::Gpr);
@@ -460,11 +460,10 @@ TEST(RegAllocCostModel, CallerSavedCostScalesWithCallsCrossed) {
   CostVector none = initial_costs(kind::Gpr);
   CostVector some = initial_costs(kind::Gpr);
   apply_cost_model(none, kind::Gpr, {.use_weight = 2.F}, test_save_classes());
-  apply_cost_model(some, kind::Gpr,
-                   {.use_weight = 2.F, .call_crossings = 3.F},
+  apply_cost_model(some, kind::Gpr, {.use_weight = 2.F, .call_crossings = 3.F},
                    test_save_classes());
-  for (auto r : {CReg::A, CReg::C, CReg::D, CReg::SI, CReg::DI, CReg::R8,
-                 CReg::R11}) {
+  for (auto r :
+       {CReg::A, CReg::C, CReg::D, CReg::SI, CReg::DI, CReg::R8, CReg::R11}) {
     EXPECT_EQ(cost_of(none, kind::Gpr, r), 0.F);
     EXPECT_EQ(cost_of(some, kind::Gpr, r), 3.F * kPushPopCost);
   }

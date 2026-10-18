@@ -2,9 +2,9 @@
 
 #include <fmt/base.h>
 #include <fmt/core.h>
+#include <llvm/IR/Value.h>
 
 #include <algorithm>
-#include <llvm/IR/Value.h>
 
 #include "config/compiler_config.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -185,34 +185,34 @@ bool binary_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
     return false;
   }
   switch (static_cast<fir::BinaryInstrSubType>(base_v->subtype)) {
-  case fir::BinaryInstrSubType::FloatAdd:
-  case fir::BinaryInstrSubType::IntAdd:
-  case fir::BinaryInstrSubType::PtrAdd:
-  case fir::BinaryInstrSubType::Shl:
-  case fir::BinaryInstrSubType::IntSub:
-  case fir::BinaryInstrSubType::Xor:
-  case fir::BinaryInstrSubType::Or:
-  case fir::BinaryInstrSubType::Shr:
-  case fir::BinaryInstrSubType::AShr:
-    return true;
-  case fir::BinaryInstrSubType::FloatSub:
-  case fir::BinaryInstrSubType::FloatMul:
-  case fir::BinaryInstrSubType::IntMul:
-  case fir::BinaryInstrSubType::And:
-  case fir::BinaryInstrSubType::FloatDiv:
-    // we cant handle neutral elemtns for everything
-    // TODO. this causes issues + technically there is a neutral element for
-    // div
-    return !ctx.potential_neutral;
-  case fir::BinaryInstrSubType::IntSRem:
-  case fir::BinaryInstrSubType::IntURem:
-  case fir::BinaryInstrSubType::IntSDiv:
-  case fir::BinaryInstrSubType::IntUDiv:
-    return false;
-  case fir::BinaryInstrSubType::INVALID:
-    fmt::println("{}", base_v);
-    TODO("impl");
-    return false;
+    case fir::BinaryInstrSubType::FloatAdd:
+    case fir::BinaryInstrSubType::IntAdd:
+    case fir::BinaryInstrSubType::PtrAdd:
+    case fir::BinaryInstrSubType::Shl:
+    case fir::BinaryInstrSubType::IntSub:
+    case fir::BinaryInstrSubType::Xor:
+    case fir::BinaryInstrSubType::Or:
+    case fir::BinaryInstrSubType::Shr:
+    case fir::BinaryInstrSubType::AShr:
+      return true;
+    case fir::BinaryInstrSubType::FloatSub:
+    case fir::BinaryInstrSubType::FloatMul:
+    case fir::BinaryInstrSubType::IntMul:
+    case fir::BinaryInstrSubType::And:
+    case fir::BinaryInstrSubType::FloatDiv:
+      // we cant handle neutral elemtns for everything
+      // TODO. this causes issues + technically there is a neutral element for
+      // div
+      return !ctx.potential_neutral;
+    case fir::BinaryInstrSubType::IntSRem:
+    case fir::BinaryInstrSubType::IntURem:
+    case fir::BinaryInstrSubType::IntSDiv:
+    case fir::BinaryInstrSubType::IntUDiv:
+      return false;
+    case fir::BinaryInstrSubType::INVALID:
+      fmt::println("{}", base_v);
+      TODO("impl");
+      return false;
   }
 }
 
@@ -271,15 +271,15 @@ bool unary_match(const TVec<fir::ValueR> &values, RecipeCtx &ctx) {
   }
   switch (
       static_cast<fir::UnaryInstrSubType>(values.back().as_instr()->subtype)) {
-  case fir::UnaryInstrSubType::INVALID:
-    return false;
-  case fir::UnaryInstrSubType::IntNeg:
-    fmt::println("{}", values.back().as_instr());
-    TODO("impl it?");
-  case fir::UnaryInstrSubType::Not:
-  case fir::UnaryInstrSubType::FloatNeg:
-  case fir::UnaryInstrSubType::FloatSqrt:
-    break;
+    case fir::UnaryInstrSubType::INVALID:
+      return false;
+    case fir::UnaryInstrSubType::IntNeg:
+      fmt::println("{}", values.back().as_instr());
+      TODO("impl it?");
+    case fir::UnaryInstrSubType::Not:
+    case fir::UnaryInstrSubType::FloatNeg:
+    case fir::UnaryInstrSubType::FloatSqrt:
+      break;
   }
   return true;
 }
@@ -357,46 +357,46 @@ bool select_legal(const TVec<fir::ValueR> & /*values*/, RecipeCtx & /*ctx*/) {
 bool conversion_legal(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   // the backend only has scalar fp <-> int / ext / trunc conversions
   switch (static_cast<fir::ConversionSubType>(pick_instr(values)->subtype)) {
-  case fir::ConversionSubType::BitCast:
-  case fir::ConversionSubType::PtrToInt:
-  case fir::ConversionSubType::IntToPtr:
-    return true;
-  default:
-    return false;
+    case fir::ConversionSubType::BitCast:
+    case fir::ConversionSubType::PtrToInt:
+    case fir::ConversionSubType::IntToPtr:
+      return true;
+    default:
+      return false;
   }
 }
 
 bool intrin_legal(const TVec<fir::ValueR> &values, RecipeCtx & /*ctx*/) {
   switch (
       static_cast<fir::IntrinsicSubType>(values.back().as_instr()->subtype)) {
-  case fir::IntrinsicSubType::INVALID:
-  case fir::IntrinsicSubType::VA_start:
-  case fir::IntrinsicSubType::VA_end:
-  case fir::IntrinsicSubType::IsConstant:
-  case fir::IntrinsicSubType::Memset:
-  case fir::IntrinsicSubType::Memcpy:
-  case fir::IntrinsicSubType::Memmove:
-  case fir::IntrinsicSubType::Memcmp:
-  case fir::IntrinsicSubType::Bswap:
-    return false;
-  case fir::IntrinsicSubType::PopCnt:
-  case fir::IntrinsicSubType::CTLZ:
-  case fir::IntrinsicSubType::CTTZ:
-  case fir::IntrinsicSubType::FMin:
-  case fir::IntrinsicSubType::FMax:
-  case fir::IntrinsicSubType::FMinimum:
-  case fir::IntrinsicSubType::FMaximum:
-  case fir::IntrinsicSubType::UMin:
-  case fir::IntrinsicSubType::UMax:
-  case fir::IntrinsicSubType::SMin:
-  case fir::IntrinsicSubType::SMax:
-  case fir::IntrinsicSubType::Abs:
-  case fir::IntrinsicSubType::FAbs:
-  case fir::IntrinsicSubType::FRound:
-  case fir::IntrinsicSubType::FCeil:
-  case fir::IntrinsicSubType::FFloor:
-  case fir::IntrinsicSubType::FTrunc:
-    return true;
+    case fir::IntrinsicSubType::INVALID:
+    case fir::IntrinsicSubType::VA_start:
+    case fir::IntrinsicSubType::VA_end:
+    case fir::IntrinsicSubType::IsConstant:
+    case fir::IntrinsicSubType::Memset:
+    case fir::IntrinsicSubType::Memcpy:
+    case fir::IntrinsicSubType::Memmove:
+    case fir::IntrinsicSubType::Memcmp:
+    case fir::IntrinsicSubType::Bswap:
+      return false;
+    case fir::IntrinsicSubType::PopCnt:
+    case fir::IntrinsicSubType::CTLZ:
+    case fir::IntrinsicSubType::CTTZ:
+    case fir::IntrinsicSubType::FMin:
+    case fir::IntrinsicSubType::FMax:
+    case fir::IntrinsicSubType::FMinimum:
+    case fir::IntrinsicSubType::FMaximum:
+    case fir::IntrinsicSubType::UMin:
+    case fir::IntrinsicSubType::UMax:
+    case fir::IntrinsicSubType::SMin:
+    case fir::IntrinsicSubType::SMax:
+    case fir::IntrinsicSubType::Abs:
+    case fir::IntrinsicSubType::FAbs:
+    case fir::IntrinsicSubType::FRound:
+    case fir::IntrinsicSubType::FCeil:
+    case fir::IntrinsicSubType::FFloor:
+    case fir::IntrinsicSubType::FTrunc:
+      return true;
   }
 }
 
@@ -523,48 +523,48 @@ i64 node_cost(const Plan &plan, u32 id, const Features &features) {
   };
   auto lanes = static_cast<i64>(n.n_lanes);
   switch (n.kind) {
-  case NodeKind::Broadcast:
-    return -1;
-  case NodeKind::Gather:
-    return -lanes;
-  case NodeKind::HorizRed:
-    return child(0) - (lanes / 2);
-  case NodeKind::Binary: {
-    auto cost = child(0) + child(1) + lanes;
-    if (static_cast<fir::BinaryInstrSubType>(n.sub) ==
-            fir::BinaryInstrSubType::IntMul &&
-        !features.avx512dq && n.type->is_int()) {
-      cost -= 8;
+    case NodeKind::Broadcast:
+      return -1;
+    case NodeKind::Gather:
+      return -lanes;
+    case NodeKind::HorizRed:
+      return child(0) - (lanes / 2);
+    case NodeKind::Binary: {
+      auto cost = child(0) + child(1) + lanes;
+      if (static_cast<fir::BinaryInstrSubType>(n.sub) ==
+              fir::BinaryInstrSubType::IntMul &&
+          !features.avx512dq && n.type->is_int()) {
+        cost -= 8;
+      }
+      return cost;
     }
-    return cost;
-  }
-  case NodeKind::Zext:
-  case NodeKind::ITrunc:
-  case NodeKind::Load:
-    return child(0) + lanes;
-  case NodeKind::Call: {
-    i64 cost = 0;
-    for (size_t i = 0; i < n.children.size(); i++) {
-      cost += child(i);
+    case NodeKind::Zext:
+    case NodeKind::ITrunc:
+    case NodeKind::Load:
+      return child(0) + lanes;
+    case NodeKind::Call: {
+      i64 cost = 0;
+      for (size_t i = 0; i < n.children.size(); i++) {
+        cost += child(i);
+      }
+      return cost;
     }
-    return cost;
-  }
-  case NodeKind::Unary:
-  case NodeKind::Store:
-    return child(0) + (lanes * 2);
-  case NodeKind::Extract:
-    return -2;
-  case NodeKind::Intrin:
-    if (n.children.size() == 2) {
-      return child(0) + child(1) + (lanes * 2);
-    }
-    return child(0) + lanes;
-  case NodeKind::Constant:
-    return lanes;
-  case NodeKind::Conversion:
-  case NodeKind::Select:
-    // TODO switch on type of cast
-    return 1;
+    case NodeKind::Unary:
+    case NodeKind::Store:
+      return child(0) + (lanes * 2);
+    case NodeKind::Extract:
+      return -2;
+    case NodeKind::Intrin:
+      if (n.children.size() == 2) {
+        return child(0) + child(1) + (lanes * 2);
+      }
+      return child(0) + lanes;
+    case NodeKind::Constant:
+      return lanes;
+    case NodeKind::Conversion:
+    case NodeKind::Select:
+      // TODO switch on type of cast
+      return 1;
   }
   UNREACH();
 }
@@ -577,164 +577,166 @@ fir::ValueR node_emit(fir::Context &ctx, const Plan &plan, u32 id,
     return node_emit(ctx, plan, n.children.at(i), bundle);
   };
   switch (n.kind) {
-  case NodeKind::Broadcast: {
-    fir::Builder bb{n.insert_loc};
-    if (n.after) {
+    case NodeKind::Broadcast: {
+      fir::Builder bb{n.insert_loc};
+      if (n.after) {
+        bb.after(n.insert_loc);
+      }
+      return bb.build_vbroadcast(
+          n.value, ctx->get_vec_type(n.value.get_type(), n.n_lanes));
+    }
+    case NodeKind::Gather:
+      TODO("gather emission is not implemented, see gather_legal");
+    case NodeKind::HorizRed: {
+      auto orig_instr = bundle.base.as_instr();
+      auto subtype = orig_instr->subtype;
+      ASSERT(n.children.size() == 1);
+      bool isProd =
+          subtype == static_cast<u32>(fir::BinaryInstrSubType::FloatMul) ||
+          subtype == static_cast<u32>(fir::BinaryInstrSubType::IntMul);
+      bool isSum =
+          subtype == static_cast<u32>(fir::BinaryInstrSubType::FloatAdd) ||
+          subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd);
+      ASSERT(isProd || isSum);
+      auto vec = emit_child(0);
+      fir::Builder bb{orig_instr};
+      bb.after(orig_instr);
+      auto new_v =
+          bb.build_vector_op(vec, orig_instr->result_type(),
+                             isProd ? fir::VectorISubType::HorizontalMul
+                                    : fir::VectorISubType::HorizontalAdd);
+      // the scalar chain is erased by the driver once everything is emitted
+      orig_instr->replace_all_uses(new_v);
+      return new_v;
+    }
+    case NodeKind::Binary: {
+      auto bv = emit_child(0);
+      auto av = emit_child(1);
+      fir::Builder bb{n.insert_loc};
+      return bb.build_binary_op(av, bv,
+                                static_cast<fir::BinaryInstrSubType>(n.sub));
+    }
+    case NodeKind::Zext: {
+      auto val = emit_child(0);
+      fir::Builder bb{n.insert_loc};
+      return bb.build_zext(val, ctx->get_vec_type(n.type, n.n_lanes));
+    }
+    case NodeKind::ITrunc: {
+      auto val = emit_child(0);
+      fir::Builder bb{n.insert_loc};
+      return bb.build_itrunc(val, ctx->get_vec_type(n.type, n.n_lanes));
+    }
+    case NodeKind::Call: {
+      // children are in reverse operand order, the last one is the callee
+      TVec<fir::ValueR> args;
+      args.resize(n.children.size() - 1);
+      for (size_t i = 0; i < n.children.size() - 1; i++) {
+        args[n.children.size() - 2 - i] = emit_child(i);
+      }
+      fir::Builder bb{n.insert_loc};
+      auto *funcy = n.value.as_constant()->as_func().func;
+      auto new_func = whole_function_vectorize(*funcy, n.n_lanes);
+      ASSERT(new_func.has_value())
+      auto ftype = new_func.value()->func_ty;
+      return bb.build_call(
+          fir::ValueR{ctx->get_constant_value(new_func.value())}, ftype,
+          ftype->as_func().return_type(), args);
+    }
+    case NodeKind::Unary: {
+      auto val = emit_child(0);
+      fir::Builder bb{n.insert_loc};
+      return bb.build_unary_op(val, static_cast<fir::UnaryInstrSubType>(n.sub));
+    }
+    case NodeKind::Extract:
+      return n.value.as_instr()->args[0];
+    case NodeKind::Store: {
+      auto val = emit_child(0);
+      fir::Builder bb{n.insert_loc};
       bb.after(n.insert_loc);
+      // TODO: assuming continious stores
+      // the scalar stores are erased by the driver once everything is emitted
+      return bb.build_store(n.aux->args[0], val, false, false);
     }
-    return bb.build_vbroadcast(
-        n.value, ctx->get_vec_type(n.value.get_type(), n.n_lanes));
-  }
-  case NodeKind::Gather:
-    TODO("gather emission is not implemented, see gather_legal");
-  case NodeKind::HorizRed: {
-    auto orig_instr = bundle.base.as_instr();
-    auto subtype = orig_instr->subtype;
-    ASSERT(n.children.size() == 1);
-    bool isProd =
-        subtype == static_cast<u32>(fir::BinaryInstrSubType::FloatMul) ||
-        subtype == static_cast<u32>(fir::BinaryInstrSubType::IntMul);
-    bool isSum =
-        subtype == static_cast<u32>(fir::BinaryInstrSubType::FloatAdd) ||
-        subtype == static_cast<u32>(fir::BinaryInstrSubType::IntAdd);
-    ASSERT(isProd || isSum);
-    auto vec = emit_child(0);
-    fir::Builder bb{orig_instr};
-    bb.after(orig_instr);
-    auto new_v =
-        bb.build_vector_op(vec, orig_instr->result_type(),
-                           isProd ? fir::VectorISubType::HorizontalMul
-                                  : fir::VectorISubType::HorizontalAdd);
-    // the scalar chain is erased by the driver once everything is emitted
-    orig_instr->replace_all_uses(new_v);
-    return new_v;
-  }
-  case NodeKind::Binary: {
-    auto bv = emit_child(0);
-    auto av = emit_child(1);
-    fir::Builder bb{n.insert_loc};
-    return bb.build_binary_op(av, bv,
-                              static_cast<fir::BinaryInstrSubType>(n.sub));
-  }
-  case NodeKind::Zext: {
-    auto val = emit_child(0);
-    fir::Builder bb{n.insert_loc};
-    return bb.build_zext(val, ctx->get_vec_type(n.type, n.n_lanes));
-  }
-  case NodeKind::ITrunc: {
-    auto val = emit_child(0);
-    fir::Builder bb{n.insert_loc};
-    return bb.build_itrunc(val, ctx->get_vec_type(n.type, n.n_lanes));
-  }
-  case NodeKind::Call: {
-    // children are in reverse operand order, the last one is the callee
-    TVec<fir::ValueR> args;
-    args.resize(n.children.size() - 1);
-    for (size_t i = 0; i < n.children.size() - 1; i++) {
-      args[n.children.size() - 2 - i] = emit_child(i);
-    }
-    fir::Builder bb{n.insert_loc};
-    auto *funcy = n.value.as_constant()->as_func().func;
-    auto new_func = whole_function_vectorize(*funcy, n.n_lanes);
-    ASSERT(new_func.has_value())
-    auto ftype = new_func.value()->func_ty;
-    return bb.build_call(fir::ValueR{ctx->get_constant_value(new_func.value())},
-                         ftype, ftype->as_func().return_type(), args);
-  }
-  case NodeKind::Unary: {
-    auto val = emit_child(0);
-    fir::Builder bb{n.insert_loc};
-    return bb.build_unary_op(val, static_cast<fir::UnaryInstrSubType>(n.sub));
-  }
-  case NodeKind::Extract:
-    return n.value.as_instr()->args[0];
-  case NodeKind::Store: {
-    auto val = emit_child(0);
-    fir::Builder bb{n.insert_loc};
-    bb.after(n.insert_loc);
-    // TODO: assuming continious stores
-    // the scalar stores are erased by the driver once everything is emitted
-    return bb.build_store(n.aux->args[0], val, false, false);
-  }
-  case NodeKind::Intrin: {
-    // TODO: assuming continious stores
-    auto val = emit_child(0);
-    fir::Builder bb{n.insert_loc};
-    switch (static_cast<fir::IntrinsicSubType>(n.sub)) {
-    default:
-      TODO("UNREACH");
-    case fir::IntrinsicSubType::CTLZ:
-    case fir::IntrinsicSubType::UMin:
-    case fir::IntrinsicSubType::UMax:
-    case fir::IntrinsicSubType::SMin:
-    case fir::IntrinsicSubType::SMax:
-      TODO("impl");
-    case fir::IntrinsicSubType::FMin:
-      return bb.build_intrinsic(val, emit_child(1),
-                                fir::IntrinsicSubType::FMin);
-    case fir::IntrinsicSubType::FMax:
-      return bb.build_intrinsic(val, emit_child(1),
-                                fir::IntrinsicSubType::FMax);
-    case fir::IntrinsicSubType::FRound:
-      return bb.build_intrinsic(val, fir::IntrinsicSubType::FRound);
-    case fir::IntrinsicSubType::FCeil:
-      return bb.build_intrinsic(val, fir::IntrinsicSubType::FCeil);
-    case fir::IntrinsicSubType::FFloor:
-      return bb.build_intrinsic(val, fir::IntrinsicSubType::FFloor);
-    case fir::IntrinsicSubType::Abs:
-      return bb.build_abs(val);
-    case fir::IntrinsicSubType::FAbs:
-      return bb.build_fabs(val);
-    }
-  }
-  case NodeKind::Constant: {
-    auto n_elems = n.lanes.size();
-    IRVec<fir::ConstantValueR> args;
-    for (size_t i = 0; i < n_elems; i++) {
-      args.push_back(n.lanes[i].as_constant());
-    }
-    bool all_equal = true;
-    for (size_t i = 1; i < args.size(); i++) {
-      if (args[i] != args[0]) {
-        all_equal = false;
-        break;
+    case NodeKind::Intrin: {
+      // TODO: assuming continious stores
+      auto val = emit_child(0);
+      fir::Builder bb{n.insert_loc};
+      switch (static_cast<fir::IntrinsicSubType>(n.sub)) {
+        default:
+          TODO("UNREACH");
+        case fir::IntrinsicSubType::CTLZ:
+        case fir::IntrinsicSubType::UMin:
+        case fir::IntrinsicSubType::UMax:
+        case fir::IntrinsicSubType::SMin:
+        case fir::IntrinsicSubType::SMax:
+          TODO("impl");
+        case fir::IntrinsicSubType::FMin:
+          return bb.build_intrinsic(val, emit_child(1),
+                                    fir::IntrinsicSubType::FMin);
+        case fir::IntrinsicSubType::FMax:
+          return bb.build_intrinsic(val, emit_child(1),
+                                    fir::IntrinsicSubType::FMax);
+        case fir::IntrinsicSubType::FRound:
+          return bb.build_intrinsic(val, fir::IntrinsicSubType::FRound);
+        case fir::IntrinsicSubType::FCeil:
+          return bb.build_intrinsic(val, fir::IntrinsicSubType::FCeil);
+        case fir::IntrinsicSubType::FFloor:
+          return bb.build_intrinsic(val, fir::IntrinsicSubType::FFloor);
+        case fir::IntrinsicSubType::Abs:
+          return bb.build_abs(val);
+        case fir::IntrinsicSubType::FAbs:
+          return bb.build_fabs(val);
       }
     }
-    auto vec_ty = ctx->get_vec_type(args.at(0)->get_type(), n_elems);
-    if (all_equal) {
-      fir::Builder b{n.insert_loc};
-      return fir::ValueR{b.build_vbroadcast(fir::ValueR{args[0]}, vec_ty)};
+    case NodeKind::Constant: {
+      auto n_elems = n.lanes.size();
+      IRVec<fir::ConstantValueR> args;
+      for (size_t i = 0; i < n_elems; i++) {
+        args.push_back(n.lanes[i].as_constant());
+      }
+      bool all_equal = true;
+      for (size_t i = 1; i < args.size(); i++) {
+        if (args[i] != args[0]) {
+          all_equal = false;
+          break;
+        }
+      }
+      auto vec_ty = ctx->get_vec_type(args.at(0)->get_type(), n_elems);
+      if (all_equal) {
+        fir::Builder b{n.insert_loc};
+        return fir::ValueR{b.build_vbroadcast(fir::ValueR{args[0]}, vec_ty)};
+      }
+      return fir::ValueR{ctx->get_constant_value(std::move(args), vec_ty)};
     }
-    return fir::ValueR{ctx->get_constant_value(std::move(args), vec_ty)};
-  }
-  case NodeKind::Conversion: {
-    auto av = emit_child(0);
-    fir::Builder bb{n.insert_loc};
-    return bb.build_conversion_op(av, ctx->get_vec_type(n.type, n.n_lanes),
-                                  static_cast<fir::ConversionSubType>(n.sub));
-  }
-  case NodeKind::Select: {
-    // children are in reverse operand order: b, a, cond
-    auto bv = emit_child(0);
-    auto av = emit_child(1);
-    auto cond = emit_child(2);
-    fir::Builder bb{n.insert_loc};
-    return bb.build_select(ctx->get_vec_type(n.type, n.n_lanes), cond, av, bv);
-  }
-  case NodeKind::Load: {
-    auto val = emit_child(0);
-    fir::Builder bb{n.insert_loc};
-    bb.after(n.insert_loc);
-    if (n.insert_loc->result_type()->is_vec()) {
-      auto vec_loads = n.insert_loc->result_type()->as_vec();
-      auto vec_ty = ctx->get_vec_type(
-          vec_loads.type, vec_loads.bitwidth * vec_loads.member_number,
-          n.n_lanes);
+    case NodeKind::Conversion: {
+      auto av = emit_child(0);
+      fir::Builder bb{n.insert_loc};
+      return bb.build_conversion_op(av, ctx->get_vec_type(n.type, n.n_lanes),
+                                    static_cast<fir::ConversionSubType>(n.sub));
+    }
+    case NodeKind::Select: {
+      // children are in reverse operand order: b, a, cond
+      auto bv = emit_child(0);
+      auto av = emit_child(1);
+      auto cond = emit_child(2);
+      fir::Builder bb{n.insert_loc};
+      return bb.build_select(ctx->get_vec_type(n.type, n.n_lanes), cond, av,
+                             bv);
+    }
+    case NodeKind::Load: {
+      auto val = emit_child(0);
+      fir::Builder bb{n.insert_loc};
+      bb.after(n.insert_loc);
+      if (n.insert_loc->result_type()->is_vec()) {
+        auto vec_loads = n.insert_loc->result_type()->as_vec();
+        auto vec_ty = ctx->get_vec_type(
+            vec_loads.type, vec_loads.bitwidth * vec_loads.member_number,
+            n.n_lanes);
+        return bb.build_load(vec_ty, val, false, false);
+      }
+      auto vec_ty = ctx->get_vec_type(n.insert_loc->result_type(), n.n_lanes);
       return bb.build_load(vec_ty, val, false, false);
     }
-    auto vec_ty = ctx->get_vec_type(n.insert_loc->result_type(), n.n_lanes);
-    return bb.build_load(vec_ty, val, false, false);
-  }
   }
   UNREACH();
 }
@@ -754,7 +756,7 @@ void node_dump(const Plan &plan, u32 id, u32 indent = 0) {
     node_dump(plan, c, indent + 1);
   }
 }
-} // namespace
+}  // namespace
 
 SLPVectorizer::VecResult SLPVectorizer::tree_vectorize(fir::Context &ctx,
                                                        SeedBundle &b,
@@ -858,10 +860,10 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
           continue;
         }
         if constexpr (debug_print) {
-          fmt::println("Failed tree vectorize at {} like {}",
-                       recipe != nullptr ? recipe->name
-                                         : "unsupported instruction",
-                       curr.back());
+          fmt::println(
+              "Failed tree vectorize at {} like {}",
+              recipe != nullptr ? recipe->name : "unsupported instruction",
+              curr.back());
         }
         return false;
       }
@@ -886,35 +888,35 @@ bool SLPVectorizer::build_plan(fir::Context &ctx, const Features &features,
         i128 neutral_int = 0;
         if (rctx.potential_neutral) {
           switch (bin_op) {
-          case fir::BinaryInstrSubType::FloatAdd:
-          case fir::BinaryInstrSubType::IntAdd:
-          case fir::BinaryInstrSubType::PtrAdd:
-          case fir::BinaryInstrSubType::Shl:
-          case fir::BinaryInstrSubType::IntSub:
-          case fir::BinaryInstrSubType::Xor:
-          case fir::BinaryInstrSubType::Or:
-            neutral_float = 0.F;
-            neutral_int = 0;
-            break;
-          case fir::BinaryInstrSubType::IntMul:
-            neutral_float = 1.F;
-            neutral_int = 1;
-            break;
-          case fir::BinaryInstrSubType::And:
-            neutral_float = std::bit_cast<f64>(~static_cast<u64>(0));
-            neutral_int = ~static_cast<i128>(0);
-            break;
-          case fir::BinaryInstrSubType::INVALID:
-          case fir::BinaryInstrSubType::IntSRem:
-          case fir::BinaryInstrSubType::IntURem:
-          case fir::BinaryInstrSubType::IntSDiv:
-          case fir::BinaryInstrSubType::IntUDiv:
-          case fir::BinaryInstrSubType::Shr:
-          case fir::BinaryInstrSubType::AShr:
-          case fir::BinaryInstrSubType::FloatSub:
-          case fir::BinaryInstrSubType::FloatMul:
-          case fir::BinaryInstrSubType::FloatDiv:
-            UNREACH();
+            case fir::BinaryInstrSubType::FloatAdd:
+            case fir::BinaryInstrSubType::IntAdd:
+            case fir::BinaryInstrSubType::PtrAdd:
+            case fir::BinaryInstrSubType::Shl:
+            case fir::BinaryInstrSubType::IntSub:
+            case fir::BinaryInstrSubType::Xor:
+            case fir::BinaryInstrSubType::Or:
+              neutral_float = 0.F;
+              neutral_int = 0;
+              break;
+            case fir::BinaryInstrSubType::IntMul:
+              neutral_float = 1.F;
+              neutral_int = 1;
+              break;
+            case fir::BinaryInstrSubType::And:
+              neutral_float = std::bit_cast<f64>(~static_cast<u64>(0));
+              neutral_int = ~static_cast<i128>(0);
+              break;
+            case fir::BinaryInstrSubType::INVALID:
+            case fir::BinaryInstrSubType::IntSRem:
+            case fir::BinaryInstrSubType::IntURem:
+            case fir::BinaryInstrSubType::IntSDiv:
+            case fir::BinaryInstrSubType::IntUDiv:
+            case fir::BinaryInstrSubType::Shr:
+            case fir::BinaryInstrSubType::AShr:
+            case fir::BinaryInstrSubType::FloatSub:
+            case fir::BinaryInstrSubType::FloatMul:
+            case fir::BinaryInstrSubType::FloatDiv:
+              UNREACH();
           }
         }
         auto arg_0 = test_i.as_instr()->args[0];
@@ -1089,11 +1091,10 @@ void red_search_assoc(TVec<fir::ValueR> &reduction_inputs,
   red_search_assoc(reduction_inputs, curr_i->args[0], exp_sub_type);
   red_search_assoc(reduction_inputs, curr_i->args[1], exp_sub_type);
 }
-} // namespace
+}  // namespace
 
-std::optional<SLPVectorizer::SeedBundle>
-SLPVectorizer::find_reduction(fir::BasicBlock bb, size_t instr_id,
-                              const conf::CompConf &conf) {
+std::optional<SLPVectorizer::SeedBundle> SLPVectorizer::find_reduction(
+    fir::BasicBlock bb, size_t instr_id, const conf::CompConf &conf) {
   SeedBundle curr;
   auto base_instr = bb->instructions[instr_id];
   auto subtype = base_instr->subtype;
@@ -1260,7 +1261,7 @@ class StoreSeedProvider final : public SLPVectorizer::SeedProvider {
     u32 epoch;
   };
 
-public:
+ public:
   void scan(SLPVectorizer::SeedRegion &r) final {
     const auto &features = r.conf.target.features;
     const auto &mem = r.info.mem();
@@ -1346,7 +1347,7 @@ public:
                              });
   }
 
-private:
+ private:
   // stage 3
   void cut_run(SLPVectorizer::SeedRegion &r, const TVec<Cand> &cands,
                std::span<const u32> run, u32 max_bits) {
@@ -1386,7 +1387,7 @@ private:
 };
 
 class ReductionSeedProvider final : public SLPVectorizer::SeedProvider {
-public:
+ public:
   void scan(SLPVectorizer::SeedRegion &r) final {
     if (!r.reductions) {
       return;
@@ -1402,7 +1403,7 @@ public:
     finalize_reductions(bundles);
   }
 };
-} // namespace
+}  // namespace
 
 void SLPVectorizer::find_seeds(const conf::CompConf &conf, BlockInfo &info,
                                TVec<SeedBundle> &store_bundles,
@@ -1436,4 +1437,4 @@ void SLPVectorizer::find_seeds(const conf::CompConf &conf, BlockInfo &info,
   }
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -4,7 +4,7 @@
 namespace foptim::fmir {
 
 class FunctionPass {
-public:
+ public:
   virtual void apply(MFunc &func, const conf::CompConf &config) {
     (void)config;
     (void)func;
@@ -12,4 +12,4 @@ public:
   }
 };
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

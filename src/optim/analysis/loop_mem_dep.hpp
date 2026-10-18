@@ -9,7 +9,7 @@ namespace foptim::optim {
 // statement as one vector operation. This is the loop version of
 // BlockMemAccesses can_sink and gives the same MemDep answer.
 class LoopMemDep {
-public:
+ public:
   struct Access {
     fir::ValueR ptr;
     // start plus step per iteration, if the address is affine
@@ -22,7 +22,7 @@ public:
 
   [[nodiscard]] MemDep query(const Access &a, const Access &b, u32 vf);
 
-private:
+ private:
   ScalarEvo &evo;
   AliasAnalyis &aa;
 };
@@ -46,8 +46,7 @@ inline MemDep LoopMemDep::query(const Access &a, const Access &b, u32 vf) {
     return MemDep::Dependent;
   }
   const i128 step = evo.expr(ea.b).cval_i();
-  if (step <= 0 || step < static_cast<i128>(a.size) ||
-      a.size != b.size) {
+  if (step <= 0 || step < static_cast<i128>(a.size) || a.size != b.size) {
     return MemDep::Dependent;
   }
   if (evo.same_expr(ea.a, eb.a)) {
@@ -73,4 +72,4 @@ inline MemDep LoopMemDep::query(const Access &a, const Access &b, u32 vf) {
                                        : MemDep::Dependent;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

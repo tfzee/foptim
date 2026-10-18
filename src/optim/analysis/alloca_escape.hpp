@@ -62,7 +62,7 @@ inline bool ranges_overlap(const SelfRange &a, const SelfRange &b) {
   return a.off < b.off + b.size && b.off < a.off + a.size;
 }
 
-} // namespace
+}  // namespace
 
 inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
   AllocaEscapeInfo info;
@@ -110,77 +110,77 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
         }
         auto user = use.user;
         switch (user->instr_type) {
-        case fir::InstrType::ICmp:
-        case fir::InstrType::FCmp:
-          // comparing an address does not give access to the memory
-          break;
-        case fir::InstrType::LoadInstr: {
-          auto ty = user->result_type();
-          if (ty->is_ptr()) {
-            if (info.has_self_ptr) {
-              add(user.result());
-            }
-          } else {
-            non_ptr_loads.push_back({.addr = v, .size = ty->get_size()});
-          }
-          break;
-        }
-        case fir::InstrType::StoreInstr: {
-          if (use.argId == 0) {
+          case fir::InstrType::ICmp:
+          case fir::InstrType::FCmp:
+            // comparing an address does not give access to the memory
             break;
-          }
-          if (!v.get_type()->is_ptr()) {
-            escape();
-            return info;
-          }
-          if (!info.has_self_ptr) {
-            info.has_self_ptr = true;
-            changed = true;
-          }
-          self_stores.push_back({.store = user, .ptr_stored = v});
-          break;
-        }
-        case fir::InstrType::Intrinsic: {
-          if ((user->is(fir::IntrinsicSubType::Memcpy) ||
-               user->is(fir::IntrinsicSubType::Memmove)) &&
-              (use.argId == 0 || use.argId == 1)) {
-            if (use.argId == 1) {
-              memcpy_reads = true;
+          case fir::InstrType::LoadInstr: {
+            auto ty = user->result_type();
+            if (ty->is_ptr()) {
+              if (info.has_self_ptr) {
+                add(user.result());
+              }
+            } else {
+              non_ptr_loads.push_back({.addr = v, .size = ty->get_size()});
             }
             break;
           }
-          if (user->is(fir::IntrinsicSubType::Memset) && use.argId == 0) {
+          case fir::InstrType::StoreInstr: {
+            if (use.argId == 0) {
+              break;
+            }
+            if (!v.get_type()->is_ptr()) {
+              escape();
+              return info;
+            }
+            if (!info.has_self_ptr) {
+              info.has_self_ptr = true;
+              changed = true;
+            }
+            self_stores.push_back({.store = user, .ptr_stored = v});
             break;
           }
-          escape();
-          return info;
-        }
-        case fir::InstrType::CallInstr: {
-          if (!user->args[0].is_constant_func()) {
+          case fir::InstrType::Intrinsic: {
+            if ((user->is(fir::IntrinsicSubType::Memcpy) ||
+                 user->is(fir::IntrinsicSubType::Memmove)) &&
+                (use.argId == 0 || use.argId == 1)) {
+              if (use.argId == 1) {
+                memcpy_reads = true;
+              }
+              break;
+            }
+            if (user->is(fir::IntrinsicSubType::Memset) && use.argId == 0) {
+              break;
+            }
             escape();
             return info;
           }
-          auto name = user->args[0].as_constant()->as_func()->name;
-          escape();
-          return info;
-        }
-        case fir::InstrType::SelectInstr:
-          if (use.argId == 0) {
+          case fir::InstrType::CallInstr: {
+            if (!user->args[0].is_constant_func()) {
+              escape();
+              return info;
+            }
+            auto name = user->args[0].as_constant()->as_func()->name;
             escape();
             return info;
           }
-          add(user.result());
-          break;
-        case fir::InstrType::BinaryInstr:
-        case fir::InstrType::Conversion:
-        case fir::InstrType::ITrunc:
-        case fir::InstrType::ZExt:
-        case fir::InstrType::SExt:
-          add(user.result());
-          break;
-        default:
-          escape();
-          return info;
+          case fir::InstrType::SelectInstr:
+            if (use.argId == 0) {
+              escape();
+              return info;
+            }
+            add(user.result());
+            break;
+          case fir::InstrType::BinaryInstr:
+          case fir::InstrType::Conversion:
+          case fir::InstrType::ITrunc:
+          case fir::InstrType::ZExt:
+          case fir::InstrType::SExt:
+            add(user.result());
+            break;
+          default:
+            escape();
+            return info;
         }
       }
     }
@@ -216,4 +216,4 @@ inline AllocaEscapeInfo analyze_alloca_escape(fir::ValueR alloca_val) {
   return info;
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

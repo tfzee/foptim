@@ -3,20 +3,20 @@
 #include <array>
 #include <unordered_set>
 
+#include "config/compiler_config.hpp"
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/interpreter/interpreter.hpp"
 #include "ir/value.hpp"
+#include "mir/matcher.hpp"
+#include "mir/optim/calling_conv.hpp"
+#include "mir/optim/mir_pipeline.hpp"
 #include "optim/func_passes/dce.hpp"
 #include "optim/func_passes/lvn.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
 #include "optim/helper/inline.hpp"
-#include "config/compiler_config.hpp"
-#include "mir/matcher.hpp"
-#include "mir/optim/mir_pipeline.hpp"
 #include "utils/job_system.hpp"
-#include "mir/optim/calling_conv.hpp"
 
 namespace {
 using foptim::fir::ValueR;
@@ -183,17 +183,19 @@ struct MixedModule {
   explicit MixedModule(std::string_view kinds) {
     std::vector<foptim::fir::TypeR> tys;
     for (char k : kinds) {
-      tys.push_back(k == 'i' ? foptim::fir::TypeR{ctx.data->get_int_type(64)}
-                             : foptim::fir::TypeR{ctx.data->get_float_type(64)});
+      tys.push_back(k == 'i'
+                        ? foptim::fir::TypeR{ctx.data->get_int_type(64)}
+                        : foptim::fir::TypeR{ctx.data->get_float_type(64)});
     }
     auto callee = ctx.data->create_function(
-        "callee", ctx.data->get_func_ty(
-                      std::span<const foptim::fir::TypeR>{tys},
-                      foptim::IRVec<foptim::fir::TypeR>(tys.begin(), tys.end())));
+        "callee",
+        ctx.data->get_func_ty(
+            std::span<const foptim::fir::TypeR>{tys},
+            foptim::IRVec<foptim::fir::TypeR>(tys.begin(), tys.end())));
     auto caller = ctx.data->create_function(
-        "caller", ctx.data->get_func_ty(
-                      tys.back(),
-                      foptim::IRVec<foptim::fir::TypeR>(tys.begin(), tys.end())));
+        "caller",
+        ctx.data->get_func_ty(tys.back(), foptim::IRVec<foptim::fir::TypeR>(
+                                              tys.begin(), tys.end())));
     {
       auto b = callee.builder();
       auto entry = callee.func->get_entry();

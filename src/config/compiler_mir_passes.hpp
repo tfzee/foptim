@@ -24,11 +24,12 @@ concept has_construct_function_pass_func = requires {
   } -> std::same_as<void>;
 };
 
-template <class T> struct FunctionPassConf : public PassConfig {
-private:
+template <class T>
+struct FunctionPassConf : public PassConfig {
+ private:
   FunctionPassConf() = default;
 
-public:
+ public:
   [[nodiscard]] PassConfig *clone() const final {
     return new T(static_cast<const T &>(*this));
   }
@@ -159,4 +160,4 @@ struct StackSlotLoweringConf : public FunctionPassConf<StackSlotLoweringConf> {
   void construct_function_pass(Pass & /*unused*/) {};
 };
 
-} // namespace foptim::conf::fmir
+}  // namespace foptim::conf::fmir

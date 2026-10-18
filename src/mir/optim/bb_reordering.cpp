@@ -31,8 +31,8 @@ void BBReordering::apply(MFunc &func, const conf::CompConf &) {
   };
 
   // Best unplaced successor never leave a loop while the loop continues,
-  // never pull cold code into hot code and prefer  the jmp default target since that
-  // one becomes a free fallthrough
+  // never pull cold code into hot code and prefer  the jmp default target since
+  // that one becomes a free fallthrough
   auto pick_next = [&](u32 bb) -> u32 {
     const u32 jt = jmp_target(bb);
     u32 best = n;
@@ -94,4 +94,4 @@ void BBReordering::apply(MFunc &func, const conf::CompConf &) {
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

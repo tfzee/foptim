@@ -10,17 +10,18 @@ namespace foptim::optim {
 class IntrinExpand final : public FunctionPass {
   using iter = IRVec<fir::Instr>::iterator;
 
-  std::optional<fir::BasicBlock>
-  expand_memset(fir::Function &func, fir::BasicBlock bb, fir::Instr instr);
+  std::optional<fir::BasicBlock> expand_memset(fir::Function &func,
+                                               fir::BasicBlock bb,
+                                               fir::Instr instr);
   // the element type is the extra_type of the intrinsic (bytes if not set)
-  std::optional<fir::BasicBlock>
-  expand_memcpy(fir::Function &func, fir::BasicBlock bb, fir::Instr instr);
+  std::optional<fir::BasicBlock> expand_memcpy(fir::Function &func,
+                                               fir::BasicBlock bb,
+                                               fir::Instr instr);
 
-public:
+ public:
   class Config {};
 
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
-
     (void)ctx;
     (void)func;
     ZoneScopedNC("IntrinExpand", COLOR_OPTIMF);
@@ -55,7 +56,7 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim
 
 namespace foptim::optim {
 
@@ -66,10 +67,10 @@ module already, see generate_memmove). Has to run after the last pass that
 creates them.
 */
 class IntrinLowerCalls final : public FunctionPass {
-public:
+ public:
   class Config {};
 
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

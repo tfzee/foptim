@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <utils/types.hpp>
 
 // using namespace foptim::utils;

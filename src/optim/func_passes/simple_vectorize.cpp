@@ -32,7 +32,7 @@ bool apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   TODO("okak");
 }
 
-} // namespace
+}  // namespace
 
 PreservedAnalysis SimpleVectorizer::apply(fir::Context &ctx,
                                           fir::Function &func) {
@@ -52,4 +52,4 @@ PreservedAnalysis SimpleVectorizer::apply(fir::Context &ctx,
   return PreservedAnalysis::none();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

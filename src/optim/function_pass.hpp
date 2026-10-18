@@ -1,7 +1,8 @@
 #pragma once
+#include <fmt/base.h>
+
 #include <atomic>
 #include <chrono>
-#include <fmt/base.h>
 
 #include "config/compiler_config.hpp"
 #include "ir/IRLocation.hpp"
@@ -19,7 +20,7 @@ namespace foptim::optim {
 //   static FunctionPassInfo *ID() { return &DerivedT::Key; }
 // };
 class FunctionPass {
-public:
+ public:
   struct FailureReason {
     const char *reason;
     fir::IRLocation loc;
@@ -198,7 +199,7 @@ class ParallelFunctionPassManager {
     return changed;
   }
 
-public:
+ public:
   CleanTracker *tracker = nullptr;
 
   void clear() { dyn_passes.clear(); }
@@ -215,8 +216,9 @@ public:
       }
       shed->push(nullptr, [this, &ctx, func, &any_changed]() {
         for (auto *pass : dyn_passes) {
-          if (apply_pass(ctx, pass, *tracker, *func,
-                         ctx.config->debug.print_optimization_failure_reasons)) {
+          if (apply_pass(
+                  ctx, pass, *tracker, *func,
+                  ctx.config->debug.print_optimization_failure_reasons)) {
             any_changed = true;
           }
         }
@@ -248,4 +250,4 @@ public:
 //     }
 //   }
 // };
-} // namespace foptim::optim
+}  // namespace foptim::optim

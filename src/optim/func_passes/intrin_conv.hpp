@@ -1,7 +1,8 @@
 #pragma once
+#include <fmt/base.h>
+
 #include "../function_pass.hpp"
 #include "optim/analysis/analysis_manager.hpp"
-#include <fmt/base.h>
 
 /*
 Try to convert intrinsic like patterns into the actual intrinsics this includes
@@ -15,9 +16,8 @@ bool match_abs(fir::Context &ctx, fir::Function &func);
 bool match_bswap(fir::Context &ctx, fir::Function &func);
 
 class IntrinConv final : public FunctionPass {
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
-
     (void)ctx;
     (void)func;
     ZoneScopedNC("IntrinConv", COLOR_OPTIMF);
@@ -28,4 +28,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

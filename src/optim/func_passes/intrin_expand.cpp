@@ -1,4 +1,7 @@
 #include "intrin_expand.hpp"
+
+#include <fmt/base.h>
+
 #include "config/compiler_config.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/basic_block_ref.hpp"
@@ -9,22 +12,22 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/helper/inline.hpp"
-#include <fmt/base.h>
 namespace foptim::optim {
 
 namespace {
 // The loops are do while loops so they need a skip when the count can be 0.
-fir::Instr guarded_entry(fir::Builder &buh, fir::ContextData *ctx, fir::ValueR num,
-                         fir::BasicBlock loop_bb, fir::BasicBlock skip_bb) {
+fir::Instr guarded_entry(fir::Builder &buh, fir::ContextData *ctx,
+                         fir::ValueR num, fir::BasicBlock loop_bb,
+                         fir::BasicBlock skip_bb) {
   if (num.is_constant_int() && num.as_constant()->as_int() != 0) {
     return buh.build_branch(loop_bb);
   }
-  auto not_empty = buh.build_int_cmp(
-      num, fir::ValueR{ctx->get_constant_int(0, 64)},
-      fir::ICmpInstrSubType::NE);
+  auto not_empty =
+      buh.build_int_cmp(num, fir::ValueR{ctx->get_constant_int(0, 64)},
+                        fir::ICmpInstrSubType::NE);
   return buh.build_cond_branch(not_empty, loop_bb, skip_bb);
 }
-} // namespace
+}  // namespace
 
 std::optional<fir::BasicBlock> IntrinExpand::expand_memset(fir::Function &func,
                                                            fir::BasicBlock bb,
@@ -54,9 +57,9 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memset(fir::Function &func,
   buh.at_end(loop_bb);
 
   buh.build_store(curr_ptr, value, false, instr->Volatile);
-  auto next_ptr =
-      buh.build_ptr_add(curr_ptr, fir::ValueR{ctx->get_constant_int(
-                                      value.get_type()->get_size(), 64)});
+  auto next_ptr = buh.build_ptr_add(
+      curr_ptr,
+      fir::ValueR{ctx->get_constant_int(value.get_type()->get_size(), 64)});
   auto next_off =
       buh.build_int_add(curr_off, fir::ValueR{ctx->get_constant_int(1, 64)});
   auto cond = buh.build_int_cmp(next_off, num, fir::ICmpInstrSubType::ULT);
@@ -145,9 +148,9 @@ static bool expand_to_libc_call(fir::Function &func, fir::Instr instr) {
   // a volatile copy is not what the libc function does, and the libc
   // functions themselves must not call each other (or themselves)
   const bool volatile_copy = instr->Volatile && !is_memcmp;
-  if (volatile_copy || !ctx->has_function(name) ||
-      func.name == "memcpy" || func.name == "memset" ||
-      func.name == "memmove" || func.name == "memcmp") {
+  if (volatile_copy || !ctx->has_function(name) || func.name == "memcpy" ||
+      func.name == "memset" || func.name == "memmove" ||
+      func.name == "memcmp") {
     return false;
   }
   fir::Builder buh{instr};
@@ -199,4 +202,4 @@ PreservedAnalysis IntrinLowerCalls::apply(fir::Context & /*ctx*/,
   return modified ? PreservedAnalysis::cfg_only() : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

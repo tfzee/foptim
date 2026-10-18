@@ -2,8 +2,8 @@
 #include "ir/constant_value.hpp"
 #include "ir/function.hpp"
 #include "ir/global.hpp"
-#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/access_analysis.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/set.hpp"
 #include "utils/stable_vec_slot.hpp"
@@ -16,7 +16,7 @@ static bool global_is_never_read(fir::Global g) {
 }
 
 class GDCE final : public ModulePass {
-public:
+ public:
   bool is_intrinsic(const IRString &name) {
     return name.starts_with("llvm.") || name.starts_with("foptim.");
   }
@@ -63,14 +63,14 @@ public:
 #endif
                 }};
             switch (g->linkage) {
-            case fir::Linkage::External:
-            case fir::Linkage::WeakODR:
-            case fir::Linkage::Weak:
-              continue;
-            case fir::Linkage::Internal:
-            case fir::Linkage::LinkOnce:
-            case fir::Linkage::LinkOnceODR:
-              break;
+              case fir::Linkage::External:
+              case fir::Linkage::WeakODR:
+              case fir::Linkage::Weak:
+                continue;
+              case fir::Linkage::Internal:
+              case fir::Linkage::LinkOnce:
+              case fir::Linkage::LinkOnceODR:
+                break;
             }
             if (g->get_n_uses() > 0 &&
                 // assumes constannt is either escaping or read otherwise it
@@ -97,8 +97,8 @@ public:
             while (slab != nullptr) {
               for (auto &i : slab->data) {
                 auto *v = &i;
-                if (v->is_used() &&
-                    v->data.is_global() && v->data.as_global() == g) {
+                if (v->is_used() && v->data.is_global() &&
+                    v->data.as_global() == g) {
 #if SLOT_CHECK_LEVEL >= 2
                   auto r = utils::SRef<fir::ConstantValue>{v, v->generation()};
 #else
@@ -133,14 +133,14 @@ public:
         continue;
       }
       switch (f->attribs.linkage) {
-      case fir::Linkage::External:
-      case fir::Linkage::WeakODR:
-      case fir::Linkage::Weak:
-        continue;
-      case fir::Linkage::Internal:
-      case fir::Linkage::LinkOnce:
-      case fir::Linkage::LinkOnceODR:
-        break;
+        case fir::Linkage::External:
+        case fir::Linkage::WeakODR:
+        case fir::Linkage::Weak:
+          continue;
+        case fir::Linkage::Internal:
+        case fir::Linkage::LinkOnce:
+        case fir::Linkage::LinkOnceODR:
+          break;
       }
       if (name.starts_with("_GLOBAL")) {
         continue;
@@ -154,8 +154,8 @@ public:
         while (slab != nullptr) {
           for (auto &i : slab->data) {
             auto *v = &i;
-            if (v->is_used() &&
-                v->data.is_func() && v->data.as_func().func == f) {
+            if (v->is_used() && v->data.is_func() &&
+                v->data.as_func().func == f) {
 #if SLOT_CHECK_LEVEL >= 2
               auto r = utils::SRef<fir::ConstantValue>{v, v->generation()};
 #else
@@ -173,4 +173,4 @@ public:
     return PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -12,7 +12,7 @@
 namespace foptim::utils {
 
 class StatCollector {
-public:
+ public:
   enum StatType : u8 {
     STAT_ANY,
     StatFOptim,
@@ -104,40 +104,40 @@ public:
       for (auto stat_type = STAT_ANY + 1; stat_type < STAT_TYPE_MAX;
            stat_type++) {
         switch (static_cast<StatType>(stat_type)) {
-        case STAT_TYPE_MAX:
-        case STAT_ANY:
-          UNREACH();
-        case StatFOptim:
-          fmt::println("===Foptim Optim:");
-          break;
-        case StatMatcher:
-          fmt::println("===Matcher:");
-          break;
-        case StatMirOptim:
-          fmt::println("===MIR Optim:");
-          break;
-        case StatOther:
-          fmt::println("===Other:");
-          break;
-        case StatTiming:
-          fmt::println("===Timing:");
-          break;
+          case STAT_TYPE_MAX:
+          case STAT_ANY:
+            UNREACH();
+          case StatFOptim:
+            fmt::println("===Foptim Optim:");
+            break;
+          case StatMatcher:
+            fmt::println("===Matcher:");
+            break;
+          case StatMirOptim:
+            fmt::println("===MIR Optim:");
+            break;
+          case StatOther:
+            fmt::println("===Other:");
+            break;
+          case StatTiming:
+            fmt::println("===Timing:");
+            break;
         }
         for (const auto &[name, stat] : stats) {
           if (stat.ty == stat_type) {
             switch (stat.type) {
-            case StatValType::I64:
-              if (stat.ty == StatTiming) {
-                // microseconds
-                fmt::println("{: <25}: {: >9.1f} ms", name,
-                             static_cast<f64>(stat.iv) / 1000.0);
-              } else {
-                fmt::println("{: <25}: {: >5}", name, stat.iv);
-              }
-              break;
-            case StatValType::F64:
-              fmt::println("{: <25}: {: >5}", name, stat.dv);
-              break;
+              case StatValType::I64:
+                if (stat.ty == StatTiming) {
+                  // microseconds
+                  fmt::println("{: <25}: {: >9.1f} ms", name,
+                               static_cast<f64>(stat.iv) / 1000.0);
+                } else {
+                  fmt::println("{: <25}: {: >5}", name, stat.iv);
+                }
+                break;
+              case StatValType::F64:
+                fmt::println("{: <25}: {: >5}", name, stat.dv);
+                break;
             }
           }
         }
@@ -148,40 +148,40 @@ public:
         if (stat.ty == filter_ty || stat.ty == STAT_ANY ||
             filter_ty == STAT_ANY) {
           switch (stat.ty) {
-          case STAT_TYPE_MAX:
-            fmt::print("INVLD:");
-            break;
-            UNREACH();
-          case STAT_ANY:
-            fmt::print("ANYY:");
-            break;
-          case StatFOptim:
-            fmt::print("FOPT:");
-            break;
-          case StatMatcher:
-            fmt::print("MATC:");
-            break;
-          case StatMirOptim:
-            fmt::print("MIRO:");
-            break;
-          case StatOther:
-            fmt::print("OTHR:");
-            break;
-          case StatTiming:
-            fmt::print("TMNG:");
-            break;
+            case STAT_TYPE_MAX:
+              fmt::print("INVLD:");
+              break;
+              UNREACH();
+            case STAT_ANY:
+              fmt::print("ANYY:");
+              break;
+            case StatFOptim:
+              fmt::print("FOPT:");
+              break;
+            case StatMatcher:
+              fmt::print("MATC:");
+              break;
+            case StatMirOptim:
+              fmt::print("MIRO:");
+              break;
+            case StatOther:
+              fmt::print("OTHR:");
+              break;
+            case StatTiming:
+              fmt::print("TMNG:");
+              break;
           }
           switch (stat.type) {
-          case StatValType::I64:
-            fmt::println("{: <25}: {: >5}", name, stat.iv);
-            break;
-          case StatValType::F64:
-            fmt::println("{: <25}: {: >5}", name, stat.dv);
-            break;
+            case StatValType::I64:
+              fmt::println("{: <25}: {: >5}", name, stat.iv);
+              break;
+            case StatValType::F64:
+              fmt::println("{: <25}: {: >5}", name, stat.dv);
+              break;
           }
         }
       }
     }
   }
 };
-} // namespace foptim::utils
+}  // namespace foptim::utils

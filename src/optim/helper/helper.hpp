@@ -28,8 +28,9 @@ struct IncomingData {
   fir::Instr term;
   u32 inc_bb_id;
 };
-//Given a bb with a conditional block at the end we can split it up into 2 bbs
+// Given a bb with a conditional block at the end we can split it up into 2 bbs
 bool cond_tail_duplication(foptim::fir::Context &ctx, foptim::optim::CFG &cfg,
                            foptim::optim::Dominators &dom,
-                           fir::BasicBlock cond_bb, fir::Instr term, IncomingData false_incoming);
-} // namespace foptim::optim
+                           fir::BasicBlock cond_bb, fir::Instr term,
+                           IncomingData false_incoming);
+}  // namespace foptim::optim

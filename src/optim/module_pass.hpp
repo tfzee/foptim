@@ -12,7 +12,7 @@
 namespace foptim::optim {
 
 class ModulePass {
-public:
+ public:
   struct FailureReason {
     const char *reason;
     fir::IRLocation loc;
@@ -23,9 +23,9 @@ public:
   IRVec<FailureReason> failures;
 #endif
 
-  [[nodiscard]] virtual PreservedAnalysis apply(fir::Context & /*unused*/,
-                                  JobSheduler * /*shed*/,
-                                  AnalysisManager & /*analyMan*/) {
+  [[nodiscard]] virtual PreservedAnalysis apply(
+      fir::Context & /*unused*/, JobSheduler * /*shed*/,
+      AnalysisManager & /*analyMan*/) {
     TODO("impl");
   }
 
@@ -69,7 +69,7 @@ public:
 class ModulePassManager {
   FVec<conf::PassConfig *> dyn_passes;
 
-public:
+ public:
   CleanTracker *tracker = nullptr;
 
   void clear() { dyn_passes.clear(); }
@@ -108,4 +108,4 @@ public:
     ctx.data->storage.storage_instr.collect_garbage();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

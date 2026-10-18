@@ -1,18 +1,18 @@
 
 #pragma once
+#include <fmt/base.h>
+
 #include "config/compiler_config.hpp"
 #include "mir/func.hpp"
 #include "mir/instr.hpp"
 #include "mir/optim/function_pass.hpp"
 #include "utils/stats.hpp"
-#include <fmt/base.h>
 
 namespace foptim::fmir {
 
 class StackSlotLowering : public FunctionPass {
-public:
+ public:
   void apply(MFunc &func, const conf::CompConf & /*config*/) override {
-
     u64 stack_slots_size = 0;
     TVec<u64> index_to_mem_off;
     for (auto &slot : func.extra_stack_slots) {
@@ -70,13 +70,13 @@ public:
             } else if (arg.scale == 8) {
               // float slots keep their type, FL2SI/FL2UI pick the encoding
               // from the type of a memory source
-              arg = MArgument::MemOB(off, VReg::RBP(),
-                                     arg.ty == Type::Float64 ? Type::Float64
-                                                             : Type::Int64);
+              arg = MArgument::MemOB(
+                  off, VReg::RBP(),
+                  arg.ty == Type::Float64 ? Type::Float64 : Type::Int64);
             } else if (arg.scale == 4) {
-              arg = MArgument::MemOB(off, VReg::RBP(),
-                                     arg.ty == Type::Float32 ? Type::Float32
-                                                             : Type::Int32);
+              arg = MArgument::MemOB(
+                  off, VReg::RBP(),
+                  arg.ty == Type::Float32 ? Type::Float32 : Type::Int32);
             } else if (arg.scale == 2) {
               arg = MArgument::MemOB(off, VReg::RBP(), Type::Int16);
             } else if (arg.scale == 1) {
@@ -104,4 +104,4 @@ public:
     // TODO("impl");
   }
 };
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

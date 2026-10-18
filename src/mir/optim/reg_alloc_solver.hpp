@@ -38,8 +38,8 @@ constexpr f32 infCost = std::numeric_limits<f32>::infinity();
 // registers are sorted by their CReg value (0 = spill, the "register" that
 // means the value lives on the stack), which keeps tie breaking independent of
 // the storage. A domain is a bitmask of CRegs, to let a kind of node use
-// additional registers (for example gpr values that can be parked in vec registers)
-// add a mask here.
+// additional registers (for example gpr values that can be parked in vec
+// registers) add a mask here.
 constexpr u32 kMaxDomain = 31;
 constexpr u8 kNoLocal = 0xFF;
 
@@ -60,7 +60,7 @@ enum : u8 {
   ConcreteBase = 3,
   N = ConcreteBase + numRegs - 1,
 };
-} // namespace kind
+}  // namespace kind
 
 constexpr u64 reg_bit(CReg r) { return 1ULL << static_cast<u64>(r); }
 
@@ -105,8 +105,8 @@ constexpr auto kKinds = make_kinds();
 
 constexpr u8 kind_of(VReg reg) {
   if (reg.is_concrete()) {
-    return static_cast<u8>(kind::ConcreteBase +
-                           static_cast<u8>(reg.c_reg()) - 1);
+    return static_cast<u8>(kind::ConcreteBase + static_cast<u8>(reg.c_reg()) -
+                           1);
   }
   return reg.is_vec_reg() ? kind::Vec : kind::Gpr;
 }
@@ -167,14 +167,14 @@ inline void apply_cost_model(CostVector &v, u8 k, const NodeCostInfo &info,
       continue;
     }
     switch (save_class[reg]) {
-    case CallerSaved:
-      v.cost[l] += kPushPopCost * info.call_crossings;
-      break;
-    case CalleeSaved:
-      v.cost[l] += kCalleeSavedCost;
-      break;
-    default:
-      break;
+      case CallerSaved:
+        v.cost[l] += kPushPopCost * info.call_crossings;
+        break;
+      case CalleeSaved:
+        v.cost[l] += kCalleeSavedCost;
+        break;
+      default:
+        break;
     }
   }
 }
@@ -411,9 +411,10 @@ struct CostGraph {
 
   void remove_neighbour(u32 from, u32 to_remove) {
     auto &list = neighbours[from];
-    list.erase(std::remove_if(list.begin(), list.end(),
-                              [to_remove](Adj a) { return a.other == to_remove; }),
-               list.end());
+    list.erase(
+        std::remove_if(list.begin(), list.end(),
+                       [to_remove](Adj a) { return a.other == to_remove; }),
+        list.end());
   }
 
   void erase_active(u32 pos) {
@@ -450,7 +451,7 @@ struct CostGraph {
 };
 
 inline bool R1_Reduction(u32 node, CostGraph &graph,
-                  TVec<StackRecord> &allocation_stack) {
+                         TVec<StackRecord> &allocation_stack) {
   auto &neigh = graph.neighbours[node];
   if (neigh.size() != 1) {
     return false;
@@ -493,7 +494,7 @@ inline bool R1_Reduction(u32 node, CostGraph &graph,
 }
 
 inline bool R2_Reduction(u32 node, CostGraph &graph,
-                  TVec<StackRecord> &allocation_stack) {
+                         TVec<StackRecord> &allocation_stack) {
   auto &neigh = graph.neighbours[node];
   if (neigh.size() != 2) {
     return false;
@@ -592,7 +593,8 @@ inline bool R2_Reduction(u32 node, CostGraph &graph,
   return true;
 }
 
-inline bool RM_Reduction(CostGraph &graph, TVec<StackRecord> &allocation_stack) {
+inline bool RM_Reduction(CostGraph &graph,
+                         TVec<StackRecord> &allocation_stack) {
   u32 victim_node = kNoNode;
   f32 min_spill_metric = std::numeric_limits<f32>::max();
 
@@ -641,7 +643,8 @@ inline bool RM_Reduction(CostGraph &graph, TVec<StackRecord> &allocation_stack) 
   return true;
 }
 
-inline void minimize_graph(CostGraph &graph, TVec<StackRecord> &allocation_stack) {
+inline void minimize_graph(CostGraph &graph,
+                           TVec<StackRecord> &allocation_stack) {
   // at most one record per node
   allocation_stack.reserve(graph.n_nodes());
   while (true) {
@@ -674,7 +677,8 @@ inline void minimize_graph(CostGraph &graph, TVec<StackRecord> &allocation_stack
     }
     // NOTE: dropping the optional (copy discount) edges of nodes with at most
     // two hard neighbours before resorting to RM was tried and made the static
-    // metrics worse (more movs, more instructions), see rejected-experiments.md.
+    // metrics worse (more movs, more instructions), see
+    // rejected-experiments.md.
 
     if (graph.active.empty() || !found_any_virtual) {
       break;
@@ -700,8 +704,9 @@ inline void minimize_graph(CostGraph &graph, TVec<StackRecord> &allocation_stack
 // assignments is indexed by node, nodes that have not been colored yet and
 // spilled nodes are CReg::Virtual
 inline void actually_allocate(const CostGraph &graph,
-                       TVec<StackRecord> &allocation_stack,
-                       TVec<CReg> &assignments, TVec<u64> &needs_spilling) {
+                              TVec<StackRecord> &allocation_stack,
+                              TVec<CReg> &assignments,
+                              TVec<u64> &needs_spilling) {
   assignments.assign(graph.n_nodes(), CReg::Virtual);
   for (u32 node = 0; node < graph.n_nodes(); node++) {
     if (graph.is_concrete(node)) {
@@ -721,41 +726,44 @@ inline void actually_allocate(const CostGraph &graph,
     }
 
     switch (record.type) {
-    case ReductionType::R1: {
-      auto assigned_reg_neigh0 = assignments[record.neigh0];
-
-      for (u32 i = 0; i < dom.size; i++) {
-        // just go baesd on what the neighbour took
-        selection_vector[i] += record.m_ab.get_cost(
-            record.ab_self_lo, dom.regs[i], static_cast<u32>(assigned_reg_neigh0));
-      }
-    } break;
-    case ReductionType::R2: {
-      auto assigned_reg_neigh0 = assignments[record.neigh0];
-      auto assigned_reg_neigh1 = assignments[record.neigh1];
-
-      for (u32 i = 0; i < dom.size; i++) {
-        // Add interference cost from neighbor 0
-        f32 cost_a = record.m_ab.get_cost(
-            record.ab_self_lo, dom.regs[i], static_cast<u32>(assigned_reg_neigh0));
-        // Add interference cost from neighbor 1
-        f32 cost_b = record.m_bc.get_cost(
-            record.bc_self_lo, dom.regs[i], static_cast<u32>(assigned_reg_neigh1));
-
-        selection_vector[i] += (cost_a + cost_b);
-      }
-    } break;
-    case ReductionType::RM: {
-      // evaluate every enighbour edge we broke during the RM phase
-      for (const auto &broken : record.broken_edges) {
-        auto assigned_reg_neigh = assignments[broken.neighbor];
+      case ReductionType::R1: {
+        auto assigned_reg_neigh0 = assignments[record.neigh0];
 
         for (u32 i = 0; i < dom.size; i++) {
-          selection_vector[i] += broken.matrix.get_cost(
-              broken.flip, dom.regs[i], static_cast<u32>(assigned_reg_neigh));
+          // just go baesd on what the neighbour took
+          selection_vector[i] +=
+              record.m_ab.get_cost(record.ab_self_lo, dom.regs[i],
+                                   static_cast<u32>(assigned_reg_neigh0));
         }
-      }
-    } break;
+      } break;
+      case ReductionType::R2: {
+        auto assigned_reg_neigh0 = assignments[record.neigh0];
+        auto assigned_reg_neigh1 = assignments[record.neigh1];
+
+        for (u32 i = 0; i < dom.size; i++) {
+          // Add interference cost from neighbor 0
+          f32 cost_a =
+              record.m_ab.get_cost(record.ab_self_lo, dom.regs[i],
+                                   static_cast<u32>(assigned_reg_neigh0));
+          // Add interference cost from neighbor 1
+          f32 cost_b =
+              record.m_bc.get_cost(record.bc_self_lo, dom.regs[i],
+                                   static_cast<u32>(assigned_reg_neigh1));
+
+          selection_vector[i] += (cost_a + cost_b);
+        }
+      } break;
+      case ReductionType::RM: {
+        // evaluate every enighbour edge we broke during the RM phase
+        for (const auto &broken : record.broken_edges) {
+          auto assigned_reg_neigh = assignments[broken.neighbor];
+
+          for (u32 i = 0; i < dom.size; i++) {
+            selection_vector[i] += broken.matrix.get_cost(
+                broken.flip, dom.regs[i], static_cast<u32>(assigned_reg_neigh));
+          }
+        }
+      } break;
     }
 
     // chose the best :)
@@ -784,4 +792,4 @@ inline void actually_allocate(const CostGraph &graph,
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

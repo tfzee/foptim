@@ -1,8 +1,9 @@
+#include "job_system.hpp"
+
 #include <atomic>
 #include <mutex>
 #include <thread>
 
-#include "job_system.hpp"
 #include "utils/arena.hpp"
 
 namespace foptim {
@@ -32,4 +33,4 @@ void Worker::start_worker(std::stop_token, JobSheduler *shed, u8 id) {
   foptim::utils::IRAlloc<void *>::free();
 }
 
-} // namespace foptim
+}  // namespace foptim

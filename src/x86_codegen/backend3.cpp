@@ -1,4 +1,3 @@
-#include "utils/verbosity.hpp"
 #include "backend3.hpp"
 
 #include <fmt/base.h>
@@ -14,6 +13,7 @@
 #include "mir/instr.hpp"
 #include "third_party/Zydis.h"
 #include "utils/arena.hpp"
+#include "utils/verbosity.hpp"
 #include "x86_codegen/backend3_instr_gen.hpp"
 
 namespace foptim::codegen {
@@ -153,7 +153,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
   for (const auto &func : funcs) {
     // Do min align of 16 then we can be sure ABI is happy
     const auto final_align = std::max(static_cast<u16>(0x10), func.align);
-    { // make sure were aligned
+    {  // make sure were aligned
       auto offset_from_section = (curr_loc - out_buff);
       auto align_offset = offset_from_section % final_align;
       if (align_offset != 0) {
@@ -319,9 +319,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     text_sec->set_type(SHT_PROGBITS);
     text_sec->set_flags(SHF_ALLOC | SHF_EXECINSTR);
     text_sec->set_addr_align(0x10);
-    text_sec->set_data(reinterpret_cast<const char *>(start_txt),
-                       std::bit_cast<size_t>(end_txt) -
-                           std::bit_cast<size_t>(start_txt));
+    text_sec->set_data(
+        reinterpret_cast<const char *>(start_txt),
+        std::bit_cast<size_t>(end_txt) - std::bit_cast<size_t>(start_txt));
   }
 
   for (const auto &decl : decls) {
@@ -401,7 +401,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         label_usage_map.label_map[global.name].size = global.data.size();
         label_usage_map.label_map[global.name].vis = global.vis;
         // fmt::println("CTOR {}", global.name);
-        { // handle reloccs
+        {  // handle reloccs
           int i = 0;
           for (const auto &reloc_info : global.reloc_info) {
             if (0 ==
@@ -449,7 +449,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       if (!global.data.empty()) {
         memcpy(curr_data_ptr, global.data.data(), global.data.size());
       }
-      { // handle reloccs
+      {  // handle reloccs
         for (const auto &reloc_info : global.reloc_info) {
           // fmt::println("RELOC INFO {}", reloc_info.name);
           ASSERT(label_usage_map.label_map.contains(reloc_info.name));
@@ -487,54 +487,54 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     Elf_Word symbol_binding = STB_GLOBAL;
 
     switch (label_data.section) {
-    case RelocSection::INVALID:
-      UNREACH();
-    case RelocSection::InitArray:
-      sec_indx = init_array_sec->get_index();
-      break;
-    case RelocSection::Data:
-      sec_indx = data_sec->get_index();
-      break;
-    case RelocSection::Text:
-      sec_indx = text_sec->get_index();
-      break;
-    case RelocSection::Extern:
-      sec_indx = 0;
-      break;
+      case RelocSection::INVALID:
+        UNREACH();
+      case RelocSection::InitArray:
+        sec_indx = init_array_sec->get_index();
+        break;
+      case RelocSection::Data:
+        sec_indx = data_sec->get_index();
+        break;
+      case RelocSection::Text:
+        sec_indx = text_sec->get_index();
+        break;
+      case RelocSection::Extern:
+        sec_indx = 0;
+        break;
     }
     switch (label_data.kind) {
-    case RelocKind::INVALID:
-    case RelocKind::BB:
-      UNREACH();
-    case RelocKind::Func:
-      symbol_type = STT_FUNC;
-      break;
-    case RelocKind::Data:
-      symbol_type = STT_OBJECT;
-      break;
+      case RelocKind::INVALID:
+      case RelocKind::BB:
+        UNREACH();
+      case RelocKind::Func:
+        symbol_type = STT_FUNC;
+        break;
+      case RelocKind::Data:
+        symbol_type = STT_OBJECT;
+        break;
     }
     switch (label_data.binding) {
-    case RelocBinding::INVALID:
-      UNREACH();
-    case RelocBinding::Global:
-      symbol_binding = STB_GLOBAL;
-      break;
-    case RelocBinding::Weak:
-      symbol_binding = STB_WEAK;
-      break;
+      case RelocBinding::INVALID:
+        UNREACH();
+      case RelocBinding::Global:
+        symbol_binding = STB_GLOBAL;
+        break;
+      case RelocBinding::Weak:
+        symbol_binding = STB_WEAK;
+        break;
     }
 
     unsigned char other = 0;
     switch (label_data.vis) {
-    case fir::LinkVisibility::Default:
-      other |= STV_DEFAULT;
-      break;
-    case fir::LinkVisibility::Hidden:
-      other |= STV_HIDDEN;
-      break;
-    case fir::LinkVisibility::Protected:
-      other |= STV_PROTECTED;
-      break;
+      case fir::LinkVisibility::Default:
+        other |= STV_DEFAULT;
+        break;
+      case fir::LinkVisibility::Hidden:
+        other |= STV_HIDDEN;
+        break;
+      case fir::LinkVisibility::Protected:
+        other |= STV_PROTECTED;
+        break;
     }
 
     auto symbol = syma.add_symbol(stra, label_name.c_str(), label_data.def_loc,
@@ -544,57 +544,59 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     for (auto loc : label_data.usage_loc) {
       ASSERT(loc.usage_section != RelocSection::INVALID);
       switch (loc.usage_section) {
-      case RelocSection::INVALID:
-      case RelocSection::Extern:
-        UNREACH();
-      case RelocSection::InitArray:
-        init_array_rela.add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
-                                  symbol, R_X86_64_64,
-                                  static_cast<i64>(loc.addent));
-        break;
-      case RelocSection::Data:
-        data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
-                            static_cast<Elf_Sxword>(loc.addent));
-        break;
-      case RelocSection::Text:
-        auto data = get_op_addr(loc.usage_instr, loc.operand_num);
-        switch (label_data.section) {
         case RelocSection::INVALID:
-        case RelocSection::InitArray:
-          UNREACH();
-        case RelocSection::Data:
-          text_rela.add_entry(
-              data.op_addr - start_txt, symbol, R_X86_64_PC32,
-              static_cast<Elf_Sxword>(-data.op_off + data.op_val + loc.addent));
-          break;
         case RelocSection::Extern:
-          if (label_data.kind == RelocKind::Func) {
-            text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                R_X86_64_PLT32,
-                                static_cast<Elf_Sxword>(
-                                    -data.op_off + data.op_val + loc.addent));
-          } else if (label_data.kind == RelocKind::Data) {
-            text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                R_X86_64_GOTPCREL,
-                                static_cast<Elf_Sxword>(
-                                    -data.op_off + data.op_val + loc.addent));
-          } else {
-            TODO("UNREACH?");
-          }
+          UNREACH();
+        case RelocSection::InitArray:
+          init_array_rela.add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
+                                    symbol, R_X86_64_64,
+                                    static_cast<i64>(loc.addent));
+          break;
+        case RelocSection::Data:
+          data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
+                              static_cast<Elf_Sxword>(loc.addent));
           break;
         case RelocSection::Text:
-          text_rela.add_entry(
-              data.op_addr - start_txt, symbol, R_X86_64_PLT32,
-              static_cast<Elf_Sxword>(-data.op_off + data.op_val + loc.addent));
+          auto data = get_op_addr(loc.usage_instr, loc.operand_num);
+          switch (label_data.section) {
+            case RelocSection::INVALID:
+            case RelocSection::InitArray:
+              UNREACH();
+            case RelocSection::Data:
+              text_rela.add_entry(data.op_addr - start_txt, symbol,
+                                  R_X86_64_PC32,
+                                  static_cast<Elf_Sxword>(
+                                      -data.op_off + data.op_val + loc.addent));
+              break;
+            case RelocSection::Extern:
+              if (label_data.kind == RelocKind::Func) {
+                text_rela.add_entry(
+                    data.op_addr - start_txt, symbol, R_X86_64_PLT32,
+                    static_cast<Elf_Sxword>(-data.op_off + data.op_val +
+                                            loc.addent));
+              } else if (label_data.kind == RelocKind::Data) {
+                text_rela.add_entry(
+                    data.op_addr - start_txt, symbol, R_X86_64_GOTPCREL,
+                    static_cast<Elf_Sxword>(-data.op_off + data.op_val +
+                                            loc.addent));
+              } else {
+                TODO("UNREACH?");
+              }
+              break;
+            case RelocSection::Text:
+              text_rela.add_entry(data.op_addr - start_txt, symbol,
+                                  R_X86_64_PLT32,
+                                  static_cast<Elf_Sxword>(
+                                      -data.op_off + data.op_val + loc.addent));
+              break;
+          }
           break;
-        }
-        break;
       }
     }
   }
 
   ELFIO::section *note_gnu_stack_sec = writer.sections.add(".note.GNU-stack");
-  { // section .note.GNU-stack noalloc noexec nowrite progbits
+  {  // section .note.GNU-stack noalloc noexec nowrite progbits
     note_gnu_stack_sec->set_type(SHT_PROGBITS);
   }
 
@@ -623,7 +625,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   ASSERT(!!stream);
   ASSERT(writer.save(stream));
 }
-} // namespace
+}  // namespace
 
 void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
          std::span<const fmir::Global> globals, const conf::CompConf &conf) {
@@ -670,18 +672,18 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   }
 
   switch (conf.output.type) {
-  case conf::Output::OutputType::PrintIR:
-    UNREACH();
-  case conf::Output::OutputType::PrintMIR:
-    UNREACH();
-  case conf::Output::OutputType::Object:
-    generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls, globals,
-                      conf);
-    break;
-  case conf::Output::OutputType::Assembly:
-    generate_asm_file(label_usages, output_buffer, end_buff_ptr, decls, globals,
-                      conf);
-    break;
+    case conf::Output::OutputType::PrintIR:
+      UNREACH();
+    case conf::Output::OutputType::PrintMIR:
+      UNREACH();
+    case conf::Output::OutputType::Object:
+      generate_obj_file(label_usages, output_buffer, end_buff_ptr, decls,
+                        globals, conf);
+      break;
+    case conf::Output::OutputType::Assembly:
+      generate_asm_file(label_usages, output_buffer, end_buff_ptr, decls,
+                        globals, conf);
+      break;
   }
 
   // {
@@ -701,4 +703,4 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
   // }
 }
 
-} // namespace foptim::codegen
+}  // namespace foptim::codegen

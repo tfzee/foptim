@@ -1,5 +1,4 @@
 #pragma once
-#include "utils/APInt.hpp"
 #include <optional>
 
 #include "ir/basic_block_arg.hpp"
@@ -7,6 +6,7 @@
 #include "ir/constant_value_ref.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "utils/APInt.hpp"
 #include "utils/map.hpp"
 #include "utils/set.hpp"
 
@@ -26,10 +26,11 @@ struct LoopInfo {
 };
 
 class LoopInfoAnalysis {
-private:
-  template <class DomType> void update_impl(DomType &dom);
+ private:
+  template <class DomType>
+  void update_impl(DomType &dom);
 
-public:
+ public:
   TVec<LoopInfo> info;
 
   LoopInfoAnalysis(Dominators &dom) { update(dom); }
@@ -41,7 +42,7 @@ public:
 };
 
 class LoopRangeAnalysis {
-public:
+ public:
   enum IterationType {
     PlusA,
   };
@@ -86,7 +87,7 @@ struct SCEVExpr {
     SMax,
     UMax,
     Cmp,
-    // idk if this is super useful 
+    // idk if this is super useful
     Select,
     // {start,+,step}: start + k * step in iteration k (k = 0 first execution
     // of the header). start and step are loop invariant
@@ -153,7 +154,7 @@ class ScalarEvo {
   // `e == h + step` with a loop invariant step
   SCEVRef extract_step(SCEVRef e, fir::ValueR h);
 
-public:
+ public:
   ScalarEvo(CFG &cfg, LoopInfo &info) { update(cfg, info); }
   void update(CFG &cfg, LoopInfo &info);
 
@@ -224,10 +225,10 @@ public:
 // With constant start and limit every step is supported, otherwise (symbolic)
 // only steps of +-1 with <, > compares (signed ones need the smaller of start
 // and limit to be known non negative so the difference cannot overflow).
-// TODO: do other steps (ceil div by the step), <= / >= / != compares, which need
-// overflow guards on the symbolic limit. one day
+// TODO: do other steps (ceil div by the step), <= / >= / != compares, which
+// need overflow guards on the symbolic limit. one day
 class TripCountAnalysis {
-public:
+ public:
   // the edge leaving the loop
   fir::BasicBlock from_bb{fir::BasicBlock::invalid()};
   fir::BasicBlock to_bb{fir::BasicBlock::invalid()};
@@ -250,7 +251,7 @@ public:
 // Values of the loop's values when the loop is left through the trip count
 // exit, as invariant expressions (constants if everything is known).
 class InductionEndValueAnalysis {
-public:
+ public:
   struct EndInfo {
     fir::BasicBlock from_bb;
     fir::BasicBlock to_bb;
@@ -267,4 +268,4 @@ public:
   void dump(const ScalarEvo &evo);
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

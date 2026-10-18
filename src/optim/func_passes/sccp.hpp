@@ -85,7 +85,8 @@ class SCCP final : public FunctionPass {
     //   return type == ValueType::Float && vtype->as_float() == 64;
     // }
     [[nodiscard]] constexpr f32 as_f32(u32 idx = 0) const {
-      return std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(vals.at(idx).f)));
+      return std::bit_cast<f32>(
+          static_cast<u32>(std::bit_cast<u64>(vals.at(idx).f)));
     }
     [[nodiscard]] constexpr f64 as_f64(u32 idx = 0) const {
       return vals.at(idx).f;
@@ -130,10 +131,10 @@ class SCCP final : public FunctionPass {
       }
       if (c->is_vec() && (v->is_int() || v->is_float())) {
         // splat of a scalar (e.g. zeroinitializer)
-        auto r = ConstantValue{.type = v->is_float() ? ValueType::Float
-                                                     : ValueType::Int,
-                               .vals = {},
-                               .vtype = v->get_type()};
+        auto r = ConstantValue{
+            .type = v->is_float() ? ValueType::Float : ValueType::Int,
+            .vals = {},
+            .vtype = v->get_type()};
         for (u32 i = 0; i < c->as_vec().member_number; i++) {
           if (v->is_float()) {
             r.vals.push_back({.f = v->as_float()});
@@ -193,10 +194,10 @@ class SCCP final : public FunctionPass {
                                                        fir::TypeR t);
 
     static ConstantValue Constant(f32 v, fir::TypeR t) {
-      return ConstantValue{
-          .type = ValueType::Float,
-          .vals = {{.f = std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(v)))}},
-          .vtype = t};
+      return ConstantValue{.type = ValueType::Float,
+                           .vals = {{.f = std::bit_cast<f64>(static_cast<u64>(
+                                         std::bit_cast<u32>(v)))}},
+                           .vtype = t};
     }
     static ConstantValue Constant(f64 v, fir::TypeR t) {
       return ConstantValue{

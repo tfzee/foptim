@@ -95,4 +95,4 @@ inline std::optional<SDivMagic> sdiv_magic(u64 d, unsigned width) {
   return std::nullopt;
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

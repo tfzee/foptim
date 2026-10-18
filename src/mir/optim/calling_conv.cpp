@@ -140,18 +140,18 @@ void mark_arguments_with_regs(IRVec<MInstr> &instrs,
     auto arg_pos = pos[i];
     auto arg_ty = instrs[instr_start_id + i].args[0].ty;
     switch (arg_pos.ty) {
-    case ArgPosition::IntReg:
-      instrs[instr_start_id + i].n_args = 2;
-      instrs[instr_start_id + i].args[1] =
-          MArgument({conv.args.gpr[arg_pos.position], arg_ty}, arg_ty);
-      break;
-    case ArgPosition::FloatReg:
-      instrs[instr_start_id + i].n_args = 2;
-      instrs[instr_start_id + i].args[1] =
-          MArgument({conv.args.fvr[arg_pos.position], arg_ty}, arg_ty);
-      break;
-    case ArgPosition::Stack:
-      break;
+      case ArgPosition::IntReg:
+        instrs[instr_start_id + i].n_args = 2;
+        instrs[instr_start_id + i].args[1] =
+            MArgument({conv.args.gpr[arg_pos.position], arg_ty}, arg_ty);
+        break;
+      case ArgPosition::FloatReg:
+        instrs[instr_start_id + i].n_args = 2;
+        instrs[instr_start_id + i].args[1] =
+            MArgument({conv.args.fvr[arg_pos.position], arg_ty}, arg_ty);
+        break;
+      case ArgPosition::Stack:
+        break;
     }
   }
 }
@@ -170,49 +170,49 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
   for (u32 i = 0; i < n_rets; i++) {
     auto arg_ty = instrs[instr_call_id + i].args[0].ty;
     switch (arg_ty) {
-    case Type::INVALID:
-    case Type::Int8:
-    case Type::Int16:
-    case Type::Int32:
-    case Type::Int64:
-      ASSERT_M(ret_gpr_indx < conv.rets.gpr.size(),
-               "more integer results than return registers");
-      instrs[instr_call_id + i].n_args = 2;
-      instrs[instr_call_id + i].args[1] =
-          MArgument({conv.rets.gpr[ret_gpr_indx], arg_ty}, arg_ty);
-      ret_gpr_indx++;
-      break;
-    case Type::Float32:
-    case Type::Float64:
-    case Type::Float32x2:
-    case Type::Int32x4:
-    case Type::Int64x2:
-    case Type::Float32x4:
-    case Type::Float64x2:
-    case Type::Int32x8:
-    case Type::Int64x4:
-    case Type::Float32x8:
-    case Type::Float64x4:
-    case Type::Float32x16:
-    case Type::Float64x8:
-    case Type::Int32x16:
-    case Type::Int64x8:
-    case Type::Int8x16:
-    case Type::Int16x8:
-    case Type::Int8x32:
-    case Type::Int16x16:
-      ASSERT_M(ret_fvr_indx < conv.rets.fvr.size(),
-               "more vector results than return registers");
-      instrs[instr_call_id + i].n_args = 2;
-      instrs[instr_call_id + i].args[1] =
-          MArgument({conv.rets.fvr[ret_fvr_indx], arg_ty}, arg_ty);
-      ret_fvr_indx++;
-      break;
+      case Type::INVALID:
+      case Type::Int8:
+      case Type::Int16:
+      case Type::Int32:
+      case Type::Int64:
+        ASSERT_M(ret_gpr_indx < conv.rets.gpr.size(),
+                 "more integer results than return registers");
+        instrs[instr_call_id + i].n_args = 2;
+        instrs[instr_call_id + i].args[1] =
+            MArgument({conv.rets.gpr[ret_gpr_indx], arg_ty}, arg_ty);
+        ret_gpr_indx++;
+        break;
+      case Type::Float32:
+      case Type::Float64:
+      case Type::Float32x2:
+      case Type::Int32x4:
+      case Type::Int64x2:
+      case Type::Float32x4:
+      case Type::Float64x2:
+      case Type::Int32x8:
+      case Type::Int64x4:
+      case Type::Float32x8:
+      case Type::Float64x4:
+      case Type::Float32x16:
+      case Type::Float64x8:
+      case Type::Int32x16:
+      case Type::Int64x8:
+      case Type::Int8x16:
+      case Type::Int16x8:
+      case Type::Int8x32:
+      case Type::Int16x16:
+        ASSERT_M(ret_fvr_indx < conv.rets.fvr.size(),
+                 "more vector results than return registers");
+        instrs[instr_call_id + i].n_args = 2;
+        instrs[instr_call_id + i].args[1] =
+            MArgument({conv.rets.fvr[ret_fvr_indx], arg_ty}, arg_ty);
+        ret_fvr_indx++;
+        break;
     }
   }
 }
 
-} // namespace
+}  // namespace
 
 void CallingConvImpl::first_stage(MFunc &func, const CallingConvDefinition &cc,
                                   const conf::CompConf & /*unused*/) {
@@ -260,33 +260,33 @@ utils::BitSet<> calculate_used_regs(const MFunc &f,
       for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
         const auto &arg = instr.args[arg_id];
         switch (arg.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::MemImm:
-        case MArgument::ArgumentType::StackSlot:
-          break;
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-        case MArgument::ArgumentType::VReg: {
-          res[static_cast<u8>(arg.reg.c_reg()) - 1].set(true);
-          break;
-        }
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-        case MArgument::ArgumentType::MemVRegVRegScale: {
-          res[static_cast<u8>(arg.reg.c_reg()) - 1].set(true);
-          res[static_cast<u8>(arg.indx.c_reg()) - 1].set(true);
-          break;
-        }
-        case MArgument::ArgumentType::MemLabelVreg:
-        case MArgument::ArgumentType::MemLabelVregScale:
-        case MArgument::ArgumentType::MemImmVRegScale: {
-          res[static_cast<u8>(arg.indx.c_reg()) - 1].set(true);
-          break;
-        }
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::MemImm:
+          case MArgument::ArgumentType::StackSlot:
+            break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+          case MArgument::ArgumentType::VReg: {
+            res[static_cast<u8>(arg.reg.c_reg()) - 1].set(true);
+            break;
+          }
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+          case MArgument::ArgumentType::MemVRegVRegScale: {
+            res[static_cast<u8>(arg.reg.c_reg()) - 1].set(true);
+            res[static_cast<u8>(arg.indx.c_reg()) - 1].set(true);
+            break;
+          }
+          case MArgument::ArgumentType::MemLabelVreg:
+          case MArgument::ArgumentType::MemLabelVregScale:
+          case MArgument::ArgumentType::MemImmVRegScale: {
+            res[static_cast<u8>(arg.indx.c_reg()) - 1].set(true);
+            break;
+          }
         }
       }
     }
@@ -363,8 +363,7 @@ SaveBlock find_save_block(const MFunc &func, const CFG &cfg,
           instr.is(GBaseSubtype::mov) && instr.n_args == 2 &&
           instr.args[0].isReg() && is_saved(instr.args[0].reg) &&
           ((instr.args[1].isReg() && instr.args[1].reg.is_concrete() &&
-            !is_saved(instr.args[1].reg) &&
-            instr.args[1].reg != VReg::RSP()) ||
+            !is_saved(instr.args[1].reg) && instr.args[1].reg != VReg::RSP()) ||
            instr.args[1].isImm());
       if (!copy) {
         return {};
@@ -584,10 +583,10 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
   if (cc.align.alignment >= CallingConvDefinition::Req::Supported) {
     auto additional_align_off = (n_regs_saved * 8) % cc.align.alignment_value;
     if (additional_align_off != 0) {
-      save_bb.instrs.insert(save_bb.instrs.begin() + 0,
-                            MInstr{GArithSubtype::sub2,
-                                   MArgument{VReg::RSP(), Type::Int64},
-                                   MArgument{additional_align_off}});
+      save_bb.instrs.insert(
+          save_bb.instrs.begin() + 0,
+          MInstr{GArithSubtype::sub2, MArgument{VReg::RSP(), Type::Int64},
+                 MArgument{additional_align_off}});
     }
   }
 
@@ -614,25 +613,25 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     for (auto fvr_arg : cc.args.fvr) {
       Type storetype = Type::INVALID;
       switch (cc.var_arg.max_size_fvr_arg) {
-      case 0:
-        continue;
-      case 4:
-        storetype = Type::Float32;
-        break;
-      case 8:
-        storetype = Type::Float64;
-        break;
-      case 16:
-        storetype = Type::Float64x2;
-        break;
-      case 32:
-        storetype = Type::Float64x4;
-        break;
-      case 64:
-        storetype = Type::Float64x8;
-        break;
-      default:
-        UNREACH();
+        case 0:
+          continue;
+        case 4:
+          storetype = Type::Float32;
+          break;
+        case 8:
+          storetype = Type::Float64;
+          break;
+        case 16:
+          storetype = Type::Float64x2;
+          break;
+        case 32:
+          storetype = Type::Float64x4;
+          break;
+        case 64:
+          storetype = Type::Float64x8;
+          break;
+        default:
+          UNREACH();
       }
       arg_xmm_regs.emplace_back(VReg{fvr_arg, storetype}, offset);
       offset += cc.var_arg.max_size_fvr_arg;
@@ -677,10 +676,10 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
                                     MArgument{reg, reg.ty}});
     }
     size_register_save_area = offset;
-    first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                           MInstr{GArithSubtype::sub2,
-                                  MArgument{VReg::RSP(), Type::Int64},
-                                  MArgument{size_register_save_area}});
+    first_bb.instrs.insert(
+        first_bb.instrs.begin() + 0,
+        MInstr{GArithSubtype::sub2, MArgument{VReg::RSP(), Type::Int64},
+               MArgument{size_register_save_area}});
   }
   // incoming stack arguments live above the saved rbp and the return address,
   // address them relative to rbp so pushes, alignment and stack slots below it
@@ -759,57 +758,57 @@ TMap<CReg, Type> compute_max_reg_types(const MFunc &f) {
       for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
         const auto &arg = instr.args[arg_id];
         switch (arg.type) {
-        case MArgument::ArgumentType::Imm:
-        case MArgument::ArgumentType::Label:
-        case MArgument::ArgumentType::MemLabel:
-        case MArgument::ArgumentType::MemImmLabel:
-        case MArgument::ArgumentType::StackSlot:
-        case MArgument::ArgumentType::MemImm:
-          break;
-        case MArgument::ArgumentType::MemVReg:
-        case MArgument::ArgumentType::MemImmVReg:
-        case MArgument::ArgumentType::VReg: {
-          if (arg.reg.is_concrete()) {
-            auto creg = arg.reg.c_reg();
-            auto it = max_types.find(creg);
-            if (it == max_types.end() || arg.ty > it->second) {
-              max_types[creg] = arg.ty;
+          case MArgument::ArgumentType::Imm:
+          case MArgument::ArgumentType::Label:
+          case MArgument::ArgumentType::MemLabel:
+          case MArgument::ArgumentType::MemImmLabel:
+          case MArgument::ArgumentType::StackSlot:
+          case MArgument::ArgumentType::MemImm:
+            break;
+          case MArgument::ArgumentType::MemVReg:
+          case MArgument::ArgumentType::MemImmVReg:
+          case MArgument::ArgumentType::VReg: {
+            if (arg.reg.is_concrete()) {
+              auto creg = arg.reg.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
             }
+            break;
           }
-          break;
-        }
-        case MArgument::ArgumentType::MemVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVReg:
-        case MArgument::ArgumentType::MemImmVRegVRegScale:
-        case MArgument::ArgumentType::MemVRegVRegScale: {
-          if (arg.reg.is_concrete()) {
-            auto creg = arg.reg.c_reg();
-            auto it = max_types.find(creg);
-            if (it == max_types.end() || arg.ty > it->second) {
-              max_types[creg] = arg.ty;
+          case MArgument::ArgumentType::MemVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVReg:
+          case MArgument::ArgumentType::MemImmVRegVRegScale:
+          case MArgument::ArgumentType::MemVRegVRegScale: {
+            if (arg.reg.is_concrete()) {
+              auto creg = arg.reg.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
             }
-          }
-          if (arg.indx.is_concrete()) {
-            auto creg = arg.indx.c_reg();
-            auto it = max_types.find(creg);
-            if (it == max_types.end() || arg.ty > it->second) {
-              max_types[creg] = arg.ty;
+            if (arg.indx.is_concrete()) {
+              auto creg = arg.indx.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
             }
+            break;
           }
-          break;
-        }
-        case MArgument::ArgumentType::MemLabelVreg:
-        case MArgument::ArgumentType::MemLabelVregScale:
-        case MArgument::ArgumentType::MemImmVRegScale: {
-          if (arg.indx.is_concrete()) {
-            auto creg = arg.indx.c_reg();
-            auto it = max_types.find(creg);
-            if (it == max_types.end() || arg.ty > it->second) {
-              max_types[creg] = arg.ty;
+          case MArgument::ArgumentType::MemLabelVreg:
+          case MArgument::ArgumentType::MemLabelVregScale:
+          case MArgument::ArgumentType::MemImmVRegScale: {
+            if (arg.indx.is_concrete()) {
+              auto creg = arg.indx.c_reg();
+              auto it = max_types.find(creg);
+              if (it == max_types.end() || arg.ty > it->second) {
+                max_types[creg] = arg.ty;
+              }
             }
+            break;
           }
-          break;
-        }
         }
       }
     }
@@ -897,9 +896,8 @@ void save_locals(IRVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
   // }
 }
 
-std::pair<uint32_t, uint32_t>
-restore_locals(IRVec<MInstr> &instrs, CallInfo &cinfo,
-               const TMap<CReg, Type> &max_types) {
+std::pair<uint32_t, uint32_t> restore_locals(
+    IRVec<MInstr> &instrs, CallInfo &cinfo, const TMap<CReg, Type> &max_types) {
   uint32_t n_locals_restored = 0;
   uint32_t n_local_bytes_restored = 0;
 
@@ -973,24 +971,24 @@ void generate_arg(TVec<MInstr> &instrs, const MInstr &arg,
                   const ArgPosition &arg_pos) {
   const auto &arg_ty = arg.args[0].ty;
   switch (arg_pos.ty) {
-  case ArgPosition::IntReg:
-    instrs.emplace_back(
-        GBaseSubtype::mov,
-        MArgument{{cconf.args.gpr[arg_pos.position], arg_ty}, arg_ty},
-        arg.args[0]);
-    break;
-  case ArgPosition::FloatReg:
-    instrs.emplace_back(
-        GBaseSubtype::mov,
-        MArgument{{cconf.args.fvr[arg_pos.position], arg_ty}, arg_ty},
-        arg.args[0]);
-    break;
-  case ArgPosition::Stack: {
-    auto new_arg = arg.args[0];
-    widen_push_arg(new_arg);
-    instrs.emplace_back(GBaseSubtype::push, new_arg);
-    break;
-  }
+    case ArgPosition::IntReg:
+      instrs.emplace_back(
+          GBaseSubtype::mov,
+          MArgument{{cconf.args.gpr[arg_pos.position], arg_ty}, arg_ty},
+          arg.args[0]);
+      break;
+    case ArgPosition::FloatReg:
+      instrs.emplace_back(
+          GBaseSubtype::mov,
+          MArgument{{cconf.args.fvr[arg_pos.position], arg_ty}, arg_ty},
+          arg.args[0]);
+      break;
+    case ArgPosition::Stack: {
+      auto new_arg = arg.args[0];
+      widen_push_arg(new_arg);
+      instrs.emplace_back(GBaseSubtype::push, new_arg);
+      break;
+    }
   }
 }
 
@@ -998,46 +996,46 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
   for (auto ret : cinfo.rets | std::ranges::views::reverse) {
     const auto &ret_ty = ret.args[0].ty;
     switch (ret_ty) {
-    case Type::INVALID:
-      UNREACH();
-    case Type::Int8:
-    case Type::Int16:
-    case Type::Int32:
-    case Type::Int64:
-      // out_instrs.insert(out_instrs.begin() +
-      // static_cast<i64>(cinfo.start_id),
-      //                   {
-      //                       GBaseSubtype::mov,
-      //                       ret.args[0],
-      //                       ret.args[1],
-      //                   });
-      // break;
-    case Type::Float32:
-    case Type::Float64:
-    case Type::Float32x2:
-    case Type::Int32x4:
-    case Type::Int64x2:
-    case Type::Float32x4:
-    case Type::Float64x2:
-    case Type::Int32x8:
-    case Type::Int64x4:
-    case Type::Float32x8:
-    case Type::Float64x4:
-    case Type::Float32x16:
-    case Type::Float64x8:
-    case Type::Int32x16:
-    case Type::Int64x8:
-    case Type::Int8x16:
-    case Type::Int16x8:
-    case Type::Int8x32:
-    case Type::Int16x16:
-      out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
-                        {
-                            GBaseSubtype::mov,
-                            ret.args[0],
-                            ret.args[1],
-                        });
-      break;
+      case Type::INVALID:
+        UNREACH();
+      case Type::Int8:
+      case Type::Int16:
+      case Type::Int32:
+      case Type::Int64:
+        // out_instrs.insert(out_instrs.begin() +
+        // static_cast<i64>(cinfo.start_id),
+        //                   {
+        //                       GBaseSubtype::mov,
+        //                       ret.args[0],
+        //                       ret.args[1],
+        //                   });
+        // break;
+      case Type::Float32:
+      case Type::Float64:
+      case Type::Float32x2:
+      case Type::Int32x4:
+      case Type::Int64x2:
+      case Type::Float32x4:
+      case Type::Float64x2:
+      case Type::Int32x8:
+      case Type::Int64x4:
+      case Type::Float32x8:
+      case Type::Float64x4:
+      case Type::Float32x16:
+      case Type::Float64x8:
+      case Type::Int32x16:
+      case Type::Int64x8:
+      case Type::Int8x16:
+      case Type::Int16x8:
+      case Type::Int8x32:
+      case Type::Int16x16:
+        out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
+                          {
+                              GBaseSubtype::mov,
+                              ret.args[0],
+                              ret.args[1],
+                          });
+        break;
     }
   }
 }
@@ -1068,15 +1066,15 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
       auto arg_id = worklist[curr_work_item];
       CReg wants_reg = CReg::A;
       switch (arg_pos[arg_id].ty) {
-      case ArgPosition::IntReg:
-        wants_reg = cinfo.cc.args.gpr[arg_pos[arg_id].position];
-        break;
-      case ArgPosition::FloatReg:
-        wants_reg = cinfo.cc.args.fvr[arg_pos[arg_id].position];
-        break;
-      case ArgPosition::Stack:
-        UNREACH();
-        break;
+        case ArgPosition::IntReg:
+          wants_reg = cinfo.cc.args.gpr[arg_pos[arg_id].position];
+          break;
+        case ArgPosition::FloatReg:
+          wants_reg = cinfo.cc.args.fvr[arg_pos[arg_id].position];
+          break;
+        case ArgPosition::Stack:
+          UNREACH();
+          break;
       }
 
       bool collision = false;
@@ -1114,18 +1112,18 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
     }
     auto arg_po = arg_pos[push_pop];
     switch (arg_po.ty) {
-    case ArgPosition::IntReg:
-      output_vec.emplace_back(
-          GBaseSubtype::pop,
-          MArgument{{cinfo.cc.args.gpr[arg_po.position], arg_ty}, arg_ty});
-      break;
-    case ArgPosition::FloatReg:
-      output_vec.emplace_back(
-          GBaseSubtype::pop,
-          MArgument{{cinfo.cc.args.fvr[arg_po.position], arg_ty}, arg_ty});
-      break;
-    case ArgPosition::Stack:
-      UNREACH();
+      case ArgPosition::IntReg:
+        output_vec.emplace_back(
+            GBaseSubtype::pop,
+            MArgument{{cinfo.cc.args.gpr[arg_po.position], arg_ty}, arg_ty});
+        break;
+      case ArgPosition::FloatReg:
+        output_vec.emplace_back(
+            GBaseSubtype::pop,
+            MArgument{{cinfo.cc.args.fvr[arg_po.position], arg_ty}, arg_ty});
+        break;
+      case ArgPosition::Stack:
+        UNREACH();
     }
   }
   out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
@@ -1209,11 +1207,11 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
     auto off = (n_local_bytes_need_saving + n_stack_args * 8) %
                cc.align.alignment_value;
     if (off != 0) {
-      instrs.insert(instrs.begin() + static_cast<i64>(cinfo.start_id) +
-                        static_cast<i64>(n_locals_saved),
-                    MInstr{GArithSubtype::add2,
-                           MArgument{VReg::RSP(), Type::Int64},
-                           MArgument{off}});
+      instrs.insert(
+          instrs.begin() + static_cast<i64>(cinfo.start_id) +
+              static_cast<i64>(n_locals_saved),
+          MInstr{GArithSubtype::add2, MArgument{VReg::RSP(), Type::Int64},
+                 MArgument{off}});
     }
   }
 
@@ -1280,7 +1278,7 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
   }
 }
 
-} // namespace
+}  // namespace
 
 void CallingConvImpl::second_stage(MFunc &func, const CallingConvDefinition &cc,
                                    const conf::CompConf & /*unused*/) {
@@ -1334,4 +1332,4 @@ void CallingConvImpl::second_stage(MFunc &func, const CallingConvDefinition &cc,
   }
 }
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir

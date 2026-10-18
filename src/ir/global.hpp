@@ -12,7 +12,7 @@ namespace foptim::fir {
 struct GlobalData;
 
 struct Global : public utils::SRef<std::unique_ptr<GlobalData>> {
-public:
+ public:
   constexpr explicit Global(utils::SRef<std::unique_ptr<GlobalData>> &&crtp) {
     this->data_ref = crtp.data_ref;
 #if SLOT_CHECK_LEVEL >= 2
@@ -26,10 +26,10 @@ public:
   GlobalData *operator*() { return get_raw_ptr()->get(); }
 
   constexpr GlobalData *operator->() {
-    return utils::SRef<std::unique_ptr<GlobalData>>::operator->() -> get();
+    return utils::SRef<std::unique_ptr<GlobalData>>::operator->()->get();
   }
   constexpr const GlobalData *operator->() const {
-    return utils::SRef<std::unique_ptr<GlobalData>>::operator->() -> get();
+    return utils::SRef<std::unique_ptr<GlobalData>>::operator->()->get();
   }
 };
 
@@ -47,7 +47,9 @@ struct GlobalData : public LockedUsed {
       : name(std::move(name)), n_bytes(n_bytes), reloc_info({}) {}
 
   GlobalData(IRString name, size_t n_bytes, uint8_t *init_value)
-      : name(std::move(name)), n_bytes(n_bytes), init_value(init_value),
+      : name(std::move(name)),
+        n_bytes(n_bytes),
+        init_value(init_value),
         reloc_info({}) {}
 
   // TypeR type;
@@ -65,16 +67,17 @@ struct GlobalData : public LockedUsed {
   }
 };
 
-}; // namespace foptim::fir
+};  // namespace foptim::fir
 
 template <>
 class fmt::formatter<foptim::fir::GlobalData>
     : public BaseIRFormatter<foptim::fir::GlobalData> {
-public:
+ public:
   appender format(foptim::fir::GlobalData const &v, format_context &ctx) const;
 };
 
-template <> struct std::hash<foptim::fir::Global> {
+template <>
+struct std::hash<foptim::fir::Global> {
   std::size_t operator()(const foptim::fir::Global &k) const {
     using foptim::u32;
     using std::hash;
@@ -83,7 +86,8 @@ template <> struct std::hash<foptim::fir::Global> {
   }
 };
 
-template <> struct ankerl::unordered_dense::hash<foptim::fir::Global> {
+template <>
+struct ankerl::unordered_dense::hash<foptim::fir::Global> {
   using is_avalanching = void;
 
   [[nodiscard]] auto operator()(const foptim::fir::Global &k) const noexcept

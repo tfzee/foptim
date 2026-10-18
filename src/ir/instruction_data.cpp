@@ -49,264 +49,264 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
 
 [[nodiscard]] const char *InstrData::get_name() const {
   switch (instr_type) {
-  case InstrType::Fence:
-    return "Fence";
-  case InstrType::AtomicRMW:
-    switch (static_cast<AtomicRMWSubType>(subtype)) {
-    case AtomicRMWSubType::INVALID:
-      return "ATOMICRMW_INVALID";
-    case AtomicRMWSubType::Add:
-      return "AtomicRMW.Add";
-    case AtomicRMWSubType::Xchg:
-      return "AtomicRMW.Xchg";
-    case AtomicRMWSubType::Or:
-      return "AtomicRMW.Or";
-    }
-  case InstrType::VectorInstr:
-    switch (static_cast<VectorISubType>(subtype)) {
-    case VectorISubType::INVALID:
-      return "VECTORINSTR_INVALID";
-    case VectorISubType::Broadcast:
-      return "V.Broadcast";
-    case VectorISubType::HorizontalAdd:
-      return "V.HAdd";
-    case VectorISubType::Concat:
-      return "V.Concat";
-    case VectorISubType::ExtractHigh:
-      return "V.ExtractHigh";
-    case VectorISubType::ExtractLow:
-      return "V.ExtractLow";
-    case VectorISubType::HorizontalMul:
-      return "V.HMul";
-    case VectorISubType::Shuffle:
-      return "V.Shuffle";
-    }
-  case InstrType::Intrinsic:
-    switch (static_cast<IntrinsicSubType>(subtype)) {
-    case IntrinsicSubType::INVALID:
-      return "INTRINSIC_INVALID";
-    case IntrinsicSubType::CTTZ:
-      return "INTRIN:CTTZ";
-    case IntrinsicSubType::CTLZ:
-      return "INTRIN:CTLZ";
-    case IntrinsicSubType::VA_start:
-      return "INTRIN:VA_START";
-    case IntrinsicSubType::Abs:
-      return "INTRIN:ABS";
-    case IntrinsicSubType::FAbs:
-      return "INTRIN:FABS";
-    case IntrinsicSubType::VA_end:
-      return "INTRIN:VA_END";
-    case IntrinsicSubType::UMin:
-      return "INTRIN:UMin";
-    case IntrinsicSubType::UMax:
-      return "INTRIN:UMax";
-    case IntrinsicSubType::SMin:
-      return "INTRIN:SMin";
-    case IntrinsicSubType::SMax:
-      return "INTRIN:SMax";
-    case IntrinsicSubType::FMin:
-      return "INTRIN:FMin";
-    case IntrinsicSubType::FMax:
-      return "INTRIN:FMax";
-    case IntrinsicSubType::FMinimum:
-      return "INTRIN:FMinimum";
-    case IntrinsicSubType::FMaximum:
-      return "INTRIN:FMaximum";
-    case IntrinsicSubType::FRound:
-      return "INTRIN:FRound";
-    case IntrinsicSubType::FFloor:
-      return "INTRIN:FFloor";
-    case IntrinsicSubType::FCeil:
-      return "INTRIN:FCeil";
-    case IntrinsicSubType::FTrunc:
-      return "INTRIN:FTrunc";
-    case IntrinsicSubType::IsConstant:
-      return "INTRIN:IsConstant";
-    case IntrinsicSubType::PopCnt:
-      return "INTRIN:PopCnt";
-    case IntrinsicSubType::Bswap:
-      return "INTRIN:Bswap";
-    case IntrinsicSubType::Memcpy:
-      return "INTRIN:MemCpy";
-    case IntrinsicSubType::Memset:
-      return "INTRIN:MemSet";
-    case IntrinsicSubType::Memmove:
-      return "INTRIN:MemMove";
-    case IntrinsicSubType::Memcmp:
-      return "INTRIN:MemCmp";
-    }
-  case InstrType::Unreachable:
-    return "unreachable";
-  case InstrType::UnaryInstr:
-    switch (static_cast<UnaryInstrSubType>(subtype)) {
-    case UnaryInstrSubType::INVALID:
-      return "UNARYYOP_INVALID";
-    case UnaryInstrSubType::FloatSqrt:
-      return "FloatSqrt";
-    case UnaryInstrSubType::FloatNeg:
-      return "FloatNeg";
-    case UnaryInstrSubType::IntNeg:
-      return "IntNeg";
-    case UnaryInstrSubType::Not:
-      return "Not";
-    }
-  case InstrType::BinaryInstr:
-    switch (static_cast<BinaryInstrSubType>(subtype)) {
-    case BinaryInstrSubType::INVALID:
-      return "BINARYOP_INVALID";
-    case BinaryInstrSubType::PtrAdd:
-      return "PtrAdd";
-    case BinaryInstrSubType::IntAdd:
-      return "IntAdd";
-    case BinaryInstrSubType::IntSub:
-      return "IntSub";
-    case BinaryInstrSubType::IntMul:
-      return "IntMul";
-    case BinaryInstrSubType::IntSRem:
-      return "IntSRem";
-    case BinaryInstrSubType::IntURem:
-      return "IntURem";
-    case BinaryInstrSubType::IntSDiv:
-      return "IntSDiv";
-    case BinaryInstrSubType::IntUDiv:
-      return "IntUDiv";
-    case BinaryInstrSubType::FloatAdd:
-      return "FloatAdd";
-    case BinaryInstrSubType::FloatSub:
-      return "FloatSub";
-    case BinaryInstrSubType::FloatMul:
-      return "FloatMul";
-    case BinaryInstrSubType::FloatDiv:
-      return "FloatDiv";
-    case BinaryInstrSubType::Shl:
-      return "Shl";
-    case BinaryInstrSubType::Shr:
-      return "LShR";
-    case BinaryInstrSubType::AShr:
-      return "AShR";
-    case BinaryInstrSubType::Or:
-      return "Or";
-    case BinaryInstrSubType::Xor:
-      return "Xor";
-    case BinaryInstrSubType::And:
-      return "And";
-    }
-  case InstrType::Conversion:
-    switch (static_cast<ConversionSubType>(subtype)) {
-    case ConversionSubType::INVALID:
-      return "CONVERSIONOP_INVALID";
-    case ConversionSubType::FPTOUI:
-      return "FP_UI";
-    case ConversionSubType::BitCast:
-      return "BITCAST";
-    case ConversionSubType::FPTOSI:
-      return "FP_SI";
-    case ConversionSubType::UITOFP:
-      return "UI_FP";
-    case ConversionSubType::SITOFP:
-      return "SI_FP";
-    case ConversionSubType::IntToPtr:
-      return "INT_PTR";
-    case ConversionSubType::PtrToInt:
-      return "PTR_INT";
-    case ConversionSubType::FPEXT:
-      return "FP_EXT";
-    case ConversionSubType::FPTRUNC:
-      return "FP_TRUNC";
-    }
-  case InstrType::InsertElement:
-    return "InsertElement";
-  case InstrType::ExtractElement:
-    return "ExtractElement";
-  case InstrType::ITrunc:
-    return "ITrunc";
-  case InstrType::SExt:
-    return "SExt";
-  case InstrType::SelectInstr:
-    return "Select";
-  case InstrType::ZExt:
-    return "ZExt";
-  case InstrType::CondBranchInstr:
-    return "CondBranch";
-  case InstrType::SwitchInstr:
-    return "Switch";
-  case InstrType::CallInstr:
-    return "Call";
-  case InstrType::LoadInstr:
-    return "Load";
-  case InstrType::StoreInstr:
-    return "Store";
-  case InstrType::AllocaInstr:
-    return "Alloca";
-  case InstrType::ReturnInstr:
-    return "Return";
-  case InstrType::BranchInstr:
-    return "Branch";
-  case InstrType::ICmp:
-    switch (static_cast<ICmpInstrSubType>(subtype)) {
-    case ICmpInstrSubType::INVALID:
-      return "INVALID";
-    case ICmpInstrSubType::ULT:
-      return "IntULT";
-    case ICmpInstrSubType::SLT:
-      return "IntSLT";
-    case ICmpInstrSubType::NE:
-      return "IntNE";
-    case ICmpInstrSubType::EQ:
-      return "IntEQ";
-    case ICmpInstrSubType::SGT:
-      return "IntSGT";
-    case ICmpInstrSubType::UGT:
-      return "IntUGT";
-    case ICmpInstrSubType::UGE:
-      return "IntUGE";
-    case ICmpInstrSubType::ULE:
-      return "IntULE";
-    case ICmpInstrSubType::SGE:
-      return "IntSGE";
-    case ICmpInstrSubType::SLE:
-      return "IntSLE";
-    }
-  case InstrType::FCmp:
-    switch (static_cast<FCmpInstrSubType>(subtype)) {
-    case FCmpInstrSubType::INVALID:
-      return "FloatINVALID";
-    case FCmpInstrSubType::IsNaN:
-      return "FloatIsNaN";
-    case FCmpInstrSubType::AlwFalse:
-      return "FloatAlwFalse";
-    case FCmpInstrSubType::OEQ:
-      return "FloatOEQ";
-    case FCmpInstrSubType::OGT:
-      return "FloatOGT";
-    case FCmpInstrSubType::OGE:
-      return "FloatOGE";
-    case FCmpInstrSubType::OLT:
-      return "FloatOLT";
-    case FCmpInstrSubType::OLE:
-      return "FloatOLE";
-    case FCmpInstrSubType::ONE:
-      return "FloatONE";
-    case FCmpInstrSubType::ORD:
-      return "FloatORD";
-    case FCmpInstrSubType::UNO:
-      return "FloatUNO";
-    case FCmpInstrSubType::UEQ:
-      return "FloatUEQ";
-    case FCmpInstrSubType::UGT:
-      return "FloatUGT";
-    case FCmpInstrSubType::UGE:
-      return "FloatUGE";
-    case FCmpInstrSubType::ULT:
-      return "FloatULT";
-    case FCmpInstrSubType::ULE:
-      return "FloatULE";
-    case FCmpInstrSubType::UNE:
-      return "FloatUNE";
-    case FCmpInstrSubType::AlwTrue:
-      return "FloatAlwTrue";
-    }
+    case InstrType::Fence:
+      return "Fence";
+    case InstrType::AtomicRMW:
+      switch (static_cast<AtomicRMWSubType>(subtype)) {
+        case AtomicRMWSubType::INVALID:
+          return "ATOMICRMW_INVALID";
+        case AtomicRMWSubType::Add:
+          return "AtomicRMW.Add";
+        case AtomicRMWSubType::Xchg:
+          return "AtomicRMW.Xchg";
+        case AtomicRMWSubType::Or:
+          return "AtomicRMW.Or";
+      }
+    case InstrType::VectorInstr:
+      switch (static_cast<VectorISubType>(subtype)) {
+        case VectorISubType::INVALID:
+          return "VECTORINSTR_INVALID";
+        case VectorISubType::Broadcast:
+          return "V.Broadcast";
+        case VectorISubType::HorizontalAdd:
+          return "V.HAdd";
+        case VectorISubType::Concat:
+          return "V.Concat";
+        case VectorISubType::ExtractHigh:
+          return "V.ExtractHigh";
+        case VectorISubType::ExtractLow:
+          return "V.ExtractLow";
+        case VectorISubType::HorizontalMul:
+          return "V.HMul";
+        case VectorISubType::Shuffle:
+          return "V.Shuffle";
+      }
+    case InstrType::Intrinsic:
+      switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::INVALID:
+          return "INTRINSIC_INVALID";
+        case IntrinsicSubType::CTTZ:
+          return "INTRIN:CTTZ";
+        case IntrinsicSubType::CTLZ:
+          return "INTRIN:CTLZ";
+        case IntrinsicSubType::VA_start:
+          return "INTRIN:VA_START";
+        case IntrinsicSubType::Abs:
+          return "INTRIN:ABS";
+        case IntrinsicSubType::FAbs:
+          return "INTRIN:FABS";
+        case IntrinsicSubType::VA_end:
+          return "INTRIN:VA_END";
+        case IntrinsicSubType::UMin:
+          return "INTRIN:UMin";
+        case IntrinsicSubType::UMax:
+          return "INTRIN:UMax";
+        case IntrinsicSubType::SMin:
+          return "INTRIN:SMin";
+        case IntrinsicSubType::SMax:
+          return "INTRIN:SMax";
+        case IntrinsicSubType::FMin:
+          return "INTRIN:FMin";
+        case IntrinsicSubType::FMax:
+          return "INTRIN:FMax";
+        case IntrinsicSubType::FMinimum:
+          return "INTRIN:FMinimum";
+        case IntrinsicSubType::FMaximum:
+          return "INTRIN:FMaximum";
+        case IntrinsicSubType::FRound:
+          return "INTRIN:FRound";
+        case IntrinsicSubType::FFloor:
+          return "INTRIN:FFloor";
+        case IntrinsicSubType::FCeil:
+          return "INTRIN:FCeil";
+        case IntrinsicSubType::FTrunc:
+          return "INTRIN:FTrunc";
+        case IntrinsicSubType::IsConstant:
+          return "INTRIN:IsConstant";
+        case IntrinsicSubType::PopCnt:
+          return "INTRIN:PopCnt";
+        case IntrinsicSubType::Bswap:
+          return "INTRIN:Bswap";
+        case IntrinsicSubType::Memcpy:
+          return "INTRIN:MemCpy";
+        case IntrinsicSubType::Memset:
+          return "INTRIN:MemSet";
+        case IntrinsicSubType::Memmove:
+          return "INTRIN:MemMove";
+        case IntrinsicSubType::Memcmp:
+          return "INTRIN:MemCmp";
+      }
+    case InstrType::Unreachable:
+      return "unreachable";
+    case InstrType::UnaryInstr:
+      switch (static_cast<UnaryInstrSubType>(subtype)) {
+        case UnaryInstrSubType::INVALID:
+          return "UNARYYOP_INVALID";
+        case UnaryInstrSubType::FloatSqrt:
+          return "FloatSqrt";
+        case UnaryInstrSubType::FloatNeg:
+          return "FloatNeg";
+        case UnaryInstrSubType::IntNeg:
+          return "IntNeg";
+        case UnaryInstrSubType::Not:
+          return "Not";
+      }
+    case InstrType::BinaryInstr:
+      switch (static_cast<BinaryInstrSubType>(subtype)) {
+        case BinaryInstrSubType::INVALID:
+          return "BINARYOP_INVALID";
+        case BinaryInstrSubType::PtrAdd:
+          return "PtrAdd";
+        case BinaryInstrSubType::IntAdd:
+          return "IntAdd";
+        case BinaryInstrSubType::IntSub:
+          return "IntSub";
+        case BinaryInstrSubType::IntMul:
+          return "IntMul";
+        case BinaryInstrSubType::IntSRem:
+          return "IntSRem";
+        case BinaryInstrSubType::IntURem:
+          return "IntURem";
+        case BinaryInstrSubType::IntSDiv:
+          return "IntSDiv";
+        case BinaryInstrSubType::IntUDiv:
+          return "IntUDiv";
+        case BinaryInstrSubType::FloatAdd:
+          return "FloatAdd";
+        case BinaryInstrSubType::FloatSub:
+          return "FloatSub";
+        case BinaryInstrSubType::FloatMul:
+          return "FloatMul";
+        case BinaryInstrSubType::FloatDiv:
+          return "FloatDiv";
+        case BinaryInstrSubType::Shl:
+          return "Shl";
+        case BinaryInstrSubType::Shr:
+          return "LShR";
+        case BinaryInstrSubType::AShr:
+          return "AShR";
+        case BinaryInstrSubType::Or:
+          return "Or";
+        case BinaryInstrSubType::Xor:
+          return "Xor";
+        case BinaryInstrSubType::And:
+          return "And";
+      }
+    case InstrType::Conversion:
+      switch (static_cast<ConversionSubType>(subtype)) {
+        case ConversionSubType::INVALID:
+          return "CONVERSIONOP_INVALID";
+        case ConversionSubType::FPTOUI:
+          return "FP_UI";
+        case ConversionSubType::BitCast:
+          return "BITCAST";
+        case ConversionSubType::FPTOSI:
+          return "FP_SI";
+        case ConversionSubType::UITOFP:
+          return "UI_FP";
+        case ConversionSubType::SITOFP:
+          return "SI_FP";
+        case ConversionSubType::IntToPtr:
+          return "INT_PTR";
+        case ConversionSubType::PtrToInt:
+          return "PTR_INT";
+        case ConversionSubType::FPEXT:
+          return "FP_EXT";
+        case ConversionSubType::FPTRUNC:
+          return "FP_TRUNC";
+      }
+    case InstrType::InsertElement:
+      return "InsertElement";
+    case InstrType::ExtractElement:
+      return "ExtractElement";
+    case InstrType::ITrunc:
+      return "ITrunc";
+    case InstrType::SExt:
+      return "SExt";
+    case InstrType::SelectInstr:
+      return "Select";
+    case InstrType::ZExt:
+      return "ZExt";
+    case InstrType::CondBranchInstr:
+      return "CondBranch";
+    case InstrType::SwitchInstr:
+      return "Switch";
+    case InstrType::CallInstr:
+      return "Call";
+    case InstrType::LoadInstr:
+      return "Load";
+    case InstrType::StoreInstr:
+      return "Store";
+    case InstrType::AllocaInstr:
+      return "Alloca";
+    case InstrType::ReturnInstr:
+      return "Return";
+    case InstrType::BranchInstr:
+      return "Branch";
+    case InstrType::ICmp:
+      switch (static_cast<ICmpInstrSubType>(subtype)) {
+        case ICmpInstrSubType::INVALID:
+          return "INVALID";
+        case ICmpInstrSubType::ULT:
+          return "IntULT";
+        case ICmpInstrSubType::SLT:
+          return "IntSLT";
+        case ICmpInstrSubType::NE:
+          return "IntNE";
+        case ICmpInstrSubType::EQ:
+          return "IntEQ";
+        case ICmpInstrSubType::SGT:
+          return "IntSGT";
+        case ICmpInstrSubType::UGT:
+          return "IntUGT";
+        case ICmpInstrSubType::UGE:
+          return "IntUGE";
+        case ICmpInstrSubType::ULE:
+          return "IntULE";
+        case ICmpInstrSubType::SGE:
+          return "IntSGE";
+        case ICmpInstrSubType::SLE:
+          return "IntSLE";
+      }
+    case InstrType::FCmp:
+      switch (static_cast<FCmpInstrSubType>(subtype)) {
+        case FCmpInstrSubType::INVALID:
+          return "FloatINVALID";
+        case FCmpInstrSubType::IsNaN:
+          return "FloatIsNaN";
+        case FCmpInstrSubType::AlwFalse:
+          return "FloatAlwFalse";
+        case FCmpInstrSubType::OEQ:
+          return "FloatOEQ";
+        case FCmpInstrSubType::OGT:
+          return "FloatOGT";
+        case FCmpInstrSubType::OGE:
+          return "FloatOGE";
+        case FCmpInstrSubType::OLT:
+          return "FloatOLT";
+        case FCmpInstrSubType::OLE:
+          return "FloatOLE";
+        case FCmpInstrSubType::ONE:
+          return "FloatONE";
+        case FCmpInstrSubType::ORD:
+          return "FloatORD";
+        case FCmpInstrSubType::UNO:
+          return "FloatUNO";
+        case FCmpInstrSubType::UEQ:
+          return "FloatUEQ";
+        case FCmpInstrSubType::UGT:
+          return "FloatUGT";
+        case FCmpInstrSubType::UGE:
+          return "FloatUGE";
+        case FCmpInstrSubType::ULT:
+          return "FloatULT";
+        case FCmpInstrSubType::ULE:
+          return "FloatULE";
+        case FCmpInstrSubType::UNE:
+          return "FloatUNE";
+        case FCmpInstrSubType::AlwTrue:
+          return "FloatAlwTrue";
+      }
   }
   ASSERT_M(false, "Add your instruction to the get_name function");
   return "UNKNOWN";
@@ -331,8 +331,9 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
     auto bb_found =
         std::ranges::find(exp_parent->get_parent()->basic_blocks, bb);
     if (exp_parent->get_parent()->basic_blocks.end() == bb_found) {
-      fmt::print("BB is reference and claims to have same parent but not found "
-                 "in function\n");
+      fmt::print(
+          "BB is reference and claims to have same parent but not found "
+          "in function\n");
       return false;
     }
     if (bb_args.size() != bb->n_args()) {
@@ -517,7 +518,8 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
         args[0].get_type()->as_vec().member_number <=
             args[1].as_constant()->as_int()) {
       fmt::print(
-          "ExtractElement index gotta be smaller then size of the input size({}) "
+          "ExtractElement index gotta be smaller then size of the input "
+          "size({}) "
           "<= {}\n",
           args[0], args[1]);
       return false;
@@ -596,173 +598,173 @@ bool InstrData::is_critical() const {
     return true;
   }
   switch (instr_type) {
-  case InstrType::ReturnInstr:
-  case InstrType::Unreachable:
-  case InstrType::BranchInstr:
-  case InstrType::SwitchInstr:
-  case InstrType::CondBranchInstr:
-  case InstrType::StoreInstr:
-  case InstrType::AtomicRMW:
-  case InstrType::Fence:
-    return true;
-  case InstrType::CallInstr:
-    if (args[0].is_constant() && args[0].as_constant()->is_func()) {
-      return !args[0].as_constant()->as_func()->attribs.mem_read_none;
-    }
-    return true;
-  case InstrType::Intrinsic:
-    switch (static_cast<IntrinsicSubType>(subtype)) {
-    case IntrinsicSubType::INVALID:
-    case IntrinsicSubType::CTLZ:
-    case IntrinsicSubType::Abs:
-    case IntrinsicSubType::FAbs:
-    case IntrinsicSubType::UMin:
-    case IntrinsicSubType::UMax:
-    case IntrinsicSubType::SMin:
-    case IntrinsicSubType::SMax:
-    case IntrinsicSubType::FMin:
-    case IntrinsicSubType::FMax:
-    case IntrinsicSubType::FMinimum:
-    case IntrinsicSubType::FMaximum:
-    case IntrinsicSubType::IsConstant:
-    case IntrinsicSubType::PopCnt:
-    case IntrinsicSubType::Bswap:
-    case IntrinsicSubType::FRound:
-    case IntrinsicSubType::FFloor:
-    case IntrinsicSubType::FCeil:
-    case IntrinsicSubType::FTrunc:
-    case IntrinsicSubType::CTTZ:
-    case fir::IntrinsicSubType::Memset:
-    case fir::IntrinsicSubType::Memcpy:
-    case fir::IntrinsicSubType::Memmove:
-    case fir::IntrinsicSubType::Memcmp:
-      return false;
-    case IntrinsicSubType::VA_start:
-    case IntrinsicSubType::VA_end:
+    case InstrType::ReturnInstr:
+    case InstrType::Unreachable:
+    case InstrType::BranchInstr:
+    case InstrType::SwitchInstr:
+    case InstrType::CondBranchInstr:
+    case InstrType::StoreInstr:
+    case InstrType::AtomicRMW:
+    case InstrType::Fence:
       return true;
-      break;
-    }
-  case InstrType::VectorInstr:
-  case InstrType::InsertElement:
-  case InstrType::ExtractElement:
-  case InstrType::AllocaInstr:
-  case InstrType::LoadInstr:
-  case InstrType::BinaryInstr:
-  case InstrType::UnaryInstr:
-  case InstrType::SelectInstr:
-  case InstrType::ITrunc:
-  case InstrType::ICmp:
-  case InstrType::FCmp:
-  case InstrType::SExt:
-  case InstrType::ZExt:
-  case InstrType::Conversion:
-    return false;
+    case InstrType::CallInstr:
+      if (args[0].is_constant() && args[0].as_constant()->is_func()) {
+        return !args[0].as_constant()->as_func()->attribs.mem_read_none;
+      }
+      return true;
+    case InstrType::Intrinsic:
+      switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::INVALID:
+        case IntrinsicSubType::CTLZ:
+        case IntrinsicSubType::Abs:
+        case IntrinsicSubType::FAbs:
+        case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UMax:
+        case IntrinsicSubType::SMin:
+        case IntrinsicSubType::SMax:
+        case IntrinsicSubType::FMin:
+        case IntrinsicSubType::FMax:
+        case IntrinsicSubType::FMinimum:
+        case IntrinsicSubType::FMaximum:
+        case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
+        case IntrinsicSubType::Bswap:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::CTTZ:
+        case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::Memcmp:
+          return false;
+        case IntrinsicSubType::VA_start:
+        case IntrinsicSubType::VA_end:
+          return true;
+          break;
+      }
+    case InstrType::VectorInstr:
+    case InstrType::InsertElement:
+    case InstrType::ExtractElement:
+    case InstrType::AllocaInstr:
+    case InstrType::LoadInstr:
+    case InstrType::BinaryInstr:
+    case InstrType::UnaryInstr:
+    case InstrType::SelectInstr:
+    case InstrType::ITrunc:
+    case InstrType::ICmp:
+    case InstrType::FCmp:
+    case InstrType::SExt:
+    case InstrType::ZExt:
+    case InstrType::Conversion:
+      return false;
   }
 }
 
 bool InstrData::is_commutative() const {
   switch (instr_type) {
-  case InstrType::AtomicRMW:
-  case InstrType::Fence:
-    return false;
-  case InstrType::BinaryInstr:
-    switch (static_cast<BinaryInstrSubType>(subtype)) {
-    case BinaryInstrSubType::INVALID:
-    case BinaryInstrSubType::IntAdd:
-    case BinaryInstrSubType::IntMul:
-    case BinaryInstrSubType::Or:
-    case BinaryInstrSubType::Xor:
-    case BinaryInstrSubType::And:
-    case BinaryInstrSubType::FloatAdd:
-    case BinaryInstrSubType::FloatMul:
-      return true;
-    case BinaryInstrSubType::PtrAdd:
-    case BinaryInstrSubType::IntSub:
-    case BinaryInstrSubType::IntSRem:
-    case BinaryInstrSubType::IntURem:
-    case BinaryInstrSubType::IntSDiv:
-    case BinaryInstrSubType::IntUDiv:
-    case BinaryInstrSubType::FloatSub:
-    case BinaryInstrSubType::FloatDiv:
-    case BinaryInstrSubType::Shl:
-    case BinaryInstrSubType::Shr:
-    case BinaryInstrSubType::AShr:
+    case InstrType::AtomicRMW:
+    case InstrType::Fence:
       return false;
-    }
-  case InstrType::Intrinsic:
-    switch (static_cast<IntrinsicSubType>(subtype)) {
-    case IntrinsicSubType::INVALID:
-    case IntrinsicSubType::CTLZ:
-    case IntrinsicSubType::VA_start:
-    case IntrinsicSubType::VA_end:
-    case IntrinsicSubType::Abs:
-    case IntrinsicSubType::FAbs:
-    case IntrinsicSubType::IsConstant:
-    case IntrinsicSubType::PopCnt:
-    case IntrinsicSubType::Bswap:
-    case IntrinsicSubType::FRound:
-    case IntrinsicSubType::FFloor:
-    case IntrinsicSubType::FCeil:
-    case IntrinsicSubType::FTrunc:
-    case IntrinsicSubType::CTTZ:
-    case fir::IntrinsicSubType::Memset:
-    case fir::IntrinsicSubType::Memcpy:
-    case fir::IntrinsicSubType::Memmove:
-    case fir::IntrinsicSubType::Memcmp:
+    case InstrType::BinaryInstr:
+      switch (static_cast<BinaryInstrSubType>(subtype)) {
+        case BinaryInstrSubType::INVALID:
+        case BinaryInstrSubType::IntAdd:
+        case BinaryInstrSubType::IntMul:
+        case BinaryInstrSubType::Or:
+        case BinaryInstrSubType::Xor:
+        case BinaryInstrSubType::And:
+        case BinaryInstrSubType::FloatAdd:
+        case BinaryInstrSubType::FloatMul:
+          return true;
+        case BinaryInstrSubType::PtrAdd:
+        case BinaryInstrSubType::IntSub:
+        case BinaryInstrSubType::IntSRem:
+        case BinaryInstrSubType::IntURem:
+        case BinaryInstrSubType::IntSDiv:
+        case BinaryInstrSubType::IntUDiv:
+        case BinaryInstrSubType::FloatSub:
+        case BinaryInstrSubType::FloatDiv:
+        case BinaryInstrSubType::Shl:
+        case BinaryInstrSubType::Shr:
+        case BinaryInstrSubType::AShr:
+          return false;
+      }
+    case InstrType::Intrinsic:
+      switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::INVALID:
+        case IntrinsicSubType::CTLZ:
+        case IntrinsicSubType::VA_start:
+        case IntrinsicSubType::VA_end:
+        case IntrinsicSubType::Abs:
+        case IntrinsicSubType::FAbs:
+        case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
+        case IntrinsicSubType::Bswap:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::CTTZ:
+        case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::Memcmp:
+          return false;
+        case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UMax:
+        case IntrinsicSubType::SMin:
+        case IntrinsicSubType::SMax:
+        case IntrinsicSubType::FMin:
+        case IntrinsicSubType::FMax:
+        case IntrinsicSubType::FMinimum:
+        case IntrinsicSubType::FMaximum:
+          return true;
+      }
+    case InstrType::FCmp:
+      switch (static_cast<FCmpInstrSubType>(subtype)) {
+        case FCmpInstrSubType::INVALID:
+        case FCmpInstrSubType::AlwFalse:
+        case FCmpInstrSubType::ORD:
+        case FCmpInstrSubType::UNO:
+        case FCmpInstrSubType::OEQ:
+        case FCmpInstrSubType::ONE:
+        case FCmpInstrSubType::UEQ:
+        case FCmpInstrSubType::UNE:
+        case FCmpInstrSubType::AlwTrue:
+          return true;
+        default:
+          return false;
+      }
+    case InstrType::ICmp:
+      switch (static_cast<ICmpInstrSubType>(subtype)) {
+        case ICmpInstrSubType::INVALID:
+        case ICmpInstrSubType::NE:
+        case ICmpInstrSubType::EQ:
+          return true;
+        default:
+          return false;
+      }
+    case InstrType::UnaryInstr:
+    case InstrType::CallInstr:
+    case InstrType::ReturnInstr:
+    case InstrType::Unreachable:
+    case InstrType::BranchInstr:
+    case InstrType::SwitchInstr:
+    case InstrType::CondBranchInstr:
+    case InstrType::SelectInstr:
+    case InstrType::StoreInstr:
+    case InstrType::AllocaInstr:
+    case InstrType::LoadInstr:
+    case InstrType::SExt:
+    case InstrType::ZExt:
+    case InstrType::ITrunc:
+    case InstrType::Conversion:
+    case InstrType::InsertElement:
+    case InstrType::VectorInstr:
+    case InstrType::ExtractElement:
       return false;
-    case IntrinsicSubType::UMin:
-    case IntrinsicSubType::UMax:
-    case IntrinsicSubType::SMin:
-    case IntrinsicSubType::SMax:
-    case IntrinsicSubType::FMin:
-    case IntrinsicSubType::FMax:
-    case IntrinsicSubType::FMinimum:
-    case IntrinsicSubType::FMaximum:
-      return true;
-    }
-  case InstrType::FCmp:
-    switch (static_cast<FCmpInstrSubType>(subtype)) {
-    case FCmpInstrSubType::INVALID:
-    case FCmpInstrSubType::AlwFalse:
-    case FCmpInstrSubType::ORD:
-    case FCmpInstrSubType::UNO:
-    case FCmpInstrSubType::OEQ:
-    case FCmpInstrSubType::ONE:
-    case FCmpInstrSubType::UEQ:
-    case FCmpInstrSubType::UNE:
-    case FCmpInstrSubType::AlwTrue:
-      return true;
-    default:
-      return false;
-    }
-  case InstrType::ICmp:
-    switch (static_cast<ICmpInstrSubType>(subtype)) {
-    case ICmpInstrSubType::INVALID:
-    case ICmpInstrSubType::NE:
-    case ICmpInstrSubType::EQ:
-      return true;
-    default:
-      return false;
-    }
-  case InstrType::UnaryInstr:
-  case InstrType::CallInstr:
-  case InstrType::ReturnInstr:
-  case InstrType::Unreachable:
-  case InstrType::BranchInstr:
-  case InstrType::SwitchInstr:
-  case InstrType::CondBranchInstr:
-  case InstrType::SelectInstr:
-  case InstrType::StoreInstr:
-  case InstrType::AllocaInstr:
-  case InstrType::LoadInstr:
-  case InstrType::SExt:
-  case InstrType::ZExt:
-  case InstrType::ITrunc:
-  case InstrType::Conversion:
-  case InstrType::InsertElement:
-  case InstrType::VectorInstr:
-  case InstrType::ExtractElement:
-    return false;
   }
   UNREACH();
 }
@@ -773,137 +775,137 @@ u64 InstrData::memcpy_elem_size() const {
 
 bool InstrData::pot_modifies_mem() const {
   switch (instr_type) {
-  case InstrType::CallInstr:
-    if (args[0].is_constant() && args[0].as_constant()->is_func()) {
-      auto f = args[0].as_constant()->as_func();
-      return !f->attribs.mem_read_none && !f->attribs.mem_read_only;
-    }
-    return true;
-    // TODO: not sure fences kinda dont do this but can kinda kinda lead to
-    // stuff being "updated" afterwards
-  case InstrType::Fence:
-  case InstrType::AtomicRMW:
-  case InstrType::StoreInstr:
-    return true;
-  case InstrType::Intrinsic:
-    switch (static_cast<IntrinsicSubType>(subtype)) {
-    case IntrinsicSubType::INVALID:
-    case IntrinsicSubType::CTTZ:
-    case IntrinsicSubType::CTLZ:
-    case IntrinsicSubType::Abs:
-    case IntrinsicSubType::FAbs:
-    case IntrinsicSubType::UMin:
-    case IntrinsicSubType::UMax:
-    case IntrinsicSubType::SMin:
-    case IntrinsicSubType::SMax:
-    case IntrinsicSubType::FMin:
-    case IntrinsicSubType::FMax:
-    case IntrinsicSubType::FMinimum:
-    case IntrinsicSubType::FMaximum:
-    case IntrinsicSubType::IsConstant:
-    case IntrinsicSubType::PopCnt:
-    case IntrinsicSubType::Bswap:
-    case IntrinsicSubType::FRound:
-    case IntrinsicSubType::FFloor:
-    case IntrinsicSubType::FCeil:
-    case IntrinsicSubType::FTrunc:
-    case IntrinsicSubType::Memcmp:
-      return false;
-    case IntrinsicSubType::VA_start:
-    case IntrinsicSubType::VA_end:
-    case fir::IntrinsicSubType::Memset:
-    case fir::IntrinsicSubType::Memcpy:
-    case fir::IntrinsicSubType::Memmove:
+    case InstrType::CallInstr:
+      if (args[0].is_constant() && args[0].as_constant()->is_func()) {
+        auto f = args[0].as_constant()->as_func();
+        return !f->attribs.mem_read_none && !f->attribs.mem_read_only;
+      }
       return true;
-    }
-  case InstrType::InsertElement:
-  case InstrType::ExtractElement:
-  case InstrType::AllocaInstr:
-  case InstrType::BranchInstr:
-  case InstrType::SwitchInstr:
-  case InstrType::CondBranchInstr:
-  case InstrType::SelectInstr:
-  case InstrType::ReturnInstr:
-  case InstrType::Unreachable:
-  case InstrType::LoadInstr:
-  case InstrType::BinaryInstr:
-  case InstrType::UnaryInstr:
-  case InstrType::ICmp:
-  case InstrType::FCmp:
-  case InstrType::SExt:
-  case InstrType::ZExt:
-  case InstrType::ITrunc:
-  case InstrType::Conversion:
-  case InstrType::VectorInstr:
-    return false;
+      // TODO: not sure fences kinda dont do this but can kinda kinda lead to
+      // stuff being "updated" afterwards
+    case InstrType::Fence:
+    case InstrType::AtomicRMW:
+    case InstrType::StoreInstr:
+      return true;
+    case InstrType::Intrinsic:
+      switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::INVALID:
+        case IntrinsicSubType::CTTZ:
+        case IntrinsicSubType::CTLZ:
+        case IntrinsicSubType::Abs:
+        case IntrinsicSubType::FAbs:
+        case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UMax:
+        case IntrinsicSubType::SMin:
+        case IntrinsicSubType::SMax:
+        case IntrinsicSubType::FMin:
+        case IntrinsicSubType::FMax:
+        case IntrinsicSubType::FMinimum:
+        case IntrinsicSubType::FMaximum:
+        case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
+        case IntrinsicSubType::Bswap:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::Memcmp:
+          return false;
+        case IntrinsicSubType::VA_start:
+        case IntrinsicSubType::VA_end:
+        case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memmove:
+          return true;
+      }
+    case InstrType::InsertElement:
+    case InstrType::ExtractElement:
+    case InstrType::AllocaInstr:
+    case InstrType::BranchInstr:
+    case InstrType::SwitchInstr:
+    case InstrType::CondBranchInstr:
+    case InstrType::SelectInstr:
+    case InstrType::ReturnInstr:
+    case InstrType::Unreachable:
+    case InstrType::LoadInstr:
+    case InstrType::BinaryInstr:
+    case InstrType::UnaryInstr:
+    case InstrType::ICmp:
+    case InstrType::FCmp:
+    case InstrType::SExt:
+    case InstrType::ZExt:
+    case InstrType::ITrunc:
+    case InstrType::Conversion:
+    case InstrType::VectorInstr:
+      return false;
   }
 }
 
 bool InstrData::pot_reads_mem() const {
   switch (instr_type) {
-  case InstrType::CallInstr:
-    if (args[0].is_constant() && args[0].as_constant()->is_func()) {
-      auto f = args[0].as_constant()->as_func();
-      return !f->attribs.mem_read_none;
-    }
-    return true;
-  case InstrType::Intrinsic:
-    switch (static_cast<IntrinsicSubType>(subtype)) {
-    case IntrinsicSubType::INVALID:
-    case IntrinsicSubType::CTTZ:
-    case IntrinsicSubType::CTLZ:
-    case IntrinsicSubType::Abs:
-    case IntrinsicSubType::FAbs:
-    case IntrinsicSubType::UMin:
-    case IntrinsicSubType::UMax:
-    case IntrinsicSubType::SMin:
-    case IntrinsicSubType::SMax:
-    case IntrinsicSubType::FMin:
-    case IntrinsicSubType::FMax:
-    case IntrinsicSubType::FMinimum:
-    case IntrinsicSubType::FMaximum:
-    case IntrinsicSubType::IsConstant:
-    case IntrinsicSubType::PopCnt:
-    case IntrinsicSubType::Bswap:
-    case IntrinsicSubType::FRound:
-    case IntrinsicSubType::FFloor:
-    case IntrinsicSubType::FCeil:
-    case IntrinsicSubType::FTrunc:
-    case fir::IntrinsicSubType::Memset:
-      return false;
-    case IntrinsicSubType::VA_start:
-    case IntrinsicSubType::VA_end:
-    case fir::IntrinsicSubType::Memcpy:
-    case fir::IntrinsicSubType::Memmove:
-    case fir::IntrinsicSubType::Memcmp:
+    case InstrType::CallInstr:
+      if (args[0].is_constant() && args[0].as_constant()->is_func()) {
+        auto f = args[0].as_constant()->as_func();
+        return !f->attribs.mem_read_none;
+      }
       return true;
-    }
-    // TODO: not sure fences kinda dont do this but can kinda kinda lead to
-    // stuff needing to be there to be "read" afterwards
-  case InstrType::Fence:
-  case InstrType::AtomicRMW:
-  case InstrType::LoadInstr:
-    return true;
-  case InstrType::StoreInstr:
-  case InstrType::InsertElement:
-  case InstrType::ExtractElement:
-  case InstrType::AllocaInstr:
-  case InstrType::BranchInstr:
-  case InstrType::SwitchInstr:
-  case InstrType::CondBranchInstr:
-  case InstrType::SelectInstr:
-  case InstrType::ReturnInstr:
-  case InstrType::Unreachable:
-  case InstrType::BinaryInstr:
-  case InstrType::UnaryInstr:
-  case InstrType::ICmp:
-  case InstrType::FCmp:
-  case InstrType::SExt:
-  case InstrType::ZExt:
-  case InstrType::ITrunc:
-  case InstrType::Conversion:
-  case InstrType::VectorInstr:
-    return false;
+    case InstrType::Intrinsic:
+      switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::INVALID:
+        case IntrinsicSubType::CTTZ:
+        case IntrinsicSubType::CTLZ:
+        case IntrinsicSubType::Abs:
+        case IntrinsicSubType::FAbs:
+        case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UMax:
+        case IntrinsicSubType::SMin:
+        case IntrinsicSubType::SMax:
+        case IntrinsicSubType::FMin:
+        case IntrinsicSubType::FMax:
+        case IntrinsicSubType::FMinimum:
+        case IntrinsicSubType::FMaximum:
+        case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
+        case IntrinsicSubType::Bswap:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
+        case fir::IntrinsicSubType::Memset:
+          return false;
+        case IntrinsicSubType::VA_start:
+        case IntrinsicSubType::VA_end:
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::Memcmp:
+          return true;
+      }
+      // TODO: not sure fences kinda dont do this but can kinda kinda lead to
+      // stuff needing to be there to be "read" afterwards
+    case InstrType::Fence:
+    case InstrType::AtomicRMW:
+    case InstrType::LoadInstr:
+      return true;
+    case InstrType::StoreInstr:
+    case InstrType::InsertElement:
+    case InstrType::ExtractElement:
+    case InstrType::AllocaInstr:
+    case InstrType::BranchInstr:
+    case InstrType::SwitchInstr:
+    case InstrType::CondBranchInstr:
+    case InstrType::SelectInstr:
+    case InstrType::ReturnInstr:
+    case InstrType::Unreachable:
+    case InstrType::BinaryInstr:
+    case InstrType::UnaryInstr:
+    case InstrType::ICmp:
+    case InstrType::FCmp:
+    case InstrType::SExt:
+    case InstrType::ZExt:
+    case InstrType::ITrunc:
+    case InstrType::Conversion:
+    case InstrType::VectorInstr:
+      return false;
   }
 }
 
@@ -912,62 +914,62 @@ bool InstrData::has_pot_sideeffects() const {
     return true;
   }
   switch (instr_type) {
-  case InstrType::CallInstr:
-  case InstrType::StoreInstr:
-  case InstrType::AllocaInstr:
-  case InstrType::AtomicRMW:
-  case InstrType::Fence:
-    return true;
-  case InstrType::Intrinsic:
-    switch (static_cast<IntrinsicSubType>(subtype)) {
-    case IntrinsicSubType::INVALID:
-    case IntrinsicSubType::CTTZ:
-    case IntrinsicSubType::CTLZ:
-    case IntrinsicSubType::Abs:
-    case IntrinsicSubType::FAbs:
-    case IntrinsicSubType::UMin:
-    case IntrinsicSubType::UMax:
-    case IntrinsicSubType::SMin:
-    case IntrinsicSubType::SMax:
-    case IntrinsicSubType::FMin:
-    case IntrinsicSubType::FMax:
-    case IntrinsicSubType::FMinimum:
-    case IntrinsicSubType::FMaximum:
-    case IntrinsicSubType::IsConstant:
-    case IntrinsicSubType::PopCnt:
-    case IntrinsicSubType::Bswap:
-    case IntrinsicSubType::FRound:
-    case IntrinsicSubType::FFloor:
-    case IntrinsicSubType::FCeil:
-    case IntrinsicSubType::FTrunc:
-    case IntrinsicSubType::Memcmp:
-      return false;
-    case IntrinsicSubType::VA_start:
-    case IntrinsicSubType::VA_end:
-    case fir::IntrinsicSubType::Memset:
-    case fir::IntrinsicSubType::Memcpy:
-    case fir::IntrinsicSubType::Memmove:
+    case InstrType::CallInstr:
+    case InstrType::StoreInstr:
+    case InstrType::AllocaInstr:
+    case InstrType::AtomicRMW:
+    case InstrType::Fence:
       return true;
-    }
-  case InstrType::InsertElement:
-  case InstrType::ExtractElement:
-  case InstrType::ReturnInstr:
-  case InstrType::Unreachable:
-  case InstrType::SwitchInstr:
-  case InstrType::BranchInstr:
-  case InstrType::CondBranchInstr:
-  case InstrType::SelectInstr:
-  case InstrType::LoadInstr:
-  case InstrType::BinaryInstr:
-  case InstrType::UnaryInstr:
-  case InstrType::ICmp:
-  case InstrType::FCmp:
-  case InstrType::SExt:
-  case InstrType::ZExt:
-  case InstrType::ITrunc:
-  case InstrType::Conversion:
-  case InstrType::VectorInstr:
-    return false;
+    case InstrType::Intrinsic:
+      switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::INVALID:
+        case IntrinsicSubType::CTTZ:
+        case IntrinsicSubType::CTLZ:
+        case IntrinsicSubType::Abs:
+        case IntrinsicSubType::FAbs:
+        case IntrinsicSubType::UMin:
+        case IntrinsicSubType::UMax:
+        case IntrinsicSubType::SMin:
+        case IntrinsicSubType::SMax:
+        case IntrinsicSubType::FMin:
+        case IntrinsicSubType::FMax:
+        case IntrinsicSubType::FMinimum:
+        case IntrinsicSubType::FMaximum:
+        case IntrinsicSubType::IsConstant:
+        case IntrinsicSubType::PopCnt:
+        case IntrinsicSubType::Bswap:
+        case IntrinsicSubType::FRound:
+        case IntrinsicSubType::FFloor:
+        case IntrinsicSubType::FCeil:
+        case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::Memcmp:
+          return false;
+        case IntrinsicSubType::VA_start:
+        case IntrinsicSubType::VA_end:
+        case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::Memcpy:
+        case fir::IntrinsicSubType::Memmove:
+          return true;
+      }
+    case InstrType::InsertElement:
+    case InstrType::ExtractElement:
+    case InstrType::ReturnInstr:
+    case InstrType::Unreachable:
+    case InstrType::SwitchInstr:
+    case InstrType::BranchInstr:
+    case InstrType::CondBranchInstr:
+    case InstrType::SelectInstr:
+    case InstrType::LoadInstr:
+    case InstrType::BinaryInstr:
+    case InstrType::UnaryInstr:
+    case InstrType::ICmp:
+    case InstrType::FCmp:
+    case InstrType::SExt:
+    case InstrType::ZExt:
+    case InstrType::ITrunc:
+    case InstrType::Conversion:
+    case InstrType::VectorInstr:
+      return false;
   }
 }
 
@@ -1217,4 +1219,4 @@ InstrData InstrData::get_cond_branch(ContextData *ctx) {
   return res;
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

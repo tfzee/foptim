@@ -22,15 +22,15 @@
 
 namespace foptim::optim {
 class LoopSimplify final : public FunctionPass {
-public:
+ public:
   // calls f(value) for every value defined in the loop that is used outside of
   // it (including as an argument of an edge leaving the loop)
   template <class F>
   static void for_each_outside_used(CFG &cfg, const LoopInfo &loop, F &&f) {
     auto outside = [&](const fir::Use &u) {
       if (u.type == fir::UseType::BBArg) {
-        return !std::ranges::contains(
-            loop.body_nodes, cfg.get_bb_id(u.user->bbs[u.argId].bb));
+        return !std::ranges::contains(loop.body_nodes,
+                                      cfg.get_bb_id(u.user->bbs[u.argId].bb));
       }
       return !std::ranges::contains(loop.body_nodes,
                                     cfg.get_bb_id(u.user->get_parent()));
@@ -205,8 +205,7 @@ public:
         // trunc(keep) * ratio has to start where repl starts
         const i128 expected_start = static_cast<i128>(
             static_cast<u128>(start_keep) * static_cast<u128>(ratio));
-        if (!APInt::from_i128(repl_bw, expected_start - start_repl)
-                 .is_zero()) {
+        if (!APInt::from_i128(repl_bw, expected_start - start_repl).is_zero()) {
           continue;
         }
 
@@ -306,9 +305,8 @@ public:
           auto use = (*base.get_uses())[uidp1 - 1];
           // the exit block can dominate the loop itself (nested loops), the
           // uses inside the loop see the per iteration values
-          if (std::ranges::contains(
-                  loop.body_nodes,
-                  cfg.get_bb_id(use.user->get_parent()))) {
+          if (std::ranges::contains(loop.body_nodes,
+                                    cfg.get_bb_id(use.user->get_parent()))) {
             continue;
           }
           if (dominated_blocks.contains(use.user->get_parent())) {
@@ -362,4 +360,4 @@ public:
     return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

@@ -58,8 +58,9 @@ class ConstraintProp final : public FunctionPass {
       instr->replace_all_uses(fir::ValueR{ctx->get_constant_int(1, 1)});
     }
     // only uses get replaced by constants
-    return always_false.empty() && always_true.empty() ? PreservedAnalysis::all()
-                                : PreservedAnalysis::cfg_only();
+    return always_false.empty() && always_true.empty()
+               ? PreservedAnalysis::all()
+               : PreservedAnalysis::cfg_only();
   }
 };
 }  // namespace foptim::optim

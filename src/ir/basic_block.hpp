@@ -9,7 +9,7 @@
 namespace foptim::fir {
 
 class BasicBlockData : public Used {
-public:
+ public:
   FunctionR func;
   IRVec<Instr> instructions;
   IRVec<BBArgument> args;
@@ -58,4 +58,4 @@ public:
   auto &get_args() { return args; }
 };
 
-} // namespace foptim::fir
+}  // namespace foptim::fir

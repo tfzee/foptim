@@ -1,9 +1,10 @@
 #pragma once
+#include <type_traits>
+
 #include "ir/instruction_data.hpp"
 #include "ir/types_ref.hpp"
 #include "utils/todo.hpp"
 #include "utils/types.hpp"
-#include <type_traits>
 
 namespace foptim::fmir {
 using StackSlotId = u64;
@@ -166,7 +167,7 @@ enum class GBaseSubtype : u32 {
   // special purpose helper instructions
   //  that *cant* be generated and *need* to be lowered
   // used for each arg for a function call
-  arg_setup, // like move but second arg is pinned by cc(and reversed args)
+  arg_setup,  // like move but second arg is pinned by cc(and reversed args)
   // used for each function call all arg_setups immediatly prior are the args
   // while this isntruction only takes the function label and the return
   // register as args
@@ -174,7 +175,7 @@ enum class GBaseSubtype : u32 {
   // special purpose helper instructions
   //  that *cant* be generated and *need* to be lowered
   // used for each return value on caller size
-  ret_setup, // like move but second arg is pinned by cc
+  ret_setup,  // like move but second arg is pinned by cc
 };
 
 enum class X86Subtype : u32 {
@@ -259,54 +260,54 @@ enum class Type : u16 {
 /*Returns the size in bytes of the given type*/
 static constexpr u32 get_size(fmir::Type type) {
   switch (type) {
-  case Type::Float32:
-    return 4;
-  case Type::Float64:
-    return 8;
-  case Type::Int8:
-    return 1;
-  case Type::Int16:
-    return 2;
-  case Type::Int32:
-    return 4;
-  case Type::Int64:
-    return 8;
-  case Type::Float32x2:
-    return 4 * 2;
-  case Type::Int32x4:
-    return 4 * 4;
-  case Type::Int64x2:
-    return 8 * 2;
-  case Type::Float32x4:
-    return 4 * 4;
-  case Type::Float64x2:
-    return 8 * 2;
-  case Type::Int32x8:
-    return 4 * 8;
-  case Type::Int64x4:
-    return 8 * 4;
-  case Type::Float32x8:
-    return 4 * 8;
-  case Type::Float64x4:
-    return 8 * 4;
-  case Type::Int32x16:
-    return 4 * 16;
-  case Type::Int64x8:
-    return 8 * 8;
-  case Type::Float32x16:
-    return 4 * 16;
-  case Type::Float64x8:
-    return 8 * 8;
-  case Type::Int8x16:
-    return 16;
-  case Type::Int16x8:
-    return 16;
-  case Type::Int8x32:
-    return 32;
-  case Type::Int16x16:
-    return 32;
-  case fmir::Type::INVALID:
-    TODO("INVALID TYPE");
+    case Type::Float32:
+      return 4;
+    case Type::Float64:
+      return 8;
+    case Type::Int8:
+      return 1;
+    case Type::Int16:
+      return 2;
+    case Type::Int32:
+      return 4;
+    case Type::Int64:
+      return 8;
+    case Type::Float32x2:
+      return 4 * 2;
+    case Type::Int32x4:
+      return 4 * 4;
+    case Type::Int64x2:
+      return 8 * 2;
+    case Type::Float32x4:
+      return 4 * 4;
+    case Type::Float64x2:
+      return 8 * 2;
+    case Type::Int32x8:
+      return 4 * 8;
+    case Type::Int64x4:
+      return 8 * 4;
+    case Type::Float32x8:
+      return 4 * 8;
+    case Type::Float64x4:
+      return 8 * 4;
+    case Type::Int32x16:
+      return 4 * 16;
+    case Type::Int64x8:
+      return 8 * 8;
+    case Type::Float32x16:
+      return 4 * 16;
+    case Type::Float64x8:
+      return 8 * 8;
+    case Type::Int8x16:
+      return 16;
+    case Type::Int16x8:
+      return 16;
+    case Type::Int8x32:
+      return 32;
+    case Type::Int16x16:
+      return 32;
+    case fmir::Type::INVALID:
+      TODO("INVALID TYPE");
   }
 }
 
@@ -355,7 +356,7 @@ constexpr size_t numRegs = static_cast<u64>(CReg::N_REGS);
 enum SaveClass : u8 { NotSaved = 0, CallerSaved = 1, CalleeSaved = 2 };
 
 class VReg {
-public:
+ public:
   // TODO: we can replace regtype with creg since creg can already tell us if
   // its virtual
   enum class RegType : u8 {
@@ -415,10 +416,10 @@ public:
 
   [[nodiscard]] constexpr bool is_vec_reg() const {
     switch (rty) {
-    case RegType::Virtual:
-      return ty >= Type::Float32;
-    case RegType::Concrete:
-      return conc.creg >= CReg::mm0;
+      case RegType::Virtual:
+        return ty >= Type::Float32;
+      case RegType::Concrete:
+        return conc.creg >= CReg::mm0;
     }
   }
   [[nodiscard]] constexpr bool is_gor_reg() const { return !is_vec_reg(); }
@@ -449,17 +450,17 @@ public:
       return false;
     }
     switch (rty) {
-    case RegType::Virtual:
-      return virt.id == other.virt.id;
-    case RegType::Concrete:
-      return conc.creg == other.conc.creg;
-      break;
+      case RegType::Virtual:
+        return virt.id == other.virt.id;
+      case RegType::Concrete:
+        return conc.creg == other.conc.creg;
+        break;
     }
   }
 };
 
 class MArgument {
-public:
+ public:
   enum class ArgumentType : u8 {
     Imm,
     VReg,
@@ -511,7 +512,8 @@ public:
   MArgument(u64 imm) : type(ArgumentType::Imm), ty(Type::Int64), imm(imm) {}
   MArgument(f64 imm) : type(ArgumentType::Imm), ty(Type::Float64), immf(imm) {}
   MArgument(f32 imm)
-      : type(ArgumentType::Imm), ty(Type::Float32),
+      : type(ArgumentType::Imm),
+        ty(Type::Float32),
         immf(std::bit_cast<f64>(static_cast<u64>(std::bit_cast<u32>(imm)))) {}
   MArgument(IRStringRef lab) : type(ArgumentType::Label), label(lab) {}
   MArgument(IRStringRef lab, Type ty)
@@ -664,24 +666,24 @@ public:
   }
   [[nodiscard]] constexpr bool isMem() const {
     switch (type) {
-    case ArgumentType::Imm:
-    case ArgumentType::VReg:
-    case ArgumentType::Label:
-      return false;
-    case ArgumentType::StackSlot:
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImm:
-    case ArgumentType::MemImmVReg:
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemImmVRegScale:
-    case ArgumentType::MemImmVRegVRegScale:
-    case ArgumentType::MemLabel:
-    case ArgumentType::MemImmLabel:
-    case ArgumentType::MemLabelVreg:
-    case ArgumentType::MemLabelVregScale:
-      return true;
+      case ArgumentType::Imm:
+      case ArgumentType::VReg:
+      case ArgumentType::Label:
+        return false;
+      case ArgumentType::StackSlot:
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImm:
+      case ArgumentType::MemImmVReg:
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemImmVRegScale:
+      case ArgumentType::MemImmVRegVRegScale:
+      case ArgumentType::MemLabel:
+      case ArgumentType::MemImmLabel:
+      case ArgumentType::MemLabelVreg:
+      case ArgumentType::MemLabelVregScale:
+        return true;
     }
   }
 
@@ -690,107 +692,108 @@ public:
       return false;
     }
     switch (type) {
-    case ArgumentType::MemLabel:
-    case ArgumentType::Label:
-      return label == other.label;
-    case ArgumentType::MemImm:
-    case ArgumentType::Imm:
-    case ArgumentType::StackSlot:
-      return imm == other.imm;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-      return reg == other.reg;
-    case ArgumentType::MemImmVReg:
-      return reg == other.reg && imm == other.imm;
-    case ArgumentType::MemImmVRegScale:
-      return indx == other.indx && scale == other.scale && imm == other.imm;
-    case ArgumentType::MemVRegVReg:
-      return reg == other.reg && indx == other.indx;
-    case ArgumentType::MemImmVRegVReg:
-      return reg == other.reg && indx == other.indx && imm == other.imm;
-    case ArgumentType::MemVRegVRegScale:
-      return reg == other.reg && indx == other.indx && scale == other.scale;
-    case ArgumentType::MemImmVRegVRegScale:
-      return reg == other.reg && indx == other.indx && imm == other.imm &&
-             scale == other.scale;
-    case ArgumentType::MemImmLabel:
-      return label == other.label && imm == other.imm;
-    case ArgumentType::MemLabelVreg:
-      return label == other.label && indx == other.indx;
-    case ArgumentType::MemLabelVregScale:
-      return label == other.label && indx == other.indx && scale == other.scale;
+      case ArgumentType::MemLabel:
+      case ArgumentType::Label:
+        return label == other.label;
+      case ArgumentType::MemImm:
+      case ArgumentType::Imm:
+      case ArgumentType::StackSlot:
+        return imm == other.imm;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+        return reg == other.reg;
+      case ArgumentType::MemImmVReg:
+        return reg == other.reg && imm == other.imm;
+      case ArgumentType::MemImmVRegScale:
+        return indx == other.indx && scale == other.scale && imm == other.imm;
+      case ArgumentType::MemVRegVReg:
+        return reg == other.reg && indx == other.indx;
+      case ArgumentType::MemImmVRegVReg:
+        return reg == other.reg && indx == other.indx && imm == other.imm;
+      case ArgumentType::MemVRegVRegScale:
+        return reg == other.reg && indx == other.indx && scale == other.scale;
+      case ArgumentType::MemImmVRegVRegScale:
+        return reg == other.reg && indx == other.indx && imm == other.imm &&
+               scale == other.scale;
+      case ArgumentType::MemImmLabel:
+        return label == other.label && imm == other.imm;
+      case ArgumentType::MemLabelVreg:
+        return label == other.label && indx == other.indx;
+      case ArgumentType::MemLabelVregScale:
+        return label == other.label && indx == other.indx &&
+               scale == other.scale;
     }
   }
   [[nodiscard]] constexpr bool uses_same_vreg(const VReg &other) const {
     switch (type) {
-    case ArgumentType::Imm:
-    case ArgumentType::MemImm:
-    case ArgumentType::Label:
-    case ArgumentType::MemLabel:
-    case ArgumentType::MemImmLabel:
-    case ArgumentType::StackSlot:
-      return false;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemImmVReg:
-      return reg == other;
-    case ArgumentType::MemLabelVreg:
-    case ArgumentType::MemLabelVregScale:
-    case ArgumentType::MemImmVRegScale:
-      return indx == other;
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImmVRegVRegScale:
-      return reg == other || indx == other;
+      case ArgumentType::Imm:
+      case ArgumentType::MemImm:
+      case ArgumentType::Label:
+      case ArgumentType::MemLabel:
+      case ArgumentType::MemImmLabel:
+      case ArgumentType::StackSlot:
+        return false;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemImmVReg:
+        return reg == other;
+      case ArgumentType::MemLabelVreg:
+      case ArgumentType::MemLabelVregScale:
+      case ArgumentType::MemImmVRegScale:
+        return indx == other;
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImmVRegVRegScale:
+        return reg == other || indx == other;
     }
   }
 
   [[nodiscard]] constexpr bool uses_same_vreg(const MArgument &other) const {
     switch (other.type) {
-    case ArgumentType::Imm:
-    case ArgumentType::MemImm:
-    case ArgumentType::Label:
-    case ArgumentType::MemLabel:
-    case ArgumentType::StackSlot:
-    case ArgumentType::MemImmLabel:
-      return false;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemImmVReg:
-      return uses_same_vreg(other.reg);
-    case ArgumentType::MemImmVRegScale:
-    case ArgumentType::MemLabelVreg:
-    case ArgumentType::MemLabelVregScale:
-      return uses_same_vreg(other.indx);
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImmVRegVRegScale:
-      return uses_same_vreg(other.reg) || uses_same_vreg(other.indx);
+      case ArgumentType::Imm:
+      case ArgumentType::MemImm:
+      case ArgumentType::Label:
+      case ArgumentType::MemLabel:
+      case ArgumentType::StackSlot:
+      case ArgumentType::MemImmLabel:
+        return false;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemImmVReg:
+        return uses_same_vreg(other.reg);
+      case ArgumentType::MemImmVRegScale:
+      case ArgumentType::MemLabelVreg:
+      case ArgumentType::MemLabelVregScale:
+        return uses_same_vreg(other.indx);
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImmVRegVRegScale:
+        return uses_same_vreg(other.reg) || uses_same_vreg(other.indx);
     }
   }
 
   [[nodiscard]] constexpr bool uses_vreg() const {
     switch (type) {
-    case ArgumentType::MemImmLabel:
-    case ArgumentType::Imm:
-    case ArgumentType::Label:
-    case ArgumentType::MemImm:
-    case ArgumentType::MemLabel:
-    case ArgumentType::StackSlot:
-      return false;
-    case ArgumentType::VReg:
-    case ArgumentType::MemVReg:
-    case ArgumentType::MemVRegVReg:
-    case ArgumentType::MemImmVReg:
-    case ArgumentType::MemImmVRegVReg:
-    case ArgumentType::MemVRegVRegScale:
-    case ArgumentType::MemImmVRegScale:
-    case ArgumentType::MemImmVRegVRegScale:
-    case ArgumentType::MemLabelVreg:
-    case ArgumentType::MemLabelVregScale:
-      return true;
+      case ArgumentType::MemImmLabel:
+      case ArgumentType::Imm:
+      case ArgumentType::Label:
+      case ArgumentType::MemImm:
+      case ArgumentType::MemLabel:
+      case ArgumentType::StackSlot:
+        return false;
+      case ArgumentType::VReg:
+      case ArgumentType::MemVReg:
+      case ArgumentType::MemVRegVReg:
+      case ArgumentType::MemImmVReg:
+      case ArgumentType::MemImmVRegVReg:
+      case ArgumentType::MemVRegVRegScale:
+      case ArgumentType::MemImmVRegScale:
+      case ArgumentType::MemImmVRegVRegScale:
+      case ArgumentType::MemLabelVreg:
+      case ArgumentType::MemLabelVregScale:
+        return true;
     }
   }
 
@@ -802,32 +805,32 @@ public:
   /*including vector registers if they are typed integer*/
   [[nodiscard]] constexpr bool is_int() const {
     switch (ty) {
-    case Type::INVALID:
-    case Type::Float32:
-    case Type::Float64:
-    case Type::Float32x2:
-    case Type::Float32x4:
-    case Type::Float64x2:
-    case Type::Float32x8:
-    case Type::Float64x4:
-    case Type::Float32x16:
-    case Type::Float64x8:
-      return false;
-    case Type::Int8:
-    case Type::Int16:
-    case Type::Int32:
-    case Type::Int64:
-    case Type::Int32x4:
-    case Type::Int64x2:
-    case Type::Int32x8:
-    case Type::Int64x4:
-    case Type::Int32x16:
-    case Type::Int64x8:
-    case Type::Int8x16:
-    case Type::Int16x8:
-    case Type::Int8x32:
-    case Type::Int16x16:
-      return true;
+      case Type::INVALID:
+      case Type::Float32:
+      case Type::Float64:
+      case Type::Float32x2:
+      case Type::Float32x4:
+      case Type::Float64x2:
+      case Type::Float32x8:
+      case Type::Float64x4:
+      case Type::Float32x16:
+      case Type::Float64x8:
+        return false;
+      case Type::Int8:
+      case Type::Int16:
+      case Type::Int32:
+      case Type::Int64:
+      case Type::Int32x4:
+      case Type::Int64x2:
+      case Type::Int32x8:
+      case Type::Int64x4:
+      case Type::Int32x16:
+      case Type::Int64x8:
+      case Type::Int8x16:
+      case Type::Int16x8:
+      case Type::Int8x32:
+      case Type::Int16x16:
+        return true;
     }
     return ty == Type::Float32 || ty == Type::Float64;
   }
@@ -838,41 +841,41 @@ public:
   }
 };
 
-#define COND_JUMP_GEN(NAME, TYP)                                               \
-  static MInstr NAME(MArgument v1, MArgument v2, u32 new_bb_ref) {             \
-    auto res = MInstr{GOpcode::GJmp, (u32)(TYP), v1, v2};                      \
-    res.bb_ref = new_bb_ref;                                                   \
-    res.has_bb_ref = true;                                                     \
-    return res;                                                                \
+#define COND_JUMP_GEN(NAME, TYP)                                   \
+  static MInstr NAME(MArgument v1, MArgument v2, u32 new_bb_ref) { \
+    auto res = MInstr{GOpcode::GJmp, (u32)(TYP), v1, v2};          \
+    res.bb_ref = new_bb_ref;                                       \
+    res.has_bb_ref = true;                                         \
+    return res;                                                    \
   }
 
-#define CONSTR_REGN(TYP, STYP)                                                 \
-  MInstr(STYP sop) : has_bb_ref(false), n_args(0), bop(TYP), sop((u32)sop) {}  \
-  MInstr(STYP sop, MArgument a1)                                               \
-      : has_bb_ref(false), n_args(1), bop(TYP), sop((u32)sop) {                \
-    args[0] = a1;                                                              \
-  }                                                                            \
-  MInstr(STYP sop, MArgument a1, MArgument a2)                                 \
-      : has_bb_ref(false), n_args(2), bop(TYP), sop((u32)sop) {                \
-    args[0] = a1;                                                              \
-    args[1] = a2;                                                              \
-  }                                                                            \
-  MInstr(STYP sop, MArgument a1, MArgument a2, MArgument a3)                   \
-      : has_bb_ref(false), n_args(3), bop(TYP), sop((u32)sop) {                \
-    args[0] = a1;                                                              \
-    args[1] = a2;                                                              \
-    args[2] = a3;                                                              \
-  }                                                                            \
-  MInstr(STYP sop, MArgument a1, MArgument a2, MArgument a3, MArgument a4)     \
-      : has_bb_ref(false), n_args(4), bop(TYP), sop((u32)sop) {                \
-    args[0] = a1;                                                              \
-    args[1] = a2;                                                              \
-    args[2] = a3;                                                              \
-    args[3] = a4;                                                              \
+#define CONSTR_REGN(TYP, STYP)                                                \
+  MInstr(STYP sop) : has_bb_ref(false), n_args(0), bop(TYP), sop((u32)sop) {} \
+  MInstr(STYP sop, MArgument a1)                                              \
+      : has_bb_ref(false), n_args(1), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+  }                                                                           \
+  MInstr(STYP sop, MArgument a1, MArgument a2)                                \
+      : has_bb_ref(false), n_args(2), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+    args[1] = a2;                                                             \
+  }                                                                           \
+  MInstr(STYP sop, MArgument a1, MArgument a2, MArgument a3)                  \
+      : has_bb_ref(false), n_args(3), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+    args[1] = a2;                                                             \
+    args[2] = a3;                                                             \
+  }                                                                           \
+  MInstr(STYP sop, MArgument a1, MArgument a2, MArgument a3, MArgument a4)    \
+      : has_bb_ref(false), n_args(4), bop(TYP), sop((u32)sop) {               \
+    args[0] = a1;                                                             \
+    args[1] = a2;                                                             \
+    args[2] = a3;                                                             \
+    args[3] = a4;                                                             \
   }
 
 class MInstr {
-public:
+ public:
   u8 has_bb_ref : 1 = 0;
   u8 is_var_arg_call : 1 = 0U;
   u8 n_args = 0;
@@ -1000,56 +1003,56 @@ public:
     auto sopcode_type = GJumpSubtype::cjmp_flt_oeq;
 
     switch (compare_type) {
-    case fir::FCmpInstrSubType::INVALID:
-      UNREACH();
-      break;
-    case fir::FCmpInstrSubType::AlwFalse:
-    case fir::FCmpInstrSubType::AlwTrue:
-    case fir::FCmpInstrSubType::IsNaN:
-      TODO("IMPL");
-      break;
-    case fir::FCmpInstrSubType::OEQ:
-      sopcode_type = GJumpSubtype::cjmp_flt_oeq;
-      break;
-    case fir::FCmpInstrSubType::OGT:
-      sopcode_type = GJumpSubtype::cjmp_flt_ogt;
-      break;
-    case fir::FCmpInstrSubType::OGE:
-      sopcode_type = GJumpSubtype::cjmp_flt_oge;
-      break;
-    case fir::FCmpInstrSubType::OLT:
-      sopcode_type = GJumpSubtype::cjmp_flt_olt;
-      break;
-    case fir::FCmpInstrSubType::OLE:
-      sopcode_type = GJumpSubtype::cjmp_flt_ole;
-      break;
-    case fir::FCmpInstrSubType::ONE:
-      sopcode_type = GJumpSubtype::cjmp_flt_one;
-      break;
-    case fir::FCmpInstrSubType::ORD:
-      sopcode_type = GJumpSubtype::cjmp_flt_ord;
-      break;
-    case fir::FCmpInstrSubType::UNO:
-      sopcode_type = GJumpSubtype::cjmp_flt_uno;
-      break;
-    case fir::FCmpInstrSubType::UEQ:
-      sopcode_type = GJumpSubtype::cjmp_flt_ueq;
-      break;
-    case fir::FCmpInstrSubType::UGT:
-      sopcode_type = GJumpSubtype::cjmp_flt_ugt;
-      break;
-    case fir::FCmpInstrSubType::UGE:
-      sopcode_type = GJumpSubtype::cjmp_flt_uge;
-      break;
-    case fir::FCmpInstrSubType::ULT:
-      sopcode_type = GJumpSubtype::cjmp_flt_ult;
-      break;
-    case fir::FCmpInstrSubType::ULE:
-      sopcode_type = GJumpSubtype::cjmp_flt_ule;
-      break;
-    case fir::FCmpInstrSubType::UNE:
-      sopcode_type = GJumpSubtype::cjmp_flt_une;
-      break;
+      case fir::FCmpInstrSubType::INVALID:
+        UNREACH();
+        break;
+      case fir::FCmpInstrSubType::AlwFalse:
+      case fir::FCmpInstrSubType::AlwTrue:
+      case fir::FCmpInstrSubType::IsNaN:
+        TODO("IMPL");
+        break;
+      case fir::FCmpInstrSubType::OEQ:
+        sopcode_type = GJumpSubtype::cjmp_flt_oeq;
+        break;
+      case fir::FCmpInstrSubType::OGT:
+        sopcode_type = GJumpSubtype::cjmp_flt_ogt;
+        break;
+      case fir::FCmpInstrSubType::OGE:
+        sopcode_type = GJumpSubtype::cjmp_flt_oge;
+        break;
+      case fir::FCmpInstrSubType::OLT:
+        sopcode_type = GJumpSubtype::cjmp_flt_olt;
+        break;
+      case fir::FCmpInstrSubType::OLE:
+        sopcode_type = GJumpSubtype::cjmp_flt_ole;
+        break;
+      case fir::FCmpInstrSubType::ONE:
+        sopcode_type = GJumpSubtype::cjmp_flt_one;
+        break;
+      case fir::FCmpInstrSubType::ORD:
+        sopcode_type = GJumpSubtype::cjmp_flt_ord;
+        break;
+      case fir::FCmpInstrSubType::UNO:
+        sopcode_type = GJumpSubtype::cjmp_flt_uno;
+        break;
+      case fir::FCmpInstrSubType::UEQ:
+        sopcode_type = GJumpSubtype::cjmp_flt_ueq;
+        break;
+      case fir::FCmpInstrSubType::UGT:
+        sopcode_type = GJumpSubtype::cjmp_flt_ugt;
+        break;
+      case fir::FCmpInstrSubType::UGE:
+        sopcode_type = GJumpSubtype::cjmp_flt_uge;
+        break;
+      case fir::FCmpInstrSubType::ULT:
+        sopcode_type = GJumpSubtype::cjmp_flt_ult;
+        break;
+      case fir::FCmpInstrSubType::ULE:
+        sopcode_type = GJumpSubtype::cjmp_flt_ule;
+        break;
+      case fir::FCmpInstrSubType::UNE:
+        sopcode_type = GJumpSubtype::cjmp_flt_une;
+        break;
     }
 
     auto res = MInstr{GOpcode::GJmp, static_cast<u32>(sopcode_type), v1, v2};
@@ -1071,9 +1074,10 @@ void read_args(const MInstr &instr, TVec<ArgData> &out);
 bool verify(const FVec<MFunc> &funcs);
 bool verify(const MFunc &funcs);
 
-} // namespace foptim::fmir
+}  // namespace foptim::fmir
 
-template <> struct std::hash<foptim::fmir::VReg> {
+template <>
+struct std::hash<foptim::fmir::VReg> {
   std::size_t operator()(const foptim::fmir::VReg &k) const {
     using foptim::u64;
     using foptim::u8;
@@ -1084,7 +1088,8 @@ template <> struct std::hash<foptim::fmir::VReg> {
   }
 };
 
-template <> struct ankerl::unordered_dense::hash<foptim::fmir::VReg> {
+template <>
+struct ankerl::unordered_dense::hash<foptim::fmir::VReg> {
   using is_avalanching = void;
 
   [[nodiscard]] auto operator()(const foptim::fmir::VReg &k) const noexcept

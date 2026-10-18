@@ -159,7 +159,7 @@ class TailRecElim final : public FunctionPass {
     call.destroy();
   }
 
-public:
+ public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     if (func.attribs.no_recurse || func.attribs.variadic) {
       return PreservedAnalysis::all();
@@ -194,4 +194,4 @@ public:
     return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

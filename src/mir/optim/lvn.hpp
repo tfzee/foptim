@@ -5,7 +5,7 @@
 
 namespace foptim::fmir {
 
-class LVN: public FunctionPass {
+class LVN : public FunctionPass {
   u64 unique_reg_id = 0;
   // TVec<ArgData> helper1;
   // TVec<ArgData> helper2;
@@ -15,7 +15,7 @@ class LVN: public FunctionPass {
   void apply_impl(MBB &bb);
 
  public:
-  void apply(MFunc &funcs, const conf::CompConf&) final override;
+  void apply(MFunc &funcs, const conf::CompConf &) final override;
 };
 
 }  // namespace foptim::fmir

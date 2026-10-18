@@ -28,8 +28,8 @@ template <>
 struct ankerl::unordered_dense::hash<foptim::fir::ConstantValueR> {
   using is_avalanching = void;
 
-  [[nodiscard]] auto operator()(const foptim::fir::ConstantValueR &k) const noexcept
-      -> uint64_t {
+  [[nodiscard]] auto operator()(
+      const foptim::fir::ConstantValueR &k) const noexcept -> uint64_t {
     return hash<foptim::utils::SRef<foptim::fir::ConstantValue>>()(k);
   }
 };

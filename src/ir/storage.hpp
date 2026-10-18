@@ -8,8 +8,8 @@
 #include "ir/global.hpp"
 #include "types.hpp"
 #include "utils/map.hpp"
-#include "utils/vec.hpp"
 #include "utils/string.hpp"
+#include "utils/vec.hpp"
 
 namespace foptim::fir {
 

@@ -1,19 +1,20 @@
 #pragma once
+#include <llvm/IR/Instructions.h>
+
 #include "../function_pass.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/alloca_escape.hpp"
+#include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "utils/set.hpp"
-#include <llvm/IR/Instructions.h>
 
 namespace foptim::optim {
 
 // detect dead stores and also dead memcpy/memset
 class DSE final : public FunctionPass {
-public:
+ public:
   struct Config {};
   Config config;
 
@@ -26,32 +27,33 @@ public:
 
   bool is_dead_store_candidate(fir::Instr i, MemWrite &out) {
     switch (i->instr_type) {
-    case fir::InstrType::StoreInstr: {
-      out.instr = i;
-      out.ptr = i->args[0];
-      out.size = fir::ValueR{};
-      out.static_size = i->result_type()->get_size();
-      return true;
-    }
-    case fir::InstrType::Intrinsic: {
-      const bool is_memset = i->is(fir::IntrinsicSubType::Memset);
-      if (!i->is(fir::IntrinsicSubType::Memcpy) && !is_memset) {
-        return false;
+      case fir::InstrType::StoreInstr: {
+        out.instr = i;
+        out.ptr = i->args[0];
+        out.size = fir::ValueR{};
+        out.static_size = i->result_type()->get_size();
+        return true;
       }
-      out.instr = i;
-      out.ptr = i->args[0];
-      out.size = fir::ValueR{};
-      // the count is in elements, memset stores copies of its value
-      const u64 elem_size = is_memset ? i->args[1].get_type()->get_size()
-                                      : i->memcpy_elem_size();
-      out.static_size =
-          i->args[2].is_constant_int()
-              ? static_cast<u64>(i->args[2].as_constant()->as_int()) * elem_size
-              : ~0ULL;
-      return true;
-    }
-    default:
-      return false;
+      case fir::InstrType::Intrinsic: {
+        const bool is_memset = i->is(fir::IntrinsicSubType::Memset);
+        if (!i->is(fir::IntrinsicSubType::Memcpy) && !is_memset) {
+          return false;
+        }
+        out.instr = i;
+        out.ptr = i->args[0];
+        out.size = fir::ValueR{};
+        // the count is in elements, memset stores copies of its value
+        const u64 elem_size = is_memset ? i->args[1].get_type()->get_size()
+                                        : i->memcpy_elem_size();
+        out.static_size =
+            i->args[2].is_constant_int()
+                ? static_cast<u64>(i->args[2].as_constant()->as_int()) *
+                      elem_size
+                : ~0ULL;
+        return true;
+      }
+      default:
+        return false;
     }
   }
 
@@ -346,4 +348,4 @@ public:
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

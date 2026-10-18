@@ -256,10 +256,12 @@ class BaseInlineAdvisor {
   }
 
  private:
-  [[nodiscard]] bool _should_be_inlined(
-      const fir::Instr instr, fir::FunctionR v, const InlineCallee &info,
-      size_t called_n_instrs, InlineCallerCtx &caller,
-      InlineConfig &conf) const {
+  [[nodiscard]] bool _should_be_inlined(const fir::Instr instr,
+                                        fir::FunctionR v,
+                                        const InlineCallee &info,
+                                        size_t called_n_instrs,
+                                        InlineCallerCtx &caller,
+                                        InlineConfig &conf) const {
     auto self_func = instr->get_parent()->get_parent();
     const size_t self_n_instrs = caller.n_instrs();
 
@@ -405,12 +407,14 @@ class BaseInlineAdvisor {
 };
 
 template <typename T>
-concept InlineAdvisor = requires(T v, fir::Instr instr, InlineCallerCtx &caller,
-                                 InlineCalleeInfos &callees,
-                                 InlineConfig &conf) {
-  { v.should_be_inlined(instr, caller, callees, conf) } -> std::same_as<bool>;
-  v.begin_round();
-};
+concept InlineAdvisor =
+    requires(T v, fir::Instr instr, InlineCallerCtx &caller,
+             InlineCalleeInfos &callees, InlineConfig &conf) {
+      {
+        v.should_be_inlined(instr, caller, callees, conf)
+      } -> std::same_as<bool>;
+      v.begin_round();
+    };
 
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {

@@ -1,7 +1,8 @@
 #pragma once
-#include <span>
 #include <fmt/base.h>
 #include <fmt/format.h>
+
+#include <span>
 
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
@@ -15,7 +16,7 @@ namespace foptim::optim {
 
 // Collect per bb constraints that are active in this bb.
 class ConstraintAnalysis {
-public:
+ public:
   using ExprId = uint32_t;
   using ConstrId = uint32_t;
 
@@ -114,7 +115,7 @@ public:
     return {.data = constraints[id - 1], .ctx = this};
   }
 
-private:
+ private:
   bool get_bin_expr(fir::Instr i, u32 depth);
 
   ExprId get_expr(fir::ValueR v, u32 depth = 0);
@@ -123,7 +124,7 @@ private:
                           fir::Instr origin_instr);
   void infer_simplificaitons(ConstrId c, TVec<ConstrId> &new_constr);
 
-public:
+ public:
   std::optional<ConstrId> get_constraint(fir::Instr i);
   ConstraintAnalysis(CFG &cfg, const Dominators &dom) : cfg(cfg) {
     update(dom);
@@ -152,7 +153,8 @@ public:
   }
 
   // calls f(bb, facts_at(bb)) for the reachable blocks in preorder
-  template <class F> void walk_with_facts(F &&f) {
+  template <class F>
+  void walk_with_facts(F &&f) {
     TVec<ConstrId> stack;
     TVec<size_t> mark_at_depth;
     for (auto bb : dom_preorder) {
@@ -183,56 +185,56 @@ public:
   bool supported(ConstrId x, ConstrId sup);
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim
 
 template <>
 class fmt::formatter<foptim::optim::ConstraintAnalysis::PrintWrapperExpr>
     : public BaseIRFormatter<
           foptim::optim::ConstraintAnalysis::PrintWrapperExpr> {
-public:
-  appender
-  format(foptim::optim::ConstraintAnalysis::PrintWrapperExpr const &data,
-         format_context &ctx) const {
+ public:
+  appender format(
+      foptim::optim::ConstraintAnalysis::PrintWrapperExpr const &data,
+      format_context &ctx) const {
     // using Constraint = foptim::optim::ConstraintAnalysis::Constraint;
     using ExprNode = foptim::optim::ConstraintAnalysis::ExprNode;
     auto app = ctx.out();
     switch (data.data.type) {
-    case ExprNode::INVALID:
-      app = fmt::format_to(app, "INVALID");
-      break;
-    case ExprNode::Sub:
-      if (color) {
-        app = fmt::format_to(app, "({:c} - {:c})",
-                             data.ctx->printExpr(data.data.i1),
-                             data.ctx->printExpr(data.data.i2));
-      } else {
-        app =
-            fmt::format_to(app, "({} - {})", data.ctx->printExpr(data.data.i1),
-                           data.ctx->printExpr(data.data.i2));
-      }
-      break;
-    case ExprNode::Add:
-    case ExprNode::And:
-    case ExprNode::Or:
-    case ExprNode::Xor:
-      if (color) {
-        app = fmt::format_to(app, "({:c} OP {:c})",
-                             data.ctx->printExpr(data.data.i1),
-                             data.ctx->printExpr(data.data.i2));
-      } else {
-        app =
-            fmt::format_to(app, "({} OP {})", data.ctx->printExpr(data.data.i1),
-                           data.ctx->printExpr(data.data.i2));
-      }
-      break;
-    case ExprNode::InpVal:
-    case ExprNode::InpConst:
-      if (color) {
-        app = fmt::format_to(app, "{:c}", data.data.v);
-      } else {
-        app = fmt::format_to(app, "{}", data.data.v);
-      }
-      break;
+      case ExprNode::INVALID:
+        app = fmt::format_to(app, "INVALID");
+        break;
+      case ExprNode::Sub:
+        if (color) {
+          app = fmt::format_to(app, "({:c} - {:c})",
+                               data.ctx->printExpr(data.data.i1),
+                               data.ctx->printExpr(data.data.i2));
+        } else {
+          app = fmt::format_to(app, "({} - {})",
+                               data.ctx->printExpr(data.data.i1),
+                               data.ctx->printExpr(data.data.i2));
+        }
+        break;
+      case ExprNode::Add:
+      case ExprNode::And:
+      case ExprNode::Or:
+      case ExprNode::Xor:
+        if (color) {
+          app = fmt::format_to(app, "({:c} OP {:c})",
+                               data.ctx->printExpr(data.data.i1),
+                               data.ctx->printExpr(data.data.i2));
+        } else {
+          app = fmt::format_to(app, "({} OP {})",
+                               data.ctx->printExpr(data.data.i1),
+                               data.ctx->printExpr(data.data.i2));
+        }
+        break;
+      case ExprNode::InpVal:
+      case ExprNode::InpConst:
+        if (color) {
+          app = fmt::format_to(app, "{:c}", data.data.v);
+        } else {
+          app = fmt::format_to(app, "{}", data.data.v);
+        }
+        break;
     }
     return app;
   }
@@ -242,10 +244,10 @@ template <>
 class fmt::formatter<foptim::optim::ConstraintAnalysis::PrintWrapperConstr>
     : public BaseIRFormatter<
           foptim::optim::ConstraintAnalysis::PrintWrapperConstr> {
-public:
-  appender
-  format(foptim::optim::ConstraintAnalysis::PrintWrapperConstr const &data,
-         format_context &ctx) const {
+ public:
+  appender format(
+      foptim::optim::ConstraintAnalysis::PrintWrapperConstr const &data,
+      format_context &ctx) const {
     using Constraint = foptim::optim::ConstraintAnalysis::Constraint;
     // using ExprNode = foptim::optim::ConstraintAnalysis::ExprNode;
     auto app = ctx.out();
@@ -255,39 +257,39 @@ public:
       app = fmt::format_to(app, "{}", data.ctx->printExpr(data.data.e1));
     }
     switch (data.data.type) {
-    case Constraint::INVALID:
-      app = fmt::format_to(app, color_func, "INVALID");
-      break;
-    case Constraint::EQ:
-      app = fmt::format_to(app, color_func, " == ");
-      break;
-    case Constraint::NE:
-      app = fmt::format_to(app, color_func, " != ");
-      break;
-    case Constraint::SGT:
-      app = fmt::format_to(app, color_func, " >S ");
-      break;
-    case Constraint::SGE:
-      app = fmt::format_to(app, color_func, " >S= ");
-      break;
-    case Constraint::SLT:
-      app = fmt::format_to(app, color_func, " <S ");
-      break;
-    case Constraint::SLE:
-      app = fmt::format_to(app, color_func, " <S= ");
-      break;
-    case Constraint::UGT:
-      app = fmt::format_to(app, color_func, " >U ");
-      break;
-    case Constraint::UGE:
-      app = fmt::format_to(app, color_func, " >U= ");
-      break;
-    case Constraint::ULT:
-      app = fmt::format_to(app, color_func, " <U ");
-      break;
-    case Constraint::ULE:
-      app = fmt::format_to(app, color_func, " <U= ");
-      break;
+      case Constraint::INVALID:
+        app = fmt::format_to(app, color_func, "INVALID");
+        break;
+      case Constraint::EQ:
+        app = fmt::format_to(app, color_func, " == ");
+        break;
+      case Constraint::NE:
+        app = fmt::format_to(app, color_func, " != ");
+        break;
+      case Constraint::SGT:
+        app = fmt::format_to(app, color_func, " >S ");
+        break;
+      case Constraint::SGE:
+        app = fmt::format_to(app, color_func, " >S= ");
+        break;
+      case Constraint::SLT:
+        app = fmt::format_to(app, color_func, " <S ");
+        break;
+      case Constraint::SLE:
+        app = fmt::format_to(app, color_func, " <S= ");
+        break;
+      case Constraint::UGT:
+        app = fmt::format_to(app, color_func, " >U ");
+        break;
+      case Constraint::UGE:
+        app = fmt::format_to(app, color_func, " >U= ");
+        break;
+      case Constraint::ULT:
+        app = fmt::format_to(app, color_func, " <U ");
+        break;
+      case Constraint::ULE:
+        app = fmt::format_to(app, color_func, " <U= ");
+        break;
     }
     if (color) {
       app = fmt::format_to(app, "{:c}", data.ctx->printExpr(data.data.e2));

@@ -12,7 +12,8 @@ class TrackingAlloc : public std::allocator<T> {
  public:
   using pointer = T *;
 
-  template <class U> struct rebind {
+  template <class U>
+  struct rebind {
     using other = TrackingAlloc<U>;
   };
 

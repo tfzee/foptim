@@ -7,7 +7,7 @@
 namespace foptim::fir {
 class Function;
 class BasicBlock;
-} // namespace foptim::fir
+}  // namespace foptim::fir
 namespace foptim::optim {
 class Dominators;
 
@@ -23,7 +23,7 @@ class Dominators;
 // + [ ]
 
 class SimplifyCFG final : public FunctionPass {
-public:
+ public:
   static constexpr bool debug_print = false;
   enum class Res : u8 {
     // No chagne
@@ -34,7 +34,7 @@ public:
     NeedUpdate,
   };
 
-private:
+ private:
   // if we got a select(cond, f1, f2) with f1 and f2 statically known and only
   // being used in a call in the same
   //  BB then we should replace this select + call into a cbranch into 2 bbs
@@ -48,9 +48,11 @@ private:
   Res pull_through_bb_args(CFG &cfg, CFG::Node &curr, size_t bb_id,
                            bool is_entry);
   // conditional block duplication
-  // duplicate a block if deemed worthy and a incoming bb determines its own condbranch
-  Res conditional_block_duplication(fir::Context &ctx, CFG &cfg, Dominators& dom, CFG::Node &curr, size_t bb_id,
-                           bool is_entry);
+  // duplicate a block if deemed worthy and a incoming bb determines its own
+  // condbranch
+  Res conditional_block_duplication(fir::Context &ctx, CFG &cfg,
+                                    Dominators &dom, CFG::Node &curr,
+                                    size_t bb_id, bool is_entry);
   // if we got a bb arg that got no use remove it
   bool remove_dead_bb_arg(CFG::Node &curr, fir::Function &func, bool is_entry);
   // if only 1 pred we can replace all the bb args with just the values of
@@ -117,13 +119,13 @@ private:
   // cold bb and the fallthrough is the 'hot' path
   SimplifyCFG::Res flip_cold_cond(CFG &cfg, CFG::Node &curr);
 
-public:
+ public:
   // simplifications on the bbargs which
-  Res simplify_bb_args(fir::Context& ctx, CFG &cfg, Dominators &dom, fir::Function &func,
-                       size_t bb_id);
+  Res simplify_bb_args(fir::Context &ctx, CFG &cfg, Dominators &dom,
+                       fir::Function &func, size_t bb_id);
   Res simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
                    size_t bb_id);
-  PreservedAnalysis apply(fir::Context & ctx, fir::Function &func) override;
+  PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

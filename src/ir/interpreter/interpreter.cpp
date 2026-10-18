@@ -143,9 +143,9 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
         return false;
       }
       const u32 n = static_cast<u32>(amt.to_u64());
-      APInt res = sub == BinaryInstrSubType::Shl    ? a.shl(n)
+      APInt res = sub == BinaryInstrSubType::Shl   ? a.shl(n)
                   : sub == BinaryInstrSubType::Shr ? a.lshr(n)
-                                                    : a.ashr(n);
+                                                   : a.ashr(n);
       st.set_value(instr.result(), ConstantValue{std::move(res), ty});
       break;
     }

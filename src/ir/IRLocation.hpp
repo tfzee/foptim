@@ -110,9 +110,8 @@ struct ankerl::unordered_dense::hash<foptim::fir::IRLocation> {
   [[nodiscard]] auto operator()(const foptim::fir::IRLocation &k) const noexcept
       -> uint64_t {
     namespace wy = ankerl::unordered_dense::detail::wyhash;
-    return wy::mix(
-        wy::hash(reinterpret_cast<std::uintptr_t>(k.func.func)),
-        (static_cast<uint64_t>(k.bb) << 32 | k.instr) * 8 +
-            static_cast<uint64_t>(static_cast<foptim::u8>(k.type)));
+    return wy::mix(wy::hash(reinterpret_cast<std::uintptr_t>(k.func.func)),
+                   (static_cast<uint64_t>(k.bb) << 32 | k.instr) * 8 +
+                       static_cast<uint64_t>(static_cast<foptim::u8>(k.type)));
   }
 };

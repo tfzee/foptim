@@ -2,9 +2,8 @@
 #include <fmt/core.h>
 
 #include "optim/analysis/analysis_manager.hpp"
-#include "utils/tracy.hpp"
-
 #include "optim/module_pass.hpp"
+#include "utils/tracy.hpp"
 
 namespace foptim::optim {
 
@@ -13,8 +12,9 @@ PreservedAnalysis merge_func_dups(fir::Context &ctx, JobSheduler *shed,
 PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx,
                                             AnalysisManager &analyMan);
 
-template <bool onlySame> class FunctionDeDup final : public ModulePass {
-public:
+template <bool onlySame>
+class FunctionDeDup final : public ModulePass {
+ public:
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler *shed,
                           AnalysisManager &analyMan) override {
     ZoneScopedN("FunctionDeDup");
@@ -25,7 +25,6 @@ public:
     } else {
       return merge_func_dups(ctx, shed, analyMan);
     }
-
   }
 };
-} // namespace foptim::optim
+}  // namespace foptim::optim

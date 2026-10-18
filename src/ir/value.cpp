@@ -1,5 +1,4 @@
 #include "value.hpp"
-#include "ir/print_ids.hpp"
 
 #include <fmt/color.h>
 #include <fmt/format.h>
@@ -10,6 +9,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/print_ids.hpp"
 #include "ir/use.hpp"
 #include "utils/logging.hpp"
 
@@ -210,11 +210,10 @@ void ValueR::replace_all_uses(ValueR new_value) {
   }
 }
 
-} // namespace foptim::fir
+}  // namespace foptim::fir
 
-fmt::appender
-fmt::formatter<foptim::fir::ValueR>::format(foptim::fir::ValueR const &k,
-                                            format_context &ctx) const {
+fmt::appender fmt::formatter<foptim::fir::ValueR>::format(
+    foptim::fir::ValueR const &k, format_context &ctx) const {
   auto col1 = color ? color_value : text_style{};
   auto col2 = color ? color_value2 : text_style{};
   auto colbb = color ? color_bb : text_style{};
