@@ -7,11 +7,32 @@
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
+#include "ir/function.hpp"
+#include "ir/global.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/use.hpp"
 #include "optim/analysis/dominators.hpp"
 
 namespace foptim::optim {
+
+TSet<const fir::Function *> functions_referenced_by_globals(fir::Context &ctx) {
+  TSet<const fir::Function *> res;
+  auto *slab = ctx->storage.storage_global._slot_start.load();
+  while (slab != nullptr) {
+    for (auto &slot : slab->data) {
+      if (!slot.is_used()) {
+        continue;
+      }
+      for (const auto &info : slot.data->reloc_info) {
+        if (info.ref->is_func()) {
+          res.insert(info.ref->as_func().func);
+        }
+      }
+    }
+    slab = slab->next;
+  }
+  return res;
+}
 
 void swap_args(fir::Instr instr, u32 a1, u32 a2) {
   auto v1 = instr->args[a1];

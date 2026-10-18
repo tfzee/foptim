@@ -7,6 +7,7 @@
 #include "ir/use.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
 namespace {
@@ -371,7 +372,11 @@ PreservedAnalysis IPCP::apply(fir::Context &ctx, JobSheduler * /*unused*/,
   ZoneScopedN("IPCP");
   // copy since passes below may add functions
   const auto funcs = ctx.data->storage.functions.all();
+  const auto address_taken = functions_referenced_by_globals(ctx);
   for (auto *f : funcs) {
+    if (address_taken.contains(f)) {
+      continue;
+    }
     switch (f->attribs.linkage) {
       case fir::Linkage::External:
       case fir::Linkage::Weak:

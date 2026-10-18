@@ -2,6 +2,7 @@
 #include "ir/basic_block_ref.hpp"
 #include "ir/instruction.hpp"
 #include "ir/types_ref.hpp"
+#include "utils/set.hpp"
 #include "utils/types.hpp"
 
 namespace foptim::optim {
@@ -23,6 +24,10 @@ bool is_cheap_splat_constant(fir::ValueR v);
 // recomputing the instruction where it is used costs about as much as keeping
 // its result alive, so passes should not hoist or share it
 bool is_cheap_to_rematerialize(fir::Instr instr);
+
+// Functions whose address is stored in a global initializer. Those uses are
+// not in the use list of the function, so their callers are not all known.
+TSet<const fir::Function *> functions_referenced_by_globals(fir::Context &ctx);
 
 struct IncomingData {
   fir::Instr term;

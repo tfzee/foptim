@@ -11,6 +11,7 @@
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/helper/helper.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
@@ -533,10 +534,14 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
       work.push_back(f);
     }
   };
+  const auto address_taken = functions_referenced_by_globals(ctx);
   for (size_t head = 0; head < work.size(); head++) {
     auto *f = work[head];
     queued.erase(f);
     visits[f]++;
+    if (address_taken.contains(f)) {
+      continue;
+    }
     switch (f->attribs.linkage) {
       case fir::Linkage::External:
       case fir::Linkage::Weak:
