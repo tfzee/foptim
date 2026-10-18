@@ -307,7 +307,7 @@ bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
   return false;
 }
 
-void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
+bool simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
                             fir::Context & /*ctx*/, WorkList & /*worklist*/) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifySwitch");
@@ -343,9 +343,10 @@ void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
         new_branch.add_bb_arg(0, old_arg);
       }
       instr.remove_from_parent();
-      return;
+      return true;
     }
   }
+  bool changed = false;
 
   // if theres any bb+arg that is the same as default forward it to it
   if (instr->bbs.size() == instr->args.size()) {
@@ -370,10 +371,96 @@ void simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
       if (found) {
         instr.remove_arg(arg_idx);
         instr.remove_bb(arg_idx);
+        changed = true;
       }
     }
   }
+
+  if (instr->bbs.size() != instr->args.size()) {
+    return changed;
+  }
+  auto only_unreachable = [](fir::BasicBlock target) {
+    return target->instructions.size() == 1 &&
+           target->get_terminator()->is(fir::InstrType::Unreachable);
+  };
+
+  // a case into an unreachable block can fall to the default instead
+  for (size_t case_id = instr->args.size() - 1; case_id > 0; case_id--) {
+    if (only_unreachable(instr->bbs[case_id - 1].bb)) {
+      instr.remove_arg(case_id - 1);
+      instr.remove_bb(case_id - 1);
+      changed = true;
+    }
+  }
+
+  const size_t n_cases = instr->args.size() - 1;
+  auto copy_args = [](fir::Instr branch, u32 idx, const fir::BBRefWithArgs &t) {
+    for (auto arg : t.args) {
+      branch.add_bb_arg(idx, arg);
+    }
+  };
+  fir::Builder b(bb);
+  b.at_end(bb);
+
+  if (n_cases == 0) {
+    auto br = b.build_branch(instr->bbs[0].bb);
+    copy_args(br, 0, instr->bbs[0]);
+    instr.remove_from_parent();
+    return true;
+  }
+  if (n_cases == 1 && only_unreachable(instr->bbs[1].bb)) {
+    auto br = b.build_branch(instr->bbs[0].bb);
+    copy_args(br, 0, instr->bbs[0]);
+    instr.remove_from_parent();
+    return true;
+  }
+  if (n_cases == 1) {
+    auto cmp = b.build_int_cmp(instr->args[1], instr->args[0],
+                               fir::ICmpInstrSubType::EQ);
+    auto br = b.build_cond_branch(cmp, instr->bbs[0].bb, instr->bbs[1].bb);
+    copy_args(br, 0, instr->bbs[0]);
+    copy_args(br, 1, instr->bbs[1]);
+    instr.remove_from_parent();
+    return true;
+  }
+
+  // all cases go to the same block, only the arguments differ
+  constexpr size_t MaxSelectCases = 3;
+  if (n_cases <= MaxSelectCases) {
+    bool same_target = true;
+    for (auto &t : instr->bbs) {
+      same_target &= t.bb == instr->bbs[0].bb;
+    }
+    if (same_target) {
+      auto cond = instr->args.back();
+      TVec<fir::ValueR> cmps;
+      for (size_t i = 0; i < n_cases; i++) {
+        cmps.push_back(
+            b.build_int_cmp(cond, instr->args[i], fir::ICmpInstrSubType::EQ));
+      }
+      TVec<fir::ValueR> new_args;
+      for (size_t arg_id = 0; arg_id < instr->bbs[0].args.size(); arg_id++) {
+        fir::ValueR val = instr->bbs.back().args[arg_id];
+        for (size_t i = n_cases; i > 0; i--) {
+          auto case_val = instr->bbs[i - 1].args[arg_id];
+          if (case_val == val) {
+            continue;
+          }
+          val = b.build_select(val.get_type(), cmps[i - 1], case_val, val);
+        }
+        new_args.push_back(val);
+      }
+      auto br = b.build_branch(instr->bbs[0].bb);
+      for (auto arg : new_args) {
+        br.add_bb_arg(0, arg);
+      }
+      instr.remove_from_parent();
+      return true;
+    }
+  }
+  return changed;
 }
+
 
 bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
                      fir::Context &ctx, WorkList &worklist) {
@@ -1559,8 +1646,7 @@ bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     return simplify_cond_branch(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::SwitchInstr) {
-    simplify_switch_branch(instr, bb, ctx, worklist);
-    return true;
+    return simplify_switch_branch(instr, bb, ctx, worklist);
   }
   if (instr_ty == InstrType::SExt || instr_ty == InstrType::ZExt) {
     return simplify_extend(instr, bb, ctx, worklist);
