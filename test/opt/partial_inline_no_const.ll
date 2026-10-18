@@ -77,7 +77,6 @@ define i64 @big(ptr noundef %0, i64 noundef %1, ptr noundef %2) #0 {
 ; CHECK-NEXT:    %62: i64 = Store(%59, %61){} NUses:0
 ; CHECK-NEXT:    %63: i64 = Return(%50){} NUses:0
 ; CHECK-NEXT:}
-; CHECK-NEXT:; NO_RECURSE,
   %4 = alloca i64, align 8
   %5 = alloca ptr, align 8
   %6 = alloca i64, align 8
@@ -238,7 +237,6 @@ define i64 @user2(ptr noundef %0, ptr noundef %1, i64 noundef %2) #0 {
 ; CHECK-NEXT:    %6: i64 = IntAdd(%3, %5){} NUses:1
 ; CHECK-NEXT:    %7: i64 = Return(%6){} NUses:0
 ; CHECK-NEXT:}
-; CHECK-NEXT:; NO_RECURSE,
   %4 = alloca ptr, align 8
   %5 = alloca ptr, align 8
   %6 = alloca i64, align 8

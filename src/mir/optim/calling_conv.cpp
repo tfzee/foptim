@@ -1183,6 +1183,14 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
       // TODO: could do more fancy check checking if other ret override this
       //  we override the result so dont care
       if (ret.args[0] != ret.args[1]) {
+        // the destination is defined after the call, restoring a register of
+        // the same name behind the copy would destroy the result (the
+        // register of a call target is still alive at the call itself)
+        if (ret.args[0].isReg() && ret.args[0].reg.is_concrete()) {
+          return_values_overwrites_ret_reg[static_cast<u64>(
+                                               ret.args[0].reg.c_reg())]
+              .set(true);
+        }
         continue;
       }
       ASSERT(ret.args[1].isReg() && ret.args[1].reg.is_concrete());

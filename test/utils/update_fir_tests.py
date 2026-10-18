@@ -28,10 +28,10 @@ CUSTOM_FIR_FUNC_RE = re.compile(
 
 def scrub_custom_fir(body, *args, **kwargs):
     # Preserve internal indentation. The printer emits a blank line and a lone
-    # `; ` comment line before every function, which lands at the end of the
-    # previous function's body: drop them (a blank line also breaks -NEXT).
+    # `; ATTRIBUTES, ` comment line before every function, which lands at the end
+    # of the previous function's body: drop them (a blank line also breaks -NEXT).
     lines = body.rstrip().splitlines()
-    while lines and lines[-1].strip() in ("", ";"):
+    while lines and (not lines[-1].strip() or lines[-1].lstrip().startswith(";")):
         lines.pop()
     return "\n".join(lines)
 

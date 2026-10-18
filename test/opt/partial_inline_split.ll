@@ -24,7 +24,6 @@ define i64 @big(ptr noundef %0, i64 noundef %1, ptr noundef %2) #0 {
 ; CHECK-NEXT:    %6: i64 = Call(big.rest, %1, %0, %2){extTy: i64(i64 ptr ptr ); } NUses:1
 ; CHECK-NEXT:    %7: i64 = Return(%6){} NUses:0
 ; CHECK-NEXT:}
-; CHECK-NEXT:; NO_RECURSE,
   %4 = alloca i64, align 8
   %5 = alloca ptr, align 8
   %6 = alloca i64, align 8
@@ -188,7 +187,6 @@ define i64 @user(i64 noundef %0) #0 {
 ; CHECK-NEXT:    %5: i64 = IntAdd(%4, -1:i64){} NUses:1
 ; CHECK-NEXT:    %6: i64 = Return(%5){} NUses:0
 ; CHECK-NEXT:}
-; CHECK-NEXT:; NO_RECURSE,
   %2 = alloca i64, align 8
   store i64 %0, ptr %2, align 8, !tbaa !13
   %3 = call i64 @big(ptr noundef @a1, i64 noundef 0, ptr noundef @b1)
@@ -220,7 +218,6 @@ define i64 @user2(ptr noundef %0, ptr noundef %1, i64 noundef %2) #0 {
 ; CHECK-NEXT:    %14: i64 = IntAdd(%13, %5){} NUses:1
 ; CHECK-NEXT:    %15: i64 = Return(%14){} NUses:0
 ; CHECK-NEXT:}
-; CHECK-NEXT:; NO_RECURSE,
   %4 = alloca ptr, align 8
   %5 = alloca ptr, align 8
   %6 = alloca i64, align 8

@@ -1155,7 +1155,10 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
           alloca_worklist.insert(alloca_worklist.end(), curr.user->uses.begin(),
                                  curr.user->uses.end());
         } else if (curr.user->is(fir::ConversionSubType::PtrToInt) ||
-                   curr.user->is(fir::ConversionSubType::IntToPtr)) {
+                   curr.user->is(fir::ConversionSubType::IntToPtr) ||
+                   curr.user->is(fir::InstrType::ITrunc) ||
+                   curr.user->is(fir::InstrType::ZExt) ||
+                   curr.user->is(fir::InstrType::SExt)) {
           alloca_worklist.insert(alloca_worklist.end(), curr.user->uses.begin(),
                                  curr.user->uses.end());
         } else if ((curr.user->is(fir::InstrType::StoreInstr) &&
