@@ -58,7 +58,8 @@ void LoopInfoAnalysis::update_impl(DomType &dom) {
   for (u32 bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
     tails.clear();
     for (auto pred : cfg.bbrs[bb_id].pred) {
-      if (dom.dominates(bb_id, pred)) {
+      if (dom.dominates(bb_id, pred) &&
+          std::ranges::find(tails, pred) == tails.end()) {
         tails.push_back(pred);
       }
     }
