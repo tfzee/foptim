@@ -532,13 +532,15 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
       }
     }
     auto is_non_overflowing = (argi->NSW && !iszext) || (argi->NUW && iszext);
-    if (argi->is(fir::BinaryInstrSubType::And) ||
-        argi->is(fir::BinaryInstrSubType::Or) ||
-        argi->is(fir::BinaryInstrSubType::Xor) ||
-        (argi->is(fir::BinaryInstrSubType::IntAdd) && is_non_overflowing) ||
-        (argi->is(fir::BinaryInstrSubType::PtrAdd) && is_non_overflowing) ||
-        (argi->is(fir::BinaryInstrSubType::IntMul) && is_non_overflowing) ||
-        (iszext && argi->is(fir::BinaryInstrSubType::Shr))) {
+    // with other users the operation would be duplicated
+    if (argi->get_n_uses() == 1 &&
+        (argi->is(fir::BinaryInstrSubType::And) ||
+         argi->is(fir::BinaryInstrSubType::Or) ||
+         argi->is(fir::BinaryInstrSubType::Xor) ||
+         (argi->is(fir::BinaryInstrSubType::IntAdd) && is_non_overflowing) ||
+         (argi->is(fir::BinaryInstrSubType::PtrAdd) && is_non_overflowing) ||
+         (argi->is(fir::BinaryInstrSubType::IntMul) && is_non_overflowing) ||
+         (iszext && argi->is(fir::BinaryInstrSubType::Shr)))) {
       fir::Builder buh{argi};
       auto ext_ty = instr->result_type();
       fir::ValueR arg1Ext;
@@ -637,7 +639,22 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       return true;
     }
 
-    switch (arg_i->instr_type) {
+    // with other users the operation is duplicated, which doubles a chain that
+    // uses a value twice, so only when truncating the operands is free
+    const auto free_trunc = [&](fir::ValueR v) {
+      if (v.is_constant()) {
+        return true;
+      }
+      return v.is_instr() &&
+             (v.as_instr()->is(fir::InstrType::SExt) ||
+              v.as_instr()->is(fir::InstrType::ZExt)) &&
+             v.as_instr()->args[0].get_type() == out_type;
+    };
+    const bool may_duplicate =
+        arg_i->get_n_uses() == 1 ||
+        (arg_i->instr_type == fir::InstrType::BinaryInstr &&
+         free_trunc(arg_i->args[0]) && free_trunc(arg_i->args[1]));
+    switch (may_duplicate ? arg_i->instr_type : fir::InstrType::Fence) {
       case fir::InstrType::BinaryInstr: {
         auto i_arg0 = arg_i->args[0];
         auto i_arg1 = arg_i->args[1];

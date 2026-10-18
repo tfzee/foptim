@@ -43,6 +43,7 @@
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/global_promotion.hpp"
 #include "optim/module_passes/inline.hpp"
+#include "optim/module_passes/legalize_ints.hpp"
 #include "optim/module_passes/partial_inline_split.hpp"
 #include "optim/module_passes/print_module.hpp"
 #include "utils/arena.hpp"
@@ -386,6 +387,13 @@ struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
   void construct_module_pass(Pass &p) {
     p.config = *static_cast<Pass::Config *>(this);
   };
+};
+
+struct LegalizeIntsConf : public ModulePassConf<LegalizeIntsConf> {
+  static constexpr const char *BaseName = "LegalizeInts";
+  using Pass = optim::LegalizeInts;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_module_pass(Pass & /*unused*/) {};
 };
 
 struct PartialInlineSplitConf : public ModulePassConf<PartialInlineSplitConf>,

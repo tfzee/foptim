@@ -436,13 +436,44 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
              static_cast<u32>(fir::BinaryInstrSubType::IntUDiv)) &&
         instr->args[1].is_constant() && instr->args[0].is_instr()) {
       auto inner_add_sub = instr->args[0].as_instr();
+      // the combined constant must not leave the type: shift amounts add up
+      // to less than the width, divisors multiply without wrapping and are
+      // not zero
+      const auto combinable = [&](fir::Instr inner) {
+        if (!instr->is(fir::BinaryInstrSubType::Shl) &&
+            !instr->is(fir::BinaryInstrSubType::Shr) &&
+            !instr->is(fir::BinaryInstrSubType::IntSDiv) &&
+            !instr->is(fir::BinaryInstrSubType::IntUDiv)) {
+          return true;
+        }
+        if (!inner->args[1].is_constant_int() ||
+            !instr->args[1].is_constant_int()) {
+          return false;
+        }
+        const u32 cbw = instr->result_type()->get_bitwidth();
+        const APInt c1 = inner->args[1].as_constant()->as_apint_resized(cbw);
+        const APInt c2 = instr->args[1].as_constant()->as_apint_resized(cbw);
+        if (instr->is(fir::BinaryInstrSubType::Shl) ||
+            instr->is(fir::BinaryInstrSubType::Shr)) {
+          return (c1.zext(cbw + 1) + c2.zext(cbw + 1))
+              .ult(APInt(cbw + 1, u64{cbw}));
+        }
+        if (c1.is_zero() || c2.is_zero()) {
+          return false;
+        }
+        const bool is_signed = instr->is(fir::BinaryInstrSubType::IntSDiv);
+        const APInt wide = is_signed ? c1.sext(2 * cbw) * c2.sext(2 * cbw)
+                                     : c1.zext(2 * cbw) * c2.zext(2 * cbw);
+        return (is_signed ? wide.trunc(cbw).sext(2 * cbw)
+                          : wide.trunc(cbw).zext(2 * cbw)) == wide;
+      };
       if (inner_add_sub->is(fir::InstrType::BinaryInstr) &&
           inner_add_sub->subtype == instr->subtype &&
-          inner_add_sub->args[1].is_constant()) {
-        fir::Builder b(instr);
+          inner_add_sub->args[1].is_constant() && combinable(inner_add_sub)) {
         auto x = inner_add_sub->args[0];
         auto const1 = inner_add_sub->args[1];
         auto const2 = instr->args[1];
+        fir::Builder b(instr);
         if (instr->is(fir::BinaryInstrSubType::IntMul)) {
           auto a1 = b.build_binary_op(const1, const2,
                                       fir::BinaryInstrSubType::IntMul);
@@ -721,7 +752,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
       }
     }
     if (instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::Xor) &&
-        c_val->is_int() && c_val->as_int() == 1 &&
+        c_val->is_int() && c_val->as_int_sat() == 1 &&
         instr->args[v_idx].is_instr()) {
       auto arg0 = instr->args[v_idx].as_instr();
       if (arg0->is(fir::InstrType::ZExt) &&
@@ -743,7 +774,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
     if (instr->is(fir::BinaryInstrSubType::Shr) && instr->args[0].is_instr() &&
         instr->args[0].as_instr()->is(fir::InstrType::ZExt) &&
         instr->args[1].is_constant_int() &&
-        instr->args[1].as_constant()->as_int() >=
+        instr->args[1].as_constant()->as_int_sat() >=
             instr->args[0].as_instr()->args[0].get_type()->get_bitwidth()) {
       auto zero = fir::ValueR{ctx->get_constant_value(0, instr->result_type())};
       push_all_uses(worklist, instr);
@@ -761,8 +792,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
           argi->is(fir::BinaryInstrSubType::Shl) &&
           instr->args[1].is_constant_int() && argi->args[1].is_constant_int()) {
         const u32 bw = instr->result_type()->get_bitwidth();
-        const i128 shiftl_amount = argi->args[1].as_constant()->as_int();
-        const i128 shiftr_amount = instr->args[1].as_constant()->as_int();
+        const i128 shiftl_amount = argi->args[1].as_constant()->as_int_sat();
+        const i128 shiftr_amount = instr->args[1].as_constant()->as_int_sat();
         if (shiftl_amount < 0 || shiftr_amount < 0 || shiftl_amount >= bw ||
             shiftr_amount >= bw) {
           return false;
@@ -816,7 +847,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
             instr->args[1] == argi->args[1]) {
           fir::Builder buh{argi};
           // (x & (-1 << n)) clears the low n bits
-          const i128 shift_amount = instr->args[1].as_constant()->as_int();
+          const i128 shift_amount = instr->args[1].as_constant()->as_int_sat();
           const u32 bitwidth = instr->result_type()->get_bitwidth();
           if (shift_amount < 0 || shift_amount >= bitwidth) {
             return false;
@@ -836,8 +867,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
             argi->args[1].is_constant_int() &&
             instr->args[1] != argi->args[1]) {
           // (x >> a) << b is a single shift and a mask
-          const i128 right = argi->args[1].as_constant()->as_int();
-          const i128 left = instr->args[1].as_constant()->as_int();
+          const i128 right = argi->args[1].as_constant()->as_int_sat();
+          const i128 left = instr->args[1].as_constant()->as_int_sat();
           const u32 bitwidth = instr->result_type()->get_bitwidth();
           if (right >= 0 && left >= 0 && right < bitwidth && left < bitwidth) {
             fir::Builder buh{argi};
@@ -871,8 +902,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
             argi->args[1].is_constant_int() &&
             argi->is(fir::BinaryInstrSubType::AShr)) {
           auto input = argi->args[0];
-          auto rightI = argi->args[1].as_constant()->as_int();
-          auto leftI = instr->args[1].as_constant()->as_int();
+          auto rightI = argi->args[1].as_constant()->as_int_sat();
+          auto leftI = instr->args[1].as_constant()->as_int_sat();
           const u32 bw = instr.result_type()->get_bitwidth();
           if (leftI >= rightI && rightI >= 0 && leftI < bw) {
             fir::Builder buh{argi};
@@ -891,9 +922,10 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
           }
         }
       }
-      if (argi->is(fir::BinaryInstrSubType::And) ||
-          argi->is(fir::BinaryInstrSubType::Or) ||
-          argi->is(fir::BinaryInstrSubType::Xor)) {
+      // with other users the bitwise op would be duplicated
+      if (argi->get_n_uses() == 1 && (argi->is(fir::BinaryInstrSubType::And) ||
+                                      argi->is(fir::BinaryInstrSubType::Or) ||
+                                      argi->is(fir::BinaryInstrSubType::Xor))) {
         fir::Builder buh{argi};
         fir::ValueR arg1Shift;
         fir::ValueR arg2Shift;
@@ -981,7 +1013,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
         return true;
       }
     }
-    if (c_val->is_int() &&
+    if (c_idx == 1 && c_val->is_int() &&
         instr->get_instr_subtype() ==
             static_cast<u32>(fir::BinaryInstrSubType::IntURem)) {
       const u32 bw = instr->result_type()->get_bitwidth();

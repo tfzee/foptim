@@ -389,11 +389,7 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
 foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
                                 llvm::Module &module) {
   if (auto *v = llvm::dyn_cast_or_null<llvm::IntegerType>(any_ty)) {
-    u32 width = v->getBitWidth();
-    if (width > 64) {
-      IMPL("integers wider than 64 bits are not supported by the backend");
-    }
-    return ctx->get_int_type(width);
+    return ctx->get_int_type(v->getBitWidth());
   }
   if (any_ty->isFloatTy()) {
     return ctx->get_float_type(32);
@@ -1986,10 +1982,15 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
         *(reinterpret_cast<uint64_t *>(const_cast<uint8_t *>(output))) =
             d->getZExtValue();
         break;
-      default:
-        llvm::errs() << "constant int " << *d << " " << d->getBitWidth()
-                     << "\n";
-        TODO("IMPL");
+      default: {
+        // any other width, little endian, padded to whole bytes
+        u32 n_bytes = (d->getBitWidth() + 7) / 8;
+        llvm::APInt v = d->getValue().zext(n_bytes * 8);
+        for (u32 i = 0; i < n_bytes; i++) {
+          *(const_cast<uint8_t *>(output) + i) =
+              static_cast<uint8_t>(v.extractBitsAsZExtValue(8, i * 8));
+        }
+      }
     }
     return;
   }

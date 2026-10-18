@@ -13,6 +13,7 @@
 #include "test_reg_alloc_solver.hpp"
 #include "test_region_extractor.hpp"
 #include "test_stable_vec.hpp"
+#include "test_wide_int.hpp"
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);

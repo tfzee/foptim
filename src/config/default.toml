@@ -103,6 +103,7 @@ passes = [
 
 [pipeline.fir.default_release_cleanup]
 passes = [
+  "LegalizeInts",
   "pipeline:default_release_cleanup_round", "pipeline:default_release_cleanup_round",
   "pipeline:default_release_cleanup_round", "pipeline:default_release_cleanup_round",
   "MergeAlloca", "EarlySheduler", "LVN", "InstSimplify", "SCCP", "DCE", "LVN",
@@ -129,6 +130,7 @@ allow_builtins = true
 [pass.fir.Inline]
 allow_recursive = true
 allow_builtins = false
+[pass.fir.LegalizeInts]
 [pass.fir.PartialInlineSplit]
 rest_min = 40
 prefix_max = 16

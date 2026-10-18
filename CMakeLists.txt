@@ -171,6 +171,7 @@ add_library (foptim OBJECT
                 ./src/optim/helper/inline.cpp
                 ./src/optim/helper/region_extractor.cpp
                 ./src/optim/module_passes/partial_inline_split.cpp
+                ./src/optim/module_passes/legalize_ints.cpp
                 ./src/optim/helper/scev_expander.cpp
                 ./src/optim/helper/WFVector.cpp
                 ./src/optim/helper/helper.cpp
