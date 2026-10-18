@@ -4,10 +4,12 @@
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/analysis/callgraph.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/helper/inline.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/job_system.hpp"
+#include "utils/stats.hpp"
 
 namespace foptim::optim {
 struct InlineConfig {
@@ -36,7 +38,7 @@ inline bool points_into_alloca(fir::ValueR v) {
 class AlwaysInlineAdvisor {
   static constexpr bool debug_print = false;
 
-public:
+ public:
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG & /*cfg*/,
                                        Dominators & /*dom*/,
                                        InlineConfig &conf) {
@@ -57,18 +59,18 @@ public:
       return false;
     }
     switch (v->attribs.linkage) {
-    case fir::Linkage::Weak:
-    case fir::Linkage::LinkOnce:
-      if (debug_print) {
-        fmt::println("N Bad linkage");
-      }
-      ASSERT(!v->attribs.must_inline);
-      return false;
-    case fir::Linkage::Internal:
-    case fir::Linkage::External:
-    case fir::Linkage::WeakODR:
-    case fir::Linkage::LinkOnceODR:
-      break;
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+        if (debug_print) {
+          fmt::println("N Bad linkage");
+        }
+        ASSERT(!v->attribs.must_inline);
+        return false;
+      case fir::Linkage::Internal:
+      case fir::Linkage::External:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::LinkOnceODR:
+        break;
     }
 
     // TODO: impl to hndle this correctly
@@ -93,16 +95,22 @@ public:
 class BaseInlineAdvisor {
   u32 n_inlined_instructions = 0;
   u32 n_inlined_calls = 0;
+  // growth of the caller by the calls accepted in this round, they are only
+  // applied after all decisions are made
+  u32 pending_growth = 0;
 
   static constexpr bool debug_print = false;
 
-public:
+ public:
+  void begin_round() { pending_growth = 0; }
+
   [[nodiscard]] bool should_be_inlined(const fir::Instr instr, CFG &cfg,
                                        Dominators &dom, InlineConfig &conf) {
     if (_should_be_inlined(instr, cfg, dom, conf)) {
       auto v = instr->get_arg(0).as_constant()->as_func();
       n_inlined_calls += 1;
       n_inlined_instructions += v->n_instrs();
+      pending_growth += static_cast<u32>(v->n_instrs());
       return true;
     }
     return false;
@@ -113,7 +121,7 @@ public:
                                         InlineConfig &conf) const {
     auto called_func = instr->get_arg(0);
     auto self_func = instr->get_parent()->get_parent();
-    auto self_n_instrs = self_func->n_instrs();
+    auto self_n_instrs = self_func->n_instrs() + pending_growth;
     if (!called_func.is_constant() || !called_func.as_constant()->is_func()) {
       return false;
     }
@@ -142,18 +150,18 @@ public:
     }
 
     switch (v->attribs.linkage) {
-    case fir::Linkage::Weak:
-    case fir::Linkage::LinkOnce:
-      if (debug_print) {
-        fmt::println("N Bad linkage");
-      }
-      ASSERT(!v->attribs.must_inline);
-      return false;
-    case fir::Linkage::Internal:
-    case fir::Linkage::External:
-    case fir::Linkage::WeakODR:
-    case fir::Linkage::LinkOnceODR:
-      break;
+      case fir::Linkage::Weak:
+      case fir::Linkage::LinkOnce:
+        if (debug_print) {
+          fmt::println("N Bad linkage");
+        }
+        ASSERT(!v->attribs.must_inline);
+        return false;
+      case fir::Linkage::Internal:
+      case fir::Linkage::External:
+      case fir::Linkage::WeakODR:
+      case fir::Linkage::LinkOnceODR:
+        break;
     }
 
     // TODO: impl to hndle this correctly
@@ -293,8 +301,9 @@ public:
     if (all_args_are_constant_or_allocas && self_n_instrs < 50 &&
         called_n_instrs < 10) {
       if (debug_print) {
-        fmt::println("Y all args are constnat + allocs might allow for mem2reg "
-                     "and shit");
+        fmt::println(
+            "Y all args are constnat + allocs might allow for mem2reg "
+            "and shit");
       }
       return true;
     }
@@ -342,62 +351,102 @@ template <typename T>
 concept InlineAdvisor = requires(T v, fir::Instr instr, CFG &cfg,
                                  Dominators &dom, InlineConfig &conf) {
   { v.should_be_inlined(instr, cfg, dom, conf) } -> std::same_as<bool>;
+  v.begin_round();
 };
 
 template <InlineAdvisor Advisor = BaseInlineAdvisor>
 class Inline final : public ModulePass {
-public:
+ public:
   using Config = InlineConfig;
   Config config;
+
+  // Calls that come out of inlined bodies are decided in the same visit,
+  // this bounds how deep that goes.
+  static constexpr u32 MaxRounds = 8;
 
   PreservedAnalysis apply(fir::Context &ctx, JobSheduler * /*shed*/,
                           AnalysisManager &analyMan) override {
     ZoneScopedNC("INLINE", COLOR_OPTIMM);
-    for (auto *f : ctx.data->storage.functions.all()) {
-      apply(ctx, *f, analyMan);
+    // callees are final before their callers are visited
+    CallSCCs sccs{ctx};
+    for (auto *f : sccs.order) {
+      apply(*f, sccs, analyMan);
     }
     return PreservedAnalysis::all();
   }
 
-  void apply(fir::Context & /*unused*/, fir::Function &func,
+  void apply(fir::Function &func, const CallSCCs &sccs,
              AnalysisManager &analyMan) {
     Advisor adv;
     TVec<fir::Instr> calls;
+    // call sites that were already decided, they are not looked at again
+    TSet<fir::Instr> seen;
+    const u32 own_scc = sccs.scc_of.at(&func);
+    const bool in_recursive_scc = sccs.is_recursive[own_scc];
 
-    for (u8 trys = 0; trys < 4; trys++) {
+    size_t first_bb = 0;
+    for (u32 round = 0; round < MaxRounds; round++) {
       calls.clear();
-      if (func.is_decl()) {
-        continue;
+      const size_t n_bbs_before = func.n_bbs();
+      bool has_candidate = false;
+      for (size_t bb_id = first_bb; bb_id < n_bbs_before && !has_candidate;
+           bb_id++) {
+        for (auto instr : func.basic_blocks[bb_id]->instructions) {
+          if (instr->is(fir::InstrType::CallInstr) &&
+              instr->args[0].is_constant() &&
+              instr->args[0].as_constant()->is_func()) {
+            has_candidate = true;
+            break;
+          }
+        }
+      }
+      if (!has_candidate) {
+        break;
       }
       CFG cfg{func};
       Dominators dom{cfg};
+      adv.begin_round();
 
-      for (size_t bb_id = 0; bb_id < func.n_bbs(); bb_id++) {
+      for (size_t bb_id = first_bb; bb_id < n_bbs_before; bb_id++) {
         auto bb = func.basic_blocks[bb_id];
-        for (size_t instr_id = 0; instr_id < bb->n_instrs(); instr_id++) {
-          if (bb->instructions[instr_id]->is(fir::InstrType::CallInstr) &&
-              adv.should_be_inlined(bb->instructions[instr_id], cfg, dom,
-                                    config)) {
-            calls.push_back(bb->instructions[instr_id]);
-            break;
+        for (auto instr : bb->instructions) {
+          if (!instr->is(fir::InstrType::CallInstr) ||
+              !seen.insert(instr).second) {
+            continue;
+          }
+          // inside a recursive SCC callees are not final, only calls of the
+          // original body are inlined (one level per pass run)
+          if (round > 0 && in_recursive_scc && instr->args[0].is_constant() &&
+              instr->args[0].as_constant()->is_func()) {
+            auto it =
+                sccs.scc_of.find(instr->args[0].as_constant()->as_func().func);
+            if (it != sccs.scc_of.end() && it->second == own_scc) {
+              continue;
+            }
+          }
+          if (adv.should_be_inlined(instr, cfg, dom, config)) {
+            calls.push_back(instr);
           }
         }
       }
       if (calls.empty()) {
         break;
       }
+      first_bb = n_bbs_before;
+      bool changed = false;
       for (auto call : calls) {
         if (inline_call(call)) {
-          analyMan.touched_body(func);
+          changed = true;
+          utils::StatCollector::get().addi(
+              1, round == 0 ? "InlinedCalls" : "InlinedCallsRetry",
+              utils::StatCollector::StatType::StatFOptim);
         }
-        // if(!success){
-        //   fmt::println("{}", call);
-        //   fmt::println("{}", *call->args[0].as_constant()->as_func().func);
-        // }
-        // ASSERT(success);
+      }
+      if (changed) {
+        analyMan.touched_body(func);
       }
     }
   }
 };
 
-} // namespace foptim::optim
+}  // namespace foptim::optim
