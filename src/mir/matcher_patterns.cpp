@@ -1226,6 +1226,20 @@ void base_binary_rules(RuleSet &rules) {
     res.result.emplace_back(GVecSubtype::vdiv, res_reg, a1, a2);
     return true;
   });
+  auto i1_add_sub = [](fir::Instr instr, MatchResult &res,
+                       ExtraMatchData &data) {
+    if (!instr.result_type()->is_int() || instr.result_type()->as_int() != 1) {
+      return false;
+    }
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                            valueToArg(instr->args[0], res.result, data.alloc));
+    res.result.emplace_back(GArithSubtype::lxor2, res_reg,
+                            valueToArg(instr->args[1], res.result, data.alloc));
+    return true;
+  };
+  rules.add(pm::IntAdd, i1_add_sub);
+  rules.add(pm::IntSub, i1_add_sub);
   rules.add(pm::IntAdd, [](fir::Instr add_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(add_instr.result(), res.result, data.alloc);
