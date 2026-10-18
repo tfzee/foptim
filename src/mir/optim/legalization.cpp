@@ -144,17 +144,22 @@ bool Legalizer::legalize_icmp(MBB &bb, u32 indx) {
   bool big_unsigned_const =
       instr.args[1].isImm() &&
       instr.args[1].imm > static_cast<u64>(std::numeric_limits<u16>::max());
-  bool big_signed_const = instr.args[1].isImm() &&
-                          static_cast<i64>(instr.args[1].imm) >
-                              static_cast<i64>(std::numeric_limits<i16>::max());
+  bool big_signed_const =
+      instr.args[1].isImm() &&
+      (static_cast<i64>(instr.args[1].imm) >
+           static_cast<i64>(std::numeric_limits<i16>::max()) ||
+       static_cast<i64>(instr.args[1].imm) <
+           static_cast<i64>(std::numeric_limits<i16>::min()));
 
   bool big_unsigned_const2 =
       instr.args[2].isImm() &&
       instr.args[2].imm > static_cast<u64>(std::numeric_limits<u16>::max());
   bool big_signed_const2 =
       instr.args[2].isImm() &&
-      static_cast<i64>(instr.args[2].imm) >
-          static_cast<i64>(std::numeric_limits<i16>::max());
+      (static_cast<i64>(instr.args[2].imm) >
+           static_cast<i64>(std::numeric_limits<i16>::max()) ||
+       static_cast<i64>(instr.args[2].imm) <
+           static_cast<i64>(std::numeric_limits<i16>::min()));
 
   // fmt::println("{} -> {};{};{};{}", instr, big_unsigned_const,
   // big_signed_const,
@@ -606,8 +611,10 @@ bool Legalizer::legalize_cmoveXX(MBB &bb, u32 indx) {
         instr.args[3].imm > static_cast<u64>(std::numeric_limits<u16>::max());
     bool big_signed_const =
         instr.args[3].isImm() &&
-        static_cast<i64>(instr.args[3].imm) >
-            static_cast<i64>(std::numeric_limits<i16>::max());
+        (static_cast<i64>(instr.args[3].imm) >
+             static_cast<i64>(std::numeric_limits<i16>::max()) ||
+         static_cast<i64>(instr.args[3].imm) <
+             static_cast<i64>(std::numeric_limits<i16>::min()));
 
     if (instr.bop == GOpcode::GCMov) {
       switch (static_cast<GCMovSubtype>(instr.sop)) {
@@ -641,8 +648,10 @@ bool Legalizer::legalize_cmoveXX(MBB &bb, u32 indx) {
         instr.args[2].imm > static_cast<u64>(std::numeric_limits<u16>::max());
     bool big_signed_const =
         instr.args[2].isImm() &&
-        static_cast<i64>(instr.args[2].imm) >
-            static_cast<i64>(std::numeric_limits<i16>::max());
+        (static_cast<i64>(instr.args[2].imm) >
+             static_cast<i64>(std::numeric_limits<i16>::max()) ||
+         static_cast<i64>(instr.args[2].imm) <
+             static_cast<i64>(std::numeric_limits<i16>::min()));
 
     if (instr.bop == GOpcode::GCMov) {
       switch (static_cast<GCMovSubtype>(instr.sop)) {

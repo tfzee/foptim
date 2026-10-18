@@ -411,6 +411,20 @@ void decide_values_start_from(fir::Function &func, fir::BasicBlock last_bb,
       // then we update the arguemtns of the origin jump
       auto term = last_bb->get_terminator();
 
+      // the stored value can have another type than the slot (memcpy through
+      // an i64 into a double)
+      const auto arg_type = block->args[arg]->get_type();
+      if (var_val_res.get_type() != arg_type) {
+        if (var_val_res.is_constant() && var_val_res.as_constant()->is_poison()) {
+          var_val_res = fir::ValueR{func.ctx->get_poisson_value(arg_type)};
+        } else if (var_val_res.get_type()->get_size() == arg_type->get_size()) {
+          fir::Builder b{term};
+          b.before(term);
+          var_val_res = fir::ValueR{b.build_conversion_op(
+              var_val_res, arg_type, fir::ConversionSubType::BitCast)};
+        }
+      }
+
       // a terminator can have several edges into the same block (switch)
       for (u16 e = 0; e < term->bbs.size(); e++) {
         if (term->bbs[e].bb == block) {

@@ -427,13 +427,50 @@ struct DiffValues {
   fir::Use use2;
 };
 
+enum class KeptArg { NotApplicable, Handled, Fail };
+
+// The kept block may already have block arguments from earlier merges. An
+// operand that is one of them is matched by recording what the removed block
+// has at that position, its incoming edges pass that value for the argument.
+KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
+                       fir::BasicBlock removed, TVec<fir::ValueR> &arg_map) {
+  if (a2.is_bb_arg() && a2.as_bb_arg()->get_parent() == kept) {
+    // not available in the predecessors of the removed block
+    return KeptArg::Fail;
+  }
+  if (!a1.is_bb_arg() || a1.as_bb_arg()->get_parent() != kept) {
+    return KeptArg::NotApplicable;
+  }
+  if (a2.is_instr() && a2.as_instr()->get_parent() == removed) {
+    return KeptArg::Fail;
+  }
+  for (u32 k = 0; k < kept->n_args(); k++) {
+    if (kept->args[k] == a1.as_bb_arg()) {
+      if (arg_map[k].is_invalid()) {
+        arg_map[k] = a2;
+        return KeptArg::Handled;
+      }
+      return arg_map[k] == a2 ? KeptArg::Handled : KeptArg::Fail;
+    }
+  }
+  return KeptArg::Fail;
+}
+
 [[nodiscard]] bool check_args(fir::Instr i1, fir::Instr i2,
                               TMap<fir::Instr, fir::Instr> &local_value_map,
-                              size_t &cost,
-                              TVec<DiffValues> &difference_values) {
+                              size_t &cost, TVec<DiffValues> &difference_values,
+                              TVec<fir::ValueR> &arg_map) {
   for (u32 i = 0; i < i1->args.size(); i++) {
     auto &arg1 = i1->args[i];
     auto &arg2 = i2->args[i];
+    auto kept_res =
+        match_kept_arg(arg1, arg2, i1->get_parent(), i2->get_parent(), arg_map);
+    if (kept_res == KeptArg::Fail) {
+      return false;
+    }
+    if (kept_res == KeptArg::Handled) {
+      continue;
+    }
     if (arg1 == arg2) {
       continue;
     }
@@ -463,8 +500,9 @@ struct DiffValues {
       }
     }
 
-    difference_values.push_back(
-        {fir::Use::norm(i1, i), i1->args[i], fir::Use::norm(i2, i)});
+    difference_values.push_back({.use1 = fir::Use::norm(i1, i),
+                                 .old_val = i1->args[i],
+                                 .use2 = fir::Use::norm(i2, i)});
     cost += 1;
   }
   return true;
@@ -472,8 +510,8 @@ struct DiffValues {
 
 [[nodiscard]] bool match_term(fir::Instr i1, fir::Instr i2,
                               TMap<fir::Instr, fir::Instr> &local_value_map,
-                              size_t &cost,
-                              TVec<DiffValues> &difference_values) {
+                              size_t &cost, TVec<DiffValues> &difference_values,
+                              TVec<fir::ValueR> &arg_map) {
   if (i1 == i2) {
     return true;
   }
@@ -496,6 +534,14 @@ struct DiffValues {
     for (size_t arg_id = 0; arg_id < bb1.args.size(); arg_id++) {
       auto &a1 = bb1.args[arg_id];
       auto &a2 = bb2.args[arg_id];
+      auto kept_res =
+          match_kept_arg(a1, a2, i1->get_parent(), i2->get_parent(), arg_map);
+      if (kept_res == KeptArg::Fail) {
+        return false;
+      }
+      if (kept_res == KeptArg::Handled) {
+        continue;
+      }
       if (a1 == a2) {
         continue;
       }
@@ -523,7 +569,8 @@ struct DiffValues {
       cost += 1;
     }
   }
-  auto res = check_args(i1, i2, local_value_map, cost, difference_values);
+  auto res =
+      check_args(i1, i2, local_value_map, cost, difference_values, arg_map);
   if (i1->is(fir::InstrType::ReturnInstr)) {
     cost = std::max(1UL, cost) - 1;
   }
@@ -544,8 +591,7 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
                            size_t &bb_id, TVec<u64> &sigs, bool &cfg_dirty,
                            TVec<DiffValues> &difference_values,
                            TMap<fir::Instr, fir::Instr> &local_value_map,
-                           TVec<fir::BBArgument> &new_bb_args_helper,
-                           CFG &cfg) {
+                           TVec<fir::ValueR> &arg_map, CFG &cfg) {
   constexpr u32 N_INSTRS_UPPERBOUND = 20;
   constexpr u32 MAX_COMPARISONS = 32;
   u32 comparisons = 0;
@@ -553,27 +599,27 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
   bool modified = false;
   const auto bb1n_instr = bb1->instructions.size();
 
-  // TODO: SUPPORT old bbargs!
-  if (bb1->n_args() != 0 || bb1->n_instrs() > N_INSTRS_UPPERBOUND) {
+  if (bb1->n_instrs() > N_INSTRS_UPPERBOUND) {
     return false;
   }
 
   for (size_t bb2_id = 1; bb2_id < bb_id; bb2_id++) {
-    // if (bb1->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
-    //   continue;
-    // }
     if (sigs[bb2_id] != sigs[bb_id]) {
       continue;
     }
-    auto &bb2 = func.basic_blocks[bb2_id];
-    if (bb2->n_args() != 0 ||
+    const fir::BasicBlock bb2 = func.basic_blocks[bb2_id];
+    if ((bb1->n_args() != 0 && bb2->n_args() != 0) ||
         bb1->instructions.size() != bb2->instructions.size()) {
       continue;
     }
+    // the block with arguments is kept, the other one is removed
+    const bool remove_bb1 = bb1->n_args() == 0 && bb2->n_args() != 0;
+    const fir::BasicBlock kept = remove_bb1 ? bb2 : bb1;
+    const fir::BasicBlock removed = remove_bb1 ? bb1 : bb2;
     bool found = true;
     for (size_t i = 0; i < bb1->instructions.size(); i++) {
-      auto i1 = bb1->instructions[i];
-      auto i2 = bb2->instructions[i];
+      auto i1 = kept->instructions[i];
+      auto i2 = removed->instructions[i];
       if (i1->is_multi_result() || i2->is_multi_result() ||
           i1->instr_type != i2->instr_type || i1->subtype != i2->subtype ||
           i1->args.size() != i2->args.size() ||
@@ -591,8 +637,8 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     // match_term needs identical jump targets, check that before building the
     // value map
     {
-      auto t1 = bb1->get_terminator();
-      auto t2 = bb2->get_terminator();
+      auto t1 = kept->get_terminator();
+      auto t2 = removed->get_terminator();
       bool same_targets = t1->bbs.size() == t2->bbs.size();
       for (size_t t = 0; same_targets && t < t1->bbs.size(); t++) {
         same_targets = t1->bbs[t].bb == t2->bbs[t].bb &&
@@ -605,16 +651,16 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     size_t cost = 0;
     local_value_map.clear();
     for (size_t i = 0; i < bb1n_instr; i++) {
-      auto i1 = bb1->instructions[i];
-      auto i2 = bb2->instructions[i];
-      local_value_map.insert({i1, i2});
+      local_value_map.insert({kept->instructions[i], removed->instructions[i]});
     }
     // setup local value map this allows us to check if it references the same
     // local instruction
     difference_values.clear();
-    auto term1 = bb1->get_terminator();
-    auto term2 = bb2->get_terminator();
-    if (!match_term(term1, term2, local_value_map, cost, difference_values)) {
+    arg_map.assign(kept->n_args(), fir::ValueR{});
+    auto term1 = kept->get_terminator();
+    auto term2 = removed->get_terminator();
+    if (!match_term(term1, term2, local_value_map, cost, difference_values,
+                    arg_map)) {
       continue;
     }
 
@@ -623,9 +669,10 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
         found = false;
         break;
       }
-      auto i1 = bb1->instructions[i];
-      auto i2 = bb2->instructions[i];
-      if (!check_args(i1, i2, local_value_map, cost, difference_values)) {
+      auto i1 = kept->instructions[i];
+      auto i2 = removed->instructions[i];
+      if (!check_args(i1, i2, local_value_map, cost, difference_values,
+                      arg_map)) {
         found = false;
         break;
       }
@@ -638,16 +685,16 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       cfg = CFG{func};
       cfg_dirty = false;
     }
-    if (std::ranges::equal(cfg.bbrs[cfg.get_bb_id(bb1)].pred,
-                           cfg.bbrs[cfg.get_bb_id(bb2)].pred)) {
+    if (std::ranges::equal(cfg.bbrs[cfg.get_bb_id(kept)].pred,
+                           cfg.bbrs[cfg.get_bb_id(removed)].pred)) {
       // TODO: modify costs
-      auto p = cfg.bbrs[cfg.get_bb_id(bb1)].pred.size() * 2;
+      auto p = cfg.bbrs[cfg.get_bb_id(kept)].pred.size() * 2;
       cost = std::max(cost, p) - p;
     }
-    if (found && cost * 4 <= bb1n_instr) {
-      fir::BasicBlock res_bb1 = bb1;
-      fir::BasicBlock res_bb2 = bb2;
-      new_bb_args_helper.clear();
+    if (cost * 4 <= bb1n_instr) {
+      fir::BasicBlock res_bb1 = kept;
+      fir::BasicBlock res_bb2 = removed;
+      const u32 n_old_args = res_bb1->n_args();
 
       for (auto &diff : difference_values) {
         auto new_arg = ctx->storage.insert_bb_arg(
@@ -658,14 +705,20 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
 
       for (auto u1 : res_bb1->uses) {
         ASSERT(u1.type == fir::UseType::BB);
-        // auto &bb_ref = u1.user->bbs[u1.argId];
         for (auto &diff : difference_values) {
           u1.user.add_bb_arg(u1.argId, diff.old_val);
-          // bb_ref.args.push_back(diff.old_val);
         }
       }
       for (auto u2 : res_bb2->uses) {
         ASSERT(u2.type == fir::UseType::BB);
+        // the old arguments of the kept block first, then the new ones
+        for (u32 k = 0; k < n_old_args; k++) {
+          auto v = !arg_map[k].is_invalid()
+                       ? arg_map[k]
+                       : fir::ValueR{ctx->get_poisson_value(
+                             res_bb1->args[k]->get_type())};
+          u2.user.add_bb_arg(u2.argId, v);
+        }
         for (auto &diff : difference_values) {
           u2.user.add_bb_arg(u2.argId, diff.use2.get_value());
         }
@@ -681,12 +734,17 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       }
       res_bb2->remove_from_parent(true, true, true);
       utils::StatCollector::get().addi(1, "MergedBBBlocks");
+      modified = true;
+      if (remove_bb1) {
+        // the current block is gone, the caller moves on to the block that
+        // took its place
+        sigs.erase(sigs.begin() + static_cast<i64>(bb_id));
+        bb_id--;
+        break;
+      }
       sigs.erase(sigs.begin() + static_cast<i64>(bb2_id));
       bb2_id--;
       bb_id--;
-      modified = true;
-      // return false;
-      continue;
     }
   }
 
@@ -699,9 +757,7 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func, CFG &cfg) {
   bool modified = false;
   TVec<DiffValues> difference_values;
   TMap<fir::Instr, fir::Instr> local_value_map;
-  TVec<fir::BBArgument> new_bb_args_helper;
-  // difference_values.reserve(32);
-  // new_bb_args_helper.reserve(32);
+  TVec<fir::ValueR> arg_map;
 
   bool cfg_dirty = false;
   TVec<u64> sigs;
@@ -713,7 +769,7 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func, CFG &cfg) {
   for (size_t bb_id = 1; bb_id < func.basic_blocks.size(); bb_id++) {
     bool mod = dup_bb_to_args_per_bb(func.basic_blocks[bb_id], func, bb_id,
                                      sigs, cfg_dirty, difference_values,
-                                     local_value_map, new_bb_args_helper, cfg);
+                                     local_value_map, arg_map, cfg);
     cfg_dirty |= mod;
     modified |= mod;
   }
@@ -1136,7 +1192,7 @@ void merge_into_predecessor(fir::Function &func, fir::BasicBlock bb,
 // succ is entered from several blocks but short and only used inside itself, so
 // it can be copied into bb instead of the branch to it
 bool merge_short_successor(fir::BasicBlock bb, fir::BasicBlock succ) {
-  if (succ->n_args() * 1UL + 1 < succ->instructions.size()) {
+  if ((succ->n_args() * 1UL) + 1 < succ->instructions.size()) {
     return false;
   }
   // a block looping on itself would be copied again and again

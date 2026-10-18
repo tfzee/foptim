@@ -278,9 +278,9 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
   if (ptr.is_instr()) {
     auto ptr_instr = ptr.as_instr();
     if (ptr_instr->is(fir::InstrType::AllocaInstr)) {
-      fmt::println("{}", *ptr_instr->parent->get_parent().func);
-      fmt::println("Cache should have handled this\n");
-      UNREACH();
+      // allocas of the entry block are in the cache, any other one is not
+      // tracked
+      return StackOffsetResult::UnknownLocal;
     }
     if (ptr_instr->is(fir::InstrType::LoadInstr)) {
       // TODO what if what we load comes from args for example it cant contain a
