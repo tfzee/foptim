@@ -564,28 +564,6 @@ void push_call_arg(const llvm::Value *arg,
       convert_instr_arg(arg, fctx, ffunc, builder, valueToValue, mod, b2b));
 }
 
-void convert_alloca(const llvm::Instruction *any_instr,
-                    const llvm::AllocaInst *alloca_instr,
-                    foptim::fir::Context &fctx, foptim::fir::Builder &builder,
-                    V2VMap &valueToValue, llvm::Module &mod) {
-  // auto mod = instr->getModule();
-  auto datalayout = mod.getDataLayout();
-
-  auto *llvm_type = alloca_instr->getAllocatedType();
-  auto alloc_size = datalayout.getTypeAllocSize(llvm_type);
-  ASSERT(!alloc_size.isScalable());
-  auto type_size = alloc_size.getFixedValue();
-
-  auto alloca = builder.build_alloca(
-      foptim::fir::ValueR(fctx->get_constant_int(type_size, 32)));
-
-  if (!llvm_type->isAggregateType()) {
-    auto type = convert_type(llvm_type, fctx, mod);
-    alloca.as_instr()->extra_type = type;
-  }
-  valueToValue.insert({any_instr, alloca});
-}
-
 // GEP indices are sign extended to pointer width, so narrower indices must be
 // extended before they are multiplied and added to the pointer
 static foptim::fir::ValueR convert_gep_index(const llvm::Value *index,
@@ -605,6 +583,40 @@ static foptim::fir::ValueR convert_gep_index(const llvm::Value *index,
   auto arg =
       convert_instr_arg(index, fctx, ffunc, builder, valueToValue, mod, b2b);
   return builder.build_sext(arg, fctx->get_int_type(64));
+}
+
+void convert_alloca(const llvm::Instruction *any_instr,
+                    const llvm::AllocaInst *alloca_instr,
+                    foptim::fir::Context &fctx, foptim::fir::FunctionR ffunc,
+                    foptim::fir::Builder &builder, V2VMap &valueToValue,
+                    llvm::Module &mod, B2BMap &b2b) {
+  // auto mod = instr->getModule();
+  auto datalayout = mod.getDataLayout();
+
+  auto *llvm_type = alloca_instr->getAllocatedType();
+  auto alloc_size = datalayout.getTypeAllocSize(llvm_type);
+  ASSERT(!alloc_size.isScalable());
+  auto type_size = alloc_size.getFixedValue();
+
+  const auto *array_size = alloca_instr->getArraySize();
+  const auto *count = llvm::dyn_cast<llvm::ConstantInt>(array_size);
+  foptim::fir::ValueR size_value;
+  if (count != nullptr) {
+    size_value = foptim::fir::ValueR(
+        fctx->get_constant_int(type_size * count->getZExtValue(), 32));
+  } else {
+    auto n_elems = convert_gep_index(array_size, fctx, ffunc, builder,
+                                     valueToValue, mod, b2b);
+    size_value = builder.build_int_mul(
+        n_elems, foptim::fir::ValueR(fctx->get_constant_int(type_size, 64)));
+  }
+  auto alloca = builder.build_alloca(size_value);
+
+  if (!llvm_type->isAggregateType() && count != nullptr && count->isOne()) {
+    auto type = convert_type(llvm_type, fctx, mod);
+    alloca.as_instr()->extra_type = type;
+  }
+  valueToValue.insert({any_instr, alloca});
 }
 
 void convert_gep(const llvm::Instruction *any_instr,
@@ -749,6 +761,15 @@ void convert_call(const llvm::Instruction *any_instr,
   if (const auto *c = call_instr->getCalledFunction()) {
     if (c->getName().starts_with("llvm.experimental.noalias.scope.decl") ||
         c->getName().starts_with("llvm.assume")) {
+      return;
+    }
+    // dynamic allocas are only freed on return
+    if (c->getName().starts_with("llvm.stackrestore")) {
+      return;
+    }
+    if (c->getName().starts_with("llvm.stacksave")) {
+      valueToValue.insert(
+          {any_instr, foptim::fir::ValueR(fctx->get_constant_null())});
       return;
     }
     if (c->getName() == "sqrt") {
@@ -1136,7 +1157,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     return;
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::AllocaInst>(any_instr)) {
-    convert_alloca(any_instr, instr, fctx, builder, valueToValue, mod);
+    convert_alloca(any_instr, instr, fctx, ffunc, builder, valueToValue, mod,
+                   b2b);
     return;
   }
   if (const auto *instr = llvm::dyn_cast_or_null<llvm::BranchInst>(any_instr)) {

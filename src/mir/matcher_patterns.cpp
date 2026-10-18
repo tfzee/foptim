@@ -1713,7 +1713,20 @@ void base_rules(RuleSet &rules) {
 
     auto res_reg = valueToArg(alloca_instr.result(), res.result, data.alloc);
     if (!alloca_instr->args[0].is_constant()) {
-      return false;
+      auto size_arg =
+          valueToArg(alloca_instr->args[0], res.result, data.alloc);
+      ASSERT_M(get_size(size_arg.ty) == 8, "dynamic alloca size is not 64 bit");
+      auto size_reg = data.alloc.get_new_register(Type::Int64);
+      auto tmp = MArgument{size_reg, Type::Int64};
+      res.result.emplace_back(GBaseSubtype::mov, tmp, size_arg);
+      res.result.emplace_back(GArithSubtype::add2, tmp, MArgument(static_cast<u64>(15)));
+      res.result.emplace_back(GArithSubtype::shr2, tmp,
+                              MArgument(static_cast<u8>(4)));
+      res.result.emplace_back(GArithSubtype::shl2, tmp,
+                              MArgument(static_cast<u8>(4)));
+      res.result.emplace_back(GArithSubtype::sub2, rsp_arg, tmp);
+      res.result.emplace_back(GBaseSubtype::mov, res_reg, rsp_arg);
+      return true;
     }
 
     auto orig_size =
@@ -2485,7 +2498,11 @@ void base_rules(RuleSet &rules) {
   });
   rules.add(pm::Return, [](fir::Instr ret_instr, MatchResult &res,
                            ExtraMatchData &data) {
-    if (data.static_alloca_size > 0) {
+    if (data.func.has_dynamic_alloca) {
+      res.result.emplace_back(GBaseSubtype::mov,
+                              MArgument(VReg::RSP(), Type::Int64),
+                              MArgument(data.saved_sp, Type::Int64));
+    } else if (data.static_alloca_size > 0) {
       if (data.static_alloca_size < 255) {
         res.result.emplace_back(
             GArithSubtype::add2, MArgument(VReg::RSP(), Type::Int64),

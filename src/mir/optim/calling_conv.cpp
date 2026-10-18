@@ -2,6 +2,7 @@
 
 #include <fmt/base.h>
 
+#include <optional>
 #include <ranges>
 
 #include "mir/analysis/cfg.hpp"
@@ -328,7 +329,8 @@ struct SaveBlock {
 SaveBlock find_save_block(const MFunc &func, const CFG &cfg,
                           const utils::BitSet<> &saved) {
   const size_t n = func.bbs.size();
-  if (n < 2 || func.variadic || func.needs_register_save_area) {
+  if (n < 2 || func.variadic || func.needs_register_save_area ||
+      func.has_dynamic_alloca) {
     return {};
   }
   const auto is_saved = [&saved](const VReg &r) {
@@ -655,8 +657,7 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     //     // {VReg{CReg::mm15, Type::Float64}, 176},
     // };
 
-    // the area is addressed from rbp (the slots of StackSlotLowering are
-    // placed below it), va_start hands out rbp - 176
+    // addressed from rbp, the spill slots are placed below it
     const u32 total = offset;
     for (auto [reg, offset] : arg_int_regs) {
       first_bb.instrs.insert(first_bb.instrs.begin() + 0,
@@ -709,17 +710,20 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     // static allocas, so the add rsp the return emits has to run before the
     // pops. With the pushes in a later block they sit below that sub rsp
     // and the pops have to go in front of the add rsp. It is followed by the
-    // moves of the return value, so look for the last one in the block.
+    // moves of the return value, which may read a callee saved register, so
+    // the add rsp is put back behind the pops.
     size_t restore_off = 1;
+    std::optional<MInstr> sunk_stack_add;
     if (save_bb_id != 0 && func.static_alloca_size != 0) {
-      const auto &instrs = func.bbs[bb_id].instrs;
+      auto &instrs = func.bbs[bb_id].instrs;
       for (size_t k = instrs.size(); k-- > 0;) {
         const auto &prev = instrs[k];
         if (prev.is(GArithSubtype::add2) &&
             prev.args[0].type == MArgument::ArgumentType::VReg &&
             prev.args[0].reg == VReg::RSP() && prev.args[1].isImm() &&
             prev.args[1].imm == func.static_alloca_size) {
-          restore_off = instrs.size() - k;
+          sunk_stack_add = prev;
+          instrs.erase(instrs.begin() + static_cast<i64>(k));
           break;
         }
       }
@@ -750,6 +754,11 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
           func.bbs[bb_id].instrs.end() - static_cast<i64>(restore_off),
           MInstr{GArithSubtype::add2, MArgument{VReg::RSP(), Type::Int64},
                  MArgument{size_register_save_area}});
+    }
+    if (sunk_stack_add) {
+      func.bbs[bb_id].instrs.insert(
+          func.bbs[bb_id].instrs.end() - static_cast<i64>(restore_off),
+          *sunk_stack_add);
     }
   }
 }

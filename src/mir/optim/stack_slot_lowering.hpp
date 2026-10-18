@@ -33,8 +33,7 @@ class StackSlotLowering : public FunctionPass {
 
     auto stack_ptr = MArgument{VReg::RSP(), Type::Int64};
 
-    // the register save area of variadic functions has to stay directly below
-    // rbp (va_start hands out rbp - size), so the slots go below it
+    // the register save area must stay directly below rbp, slots go below it
     u64 above_slots = 0;
     auto slots_pos = func.bbs[0].instrs.begin();
     if (func.needs_register_save_area) {

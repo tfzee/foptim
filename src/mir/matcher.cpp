@@ -322,6 +322,14 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
       res_func.args.push_back(arg_reg);
       // res_func.arg_tys.push_back(convert_type(arg_type));
     }
+    for (auto bb : func.basic_blocks) {
+      for (auto &instr : bb->instructions) {
+        if (instr->is(fir::InstrType::AllocaInstr) &&
+            (bb != entry_bb || !instr->args[0].is_constant())) {
+          res_func.has_dynamic_alloca = true;
+        }
+      }
+    }
     for (auto &instr : entry_bb->instructions) {
       if (instr->is(fir::InstrType::AllocaInstr)) {
         if (instr->args[0].is_constant()) {
@@ -348,7 +356,11 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
                                .bb_arg_mapping = bb_arg_mapping,
                                .func = res_func,
                                .static_alloca_size = static_alloca_size,
+                               .saved_sp = VReg::RSP(),
                                .config = conf};
+  if (res_func.has_dynamic_alloca) {
+    extra_data.saved_sp = alloc.get_new_register(Type::Int64);
+  }
 
   // so we dont need to realloc
   MatchResult match_result{};
@@ -356,6 +368,13 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
 
   for (auto bb : func.basic_blocks) {
     res_func.bbs.push_back(apply_bb(bb, this->rules, match_result, extra_data));
+  }
+  if (res_func.has_dynamic_alloca) {
+    auto &entry = res_func.bbs[0].instrs;
+    entry.insert(entry.begin(),
+                 MInstr{GBaseSubtype::mov,
+                        MArgument{extra_data.saved_sp, Type::Int64},
+                        MArgument{VReg::RSP(), Type::Int64}});
   }
 
   // res_func.clone_attribs(func);

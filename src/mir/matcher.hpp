@@ -17,6 +17,8 @@ struct ExtraMatchData {
   TMap<fir::BBArgument, MArgument> &bb_arg_mapping;
   MFunc &func;
   u32 static_alloca_size;
+  // only valid if the function has dynamic allocas
+  VReg saved_sp;
   const conf::CompConf &config;
 };
 

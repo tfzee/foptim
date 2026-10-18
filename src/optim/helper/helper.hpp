@@ -25,8 +25,7 @@ bool is_cheap_splat_constant(fir::ValueR v);
 // its result alive, so passes should not hoist or share it
 bool is_cheap_to_rematerialize(fir::Instr instr);
 
-// Functions whose address is stored in a global initializer. Those uses are
-// not in the use list of the function, so their callers are not all known.
+// Functions referenced from a global initializer, not in their use lists.
 TSet<const fir::Function *> functions_referenced_by_globals(fir::Context &ctx);
 
 struct IncomingData {
