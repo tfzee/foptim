@@ -40,9 +40,10 @@ Dominators &AnalysisManager::dom(fir::Function &func) {
 
 ConstraintAnalysis &AnalysisManager::constraints(fir::Function &func) {
   auto &c = cfg(func);
+  auto &d = dom(func);
   auto &cache = get_cache(func);
   if (!cache.constraints) {
-    cache.constraints = std::make_unique<ConstraintAnalysis>(c);
+    cache.constraints = std::make_unique<ConstraintAnalysis>(c, d);
   }
   return *cache.constraints;
 }

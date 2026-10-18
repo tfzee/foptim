@@ -1,4 +1,5 @@
 #pragma once
+#include <span>
 #include <fmt/base.h>
 #include <fmt/format.h>
 
@@ -6,6 +7,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/cfg.hpp"
+#include "optim/analysis/dominators.hpp"
 #include "utils/map.hpp"
 #include "utils/set.hpp"
 
@@ -58,12 +60,17 @@ public:
 
   struct BBConstraintData {
     ConstrId terminator_constraint = 0;
-    FDSet<ConstrId> active_constraints;
+    // facts that start to hold on entry of this block
+    FVec<ConstrId> own_facts;
   };
 
   FVec<ExprNode> exprs;
   FVec<Constraint> constraints;
   FVec<BBConstraintData> bb_to_constraints;
+  // dominator tree, the parent of the entry and unreachable blocks is ~0
+  FVec<u32> dom_parent;
+  FVec<u32> dom_depth;
+  FVec<u32> dom_preorder;
   u32 max_expr_depth = 1;
 
   CFG &cfg;
@@ -118,23 +125,56 @@ private:
 
 public:
   std::optional<ConstrId> get_constraint(fir::Instr i);
-  ConstraintAnalysis(CFG &cfg) : cfg(cfg) {
-    update();
+  ConstraintAnalysis(CFG &cfg, const Dominators &dom) : cfg(cfg) {
+    update(dom);
   }
 
   void dump();
-  void update();
+  void update(const Dominators &dom);
   void reset_and_resize();
   void setup_direct_constraints();
+  void setup_switch_constraints(fir::Instr term);
+  // facts of cond being true (holds) or false on the edge into bb
+  void add_condition_facts(fir::ValueR cond, bool holds, u32 bb, u32 depth);
+  void add_fact(u32 bb, ConstrId c);
+  void setup_dom_tree(const Dominators &dom);
+  static Constraint::ConstraintType inverse(Constraint::ConstraintType t);
+  // c holds whenever all the facts do
+  bool implied(ConstrId c, std::span<const ConstrId> facts);
+
+  TVec<ConstrId> facts_at(u32 bb) const {
+    TVec<ConstrId> res;
+    for (u32 b = bb; b != ~0U; b = dom_parent[b]) {
+      res.insert(res.end(), bb_to_constraints[b].own_facts.begin(),
+                 bb_to_constraints[b].own_facts.end());
+    }
+    return res;
+  }
+
+  // calls f(bb, facts_at(bb)) for the reachable blocks in preorder
+  template <class F> void walk_with_facts(F &&f) {
+    TVec<ConstrId> stack;
+    TVec<size_t> mark_at_depth;
+    for (auto bb : dom_preorder) {
+      const auto d = dom_depth[bb];
+      if (mark_at_depth.size() > d) {
+        stack.resize(mark_at_depth[d]);
+        mark_at_depth.resize(d);
+      }
+      mark_at_depth.push_back(stack.size());
+      const auto &own = bb_to_constraints[bb].own_facts;
+      stack.insert(stack.end(), own.begin(), own.end());
+      f(bb, std::span<const ConstrId>(stack));
+    }
+  }
   void setup_inferred_constraints();
-  void propagate_constraints();
   // returns true if we are sure that v will contradict one or multiple of the
   // constraints in orig. So it might be true but it might not return true
   // However there are no false positives as such if there are no contradiction
   // it will *never* return true
   // Iff the orig input is already contradicting itself then the output is
   // unspecificed
-  bool contradicts(ConstrId v, FDSet<ConstrId> &orig);
+  bool contradicts(ConstrId v, std::span<const ConstrId> orig);
   bool contradicts(ConstrId x, ConstrId y);
   // return true if the second input supports the first
   // so only returns true if the first can be inferred from the second

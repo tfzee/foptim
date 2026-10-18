@@ -2,6 +2,7 @@
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
 #include <fmt/base.h>
+#include <algorithm>
 #include <optional>
 
 namespace foptim::optim {
@@ -107,46 +108,41 @@ ConstraintAnalysis::get_constraint(Constraint::ConstraintType ty, ExprId v1,
   return constraints.size();
 }
 
-void ConstraintAnalysis::propagate_constraints() {
-  TVec<u32> worklist;
-  for (u32 bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
-    if (bb_to_constraints[bb_id].active_constraints.empty()) {
+void ConstraintAnalysis::setup_dom_tree(const Dominators &dom) {
+  const auto n = cfg.bbrs.size();
+  dom_parent.assign(n, ~0U);
+  dom_depth.assign(n, 0);
+  dom_preorder.clear();
+  TVec<u32> first_child(n, ~0U);
+  TVec<u32> next_sibling(n, ~0U);
+  for (u32 bb_id = 0; bb_id < n; bb_id++) {
+    if (bb_id == cfg.entry || !dom.is_reachable(bb_id)) {
       continue;
     }
-    worklist.push_back(bb_id);
+    const auto parent = dom.idom(bb_id);
+    dom_parent[bb_id] = parent;
+    next_sibling[bb_id] = first_child[parent];
+    first_child[parent] = bb_id;
   }
-
-  while (!worklist.empty()) {
-    auto c_id = worklist.back();
-    worklist.pop_back();
-    if (bb_to_constraints[c_id].active_constraints.empty()) {
-      continue;
-    }
-    auto &cur = cfg.bbrs[c_id];
-    if (cur.succ.empty()) {
-      continue;
-    }
-    if (cur.pred.size() == 1) {
-      // TODO: cause ssa constraint gotta be true here aswell but idk if useful
-    }
-    for (auto succ : cur.succ) {
-      if (cfg.bbrs[succ].pred.size() != 1) {
-        // implement merging
-        continue;
-      }
-      bb_to_constraints[succ].active_constraints.insert(
-          bb_to_constraints[c_id].active_constraints.begin(),
-          bb_to_constraints[c_id].active_constraints.end());
+  TVec<u32> work{cfg.entry};
+  while (!work.empty()) {
+    const auto bb_id = work.back();
+    work.pop_back();
+    dom_preorder.push_back(bb_id);
+    for (auto child = first_child[bb_id]; child != ~0U;
+         child = next_sibling[child]) {
+      dom_depth[child] = dom_depth[bb_id] + 1;
+      work.push_back(child);
     }
   }
 }
 
-void ConstraintAnalysis::update() {
+void ConstraintAnalysis::update(const Dominators &dom) {
   ZoneScopedNC("CONSTRAINT UPDATE", COLOR_ANALY);
   reset_and_resize();
+  setup_dom_tree(dom);
   setup_direct_constraints();
   setup_inferred_constraints();
-  propagate_constraints();
   // dump();
 }
 
@@ -196,13 +192,130 @@ void ConstraintAnalysis::setup_inferred_constraints() {
   TVec<ConstrId> add_constraints;
   for (auto &bb : bb_to_constraints) {
     add_constraints.clear();
-    for (auto constr : bb.active_constraints) {
+    for (auto constr : bb.own_facts) {
       infer_simplificaitons(constr, add_constraints);
     }
     for (auto add_constr : add_constraints) {
       // TODO: prob want to do duplicate check here or earlier already
-      bb.active_constraints.insert(add_constr);
+      if (!std::ranges::contains(bb.own_facts, add_constr)) {
+        bb.own_facts.push_back(add_constr);
+      }
     }
+  }
+}
+
+ConstraintAnalysis::Constraint::ConstraintType
+ConstraintAnalysis::inverse(Constraint::ConstraintType t) {
+  switch (t) {
+  case Constraint::EQ:
+    return Constraint::NE;
+  case Constraint::NE:
+    return Constraint::EQ;
+  case Constraint::ULT:
+    return Constraint::UGE;
+  case Constraint::SLT:
+    return Constraint::SGE;
+  case Constraint::ULE:
+    return Constraint::UGT;
+  case Constraint::SLE:
+    return Constraint::SGT;
+  case Constraint::UGT:
+    return Constraint::ULE;
+  case Constraint::SGT:
+    return Constraint::SLE;
+  case Constraint::UGE:
+    return Constraint::ULT;
+  case Constraint::SGE:
+    return Constraint::SLT;
+  case Constraint::INVALID:
+    break;
+  }
+  return Constraint::INVALID;
+}
+
+void ConstraintAnalysis::add_fact(u32 bb, ConstrId c) {
+  auto &facts = bb_to_constraints[bb].own_facts;
+  if (!std::ranges::contains(facts, c)) {
+    facts.push_back(c);
+  }
+}
+
+bool ConstraintAnalysis::implied(ConstrId c,
+                                 std::span<const ConstrId> facts) {
+  const auto con = constraints[c - 1];
+  const auto inv = inverse(con.type);
+  if (inv == Constraint::INVALID) {
+    return false;
+  }
+  return contradicts(get_constraint(inv, con.e1, con.e2, con.origin_instr),
+                     facts);
+}
+
+void ConstraintAnalysis::setup_switch_constraints(fir::Instr term) {
+  const bool has_default = term->bbs.size() == term->args.size();
+  const size_t n_cases = term->args.size() - 1;
+  const auto cond_expr = get_expr(term->args.back());
+  for (size_t edge = 0; edge < term->bbs.size(); edge++) {
+    // a target that is reached over several edges has no single fact
+    bool unique_edge = true;
+    for (size_t other = 0; other < term->bbs.size(); other++) {
+      unique_edge &= other == edge || term->bbs[other].bb != term->bbs[edge].bb;
+    }
+    auto target = cfg.get_bb_id(term->bbs[edge].bb);
+    if (!unique_edge || cfg.bbrs[target].pred.size() != 1) {
+      continue;
+    }
+    if (edge < n_cases) {
+      add_fact(target, get_constraint(Constraint::EQ, cond_expr,
+                                      get_expr(term->args[edge]), term));
+    } else if (has_default) {
+      for (size_t i = 0; i < n_cases; i++) {
+        add_fact(target, get_constraint(Constraint::NE, cond_expr,
+                                        get_expr(term->args[i]), term));
+      }
+    }
+  }
+}
+
+void ConstraintAnalysis::add_condition_facts(
+    fir::ValueR cond, bool holds, u32 bb, u32 depth) {
+  constexpr u32 MaxCondDepth = 4;
+  if (!cond.is_instr() || depth > MaxCondDepth) {
+    return;
+  }
+  auto instr = cond.as_instr();
+  if (instr->is(fir::BinaryInstrSubType::And) ||
+      instr->is(fir::BinaryInstrSubType::Or)) {
+    // and gives facts on the true edge, or on the false edge
+    if (holds == instr->is(fir::BinaryInstrSubType::And)) {
+      add_condition_facts(instr->args[0], holds, bb, depth + 1);
+      add_condition_facts(instr->args[1], holds, bb, depth + 1);
+    }
+    return;
+  }
+  // xor with true is a not
+  if (instr->is(fir::BinaryInstrSubType::Xor) &&
+      instr->args[1].is_constant() && instr->args[1].is_constant_int() &&
+      instr->args[1].as_constant()->as_int() == 1) {
+    add_condition_facts(instr->args[0], !holds, bb, depth + 1);
+    return;
+  }
+  if (instr->is(fir::UnaryInstrSubType::Not)) {
+    add_condition_facts(instr->args[0], !holds, bb, depth + 1);
+    return;
+  }
+  const auto constraint = get_constraint(instr);
+  if (!constraint.has_value()) {
+    return;
+  }
+  if (holds) {
+    add_fact(bb, constraint.value());
+    return;
+  }
+  const auto &constr = constraints[constraint.value() - 1];
+  const auto inv = inverse(constr.type);
+  if (inv != Constraint::INVALID) {
+    add_fact(bb, get_constraint(inv, constr.e1, constr.e2, instr));
   }
 }
 
@@ -210,53 +323,26 @@ void ConstraintAnalysis::setup_direct_constraints() {
   for (size_t bb_id = 0; bb_id < cfg.bbrs.size(); bb_id++) {
     auto &bbr = cfg.bbrs[bb_id];
     auto term = bbr.bb->get_terminator();
-    // TODO: add switch statement
+    if (term->is(fir::InstrType::SwitchInstr)) {
+      setup_switch_constraints(term);
+      continue;
+    }
     if (!term->is(fir::InstrType::CondBranchInstr)) {
       continue;
     }
-    if (!term->args[0].is_instr()) {
-      continue;
-    }
-    auto cond = term->args[0].as_instr();
-
-    auto constraint = get_constraint(cond);
-    if (constraint.has_value()) {
-      auto true_target = cfg.get_bb_id(term->bbs[0].bb);
-      auto false_target = cfg.get_bb_id(term->bbs[1].bb);
-      bb_to_constraints[bb_id].terminator_constraint = constraint.value();
-      // like the false edge: the condition only holds on entry if this edge
-      // is the only way in (otherwise a loop header would claim the
-      // condition of the previous iteration for the current value)
-      if (cfg.bbrs[true_target].pred.size() == 1) {
-        bb_to_constraints[true_target].active_constraints.insert(
-            constraint.value());
+    if (term->args[0].is_instr()) {
+      if (const auto own = get_constraint(term->args[0].as_instr());
+          own.has_value()) {
+        bb_to_constraints[bb_id].terminator_constraint = own.value();
       }
-      if (cfg.bbrs[false_target].pred.size() == 1) {
-        auto inv_cond_res = Constraint::INVALID;
-        auto &constrs = constraints[constraint.value() - 1];
-        if (constrs.type == Constraint::ConstraintType::EQ) {
-          inv_cond_res = Constraint::ConstraintType::NE;
-        } else if (constrs.type == Constraint::ConstraintType::NE) {
-          inv_cond_res = Constraint::ConstraintType::EQ;
-        } else if (constrs.type == Constraint::ConstraintType::ULT) {
-          inv_cond_res = Constraint::ConstraintType::UGE;
-        } else if (constrs.type == Constraint::ConstraintType::SLT) {
-          inv_cond_res = Constraint::ConstraintType::SGE;
-        } else if (constrs.type == Constraint::ConstraintType::ULE) {
-          inv_cond_res = Constraint::ConstraintType::UGT;
-        } else if (constrs.type == Constraint::ConstraintType::SLE) {
-          inv_cond_res = Constraint::ConstraintType::SGT;
-        } else if (constrs.type == Constraint::ConstraintType::UGT) {
-          inv_cond_res = Constraint::ConstraintType::ULE;
-        } else if (constrs.type == Constraint::ConstraintType::SGT) {
-          inv_cond_res = Constraint::ConstraintType::SLE;
-        } else if (constrs.type == Constraint::ConstraintType::UGE) {
-          inv_cond_res = Constraint::ConstraintType::ULT;
-        } else if (constrs.type == Constraint::ConstraintType::SGE) {
-          inv_cond_res = Constraint::ConstraintType::SLT;
-        }
-        bb_to_constraints[false_target].active_constraints.insert(
-            get_constraint(inv_cond_res, constrs.e1, constrs.e2, cond));
+    }
+    // only a target with this edge as its single entry can assume it, a
+    // loop header would see the condition of the previous iteration
+    for (u32 edge = 0; edge < 2; edge++) {
+      const auto target = cfg.get_bb_id(term->bbs[edge].bb);
+      if (cfg.bbrs[target].pred.size() == 1 &&
+          term->bbs[0].bb != term->bbs[1].bb) {
+        add_condition_facts(term->args[0], edge == 0, target, 0);
       }
     }
   }
@@ -271,7 +357,7 @@ void ConstraintAnalysis::dump() {
     } else {
       fmt::println("BB {}:", bb_id);
     }
-    for (auto &c : bb.active_constraints) {
+    for (auto &c : facts_at(bb_id)) {
       fmt::println(
           "   {:cd}            from BB:{}", printConstr(c),
           cfg.get_bb_id(constraints[c - 1].origin_instr->get_parent()));
@@ -425,7 +511,8 @@ bool ConstraintAnalysis::contradicts(ConstrId x, ConstrId y) {
   return x_strict || y_strict;
 }
 
-bool ConstraintAnalysis::contradicts(ConstrId v, FDSet<ConstrId> &orig) {
+bool ConstraintAnalysis::contradicts(ConstrId v,
+                                     std::span<const ConstrId> orig) {
   // if were in the set we cant contradict unless the set was already
   // contradicting itself
   for (auto x : orig) {

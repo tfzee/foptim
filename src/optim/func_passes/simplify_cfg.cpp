@@ -112,11 +112,11 @@ SimplifyCFG::conditional_block_duplication(fir::Context &ctx, CFG &cfg,
   }
   if (!found_path) {
     // TODO(PERF): dont rerun everytime
-    foptim::optim::ConstraintAnalysis canal(cfg);
+    foptim::optim::ConstraintAnalysis canal(cfg, dom);
     auto term_constr = canal.bb_to_constraints[bb_id].terminator_constraint;
     if (term_constr != 0) {
-      auto &inc1 = canal.bb_to_constraints[p1].active_constraints;
-      auto &inc2 = canal.bb_to_constraints[p2].active_constraints;
+      const auto inc1 = canal.facts_at(p1);
+      const auto inc2 = canal.facts_at(p2);
       // fmt::println("{}", canal.printConstr(term_constr));
       // for (auto c : inc1) {
       //   fmt::println("1 {}", c);
