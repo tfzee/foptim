@@ -222,6 +222,41 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
 }
 
 namespace {
+// peeling copies the body without merging values of the copy and the original
+// behind the loop, so it is only valid if nothing defined inside is used
+// outside of the loop
+bool has_outside_uses(CFG &cfg, const LoopInfo &loop) {
+  const auto outside = [&](const fir::ValueR &v) {
+    const auto *uses = v.get_uses();
+    if (uses == nullptr) {
+      return false;
+    }
+    for (const auto &use : *uses) {
+      if (!std::ranges::contains(loop.body_nodes,
+                                 cfg.get_bb_id(use.user->get_parent()))) {
+        return true;
+      }
+    }
+    return false;
+  };
+  for (auto node : loop.body_nodes) {
+    auto bb = cfg.bbrs[node].bb;
+    for (auto arg : bb->args) {
+      if (outside(fir::ValueR{arg})) {
+        return true;
+      }
+    }
+    for (auto instr : bb->instructions) {
+      for (u8 i = 0; i < instr->n_results(); i++) {
+        if (outside(instr.result(i))) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 /*IF we have a i==0 condition it might make sense to peel first iteration since
  * this now elimenates the else part in the peeled part and the if guarded part
  * inside the loop*/
@@ -301,7 +336,7 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
       can_delete_cond = false;
     }
   }
-  if (peel_count == 0) {
+  if (peel_count == 0 || has_outside_uses(cfg, loop)) {
     return false;
   }
 
@@ -313,15 +348,9 @@ bool peel_condition(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
   // fmt::println("Should prob peel {} X times", peel_count);
   ASSERT(peel_count == 1);
   peel_it(cfg, loop, 1, ctx, func, false);
-  // fmt::println("{:cd}", func);
-
-  (void)cfg;
-  (void)loop;
-  (void)ctx;
-  (void)func;
-  return false;
+  return true;
 }
-} // namespace
+}  // namespace
 
 bool LoopUnroll::apply_it(CFG &cfg, LoopInfo &loop, fir::Context &ctx,
                           fir::Function &func, TripCountAnalysis &tc) {
@@ -461,4 +490,4 @@ PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   return changed ? PreservedAnalysis::none() : PreservedAnalysis::all();
 }
 
-} // namespace foptim::optim
+}  // namespace foptim::optim

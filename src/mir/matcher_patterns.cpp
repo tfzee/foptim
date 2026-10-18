@@ -2514,9 +2514,8 @@ void base_rules(RuleSet &rules) {
         const auto fir_ty = ret_instr->args[i].get_type();
         const bool sse = fir_ty->is_float() || fir_ty->is_vec();
         const auto ty = vals[i].ty;
-        const auto reg =
-            sse ? (n_sse++ == 0 ? CReg::mm0 : CReg::mm1)
-                : (n_gpr++ == 0 ? CReg::A : CReg::D);
+        const auto reg = sse ? (n_sse++ == 0 ? CReg::mm0 : CReg::mm1)
+                             : (n_gpr++ == 0 ? CReg::A : CReg::D);
         ASSERT_M(n_gpr <= 2 && n_sse <= 2,
                  "more return values than the 2 + 2 registers");
         const auto ret_arg = MArgument(VReg{reg, ty}, ty);
@@ -2733,7 +2732,7 @@ void base_rules(RuleSet &rules) {
               return true;
             });
   rules.add(pm::InsertElement, [](fir::Instr insert_instr, MatchResult &res,
-                                ExtraMatchData &data) {
+                                  ExtraMatchData &data) {
     ASSERT(insert_instr->args[2].is_constant() &&
            insert_instr->args[2].as_constant()->is_int());
     auto indx = insert_instr->args[2].as_constant()->as_int();
@@ -2880,7 +2879,7 @@ void base_rules(RuleSet &rules) {
     UNREACH();
   });
   rules.add(pm::ExtractElement, [](fir::Instr extract_instr, MatchResult &res,
-                                 ExtraMatchData &data) {
+                                   ExtraMatchData &data) {
     ASSERT(extract_instr->args.size() == 2);
     auto indx = extract_instr->args[1].as_constant()->as_int();
     if (extract_instr->args[0].get_type()->is_vec()) {
@@ -2889,6 +2888,12 @@ void base_rules(RuleSet &rules) {
              extract_instr->args[1].as_constant()->is_int());
       auto target = valueToArg(extract_instr.result(), res.result, data.alloc);
       auto get_xmm_version_ty = [](Type t) {
+        if (t == Type::Int8) {
+          return Type::Int8x16;
+        }
+        if (t == Type::Int16) {
+          return Type::Int16x8;
+        }
         if (t == Type::Float32) {
           return Type::Float32x4;
         }
@@ -2901,6 +2906,7 @@ void base_rules(RuleSet &rules) {
         if (t == Type::Int64) {
           return Type::Int64x2;
         }
+        fmt::println("{}", t);
         TODO("unreach?");
       };
       auto vec_ty = extract_instr->args[0].get_type()->as_vec();

@@ -99,6 +99,11 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
     return false;
   }
   auto header_bb = cfg.bbrs[linfo.head].bb;
+  if (!header_bb->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
+    failure({.reason = "Header does not end in a conditional branch",
+             .loc = {cfg.bbrs[linfo.head].bb}});
+    return false;
+  }
   // a header that jumps back to itself is already rotated
   if (std::ranges::contains(linfo.tails, linfo.head)) {
     failure({.reason = "Header is already the latch",

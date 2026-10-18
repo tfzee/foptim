@@ -1002,6 +1002,15 @@ Res fold_load(fir::Instr instr, fir::Context &ctx) {
 }
 
 Res fold_extract(fir::Instr instr) {
+  if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_vec() &&
+      instr->args[1].is_constant_int()) {
+    const auto &members = instr->args[0].as_constant()->as_vec().members;
+    auto index = instr->args[1].as_constant()->as_int();
+    if (index >= 0 && static_cast<size_t>(index) < members.size()) {
+      return fir::ValueR{members[static_cast<size_t>(index)]};
+    }
+    return std::nullopt;
+  }
   if (!instr->args[0].is_instr()) {
     return std::nullopt;
   }
