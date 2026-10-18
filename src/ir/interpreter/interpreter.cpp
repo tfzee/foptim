@@ -149,6 +149,7 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
       st.set_value(instr.result(), ConstantValue{std::move(res), ty});
       break;
     }
+    case BinaryInstrSubType::IntURem:
     case BinaryInstrSubType::IntSRem:
     case BinaryInstrSubType::IntSDiv:
     case BinaryInstrSubType::IntUDiv: {
@@ -164,6 +165,8 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
       APInt res = a;
       if (sub == BinaryInstrSubType::IntUDiv) {
         res = a.udiv(b);
+      } else if (sub == BinaryInstrSubType::IntURem) {
+        res = a.urem(b);
       } else {
         // min / -1 overflows
         if (a == APInt::signed_min(bw) && b.is_all_ones()) {

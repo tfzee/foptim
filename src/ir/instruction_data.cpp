@@ -516,7 +516,7 @@ bool InstrData::verify(const BasicBlockData *exp_parent) const {
     }
     if (args[0].get_type()->is_vec() &&
         args[0].get_type()->as_vec().member_number <=
-            args[1].as_constant()->as_int()) {
+            args[1].as_constant()->as_int_sat()) {
       fmt::print(
           "ExtractElement index gotta be smaller then size of the input "
           "size({}) "

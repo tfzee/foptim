@@ -213,6 +213,19 @@ struct ConstantValue {
     return d.bits() == 1 ? static_cast<i128>(d.to_u64()) : d.to_i128();
   }
 
+  // like as_int but values outside the i128 range saturate instead of
+  // asserting, for comparisons against small numbers (shift amounts, 0, 1)
+  [[nodiscard]] i128 as_int_sat() const {
+    if (is_int()) {
+      const APInt &d = int_u.v.data;
+      if (d.bits() > 128 && d.sext_or_trunc(128).sext(d.bits()) != d) {
+        const i128 max = static_cast<i128>(~u128{0} >> 1);
+        return d.is_neg() ? -max - 1 : max;
+      }
+    }
+    return as_int();
+  }
+
   // the value at another width, i1 is zero extended and wider ones sign
   // extended like as_int
   [[nodiscard]] APInt as_apint_resized(u32 bits) const {

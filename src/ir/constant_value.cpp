@@ -430,13 +430,20 @@ fmt::appender fmt::formatter<foptim::fir::ConstantValue>::format(
       return fmt::format_to(ctx.out(), colconst, "NULL");
     case foptim::fir::ConstantType::PoisonValue:
       return fmt::format_to(ctx.out(), colconst, "POISON");
-    case foptim::fir::ConstantType::IntValue:
+    case foptim::fir::ConstantType::IntValue: {
+      // the i128 view does not hold the wider ones
+      const auto &d = v.as_apint();
+      const std::string wide = d.bits() > 128 ? d.to_string(true) : "";
       if (color) {
-        return fmt::format_to(ctx.out(), colnumber, "{}:{:c}", v.as_int(),
-                              v.type);
-      } else {
-        return fmt::format_to(ctx.out(), "{}:{}", v.as_int(), v.type);
+        return d.bits() > 128 ? fmt::format_to(ctx.out(), colnumber, "{}:{:c}",
+                                               wide, v.type)
+                              : fmt::format_to(ctx.out(), colnumber, "{}:{:c}",
+                                               v.as_int(), v.type);
       }
+      return d.bits() > 128
+                 ? fmt::format_to(ctx.out(), "{}:{}", wide, v.type)
+                 : fmt::format_to(ctx.out(), "{}:{}", v.as_int(), v.type);
+    }
     case foptim::fir::ConstantType::FloatValue:
       if (debug) {
         if (v.type->as_float() == 32) {
