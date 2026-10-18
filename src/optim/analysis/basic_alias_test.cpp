@@ -62,6 +62,10 @@ AliasAnalyis::HeapEntry AliasAnalyis::analyze_impl(fir::ValueR v) {
       // TODO: need to analyze through this ?
       return {.heap = any_h, .offset = {}};
     }
+    if (i->is(fir::InstrType::Intrinsic)) {
+      // pointer valued intrinsics like umin / umax on pointers
+      return {.heap = any_h, .offset = {}};
+    }
     if (i->is(fir::InstrType::BinaryInstr)) {
       auto a = analyze(i->args[0]);
       if (i->is(fir::BinaryInstrSubType::PtrAdd) && i->args[1].is_constant() &&

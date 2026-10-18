@@ -328,9 +328,12 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
       }
     }
     for (auto i : func.basic_blocks[bb_id]->instructions) {
-      if (i->get_n_uses() > 0) {
-        i->replace_all_uses(
-            fir::ValueR{ctx->get_poisson_value(i.result_type())});
+      for (u32 r = 0; r < i->n_results(); r++) {
+        auto res = i.result(r);
+        if (res.get_n_uses() > 0) {
+          res.replace_all_uses(
+              fir::ValueR{ctx->get_poisson_value(i.result_type(r))});
+        }
       }
     }
     func.basic_blocks[bb_id]->remove_from_parent(true, true, true);
