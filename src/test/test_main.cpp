@@ -11,6 +11,7 @@
 #include "test_matcher_pm.hpp"
 #include "test_multi_result.hpp"
 #include "test_reg_alloc_solver.hpp"
+#include "test_region_extractor.hpp"
 #include "test_stable_vec.hpp"
 
 int main(int argc, char **argv) {

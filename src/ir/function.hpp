@@ -40,6 +40,8 @@ class Function : public Attributable, public LockedUsed {
     u8 no_return : 1 = 0;
     u8 cold : 1 = 0;
     u8 must_inline : 1 = 0;
+    // created by region extraction, never split again
+    u8 outlined : 1 = 0;
     u8 mem_write_only : 1 = 0;
     u8 mem_read_only : 1 = 0;
     u8 mem_read_none : 1 = 0;

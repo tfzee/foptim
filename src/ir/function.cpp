@@ -147,6 +147,9 @@ fmt::formatter<foptim::fir::Function>::format(foptim::fir::Function const &func,
   if (func.attribs.cold) {
     app = fmt::format_to(app, "COLD, ");
   }
+  if (func.attribs.outlined) {
+    app = fmt::format_to(app, "OUTLINED, ");
+  }
   if (func.attribs.mem_read_none) {
     app = fmt::format_to(app, "MEM(NONE), ");
   }

@@ -1472,6 +1472,12 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     if (a.is_poison() || b.is_poison()) {
       return ConstantValue::Poision(instr->result_type());
     }
+    // addresses of globals / functions are not known numbers
+    using VT = ConstantValue::ValueType;
+    if (a.type == VT::Gptr || a.type == VT::Fptr || b.type == VT::Gptr ||
+        b.type == VT::Fptr) {
+      return ConstantValue::Top();
+    }
 
     size_t bit_width = 0;
     if (a.vals.size() == 1) {

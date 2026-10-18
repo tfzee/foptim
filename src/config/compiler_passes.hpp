@@ -43,6 +43,7 @@
 #include "optim/module_passes/global_dce.hpp"
 #include "optim/module_passes/global_promotion.hpp"
 #include "optim/module_passes/inline.hpp"
+#include "optim/module_passes/partial_inline_split.hpp"
 #include "optim/module_passes/print_module.hpp"
 #include "utils/arena.hpp"
 
@@ -377,6 +378,23 @@ struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
   bool pass_parse(toml::table &tbl) {
     allow_recursive = tbl["allow_recursive"].value_or(allow_recursive);
     allow_builtins = tbl["allow_builtins"].value_or(allow_builtins);
+    return true;
+  }
+
+  void construct_module_pass(Pass &p) {
+    p.config = *static_cast<Pass::Config *>(this);
+  };
+};
+
+struct PartialInlineSplitConf : public ModulePassConf<PartialInlineSplitConf>,
+                                optim::PartialInlineSplit::Config {
+  static constexpr const char *BaseName = "PartialInlineSplit";
+  using Pass = optim::PartialInlineSplit;
+
+  bool pass_parse(toml::table &tbl) {
+    rest_min = tbl["rest_min"].value_or(rest_min);
+    prefix_max = tbl["prefix_max"].value_or(prefix_max);
+    max_live_ins = tbl["max_live_ins"].value_or(max_live_ins);
     return true;
   }
 

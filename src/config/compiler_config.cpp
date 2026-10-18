@@ -148,6 +148,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new SLPVectorizerConf{};
     } else if (name == "ConstLoopEval") {
       pass = new ConstLoopEvalConf{};
+    } else if (name == "PartialInlineSplit") {
+      pass = new PartialInlineSplitConf{};
     } else if (name == "FuncPropAnnotator") {
       pass = new FuncPropAnnotatorConf{};
     } else if (name == "GlobalPromotion") {

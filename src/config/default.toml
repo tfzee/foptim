@@ -81,7 +81,7 @@ passes = [
 passes = [
       "LVN", "SCCP", "DoubleLoadElim", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
       "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "SCCP",
-      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "LateInline", "GDCE", "IPCP", "FuncPropAnnotator", "SORA", "Mem2Reg",
+      "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "PartialInlineSplit", "LateInline", "GDCE", "IPCP", "FuncPropAnnotator", "SORA", "Mem2Reg",
       "SimplifyCFG", "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "SimplifyCFG",
       "InstSimplify", "SCCP", "DCE", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "LoopRotate", "SimplifyCFG", "LoopUnswitch", "DSE", "DCE", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer", "InstSimplify",
@@ -129,6 +129,10 @@ allow_builtins = true
 [pass.fir.Inline]
 allow_recursive = true
 allow_builtins = false
+[pass.fir.PartialInlineSplit]
+rest_min = 40
+prefix_max = 16
+max_live_ins = 8
 [pass.fir.FuncPropAnnotator]
 [pass.fir.GlobalPromotion]
 [pass.fir.ArgPromotion]
