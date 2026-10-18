@@ -1,12 +1,5 @@
-#include "utils/verbosity.hpp"
 #include "llir_loader.hpp"
 
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Value.h"
-#include "llvm/Support/Casting.h"
 #include <fmt/base.h>
 #include <fmt/color.h>
 #include <llvm/Config/llvm-config.h>
@@ -40,11 +33,18 @@
 #include "ir/types.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Value.h"
+#include "llvm/Support/Casting.h"
 #include "utils/APInt.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
 #include "utils/set.hpp"
 #include "utils/vec.hpp"
+#include "utils/verbosity.hpp"
 
 namespace {
 foptim::APInt to_apint(const llvm::APInt &v) {
@@ -62,12 +62,12 @@ bool warned_invoke = false;
 bool warned_resume = false;
 bool warned_fastcc = false;
 
-#define WARN_UNSUPPORTED_O(name, warning)                                      \
-  if (!(name)) {                                                               \
-    (name) = true;                                                             \
-    if (foptim::utils::verbose()) {                                            \
-      fmt::print(stderr, fg(fmt::color::red), warning);                        \
-    }                                                                          \
+#define WARN_UNSUPPORTED_O(name, warning)               \
+  if (!(name)) {                                        \
+    (name) = true;                                      \
+    if (foptim::utils::verbose()) {                     \
+      fmt::print(stderr, fg(fmt::color::red), warning); \
+    }                                                   \
   }
 
 using foptim::u32;
@@ -83,7 +83,7 @@ class V2VMap {
   // list of their scalar leaves in LLVM order
   foptim::TMap<const llvm::Value *, foptim::TVec<foptim::fir::ValueR>> aggs;
 
-public:
+ public:
   V2VMap() = default;
   explicit V2VMap(const V2VMap &shared) : parent(&shared) {}
 
@@ -91,8 +91,8 @@ public:
     return aggs.contains(key);
   }
 
-  [[nodiscard]] const foptim::TVec<foptim::fir::ValueR> &
-  agg_at(const llvm::Value *key) const {
+  [[nodiscard]] const foptim::TVec<foptim::fir::ValueR> &agg_at(
+      const llvm::Value *key) const {
     return aggs.at(key);
   }
 
@@ -113,8 +113,8 @@ public:
     return parent->at(key);
   }
 
-  std::pair<Map::iterator, bool>
-  insert(std::pair<const llvm::Value *, foptim::fir::ValueR> kv) {
+  std::pair<Map::iterator, bool> insert(
+      std::pair<const llvm::Value *, foptim::fir::ValueR> kv) {
     if (parent != nullptr && parent->contains(kv.first)) {
       return {local.end(), false};
     }
@@ -148,7 +148,8 @@ void collect_leaves(llvm::Type *ty, u64 base, foptim::fir::Context &ctx,
     return;
   }
   if (auto *arr = llvm::dyn_cast<llvm::ArrayType>(ty)) {
-    auto stride = layout.getTypeAllocSize(arr->getElementType()).getFixedValue();
+    auto stride =
+        layout.getTypeAllocSize(arr->getElementType()).getFixedValue();
     for (u64 i = 0; i < arr->getNumElements(); i++) {
       collect_leaves(arr->getElementType(), base + i * stride, ctx, module,
                      out);
@@ -191,36 +192,37 @@ std::pair<u32, u32> leaf_range(const llvm::Type *ty,
   return {first, count_leaves(ty)};
 }
 
-foptim::IRVec<foptim::fir::TypeR>
-convert_ret_types(llvm::Type *ret, foptim::fir::Context &ctx,
-                  llvm::Module &module);
+foptim::IRVec<foptim::fir::TypeR> convert_ret_types(llvm::Type *ret,
+                                                    foptim::fir::Context &ctx,
+                                                    llvm::Module &module);
 
-
-constexpr foptim::fir::Ordering
-convert_ordering(llvm::AtomicOrdering ordering) {
+constexpr foptim::fir::Ordering convert_ordering(
+    llvm::AtomicOrdering ordering) {
   switch (ordering) {
-  case llvm::AtomicOrdering::NotAtomic:
-    return foptim::fir::Ordering::NonAtomic;
-  case llvm::AtomicOrdering::Unordered:
-    return foptim::fir::Ordering::Unorderd;
-  case llvm::AtomicOrdering::Monotonic:
-    return foptim::fir::Ordering::Monotone;
-  case llvm::AtomicOrdering::Acquire:
-    return foptim::fir::Ordering::Acquire;
-  case llvm::AtomicOrdering::Release:
-    return foptim::fir::Ordering::Release;
-  case llvm::AtomicOrdering::AcquireRelease:
-    return foptim::fir::Ordering::Acq_Rel;
-  case llvm::AtomicOrdering::SequentiallyConsistent:
-    return foptim::fir::Ordering::Seq_Cst;
+    case llvm::AtomicOrdering::NotAtomic:
+      return foptim::fir::Ordering::NonAtomic;
+    case llvm::AtomicOrdering::Unordered:
+      return foptim::fir::Ordering::Unorderd;
+    case llvm::AtomicOrdering::Monotonic:
+      return foptim::fir::Ordering::Monotone;
+    case llvm::AtomicOrdering::Acquire:
+      return foptim::fir::Ordering::Acquire;
+    case llvm::AtomicOrdering::Release:
+      return foptim::fir::Ordering::Release;
+    case llvm::AtomicOrdering::AcquireRelease:
+      return foptim::fir::Ordering::Acq_Rel;
+    case llvm::AtomicOrdering::SequentiallyConsistent:
+      return foptim::fir::Ordering::Seq_Cst;
   }
   UNREACH();
 }
 
-inline foptim::fir::ValueR
-convert_instr_arg(const llvm::Value *value, foptim::fir::Context &fctx,
-                  foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-                  V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
+inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
+                                             foptim::fir::Context &fctx,
+                                             foptim::fir::FunctionR ffunc,
+                                             foptim::fir::Builder &builder,
+                                             V2VMap &valueToValue,
+                                             llvm::Module &mod, B2BMap &b2b) {
   (void)ffunc;
   (void)builder;
   if (const auto *const_value = dyn_cast_or_null<llvm::ConstantExpr>(value)) {
@@ -453,9 +455,9 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
   std::abort();
 }
 
-foptim::IRVec<foptim::fir::TypeR>
-convert_ret_types(llvm::Type *ret, foptim::fir::Context &ctx,
-                  llvm::Module &module) {
+foptim::IRVec<foptim::fir::TypeR> convert_ret_types(llvm::Type *ret,
+                                                    foptim::fir::Context &ctx,
+                                                    llvm::Module &module) {
   foptim::IRVec<foptim::fir::TypeR> res;
   if (ret->isAggregateType()) {
     foptim::TVec<Leaf> leaves;
@@ -479,10 +481,12 @@ convert_ret_types(llvm::Type *ret, foptim::fir::Context &ctx,
 }
 
 // Scalar leaves of any LLVM value of aggregate type.
-foptim::TVec<foptim::fir::ValueR>
-agg_leaves(const llvm::Value *value, foptim::fir::Context &fctx,
-           foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-           V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
+foptim::TVec<foptim::fir::ValueR> agg_leaves(const llvm::Value *value,
+                                             foptim::fir::Context &fctx,
+                                             foptim::fir::FunctionR ffunc,
+                                             foptim::fir::Builder &builder,
+                                             V2VMap &valueToValue,
+                                             llvm::Module &mod, B2BMap &b2b) {
   if (valueToValue.contains_agg(value)) {
     return valueToValue.agg_at(value);
   }
@@ -494,13 +498,13 @@ agg_leaves(const llvm::Value *value, foptim::fir::Context &fctx,
     for (u32 i = 0; i < n; i++) {
       const auto *sub = c->getAggregateElement(i);
       if (sub->getType()->isAggregateType()) {
-        for (auto v : agg_leaves(sub, fctx, ffunc, builder, valueToValue, mod,
-                                 b2b)) {
+        for (auto v :
+             agg_leaves(sub, fctx, ffunc, builder, valueToValue, mod, b2b)) {
           res.push_back(v);
         }
       } else {
-        res.push_back(convert_instr_arg(sub, fctx, ffunc, builder,
-                                        valueToValue, mod, b2b));
+        res.push_back(convert_instr_arg(sub, fctx, ffunc, builder, valueToValue,
+                                        mod, b2b));
       }
     }
     return res;
@@ -536,9 +540,9 @@ foptim::fir::ValueR emit_call(const llvm::CallBase *call,
                               convert_type(ret_type, fctx, mod), args);
   }
   auto rets = convert_ret_types(ret_type, fctx, mod);
-  auto instr = builder.build_call(
-      function_ptr, func_type_foptim,
-      std::span<const foptim::fir::TypeR>{rets}, args);
+  auto instr =
+      builder.build_call(function_ptr, func_type_foptim,
+                         std::span<const foptim::fir::TypeR>{rets}, args);
   if (count_leaves(ret_type) != 0) {
     for (foptim::u8 i = 0; i < rets.size(); i++) {
       leaves.push_back(instr.result(i));
@@ -588,10 +592,12 @@ void convert_alloca(const llvm::Instruction *any_instr,
 
 // GEP indices are sign extended to pointer width, so narrower indices must be
 // extended before they are multiplied and added to the pointer
-static foptim::fir::ValueR convert_gep_index(
-    const llvm::Value *index, foptim::fir::Context &fctx,
-    foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
-    V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
+static foptim::fir::ValueR convert_gep_index(const llvm::Value *index,
+                                             foptim::fir::Context &fctx,
+                                             foptim::fir::FunctionR ffunc,
+                                             foptim::fir::Builder &builder,
+                                             V2VMap &valueToValue,
+                                             llvm::Module &mod, B2BMap &b2b) {
   auto *int_ty = llvm::dyn_cast<llvm::IntegerType>(index->getType());
   if (int_ty == nullptr || int_ty->getBitWidth() >= 64) {
     return convert_instr_arg(index, fctx, ffunc, builder, valueToValue, mod,
@@ -600,8 +606,8 @@ static foptim::fir::ValueR convert_gep_index(
   if (const auto *c = llvm::dyn_cast<llvm::ConstantInt>(index)) {
     return foptim::fir::ValueR{fctx->get_constant_int(c->getSExtValue(), 64)};
   }
-  auto arg = convert_instr_arg(index, fctx, ffunc, builder, valueToValue, mod,
-                               b2b);
+  auto arg =
+      convert_instr_arg(index, fctx, ffunc, builder, valueToValue, mod, b2b);
   return builder.build_sext(arg, fctx->get_int_type(64));
 }
 
@@ -620,7 +626,7 @@ void convert_gep(const llvm::Instruction *any_instr,
 
   if (indexed_type->isStructTy() || indexed_type->isArrayTy()) {
     ASSERT(gep_instr->getNumIndices() >= 1);
-    { // first the index into the struct*
+    {  // first the index into the struct*
       auto offset_struct_ptr_foptim =
           convert_gep_index(gep_instr->indices().begin()->get(), fctx, ffunc,
                             builder, valueToValue, mod, b2b);
@@ -638,7 +644,7 @@ void convert_gep(const llvm::Instruction *any_instr,
     }
     for (const auto *index_it = gep_instr->indices().begin() + 1;
          index_it != gep_instr->indices().end(); index_it++) {
-      if (indexed_type->isStructTy()) { // index into strut
+      if (indexed_type->isStructTy()) {  // index into strut
         auto *struct_type =
             llvm::dyn_cast_or_null<llvm::StructType>(indexed_type);
         ASSERT(struct_type);
@@ -654,7 +660,7 @@ void convert_gep(const llvm::Instruction *any_instr,
             result_value, foptim::fir::ValueR{arg_offset_foptim},
             gep_instr->isInBounds());
         indexed_type = struct_type->getElementType(offset_struct);
-      } else if (indexed_type->isArrayTy()) { // index into array
+      } else if (indexed_type->isArrayTy()) {  // index into array
         auto *array_type =
             llvm::dyn_cast_or_null<llvm::ArrayType>(indexed_type);
         ASSERT(array_type);
@@ -907,58 +913,58 @@ bool convert_fcmp(const llvm::Instruction *any_instr,
 
   foptim::fir::FCmpInstrSubType pred = foptim::fir::FCmpInstrSubType::AlwTrue;
   switch (cmp_inst->getPredicate()) {
-  case llvm::CmpInst::FCMP_FALSE:
-    pred = foptim::fir::FCmpInstrSubType::AlwFalse;
-    break;
-  case llvm::CmpInst::FCMP_OEQ:
-    pred = foptim::fir::FCmpInstrSubType::OEQ;
-    break;
-  case llvm::CmpInst::FCMP_OGT:
-    pred = foptim::fir::FCmpInstrSubType::OGT;
-    break;
-  case llvm::CmpInst::FCMP_OGE:
-    pred = foptim::fir::FCmpInstrSubType::OGE;
-    break;
-  case llvm::CmpInst::FCMP_OLT:
-    pred = foptim::fir::FCmpInstrSubType::OLT;
-    break;
-  case llvm::CmpInst::FCMP_OLE:
-    pred = foptim::fir::FCmpInstrSubType::OLE;
-    break;
-  case llvm::CmpInst::FCMP_ONE:
-    pred = foptim::fir::FCmpInstrSubType::ONE;
-    break;
-  case llvm::CmpInst::FCMP_ORD:
-    pred = foptim::fir::FCmpInstrSubType::ORD;
-    break;
-  case llvm::CmpInst::FCMP_UNO:
-    pred = foptim::fir::FCmpInstrSubType::UNO;
-    break;
-  case llvm::CmpInst::FCMP_UEQ:
-    pred = foptim::fir::FCmpInstrSubType::UEQ;
-    break;
-  case llvm::CmpInst::FCMP_UGT:
-    pred = foptim::fir::FCmpInstrSubType::UGT;
-    break;
-  case llvm::CmpInst::FCMP_UGE:
-    pred = foptim::fir::FCmpInstrSubType::UGE;
-    break;
-  case llvm::CmpInst::FCMP_ULT:
-    pred = foptim::fir::FCmpInstrSubType::ULT;
-    break;
-  case llvm::CmpInst::FCMP_ULE:
-    pred = foptim::fir::FCmpInstrSubType::ULE;
-    break;
-  case llvm::CmpInst::FCMP_UNE:
-    pred = foptim::fir::FCmpInstrSubType::UNE;
-    break;
-  case llvm::CmpInst::FCMP_TRUE:
-    pred = foptim::fir::FCmpInstrSubType::AlwTrue;
-    break;
-  case llvm::CmpInst::BAD_FCMP_PREDICATE: {
-  }
-  default:
-    UNREACH();
+    case llvm::CmpInst::FCMP_FALSE:
+      pred = foptim::fir::FCmpInstrSubType::AlwFalse;
+      break;
+    case llvm::CmpInst::FCMP_OEQ:
+      pred = foptim::fir::FCmpInstrSubType::OEQ;
+      break;
+    case llvm::CmpInst::FCMP_OGT:
+      pred = foptim::fir::FCmpInstrSubType::OGT;
+      break;
+    case llvm::CmpInst::FCMP_OGE:
+      pred = foptim::fir::FCmpInstrSubType::OGE;
+      break;
+    case llvm::CmpInst::FCMP_OLT:
+      pred = foptim::fir::FCmpInstrSubType::OLT;
+      break;
+    case llvm::CmpInst::FCMP_OLE:
+      pred = foptim::fir::FCmpInstrSubType::OLE;
+      break;
+    case llvm::CmpInst::FCMP_ONE:
+      pred = foptim::fir::FCmpInstrSubType::ONE;
+      break;
+    case llvm::CmpInst::FCMP_ORD:
+      pred = foptim::fir::FCmpInstrSubType::ORD;
+      break;
+    case llvm::CmpInst::FCMP_UNO:
+      pred = foptim::fir::FCmpInstrSubType::UNO;
+      break;
+    case llvm::CmpInst::FCMP_UEQ:
+      pred = foptim::fir::FCmpInstrSubType::UEQ;
+      break;
+    case llvm::CmpInst::FCMP_UGT:
+      pred = foptim::fir::FCmpInstrSubType::UGT;
+      break;
+    case llvm::CmpInst::FCMP_UGE:
+      pred = foptim::fir::FCmpInstrSubType::UGE;
+      break;
+    case llvm::CmpInst::FCMP_ULT:
+      pred = foptim::fir::FCmpInstrSubType::ULT;
+      break;
+    case llvm::CmpInst::FCMP_ULE:
+      pred = foptim::fir::FCmpInstrSubType::ULE;
+      break;
+    case llvm::CmpInst::FCMP_UNE:
+      pred = foptim::fir::FCmpInstrSubType::UNE;
+      break;
+    case llvm::CmpInst::FCMP_TRUE:
+      pred = foptim::fir::FCmpInstrSubType::AlwTrue;
+      break;
+    case llvm::CmpInst::BAD_FCMP_PREDICATE: {
+    }
+    default:
+      UNREACH();
   }
   auto res = builder.build_float_cmp(a, b, pred);
   valueToValue.insert({any_instr, res});
@@ -975,38 +981,38 @@ bool convert_icmp(const llvm::Instruction *any_instr,
                              valueToValue, mod, b2b);
   foptim::fir::ICmpInstrSubType pred = foptim::fir::ICmpInstrSubType::EQ;
   switch (cmp_inst->getPredicate()) {
-  case llvm::CmpInst::ICMP_UGE:
-    pred = foptim::fir::ICmpInstrSubType::UGE;
-    break;
-  case llvm::CmpInst::ICMP_SLE:
-    pred = foptim::fir::ICmpInstrSubType::SLE;
-    break;
-  case llvm::CmpInst::ICMP_ULE:
-    pred = foptim::fir::ICmpInstrSubType::ULE;
-    break;
-  case llvm::CmpInst::ICMP_SGE:
-    pred = foptim::fir::ICmpInstrSubType::SGE;
-    break;
-  case llvm::CmpInst::ICMP_EQ:
-    pred = foptim::fir::ICmpInstrSubType::EQ;
-    break;
-  case llvm::CmpInst::ICMP_NE:
-    pred = foptim::fir::ICmpInstrSubType::NE;
-    break;
-  case llvm::CmpInst::ICMP_UGT:
-    pred = foptim::fir::ICmpInstrSubType::UGT;
-    break;
-  case llvm::CmpInst::ICMP_SGT:
-    pred = foptim::fir::ICmpInstrSubType::SGT;
-    break;
-  case llvm::CmpInst::ICMP_ULT:
-    pred = foptim::fir::ICmpInstrSubType::ULT;
-    break;
-  case llvm::CmpInst::ICMP_SLT:
-    pred = foptim::fir::ICmpInstrSubType::SLT;
-    break;
-  default:
-    UNREACH();
+    case llvm::CmpInst::ICMP_UGE:
+      pred = foptim::fir::ICmpInstrSubType::UGE;
+      break;
+    case llvm::CmpInst::ICMP_SLE:
+      pred = foptim::fir::ICmpInstrSubType::SLE;
+      break;
+    case llvm::CmpInst::ICMP_ULE:
+      pred = foptim::fir::ICmpInstrSubType::ULE;
+      break;
+    case llvm::CmpInst::ICMP_SGE:
+      pred = foptim::fir::ICmpInstrSubType::SGE;
+      break;
+    case llvm::CmpInst::ICMP_EQ:
+      pred = foptim::fir::ICmpInstrSubType::EQ;
+      break;
+    case llvm::CmpInst::ICMP_NE:
+      pred = foptim::fir::ICmpInstrSubType::NE;
+      break;
+    case llvm::CmpInst::ICMP_UGT:
+      pred = foptim::fir::ICmpInstrSubType::UGT;
+      break;
+    case llvm::CmpInst::ICMP_SGT:
+      pred = foptim::fir::ICmpInstrSubType::SGT;
+      break;
+    case llvm::CmpInst::ICMP_ULT:
+      pred = foptim::fir::ICmpInstrSubType::ULT;
+      break;
+    case llvm::CmpInst::ICMP_SLT:
+      pred = foptim::fir::ICmpInstrSubType::SLT;
+      break;
+    default:
+      UNREACH();
   }
   auto res = builder.build_int_cmp(a, b, pred);
   valueToValue.insert({any_instr, res});
@@ -1220,37 +1226,37 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                    valueToValue, mod, b2b);
     foptim::fir::AtomicRMWSubType op;
     switch (instr->getOperation()) {
-    case llvm::AtomicRMWInst::Add:
-      op = foptim::fir::AtomicRMWSubType::Add;
-      break;
-    case llvm::AtomicRMWInst::Xchg:
-      op = foptim::fir::AtomicRMWSubType::Xchg;
-      break;
-    case llvm::AtomicRMWInst::Or:
-      op = foptim::fir::AtomicRMWSubType::Or;
-      break;
-    case llvm::AtomicRMWInst::Sub:
-    case llvm::AtomicRMWInst::And:
-    case llvm::AtomicRMWInst::Nand:
-    case llvm::AtomicRMWInst::Xor:
-    case llvm::AtomicRMWInst::Max:
-    case llvm::AtomicRMWInst::Min:
-    case llvm::AtomicRMWInst::UMax:
-    case llvm::AtomicRMWInst::UMin:
-    case llvm::AtomicRMWInst::FAdd:
-    case llvm::AtomicRMWInst::FSub:
-    case llvm::AtomicRMWInst::FMax:
-    case llvm::AtomicRMWInst::FMin:
-    case llvm::AtomicRMWInst::FMaximum:
-    case llvm::AtomicRMWInst::FMinimum:
-    case llvm::AtomicRMWInst::UIncWrap:
-    case llvm::AtomicRMWInst::UDecWrap:
-    case llvm::AtomicRMWInst::USubCond:
-    case llvm::AtomicRMWInst::USubSat:
-    case llvm::AtomicRMWInst::BAD_BINOP:
-      llvm::errs() << *instr << "\n";
-      TODO("IMPL operand for AtomicRMW");
-      break;
+      case llvm::AtomicRMWInst::Add:
+        op = foptim::fir::AtomicRMWSubType::Add;
+        break;
+      case llvm::AtomicRMWInst::Xchg:
+        op = foptim::fir::AtomicRMWSubType::Xchg;
+        break;
+      case llvm::AtomicRMWInst::Or:
+        op = foptim::fir::AtomicRMWSubType::Or;
+        break;
+      case llvm::AtomicRMWInst::Sub:
+      case llvm::AtomicRMWInst::And:
+      case llvm::AtomicRMWInst::Nand:
+      case llvm::AtomicRMWInst::Xor:
+      case llvm::AtomicRMWInst::Max:
+      case llvm::AtomicRMWInst::Min:
+      case llvm::AtomicRMWInst::UMax:
+      case llvm::AtomicRMWInst::UMin:
+      case llvm::AtomicRMWInst::FAdd:
+      case llvm::AtomicRMWInst::FSub:
+      case llvm::AtomicRMWInst::FMax:
+      case llvm::AtomicRMWInst::FMin:
+      case llvm::AtomicRMWInst::FMaximum:
+      case llvm::AtomicRMWInst::FMinimum:
+      case llvm::AtomicRMWInst::UIncWrap:
+      case llvm::AtomicRMWInst::UDecWrap:
+      case llvm::AtomicRMWInst::USubCond:
+      case llvm::AtomicRMWInst::USubSat:
+      case llvm::AtomicRMWInst::BAD_BINOP:
+        llvm::errs() << *instr << "\n";
+        TODO("IMPL operand for AtomicRMW");
+        break;
     }
     foptim::fir::Ordering ordering = convert_ordering(instr->getOrdering());
 
@@ -1523,7 +1529,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
       collect_leaves(any_instr->getType(), 0, fctx, mod, info);
       foptim::TVec<foptim::fir::ValueR> leaves;
       for (const auto &leaf : info) {
-        auto arg = curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, leaf.ty));
+        auto arg =
+            curr_bb.add_arg(fctx->storage.insert_bb_arg(curr_bb, leaf.ty));
         leaves.push_back(foptim::fir::ValueR{arg});
       }
       valueToValue.insert_agg(any_instr, std::move(leaves));
@@ -1549,14 +1556,14 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     return;
   } else if (auto *instr =
                  llvm::dyn_cast_or_null<llvm::ExtractValueInst>(any_instr)) {
-    auto leaves = agg_leaves(instr->getAggregateOperand(), fctx, ffunc,
-                             builder, valueToValue, mod, b2b);
+    auto leaves = agg_leaves(instr->getAggregateOperand(), fctx, ffunc, builder,
+                             valueToValue, mod, b2b);
     auto [first, count] = leaf_range(instr->getAggregateOperand()->getType(),
                                      instr->getIndices());
     if (instr->getType()->isAggregateType()) {
-      valueToValue.insert_agg(
-          any_instr, foptim::TVec<foptim::fir::ValueR>(
-                         leaves.begin() + first, leaves.begin() + first + count));
+      valueToValue.insert_agg(any_instr, foptim::TVec<foptim::fir::ValueR>(
+                                             leaves.begin() + first,
+                                             leaves.begin() + first + count));
     } else {
       valueToValue.insert({any_instr, leaves[first]});
     }
@@ -1599,8 +1606,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     return;
   } else if (auto *instr =
                  llvm::dyn_cast_or_null<llvm::InsertValueInst>(any_instr)) {
-    auto leaves = agg_leaves(instr->getAggregateOperand(), fctx, ffunc,
-                             builder, valueToValue, mod, b2b);
+    auto leaves = agg_leaves(instr->getAggregateOperand(), fctx, ffunc, builder,
+                             valueToValue, mod, b2b);
     auto [first, count] = leaf_range(instr->getAggregateOperand()->getType(),
                                      instr->getIndices());
     if (instr->getInsertedValueOperand()->getType()->isAggregateType()) {
@@ -1630,22 +1637,22 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto fir_out_type = convert_type(out_type, fctx, mod);
     if (!index.is_constant_int()) {
       // the backend only inserts into constant lanes, rewrite every lane
-      const auto lanes = llvm::cast<llvm::FixedVectorType>(out_type)
-                             ->getNumElements();
+      const auto lanes =
+          llvm::cast<llvm::FixedVectorType>(out_type)->getNumElements();
       const auto idx_bits = index.get_type()->get_bitwidth();
       auto elem_type = convert_type(out_type->getScalarType(), fctx, mod);
       auto res = stru;
       for (u32 lane = 0; lane < lanes; lane++) {
         foptim::fir::ValueR lane_idx[1] = {
             foptim::fir::ValueR(fctx->get_constant_int(lane, 32))};
-        auto old_elem = builder.build_extract_element(stru, lane_idx, elem_type);
+        auto old_elem =
+            builder.build_extract_element(stru, lane_idx, elem_type);
         auto is_lane = builder.build_int_cmp(
-            index,
-            foptim::fir::ValueR(fctx->get_constant_int(lane, idx_bits)),
+            index, foptim::fir::ValueR(fctx->get_constant_int(lane, idx_bits)),
             foptim::fir::ICmpInstrSubType::EQ);
         auto new_elem = builder.build_select(elem_type, is_lane, v, old_elem);
-        res = builder.build_insert_element(res, new_elem, lane_idx,
-                                         fir_out_type);
+        res =
+            builder.build_insert_element(res, new_elem, lane_idx, fir_out_type);
       }
       valueToValue.insert({any_instr, res});
       return;
@@ -1681,8 +1688,8 @@ bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
   if (!fctx->has_function(func_name.c_str())) {
     fctx.data->storage.functions.insert(
         func_name, std::make_unique<foptim::fir::Function>(
-                        fctx.operator->(), func_name,
-                        convert_type(func.getFunctionType(), fctx, mod)));
+                       fctx.operator->(), func_name,
+                       convert_type(func.getFunctionType(), fctx, mod)));
   }
 
   const auto foff_func = fctx->get_function(func_name.c_str());
@@ -1734,54 +1741,55 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
       func.getAlign().value_or(llvm::Align(16UL)).value();
 
   switch (func.getCallingConv()) {
-  case llvm::CallingConv::Fast:
-    WARN_UNSUPPORTED_O(warned_fastcc,
-                       "[WARNING] Unsupported cc fast cc will still try to run "
-                       "with C cc\n");
-  case llvm::CallingConv::C:
-    foff_func->attribs.cc = foptim::fir::Function::CallingConv::C;
-    break;
-  default:
-    llvm::errs() << "Not supporting calling convention:"
-                 << func.getCallingConv() << "\n";
-    TODO("");
+    case llvm::CallingConv::Fast:
+      WARN_UNSUPPORTED_O(
+          warned_fastcc,
+          "[WARNING] Unsupported cc fast cc will still try to run "
+          "with C cc\n");
+    case llvm::CallingConv::C:
+      foff_func->attribs.cc = foptim::fir::Function::CallingConv::C;
+      break;
+    default:
+      llvm::errs() << "Not supporting calling convention:"
+                   << func.getCallingConv() << "\n";
+      TODO("");
   }
 
   switch (func.getLinkage()) {
-  case llvm::GlobalValue::InternalLinkage:
-  case llvm::GlobalValue::PrivateLinkage:
-    foff_func->attribs.linkage = foptim::fir::Linkage::Internal;
-    break;
-  case llvm::GlobalValue::LinkOnceAnyLinkage:
-    foff_func->attribs.linkage = foptim::fir::Linkage::LinkOnce;
-    break;
-  case llvm::GlobalValue::LinkOnceODRLinkage:
-    foff_func->attribs.linkage = foptim::fir::Linkage::LinkOnceODR;
-    break;
-  case llvm::GlobalValue::WeakAnyLinkage:
-    foff_func->attribs.linkage = foptim::fir::Linkage::Weak;
-    break;
-  case llvm::GlobalValue::WeakODRLinkage:
-    foff_func->attribs.linkage = foptim::fir::Linkage::WeakODR;
-    break;
-  case llvm::GlobalValue::ExternalLinkage:
-  case llvm::GlobalValue::AvailableExternallyLinkage:
-  case llvm::GlobalValue::AppendingLinkage:
-  case llvm::GlobalValue::ExternalWeakLinkage:
-  case llvm::GlobalValue::CommonLinkage:
-    foff_func->attribs.linkage = foptim::fir::Linkage::External;
-    break;
+    case llvm::GlobalValue::InternalLinkage:
+    case llvm::GlobalValue::PrivateLinkage:
+      foff_func->attribs.linkage = foptim::fir::Linkage::Internal;
+      break;
+    case llvm::GlobalValue::LinkOnceAnyLinkage:
+      foff_func->attribs.linkage = foptim::fir::Linkage::LinkOnce;
+      break;
+    case llvm::GlobalValue::LinkOnceODRLinkage:
+      foff_func->attribs.linkage = foptim::fir::Linkage::LinkOnceODR;
+      break;
+    case llvm::GlobalValue::WeakAnyLinkage:
+      foff_func->attribs.linkage = foptim::fir::Linkage::Weak;
+      break;
+    case llvm::GlobalValue::WeakODRLinkage:
+      foff_func->attribs.linkage = foptim::fir::Linkage::WeakODR;
+      break;
+    case llvm::GlobalValue::ExternalLinkage:
+    case llvm::GlobalValue::AvailableExternallyLinkage:
+    case llvm::GlobalValue::AppendingLinkage:
+    case llvm::GlobalValue::ExternalWeakLinkage:
+    case llvm::GlobalValue::CommonLinkage:
+      foff_func->attribs.linkage = foptim::fir::Linkage::External;
+      break;
   }
   switch (func.getVisibility()) {
-  case llvm::GlobalValue::DefaultVisibility:
-    foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Default;
-    break;
-  case llvm::GlobalValue::HiddenVisibility:
-    foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Hidden;
-    break;
-  case llvm::GlobalValue::ProtectedVisibility:
-    foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Protected;
-    break;
+    case llvm::GlobalValue::DefaultVisibility:
+      foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Default;
+      break;
+    case llvm::GlobalValue::HiddenVisibility:
+      foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Hidden;
+      break;
+    case llvm::GlobalValue::ProtectedVisibility:
+      foff_func->attribs.linkvis = foptim::fir::LinkVisibility::Protected;
+      break;
   }
   if (fctx.config->optim.all_linkage_internal && func_name != "main" &&
       !func.empty()) {
@@ -1958,29 +1966,30 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
   }
   if (const auto *d = llvm::dyn_cast_or_null<llvm::ConstantInt>(val)) {
     switch (d->getBitWidth()) {
-    case 1:
-    case 8:
-      *(const_cast<uint8_t *>(output)) =
-          static_cast<uint8_t>(d->getZExtValue());
-      break;
-      *(const_cast<uint8_t *>(output)) =
-          static_cast<uint8_t>(d->getZExtValue());
-      break;
-    case 16:
-      *(reinterpret_cast<uint16_t *>(const_cast<uint8_t *>(output))) =
-          static_cast<uint16_t>(d->getZExtValue());
-      break;
-    case 32:
-      *(reinterpret_cast<uint32_t *>(const_cast<uint8_t *>(output))) =
-          static_cast<uint32_t>(d->getZExtValue());
-      break;
-    case 64:
-      *(reinterpret_cast<uint64_t *>(const_cast<uint8_t *>(output))) =
-          d->getZExtValue();
-      break;
-    default:
-      llvm::errs() << "constant int " << *d << " " << d->getBitWidth() << "\n";
-      TODO("IMPL");
+      case 1:
+      case 8:
+        *(const_cast<uint8_t *>(output)) =
+            static_cast<uint8_t>(d->getZExtValue());
+        break;
+        *(const_cast<uint8_t *>(output)) =
+            static_cast<uint8_t>(d->getZExtValue());
+        break;
+      case 16:
+        *(reinterpret_cast<uint16_t *>(const_cast<uint8_t *>(output))) =
+            static_cast<uint16_t>(d->getZExtValue());
+        break;
+      case 32:
+        *(reinterpret_cast<uint32_t *>(const_cast<uint8_t *>(output))) =
+            static_cast<uint32_t>(d->getZExtValue());
+        break;
+      case 64:
+        *(reinterpret_cast<uint64_t *>(const_cast<uint8_t *>(output))) =
+            d->getZExtValue();
+        break;
+      default:
+        llvm::errs() << "constant int " << *d << " " << d->getBitWidth()
+                     << "\n";
+        TODO("IMPL");
     }
     return;
   }
@@ -2049,6 +2058,14 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
                               valueToValue);
         return;
       }
+    } else if (const auto *iToPtr = llvm::dyn_cast_or_null<llvm::IntToPtrInst>(
+                   d->getAsInstruction())) {
+      const auto *inp = iToPtr->getOperand(0);
+      if (const auto *inp_const = llvm::dyn_cast_or_null<llvm::Constant>(inp)) {
+        convert_constant_init(output, inp_const, fctx, glob, layout,
+                              valueToValue);
+        return;
+      }
     } else if (const auto *gep =
                    llvm::dyn_cast_or_null<llvm::GetElementPtrInst>(
                        d->getAsInstruction())) {
@@ -2067,7 +2084,7 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
 
         for (const auto *index_it = gep->indices().begin() + 1;
              index_it != gep->indices().end(); index_it++) {
-          if (indexed_type->isStructTy()) { // index into strut
+          if (indexed_type->isStructTy()) {  // index into strut
             auto *struct_type =
                 llvm::dyn_cast_or_null<llvm::StructType>(indexed_type);
             ASSERT(struct_type);
@@ -2081,7 +2098,7 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
             stru_off += arg_offset.getFixedValue();
             indexed_type =
                 struct_type->getElementType(offset_struct->getZExtValue());
-          } else if (indexed_type->isArrayTy()) { // index into array
+          } else if (indexed_type->isArrayTy()) {  // index into array
             auto *array_type =
                 llvm::dyn_cast_or_null<llvm::ArrayType>(indexed_type);
             ASSERT(array_type);
@@ -2222,40 +2239,40 @@ inline void setup_globals(llvm::Module &mod, foptim::fir::Context &fctx,
       auto as_global = fctx->get_constant_value(global);
 
       switch (val->getLinkage()) {
-      case llvm::GlobalValue::ExternalLinkage:
-      case llvm::GlobalValue::AvailableExternallyLinkage:
-      case llvm::GlobalValue::AppendingLinkage:
-      case llvm::GlobalValue::CommonLinkage:
-        global->linkage = foptim::fir::Linkage::External;
-        break;
-      case llvm::GlobalValue::LinkOnceAnyLinkage:
-        global->linkage = foptim::fir::Linkage::LinkOnce;
-        break;
-      case llvm::GlobalValue::LinkOnceODRLinkage:
-        global->linkage = foptim::fir::Linkage::LinkOnceODR;
-        break;
-      case llvm::GlobalValue::ExternalWeakLinkage:
-      case llvm::GlobalValue::WeakAnyLinkage:
-        global->linkage = foptim::fir::Linkage::Weak;
-        break;
-      case llvm::GlobalValue::WeakODRLinkage:
-        global->linkage = foptim::fir::Linkage::WeakODR;
-        break;
-      case llvm::GlobalValue::InternalLinkage:
-      case llvm::GlobalValue::PrivateLinkage:
-        global->linkage = foptim::fir::Linkage::Internal;
-        break;
+        case llvm::GlobalValue::ExternalLinkage:
+        case llvm::GlobalValue::AvailableExternallyLinkage:
+        case llvm::GlobalValue::AppendingLinkage:
+        case llvm::GlobalValue::CommonLinkage:
+          global->linkage = foptim::fir::Linkage::External;
+          break;
+        case llvm::GlobalValue::LinkOnceAnyLinkage:
+          global->linkage = foptim::fir::Linkage::LinkOnce;
+          break;
+        case llvm::GlobalValue::LinkOnceODRLinkage:
+          global->linkage = foptim::fir::Linkage::LinkOnceODR;
+          break;
+        case llvm::GlobalValue::ExternalWeakLinkage:
+        case llvm::GlobalValue::WeakAnyLinkage:
+          global->linkage = foptim::fir::Linkage::Weak;
+          break;
+        case llvm::GlobalValue::WeakODRLinkage:
+          global->linkage = foptim::fir::Linkage::WeakODR;
+          break;
+        case llvm::GlobalValue::InternalLinkage:
+        case llvm::GlobalValue::PrivateLinkage:
+          global->linkage = foptim::fir::Linkage::Internal;
+          break;
       }
       switch (val->getVisibility()) {
-      case llvm::GlobalValue::DefaultVisibility:
-        global->linkvis = foptim::fir::LinkVisibility::Default;
-        break;
-      case llvm::GlobalValue::HiddenVisibility:
-        global->linkvis = foptim::fir::LinkVisibility::Hidden;
-        break;
-      case llvm::GlobalValue::ProtectedVisibility:
-        global->linkvis = foptim::fir::LinkVisibility::Protected;
-        break;
+        case llvm::GlobalValue::DefaultVisibility:
+          global->linkvis = foptim::fir::LinkVisibility::Default;
+          break;
+        case llvm::GlobalValue::HiddenVisibility:
+          global->linkvis = foptim::fir::LinkVisibility::Hidden;
+          break;
+        case llvm::GlobalValue::ProtectedVisibility:
+          global->linkvis = foptim::fir::LinkVisibility::Protected;
+          break;
       }
       global->is_constant = val->isConstant();
       if (!val->isDeclaration()) {
@@ -2281,8 +2298,8 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
     }
     global->min_align = val->getPointerAlignment(mod.getDataLayout()).value();
   } else if (const auto *val = dyn_cast_or_null<llvm::GlobalAlias>(&gval)) {
-    // setup the aliases afterwards since then we can be sure that the originals
-    // are already setup
+    // setup the aliases afterwards since then we can be sure that the
+    // originals are already setup
     // TODO: if we keep this we need to potentially update the linkage
     //  and visiblity of the original since the alias might have more general
     //  one
@@ -2333,7 +2350,7 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
   }
 }
 
-} // namespace
+}  // namespace
 
 void load_llvm_ir(const char *filename, foptim::fir::Context &fctx,
                   foptim::JobSheduler &shed) {
