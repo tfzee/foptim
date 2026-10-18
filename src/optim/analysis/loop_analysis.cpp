@@ -174,6 +174,11 @@ bool LoopRangeAnalysis::update(CFG &cfg, LoopInfo &info) {
     }
     return false;
   }
+  // the bounds are tracked as i128 numbers, only exact for narrow counters
+  if (const auto ity = fir::ValueR(head->args[0]).get_type();
+      ity->is_int() && ity->get_bitwidth() > 64) {
+    return false;
+  }
   // only 1 incoming edge into the loop
   if (cfg.bbrs[info.head].pred.size() != 1 + info.tails.size()) {
     if constexpr (debug_print) {

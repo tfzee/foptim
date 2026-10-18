@@ -29,7 +29,7 @@ struct IntConstMatcher : Matcher {
   bool match(fir::ValueR v) override {
     if (v.is_constant()) {
       auto c = v.as_constant();
-      if (c->is_int() && c->as_int() == exp) {
+      if (c->is_int() && c->as_int_sat() == exp) {
         return true;
       }
     };

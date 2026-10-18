@@ -3105,6 +3105,17 @@ void intrin_rules(RuleSet &rules) {
                 res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
                 arg = res_reg;
               }
+              if (res_reg.ty == Type::Int8) {
+                // no byte form, count in 32 bits and drop the 24 extra zeros
+                auto wide = MArgument(data.alloc.get_new_register(Type::Int32),
+                                      Type::Int32);
+                res.result.emplace_back(GConvSubtype::mov_zx, wide, arg);
+                res.result.emplace_back(X86Subtype::lzcnt, wide, wide);
+                res.result.emplace_back(GArithSubtype::sub2, wide,
+                                        MArgument::Int(24, Type::Int32));
+                res.result.emplace_back(GConvSubtype::itrunc, res_reg, wide);
+                return true;
+              }
               res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
               return true;
             });
@@ -3116,6 +3127,17 @@ void intrin_rules(RuleSet &rules) {
                 // no immediate source operand
                 res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
                 arg = res_reg;
+              }
+              if (res_reg.ty == Type::Int8) {
+                // no byte form, a set bit 8 makes a zero input count 8
+                auto wide = MArgument(data.alloc.get_new_register(Type::Int32),
+                                      Type::Int32);
+                res.result.emplace_back(GConvSubtype::mov_zx, wide, arg);
+                res.result.emplace_back(GArithSubtype::lor2, wide,
+                                        MArgument::Int(0x100, Type::Int32));
+                res.result.emplace_back(X86Subtype::tzcnt, wide, wide);
+                res.result.emplace_back(GConvSubtype::itrunc, res_reg, wide);
+                return true;
               }
               res.result.emplace_back(X86Subtype::tzcnt, res_reg, arg);
               return true;

@@ -19,7 +19,7 @@ namespace {
 fir::Instr guarded_entry(fir::Builder &buh, fir::ContextData *ctx,
                          fir::ValueR num, fir::BasicBlock loop_bb,
                          fir::BasicBlock skip_bb) {
-  if (num.is_constant_int() && num.as_constant()->as_int() != 0) {
+  if (num.is_constant_int() && num.as_constant()->as_int_sat() != 0) {
     return buh.build_branch(loop_bb);
   }
   auto not_empty =
@@ -160,7 +160,7 @@ static bool expand_to_libc_call(fir::Function &func, fir::Instr instr) {
     // the call fills bytes, a wider value is only the same when it is zero
     const auto val_size = val.get_type()->get_size();
     if (val_size != 1) {
-      if (!val.is_constant_int() || val.as_constant()->as_int() != 0) {
+      if (!val.is_constant_int() || val.as_constant()->as_int_sat() != 0) {
         return false;
       }
       val = fir::ValueR{ctx->get_constant_int(0, 8)};

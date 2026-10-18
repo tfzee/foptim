@@ -127,8 +127,10 @@ bool StackKnownBits::update_store(fir::Instr instr, utils::BitSet<> &new_in_one,
     return true;
   }
 
+  // the known bits are tracked in 64 bit words, wider values count as unknown
   if (instr->args[1].is_constant() &&
-      (instr->args[1].as_constant()->is_int() ||
+      ((instr->args[1].as_constant()->is_int() &&
+        instr->args[1].get_type()->get_bitwidth() <= 64) ||
        instr->args[1].as_constant()->is_float() ||
        instr->args[1].as_constant()->is_null())) {
     u64 value = 0;

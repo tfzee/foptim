@@ -176,7 +176,7 @@ void ConstraintAnalysis::infer_simplificaitons(ConstrId c,
     ASSERT(i != 0);
     auto v = exprs[i - 1];
     return v.type == ExprNode::InpConst && v.v.is_constant_int() &&
-           v.v.as_constant()->as_int() > c;
+           v.v.as_constant()->as_int_sat() > c;
   };
 
   auto &con = constraints[c - 1];
@@ -297,7 +297,7 @@ void ConstraintAnalysis::add_condition_facts(fir::ValueR cond, bool holds,
   // xor with true is a not
   if (instr->is(fir::BinaryInstrSubType::Xor) && instr->args[1].is_constant() &&
       instr->args[1].is_constant_int() &&
-      instr->args[1].as_constant()->as_int() == 1) {
+      instr->args[1].as_constant()->as_int_sat() == 1) {
     add_condition_facts(instr->args[0], !holds, bb, depth + 1);
     return;
   }

@@ -977,7 +977,14 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           if (!a.is_const()) {
             return ConstantValue::Top();
           }
-          TODO("popcnt impl sccp");
+          ASSERT(a.is_int());
+          const auto arg_ty = instr->get_arg(0).get_type();
+          const u32 width = arg_ty->is_vec() ? arg_ty->as_vec().bitwidth
+                                             : arg_ty->get_bitwidth();
+          for (auto &val : a.vals) {
+            val.i = APInt(width, u64{val.i.popcount()});
+          }
+          return a;
         }
         case fir::IntrinsicSubType::Bswap: {
           auto a = eval(instr->get_arg(0));

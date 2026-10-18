@@ -142,12 +142,13 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
 
   if (second_constant && instr->args[1].as_constant()->is_int()) {
     auto sub_type = static_cast<ICmpInstrSubType>(instr->get_instr_subtype());
-    i128 c_val = instr->args[1].as_constant()->as_int();
+    i128 c_val = instr->args[1].as_constant()->as_int_sat();
 
     if (instr->args[1].get_type()->get_bitwidth() >
         instr->args[0].get_type()->get_bitwidth()) {
-      instr->args[1] = fir::ValueR{
-          ctx->get_constant_value(c_val, instr->args[0].get_type())};
+      instr->args[1] = fir::ValueR{ctx->get_constant_int(
+          instr->args[1].as_constant()->as_apint_resized(
+              instr->args[0].get_type()->get_bitwidth()))};
       worklist.push_back({instr, instr->get_parent()});
       return true;
     }
@@ -187,7 +188,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
           // TODO: could also be poision but that gets propagated anyway
           arg0->args[1].as_constant()->is_int()) {
         // auto a = instr->args[1].as_constant()->as_int();
-        auto x = arg0->args[1].as_constant()->as_int();
+        auto x = arg0->args[1].as_constant()->as_int_sat();
         if (x > 0 && (x & (x - 1)) == 0 && x < arg0->result_type()->as_int()) {
           Builder bb{instr};
           auto new_val = bb.build_int_cmp(arg0->args[0], arg0->args[1],
@@ -306,7 +307,9 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
         Builder bb{instr};
         instr.replace_arg(0, x);
         instr.replace_arg(
-            1, fir::ValueR{ctx->get_constant_value(c_val, x.get_type())});
+            1, fir::ValueR{ctx->get_constant_int(
+                   instr->args[1].as_constant()->as_apint_resized(
+                       x.get_type()->get_bitwidth()))});
         worklist.emplace_back(instr, instr->get_parent());
         return true;
       }
@@ -381,7 +384,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     if (a1i->is(InstrType::BinaryInstr) &&
         a1i->subtype == static_cast<u32>(BinaryInstrSubType::And) &&
         a1i->args[1].is_constant()) {
-      auto const_and = a1i->args[1].as_constant()->as_int();
+      auto const_and = a1i->args[1].as_constant()->as_int_sat();
       // could also check <= and insert a itrunc previously
       for (auto amount : {8, 16, 32}) {
         if (const_and == (1UL << amount) - 1 &&

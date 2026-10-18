@@ -167,7 +167,7 @@ fir::ValueR negated_operand(fir::ValueR v) {
   auto i = v.as_instr();
   const auto is_zero = [](fir::ValueR z) {
     return z.is_constant() &&
-           ((z.as_constant()->is_int() && z.as_constant()->as_int() == 0) ||
+           ((z.as_constant()->is_int() && z.as_constant()->as_int_sat() == 0) ||
             (z.as_constant()->is_float() && z.as_constant()->as_f64() == 0));
   };
   if (i->is(fir::UnaryInstrSubType::IntNeg) ||
@@ -275,7 +275,7 @@ fir::ValueR select_abs_operand(fir::Instr sel, bool exact_neg) {
                   static_cast<fir::FCmpInstrSubType>(cmp->subtype), form == 2)
             : true_means_negative(
                   static_cast<fir::ICmpInstrSubType>(cmp->subtype),
-                  cmp->args[1].as_constant()->as_int());
+                  cmp->args[1].as_constant()->as_int_sat());
     if (neg_when_true == neg_is_true_arm) {
       return x;
     }
@@ -306,8 +306,8 @@ bool is_sign_mask(fir::ValueR m, fir::ValueR x) {
   }
   const i128 shift_width = shr->result_type()->get_bitwidth();
   return src == x && shr->args[1].is_constant_int() &&
-         shr->args[1].as_constant()->as_int() >= width - 1 &&
-         shr->args[1].as_constant()->as_int() < shift_width;
+         shr->args[1].as_constant()->as_int_sat() >= width - 1 &&
+         shr->args[1].as_constant()->as_int_sat() < shift_width;
 }
 
 // x if p is x op m or m op x with m the sign mask of x
@@ -353,7 +353,7 @@ fir::ValueR bit_trick_abs_operand(fir::Instr instr) {
       }
       for (size_t j = 0; j < 2; j++) {
         auto one = q.as_instr()->args[1 - j];
-        if (one.is_constant_int() && one.as_constant()->as_int() == 1) {
+        if (one.is_constant_int() && one.as_constant()->as_int_sat() == 1) {
           auto x = operand_with_sign_mask(p, q.as_instr()->args[j]);
           if (!x.is_invalid()) {
             return x;
@@ -659,7 +659,7 @@ std::optional<ByteMap> byte_map(fir::ValueR v, fir::ValueR &leaf,
     return res;
   };
   if (v.is_constant_int()) {
-    if (v.as_constant()->as_int() != 0) {
+    if (v.as_constant()->as_int_sat() != 0) {
       return std::nullopt;
     }
     return res;
@@ -696,7 +696,7 @@ std::optional<ByteMap> byte_map(fir::ValueR v, fir::ValueR &leaf,
     if (!i->args[1].is_constant_int()) {
       return as_leaf();
     }
-    const i128 amount = i->args[1].as_constant()->as_int();
+    const i128 amount = i->args[1].as_constant()->as_int_sat();
     if (amount < 0 || amount >= bits || amount % 8 != 0) {
       return std::nullopt;
     }

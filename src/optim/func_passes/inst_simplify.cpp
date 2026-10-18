@@ -71,7 +71,7 @@ bool is_constant_int_zero(fir::ValueR r) {
   if (!c->is_int()) {
     return false;
   }
-  return c->as_int() == 0;
+  return c->as_int_sat() == 0;
 }
 
 bool is_constant_float_zero(fir::ValueR r) {
@@ -94,8 +94,8 @@ bool simplify_select(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto arg1C = instr->args[1].as_constant();
     auto arg2C = instr->args[2].as_constant();
     if (arg1C->is_int() && arg2C->is_int()) {
-      auto arg1 = arg1C->as_int();
-      auto arg2 = arg2C->as_int();
+      auto arg1 = arg1C->as_int_sat();
+      auto arg2 = arg2C->as_int_sat();
       auto output_width = instr->result_type()->get_bitwidth();
       if ((arg1 == 1 || (output_width == 1 && arg1 != 0)) && arg2 == 0) {
         auto new_val = instr->args[0];
@@ -265,7 +265,7 @@ bool simplify_cond_branch(fir::Instr instr, fir::BasicBlock bb,
     if (c->is_poison()) {
       // TODO: Could also pplace some unreach??
     } else {
-      auto v1 = c->as_int();
+      auto v1 = c->as_int_sat();
       if (v1 == 0) {
         target = &instr->bbs[1];
       }
@@ -645,7 +645,7 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
         switch (static_cast<fir::BinaryInstrSubType>(arg_i->subtype)) {
           case fir::BinaryInstrSubType::Shl: {
             if (i_arg1.is_constant()) {
-              auto i_arg1c = i_arg1.as_constant()->as_int();
+              auto i_arg1c = i_arg1.as_constant()->as_int_sat();
               if (i_arg1c >= new_bitwidth) {
                 push_all_uses(worklist, instr);
                 instr->replace_all_uses(fir::ValueR{ctx->get_constant_value(

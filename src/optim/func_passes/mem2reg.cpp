@@ -315,8 +315,12 @@ void decide_value_store(fir::Instr instr, size_t &i, fir::BasicBlock block,
   if (val.is_constant() && val.as_constant()->is_int()) {
     auto cval = val.as_constant();
     if (cval->type != instr.result_type()) {
-      val = fir::ValueR{block->get_parent()->ctx->get_constant_value(
-          cval->as_int(), instr.result_type())};
+      auto *cx = block->get_parent()->ctx;
+      val = instr.result_type()->is_int()
+                ? fir::ValueR{cx->get_constant_int(cval->as_apint_resized(
+                      instr.result_type()->get_bitwidth()))}
+                : fir::ValueR{cx->get_constant_value(cval->as_int(),
+                                                     instr.result_type())};
     }
   }
   if (back_ref.contains(instr->args[0])) {

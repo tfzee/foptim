@@ -989,7 +989,7 @@ Res fold_load(fir::Instr instr, fir::Context &ctx) {
   if (instr->args[0].is_constant() && !instr->Volatile) {
     const auto arg0_const = instr->args[0].as_constant();
     if (arg0_const->is_poison() || arg0_const->is_null() ||
-        (arg0_const->is_int() && arg0_const->as_int() <= 0)) {
+        (arg0_const->is_int() && arg0_const->as_int_sat() <= 0)) {
       return poison_of(instr, ctx);
     }
     if (arg0_const->is_global()) {
