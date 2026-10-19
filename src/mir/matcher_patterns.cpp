@@ -980,7 +980,7 @@ void arith_rules(RuleSet &rules) {
     // x*c where c is a power of 2
     auto res_ty = convert_type(mul_instr.result_type());
     auto res_ty_size = get_size(res_ty);
-    if (res_ty_size != 8 && res_ty_size != 4) {
+    if (res_ty_size > 8) {
       return false;
     }
     i128 consti_val;
@@ -1513,9 +1513,9 @@ void base_binary_rules(RuleSet &rules) {
       } else {
         ASSERT(false);
       }
+      // only the low byte of the product is the result, the rest of the
+      // register is free like for every other i8 value
       res.result.emplace_back(GArithSubtype::mul2, res_reg16, arg1);
-      res.result.emplace_back(GArithSubtype::land2, res_reg16,
-                              MArgument(static_cast<u8>(255)));
       return true;
     }
 
