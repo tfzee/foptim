@@ -620,6 +620,7 @@ bool ArgPromotion::promote_ptr_args(fir::FunctionR func, fir::Context &ctx,
     const auto load_type = chosen[i].type;
     arg->_type = load_type;
     arg->noalias = 0;
+    arg->nonnull = 0;
     arg->get_attribs().clear();
     if (kind == PtrArgType::ReadOnlyPtr) {
       TVec<fir::Use> uses =

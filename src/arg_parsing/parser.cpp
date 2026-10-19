@@ -37,6 +37,12 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
   program.add_argument("--color")
       .help("colored output for --print-fir and --print-mir")
       .flag();
+  program.add_argument("--print-filter")
+      .help(
+          "comma separated globs on the function name, --print-fir and "
+          "--print-mir only print matching functions (and no globals), e.g. "
+          "'main,*foo*'")
+      .default_value(std::string{});
   program.add_argument("--passes")
       .help(
           "comma separated FIR pass list replacing the configured FIR "
@@ -118,6 +124,7 @@ void parse_args(int argc, char *argv[], foptim::conf::CompConf &conf) {
       std::exit(1);
     }
   }
+  conf.debug.print_filter = program.get<std::string>("--print-filter");
   if (program["--print-fir"] == true) {
     conf.output.type = foptim::conf::Output::OutputType::PrintIR;
     // stable output so it can be checked in tests

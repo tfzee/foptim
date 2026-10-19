@@ -102,16 +102,47 @@ struct LinearForm {
 
 constexpr size_t MaxLinearNodes = 64;
 
+// With wide set the tree also looks through trunc, zext / sext and low bit
+// masks into wider values, the sum is mod 2^bw. Wide leaves are truncated when
+// the sum is built.
 void flatten_linear(LinearForm &lf, fir::ValueR v, const APInt &coef,
-                    fir::TypeR ty) {
+                    fir::TypeR ty, bool wide = false) {
   const u32 bw = ty->get_bitwidth();
   if (v.is_constant() && v.as_constant()->is_int()) {
     lf.constant += coef * v.as_constant()->as_apint_resized(bw);
     lf.n_const_uses++;
     return;
   }
-  if (v.is_instr() && v.get_type() == ty) {
+  const auto vty = v.get_type();
+  const bool fits =
+      vty == ty || (wide && vty->is_int() && vty->get_bitwidth() > bw);
+  if (v.is_instr() && fits) {
     auto in = v.as_instr();
+    if (wide) {
+      fir::ValueR inner = in->args[0];
+      bool look = false;
+      if (in->is(fir::InstrType::ITrunc)) {
+        look = true;
+      } else if (in->is(fir::InstrType::ZExt) || in->is(fir::InstrType::SExt)) {
+        look = inner.get_type()->is_int() &&
+               inner.get_type()->get_bitwidth() >= bw;
+      } else if (in->is(fir::BinaryInstrSubType::And) &&
+                 in->args[1].is_constant_int()) {
+        const auto m = in->args[1].as_constant()->as_apint_resized(bw);
+        look = m.is_all_ones();
+      }
+      if (look) {
+        if (lf.nodes.size() >= MaxLinearNodes) {
+          lf.too_big = true;
+          return;
+        }
+        if (std::find(lf.nodes.begin(), lf.nodes.end(), in) == lf.nodes.end()) {
+          lf.nodes.push_back(in);
+        }
+        flatten_linear(lf, inner, coef, ty, wide);
+        return;
+      }
+    }
     if (in->is(fir::InstrType::BinaryInstr)) {
       using ST = fir::BinaryInstrSubType;
       const auto st = static_cast<ST>(in->subtype);
@@ -124,9 +155,12 @@ void flatten_linear(LinearForm &lf, fir::ValueR v, const APInt &coef,
           has_scale = true;
           scale = c.as_constant()->as_apint_resized(bw);
           if (st == ST::Shl) {
-            const auto amt = c.as_constant()->as_apint_resized(bw);
-            if (amt.ucmp(APInt::from_u64(bw, bw)) >= 0) {
+            const u32 w = vty->get_bitwidth();
+            const auto amt = c.as_constant()->as_apint_resized(w);
+            if (amt.ucmp(APInt::from_u64(w, w)) >= 0) {
               has_scale = false;
+            } else if (amt.ucmp(APInt::from_u64(w, bw)) >= 0) {
+              scale = APInt::zero(bw);
             } else {
               scale =
                   APInt::from_u64(bw, 1).shl(static_cast<u32>(amt.to_u64()));
@@ -143,10 +177,11 @@ void flatten_linear(LinearForm &lf, fir::ValueR v, const APInt &coef,
           lf.nodes.push_back(in);
         }
         if (has_scale) {
-          flatten_linear(lf, scaled, coef * scale, ty);
+          flatten_linear(lf, scaled, coef * scale, ty, wide);
         } else {
-          flatten_linear(lf, in->args[0], coef, ty);
-          flatten_linear(lf, in->args[1], st == ST::IntSub ? -coef : coef, ty);
+          flatten_linear(lf, in->args[0], coef, ty, wide);
+          flatten_linear(lf, in->args[1], st == ST::IntSub ? -coef : coef, ty,
+                         wide);
         }
         return;
       }
@@ -160,6 +195,24 @@ void flatten_linear(LinearForm &lf, fir::ValueR v, const APInt &coef,
     }
   }
   lf.terms.emplace_back(v, coef);
+}
+
+// The magnitude all coefficients share, 1 if none. Not with a constant, (x + c)
+// * k is distributed over the add elsewhere.
+template <typename Terms>
+APInt common_factor(const Terms &terms, const APInt &constant, u32 bw) {
+  const auto one = APInt::from_u64(bw, 1);
+  if (terms.size() < 2) {
+    return one;
+  }
+  auto magnitude = [](const APInt &c) { return c.is_neg() ? -c : c; };
+  const APInt common = magnitude(terms[0].second);
+  for (const auto &[leaf, c] : terms) {
+    if (magnitude(c).ucmp(common) != 0) {
+      return one;
+    }
+  }
+  return constant.is_zero() ? common : one;
 }
 
 // Builds the sum, or only counts the instructions it needs if b is null.
@@ -241,6 +294,23 @@ fir::ValueR emit_linear(const LinearForm &lf, fir::Instr root, fir::Builder *b,
     return v.is_bb_arg() && v.as_bb_arg()->get_parent() == root->get_parent();
   };
   auto terms = lf.terms;
+  for (auto &[leaf, c] : terms) {
+    if (leaf.get_type()->get_bitwidth() != bw) {
+      n_ops++;
+      if (b != nullptr) {
+        b->before(root);
+        leaf = b->build_itrunc(leaf, ctx->get_int_type(static_cast<u16>(bw)));
+        worklist.push_back({leaf.as_instr(), leaf.as_instr()->get_parent()});
+      }
+    }
+  }
+  // 8a - 8b is built as (a - b) * 8
+  const APInt common = common_factor(terms, lf.constant, bw);
+  if (!common.is_one()) {
+    for (auto &[leaf, c] : terms) {
+      c = c.is_neg() ? -APInt::from_u64(bw, 1) : APInt::from_u64(bw, 1);
+    }
+  }
   if (b != nullptr) {
     auto bb = root->get_parent();
     auto pos_of = [&](fir::ValueR v) -> i64 {
@@ -290,6 +360,11 @@ fir::ValueR emit_linear(const LinearForm &lf, fir::Instr root, fir::Builder *b,
       acc = note(b != nullptr ? b->build_int_add(acc, cc) : acc);
     }
   }
+  if (!common.is_one()) {
+    const auto k = constant(common);
+    place(acc, k);
+    acc = note(b != nullptr ? b->build_int_mul(acc, k) : acc);
+  }
   return acc;
 }
 
@@ -305,7 +380,7 @@ bool simplify_linear(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
   }
   const u32 bw = ty->get_bitwidth();
   LinearForm lf{.terms = {}, .constant = APInt::zero(bw), .nodes = {}};
-  flatten_linear(lf, instr.result(), APInt::from_u64(bw, 1), ty);
+  flatten_linear(lf, instr.result(), APInt::from_u64(bw, 1), ty, true);
   if (lf.too_big || lf.nodes.size() < 2) {
     return false;
   }
@@ -333,7 +408,8 @@ bool simplify_linear(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
   }
   // a lone constant is left to the identity rules (x + 0)
   if (!carried_first && lf.terms.size() == lf.n_leaf_uses &&
-      lf.n_const_uses < 2) {
+      lf.n_const_uses < 2 &&
+      common_factor(lf.terms, lf.constant, bw).is_one()) {
     return false;
   }
 
@@ -371,6 +447,72 @@ bool simplify_linear(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
   return true;
 }
 
+}  // namespace
+
+// a == b and a != b of two linear forms is lhs - rhs == 0 (mod 2^bw), so what
+// cancels between the sides vanishes and each side keeps only its own terms.
+bool simplify_linear_cmp(fir::Instr instr, fir::Context &ctx,
+                         WorkList &worklist) {
+  using fir::ICmpInstrSubType;
+  const auto cmp = static_cast<ICmpInstrSubType>(instr->subtype);
+  if (!instr->is(fir::InstrType::ICmp) ||
+      (cmp != ICmpInstrSubType::EQ && cmp != ICmpInstrSubType::NE)) {
+    return false;
+  }
+  const auto ty = instr->args[0].get_type();
+  if (!ty->is_int() || ty->get_bitwidth() < 2 ||
+      instr->args[1].get_type() != ty) {
+    return false;
+  }
+  const u32 bw = ty->get_bitwidth();
+  LinearForm lf{.terms = {}, .constant = APInt::zero(bw), .nodes = {}};
+  flatten_linear(lf, instr->args[0], APInt::from_u64(bw, 1), ty);
+  flatten_linear(lf, instr->args[1], -APInt::from_u64(bw, 1), ty);
+  if (lf.too_big || lf.nodes.empty()) {
+    return false;
+  }
+  std::erase_if(lf.terms, [](const auto &t) { return t.second.is_zero(); });
+  // a value has to merge or cancel, only folding constants would move the
+  // adds around (a loop bound into the loop) without removing anything
+  if (lf.terms.size() == lf.n_leaf_uses) {
+    return false;
+  }
+
+  // positive terms stay on the left, negative ones move to the right
+  LinearForm left{.terms = {}, .constant = APInt::zero(bw), .nodes = {}};
+  LinearForm right{.terms = {}, .constant = APInt::zero(bw), .nodes = {}};
+  for (const auto &[leaf, c] : lf.terms) {
+    if (c.is_neg()) {
+      right.terms.emplace_back(leaf, -c);
+    } else {
+      left.terms.emplace_back(leaf, c);
+    }
+  }
+  (lf.constant.is_neg() ? right : left).constant =
+      lf.constant.is_neg() ? -lf.constant : lf.constant;
+
+  // The old sums may live on for other users until those are simplified too,
+  // so only trade them for a strictly smaller expression.
+  size_t n_left = 0;
+  size_t n_right = 0;
+  emit_linear(left, instr, nullptr, ctx, worklist, bw, n_left);
+  emit_linear(right, instr, nullptr, ctx, worklist, bw, n_right);
+  if (n_left + n_right >= lf.nodes.size()) {
+    return false;
+  }
+  fir::Builder b{instr};
+  const auto l = emit_linear(left, instr, &b, ctx, worklist, bw, n_left);
+  const auto r = emit_linear(right, instr, &b, ctx, worklist, bw, n_right);
+  b.before(instr);
+  const auto res = b.build_int_cmp(l, r, cmp);
+  worklist.push_back({res.as_instr(), res.as_instr()->get_parent()});
+  push_all_uses(worklist, instr);
+  instr->replace_all_uses(res);
+  instr.destroy();
+  return true;
+}
+
+namespace {
 void promote_constant_type(fir::Context &ctx, fir::Instr instr, u32 arg_id,
                            fir::TypeR target_ty) {
   ASSERT(instr->args[arg_id].is_constant());

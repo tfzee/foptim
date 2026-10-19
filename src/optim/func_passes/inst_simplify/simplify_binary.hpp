@@ -10,4 +10,7 @@ namespace foptim::optim::InstSimp {
 bool simplify_binary(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                      WorkList &worklist, AttributerManager &man);
 
+bool simplify_linear_cmp(fir::Instr instr, fir::Context &ctx,
+                         WorkList &worklist);
+
 }  // namespace foptim::optim::InstSimp

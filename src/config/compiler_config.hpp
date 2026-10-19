@@ -2,6 +2,7 @@
 #include <fmt/base.h>
 
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "mir/optim/function_pass.hpp"
@@ -140,6 +141,12 @@ struct Debug {
   // always rerun FIR function passes, even if they were a no-op on the
   // unchanged function the last time
   bool no_skip_clean = false;
+  // comma separated fnmatch globs, --print-fir / --print-mir only print
+  // matching functions
+  std::string print_filter;
+
+  [[nodiscard]] bool filters_print() const { return !print_filter.empty(); }
+  [[nodiscard]] bool print_matches(std::string_view name) const;
 };
 
 struct Remarks {};

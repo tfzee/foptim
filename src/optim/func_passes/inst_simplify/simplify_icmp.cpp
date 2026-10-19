@@ -1,5 +1,7 @@
 #include "simplify_icmp.hpp"
 
+#include "simplify_binary.hpp"
+
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction.hpp"
@@ -136,6 +138,10 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
           instr->args[1].as_constant()->is_func()))) {
       swap_args_icmp(instr);
     }
+  }
+
+  if (simplify_linear_cmp(instr, ctx, worklist)) {
+    return true;
   }
 
   bool second_constant = instr->args[1].is_constant();

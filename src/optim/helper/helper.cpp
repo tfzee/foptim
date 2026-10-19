@@ -34,6 +34,31 @@ TSet<const fir::Function *> functions_referenced_by_globals(fir::Context &ctx) {
   return res;
 }
 
+bool is_known_nonnull(fir::ValueR v, u32 depth) {
+  if (v.is_constant()) {
+    const auto c = v.as_constant();
+    return c->is_global() || (c->is_func() && !c->as_func()->is_decl());
+  }
+  if (v.is_bb_arg()) {
+    return v.as_bb_arg()->nonnull;
+  }
+  if (!v.is_instr() || depth == 0) {
+    return false;
+  }
+  const auto instr = v.as_instr();
+  if (instr->is(fir::InstrType::AllocaInstr)) {
+    return true;
+  }
+  if (instr->is(fir::BinaryInstrSubType::PtrAdd) && instr->InBounds) {
+    return is_known_nonnull(instr->args[0], depth - 1);
+  }
+  if (instr->is(fir::InstrType::SelectInstr)) {
+    return is_known_nonnull(instr->args[1], depth - 1) &&
+           is_known_nonnull(instr->args[2], depth - 1);
+  }
+  return false;
+}
+
 void swap_args(fir::Instr instr, u32 a1, u32 a2) {
   auto v1 = instr->args[a1];
   auto v2 = instr->args[a2];

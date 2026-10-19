@@ -1,6 +1,7 @@
 #include "compiler_config.hpp"
 
 #include <fmt/base.h>
+#include <fnmatch.h>
 
 #include <iostream>
 #include <string_view>
@@ -484,3 +485,21 @@ bool CompConf::parse(std::string_view filename) {
   return true;
 }
 }  // namespace foptim::conf
+
+bool foptim::conf::Debug::print_matches(std::string_view name) const {
+  if (print_filter.empty()) {
+    return true;
+  }
+  const std::string n{name};
+  std::string_view rest = print_filter;
+  while (!rest.empty()) {
+    const auto comma = rest.find(',');
+    const std::string pattern{rest.substr(0, comma)};
+    if (!pattern.empty() && fnmatch(pattern.c_str(), n.c_str(), 0) == 0) {
+      return true;
+    }
+    rest = comma == std::string_view::npos ? std::string_view{}
+                                           : rest.substr(comma + 1);
+  }
+  return false;
+}

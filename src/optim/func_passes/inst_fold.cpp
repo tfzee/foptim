@@ -12,6 +12,7 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/func_passes/inst_simplify/simplify_fcmp.hpp"
+#include "optim/helper/helper.hpp"
 #include "utils/todo.hpp"
 #include "utils/tracy.hpp"
 
@@ -584,6 +585,16 @@ Res fold_icmp(fir::Instr instr, fir::Context &ctx, AttributerManager &man) {
   const fir::ValueR b = instr->args[1];
   const bool first_constant = a.is_constant();
   const bool second_constant = b.is_constant();
+
+  if ((sub == ICmpSub::EQ || sub == ICmpSub::NE) && a.get_type()->is_ptr()) {
+    const auto non_null_vs_null = [](fir::ValueR x, fir::ValueR other) {
+      return other.is_constant() && other.as_constant()->is_null() &&
+             is_known_nonnull(x);
+    };
+    if (non_null_vs_null(a, b) || non_null_vs_null(b, a)) {
+      return bool_result(instr, ctx, sub == ICmpSub::NE);
+    }
+  }
 
   // x cmp x
   if (!first_constant && a == b) {

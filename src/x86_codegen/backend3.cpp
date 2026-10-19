@@ -641,6 +641,9 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
     fmt::println("++++++++++++++PRINT MIR+++++++++++++++++");
     const bool color = conf.debug.print_color;
     for (const auto &func : funcs) {
+      if (!conf.debug.print_matches(func.name)) {
+        continue;
+      }
       if (color) {
         fmt::println("{:c}", func);
       } else {
@@ -648,9 +651,15 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
       }
     }
     for (const auto &decl : decls) {
+      if (conf.debug.filters_print()) {
+        break;
+      }
       fmt::println("{}", decl);
     }
     for (const auto &global : globals) {
+      if (conf.debug.filters_print()) {
+        break;
+      }
       if (color) {
         fmt::println("{:c}", global);
       } else {

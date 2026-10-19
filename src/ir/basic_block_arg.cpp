@@ -44,6 +44,9 @@ fmt::appender fmt::formatter<foptim::fir::BBArgument>::format(
   if (v->noalias) {
     f = fmt::format_to(f, "noalias; ");
   }
+  if (v->nonnull) {
+    f = fmt::format_to(f, "nonnull; ");
+  }
   if (!v->get_attribs().empty()) {
     const auto &attribs = v->get_attribs();
     for (auto [key, value] : attribs) {

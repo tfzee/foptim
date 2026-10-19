@@ -1746,6 +1746,10 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
         if (la->hasNoAliasAttr()) {
           fa->noalias = true;
         }
+        if (la->getType()->isPointerTy() &&
+            (la->hasNonNullAttr() || la->getDereferenceableBytes() > 0)) {
+          fa->nonnull = true;
+        }
       }
     }
   }

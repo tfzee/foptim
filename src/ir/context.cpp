@@ -2,6 +2,7 @@
 
 #include <atomic>
 
+#include "config/compiler_config.hpp"
 #include "global.hpp"
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
@@ -430,8 +431,9 @@ void ContextData::dump_graph(const char *filename) {
 fmt::appender fmt::formatter<foptim::fir::Context>::format(
     foptim::fir::Context const &v, format_context &ctx) const {
   auto app = ctx.out();
+  const bool filtered = v.config->debug.filters_print();
   auto *slot = v->storage.storage_global._slot_start.load();
-  while (slot != nullptr) {
+  while (slot != nullptr && !filtered) {
     for (auto &i : slot->data) {
       const auto *glob = &i;
       if (glob->is_used()) {
@@ -445,6 +447,9 @@ fmt::appender fmt::formatter<foptim::fir::Context>::format(
     slot = slot->next;
   }
   for (const auto *func : v.data->storage.functions.all()) {
+    if (!v.config->debug.print_matches(func->name)) {
+      continue;
+    }
     if (color) {
       app = fmt::format_to(app, "{:cd}\n", *func);
     } else {

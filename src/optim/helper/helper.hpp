@@ -25,6 +25,10 @@ bool is_cheap_splat_constant(fir::ValueR v);
 // its result alive, so passes should not hoist or share it
 bool is_cheap_to_rematerialize(fir::Instr instr);
 
+// Allocas, globals, defined functions, inbounds offsets and selects of those
+// and nonnull arguments.
+bool is_known_nonnull(fir::ValueR v, u32 depth = 4);
+
 // Functions referenced from a global initializer, not in their use lists.
 TSet<const fir::Function *> functions_referenced_by_globals(fir::Context &ctx);
 
