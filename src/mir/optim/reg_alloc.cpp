@@ -388,9 +388,7 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
       return true;
     }
     if (a1.uses_same_vreg(spill_vreg)) {
-      // never read more than the slot holds (mov xmm64, r32 moves the 32 bit
-      // value into a wider register), let the normal spill path insert a
-      // correctly sized temp instead
+      // never read more than the slot holds
       if (a0.ty != Type::INVALID && a1.ty != Type::INVALID &&
           get_size(a0.ty) > get_size(a1.ty)) {
         return false;

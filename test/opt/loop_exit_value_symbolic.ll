@@ -80,12 +80,9 @@ define i32 @unsigned_up(i32 %n, i32 %start) {
 ; CHECK-LABEL: func unsigned_up<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32, %1{}: i32):
-; CHECK-NEXT:    %2: i32 = IntAdd(%1, 1:i32){} NUses:2
+; CHECK-NEXT:    %2: i32 = IntAdd(%1, 1:i32){} NUses:1
 ; CHECK-NEXT:    %3: i32 = INTRIN:UMax(%0, %2){} NUses:1
-; CHECK-NEXT:    %4: i32 = IntSub(%3, %2){} NUses:1
-; CHECK-NEXT:    %5: i32 = IntAdd(%4, %1){} NUses:1
-; CHECK-NEXT:    %6: i32 = IntAdd(%5, 1:i32){} NUses:1
-; CHECK-NEXT:    %7: i32 = Return(%6){} NUses:0
+; CHECK-NEXT:    %4: i32 = Return(%3){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %loop

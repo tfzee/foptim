@@ -3,6 +3,7 @@
 #include <fmt/base.h>
 
 #include <algorithm>
+#include <limits>
 
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
@@ -11,183 +12,365 @@
 
 namespace foptim::optim::InstSimp {
 namespace {
-bool simplify_reduction(fir::Instr instr, fir::BasicBlock /*bb*/,
-                        fir::Context &ctx, WorkList &worklist,
-                        AttributerManager &man) {
-  if (TRACY_DEBUG_INST_SIMPLIFY) {
-    ZoneScopedN("SimplifyRed");
+// the integer constant v of an int type, or a splat of it for a vector type
+fir::ValueR int_const_like(fir::Context &ctx, fir::TypeR ty, i128 v) {
+  if (!ty->is_vec()) {
+    return fir::ValueR{ctx->get_constant_int(v, ty->get_bitwidth())};
   }
-  // detect reductions and try to simplify it
-  (void)man;
+  const auto vt = ty->as_vec();
+  IRVec<fir::ConstantValueR> members(vt.member_number,
+                                     ctx->get_constant_int(v, vt.bitwidth));
+  return fir::ValueR{ctx->get_constant_value(std::move(members), ty)};
+}
 
-  auto instr_ty = instr->instr_type;
-  auto instr_sty = instr->subtype;
+bool simplify_bitop_reduction(fir::Instr instr, fir::Context &ctx,
+                              WorkList &worklist) {
   if (!instr->is(fir::InstrType::BinaryInstr) ||
-      (instr->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
-       instr->subtype != static_cast<u32>(fir::BinaryInstrSubType::And) &&
+      (instr->subtype != static_cast<u32>(fir::BinaryInstrSubType::And) &&
        instr->subtype != static_cast<u32>(fir::BinaryInstrSubType::Or))) {
-    // TODO: support stuff like min/max reductions
     return false;
   }
+  const bool is_and =
+      instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::And);
   const u32 red_width = instr->result_type()->get_bitwidth();
-  APInt constval = APInt::zero(red_width);
-  switch (static_cast<fir::BinaryInstrSubType>(instr->subtype)) {
-    case fir::BinaryInstrSubType::IntAdd:
-    case fir::BinaryInstrSubType::Or:
-      break;
-    case fir::BinaryInstrSubType::And:
-      constval = APInt::all_ones(red_width);
-      break;
-    default:
-      UNREACH();
-  }
+  APInt constval = is_and ? APInt::all_ones(red_width) : APInt::zero(red_width);
 
   TVec<fir::ValueR> red_args;
-
   TVec<fir::ValueR> red_worklist{instr.result()};
-  u32 n_const = 0;
   while (!red_worklist.empty()) {
     auto c = red_worklist.back();
     red_worklist.pop_back();
     if (c.is_instr()) {
       auto c_in = c.as_instr();
-      // fmt::print("   P {}", c_in);
-      if (c_in->instr_type == instr_ty && c_in->subtype == instr_sty) {
+      if (c_in->instr_type == instr->instr_type &&
+          c_in->subtype == instr->subtype) {
         for (auto arg : c_in->args) {
           red_worklist.push_back(arg);
         }
       } else {
         red_args.push_back(c);
       }
-    } else {
-      if (c.is_constant() && c.as_constant()->is_int()) {
-        n_const++;
-        if (instr->subtype ==
-            static_cast<u32>(fir::BinaryInstrSubType::IntAdd)) {
-          constval += c.as_constant()->as_apint_resized(red_width);
-        } else if (instr->subtype ==
-                   static_cast<u32>(fir::BinaryInstrSubType::Or)) {
-          constval |= c.as_constant()->as_apint_resized(red_width);
-        } else if (instr->subtype ==
-                   static_cast<u32>(fir::BinaryInstrSubType::And)) {
-          constval &= c.as_constant()->as_apint_resized(red_width);
-        }
+    } else if (c.is_constant() && c.as_constant()->is_int()) {
+      const auto cv = c.as_constant()->as_apint_resized(red_width);
+      if (is_and) {
+        constval &= cv;
       } else {
-        red_args.push_back(c);
+        constval |= cv;
+      }
+    } else {
+      red_args.push_back(c);
+    }
+  }
+  size_t n_dupls = 0;
+  for (size_t i0 = red_args.size(); i0 > 0; i0--) {
+    for (size_t i1 = red_args.size(); i1 > i0; i1--) {
+      if (red_args[i0 - 1] == red_args[i1 - 1]) {
+        red_args.erase(red_args.begin() + static_cast<i64>(i1) - 1);
+        n_dupls++;
+        break;
       }
     }
   }
-  // remove duplicates
-  if (instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::And) ||
-      instr->subtype == static_cast<u32>(fir::BinaryInstrSubType::Or)) {
-    size_t n_dupls = 0;
-    for (size_t i0 = red_args.size(); i0 > 0; i0--) {
-      for (size_t i1 = red_args.size(); i1 > i0; i1--) {
-        if (red_args[i0 - 1] == red_args[i1 - 1]) {
-          red_args.erase(red_args.begin() + static_cast<i64>(i1) - 1);
-          n_dupls++;
-          break;
-        }
-      }
-    }
-    if (red_args.size() <= 3 || n_dupls < 2) {
-      return false;
-    }
-    fir::Builder b{instr};
-    auto red_v = fir::ValueR{ctx->get_constant_int(constval)};
-
-    for (size_t i = 0; i < red_args.size(); i++) {
-      red_v = b.build_binary_op(
-          red_v, red_args[i],
-          static_cast<fir::BinaryInstrSubType>(instr->subtype));
-      worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
-    }
+  if (red_args.size() <= 3 || n_dupls < 2) {
+    return false;
+  }
+  fir::Builder b{instr};
+  auto red_v = fir::ValueR{ctx->get_constant_int(constval)};
+  for (size_t i = 0; i < red_args.size(); i++) {
+    red_v =
+        b.build_binary_op(red_v, red_args[i],
+                          static_cast<fir::BinaryInstrSubType>(instr->subtype));
     worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(red_v);
-    fmt::print("{:cd}", *instr->get_parent()->get_parent().func);
-    instr.destroy();
-  } else if (instr->subtype ==
-             static_cast<u32>(fir::BinaryInstrSubType::IntAdd)) {
-    if (red_args.size() <= 3 || n_const < 2) {
-      return false;
-    }
-    // put equal values next to each other, in order of first occurrence
-    // (sorting by the address of the values would make the output depend on
-    // where things happen to live in memory)
-    {
-      TVec<fir::ValueR> grouped;
-      grouped.reserve(red_args.size());
-      TVec<bool> taken(red_args.size(), false);
-      for (size_t i = 0; i < red_args.size(); i++) {
-        if (taken[i]) {
-          continue;
-        }
-        grouped.push_back(red_args[i]);
-        for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
-          if (!taken[i2] && red_args[i] == red_args[i2]) {
-            taken[i2] = true;
-            grouped.push_back(red_args[i2]);
+  }
+  push_all_uses(worklist, instr);
+  instr->replace_all_uses(red_v);
+  instr.destroy();
+  return true;
+}
+
+// A tree of add, sub, mul by constant and shl by constant as
+// sum(leaf * coefficient) + constant (mod 2^bw). Equal leaves merge and zero
+// coefficients vanish, so (a + m) - (b + m) is a - b.
+struct LinearForm {
+  TVec<std::pair<fir::ValueR, APInt>> terms;
+  APInt constant;
+  TVec<fir::Instr> nodes;
+  bool too_big = false;
+  size_t n_leaf_uses = 0;
+  size_t n_const_uses = 0;
+};
+
+constexpr size_t MaxLinearNodes = 64;
+
+void flatten_linear(LinearForm &lf, fir::ValueR v, const APInt &coef,
+                    fir::TypeR ty) {
+  const u32 bw = ty->get_bitwidth();
+  if (v.is_constant() && v.as_constant()->is_int()) {
+    lf.constant += coef * v.as_constant()->as_apint_resized(bw);
+    lf.n_const_uses++;
+    return;
+  }
+  if (v.is_instr() && v.get_type() == ty) {
+    auto in = v.as_instr();
+    if (in->is(fir::InstrType::BinaryInstr)) {
+      using ST = fir::BinaryInstrSubType;
+      const auto st = static_cast<ST>(in->subtype);
+      bool has_scale = false;
+      fir::ValueR scaled = in->args[0];
+      APInt scale = APInt::zero(bw);
+      if (st == ST::IntMul || st == ST::Shl) {
+        const auto &c = in->args[1];
+        if (c.is_constant() && c.as_constant()->is_int()) {
+          has_scale = true;
+          scale = c.as_constant()->as_apint_resized(bw);
+          if (st == ST::Shl) {
+            const auto amt = c.as_constant()->as_apint_resized(bw);
+            if (amt.ucmp(APInt::from_u64(bw, bw)) >= 0) {
+              has_scale = false;
+            } else {
+              scale =
+                  APInt::from_u64(bw, 1).shl(static_cast<u32>(amt.to_u64()));
+            }
           }
         }
       }
-      red_args.assign(grouped.begin(), grouped.end());
-    }
-    size_t max_group_size = 0;
-    for (size_t i = 0; i < red_args.size(); i++) {
-      size_t endgroup = i + 1;
-      for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
-        if (red_args[i] != red_args[i2]) {
-          endgroup = i2;
-          break;
+      if (st == ST::IntAdd || st == ST::IntSub || has_scale) {
+        if (lf.nodes.size() >= MaxLinearNodes) {
+          lf.too_big = true;
+          return;
         }
-      }
-      max_group_size = std::max(max_group_size, endgroup - i);
-      // }
-    }
-    if (max_group_size <= 3) {
-      return false;
-    }
-
-    fir::Builder b{instr};
-    auto out_bitwidth = instr->result_type()->get_bitwidth();
-    auto red_v = fir::ValueR{ctx->get_constant_int(constval)};
-
-    for (size_t i = 0; i < red_args.size(); i++) {
-      if (red_args[i].is_constant() && red_args[i].as_constant()->is_int()) {
-        continue;
-      }
-      size_t endgroup = i + 1;
-      for (size_t i2 = i + 1; i2 < red_args.size(); i2++) {
-        if (red_args[i] != red_args[i2]) {
-          endgroup = i2;
-          break;
+        if (std::find(lf.nodes.begin(), lf.nodes.end(), in) == lf.nodes.end()) {
+          lf.nodes.push_back(in);
         }
-      }
-      if (i + 1 != endgroup) {
-        auto group_size = endgroup - i;
-        auto mul_res = b.build_int_mul(
-            red_args[i],
-            fir::ValueR{ctx->get_constant_int(group_size, out_bitwidth)});
-        worklist.push_back(
-            {mul_res.as_instr(), mul_res.as_instr()->get_parent()});
-        red_v = b.build_int_add(red_v, mul_res);
-        worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
-        i = endgroup - 1;
-      } else {
-        red_v = b.build_int_add(red_v, red_args[i]);
-        worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
+        if (has_scale) {
+          flatten_linear(lf, scaled, coef * scale, ty);
+        } else {
+          flatten_linear(lf, in->args[0], coef, ty);
+          flatten_linear(lf, in->args[1], st == ST::IntSub ? -coef : coef, ty);
+        }
+        return;
       }
     }
-    worklist.push_back({red_v.as_instr(), red_v.as_instr()->get_parent()});
-    push_all_uses(worklist, instr);
-    instr->replace_all_uses(red_v);
-    instr.destroy();
-  } else {
-    TODO("unreach?");
   }
+  lf.n_leaf_uses++;
+  for (auto &[leaf, c] : lf.terms) {
+    if (leaf == v) {
+      c += coef;
+      return;
+    }
+  }
+  lf.terms.emplace_back(v, coef);
+}
+
+// Builds the sum, or only counts the instructions it needs if b is null.
+fir::ValueR emit_linear(const LinearForm &lf, fir::Instr root, fir::Builder *b,
+                        fir::Context &ctx, WorkList &worklist, u32 bw,
+                        size_t &n_ops) {
+  n_ops = 0;
+  // new instructions go right behind their latest operand, so the partial
+  // sums stay where the original chain had them
+  auto place = [&](fir::ValueR x, fir::ValueR y) {
+    if (b == nullptr) {
+      return;
+    }
+    auto bb = root->get_parent();
+    fir::Instr latest = root;
+    u64 latest_pos = bb->get_instr_id(root);
+    bool found = false;
+    for (auto v : {x, y}) {
+      if (v.is_instr() && v.as_instr()->get_parent() == bb) {
+        const u64 pos = bb->get_instr_id(v.as_instr());
+        if (!found || pos > latest_pos) {
+          latest = v.as_instr();
+          latest_pos = pos;
+          found = true;
+        }
+      }
+    }
+    if (found) {
+      b->after(latest);
+    } else {
+      b->before(root);
+    }
+  };
+  auto note = [&](fir::ValueR v) {
+    n_ops++;
+    if (b != nullptr && v.is_instr()) {
+      worklist.push_back({v.as_instr(), v.as_instr()->get_parent()});
+    }
+    return v;
+  };
+  auto constant = [&](const APInt &c) {
+    return fir::ValueR{ctx->get_constant_int(c)};
+  };
+  auto scaled = [&](fir::ValueR leaf, const APInt &k) {
+    if (k.is_one()) {
+      return leaf;
+    }
+    const auto kc = constant(k);
+    place(leaf, kc);
+    return note(b != nullptr ? b->build_int_mul(leaf, kc) : leaf);
+  };
+  const bool has_pos =
+      std::any_of(lf.terms.begin(), lf.terms.end(),
+                  [](const auto &t) { return !t.second.is_neg(); });
+  fir::ValueR acc = constant(APInt::zero(bw));
+  bool have_acc = false;
+  auto add_term = [&](fir::ValueR leaf, const APInt &c, bool subtract) {
+    if (!have_acc) {
+      if (c.is_all_ones()) {
+        const auto zero = constant(APInt::zero(bw));
+        place(leaf, zero);
+        acc = note(b != nullptr ? b->build_int_sub(zero, leaf) : acc);
+      } else {
+        acc = scaled(leaf, c);
+      }
+      have_acc = true;
+    } else if (subtract) {
+      const auto t = scaled(leaf, -c);
+      place(acc, t);
+      acc = note(b != nullptr ? b->build_int_sub(acc, t) : acc);
+    } else {
+      const auto t = scaled(leaf, c);
+      place(acc, t);
+      acc = note(b != nullptr ? b->build_int_add(acc, t) : acc);
+    }
+  };
+  // arguments of the block go last, a loop carried value is then acc + rest
+  auto carried = [&](fir::ValueR v) {
+    return v.is_bb_arg() && v.as_bb_arg()->get_parent() == root->get_parent();
+  };
+  auto terms = lf.terms;
+  if (b != nullptr) {
+    auto bb = root->get_parent();
+    auto pos_of = [&](fir::ValueR v) -> i64 {
+      if (carried(v)) {
+        return std::numeric_limits<i64>::max();
+      }
+      return v.is_instr() && v.as_instr()->get_parent() == bb
+                 ? static_cast<i64>(bb->get_instr_id(v.as_instr()))
+                 : -1;
+    };
+    std::stable_sort(terms.begin(), terms.end(),
+                     [&](const auto &x, const auto &y) {
+                       return pos_of(x.first) < pos_of(y.first);
+                     });
+  }
+  // only if one of them is added, else the sum would start with a negation
+  const bool args_last = std::any_of(
+      terms.begin(), terms.end(),
+      [&](const auto &t) { return !carried(t.first) && !t.second.is_neg(); });
+  auto emit_group = [&](bool args) {
+    for (const auto &[leaf, c] : terms) {
+      if (!c.is_neg() && (!args_last || carried(leaf) == args)) {
+        add_term(leaf, c, false);
+      }
+    }
+    for (const auto &[leaf, c] : terms) {
+      if (c.is_neg() && (!args_last || carried(leaf) == args)) {
+        // the most negative number is its own negation
+        add_term(leaf, c, has_pos && !(-c).is_neg());
+      }
+    }
+  };
+  emit_group(false);
+  if (args_last) {
+    emit_group(true);
+  }
+  if (!have_acc) {
+    return constant(lf.constant);
+  }
+  if (!lf.constant.is_zero()) {
+    const bool sub_const = lf.constant.is_neg() && !(-lf.constant).is_neg();
+    const auto cc = constant(sub_const ? -lf.constant : lf.constant);
+    place(acc, cc);
+    if (sub_const) {
+      acc = note(b != nullptr ? b->build_int_sub(acc, cc) : acc);
+    } else {
+      acc = note(b != nullptr ? b->build_int_add(acc, cc) : acc);
+    }
+  }
+  return acc;
+}
+
+bool simplify_linear(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
+  if (!instr->is(fir::InstrType::BinaryInstr) ||
+      (instr->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntAdd) &&
+       instr->subtype != static_cast<u32>(fir::BinaryInstrSubType::IntSub))) {
+    return false;
+  }
+  const auto ty = instr->result_type();
+  if (!ty->is_int() || ty->get_bitwidth() < 2 || instr->uses.empty()) {
+    return false;
+  }
+  const u32 bw = ty->get_bitwidth();
+  LinearForm lf{.terms = {}, .constant = APInt::zero(bw), .nodes = {}};
+  flatten_linear(lf, instr.result(), APInt::from_u64(bw, 1), ty);
+  if (lf.too_big || lf.nodes.size() < 2) {
+    return false;
+  }
+  std::erase_if(lf.terms, [](const auto &t) { return t.second.is_zero(); });
+  // moving a loop carried value to the last add is worth a rebuild of the
+  // same size, the vectorizer needs acc + rest
+  bool carried_first = false;
+  if (lf.constant.is_zero() && lf.terms.size() >= 3) {
+    size_t n_carried = 0;
+    bool in_root = false;
+    bool other_added = false;
+    for (const auto &[leaf, c] : lf.terms) {
+      if (leaf.is_bb_arg() &&
+          leaf.as_bb_arg()->get_parent() == instr->get_parent()) {
+        n_carried++;
+        in_root = instr->args[0] == leaf || instr->args[1] == leaf;
+        if (!c.is_one()) {
+          n_carried += 2;
+        }
+      } else if (!c.is_neg()) {
+        other_added = true;
+      }
+    }
+    carried_first = n_carried == 1 && !in_root && other_added;
+  }
+  // a lone constant is left to the identity rules (x + 0)
+  if (!carried_first && lf.terms.size() == lf.n_leaf_uses &&
+      lf.n_const_uses < 2) {
+    return false;
+  }
+
+  // instructions of the tree that die with the root
+  TVec<fir::Instr> dead = lf.nodes;
+  for (bool changed = true; changed;) {
+    changed = false;
+    for (size_t i = 1; i < dead.size(); i++) {
+      bool alive = false;
+      for (const auto &u : dead[i]->uses) {
+        if (u.user != instr &&
+            std::find(dead.begin(), dead.end(), u.user) == dead.end()) {
+          alive = true;
+          break;
+        }
+      }
+      if (alive) {
+        dead.erase(dead.begin() + static_cast<i64>(i));
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  size_t n_ops = 0;
+  emit_linear(lf, instr, nullptr, ctx, worklist, bw, n_ops);
+  if (n_ops > dead.size() || (n_ops == dead.size() && !carried_first)) {
+    return false;
+  }
+  fir::Builder b{instr};
+  auto res = emit_linear(lf, instr, &b, ctx, worklist, bw, n_ops);
+  push_all_uses(worklist, instr);
+  instr->replace_all_uses(res);
+  instr.destroy();
   return true;
 }
+
 void promote_constant_type(fir::Context &ctx, fir::Instr instr, u32 arg_id,
                            fir::TypeR target_ty) {
   ASSERT(instr->args[arg_id].is_constant());
@@ -321,8 +504,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
     if (inner->is(fir::BinaryInstrSubType::IntAdd) &&
         inner->args[1] == instr->args[1]) {
       fir::Builder b(instr);
-      auto c2 = fir::ValueR{
-          ctx->get_constant_int(2, inner->result_type()->get_bitwidth())};
+      auto c2 = int_const_like(ctx, inner->result_type(), 2);
       auto a1 = b.build_binary_op(c2, inner->args[1],
                                   fir::BinaryInstrSubType::IntMul);
       auto a1i = a1.as_instr();
@@ -386,8 +568,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
     if (inner->is(fir::BinaryInstrSubType::IntAdd) &&
         inner->args[0] == instr->args[1]) {
       fir::Builder b(instr);
-      auto c2 = fir::ValueR{
-          ctx->get_constant_int(2, inner->result_type()->get_bitwidth())};
+      auto c2 = int_const_like(ctx, inner->result_type(), 2);
       auto a1 = b.build_binary_op(c2, inner->args[0],
                                   fir::BinaryInstrSubType::IntMul);
       auto a1i = a1.as_instr();
@@ -542,8 +723,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
         instr->args[0] == instr->args[1]) {
       fir::Builder b(instr);
       auto res = b.build_int_mul(instr->args[0],
-                                 fir::ValueR{ctx->get_constant_int(
-                                     2, instr->result_type()->get_bitwidth())});
+                                 int_const_like(ctx, instr->result_type(), 2));
       worklist.emplace_back(res.as_instr(), bb);
       push_all_uses(worklist, instr);
       instr->replace_all_uses(res);
@@ -1223,7 +1403,8 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
     }
   }
 
-  if (simplify_reduction(instr, bb, ctx, worklist, man)) {
+  if (simplify_bitop_reduction(instr, ctx, worklist) ||
+      simplify_linear(instr, ctx, worklist)) {
     return true;
   }
   return false;

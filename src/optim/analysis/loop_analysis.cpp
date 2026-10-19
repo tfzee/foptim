@@ -792,8 +792,7 @@ void ScalarEvo::assume_no_wrap(SCEVRef q, bool is_signed) {
   if (is_addrec(pre)) {
     no_wrap.push_back({pre, is_signed});
   }
-  // with a constant start the recurrence k steps earlier is q minus a
-  // constant, so it stays between its own representable start and q
+  // with a constant start, k steps earlier is q minus a constant
   if (is_const(eq.a) && eq.bw <= 64) {
     const i128 step = exprs[eq.b].cval_i();
     const i128 start = exprs[eq.a].cval_i();
