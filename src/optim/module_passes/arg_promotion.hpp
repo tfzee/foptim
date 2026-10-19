@@ -43,12 +43,11 @@ class ArgPromotion final : public ModulePass {
   bool all_exits_are_dominated(const CFG &cfg, const Dominators &dom,
                                const TVec<u32> &direct_load_bbs);
 
-  // if we have ptr arguments and all we do is a load of its value and its not a
-  // massive value (<= ptrsize also good cause CC)
-  //  we can isntead do the load before the call allowing potentialy more
-  //  optimizations on that side like mem2reg
-  bool promote_ptr_to_value_args(fir::FunctionR func, fir::Context &ctx,
-                                 AnalysisManager &analyMan);
+  // promote ptr args depending if they are read only write only or readwrite.
+  // To either additional return types or the argument is turned from a ptr to a
+  // value
+  bool promote_ptr_args(fir::FunctionR func, fir::Context &ctx,
+                        AnalysisManager &analyMan);
 
   PreservedAnalysis apply(fir::Context & /*unused*/, JobSheduler * /*shed*/,
                           AnalysisManager & /*analyMan*/) override;

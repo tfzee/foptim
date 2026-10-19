@@ -356,162 +356,373 @@ bool ArgPromotion::all_exits_are_dominated(const CFG &cfg,
   return true;
 }
 
-bool ArgPromotion::promote_ptr_to_value_args(fir::FunctionR func,
-                                             fir::Context &ctx,
-                                             AnalysisManager &analyMan) {
-  CFG cfg{*func.func};
-  Dominators dom{cfg};
-  AliasAnalyis aa;
+namespace {
+enum class PtrArgType {
+  None,
+  ReadOnlyPtr,
+  WriteOnlyPtr,
+  ReadWritePtr,
+};
+
+struct PtrArgInfo {
+  PtrArgType kind = PtrArgType::None;
+  // type of every load and store through the pointer
+  fir::TypeR type{};
+  // the pointer is only used through selects that feed loads
+  bool through_select = false;
+};
+
+// Looks only at how the pointer is used inside of the function, the checks
+// that depend on aliasing, dominance or the call sites are up to the caller.
+PtrArgInfo classify_ptr_arg(fir::BBArgument arg) {
+  PtrArgInfo info;
+  if (!arg->get_type()->is_ptr() || arg->get_n_uses() == 0) {
+    return info;
+  }
+  bool has_load = false;
+  bool has_store = false;
+  // false if the types of the accesses differ
+  const auto merge_type = [&](fir::TypeR ty) {
+    if (!info.type.is_valid()) {
+      info.type = ty;
+    }
+    return info.type == ty;
+  };
+  for (auto use : arg->uses) {
+    const auto user = use.user;
+    if (use.type != fir::UseType::NormalArg) {
+      return {};
+    }
+    if (user->is(fir::InstrType::LoadInstr)) {
+      if (user->Atomic || user->Volatile || !merge_type(user.result_type())) {
+        return {};
+      }
+      has_load = true;
+    } else if (user->is(fir::InstrType::StoreInstr)) {
+      // the pointer itself stored somewhere escapes
+      if (use.argId != 0 || user->Atomic || user->Volatile ||
+          !merge_type(user->args[1].get_type())) {
+        return {};
+      }
+      has_store = true;
+    } else if (user->is(fir::InstrType::SelectInstr) && use.argId != 0) {
+      for (auto sub_use : user->uses) {
+        const auto sub = sub_use.user;
+        if (!sub->is(fir::InstrType::LoadInstr) || sub_use.argId != 0 ||
+            sub->Atomic || sub->Volatile || !merge_type(sub.result_type())) {
+          return {};
+        }
+      }
+      info.through_select = true;
+      has_load = true;
+    } else {
+      return {};
+    }
+  }
+  // stores through a select would need both targets written
+  if (info.through_select && has_store) {
+    return {};
+  }
+  if (!info.type.is_valid()) {
+    return {};
+  }
+  info.kind = has_load && has_store ? PtrArgType::ReadWritePtr
+              : has_store           ? PtrArgType::WriteOnlyPtr
+                                    : PtrArgType::ReadOnlyPtr;
+  return info;
+}
+}  // namespace
+
+namespace {
+// Types that travel as one value through the argument and result registers.
+bool is_promotable_value_type(fir::TypeR ty) {
+  if (ty->is_int()) {
+    return ty->as_int() <= 64;
+  }
+  return ty->is_ptr() || ty->is_f32() || ty->is_f64();
+}
+
+// Writes through the pointer can be turned into a returned value if nothing
+// else can observe the memory during the call: the pointer is a private stack
+// slot that is never captured and not passed twice.
+bool is_private_alloca_arg(fir::FunctionR func, fir::Instr call, u32 pos,
+                           const TVec<PtrArgInfo> &raw) {
+  const auto ptr = call->args[1 + pos];
+  if (!ptr.is_instr() || !ptr.as_instr()->is(fir::InstrType::AllocaInstr)) {
+    return false;
+  }
+  for (u32 j = 1; j < call->args.size(); j++) {
+    if (j != 1 + pos && call->args[j] == ptr) {
+      return false;
+    }
+  }
+  for (auto use : ptr.as_instr()->get_uses()) {
+    const auto user = use.user;
+    if (use.type != fir::UseType::NormalArg) {
+      return false;
+    }
+    if (user->is(fir::InstrType::LoadInstr) ||
+        (user->is(fir::InstrType::StoreInstr) && use.argId == 0)) {
+      if (user->Atomic || user->Volatile) {
+        return false;
+      }
+      continue;
+    }
+    // handing it to the function itself is fine as long as the callee only
+    // loads and stores through that argument
+    if (user->is(fir::InstrType::CallInstr) && use.argId >= 1 &&
+        user->args[0].is_constant() && user->args[0].as_constant()->is_func() &&
+        user->args[0].as_constant()->as_func().func == func.func &&
+        raw[use.argId - 1].kind != PtrArgType::None) {
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+bool ArgPromotion::promote_ptr_args(fir::FunctionR func, fir::Context &ctx,
+                                    AnalysisManager &analyMan) {
   const auto &func_ty = func->func_ty->as_func();
-  auto n_args_original = func_ty.arg_types.size();
+  const auto n_args = func_ty.arg_types.size();
   auto entry_block = func->get_entry();
   // only if we know all call sites
+  TVec<fir::Use> calls;
   for (auto use : func->get_uses()) {
     if (use.type != fir::UseType::NormalArg ||
         !use.user->is(fir::InstrType::CallInstr) || use.argId != 0) {
       return false;
     }
+    calls.push_back(use);
+  }
+  CFG cfg{*func.func};
+  Dominators dom{cfg};
+  AliasAnalyis aa;
+
+  TVec<PtrArgInfo> raw;
+  raw.resize(n_args);
+  bool any_candidate = false;
+  for (u64 i = 0; i < n_args; i++) {
+    raw[i] = classify_ptr_arg(entry_block->args[i]);
+    any_candidate |= raw[i].kind != PtrArgType::None;
+  }
+  if (!any_candidate) {
+    return false;
   }
 
-  // we can only do it tho iff the loads all have the same type
-  //  we only load the value so no geps and similar stuff
-  bool modified = false;
-  IRVec<fir::TypeR> arg_tys;
-  TVec<u32> direct_load_bbs;
-  for (u64 i = n_args_original; i > 0; i--) {
-    auto arg = entry_block->args[i - 1];
-    if (arg->get_n_uses() == 0) {
-      continue;
-    }
-    direct_load_bbs.clear();
-    bool can_promote = arg->get_type()->is_ptr();
-    fir::TypeR load_type = fir::TypeR();
+  // read only: the load moves in front of the call, the value must not be
+  // changed by a store in between and has to be loaded on every path
+  const auto readonly_ok = [&](fir::BBArgument arg) {
+    const bool no_writes =
+        func->attribs.mem_read_none || func->attribs.mem_read_only;
+    TVec<u32> direct_load_bbs;
     for (auto use : arg->uses) {
-      if (!can_promote) {
-        break;
-      }
-      // TODO there might be others??
       if (use.user->is(fir::InstrType::LoadInstr)) {
-        if (use.user->Atomic) {
-          can_promote = false;
-          break;
-        }
-        if (!load_type.is_valid()) {
-          load_type = use.user.result_type();
-        } else if (load_type != use.user.result_type()) {
-          can_promote = false;
-          break;
-        }
-        if (!func->attribs.mem_read_none && !func->attribs.mem_read_only &&
+        if (!no_writes &&
             are_there_potential_aliasing_stores(func, arg, use, cfg, aa)) {
-          can_promote = false;
-          break;
+          return false;
         }
         direct_load_bbs.push_back(cfg.get_bb_id(use.user->get_parent()));
-      } else if (use.user->is(fir::InstrType::SelectInstr)) {
-        // can also handle the select instr just need to ensure we can load
-        // prior so no aliasing issues.
-        //  but this needs some more cleanup later
-        for (auto sub_use : use.user->uses) {
-          if (!sub_use.user->is(fir::InstrType::LoadInstr) ||
-              sub_use.user->Atomic) {
-            can_promote = false;
-            break;
-          }
-          if (!load_type.is_valid()) {
-            load_type = sub_use.user.result_type();
-          } else if (load_type != sub_use.user.result_type()) {
-            can_promote = false;
-            break;
-          }
-          if (!func->attribs.mem_read_none && !func->attribs.mem_read_only &&
-              are_there_potential_aliasing_stores(func, arg, sub_use, cfg,
-                                                  aa)) {
-            can_promote = false;
-            break;
-          }
+        continue;
+      }
+      for (auto sub_use : use.user->uses) {
+        if (!no_writes &&
+            are_there_potential_aliasing_stores(func, arg, sub_use, cfg, aa)) {
+          return false;
         }
-        if (!can_promote) {
-          break;
-        }
-      } else {
-        can_promote = false;
+      }
+    }
+    return all_exits_are_dominated(cfg, dom, direct_load_bbs);
+  };
+
+  // written: value in, final value out. Results are limited by the return
+  // registers.
+  u32 n_int_res = 0;
+  u32 n_sse_res = 0;
+  const auto count_result = [&](fir::TypeR ty) {
+    if (ty->is_void()) {
+      return;
+    }
+    (ty->is_int_or_ptr() ? n_int_res : n_sse_res)++;
+  };
+  for (auto ty : func_ty.return_types) {
+    count_result(ty);
+  }
+  const auto inout_ok = [&](u64 i) {
+    if (!is_promotable_value_type(raw[i].type)) {
+      return false;
+    }
+    for (auto use : calls) {
+      if (!is_private_alloca_arg(func, use.user, static_cast<u32>(i), raw)) {
+        return false;
+      }
+    }
+    const bool is_int = raw[i].type->is_int_or_ptr();
+    if ((is_int ? n_int_res : n_sse_res) >= 2) {
+      return false;
+    }
+    count_result(raw[i].type);
+    return true;
+  };
+
+  TVec<PtrArgInfo> chosen;
+  chosen.resize(n_args);
+  bool any_inout = false;
+  bool modified = false;
+  for (u64 i = 0; i < n_args; i++) {
+    switch (raw[i].kind) {
+      case PtrArgType::None:
         break;
-      }
+      case PtrArgType::ReadOnlyPtr:
+        if (readonly_ok(entry_block->args[i])) {
+          chosen[i] = raw[i];
+        }
+        break;
+      case PtrArgType::WriteOnlyPtr:
+      case PtrArgType::ReadWritePtr:
+        if (inout_ok(i)) {
+          chosen[i] = raw[i];
+          any_inout = true;
+        }
+        break;
     }
-    if (!can_promote || !load_type.is_valid()) {
-      continue;
-    }
-    // if we think we can promote we gotta ensure that all exists are
-    // dominated by atleast one load
-    //  so the value is *always* loaded and not behind some guard/select.
-    if (!all_exits_are_dominated(cfg, dom, direct_load_bbs)) {
-      continue;
-    }
+    modified |= chosen[i].kind != PtrArgType::None;
+  }
+  if (!modified) {
+    return false;
+  }
 
-    if (arg_tys.empty()) {
-      // only make the copy if we know theres some thing we can modify
-      arg_tys = func_ty.arg_types;
+  IRVec<fir::TypeR> arg_tys = func_ty.arg_types;
+  IRVec<fir::TypeR> ret_tys = func_ty.return_types;
+  const u32 n_orig_results = func_ty.n_results();
+  TVec<u64> inout_args;
+  if (any_inout && ret_tys.size() == 1 && ret_tys[0]->is_void()) {
+    ret_tys.clear();
+  }
+  for (u64 i = 0; i < n_args; i++) {
+    if (chosen[i].kind == PtrArgType::WriteOnlyPtr ||
+        chosen[i].kind == PtrArgType::ReadWritePtr) {
+      inout_args.push_back(i);
+      ret_tys.push_back(chosen[i].type);
     }
-    // TODO copy
-    TVec<fir::Use> uses =
-        TVec<fir::Use>{arg->get_uses().begin(), arg->get_uses().end()};
-    for (auto use : uses) {
-      if (use.user->is(fir::InstrType::LoadInstr)) {
-        use.user->replace_all_uses(fir::ValueR{arg});
-      } else {
-        fir::Builder buh{use.user};
-        // the promoted argument already is the loaded value
-        auto load_of = [&](fir::ValueR ptr) {
-          if (ptr == fir::ValueR{arg}) {
-            return fir::ValueR{arg};
+  }
+
+  // callee
+  TVec<fir::ValueR> slots;
+  for (u64 i = 0; i < n_args; i++) {
+    const auto kind = chosen[i].kind;
+    if (kind == PtrArgType::None) {
+      continue;
+    }
+    auto arg = entry_block->args[i];
+    const auto load_type = chosen[i].type;
+    arg->_type = load_type;
+    arg->noalias = 0;
+    arg->get_attribs().clear();
+    if (kind == PtrArgType::ReadOnlyPtr) {
+      TVec<fir::Use> uses =
+          TVec<fir::Use>{arg->get_uses().begin(), arg->get_uses().end()};
+      for (auto use : uses) {
+        if (use.user->is(fir::InstrType::LoadInstr)) {
+          use.user->replace_all_uses(fir::ValueR{arg});
+        } else {
+          fir::Builder buh{use.user};
+          // the promoted argument already is the loaded value
+          auto load_of = [&](fir::ValueR ptr) {
+            if (ptr == fir::ValueR{arg}) {
+              return fir::ValueR{arg};
+            }
+            return buh.build_load(load_type, ptr, false, false);
+          };
+          auto load1 = load_of(use.user->args[1]);
+          auto load2 = load_of(use.user->args[2]);
+          auto res =
+              buh.build_select(load_type, use.user->args[0], load1, load2);
+          for (auto subuse : use.user->uses) {
+            subuse.user->replace_all_uses(res);
+            subuse.user.destroy();
           }
-          return buh.build_load(load_type, ptr, false, false);
-        };
-        auto load1 = load_of(use.user->args[1]);
-        auto load2 = load_of(use.user->args[2]);
-        auto res = buh.build_select(load_type, use.user->args[0], load1, load2);
-        for (auto subuse : use.user->uses) {
-          subuse.user->replace_all_uses(res);
-          subuse.user.destroy();
         }
       }
+      for (auto use : uses) {
+        use.user.destroy();
+      }
+    } else {
+      // the pointer becomes a private slot that holds the incoming value,
+      // Mem2Reg turns it hopefullyy into registers
+      fir::Builder buh{entry_block};
+      buh.at_start(entry_block);
+      auto slot = buh.build_alloca(
+          fir::ValueR(ctx->get_constant_int(load_type->get_size(), 32)));
+      slot.as_instr()->extra_type = load_type;
+      fir::ValueR{arg}.replace_all_uses(slot);
+      buh.build_store(slot, fir::ValueR{arg}, false, false);
+      slots.push_back(slot);
     }
-    for (auto use : uses) {
-      use.user.destroy();
-    }
-    for (auto use : func->get_uses()) {
-      fir::Builder b{use.user};
-      auto load_result = b.build_load(load_type, use.user->args[1 + i - 1],
-                                      use.user->Atomic, use.user->Volatile);
-      use.user.replace_arg(1 + i - 1, load_result);
-    }
-    arg->_type = load_type;
-    arg_tys[i - 1] = load_type;
-    modified = true;
+    arg_tys[i] = load_type;
   }
-  if (modified) {
-    func.func->func_ty =
-        ctx->get_func_ty(func_ty.return_types, std::move(arg_tys));
-    for (auto use : func.func->get_uses()) {
-      use.user->extra_type = func.func->func_ty;
+  if (any_inout) {
+    for (auto bb : func->basic_blocks) {
+      auto term = bb->get_terminator();
+      if (!term->is(fir::InstrType::ReturnInstr)) {
+        continue;
+      }
+      fir::Builder buh{term};
+      for (size_t k = 0; k < inout_args.size(); k++) {
+        term.add_arg(
+            buh.build_load(chosen[inout_args[k]].type, slots[k], false, false));
+      }
+      term->set_result_type(ret_tys[0]);
     }
-    analyMan.touched_signature(*func.func);
+  }
 
-    // // we need renaming
-    if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
-      auto old_name = func->name;
-      arg_prom_unique_name_number++;
-      auto new_name = old_name + "MODArgProm";
-      new_name += std::to_string(arg_prom_unique_name_number);
-      auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
-      ctx->storage.functions.rename(old_name.c_str(), new_name);
-      func_renamed->attribs.linkage = fir::Linkage::Internal;
-      func_renamed->attribs.no_inline = false;
-      return true;
+  func.func->func_ty = ctx->get_func_ty(ret_tys, std::move(arg_tys));
+
+  // fix up dat call sites
+  for (auto use : calls) {
+    auto call = use.user;
+    TVec<fir::ValueR> out_ptrs;
+    {
+      fir::Builder buh{call};
+      for (u64 i = 0; i < n_args; i++) {
+        if (chosen[i].kind == PtrArgType::None) {
+          continue;
+        }
+        const auto ptr = call->args[1 + i];
+        if (chosen[i].kind != PtrArgType::ReadOnlyPtr) {
+          out_ptrs.push_back(ptr);
+        }
+        call.replace_arg(1 + i,
+                         buh.build_load(chosen[i].type, ptr, false, false));
+      }
+    }
+    call->extra_type = func.func->func_ty;
+    if (any_inout) {
+      call->set_result_types(ret_tys);
+      fir::Builder buh{call};
+      buh.after(call);
+      for (size_t k = 0; k < out_ptrs.size(); k++) {
+        buh.build_store(out_ptrs[k],
+                        call.result(static_cast<u8>(n_orig_results + k)), false,
+                        false);
+      }
     }
   }
-  return false;
+  analyMan.touched_signature(*func.func);
+
+  if (func->attribs.linkage == fir::Linkage::LinkOnceODR) {
+    auto old_name = func->name;
+    arg_prom_unique_name_number++;
+    auto new_name = old_name + "MODArgProm";
+    new_name += std::to_string(arg_prom_unique_name_number);
+    auto *func_renamed = ctx->storage.functions.get(old_name.c_str());
+    ctx->storage.functions.rename(old_name.c_str(), new_name);
+    func_renamed->attribs.linkage = fir::Linkage::Internal;
+    func_renamed->attribs.no_inline = false;
+  }
+  return true;
 }
 
 PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
@@ -565,7 +776,7 @@ PreservedAnalysis ArgPromotion::apply(fir::Context &ctx,
     // the returns only say if the function got renamed, every transformation
     // reports what it changed itself
     (void)(promote_ptr_to_value_return(f, ctx, analyMan) ||
-           promote_ptr_to_value_args(f, ctx, analyMan) ||
+           promote_ptr_args(f, ctx, analyMan) ||
            promote_vecvec_to_concat_vec(f, ctx, analyMan) ||
            return_vecvec_to_concat_vec(f, ctx, analyMan));
     if (f->func_ty == old_func_ty) {
