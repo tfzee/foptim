@@ -258,7 +258,8 @@ bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
   // when the store is already vectorized
   auto offset = a0->args[1].as_constant()->as_int();
   auto index = offset / (((store_ty.bitwidth + 7) / 8));
-  if (offset * 8 % store_ty.bitwidth != 0 || index >= store_ty.member_number) {
+  if (offset < 0 || offset * 8 % store_ty.bitwidth != 0 ||
+      index >= store_ty.member_number) {
     return false;
   }
 
