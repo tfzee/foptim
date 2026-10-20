@@ -263,16 +263,15 @@ define i8 @srem_i8_m5(i8 %x) {
 ; CHECK: func srem_i8_m5 ($2: i8, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    mov_sx($rdx: i64, $ldi: i8, )
-; CHECK-NEXT:    $rcx: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 *= 103: i64
-; CHECK-NEXT:    sar2($rcx: i64, 9: i8, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    shr2($rax: i64, 63: i8, )
-; CHECK-NEXT:    $rcx: i64 += $rax: i64
-; CHECK-NEXT:    neg1($rcx: i64, )
-; CHECK-NEXT:    $rax: i64 = -5: i64
-; CHECK-NEXT:    $rcx: i64 *= $rax: i64
-; CHECK-NEXT:    $rdx: i64 -= $rcx: i64
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    $rax: i64 *= 103: i64
+; CHECK-NEXT:    sar2($rax: i64, 9: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    neg1($rax: i64, )
+; CHECK-NEXT:    $rax: i64 *= -5: i64
+; CHECK-NEXT:    $rdx: i64 -= $rax: i64
 ; CHECK-NEXT:    itrunc($al: i8, $rdx: i64, )
 ; CHECK-NEXT:    ret($al: i8, )
   %res = srem i8 %x, -5
@@ -563,16 +562,15 @@ define i16 @srem_i16_m9(i16 %x) {
 ; CHECK: func srem_i16_m9 ($2: i16, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    mov_sx($rdx: i64, $di: i16, )
-; CHECK-NEXT:    $rcx: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 *= 3641: i64
-; CHECK-NEXT:    sar2($rcx: i64, 15: i8, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    shr2($rax: i64, 63: i8, )
-; CHECK-NEXT:    $rcx: i64 += $rax: i64
-; CHECK-NEXT:    neg1($rcx: i64, )
-; CHECK-NEXT:    $rax: i64 = -9: i64
-; CHECK-NEXT:    $rcx: i64 *= $rax: i64
-; CHECK-NEXT:    $rdx: i64 -= $rcx: i64
+; CHECK-NEXT:    $rax: i64 = $rdx: i64
+; CHECK-NEXT:    $rax: i64 *= 3641: i64
+; CHECK-NEXT:    sar2($rax: i64, 15: i8, )
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    shr2($rcx: i64, 63: i8, )
+; CHECK-NEXT:    $rax: i64 += $rcx: i64
+; CHECK-NEXT:    neg1($rax: i64, )
+; CHECK-NEXT:    $rax: i64 *= -9: i64
+; CHECK-NEXT:    $rdx: i64 -= $rax: i64
 ; CHECK-NEXT:    itrunc($ax: i16, $rdx: i64, )
 ; CHECK-NEXT:    ret($ax: i16, )
   %res = srem i16 %x, -9
@@ -1084,8 +1082,7 @@ define i64 @srem_i64_m7(i64 %x) {
 ; CHECK-NEXT:    shr2($rax: i64, 63: i8, )
 ; CHECK-NEXT:    $rdx: i64 += $rax: i64
 ; CHECK-NEXT:    neg1($rdx: i64, )
-; CHECK-NEXT:    $rax: i64 = -7: i64
-; CHECK-NEXT:    $rdx: i64 *= $rax: i64
+; CHECK-NEXT:    $rdx: i64 *= -7: i64
 ; CHECK-NEXT:    $rdi: i64 -= $rdx: i64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
 ; CHECK-NEXT:    ret($rax: i64, )

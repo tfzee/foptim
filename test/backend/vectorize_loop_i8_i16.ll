@@ -34,8 +34,7 @@ define i8 @sum_add_i8(ptr %a, i32 %n, i8 %v) {
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  5:
 ; CHECK-NEXT:    $edx: i32 = $r10d: i32
-; CHECK-NEXT:    $eax: i32 = -32: i32
-; CHECK-NEXT:    land2($edx: i32, $eax: i32, )
+; CHECK-NEXT:    land2($edx: i32, -32: i32, )
 ; CHECK-NEXT:    clear $ymm1: i8x32
 ; CHECK-NEXT:    $mm0: f32 = $r9d: i32
 ; CHECK-NEXT:    vbroadcast($ymm2: i8x32, $mm0: f32, )

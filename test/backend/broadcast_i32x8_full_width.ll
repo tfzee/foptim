@@ -23,8 +23,7 @@ define void @fill(ptr noalias %p, i32 %x, i32 %n) {
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  3:
 ; CHECK-NEXT:    $edx: i32 = $r9d: i32
-; CHECK-NEXT:    $eax: i32 = -8: i32
-; CHECK-NEXT:    land2($edx: i32, $eax: i32, )
+; CHECK-NEXT:    land2($edx: i32, -8: i32, )
 ; CHECK-NEXT:    $mm0: f32 = $esi: i32
 ; CHECK-NEXT:    vbroadcast($ymm0: i32x8, $mm0: f32, )
 ; CHECK-NEXT:    clear $ecx: i32

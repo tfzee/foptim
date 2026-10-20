@@ -354,8 +354,7 @@ define i32 @mul_i32_m1(i32 %x) {
 ; CHECK: func mul_i32_m1 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -1: i32
-; CHECK-NEXT:    $eax: i32 *= $ecx: i32
+; CHECK-NEXT:    $eax: i32 *= -1: i32
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = mul i32 %x, -1
   ret i32 %res
@@ -365,8 +364,7 @@ define i32 @mul_i32_m2(i32 %x) {
 ; CHECK: func mul_i32_m2 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -2: i32
-; CHECK-NEXT:    $eax: i32 *= $ecx: i32
+; CHECK-NEXT:    $eax: i32 *= -2: i32
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = mul i32 %x, -2
   ret i32 %res
@@ -376,8 +374,7 @@ define i32 @mul_i32_m3(i32 %x) {
 ; CHECK: func mul_i32_m3 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -3: i32
-; CHECK-NEXT:    $eax: i32 *= $ecx: i32
+; CHECK-NEXT:    $eax: i32 *= -3: i32
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = mul i32 %x, -3
   ret i32 %res
@@ -387,8 +384,7 @@ define i32 @mul_i32_m7(i32 %x) {
 ; CHECK: func mul_i32_m7 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -7: i32
-; CHECK-NEXT:    $eax: i32 *= $ecx: i32
+; CHECK-NEXT:    $eax: i32 *= -7: i32
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = mul i32 %x, -7
   ret i32 %res
@@ -398,8 +394,7 @@ define i32 @mul_i32_m8(i32 %x) {
 ; CHECK: func mul_i32_m8 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -8: i32
-; CHECK-NEXT:    $eax: i32 *= $ecx: i32
+; CHECK-NEXT:    $eax: i32 *= -8: i32
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = mul i32 %x, -8
   ret i32 %res
@@ -409,8 +404,7 @@ define i32 @mul_i32_m1000(i32 %x) {
 ; CHECK: func mul_i32_m1000 ($2: i32, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $eax: i32 = $edi: i32
-; CHECK-NEXT:    $ecx: i32 = -1000: i32
-; CHECK-NEXT:    $eax: i32 *= $ecx: i32
+; CHECK-NEXT:    $eax: i32 *= -1000: i32
 ; CHECK-NEXT:    ret($eax: i32, )
   %res = mul i32 %x, -1000
   ret i32 %res
@@ -490,8 +484,7 @@ define i64 @mul_i64_m3(i64 %x) {
 ; CHECK: func mul_i64_m3 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = -3: i64
-; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    $rax: i64 *= -3: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = mul i64 %x, -3
   ret i64 %res
@@ -501,8 +494,7 @@ define i64 @mul_i64_m1000(i64 %x) {
 ; CHECK: func mul_i64_m1000 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = -1000: i64
-; CHECK-NEXT:    $rax: i64 *= $rcx: i64
+; CHECK-NEXT:    $rax: i64 *= -1000: i64
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = mul i64 %x, -1000
   ret i64 %res

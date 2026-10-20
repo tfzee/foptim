@@ -106,8 +106,7 @@ define void @store_base_disp(ptr %x, i32 %v) {
 define void @store_base_neg_disp(ptr %x, i32 %v) {
 ; CHECK: func store_base_neg_disp ($2: i64, $3: i32, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    $rax: i64 = -12: i64
-; CHECK-NEXT:    $rdi: i64 += $rax: i64
+; CHECK-NEXT:    $rdi: i64 += -12: i64
 ; CHECK-NEXT:    [$rdi]: i32 = $esi: i32
 ; CHECK-NEXT:    ret()
   %p = getelementptr i8, ptr %x, i64 -12
