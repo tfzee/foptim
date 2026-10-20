@@ -420,16 +420,23 @@ Res fold_conversion(fir::Instr instr, fir::Context &ctx) {
       return std::nullopt;
     }
     case fir::ConversionSubType::PtrToInt:
-      if (a.is_constant() || a.get_type()->is_int()) {
+      if (a.get_type()->is_int()) {
         return a;
+      }
+      if (a.is_constant_null()) {
+        return val(ctx->get_constant_value(0, type));
       }
       if (a.is_instr() && a.as_instr()->is(fir::ConversionSubType::IntToPtr)) {
         return a.as_instr()->args[0];
       }
       return std::nullopt;
     case fir::ConversionSubType::IntToPtr:
-      if (a.is_constant() || a.get_type()->is_ptr()) {
+      if (a.get_type()->is_ptr()) {
         return a;
+      }
+      if (a.is_constant() && a.as_constant()->is_int() &&
+          a.as_constant()->as_apint().is_zero()) {
+        return val(ctx->get_constant_null());
       }
       if (a.is_instr() && a.as_instr()->is(fir::ConversionSubType::PtrToInt)) {
         return a.as_instr()->args[0];
@@ -916,8 +923,10 @@ Res fold_global_load(fir::Instr instr, fir::Context &ctx) {
     return std::nullopt;
   }
   if (load_type->is_ptr()) {
-    const u64 v = *reinterpret_cast<u64 *>(glob->init_value);
-    return val(ctx->get_constant_int(APInt(out_bitwidth, v)));
+    // an integer constant would have the wrong type, only null is expressible
+    if (*reinterpret_cast<u64 *>(glob->init_value) == 0) {
+      return val(ctx->get_constant_null());
+    }
   }
   return std::nullopt;
 }
