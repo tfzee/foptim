@@ -107,7 +107,6 @@ SimplifyCFG::Res SimplifyCFG::conditional_block_duplication(
         found_path = true;
       } else if (!res2->known_one.bit(0) && !res2->known_zero.bit(0) &&
                  (res1->known_one.bit(0) || res1->known_zero.bit(0))) {
-        // only the first edge decides the condition
         false_t = t1;
         false_t_bb_id = t1.get_bb_id(curr.bb);
         found_path = true;
@@ -914,14 +913,15 @@ bool SimplifyCFG::remove_constant_bb_args(CFG::Node &curr, bool is_entry) {
         break;
       }
     }
-    if (!is_c) {
+    // all edges are self edges
+    if (!is_c || c_value.is_invalid() ||
+        (c_value.is_bb_arg() && c_value.as_bb_arg() == curr.bb->args[i])) {
       continue;
     }
     for (auto use : uses) {
       ASSERT(use.type == fir::UseType::BB);
-      auto user = use.user;
-      auto bb_id = user.get_bb_id(curr.bb);
-      user.remove_bb_arg(bb_id, i);
+      // a terminator can target the block with both edges
+      use.user.remove_bb_arg(use.argId, i);
     }
     curr.bb->args[i]->replace_all_uses(c_value);
     curr.bb->args.erase(curr.bb->args.begin() + i);

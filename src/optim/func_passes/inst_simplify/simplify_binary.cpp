@@ -393,8 +393,10 @@ bool simplify_linear(fir::Instr instr, fir::Context &ctx, WorkList &worklist) {
     bool in_root = false;
     bool other_added = false;
     for (const auto &[leaf, c] : lf.terms) {
+      // a wider argument is truncated first, so it is never the last operand
       if (leaf.is_bb_arg() &&
-          leaf.as_bb_arg()->get_parent() == instr->get_parent()) {
+          leaf.as_bb_arg()->get_parent() == instr->get_parent() &&
+          leaf.get_type() == ty) {
         n_carried++;
         in_root = instr->args[0] == leaf || instr->args[1] == leaf;
         if (!c.is_one()) {

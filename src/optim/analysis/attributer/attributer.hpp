@@ -1,6 +1,9 @@
 #pragma once
+#include <cstddef>
 #include <deque>
+#include <memory>
 #include <typeindex>
+#include <vector>
 
 #include "ir/context.hpp"
 #include "ir/value.hpp"
@@ -17,9 +20,27 @@ struct AttributeInfo {
 
 class AttributeAnalysis;
 class AttributerManager;
-using Worklist =
-    std::deque<AttributeAnalysis *, utils::TempAlloc<AttributeAnalysis *>>;
-// using Worklist = TVec<AttributeAnalysis *>;
+// FIFO on a vector that keeps its storage (a TempAlloc deque never gives its
+// blocks back).
+class Worklist {
+  std::vector<AttributeAnalysis *> items;
+  size_t head = 0;
+
+ public:
+  [[nodiscard]] bool empty() const { return head == items.size(); }
+  void push_back(AttributeAnalysis *a) { items.push_back(a); }
+  AttributeAnalysis *front() const { return items[head]; }
+  void pop_front() {
+    head++;
+    if (head == items.size()) {
+      clear();
+    }
+  }
+  void clear() {
+    items.clear();
+    head = 0;
+  }
+};
 
 template <class Int, Int best, Int worst>
 struct IntegerLattice {
@@ -86,12 +107,50 @@ class AttributerManager {
 
   TMap<AttributeKey *, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
   // TMap<std::type_index, TMap<fir::ValueR, AttributeAnalysis *>> _attribs;
-  TMap<AttributeAnalysis *, TVec<AttributeAnalysis *>> _inverse_dependencies;
+  // analysis -> head of its list of dependents in _dep_nodes
+  TMap<AttributeAnalysis *, u32> _inverse_dependencies;
+  struct DepNode {
+    AttributeAnalysis *dependent;
+    u32 next;
+  };
+  TVec<DepNode> _dep_nodes;
   AttributeAnalysis *_currently_updating = nullptr;
+  Worklist _worklist;
+
+  // The temp arena is only released between passes, so analyses live in chunks
+  // that reset() reuses.
+  static constexpr size_t ChunkSize = 1 << 20;
+  std::vector<std::unique_ptr<std::byte[]>> _chunks;
+  size_t _chunk = 0;
+  size_t _chunk_off = 0;
+
+  void *pool_allocate(size_t size, size_t align) {
+    ASSERT(size + align <= ChunkSize);
+    while (true) {
+      if (_chunk == _chunks.size()) {
+        _chunks.push_back(std::make_unique<std::byte[]>(ChunkSize));
+      }
+      const size_t base = reinterpret_cast<size_t>(_chunks[_chunk].get());
+      const size_t aligned = (base + _chunk_off + align - 1) & ~(align - 1);
+      const size_t off = aligned - base;
+      if (off + size <= ChunkSize) {
+        _chunk_off = off + size;
+        return _chunks[_chunk].get() + off;
+      }
+      _chunk++;
+      _chunk_off = 0;
+    }
+  }
 
   void reset() {
-    _attribs.clear();
+    // keep the storage of the maps, only the entries are stale
+    for (auto &[_, per_value] : _attribs) {
+      per_value.clear();
+    }
     _inverse_dependencies.clear();
+    _dep_nodes.clear();
+    _chunk = 0;
+    _chunk_off = 0;
   }
 
   template <class AAna>
@@ -122,10 +181,8 @@ class AttributerManager {
     }
     AAna *analysis = nullptr;
     if (!_attribs.at(aa_typeid).contains(loc)) {
-      analysis = utils::TempAlloc<AAna>{}.allocate(1);
+      analysis = static_cast<AAna *>(pool_allocate(sizeof(AAna), alignof(AAna)));
       ASSERT(analysis);
-      // ASSERT(((size_t)analysis) % alignof(AAna) == 0);
-      // std::construct_at(analysis);
       new (analysis) AAna();
       if (worklist) {
         worklist->push_back(analysis);
@@ -139,7 +196,9 @@ class AttributerManager {
           reinterpret_cast<AAna *>(_attribs.at(aa_typeid).at(loc)));
     }
     if (_currently_updating) {
-      _inverse_dependencies[analysis].push_back(_currently_updating);
+      auto [it, inserted] = _inverse_dependencies.try_emplace(analysis, ~0U);
+      _dep_nodes.push_back({_currently_updating, it->second});
+      it->second = static_cast<u32>(_dep_nodes.size() - 1);
     } else {
       analysis->force_update = true;
     }
@@ -150,8 +209,8 @@ class AttributerManager {
   // returns whether the IR changed
   bool materialize(fir::Context &ctx) {
     bool modified = false;
-    for (auto [_, loc] : _attribs) {
-      for (auto [_, att] : loc) {
+    for (auto &[_, loc] : _attribs) {
+      for (auto &[_, att] : loc) {
         modified |= att->materialize_impl(ctx, *this);
       }
     }
@@ -161,7 +220,8 @@ class AttributerManager {
   // returns whether materializing changed the IR (also kept in ir_modified)
   bool run(fir::Context &ctx) {
     ZoneScopedNC("Attributer::run", COLOR_ANALY);
-    Worklist worklist;
+    Worklist &worklist = _worklist;
+    worklist.clear();
     for (auto &[_, loc] : _attribs) {
       for (auto &[_, att] : loc) {
         if (att->force_update) {
@@ -173,27 +233,21 @@ class AttributerManager {
         }
       }
     }
-    // cleanup invalid stuff
-    for (auto &[a, deps] : _inverse_dependencies) {
-      ASSERT(a->associatedValue.is_valid(true));
-      for (size_t ip1 = deps.size(); ip1 > 0; ip1--) {
-        if (!deps[ip1 - 1]->associatedValue.is_valid(true)) {
-          deps.erase(deps.begin() + ip1);
-        }
-      }
-    }
     while (!worklist.empty()) {
       auto *curr_ptr = worklist.front();
-      // auto *curr_ptr = worklist.back();
-      // worklist.pop_back();
       worklist.pop_front();
       curr_ptr->queued = false;
       _currently_updating = curr_ptr;
       ASSERT(curr_ptr->associatedValue.is_valid(true));
       if (curr_ptr->update_impl(*this, worklist) ==
           AttributeAnalysis::Result::Changed) {
-        if (_inverse_dependencies.contains(curr_ptr)) {
-          for (auto *dependencie : _inverse_dependencies.at(curr_ptr)) {
+        if (auto it = _inverse_dependencies.find(curr_ptr);
+            it != _inverse_dependencies.end()) {
+          for (u32 n = it->second; n != ~0U; n = _dep_nodes[n].next) {
+            auto *dependencie = _dep_nodes[n].dependent;
+            if (!dependencie->associatedValue.is_valid(true)) {
+              continue;
+            }
             if (!dependencie->queued) {
               worklist.push_back(dependencie);
               dependencie->queued = true;

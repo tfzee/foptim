@@ -958,7 +958,6 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ConversionSubType::IntToPtr:
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
-        // inttoptr(ptrtoint(p) + x) is p + x
         if (instr->is(fir::ConversionSubType::IntToPtr) &&
             a0->is(fir::BinaryInstrSubType::IntAdd)) {
           for (u32 k = 0; k < 2; k++) {
