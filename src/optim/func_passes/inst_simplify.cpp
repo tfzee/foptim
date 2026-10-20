@@ -958,6 +958,32 @@ bool simplify_conversion(fir::Instr instr, fir::BasicBlock /*bb*/,
     case fir::ConversionSubType::IntToPtr:
       if (instr->args[0].is_instr()) {
         auto a0 = instr->args[0].as_instr();
+        // inttoptr(ptrtoint(p) + x) is p + x
+        if (instr->is(fir::ConversionSubType::IntToPtr) &&
+            a0->is(fir::BinaryInstrSubType::IntAdd)) {
+          for (u32 k = 0; k < 2; k++) {
+            if (!a0->args[k].is_instr() ||
+                !a0->args[k].as_instr()->is(fir::ConversionSubType::PtrToInt)) {
+              continue;
+            }
+            auto base = a0->args[k].as_instr()->args[0];
+            auto off = a0->args[1 - k];
+            if (!base.get_type()->is_ptr() ||
+                off.get_type() != a0->result_type() ||
+                off.get_type()->get_bitwidth() != 64) {
+              continue;
+            }
+            fir::Builder buh{instr};
+            auto r = buh.build_ptr_add(base, off);
+            push_all_uses(worklist, instr);
+            instr->replace_all_uses(r);
+            instr.destroy();
+            if (a0->get_n_uses() == 0) {
+              a0.destroy();
+            }
+            return true;
+          }
+        }
         if (a0->is(fir::InstrType::LoadInstr) &&
             load_into_conversion_simpl(instr, a0, worklist)) {
           return true;

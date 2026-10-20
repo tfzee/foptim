@@ -10,6 +10,65 @@ namespace foptim::fmir {
 // unreach) so any permutation is correct so de layout only decides which jumps
 // become fallthroughs and backend just clenass those up
 
+namespace {
+// cjmp T followed by jmp F where T is the next block becomes cjmp !cond F, the
+// jmp to the next block is dropped by the backend
+void invert_branches_to_next(MFunc &func) {
+  auto inverse = [](GJumpSubtype t, GJumpSubtype &out) {
+    switch (t) {
+      case GJumpSubtype::cjmp_int_slt:
+        out = GJumpSubtype::cjmp_int_sge;
+        return true;
+      case GJumpSubtype::cjmp_int_sge:
+        out = GJumpSubtype::cjmp_int_slt;
+        return true;
+      case GJumpSubtype::cjmp_int_sle:
+        out = GJumpSubtype::cjmp_int_sgt;
+        return true;
+      case GJumpSubtype::cjmp_int_sgt:
+        out = GJumpSubtype::cjmp_int_sle;
+        return true;
+      case GJumpSubtype::cjmp_int_ult:
+        out = GJumpSubtype::cjmp_int_uge;
+        return true;
+      case GJumpSubtype::cjmp_int_uge:
+        out = GJumpSubtype::cjmp_int_ult;
+        return true;
+      case GJumpSubtype::cjmp_int_ule:
+        out = GJumpSubtype::cjmp_int_ugt;
+        return true;
+      case GJumpSubtype::cjmp_int_ugt:
+        out = GJumpSubtype::cjmp_int_ule;
+        return true;
+      case GJumpSubtype::cjmp_int_eq:
+        out = GJumpSubtype::cjmp_int_ne;
+        return true;
+      case GJumpSubtype::cjmp_int_ne:
+        out = GJumpSubtype::cjmp_int_eq;
+        return true;
+      default:
+        return false;
+    }
+  };
+  for (u32 b = 0; b + 1 < func.bbs.size(); b++) {
+    auto &instrs = func.bbs[b].instrs;
+    if (instrs.size() < 2 || !instrs.back().is(GJumpSubtype::jmp)) {
+      continue;
+    }
+    auto &cj = instrs[instrs.size() - 2];
+    auto &jm = instrs.back();
+    GJumpSubtype inv;
+    if (cj.bop != GOpcode::GJmp || !cj.has_bb_ref || cj.bb_ref != b + 1 ||
+        jm.bb_ref == b + 1 ||
+        !inverse(static_cast<GJumpSubtype>(cj.sop), inv)) {
+      continue;
+    }
+    cj.sop = static_cast<u32>(inv);
+    std::swap(cj.bb_ref, jm.bb_ref);
+  }
+}
+}  // namespace
+
 void BBReordering::apply(MFunc &func, const conf::CompConf &) {
   const u32 n = func.bbs.size();
   if (n <= 2) {
@@ -76,6 +135,7 @@ void BBReordering::apply(MFunc &func, const conf::CompConf &) {
     changed |= order[i] != i;
   }
   if (!changed) {
+    invert_branches_to_next(func);
     return;
   }
 
@@ -92,6 +152,7 @@ void BBReordering::apply(MFunc &func, const conf::CompConf &) {
       }
     }
   }
+  invert_branches_to_next(func);
 }
 
 }  // namespace foptim::fmir
