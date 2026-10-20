@@ -420,7 +420,7 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg,
   for (u32 k = 0; k < hdr->args.size(); k++) {
     fir::ValueR av{hdr->args[k]};
     const auto ty = av.get_type();
-    if (!elem_type_ok(ty)) {
+    if (!elem_type_ok(ty) && !ty->is_ptr()) {
       return false;
     }
     LoopNode n;
@@ -428,11 +428,13 @@ bool SLPVectorizer::build_loop_plan(fir::Context &ctx, CFG &cfg,
     n.type = ty;
     n.arg_id = k;
     const auto r = evo.get(av);
-    if (ty->is_int() && evo.is_const_addrec(r)) {
+    if ((ty->is_int() || ty->is_ptr()) && evo.is_addrec(r) &&
+        evo.is_const(evo.expr(r).b)) {
       n.kind = LoopNodeKind::Induction;
       n.shape = LaneShape::Strided;
       n.stride = static_cast<i64>(evo.expr(evo.expr(r).b).cval_i());
-      if (n.stride == 1 && !have_counter && ty->get_bitwidth() == trip_bw) {
+      if (n.stride == 1 && !have_counter && ty->is_int() &&
+          ty->get_bitwidth() == trip_bw) {
         have_counter = true;
         plan.counter = k;
       }
@@ -762,7 +764,10 @@ bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
     }
     for (u32 k = 0; k < n_args; k++) {
       const auto &n = plan.nodes[k];
-      if (n.kind == LoopNodeKind::Induction) {
+      if (n.kind == LoopNodeKind::Induction && n.type->is_ptr()) {
+        next_vals.push_back(b.build_ptr_add(
+            vec_args[k], cint(static_cast<i128>(vf) * n.stride, 64)));
+      } else if (n.kind == LoopNodeKind::Induction) {
         next_vals.push_back(b.build_int_add(
             vec_args[k],
             cint(static_cast<i128>(vf) * n.stride, n.type->get_bitwidth())));
