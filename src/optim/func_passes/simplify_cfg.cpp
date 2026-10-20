@@ -105,6 +105,15 @@ SimplifyCFG::Res SimplifyCFG::conditional_block_duplication(
       if (res1->known_one.bit(0) != res2->known_one.bit(0) &&
           res1->known_zero.bit(0) != res2->known_zero.bit(0)) {
         found_path = true;
+      } else if (!res2->known_one.bit(0) && !res2->known_zero.bit(0) &&
+                 (res1->known_one.bit(0) || res1->known_zero.bit(0))) {
+        // only the first edge decides the condition
+        false_t = t1;
+        false_t_bb_id = t1.get_bb_id(curr.bb);
+        found_path = true;
+      } else if (!res1->known_one.bit(0) && !res1->known_zero.bit(0) &&
+                 (res2->known_one.bit(0) || res2->known_zero.bit(0))) {
+        found_path = true;
       }
     }
   }
@@ -1767,6 +1776,85 @@ bool SimplifyCFG::backpull_term_cond(CFG &cfg, CFG::Node &curr,
   return false;
 }
 
+bool SimplifyCFG::thread_const_cond_edges(CFG &cfg, CFG::Node &curr) {
+  auto term1 = curr.bb->get_terminator();
+  if (!term1->is(fir::InstrType::BranchInstr) &&
+      !term1->is(fir::InstrType::CondBranchInstr)) {
+    return false;
+  }
+  for (u16 ti = 0; ti < term1->bbs.size(); ti++) {
+    auto target = term1->bbs[ti].bb;
+    if (target->n_instrs() != 1 || target == curr.bb) {
+      continue;
+    }
+    auto term2 = target->get_terminator();
+    if (!term2->is(fir::InstrType::CondBranchInstr) ||
+        !term2->args[0].is_bb_arg()) {
+      continue;
+    }
+    auto cond_arg = term2->args[0].as_bb_arg();
+    if (cond_arg->_parent != target) {
+      continue;
+    }
+    auto edge_cond = term1->bbs[ti].args[target->get_arg_id(cond_arg)];
+    if (!edge_cond.is_constant() || !edge_cond.as_constant()->is_int()) {
+      continue;
+    }
+    const u16 to = edge_cond.as_constant()->as_int() != 0 ? 0 : 1;
+    auto next = term2->bbs[to].bb;
+    if (next == target) {
+      continue;
+    }
+    // the arguments of the target are gone on this path, so nothing that can
+    // be reached from the new target may use them
+    bool args_used_later = false;
+    if (!target->args.empty()) {
+      utils::BitSet reachable_bbs(cfg.bbrs.size(), false);
+      TVec<u32> worklist;
+      // passing through the target defines its arguments again
+      reachable_bbs[cfg.get_bb_id(target)].set(true);
+      worklist.push_back(cfg.get_bb_id(next));
+      reachable_bbs[worklist.back()].set(true);
+      while (!worklist.empty()) {
+        u32 c = worklist.back();
+        worklist.pop_back();
+        for (auto n : cfg.bbrs[c].succ) {
+          if (!reachable_bbs[n]) {
+            reachable_bbs[n].set(true);
+            worklist.push_back(n);
+          }
+        }
+      }
+      for (auto arg : target->args) {
+        for (auto use : arg->get_uses()) {
+          auto user_bb = use.user->get_parent();
+          if (user_bb != target && reachable_bbs[cfg.get_bb_id(user_bb)]) {
+            args_used_later = true;
+          }
+        }
+      }
+    }
+    if (args_used_later) {
+      continue;
+    }
+    TVec<fir::ValueR> new_args;
+    for (auto arg : term2->bbs[to].args) {
+      if (arg.is_bb_arg() && arg.as_bb_arg()->_parent == target) {
+        new_args.push_back(
+            term1->bbs[ti].args[target->get_arg_id(arg.as_bb_arg())]);
+      } else {
+        new_args.push_back(arg);
+      }
+    }
+    term1.replace_bb(ti, next, false, false);
+    for (auto arg : new_args) {
+      term1.add_bb_arg(ti, arg);
+    }
+    return true;
+  }
+  return false;
+}
+
 SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
                                                Dominators &dom,
                                                fir::Function &func,
@@ -1893,6 +1981,10 @@ SimplifyCFG::Res SimplifyCFG::simplify_cfg(CFG &cfg, Dominators &dom,
     if constexpr (debug_print) {
       fmt::println("14");
     }
+    return Res::NeedUpdate;
+  }
+
+  if (thread_const_cond_edges(cfg, curr)) {
     return Res::NeedUpdate;
   }
 
