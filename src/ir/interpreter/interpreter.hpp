@@ -57,7 +57,9 @@ class Interpreter {
   void set(ValueR r, ConstantValue cv);
   InstrPointer get_ip();
   std::optional<ConstantValue> get_value(fir::ValueR v);
-  const TMap<ValueR, ConstantValue> &get_values() const { return state.vals; }
+  [[nodiscard]] const TMap<ValueR, ConstantValue> &get_values() const {
+    return state.vals;
+  }
 };
 
 }  // namespace foptim::fir::intepreter

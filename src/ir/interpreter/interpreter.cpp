@@ -75,13 +75,14 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
   const auto ty = instr.result_type();
   const auto sub = static_cast<BinaryInstrSubType>(instr->subtype);
   switch (sub) {
+    case BinaryInstrSubType::PtrAdd:
     case BinaryInstrSubType::IntAdd:
     case BinaryInstrSubType::IntMul:
     case BinaryInstrSubType::IntSub:
     case BinaryInstrSubType::And:
     case BinaryInstrSubType::Or:
     case BinaryInstrSubType::Xor: {
-      if (!ty->is_int()) {
+      if (!ty->is_int_or_ptr()) {
         return false;
       }
       const u32 bw = ty->get_bitwidth();
@@ -89,6 +90,7 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
       const APInt b = int_of(*v2, bw);
       APInt res = a;
       switch (sub) {
+        case BinaryInstrSubType::PtrAdd:
         case BinaryInstrSubType::IntAdd:
           res = a + b;
           break;
@@ -104,9 +106,11 @@ bool interpret_binary_expr(Instr instr, State &st, InstrPointer &ip) {
         case BinaryInstrSubType::Or:
           res = a | b;
           break;
-        default:
+        case BinaryInstrSubType::Xor:
           res = a ^ b;
           break;
+        default:
+          return false;
       }
       st.set_value(instr.result(), ConstantValue{std::move(res), ty});
       break;
@@ -280,9 +284,7 @@ bool Interpreter::step_instr() {
     case InstrType::CondBranchInstr:
       return interpret_cbranch(curr_i, state, ip);
     case InstrType::SExt:
-      return interpret_int_cast(curr_i, state, ip);
     case InstrType::ZExt:
-      return interpret_int_cast(curr_i, state, ip);
     case InstrType::ITrunc:
       return interpret_int_cast(curr_i, state, ip);
     case InstrType::CallInstr:
