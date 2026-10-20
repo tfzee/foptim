@@ -483,6 +483,12 @@ KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
       continue;
     }
     if (arg1 == arg2) {
+      // a value of one of the two blocks is a different execution of the
+      // instruction once the blocks are merged
+      if (arg1.is_instr() && (arg1.as_instr()->get_parent() == i1->get_parent() ||
+                              arg1.as_instr()->get_parent() == i2->get_parent())) {
+        return false;
+      }
       continue;
     }
     // if either is a local arg
@@ -554,6 +560,10 @@ KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
         continue;
       }
       if (a1 == a2) {
+        if (a1.is_instr() && (a1.as_instr()->get_parent() == i1->parent ||
+                              a1.as_instr()->get_parent() == i2->parent)) {
+          return false;
+        }
         continue;
       }
       if ((!a1.is_constant() &&
@@ -685,6 +695,19 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       if (!check_args(i1, i2, local_value_map, cost, difference_values,
                       arg_map)) {
         found = false;
+        break;
+      }
+    }
+    // values of the removed block that are used elsewhere would lose their
+    // definition
+    for (auto instr : removed->instructions) {
+      for (auto use : instr->get_uses()) {
+        if (use.user->get_parent() != removed) {
+          found = false;
+          break;
+        }
+      }
+      if (!found) {
         break;
       }
     }
