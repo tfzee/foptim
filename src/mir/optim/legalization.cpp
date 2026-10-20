@@ -564,8 +564,11 @@ bool Legalizer::legalize_arith_op(MBB &bb, u32 indx) {
   {
     // 2nd arg cant be a 64bit constant
     MInstr &instr = bb.instrs[indx];
+    // a sign extended negative 32 bit value is fine
     if (instr.args[1].isImm() &&
-        instr.args[1].imm > std::numeric_limits<i32>::max()) {
+        instr.args[1].imm > std::numeric_limits<i32>::max() &&
+        instr.args[1].imm < std::bit_cast<u64>(static_cast<i64>(
+                                std::numeric_limits<i32>::min()))) {
       move_arg_to_reg(bb, indx, 1, instr.args[0].ty);
       return true;
     }
