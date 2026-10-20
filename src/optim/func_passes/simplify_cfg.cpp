@@ -1386,7 +1386,9 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
     if (t1->get_terminator()->is(fir::InstrType::ReturnInstr) &&
         t2->get_terminator()->is(fir::InstrType::ReturnInstr)) {
       // need a return value
-      if (t2->instructions[0]->args.size() == 0) {
+      if (t2->get_terminator()->args.empty() ||
+          t1->get_terminator()->args.size() !=
+              t2->get_terminator()->args.size()) {
         return false;
       }
       if (t1->n_instrs() == 1 && t2->n_instrs() == 1) {
@@ -1421,16 +1423,11 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
     }
     if (matched) {
       fir::Builder bb{terminator};
-      auto res_t = t1->get_terminator()->result_type();
-      // fmt::println("{:cd}", *t1->get_parent().func);
-      ASSERT(!res_t->is_void());
-      fir::ValueR v1;
-      fir::ValueR v2;
-      if (extra_instrs.empty()) {
-        v1 = t1->get_terminator()->args[0];
-        v2 = t2->get_terminator()->args[0];
-      } else {
-        fir::ContextData::V2VMap subs;
+      const auto ret1 = t1->get_terminator();
+      const auto ret2 = t2->get_terminator();
+      ASSERT(ret1->args.size() == ret2->args.size());
+      fir::ContextData::V2VMap subs;
+      if (!extra_instrs.empty()) {
         TVec<fir::Instr> new_instr;
         new_instr.reserve(extra_instrs.size());
         for (auto i : extra_instrs) {
@@ -1441,17 +1438,21 @@ bool SimplifyCFG::conditional_to_cmove(CFG::Node &curr) {
         for (auto i : new_instr) {
           i.substitute(subs);
         }
-        v1 = t1->get_terminator()->args[0];
+      }
+      TVec<fir::ValueR> selected;
+      for (size_t k = 0; k < ret1->args.size(); k++) {
+        auto v1 = ret1->args[k];
+        auto v2 = ret2->args[k];
         if (extra_bb == 0 && subs.contains(v1)) {
           v1 = subs.at(v1);
         }
-        v2 = t2->get_terminator()->args[0];
         if (extra_bb == 1 && subs.contains(v2)) {
           v2 = subs.at(v2);
         }
+        selected.push_back(
+            bb.build_select(v1.get_type(), terminator->args[0], v1, v2));
       }
-      auto res_v = bb.build_select(res_t, terminator->args[0], v1, v2);
-      bb.build_return(res_v);
+      bb.build_return(selected);
       terminator.destroy();
       // TODO("okak");
       return true;
