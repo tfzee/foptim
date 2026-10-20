@@ -1874,12 +1874,12 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
     }
     return Res::Changed;
   }
-  // if (remove_constant_bb_args(curr, is_entry)) {
-  //   if constexpr (debug_print) {
-  //     fmt::println("4");
-  //   }
-  //   return Res::Changed;
-  // }
+  if (remove_constant_bb_args(curr, is_entry)) {
+    if constexpr (debug_print) {
+      fmt::println("4");
+    }
+    return Res::Changed;
+  }
   if (remove_useless_bb_args(cfg, curr)) {
     if constexpr (debug_print) {
       fmt::println("5");
