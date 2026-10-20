@@ -1,0 +1,9 @@
+config_version = 1
+include = ["Default"]
+
+[target.features]
+avx512f = true
+avx512bw = true
+avx512cd = true
+avx512dq = true
+avx512vl = true

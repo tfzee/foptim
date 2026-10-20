@@ -654,9 +654,13 @@ bool SLPVectorizer::emit_loop(fir::Context &ctx, fir::Function &func, CFG &cfg,
   // header executions, computed in the entry block
   fir::ValueR total_trip;
   {
-    SCEVExpander ex{ctx, evo, entry->get_terminator()};
+    fir::ValueR last_iter;
+    {
+      SCEVExpander ex{ctx, evo, entry->get_terminator()};
+      last_iter = ex.expand(plan.trip);
+    }
     fir::Builder b{entry->get_terminator()};
-    total_trip = b.build_int_add(ex.expand(plan.trip), cint(1, trip_bw));
+    total_trip = b.build_int_add(last_iter, cint(1, trip_bw));
   }
   entry->get_terminator().replace_bb(hdr, vpre, true);
 

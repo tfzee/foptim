@@ -7,8 +7,8 @@ define i8 @sum(ptr noalias %a, i32 %n) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{}: i32):
 ; CHECK-NEXT:    %2: i1 = IntSGT(%1, 1:i32){} NUses:1
-; CHECK-NEXT:    %3: i32 = IntAdd(%4, -1:i32){} NUses:2
-; CHECK-NEXT:    %4: i32 = INTRIN:SMax(%1, 2:i32){} NUses:1
+; CHECK-NEXT:    %3: i32 = INTRIN:SMax(%1, 2:i32){} NUses:1
+; CHECK-NEXT:    %4: i32 = IntAdd(%3, -1:i32){} NUses:2
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(1:i32, 0:i8), bb2(0:i8)>(%2){} NUses:0
 ; CHECK-NEXT:  bb3(%6{}: i32, %7{}: i8):
 ; CHECK-NEXT:    %8: i32 = IntSub(%6, 1:i32){} NUses:1
@@ -26,7 +26,7 @@ define i8 @sum(ptr noalias %a, i32 %n) {
 ; CHECK-NEXT:  bb2(%20{}: i8):
 ; CHECK-NEXT:    %21: i8 = Return(%20){} NUses:0
 ; CHECK-NEXT:  bb1(%22{}: i32, %23{}: i8):
-; CHECK-NEXT:    %24: i32 = And(%3, -32:i32){} NUses:3
+; CHECK-NEXT:    %24: i32 = And(%4, -32:i32){} NUses:3
 ; CHECK-NEXT:    %25: i32 = IntAdd(%24, %22){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %26: i1 = IntEQ(%24, 0:i32){} NUses:1
 ; CHECK-NEXT:    %27: 32@i8 = V.Broadcast(0:i8){} NUses:1
@@ -47,7 +47,7 @@ define i8 @sum(ptr noalias %a, i32 %n) {
 ; CHECK-NEXT:  bb5(%43{}: i32, %44{}: 32@i8):
 ; CHECK-NEXT:    %45: i8 = V.HAdd(%44){} NUses:1
 ; CHECK-NEXT:    %46: i8 = IntAdd(%45, %23){} NUses:2
-; CHECK-NEXT:    %47: i1 = IntEQ(%24, %3){} NUses:1
+; CHECK-NEXT:    %47: i1 = IntEQ(%24, %4){} NUses:1
 ; CHECK-NEXT:    %48: () = CondBranch<bb2(%46), bb3(%43, %46)>(%47){} NUses:0
 ; CHECK-NEXT:}
 entry:
