@@ -2,7 +2,7 @@
 ; RUN: %foffcc %s --print-fir --passes "Mem2Reg,InstSimplify,SCCP,DCE,SLPVectorizer,LegalizeVecs,InstSimplify,DCE" --cconffile %S/avx512.toml | FileCheck %s
 ; The load recipe stops at 8 lanes, so the 16 additions are two 8 lane vectors (the seed cut also offers the halves of a window when the window cannot be planned).
 ; 16 adjacent float additions, zmm / ymm with avx512f. FIR only: the backend cannot encode zmm arithmetic yet (test/backend/avx512/xfail_vectorized_*.ll).
-; No LVN in this pipeline: it merges adjacent float stores into 2@f32 vector stores before the vectorizer runs (todo_slp_lvn_float_store_pair_f32x4.ll).
+; No LVN in this pipeline: it merges the stores into vectors that start at the second lane, a window of the seeds only starts and ends where a merged store does, so the run would not be cut into aligned vectors (future-improvements.md).
 
 define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0

@@ -3,6 +3,7 @@
 #include <fmt/base.h>
 #include <fmt/core.h>
 
+#include <algorithm>
 #include <bit>
 #include <cstdlib>
 #include <cstring>
@@ -2730,6 +2731,68 @@ void base_rules(RuleSet &rules) {
         GBaseSubtype::mov, res_reg,
         valueToArg(negate_instr->args[0], res.result, data.alloc));
     res.result.emplace_back(GArithSubtype::neg1, res_reg);
+    return true;
+  });
+  rules.add(pm::Shuffle, [](fir::Instr shuf_instr, MatchResult &res,
+                            ExtraMatchData &data) {
+    ASSERT(shuf_instr->args[2].is_constant());
+    const auto &members = shuf_instr->args[2].as_constant()->as_vec().members;
+    const u32 n = members.size();
+    TVec<u32> mask;
+    for (const auto &m : members) {
+      // negative lanes are undef
+      const i128 v = m->as_int();
+      mask.push_back(v < 0 ? 0 : static_cast<u32>(v));
+    }
+    auto res_reg = valueToArg(shuf_instr.result(), res.result, data.alloc);
+    auto a1 = valueToArg(shuf_instr->args[0], res.result, data.alloc);
+    auto a2 = valueToArg(shuf_instr->args[1], res.result, data.alloc);
+    const u32 bytes = get_size(res_reg.ty);
+    const u32 elem_bytes = bytes / n;
+    ASSERT(elem_bytes == 4 || elem_bytes == 8);
+    ASSERT(bytes == 16 || bytes == 32);
+    const Type dwords = bytes == 16 ? Type::Int32x4 : Type::Int32x8;
+    const Type floats = bytes == 16 ? Type::Float32x4 : Type::Float32x8;
+    auto as = [](MArgument v, Type t) { return MArgument{v.reg.retype(t), t}; };
+    TVec<u32> dm;
+    for (u32 m : mask) {
+      for (u32 k = 0; k < elem_bytes / 4; k++) {
+        dm.push_back(m * (elem_bytes / 4) + k);
+      }
+    }
+    const u32 nd = dm.size();
+    const bool from_second = dm[0] >= nd;
+    const bool single = std::ranges::all_of(
+        dm, [&](u32 d) { return (d >= nd) == from_second; });
+    if (single) {
+      // vpshufd moves dwords inside each 128 bit lane, the same in all lanes
+      TVec<u32> in_lane;
+      for (u32 k = 0; k < nd; k++) {
+        const u32 d = dm[k] % nd;
+        ASSERT_M(d / 4 == k / 4, "shuffle crosses 128 bit lanes");
+        in_lane.push_back(d % 4);
+        ASSERT_M(in_lane[k] == in_lane[k % 4], "shuffle differs per lane");
+      }
+      const u8 imm = in_lane[0] | (in_lane[1] << 2) | (in_lane[2] << 4) |
+                     (in_lane[3] << 6);
+      res.result.emplace_back(X86Subtype::vpshuf, as(res_reg, dwords),
+                              as(from_second ? a2 : a1, dwords),
+                              MArgument(imm));
+      return true;
+    }
+    // vshufps takes the low half of the result from one source and the high
+    // half from the other
+    ASSERT_M(nd == 4, "two source shuffle needs 4 dwords");
+    const bool swap = dm[0] >= nd;
+    u8 imm = 0;
+    for (u32 k = 0; k < 4; k++) {
+      const bool second = dm[k] >= nd;
+      ASSERT_M(second == (swap != (k >= 2)), "unsupported two source shuffle");
+      imm |= static_cast<u8>((dm[k] % nd) << (2 * k));
+    }
+    res.result.emplace_back(X86Subtype::vshufps, as(res_reg, floats),
+                            as(swap ? a2 : a1, floats),
+                            as(swap ? a1 : a2, floats), MArgument(imm));
     return true;
   });
   rules.add(pm::Broadcast, [](fir::Instr broad_instr, MatchResult &res,

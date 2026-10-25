@@ -17,14 +17,18 @@ namespace {
 // the straight line providers of one block, the seeds point into them
 struct BlockSeeds {
   std::unique_ptr<SeedProvider> stores = make_store_seeds();
+  std::unique_ptr<SeedProvider> builds = make_build_seeds();
   std::unique_ptr<SeedProvider> reductions = make_reduction_seeds();
 };
 
 void find_seeds(const conf::CompConf &conf, const Config &config,
                 BlockInfo &info, AliasAnalyis &aa, BlockSeeds &out) {
-  SeedProvider *providers[] = {out.stores.get(), out.reductions.get()};
-  const char *seen_names[] = {"SLPSeedsStore", "SLPSeedsReduction"};
+  SeedProvider *providers[] = {out.stores.get(), out.builds.get(),
+                               out.reductions.get()};
+  const char *seen_names[] = {"SLPSeedsStore", "SLPSeedsBuild",
+                              "SLPSeedsReduction"};
   const char *rejected_names[] = {"SLPSeedsRejectedStore",
+                                  "SLPSeedsRejectedBuild",
                                   "SLPSeedsRejectedReduction"};
   SeedRegion region{
       .info = &info, .loop = nullptr, .aa = aa, .conf = conf, .config = config};
@@ -78,6 +82,7 @@ i64 Vectorizer::slp_benefit(fir::Context &ctx, AliasAnalyis &aa,
   ClaimSet claims;
   i64 total = 0;
   for (auto [provider, reduction] : {std::pair{seeds.stores.get(), false},
+                                     std::pair{seeds.builds.get(), false},
                                      std::pair{seeds.reductions.get(), true}}) {
     for (auto &s : provider->seeds) {
       if (claims.overlaps(s)) {
@@ -192,6 +197,7 @@ PreservedAnalysis Vectorizer::apply(fir::Context &ctx, fir::Function &func) {
     for (size_t i = 0; i < blocks.size(); i++) {
       find_seeds(*ctx.config, config, blocks[i], aa, block_seeds[i]);
       n_seeds += block_seeds[i].stores->seeds.size() +
+                 block_seeds[i].builds->seeds.size() +
                  block_seeds[i].reductions->seeds.size();
     }
     if (n_seeds == 0) {
@@ -209,9 +215,10 @@ PreservedAnalysis Vectorizer::apply(fir::Context &ctx, fir::Function &func) {
               .dom = nullptr,
               .aa = aa,
               .config = config};
-  auto run = [&](bool reduction) {
+  auto run = [&](std::unique_ptr<SeedProvider> BlockSeeds::*member,
+                 bool reduction) {
     for (auto &bs : block_seeds) {
-      auto *provider = reduction ? bs.reductions.get() : bs.stores.get();
+      auto *provider = (bs.*member).get();
       for (auto &s : provider->seeds) {
         if (claims.overlaps(s)) {
           continue;
@@ -242,8 +249,9 @@ PreservedAnalysis Vectorizer::apply(fir::Context &ctx, fir::Function &func) {
   };
   {
     ZoneScopedN("Run");
-    run(false);
-    run(true);
+    run(&BlockSeeds::stores, false);
+    run(&BlockSeeds::builds, false);
+    run(&BlockSeeds::reductions, true);
   }
 
   if (loops_changed) {

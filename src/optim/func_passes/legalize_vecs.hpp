@@ -70,6 +70,10 @@ class LegalizeVecs final : public FunctionPass {
     bool changed = false;
     for (size_t arg_indx = 0; arg_indx < instr->args.size(); arg_indx++) {
       auto arg = instr->args[arg_indx];
+      // the matcher reads the mask of a shuffle as an immediate
+      if (arg_indx == 2 && instr->is(fir::VectorISubType::Shuffle)) {
+        continue;
+      }
       // replace vec with reference to global variable
       if (arg.is_constant() && arg.as_constant()->is_vec() &&
           !is_zero_vec(arg.as_constant())) {

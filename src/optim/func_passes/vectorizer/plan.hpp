@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <optional>
 
 #include "config/compiler_config.hpp"
@@ -28,6 +29,124 @@ struct Config {
 // Results of multi result calls are plain external values, not lanes.
 inline bool lane_instr(fir::ValueR v) {
   return v.is_instr() && !v.as_instr().is_multi_result();
+}
+
+// Appends the scalars a vector is made of, in lane order. Understood are an
+// InsertElement chain on poison that sets every lane, a Concat or a constant
+// mask Shuffle of builds, a Broadcast and a constant vector. Inner values need
+// a single user so they die with the build.
+struct BuildInfo {
+  u32 instrs = 0;
+  // the InsertElements among them
+  u32 inserts = 0;
+};
+inline bool build_lanes(fir::ValueR v, TVec<fir::ValueR> &out, BuildInfo &info,
+                        bool is_root = true, u32 allowed_uses = 1) {
+  if (!v.get_type()->is_vec()) {
+    return false;
+  }
+  const u32 n = v.get_type()->as_vec().member_number;
+  if (v.is_constant()) {
+    if (!v.as_constant()->is_vec()) {
+      return false;
+    }
+    for (const auto &m : v.as_constant()->as_vec().members) {
+      out.push_back(fir::ValueR{m});
+    }
+    return out.size() >= n;
+  }
+  if (!lane_instr(v) || (!is_root && v.get_n_uses() != allowed_uses)) {
+    return false;
+  }
+  auto instr = v.as_instr();
+  if (instr->is(fir::VectorISubType::Concat)) {
+    info.instrs++;
+    return build_lanes(instr->args[0], out, info, false) &&
+           build_lanes(instr->args[1], out, info, false);
+  }
+  if (instr->is(fir::VectorISubType::Shuffle)) {
+    // lane i is a lane of the first or of the second operand
+    const auto &mask_v = instr->args[2];
+    if (!mask_v.is_constant() || !mask_v.as_constant()->is_vec()) {
+      return false;
+    }
+    const bool same = instr->args[0] == instr->args[1];
+    const bool second_unused = instr->args[1].is_poison();
+    TVec<fir::ValueR> first;
+    TVec<fir::ValueR> second;
+    info.instrs++;
+    if (!build_lanes(instr->args[0], first, info, false, same ? 2 : 1)) {
+      return false;
+    }
+    if (same) {
+      second = first;
+    } else if (!second_unused &&
+               !build_lanes(instr->args[1], second, info, false)) {
+      return false;
+    }
+    for (const auto &m : mask_v.as_constant()->as_vec().members) {
+      const auto idx = m->as_int();
+      if (idx < 0) {
+        return false;
+      }
+      if (static_cast<size_t>(idx) < first.size()) {
+        out.push_back(first[idx]);
+      } else if (static_cast<size_t>(idx) - first.size() < second.size()) {
+        out.push_back(second[idx - first.size()]);
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (instr->is(fir::VectorISubType::Broadcast)) {
+    info.instrs++;
+    for (u32 i = 0; i < n; i++) {
+      out.push_back(instr->args[0]);
+    }
+    return true;
+  }
+  if (!instr->is(fir::InstrType::InsertElement)) {
+    return false;
+  }
+  TVec<fir::ValueR> lanes;
+  TVec<bool> set;
+  lanes.resize(n);
+  set.resize(n, false);
+  fir::ValueR cur = v;
+  bool first = true;
+  while (true) {
+    if (!lane_instr(cur) ||
+        !cur.as_instr()->is(fir::InstrType::InsertElement) ||
+        (!first && cur.get_n_uses() != 1)) {
+      break;
+    }
+    auto link = cur.as_instr();
+    if (link->get_n_args() != 3 || !link->args[2].is_constant() ||
+        !link->args[2].as_constant()->is_int()) {
+      return false;
+    }
+    const auto idx = link->args[2].as_constant()->as_int();
+    if (idx < 0 || idx >= n) {
+      return false;
+    }
+    // the latest insert of a lane wins
+    if (!set[idx]) {
+      set[idx] = true;
+      lanes[idx] = link->args[1];
+    }
+    info.instrs++;
+    info.inserts++;
+    cur = link->args[0];
+    first = false;
+  }
+  if (!cur.is_poison() || !std::ranges::all_of(set, [](bool b) { return b; })) {
+    return false;
+  }
+  for (auto l : lanes) {
+    out.push_back(l);
+  }
+  return true;
 }
 
 // Program order of the instructions of one block. It is invalidated when a
@@ -134,6 +253,8 @@ enum class NodeKind : u8 {
   Phi,
   // zext (sub 0) or sext (sub 1) of integer lanes to wider integer lanes
   Widen,
+  // bundles: replaces a built vector
+  BuildRoot,
 };
 
 // One widened value of a plan. Nodes refer to each other by index into
@@ -162,7 +283,15 @@ struct PlanNode {
   // load: the lanes are gathered from value (the base pointer) plus these
   // element offsets, the node has no children
   TVec<i64> gather_idx;
+  // load with gather_idx: full vector loads at these element offsets from
+  // value instead of the gather, lane i is lane shuf_mask[i] of the loads
+  // concatenated
+  TVec<i64> shuf_starts;
+  TVec<u32> shuf_mask;
   i64 stride = 0;
+  // store of built vectors: scalar instructions it replaces, 0 for plain
+  // stores
+  u32 scalar_ops = 0;
   // Induction / Reduction / Phi: index of the (block) argument
   u32 arg_id = 0;
   RedKind red = RedKind::Add;
@@ -237,10 +366,14 @@ struct Plan {
   i64 benefit = 0;
 };
 
-enum class SeedKind : u8 { Store, Reduction, Loop };
+enum class SeedKind : u8 { Store, Reduction, Build, Loop };
 
 struct SeedInstrData {
   fir::Instr instr;
+  // a store of a built vector covers several lanes
+  u32 lanes = 1;
+  // instructions of the build that die with the store
+  u32 build_instrs = 0;
 };
 struct Seed {
   fir::ValueR base;
@@ -252,6 +385,16 @@ struct Seed {
   LoopInfo *loop = nullptr;
   // reductions: the lanes may be taken in any order
   bool assoc = false;
+  // builds: the scalars of the vector base
+  TVec<fir::ValueR> lane_values;
+
+  [[nodiscard]] u32 n_lanes() const {
+    u32 n = 0;
+    for (const auto &d : data) {
+      n += d.lanes;
+    }
+    return n;
+  }
 };
 
 struct SeedRegion {

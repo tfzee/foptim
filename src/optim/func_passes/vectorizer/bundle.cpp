@@ -112,6 +112,11 @@ fir::ValueR emit_tree(fir::Context &ctx, const Plan &plan, u32 id,
       }
       return vec;
     }
+    case NodeKind::BuildRoot: {
+      auto vec = emit_child(0);
+      seed.base.as_instr()->replace_all_uses(vec);
+      return vec;
+    }
     case NodeKind::HorizRed: {
       auto orig_instr = seed.base.as_instr();
       ASSERT(n.children.size() == 1);
@@ -168,16 +173,35 @@ fir::ValueR emit_tree(fir::Context &ctx, const Plan &plan, u32 id,
         fir::Builder bb{n.insert_loc};
         bb.after(n.insert_loc);
         // every lane reads the same address
-        if (std::ranges::all_of(n.gather_idx, [&](i64 i) {
-              return i == n.gather_idx[0];
-            })) {
+        if (std::ranges::all_of(n.gather_idx,
+                                [&](i64 i) { return i == n.gather_idx[0]; })) {
           auto scalar = bb.build_load(n.type, n.aux->args[0], false, false);
           return bb.build_vbroadcast(scalar,
                                      ctx->get_vec_type(n.type, n.n_lanes));
         }
-        const u32 idx_bits = n.type->get_bitwidth() == 64 && n.n_lanes == 2
-                                 ? 64
-                                 : 32;
+        if (!n.shuf_mask.empty()) {
+          const auto vty = ctx->get_vec_type(n.type, n.n_lanes);
+          const i64 elem_bytes = n.type->get_size();
+          fir::ValueR loads[2];
+          for (size_t i = 0; i < n.shuf_starts.size(); i++) {
+            auto ptr = bb.build_ptr_add(
+                n.value, fir::ValueR{ctx->get_constant_int(
+                             n.shuf_starts[i] * elem_bytes, 64)});
+            loads[i] = bb.build_load(vty, ptr, false, false);
+          }
+          IRVec<fir::ConstantValueR> mask;
+          for (auto m : n.shuf_mask) {
+            mask.push_back(ctx->get_constant_int(m, 32));
+          }
+          auto mask_v = fir::ValueR{ctx->get_constant_value(
+              std::move(mask),
+              ctx->get_vec_type(ctx->get_int_type(32), n.n_lanes))};
+          const auto second = n.shuf_starts.size() == 2 ? loads[1] : loads[0];
+          return bb.build_vector_op(loads[0], second, mask_v, vty,
+                                    fir::VectorISubType::Shuffle);
+        }
+        const u32 idx_bits =
+            n.type->get_bitwidth() == 64 && n.n_lanes == 2 ? 64 : 32;
         IRVec<fir::ConstantValueR> idx;
         for (auto i : n.gather_idx) {
           idx.push_back(ctx->get_constant_int(i, idx_bits));
@@ -186,8 +210,8 @@ fir::ValueR emit_tree(fir::Context &ctx, const Plan &plan, u32 id,
         auto idx_v = fir::ValueR{ctx->get_constant_value(
             std::move(idx),
             ctx->get_vec_type(ctx->get_int_type(idx_bits), n.n_lanes))};
-        return bb.build_intrinsic(n.value, idx_v,
-                                  fir::IntrinsicSubType::Gather, vty);
+        return bb.build_intrinsic(n.value, idx_v, fir::IntrinsicSubType::Gather,
+                                  vty);
       }
       [[fallthrough]];
     case NodeKind::Store: {
@@ -241,7 +265,15 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
     root_parent = add_node(NoNode, std::move(red));
   }
   TVec<std::pair<u32, TVec<fir::ValueR>>> worklist;
-  {
+  if (b.kind == SeedKind::Build) {
+    PlanNode root;
+    root.kind = NodeKind::BuildRoot;
+    init_build_root(root, b.lane_values, b.type,
+                    InitCtx{.info = info, .parent_loc = b.data[0].instr});
+    root.scalar_ops = b.data[0].build_instrs;
+    root_parent = add_node(NoNode, std::move(root));
+    worklist.emplace_back(root_parent, b.lane_values);
+  } else {
     TVec<fir::ValueR> v;
     for (auto &va : b.data) {
       v.push_back(va.instr.result());
@@ -297,6 +329,18 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
                                      ? plan.nodes[parent].insert_loc
                                      : fir::Instr{}};
       recipe->init(n, curr, ictx);
+      const bool built_store = recipe->kind == NodeKind::Store &&
+                               std::ranges::any_of(b.data, [](const auto &d) {
+                                 return d.lanes > 1;
+                               });
+      if (built_store) {
+        // a store of a built vector covers all its lanes
+        n.n_lanes = b.n_lanes();
+        n.type = b.type;
+        for (const auto &d : b.data) {
+          n.scalar_ops += 2 + d.build_instrs;
+        }
+      }
       // a widened value needs a vector type the backend has, a store checks
       // the type of its value operand, masks the width of the compares
       const bool vector_result = n.kind != NodeKind::Store &&
@@ -355,6 +399,21 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
         }
         continue;
       }
+      if (built_store) {
+        // the value operand is the list of scalars of the builds
+        TVec<fir::ValueR> data;
+        for (const auto &d : b.data) {
+          if (d.lanes > 1) {
+            BuildInfo unused;
+            const bool ok = build_lanes(d.instr->args[1], data, unused);
+            ASSERT(ok);
+          } else {
+            data.push_back(d.instr->args[1]);
+          }
+        }
+        worklist.emplace_back(result, std::move(data));
+        continue;
+      }
       // the callee is not an operand
       for (size_t arg_id = recipe->kind == NodeKind::Call ? 1 : 0;
            arg_id < n_args; arg_id++) {
@@ -403,13 +462,40 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
     }
     return false;
   }
-  plan.vf = static_cast<u32>(b.data.size());
+  plan.vf = reduction                   ? static_cast<u32>(b.data.size())
+            : b.kind == SeedKind::Build ? static_cast<u32>(b.lane_values.size())
+                                        : b.n_lanes();
   plan.benefit = plan.nodes.empty() ? 0 : bundle_benefit(plan, 0, features);
   if constexpr (debug_print) {
     node_dump(plan, 0);
   }
   return true;
 }
+
+namespace {
+// destroys the links of a build once nothing uses them
+void destroy_dead_build(fir::ValueR v) {
+  if (!lane_instr(v) || v.get_n_uses() != 0) {
+    return;
+  }
+  auto instr = v.as_instr();
+  const bool link = instr->is(fir::InstrType::InsertElement) ||
+                    instr->is(fir::VectorISubType::Concat) ||
+                    instr->is(fir::VectorISubType::Shuffle) ||
+                    instr->is(fir::VectorISubType::Broadcast);
+  if (!link) {
+    return;
+  }
+  TVec<fir::ValueR> operands;
+  for (auto a : instr->args) {
+    operands.push_back(a);
+  }
+  instr.destroy();
+  for (auto a : operands) {
+    destroy_dead_build(a);
+  }
+}
+}  // namespace
 
 void apply_bundle(fir::Context &ctx, const Plan &plan, Seed &seed,
                   bool reduction) {
@@ -418,8 +504,20 @@ void apply_bundle(fir::Context &ctx, const Plan &plan, Seed &seed,
   if (reduction) {
     seed.base.as_instr().destroy();
   } else {
+    TVec<fir::ValueR> built;
     for (auto &d : seed.data) {
+      if (d.lanes > 1 && seed.kind == SeedKind::Store) {
+        built.push_back(d.instr->args[1]);
+      }
+      if (seed.kind == SeedKind::Build) {
+        for (auto a : d.instr->args) {
+          built.push_back(a);
+        }
+      }
       d.instr.destroy();
+    }
+    for (auto v : built) {
+      destroy_dead_build(v);
     }
   }
 }

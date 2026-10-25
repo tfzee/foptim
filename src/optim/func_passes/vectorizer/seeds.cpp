@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "optim/func_passes/vectorizer/bundle.hpp"
+#include "optim/func_passes/vectorizer/recipes.hpp"
 
 namespace foptim::optim::vec {
 
@@ -139,7 +140,8 @@ std::optional<Seed> find_reduction(fir::BasicBlock bb, size_t instr_id,
   return Seed{.base = base_instr.result(),
               .type = base_instr.result_type(),
               .data = out,
-              .assoc = is_associative};
+              .assoc = is_associative,
+              .lane_values = {}};
 }
 
 namespace {
@@ -198,6 +200,7 @@ class StoreSeedProvider final : public SeedProvider {
     u32 access;
     PtrShape shape;
     SeedInstrData data;
+    // type of one lane
     fir::TypeR type;
     u32 epoch;
   };
@@ -218,6 +221,23 @@ class StoreSeedProvider final : public SeedProvider {
       }
       auto instr = acc[i].instr;
       auto ty = instr.result_type();
+      SeedInstrData data{.instr = instr};
+      if (ty->is_vec()) {
+        TVec<fir::ValueR> lanes;
+        BuildInfo info;
+        // a broadcast or a constant would be rewritten to itself
+        if (!build_lanes(instr->args[1], lanes, info) || info.inserts == 0 ||
+            lanes.size() < 2) {
+          continue;
+        }
+        ty = lanes[0].get_type();
+        if (std::ranges::any_of(
+                lanes, [&](fir::ValueR l) { return l.get_type() != ty; })) {
+          continue;
+        }
+        data.lanes = lanes.size();
+        data.build_instrs = info.instrs;
+      }
       if (!ty->is_int() && !ty->is_float() && !ty->is_ptr()) {
         continue;
       }
@@ -226,7 +246,7 @@ class StoreSeedProvider final : public SeedProvider {
       }
       cands.push_back(Cand{.access = i,
                            .shape = acc[i].loc.ptr,
-                           .data = SeedInstrData{.instr = instr},
+                           .data = data,
                            .type = ty,
                            .epoch = acc[i].epoch});
     }
@@ -268,15 +288,20 @@ class StoreSeedProvider final : public SeedProvider {
           if (i < group.size()) {
             const auto &prev = cands[group[i - 1]];
             const auto &cur = cands[group[i]];
-            extends =
-                cur.epoch == prev.epoch && cur.type == prev.type &&
-                cur.shape.offset ==
-                    prev.shape.offset + static_cast<i64>(prev.type->get_size());
+            extends = cur.epoch == prev.epoch && cur.type == prev.type &&
+                      cur.shape.offset ==
+                          prev.shape.offset +
+                              static_cast<i64>(prev.data.lanes) *
+                                  static_cast<i64>(prev.type->get_size());
           }
           if (extends) {
             continue;
           }
-          if (i - run_start >= 2) {
+          u32 run_lanes = 0;
+          for (size_t k = run_start; k < i; k++) {
+            run_lanes += cands[group[k]].data.lanes;
+          }
+          if (run_lanes >= 2) {
             cut_run(r, cands,
                     std::span{group}.subspan(run_start, i - run_start),
                     max_bits);
@@ -294,7 +319,7 @@ class StoreSeedProvider final : public SeedProvider {
 
   void finalize(const conf::CompConf & /*conf*/) final {
     std::ranges::stable_sort(seeds, [](const Seed &b1, const Seed &b2) {
-      return b1.data.size() > b2.data.size();
+      return b1.n_lanes() > b2.n_lanes();
     });
   }
 
@@ -308,15 +333,23 @@ class StoreSeedProvider final : public SeedProvider {
     while (i < run.size()) {
       bool cut = false;
       for (u32 w = 32; w >= 2 && !cut; w /= 2) {
-        if (!try_window(r, cands, run, i, w, max_bits)) {
+        const auto end = window_end(cands, run, i, w);
+        if (!end || !try_window(r, cands, run, i, *end, w, max_bits)) {
           continue;
         }
         for (u32 sw = w / 2; sw >= 2; sw /= 2) {
-          for (size_t k = i; k + sw <= i + w; k += sw) {
-            try_window(r, cands, run, k, sw, max_bits);
+          size_t k = i;
+          while (k < *end) {
+            const auto kend = window_end(cands, run, k, sw);
+            if (kend && *kend <= *end) {
+              try_window(r, cands, run, k, *kend, sw, max_bits);
+              k = *kend;
+            } else {
+              k++;
+            }
           }
         }
-        i += w;
+        i = *end;
         cut = true;
       }
       if (!cut) {
@@ -325,15 +358,30 @@ class StoreSeedProvider final : public SeedProvider {
     }
   }
 
+  // one past the last entry of the window of w lanes that starts at entry i,
+  // none if an entry straddles the end
+  static std::optional<size_t> window_end(const TVec<Cand> &cands,
+                                          std::span<const u32> run, size_t i,
+                                          u32 w) {
+    u32 lanes = 0;
+    size_t j = i;
+    while (j < run.size() && lanes < w) {
+      lanes += cands[run[j]].data.lanes;
+      j++;
+    }
+    return lanes == w ? std::optional<size_t>{j} : std::nullopt;
+  }
+
   bool try_window(SeedRegion &r, const TVec<Cand> &cands,
-                  std::span<const u32> run, size_t i, u32 w, u32 max_bits) {
+                  std::span<const u32> run, size_t i, size_t end, u32 w,
+                  u32 max_bits) {
     const u32 bits = cands[run[0]].type->get_size() * 8;
-    if (i + w > run.size() || w * bits < 128 || w * bits > max_bits) {
+    if (w * bits < 128 || w * bits > max_bits) {
       return false;
     }
     TVec<u32> members;
-    for (size_t j = 0; j < w; j++) {
-      members.push_back(cands[run[i + j]].access);
+    for (size_t j = i; j < end; j++) {
+      members.push_back(cands[run[j]].access);
     }
     if (r.info->mem().can_sink(members, r.aa) != MemDep::Independent) {
       return false;
@@ -343,8 +391,8 @@ class StoreSeedProvider final : public SeedProvider {
     bundle.type = cands[run[i]].type;
     bundle.block = r.info;
     bundle.kind = SeedKind::Store;
-    for (size_t j = 0; j < w; j++) {
-      bundle.data.push_back(cands[run[i + j]].data);
+    for (size_t j = i; j < end; j++) {
+      bundle.data.push_back(cands[run[j]].data);
     }
     seeds.push_back(std::move(bundle));
     return true;
@@ -373,7 +421,87 @@ class ReductionSeedProvider final : public SeedProvider {
     finalize_reductions(seeds);
   }
 };
+
+// Builds that something other than a store uses. The scalars are the lanes of
+// the seed, if widening them pays off the build is replaced by the vector.
+class BuildSeedProvider final : public SeedProvider {
+ public:
+  void scan(SeedRegion &r) final {
+    if (r.info == nullptr) {
+      return;
+    }
+    const auto &features = r.conf.target.features;
+    for (auto instr : r.info->bb->instructions) {
+      const bool insert = instr->is(fir::InstrType::InsertElement);
+      if ((!insert && !instr->is(fir::VectorISubType::Concat) &&
+           !instr->is(fir::VectorISubType::Shuffle)) ||
+          !instr->result_type()->is_vec() || !is_build_root(instr)) {
+        continue;
+      }
+      TVec<fir::ValueR> lanes;
+      BuildInfo info;
+      if (!build_lanes(instr.result(), lanes, info) || info.inserts == 0) {
+        continue;
+      }
+      const auto elem = lanes[0].get_type();
+      if ((!elem->is_int() && !elem->is_float() && !elem->is_ptr()) ||
+          (elem->get_size() != 4 && elem->get_size() != 8) ||
+          std::ranges::any_of(
+              lanes, [&](fir::ValueR l) { return l.get_type() != elem; }) ||
+          !vector_type_ok(elem, lanes.size(), features)) {
+        continue;
+      }
+      Seed seed;
+      seed.base = instr.result();
+      seed.type = elem;
+      seed.block = r.info;
+      seed.kind = SeedKind::Build;
+      seed.data.push_back(SeedInstrData{.instr = instr,
+                                        .lanes = static_cast<u32>(lanes.size()),
+                                        .build_instrs = info.instrs});
+      seed.lane_values = std::move(lanes);
+      seeds.push_back(std::move(seed));
+    }
+  }
+  bool plan(PlanEnv &env, Seed &seed, Plan &plan) final {
+    return plan_bundle(env.ctx, env.ctx.config->target.features, seed, false,
+                       plan);
+  }
+  void finalize(const conf::CompConf & /*conf*/) final {
+    std::ranges::stable_sort(seeds, [](const Seed &b1, const Seed &b2) {
+      return b1.n_lanes() > b2.n_lanes();
+    });
+  }
+
+ private:
+  // the top of a build with a user that is not a store (the store seeds look
+  // through builds themselves)
+  static bool is_build_root(fir::Instr instr) {
+    bool other_user = false;
+    for (auto u : *instr.result().get_uses()) {
+      auto user = u.user;
+      if (user->is(fir::InstrType::InsertElement) &&
+          user->args[0] == instr.result()) {
+        return false;
+      }
+      if (user->is(fir::VectorISubType::Concat) ||
+          user->is(fir::VectorISubType::Shuffle)) {
+        // part of a bigger build
+        TVec<fir::ValueR> lanes;
+        BuildInfo info;
+        if (build_lanes(user.result(), lanes, info)) {
+          return false;
+        }
+      }
+      other_user |= !user->is(fir::InstrType::StoreInstr);
+    }
+    return other_user;
+  }
+};
 }  // namespace
+std::unique_ptr<SeedProvider> make_build_seeds() {
+  return std::make_unique<BuildSeedProvider>();
+}
 std::unique_ptr<SeedProvider> make_store_seeds() {
   return std::make_unique<StoreSeedProvider>();
 }

@@ -58,6 +58,9 @@ fir::ValueR emit_node(fir::Context &ctx, fir::Builder &bb, const PlanNode &n,
                       u32 vf, std::span<const fir::ValueR> ops);
 
 void init_back(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c);
+// lanes are the scalars of the build, elem is their type
+void init_build_root(PlanNode &n, const TVec<fir::ValueR> &values,
+                     fir::TypeR elem, const InitCtx &c);
 bool broadcast_match(const TVec<fir::ValueR> &values);
 void broadcast_init(PlanNode &n, const TVec<fir::ValueR> &values);
 bool constant_match(const TVec<fir::ValueR> &values);
@@ -72,10 +75,11 @@ fir::ValueR zero_vector(fir::Context &ctx, fir::TypeR elem, u32 lanes);
 // The reduce operation for the chain rooted in root, nullopt if the lanes have
 // to be extracted and combined as scalars.
 std::optional<fir::ReduceInstrSubType> reduce_op_for(fir::Instr root, u32 lanes,
-                                           const Features &features);
+                                                     const Features &features);
 // The operations that are lowered by halving the vector.
-std::optional<fir::ReduceInstrSubType> halving_op_for(fir::Instr root, u32 lanes,
-                                           const Features &features);
+std::optional<fir::ReduceInstrSubType> halving_op_for(fir::Instr root,
+                                                      u32 lanes,
+                                                      const Features &features);
 
 void node_dump(const Plan &plan, u32 id, u32 indent = 0);
 

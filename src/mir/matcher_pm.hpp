@@ -294,6 +294,7 @@ inline constexpr UnOp<Un::FloatSqrt> FloatSqrt;
 
 inline constexpr VecOp<Vec::Broadcast> Broadcast;
 inline constexpr VecOp<Vec::Concat> Concat;
+inline constexpr VecOp<Vec::Shuffle> Shuffle;
 inline constexpr VecOp<Vec::ExtractHigh> ExtractHigh;
 inline constexpr VecOp<Vec::ExtractLow> ExtractLow;
 inline constexpr ReduceOp<Red::Add> ReduceAdd;

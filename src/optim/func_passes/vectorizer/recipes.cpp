@@ -316,6 +316,9 @@ bool load_legal(const PlanNode &n, LaneSpace space, u32 /*vf*/,
   if (n.type->get_bitwidth() <= 16) {
     return false;
   }
+  if (!n.shuf_mask.empty()) {
+    return true;
+  }
   if (!n.gather_idx.empty()) {
     return gather_load_legal(n.type->get_bitwidth(), n.n_lanes);
   }
@@ -337,6 +340,43 @@ bool consecutive_loads(const TVec<fir::ValueR> &values) {
     }
   }
   return true;
+}
+// Indices within a window of at most two vectors become one or two vector
+// loads and a shuffle. The loads stay between the lowest and the highest index
+// so nothing outside the accessed range is read.
+void shuffle_load_init(PlanNode &n) {
+  const u32 bits = n.type->get_bitwidth();
+  const i64 lanes = n.n_lanes;
+  if (!((bits == 32 && lanes == 4) || (bits == 64 && lanes == 2))) {
+    return;
+  }
+  const auto [lo_it, hi_it] = std::ranges::minmax_element(n.gather_idx);
+  const i64 lo = *lo_it;
+  const i64 hi = *hi_it;
+  const i64 span = hi - lo + 1;
+  if (span < lanes || span > 2 * lanes) {
+    return;
+  }
+  TVec<i64> starts{lo};
+  if (span > lanes) {
+    starts.push_back(hi - lanes + 1);
+  }
+  TVec<u32> mask;
+  TVec<u32> source;
+  for (auto i : n.gather_idx) {
+    const bool first = i < lo + lanes;
+    source.push_back(first ? 0 : 1);
+    mask.push_back(first ? i - lo : lanes + (i - starts[1]));
+  }
+  if (starts.size() == 2) {
+    // the backend only has vshufps for two sources
+    if (bits != 32 || source[0] != source[1] || source[2] != source[3] ||
+        source[0] == source[2]) {
+      return;
+    }
+  }
+  n.shuf_starts = std::move(starts);
+  n.shuf_mask = std::move(mask);
 }
 // lanes that read the anchor plus a constant multiple of the element size
 // become one gather with an index vector
@@ -360,6 +400,7 @@ void gather_load_init(PlanNode &n, const TVec<fir::ValueR> &values) {
   }
   n.value = base0;
   n.gather_idx = std::move(idx);
+  shuffle_load_init(n);
 }
 void load_init(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   init_back(n, values, c);
@@ -373,6 +414,9 @@ void load_init(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
 i64 load_cost(const PlanNode &n, u32 vf, const Features & /*features*/) {
   // loop loads are unit stride and have no lanes set
   const bool gather = n.n_lanes != 0 && n.shape != LaneShape::Consecutive;
+  if (!n.shuf_mask.empty()) {
+    return static_cast<i64>(n.shuf_starts.size()) + 1;
+  }
   if (!n.gather_idx.empty()) {
     if (std::ranges::all_of(n.gather_idx,
                             [&](i64 i) { return i == n.gather_idx[0]; })) {
@@ -951,6 +995,13 @@ void init_back(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   n.sub = lane->subtype;
 }
 
+void init_build_root(PlanNode &n, const TVec<fir::ValueR> &values,
+                     fir::TypeR elem, const InitCtx &c) {
+  n.n_lanes = values.size();
+  n.insert_loc = last_lane(values, c);
+  n.type = elem;
+}
+
 // any operand where all lanes are the same, not a recipe
 bool broadcast_match(const TVec<fir::ValueR> &values) {
   auto base_v = values.back();
@@ -1184,6 +1235,7 @@ i64 node_vec_cost(const PlanNode &n, u32 vf, const Features &features) {
     case NodeKind::Constant:
     case NodeKind::Induction:
     case NodeKind::Reduction:
+    case NodeKind::BuildRoot:
       return 0;
     case NodeKind::Scalar:
     case NodeKind::Phi:
@@ -1206,11 +1258,13 @@ i64 node_scalar_cost(const PlanNode &n) {
     case NodeKind::HorizRed:
       // the chain of lanes - 1 operations
       return lanes - 1;
+    case NodeKind::BuildRoot:
+      return n.scalar_ops;
     case NodeKind::Call:
       return lanes * 4;
     case NodeKind::Store:
       // the store and the address it computes
-      return lanes * 2;
+      return n.scalar_ops != 0 ? static_cast<i64>(n.scalar_ops) : lanes * 2;
     default:
       return lanes;
   }

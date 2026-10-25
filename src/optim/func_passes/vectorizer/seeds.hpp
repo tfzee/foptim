@@ -11,6 +11,8 @@ std::optional<Seed> find_reduction(fir::BasicBlock bb, size_t instr_id,
 
 // Stores that write adjacent memory.
 std::unique_ptr<SeedProvider> make_store_seeds();
+// Vectors built from scalars that vector code uses.
+std::unique_ptr<SeedProvider> make_build_seeds();
 // Chains of associative operations over a few values.
 std::unique_ptr<SeedProvider> make_reduction_seeds();
 
