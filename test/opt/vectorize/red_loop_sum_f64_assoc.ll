@@ -34,7 +34,7 @@ define double @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %30: i1 = IntNE(%29, %19){} NUses:1
 ; CHECK-NEXT:    %31: () = CondBranch<bb4(%29, %28), bb5(%29, %28)>(%30){} NUses:0
 ; CHECK-NEXT:  bb5(%32{}: i64, %33{}: 4@f64):
-; CHECK-NEXT:    %34: f64 = V.HAdd(%33){} NUses:1
+; CHECK-NEXT:    %34: f64 = Reduce.Add(%33){} NUses:1
 ; CHECK-NEXT:    %35: f64 = FloatAdd(%34, %17){} NUses:2
 ; CHECK-NEXT:    %36: i1 = IntEQ(%18, %3){} NUses:1
 ; CHECK-NEXT:    %37: () = CondBranch<bb2(%35), bb3(%32, %35)>(%36){} NUses:0

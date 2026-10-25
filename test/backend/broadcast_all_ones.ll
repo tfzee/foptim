@@ -11,6 +11,7 @@ define void @fill(ptr noalias %p, i32 %n) {
 ; CHECK-NEXT:    cjmp_int_sgt($esi: i32, 0: i32, ) -> 3
 ; CHECK-NEXT:    jmp() -> 1
 ; CHECK-NEXT:  1:
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
 ; CHECK-NEXT:  2:
 ; CHECK-NEXT:    mov_sx($rcx: i64, $eax: i32, )

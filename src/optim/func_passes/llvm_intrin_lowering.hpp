@@ -43,6 +43,26 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
+  // llvm.masked.load(ptr, align, mask, passthru), the loader drops the
+  // immediate alignment operand
+  void handle_masked_load(fir::Instr instr) {
+    fir::Builder bb{instr};
+    auto res = bb.build_intrinsic(
+        instr->args[1], instr->args[2], instr->args[3],
+        fir::IntrinsicSubType::MaskedLoad, instr.result_type());
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  // llvm.masked.store(value, ptr, align, mask)
+  void handle_masked_store(fir::Instr instr, fir::Function &func) {
+    fir::Builder bb{instr};
+    bb.build_intrinsic(instr->args[2], instr->args[3], instr->args[1],
+                       fir::IntrinsicSubType::MaskedStore,
+                       func.ctx->get_void_type());
+    instr.destroy();
+  }
+
   void handle_is_fpclass(fir::Instr instr, fir::Function &func,
                          fir::FunctionR /*callee*/) {
     fir::Builder bb{instr};
@@ -749,6 +769,12 @@ class LLVMInstrinsicLowering final : public FunctionPass {
           modified = true;
         } else if (callee.func->name.starts_with("llvm.memcpy.")) {
           handle_memcpy(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.masked.load.")) {
+          handle_masked_load(instr);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.masked.store.")) {
+          handle_masked_store(instr, func);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.fmuladd.")) {
           handle_fmuladd(instr, func, callee);

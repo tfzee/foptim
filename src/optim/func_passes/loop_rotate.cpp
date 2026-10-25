@@ -42,7 +42,7 @@ void replace_branch_with_header(TMap<fir::ValueR, fir::ValueR> &repl_map,
   // IDK about this
   // since they are just inserted at the end we could just use the length
   for (auto instr : header_bb->instructions) {
-    fir::Instr new_instr = bb.insert_copy(instr);
+    fir::Instr new_instr = bb.insert_copy(instr, fir::MetaCopy::Types);
     new_instr.substitute(repl_map);
     fir::map_results(instr, new_instr, repl_map);
   }
@@ -167,7 +167,34 @@ bool LoopRotate::apply(fir::Context &ctx, const CFG &cfg, LoopInfo &linfo) {
   }
   TVec<fir::BasicBlock> head_preds;
   for (auto pred : cfg.bbrs[linfo.head].pred) {
+    if (linfo.tails.size() > 1 && std::ranges::contains(linfo.tails, pred)) {
+      continue;
+    }
     head_preds.push_back(cfg.bbrs[pred].bb);
+  }
+  if (linfo.tails.size() > 1) {
+    // Several back edges would each get their own copy of the header and so
+    // their own exit test. Merge them into one block first, the copy of the
+    // header makes it the single latch of the rotated loop.
+    auto merged = fir::Builder(header_bb).append_bb();
+    for (auto arg : header_bb->args) {
+      merged.add_arg(ctx->storage.insert_bb_arg(merged, arg->get_type()));
+    }
+    fir::Builder mb{merged};
+    mb.at_end(merged);
+    auto jmp = mb.build_branch(header_bb);
+    for (auto arg : merged->args) {
+      jmp.add_bb_arg(0, fir::ValueR{arg});
+    }
+    for (auto tail : linfo.tails) {
+      auto term = cfg.bbrs[tail].bb->get_terminator();
+      for (u16 i = 0; i < term->bbs.size(); i++) {
+        if (term->bbs[i].bb == header_bb) {
+          term.replace_bb(i, merged, true);
+        }
+      }
+    }
+    head_preds.push_back(merged);
   }
   // every predecessor gets a copy of the header so it has to end in a plain
   // jump, split the other edges

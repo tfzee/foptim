@@ -560,46 +560,6 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
     }
     case fir::InstrType::VectorInstr: {
       switch (static_cast<fir::VectorISubType>(instr->get_instr_subtype())) {
-        case fir::VectorISubType::HorizontalAdd: {
-          auto a = eval(instr->get_arg(0));
-          if (a.is_bottom()) {
-            return ConstantValue::Bottom();
-          }
-          if (!a.is_const() && (!a.is_int() && !a.is_float())) {
-            return ConstantValue::Top();
-          }
-
-          if (a.is_int()) {
-            APInt sum = APInt::zero(instr->result_type()->get_bitwidth());
-            for (auto &m : a.vals) {
-              sum += m.i.zext_or_trunc(sum.bits());
-            }
-            return ConstantValue::Constant(std::move(sum),
-                                           instr->result_type());
-          }
-          if (a.is_float() &&
-              ((a.vtype->is_float() && a.vtype->as_float() == 64) ||
-               (a.is_float() && a.vtype->is_vec() &&
-                a.vtype->as_vec().bitwidth == 64))) {
-            f64 res = 0;
-            for (auto &m : a.vals) {
-              res += m.f;
-            }
-            return ConstantValue::Constant(res, instr->result_type());
-          }
-          if (a.is_float() &&
-              ((a.vtype->is_float() && a.vtype->as_float() == 32) ||
-               (a.is_float() && a.vtype->is_vec() &&
-                a.vtype->as_vec().bitwidth == 32))) {
-            f32 res = 0;
-            for (auto &m : a.vals) {
-              res +=
-                  std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(m.f)));
-            }
-            return ConstantValue::Constant(res, instr->result_type());
-          }
-          return ConstantValue::Top();
-        }
         case fir::VectorISubType::Broadcast: {
           auto a = eval(instr->get_arg(0));
           if (a.is_bottom()) {
@@ -639,10 +599,52 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         case fir::VectorISubType::Concat:
         case fir::VectorISubType::ExtractHigh:
         case fir::VectorISubType::ExtractLow:
-        case fir::VectorISubType::HorizontalMul:
           break;
       }
       return ConstantValue::Top();
+    }
+    case fir::InstrType::ReduceInstr: {
+      if (!instr->is(fir::ReduceInstrSubType::Add)) {
+        return ConstantValue::Top();
+      }
+        auto a = eval(instr->get_arg(0));
+        if (a.is_bottom()) {
+          return ConstantValue::Bottom();
+        }
+        if (!a.is_const() && (!a.is_int() && !a.is_float())) {
+          return ConstantValue::Top();
+        }
+
+        if (a.is_int()) {
+          APInt sum = APInt::zero(instr->result_type()->get_bitwidth());
+          for (auto &m : a.vals) {
+            sum += m.i.zext_or_trunc(sum.bits());
+          }
+          return ConstantValue::Constant(std::move(sum),
+                                         instr->result_type());
+        }
+        if (a.is_float() &&
+            ((a.vtype->is_float() && a.vtype->as_float() == 64) ||
+             (a.is_float() && a.vtype->is_vec() &&
+              a.vtype->as_vec().bitwidth == 64))) {
+          f64 res = 0;
+          for (auto &m : a.vals) {
+            res += m.f;
+          }
+          return ConstantValue::Constant(res, instr->result_type());
+        }
+        if (a.is_float() &&
+            ((a.vtype->is_float() && a.vtype->as_float() == 32) ||
+             (a.is_float() && a.vtype->is_vec() &&
+              a.vtype->as_vec().bitwidth == 32))) {
+          f32 res = 0;
+          for (auto &m : a.vals) {
+            res +=
+                std::bit_cast<f32>(static_cast<u32>(std::bit_cast<u64>(m.f)));
+          }
+          return ConstantValue::Constant(res, instr->result_type());
+        }
+        return ConstantValue::Top();
     }
     case fir::InstrType::UnaryInstr: {
       auto a = eval(instr->get_arg(0));
@@ -1011,7 +1013,10 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:
         case fir::IntrinsicSubType::Memcmp:
+        case fir::IntrinsicSubType::MaskedLoad:
+        case fir::IntrinsicSubType::Gather:
           return ConstantValue::Top();
+        case fir::IntrinsicSubType::MaskedStore:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memmove:

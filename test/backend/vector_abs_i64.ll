@@ -10,6 +10,7 @@ define void @abs_v4i64(ptr %d, ptr %s) {
 ; CHECK-NEXT:    $ymm1: i64x4 = $ymm1: i64x4 - $ymm0: i64x4
 ; CHECK-NEXT:    vblendv($ymm0: i64x4, $ymm0: i64x4, $ymm1: i64x4, $ymm0: i64x4, )
 ; CHECK-NEXT:    [$rdi]: i64x4 = $ymm0: i64x4
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
   %v = load <4 x i64>, ptr %s, align 32
   %a = call <4 x i64> @llvm.abs.v4i64(<4 x i64> %v, i1 false)

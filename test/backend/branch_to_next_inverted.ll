@@ -22,30 +22,29 @@ define void @ins(ptr noundef %0, ptr noundef %1) #0 {
 ; CHECK-NEXT:  2:
 ; CHECK-NEXT:    $r9: i64 = $rax: i64
 ; CHECK-NEXT:    $edi: i32 = [$r9]: i32
-; CHECK-NEXT:    $rcx: i64 = $r9: i64
+; CHECK-NEXT:    $rax: i64 = $r9: i64
 ; CHECK-NEXT:    $rsi: i64 = $r9: i64
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  3:
-; CHECK-NEXT:    $rax: i64 = $rsi: i64
-; CHECK-NEXT:    $rdx: i64 = $rcx: i64
-; CHECK-NEXT:    cjmp_int_eq($rcx: i64, $r8: i64, ) -> 7
+; CHECK-NEXT:    $rdx: i64 = $rsi: i64
+; CHECK-NEXT:    $rcx: i64 = $rax: i64
+; CHECK-NEXT:    cjmp_int_eq($rax: i64, $r8: i64, ) -> 7
 ; CHECK-NEXT:    jmp() -> 4
 ; CHECK-NEXT:  4:
-; CHECK-NEXT:    $rsi: i64 = $rax: i64
+; CHECK-NEXT:    $rsi: i64 = $rdx: i64
 ; CHECK-NEXT:    $rsi: i64 += -4: i64
-; CHECK-NEXT:    $ecx: i32 = [$rax + -4]: i32
-; CHECK-NEXT:    cjmp_int_sge($edi: i32, $ecx: i32, ) -> 7
+; CHECK-NEXT:    $eax: i32 = [$rdx + -4]: i32
+; CHECK-NEXT:    cjmp_int_sge($edi: i32, $eax: i32, ) -> 7
 ; CHECK-NEXT:    jmp() -> 5
 ; CHECK-NEXT:  5:
-; CHECK-NEXT:    $eax: i32 = [$rax + -4]: i32
-; CHECK-NEXT:    [$rdx]: i32 = $eax: i32
-; CHECK-NEXT:    $rcx: i64 = $rdx: i64
-; CHECK-NEXT:    $rcx: i64 += -4: i64
+; CHECK-NEXT:    [$rcx]: i32 = $eax: i32
+; CHECK-NEXT:    $rax: i64 = $rcx: i64
+; CHECK-NEXT:    $rax: i64 += -4: i64
 ; CHECK-NEXT:    jmp() -> 3
 ; CHECK-NEXT:  6:
 ; CHECK-NEXT:    ret()
 ; CHECK-NEXT:  7:
-; CHECK-NEXT:    [$rdx]: i32 = $edi: i32
+; CHECK-NEXT:    [$rcx]: i32 = $edi: i32
 ; CHECK-NEXT:    $rcx: i64 = $r9: i64
 ; CHECK-NEXT:    $rcx: i64 += 4: i64
 ; CHECK-NEXT:    $rax: i64 = $rcx: i64

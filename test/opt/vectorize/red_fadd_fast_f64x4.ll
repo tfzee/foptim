@@ -11,7 +11,7 @@ define double @f(ptr %a) {
 ; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %3: 4@i64 = PtrAdd(%1, %2){} NUses:1
 ; CHECK-NEXT:    %4: 4@f64 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: f64 = V.HAdd(%4){} NUses:1
+; CHECK-NEXT:    %5: f64 = Reduce.Add(%4){} NUses:1
 ; CHECK-NEXT:    %6: f64 = Return(%5){} NUses:0
 ; CHECK-NEXT:}
   %p0 = getelementptr double, ptr %a, i64 0

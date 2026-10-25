@@ -20,6 +20,10 @@ MArgument valueToArgPtr(fir::ValueR val, Type type_id, TVec<MInstr> &res,
 // tries to get arg as a mem operand but is smart and does stuff like [reg+reg]
 MArgument valueToArgPtrSmart(fir::ValueR val, Type type_id, TVec<MInstr> &res,
                              DumbRegAlloc &alloc);
+// vector of i1, the result of a vector compare
+bool is_mask_type(fir::TypeR ty);
+// MIR type of a value, masks take the type of the vector that was compared
+Type value_type(fir::ValueR val);
 MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc);
 // converts value to an operand argument but it also allows memory references
 // like [reg+reg]

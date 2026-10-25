@@ -13,6 +13,10 @@ class BBArgumentData : public Used, public Attributable {
   TypeR _type;
   u64 noalias : 1 = 0;
   u64 nonnull : 1 = 0;
+  // pointer arguments: the function does not keep the address (or anything
+  // derived from it) after it returned, and does not write through it
+  u64 nocapture : 1 = 0;
+  u64 readonly : 1 = 0;
 
   BBArgumentData(BasicBlock parent, TypeR type);
   [[nodiscard]] BasicBlock get_parent() const;

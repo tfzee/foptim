@@ -15,6 +15,7 @@ define i64 @ext(<4 x i64> %v, i32 %i) {
 ; CHECK-NEXT:    vextract128($xmm0: i64x2, $ymm0: i64x4, 1: i8, )
 ; CHECK-NEXT:    vpextr($rcx: i64, $xmm0: i64x2, 1: i8, )
 ; CHECK-NEXT:    cmov_eq($rax: i64, $rcx: i64, $edi: i32, 3: i32, )
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($rax: i64, )
   %r = extractelement <4 x i64> %v, i32 %i
   ret i64 %r

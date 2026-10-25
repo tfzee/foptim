@@ -31,7 +31,7 @@ define i32 @sum(ptr %p, i64 %n) {
 ; CHECK-NEXT:    %31: i1 = IntNE(%30, %20){} NUses:1
 ; CHECK-NEXT:    %32: () = CondBranch<bb4(%29, %28, %30), bb5(%29, %28, %30)>(%31){} NUses:0
 ; CHECK-NEXT:  bb5(%33{}: ptr, %34{}: 8@i32, %35{}: i64):
-; CHECK-NEXT:    %36: i32 = V.HAdd(%34){} NUses:1
+; CHECK-NEXT:    %36: i32 = Reduce.Add(%34){} NUses:1
 ; CHECK-NEXT:    %37: i32 = IntAdd(%36, %17){} NUses:2
 ; CHECK-NEXT:    %38: i1 = IntEQ(%19, %3){} NUses:1
 ; CHECK-NEXT:    %39: () = CondBranch<bb2(%37), bb3(%33, %37, %35)>(%38){} NUses:0

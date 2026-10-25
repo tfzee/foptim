@@ -7,14 +7,30 @@
 #include "ir/basic_block.hpp"
 #include "ir/basic_block_arg.hpp"
 #include "ir/constant_value.hpp"
+#include "ir/function.hpp"
 #include "ir/types.hpp"
+#include "optim/analysis/mem/alias_sets.hpp"
 #include "utils/stable_vec_ref.hpp"
 #include "utils/stable_vec_slot.hpp"
 #include "utils/string.hpp"
 
 namespace foptim::fir {
 
-BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
+void AliasSetsDeleter::operator()(optim::AliasSetTable *p) const { delete p; }
+
+optim::AliasSetTable &ContextData::alias_sets() {
+  std::call_once(alias_sets_once, [&] {
+    alias_sets_.reset(new optim::AliasSetTable{optim::AliasSetTable::roots()});
+  });
+  return *alias_sets_;
+}
+
+BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs,
+                             MetaCopy meta, Function *dest) {
+  Function *src_func = bb->func.func;
+  if (dest == nullptr) {
+    dest = src_func;
+  }
   auto res = storage.insert_bb(*bb.get_raw_ptr());
   subs.insert({ValueR{bb}, ValueR{res}});
   res->uses.clear();
@@ -45,6 +61,9 @@ BasicBlock ContextData::copy(BasicBlock bb, V2VMap &subs, bool apply_subs) {
       new_instr.substitute(subs);
     }
     map_results(instr, new_instr, subs);
+    if (src_func != nullptr && dest != nullptr && src_func->access_meta) {
+      dest->copy_access_meta(*src_func, instr, new_instr, meta);
+    }
   }
   return res;
 }
@@ -58,6 +77,7 @@ BBArgument ContextData::copy(BBArgument bb_arg) {
 
 Instr ContextData::copy(Instr instr) {
   auto res = storage.insert_instr(*instr.get_raw_ptr());
+  res->has_access_meta = false;
   return res;
 }
 

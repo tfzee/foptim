@@ -105,8 +105,6 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new SORAConf{};
     } else if (name == "Mem2Reg") {
       pass = new Mem2RegConf{};
-    } else if (name == "DoubleLoadElim") {
-      pass = new DoubleLoadElimConf{};
     } else if (name == "IntrinSimplify") {
       pass = new IntrinSimplifyConf{};
     } else if (name == "InstFold") {
@@ -173,6 +171,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new LoopUnswitchConf{};
     } else if (name == "LoopUnroll") {
       pass = new LoopUnrollConf{};
+    } else if (name == "PrintAnalysis") {
+      pass = new PrintAnalysisConf{};
     } else if (name == "PrintFunc") {
       pass = new PrintFuncConf{};
     } else if (name == "VerifyFunc") {
@@ -222,6 +222,80 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
   return pass;
 }
 
+std::string_view trim(std::string_view s) {
+  while (!s.empty() && s.front() == ' ') {
+    s.remove_prefix(1);
+  }
+  while (!s.empty() && s.back() == ' ') {
+    s.remove_suffix(1);
+  }
+  return s;
+}
+
+// splits at the commas that are not inside {}, [] or quotes
+TVec<std::string_view> split_pass_list(std::string_view list) {
+  TVec<std::string_view> out;
+  size_t start = 0;
+  int depth = 0;
+  char quote = 0;
+  for (size_t i = 0; i < list.size(); i++) {
+    const char c = list[i];
+    if (quote != 0) {
+      quote = c == quote ? 0 : quote;
+    } else if (c == '"' || c == '\'') {
+      quote = c;
+    } else if (c == '{' || c == '[') {
+      depth++;
+    } else if (c == '}' || c == ']') {
+      depth--;
+    } else if (c == ',' && depth == 0) {
+      out.push_back(trim(list.substr(start, i - start)));
+      start = i + 1;
+    }
+  }
+  out.push_back(trim(list.substr(start)));
+  return out;
+}
+
+// A pass name, or a name followed by an inline toml table that overrides the
+// options of a copy of the registered pass: Name{key = value, ...}. The copy
+// is registered under the whole text, so the same text is the same pass.
+template <IRType Ty>
+std::optional<PassRef> resolve_pass(CompConf &conf, std::string_view tok) {
+  const auto brace = tok.find('{');
+  if (brace == std::string_view::npos) {
+    return conf.lookup_pass<Ty>(tok);
+  }
+  if (auto existing = conf.lookup_pass<Ty>(tok)) {
+    return existing;
+  }
+  const auto base_name = trim(tok.substr(0, brace));
+  auto base = conf.lookup_pass<Ty>(base_name);
+  if (!base) {
+    return std::nullopt;
+  }
+  if (!tok.ends_with('}')) {
+    fmt::println(stderr, "Options of pass '{}' do not end with '}}'", tok);
+    return std::nullopt;
+  }
+  toml::table tbl;
+  try {
+    tbl = toml::parse("o = " + std::string{tok.substr(brace)});
+  } catch (const toml::parse_error &err) {
+    fmt::println(stderr, "Bad options in pass '{}': {}", tok,
+                 err.description());
+    return std::nullopt;
+  }
+  PassConfig *pass = (*base->get_raw_ptr())->clone();
+  pass->override_name = tok;
+  if (!pass->_pass_parse(tbl["o"].as_table())) {
+    return std::nullopt;
+  }
+  auto &target_arr = Ty == IRType::FIR ? conf.fir_passes : conf.mir_passes;
+  target_arr.push_back(pass);
+  return conf.lookup_pass<Ty>(tok);
+}
+
 // TODO out of order parsing might be an issue here like it was with pipelines
 template <IRType Ty>
 bool passes_parse(CompConf &conf, toml::table &tbl) {
@@ -260,8 +334,12 @@ bool pipeline_parse(PipelineRef pipeline, CompConf &conf,
         auto found_pass = conf.find_pipeline<Ty>(real_name);
         pipeline->passes.push_back({found_pass});
       } else {
-        auto found_pass = conf.find_pass<Ty>(pass_name);
-        pipeline->passes.push_back({found_pass});
+        auto found_pass = resolve_pass<Ty>(conf, pass_name);
+        if (!found_pass) {
+          conf.print_available_passes<Ty>();
+          TODO("Failed to find pass with that name");
+        }
+        pipeline->passes.push_back({*found_pass});
       }
     }
   }
@@ -421,20 +499,7 @@ bool CompConf::set_fir_pass_list(std::string_view list, bool append) {
   if (append) {
     p.passes.push_back({optim.fir_pipeline});
   }
-  size_t pos = 0;
-  while (pos <= list.size()) {
-    auto end = list.find(',', pos);
-    if (end == std::string_view::npos) {
-      end = list.size();
-    }
-    auto tok = list.substr(pos, end - pos);
-    pos = end + 1;
-    while (!tok.empty() && tok.front() == ' ') {
-      tok.remove_prefix(1);
-    }
-    while (!tok.empty() && tok.back() == ' ') {
-      tok.remove_suffix(1);
-    }
+  for (const auto tok : split_pass_list(list)) {
     if (tok.empty()) {
       continue;
     }
@@ -447,7 +512,7 @@ bool CompConf::set_fir_pass_list(std::string_view list, bool append) {
       }
       p.passes.push_back({*found});
     } else {
-      auto found = lookup_pass<IRType::FIR>(tok);
+      auto found = resolve_pass<IRType::FIR>(*this, tok);
       if (!found) {
         fmt::println(stderr, "Unknown FIR pass '{}'", tok);
         print_available_passes<IRType::FIR>();

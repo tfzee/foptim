@@ -51,7 +51,7 @@ approx_func = false
 
 [pipeline.fir.default_release_early]
 passes = [
-        "DCE", "LLVMIntrinsicLowering", "IntrinSimplify", "SORA", "Mem2Reg", "DoubleLoadElim",
+        "DCE", "LLVMIntrinsicLowering", "IntrinSimplify", "SORA", "Mem2Reg",
         "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DSE", "DCE",
         "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler",
         "DCE", "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
@@ -62,7 +62,7 @@ passes = [
 passes = [
       "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
       "LoopSimplify", "SimplifyCFG", "DCE", "LVN", "SCCP", "IntrinSimplify", "InstSimplify",
-      "DoubleLoadElim", "DCE", "SimplifyCFG", "StackKnownBits", "SORA", "Mem2Reg",
+      "DCE", "SimplifyCFG", "StackKnownBits", "SORA", "Mem2Reg",
       "SimplifyCFG", "DCE", "LVN", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "InstSimplify", "SimplifyCFG", "FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline",
       "ArgPromotion", "GDCE", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "CmpKnownValProp", "ConstraintProp",
@@ -79,10 +79,10 @@ passes = [
 
 [pipeline.fir.default_release_late]
 passes = [
-      "LVN", "SCCP", "DoubleLoadElim", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
+      "LVN", "SCCP", "DSE", "DCE", "IntrinSimplify", "InstSimplify",
       "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "SCCP",
       "ArgPromotion", "FuncPropAnnotator", "FunctionDedupDiff", "PartialInlineSplit", "LateInline", "GDCE", "IPCP", "FuncPropAnnotator", "SORA", "Mem2Reg",
-      "SimplifyCFG", "LVN", "SCCP", "DoubleLoadElim", "DCE", "IntrinSimplify", "SimplifyCFG",
+      "SimplifyCFG", "LVN", "SCCP", "DCE", "IntrinSimplify", "SimplifyCFG",
       "InstSimplify", "SCCP", "DCE", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "LoopRotate", "SimplifyCFG", "LoopUnswitch", "DSE", "DCE", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer", "InstSimplify",
       "SimplifyCFG",
@@ -163,7 +163,6 @@ assumedTrip = 64
 [pass.fir.LLVMIntrinsicLowering]
 [pass.fir.SORA]
 [pass.fir.Mem2Reg]
-[pass.fir.DoubleLoadElim]
 [pass.fir.IntrinSimplify]
 [pass.fir.InstFold]
 [pass.fir.InstSimplify]
@@ -185,6 +184,12 @@ assumedTrip = 64
 [pass.fir.IntrinExpand]
 [pass.fir.IntrinLowerCalls]
 [pass.fir.LegalizeVecs]
+[pass.fir.PrintAnalysis]
+#   memssa      memory SSA and the clobber of every load
+#   accesses    every load / store / barrier with its decoded address
+#   provenance  stack / global / null / escape facts of the pointer values
+#   alias       alias answer of every pair of accesses, mod/ref of the barriers
+show = []
 [pass.fir.PrintFunc]
 name_matching = ""
 [pass.fir.VerifyFunc]

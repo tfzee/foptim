@@ -3,6 +3,7 @@
 #include <fmt/base.h>
 
 #include "ir/context.hpp"
+#include "optim/analysis/mem/alias_verify.hpp"
 #include "utils/todo.hpp"
 
 namespace foptim::fir {
@@ -49,7 +50,45 @@ ConstraintAnalysis &AnalysisManager::constraints(fir::Function &func) {
   return *cache.constraints;
 }
 
+MemAccessInfo &AnalysisManager::mem_accesses(fir::Function &func) {
+  auto &cache = get_cache(func);
+  if (!cache.mem_accesses) {
+    cache.mem_accesses = std::make_unique<MemAccessInfo>(func);
+  }
+  return *cache.mem_accesses;
+}
+
+MemorySSA &AnalysisManager::memory_ssa(fir::Function &func) {
+  auto &c = cfg(func);
+  auto &d = dom(func);
+  auto &info = mem_accesses(func);
+  auto &cache = get_cache(func);
+  if (!cache.memory_ssa) {
+    cache.memory_ssa = std::make_unique<MemorySSA>(c, d, info);
+  }
+  return *cache.memory_ssa;
+}
+
+Provenance &AnalysisManager::provenance(fir::Function &func) {
+  auto &cache = get_cache(func);
+  if (!cache.provenance || !cache.provenance->up_to_date(func)) {
+    cache.provenance = std::make_unique<Provenance>(func);
+  }
+  return *cache.provenance;
+}
+
+void AnalysisManager::drop_memory(fir::Function &func) {
+  if (func.analysis_cache) {
+    func.analysis_cache->mem_accesses.reset();
+    func.analysis_cache->memory_ssa.reset();
+    func.analysis_cache->provenance.reset();
+  }
+}
+
 void AnalysisManager::invalidate(fir::Function &func, PreservedAnalysis pres) {
+#if defined(ASSERT_ENABLED) && defined(ALIAS_CHECKS_ENABLED)
+  ASSERT(verify_access_meta(func));
+#endif
   if (!func.analysis_cache) {
     return;
   }
@@ -58,6 +97,17 @@ void AnalysisManager::invalidate(fir::Function &func, PreservedAnalysis pres) {
   // ASSERT evaluates its argument in every build, this one rebuilds the CFG
   ASSERT(verify_preserved(func, pres));
 #endif
+  if (!pres.preserves(AnalysisKind::MemAccesses)) {
+    cache.mem_accesses.reset();
+  }
+  if (!pres.preserves(AnalysisKind::Provenance)) {
+    cache.provenance.reset();
+  }
+  if (!pres.preserves(AnalysisKind::MemorySSA) ||
+      !pres.preserves(AnalysisKind::MemAccesses) ||
+      !pres.preserves(AnalysisKind::CFG)) {
+    cache.memory_ssa.reset();
+  }
   // dependents first, they point into the CFG
   if (!pres.preserves(AnalysisKind::Constraints) ||
       !pres.preserves(AnalysisKind::CFG)) {
@@ -153,10 +203,20 @@ void drop_bits(fir::Function &f) {
     f.clean_passes->reset(false);
   }
 }
+// analyses that read attributes of other functions or globals
+void drop_attribute_analyses(fir::Function &f) {
+  if (f.analysis_cache) {
+    f.analysis_cache->mem_accesses.reset();
+    f.analysis_cache->memory_ssa.reset();
+    f.analysis_cache->provenance.reset();
+  }
+}
 void drop_bits_of_users(const IRVec<fir::Use> &uses) {
   for (const auto &use : uses) {
     if (use.user.is_valid() && use.user->get_parent().is_valid()) {
-      drop_bits(*use.user->get_parent()->get_parent().func);
+      auto &user = *use.user->get_parent()->get_parent().func;
+      drop_bits(user);
+      drop_attribute_analyses(user);
     }
   }
 }
@@ -172,6 +232,7 @@ void AnalysisManager::touched_body(fir::Function &f) {
 void AnalysisManager::touched_interface(fir::Function &g) {
   std::lock_guard<std::mutex> lock{report_mutex};
   drop_bits(g);
+  drop_attribute_analyses(g);
   drop_bits_of_users(g.get_uses());
   reported_interfaces.insert(&g);
 }
@@ -272,6 +333,45 @@ bool AnalysisManager::verify_preserved(fir::Function &func,
     return true;
   }
   auto &cache = *func.analysis_cache;
+  if (cache.mem_accesses && pres.preserves(AnalysisKind::MemAccesses) &&
+      !cache.mem_accesses->equivalent(MemAccessInfo{func})) {
+    fmt::println(stderr,
+                 "AnalysisManager: pass claimed to preserve the memory "
+                 "accesses of '{}' but they changed",
+                 func.name.c_str());
+    fmt::println("Pass returned wrong PreservedAnalysis (MemAccesses)");
+    return false;
+  }
+  if (cache.memory_ssa && pres.preserves(AnalysisKind::MemorySSA)) {
+    const CFG fresh_cfg{func};
+    const Dominators fresh_dom{fresh_cfg};
+    const MemAccessInfo fresh_info{func};
+    const MemorySSA fresh{fresh_cfg, fresh_dom, fresh_info};
+    if (!cache.memory_ssa->equivalent(fresh)) {
+      fmt::println(stderr,
+                   "AnalysisManager: pass claimed to preserve the memory SSA "
+                   "of '{}' but it changed",
+                   func.name.c_str());
+      fmt::println("Pass returned wrong PreservedAnalysis (MemorySSA)");
+      return false;
+    }
+    if (!fresh.verify(fresh_cfg, fresh_dom)) {
+      fmt::println(stderr, "AnalysisManager: memory SSA of '{}' is invalid",
+                   func.name.c_str());
+      return false;
+    }
+  }
+  // an outdated cache is rebuilt when asked for
+  if (cache.provenance && pres.preserves(AnalysisKind::Provenance) &&
+      cache.provenance->up_to_date(func) &&
+      !cache.provenance->equivalent(Provenance{func})) {
+    fmt::println(stderr,
+                 "AnalysisManager: pass claimed to preserve the alias sets of "
+                 "'{}' but they changed",
+                 func.name.c_str());
+    fmt::println("Pass returned wrong PreservedAnalysis (Provenance)");
+    return false;
+  }
   if (cache.cfg && pres.preserves(AnalysisKind::CFG)) {
     const CFG fresh{func};
     const auto &old = *cache.cfg;

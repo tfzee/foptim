@@ -40,7 +40,7 @@ define float @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %37: i1 = IntNE(%36, %23){} NUses:1
 ; CHECK-NEXT:    %38: () = CondBranch<bb4(%36, %35), bb5(%36, %35)>(%37){} NUses:0
 ; CHECK-NEXT:  bb5(%39{}: i64, %40{}: 8@f32):
-; CHECK-NEXT:    %41: f32 = V.HAdd(%40){} NUses:1
+; CHECK-NEXT:    %41: f32 = Reduce.Add(%40){} NUses:1
 ; CHECK-NEXT:    %42: f32 = FloatAdd(%41, %21){} NUses:2
 ; CHECK-NEXT:    %43: i1 = IntEQ(%22, %4){} NUses:1
 ; CHECK-NEXT:    %44: () = CondBranch<bb2(%42), bb3(%39, %42)>(%43){} NUses:0

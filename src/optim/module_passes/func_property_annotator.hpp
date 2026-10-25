@@ -2,8 +2,9 @@
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "optim/analysis/analysis_manager.hpp"
-#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/callgraph.hpp"
+#include "optim/analysis/mem/basic_alias_test.hpp"
+#include "optim/analysis/mem/ptr_arg_use.hpp"
 #include "optim/helper/WFVector.hpp"
 #include "optim/helper/helper.hpp"
 #include "optim/module_pass.hpp"
@@ -152,7 +153,7 @@ class FuncPropAnnotator final : public ModulePass {
                           AnalysisManager &analyMan) override {
     ZoneScopedNC("FuncPropAnnotator", COLOR_OPTIMF);
     CallGraph call_graph{ctx};
-    AliasAnalyis aa;
+    AliasAnalyis aa{false};
 
     TVec<fir::Function *> worklist;
     for (auto *f : ctx->storage.functions.all()) {
@@ -168,12 +169,6 @@ class FuncPropAnnotator final : public ModulePass {
       worklist.pop_back();
       aa.reset();
       bool modified = false;
-      auto new_wfvec = can_whole_function_vectorize(*v);
-      if (static_cast<int>(new_wfvec.has_value()) !=
-          v->attribs.maybe_can_wfvec) {
-        v->attribs.maybe_can_wfvec = new_wfvec.has_value();
-        modified = true;
-      }
       auto r = apply(v, call_graph, aa);
       if (r.wont_recurse && !v->attribs.no_recurse) {
         v->attribs.no_recurse = true;
@@ -194,6 +189,27 @@ class FuncPropAnnotator final : public ModulePass {
         v->attribs.mem_read_none = true;
         v->attribs.mem_read_only = false;
         v->attribs.mem_write_only = false;
+      }
+      for (auto arg : v->get_entry()->args) {
+        if (!arg->get_type()->is_ptr() || (arg->nocapture && arg->readonly)) {
+          continue;
+        }
+        const auto use = analyze_ptr_arg_use(arg);
+        if (use.nocapture && !arg->nocapture) {
+          arg->nocapture = true;
+          modified = true;
+        }
+        if (use.readonly && !arg->readonly) {
+          arg->readonly = true;
+          modified = true;
+        }
+      }
+      // after the memory attributes, it needs mem_read_none
+      auto new_wfvec = can_whole_function_vectorize(*v);
+      if (static_cast<int>(new_wfvec.has_value()) !=
+          v->attribs.maybe_can_wfvec) {
+        v->attribs.maybe_can_wfvec = new_wfvec.has_value();
+        modified = true;
       }
       if (modified) {
         // fmt::println("MODIFIED {:d}", *v);

@@ -314,11 +314,14 @@ class KnownBits final : public AttributeAnalysis,
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:
         case fir::IntrinsicSubType::Memcmp:
+        case fir::IntrinsicSubType::MaskedLoad:
+        case fir::IntrinsicSubType::Gather:
           // an arbitrary int
           break;
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::MaskedStore:
           TODO("UNREACH");
       }
     } else if (instr->is(fir::InstrType::ITrunc)) {
@@ -496,12 +499,13 @@ class KnownBits final : public AttributeAnalysis,
         case fir::VectorISubType::Concat:
         case fir::VectorISubType::ExtractHigh:
         case fir::VectorISubType::ExtractLow:
-        case fir::VectorISubType::HorizontalAdd:
-        case fir::VectorISubType::HorizontalMul:
           new_known_one = APInt::zero(W);
           new_known_zero = APInt::zero(W);
           break;
       }
+    } else if (instr->is(fir::InstrType::ReduceInstr)) {
+      new_known_one = APInt::zero(W);
+      new_known_zero = APInt::zero(W);
     } else if (instr->is(fir::InstrType::ExtractElement)) {
       // TODO: can propagate in certain conditions (but then we prob removing
       // this extract value later one hm)

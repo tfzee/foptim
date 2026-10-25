@@ -255,6 +255,7 @@ using Bin = fir::BinaryInstrSubType;
 using Un = fir::UnaryInstrSubType;
 using Vec = fir::VectorISubType;
 using Intrin = fir::IntrinsicSubType;
+using Red = fir::ReduceInstrSubType;
 
 template <fir::BinaryInstrSubType S>
 using BinOp = Op<InstrType::BinaryInstr, static_cast<u32>(S)>;
@@ -262,6 +263,8 @@ template <fir::UnaryInstrSubType S>
 using UnOp = Op<InstrType::UnaryInstr, static_cast<u32>(S)>;
 template <fir::VectorISubType S>
 using VecOp = Op<InstrType::VectorInstr, static_cast<u32>(S)>;
+template <fir::ReduceInstrSubType S>
+using ReduceOp = Op<InstrType::ReduceInstr, static_cast<u32>(S)>;
 template <fir::IntrinsicSubType S>
 using IntrinOp = Op<InstrType::Intrinsic, static_cast<u32>(S)>;
 
@@ -293,8 +296,17 @@ inline constexpr VecOp<Vec::Broadcast> Broadcast;
 inline constexpr VecOp<Vec::Concat> Concat;
 inline constexpr VecOp<Vec::ExtractHigh> ExtractHigh;
 inline constexpr VecOp<Vec::ExtractLow> ExtractLow;
-inline constexpr VecOp<Vec::HorizontalAdd> HorizontalAdd;
-inline constexpr VecOp<Vec::HorizontalMul> HorizontalMul;
+inline constexpr ReduceOp<Red::Add> ReduceAdd;
+inline constexpr ReduceOp<Red::Mul> ReduceMul;
+inline constexpr ReduceOp<Red::And> ReduceAnd;
+inline constexpr ReduceOp<Red::Or> ReduceOr;
+inline constexpr ReduceOp<Red::Xor> ReduceXor;
+inline constexpr ReduceOp<Red::SMin> ReduceSMin;
+inline constexpr ReduceOp<Red::SMax> ReduceSMax;
+inline constexpr ReduceOp<Red::UMin> ReduceUMin;
+inline constexpr ReduceOp<Red::UMax> ReduceUMax;
+inline constexpr ReduceOp<Red::FMin> ReduceFMin;
+inline constexpr ReduceOp<Red::FMax> ReduceFMax;
 
 inline constexpr IntrinOp<Intrin::CTLZ> Ctlz;
 inline constexpr IntrinOp<Intrin::CTTZ> Cttz;
@@ -315,6 +327,9 @@ inline constexpr IntrinOp<Intrin::FCeil> FCeil;
 inline constexpr IntrinOp<Intrin::FFloor> FFloor;
 inline constexpr IntrinOp<Intrin::FTrunc> FTrunc;
 inline constexpr IntrinOp<Intrin::IsConstant> IsConstant;
+inline constexpr IntrinOp<Intrin::MaskedLoad> MaskedLoad;
+inline constexpr IntrinOp<Intrin::MaskedStore> MaskedStore;
+inline constexpr IntrinOp<Intrin::Gather> Gather;
 
 inline constexpr Op<InstrType::ICmp> ICmp;
 inline constexpr Op<InstrType::FCmp> FCmp;

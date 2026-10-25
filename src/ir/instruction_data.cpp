@@ -68,16 +68,12 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "VECTORINSTR_INVALID";
         case VectorISubType::Broadcast:
           return "V.Broadcast";
-        case VectorISubType::HorizontalAdd:
-          return "V.HAdd";
         case VectorISubType::Concat:
           return "V.Concat";
         case VectorISubType::ExtractHigh:
           return "V.ExtractHigh";
         case VectorISubType::ExtractLow:
           return "V.ExtractLow";
-        case VectorISubType::HorizontalMul:
-          return "V.HMul";
         case VectorISubType::Shuffle:
           return "V.Shuffle";
       }
@@ -135,6 +131,39 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "INTRIN:MemMove";
         case IntrinsicSubType::Memcmp:
           return "INTRIN:MemCmp";
+        case IntrinsicSubType::MaskedLoad:
+          return "INTRIN:MaskedLoad";
+        case IntrinsicSubType::Gather:
+          return "INTRIN:Gather";
+        case IntrinsicSubType::MaskedStore:
+          return "INTRIN:MaskedStore";
+      }
+    case InstrType::ReduceInstr:
+      switch (static_cast<ReduceInstrSubType>(subtype)) {
+        case ReduceInstrSubType::INVALID:
+          return "REDUCE_INVALID";
+        case ReduceInstrSubType::Add:
+          return "Reduce.Add";
+        case ReduceInstrSubType::Mul:
+          return "Reduce.Mul";
+        case ReduceInstrSubType::And:
+          return "Reduce.And";
+        case ReduceInstrSubType::Or:
+          return "Reduce.Or";
+        case ReduceInstrSubType::Xor:
+          return "Reduce.Xor";
+        case ReduceInstrSubType::SMin:
+          return "Reduce.SMin";
+        case ReduceInstrSubType::SMax:
+          return "Reduce.SMax";
+        case ReduceInstrSubType::UMin:
+          return "Reduce.UMin";
+        case ReduceInstrSubType::UMax:
+          return "Reduce.UMax";
+        case ReduceInstrSubType::FMin:
+          return "Reduce.FMin";
+        case ReduceInstrSubType::FMax:
+          return "Reduce.FMax";
       }
     case InstrType::Unreachable:
       return "unreachable";
@@ -558,6 +587,7 @@ u8 InstrData::default_n_results(InstrType ty, TypeR vty) {
     case InstrType::ZExt:
     case InstrType::Conversion:
     case InstrType::VectorInstr:
+    case InstrType::ReduceInstr:
     case InstrType::AtomicRMW:
       return 1;
     case InstrType::CallInstr:
@@ -638,6 +668,9 @@ bool InstrData::is_critical() const {
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memmove:
         case fir::IntrinsicSubType::Memcmp:
+        case fir::IntrinsicSubType::MaskedLoad:
+        case fir::IntrinsicSubType::Gather:
+        case fir::IntrinsicSubType::MaskedStore:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:
@@ -645,6 +678,7 @@ bool InstrData::is_critical() const {
           break;
       }
     case InstrType::VectorInstr:
+    case InstrType::ReduceInstr:
     case InstrType::InsertElement:
     case InstrType::ExtractElement:
     case InstrType::AllocaInstr:
@@ -711,6 +745,9 @@ bool InstrData::is_commutative() const {
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memmove:
         case fir::IntrinsicSubType::Memcmp:
+        case fir::IntrinsicSubType::MaskedLoad:
+        case fir::IntrinsicSubType::Gather:
+        case fir::IntrinsicSubType::MaskedStore:
           return false;
         case IntrinsicSubType::UMin:
         case IntrinsicSubType::UMax:
@@ -763,6 +800,7 @@ bool InstrData::is_commutative() const {
     case InstrType::Conversion:
     case InstrType::InsertElement:
     case InstrType::VectorInstr:
+    case InstrType::ReduceInstr:
     case InstrType::ExtractElement:
       return false;
   }
@@ -810,12 +848,15 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case IntrinsicSubType::Memcmp:
+        case IntrinsicSubType::MaskedLoad:
+        case IntrinsicSubType::Gather:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::MaskedStore:
           return true;
       }
     case InstrType::InsertElement:
@@ -837,6 +878,7 @@ bool InstrData::pot_modifies_mem() const {
     case InstrType::ITrunc:
     case InstrType::Conversion:
     case InstrType::VectorInstr:
+    case InstrType::ReduceInstr:
       return false;
   }
 }
@@ -872,12 +914,15 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case fir::IntrinsicSubType::Memset:
+        case fir::IntrinsicSubType::MaskedStore:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memmove:
         case fir::IntrinsicSubType::Memcmp:
+        case fir::IntrinsicSubType::MaskedLoad:
+        case fir::IntrinsicSubType::Gather:
           return true;
       }
       // TODO: not sure fences kinda dont do this but can kinda kinda lead to
@@ -905,6 +950,7 @@ bool InstrData::pot_reads_mem() const {
     case InstrType::ITrunc:
     case InstrType::Conversion:
     case InstrType::VectorInstr:
+    case InstrType::ReduceInstr:
       return false;
   }
 }
@@ -943,12 +989,15 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
         case IntrinsicSubType::Memcmp:
+        case IntrinsicSubType::MaskedLoad:
+        case IntrinsicSubType::Gather:
           return false;
         case IntrinsicSubType::VA_start:
         case IntrinsicSubType::VA_end:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
         case fir::IntrinsicSubType::Memmove:
+        case fir::IntrinsicSubType::MaskedStore:
           return true;
       }
     case InstrType::InsertElement:
@@ -969,6 +1018,7 @@ bool InstrData::has_pot_sideeffects() const {
     case InstrType::ITrunc:
     case InstrType::Conversion:
     case InstrType::VectorInstr:
+    case InstrType::ReduceInstr:
       return false;
   }
 }
@@ -1042,6 +1092,12 @@ InstrData InstrData::get_vector(TypeR ty, VectorISubType sub_type) {
   auto res = InstrData{InstrType::VectorInstr, static_cast<u32>(sub_type), ty,
                        BasicBlock(BasicBlock::invalid())};
   // res.args.reserve(2);
+  return res;
+}
+
+InstrData InstrData::get_reduce(TypeR ty, ReduceInstrSubType sub_type) {
+  auto res = InstrData{InstrType::ReduceInstr, static_cast<u32>(sub_type), ty,
+                       BasicBlock(BasicBlock::invalid())};
   return res;
 }
 

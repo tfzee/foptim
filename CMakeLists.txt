@@ -70,6 +70,9 @@ option(assert_check "Assertion Checks" ON)
 # hashing every function around every pass (and every function around module
 # passes) to check that passes report their changes truthfully, expensive
 option(hash_checks "Hash checks of the pass change reporting (slow)" OFF)
+# checks that the alias set relations and the access metadata are consistent,
+# after every pass in assert builds. Switch off to save compile time
+option(alias_checks "Verify alias set relations and access metadata after every pass" ON)
 option(fail_on_impl "Abort when impl gets hit" ON)
 if(fail_on_impl)
   add_definitions(-DIMPL_ABORT)
@@ -100,6 +103,12 @@ else()
 endif()
 
 
+if(alias_checks)
+  add_definitions(-DALIAS_CHECKS_ENABLED)
+else()
+  remove_definitions(-DALIAS_CHECKS_ENABLED)
+endif()
+
 link_libraries(fmt)
 # the linker is a big part of an incremental rebuild, use mold or lld when installed
 if(FOPTIM_FAST_LINKER AND NOT EXISTS ${FOPTIM_FAST_LINKER})
@@ -114,6 +123,7 @@ endif()
 add_library (foptim OBJECT
                 #loading
                 ./src/llvm/llir_loader.cpp
+                ./src/llvm/alias_metadata.cpp
 
                 #ir
                 ./src/ir/context.cpp
@@ -141,18 +151,29 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/cfg.cpp
                 ./src/optim/analysis/analysis_manager.cpp
                 ./src/optim/pass_skipping.cpp
-                ./src/optim/analysis/basic_alias_test.cpp
-                ./src/optim/analysis/block_mem_access.cpp
+                ./src/optim/analysis/mem/alias_query.cpp
+                ./src/optim/analysis/mem/basic_alias_test.cpp
+                ./src/optim/analysis/mem/block_mem_access.cpp
+                ./src/optim/analysis/mem/mem_access.cpp
+                ./src/optim/analysis/mem/memory_ssa.cpp
+                ./src/optim/analysis/mem/alias_sets.cpp
+                ./src/optim/analysis/mem/alias_verify.cpp
+                ./src/optim/analysis/mem/provenance.cpp
                 ./src/optim/analysis/constraint_analysis.cpp
                 ./src/optim/analysis/attributer/KnownBits.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/loop_unroll.cpp
                 ./src/optim/func_passes/loop_unswitch.cpp
                 ./src/optim/func_passes/loop_rotate.cpp
-                ./src/optim/func_passes/slp_vectorizer.cpp
-                ./src/optim/func_passes/slp_loops.cpp
+                ./src/optim/func_passes/vectorizer/vectorizer.cpp
+                ./src/optim/func_passes/vectorizer/recipes.cpp
+                ./src/optim/func_passes/vectorizer/bundle.cpp
+                ./src/optim/func_passes/vectorizer/seeds.cpp
+                ./src/optim/func_passes/vectorizer/loop_plan.cpp
+                ./src/optim/func_passes/vectorizer/loop_skeleton.cpp
+                ./src/optim/func_passes/vectorizer/region.cpp
                 ./src/optim/func_passes/simplify_cfg.cpp
-                ./src/optim/func_passes/double_load.cpp
+                ./src/optim/func_passes/dse.cpp
                 ./src/optim/func_passes/intrin_simplify.cpp
                 ./src/optim/func_passes/intrin_expand.cpp
                 ./src/optim/func_passes/intrin_conv.cpp

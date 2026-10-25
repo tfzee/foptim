@@ -2,9 +2,11 @@
 
 #include "ir/builder.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/access_analysis.hpp"
 #include "optim/analysis/analysis_manager.hpp"
-#include "optim/analysis/basic_alias_test.hpp"
+#include "optim/analysis/mem/access_analysis.hpp"
+#include "optim/analysis/mem/basic_alias_test.hpp"
+#include "optim/analysis/mem/mem_access.hpp"
+#include "optim/analysis/mem/memory_ssa.hpp"
 #include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
@@ -97,14 +99,8 @@ struct PtrOffset {
 };
 
 static PtrOffset split_ptr(fir::ValueR ptr) {
-  i128 off = 0;
-  while (ptr.is_instr() &&
-         ptr.as_instr()->is(fir::BinaryInstrSubType::PtrAdd) &&
-         ptr.as_instr()->args[1].is_constant_int()) {
-    off += ptr.as_instr()->args[1].as_constant()->as_int();
-    ptr = ptr.as_instr()->args[0];
-  }
-  return {ptr, off};
+  const auto shape = decompose_ptr(ptr);
+  return {shape.anchor, shape.anchor_offset};
 }
 
 static std::optional<i128> mem_intrin_bytes(fir::Instr instr) {
@@ -118,191 +114,224 @@ static std::optional<i128> mem_intrin_bytes(fir::Instr instr) {
   return count * static_cast<i128>(instr->memcpy_elem_size());
 }
 
-constexpr size_t MaxForwardScan = 64;
+// When the clobber of a load (or of a copy source) is a Memset or Memcpy that
+// wrote all its bytes, the load sees the filled value or the copied from bytes.
+// Replaced instructions stay until the end, the cached accesses still name
+// them.
+class MemIntrinForwarder {
+ public:
+  MemIntrinForwarder(fir::Context &ctx, fir::Function &f)
+      : ctx(&ctx),
+        cfg(AnalysisManager::cfg(f)),
+        dom(AnalysisManager::dom(f)),
+        info(AnalysisManager::mem_accesses(f)),
+        mssa(AnalysisManager::memory_ssa(f)),
+        aq(AnalysisManager::provenance(f)),
+        walker(mssa, info, aq) {}
 
-// The fill or copy that wrote the bytes [ptr, ptr + size) last, if one
-// instruction covers all of them and nothing else may have touched them since.
-static std::optional<size_t> find_covering_writer(fir::BasicBlock bb,
-                                                  size_t pos, fir::ValueR ptr,
-                                                  i128 size, AliasAnalyis &aa) {
-  const auto want = split_ptr(ptr);
-  size_t scanned = 0;
-  for (size_t k = pos; k-- > 0 && scanned < MaxForwardScan; scanned++) {
-    auto s = bb->instructions[k];
-    if (s->is(fir::InstrType::StoreInstr)) {
-      if (s->Volatile || aa.alias(s->args[0], ptr, s->result_type()->get_size(),
-                                  static_cast<size_t>(size)) !=
-                             AliasAnalyis::AAResult::NoAlias) {
-        return std::nullopt;
+  bool run() {
+    for (const auto &a : info.accesses()) {
+      if (!dom.is_reachable(cfg.get_bb_id(a.instr->get_parent()))) {
+        continue;
       }
-      continue;
-    }
-    if (s->is(fir::InstrType::Intrinsic) &&
-        (s->is(fir::IntrinsicSubType::Memset) ||
-         s->is(fir::IntrinsicSubType::Memcpy))) {
-      auto bytes = mem_intrin_bytes(s);
-      if (!s->Volatile && bytes) {
-        if (aa.alias(s->args[0], ptr, static_cast<size_t>(*bytes),
-                     static_cast<size_t>(size)) ==
-            AliasAnalyis::AAResult::NoAlias) {
-          continue;
+      if (a.kind == MemAccess::Kind::Load && !a.ordered && a.loc.size != 0 &&
+          a.instr->is(fir::InstrType::LoadInstr) && !a.instr->Volatile &&
+          !a.instr->Atomic) {
+        if (forward_load(a)) {
+          dead.push_back(a.instr);
         }
-        const auto have = split_ptr(s->args[0]);
-        if (have.base == want.base && have.off <= want.off &&
-            want.off + size <= have.off + *bytes) {
-          return k;
+      } else if (a.instr->is(fir::IntrinsicSubType::Memcpy)) {
+        if (forward_memcpy_chain(a.instr)) {
+          modified = true;
         }
       }
-      return std::nullopt;
     }
-    if (s->pot_modifies_mem()) {
-      return std::nullopt;
+    for (auto instr : dead) {
+      instr.destroy();
     }
+    return modified || !dead.empty();
   }
-  return std::nullopt;
-}
 
-static bool unmodified_between(fir::BasicBlock bb, size_t from, size_t to,
-                               fir::ValueR ptr, i128 size, AliasAnalyis &aa) {
-  for (size_t k = from + 1; k < to; k++) {
-    auto s = bb->instructions[k];
-    if (s->is(fir::InstrType::StoreInstr)) {
-      if (aa.alias(s->args[0], ptr, s->result_type()->get_size(),
-                   static_cast<size_t>(size)) !=
-          AliasAnalyis::AAResult::NoAlias) {
+ private:
+  bool dominates(fir::Instr a, fir::Instr b) const {
+    auto ba = a->get_parent();
+    auto bb = b->get_parent();
+    if (ba == bb) {
+      return ba->get_instr_id(a) < ba->get_instr_id(b);
+    }
+    return dom.strict_dominates(ba, bb);
+  }
+
+  // The fill or copy at state c if one instruction wrote all of the bytes
+  // [want + size) before user.
+  std::optional<fir::Instr> covering_writer(u32 c, const PtrShape &want,
+                                            i128 size, fir::Instr user) const {
+    const auto &ca = mssa[c];
+    if (ca.kind != MemorySSA::Kind::Def || ca.ordered) {
+      return std::nullopt;
+    }
+    auto def = ca.instr;
+    if (!def->is(fir::InstrType::Intrinsic) ||
+        (!def->is(fir::IntrinsicSubType::Memset) &&
+         !def->is(fir::IntrinsicSubType::Memcpy)) ||
+        def->Volatile) {
+      return std::nullopt;
+    }
+    auto bytes = mem_intrin_bytes(def);
+    if (!bytes || !dominates(def, user)) {
+      return std::nullopt;
+    }
+    const auto have = split_ptr(def->args[0]);
+    if (have.base != want.anchor || have.off > want.anchor_offset ||
+        want.anchor_offset + size > have.off + *bytes) {
+      return std::nullopt;
+    }
+    return def;
+  }
+
+  // The bytes of the copy source that correspond to [want + size) of the
+  // destination.
+  static MemLoc source_loc(fir::Instr copy, i128 rel, i128 size) {
+    MemLoc loc;
+    loc.ptr = decompose_ptr(copy->args[1]);
+    loc.ptr.offset += static_cast<i64>(rel);
+    loc.ptr.anchor_offset += static_cast<i64>(rel);
+    loc.size = static_cast<u32>(size);
+    return loc;
+  }
+
+  // Nothing wrote loc between the copy at state c and the state before user.
+  bool source_unmodified(u32 c, fir::Instr user, const MemLoc &loc) {
+    return !walker.clobbered_between(c, mssa.defining_access(user), loc);
+  }
+
+  // A load of bytes a memset or memcpy wrote is the filled value or a load of
+  // the copied from bytes.
+  bool forward_load(const MemAccess &load_acc) {
+    auto load = load_acc.instr;
+    auto ty = load->result_type();
+    const i128 lsize = ty->get_size();
+    if (lsize == 0) {
+      return false;
+    }
+    const u32 c = walker.clobber(load);
+    auto writer = covering_writer(c, load_acc.loc.ptr, lsize, load);
+    if (!writer) {
+      return false;
+    }
+    const fir::Instr def = *writer;
+    const i128 rel =
+        load_acc.loc.ptr.anchor_offset - split_ptr(def->args[0]).off;
+    fir::Builder b{load};
+    if (def->is(fir::IntrinsicSubType::Memcpy)) {
+      const auto src = source_loc(def, rel, lsize);
+      if (!source_unmodified(c, load, src)) {
         return false;
       }
-    } else if (s->pot_modifies_mem()) {
-      return false;
+      auto nl = b.build_load(ty, offset_ptr(*ctx, b, def->args[1], rel), false,
+                             false);
+      load->replace_all_uses(nl);
+      return true;
     }
-  }
-  return true;
-}
-
-// A load of bytes a memset or memcpy wrote just before is the filled value or
-// a load of the copied from bytes.
-static bool forward_load_from_mem_intrin(fir::Instr load, fir::BasicBlock bb,
-                                         fir::Context &ctx, AliasAnalyis &aa) {
-  auto ty = load->result_type();
-  if (load->Volatile || load->Atomic || ty->get_size() == 0) {
-    return false;
-  }
-  const i128 lsize = ty->get_size();
-  const size_t pos = bb->get_instr_id(load);
-  auto def_pos = find_covering_writer(bb, pos, load->args[0], lsize, aa);
-  if (!def_pos) {
-    return false;
-  }
-  auto def = bb->instructions[*def_pos];
-  const auto want = split_ptr(load->args[0]);
-  const auto have = split_ptr(def->args[0]);
-  const i128 rel = want.off - have.off;
-  fir::Builder b{load};
-  if (def->is(fir::IntrinsicSubType::Memcpy)) {
-    auto src = offset_ptr(ctx, b, def->args[1], rel);
-    if (!unmodified_between(bb, *def_pos, pos, src, lsize, aa)) {
-      if (rel != 0) {
-        src.as_instr().destroy();
+    auto val = def->args[1];
+    const i128 elem = val.get_type()->get_size();
+    if (elem != 1) {
+      if (val.get_type() == ty && rel % elem == 0) {
+        load->replace_all_uses(val);
+        return true;
       }
       return false;
     }
-    auto nl = b.build_load(ty, src, false, false);
-    load->replace_all_uses(nl);
-    load.destroy();
-    return true;
-  }
-  auto val = def->args[1];
-  const i128 elem = val.get_type()->get_size();
-  if (elem != 1) {
-    if (val.get_type() == ty && rel % elem == 0) {
-      load->replace_all_uses(val);
-      load.destroy();
-      return true;
-    }
-    return false;
-  }
-  if (val.is_constant_int()) {
-    const u64 byte = static_cast<u8>(val.as_constant()->as_int());
-    u64 pattern = 0;
-    for (i128 i = 0; i < std::min<i128>(lsize, 8); i++) {
-      pattern |= byte << (8 * i);
-    }
-    if (ty->is_int() && lsize <= 8) {
-      load->replace_all_uses(fir::ValueR{
-          ctx->get_constant_value(pattern, ctx->get_int_type(lsize * 8))});
-      load.destroy();
-      return true;
-    }
-    if (ty->is_float() && ty->get_bitwidth() == 32) {
-      load->replace_all_uses(fir::ValueR{
-          ctx->get_constant_value(std::bit_cast<f32>(static_cast<u32>(pattern)),
-                                  ctx->get_float_type(32))});
-      load.destroy();
-      return true;
-    }
-    if (ty->is_float() && ty->get_bitwidth() == 64) {
-      load->replace_all_uses(fir::ValueR{ctx->get_constant_value(
-          std::bit_cast<f64>(pattern), ctx->get_float_type(64))});
-      load.destroy();
-      return true;
-    }
-    return false;
-  }
-  if (ty->is_int() && lsize <= 8 && lsize >= 2) {
-    auto wide = b.build_zext(val, ty);
-    u64 splat = 0;
-    for (i128 i = 0; i < lsize; i++) {
-      splat |= u64{1} << (8 * i);
-    }
-    auto res = b.build_int_mul(wide, fir::ValueR{ctx->get_constant_value(
-                                         splat, ctx->get_int_type(lsize * 8))});
-    load->replace_all_uses(res);
-    load.destroy();
-    return true;
-  }
-  return false;
-}
-
-// memcpy(c, b) of bytes an earlier memcpy(b, a) or memset(b) wrote copies from
-// a directly (or fills c directly)
-static bool forward_memcpy_chain(fir::Instr instr, fir::BasicBlock bb,
-                                 fir::Context &ctx, AliasAnalyis &aa) {
-  auto bytes = mem_intrin_bytes(instr);
-  if (!bytes || instr->Volatile || *bytes == 0) {
-    return false;
-  }
-  const size_t pos = bb->get_instr_id(instr);
-  auto def_pos = find_covering_writer(bb, pos, instr->args[1], *bytes, aa);
-  if (!def_pos) {
-    return false;
-  }
-  auto def = bb->instructions[*def_pos];
-  const i128 rel = split_ptr(instr->args[1]).off - split_ptr(def->args[0]).off;
-  fir::Builder b{instr};
-  if (def->is(fir::IntrinsicSubType::Memset)) {
-    auto val = def->args[1];
-    if (val.get_type()->get_size() != 1) {
+    if (val.is_constant_int()) {
+      const u64 byte = static_cast<u8>(val.as_constant()->as_int());
+      u64 pattern = 0;
+      for (i128 i = 0; i < std::min<i128>(lsize, 8); i++) {
+        pattern |= byte << (8 * i);
+      }
+      if (ty->is_int() && lsize <= 8) {
+        load->replace_all_uses(fir::ValueR{(*ctx)->get_constant_value(
+            pattern, (*ctx)->get_int_type(lsize * 8))});
+        return true;
+      }
+      if (ty->is_float() && ty->get_bitwidth() == 32) {
+        load->replace_all_uses(fir::ValueR{(*ctx)->get_constant_value(
+            std::bit_cast<f32>(static_cast<u32>(pattern)),
+            (*ctx)->get_float_type(32))});
+        return true;
+      }
+      if (ty->is_float() && ty->get_bitwidth() == 64) {
+        load->replace_all_uses(fir::ValueR{(*ctx)->get_constant_value(
+            std::bit_cast<f64>(pattern), (*ctx)->get_float_type(64))});
+        return true;
+      }
       return false;
     }
-    b.build_intrinsic(instr->args[0], val,
-                      fir::ValueR{ctx->get_constant_int(*bytes, 64)},
-                      fir::IntrinsicSubType::Memset, ctx->get_void_type());
-    instr.destroy();
-    return true;
-  }
-  auto src = offset_ptr(ctx, b, def->args[1], rel);
-  if (!unmodified_between(bb, *def_pos, pos, src, *bytes, aa) ||
-      aa.alias(instr->args[0], src, static_cast<size_t>(*bytes),
-               static_cast<size_t>(*bytes)) !=
-          AliasAnalyis::AAResult::NoAlias) {
-    if (rel != 0) {
-      src.as_instr().destroy();
+    if (ty->is_int() && lsize <= 8 && lsize >= 2) {
+      auto wide = b.build_zext(val, ty);
+      u64 splat = 0;
+      for (i128 i = 0; i < lsize; i++) {
+        splat |= u64{1} << (8 * i);
+      }
+      auto res =
+          b.build_int_mul(wide, fir::ValueR{(*ctx)->get_constant_value(
+                                    splat, (*ctx)->get_int_type(lsize * 8))});
+      load->replace_all_uses(res);
+      return true;
     }
     return false;
   }
-  instr.replace_arg(1, src);
-  return true;
-}
+
+  // memcpy(c, b) of bytes an earlier memcpy(b, a) or memset(b) wrote copies
+  // from a directly (or fills c directly)
+  bool forward_memcpy_chain(fir::Instr instr) {
+    auto bytes = mem_intrin_bytes(instr);
+    if (!bytes || instr->Volatile || *bytes <= 0 || *bytes >= UINT32_MAX) {
+      return false;
+    }
+    MemLoc src_loc;
+    src_loc.ptr = decompose_ptr(instr->args[1]);
+    src_loc.size = static_cast<u32>(*bytes);
+    const u32 c = walker.clobber_from(mssa.defining_access(instr), src_loc);
+    auto writer = covering_writer(c, src_loc.ptr, *bytes, instr);
+    if (!writer) {
+      return false;
+    }
+    const fir::Instr def = *writer;
+    const i128 rel = src_loc.ptr.anchor_offset - split_ptr(def->args[0]).off;
+    fir::Builder b{instr};
+    if (def->is(fir::IntrinsicSubType::Memset)) {
+      auto val = def->args[1];
+      if (val.get_type()->get_size() != 1) {
+        return false;
+      }
+      b.build_intrinsic(instr->args[0], val,
+                        fir::ValueR{(*ctx)->get_constant_int(*bytes, 64)},
+                        fir::IntrinsicSubType::Memset, (*ctx)->get_void_type());
+      dead.push_back(instr);
+      return false;
+    }
+    const auto src = source_loc(def, rel, *bytes);
+    MemLoc dst_loc;
+    dst_loc.ptr = decompose_ptr(instr->args[0]);
+    dst_loc.size = static_cast<u32>(*bytes);
+    if (!source_unmodified(c, instr, src) ||
+        aq.alias(dst_loc, src) != AliasResult::No) {
+      return false;
+    }
+    instr.replace_arg(1, offset_ptr(*ctx, b, def->args[1], rel));
+    return true;
+  }
+
+  fir::Context *ctx;
+  CFG &cfg;
+  Dominators &dom;
+  MemAccessInfo &info;
+  MemorySSA &mssa;
+  AliasQuery aq;
+  MemorySSAWalker walker;
+  TVec<fir::Instr> dead;
+  bool modified = false;
+};
 
 /*If we memcpy into a local alloca and the len of the memcpy is equal to alloca
 length and afterwards we only read from it*/
@@ -690,14 +719,8 @@ static bool simplify_memcmp(fir::Instr instr, fir::Context &ctx) {
 }
 
 static bool simplify(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
-                     AliasAnalyis &aa, bool block_has_writer) {
-  if (instr->is(fir::InstrType::LoadInstr)) {
-    return block_has_writer && forward_load_from_mem_intrin(instr, bb, ctx, aa);
-  }
+                     AliasAnalyis &aa) {
   if (instr->is(fir::IntrinsicSubType::Memcpy)) {
-    if (forward_memcpy_chain(instr, bb, ctx, aa)) {
-      return true;
-    }
     return simplify_memcpy(instr, bb, ctx);
   }
   if (instr->is(fir::IntrinsicSubType::Memset)) {
@@ -717,16 +740,23 @@ PreservedAnalysis IntrinSimplify::apply(fir::Context &ctx,
   ZoneScopedNC("IntrinSimplify", COLOR_OPTIMF);
 
   bool modified = false;
+  const bool has_writer =
+      std::ranges::any_of(func.basic_blocks, [](fir::BasicBlock bb) {
+        return std::ranges::any_of(bb->get_instrs(), [](fir::Instr i) {
+          return i->is(fir::IntrinsicSubType::Memset) ||
+                 i->is(fir::IntrinsicSubType::Memcpy);
+        });
+      });
+  if (has_writer && MemIntrinForwarder{ctx, func}.run()) {
+    modified = true;
+    AnalysisManager::drop_memory(func);
+  }
   AliasAnalyis aa;
   for (foptim::fir::BasicBlock bb : func.basic_blocks) {
     auto &instrs = bb->get_instrs();
-    const bool has_writer = std::ranges::any_of(instrs, [](fir::Instr i) {
-      return i->is(fir::IntrinsicSubType::Memset) ||
-             i->is(fir::IntrinsicSubType::Memcpy);
-    });
     for (size_t i = 0; i < instrs.size(); i++) {
       auto instr = instrs[i];
-      modified |= simplify(instr, bb, ctx, aa, has_writer);
+      modified |= simplify(instr, bb, ctx, aa);
     }
   }
   return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();

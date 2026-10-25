@@ -35,19 +35,19 @@ exit:
   ret i32 %acc.n
 }
 
-; a store in the loop keeps the load inside
-define i32 @store_blocks(i32 %n) {
-; CHECK-LABEL: func store_blocks<CC: C, LINK: external, > Uses: 0
+; a store in the loop to other memory does not keep the load inside
+define i32 @store_apart_hoists(i32 %n) {
+; CHECK-LABEL: func store_apart_hoists<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
 ; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(G(out), 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %3: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
-; CHECK-NEXT:  bb1(%4{}: i32, %5{}: i32):
-; CHECK-NEXT:    %6: i32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %7: i32 = Store(%2, %4){} NUses:0
-; CHECK-NEXT:    %8: i32 = IntAdd(%6, %5){} NUses:2
-; CHECK-NEXT:    %9: i32 = IntAdd(%4, 1:i32){} NUses:2
+; CHECK-NEXT:    %2: i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(G(out), 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
+; CHECK-NEXT:  bb1(%5{}: i32, %6{}: i32):
+; CHECK-NEXT:    %7: i32 = Store(%3, %5){} NUses:0
+; CHECK-NEXT:    %8: i32 = IntAdd(%2, %6){} NUses:2
+; CHECK-NEXT:    %9: i32 = IntAdd(%5, 1:i32){} NUses:2
 ; CHECK-NEXT:    %10: i1 = IntSLT(%9, %0){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb1(%9, %8), bb2()>(%10){} NUses:0
 ; CHECK-NEXT:  bb2():
@@ -139,6 +139,39 @@ then:
 cont:
   %x = phi i32 [ 0, %loop ], [ %v, %then ]
   %acc.n = add i32 %acc, %x
+  %i.n = add i32 %i, 1
+  %c = icmp slt i32 %i.n, %n
+  br i1 %c, label %loop, label %exit
+exit:
+  ret i32 %acc.n
+}
+
+; a store in the loop to the loaded address keeps the load inside
+define i32 @store_aliases_blocks(i32 %n) {
+; CHECK-LABEL: func store_aliases_blocks<CC: C, LINK: external, > Uses: 0
+; CHECK-NEXT:{
+; CHECK-NEXT:  bb0(%0{}: i32):
+; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %2: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
+; CHECK-NEXT:  bb1(%3{}: i32, %4{}: i32):
+; CHECK-NEXT:    %5: i32 = Load(%1){} NUses:1
+; CHECK-NEXT:    %6: i32 = Store(%1, %3){} NUses:0
+; CHECK-NEXT:    %7: i32 = IntAdd(%5, %4){} NUses:2
+; CHECK-NEXT:    %8: i32 = IntAdd(%3, 1:i32){} NUses:2
+; CHECK-NEXT:    %9: i1 = IntSLT(%8, %0){} NUses:1
+; CHECK-NEXT:    %10: () = CondBranch<bb1(%8, %7), bb2()>(%9){} NUses:0
+; CHECK-NEXT:  bb2():
+; CHECK-NEXT:    %11: i32 = Return(%7){} NUses:0
+; CHECK-NEXT:}
+entry:
+  br label %loop
+loop:
+  %i = phi i32 [ 0, %entry ], [ %i.n, %loop ]
+  %acc = phi i32 [ 0, %entry ], [ %acc.n, %loop ]
+  %p = getelementptr i32, ptr @arr, i64 3
+  %v = load i32, ptr %p
+  store i32 %i, ptr %p
+  %acc.n = add i32 %acc, %v
   %i.n = add i32 %i, 1
   %c = icmp slt i32 %i.n, %n
   br i1 %c, label %loop, label %exit

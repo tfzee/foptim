@@ -197,10 +197,14 @@ ValueR Builder::build_intrinsic(ValueR a, IntrinsicSubType type,
   return instr.result();
 }
 
-ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type) {
+ValueR Builder::build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type,
+                                TypeR opt_type) {
   check_bb_set();
+  if (!opt_type.is_valid()) {
+    opt_type = a.get_type();
+  }
   Instr instr =
-      ctx->storage.insert_instr(InstrData::get_intrinsic(a.get_type(), type));
+      ctx->storage.insert_instr(InstrData::get_intrinsic(opt_type, type));
   instr.add_arg(a);
   instr.add_arg(b);
   bb.insert_instr(indx, instr);
@@ -219,6 +223,20 @@ ValueR Builder::build_intrinsic(ValueR a, ValueR b, ValueR c,
   instr.add_arg(a);
   instr.add_arg(b);
   instr.add_arg(c);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr.result();
+}
+
+ValueR Builder::build_intrinsic(ValueR a, ValueR b, ValueR c, ValueR d,
+                                IntrinsicSubType type, TypeR res_type) {
+  check_bb_set();
+  Instr instr =
+      ctx->storage.insert_instr(InstrData::get_intrinsic(res_type, type));
+  instr.add_arg(a);
+  instr.add_arg(b);
+  instr.add_arg(c);
+  instr.add_arg(d);
   bb.insert_instr(indx, instr);
   indx++;
   return instr.result();
@@ -304,6 +322,19 @@ ValueR Builder::build_vector_op(ValueR val, TypeR res_type,
   Instr instr =
       ctx->storage.insert_instr(InstrData::get_vector(res_type, sub_type));
   instr.add_arg(val);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr.result();
+}
+
+ValueR Builder::build_reduce(ValueR vec, ReduceInstrSubType op) {
+  check_bb_set();
+  const auto &vty = vec.get_type()->as_vec();
+  TypeR elem = vty.type == VectorType::SubType::Floating
+                   ? TypeR{ctx->get_float_type(vty.bitwidth)}
+                   : TypeR{ctx->get_int_type(vty.bitwidth)};
+  Instr instr = ctx->storage.insert_instr(InstrData::get_reduce(elem, op));
+  instr.add_arg(vec);
   bb.insert_instr(indx, instr);
   indx++;
   return instr.result();
@@ -678,8 +709,9 @@ Instr Builder::build_return(std::span<const ValueR> vals) {
   return instr;
 }
 
-BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap &subs) {
-  BasicBlock new_bb = ctx->copy(bb, subs);
+BasicBlock Builder::insert_copy(BasicBlock bb, ContextData::V2VMap &subs,
+                                MetaCopy meta) {
+  BasicBlock new_bb = ctx->copy(bb, subs, true, meta, func.func);
   new_bb->func = func;
   func->append_bbr(new_bb);
   return new_bb;
@@ -698,9 +730,14 @@ Instr Builder::move_instr(Instr instr) {
   return instr;
 }
 
-Instr Builder::insert_copy(Instr instr) {
+Instr Builder::insert_copy(Instr instr, MetaCopy meta) {
   check_bb_set();
+  Function *src_func =
+      instr->parent.is_valid() ? instr->parent->func.func : nullptr;
   Instr res = ctx->copy(instr);
+  if (src_func != nullptr && src_func->access_meta && func.func != nullptr) {
+    func->copy_access_meta(*src_func, instr, res, meta);
+  }
   res->uses.clear();
 
   // TODO: this is inneficient and should be clened up

@@ -4,8 +4,116 @@
 #include "ir/builder.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
+#include "optim/analysis/analysis_manager.hpp"
+#include "optim/analysis/mem/alias_sets.hpp"
+#include "utils/map.hpp"
 
 namespace foptim::optim {
+
+namespace {
+// Every inlined call gets scopes of its own, and every noalias parameter of
+// the callee is a scope. An access only based on the parameter is in it, one
+// that cannot be based on it does not alias it. new_bbs are the copies of the
+// callee blocks.
+void scope_inlined_accesses(fir::ContextData *ctx, fir::Function &callee,
+                            fir::Function &caller,
+                            std::span<const fir::BasicBlock> new_bbs) {
+  auto &tab = ctx->alias_sets();
+  using T = AliasSetTable;
+  FDMap<SetId, SetId> fresh;
+  auto fresh_leaf = [&](SetId leaf) {
+    auto it = fresh.find(leaf);
+    if (it == fresh.end()) {
+      it = fresh.emplace(leaf, tab.create(std::span<const SetId>{})).first;
+    }
+    return it->second;
+  };
+  auto remap = [&](SetId s) {
+    if (!tab.is_union(s)) {
+      return fresh_leaf(s);
+    }
+    const FVec<SetId> parts(tab.parts(s).begin(), tab.parts(s).end());
+    SetId r = 0;
+    bool first = true;
+    for (auto p : parts) {
+      const SetId m = fresh_leaf(p);
+      r = first ? m : tab.union_of(r, m);
+      first = false;
+    }
+    return r;
+  };
+
+  struct Restrict {
+    SetId object;
+    SetId scope;
+    bool nocapture;
+  };
+  FVec<Restrict> restricts;
+  Provenance &prov = AnalysisManager::provenance(callee);
+  for (const auto &arg : callee.get_entry()->args) {
+    if (arg->noalias && arg->_type->is_ptr()) {
+      restricts.push_back({.object = prov.set_of(fir::ValueR{arg}),
+                           .scope = tab.create(std::span<const SetId>{}),
+                           .nocapture = arg->nocapture != 0});
+    }
+  }
+  if (restricts.empty() && !caller.access_meta) {
+    return;
+  }
+
+  const auto &ptab = prov.table();
+  auto add = [](IRVec<u32> &v, u32 x) {
+    if (std::ranges::find(v, x) == v.end()) {
+      v.push_back(x);
+    }
+  };
+  for (size_t b = 0; b < new_bbs.size(); b++) {
+    auto old_bb = callee.basic_blocks.at(b);
+    auto new_bb = new_bbs[b];
+    ASSERT(old_bb->instructions.size() == new_bb->instructions.size());
+    for (size_t k = 0; k < old_bb->instructions.size(); k++) {
+      auto old_i = old_bb->instructions[k];
+      auto new_i = new_bb->instructions[k];
+      if (!old_i->is(fir::InstrType::LoadInstr) &&
+          !old_i->is(fir::InstrType::StoreInstr)) {
+        continue;
+      }
+      fir::AccessMeta m;
+      if (const auto *old_m = caller.get_access_meta(new_i)) {
+        m.types = old_m->types;
+        for (auto s : old_m->scope_in) {
+          m.scope_in.push_back(remap(s));
+        }
+        for (auto s : old_m->not_in) {
+          m.not_in.push_back(remap(s));
+        }
+      }
+      if (!restricts.empty()) {
+        const SetId set = prov.set_of(old_i->args[0]);
+        const FVec<SetId> leaves =
+            ptab.is_union(set)
+                ? FVec<SetId>(ptab.parts(set).begin(), ptab.parts(set).end())
+                : FVec<SetId>{set};
+        for (const auto &r : restricts) {
+          bool only = true;
+          bool possible = false;
+          for (auto leaf : leaves) {
+            only = only && ptab.subset(leaf, r.object);
+            possible = possible || (!ptab.disjoint(leaf, r.object) &&
+                                    !(r.nocapture && leaf == T::Foreign));
+          }
+          if (only) {
+            add(m.scope_in, r.scope);
+          } else if (!possible) {
+            add(m.not_in, r.scope);
+          }
+        }
+      }
+      caller.set_access_meta(new_i, std::move(m));
+    }
+  }
+}
+}  // namespace
 
 fir::BasicBlock split_block(fir::Instr at_instr) {
   // auto *ctx = at_instr->get_parent()->get_parent()->ctx;
@@ -68,9 +176,11 @@ bool inline_call(fir::Instr call) {
   TVec<fir::BasicBlock> new_bbs;
   for (size_t bb_id = 0; bb_id < called_func->n_bbs(); bb_id++) {
     // dont apply the subs here
-    auto new_bb = ctx->copy(called_func->basic_blocks.at(bb_id), subs, false);
+    auto new_bb = ctx->copy(called_func->basic_blocks.at(bb_id), subs, false,
+                            fir::MetaCopy::All, call_func.func);
     new_bbs.push_back(new_bb);
   }
+  scope_inlined_accesses(ctx, *called_func.func, *call_func.func, new_bbs);
   if (has_ret_value) {
     for (auto bb : new_bbs) {
       if (bb->instructions.back()->is(fir::InstrType::ReturnInstr)) {

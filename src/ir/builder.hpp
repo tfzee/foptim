@@ -51,6 +51,8 @@ class Builder {
   ValueR build_conversion_op(ValueR a, TypeR res_type,
                              ConversionSubType sub_type);
   ValueR build_vector_op(ValueR val, TypeR res_type, VectorISubType sub_type);
+  // scalar combination of all lanes of a vector
+  ValueR build_reduce(ValueR vec, ReduceInstrSubType op);
   ValueR build_vector_op(ValueR v1, ValueR v2, TypeR res_type,
                          VectorISubType sub_type);
   ValueR build_vector_op(ValueR v1, ValueR v2, ValueR v3, TypeR res_type,
@@ -66,9 +68,12 @@ class Builder {
   ValueR build_abs(ValueR a);
   ValueR build_intrinsic(ValueR a, IntrinsicSubType type,
                          TypeR opt_type = TypeR{TypeR::invalid()});
-  ValueR build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type);
+  ValueR build_intrinsic(ValueR a, ValueR b, IntrinsicSubType type,
+                         TypeR opt_type = TypeR{TypeR::invalid()});
   ValueR build_intrinsic(ValueR a, ValueR b, ValueR c, IntrinsicSubType type,
                          TypeR opt_type = TypeR{TypeR::invalid()});
+  ValueR build_intrinsic(ValueR a, ValueR b, ValueR c, ValueR d,
+                         IntrinsicSubType type, TypeR res_type);
   ValueR build_int_add(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
   ValueR build_ptr_add(ValueR ptr, ValueR b, bool inBounds = false);
   ValueR build_float_add(ValueR a, ValueR b);
@@ -106,8 +111,9 @@ class Builder {
   Instr build_return(ValueR v);
   Instr build_return(std::span<const ValueR> vals);
 
-  BasicBlock insert_copy(BasicBlock bb, ContextData::V2VMap &subs);
-  Instr insert_copy(Instr instr);
+  BasicBlock insert_copy(BasicBlock bb, ContextData::V2VMap &subs,
+                         MetaCopy meta = MetaCopy::All);
+  Instr insert_copy(Instr instr, MetaCopy meta = MetaCopy::All);
   Instr move_instr(Instr instr);
 };
 

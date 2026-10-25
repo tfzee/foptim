@@ -1,11 +1,15 @@
 ; RUN: %foffcc %s --print-mir --no-reorder-funcs | FileCheck %s
 ; Returning {<2 x float>, <2 x float>}: the second half must come from the upper half of the
-; constant (V.ExtractHigh of an i64x2 into a vector register) and the first return value
-; must not be replaced by the second one.
+; constant and the first return value must not be replaced by the second one.
+; IntrinSimplify forwards the loads of the local copy to the constant itself, so the
+; second half is loaded from the constant at offset 8 (handwritten, the ExtractHigh
+; of the constant is not reached from this input anymore).
 ; CHECK-LABEL: func _Z7testfun4Test
 ; CHECK-LABEL: func main
-; CHECK: movhlps
-; CHECK: call(_Z7testfun4Test
+; CHECK: lea($rax: i64, [__const.main.d]: i64, )
+; CHECK-NEXT: $rax: i64 += 8: i64
+; CHECK: $mm1: f32x2 = [$rax]: f32x2
+; CHECK-NEXT: call(_Z7testfun4Test
 ; ModuleID = '/home/tim/programming/foptim_test/test/multi_return_float.cpp'
 source_filename = "/home/tim/programming/foptim_test/test/multi_return_float.cpp"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"

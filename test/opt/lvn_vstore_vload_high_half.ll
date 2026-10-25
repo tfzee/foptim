@@ -20,7 +20,7 @@ define <2 x float> @low(ptr %p, <4 x float> %v) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: 4@f32):
 ; CHECK-NEXT:    %2: 4@f32 = Store(%0, %1){} NUses:0
-; CHECK-NEXT:    %3: 2@f32 = Load(%0){} NUses:1
+; CHECK-NEXT:    %3: 2@f32 = V.ExtractLow(%1){} NUses:1
 ; CHECK-NEXT:    %4: 2@f32 = Return(%3){} NUses:0
 ; CHECK-NEXT:}
   store <4 x float> %v, ptr %p, align 16

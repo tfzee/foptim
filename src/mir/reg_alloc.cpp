@@ -5,6 +5,7 @@
 // #include "optim/analysis/cfg.hpp"
 // #include "optim/analysis/dominators.hpp"
 #include "mir/matcher.hpp"
+#include "mir/matcher_helpers.hpp"
 
 namespace foptim::fmir {
 
@@ -30,7 +31,7 @@ VReg DumbRegAlloc::get_new_register(Type type) {
 
 VReg DumbRegAlloc::get_register(fir::ValueR value) {
   if (!mapping.contains({value, 0})) {
-    auto new_reg = get_new_register(convert_type(value.get_type()));
+    auto new_reg = get_new_register(value_type(value));
     mapping.insert({{.v = value, .id = 0}, new_reg});
   }
   return mapping.at({value, 0});

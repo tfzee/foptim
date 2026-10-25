@@ -47,7 +47,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %44: i1 = IntNE(%43, %33){} NUses:1
 ; CHECK-NEXT:    %45: () = CondBranch<bb7(%43, %42), bb8(%43, %42)>(%44){} NUses:0
 ; CHECK-NEXT:  bb8(%46{}: i64, %47{}: 8@i32):
-; CHECK-NEXT:    %48: i32 = V.HAdd(%47){} NUses:1
+; CHECK-NEXT:    %48: i32 = Reduce.Add(%47){} NUses:1
 ; CHECK-NEXT:    %49: i32 = IntAdd(%48, %31){} NUses:2
 ; CHECK-NEXT:    %50: i1 = IntEQ(%32, %5){} NUses:1
 ; CHECK-NEXT:    %51: () = CondBranch<bb4(%49), bb3(%46, %49)>(%50){} NUses:0

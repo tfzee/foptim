@@ -1,16 +1,18 @@
 ; RUN: %foffcc %s --print-mir --no-reorder-funcs | FileCheck %s
 ; RUN: %foffcc %s %t.o
 
-; vectorized reduction loop: 8 x i32 accumulator, horizontal add of an i32x8
+; vectorized reduction loop: 8 x i32 accumulator, halving horizontal add of an i32x8
 define i32 @f(ptr %a, i64 %n) {
 ; CHECK-LABEL: func f
 ; CHECK: {{\$ymm[0-9]+}}: i32x8 = [{{.*}}]: i32x8
 ; CHECK: i32x8 + {{.*}}: i32x8
 ; CHECK: vextract128({{.*}}, 1: i8,
+; CHECK: i32x4 + {{.*}}: i32x4
+; CHECK: vpshuf({{.*}}, 238: i8,
+; CHECK: i32x4 + {{.*}}: i32x4
+; CHECK: vpshuf({{.*}}, 85: i8,
+; CHECK: i32x4 + {{.*}}: i32x4
 ; CHECK: vpextr({{.*}}, 0: i8,
-; CHECK: vpextr({{.*}}, 1: i8,
-; CHECK: vpextr({{.*}}, 2: i8,
-; CHECK: vpextr({{.*}}, 3: i8,
 entry:
   %g = icmp sgt i64 %n, 0
   br i1 %g, label %loop, label %exit

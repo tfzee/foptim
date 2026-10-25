@@ -378,7 +378,9 @@ bool merge_functions(MergableGroup &group, fir::Context &ctx,
   new_func->basic_blocks[0]->remove_from_parent(false);
   fir::ContextData::V2VMap subs;
   for (size_t bb_id = 0; bb_id < f1->n_bbs(); bb_id++) {
-    auto new_bb = ctx->copy(f1->basic_blocks.at(bb_id), subs, false);
+    // the functions of the group may differ in their metadata
+    auto new_bb = ctx->copy(f1->basic_blocks.at(bb_id), subs, false,
+                            fir::MetaCopy::None, new_func.func);
     new_func->append_bbr(new_bb);
   }
 

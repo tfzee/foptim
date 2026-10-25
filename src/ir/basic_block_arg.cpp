@@ -47,6 +47,12 @@ fmt::appender fmt::formatter<foptim::fir::BBArgument>::format(
   if (v->nonnull) {
     f = fmt::format_to(f, "nonnull; ");
   }
+  if (v->nocapture) {
+    f = fmt::format_to(f, "nocapture; ");
+  }
+  if (v->readonly) {
+    f = fmt::format_to(f, "readonly; ");
+  }
   if (!v->get_attribs().empty()) {
     const auto &attribs = v->get_attribs();
     for (auto [key, value] : attribs) {

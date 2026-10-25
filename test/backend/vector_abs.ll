@@ -8,6 +8,7 @@ define void @abs_v8i32(ptr %d, ptr %s) {
 ; CHECK-NEXT:    $ymm0: i32x8 = [$rsi]: i32x8
 ; CHECK-NEXT:    vpabs($ymm0: i32x8, $ymm0: i32x8, )
 ; CHECK-NEXT:    [$rdi]: i32x8 = $ymm0: i32x8
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
   %v = load <8 x i32>, ptr %s, align 32
   %a = call <8 x i32> @llvm.abs.v8i32(<8 x i32> %v, i1 false)

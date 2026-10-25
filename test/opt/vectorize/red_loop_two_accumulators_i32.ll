@@ -40,9 +40,9 @@ define i32 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %40: i1 = IntNE(%39, %25){} NUses:1
 ; CHECK-NEXT:    %41: () = CondBranch<bb4(%39, %37, %38), bb5(%39, %37, %38)>(%40){} NUses:0
 ; CHECK-NEXT:  bb5(%42{}: i64, %43{}: 8@i32, %44{}: 8@i32):
-; CHECK-NEXT:    %45: i32 = V.HAdd(%43){} NUses:1
+; CHECK-NEXT:    %45: i32 = Reduce.Add(%43){} NUses:1
 ; CHECK-NEXT:    %46: i32 = IntAdd(%45, %22){} NUses:2
-; CHECK-NEXT:    %47: i32 = V.HAdd(%44){} NUses:1
+; CHECK-NEXT:    %47: i32 = Reduce.Add(%44){} NUses:1
 ; CHECK-NEXT:    %48: i32 = IntAdd(%47, %23){} NUses:2
 ; CHECK-NEXT:    %49: i1 = IntEQ(%24, %3){} NUses:1
 ; CHECK-NEXT:    %50: () = CondBranch<bb2(%46, %48), bb3(%42, %46, %48)>(%49){} NUses:0

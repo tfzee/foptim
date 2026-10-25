@@ -389,7 +389,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
     }
     if (a1i->is(InstrType::BinaryInstr) &&
         a1i->subtype == static_cast<u32>(BinaryInstrSubType::And) &&
-        a1i->args[1].is_constant()) {
+        a1i->args[1].is_constant() && a1i->args[1].as_constant()->is_int()) {
       auto const_and = a1i->args[1].as_constant()->as_int_sat();
       // could also check <= and insert a itrunc previously
       for (auto amount : {8, 16, 32}) {

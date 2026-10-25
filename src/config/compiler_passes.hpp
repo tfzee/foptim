@@ -8,7 +8,6 @@
 #include "optim/func_passes/constant_loop_eval.hpp"
 #include "optim/func_passes/constraint_prop.hpp"
 #include "optim/func_passes/dce.hpp"
-#include "optim/func_passes/double_load.hpp"
 #include "optim/func_passes/dse.hpp"
 #include "optim/func_passes/early_sheduler.hpp"
 #include "optim/func_passes/inst_fold.hpp"
@@ -29,10 +28,10 @@
 #include "optim/func_passes/print.hpp"
 #include "optim/func_passes/sccp.hpp"
 #include "optim/func_passes/simplify_cfg.hpp"
-#include "optim/func_passes/slp_vectorizer.hpp"
 #include "optim/func_passes/sora.hpp"
 #include "optim/func_passes/stack_known_bits.hpp"
 #include "optim/func_passes/tail_rec_elim.hpp"
+#include "optim/func_passes/vectorizer/vectorizer.hpp"
 #include "optim/func_passes/verify_pass.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_pass.hpp"
@@ -214,12 +213,6 @@ struct Mem2RegConf : public FunctionPassConf<Mem2RegConf> {
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };
-struct DoubleLoadElimConf : public FunctionPassConf<DoubleLoadElimConf> {
-  static constexpr const char *BaseName = "DoubleLoadElim";
-  using Pass = optim::DoubleLoadElim;
-  bool pass_parse(toml::table & /*unused*/) { return true; }
-  void construct_function_pass(Pass & /*unused*/) {};
-};
 struct IntrinSimplifyConf : public FunctionPassConf<IntrinSimplifyConf> {
   static constexpr const char *BaseName = "IntrinSimplify";
   using Pass = optim::IntrinSimplify;
@@ -268,6 +261,62 @@ struct TailRecElimConf : public FunctionPassConf<TailRecElimConf> {
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };
+struct PrintAnalysisConf : public ModulePassConf<PrintAnalysisConf>,
+                           optim::PrintAnalysis::Config {
+  static constexpr const char *BaseName = "PrintAnalysis";
+  using Pass = optim::PrintAnalysis;
+  // show = ["memssa", "alias"] or show = "memssa,alias"
+  bool pass_parse(toml::table &tbl) {
+    const auto add = [](std::string_view name, u8 &mask) {
+      if (name == "memssa") {
+        mask |= Pass::MemSSA;
+      } else if (name == "alias") {
+        mask |= Pass::Alias;
+      } else if (name == "provenance") {
+        mask |= Pass::Provenance;
+      } else if (name == "accesses") {
+        mask |= Pass::Accesses;
+      } else {
+        fmt::println(stderr,
+                     "PrintAnalysis: unknown analysis '{}' (memssa, alias, "
+                     "provenance, accesses)",
+                     name);
+        return false;
+      }
+      return true;
+    };
+    for (auto &&[key, value] : tbl) {
+      if (key.str() != "show" && key.str() != "extends") {
+        fmt::println(stderr, "PrintAnalysis: unknown option '{}'", key.str());
+        return false;
+      }
+    }
+    u8 mask = 0;
+    if (auto *arr = tbl["show"].as_array()) {
+      for (auto &&el : *arr) {
+        if (!add(el.value_or<std::string_view>(""), mask)) {
+          return false;
+        }
+      }
+    } else if (auto str = tbl["show"].value<std::string_view>()) {
+      std::string_view rest = *str;
+      while (!rest.empty()) {
+        const auto comma = rest.find(',');
+        if (!add(rest.substr(0, comma), mask)) {
+          return false;
+        }
+        rest = comma == std::string_view::npos ? "" : rest.substr(comma + 1);
+      }
+    }
+    if (tbl.contains("show")) {
+      show = mask;
+    }
+    return true;
+  }
+  void construct_module_pass(Pass &p) {
+    p.config = *static_cast<Pass::Config *>(this);
+  };
+};
 struct LICMConf : public FunctionPassConf<LICMConf> {
   static constexpr const char *BaseName = "LICM";
   using Pass = optim::LICM;
@@ -305,9 +354,9 @@ struct ConstLoopEvalConf : public FunctionPassConf<ConstLoopEvalConf> {
   void construct_function_pass(Pass & /*unused*/) {};
 };
 struct SLPVectorizerConf : public FunctionPassConf<SLPVectorizerConf>,
-                           optim::SLPVectorizer::Config {
+                           optim::Vectorizer::Config {
   static constexpr const char *BaseName = "SLPVectorizer";
-  using Pass = optim::SLPVectorizer;
+  using Pass = optim::Vectorizer;
   bool pass_parse(toml::table &tbl) {
     reductions = tbl["reductions"].value_or(reductions);
     loops = tbl["loops"].value_or(loops);

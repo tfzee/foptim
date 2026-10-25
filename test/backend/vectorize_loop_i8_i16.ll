@@ -18,6 +18,7 @@ define i8 @sum_add_i8(ptr %a, i32 %n, i8 %v) {
 ; CHECK-NEXT:    jmp() -> 2
 ; CHECK-NEXT:  2:
 ; CHECK-NEXT:    $al: i8 = $cl: i8
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($al: i8, )
 ; CHECK-NEXT:  3:
 ; CHECK-NEXT:    mov_sx($rcx: i64, $eax: i32, )
@@ -133,6 +134,7 @@ define i16 @sum_i16_const_trip(ptr %a) {
 ; CHECK-NEXT:    psrl($xmm1: i32x4, $xmm0: i32x4, 16: i8, )
 ; CHECK-NEXT:    $xmm0: i16x8 = $xmm0: i16x8 + $xmm1: i16x8
 ; CHECK-NEXT:    vpextr($eax: i32, $xmm0: i32x4, 0: i8, )
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($ax: i16, )
 entry:
   br label %body

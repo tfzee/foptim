@@ -39,6 +39,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/alias_metadata.hpp"
 #include "utils/APInt.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
@@ -47,6 +48,19 @@
 #include "utils/verbosity.hpp"
 
 namespace {
+// set while a module is converted
+const foptim::AliasMetaReader *alias_meta = nullptr;
+
+void attach_access_meta(const llvm::Instruction *from, foptim::fir::ValueR to,
+                        foptim::fir::FunctionR func) {
+  if (alias_meta == nullptr || !to.is_instr()) {
+    return;
+  }
+  if (const auto *m = alias_meta->lookup(*from)) {
+    func->set_access_meta(to.as_instr(), *m);
+  }
+}
+
 foptim::APInt to_apint(const llvm::APInt &v) {
   return foptim::APInt::from_words(v.getBitWidth(), v.getRawData(),
                                    v.getNumWords());
@@ -772,6 +786,14 @@ void convert_call(const llvm::Instruction *any_instr,
           {any_instr, foptim::fir::ValueR(fctx->get_constant_null())});
       return;
     }
+    if (c->getName().starts_with("llvm.sqrt.")) {
+      auto res = builder.build_unary_op(
+          convert_instr_arg(call_instr->getOperand(0), fctx, ffunc, builder,
+                            valueToValue, mod, b2b),
+          foptim::fir::UnaryInstrSubType::FloatSqrt);
+      valueToValue.insert({any_instr, res});
+      return;
+    }
     if (c->getName() == "sqrt") {
       if (!c->hasFnAttribute(llvm::Attribute::NoBuiltin) ||
           c->hasFnAttribute(llvm::Attribute::Builtin)) {
@@ -1081,6 +1103,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
                                  valueToValue, mod, b2b);
     auto store =
         builder.build_store(ptr, value, instr->isAtomic(), instr->isVolatile());
+    attach_access_meta(any_instr, store, ffunc);
     valueToValue.insert({any_instr, store});
     return;
   }
@@ -1126,6 +1149,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto type = convert_type(instr->getAccessType(), fctx, mod);
     auto load =
         builder.build_load(type, value, instr->isAtomic(), instr->isVolatile());
+    attach_access_meta(any_instr, load, ffunc);
     ASSERT(std::get<1>(valueToValue.insert({any_instr, load})));
     return;
   }
@@ -1750,6 +1774,10 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
             (la->hasNonNullAttr() || la->getDereferenceableBytes() > 0)) {
           fa->nonnull = true;
         }
+        if (la->getType()->isPointerTy()) {
+          fa->nocapture = la->hasNoCaptureAttr();
+          fa->readonly = la->onlyReadsMemory();
+        }
       }
     }
   }
@@ -2342,6 +2370,9 @@ void convert(llvm::Module &mod, llvm::GlobalValue &gval,
 void convert(llvm::Module &mod, foptim::fir::Context &fctx,
              foptim::JobSheduler &shed) {
   V2VMap valueToValue;
+  foptim::AliasMetaReader meta_reader{fctx->alias_sets()};
+  meta_reader.scan(mod);
+  alias_meta = &meta_reader;
   {
     ZoneScopedN("Initializing Globals + Functions");
     setup_globals(mod, fctx, valueToValue);
@@ -2375,6 +2406,7 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     }
     shed.wait_till_done();
   }
+  alias_meta = nullptr;
 }
 
 }  // namespace

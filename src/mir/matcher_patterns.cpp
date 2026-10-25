@@ -73,6 +73,239 @@ i128 addr_scale_shift(i128 scale) {
   return std::countr_zero(static_cast<u64>(scale));
 }
 
+// the predicate immediate of vcmpps / vcmpss
+u8 vcmp_predicate(fir::Instr cmp_instr) {
+  u8 vcmp_condition = 0;
+  switch (static_cast<fir::FCmpInstrSubType>(cmp_instr->get_instr_subtype())) {
+    case fir::FCmpInstrSubType::OEQ:
+      vcmp_condition = 0x00;
+      break;
+    case fir::FCmpInstrSubType::OLT:
+      vcmp_condition = 0x01;
+      break;
+    case fir::FCmpInstrSubType::OLE:
+      vcmp_condition = 0x02;
+      break;
+    case fir::FCmpInstrSubType::UNO:
+      vcmp_condition = 0x03;
+      break;
+    case fir::FCmpInstrSubType::UNE:
+      vcmp_condition = 0x04;
+      break;
+    // not greater or equal / not greater than, true for unordered
+    case fir::FCmpInstrSubType::ULT:
+      vcmp_condition = 0x19;
+      break;
+    case fir::FCmpInstrSubType::ULE:
+      vcmp_condition = 0x1A;
+      break;
+    case fir::FCmpInstrSubType::ORD:
+      vcmp_condition = 0x07;
+      break;
+    case fir::FCmpInstrSubType::UEQ:
+      vcmp_condition = 0x08;
+      break;
+    case fir::FCmpInstrSubType::AlwFalse:
+      vcmp_condition = 0x0B;
+      break;
+    case fir::FCmpInstrSubType::ONE:
+      vcmp_condition = 0x0C;
+      break;
+    case fir::FCmpInstrSubType::OGE:
+      vcmp_condition = 0x0D;
+      break;
+    case fir::FCmpInstrSubType::OGT:
+      vcmp_condition = 0x0E;
+      break;
+    case fir::FCmpInstrSubType::AlwTrue:
+      vcmp_condition = 0x0F;
+      break;
+    case fir::FCmpInstrSubType::UGT:
+      vcmp_condition = 0x16;
+      break;
+    case fir::FCmpInstrSubType::UGE:
+      vcmp_condition = 0x15;
+      break;
+    case fir::FCmpInstrSubType::IsNaN:
+      vcmp_condition = 0x03;
+      break;
+    case fir::FCmpInstrSubType::INVALID:
+      fmt::println("{}", cmp_instr);
+      TODO("TODO");
+  }
+
+  return vcmp_condition;
+}
+
+// all lanes set
+MArgument vec_all_ones(MArgument like, MatchResult &res, ExtraMatchData &data) {
+  auto ones = MArgument(data.alloc.get_new_register(like.ty), like.ty);
+  res.result.emplace_back(X86Subtype::vpcmpeq, ones, ones, ones);
+  return ones;
+}
+
+// bitwise not of a mask
+void vec_not(MArgument dst, MArgument src, MatchResult &res,
+             ExtraMatchData &data) {
+  res.result.emplace_back(GVecSubtype::vXor, dst, src,
+                          vec_all_ones(dst, res, data));
+}
+
+// Mask of a vector integer compare, every lane is all ones or all zeros.
+// Only equal and signed greater than exist, the rest is built from those.
+void vector_icmp(fir::Instr cmp_instr, MArgument dst, MArgument a, MArgument b,
+                 MatchResult &res, ExtraMatchData &data) {
+  using Sub = fir::ICmpInstrSubType;
+  const auto sub = static_cast<Sub>(cmp_instr->get_instr_subtype());
+  auto fresh = [&]() {
+    return MArgument(data.alloc.get_new_register(a.ty), a.ty);
+  };
+  const bool wide = a.ty == Type::Int64x2 || a.ty == Type::Int64x4;
+  auto gt = [&](MArgument d, MArgument x, MArgument y) {
+    res.result.emplace_back(X86Subtype::vpcmpgt, d, x, y);
+  };
+  // x <= y unsigned is min(x, y) == x
+  auto ule = [&](MArgument d, MArgument x, MArgument y) {
+    auto m = fresh();
+    res.result.emplace_back(GVecSubtype::vUMin, m, x, y);
+    res.result.emplace_back(X86Subtype::vpcmpeq, d, m, x);
+  };
+  // no 64 bit unsigned min, flip the sign bit and compare signed
+  auto flip = [&](MArgument sign, MArgument x) {
+    auto out = fresh();
+    res.result.emplace_back(GVecSubtype::vXor, out, x, sign);
+    return out;
+  };
+  auto negated = [&](auto &&emit) {
+    auto t = fresh();
+    emit(t);
+    vec_not(dst, t, res, data);
+  };
+  switch (sub) {
+    case Sub::EQ:
+      res.result.emplace_back(X86Subtype::vpcmpeq, dst, a, b);
+      return;
+    case Sub::NE:
+      negated([&](MArgument t) {
+        res.result.emplace_back(X86Subtype::vpcmpeq, t, a, b);
+      });
+      return;
+    case Sub::SGT:
+      gt(dst, a, b);
+      return;
+    case Sub::SLT:
+      gt(dst, b, a);
+      return;
+    case Sub::SGE:
+      negated([&](MArgument t) { gt(t, b, a); });
+      return;
+    case Sub::SLE:
+      negated([&](MArgument t) { gt(t, a, b); });
+      return;
+    case Sub::UGT:
+    case Sub::ULT:
+    case Sub::UGE:
+    case Sub::ULE: {
+      if (wide) {
+        auto sign = fresh();
+        res.result.emplace_back(X86Subtype::psll, sign,
+                                vec_all_ones(a, res, data), MArgument(u8{63}));
+        auto fa = flip(sign, a);
+        auto fb = flip(sign, b);
+        switch (sub) {
+          case Sub::UGT:
+            gt(dst, fa, fb);
+            return;
+          case Sub::ULT:
+            gt(dst, fb, fa);
+            return;
+          case Sub::UGE:
+            negated([&](MArgument t) { gt(t, fb, fa); });
+            return;
+          default:
+            negated([&](MArgument t) { gt(t, fa, fb); });
+            return;
+        }
+      }
+      switch (sub) {
+        case Sub::ULE:
+          ule(dst, a, b);
+          return;
+        case Sub::UGE:
+          ule(dst, b, a);
+          return;
+        case Sub::UGT:
+          negated([&](MArgument t) { ule(t, a, b); });
+          return;
+        default:
+          negated([&](MArgument t) { ule(t, b, a); });
+          return;
+      }
+    }
+    case Sub::INVALID:
+      UNREACH();
+  }
+}
+
+// Inserts the scalar input as lane lane of the vector input_vec. The lane is
+// patched in the 128 bit half it lives in.
+void insert_lane_generic(fir::Instr insert_instr, MatchResult &res,
+                         ExtraMatchData &data, MArgument target,
+                         MArgument input_vec, MArgument input, u32 lane) {
+  const u32 elem_bytes = get_size(input.ty);
+  const u32 lanes_per_half = 16 / elem_bytes;
+  const u32 half = lane / lanes_per_half;
+  const u32 j = lane % lanes_per_half;
+  Type xmm_ty = Type::INVALID;
+  switch (input.ty) {
+    case Type::Int8:
+      xmm_ty = Type::Int8x16;
+      break;
+    case Type::Int16:
+      xmm_ty = Type::Int16x8;
+      break;
+    case Type::Int32:
+      xmm_ty = Type::Int32x4;
+      break;
+    case Type::Int64:
+      xmm_ty = Type::Int64x2;
+      break;
+    case Type::Float32:
+      xmm_ty = Type::Float32x4;
+      break;
+    default:
+      fmt::println("{:cd}", insert_instr);
+      TODO("insertelement of this element type");
+  }
+  res.result.emplace_back(GBaseSubtype::mov, target, input_vec);
+  auto patch = [&](MArgument dst) {
+    if (input.ty == Type::Float32) {
+      res.result.emplace_back(X86Subtype::vinsertps, dst, dst,
+                              MArgument(input.reg.retype(xmm_ty), xmm_ty),
+                              MArgument(static_cast<u8>(j << 4)));
+      return;
+    }
+    auto src = input;
+    if (input.ty == Type::Int8 || input.ty == Type::Int16) {
+      // vpinsrb / vpinsrw read a 32 bit register
+      src = MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+      res.result.emplace_back(GConvSubtype::mov_zx, src, input);
+    }
+    res.result.emplace_back(X86Subtype::vpinsr, dst, dst, src,
+                            MArgument(static_cast<u8>(j)));
+  };
+  if (get_size(target.ty) == 32) {
+    auto h = MArgument(data.alloc.get_new_register(xmm_ty), xmm_ty);
+    res.result.emplace_back(X86Subtype::vextract128, h, target,
+                            MArgument(static_cast<u8>(half)));
+    patch(h);
+    res.result.emplace_back(X86Subtype::vinsert128, target, target, h,
+                            MArgument(static_cast<u8>(half)));
+  } else {
+    patch(target);
+  }
+}
+
 void move_rules(RuleSet &rules) {
   rules.add(pm::Select, [](fir::Instr slct_instr, MatchResult &res,
                            ExtraMatchData &data) {
@@ -269,66 +502,7 @@ void move_rules(RuleSet &rules) {
     }
     auto condition = MArgument(data.alloc.get_new_register(cond_ty), cond_ty);
 
-    u8 vcmp_condition = 0;
-
-    switch (
-        static_cast<fir::FCmpInstrSubType>(cmp_instr->get_instr_subtype())) {
-      case fir::FCmpInstrSubType::OEQ:
-        vcmp_condition = 0x00;
-        break;
-      case fir::FCmpInstrSubType::OLT:
-        vcmp_condition = 0x01;
-        break;
-      case fir::FCmpInstrSubType::OLE:
-        vcmp_condition = 0x02;
-        break;
-      case fir::FCmpInstrSubType::UNO:
-        vcmp_condition = 0x03;
-        break;
-      case fir::FCmpInstrSubType::UNE:
-        vcmp_condition = 0x04;
-        break;
-      case fir::FCmpInstrSubType::ULT:
-        vcmp_condition = 0x05;
-        break;
-      case fir::FCmpInstrSubType::ULE:
-        vcmp_condition = 0x06;
-        break;
-      case fir::FCmpInstrSubType::ORD:
-        vcmp_condition = 0x07;
-        break;
-      case fir::FCmpInstrSubType::UEQ:
-        vcmp_condition = 0x08;
-        break;
-      case fir::FCmpInstrSubType::AlwFalse:
-        vcmp_condition = 0x0B;
-        break;
-      case fir::FCmpInstrSubType::ONE:
-        vcmp_condition = 0x0C;
-        break;
-      case fir::FCmpInstrSubType::OGE:
-        vcmp_condition = 0x0D;
-        break;
-      case fir::FCmpInstrSubType::OGT:
-        vcmp_condition = 0x0E;
-        break;
-      case fir::FCmpInstrSubType::AlwTrue:
-        vcmp_condition = 0x0F;
-        break;
-      case fir::FCmpInstrSubType::UGT:
-        vcmp_condition = 0x16;
-        break;
-      case fir::FCmpInstrSubType::UGE:
-        vcmp_condition = 0x15;
-        break;
-      case fir::FCmpInstrSubType::IsNaN:
-        vcmp_condition = 0x03;
-        break;
-      case fir::FCmpInstrSubType::INVALID:
-        fmt::println("{}", cmp_instr);
-        fmt::println("{}", slct_instr);
-        TODO("TODO");
-    }
+    const u8 vcmp_condition = vcmp_predicate(cmp_instr);
 
     res.result.emplace_back(X86Subtype::vcmp, condition, c1, c2,
                             MArgument(vcmp_condition));
@@ -339,7 +513,110 @@ void move_rules(RuleSet &rules) {
     return true;
   });
 }
+// poison or all lanes zero, the value of the lanes a masked load skips
+bool is_zero_or_poison(fir::ValueR v) {
+  if (!v.is_constant()) {
+    return false;
+  }
+  auto c = v.as_constant();
+  if (c->is_poison()) {
+    return true;
+  }
+  if (c->is_int()) {
+    return c->as_int() == 0;
+  }
+  if (c->is_float()) {
+    return std::bit_cast<u64>(c->as_f64()) == 0;
+  }
+  if (c->is_vec()) {
+    for (auto m : c->as_vec().members) {
+      if (!is_zero_or_poison(fir::ValueR{m})) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+// integer vector type of the same shape
+Type int_vec_like(Type ty) {
+  switch (ty) {
+    case Type::Float32x4:
+      return Type::Int32x4;
+    case Type::Float32x8:
+      return Type::Int32x8;
+    case Type::Float64x2:
+      return Type::Int64x2;
+    case Type::Float64x4:
+      return Type::Int64x4;
+    default:
+      return ty;
+  }
+}
+
 void memory_rules(RuleSet &rules) {
+  rules.add(pm::MaskedLoad, [](fir::Instr load_instr, MatchResult &res,
+                               ExtraMatchData &data) {
+    auto res_reg = valueToArg(load_instr.result(), res.result, data.alloc);
+    auto mask = valueToArg(load_instr->args[1], res.result, data.alloc);
+    auto mem =
+        valueToArgPtr(load_instr->args[0], res_reg.ty, res.result, data.alloc);
+    mem.ty = res_reg.ty;
+    if (is_zero_or_poison(load_instr->args[2])) {
+      res.result.emplace_back(X86Subtype::vmaskload, res_reg, mask, mem);
+      return true;
+    }
+    // the skipped lanes are zero, take the pass through value there
+    auto loaded =
+        MArgument(data.alloc.get_new_register(res_reg.ty), res_reg.ty);
+    auto passthru = valueToArg(load_instr->args[2], res.result, data.alloc);
+    res.result.emplace_back(X86Subtype::vmaskload, loaded, mask, mem);
+    res.result.emplace_back(X86Subtype::vblendv, res_reg, passthru, loaded,
+                            mask);
+    return true;
+  });
+  rules.add(pm::MaskedStore, [](fir::Instr store_instr, MatchResult &res,
+                                ExtraMatchData &data) {
+    auto value = valueToArg(store_instr->args[2], res.result, data.alloc);
+    auto mask = valueToArg(store_instr->args[1], res.result, data.alloc);
+    auto mem =
+        valueToArgPtr(store_instr->args[0], value.ty, res.result, data.alloc);
+    mem.ty = value.ty;
+    res.result.emplace_back(X86Subtype::vmaskstore, mem, mask, value);
+    return true;
+  });
+  rules.add(pm::Gather, [](fir::Instr gather_instr, MatchResult &res,
+                           ExtraMatchData &data) {
+    auto res_reg = valueToArg(gather_instr.result(), res.result, data.alloc);
+    auto base = valueToArg(gather_instr->args[0], res.result, data.alloc);
+    auto idx = valueToArg(gather_instr->args[1], res.result, data.alloc);
+    const auto elem_size = (gather_instr.result_type()->as_vec().bitwidth + 7) / 8;
+    ASSERT(base.isReg() && idx.isReg());
+
+    // the instruction needs dst, index and mask in different registers, it
+    // reads and clears the mask and keeps the lanes of dst the mask skips
+    auto dst = res_reg;
+    const bool masked = gather_instr->get_n_args() == 4;
+    if (!masked || is_zero_or_poison(gather_instr->args[3])) {
+      res.result.emplace_back(GVecSubtype::vXor, dst, dst, dst);
+    } else {
+      auto passthru = valueToArg(gather_instr->args[3], res.result, data.alloc);
+      res.result.emplace_back(GBaseSubtype::mov, dst, passthru);
+    }
+    auto mask_ty = int_vec_like(res_reg.ty);
+    auto mask = MArgument(data.alloc.get_new_register(mask_ty), mask_ty);
+    if (!masked) {
+      res.result.emplace_back(X86Subtype::vpcmpeq, mask, mask, mask);
+    } else {
+      auto src = valueToArg(gather_instr->args[2], res.result, data.alloc);
+      res.result.emplace_back(GBaseSubtype::mov, mask, src);
+    }
+    auto mem = MArgument::MemBIS(base.reg, idx.reg,
+                                 elem_size == 8 ? 3 : 2, res_reg.ty);
+    res.result.emplace_back(X86Subtype::vgather, dst, mem, mask);
+    return true;
+  });
   rules.add(pm::Load, [](fir::Instr load_instr, MatchResult &res,
                          ExtraMatchData &data) {
     fir::Instr mul_instr;
@@ -1816,6 +2093,11 @@ void base_rules(RuleSet &rules) {
       res.result.emplace_back(X86Subtype::vblendv, res_reg, b, a, mask);
       return true;
     }
+    if (res_reg.is_vec_reg()) {
+      // blendv takes the second source where the mask is set
+      res.result.emplace_back(X86Subtype::vblendv, res_reg, b, a, cond);
+      return true;
+    }
     res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
     res.result.emplace_back(GCMovSubtype::cmov, res_reg, cond, a);
     return true;
@@ -1830,8 +2112,8 @@ void base_rules(RuleSet &rules) {
           GVecSubtype::vXor, res_reg, res_reg,
           valueToArg(not_instr->args[0], res.result, data.alloc));
     } else if (res_reg.is_vec_reg()) {
-      fmt::print("{:cd}", not_instr);
-      TODO("impl");
+      vec_not(res_reg, valueToArg(not_instr->args[0], res.result, data.alloc),
+              res, data);
     } else {
       auto bitwidth = not_instr.result_type()->as_int();
       if (bitwidth == 1) {
@@ -1854,13 +2136,13 @@ void base_rules(RuleSet &rules) {
                               ExtraMatchData &data) {
     auto res_reg = valueToArg(sqrt_instr.result(), res.result, data.alloc);
 
-    ASSERT(res_reg.is_fp());
+    ASSERT(res_reg.is_fp() || res_reg.is_vec_reg());
     res.result.emplace_back(
         X86Subtype::sqrt, res_reg,
         valueToArg(sqrt_instr->args[0], res.result, data.alloc));
     return true;
   });
-  rules.add(pm::HorizontalMul, [](fir::Instr hred_instr, MatchResult &res,
+  static constexpr auto lower_hmul = [](fir::Instr hred_instr, MatchResult &res,
                                   ExtraMatchData &data) {
     auto res_reg = valueToArg(hred_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
@@ -1891,8 +2173,8 @@ void base_rules(RuleSet &rules) {
         break;
     }
     return true;
-  });
-  rules.add(pm::HorizontalAdd, [](fir::Instr hred_instr, MatchResult &res,
+  };
+  static constexpr auto lower_hadd = [](fir::Instr hred_instr, MatchResult &res,
                                   ExtraMatchData &data) {
     auto res_reg = valueToArg(hred_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
@@ -2071,7 +2353,154 @@ void base_rules(RuleSet &rules) {
       }
     }
     return true;
+  };
+  // halves the vector until lane 0 holds the result
+  static constexpr auto lower_halving = [](fir::Instr hred_instr,
+                                           MatchResult &res,
+                                           ExtraMatchData &data) {
+    const auto op = static_cast<fir::ReduceInstrSubType>(hred_instr->subtype);
+    auto res_reg = valueToArg(hred_instr.result(), res.result, data.alloc);
+    auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
+    ASSERT(a1.isReg());
+
+    Type v128 = Type::INVALID;
+    bool wide = false;
+    switch (a1.ty) {
+      default:
+        TODO("horizontal reduce of this vector type");
+      case Type::Int32x4:
+        v128 = Type::Int32x4;
+        break;
+      case Type::Int32x8:
+        v128 = Type::Int32x4;
+        wide = true;
+        break;
+      case Type::Int64x2:
+        v128 = Type::Int64x2;
+        break;
+      case Type::Int64x4:
+        v128 = Type::Int64x2;
+        wide = true;
+        break;
+      case Type::Float32x4:
+        v128 = Type::Float32x4;
+        break;
+      case Type::Float32x8:
+        v128 = Type::Float32x4;
+        wide = true;
+        break;
+      case Type::Float64x2:
+        v128 = Type::Float64x2;
+        break;
+      case Type::Float64x4:
+        v128 = Type::Float64x2;
+        wide = true;
+        break;
+    }
+    auto combine = [&](MArgument dst, MArgument a, MArgument b) {
+      switch (op) {
+        case fir::ReduceInstrSubType::Add:
+          res.result.emplace_back(GVecSubtype::vadd, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::INVALID:
+        case fir::ReduceInstrSubType::Mul:
+          UNREACH();
+        case fir::ReduceInstrSubType::And:
+          res.result.emplace_back(GVecSubtype::vAnd, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::Or:
+          res.result.emplace_back(GVecSubtype::vOr, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::Xor:
+          res.result.emplace_back(GVecSubtype::vXor, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::SMin:
+          res.result.emplace_back(GVecSubtype::vSMin, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::SMax:
+          res.result.emplace_back(GVecSubtype::vSMax, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::UMin:
+          res.result.emplace_back(GVecSubtype::vUMin, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::UMax:
+          res.result.emplace_back(GVecSubtype::vUMax, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::FMin:
+          res.result.emplace_back(GVecSubtype::fMin, dst, a, b);
+          break;
+        case fir::ReduceInstrSubType::FMax:
+          res.result.emplace_back(GVecSubtype::fMax, dst, a, b);
+          break;
+      }
+    };
+    auto fresh = [&] {
+      return MArgument{data.alloc.get_new_register(v128), v128};
+    };
+
+    auto cur = a1;
+    if (wide) {
+      auto hi = fresh();
+      res.result.emplace_back(X86Subtype::vextract128, hi, a1,
+                              MArgument(static_cast<u8>(1)));
+      auto next = fresh();
+      combine(next, hi, MArgument{a1.reg.retype(v128), v128});
+      cur = next;
+    } else {
+      cur = MArgument{a1.reg.retype(v128), v128};
+    }
+    // vpshufd works on the raw bits, so the lanes are seen as dwords
+    auto as_dwords = [](MArgument v) {
+      return MArgument{v.reg.retype(Type::Int32x4), Type::Int32x4};
+    };
+    auto fold = [&](u8 imm) {
+      auto moved_reg = data.alloc.get_new_register(Type::Int32x4);
+      auto moved = MArgument{moved_reg, Type::Int32x4};
+      res.result.emplace_back(X86Subtype::vpshuf, moved, as_dwords(cur),
+                              MArgument(imm));
+      auto next = fresh();
+      combine(next, cur, MArgument{moved_reg.retype(v128), v128});
+      cur = next;
+    };
+    fold(0xEE);
+    if (v128 == Type::Int32x4 || v128 == Type::Float32x4) {
+      fold(0x55);
+    }
+    if (res_reg.is_fp()) {
+      res.result.emplace_back(GBaseSubtype::mov, res_reg, cur);
+    } else {
+      res.result.emplace_back(X86Subtype::vpextr, res_reg, cur,
+                              MArgument(static_cast<u8>(0)));
+    }
+    return true;
+  };
+  rules.add(pm::ReduceAdd, [](fir::Instr instr, MatchResult &res,
+                              ExtraMatchData &data) {
+    switch (instr->args[0].get_type()->as_vec().type) {
+      case fir::VectorType::SubType::Integer: {
+        const auto bits = instr->args[0].get_type()->get_bitwidth();
+        const auto elem_bits = instr->args[0].get_type()->as_vec().bitwidth;
+        if ((elem_bits == 32 || elem_bits == 64) &&
+            (bits == 128 || bits == 256)) {
+          return lower_halving(instr, res, data);
+        }
+        break;
+      }
+      case fir::VectorType::SubType::Floating:
+        break;
+    }
+    return lower_hadd(instr, res, data);
   });
+  rules.add(pm::ReduceMul, lower_hmul);
+  rules.add(pm::ReduceAnd, lower_halving);
+  rules.add(pm::ReduceOr, lower_halving);
+  rules.add(pm::ReduceXor, lower_halving);
+  rules.add(pm::ReduceSMin, lower_halving);
+  rules.add(pm::ReduceSMax, lower_halving);
+  rules.add(pm::ReduceUMin, lower_halving);
+  rules.add(pm::ReduceUMax, lower_halving);
+  rules.add(pm::ReduceFMin, lower_halving);
+  rules.add(pm::ReduceFMax, lower_halving);
   rules.add(pm::Concat, [](fir::Instr concat_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(concat_instr.result(), res.result, data.alloc);
@@ -2321,8 +2750,15 @@ void base_rules(RuleSet &rules) {
                          ExtraMatchData &data) {
     auto res_reg = data.alloc.get_register(cmp_instr.result());
 
-    auto res_arg = MArgument(res_reg, convert_type(cmp_instr.result_type()));
+    auto res_arg = MArgument(res_reg, value_type(cmp_instr.result()));
 
+    if (is_mask_type(cmp_instr.result_type())) {
+      auto a = valueToArg(cmp_instr->args[0], res.result, data.alloc);
+      auto b = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+      res.result.emplace_back(X86Subtype::vcmp, res_arg, a, b,
+                              MArgument(vcmp_predicate(cmp_instr)));
+      return true;
+    }
     auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
     auto arg2 =
         valueToArgPosMem(cmp_instr->args[1], res.result, data.alloc, cmp_instr);
@@ -2391,10 +2827,15 @@ void base_rules(RuleSet &rules) {
     // TODO: kinda sus
     auto res_reg = data.alloc.get_register(cmp_instr.result());
 
-    auto res_arg = MArgument(res_reg, convert_type(cmp_instr.result_type()));
+    auto res_arg = MArgument(res_reg, value_type(cmp_instr.result()));
 
     auto arg1 = valueToArg(cmp_instr->args[0], res.result, data.alloc);
     auto arg2 = valueToArg(cmp_instr->args[1], res.result, data.alloc);
+
+    if (is_mask_type(cmp_instr.result_type())) {
+      vector_icmp(cmp_instr, res_arg, arg1, arg2, res, data);
+      return true;
+    }
 
     GJumpSubtype op = GJumpSubtype::icmp_eq;
 
@@ -2572,6 +3013,15 @@ void base_rules(RuleSet &rules) {
     auto val = valueToArg(sext_instr->args[0], res.result, data.alloc);
     auto res_reg = valueToArg(sext_instr.result(), res.result, data.alloc);
 
+    if (is_mask_type(sext_instr->args[0].get_type())) {
+      // a mask lane is already all ones or all zeros
+      if (get_size(val.ty) != get_size(res_reg.ty)) {
+        fmt::println("{:cd}", sext_instr);
+        TODO("sext of a mask to another lane width");
+      }
+      res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+      return true;
+    }
     res.result.emplace_back(GConvSubtype::mov_sx, res_reg, val);
     return true;
   });
@@ -2580,6 +3030,20 @@ void base_rules(RuleSet &rules) {
     auto val = valueToArg(zext_instr->args[0], res.result, data.alloc);
     auto res_reg = valueToArg(zext_instr.result(), res.result, data.alloc);
 
+    if (is_mask_type(zext_instr->args[0].get_type())) {
+      // all ones lanes shifted down to one
+      const bool wide =
+          res_reg.ty == Type::Int64x2 || res_reg.ty == Type::Int64x4;
+      const bool dword =
+          res_reg.ty == Type::Int32x4 || res_reg.ty == Type::Int32x8;
+      if (get_size(val.ty) != get_size(res_reg.ty) || !(wide || dword)) {
+        fmt::println("{:cd}", zext_instr);
+        TODO("zext of a mask to this vector type");
+      }
+      res.result.emplace_back(X86Subtype::psrl, res_reg, val,
+                              MArgument(static_cast<u8>(wide ? 63 : 31)));
+      return true;
+    }
     res.result.emplace_back(GConvSubtype::mov_zx, res_reg, val);
     return true;
   });
@@ -2786,6 +3250,15 @@ void base_rules(RuleSet &rules) {
         fmt::println("unreach? {}", t);
         TODO("UNREACH");
       };
+      if (input.ty == Type::Int8 || input.ty == Type::Int16 ||
+          input.ty == Type::Int32 ||
+          (input.ty == Type::Int64 && target.ty != Type::Int64x4) ||
+          (input.ty == Type::Float32 &&
+           (rev_indx >= 4 || get_size(target.ty) == 32))) {
+        insert_lane_generic(insert_instr, res, data, target, input_vec, input,
+                            static_cast<u32>(rev_indx));
+        return true;
+      }
       auto helper_ty = get_xmm_version_ty(input.ty);
       if ((target.ty == Type::Int64x4 || target.ty == Type::Float64x4) &&
           (input.ty == Type::Int64 || input.ty == Type::Float64)) {
@@ -2931,6 +3404,25 @@ void base_rules(RuleSet &rules) {
       // lane i of the FIR vector lives in lane i of the register
       auto rev_indx = indx;
       auto helper_ty = get_xmm_version_ty(target.ty);
+      if (target.ty == Type::Int8 || target.ty == Type::Int16) {
+        // pextrb / pextrw write a 32 bit register, the half of a 256 bit
+        // vector the lane is in goes through vextract128 first
+        ASSERT(input.isReg());
+        const u32 per_half = 16 / get_size(target.ty);
+        const auto lane = static_cast<u32>(rev_indx);
+        auto src = MArgument(input.reg.retype(helper_ty), helper_ty);
+        if (get_size(input.ty) == 32 && lane / per_half == 1) {
+          src = MArgument(data.alloc.get_new_register(helper_ty), helper_ty);
+          res.result.emplace_back(X86Subtype::vextract128, src, input,
+                                  MArgument(static_cast<u8>(1)));
+        }
+        auto wide =
+            MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+        res.result.emplace_back(X86Subtype::vpextr, wide, src,
+                                MArgument(static_cast<u8>(lane % per_half)));
+        res.result.emplace_back(GConvSubtype::itrunc, target, wide);
+        return true;
+      }
       if (rev_indx == 0) {
         ASSERT(input.isReg())
         // last can just be moved
@@ -2978,7 +3470,11 @@ void base_rules(RuleSet &rules) {
         res.result.emplace_back(X86Subtype::vinsertps, ext_out, ext_out,
                                 helper_arg, MArgument{mapp});
       } else if (target.ty == Type::Float32) {
-        auto ext_out = MArgument{target.reg.retype(input.ty), input.ty};
+        // the 128 bit forms read and write the xmm view
+        auto ext_out =
+            MArgument{target.reg.retype(Type::Float32x4), Type::Float32x4};
+        auto input_x =
+            MArgument{input.reg.retype(Type::Float32x4), Type::Float32x4};
         u8 mapp = 0;
         switch (rev_indx) {
           case 1:
@@ -2995,8 +3491,8 @@ void base_rules(RuleSet &rules) {
             UNREACH();
         }
         res.result.emplace_back(GVecSubtype::vXor, ext_out, ext_out, ext_out);
-        res.result.emplace_back(X86Subtype::vinsertps, ext_out, ext_out, input,
-                                MArgument{mapp});
+        res.result.emplace_back(X86Subtype::vinsertps, ext_out, ext_out,
+                                input_x, MArgument{mapp});
       } else if (target.ty == Type::Int32 && rev_indx < 8) {
         ASSERT(input.isReg());
         if (rev_indx < 4) {
@@ -3061,27 +3557,49 @@ void intrin_rules(RuleSet &rules) {
                                       MArgument(static_cast<u8>(0b11)));
               return true;
             });
+  // minnum / maxnum: the hardware instruction returns its second operand when
+  // either one is NaN, but a NaN operand has to lose against a number
+  static constexpr auto fminmax = [](GVecSubtype op, fir::Instr instr,
+                                     MatchResult &res, ExtraMatchData &data) {
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    auto a = valueToArg(instr->args[0], res.result, data.alloc);
+    auto b = valueToArg(instr->args[1], res.result, data.alloc);
+    if (data.config.optim.fltOpt.no_nans) {
+      res.result.emplace_back(op, res_reg, a, b);
+      return true;
+    }
+    auto raw = MArgument(data.alloc.get_new_register(res_reg.ty), res_reg.ty);
+    res.result.emplace_back(op, raw, a, b);
+    auto mask_ty = res_reg.ty;
+    if (res_reg.ty == Type::Float32) {
+      mask_ty = Type::Int32x4;
+    } else if (res_reg.ty == Type::Float64) {
+      mask_ty = Type::Int64x2;
+    }
+    auto b_is_nan = MArgument(data.alloc.get_new_register(mask_ty), mask_ty);
+    // unordered with itself, 3 is the unordered predicate of vcmp
+    res.result.emplace_back(X86Subtype::vcmp, b_is_nan, b, b,
+                            MArgument(static_cast<u8>(3)));
+    res.result.emplace_back(X86Subtype::vblendv, res_reg, raw, a, b_is_nan);
+    return true;
+  };
   rules.add(pm::FMin,
             [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-              auto a = valueToArg(instr->args[0], res.result, data.alloc);
-              auto b = valueToArg(instr->args[1], res.result, data.alloc);
-              res.result.emplace_back(GVecSubtype::fMin, res_reg, a, b);
-              return true;
+              return fminmax(GVecSubtype::fMin, instr, res, data);
             });
   rules.add(pm::FMax,
             [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-              auto a = valueToArg(instr->args[0], res.result, data.alloc);
-              auto b = valueToArg(instr->args[1], res.result, data.alloc);
-              res.result.emplace_back(GVecSubtype::fMax, res_reg, a, b);
-              return true;
+              return fminmax(GVecSubtype::fMax, instr, res, data);
             });
   rules.add(
       pm::SMax, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
         auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        if (res_reg.is_vec_reg()) {
+          res.result.emplace_back(GVecSubtype::vSMax, res_reg, a, b);
+          return true;
+        }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
         res.result.emplace_back(GCMovSubtype::cmov_slt, res_reg, a, res_reg, a);
         return true;
@@ -3091,6 +3609,10 @@ void intrin_rules(RuleSet &rules) {
         auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        if (res_reg.is_vec_reg()) {
+          res.result.emplace_back(GVecSubtype::vUMax, res_reg, a, b);
+          return true;
+        }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
         res.result.emplace_back(GCMovSubtype::cmov_ult, res_reg, a, res_reg, a);
         return true;
@@ -3100,6 +3622,10 @@ void intrin_rules(RuleSet &rules) {
         auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        if (res_reg.is_vec_reg()) {
+          res.result.emplace_back(GVecSubtype::vSMin, res_reg, a, b);
+          return true;
+        }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
         res.result.emplace_back(GCMovSubtype::cmov_sgt, res_reg, a, res_reg, a);
         return true;
@@ -3109,6 +3635,10 @@ void intrin_rules(RuleSet &rules) {
         auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
         auto a = valueToArg(instr->args[0], res.result, data.alloc);
         auto b = valueToArg(instr->args[1], res.result, data.alloc);
+        if (res_reg.is_vec_reg()) {
+          res.result.emplace_back(GVecSubtype::vUMin, res_reg, a, b);
+          return true;
+        }
         res.result.emplace_back(GBaseSubtype::mov, res_reg, b);
         res.result.emplace_back(GCMovSubtype::cmov_ugt, res_reg, a, res_reg, a);
         return true;

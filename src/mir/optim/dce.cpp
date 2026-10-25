@@ -64,6 +64,8 @@ bool is_applicable(GOpcode op, u32 sop) {
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(sop)) {
         case X86Subtype::LockXAdd2:
+        case X86Subtype::vzeroupper:
+        case X86Subtype::vmaskstore:
           // TOOD: if we knew it was reg-reg args then we could set it to true
           return false;
         case X86Subtype::vblendv:
@@ -95,7 +97,10 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
         case X86Subtype::vgatherq:
+        case X86Subtype::vgather:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpcmpgt:
+        case X86Subtype::vmaskload:
         case X86Subtype::vround:
         case X86Subtype::psrl:
         case X86Subtype::psll:

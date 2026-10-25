@@ -154,6 +154,10 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GVecSubtype, vSar);
         ReturnString(GVecSubtype, fMax);
         ReturnString(GVecSubtype, fMin);
+        ReturnString(GVecSubtype, vSMin);
+        ReturnString(GVecSubtype, vSMax);
+        ReturnString(GVecSubtype, vUMin);
+        ReturnString(GVecSubtype, vUMax);
       }
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(sop)) {
@@ -191,8 +195,13 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, ffmadd213);
         ReturnString(X86Subtype, ffmadd231);
         ReturnString(X86Subtype, vgatherq);
+        ReturnString(X86Subtype, vgather);
         ReturnString(X86Subtype, vpcmpeq);
+        ReturnString(X86Subtype, vpcmpgt);
+        ReturnString(X86Subtype, vmaskload);
+        ReturnString(X86Subtype, vmaskstore);
         ReturnString(X86Subtype, vround);
+        ReturnString(X86Subtype, vzeroupper);
       }
   }
 }
@@ -329,6 +338,10 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GVecSubtype::vadd:
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
+        case GVecSubtype::vSMin:
+        case GVecSubtype::vSMax:
+        case GVecSubtype::vUMin:
+        case GVecSubtype::vUMax:
         case GVecSubtype::vsub:
         case GVecSubtype::vmul:
         case GVecSubtype::vdiv:
@@ -345,6 +358,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
+        case X86Subtype::vzeroupper:
           return;
         case X86Subtype::lea:
         case X86Subtype::vextract128:
@@ -375,7 +389,11 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
         case X86Subtype::vgatherq:
+        case X86Subtype::vgather:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpcmpgt:
+        case X86Subtype::vmaskload:
+        case X86Subtype::vmaskstore:
         case X86Subtype::psrl:
         case X86Subtype::psll:
         case X86Subtype::pmuludq:
@@ -608,6 +626,10 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GVecSubtype::vsub:
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
+        case GVecSubtype::vSMin:
+        case GVecSubtype::vSMax:
+        case GVecSubtype::vUMin:
+        case GVecSubtype::vUMax:
         case GVecSubtype::vmul:
         case GVecSubtype::vdiv:
         case GVecSubtype::vAnd:
@@ -627,6 +649,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
+        case X86Subtype::vzeroupper:
           return;
         case X86Subtype::lea:
         case X86Subtype::popcnt:
@@ -657,6 +680,9 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpcmpgt:
+        case X86Subtype::vmaskload:
+        case X86Subtype::vmaskstore:
         case X86Subtype::vpextr:
         case X86Subtype::vpinsr:
           out.push_back({1, instr.args[1]});
@@ -672,6 +698,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
         case X86Subtype::vgatherq:
+        case X86Subtype::vgather:
           out.push_back({0, instr.args[0]});
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
@@ -738,7 +765,7 @@ bool verify(const MInstr &instr, size_t arg_id) {
     return false;
   }
   if (arg.isMem() && (arg.reg.is_vec_reg() || arg.indx.is_vec_reg())) {
-    bool legal_instr = (instr.is(X86Subtype::vgatherq) && arg_id == 1);
+    bool legal_instr = ((instr.is(X86Subtype::vgatherq) || instr.is(X86Subtype::vgather)) && arg_id == 1);
     if (!legal_instr) {
       fmt::println("Cant use vec reg in a mem operand {}", arg);
       return false;

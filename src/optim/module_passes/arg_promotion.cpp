@@ -499,7 +499,7 @@ bool ArgPromotion::promote_ptr_args(fir::FunctionR func, fir::Context &ctx,
   }
   CFG cfg{*func.func};
   Dominators dom{cfg};
-  AliasAnalyis aa;
+  AliasAnalyis aa{false};
 
   TVec<PtrArgInfo> raw;
   raw.resize(n_args);
@@ -621,6 +621,8 @@ bool ArgPromotion::promote_ptr_args(fir::FunctionR func, fir::Context &ctx,
     arg->_type = load_type;
     arg->noalias = 0;
     arg->nonnull = 0;
+    arg->nocapture = 0;
+    arg->readonly = 0;
     arg->get_attribs().clear();
     if (kind == PtrArgType::ReadOnlyPtr) {
       TVec<fir::Use> uses =

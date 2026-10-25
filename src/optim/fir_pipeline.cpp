@@ -14,6 +14,7 @@
 #include "ir/helpers.hpp"
 #include "llvm/llir_loader.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/analysis/mem/alias_verify.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/module_pass.hpp"
 #include "optim/pass_skipping.hpp"
@@ -120,6 +121,12 @@ void optimize_fir(foptim::fir::Context &ctx, foptim::JobSheduler *shed) {
           curr_pass++;
         }
         mman.apply(ctx, shed, analysisMan);
+#if defined(ASSERT_ENABLED) && defined(ALIAS_CHECKS_ENABLED)
+        ASSERT(verify_module_alias_sets(*ctx.data));
+        for (const auto &f : ctx->storage.functions.all()) {
+          ASSERT(verify_access_meta(*f));
+        }
+#endif
         break;
       }
       default: {

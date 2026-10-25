@@ -37,6 +37,10 @@ enum class GVecSubtype : u32 {
   vSar,
   fMax,
   fMin,
+  vSMin,
+  vSMax,
+  vUMin,
+  vUMax,
 };
 
 enum class GJumpSubtype : u32 {
@@ -194,7 +198,15 @@ enum class X86Subtype : u32 {
   punpckl,
   vbroadcast,
   vgatherq,
+  // vgather(dst, mem, mask): AVX2 gather, mem has a vector index. dst and mask
+  // are read and written (masked off lanes keep dst, the mask is cleared)
+  vgather,
   vpcmpeq,
+  vpcmpgt,
+  // vmaskload(dst, mask, mem), vmaskstore(mem, mask, src): lanes with a clear
+  // mask are not accessed (vmaskmovps / vpmaskmovd and friends)
+  vmaskload,
+  vmaskstore,
   vblendv,
   vcmp,
   lzcnt,
@@ -215,6 +227,8 @@ enum class X86Subtype : u32 {
   padd,
 
   LockXAdd2,
+
+  vzeroupper,
 
   // avx512
   vextractf64x2,

@@ -29,7 +29,7 @@ define internal float @impure(float %x) {
 define void @f(ptr %a, ptr %b) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
+; CHECK-NEXT:  bb0(%0{nocapture; }: ptr, %1{nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
 ; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1

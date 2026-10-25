@@ -9,6 +9,8 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
+#include "optim/analysis/mem/alias_query.hpp"
+#include "optim/analysis/mem/memory_ssa.hpp"
 #include "optim/helper/helper.hpp"
 
 namespace foptim::optim {
@@ -59,6 +61,23 @@ class LICM final : public FunctionPass {
     auto glob = ptr.as_constant()->as_global();
     return !glob->is_extern_decl() && offset >= 0 &&
            offset + size <= glob->n_bytes;
+  }
+
+  // Does the load see the memory the loop was entered with? True if the nearest
+  // access that may write what it reads is outside of the loop, nothing in the
+  // loop changes the value then.
+  static bool sees_memory_of_entry(fir::Function &func, const LoopInfo &info,
+                                   fir::Instr load) {
+    auto &mssa = AnalysisManager::memory_ssa(func);
+    if (mssa.access_of(load) == MemorySSA::None) {
+      return false;
+    }
+    AliasQuery aq{AnalysisManager::provenance(func)};
+    MemorySSAWalker walker{mssa, AnalysisManager::mem_accesses(func), aq};
+    const u32 c = walker.clobber(load);
+    return c == MemorySSA::LiveOnEntry ||
+           std::ranges::find(info.body_nodes, mssa[c].block) ==
+               info.body_nodes.end();
   }
 
   // defined outside of the loop or a constant
@@ -282,8 +301,6 @@ class LICM final : public FunctionPass {
   // returns whether anything was hoisted
   bool apply(fir::Context & /*unused*/, fir::Function &func, CFG &cfg,
              LoopInfo &info) {
-    (void)func;
-
     if (cfg.bbrs[info.head].pred.size() != info.tails.size() + 1) {
       failure({.reason = "TODO: Cant apply licm without a preheader\n",
                .loc = cfg.bbrs[info.head].bb});
@@ -345,11 +362,14 @@ class LICM final : public FunctionPass {
     split_edges |= split_edge;
 
     const bool reassociated = reassociate(cfg, info, pre_header);
+    if (reassociated) {
+      AnalysisManager::drop_memory(func);
+    }
 
     std::deque<fir::Instr, utils::TempAlloc<fir::Instr>> worklist;
     TVec<fir::ValueR> invariant;
 
-    // loads can only be hoisted if nothing in the loop writes memory
+    // a memcmp can only be hoisted if nothing in the loop writes memory
     bool loop_writes_mem = false;
     for (auto bb : info.body_nodes) {
       for (auto instr : cfg.bbrs[bb].bb->instructions) {
@@ -394,14 +414,25 @@ class LICM final : public FunctionPass {
       auto v = d.as_constant()->as_int();
       return v == 0 || v == -1;
     };
+    TMap<fir::Instr, bool> unchanged_in_loop;
     auto is_hoistable_read = [&](fir::Instr instr) {
-      if (instr->Volatile || instr->Atomic || loop_writes_mem) {
+      if (instr->Volatile || instr->Atomic) {
         return false;
       }
-      if (instr->is(fir::InstrType::LoadInstr) &&
-          is_dereferenceable(instr->get_arg(0),
-                             instr->result_type()->get_size())) {
-        return true;
+      if (instr->is(fir::InstrType::LoadInstr)) {
+        auto [it, fresh] = unchanged_in_loop.try_emplace(instr, false);
+        if (fresh) {
+          it->second = sees_memory_of_entry(func, info, instr);
+        }
+        if (!it->second) {
+          return false;
+        }
+        if (is_dereferenceable(instr->get_arg(0),
+                               instr->result_type()->get_size())) {
+          return true;
+        }
+      } else if (loop_writes_mem) {
+        return false;
       }
       return runs_on_entry.contains(instr);
     };
@@ -477,6 +508,9 @@ class LICM final : public FunctionPass {
     for (auto inv : invariant) {
       inv.as_instr().destroy();
     }
+    // the hoisted instructions are new ones, and the cached accesses name the
+    // values they replace
+    AnalysisManager::drop_memory(func);
     return true;
   }
 };

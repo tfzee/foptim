@@ -1,0 +1,7 @@
+include = ["Default"]
+
+[pipeline.fir.dump]
+passes = ["DCE", "PrintAnalysis{show=[\"accesses\"]}", "SimplifyCFG"]
+
+[optimize]
+fir_pipeline = "dump"

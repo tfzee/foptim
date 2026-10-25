@@ -7,6 +7,7 @@ define float @ext5(<8 x float> %v) {
 ; CHECK-NEXT:    vextract128($xmm1: f32x4, $ymm0: f32x8, 1: i8, )
 ; CHECK-NEXT:    clear $xmm0: f32x4
 ; CHECK-NEXT:    vinsertps($xmm0: f32x4, $xmm0: f32x4, $xmm1: f32x4, 78: i8, )
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($mm0: f32, )
   %e = extractelement <8 x float> %v, i32 5
   ret float %e
@@ -18,6 +19,7 @@ define float @ext7(<8 x float> %v) {
 ; CHECK-NEXT:    vextract128($xmm1: f32x4, $ymm0: f32x8, 1: i8, )
 ; CHECK-NEXT:    clear $xmm0: f32x4
 ; CHECK-NEXT:    vinsertps($xmm0: f32x4, $xmm0: f32x4, $xmm1: f32x4, 206: i8, )
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($mm0: f32, )
   %e = extractelement <8 x float> %v, i32 7
   ret float %e

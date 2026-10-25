@@ -32,7 +32,7 @@ define i8 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %28: i1 = IntNE(%27, %18){} NUses:1
 ; CHECK-NEXT:    %29: () = CondBranch<bb4(%27, %26), bb5(%27, %26)>(%28){} NUses:0
 ; CHECK-NEXT:  bb5(%30{}: i64, %31{}: 32@i8):
-; CHECK-NEXT:    %32: i8 = V.HAdd(%31){} NUses:1
+; CHECK-NEXT:    %32: i8 = Reduce.Add(%31){} NUses:1
 ; CHECK-NEXT:    %33: i8 = IntAdd(%32, %16){} NUses:2
 ; CHECK-NEXT:    %34: i1 = IntEQ(%17, %3){} NUses:1
 ; CHECK-NEXT:    %35: () = CondBranch<bb2(%33), bb3(%30, %33)>(%34){} NUses:0

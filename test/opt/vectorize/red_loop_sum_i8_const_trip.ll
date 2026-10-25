@@ -25,7 +25,7 @@ define i8 @sum(ptr %a, i8 %v) {
 ; CHECK-NEXT:    %20: i1 = IntNE(%19, %8){} NUses:1
 ; CHECK-NEXT:    %21: () = CondBranch<bb3(%19, %18), bb4(%19, %18)>(%20){} NUses:0
 ; CHECK-NEXT:  bb4(%22{}: i32, %23{}: 32@i8):
-; CHECK-NEXT:    %24: i8 = V.HAdd(%23){} NUses:1
+; CHECK-NEXT:    %24: i8 = Reduce.Add(%23){} NUses:1
 ; CHECK-NEXT:    %25: i8 = IntAdd(%24, %6){} NUses:1
 ; CHECK-NEXT:    %26: () = Branch<bb2(%25)>(){} NUses:0
 ; CHECK-NEXT:}

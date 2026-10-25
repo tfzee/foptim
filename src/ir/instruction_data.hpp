@@ -19,6 +19,8 @@ enum class InstrType : u8 {
   ExtractElement,
   InsertElement,
   VectorInstr,
+  // horizontal reduction of all lanes of a vector, the subtype is the operation
+  ReduceInstr,
 
   // Conversions
   ITrunc,
@@ -164,8 +166,23 @@ enum class VectorISubType : u16 {
   Concat,
   ExtractHigh,
   ExtractLow,
-  HorizontalAdd,
-  HorizontalMul,
+};
+
+// The result is the scalar combination of all lanes of the operand in any
+// order, so only operations that are associative and commutative on the lanes.
+enum class ReduceInstrSubType : u16 {
+  INVALID = 0,
+  Add,
+  Mul,
+  And,
+  Or,
+  Xor,
+  SMin,
+  SMax,
+  UMin,
+  UMax,
+  FMin,
+  FMax,
 };
 
 enum class IntrinsicSubType : u16 {
@@ -223,6 +240,20 @@ enum class IntrinsicSubType : u16 {
   // can not emit it, IntrinLowerCalls turns what is left into a call to
   // memcmp.
   Memcmp,
+  // MaskedLoad(ptr, mask, passthru): vector load, lane i is read from
+  // ptr + i * element size when mask lane i is set and taken from passthru
+  // otherwise. Lanes with a clear mask are not accessed, so they may be out of
+  // bounds. The mask is a vector of i1 (a vector compare).
+  MaskedLoad,
+  // MaskedStore(ptr, mask, value): writes the lanes of value whose mask lane
+  // is set. Has no result.
+  MaskedStore,
+  // Gather(base, indices, mask, passthru): lane i is read from
+  // base + indices[i] * element size when mask lane i is set and taken from
+  // passthru otherwise. The indices are a vector of i32 or i64 (signed) with as
+  // many lanes as the result, masked off lanes are not accessed. The form
+  // Gather(base, indices) with two operands reads every lane.
+  Gather,
 };
 
 enum class ConversionSubType : u16 {
@@ -347,6 +378,9 @@ class InstrData : public Used, public InstrAttribs {
   // where the instruction was last found in `parent->instructions`, only a
   // hint (see BasicBlockData::find_instr), never trust it
   u32 pos_hint = 0;
+  // the function may have access metadata for this instruction, a copy of the
+  // data has the flag but not the entry
+  bool has_access_meta = false;
 
  private:
   u8 n_results_;
@@ -458,6 +492,11 @@ class InstrData : public Used, public InstrAttribs {
            subtype == static_cast<u32>(ty);
   }
 
+  [[nodiscard]] constexpr bool is(ReduceInstrSubType ty) const {
+    return instr_type == InstrType::ReduceInstr &&
+           subtype == static_cast<u32>(ty);
+  }
+
   [[nodiscard]] constexpr bool is(IntrinsicSubType ty) const {
     return instr_type == InstrType::Intrinsic &&
            subtype == static_cast<u32>(ty);
@@ -494,6 +533,7 @@ class InstrData : public Used, public InstrAttribs {
   static InstrData get_umod(TypeR ty);
   static InstrData get_intrinsic(TypeR ty, IntrinsicSubType sub_type);
   static InstrData get_vector(TypeR ty, VectorISubType sub_type);
+  static InstrData get_reduce(TypeR ty, ReduceInstrSubType sub_type);
   static InstrData get_add(TypeR ty);
   static InstrData get_sub(TypeR ty);
   static InstrData get_mul(TypeR ty);

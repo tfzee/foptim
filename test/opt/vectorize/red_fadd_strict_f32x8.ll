@@ -18,7 +18,7 @@ define float @f(ptr %a) {
 ; CHECK-NEXT:    %10: f32 = Load(%5){} NUses:1
 ; CHECK-NEXT:    %11: f32 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %12: f32 = Load(%7){} NUses:1
-; CHECK-NEXT:    %13: f32 = V.HAdd(%8){} NUses:1
+; CHECK-NEXT:    %13: f32 = Reduce.Add(%8){} NUses:1
 ; CHECK-NEXT:    %14: f32 = FloatAdd(%13, %9){} NUses:1
 ; CHECK-NEXT:    %15: f32 = FloatAdd(%14, %10){} NUses:1
 ; CHECK-NEXT:    %16: f32 = FloatAdd(%15, %11){} NUses:1

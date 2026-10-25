@@ -15,13 +15,13 @@ target triple = "x86_64-unknown-linux-gnu"
 define i64 @big(ptr noundef %0, i64 noundef %1, ptr noundef %2) #0 {
 ; CHECK-LABEL: func big<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: i64, %2{}: ptr):
+; CHECK-NEXT:  bb0(%0{nocapture; }: ptr, %1{}: i64, %2{nocapture; }: ptr):
 ; CHECK-NEXT:    %3: i1 = IntEQ(%1, 0:i64){} NUses:1
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %5: i64 = Return(-1:i64){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %6: i64 = Call(big.rest, %1, %0, %2){extTy: i64(i64 ptr ptr ); } NUses:1
+; CHECK-NEXT:    %6: i64 = Call(big.rest, 0:i64, 0:i64, %1, %0, %2){extTy: i64(i64 i64 i64 ptr ptr ); } NUses:1
 ; CHECK-NEXT:    %7: i64 = Return(%6){} NUses:0
 ; CHECK-NEXT:}
   %4 = alloca i64, align 8
@@ -183,7 +183,7 @@ define i64 @user(i64 noundef %0) #0 {
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %3: i64 = Return(-2:i64){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %4: i64 = Call(big.rest, %0, G(a1), G(b1)){extTy: i64(i64 ptr ptr ); } NUses:1
+; CHECK-NEXT:    %4: i64 = Call(big.rest, 0:i64, 0:i64, %0, G(a1), G(b1)){extTy: i64(i64 i64 i64 ptr ptr ); } NUses:1
 ; CHECK-NEXT:    %5: i64 = IntAdd(%4, -1:i64){} NUses:1
 ; CHECK-NEXT:    %6: i64 = Return(%5){} NUses:0
 ; CHECK-NEXT:}
@@ -200,7 +200,7 @@ define i64 @user(i64 noundef %0) #0 {
 define i64 @user2(ptr noundef %0, ptr noundef %1, i64 noundef %2) #0 {
 ; CHECK-LABEL: func user2<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: i64):
+; CHECK-NEXT:  bb0(%0{nocapture; }: ptr, %1{nocapture; }: ptr, %2{}: i64):
 ; CHECK-NEXT:    %3: i1 = IntEQ(%2, 0:i64){} NUses:1
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(-1:i64), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1(%5{}: i64):
@@ -208,13 +208,13 @@ define i64 @user2(ptr noundef %0, ptr noundef %1, i64 noundef %2) #0 {
 ; CHECK-NEXT:    %7: i1 = IntEQ(%6, 0:i64){} NUses:1
 ; CHECK-NEXT:    %8: () = CondBranch<bb3(), bb4()>(%7){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %9: i64 = Call(big.rest, %2, %0, %1){extTy: i64(i64 ptr ptr ); } NUses:1
+; CHECK-NEXT:    %9: i64 = Call(big.rest, 0:i64, 0:i64, %2, %0, %1){extTy: i64(i64 i64 i64 ptr ptr ); } NUses:1
 ; CHECK-NEXT:    %10: () = Branch<bb1(%9)>(){} NUses:0
 ; CHECK-NEXT:  bb3():
 ; CHECK-NEXT:    %11: i64 = IntAdd(%5, -1:i64){} NUses:1
 ; CHECK-NEXT:    %12: i64 = Return(%11){} NUses:0
 ; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %13: i64 = Call(big.rest, %6, %1, %0){extTy: i64(i64 ptr ptr ); } NUses:1
+; CHECK-NEXT:    %13: i64 = Call(big.rest, 0:i64, 0:i64, %6, %1, %0){extTy: i64(i64 i64 i64 ptr ptr ); } NUses:1
 ; CHECK-NEXT:    %14: i64 = IntAdd(%13, %5){} NUses:1
 ; CHECK-NEXT:    %15: i64 = Return(%14){} NUses:0
 ; CHECK-NEXT:}
@@ -241,14 +241,14 @@ define i64 @user2(ptr noundef %0, ptr noundef %1, i64 noundef %2) #0 {
 define i64 @user3(ptr noundef %0, ptr noundef %1, i64 noundef %2) #0 {
 ; CHECK-LABEL: func user3<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: i64):
+; CHECK-NEXT:  bb0(%0{nocapture; }: ptr, %1{nocapture; }: ptr, %2{}: i64):
 ; CHECK-NEXT:    %3: i1 = IntEQ(%2, 0:i64){} NUses:1
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %5: i64 = IntMul(-1:i64, -1:i64){} NUses:1
 ; CHECK-NEXT:    %6: i64 = Return(%5){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %7: i64 = Call(big.rest, %2, %0, %1){extTy: i64(i64 ptr ptr ); } NUses:1
+; CHECK-NEXT:    %7: i64 = Call(big.rest, 0:i64, 0:i64, %2, %0, %1){extTy: i64(i64 i64 i64 ptr ptr ); } NUses:1
 ; CHECK-NEXT:    %8: i64 = IntMul(%7, -1:i64){} NUses:1
 ; CHECK-NEXT:    %9: i64 = Return(%8){} NUses:0
 ; CHECK-NEXT:}

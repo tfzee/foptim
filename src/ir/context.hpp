@@ -1,6 +1,10 @@
 #pragma once
 #include <fmt/format.h>
 
+#include <memory>
+#include <mutex>
+
+#include "ir/access_meta.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
 #include "ir/intern_table.hpp"
@@ -10,7 +14,16 @@
 #include "utils/logging.hpp"
 #include "utils/types.hpp"
 
+namespace foptim::optim {
+class AliasSetTable;
+}
+
 namespace foptim::fir {
+
+// defined next to the alias sets so the IR does not need them
+struct AliasSetsDeleter {
+  void operator()(optim::AliasSetTable *p) const;
+};
 
 struct ContextData {
   IRStorage storage = {};
@@ -18,8 +31,17 @@ struct ContextData {
   InternTable<AnyType> type_table;
   using V2VMap = TMap<ValueR, ValueR>;
 
-  BasicBlock copy(BasicBlock bb, V2VMap &subs, bool apply_subs = true);
+  // Alias sets shared by all functions, each function builds an overlay on
+  // top. Only the loader and serial module passes add sets, so function
+  // passes can read it in parallel.
+  optim::AliasSetTable &alias_sets();
+
+  // dest is the function the copy ends up in, null for the function of bb.
+  // The access metadata is copied as far as meta allows.
+  BasicBlock copy(BasicBlock bb, V2VMap &subs, bool apply_subs = true,
+                  MetaCopy meta = MetaCopy::All, Function *dest = nullptr);
   BBArgument copy(BBArgument bb_arg);
+  // the copy has no access metadata
   Instr copy(Instr instr);
 
   IntTypeR get_int_type(u16 bitwidth);
@@ -76,6 +98,12 @@ struct ContextData {
   // deleted
   bool delete_function(IRStringRef func);
   bool verify() const;
+
+ private:
+  std::once_flag alias_sets_once;
+  std::unique_ptr<optim::AliasSetTable, AliasSetsDeleter> alias_sets_;
+
+ public:
   void dump_graph(const char *filename);
 };
 

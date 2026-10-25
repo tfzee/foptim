@@ -8,6 +8,7 @@
 #include "ir/instruction_data.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/analysis_manager.hpp"
+#include "optim/analysis/mem/mem_access.hpp"
 
 namespace foptim::optim {
 class SORA final : public FunctionPass {
@@ -17,7 +18,7 @@ class SORA final : public FunctionPass {
     fir::Use user;
   };
 
-  TVec<UseRes> handle_use(const fir::Use &use) {
+  TVec<UseRes> handle_use(fir::ValueR root, const fir::Use &use) {
     switch (use.user->instr_type) {
       case fir::InstrType::LoadInstr:
       case fir::InstrType::StoreInstr:
@@ -25,20 +26,26 @@ class SORA final : public FunctionPass {
         if (use.argId != 0) {
           break;
         }
-        return {UseRes{.offset = 0,
-                       .access_size = use.user->result_type()->get_size(),
-                       .user = use}};
+        {
+          auto shape = decompose_ptr(use.user->args[0]);
+          if (shape.base != root || shape.has_terms() || shape.offset < 0) {
+            break;
+          }
+          auto ty = use.user->is(fir::InstrType::LoadInstr)
+                        ? use.user->result_type()
+                        : use.user->args[1].get_type();
+          return {UseRes{.offset = static_cast<u64>(shape.offset),
+                         .access_size = ty->get_size(),
+                         .user = use}};
+        }
       case fir::InstrType::BinaryInstr:
         switch (static_cast<fir::BinaryInstrSubType>(use.user->subtype)) {
           case fir::BinaryInstrSubType::PtrAdd:
             if (use.argId == 0 && use.user->args[1].is_constant() &&
                 use.user->args[1].as_constant()->is_int()) {
               TVec<UseRes> ress;
-              auto myoff = use.user->args[1].as_constant()->as_int();
               for (auto sub_use : use.user->uses) {
-                auto v = handle_use(sub_use);
-                for (auto sv : v) {
-                  sv.offset += myoff;
+                for (auto sv : handle_use(root, sub_use)) {
                   ress.push_back(sv);
                 }
               }
@@ -66,7 +73,7 @@ class SORA final : public FunctionPass {
     };
     TVec<Acc> accs;
     for (auto use : alloca->uses) {
-      for (auto v : handle_use(use)) {
+      for (auto v : handle_use(alloca.result(), use)) {
         if (v.access_size == 0) {
           return false;
         }
@@ -241,7 +248,7 @@ class SORA final : public FunctionPass {
     u64 cutoff = std::numeric_limits<u64>::max();
     // fmt::println("===================\n{:cd}", alloca);
     for (auto use : alloca->uses) {
-      for (auto v : handle_use(use)) {
+      for (auto v : handle_use(alloca.result(), use)) {
         // fmt::println("{:cd} {}@{}s", v.user, v.offset, v.access_size);
         if (v.offset > cutoff) {
           continue;

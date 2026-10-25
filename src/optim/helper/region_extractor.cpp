@@ -6,21 +6,11 @@
 #include "ir/builder.hpp"
 #include "ir/context.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/alloca_escape.hpp"
+#include "optim/analysis/mem/alloca_escape.hpp"
+#include "optim/analysis/mem/mem_access.hpp"
 #include "utils/set.hpp"
 
 namespace foptim::optim {
-
-namespace {
-// the alloca an address is derived from by constant offsets, invalid if none
-fir::ValueR alloca_base(fir::ValueR v) {
-  while (v.is_instr() && (v.as_instr()->is(fir::BinaryInstrSubType::PtrAdd) ||
-                          v.as_instr()->is(fir::BinaryInstrSubType::IntAdd))) {
-    v = v.as_instr()->args[0];
-  }
-  return v;
-}
-}  // namespace
 
 std::optional<Region> find_region(fir::Function &f, fir::BasicBlock entry,
                                   const CFG &cfg, const RegionLimits &limits,
@@ -142,7 +132,7 @@ std::optional<Region> find_region(fir::Function &f, fir::BasicBlock entry,
   }
   // passing the address would make the alloca escape in the remaining code
   for (auto v : r.live_in) {
-    auto base = alloca_base(v);
+    auto base = decompose_ptr(v).base;
     if (base.is_instr() && base.as_instr()->is(fir::InstrType::AllocaInstr) &&
         !analyze_alloca_escape(base).escapes) {
       return reject(RegionReject::PromotableAlloca);
@@ -196,7 +186,7 @@ fir::Instr extract_region(fir::Function &f, const Region &r, IRString name,
   fir::ContextData::V2VMap subs;
   TVec<fir::BasicBlock> new_bbs;
   for (auto bb : r.blocks) {
-    new_bbs.push_back(ctx->copy(bb, subs, false));
+    new_bbs.push_back(ctx->copy(bb, subs, false, fir::MetaCopy::All, nf.func));
   }
   auto init = nf->get_entry();
   for (size_t i = 0; i < r.live_in.size(); i++) {

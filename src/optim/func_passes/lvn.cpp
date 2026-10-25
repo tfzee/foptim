@@ -9,9 +9,12 @@
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
 #include "optim/analysis/analysis_manager.hpp"
-#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/analysis/mem/alias_query.hpp"
+#include "optim/analysis/mem/basic_alias_test.hpp"
+#include "optim/analysis/mem/mem_access.hpp"
+#include "optim/analysis/mem/memory_ssa.hpp"
 
 namespace foptim::optim {
 
@@ -31,13 +34,23 @@ bool gvn_applicable(fir::Instr instr) {
          !instr->has_pot_sideeffects() && !instr->is_critical();
 }
 
+// who is the access to ptr whose metadata may prove accesses in between apart
+bool may_alias_access(AliasAnalyis &aa, fir::Instr between, fir::ValueR ptr,
+                      u32 size, fir::Instr who) {
+  if (who.is_valid()) {
+    return aa.alias_access(between, who) != AliasAnalyis::AAResult::NoAlias;
+  }
+  return aa.alias(between->args[0], ptr, between->result_type()->get_size(),
+                  size) != AliasAnalyis::AAResult::NoAlias;
+}
+
 bool is_pot_store_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
-                          size_t from, size_t to, AliasAnalyis &aa) {
+                          size_t from, size_t to, AliasAnalyis &aa,
+                          fir::Instr who = fir::Instr{}) {
   for (size_t between_i = from; between_i < to; between_i++) {
     auto binstr = bb->instructions[between_i];
     if (binstr->is(fir::InstrType::StoreInstr)) {
-      if (aa.alias(binstr->args[0], ptr, binstr->result_type()->get_size(),
-                   size) != AliasAnalyis::AAResult::NoAlias) {
+      if (may_alias_access(aa, binstr, ptr, size, who)) {
         return true;
       }
     } else if (binstr->pot_modifies_mem()) {
@@ -48,12 +61,12 @@ bool is_pot_store_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
 }
 
 bool is_pot_load_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
-                         size_t from, size_t to, AliasAnalyis &aa) {
+                         size_t from, size_t to, AliasAnalyis &aa,
+                         fir::Instr who = fir::Instr{}) {
   for (size_t between_i = from; between_i < to; between_i++) {
     auto binstr = bb->instructions[between_i];
     if (binstr->is(fir::InstrType::LoadInstr)) {
-      if (aa.alias(binstr->args[0], ptr, binstr->result_type()->get_size(),
-                   size) != AliasAnalyis::AAResult::NoAlias) {
+      if (may_alias_access(aa, binstr, ptr, size, who)) {
         return true;
       }
     } else if (binstr->pot_reads_mem()) {
@@ -64,13 +77,13 @@ bool is_pot_load_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
 }
 
 bool is_pot_loadstore_between(fir::BasicBlock bb, fir::ValueR ptr, u32 size,
-                              size_t from, size_t to, AliasAnalyis &aa) {
+                              size_t from, size_t to, AliasAnalyis &aa,
+                              fir::Instr who = fir::Instr{}) {
   for (size_t between_i = from; between_i < to; between_i++) {
     auto binstr = bb->instructions[between_i];
     if (binstr->is(fir::InstrType::StoreInstr) ||
         binstr->is(fir::InstrType::LoadInstr)) {
-      if (aa.alias(binstr->args[0], ptr, binstr->result_type()->get_size(),
-                   size) != AliasAnalyis::AAResult::NoAlias) {
+      if (may_alias_access(aa, binstr, ptr, size, who)) {
         return true;
       }
     } else if (binstr->pot_reads_mem() || binstr->pot_modifies_mem()) {
@@ -93,125 +106,6 @@ bool eql_instr_expr(fir::Instr a, fir::Instr b) {
   }
 
   return false;
-}
-
-struct PtrOff {
-  fir::ValueR base;
-  i64 off;
-};
-
-PtrOff decompose_ptr(fir::ValueR ptr) {
-  if (ptr.is_instr()) {
-    auto in = ptr.as_instr();
-    if (in->is(fir::BinaryInstrSubType::PtrAdd) &&
-        in->args[1].is_constant_int()) {
-      return {in->args[0],
-              static_cast<i64>(in->args[1].as_constant()->as_int())};
-    }
-  }
-  return {ptr, 0};
-}
-
-// Rebuilds an integer load from earlier integer stores into the same object
-// that are narrower than the load (they tile it) or wider than it (it is a
-// slice). Little endian byte order.
-bool forward_int_load_partial(fir::BasicBlock bb, fir::Instr load,
-                              AliasAnalyis &aa) {
-  constexpr size_t MaxScan = 128;
-  auto lty = load->result_type();
-  if (!lty->is_int() || load->Volatile || lty->get_bitwidth() % 8 != 0 ||
-      lty->get_bitwidth() > 64) {
-    return false;
-  }
-  auto *ctx = bb->get_parent()->ctx;
-  const i64 lsize = lty->get_bitwidth() / 8;
-  const auto lp = decompose_ptr(load->args[0]);
-  const u64 full = (1ULL << lsize) - 1;
-  struct Piece {
-    fir::Instr store;
-    i64 off;
-  };
-  TVec<Piece> pieces;
-  u64 mask = 0;
-  const size_t pos = bb->get_instr_id(load);
-  size_t scanned = 0;
-  for (size_t k = pos; k-- > 0 && scanned < MaxScan; scanned++) {
-    auto s = bb->instructions[k];
-    if (s->is(fir::InstrType::StoreInstr)) {
-      auto sty = s->result_type();
-      if (s->Volatile) {
-        return false;
-      }
-      const auto sp = decompose_ptr(s->args[0]);
-      if (sp.base != lp.base) {
-        if (aa.alias(s->args[0], load->args[0], sty->get_size(), lsize) !=
-            AliasAnalyis::AAResult::NoAlias) {
-          return false;
-        }
-        continue;
-      }
-      const i64 ssize = sty->get_size();
-      if (sp.off + ssize <= lp.off || lp.off + lsize <= sp.off) {
-        continue;
-      }
-      if (!sty->is_int() || sty->get_bitwidth() % 8 != 0) {
-        return false;
-      }
-      if (sp.off <= lp.off && lp.off + lsize <= sp.off + ssize) {
-        if (mask != 0) {
-          return false;
-        }
-        fir::Builder buh{load};
-        fir::ValueR v = s->args[1];
-        if (sp.off != lp.off) {
-          v = buh.build_binary_op(
-              v,
-              fir::ValueR{ctx->get_constant_int((lp.off - sp.off) * 8,
-                                                sty->get_bitwidth())},
-              fir::BinaryInstrSubType::Shr);
-        }
-        if (sty->get_bitwidth() != lty->get_bitwidth()) {
-          v = buh.build_itrunc(v, lty);
-        }
-        load->replace_all_uses(v);
-        load.destroy();
-        return true;
-      }
-      if (sp.off < lp.off || sp.off + ssize > lp.off + lsize) {
-        return false;
-      }
-      const u64 bits = ((1ULL << ssize) - 1) << (sp.off - lp.off);
-      if ((mask & bits) != 0) {
-        return false;
-      }
-      mask |= bits;
-      pieces.push_back({s, sp.off - lp.off});
-      if (mask == full) {
-        break;
-      }
-    } else if (s->pot_modifies_mem()) {
-      return false;
-    }
-  }
-  if (mask != full || pieces.size() < 2) {
-    return false;
-  }
-  fir::Builder buh{load};
-  fir::ValueR res;
-  bool first = true;
-  for (auto &p : pieces) {
-    fir::ValueR v = buh.build_zext(p.store->args[1], lty);
-    if (p.off != 0) {
-      v = buh.build_binary_op(
-          v, fir::ValueR{ctx->get_constant_int(p.off * 8, lty->get_bitwidth())},
-          fir::BinaryInstrSubType::Shl);
-    }
-    res = first ? v : buh.build_binary_op(res, v, fir::BinaryInstrSubType::Or);
-    first = false;
-  }
-  load->replace_all_uses(res);
-  load.destroy();
-  return true;
 }
 
 bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
@@ -244,77 +138,305 @@ bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
   return false;
 }
 
-bool vstore_sload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
-  auto a0 = load_instr->args[0].as_instr();
-  const auto &store_ty = store_instr->result_type()->as_vec();
-  auto load_ty = load_instr->result_type();
-  if (load_ty->get_bitwidth() != store_ty.bitwidth ||
-      !a0->is(fir::BinaryInstrSubType::PtrAdd) ||
-      a0->args[0] != store_instr->args[0] || !a0->args[1].is_constant_int()) {
+// The clobber of a load is a store to the same object (the load is rebuilt from
+// the stored value) or an earlier load of the same address in the same state.
+// Replaced loads stay until the end, the cached accesses still name them.
+class MemForwarder {
+ public:
+  explicit MemForwarder(fir::Function &f)
+      : func(&f),
+        cfg(AnalysisManager::cfg(f)),
+        dom(AnalysisManager::dom(f)),
+        info(AnalysisManager::mem_accesses(f)),
+        mssa(AnalysisManager::memory_ssa(f)),
+        aq(AnalysisManager::provenance(f)),
+        walker(mssa, info, aq) {}
+
+  bool run() {
+    for (const auto &a : info.accesses()) {
+      if (a.kind != MemAccess::Kind::Load || a.ordered || a.loc.size == 0 ||
+          !a.instr->is(fir::InstrType::LoadInstr) || a.instr->Volatile ||
+          !dom.is_reachable(cfg.get_bb_id(a.instr->get_parent()))) {
+        continue;
+      }
+      const auto *meta =
+          a.instr->has_access_meta ? func->get_access_meta(a.instr) : nullptr;
+      const u32 c = walker.clobber(a.instr);
+      if (forward_store(a, c, meta) || forward_load(a, c)) {
+        dead.push_back(a.instr);
+      }
+    }
+    for (auto load : dead) {
+      ASSERT(load->get_n_uses() == 0);
+      load.destroy();
+    }
+    return !dead.empty();
+  }
+
+ private:
+  bool dominates(fir::Instr a, fir::Instr b) const {
+    auto ba = a->get_parent();
+    auto bb = b->get_parent();
+    if (ba == bb) {
+      return ba->get_instr_id(a) < ba->get_instr_id(b);
+    }
+    return dom.strict_dominates(ba, bb);
+  }
+
+  // The clobber if it is a plain store to the object of the load that
+  // dominates it.
+  const MemAccess *store_of(u32 c, const MemAccess &load) const {
+    const auto &ca = mssa[c];
+    if (ca.kind != MemorySSA::Kind::Def ||
+        ca.access_kind != MemAccess::Kind::Store || ca.ordered ||
+        !ca.instr->is(fir::InstrType::StoreInstr) || ca.instr->Volatile) {
+      return nullptr;
+    }
+    const auto *s = info.find(ca.instr);
+    if (s == nullptr || !s->loc.ptr.same_base(load.loc.ptr) ||
+        !dominates(ca.instr, load.instr)) {
+      return nullptr;
+    }
+    return s;
+  }
+
+  bool forward_store(const MemAccess &load, u32 c,
+                     const fir::AccessMeta *meta) {
+    const auto *s = store_of(c, load);
+    if (s == nullptr) {
+      return false;
+    }
+    const i64 rel = load.loc.ptr.offset - s->loc.ptr.offset;
+    auto sty = s->instr->result_type();
+    std::optional<fir::ValueR> v;
+    if (rel == 0) {
+      v = forward_exact(s->instr, load.instr);
+    }
+    if (!v && sty->is_vec() && !load.instr->result_type()->is_vec() &&
+        rel >= 0) {
+      v = forward_lane(s->instr, load.instr, rel);
+    }
+    if (!v && sty->is_vec() && load.instr->result_type()->is_vec()) {
+      v = forward_half(s->instr, load.instr, rel);
+    }
+    if (!v) {
+      v = forward_int(load, c, meta);
+    }
+    if (!v) {
+      return false;
+    }
+    fir::Instr l = load.instr;
+    l->replace_all_uses(*v);
+    return true;
+  }
+
+  // same address, the load may see the stored bytes as another type
+  std::optional<fir::ValueR> forward_exact(fir::Instr store, fir::Instr load) {
+    auto t1 = store->result_type();
+    auto t2 = load->result_type();
+    auto *ctx = func->ctx;
+    if (t1 == t2) {
+      return store->args[1];
+    }
+    fir::Builder buh{load};
+    if (t1->get_bitwidth() == t2->get_bitwidth()) {
+      return buh.build_conversion_op(store->args[1], t2,
+                                     fir::ConversionSubType::BitCast);
+    }
+    if (t1->is_vec() && !t2->is_vec() &&
+        t1->as_vec().bitwidth == t2->get_bitwidth()) {
+      return lane_of(buh, store->args[1], t1->as_vec(), 0, t2);
+    }
+    // narrower than the vector but wider than a lane, the low bytes are lane 0
+    // of the vector reinterpreted with lanes of that width
+    if (t1->is_vec() && (t2->is_int() || t2->is_float()) &&
+        t2->get_bitwidth() > t1->as_vec().bitwidth &&
+        t2->get_bitwidth() < t1->get_bitwidth() &&
+        t1->get_bitwidth() % t2->get_bitwidth() == 0) {
+      auto lane_kind = t2->is_float() ? fir::VectorType::SubType::Floating
+                                      : fir::VectorType::SubType::Integer;
+      auto cast_ty = ctx->get_vec_type(lane_kind, t2->get_bitwidth(),
+                                       t1->get_bitwidth() / t2->get_bitwidth());
+      auto casted = buh.build_conversion_op(store->args[1], cast_ty,
+                                            fir::ConversionSubType::BitCast);
+      fir::ValueR index0[1] = {fir::ValueR{ctx->get_constant_int(0, 32)}};
+      return buh.build_extract_element(casted, index0, t2);
+    }
+    return std::nullopt;
+  }
+
+  // lane index of the vector, the load may see the lane as another type of the
+  // same size
+  fir::ValueR lane_of(fir::Builder &buh, fir::ValueR vec,
+                      const fir::VectorType &vt, i64 index,
+                      fir::TypeR load_ty) {
+    auto *ctx = func->ctx;
+    const bool lane_is_float = vt.type == fir::VectorType::SubType::Floating;
+    fir::TypeR lane_ty =
+        lane_is_float == load_ty->is_float()
+            ? load_ty
+            : (lane_is_float ? fir::TypeR{ctx->get_float_type(vt.bitwidth)}
+                             : fir::TypeR{ctx->get_int_type(vt.bitwidth)});
+    fir::ValueR indices[1] = {fir::ValueR{ctx->get_constant_int(index, 32)}};
+    fir::ValueR r = buh.build_extract_element(vec, indices, lane_ty);
+    if (lane_ty != load_ty) {
+      r = buh.build_conversion_op(r, load_ty, fir::ConversionSubType::BitCast);
+    }
+    return r;
+  }
+
+  // a scalar load of one lane of a stored vector
+  std::optional<fir::ValueR> forward_lane(fir::Instr store, fir::Instr load,
+                                          i64 offset) {
+    const auto &store_ty = store->result_type()->as_vec();
+    auto load_ty = load->result_type();
+    if (load_ty->get_bitwidth() != store_ty.bitwidth ||
+        offset * 8 % store_ty.bitwidth != 0) {
+      return std::nullopt;
+    }
+    const i64 index = offset / ((store_ty.bitwidth + 7) / 8);
+    if (index >= store_ty.member_number) {
+      return std::nullopt;
+    }
+    fir::Builder buh{load};
+    return lane_of(buh, store->args[1], store_ty, index, load_ty);
+  }
+
+  // a vector load of the low or high half of a stored vector
+  std::optional<fir::ValueR> forward_half(fir::Instr store, fir::Instr load,
+                                          i64 offset) {
+    const auto &store_ty = store->result_type()->as_vec();
+    auto load_ty = load->result_type();
+    if (load_ty->get_bitwidth() * 2 != store_ty.get_bitwidth()) {
+      return std::nullopt;
+    }
+    const i64 half_bytes = load_ty->get_bitwidth() / 8;
+    if (offset != 0 && offset != half_bytes) {
+      return std::nullopt;
+    }
+    fir::Builder buh{load};
+    return buh.build_vector_op(store->args[1], load_ty,
+                               offset == 0 ? fir::VectorISubType::ExtractLow
+                                           : fir::VectorISubType::ExtractHigh);
+  }
+
+  // Rebuilds an integer load from the integer stores into the same object that
+  // are narrower than the load (they tile it) or wider than it (it is a
+  // slice). Little endian byte order.
+  std::optional<fir::ValueR> forward_int(const MemAccess &load, u32 c,
+                                         const fir::AccessMeta *meta) {
+    constexpr u32 MaxPieces = 8;
+    auto lty = load.instr->result_type();
+    if (!lty->is_int() || lty->get_bitwidth() % 8 != 0 ||
+        lty->get_bitwidth() > 64) {
+      return std::nullopt;
+    }
+    auto *ctx = func->ctx;
+    const i64 lsize = lty->get_bitwidth() / 8;
+    const u64 full = (1ULL << lsize) - 1;
+    struct Piece {
+      fir::Instr store;
+      i64 off;
+    };
+    TVec<Piece> pieces;
+    u64 mask = 0;
+    for (u32 n = 0; n < MaxPieces; n++) {
+      const auto *s = store_of(c, load);
+      if (s == nullptr) {
+        return std::nullopt;
+      }
+      auto sty = s->instr->result_type();
+      const i64 ssize = sty->get_size();
+      const i64 soff = s->loc.ptr.offset - load.loc.ptr.offset;
+      if (!sty->is_int() || sty->get_bitwidth() % 8 != 0) {
+        return std::nullopt;
+      }
+      if (soff <= 0 && lsize <= soff + ssize) {
+        if (mask != 0) {
+          return std::nullopt;
+        }
+        fir::Builder buh{load.instr};
+        fir::ValueR v = s->instr->args[1];
+        if (soff != 0) {
+          v = buh.build_binary_op(v,
+                                  fir::ValueR{ctx->get_constant_int(
+                                      -soff * 8, sty->get_bitwidth())},
+                                  fir::BinaryInstrSubType::Shr);
+        }
+        if (sty->get_bitwidth() != lty->get_bitwidth()) {
+          v = buh.build_itrunc(v, lty);
+        }
+        return v;
+      }
+      if (soff < 0 || soff + ssize > lsize) {
+        return std::nullopt;
+      }
+      const u64 bits = ((1ULL << ssize) - 1) << soff;
+      if ((mask & bits) != 0) {
+        return std::nullopt;
+      }
+      mask |= bits;
+      pieces.push_back({s->instr, soff});
+      if (mask == full) {
+        break;
+      }
+      c = walker.clobber_from(mssa[c].defining, load.loc, meta);
+    }
+    if (mask != full || pieces.size() < 2) {
+      return std::nullopt;
+    }
+    fir::Builder buh{load.instr};
+    fir::ValueR res;
+    bool first = true;
+    for (auto &p : pieces) {
+      fir::ValueR v = buh.build_zext(p.store->args[1], lty);
+      if (p.off != 0) {
+        v = buh.build_binary_op(
+            v,
+            fir::ValueR{ctx->get_constant_int(p.off * 8, lty->get_bitwidth())},
+            fir::BinaryInstrSubType::Shl);
+      }
+      res =
+          first ? v : buh.build_binary_op(res, v, fir::BinaryInstrSubType::Or);
+      first = false;
+    }
+    return res;
+  }
+
+  // An earlier load of the same address that sees the same state.
+  bool forward_load(const MemAccess &load, u32 c) {
+    auto ty = load.instr->result_type();
+    u64 h = c;
+    h = h * 0x9E3779B97F4A7C15ULL +
+        ankerl::unordered_dense::hash<fir::ValueR>{}(load.loc.ptr.base);
+    h = h * 0x9E3779B97F4A7C15ULL + static_cast<u64>(load.loc.ptr.offset);
+    h = h * 0x9E3779B97F4A7C15ULL + load.loc.size;
+    auto &bucket = seen[h];
+    for (auto other : bucket) {
+      const auto *o = info.find(other);
+      if (o->loc.size == load.loc.size &&
+          o->loc.ptr.offset == load.loc.ptr.offset &&
+          o->loc.ptr.same_base(load.loc.ptr) && other->result_type() == ty &&
+          dominates(other, load.instr)) {
+        fir::Instr l = load.instr;
+        l->replace_all_uses(other.result());
+        return true;
+      }
+    }
+    bucket.push_back(load.instr);
     return false;
   }
 
-  // we load a offseted version of the store especially interesting
-  // when the store is already vectorized
-  auto offset = a0->args[1].as_constant()->as_int();
-  auto index = offset / (((store_ty.bitwidth + 7) / 8));
-  if (offset < 0 || offset * 8 % store_ty.bitwidth != 0 ||
-      index >= store_ty.member_number) {
-    return false;
-  }
-
-  auto *ctx = load_instr->get_parent()->get_parent()->ctx;
-  fir::Builder buh{load_instr};
-  fir::ValueR indicies[1] = {fir::ValueR{ctx->get_constant_int(index, 32)}};
-  // the load may see the lane as another type of the same size
-  const bool lane_is_float =
-      store_ty.type == fir::VectorType::SubType::Floating;
-  fir::TypeR elem_ty =
-      lane_is_float == load_ty->is_float()
-          ? load_ty
-          : (lane_is_float ? fir::TypeR{ctx->get_float_type(store_ty.bitwidth)}
-                           : fir::TypeR{ctx->get_int_type(store_ty.bitwidth)});
-  auto res = buh.build_extract_element(store_instr->args[1], indicies, elem_ty);
-  if (elem_ty != load_ty) {
-    res =
-        buh.build_conversion_op(res, load_ty, fir::ConversionSubType::BitCast);
-  }
-  load_instr->replace_all_uses(res);
-  load_instr.destroy();
-  if (a0->get_n_uses() == 0) {
-    a0.destroy();
-  }
-  return true;
-}
-
-bool vstore_vload_forwarding(fir::Instr store_instr, fir::Instr load_instr) {
-  const auto &store_ty = store_instr->result_type()->as_vec();
-  auto a0 = load_instr->args[0].as_instr();
-  const auto &load_ty = load_instr->result_type();
-
-  // TODO: can also forward other cases
-  if (load_ty->get_bitwidth() * 2 != store_ty.get_bitwidth() ||
-      !a0->is(fir::BinaryInstrSubType::PtrAdd) ||
-      a0->args[0] != store_instr->args[0] || !a0->args[1].is_constant_int()) {
-    return false;
-  }
-  const auto offset = a0->args[1].as_constant()->as_int();
-  const auto half_bytes = load_ty->get_bitwidth() / 8;
-  if (offset != 0 && offset != half_bytes) {
-    return false;
-  }
-  fir::Builder buh{load_instr};
-  auto res =
-      buh.build_vector_op(store_instr->args[1], load_ty,
-                          offset == 0 ? fir::VectorISubType::ExtractLow
-                                      : fir::VectorISubType::ExtractHigh);
-  load_instr->replace_all_uses(res);
-  load_instr.destroy();
-  if (a0->get_n_uses() == 0) {
-    a0.destroy();
-  }
-  return true;
-}
+  fir::Function *func;
+  CFG &cfg;
+  Dominators &dom;
+  MemAccessInfo &info;
+  MemorySSA &mssa;
+  AliasQuery aq;
+  MemorySSAWalker walker;
+  TVec<fir::Instr> dead;
+  TMap<u64, TVec<fir::Instr>> seen;
+};
 
 bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
                AliasAnalyis &aa) {
@@ -369,139 +491,6 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
         }
       }
 
-      // if we store and afterwards load from teh same address
-      //  and there is no other store that could interfere inbetween we can
-      //  replace the load
-      if (instr->is(fir::InstrType::StoreInstr) &&
-          instr2->is(fir::InstrType::LoadInstr) && !instr->Volatile &&
-          !instr2->Volatile) {
-        if (instr->get_arg(0) == instr2->get_arg(0)) {
-          auto t1 = instr->result_type();
-          auto t2 = instr2->result_type();
-
-          bool pot_store_between = is_pot_store_between(
-              bb, instr->args[0], instr->result_type()->get_size(), i + 1, i2,
-              aa);
-          if (!pot_store_between) {
-            if (t1 == t2) {
-              instr2->replace_all_uses(instr->get_arg(1));
-              instr2.destroy();
-              i2--;
-              modified = true;
-              continue;
-            }
-            if (t1->get_bitwidth() == t2->get_bitwidth()) {
-              // insert before the load: inserting before the store would shift
-              // it to index i + 1 and the i2 scan would meet the store itself
-              fir::Builder buh{instr2};
-              auto r = buh.build_conversion_op(instr->get_arg(1),
-                                               instr2->result_type(),
-                                               fir::ConversionSubType::BitCast);
-              instr2->replace_all_uses(r);
-              instr2.destroy();
-              i2--;
-              modified = true;
-              continue;
-            }
-            if (t1->is_vec() && !t2->is_vec() &&
-                t1->as_vec().bitwidth == t2->get_bitwidth()) {
-              fir::Builder buh{instr2};
-              auto *ctx = instr->get_parent()->get_parent()->ctx;
-              std::array<fir::ValueR, 1> indicies(
-                  {fir::ValueR{ctx->get_constant_int(0, 32)}});
-              // the load may see the lane as another type of the same size
-              const auto vt = t1->as_vec();
-              const bool lane_is_float =
-                  vt.type == fir::VectorType::SubType::Floating;
-              fir::TypeR lane_ty =
-                  lane_is_float == instr2->result_type()->is_float()
-                      ? instr2->result_type()
-                      : (lane_is_float
-                             ? fir::TypeR{ctx->get_float_type(vt.bitwidth)}
-                             : fir::TypeR{ctx->get_int_type(vt.bitwidth)});
-              fir::ValueR r = buh.build_extract_element(instr->get_arg(1),
-                                                        indicies, lane_ty);
-              if (lane_ty != instr2->result_type()) {
-                r = buh.build_conversion_op(r, instr2->result_type(),
-                                            fir::ConversionSubType::BitCast);
-              }
-              instr2->replace_all_uses(r);
-              instr2.destroy();
-              i2--;
-              modified = true;
-              continue;
-            }
-            if (t1->is_vec() && t1->as_vec().bitwidth == t2->get_bitwidth() &&
-                ((t2->is_float() &&
-                  t1->as_vec().type == fir::VectorType::SubType::Floating) ||
-                 (t2->is_int() &&
-                  t1->as_vec().type == fir::VectorType::SubType::Integer))) {
-              fir::Builder buh{instr2};
-              fir::ValueR index0[1] = {
-                  fir::ValueR{cfg.func->ctx->get_constant_int(0, 32)},
-              };
-              auto res = buh.build_extract_element(instr->args[1], index0, t2);
-              instr2->replace_all_uses(res);
-              instr2.destroy();
-              i2--;
-              modified = true;
-              continue;
-            }
-            // narrower than the vector but wider than a lane, the low bytes
-            // are lane 0 of the vector reinterpreted with lanes of that width
-            if (t1->is_vec() && (t2->is_int() || t2->is_float()) &&
-                t2->get_bitwidth() > t1->as_vec().bitwidth &&
-                t2->get_bitwidth() < t1->get_bitwidth() &&
-                t1->get_bitwidth() % t2->get_bitwidth() == 0) {
-              auto *ctx = cfg.func->ctx;
-              auto lane_kind = t2->is_float()
-                                   ? fir::VectorType::SubType::Floating
-                                   : fir::VectorType::SubType::Integer;
-              auto cast_ty =
-                  ctx->get_vec_type(lane_kind, t2->get_bitwidth(),
-                                    t1->get_bitwidth() / t2->get_bitwidth());
-              fir::Builder buh{instr2};
-              auto casted = buh.build_conversion_op(
-                  instr->args[1], cast_ty, fir::ConversionSubType::BitCast);
-              fir::ValueR index0[1] = {
-                  fir::ValueR{ctx->get_constant_int(0, 32)}};
-              auto res = buh.build_extract_element(casted, index0, t2);
-              instr2->replace_all_uses(res);
-              instr2.destroy();
-              i2--;
-              modified = true;
-              continue;
-            }
-          }
-        } else if (instr2->args[0].is_instr() &&
-                   instr->result_type()->is_vec() &&
-                   !instr2->result_type()->is_vec()) {
-          bool pot_store_between = is_pot_store_between(
-              bb, instr2->args[0], instr2->result_type()->get_size(), i + 1, i2,
-              aa);
-          // TODO: for now only for vector
-          if (!pot_store_between && vstore_sload_forwarding(instr, instr2)) {
-            i2--;
-            modified = true;
-            continue;
-          }
-        } else if (instr2->args[0].is_instr() &&
-                   instr->result_type()->is_vec() &&
-                   instr2->result_type()->is_vec() &&
-                   instr2->result_type()->get_bitwidth() <
-                       instr->result_type()->get_bitwidth()) {
-          bool pot_store_between = is_pot_store_between(
-              bb, instr2->args[0], instr2->result_type()->get_size(), i + 1, i2,
-              aa);
-          // TODO: for now only for vector
-          if (!pot_store_between && vstore_vload_forwarding(instr, instr2)) {
-            i2--;
-            modified = true;
-            continue;
-          }
-        }
-      }
-
       // if we store and afterwards store to the same address
       //  and there is nobody loading that memory inbetween we can
       //  delete the first store
@@ -512,8 +501,8 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           instr->get_arg(0) == instr2->get_arg(0) && !instr->Volatile &&
           !instr2->Volatile) {
         bool pot_load_between = is_pot_load_between(
-            bb, instr->args[0], instr->result_type()->get_size(), i + 1, i2,
-            aa);
+            bb, instr->args[0], instr->result_type()->get_size(), i + 1, i2, aa,
+            instr);
         if (!pot_load_between) {
           instr.destroy();
           i--;
@@ -657,24 +646,6 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
           instr2->is(fir::InstrType::LoadInstr) &&
           instr->result_type()->get_bitwidth() ==
               instr2.result_type()->get_bitwidth()) {
-        // if we load and afterwards load form the same address
-        //  and there is nobody storing that memory inbetween we can
-        //  delete the first load(TOOD: unless its volatile)
-        // the types have to match too, a ptr and a <2 x f32> load of the same
-        // address are not interchangeable
-        if (instr->get_arg(0) == instr2->get_arg(0) &&
-            instr->result_type() == instr2->result_type()) {
-          bool pot_store_between = is_pot_store_between(
-              bb, instr->args[0], instr->result_type()->get_size(), i + 1, i2,
-              aa);
-          if (!pot_store_between) {
-            instr2->replace_all_uses(instr.result());
-            instr2.destroy();
-            i2--;
-            modified = true;
-            continue;
-          }
-        }
         // merge 2 loads
         if (instr->args[0].is_instr() && instr2->args[0].is_instr() &&
             !instr->Volatile && !instr2->Volatile) {
@@ -757,16 +728,6 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       }
     }
   }
-  // loads that are only partially covered by earlier stores
-  TVec<fir::Instr> loads;
-  for (auto in : bb->instructions) {
-    if (in->is(fir::InstrType::LoadInstr)) {
-      loads.push_back(in);
-    }
-  }
-  for (auto ld : loads) {
-    modified |= forward_int_load_partial(bb, ld, aa);
-  }
   return modified;
 }
 
@@ -776,8 +737,11 @@ PreservedAnalysis LVN::apply(fir::Context & /*unused*/, fir::Function &func) {
   ZoneScopedNC("LVN", COLOR_OPTIMF);
   CFG &cfg = AnalysisManager::cfg(func);
   Dominators &dom = AnalysisManager::dom(func);
+  bool modified = MemForwarder{func}.run();
+  if (modified) {
+    AnalysisManager::drop_memory(func);
+  }
   AliasAnalyis aa;
-  bool modified = false;
   for (auto bb : func.basic_blocks) {
     modified |= apply_lvn(bb, cfg, dom, aa);
   }

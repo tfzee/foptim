@@ -34,7 +34,7 @@ define i32 @f(ptr %a, i32 %s0, i64 %n) {
 ; CHECK-NEXT:    %31: i1 = IntNE(%30, %20){} NUses:1
 ; CHECK-NEXT:    %32: () = CondBranch<bb4(%30, %29), bb5(%30, %29)>(%31){} NUses:0
 ; CHECK-NEXT:  bb5(%33{}: i64, %34{}: 8@i32):
-; CHECK-NEXT:    %35: i32 = V.HAdd(%34){} NUses:1
+; CHECK-NEXT:    %35: i32 = Reduce.Add(%34){} NUses:1
 ; CHECK-NEXT:    %36: i32 = IntAdd(%35, %18){} NUses:2
 ; CHECK-NEXT:    %37: i1 = IntEQ(%19, %4){} NUses:1
 ; CHECK-NEXT:    %38: () = CondBranch<bb2(%36), bb3(%33, %36)>(%37){} NUses:0

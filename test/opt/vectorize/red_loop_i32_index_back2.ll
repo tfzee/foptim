@@ -45,7 +45,7 @@ define i8 @sum(ptr noalias %a, i32 %n) {
 ; CHECK-NEXT:    %41: i1 = IntNE(%40, %25){} NUses:1
 ; CHECK-NEXT:    %42: () = CondBranch<bb4(%40, %39), bb5(%40, %39)>(%41){} NUses:0
 ; CHECK-NEXT:  bb5(%43{}: i32, %44{}: 32@i8):
-; CHECK-NEXT:    %45: i8 = V.HAdd(%44){} NUses:1
+; CHECK-NEXT:    %45: i8 = Reduce.Add(%44){} NUses:1
 ; CHECK-NEXT:    %46: i8 = IntAdd(%45, %23){} NUses:2
 ; CHECK-NEXT:    %47: i1 = IntEQ(%24, %4){} NUses:1
 ; CHECK-NEXT:    %48: () = CondBranch<bb2(%46), bb3(%43, %46)>(%47){} NUses:0

@@ -9,6 +9,7 @@ define void @add_i8x32(ptr noalias %a, ptr noalias %b) {
 ; CHECK-NEXT:    $ymm0: i8x32 = [$rdi]: i8x32
 ; CHECK-NEXT:    $ymm0: i8x32 = $ymm0: i8x32 + [$rsi]: i8x32
 ; CHECK-NEXT:    [$rdi]: i8x32 = $ymm0: i8x32
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
   %x = load <32 x i8>, ptr %a
   %y = load <32 x i8>, ptr %b
@@ -25,6 +26,7 @@ define void @sub_mul_i16x16(ptr noalias %a, ptr noalias %b) {
 ; CHECK-NEXT:    $ymm0: i16x16 = $ymm1: i16x16 - $ymm0: i16x16
 ; CHECK-NEXT:    $ymm0: i16x16 = $ymm0: i16x16 * [$rsi]: i16x16
 ; CHECK-NEXT:    [$rdi]: i16x16 = $ymm0: i16x16
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret()
   %x = load <16 x i16>, ptr %a
   %y = load <16 x i16>, ptr %b

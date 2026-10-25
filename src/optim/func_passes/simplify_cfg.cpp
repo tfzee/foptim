@@ -998,9 +998,13 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::Memcpy:
           case fir::IntrinsicSubType::Memmove:
           case fir::IntrinsicSubType::Memcmp:
+          case fir::IntrinsicSubType::MaskedLoad:
+          case fir::IntrinsicSubType::Gather:
+          case fir::IntrinsicSubType::MaskedStore:
             break;
         }
       case fir::InstrType::VectorInstr:
+      case fir::InstrType::ReduceInstr:
       case fir::InstrType::ICmp:
       case fir::InstrType::FCmp:
       case fir::InstrType::BinaryInstr:
@@ -1228,6 +1232,11 @@ void merge_into_predecessor(fir::Function &func, fir::BasicBlock bb,
 // it can be copied into bb instead of the branch to it
 bool merge_short_successor(fir::BasicBlock bb, fir::BasicBlock succ) {
   if ((succ->n_args() * 1UL) + 1 < succ->instructions.size()) {
+    return false;
+  }
+  // The copy would be a second exit test. For the latch of a loop it makes
+  // two back edges, which hides the loop from everything that wants one latch.
+  if (succ->get_terminator()->is(fir::InstrType::CondBranchInstr)) {
     return false;
   }
   // a block looping on itself would be copied again and again

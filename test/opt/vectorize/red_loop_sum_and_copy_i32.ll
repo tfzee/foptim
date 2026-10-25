@@ -38,7 +38,7 @@ define i32 @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %35: i1 = IntNE(%34, %22){} NUses:1
 ; CHECK-NEXT:    %36: () = CondBranch<bb4(%34, %33), bb5(%34, %33)>(%35){} NUses:0
 ; CHECK-NEXT:  bb5(%37{}: i64, %38{}: 8@i32):
-; CHECK-NEXT:    %39: i32 = V.HAdd(%38){} NUses:1
+; CHECK-NEXT:    %39: i32 = Reduce.Add(%38){} NUses:1
 ; CHECK-NEXT:    %40: i32 = IntAdd(%39, %20){} NUses:2
 ; CHECK-NEXT:    %41: i1 = IntEQ(%21, %4){} NUses:1
 ; CHECK-NEXT:    %42: () = CondBranch<bb2(%40), bb3(%37, %40)>(%41){} NUses:0

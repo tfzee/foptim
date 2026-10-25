@@ -9,7 +9,7 @@ define float @f(ptr %a) {
 ; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %3: 4@i64 = PtrAdd(%1, %2){} NUses:1
 ; CHECK-NEXT:    %4: 4@f32 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: f32 = V.HAdd(%4){} NUses:1
+; CHECK-NEXT:    %5: f32 = Reduce.Add(%4){} NUses:1
 ; CHECK-NEXT:    %6: f32 = Return(%5){} NUses:0
 ; CHECK-NEXT:}
   %a0 = getelementptr float, ptr %a, i64 0

@@ -6,9 +6,9 @@
 #include "ir/function_ref.hpp"
 #include "ir/helpers.hpp"
 #include "ir/use.hpp"
-#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/vec.hpp"
 

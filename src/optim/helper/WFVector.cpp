@@ -118,6 +118,9 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::Memset:
             case fir::IntrinsicSubType::Memmove:
             case fir::IntrinsicSubType::Memcmp:
+            case fir::IntrinsicSubType::MaskedLoad:
+            case fir::IntrinsicSubType::Gather:
+            case fir::IntrinsicSubType::MaskedStore:
               return {};
           }
           break;
@@ -173,6 +176,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
         case fir::InstrType::ExtractElement:
         case fir::InstrType::InsertElement:
         case fir::InstrType::VectorInstr:
+        case fir::InstrType::ReduceInstr:
         case fir::InstrType::CondBranchInstr:
         case fir::InstrType::SwitchInstr:
         case fir::InstrType::LoadInstr:
@@ -308,6 +312,9 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::Memset:
             case fir::IntrinsicSubType::Memmove:
             case fir::IntrinsicSubType::Memcmp:
+            case fir::IntrinsicSubType::MaskedLoad:
+            case fir::IntrinsicSubType::Gather:
+            case fir::IntrinsicSubType::MaskedStore:
               return {};
             case fir::IntrinsicSubType::INVALID:
             case fir::IntrinsicSubType::CTLZ:
@@ -346,6 +353,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
         case fir::InstrType::ExtractElement:
         case fir::InstrType::InsertElement:
         case fir::InstrType::VectorInstr:
+        case fir::InstrType::ReduceInstr:
         case fir::InstrType::ITrunc:
         case fir::InstrType::ZExt:
         case fir::InstrType::SExt:

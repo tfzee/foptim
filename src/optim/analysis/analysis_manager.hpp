@@ -10,6 +10,9 @@
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/constraint_analysis.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/analysis/mem/mem_access.hpp"
+#include "optim/analysis/mem/memory_ssa.hpp"
+#include "optim/analysis/mem/provenance.hpp"
 #include "utils/types.hpp"
 
 namespace foptim::optim {
@@ -23,6 +26,14 @@ enum class AnalysisKind : u32 {
   // needs the CFG and refers to instructions (their ValueRs), so any pass
   // that touches instructions has to drop it
   Constraints = 1U << 2,
+  // refers to instructions and their operands, so like Constraints any pass
+  // that touches instructions has to drop it, cfg_only() does not keep it
+  MemAccesses = 1U << 3,
+  // alias sets of the pointer values, same rule as MemAccesses
+  Provenance = 1U << 4,
+  // the memory chain, refers to instructions and block ids of the CFG, same
+  // rule as MemAccesses
+  MemorySSA = 1U << 5,
 };
 
 struct PreservedAnalysis {
@@ -49,6 +60,9 @@ struct FunctionAnalysisCache {
   std::unique_ptr<CFG> cfg;
   std::unique_ptr<Dominators> dom;
   std::unique_ptr<ConstraintAnalysis> constraints;
+  std::unique_ptr<MemAccessInfo> mem_accesses;
+  std::unique_ptr<Provenance> provenance;
+  std::unique_ptr<MemorySSA> memory_ssa;
 };
 
 /*
@@ -68,7 +82,7 @@ verify_preserved.
 
 Not cached yet (still built by each user, candidates in this order):
  - LiveVariables, LoopInfoAnalysis (+ DominatorTree), ScalarEvo (per loop)
- - AliasAnalyis, AllocaEscape, AccessAnalysis
+ - AllocaEscape, AccessAnalysis
  - CallGraph (module level, not per function)
  - AttributerManager / KnownBits (instruction level, cheap to invalidate on
    every change but expensive to rebuild)
@@ -89,6 +103,15 @@ class AnalysisManager {
   static CFG &cfg(fir::Function &func);
   static Dominators &dom(fir::Function &func);
   static ConstraintAnalysis &constraints(fir::Function &func);
+  static MemAccessInfo &mem_accesses(fir::Function &func);
+  static Provenance &provenance(fir::Function &func);
+  static MemorySSA &memory_ssa(fir::Function &func);
+
+  // A pass that moves, creates or destroys instructions while it runs drops the
+  // memory analyses (accesses, memory SSA, provenance) it asked for before it
+  // asks again: they are keyed by values, and the slot of a destroyed one can
+  // be given to a new instruction. Everything else stays.
+  static void drop_memory(fir::Function &func);
 
   // drop everything the pass did not preserve
   static void invalidate(fir::Function &func, PreservedAnalysis pres);

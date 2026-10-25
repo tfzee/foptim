@@ -248,11 +248,42 @@ MArgument valueToArgConst(fir::ValueR val, TVec<MInstr> &res,
   UNREACH();
 }
 
+bool is_mask_type(fir::TypeR ty) {
+  if (!ty->is_vec()) {
+    return false;
+  }
+  const auto v = ty->as_vec();
+  return v.type == fir::VectorType::SubType::Integer && v.bitwidth == 1;
+}
+
+Type value_type(fir::ValueR val) {
+  if (!is_mask_type(val.get_type())) {
+    return convert_type(val.get_type());
+  }
+  // a mask lives in a vector register with one lane of the compared element
+  // width, so it takes the type of the vector the compare looked at
+  ASSERT(val.is_instr());
+  auto instr = val.as_instr();
+  switch (instr->instr_type) {
+    case fir::InstrType::ICmp:
+    case fir::InstrType::FCmp:
+      return convert_type(instr->args[0].get_type());
+    case fir::InstrType::SelectInstr:
+      return value_type(instr->args[1]);
+    case fir::InstrType::BinaryInstr:
+    case fir::InstrType::UnaryInstr:
+      return value_type(instr->args[0]);
+    default:
+      fmt::println("{}", instr);
+      TODO("mask value that is not a compare or a logic op of masks");
+  }
+}
+
 MArgument valueToArg(fir::ValueR val, TVec<MInstr> &res, DumbRegAlloc &alloc) {
   if (val.is_constant()) {
     return valueToArgConst(val, res, alloc);
   }
-  Type type_id = convert_type(val.get_type());
+  Type type_id = value_type(val);
   return {alloc.get_register(val), type_id};
 }
 

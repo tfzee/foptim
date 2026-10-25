@@ -15,8 +15,9 @@
 namespace foptim::optim {
 
 class LegalizeVecs final : public FunctionPass {
-  void make_constant_global(fir::Context &ctx, fir::Instr instr, u32 arg_indx) {
-    auto constant = instr->args[arg_indx].as_constant();
+  // loads the constant from a new global right before instr
+  fir::ValueR load_constant_global(fir::Context &ctx, fir::Instr instr,
+                                   fir::ConstantValueR constant) {
     const auto size = (constant->type->get_bitwidth() + 7) / 8;
     // numbered per function so the name does not depend on the job order
     auto func = instr->get_parent()->get_parent();
@@ -32,9 +33,14 @@ class LegalizeVecs final : public FunctionPass {
     convert_constant_init(global->init_value, constant, global);
 
     fir::Builder bb{instr};
-    auto load_val = bb.build_load(constant->type,
-                                  fir::ValueR{ctx->get_constant_value(global)},
-                                  false, false);
+    return bb.build_load(constant->type,
+                         fir::ValueR{ctx->get_constant_value(global)}, false,
+                         false);
+  }
+
+  void make_constant_global(fir::Context &ctx, fir::Instr instr, u32 arg_indx) {
+    auto load_val =
+        load_constant_global(ctx, instr, instr->args[arg_indx].as_constant());
     instr.replace_arg(arg_indx, load_val);
   }
 
@@ -69,6 +75,19 @@ class LegalizeVecs final : public FunctionPass {
           !is_zero_vec(arg.as_constant())) {
         make_constant_global(ctx, instr, arg_indx);
         changed = true;
+      }
+    }
+
+    // the same for constants passed as block arguments of a branch
+    for (size_t bb_id = 0; bb_id < instr->bbs.size(); bb_id++) {
+      for (size_t i = 0; i < instr->bbs[bb_id].args.size(); i++) {
+        auto arg = instr->bbs[bb_id].args[i];
+        if (arg.is_constant() && arg.as_constant()->is_vec() &&
+            !is_zero_vec(arg.as_constant())) {
+          auto load_val = load_constant_global(ctx, instr, arg.as_constant());
+          instr.replace_bb_arg(bb_id, i, load_val);
+          changed = true;
+        }
       }
     }
 
@@ -156,7 +175,7 @@ class LegalizeVecs final : public FunctionPass {
       }
     }
     // TODO: is this check for avx512 sufficient/correct?
-    if (instr->is(fir::VectorISubType::HorizontalAdd) &&
+    if (instr->is(fir::ReduceInstrSubType::Add) &&
         !ctx.config->target.features.avx512f &&
         instr->args[0].get_type()->get_bitwidth() >= 512) {
       fir::Builder buh{instr};
@@ -168,12 +187,10 @@ class LegalizeVecs final : public FunctionPass {
                                        fir::VectorISubType::ExtractLow);
       auto a_high = buh.build_vector_op(instr->args[0], new_type,
                                         fir::VectorISubType::ExtractHigh);
-      auto a1 = buh.build_vector_op(a_low, out_type,
-                                    fir::VectorISubType::HorizontalAdd);
-      auto a2 = buh.build_vector_op(a_high, out_type,
-                                    fir::VectorISubType::HorizontalAdd);
-      ASSERT(out_type->is_float());  // TODO: impl for int
-      auto r = buh.build_float_add(a1, a2);
+      auto a1 = buh.build_reduce(a_low, fir::ReduceInstrSubType::Add);
+      auto a2 = buh.build_reduce(a_high, fir::ReduceInstrSubType::Add);
+      auto r = out_type->is_float() ? buh.build_float_add(a1, a2)
+                                    : buh.build_int_add(a1, a2);
       push_all_uses(worklist, instr);
       instr->replace_all_uses(r);
       instr.destroy();

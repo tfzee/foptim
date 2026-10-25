@@ -21,7 +21,7 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
-#include "optim/analysis/basic_alias_test.hpp"
+#include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/func_passes/inst_fold.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
 #include "optim/func_passes/inst_simplify/simplify_binary.hpp"
@@ -799,56 +799,65 @@ bool simplify_unary(fir::Instr instr, fir::BasicBlock /*bb*/,
     push_all_uses(worklist, instr);
     auto old_fcmp = instr->args[0].as_instr();
     auto new_subtype = fir::FCmpInstrSubType::INVALID;
-    switch (static_cast<fir::FCmpInstrSubType>(old_fcmp->subtype)) {
-      case fir::FCmpInstrSubType::OEQ:
-        new_subtype = fir::FCmpInstrSubType::ONE;
+    // the negation of an ordered predicate is the unordered one of the
+    // opposite relation, a NaN makes the original false and the result true
+    using F = fir::FCmpInstrSubType;
+    switch (static_cast<F>(old_fcmp->subtype)) {
+      case F::OEQ:
+        new_subtype = F::UNE;
         break;
-      case fir::FCmpInstrSubType::OGT:
-        new_subtype = fir::FCmpInstrSubType::OLE;
+      case F::OGT:
+        new_subtype = F::ULE;
         break;
-      case fir::FCmpInstrSubType::OGE:
-        new_subtype = fir::FCmpInstrSubType::OLT;
+      case F::OGE:
+        new_subtype = F::ULT;
         break;
-      case fir::FCmpInstrSubType::OLT:
-        new_subtype = fir::FCmpInstrSubType::OGE;
+      case F::OLT:
+        new_subtype = F::UGE;
         break;
-      case fir::FCmpInstrSubType::OLE:
-        new_subtype = fir::FCmpInstrSubType::OGT;
+      case F::OLE:
+        new_subtype = F::UGT;
         break;
-      case fir::FCmpInstrSubType::ONE:
-        new_subtype = fir::FCmpInstrSubType::OEQ;
+      case F::ONE:
+        new_subtype = F::UEQ;
         break;
-      case fir::FCmpInstrSubType::UEQ:
-        new_subtype = fir::FCmpInstrSubType::UNE;
+      case F::UEQ:
+        new_subtype = F::ONE;
         break;
-      case fir::FCmpInstrSubType::UGT:
-        new_subtype = fir::FCmpInstrSubType::ULE;
+      case F::UGT:
+        new_subtype = F::OLE;
         break;
-      case fir::FCmpInstrSubType::UGE:
-        new_subtype = fir::FCmpInstrSubType::ULT;
+      case F::UGE:
+        new_subtype = F::OLT;
         break;
-      case fir::FCmpInstrSubType::ULT:
-        new_subtype = fir::FCmpInstrSubType::UGE;
+      case F::ULT:
+        new_subtype = F::OGE;
         break;
-      case fir::FCmpInstrSubType::ULE:
-        new_subtype = fir::FCmpInstrSubType::UGT;
+      case F::ULE:
+        new_subtype = F::OGT;
         break;
-      case fir::FCmpInstrSubType::UNE:
-        new_subtype = fir::FCmpInstrSubType::UEQ;
+      case F::UNE:
+        new_subtype = F::OEQ;
         break;
-      case fir::FCmpInstrSubType::AlwFalse:
-        new_subtype = fir::FCmpInstrSubType::AlwTrue;
+      case F::AlwFalse:
+        new_subtype = F::AlwTrue;
         break;
-      case fir::FCmpInstrSubType::AlwTrue:
-        new_subtype = fir::FCmpInstrSubType::AlwFalse;
+      case F::AlwTrue:
+        new_subtype = F::AlwFalse;
         break;
-      case fir::FCmpInstrSubType::ORD:
-      case fir::FCmpInstrSubType::UNO:
-      case fir::FCmpInstrSubType::IsNaN:
-      case fir::FCmpInstrSubType::INVALID:
+      case F::ORD:
+        new_subtype = F::UNO;
+        break;
+      case F::UNO:
+        new_subtype = F::ORD;
+        break;
+      case F::IsNaN:
+      case F::INVALID:
         break;
     }
-    ASSERT(new_subtype != fir::FCmpInstrSubType::INVALID);
+    if (new_subtype == fir::FCmpInstrSubType::INVALID) {
+      return false;
+    }
 
     auto bb = fir::Builder{instr};
     auto new_comp =
@@ -1482,12 +1491,9 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
   const auto &v_t = instr->result_type()->as_vec();
   if (v_t.type == fir::VectorType::SubType::Integer && v_t.bitwidth == 8) {
     auto extend_to = v_t.member_number;
-    if ((extend_to % 8 == 0 && extend_to / 8 <= 2) ||
-        (extend_to % 4 == 0 && extend_to / 4 <= 4)) {
-      auto n_out_elems = extend_to / 4;
-      if (extend_to == 8) {
-        n_out_elems = extend_to / 8;
-      }
+    // the vector becomes one integer of the same size, wider ones stay vectors
+    if (extend_to == 4 || extend_to == 8) {
+      const u32 n_out_elems = 1;
       auto out_type = ctx->get_int_type(extend_to * 8);
       if (simplify_ext_byte_vector(instr, ctx, worklist, extend_to, n_out_elems,
                                    out_type)) {

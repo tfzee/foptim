@@ -22,6 +22,7 @@ define i64 @pick(i32 %i) noinline {
 ; CHECK-NEXT:    $rsi: i64 += $rax: i64
 ; CHECK-NEXT:    $rdi: i64 += $rsi: i64
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
+; CHECK-NEXT:    vzeroupper()
 ; CHECK-NEXT:    ret($rax: i64, )
   %v = load <4 x i64>, ptr @g
   %a = extractelement <4 x i64> %v, i32 0

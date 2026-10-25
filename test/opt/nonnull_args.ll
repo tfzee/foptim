@@ -8,7 +8,7 @@
 define internal i1 @all_known(ptr %p) {
 ; CHECK-LABEL: func all_known<CC: C, LINK: internal, > Uses: 2
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{nonnull; }: ptr):
+; CHECK-NEXT:  bb0(%0{nonnull; nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: i1 = Return(1:i1){} NUses:0
 ; CHECK-NEXT:}
   %c = icmp ne ptr %p, null
@@ -18,7 +18,7 @@ define internal i1 @all_known(ptr %p) {
 define internal i1 @transitive(ptr %p) {
 ; CHECK-LABEL: func transitive<CC: C, LINK: internal, > Uses: 1
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{nonnull; }: ptr):
+; CHECK-NEXT:  bb0(%0{nonnull; nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: i1 = Return(0:i1){} NUses:0
 ; CHECK-NEXT:}
   %c = icmp eq ptr %p, null
@@ -28,7 +28,7 @@ define internal i1 @transitive(ptr %p) {
 define internal i1 @mid(ptr %q) {
 ; CHECK-LABEL: func mid<CC: C, LINK: internal, > Uses: 1
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{nonnull; }: ptr):
+; CHECK-NEXT:  bb0(%0{nonnull; nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: i1 = Call(transitive, %0){extTy: i1(ptr ); } NUses:1
 ; CHECK-NEXT:    %2: i1 = Return(%1){} NUses:0
 ; CHECK-NEXT:}
@@ -39,7 +39,7 @@ define internal i1 @mid(ptr %q) {
 define internal i1 @one_unknown(ptr %p) {
 ; CHECK-LABEL: func one_unknown<CC: C, LINK: internal, > Uses: 2
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr):
+; CHECK-NEXT:  bb0(%0{nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: i1 = IntNE(%0, NULL){} NUses:1
 ; CHECK-NEXT:    %2: i1 = Return(%1){} NUses:0
 ; CHECK-NEXT:}
@@ -50,7 +50,7 @@ define internal i1 @one_unknown(ptr %p) {
 define internal i1 @one_null(ptr %p) {
 ; CHECK-LABEL: func one_null<CC: C, LINK: internal, > Uses: 2
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr):
+; CHECK-NEXT:  bb0(%0{nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: i1 = IntNE(%0, NULL){} NUses:1
 ; CHECK-NEXT:    %2: i1 = Return(%1){} NUses:0
 ; CHECK-NEXT:}
@@ -61,7 +61,7 @@ define internal i1 @one_null(ptr %p) {
 define i1 @user(ptr %ext) {
 ; CHECK-LABEL: func user<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
-; CHECK-NEXT:  bb0(%0{}: ptr):
+; CHECK-NEXT:  bb0(%0{nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: ptr = Alloca(4:i32){extTy: i32; } NUses:4
 ; CHECK-NEXT:    %2: ptr = PtrAdd(G(g), 8:i64){NSW; NUW; InBounds; } NUses:1
 ; CHECK-NEXT:    %3: i1 = Call(all_known, %1){extTy: i1(ptr ); } NUses:1

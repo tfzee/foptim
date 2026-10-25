@@ -660,12 +660,13 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     // addressed from rbp, the spill slots are placed below it
     const u32 total = offset;
     for (auto [reg, offset] : arg_int_regs) {
-      first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                             MInstr{GBaseSubtype::mov,
-                                    MArgument::MemOB(static_cast<i32>(offset) -
-                                                         static_cast<i32>(total),
-                                                     VReg::RBP(), reg.ty),
-                                    MArgument{reg, reg.ty}});
+      first_bb.instrs.insert(
+          first_bb.instrs.begin() + 0,
+          MInstr{GBaseSubtype::mov,
+                 MArgument::MemOB(
+                     static_cast<i32>(offset) - static_cast<i32>(total),
+                     VReg::RBP(), reg.ty),
+                 MArgument{reg, reg.ty}});
     }
 
     // TODO: make this conitional based if there are xmm args read out of al
@@ -674,12 +675,13 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
     // TODO: should also investigate why it doesnt save xmm8-xmm15 and not
     // RDI
     for (auto [reg, offset] : arg_xmm_regs) {
-      first_bb.instrs.insert(first_bb.instrs.begin() + 0,
-                             MInstr{GBaseSubtype::mov,
-                                    MArgument::MemOB(static_cast<i32>(offset) -
-                                                         static_cast<i32>(total),
-                                                     VReg::RBP(), reg.ty),
-                                    MArgument{reg, reg.ty}});
+      first_bb.instrs.insert(
+          first_bb.instrs.begin() + 0,
+          MInstr{GBaseSubtype::mov,
+                 MArgument::MemOB(
+                     static_cast<i32>(offset) - static_cast<i32>(total),
+                     VReg::RBP(), reg.ty),
+                 MArgument{reg, reg.ty}});
     }
     size_register_save_area = offset;
     first_bb.instrs.insert(
@@ -765,70 +767,179 @@ void save_regs_callee(MFunc &func, const CallingConvDefinition &cc, CFG &cfg) {
 
 static_assert(static_cast<u8>(CReg::R15) == 16);
 static_assert(static_cast<u8>(CReg::A) == 1);
+// calls f(creg, type) for every concrete register an instruction refers to
+template <class F>
+void for_each_concrete_reg_ref(const MInstr &instr, F &&f) {
+  for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
+    const auto &arg = instr.args[arg_id];
+    switch (arg.type) {
+      case MArgument::ArgumentType::Imm:
+      case MArgument::ArgumentType::Label:
+      case MArgument::ArgumentType::MemLabel:
+      case MArgument::ArgumentType::MemImmLabel:
+      case MArgument::ArgumentType::StackSlot:
+      case MArgument::ArgumentType::MemImm:
+        break;
+      case MArgument::ArgumentType::MemVReg:
+      case MArgument::ArgumentType::MemImmVReg:
+      case MArgument::ArgumentType::VReg:
+        if (arg.reg.is_concrete()) {
+          f(arg.reg.c_reg(), arg.ty);
+        }
+        break;
+      case MArgument::ArgumentType::MemVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVReg:
+      case MArgument::ArgumentType::MemImmVRegVRegScale:
+      case MArgument::ArgumentType::MemVRegVRegScale:
+        if (arg.reg.is_concrete()) {
+          f(arg.reg.c_reg(), arg.ty);
+        }
+        if (arg.indx.is_concrete()) {
+          f(arg.indx.c_reg(), arg.ty);
+        }
+        break;
+      case MArgument::ArgumentType::MemLabelVregScale:
+      case MArgument::ArgumentType::MemLabelVreg:
+      case MArgument::ArgumentType::MemImmVRegScale:
+        if (arg.indx.is_concrete()) {
+          f(arg.indx.c_reg(), arg.ty);
+        }
+        break;
+    }
+  }
+}
+
 TMap<CReg, Type> compute_max_reg_types(const MFunc &f) {
   TMap<CReg, Type> max_types;
   for (const auto &bb : f.bbs) {
     for (const auto &instr : bb.instrs) {
-      for (u32 arg_id = 0; arg_id < instr.n_args; arg_id++) {
-        const auto &arg = instr.args[arg_id];
-        switch (arg.type) {
-          case MArgument::ArgumentType::Imm:
-          case MArgument::ArgumentType::Label:
-          case MArgument::ArgumentType::MemLabel:
-          case MArgument::ArgumentType::MemImmLabel:
-          case MArgument::ArgumentType::StackSlot:
-          case MArgument::ArgumentType::MemImm:
-            break;
-          case MArgument::ArgumentType::MemVReg:
-          case MArgument::ArgumentType::MemImmVReg:
-          case MArgument::ArgumentType::VReg: {
-            if (arg.reg.is_concrete()) {
-              auto creg = arg.reg.c_reg();
-              auto it = max_types.find(creg);
-              if (it == max_types.end() || arg.ty > it->second) {
-                max_types[creg] = arg.ty;
-              }
-            }
-            break;
+      for_each_concrete_reg_ref(instr, [&](CReg creg, Type ty) {
+        auto it = max_types.find(creg);
+        if (it == max_types.end() || ty > it->second) {
+          max_types[creg] = ty;
+        }
+      });
+    }
+  }
+  return max_types;
+}
+
+// Type a vector register is saved with around a call.
+Type save_type_of(Type max_ty) {
+  switch (max_ty) {
+    case Type::Int8:
+    case Type::Int16:
+    case Type::Int32:
+    case Type::Float32:
+      return Type::Float32;
+    case Type::Int64:
+    case Type::Float64:
+    case Type::Float32x2:
+      return Type::Float64;
+    case Type::INVALID:
+      return Type::Int64x4;
+    default:
+      return get_size(max_ty) <= 16 ? Type::Int64x2 : Type::Int64x4;
+  }
+}
+
+// Width of the value a vector register holds across a call. Wide values are
+// rare, so a register that is only ever used as a scalar is answered from the
+// function wide maximum. Otherwise the blocks a value is alive in are joined
+// (a register that is alive out of one block and into the next) and the width
+// is the widest type any block of such a web uses the register with, so one
+// ymm loop does not make every call of the function save xmm registers as 32
+// bytes.
+class SaveTypes {
+ public:
+  SaveTypes(const MFunc &func, const CFG &cfg)
+      : func_max_(compute_max_reg_types(func)) {
+    bool any_wide = false;
+    for (const auto &[reg, ty] : func_max_) {
+      if (reg >= CReg::mm0 && ty > Type::Float64) {
+        any_wide = true;
+      }
+    }
+    if (!any_wide) {
+      return;
+    }
+    per_block_ = true;
+    const size_t n_bbs = func.bbs.size();
+    ty_.assign(n_bbs * NVec, Type::INVALID);
+    parent_.resize(n_bbs * NVec);
+    for (u32 i = 0; i < parent_.size(); i++) {
+      parent_[i] = i;
+    }
+    for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
+      for (const auto &instr : func.bbs[bb_id].instrs) {
+        for_each_concrete_reg_ref(instr, [&](CReg creg, Type ty) {
+          if (creg >= CReg::mm0) {
+            auto &slot = ty_[node(bb_id, creg)];
+            slot = std::max(slot, ty);
           }
-          case MArgument::ArgumentType::MemVRegVReg:
-          case MArgument::ArgumentType::MemImmVRegVReg:
-          case MArgument::ArgumentType::MemImmVRegVRegScale:
-          case MArgument::ArgumentType::MemVRegVRegScale: {
-            if (arg.reg.is_concrete()) {
-              auto creg = arg.reg.c_reg();
-              auto it = max_types.find(creg);
-              if (it == max_types.end() || arg.ty > it->second) {
-                max_types[creg] = arg.ty;
-              }
-            }
-            if (arg.indx.is_concrete()) {
-              auto creg = arg.indx.c_reg();
-              auto it = max_types.find(creg);
-              if (it == max_types.end() || arg.ty > it->second) {
-                max_types[creg] = arg.ty;
-              }
-            }
-            break;
-          }
-          case MArgument::ArgumentType::MemLabelVreg:
-          case MArgument::ArgumentType::MemLabelVregScale:
-          case MArgument::ArgumentType::MemImmVRegScale: {
-            if (arg.indx.is_concrete()) {
-              auto creg = arg.indx.c_reg();
-              auto it = max_types.find(creg);
-              if (it == max_types.end() || arg.ty > it->second) {
-                max_types[creg] = arg.ty;
-              }
-            }
-            break;
+        });
+      }
+    }
+    LiveVariables live{cfg, func};
+    for (size_t from = 0; from < n_bbs; from++) {
+      for (const auto to : cfg.bbrs[from].succ) {
+        for (u32 r = 0; r < NVec; r++) {
+          const auto creg = static_cast<CReg>(static_cast<u32>(CReg::mm0) + r);
+          const auto uid = reg_to_uid(VReg{creg});
+          if (live._liveOut[from][uid] && live._liveIn[to][uid]) {
+            join(node(from, creg), node(to, creg));
           }
         }
       }
     }
   }
-  return max_types;
-}
+
+  [[nodiscard]] Type of(size_t bb_id, CReg reg) const {
+    if (reg < CReg::mm0) {
+      return Type::Int64;
+    }
+    auto it = func_max_.find(reg);
+    Type max_ty = it != func_max_.end() ? it->second : Type::Float64;
+    if (per_block_) {
+      const auto web_ty = ty_[find(node(bb_id, reg))];
+      // a web that never touches the register means the liveness and the
+      // references disagree, keep the safe answer
+      if (web_ty != Type::INVALID) {
+        max_ty = web_ty;
+      }
+    }
+    return save_type_of(max_ty);
+  }
+
+ private:
+  static constexpr u32 NVec =
+      static_cast<u32>(CReg::mm15) - static_cast<u32>(CReg::mm0) + 1;
+
+  static u32 node(size_t bb_id, CReg reg) {
+    return static_cast<u32>(bb_id) * NVec +
+           (static_cast<u32>(reg) - static_cast<u32>(CReg::mm0));
+  }
+  u32 find(u32 n) const {
+    while (parent_[n] != n) {
+      n = parent_[n];
+    }
+    return n;
+  }
+  void join(u32 a, u32 b) {
+    a = find(a);
+    b = find(b);
+    if (a == b) {
+      return;
+    }
+    parent_[b] = a;
+    ty_[a] = std::max(ty_[a], ty_[b]);
+  }
+
+  TMap<CReg, Type> func_max_;
+  bool per_block_ = false;
+  TVec<u32> parent_;
+  TVec<Type> ty_;
+};
 
 bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives, size_t start,
               size_t end, size_t bb_id) {
@@ -838,19 +949,100 @@ bool is_alive(VReg reg_ty, TMap<VReg, LinearRangeSet> &lives, size_t start,
   return lives.at(reg_ty).collide(LinearRange::inBB(bb_id, start, end + 1));
 }
 
-Type get_save_type(CReg reg_ty, const TMap<CReg, Type> &max_types) {
-  if (reg_ty >= CReg::mm0) {
-    auto it = max_types.find(reg_ty);
-    Type max_ty = it != max_types.end() ? it->second : Type::Float64;
-    if (max_ty == Type::Float32) {
-      return Type::Float32;
+bool is_wide_vec_ref(CReg reg, Type ty) {
+  return reg >= CReg::mm0 && ty >= Type::Int8x32;
+}
+
+bool touches_wide_vec(const MInstr &instr) {
+  bool wide = false;
+  for_each_concrete_reg_ref(instr, [&](CReg reg, Type ty) {
+    wide = wide || is_wide_vec_ref(reg, ty);
+  });
+  return wide;
+}
+
+bool uses_wide_vec(const MFunc &func) {
+  for (const auto &bb : func.bbs) {
+    for (const auto &instr : bb.instrs) {
+      if (touches_wide_vec(instr)) {
+        return true;
+      }
     }
-    if (max_ty == Type::Float64) {
-      return Type::Float64;
-    }
-    return Type::Int64x4;
   }
-  return Type::Int64;
+  return false;
+}
+
+// Legacy SSE code (libm, most of libc) that runs with dirty upper halves of
+// the ymm registers is slow on a lot of Intel cores. Every call is preceded by
+// a vzeroupper where the call takes no ymm argument, the ones that are
+// redundant are dropped here and one is put in front of each return that does
+// not return a ymm value, wherever a ymm register might have been written.
+void place_vzeroupper(MFunc &func, const CFG &cfg) {
+  enum class Effect : u8 { Pass, Clean, Dirty };
+  const size_t n_bbs = func.bbs.size();
+  TVec<Effect> effect(n_bbs, Effect::Pass);
+  for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
+    for (const auto &instr : func.bbs[bb_id].instrs) {
+      if (instr.is(X86Subtype::vzeroupper)) {
+        effect[bb_id] = Effect::Clean;
+      } else if (touches_wide_vec(instr)) {
+        effect[bb_id] = Effect::Dirty;
+      }
+    }
+  }
+  TVec<bool> dirty_in(n_bbs, false);
+  TVec<bool> dirty_out(n_bbs, false);
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
+      bool in = false;
+      for (const auto pred : cfg.bbrs[bb_id].pred) {
+        in = in || dirty_out[pred];
+      }
+      const bool out =
+          effect[bb_id] == Effect::Pass ? in : effect[bb_id] == Effect::Dirty;
+      if (in != dirty_in[bb_id] || out != dirty_out[bb_id]) {
+        dirty_in[bb_id] = in;
+        dirty_out[bb_id] = out;
+        changed = true;
+      }
+    }
+  }
+
+  for (size_t bb_id = 0; bb_id < n_bbs; bb_id++) {
+    auto &instrs = func.bbs[bb_id].instrs;
+    IRVec<MInstr> out_instrs;
+    out_instrs.reserve(instrs.size());
+    bool dirty = dirty_in[bb_id];
+    for (const auto &instr : instrs) {
+      if (instr.is(X86Subtype::vzeroupper)) {
+        if (dirty) {
+          out_instrs.push_back(instr);
+          dirty = false;
+        }
+        continue;
+      }
+      if (instr.is(GBaseSubtype::ret) && dirty) {
+        bool returns_wide = false;
+        for (u8 i = 0; i < instr.n_args; i++) {
+          returns_wide =
+              returns_wide ||
+              (instr.args[i].isReg() && instr.args[i].reg.is_concrete() &&
+               is_wide_vec_ref(instr.args[i].reg.c_reg(), instr.args[i].ty));
+        }
+        if (!returns_wide) {
+          out_instrs.emplace_back(X86Subtype::vzeroupper);
+          dirty = false;
+        }
+      }
+      if (touches_wide_vec(instr)) {
+        dirty = true;
+      }
+      out_instrs.push_back(instr);
+    }
+    instrs = std::move(out_instrs);
+  }
 }
 
 struct CallInfo {
@@ -866,7 +1058,7 @@ struct CallInfo {
 };
 
 void save_locals(IRVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
-                 const TMap<CReg, Type> &max_types) {
+                 const SaveTypes &save_types) {
   (void)call;
   for (auto reg_ty : cinfo.cc.caller_saved | std::views::reverse) {
     if (!cinfo.rets.empty()) {
@@ -889,7 +1081,7 @@ void save_locals(IRVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
     // cinfo.call_id).dump();
     // fmt::println("\n=============");
 
-    auto push_ty = get_save_type(reg_ty, max_types);
+    auto push_ty = save_types.of(cinfo.bb_id, reg_ty);
     auto arg = MArgument{VReg{reg_ty, push_ty}, push_ty};
     instrs.insert(instrs.begin() + static_cast<i64>(cinfo.start_id),
                   MInstr{GBaseSubtype::push, arg});
@@ -902,7 +1094,7 @@ void save_locals(IRVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
   //   if (is_alive(VReg{reg1_ty}, cinfo.lives, cinfo.call_id, cinfo.call_id +
   //   1,
   //                cinfo.bb_id)) {
-  //     auto save_ty = get_save_type(reg1_ty, max_types);
+  //     auto save_ty = save_types.of(cinfo.bb_id, reg1_ty);
   //     auto arg = MArgument{VReg{reg1_ty, save_ty}, save_ty};
   //     instrs.insert(instrs.begin() + (i64)cinfo.start_id,
   //                   MInstr{GBaseSubtype::push, arg});
@@ -910,8 +1102,9 @@ void save_locals(IRVec<MInstr> &instrs, CallInfo &cinfo, MInstr &call,
   // }
 }
 
-std::pair<uint32_t, uint32_t> restore_locals(
-    IRVec<MInstr> &instrs, CallInfo &cinfo, const TMap<CReg, Type> &max_types) {
+std::pair<uint32_t, uint32_t> restore_locals(IRVec<MInstr> &instrs,
+                                             CallInfo &cinfo,
+                                             const SaveTypes &save_types) {
   uint32_t n_locals_restored = 0;
   uint32_t n_local_bytes_restored = 0;
 
@@ -930,7 +1123,7 @@ std::pair<uint32_t, uint32_t> restore_locals(
   //     skip_regs.push_back(ret_reg_type);
   //     continue;
   //   }
-  //   auto save_ty = get_save_type(ret_reg_type, max_types);
+  //   auto save_ty = save_types.of(cinfo.bb_id, ret_reg_type);
   //   auto arg = MArgument{VReg{ret_reg_type, save_ty}, save_ty};
   //   instrs.insert(instrs.begin() + (i64)cinfo.start_id,
   //                 MInstr{GBaseSubtype::pop, arg});
@@ -955,7 +1148,7 @@ std::pair<uint32_t, uint32_t> restore_locals(
                   cinfo.bb_id)) {
       continue;
     }
-    auto push_ty = get_save_type(reg_ty, max_types);
+    auto push_ty = save_types.of(cinfo.bb_id, reg_ty);
     n_locals_restored += 1;
     n_local_bytes_restored += get_size(push_ty);
     auto arg = MArgument{VReg{reg_ty, push_ty}, push_ty};
@@ -1147,7 +1340,7 @@ void setup_call_arguments(IRVec<MInstr> &out_instrs,
 void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
                     size_t start_id, size_t call_id, size_t end_id,
                     size_t bb_id, TMap<VReg, LinearRangeSet> &lives,
-                    const TMap<CReg, Type> &max_types) {
+                    const SaveTypes &save_types, bool wide_vecs) {
   size_t n_args = call_id - start_id;
   size_t n_rets = end_id - (call_id + 1);
 
@@ -1213,7 +1406,7 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
   }
 
   const auto [n_locals_saved, n_local_bytes_need_saving] =
-      restore_locals(instrs, cinfo, max_types);
+      restore_locals(instrs, cinfo, save_types);
 
   TVec<ArgPosition> arg_pos;
   auto n_stack_args = calculate_arg_locations(args, cc, arg_pos);
@@ -1245,6 +1438,15 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
   instrs.insert(instrs.begin() + static_cast<i64>(cinfo.start_id),
                 MInstr{GBaseSubtype::call, call.args[0]});
   instrs[cinfo.start_id].is_var_arg_call = is_var_args;
+  if (wide_vecs) {
+    const bool wide_arg = std::ranges::any_of(args, [](const MInstr &arg) {
+      return arg.args[0].ty >= Type::Int8x32;
+    });
+    if (!wide_arg) {
+      instrs.insert(instrs.begin() + static_cast<i64>(cinfo.start_id),
+                    MInstr{X86Subtype::vzeroupper});
+    }
+  }
 
   // for vararg setup al with the number of xmm registiers
   if (is_var_args != 0U) {
@@ -1281,7 +1483,7 @@ void transform_call(IRVec<MInstr> &instrs, const CallingConvDefinition &cc,
   // setup args
   setup_call_arguments(instrs, arg_pos, cinfo);
   // save locals
-  save_locals(instrs, cinfo, call, max_types);
+  save_locals(instrs, cinfo, call, save_types);
 
   auto off =
       (n_local_bytes_need_saving + n_stack_args * 8) % cc.align.alignment_value;
@@ -1307,7 +1509,8 @@ void CallingConvImpl::second_stage(MFunc &func, const CallingConvDefinition &cc,
   // fmt::println("===============RUNING CC=====================");
   // fmt::println("{}", func);
   TMap<VReg, LinearRangeSet> lives = linear_lifetime(func);
-  TMap<CReg, Type> max_types = compute_max_reg_types(func);
+  SaveTypes save_types{func, cfg};
+  const bool wide_vecs = uses_wide_vec(func);
 
   size_t bb_id = 0;
   for (auto &bb : func.bbs) {
@@ -1338,11 +1541,14 @@ void CallingConvImpl::second_stage(MFunc &func, const CallingConvDefinition &cc,
       //   fmt::println(" >> {}", bb.instrs[i]);
       // }
       transform_call(bb.instrs, cc, instr_start_id, instr_invoke_id,
-                     instr_end_id, bb_id, lives, max_types);
+                     instr_end_id, bb_id, lives, save_types, wide_vecs);
       // update the n of instrs since the might have changed it
       n_instrs = bb.instrs.size();
     }
     bb_id++;
+  }
+  if (wide_vecs) {
+    place_vzeroupper(func, cfg);
   }
 }
 

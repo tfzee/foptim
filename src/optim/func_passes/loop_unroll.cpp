@@ -27,7 +27,8 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
   for (u8 u = 0; u < peel_factor; u++) {
     subs.clear();
     for (auto node : loop.body_nodes) {
-      auto new_bb = ctx->copy(cfg.bbrs[node].bb, subs, false);
+      auto new_bb =
+          ctx->copy(cfg.bbrs[node].bb, subs, false, fir::MetaCopy::Types);
       new_bbs[u].push_back(new_bb);
     }
     for (auto &bb : new_bbs[u]) {
@@ -131,7 +132,8 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
   for (u8 u = 0; u < unroll_factor; u++) {
     subs.clear();
     for (auto node : loop.body_nodes) {
-      auto new_bb = ctx->copy(cfg.bbrs[node].bb, subs, false);
+      auto new_bb =
+          ctx->copy(cfg.bbrs[node].bb, subs, false, fir::MetaCopy::Types);
       new_bbs[u].push_back(new_bb);
     }
     // then update the newly generated bbs

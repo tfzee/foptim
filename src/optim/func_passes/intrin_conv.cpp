@@ -9,10 +9,10 @@
 #include "ir/builder.hpp"
 #include "ir/instruction.hpp"
 #include "ir/instruction_data.hpp"
-#include "optim/analysis/basic_alias_test.hpp"
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
+#include "optim/analysis/mem/basic_alias_test.hpp"
 
 namespace foptim::optim {
 
@@ -138,13 +138,24 @@ std::optional<PtrForm> ptr_form(fir::ValueR v, const LoopCtx &lc) {
 
 enum class CopyKind : u8 { Memcpy, Memmove, None };
 
+// store and load are the accesses of the loop, their metadata can prove the
+// regions apart where the addresses cannot (they may be from different
+// iterations).
 CopyKind classify_copy(const PtrForm &dst, const PtrForm &src, i128 bytes,
-                       i128 elem_size, AliasAnalyis &aa) {
+                       i128 elem_size, fir::Instr store, fir::Instr load,
+                       AliasAnalyis &aa) {
   if (dst.stride != elem_size || src.stride != elem_size) {
     return CopyKind::None;
   }
+  const auto meta_disjoint = [&] {
+    return aa.alias_access(store, load, true) ==
+           AliasAnalyis::AAResult::NoAlias;
+  };
   if (dst.base == src.base) {
     if (dst.off0 + bytes <= src.off0 || src.off0 + bytes <= dst.off0) {
+      return CopyKind::Memcpy;
+    }
+    if (meta_disjoint()) {
       return CopyKind::Memcpy;
     }
     // dst in front of src is a forward memmove
@@ -154,7 +165,8 @@ CopyKind classify_copy(const PtrForm &dst, const PtrForm &src, i128 bytes,
     return f.off0 >= 0 ? static_cast<size_t>(f.off0 + bytes) : size_t{0};
   };
   return aa.alias(dst.base, src.base, extent(dst), extent(src)) ==
-                 AliasAnalyis::AAResult::NoAlias
+                     AliasAnalyis::AAResult::NoAlias ||
+                 meta_disjoint()
              ? CopyKind::Memcpy
              : CopyKind::None;
 }
@@ -493,8 +505,8 @@ bool match_memsetcpy(fir::Function &func) {
         continue;
       }
       const i128 elem_size = load_instr->result_type()->get_size();
-      const auto kind =
-          classify_copy(*dst_form, *src_form, r * elem_size, elem_size, aa);
+      const auto kind = classify_copy(*dst_form, *src_form, r * elem_size,
+                                      elem_size, store_instr, load_instr, aa);
       if (kind == CopyKind::None) {
         continue;
       }

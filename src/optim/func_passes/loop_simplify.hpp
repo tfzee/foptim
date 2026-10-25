@@ -140,7 +140,7 @@ class LoopSimplify final : public FunctionPass {
         }
         for (auto use : uses) {
           fir::Builder b{use.user};
-          auto copied = b.insert_copy(instr);
+          auto copied = b.insert_copy(instr, fir::MetaCopy::Types);
           use.replace_use(copied.result());
           modified = true;
           utils::StatCollector::get().addi(1, "PropagateUseAfter",

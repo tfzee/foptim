@@ -219,6 +219,10 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GVecSubtype::vsub:
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
+        case GVecSubtype::vSMin:
+        case GVecSubtype::vSMax:
+        case GVecSubtype::vUMin:
+        case GVecSubtype::vUMax:
         case GVecSubtype::vmul:
         case GVecSubtype::vdiv:
         case GVecSubtype::ffmadd:
@@ -236,6 +240,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
+        case X86Subtype::vzeroupper:
           return;
         case X86Subtype::LockXAdd2:
           if (instr.args[0].isReg()) {
@@ -267,9 +272,13 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
         case X86Subtype::vgatherq:
+        case X86Subtype::vgather:
         case X86Subtype::vpextr:
         case X86Subtype::vpinsr:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpcmpgt:
+        case X86Subtype::vmaskload:
+        case X86Subtype::vmaskstore:
         case X86Subtype::vround:
         case X86Subtype::psrl:
         case X86Subtype::psll:
@@ -519,6 +528,10 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         }
         case GVecSubtype::fMax:
         case GVecSubtype::fMin:
+        case GVecSubtype::vSMin:
+        case GVecSubtype::vSMax:
+        case GVecSubtype::vUMin:
+        case GVecSubtype::vUMax:
         case GVecSubtype::vadd:
         case GVecSubtype::vsub:
         case GVecSubtype::vmul:
@@ -585,6 +598,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
+        case X86Subtype::vzeroupper:
           return;
         case X86Subtype::LockXAdd2:
           update_uses(instr.args[0], uses);
@@ -622,6 +636,9 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vpinsr:
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpcmpgt:
+        case X86Subtype::vmaskload:
+        case X86Subtype::vmaskstore:
         case X86Subtype::vround:
         case X86Subtype::psrl:
         case X86Subtype::psll:
@@ -630,6 +647,11 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
+          return;
+        case X86Subtype::vgather:
+          update_uses(instr.args[0], uses);
           update_uses(instr.args[1], uses);
           update_uses(instr.args[2], uses);
           return;
