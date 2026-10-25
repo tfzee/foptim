@@ -557,6 +557,34 @@ PreservedAnalysis merge_func_dups_only_same(fir::Context &ctx,
               target->attribs.linkage != fir::Linkage::LinkOnceODR) {
             continue;
           }
+          // the callers of other now run the body of target, so a type tag
+          // that differs between the two is not true for both
+          bool meta_changed = false;
+          for (size_t bb_id = 0; bb_id < target->basic_blocks.size(); bb_id++) {
+            auto t_bb = target->basic_blocks[bb_id];
+            auto o_bb = other->basic_blocks[bb_id];
+            for (size_t i = 0; i < t_bb->instructions.size(); i++) {
+              auto t_instr = t_bb->instructions[i];
+              if (!t_instr->has_access_meta) {
+                continue;
+              }
+              const auto *t_meta = target->get_access_meta(t_instr);
+              const auto *o_meta = o_bb->instructions[i]->has_access_meta
+                                       ? other->get_access_meta(
+                                             o_bb->instructions[i])
+                                       : nullptr;
+              if (t_meta != nullptr &&
+                  (o_meta == nullptr || o_meta->types != t_meta->types)) {
+                fir::AccessMeta m = *t_meta;
+                m.types.clear();
+                target->set_access_meta(t_instr, std::move(m));
+                meta_changed = true;
+              }
+            }
+          }
+          if (meta_changed) {
+            analyMan.touched_body(*target);
+          }
           auto target_ref = ctx->get_constant_value(fir::FunctionR{target});
           uses.clear();
           uses.insert(uses.begin(), other->get_uses().begin(),
