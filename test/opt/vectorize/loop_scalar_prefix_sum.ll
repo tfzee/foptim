@@ -10,9 +10,9 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64, 0:i32), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1(%5{}: i64, %6{}: i32):
 ; CHECK-NEXT:    %7: i64 = IntMul(%5, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Store(%10, %6){} NUses:0
 ; CHECK-NEXT:    %12: i32 = IntAdd(%9, %6){} NUses:1
 ; CHECK-NEXT:    %13: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2

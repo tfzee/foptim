@@ -6,13 +6,13 @@ define i32 @f(ptr %a) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
-; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 20:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 24:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 28:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:i64){} NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){} NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 12:i64){} NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 16:i64){} NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 20:i64){} NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 24:i64){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 28:i64){} NUses:1
 ; CHECK-NEXT:    %8: i32 = Load(%0){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %10: i32 = Load(%2){} NUses:1

@@ -9,7 +9,7 @@ define i32 @hoist(i32 %n) {
 ; CHECK-LABEL: func hoist<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
-; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){} NUses:1
 ; CHECK-NEXT:    %2: i32 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i32, %5{}: i32):
@@ -40,9 +40,9 @@ define i32 @store_apart_hoists(i32 %n) {
 ; CHECK-LABEL: func store_apart_hoists<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
-; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){} NUses:1
 ; CHECK-NEXT:    %2: i32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(G(out), 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(G(out), 4:i64){} NUses:1
 ; CHECK-NEXT:    %4: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%5{}: i32, %6{}: i32):
 ; CHECK-NEXT:    %7: i32 = Store(%3, %5){} NUses:0
@@ -76,7 +76,7 @@ define i32 @oob(i32 %n) {
 ; CHECK-LABEL: func oob<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
-; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 32:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 32:i64){} NUses:1
 ; CHECK-NEXT:    %2: i32 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i32, %5{}: i32):
@@ -107,7 +107,7 @@ define i32 @oob_conditional(i32 %n) {
 ; CHECK-LABEL: func oob_conditional<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
-; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 32:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 32:i64){} NUses:1
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i32, %4{}: i32):
 ; CHECK-NEXT:    %5: i32 = And(%3, 1:i32){} NUses:0
@@ -151,7 +151,7 @@ define i32 @store_aliases_blocks(i32 %n) {
 ; CHECK-LABEL: func store_aliases_blocks<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
-; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %1: ptr = PtrAdd(G(arr), 12:i64){} NUses:2
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i32, 0:i32)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i32, %4{}: i32):
 ; CHECK-NEXT:    %5: i32 = Load(%1){} NUses:1

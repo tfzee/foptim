@@ -34,7 +34,7 @@ define i1 @plain_offset(ptr nonnull %a) {
 ; CHECK-LABEL: func plain_offset<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{nonnull; }: ptr):
-; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %1: ptr = PtrAdd(%0, 4:i64){} NUses:1
 ; CHECK-NEXT:    %2: i1 = IntNE(%1, NULL){} NUses:1
 ; CHECK-NEXT:    %3: i1 = Return(%2){} NUses:0
 ; CHECK-NEXT:}

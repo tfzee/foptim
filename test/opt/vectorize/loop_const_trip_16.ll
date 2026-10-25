@@ -16,10 +16,10 @@ define void @f(ptr noalias %a, ptr noalias %b) {
 ; CHECK-NEXT:    %8: () = Branch<bb3(%4)>(){} NUses:0
 ; CHECK-NEXT:  bb3(%9{}: i64):
 ; CHECK-NEXT:    %10: i64 = IntMul(%9, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %11: ptr = PtrAdd(%1, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%1, %10){} NUses:1
 ; CHECK-NEXT:    %12: 8@f32 = Load(%11){} NUses:1
 ; CHECK-NEXT:    %13: 8@f32 = FloatAdd(%12, %7){} NUses:1
-; CHECK-NEXT:    %14: ptr = PtrAdd(%0, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%0, %10){} NUses:1
 ; CHECK-NEXT:    %15: 8@f32 = Store(%14, %13){} NUses:0
 ; CHECK-NEXT:    %16: i64 = IntAdd(%9, 8:i64){} NUses:3
 ; CHECK-NEXT:    %17: i1 = IntNE(%16, %6){} NUses:1

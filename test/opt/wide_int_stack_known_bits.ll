@@ -38,7 +38,7 @@ define i64 @wide_store_high_load() {
 ; CHECK-NEXT:    %0: ptr = Alloca(16:i32){extTy: i128; } NUses:2
 ; CHECK-NEXT:    %1: i128 = Store(%0, 18446744073709551615:i128){} NUses:0
 ; CHECK-NEXT:    %2: i64 = IntMul(8:i64, 1:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, %2){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, %2){} NUses:1
 ; CHECK-NEXT:    %4: i64 = Load(%3){} NUses:1
 ; CHECK-NEXT:    %5: i64 = Return(%4){} NUses:0
 ; CHECK-NEXT:}

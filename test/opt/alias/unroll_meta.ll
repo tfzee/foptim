@@ -14,8 +14,8 @@ define i32 @types(i32 %x) {
 ; CHECK-NEXT:  bb2(%2{}: i32, %3{}: i32):
 ; CHECK-NEXT:    %4: i64 = SExt(%2){} NUses:1
 ; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i32){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %6: ptr = PtrAdd(G(g), %5){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(G(h), %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(G(g), %5){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(G(h), %5){} NUses:1
 ; CHECK-NEXT:    %8: i32 = Store(%6, %0){} NUses:0
 ; CHECK-NEXT:    %9: f32 = Store(%7, 3F800000:f32){} NUses:0
 ; CHECK-NEXT:    %10: i32 = IntAdd(%3, %0){} NUses:2
@@ -27,8 +27,8 @@ define i32 @types(i32 %x) {
 ; CHECK-NEXT:  bb1(%15{}: i32, %16{}: i32):
 ; CHECK-NEXT:    %17: i64 = SExt(%15){} NUses:1
 ; CHECK-NEXT:    %18: i64 = IntMul(%17, 4:i32){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %19: ptr = PtrAdd(G(g), %18){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %20: ptr = PtrAdd(G(h), %18){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %19: ptr = PtrAdd(G(g), %18){} NUses:1
+; CHECK-NEXT:    %20: ptr = PtrAdd(G(h), %18){} NUses:1
 ; CHECK-NEXT:    %21: i32 = Store(%19, %0){} NUses:0
 ; CHECK-NEXT:    %22: f32 = Store(%20, 3F800000:f32){} NUses:0
 ; CHECK-NEXT:    %23: i32 = IntAdd(%16, %0){} NUses:1

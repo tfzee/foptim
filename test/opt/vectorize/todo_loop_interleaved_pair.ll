@@ -12,11 +12,11 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %6: i64 = Shl(%5, 1:i64){} NUses:2
 ; CHECK-NEXT:    %7: i64 = Or(%6, 1:i64){} NUses:1
 ; CHECK-NEXT:    %8: i64 = IntMul(%6, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){} NUses:1
 ; CHECK-NEXT:    %10: i64 = IntMul(%7, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %11: ptr = PtrAdd(%1, %10){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %8){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%1, %10){} NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %8){} NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %10){} NUses:1
 ; CHECK-NEXT:    %14: i32 = Load(%9){} NUses:1
 ; CHECK-NEXT:    %15: i32 = Load(%11){} NUses:1
 ; CHECK-NEXT:    %16: i32 = IntAdd(%14, 1:i32){} NUses:1

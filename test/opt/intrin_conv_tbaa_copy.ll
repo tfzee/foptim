@@ -9,13 +9,13 @@ define void @untagged(ptr %p) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: i64 = IntMul(32:i64, 1:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, %1){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, %1){} NUses:1
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i64):
 ; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%2, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%2, %5){} NUses:1
 ; CHECK-NEXT:    %7: i64 = IntMul(%4, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %10: i32 = Store(%8, %9){} NUses:0
 ; CHECK-NEXT:    %11: i64 = IntAdd(%4, 1:i64){} NUses:2
@@ -45,13 +45,13 @@ define void @tagged(ptr %p) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: i64 = IntMul(32:i64, 1:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, %1){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, %1){} NUses:1
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i64):
 ; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%2, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%2, %5){} NUses:1
 ; CHECK-NEXT:    %7: i64 = IntMul(%4, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %9: i64 = IntAdd(%4, 1:i64){} NUses:1
 ; CHECK-NEXT:    %10: i1 = IntULT(%9, 16:i64){} NUses:0
 ; CHECK-NEXT:    %11: () = INTRIN:MemCpy(%8, %6, 16:i64){extTy: i32; } NUses:0

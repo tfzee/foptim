@@ -9,12 +9,12 @@ define void @f_mul_i8(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %4: i1 = IntSGT(%3, 0:i64){} NUses:1
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: i64):
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){} NUses:1
 ; CHECK-NEXT:    %8: i8 = Load(%7){} NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%2, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%2, %6){} NUses:1
 ; CHECK-NEXT:    %10: i8 = Load(%9){} NUses:1
 ; CHECK-NEXT:    %11: i8 = IntMul(%8, %10){} NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %6){} NUses:1
 ; CHECK-NEXT:    %13: i8 = Store(%12, %11){} NUses:0
 ; CHECK-NEXT:    %14: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %15: i1 = IntSLT(%14, %3){} NUses:1
@@ -51,12 +51,12 @@ define void @f_shl_i16(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: i64):
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 2:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: i16 = Load(%8){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%2, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%2, %7){} NUses:1
 ; CHECK-NEXT:    %11: i16 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %12: i16 = Shl(%9, %11){} NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %14: i16 = Store(%13, %12){} NUses:0
 ; CHECK-NEXT:    %15: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %16: i1 = IntSLT(%15, %3){} NUses:1
@@ -93,12 +93,12 @@ define void @f_ashr_i16(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) 
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: i64):
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 2:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: i16 = Load(%8){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%2, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%2, %7){} NUses:1
 ; CHECK-NEXT:    %11: i16 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %12: i16 = AShR(%9, %11){} NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %14: i16 = Store(%13, %12){} NUses:0
 ; CHECK-NEXT:    %15: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %16: i1 = IntSLT(%15, %3){} NUses:1
@@ -134,12 +134,12 @@ define void @f_lshr_i8(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %4: i1 = IntSGT(%3, 0:i64){} NUses:1
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: i64):
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){} NUses:1
 ; CHECK-NEXT:    %8: i8 = Load(%7){} NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%2, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%2, %6){} NUses:1
 ; CHECK-NEXT:    %10: i8 = Load(%9){} NUses:1
 ; CHECK-NEXT:    %11: i8 = LShR(%8, %10){} NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %6){} NUses:1
 ; CHECK-NEXT:    %13: i8 = Store(%12, %11){} NUses:0
 ; CHECK-NEXT:    %14: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %15: i1 = IntSLT(%14, %3){} NUses:1

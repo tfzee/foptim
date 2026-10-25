@@ -91,7 +91,7 @@ define i32 @other_offset(ptr %p) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: i64 = IntMul(4:i64, 1:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, %1){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, %1){} NUses:1
 ; CHECK-NEXT:    %3: i32 = Load(%2){} NUses:1
 ; CHECK-NEXT:    %4: i32 = Store(%0, 2:i32){} NUses:0
 ; CHECK-NEXT:    %5: i32 = Return(%3){} NUses:0
@@ -152,7 +152,7 @@ define void @loop_moving_address(ptr %p, i32 %n) {
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, %4){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, %4){} NUses:1
 ; CHECK-NEXT:    %6: i32 = Store(%5, 2:i32){} NUses:0
 ; CHECK-NEXT:    %7: i64 = IntAdd(%3, 1:i64){} NUses:2
 ; CHECK-NEXT:    %8: i1 = IntSLT(%7, 100:i64){} NUses:1
@@ -183,7 +183,7 @@ define void @loop_moving_single(ptr %p) {
 ; CHECK-NEXT:    %1: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%2{}: i64):
 ; CHECK-NEXT:    %3: i64 = IntMul(%2, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%0, %3){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, %3){} NUses:1
 ; CHECK-NEXT:    %5: i32 = Store(%4, 1:i32){} NUses:0
 ; CHECK-NEXT:    %6: i64 = IntAdd(%2, 1:i64){} NUses:2
 ; CHECK-NEXT:    %7: i1 = IntSLT(%6, 100:i64){} NUses:1

@@ -86,6 +86,8 @@ struct SCEVExpr {
     Trunc,
     SMax,
     UMax,
+    // a >> pred (logical, a invariant)
+    LShr,
     Cmp,
     // idk if this is super useful
     Select,
@@ -171,6 +173,8 @@ class ScalarEvo {
   SCEVRef mk_resize(SCEVRef a, u32 bw, bool is_signed);
   SCEVRef mk_ext(SCEVRef a, bool is_signed, u32 bw);
   SCEVRef mk_trunc(SCEVRef a, u32 bw);
+  // logical shift right by a constant amount, a has to be loop invariant
+  SCEVRef mk_lshr(SCEVRef a, u32 amount);
   SCEVRef mk_addrec(SCEVRef start, SCEVRef step);
   // q (constant step) does not wrap in the executed iterations, so ext of q
   // and of q - step become recurrences of the wide type

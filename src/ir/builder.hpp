@@ -75,7 +75,8 @@ class Builder {
   ValueR build_intrinsic(ValueR a, ValueR b, ValueR c, ValueR d,
                          IntrinsicSubType type, TypeR res_type);
   ValueR build_int_add(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
-  ValueR build_ptr_add(ValueR ptr, ValueR b, bool inBounds = false);
+  ValueR build_ptr_add(ValueR ptr, ValueR b, bool inBounds = false,
+                       bool nuw = false, bool nsw = false);
   ValueR build_float_add(ValueR a, ValueR b);
   ValueR build_float_sub(ValueR a, ValueR b);
   ValueR build_float_mul(ValueR a, ValueR b);

@@ -13,7 +13,7 @@ define void @store_through_result(i64 %n) {
 ; CHECK-NEXT:  bb0(%0{}: i64):
 ; CHECK-NEXT:    %1: [ptr i64] = Call(get_buf, %0){extTy: [ptr i64](i64 ); } NUses:2
 ; CHECK-NEXT:    %2: i64 = IntMul(4:i64, 1:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%1.0, %2){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%1.0, %2){} NUses:1
 ; CHECK-NEXT:    %4: i32 = Store(%1.0, 1:i32){} NUses:0
 ; CHECK-NEXT:    %5: i32 = Store(%3, 2:i32){} NUses:0
 ; CHECK-NEXT:    %6: () = Return(){} NUses:0

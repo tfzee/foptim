@@ -51,11 +51,11 @@ define void @sext128_256(i128 %a, ptr %p) {
 ; CHECK-NEXT:  bb0(%0{}: i64, %1{}: i64, %2{}: ptr):
 ; CHECK-NEXT:    %3: i64 = AShR(%1, 63:i64){} NUses:2
 ; CHECK-NEXT:    %4: i64 = Store(%2, %0){} NUses:0
-; CHECK-NEXT:    %5: ptr = PtrAdd(%2, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%2, 8:i64){} NUses:1
 ; CHECK-NEXT:    %6: i64 = Store(%5, %1){} NUses:0
-; CHECK-NEXT:    %7: ptr = PtrAdd(%2, 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%2, 16:i64){} NUses:1
 ; CHECK-NEXT:    %8: i64 = Store(%7, %3){} NUses:0
-; CHECK-NEXT:    %9: ptr = PtrAdd(%2, 24:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%2, 24:i64){} NUses:1
 ; CHECK-NEXT:    %10: i64 = Store(%9, %3){} NUses:0
 ; CHECK-NEXT:    %11: () = Return(){} NUses:0
 ; CHECK-NEXT:}

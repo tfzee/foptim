@@ -27,7 +27,7 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %19: 8@f32 = FloatAdd(%9, %12){} NUses:1
 ; CHECK-NEXT:    %20: 8@f32 = FloatAdd(%15, %18){} NUses:1
 ; CHECK-NEXT:    %21: 8@f32 = Store(%0, %19){} NUses:0
-; CHECK-NEXT:    %22: ptr = PtrAdd(%0, 32:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %22: ptr = PtrAdd(%0, 32:i64){} NUses:1
 ; CHECK-NEXT:    %23: 8@f32 = Store(%22, %20){} NUses:0
 ; CHECK-NEXT:    %24: () = Return(){} NUses:0
 ; CHECK-NEXT:}

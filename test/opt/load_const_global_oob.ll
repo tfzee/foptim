@@ -8,7 +8,7 @@ define i32 @oob() {
 ; CHECK-LABEL: func oob<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0():
-; CHECK-NEXT:    %0: ptr = PtrAdd(G(g), 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %0: ptr = PtrAdd(G(g), 16:i64){} NUses:1
 ; CHECK-NEXT:    %1: i32 = Load(%0){} NUses:1
 ; CHECK-NEXT:    %2: i32 = Return(%1){} NUses:0
 ; CHECK-NEXT:}

@@ -12,9 +12,9 @@ define void @f(ptr %a, ptr %b, i64 %n) {
 ; CHECK-NEXT:    %6: i64 = IntSub(%2, %5){} NUses:1
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 4:i64){} NUses:1
 ; CHECK-NEXT:    %8: i64 = IntSub(%7, 4:i64){} NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){} NUses:1
 ; CHECK-NEXT:    %10: i64 = IntMul(%5, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%0, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%0, %10){} NUses:1
 ; CHECK-NEXT:    %12: i32 = Load(%9){} NUses:1
 ; CHECK-NEXT:    %13: i32 = IntAdd(%12, 1:i32){} NUses:1
 ; CHECK-NEXT:    %14: i32 = Store(%11, %13){} NUses:0

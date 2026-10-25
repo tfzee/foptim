@@ -44,11 +44,11 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %37: 4@f32 = FloatAdd(%25, %28){} NUses:1
 ; CHECK-NEXT:    %38: 4@f32 = FloatAdd(%31, %34){} NUses:1
 ; CHECK-NEXT:    %39: 4@f32 = Store(%0, %35){} NUses:0
-; CHECK-NEXT:    %40: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %40: ptr = PtrAdd(%0, 16:i64){} NUses:1
 ; CHECK-NEXT:    %41: 4@f32 = Store(%40, %36){} NUses:0
-; CHECK-NEXT:    %42: ptr = PtrAdd(%0, 32:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %42: ptr = PtrAdd(%0, 32:i64){} NUses:1
 ; CHECK-NEXT:    %43: 4@f32 = Store(%42, %37){} NUses:0
-; CHECK-NEXT:    %44: ptr = PtrAdd(%0, 48:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %44: ptr = PtrAdd(%0, 48:i64){} NUses:1
 ; CHECK-NEXT:    %45: 4@f32 = Store(%44, %38){} NUses:0
 ; CHECK-NEXT:    %46: () = Return(){} NUses:0
 ; CHECK-NEXT:}

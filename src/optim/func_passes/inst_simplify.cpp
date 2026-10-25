@@ -1492,7 +1492,11 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
   if (v_t.type == fir::VectorType::SubType::Integer && v_t.bitwidth == 8) {
     auto extend_to = v_t.member_number;
     // the vector becomes one integer of the same size, wider ones stay vectors
-    if (extend_to == 4 || extend_to == 8) {
+    // the stores of truncated lanes of the vectorizer are stored as they are
+    const bool trunc_store = instr->is(fir::InstrType::StoreInstr) &&
+                             instr->args[1].is_instr() &&
+                             instr->args[1].as_instr()->is(fir::InstrType::ITrunc);
+    if ((extend_to == 4 || extend_to == 8) && !trunc_store) {
       const u32 n_out_elems = 1;
       auto out_type = ctx->get_int_type(extend_to * 8);
       if (simplify_ext_byte_vector(instr, ctx, worklist, extend_to, n_out_elems,

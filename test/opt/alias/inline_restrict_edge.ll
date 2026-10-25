@@ -15,9 +15,9 @@ define i32 @use_derived(ptr noundef %0, ptr noundef %1) {
 ; CHECK-LABEL: func use_derived<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{nocapture; }: ptr, %1{nocapture; }: ptr):
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %3: i32 = Store(%2, 1:i32){} NUses:0
-; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 8:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 8:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %5: i32 = Store(%4, 2:i32){} NUses:0
 ; CHECK-NEXT:    %6: i32 = Return(1:i32){} NUses:0
 ; CHECK-NEXT:}
@@ -36,9 +36,9 @@ define internal i32 @derived(ptr noalias noundef %0, ptr noalias noundef %1) {
 ; CHECK-LABEL: func derived<CC: C, LINK: internal, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; nocapture; }: ptr, %1{noalias; nocapture; }: ptr):
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %3: i32 = Store(%2, 1:i32){} NUses:0
-; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 8:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 8:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %5: i32 = Store(%4, 2:i32){} NUses:0
 ; CHECK-NEXT:    %6: i32 = Return(1:i32){} NUses:0
 ; CHECK-NEXT:}
@@ -285,7 +285,7 @@ define i32 @use_loop(ptr noundef %0, ptr noundef %1, i32 noundef %2) {
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %13: i64 = SExt(%10){} NUses:1
 ; CHECK-NEXT:    %14: i64 = IntMul(%13, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %15: ptr = PtrAdd(%1, %14){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %15: ptr = PtrAdd(%1, %14){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %16: i32 = Store(%15, 1:i32){} NUses:0
 ; CHECK-NEXT:    %17: i32 = Load(%0){} NUses:1
 ; CHECK-NEXT:    %18: i32 = IntAdd(%17, %9){} NUses:1
@@ -324,7 +324,7 @@ define internal i32 @loop_(ptr noalias noundef %0, ptr noalias noundef %1, i32 n
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %13: i64 = SExt(%10){} NUses:1
 ; CHECK-NEXT:    %14: i64 = IntMul(%13, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %15: ptr = PtrAdd(%1, %14){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %15: ptr = PtrAdd(%1, %14){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %16: i32 = Store(%15, 1:i32){} NUses:0
 ; CHECK-NEXT:    %17: i32 = Load(%0){} NUses:1
 ; CHECK-NEXT:    %18: i32 = IntAdd(%17, %9){} NUses:1

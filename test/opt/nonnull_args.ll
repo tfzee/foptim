@@ -63,7 +63,7 @@ define i1 @user(ptr %ext) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{nocapture; readonly; }: ptr):
 ; CHECK-NEXT:    %1: ptr = Alloca(4:i32){extTy: i32; } NUses:4
-; CHECK-NEXT:    %2: ptr = PtrAdd(G(g), 8:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(G(g), 8:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %3: i1 = Call(all_known, %1){extTy: i1(ptr ); } NUses:1
 ; CHECK-NEXT:    %4: i1 = Call(all_known, %2){extTy: i1(ptr ); } NUses:1
 ; CHECK-NEXT:    %5: i1 = Call(mid, %1){extTy: i1(ptr ); } NUses:1

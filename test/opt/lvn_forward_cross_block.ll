@@ -215,7 +215,7 @@ define i32 @forward_tiled(ptr %p, i16 %lo, i16 %hi) {
 ; CHECK-NEXT:    %4: () = Branch<bb1()>(){} NUses:0
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %5: i64 = IntMul(2:i64, 1:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){} NUses:1
 ; CHECK-NEXT:    %7: i16 = Store(%6, %2){} NUses:0
 ; CHECK-NEXT:    %8: () = Branch<bb2()>(){} NUses:0
 ; CHECK-NEXT:  bb2():

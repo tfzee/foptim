@@ -821,6 +821,23 @@ SCEVRef ScalarEvo::mk_trunc(SCEVRef a, u32 bw) {
   return push(node(T::Trunc, ea.invariant, bw, APInt(), {}, a));
 }
 
+SCEVRef ScalarEvo::mk_lshr(SCEVRef a, u32 amount) {
+  const SCEVExpr ea = exprs[a];
+  using T = SCEVExpr::Type;
+  if (ea.t == T::Unknown || !ea.invariant || amount >= ea.bw) {
+    return mk_unknown(ea.bw);
+  }
+  if (amount == 0) {
+    return a;
+  }
+  if (ea.t == T::Const) {
+    return mk_const(ea.cval.lshr(amount));
+  }
+  SCEVExpr e = node(T::LShr, true, ea.bw, APInt(), {}, a);
+  e.pred = amount;
+  return push(e);
+}
+
 SCEVRef ScalarEvo::mk_resize(SCEVRef a, u32 bw, bool is_signed) {
   const u32 from = exprs[a].bw;
   if (from == bw) {
@@ -930,6 +947,13 @@ SCEVRef ScalarEvo::at_iteration(SCEVRef r, SCEVRef k) {
         }
         break;
       }
+      case T::LShr: {
+        const SCEVRef l = self(self, e.a);
+        if (l != InvalidSCEV) {
+          res = mk_lshr(l, e.pred);
+        }
+        break;
+      }
       case T::SExt:
       case T::ZExt:
       case T::Trunc: {
@@ -969,7 +993,7 @@ bool ScalarEvo::is_expandable(SCEVRef r) const {
         ok = true;
         break;
       case T::Invariant:
-        ok = e.val.get_type()->is_int();
+        ok = e.val.get_type()->is_int() || e.val.get_type()->is_ptr();
         break;
       case T::Add:
       case T::Mul:
@@ -981,6 +1005,7 @@ bool ScalarEvo::is_expandable(SCEVRef r) const {
       case T::Select:
         ok = self(self, e.a) && self(self, e.b) && self(self, e.c);
         break;
+      case T::LShr:
       case T::SExt:
       case T::ZExt:
       case T::Trunc:
@@ -1264,6 +1289,8 @@ bool ScalarEvo::same_expr(SCEVRef a, SCEVRef b) const {
     case T::UMax:
     case T::AddRec:
       return same_expr(ea.a, eb.a) && same_expr(ea.b, eb.b);
+    case T::LShr:
+      return ea.pred == eb.pred && same_expr(ea.a, eb.a);
     case T::SExt:
     case T::ZExt:
     case T::Trunc:
@@ -1463,6 +1490,16 @@ std::optional<i128> ScalarEvo::eval_at(SCEVRef r, i128 k) const {
       }
       return wrap_int(*x, e.bw, true);
     }
+    case T::LShr: {
+      auto x = eval_at(e.a, k);
+      if (!x) {
+        return std::nullopt;
+      }
+      const u64 mask = e.bw == 64 ? ~u64{0} : ((u64{1} << e.bw) - 1);
+      return wrap_int(
+          static_cast<i128>((static_cast<u64>(*x) & mask) >> e.pred), e.bw,
+          true);
+    }
     case T::Cmp: {
       auto x = eval_at(e.a, k);
       auto y = eval_at(e.b, k);
@@ -1535,6 +1572,9 @@ void ScalarEvo::dump() const {
         break;
       case T::UMax:
         fmt::println("umax(e{}, e{})", e.a, e.b);
+        break;
+      case T::LShr:
+        fmt::println("e{} >> {}", e.a, e.pred);
         break;
       case T::Cmp:
         fmt::println("cmp {} e{}, e{}", e.pred, e.a, e.b);
@@ -1661,6 +1701,57 @@ SCEVRef symbolic_exit_iteration(ScalarEvo &evo, ICmpSub pred, SCEVRef a,
   const SCEVRef m = evo.mk_max(other, lo, is_signed);
   const SCEVRef r = evo.mk_add(m, evo.mk_mul(lo, evo.mk_const(-1, bw)));
   return evo.expr(r).t == SCEVExpr::Type::Unknown ? InvalidSCEV : r;
+}
+
+// The pointer of a recurrence never wraps or leaves its object (inbounds or nuw
+// steps), so a pointer that never hits the limit exactly would be poison.
+bool ptr_steps_no_wrap(CFG &cfg, const LoopInfo &linfo, fir::ValueR v,
+                       bool through_header, u32 depth) {
+  if (depth > 16) {
+    return false;
+  }
+  if (v.is_constant()) {
+    return true;
+  }
+  auto head = cfg.bbrs[linfo.head].bb;
+  if (v.is_bb_arg()) {
+    auto arg = v.as_bb_arg();
+    if (arg->get_parent() != head) {
+      return !std::ranges::contains(linfo.body_nodes,
+                                    cfg.get_bb_id(arg->get_parent()));
+    }
+    if (through_header) {
+      return true;
+    }
+    size_t idx = 0;
+    while (idx < head->args.size() && !(head->args[idx] == arg)) {
+      idx++;
+    }
+    for (auto tail : linfo.tails) {
+      auto term = cfg.bbrs[tail].bb->get_terminator();
+      for (auto &edge : term->bbs) {
+        if (edge.bb == head &&
+            !ptr_steps_no_wrap(cfg, linfo, edge.args[idx], true, depth + 1)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  if (!v.is_instr()) {
+    return false;
+  }
+  auto instr = v.as_instr();
+  if (!std::ranges::contains(linfo.body_nodes,
+                             cfg.get_bb_id(instr->get_parent()))) {
+    return true;
+  }
+  if (!instr->is(fir::BinaryInstrSubType::PtrAdd) ||
+      !(instr->NUW || instr->InBounds)) {
+    return false;
+  }
+  return ptr_steps_no_wrap(cfg, linfo, instr->args[0], through_header,
+                           depth + 1);
 }
 }  // namespace
 
@@ -1849,6 +1940,8 @@ std::optional<i128> poly_exit_iteration(const ScalarEvo &evo, ICmpSub pred,
 
 bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
                                ScalarEvo &evo) {
+  exit_iter = InvalidSCEV;
+  const_exit_iter = std::nullopt;
   cmp_rec = InvalidSCEV;
   cmp_signed = cmp_unsigned = false;
   if (linfo.leaving_nodes.size() != 1) {
@@ -1919,6 +2012,32 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
     }
     exit_iter = evo.mk_const(*k, evo.expr(q).bw);
     const_exit_iter = k;
+    from_bb = cfg.bbrs[leaving].bb;
+    to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
+    return true;
+  }
+  if (cond->args[0].get_type()->is_ptr()) {
+    // p != end with p stepping by a power of two: the exit is at the iteration
+    // where p reaches end, other end points make the pointer poison
+    const SCEVRef pstart = evo.expr(q).a;
+    const SCEVRef pstep = evo.expr(q).b;
+    if (pred != ICmpSub::NE || !evo.is_const(pstep) ||
+        !ptr_steps_no_wrap(cfg, linfo, cond->args[0], false, 0) ||
+        !ptr_steps_no_wrap(cfg, linfo, cond->args[1], false, 0)) {
+      return false;
+    }
+    const i128 s = evo.expr(pstep).cval_i();
+    if (s <= 0 || (s & (s - 1)) != 0) {
+      return false;
+    }
+    const u32 sh = static_cast<u32>(__builtin_ctzll(static_cast<u64>(s)));
+    const SCEVRef diff =
+        evo.mk_add(limit_ref, evo.mk_mul(pstart, evo.mk_const(-1, 64)));
+    exit_iter = evo.mk_lshr(diff, sh);
+    if (evo.expr(exit_iter).t == SCEVExpr::Type::Unknown) {
+      exit_iter = InvalidSCEV;
+      return false;
+    }
     from_bb = cfg.bbrs[leaving].bb;
     to_bb = in0 ? term->bbs[1].bb : term->bbs[0].bb;
     return true;

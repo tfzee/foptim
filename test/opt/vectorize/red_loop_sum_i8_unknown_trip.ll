@@ -10,7 +10,7 @@ define i8 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %3: i64 = INTRIN:SMax(%1, 1:i64){} NUses:2
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64, 0:i8), bb2(0:i8)>(%2){} NUses:0
 ; CHECK-NEXT:  bb3(%5{}: i64, %6{}: i8):
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %5){} NUses:1
 ; CHECK-NEXT:    %8: i8 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %9: i8 = IntAdd(%8, %6){} NUses:2
 ; CHECK-NEXT:    %10: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2
@@ -25,7 +25,7 @@ define i8 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %20: 32@i8 = V.Broadcast(0:i8){} NUses:1
 ; CHECK-NEXT:    %21: () = CondBranch<bb3(%15, %16), bb4(%15, %20)>(%19){} NUses:0
 ; CHECK-NEXT:  bb4(%22{}: i64, %23{}: 32@i8):
-; CHECK-NEXT:    %24: ptr = PtrAdd(%0, %22){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %24: ptr = PtrAdd(%0, %22){} NUses:1
 ; CHECK-NEXT:    %25: 32@i8 = Load(%24){} NUses:1
 ; CHECK-NEXT:    %26: 32@i8 = IntAdd(%25, %23){} NUses:2
 ; CHECK-NEXT:    %27: i64 = IntAdd(%22, 32:i64){} NUses:3

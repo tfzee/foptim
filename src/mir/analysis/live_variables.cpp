@@ -276,6 +276,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vpextr:
         case X86Subtype::vpinsr:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpack:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -286,6 +287,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::padd:
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
+        case X86Subtype::vshufps:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
@@ -636,6 +638,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vpinsr:
         case X86Subtype::vgatherq:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpack:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -657,6 +660,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           return;
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
+        case X86Subtype::vshufps:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }

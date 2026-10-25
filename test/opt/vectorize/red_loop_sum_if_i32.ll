@@ -11,7 +11,7 @@ define i32 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64, 0:i32), bb2(0:i32)>(%2){} NUses:0
 ; CHECK-NEXT:  bb3(%5{}: i64, %6{}: i32):
 ; CHECK-NEXT:    %7: i64 = IntMul(%5, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:2
 ; CHECK-NEXT:    %10: i1 = IntSGT(%9, 0:i32){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb4(), bb5(%6)>(%10){} NUses:0
@@ -32,7 +32,7 @@ define i32 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %26: () = CondBranch<bb3(%20, %21), bb6(%20, %25)>(%24){} NUses:0
 ; CHECK-NEXT:  bb6(%27{}: i64, %28{}: 8@i32):
 ; CHECK-NEXT:    %29: i64 = IntMul(%27, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %30: ptr = PtrAdd(%0, %29){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %30: ptr = PtrAdd(%0, %29){} NUses:1
 ; CHECK-NEXT:    %31: 8@i32 = Load(%30){} NUses:2
 ; CHECK-NEXT:    %32: 8@i32 = V.Broadcast(0:i32){} NUses:1
 ; CHECK-NEXT:    %33: 8@i32 = IntAdd(%31, %28){} NUses:1

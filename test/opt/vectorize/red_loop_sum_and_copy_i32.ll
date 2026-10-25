@@ -11,8 +11,8 @@ define i32 @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64, 0:i32), bb2(0:i32)>(%3){} NUses:0
 ; CHECK-NEXT:  bb3(%6{}: i64, %7{}: i32):
 ; CHECK-NEXT:    %8: i64 = IntMul(%6, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%1, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){} NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%1, %8){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Load(%9){} NUses:2
 ; CHECK-NEXT:    %12: i32 = Store(%10, %11){} NUses:0
 ; CHECK-NEXT:    %13: i32 = IntAdd(%11, %7){} NUses:2
@@ -29,8 +29,8 @@ define i32 @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %25: () = CondBranch<bb3(%19, %20), bb4(%19, %24)>(%23){} NUses:0
 ; CHECK-NEXT:  bb4(%26{}: i64, %27{}: 8@i32):
 ; CHECK-NEXT:    %28: i64 = IntMul(%26, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %29: ptr = PtrAdd(%0, %28){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %30: ptr = PtrAdd(%1, %28){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %29: ptr = PtrAdd(%0, %28){} NUses:1
+; CHECK-NEXT:    %30: ptr = PtrAdd(%1, %28){} NUses:1
 ; CHECK-NEXT:    %31: 8@i32 = Load(%29){} NUses:2
 ; CHECK-NEXT:    %32: 8@i32 = Store(%30, %31){} NUses:0
 ; CHECK-NEXT:    %33: 8@i32 = IntAdd(%31, %27){} NUses:2

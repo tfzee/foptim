@@ -10,7 +10,7 @@ define void @fill_i64(ptr %p) {
 ; CHECK-NEXT:    %1: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%2{}: i64):
 ; CHECK-NEXT:    %3: i64 = IntMul(%2, 8:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%0, %3){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, %3){} NUses:1
 ; CHECK-NEXT:    %5: i64 = IntAdd(%2, 1:i64){} NUses:1
 ; CHECK-NEXT:    %6: i1 = IntULT(%5, 8:i64){} NUses:0
 ; CHECK-NEXT:    %7: () = Branch<bb2(%4, 0:i64)>(){} NUses:0
@@ -45,9 +45,9 @@ define void @copy_i16(ptr noalias %d, ptr %s) {
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 2:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%1, %4){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%1, %4){} NUses:1
 ; CHECK-NEXT:    %6: i64 = IntMul(%3, 2:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){} NUses:1
 ; CHECK-NEXT:    %8: i64 = IntAdd(%3, 1:i64){} NUses:1
 ; CHECK-NEXT:    %9: i1 = IntULT(%8, 32:i64){} NUses:0
 ; CHECK-NEXT:    %10: () = Branch<bb2(%7, %5, 0:i64)>(){} NUses:0

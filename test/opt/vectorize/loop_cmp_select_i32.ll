@@ -11,15 +11,15 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %6: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb3(%7{}: i64):
 ; CHECK-NEXT:    %8: i64 = IntMul(%7, 4:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){} NUses:1
 ; CHECK-NEXT:    %10: i32 = Load(%9){} NUses:2
-; CHECK-NEXT:    %11: ptr = PtrAdd(%2, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%2, %8){} NUses:1
 ; CHECK-NEXT:    %12: i32 = Load(%11){} NUses:2
 ; CHECK-NEXT:    %13: i1 = IntSGT(%10, %12){} NUses:1
 ; CHECK-NEXT:    %14: i32 = IntMul(%10, 3:i32){} NUses:1
 ; CHECK-NEXT:    %15: i32 = IntAdd(%12, 7:i32){} NUses:1
 ; CHECK-NEXT:    %16: i32 = Select(%13, %14, %15){} NUses:1
-; CHECK-NEXT:    %17: ptr = PtrAdd(%0, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %17: ptr = PtrAdd(%0, %8){} NUses:1
 ; CHECK-NEXT:    %18: i32 = Store(%17, %16){} NUses:0
 ; CHECK-NEXT:    %19: i64 = IntAdd(%7, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %20: i1 = IntSLT(%19, %3){} NUses:1
@@ -35,15 +35,15 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %29: () = CondBranch<bb3(%23), bb4(%23)>(%26){} NUses:0
 ; CHECK-NEXT:  bb4(%30{}: i64):
 ; CHECK-NEXT:    %31: i64 = IntMul(%30, 4:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %32: ptr = PtrAdd(%1, %31){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %32: ptr = PtrAdd(%1, %31){} NUses:1
 ; CHECK-NEXT:    %33: 8@i32 = Load(%32){} NUses:2
-; CHECK-NEXT:    %34: ptr = PtrAdd(%2, %31){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %34: ptr = PtrAdd(%2, %31){} NUses:1
 ; CHECK-NEXT:    %35: 8@i32 = Load(%34){} NUses:2
 ; CHECK-NEXT:    %36: 8@i1 = IntSGT(%33, %35){} NUses:1
 ; CHECK-NEXT:    %37: 8@i32 = IntMul(%33, %27){} NUses:1
 ; CHECK-NEXT:    %38: 8@i32 = IntAdd(%35, %28){} NUses:1
 ; CHECK-NEXT:    %39: 8@i32 = Select(%36, %37, %38){} NUses:1
-; CHECK-NEXT:    %40: ptr = PtrAdd(%0, %31){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %40: ptr = PtrAdd(%0, %31){} NUses:1
 ; CHECK-NEXT:    %41: 8@i32 = Store(%40, %39){} NUses:0
 ; CHECK-NEXT:    %42: i64 = IntAdd(%30, 8:i64){} NUses:3
 ; CHECK-NEXT:    %43: i1 = IntNE(%42, %25){} NUses:1

@@ -18,10 +18,10 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n, i64 %m) {
 ; CHECK-NEXT:    %13: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb4(%14{}: i64):
 ; CHECK-NEXT:    %15: i64 = IntMul(%14, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %16: ptr = PtrAdd(%1, %15){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%1, %15){} NUses:1
 ; CHECK-NEXT:    %17: i32 = Load(%16){} NUses:1
 ; CHECK-NEXT:    %18: i32 = IntAdd(%17, 1:i32){} NUses:1
-; CHECK-NEXT:    %19: ptr = PtrAdd(%0, %15){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %19: ptr = PtrAdd(%0, %15){} NUses:1
 ; CHECK-NEXT:    %20: i32 = Store(%19, %18){} NUses:0
 ; CHECK-NEXT:    %21: i64 = IntAdd(%14, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %22: i1 = IntSLT(%21, %4){} NUses:1
@@ -44,10 +44,10 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %d, i64 %n, i64 %m) {
 ; CHECK-NEXT:    %38: () = CondBranch<bb4(%33), bb6(%33)>(%36){} NUses:0
 ; CHECK-NEXT:  bb6(%39{}: i64):
 ; CHECK-NEXT:    %40: i64 = IntMul(%39, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %41: ptr = PtrAdd(%1, %40){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %41: ptr = PtrAdd(%1, %40){} NUses:1
 ; CHECK-NEXT:    %42: 8@i32 = Load(%41){} NUses:1
 ; CHECK-NEXT:    %43: 8@i32 = IntAdd(%42, %37){} NUses:1
-; CHECK-NEXT:    %44: ptr = PtrAdd(%0, %40){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %44: ptr = PtrAdd(%0, %40){} NUses:1
 ; CHECK-NEXT:    %45: 8@i32 = Store(%44, %43){} NUses:0
 ; CHECK-NEXT:    %46: i64 = IntAdd(%39, 8:i64){} NUses:3
 ; CHECK-NEXT:    %47: i1 = IntNE(%46, %35){} NUses:1

@@ -12,7 +12,7 @@ define i64 @f(ptr %a, i32 %x, i64 %n) {
 ; CHECK-NEXT:    %6: () = CondBranch<bb2(), bb3()>(%5){} NUses:0
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %7: i64 = IntMul(%4, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %10: i1 = IntEQ(%9, %1){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb4(), bb5()>(%10){} NUses:0

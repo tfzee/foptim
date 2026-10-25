@@ -10,17 +10,17 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: i64):
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 4:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %8: ptr = PtrAdd(%2, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%2, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:2
 ; CHECK-NEXT:    %10: i1 = IntNE(%9, 0:i32){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb3(), bb4()>(%10){} NUses:0
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %12: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %13: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %14: i32 = Load(%13){} NUses:1
 ; CHECK-NEXT:    %15: i32 = IntSDiv(%14, %9){} NUses:1
-; CHECK-NEXT:    %16: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %17: i32 = Store(%16, %15){} NUses:0
 ; CHECK-NEXT:    %18: () = Branch<bb4()>(){} NUses:0
 ; CHECK-NEXT:  bb4():

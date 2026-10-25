@@ -13,7 +13,7 @@ define i64 @f(ptr %s, i8 %v, i64 %n) {
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %7: i64 = Return(-1:i64){} NUses:0
 ; CHECK-NEXT:  bb3():
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %4){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %4){} NUses:1
 ; CHECK-NEXT:    %9: i8 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %10: i1 = IntEQ(%9, %1){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb4(), bb5()>(%10){} NUses:0

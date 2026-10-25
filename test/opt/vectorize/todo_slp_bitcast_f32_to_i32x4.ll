@@ -7,18 +7,18 @@ define void @f(ptr %a, ptr %b) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: f32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 4:i64){} NUses:1
 ; CHECK-NEXT:    %4: f32 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%1, 8:i64){} NUses:1
 ; CHECK-NEXT:    %6: f32 = Load(%5){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, 12:i64){} NUses:1
 ; CHECK-NEXT:    %8: f32 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %9: f32 = Store(%0, %2){} NUses:0
-; CHECK-NEXT:    %10: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%0, 4:i64){} NUses:1
 ; CHECK-NEXT:    %11: 2@f32 = InsertElement(POISON, %4, 0:i32){} NUses:1
 ; CHECK-NEXT:    %12: 2@f32 = InsertElement(%11, %6, 1:i32){} NUses:1
 ; CHECK-NEXT:    %13: 2@f32 = Store(%10, %12){} NUses:0
-; CHECK-NEXT:    %14: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %15: f32 = Store(%14, %8){} NUses:0
 ; CHECK-NEXT:    %16: () = Return(){} NUses:0
 ; CHECK-NEXT:}

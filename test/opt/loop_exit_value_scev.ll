@@ -52,7 +52,7 @@ define i64 @two_widths(ptr %p, i64 %n) {
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i32 = ITrunc(%3){} NUses:1
 ; CHECK-NEXT:    %5: i64 = IntMul(%3, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){} NUses:1
 ; CHECK-NEXT:    %7: i32 = Store(%6, %4){} NUses:0
 ; CHECK-NEXT:    %8: i64 = IntAdd(%3, 1:i64){} NUses:2
 ; CHECK-NEXT:    %9: i1 = IntULT(%8, %1){} NUses:1

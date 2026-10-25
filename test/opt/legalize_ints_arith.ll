@@ -74,14 +74,14 @@ define void @add192_mem(ptr %p, ptr %q) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: i64 = Load(%0){} NUses:2
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 8:i64){} NUses:1
 ; CHECK-NEXT:    %4: i64 = Load(%3){} NUses:2
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 16:i64){} NUses:1
 ; CHECK-NEXT:    %6: i64 = Load(%5){} NUses:1
 ; CHECK-NEXT:    %7: i64 = Load(%1){} NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, 8:i64){} NUses:1
 ; CHECK-NEXT:    %9: i64 = Load(%8){} NUses:2
-; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 16:i64){} NUses:1
 ; CHECK-NEXT:    %11: i64 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %12: i64 = IntAdd(%2, %7){} NUses:1
 ; CHECK-NEXT:    %13: i64 = Xor(%2, -1:i64){} NUses:1
@@ -99,9 +99,9 @@ define void @add192_mem(ptr %p, ptr %q) {
 ; CHECK-NEXT:    %25: i64 = IntAdd(%6, %11){} NUses:1
 ; CHECK-NEXT:    %26: i64 = IntAdd(%25, %24){} NUses:1
 ; CHECK-NEXT:    %27: i64 = Store(%0, %12){} NUses:0
-; CHECK-NEXT:    %28: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %28: ptr = PtrAdd(%0, 8:i64){} NUses:1
 ; CHECK-NEXT:    %29: i64 = Store(%28, %19){} NUses:0
-; CHECK-NEXT:    %30: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %30: ptr = PtrAdd(%0, 16:i64){} NUses:1
 ; CHECK-NEXT:    %31: i64 = Store(%30, %26){} NUses:0
 ; CHECK-NEXT:    %32: () = Return(){} NUses:0
 ; CHECK-NEXT:}

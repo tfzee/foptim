@@ -10,8 +10,8 @@ define void @f(ptr %a, ptr %b, i64 %n) {
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb1(%5{}: i64):
 ; CHECK-NEXT:    %6: i64 = IntMul(%5, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %6){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%7){} NUses:2
 ; CHECK-NEXT:    %10: i1 = IntSGT(%9, 0:i32){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb3(), bb4()>(%10){} NUses:0

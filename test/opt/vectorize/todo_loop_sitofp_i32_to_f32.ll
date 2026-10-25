@@ -10,10 +10,10 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: i64):
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %10: f32 = SI_FP(%9){} NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %12: f32 = Store(%11, %10){} NUses:0
 ; CHECK-NEXT:    %13: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %14: i1 = IntSLT(%13, %3){} NUses:1

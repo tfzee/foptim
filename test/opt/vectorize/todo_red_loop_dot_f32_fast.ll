@@ -9,8 +9,8 @@ define float @f(ptr %a, ptr %b, i64 %n) {
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64, 0:f32), bb2(0:f32)>(%3){} NUses:0
 ; CHECK-NEXT:  bb1(%5{}: i64, %6{}: f32):
 ; CHECK-NEXT:    %7: i64 = IntMul(%5, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %10: f32 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %11: f32 = Load(%9){} NUses:1
 ; CHECK-NEXT:    %12: f32 = FloatMul(%10, %11){} NUses:1

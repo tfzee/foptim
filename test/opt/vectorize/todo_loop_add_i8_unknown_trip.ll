@@ -8,9 +8,9 @@ define void @f(ptr %a, ptr %b, ptr %c, i64 %n) {
 ; CHECK-NEXT:    %4: i1 = IntSGT(%3, 0:i64){} NUses:1
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: i64):
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%2, %6){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %6){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%2, %6){} NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %6){} NUses:1
 ; CHECK-NEXT:    %10: i8 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %11: i8 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %12: i8 = IntAdd(%10, %11){} NUses:1

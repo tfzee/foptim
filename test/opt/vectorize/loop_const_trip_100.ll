@@ -9,10 +9,10 @@ define void @f(ptr noalias %a, ptr noalias %b) {
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb2(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %5: ptr = PtrAdd(%1, %4){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%1, %4){} NUses:1
 ; CHECK-NEXT:    %6: f32 = Load(%5){} NUses:1
 ; CHECK-NEXT:    %7: f32 = FloatAdd(%6, 3F800000:f32){} NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %4){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %4){} NUses:1
 ; CHECK-NEXT:    %9: f32 = Store(%8, %7){} NUses:0
 ; CHECK-NEXT:    %10: i64 = IntAdd(%3, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %11: i1 = IntSLT(%10, 100:i64){} NUses:1
@@ -25,10 +25,10 @@ define void @f(ptr noalias %a, ptr noalias %b) {
 ; CHECK-NEXT:    %17: () = Branch<bb4(%14)>(){} NUses:0
 ; CHECK-NEXT:  bb4(%18{}: i64):
 ; CHECK-NEXT:    %19: i64 = IntMul(%18, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %20: ptr = PtrAdd(%1, %19){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %20: ptr = PtrAdd(%1, %19){} NUses:1
 ; CHECK-NEXT:    %21: 8@f32 = Load(%20){} NUses:1
 ; CHECK-NEXT:    %22: 8@f32 = FloatAdd(%21, %16){} NUses:1
-; CHECK-NEXT:    %23: ptr = PtrAdd(%0, %19){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %23: ptr = PtrAdd(%0, %19){} NUses:1
 ; CHECK-NEXT:    %24: 8@f32 = Store(%23, %22){} NUses:0
 ; CHECK-NEXT:    %25: i64 = IntAdd(%18, 8:i64){} NUses:3
 ; CHECK-NEXT:    %26: i1 = IntNE(%25, %15){} NUses:1

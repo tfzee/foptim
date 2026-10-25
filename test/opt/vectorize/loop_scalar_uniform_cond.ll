@@ -15,9 +15,9 @@ define void @f(ptr noalias %a, ptr noalias %b, i32 %flag, i64 %n) {
 ; CHECK-NEXT:    %9: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb3():
 ; CHECK-NEXT:    %10: i64 = IntMul(%7, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %11: ptr = PtrAdd(%1, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%1, %10){} NUses:1
 ; CHECK-NEXT:    %12: i32 = Load(%11){} NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %10){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %10){} NUses:1
 ; CHECK-NEXT:    %14: i32 = Store(%13, %12){} NUses:0
 ; CHECK-NEXT:    %15: () = Branch<bb4()>(){} NUses:0
 ; CHECK-NEXT:  bb4():

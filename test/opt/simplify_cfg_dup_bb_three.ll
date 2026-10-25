@@ -11,7 +11,7 @@ define void @f(ptr %p, ptr %q, i1 %c, i1 %d) {
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(NULL, 40:i64, %1), bb1(NULL, 16:i64, %0)>(%3){} NUses:0
 ; CHECK-NEXT:  bb1(%6{}: ptr, %7{}: i64, %8{}: ptr):
 ; CHECK-NEXT:    %9: i64 = IntMul(%7, 1:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%8, %9){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%8, %9){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %12: () = Call(use, %6, %11){extTy: ()(ptr i32 ); } NUses:0
 ; CHECK-NEXT:    %13: () = Return(){} NUses:0

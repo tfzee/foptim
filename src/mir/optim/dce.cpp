@@ -70,6 +70,7 @@ bool is_applicable(GOpcode op, u32 sop) {
           return false;
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
+        case X86Subtype::vshufps:
         case X86Subtype::INVALID:
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
@@ -99,6 +100,7 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::vgatherq:
         case X86Subtype::vgather:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpack:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vround:

@@ -22,6 +22,11 @@ fir::ValueR SCEVExpander::expand(SCEVRef r) {
       break;
     case T::Invariant:
       res = e.val;
+      if (res.get_type()->is_ptr()) {
+        res =
+            builder.build_conversion_op(res, fir::TypeR{ctx->get_int_type(64)},
+                                        fir::ConversionSubType::PtrToInt);
+      }
       break;
     case T::Add: {
       // x + (y * -1) is how a subtraction is done
@@ -55,6 +60,10 @@ fir::ValueR SCEVExpander::expand(SCEVRef r) {
       res = builder.build_select(t.get_type(), cond, t, f);
       break;
     }
+    case T::LShr:
+      res = builder.build_lshr(
+          expand(e.a), fir::ValueR{ctx->get_constant_int(e.pred, e.bw)});
+      break;
     case T::SExt:
       res =
           builder.build_sext(expand(e.a), fir::TypeR{ctx->get_int_type(e.bw)});

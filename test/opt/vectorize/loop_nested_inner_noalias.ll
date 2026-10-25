@@ -19,8 +19,8 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n, i64 %m) {
 ; CHECK-NEXT:  bb4(%13{}: i64):
 ; CHECK-NEXT:    %14: i64 = IntAdd(%9, %13){} NUses:1
 ; CHECK-NEXT:    %15: i64 = IntMul(%14, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %16: ptr = PtrAdd(%1, %15){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %17: ptr = PtrAdd(%0, %15){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%1, %15){} NUses:1
+; CHECK-NEXT:    %17: ptr = PtrAdd(%0, %15){} NUses:1
 ; CHECK-NEXT:    %18: i32 = Load(%16){} NUses:1
 ; CHECK-NEXT:    %19: i32 = IntAdd(%18, 1:i32){} NUses:1
 ; CHECK-NEXT:    %20: i32 = Store(%17, %19){} NUses:0
@@ -40,8 +40,8 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n, i64 %m) {
 ; CHECK-NEXT:  bb6(%33{}: i64):
 ; CHECK-NEXT:    %34: i64 = IntAdd(%9, %33){} NUses:1
 ; CHECK-NEXT:    %35: i64 = IntMul(%34, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %36: ptr = PtrAdd(%1, %35){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %37: ptr = PtrAdd(%0, %35){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %36: ptr = PtrAdd(%1, %35){} NUses:1
+; CHECK-NEXT:    %37: ptr = PtrAdd(%0, %35){} NUses:1
 ; CHECK-NEXT:    %38: 8@i32 = Load(%36){} NUses:1
 ; CHECK-NEXT:    %39: 8@i32 = IntAdd(%38, %31){} NUses:1
 ; CHECK-NEXT:    %40: 8@i32 = Store(%37, %39){} NUses:0

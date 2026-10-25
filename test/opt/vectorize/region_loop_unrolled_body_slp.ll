@@ -11,9 +11,9 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:  bb1(%5{}: i64):
 ; CHECK-NEXT:    %6: i64 = Shl(%5, 2:i64){} NUses:1
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: 4@i64 = V.Broadcast(%8){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %11: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %12: 4@i64 = PtrAdd(%9, %11){} NUses:1
 ; CHECK-NEXT:    %13: 4@i32 = Load(%12){} NUses:1

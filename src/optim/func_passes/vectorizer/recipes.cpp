@@ -374,6 +374,10 @@ i64 load_cost(const PlanNode &n, u32 vf, const Features & /*features*/) {
   // loop loads are unit stride and have no lanes set
   const bool gather = n.n_lanes != 0 && n.shape != LaneShape::Consecutive;
   if (!n.gather_idx.empty()) {
+    if (std::ranges::all_of(n.gather_idx,
+                            [&](i64 i) { return i == n.gather_idx[0]; })) {
+      return 2;
+    }
     return static_cast<i64>(vf) + 2;
   }
   return gather ? 3 * static_cast<i64>(vf) : 1;
@@ -488,7 +492,6 @@ void call_init(PlanNode &n, const TVec<fir::ValueR> &values, const InitCtx &c) {
   init_back(n, values, c);
   n.value = values.back().as_instr()->args[0];
 }
-
 
 // Lane width of the vector compares a mask is built from, 0 if the value is
 // not a compare or logic of compares of one width. A mask lives in a vector
@@ -618,11 +621,34 @@ bool zext_match(const TVec<fir::ValueR> &values, BundleCtx &ctx) {
   return match_same_instr(values, ctx) &&
          !is_i1(values.back().as_instr()->args[0].get_type());
 }
+// widening of integer lanes, the source lanes have to be a vector already
+bool widen_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n, bool sign) {
+  const auto ty = i->result_type();
+  const auto src = i->args[0].get_type();
+  if (!ty->is_int() || !src->is_int() || is_i1(src) || is_i1(ty) ||
+      !is_vector_shape(shape_of(c, i->args[0])) ||
+      (src->get_bitwidth() != 8 && src->get_bitwidth() != 16 &&
+       src->get_bitwidth() != 32) ||
+      (ty->get_bitwidth() != 16 && ty->get_bitwidth() != 32 &&
+       ty->get_bitwidth() != 64) ||
+      ty->get_bitwidth() <= src->get_bitwidth()) {
+    return false;
+  }
+  n.kind = NodeKind::Widen;
+  n.shape = LaneShape::Varying;
+  n.type = ty;
+  n.op_type = src;
+  n.sub = sign ? 1 : 0;
+  loop_children(c, n, std::array{i->args[0]});
+  return true;
+}
 // a mask widened to 32 or 64 bit lanes of the same width is 0 or 1
 bool zext_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
   const auto ty = i->result_type();
-  if (!is_i1(i->args[0].get_type()) ||
-      !is_vector_shape(shape_of(c, i->args[0])) ||
+  if (!is_i1(i->args[0].get_type())) {
+    return widen_match_loop(c, i, n, false);
+  }
+  if (!is_vector_shape(shape_of(c, i->args[0])) ||
       mask_bits_of(i->args[0]) != ty->get_bitwidth() ||
       (ty->get_bitwidth() != 32 && ty->get_bitwidth() != 64)) {
     return false;
@@ -633,16 +659,47 @@ bool zext_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
   loop_children(c, n, std::array{i->args[0]});
   return true;
 }
+bool sext_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
+  return widen_match_loop(c, i, n, true);
+}
+bool no_bundle_match(const TVec<fir::ValueR> & /*values*/,
+                     BundleCtx & /*ctx*/) {
+  return false;
+}
 bool zext_legal(const PlanNode &n, LaneSpace space, u32 vf,
                 const Features & /*features*/) {
   return space == LaneSpace::Bundle ||
          mask_width_ok(n.type->get_bitwidth(), vf);
 }
-bool itrunc_legal(const PlanNode & /*n*/, LaneSpace /*space*/, u32 /*vf*/,
+bool widen_legal(const PlanNode & /*n*/, LaneSpace space, u32 /*vf*/,
+                 const Features & /*features*/) {
+  return space == LaneSpace::LoopIter;
+}
+bool itrunc_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
+  const auto ty = i->result_type();
+  const auto src = i->args[0].get_type();
+  if (!ty->is_int() || !src->is_int() || is_i1(ty) || is_i1(src) ||
+      !is_vector_shape(shape_of(c, i->args[0])) ||
+      (ty->get_bitwidth() != 8 && ty->get_bitwidth() != 16 &&
+       ty->get_bitwidth() != 32) ||
+      (src->get_bitwidth() != 16 && src->get_bitwidth() != 32 &&
+       src->get_bitwidth() != 64) ||
+      ty->get_bitwidth() >= src->get_bitwidth()) {
+    return false;
+  }
+  n.kind = NodeKind::ITrunc;
+  n.shape = LaneShape::Varying;
+  n.type = ty;
+  n.op_type = src;
+  loop_children(c, n, std::array{i->args[0]});
+  return true;
+}
+bool itrunc_legal(const PlanNode & /*n*/, LaneSpace space, u32 /*vf*/,
                   const Features & /*features*/) {
-  // the backend has no vector truncation (an itrunc of a vector aborts in
-  // the code generator), and a truncation to i1 would make a mask
-  return false;
+  // a truncation of a bundle would have no partial vector type to live in
+  // (the planner of the loops checks the shapes), and a truncation to i1
+  // would make a mask
+  return space == LaneSpace::LoopIter;
 }
 
 bool conversion_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
@@ -797,7 +854,7 @@ const Recipe Recipes[] = {
      .kind = NodeKind::ITrunc,
      .name = "itrunc",
      .match_bundle = match_same_instr_back,
-     .match_loop = nullptr,
+     .match_loop = itrunc_match_loop,
      .init = init_back,
      .n_args = n_args_1,
      .legal = itrunc_legal,
@@ -810,6 +867,15 @@ const Recipe Recipes[] = {
      .init = init_flex,
      .n_args = n_args_1,
      .legal = zext_legal,
+     .cost = unit_cost},
+    {.type = fir::InstrType::SExt,
+     .kind = NodeKind::Widen,
+     .name = "widen",
+     .match_bundle = no_bundle_match,
+     .match_loop = sext_match_loop,
+     .init = init_flex,
+     .n_args = n_args_1,
+     .legal = widen_legal,
      .cost = unit_cost},
     {.type = fir::InstrType::UnaryInstr,
      .kind = NodeKind::Unary,
@@ -1170,6 +1236,9 @@ fir::ValueR emit_node(fir::Context &ctx, fir::Builder &bb, const PlanNode &n,
       return bb.build_binary_op(ops[0], ops[1], static_cast<BinSub>(n.sub));
     case NodeKind::Zext:
       return bb.build_zext(ops[0], ctx->get_vec_type(n.type, vf));
+    case NodeKind::Widen:
+      return n.sub == 1 ? bb.build_sext(ops[0], ctx->get_vec_type(n.type, vf))
+                        : bb.build_zext(ops[0], ctx->get_vec_type(n.type, vf));
     case NodeKind::ITrunc:
       return bb.build_itrunc(ops[0], ctx->get_vec_type(n.type, vf));
     case NodeKind::Unary:
@@ -1227,10 +1296,10 @@ fir::ValueR emit_node(fir::Context &ctx, fir::Builder &bb, const PlanNode &n,
 
 void node_dump(const Plan &plan, u32 id, u32 indent) {
   static constexpr const char *names[] = {
-      "broadcast", "gather",    "horiz_red",  "binary",  "zext",
-      "itrunc",    "call",      "unary",      "extract", "store",
-      "intrin",    "constant",  "conversion", "select",  "load",
-      "induction", "reduction", "scalar",     "cmp",     "phi"};
+      "broadcast",  "gather", "horiz_red", "binary",    "zext",      "itrunc",
+      "call",       "unary",  "extract",   "store",     "intrin",    "constant",
+      "conversion", "select", "load",      "induction", "reduction", "scalar",
+      "cmp",        "phi",    "widen"};
   static constexpr const char *shapes[] = {"uniform", "consecutive", "varying",
                                            "strided", "recurrence"};
   const auto &n = plan.nodes[id];

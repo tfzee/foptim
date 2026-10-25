@@ -11,14 +11,14 @@ define void @f(i32 %n) {
 ; CHECK-NEXT:    %1: i1 = IntULT(0:i32, %0){} NUses:1
 ; CHECK-NEXT:    %2: i64 = ZExt(0:i32){} NUses:1
 ; CHECK-NEXT:    %3: i64 = IntMul(%2, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(G(arr), %3){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(G(arr), %3){} NUses:1
 ; CHECK-NEXT:    %5: i1 = Not(%1){} NUses:1
 ; CHECK-NEXT:    %6: () = CondBranch<bb1(), bb2(0:i32, %4)>(%5){} NUses:0
 ; CHECK-NEXT:  bb2(%7{}: i32, %8{}: ptr):
 ; CHECK-NEXT:    %9: i1 = IntULT(0:i32, 3:i32){} NUses:1
 ; CHECK-NEXT:    %10: i64 = ZExt(0:i32){} NUses:1
 ; CHECK-NEXT:    %11: i64 = IntMul(%10, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%8, %11){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%8, %11){} NUses:1
 ; CHECK-NEXT:    %13: i1 = Not(%9){} NUses:1
 ; CHECK-NEXT:    %14: () = CondBranch<bb3(), bb4(0:i32, %12)>(%13){} NUses:0
 ; CHECK-NEXT:  bb4(%15{}: i32, %16{}: ptr):
@@ -29,7 +29,7 @@ define void @f(i32 %n) {
 ; CHECK-NEXT:    %21: i1 = IntULT(%20, 3:i32){} NUses:1
 ; CHECK-NEXT:    %22: i64 = ZExt(%20){} NUses:1
 ; CHECK-NEXT:    %23: i64 = IntMul(%22, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %24: ptr = PtrAdd(%8, %23){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %24: ptr = PtrAdd(%8, %23){} NUses:1
 ; CHECK-NEXT:    %25: i1 = Not(%21){} NUses:1
 ; CHECK-NEXT:    %26: () = CondBranch<bb3(), bb4(%20, %24)>(%25){} NUses:0
 ; CHECK-NEXT:  bb1():
@@ -39,7 +39,7 @@ define void @f(i32 %n) {
 ; CHECK-NEXT:    %29: i1 = IntULT(%28, %0){} NUses:1
 ; CHECK-NEXT:    %30: i64 = ZExt(%28){} NUses:1
 ; CHECK-NEXT:    %31: i64 = IntMul(%30, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %32: ptr = PtrAdd(G(arr), %31){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %32: ptr = PtrAdd(G(arr), %31){} NUses:1
 ; CHECK-NEXT:    %33: i1 = Not(%29){} NUses:1
 ; CHECK-NEXT:    %34: () = CondBranch<bb1(), bb2(%28, %32)>(%33){} NUses:0
 ; CHECK-NEXT:}

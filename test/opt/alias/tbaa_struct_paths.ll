@@ -284,7 +284,7 @@ define i32 @arr_n(ptr noundef %0, i32 noundef %1) {
 ; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; NUW; InBounds; } NUses:1
 ; CHECK-NEXT:    %3: i64 = SExt(%1){} NUses:1
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%2, %4){NSW; NUW; InBounds; } NUses:2
+; CHECK-NEXT:    %5: ptr = PtrAdd(%2, %4){NSW; InBounds; } NUses:2
 ; CHECK-NEXT:    %6: i32 = Store(%5, 1:i32){} NUses:0
 ; CHECK-NEXT:    %7: i32 = Store(%0, 2:i32){} NUses:0
 ; CHECK-NEXT:    %8: i32 = Load(%5){} NUses:1
@@ -320,11 +320,11 @@ define i32 @arr_same(ptr noundef %0, i32 noundef %1, i32 noundef %2) {
 ; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 4:i64){NSW; NUW; InBounds; } NUses:2
 ; CHECK-NEXT:    %4: i64 = SExt(%1){} NUses:1
 ; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%3, %5){NSW; NUW; InBounds; } NUses:2
+; CHECK-NEXT:    %6: ptr = PtrAdd(%3, %5){NSW; InBounds; } NUses:2
 ; CHECK-NEXT:    %7: i32 = Store(%6, 1:i32){} NUses:0
 ; CHECK-NEXT:    %8: i64 = SExt(%2){} NUses:1
 ; CHECK-NEXT:    %9: i64 = IntMul(%8, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%3, %9){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%3, %9){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %11: i32 = Store(%10, 2:i32){} NUses:0
 ; CHECK-NEXT:    %12: i32 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %13: i32 = Return(%12){} NUses:0

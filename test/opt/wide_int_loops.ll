@@ -9,8 +9,8 @@ define void @sum128(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i64):
 ; CHECK-NEXT:    %5: i64 = IntMul(%4, 16:i32){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %5){} NUses:1
 ; CHECK-NEXT:    %8: i128 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %9: i128 = IntAdd(%8, 1:i128){} NUses:1
 ; CHECK-NEXT:    %10: i128 = Store(%7, %9){} NUses:0
@@ -42,8 +42,8 @@ define void @sum96(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i64):
 ; CHECK-NEXT:    %5: i64 = IntMul(%4, 12:i32){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, %5){} NUses:1
 ; CHECK-NEXT:    %8: i96 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %9: i96 = Shl(%8, 3:i96){} NUses:1
 ; CHECK-NEXT:    %10: i96 = Store(%7, %9){} NUses:0
@@ -77,22 +77,22 @@ define i33 @red33(ptr %a) {
 ; CHECK-NEXT:    %2: i33 = Return(%3){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i64, %5{}: i33):
 ; CHECK-NEXT:    %6: i64 = IntMul(%4, 8:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){} NUses:1
 ; CHECK-NEXT:    %8: i33 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %9: i33 = IntAdd(%5, %8){} NUses:1
 ; CHECK-NEXT:    %10: i64 = IntAdd(%4, 1:i64){} NUses:2
 ; CHECK-NEXT:    %11: i64 = IntMul(%10, 8:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %11){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%0, %11){} NUses:1
 ; CHECK-NEXT:    %13: i33 = Load(%12){} NUses:1
 ; CHECK-NEXT:    %14: i33 = IntAdd(%9, %13){} NUses:1
 ; CHECK-NEXT:    %15: i64 = IntAdd(%10, 1:i64){} NUses:2
 ; CHECK-NEXT:    %16: i64 = IntMul(%15, 8:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %17: ptr = PtrAdd(%0, %16){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %17: ptr = PtrAdd(%0, %16){} NUses:1
 ; CHECK-NEXT:    %18: i33 = Load(%17){} NUses:1
 ; CHECK-NEXT:    %19: i33 = IntAdd(%14, %18){} NUses:1
 ; CHECK-NEXT:    %20: i64 = IntAdd(%15, 1:i64){} NUses:2
 ; CHECK-NEXT:    %21: i64 = IntMul(%20, 8:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %22: ptr = PtrAdd(%0, %21){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %22: ptr = PtrAdd(%0, %21){} NUses:1
 ; CHECK-NEXT:    %23: i33 = Load(%22){} NUses:1
 ; CHECK-NEXT:    %3: i33 = IntAdd(%19, %23){} NUses:2
 ; CHECK-NEXT:    %24: i64 = IntAdd(%20, 1:i64){} NUses:2

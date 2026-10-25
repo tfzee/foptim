@@ -12,8 +12,8 @@ define i64 @f(ptr %a, ptr %b, i32 %x, i64 %n) {
 ; CHECK-NEXT:    %7: () = CondBranch<bb2(), bb3()>(%6){} NUses:0
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %8: i64 = IntMul(%5, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%1, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){} NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%1, %8){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Load(%9){} NUses:2
 ; CHECK-NEXT:    %12: i32 = Store(%10, %11){} NUses:0
 ; CHECK-NEXT:    %13: i1 = IntEQ(%11, %2){} NUses:1

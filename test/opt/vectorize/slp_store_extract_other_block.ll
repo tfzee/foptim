@@ -13,9 +13,9 @@ define void @f(ptr %p, ptr %q, i1 %c) {
 ; CHECK-NEXT:    %7: i64 = ExtractElement(%3, 3:i32){} NUses:0
 ; CHECK-NEXT:    %8: () = CondBranch<bb1(), bb2()>(%2){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, 8:i64){NSW; NUW; InBounds; } NUses:0
-; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 16:i64){NSW; NUW; InBounds; } NUses:0
-; CHECK-NEXT:    %11: ptr = PtrAdd(%1, 24:i64){NSW; NUW; InBounds; } NUses:0
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, 8:i64){NSW; InBounds; } NUses:0
+; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 16:i64){NSW; InBounds; } NUses:0
+; CHECK-NEXT:    %11: ptr = PtrAdd(%1, 24:i64){NSW; InBounds; } NUses:0
 ; CHECK-NEXT:    %12: 4@i64 = Store(%1, %3){} NUses:0
 ; CHECK-NEXT:    %13: () = Branch<bb2()>(){} NUses:0
 ; CHECK-NEXT:  bb2():
@@ -54,11 +54,11 @@ define void @g(ptr %p, ptr %q, i1 %c) {
 ; CHECK-NEXT:    %8: () = CondBranch<bb1(), bb2()>(%2){} NUses:0
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %9: i64 = Store(%1, %4){} NUses:0
-; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 8:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 8:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %11: i64 = Store(%10, %5){} NUses:0
-; CHECK-NEXT:    %12: ptr = PtrAdd(%1, 16:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%1, 16:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %13: i64 = Store(%12, %6){} NUses:0
-; CHECK-NEXT:    %14: ptr = PtrAdd(%1, 24:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%1, 24:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %15: i64 = Store(%14, %7){} NUses:0
 ; CHECK-NEXT:    %16: () = Branch<bb2()>(){} NUses:0
 ; CHECK-NEXT:  bb2():

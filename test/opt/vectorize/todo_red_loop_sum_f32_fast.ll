@@ -10,7 +10,7 @@ define float @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %3: () = CondBranch<bb1(0:i64, 0:f32), bb2(0:f32)>(%2){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i64, %5{}: f32):
 ; CHECK-NEXT:    %6: i64 = IntMul(%4, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){} NUses:1
 ; CHECK-NEXT:    %8: f32 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %9: f32 = FloatAdd(%8, %5){} NUses:2
 ; CHECK-NEXT:    %10: i64 = IntAdd(%4, 1:i64){NSW; NUW; } NUses:2

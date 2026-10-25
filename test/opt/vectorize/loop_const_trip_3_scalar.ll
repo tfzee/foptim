@@ -9,10 +9,10 @@ define void @f(ptr noalias %a, ptr noalias %b) {
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i64):
 ; CHECK-NEXT:    %4: i64 = IntMul(%3, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %5: ptr = PtrAdd(%1, %4){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%1, %4){} NUses:1
 ; CHECK-NEXT:    %6: i32 = Load(%5){} NUses:1
 ; CHECK-NEXT:    %7: i32 = IntAdd(%6, 1:i32){} NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %4){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %4){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Store(%8, %7){} NUses:0
 ; CHECK-NEXT:    %10: i64 = IntAdd(%3, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %11: i1 = IntSLT(%10, 3:i64){} NUses:1

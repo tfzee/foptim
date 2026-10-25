@@ -12,8 +12,8 @@ define void @f(ptr %a, ptr %b, i64 %n) {
 ; CHECK-NEXT:    %6: () = CondBranch<bb2(), bb3()>(%5){} NUses:0
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %7: i64 = IntMul(%4, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %10: i32 = Load(%8){} NUses:2
 ; CHECK-NEXT:    %11: i1 = IntEQ(%10, 0:i32){} NUses:1
 ; CHECK-NEXT:    %12: () = CondBranch<bb3(), bb4()>(%11){} NUses:0

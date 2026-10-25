@@ -8,11 +8,11 @@ define float @f(ptr %a) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: f32 = Load(%0){} NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 4:i64){} NUses:1
 ; CHECK-NEXT:    %3: f32 = Load(%2){} NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 8:i64){} NUses:1
 ; CHECK-NEXT:    %5: f32 = Load(%4){} NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %7: f32 = Load(%6){} NUses:1
 ; CHECK-NEXT:    %8: f32 = FloatAdd(%1, %3){} NUses:1
 ; CHECK-NEXT:    %9: f32 = FloatAdd(%8, %5){} NUses:1

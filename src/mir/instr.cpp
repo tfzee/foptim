@@ -198,6 +198,8 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, vgather);
         ReturnString(X86Subtype, vpcmpeq);
         ReturnString(X86Subtype, vpcmpgt);
+        ReturnString(X86Subtype, vpack);
+        ReturnString(X86Subtype, vshufps);
         ReturnString(X86Subtype, vmaskload);
         ReturnString(X86Subtype, vmaskstore);
         ReturnString(X86Subtype, vround);
@@ -385,12 +387,14 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vround:
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
+        case X86Subtype::vshufps:
         case X86Subtype::ffmadd132:
         case X86Subtype::ffmadd213:
         case X86Subtype::ffmadd231:
         case X86Subtype::vgatherq:
         case X86Subtype::vgather:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpack:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -680,6 +684,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
         case X86Subtype::vpcmpeq:
+        case X86Subtype::vpack:
         case X86Subtype::vpcmpgt:
         case X86Subtype::vmaskload:
         case X86Subtype::vmaskstore:
@@ -690,6 +695,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
           return;
         case X86Subtype::vblendv:
         case X86Subtype::vcmp:
+        case X86Subtype::vshufps:
           out.push_back({1, instr.args[1]});
           out.push_back({2, instr.args[2]});
           out.push_back({3, instr.args[3]});
@@ -1301,6 +1307,14 @@ fmt::appender fmt::formatter<foptim::fmir::Type>::format(
       return fmt::format_to(app, col, "i8x16");
     case foptim::fmir::Type::Int16x8:
       return fmt::format_to(app, col, "i16x8");
+    case foptim::fmir::Type::Int8x4:
+      return fmt::format_to(app, col, "i8x4");
+    case foptim::fmir::Type::Int8x8:
+      return fmt::format_to(app, col, "i8x8");
+    case foptim::fmir::Type::Int16x4:
+      return fmt::format_to(app, col, "i16x4");
+    case foptim::fmir::Type::Int32x2:
+      return fmt::format_to(app, col, "i32x2");
     case foptim::fmir::Type::Int8x32:
       return fmt::format_to(app, col, "i8x32");
     case foptim::fmir::Type::Int16x16:

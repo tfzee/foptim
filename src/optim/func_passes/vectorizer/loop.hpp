@@ -11,6 +11,15 @@ u32 max_vector_bits(const Features &features);
 // the vector factor with the best benefit over all iterations.
 std::unique_ptr<SeedProvider> make_loop_seeds();
 
+// Lanes of one register (part) of every node for the vector factor vf, 0 for
+// scalar nodes. Vector values wider than a register have several parts, the
+// loads that only feed widenings load the lanes of one part of the wide result
+// (an i8 load that is zero extended to i32 loads eight bytes at a time), and a
+// truncation keeps the lanes of its source part. False if the nodes do not fit
+// together or a part has no register type.
+bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
+                       TVec<u32> &part_lanes);
+
 // Values used behind a single block loop become exit block arguments, so the
 // loop skeleton only has to route the next values. Returns true if the IR
 // changed.

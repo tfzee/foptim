@@ -8,7 +8,7 @@ define i64 @f(ptr %s) {
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: () = Branch<bb1(0:i64)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%2{}: i64):
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, %2){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, %2){} NUses:1
 ; CHECK-NEXT:    %4: i8 = Load(%3){} NUses:1
 ; CHECK-NEXT:    %5: i64 = IntAdd(%2, 1:i64){NUW; } NUses:1
 ; CHECK-NEXT:    %6: i1 = IntEQ(%4, 0:i8){} NUses:1

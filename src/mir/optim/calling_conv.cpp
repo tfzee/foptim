@@ -202,6 +202,10 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
       case Type::Int16x8:
       case Type::Int8x32:
       case Type::Int16x16:
+      case Type::Int8x4:
+      case Type::Int8x8:
+      case Type::Int16x4:
+      case Type::Int32x2:
         ASSERT_M(ret_fvr_indx < conv.rets.fvr.size(),
                  "more vector results than return registers");
         instrs[instr_call_id + i].n_args = 2;
@@ -1236,6 +1240,10 @@ void setup_call_returns(IRVec<MInstr> &out_instrs, CallInfo &cinfo) {
       case Type::Int16x8:
       case Type::Int8x32:
       case Type::Int16x16:
+      case Type::Int8x4:
+      case Type::Int8x8:
+      case Type::Int16x4:
+      case Type::Int32x2:
         out_instrs.insert(out_instrs.begin() + static_cast<i64>(cinfo.start_id),
                           {
                               GBaseSubtype::mov,

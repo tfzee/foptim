@@ -7,7 +7,7 @@ define i64 @f(ptr %p) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: 2@i64 = Store(%0, <0:i64, 0:i64, >:2@i64){} NUses:0
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, -16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, -16:i64){} NUses:1
 ; CHECK-NEXT:    %3: i64 = Load(%2){} NUses:1
 ; CHECK-NEXT:    %4: i64 = Return(%3){} NUses:0
 ; CHECK-NEXT:}

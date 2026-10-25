@@ -15,7 +15,7 @@ define void @ins(ptr %begin, ptr %end) {
 ; CHECK-NEXT:    %9: () = CondBranch<bb3(), bb4()>(%8){} NUses:0
 ; CHECK-NEXT:  bb3():
 ; CHECK-NEXT:    %10: i64 = IntMul(-1:i64, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%7, %10){NSW; NUW; InBounds; } NUses:3
+; CHECK-NEXT:    %11: ptr = PtrAdd(%7, %10){NSW; InBounds; } NUses:3
 ; CHECK-NEXT:    %12: i32 = Load(%11){} NUses:1
 ; CHECK-NEXT:    %13: i1 = IntSLT(%4, %12){} NUses:1
 ; CHECK-NEXT:    %14: () = CondBranch<bb5(), bb4()>(%13){} NUses:0
@@ -23,12 +23,12 @@ define void @ins(ptr %begin, ptr %end) {
 ; CHECK-NEXT:    %15: i32 = Load(%11){} NUses:1
 ; CHECK-NEXT:    %16: i32 = Store(%6, %15){} NUses:0
 ; CHECK-NEXT:    %17: i64 = IntMul(-1:i64, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %18: ptr = PtrAdd(%6, %17){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %18: ptr = PtrAdd(%6, %17){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %19: () = Branch<bb2(%18, %11)>(){} NUses:0
 ; CHECK-NEXT:  bb4():
 ; CHECK-NEXT:    %20: i32 = Store(%6, %4){} NUses:0
 ; CHECK-NEXT:    %21: i64 = IntMul(1:i64, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %22: ptr = PtrAdd(%3, %21){NSW; NUW; InBounds; } NUses:2
+; CHECK-NEXT:    %22: ptr = PtrAdd(%3, %21){NSW; InBounds; } NUses:2
 ; CHECK-NEXT:    %23: i1 = IntNE(%22, %1){} NUses:1
 ; CHECK-NEXT:    %24: () = CondBranch<bb1(%22), bb6()>(%23){} NUses:0
 ; CHECK-NEXT:  bb6():

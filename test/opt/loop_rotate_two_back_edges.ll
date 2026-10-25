@@ -11,7 +11,7 @@ define i32 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i32), bb2(0:i64, 0:i32)>(%3){} NUses:0
 ; CHECK-NEXT:  bb2(%5{}: i64, %6{}: i32):
 ; CHECK-NEXT:    %7: i64 = IntMul(%5, 4:i32){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:2
 ; CHECK-NEXT:    %10: i1 = IntSGT(%9, 0:i32){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb3(), bb4()>(%10){} NUses:0

@@ -126,7 +126,7 @@ define noundef i32 @_Z11multi_apartP5Multi(ptr noundef %0) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: i32 = Store(%0, 1:i32){} NUses:0
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %3: i32 = Store(%2, 2:i32){} NUses:0
 ; CHECK-NEXT:    %4: i32 = Return(1:i32){} NUses:0
 ; CHECK-NEXT:}
@@ -202,7 +202,7 @@ define noundef i32 @_Z11multi_via_mP5MultiP2B2(ptr noundef %0, ptr noundef %1) {
 ; CHECK-LABEL: func _Z11multi_via_mP5MultiP2B2<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
-; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){NSW; NUW; InBounds; } NUses:2
+; CHECK-NEXT:    %2: ptr = PtrAdd(%0, 8:i64){NSW; InBounds; } NUses:2
 ; CHECK-NEXT:    %3: i32 = Store(%2, 1:i32){} NUses:0
 ; CHECK-NEXT:    %4: i32 = Store(%1, 2:i32){} NUses:0
 ; CHECK-NEXT:    %5: i32 = Load(%2){} NUses:1
@@ -256,14 +256,14 @@ define noundef i32 @_Z16virt_base_vs_ownP2D1(ptr noundef %0) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: ptr = Load(%0){} NUses:1
-; CHECK-NEXT:    %2: ptr = PtrAdd(%1, -24:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %2: ptr = PtrAdd(%1, -24:i64){} NUses:2
 ; CHECK-NEXT:    %3: i64 = Load(%2){} NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%0, %3){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, %3){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %5: i32 = Store(%4, 1:i32){} NUses:0
 ; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 8:i64){NSW; NUW; InBounds; } NUses:1
 ; CHECK-NEXT:    %7: i32 = Store(%6, 2:i32){} NUses:0
 ; CHECK-NEXT:    %8: i64 = Load(%2){} NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %10: i32 = Load(%9){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Return(%10){} NUses:0
 ; CHECK-NEXT:}
@@ -295,13 +295,13 @@ define noundef i32 @_Z16virt_base_vs_ptrP2D1P1V(ptr noundef %0, ptr noundef %1) 
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: ptr = Load(%0){} NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%2, -24:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %3: ptr = PtrAdd(%2, -24:i64){} NUses:2
 ; CHECK-NEXT:    %4: i64 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, %4){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, %4){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %6: i32 = Store(%5, 1:i32){} NUses:0
 ; CHECK-NEXT:    %7: i32 = Store(%1, 2:i32){} NUses:0
 ; CHECK-NEXT:    %8: i64 = Load(%3){} NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%0, %8){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %10: i32 = Load(%9){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Return(%10){} NUses:0
 ; CHECK-NEXT:}
@@ -335,14 +335,14 @@ define noundef i32 @_Z15virt_base_floatP2D1P1V(ptr noundef %0, ptr noundef %1) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: ptr = Load(%0){} NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%2, -24:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %3: ptr = PtrAdd(%2, -24:i64){} NUses:2
 ; CHECK-NEXT:    %4: i64 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, %4){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, %4){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %6: i32 = Store(%5, 1:i32){} NUses:0
 ; CHECK-NEXT:    %7: ptr = PtrAdd(%1, 4:i64){NSW; NUW; InBounds; } NUses:1
 ; CHECK-NEXT:    %8: f32 = Store(%7, 40000000:f32){} NUses:0
 ; CHECK-NEXT:    %9: i64 = Load(%3){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %9){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %9){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %11: i32 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %12: i32 = Return(%11){} NUses:0
 ; CHECK-NEXT:}

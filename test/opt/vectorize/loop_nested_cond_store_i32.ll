@@ -11,14 +11,14 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %6: () = CondBranch<bb1(0:i64), bb2()>(%4){} NUses:0
 ; CHECK-NEXT:  bb3(%7{}: i64):
 ; CHECK-NEXT:    %8: i64 = IntMul(%7, 4:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, %8){} NUses:1
 ; CHECK-NEXT:    %10: i32 = Load(%9){} NUses:2
 ; CHECK-NEXT:    %11: i1 = IntSGT(%10, 0:i32){} NUses:1
 ; CHECK-NEXT:    %12: () = CondBranch<bb4(), bb5()>(%11){} NUses:0
 ; CHECK-NEXT:  bb2():
 ; CHECK-NEXT:    %13: () = Return(){} NUses:0
 ; CHECK-NEXT:  bb4():
-; CHECK-NEXT:    %14: ptr = PtrAdd(%2, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%2, %8){} NUses:1
 ; CHECK-NEXT:    %15: i32 = Load(%14){} NUses:2
 ; CHECK-NEXT:    %16: i1 = IntSGT(%15, 0:i32){} NUses:1
 ; CHECK-NEXT:    %17: () = CondBranch<bb6(), bb5()>(%16){} NUses:0
@@ -28,7 +28,7 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %20: () = CondBranch<bb3(%18), bb2()>(%19){} NUses:0
 ; CHECK-NEXT:  bb6():
 ; CHECK-NEXT:    %21: i32 = IntAdd(%10, %15){} NUses:1
-; CHECK-NEXT:    %22: ptr = PtrAdd(%0, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %22: ptr = PtrAdd(%0, %8){} NUses:1
 ; CHECK-NEXT:    %23: i32 = Store(%22, %21){} NUses:0
 ; CHECK-NEXT:    %24: () = Branch<bb5()>(){} NUses:0
 ; CHECK-NEXT:  bb1(%25{}: i64):
@@ -38,16 +38,16 @@ define void @f(ptr noalias %a, ptr noalias %b, ptr noalias %c, i64 %n) {
 ; CHECK-NEXT:    %29: () = CondBranch<bb3(%25), bb7(%25)>(%28){} NUses:0
 ; CHECK-NEXT:  bb7(%30{}: i64):
 ; CHECK-NEXT:    %31: i64 = IntMul(%30, 4:i64){NSW; NUW; } NUses:3
-; CHECK-NEXT:    %32: ptr = PtrAdd(%1, %31){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %32: ptr = PtrAdd(%1, %31){} NUses:1
 ; CHECK-NEXT:    %33: 8@i32 = Load(%32){} NUses:2
 ; CHECK-NEXT:    %34: 8@i32 = V.Broadcast(0:i32){} NUses:2
 ; CHECK-NEXT:    %35: 8@i1 = IntSGT(%33, %34){} NUses:2
-; CHECK-NEXT:    %36: ptr = PtrAdd(%2, %31){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %36: ptr = PtrAdd(%2, %31){} NUses:1
 ; CHECK-NEXT:    %37: 8@i32 = INTRIN:MaskedLoad(%36, %35, <0:i32, 0:i32, 0:i32, 0:i32, 0:i32, 0:i32, 0:i32, 0:i32, >:8@i32){} NUses:2
 ; CHECK-NEXT:    %38: 8@i1 = IntSGT(%37, %34){} NUses:1
 ; CHECK-NEXT:    %39: 8@i1 = And(%35, %38){} NUses:1
 ; CHECK-NEXT:    %40: 8@i32 = IntAdd(%33, %37){} NUses:1
-; CHECK-NEXT:    %41: ptr = PtrAdd(%0, %31){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %41: ptr = PtrAdd(%0, %31){} NUses:1
 ; CHECK-NEXT:    %42: () = INTRIN:MaskedStore(%41, %39, %40){} NUses:0
 ; CHECK-NEXT:    %43: i64 = IntAdd(%30, 8:i64){} NUses:3
 ; CHECK-NEXT:    %44: i1 = IntNE(%43, %27){} NUses:1

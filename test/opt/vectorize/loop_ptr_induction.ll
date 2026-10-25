@@ -9,7 +9,7 @@ define i32 @sum(ptr %p, i64 %n) {
 ; CHECK-NEXT:    %3: i64 = INTRIN:UMax(%1, 1:i64){} NUses:2
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(%0, 0:i32, 0:i64), bb2(0:i32)>(%2){} NUses:0
 ; CHECK-NEXT:  bb3(%5{}: ptr, %6{}: i32, %7{}: i64):
-; CHECK-NEXT:    %8: ptr = PtrAdd(%5, 4:i64){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%5, 4:i64){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%5){} NUses:1
 ; CHECK-NEXT:    %10: i32 = IntAdd(%9, %6){} NUses:2
 ; CHECK-NEXT:    %11: i64 = IntAdd(%7, 1:i64){} NUses:2
@@ -26,7 +26,7 @@ define i32 @sum(ptr %p, i64 %n) {
 ; CHECK-NEXT:  bb4(%24{}: ptr, %25{}: 8@i32, %26{}: i64):
 ; CHECK-NEXT:    %27: 8@i32 = Load(%24){} NUses:1
 ; CHECK-NEXT:    %28: 8@i32 = IntAdd(%27, %25){} NUses:2
-; CHECK-NEXT:    %29: ptr = PtrAdd(%24, 32:i64){NSW; NUW; } NUses:2
+; CHECK-NEXT:    %29: ptr = PtrAdd(%24, 32:i64){NSW; InBounds; } NUses:2
 ; CHECK-NEXT:    %30: i64 = IntAdd(%26, 8:i64){} NUses:3
 ; CHECK-NEXT:    %31: i1 = IntNE(%30, %20){} NUses:1
 ; CHECK-NEXT:    %32: () = CondBranch<bb4(%29, %28, %30), bb5(%29, %28, %30)>(%31){} NUses:0

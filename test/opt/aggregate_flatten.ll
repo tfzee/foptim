@@ -34,18 +34,18 @@ define void @mem(ptr %p, ptr %q) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: i64 = Load(%0){} NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 8:i64){} NUses:1
 ; CHECK-NEXT:    %4: i32 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %6: i32 = Load(%5){} NUses:1
 ; CHECK-NEXT:    %7: i64 = Store(%1, %2){} NUses:0
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, 8:i64){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Store(%8, %4){} NUses:0
-; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%1, 12:i64){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Store(%10, %6){} NUses:0
 ; CHECK-NEXT:    %12: i32 = Store(%0, 7:i32){} NUses:0
 ; CHECK-NEXT:    %13: i64 = Load(%1){} NUses:1
-; CHECK-NEXT:    %14: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%1, 8:i64){} NUses:1
 ; CHECK-NEXT:    %15: f64 = Load(%14){} NUses:1
 ; CHECK-NEXT:    %16: () = Call(sink, %13, %15){extTy: ()(i64 f64 ); } NUses:0
 ; CHECK-NEXT:    %17: () = Return(){} NUses:0

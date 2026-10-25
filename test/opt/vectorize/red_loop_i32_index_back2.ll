@@ -13,10 +13,10 @@ define i8 @sum(ptr noalias %a, i32 %n) {
 ; CHECK-NEXT:  bb3(%6{}: i32, %7{}: i8):
 ; CHECK-NEXT:    %8: i32 = IntSub(%6, 1:i32){} NUses:1
 ; CHECK-NEXT:    %9: i64 = SExt(%8){} NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %9){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%0, %9){} NUses:1
 ; CHECK-NEXT:    %11: i8 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %12: i64 = SExt(%6){} NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %12){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%0, %12){} NUses:1
 ; CHECK-NEXT:    %14: i8 = Load(%13){} NUses:1
 ; CHECK-NEXT:    %15: i8 = IntSub(%11, %14){} NUses:1
 ; CHECK-NEXT:    %16: i8 = IntAdd(%15, %7){} NUses:2
@@ -34,10 +34,10 @@ define i8 @sum(ptr noalias %a, i32 %n) {
 ; CHECK-NEXT:  bb4(%29{}: i32, %30{}: 32@i8):
 ; CHECK-NEXT:    %31: i32 = IntSub(%29, 1:i32){} NUses:1
 ; CHECK-NEXT:    %32: i64 = SExt(%31){} NUses:1
-; CHECK-NEXT:    %33: ptr = PtrAdd(%0, %32){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %33: ptr = PtrAdd(%0, %32){} NUses:1
 ; CHECK-NEXT:    %34: 32@i8 = Load(%33){} NUses:1
 ; CHECK-NEXT:    %35: i64 = SExt(%29){} NUses:1
-; CHECK-NEXT:    %36: ptr = PtrAdd(%0, %35){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %36: ptr = PtrAdd(%0, %35){} NUses:1
 ; CHECK-NEXT:    %37: 32@i8 = Load(%36){} NUses:1
 ; CHECK-NEXT:    %38: 32@i8 = IntSub(%34, %37){} NUses:1
 ; CHECK-NEXT:    %39: 32@i8 = IntAdd(%38, %30){} NUses:2

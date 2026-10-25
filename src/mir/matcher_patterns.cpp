@@ -493,6 +493,10 @@ void move_rules(RuleSet &rules) {
       case Type::Int16x8:
       case Type::Int8x32:
       case Type::Int16x16:
+      case Type::Int8x4:
+      case Type::Int8x8:
+      case Type::Int16x4:
+      case Type::Int32x2:
         return false;
       case Type::INVALID:
         fmt::println("{}", cmp_instr);
@@ -513,6 +517,83 @@ void move_rules(RuleSet &rules) {
     return true;
   });
 }
+// Truncates the lanes of an integer vector to fewer bits, the result holds the
+// lanes in its low bytes. 64 to 32 bit picks the even dwords, everything else
+// masks the lanes and halves them with unsigned saturating packs, which are
+// exact after the mask. The two halves of a ymm are packed together.
+static void lower_vector_itrunc(MatchResult &res, ExtraMatchData &data,
+                                MArgument dst, MArgument src) {
+  auto int_vec = [](u32 bits, bool wide) {
+    switch (bits) {
+      case 8:
+        return wide ? Type::Int8x32 : Type::Int8x16;
+      case 16:
+        return wide ? Type::Int16x16 : Type::Int16x8;
+      case 32:
+        return wide ? Type::Int32x8 : Type::Int32x4;
+      case 64:
+        return wide ? Type::Int64x4 : Type::Int64x2;
+      default:
+        UNREACH();
+    }
+  };
+  auto fresh = [&](Type ty) {
+    return MArgument{data.alloc.get_new_register(ty), ty};
+  };
+  if (!src.isReg()) {
+    auto in_reg = fresh(src.ty);
+    res.result.emplace_back(GBaseSubtype::mov, in_reg, src);
+    src = in_reg;
+  }
+  u32 bits = vec_lane_bits(src.ty);
+  const u32 to_bits = vec_lane_bits(dst.ty);
+  ASSERT(to_bits != 0 && to_bits < bits);
+  auto cur = src;
+  // the two xmm halves of cur, or the xmm and a dummy copy of it
+  auto halves = [&](MArgument v) {
+    const auto xmm = int_vec(vec_lane_bits(v.ty), false);
+    auto lo = MArgument{v.reg.retype(xmm), xmm};
+    if (get_size(v.ty) != 32) {
+      return std::pair{lo, lo};
+    }
+    auto hi = fresh(xmm);
+    res.result.emplace_back(X86Subtype::vextract128, hi, v,
+                            MArgument(static_cast<u8>(1)));
+    return std::pair{lo, hi};
+  };
+  auto out_arg = [&](u32 out_bits) {
+    return out_bits == to_bits ? dst : fresh(int_vec(out_bits, false));
+  };
+
+  if (bits == 64) {
+    auto [lo, hi] = halves(cur);
+    auto next = out_arg(32);
+    res.result.emplace_back(X86Subtype::vshufps, next, lo, hi,
+                            MArgument(static_cast<u8>(0x88)));
+    cur = next;
+    bits = 32;
+  }
+  if (bits > to_bits) {
+    // a partial source is read as the full register of its lane width
+    const auto full = int_vec(bits, get_size(cur.ty) == 32);
+    auto ones = fresh(full);
+    res.result.emplace_back(X86Subtype::vpcmpeq, ones, ones, ones);
+    res.result.emplace_back(X86Subtype::psrl, ones, ones,
+                            MArgument(static_cast<u8>(bits - to_bits)));
+    auto masked = fresh(full);
+    res.result.emplace_back(GVecSubtype::vAnd, masked,
+                            MArgument{cur.reg.retype(full), full}, ones);
+    cur = masked;
+  }
+  while (bits > to_bits) {
+    auto [lo, hi] = halves(cur);
+    auto next = out_arg(bits / 2);
+    res.result.emplace_back(X86Subtype::vpack, next, lo, hi);
+    cur = next;
+    bits /= 2;
+  }
+}
+
 // poison or all lanes zero, the value of the lanes a masked load skips
 bool is_zero_or_poison(fir::ValueR v) {
   if (!v.is_constant()) {
@@ -591,7 +672,8 @@ void memory_rules(RuleSet &rules) {
     auto res_reg = valueToArg(gather_instr.result(), res.result, data.alloc);
     auto base = valueToArg(gather_instr->args[0], res.result, data.alloc);
     auto idx = valueToArg(gather_instr->args[1], res.result, data.alloc);
-    const auto elem_size = (gather_instr.result_type()->as_vec().bitwidth + 7) / 8;
+    const auto elem_size =
+        (gather_instr.result_type()->as_vec().bitwidth + 7) / 8;
     ASSERT(base.isReg() && idx.isReg());
 
     // the instruction needs dst, index and mask in different registers, it
@@ -612,8 +694,8 @@ void memory_rules(RuleSet &rules) {
       auto src = valueToArg(gather_instr->args[2], res.result, data.alloc);
       res.result.emplace_back(GBaseSubtype::mov, mask, src);
     }
-    auto mem = MArgument::MemBIS(base.reg, idx.reg,
-                                 elem_size == 8 ? 3 : 2, res_reg.ty);
+    auto mem = MArgument::MemBIS(base.reg, idx.reg, elem_size == 8 ? 3 : 2,
+                                 res_reg.ty);
     res.result.emplace_back(X86Subtype::vgather, dst, mem, mask);
     return true;
   });
@@ -1990,13 +2072,13 @@ void base_rules(RuleSet &rules) {
 
     auto res_reg = valueToArg(alloca_instr.result(), res.result, data.alloc);
     if (!alloca_instr->args[0].is_constant()) {
-      auto size_arg =
-          valueToArg(alloca_instr->args[0], res.result, data.alloc);
+      auto size_arg = valueToArg(alloca_instr->args[0], res.result, data.alloc);
       ASSERT_M(get_size(size_arg.ty) == 8, "dynamic alloca size is not 64 bit");
       auto size_reg = data.alloc.get_new_register(Type::Int64);
       auto tmp = MArgument{size_reg, Type::Int64};
       res.result.emplace_back(GBaseSubtype::mov, tmp, size_arg);
-      res.result.emplace_back(GArithSubtype::add2, tmp, MArgument(static_cast<u64>(15)));
+      res.result.emplace_back(GArithSubtype::add2, tmp,
+                              MArgument(static_cast<u64>(15)));
       res.result.emplace_back(GArithSubtype::shr2, tmp,
                               MArgument(static_cast<u8>(4)));
       res.result.emplace_back(GArithSubtype::shl2, tmp,
@@ -2143,7 +2225,7 @@ void base_rules(RuleSet &rules) {
     return true;
   });
   static constexpr auto lower_hmul = [](fir::Instr hred_instr, MatchResult &res,
-                                  ExtraMatchData &data) {
+                                        ExtraMatchData &data) {
     auto res_reg = valueToArg(hred_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
     (void)res_reg;
@@ -2175,7 +2257,7 @@ void base_rules(RuleSet &rules) {
     return true;
   };
   static constexpr auto lower_hadd = [](fir::Instr hred_instr, MatchResult &res,
-                                  ExtraMatchData &data) {
+                                        ExtraMatchData &data) {
     auto res_reg = valueToArg(hred_instr.result(), res.result, data.alloc);
     auto a1 = valueToArg(hred_instr->args[0], res.result, data.alloc);
 
@@ -2510,7 +2592,20 @@ void base_rules(RuleSet &rules) {
     switch (a1.ty) {
       default:
         TODO("invalid?");
+      case Type::Int8x4: {
+        // the low dwords of both end up next to each other
+        ASSERT(a1.isReg() && a2.isReg());
+        auto dwords = [](MArgument v) {
+          return MArgument{v.reg.retype(Type::Int32x4), Type::Int32x4};
+        };
+        res.result.emplace_back(X86Subtype::punpckl, dwords(res_reg),
+                                dwords(a1), dwords(a2));
+        break;
+      }
       case Type::Float32x2:
+      case Type::Int8x8:
+      case Type::Int16x4:
+      case Type::Int32x2:
         res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
         res.result.emplace_back(X86Subtype::movlhps, res_reg, res_reg, a2);
         break;
@@ -2518,6 +2613,8 @@ void base_rules(RuleSet &rules) {
       case Type::Float64x2:
       case Type::Int32x4:
       case Type::Float32x4:
+      case Type::Int16x8:
+      case Type::Int8x16:
         ASSERT(a1.isReg());
         res.result.emplace_back(
             X86Subtype::vinsert128, res_reg,
@@ -2563,9 +2660,25 @@ void base_rules(RuleSet &rules) {
       case Type::Int32x8:
       case Type::Float32x8:
       case Type::Float64x4:
+      case Type::Int8x32:
+      case Type::Int16x16:
         res.result.emplace_back(X86Subtype::vextract128, res_reg, a1,
                                 MArgument(static_cast<u8>(1)));
         break;
+      case Type::Int8x16:
+      case Type::Int16x8:
+      case Type::Int8x8:
+      case Type::Int16x4:
+      case Type::Int32x2: {
+        // the upper half moves down, vpshufd works on dwords
+        const bool xmm = get_size(a1.ty) == 16;
+        auto dwords = [](MArgument v) {
+          return MArgument{v.reg.retype(Type::Int32x4), Type::Int32x4};
+        };
+        res.result.emplace_back(X86Subtype::vpshuf, dwords(res_reg), dwords(a1),
+                                MArgument(static_cast<u8>(xmm ? 0xEE : 0x55)));
+        break;
+      }
       case Type::Float32x2:
       case Type::Float64x2:
       case Type::Int32x4:
@@ -2592,6 +2705,13 @@ void base_rules(RuleSet &rules) {
       case Type::Float64x2:
       case Type::Int64x2:
       case Type::Int32x4:
+      case Type::Int8x32:
+      case Type::Int16x16:
+      case Type::Int8x16:
+      case Type::Int16x8:
+      case Type::Int8x8:
+      case Type::Int16x4:
+      case Type::Int32x2:
         res.result.emplace_back(GBaseSubtype::mov, res_reg, a1);
         break;
       case Type::Float32x2:
@@ -3121,6 +3241,10 @@ void base_rules(RuleSet &rules) {
                            ExtraMatchData &data) {
     auto val = valueToArg(itrunc_instr->args[0], res.result, data.alloc);
     auto res_reg = valueToArg(itrunc_instr.result(), res.result, data.alloc);
+    if (itrunc_instr.result_type()->is_vec()) {
+      lower_vector_itrunc(res, data, res_reg, val);
+      return true;
+    }
     res.result.emplace_back(GConvSubtype::itrunc, res_reg, val);
     // i1 lives in a byte that consumers (cjmp, zext) assume to be 0/1
     if (itrunc_instr.result_type()->is_int() &&
@@ -3643,52 +3767,52 @@ void intrin_rules(RuleSet &rules) {
         res.result.emplace_back(GCMovSubtype::cmov_ugt, res_reg, a, res_reg, a);
         return true;
       });
-  rules.add(pm::Ctlz,
-            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-              if (arg.isImm()) {
-                // no immediate source operand
-                res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
-                arg = res_reg;
-              }
-              if (res_reg.ty == Type::Int8) {
-                // no byte form, count in 32 bits and drop the 24 extra zeros
-                auto wide = MArgument(data.alloc.get_new_register(Type::Int32),
-                                      Type::Int32);
-                res.result.emplace_back(GConvSubtype::mov_zx, wide, arg);
-                res.result.emplace_back(X86Subtype::lzcnt, wide, wide);
-                res.result.emplace_back(GArithSubtype::sub2, wide,
-                                        MArgument::Int(24, Type::Int32));
-                res.result.emplace_back(GConvSubtype::itrunc, res_reg, wide);
-                return true;
-              }
-              res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
-              return true;
-            });
-  rules.add(pm::Cttz,
-            [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
-              auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
-              auto arg = valueToArg(instr->args[0], res.result, data.alloc);
-              if (arg.isImm()) {
-                // no immediate source operand
-                res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
-                arg = res_reg;
-              }
-              if (res_reg.ty == Type::Int8) {
-                // no byte form, a set bit 8 makes a zero input count 8
-                auto wide = MArgument(data.alloc.get_new_register(Type::Int32),
-                                      Type::Int32);
-                res.result.emplace_back(GConvSubtype::mov_zx, wide, arg);
-                res.result.emplace_back(GArithSubtype::lor2, wide,
-                                        MArgument::Int(0x100, Type::Int32));
-                res.result.emplace_back(X86Subtype::tzcnt, wide, wide);
-                res.result.emplace_back(GConvSubtype::itrunc, res_reg, wide);
-                return true;
-              }
-              res.result.emplace_back(X86Subtype::tzcnt, res_reg, arg);
-              return true;
-            });
+  rules.add(
+      pm::Ctlz, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        if (arg.isImm()) {
+          // no immediate source operand
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+          arg = res_reg;
+        }
+        if (res_reg.ty == Type::Int8) {
+          // no byte form, count in 32 bits and drop the 24 extra zeros
+          auto wide =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          res.result.emplace_back(GConvSubtype::mov_zx, wide, arg);
+          res.result.emplace_back(X86Subtype::lzcnt, wide, wide);
+          res.result.emplace_back(GArithSubtype::sub2, wide,
+                                  MArgument::Int(24, Type::Int32));
+          res.result.emplace_back(GConvSubtype::itrunc, res_reg, wide);
+          return true;
+        }
+        res.result.emplace_back(X86Subtype::lzcnt, res_reg, arg);
+        return true;
+      });
+  rules.add(
+      pm::Cttz, [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
+        auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+        auto arg = valueToArg(instr->args[0], res.result, data.alloc);
+        if (arg.isImm()) {
+          // no immediate source operand
+          res.result.emplace_back(GBaseSubtype::mov, res_reg, arg);
+          arg = res_reg;
+        }
+        if (res_reg.ty == Type::Int8) {
+          // no byte form, a set bit 8 makes a zero input count 8
+          auto wide =
+              MArgument(data.alloc.get_new_register(Type::Int32), Type::Int32);
+          res.result.emplace_back(GConvSubtype::mov_zx, wide, arg);
+          res.result.emplace_back(GArithSubtype::lor2, wide,
+                                  MArgument::Int(0x100, Type::Int32));
+          res.result.emplace_back(X86Subtype::tzcnt, wide, wide);
+          res.result.emplace_back(GConvSubtype::itrunc, res_reg, wide);
+          return true;
+        }
+        res.result.emplace_back(X86Subtype::tzcnt, res_reg, arg);
+        return true;
+      });
   rules.add(pm::Bswap,
             [](fir::Instr instr, MatchResult &res, ExtraMatchData &data) {
               auto res_reg = valueToArg(instr.result(), res.result, data.alloc);

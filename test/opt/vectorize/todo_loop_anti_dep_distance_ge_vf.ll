@@ -11,8 +11,8 @@ define void @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:  bb1(%4{}: i64):
 ; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i64){} NUses:2
 ; CHECK-NEXT:    %6: i64 = IntAdd(%5, 64:i64){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %5){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %5){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %10: i32 = IntAdd(%9, 1:i32){} NUses:1
 ; CHECK-NEXT:    %11: i32 = Store(%8, %10){} NUses:0

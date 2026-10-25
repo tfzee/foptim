@@ -71,7 +71,8 @@ class MergeAllocaPass final : public FunctionPass {
       }
       bb.before(insert_bef_loc);
       auto new_value = bb.build_ptr_add(
-          new_alloca, fir::ValueR{ctx->get_constant_int(offset, 32)}, true);
+          new_alloca, fir::ValueR{ctx->get_constant_int(offset, 32)}, true,
+          true, true);
       alloca->replace_all_uses(new_value);
     }
     // should check if actually modfiied

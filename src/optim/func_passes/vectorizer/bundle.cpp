@@ -167,6 +167,14 @@ fir::ValueR emit_tree(fir::Context &ctx, const Plan &plan, u32 id,
       if (!n.gather_idx.empty()) {
         fir::Builder bb{n.insert_loc};
         bb.after(n.insert_loc);
+        // every lane reads the same address
+        if (std::ranges::all_of(n.gather_idx, [&](i64 i) {
+              return i == n.gather_idx[0];
+            })) {
+          auto scalar = bb.build_load(n.type, n.aux->args[0], false, false);
+          return bb.build_vbroadcast(scalar,
+                                     ctx->get_vec_type(n.type, n.n_lanes));
+        }
         const u32 idx_bits = n.type->get_bitwidth() == 64 && n.n_lanes == 2
                                  ? 64
                                  : 32;

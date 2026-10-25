@@ -11,7 +11,7 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %5: () = CondBranch<bb1(0:i64), bb2()>(%3){} NUses:0
 ; CHECK-NEXT:  bb3(%6{}: i64):
 ; CHECK-NEXT:    %7: i64 = IntMul(%6, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%1, %7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:3
 ; CHECK-NEXT:    %10: i1 = IntSGT(%9, 0:i32){} NUses:1
 ; CHECK-NEXT:    %11: () = CondBranch<bb4(), bb5()>(%10){} NUses:0
@@ -24,7 +24,7 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %15: i32 = IntSub(0:i32, %9){} NUses:1
 ; CHECK-NEXT:    %16: () = Branch<bb6(%15)>(){} NUses:0
 ; CHECK-NEXT:  bb6(%17{}: i32):
-; CHECK-NEXT:    %18: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %18: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %19: i32 = Store(%18, %17){} NUses:0
 ; CHECK-NEXT:    %20: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %21: i1 = IntSLT(%20, %2){} NUses:1
@@ -37,14 +37,14 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %28: () = CondBranch<bb3(%23), bb7(%23)>(%26){} NUses:0
 ; CHECK-NEXT:  bb7(%29{}: i64):
 ; CHECK-NEXT:    %30: i64 = IntMul(%29, 4:i64){NSW; NUW; } NUses:2
-; CHECK-NEXT:    %31: ptr = PtrAdd(%1, %30){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %31: ptr = PtrAdd(%1, %30){} NUses:1
 ; CHECK-NEXT:    %32: 8@i32 = Load(%31){} NUses:3
 ; CHECK-NEXT:    %33: 8@i32 = V.Broadcast(0:i32){} NUses:2
 ; CHECK-NEXT:    %34: 8@i1 = IntSLE(%32, %33){} NUses:1
 ; CHECK-NEXT:    %35: 8@i32 = IntSub(%33, %32){} NUses:1
 ; CHECK-NEXT:    %36: 8@i32 = IntMul(%32, %27){} NUses:1
 ; CHECK-NEXT:    %37: 8@i32 = Select(%34, %35, %36){} NUses:1
-; CHECK-NEXT:    %38: ptr = PtrAdd(%0, %30){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %38: ptr = PtrAdd(%0, %30){} NUses:1
 ; CHECK-NEXT:    %39: 8@i32 = Store(%38, %37){} NUses:0
 ; CHECK-NEXT:    %40: i64 = IntAdd(%29, 8:i64){} NUses:3
 ; CHECK-NEXT:    %41: i1 = IntNE(%40, %25){} NUses:1

@@ -34,11 +34,11 @@ define i32 @fill_then_store_on_one_path(ptr %p, i1 %c) {
 ; CHECK-NEXT:    %2: () = INTRIN:MemSet(%0, 0:i8, 512:i64){} NUses:0
 ; CHECK-NEXT:    %3: () = CondBranch<bb1(), bb2()>(%1){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 100:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 100:i64){} NUses:1
 ; CHECK-NEXT:    %5: i32 = Store(%4, 7:i32){} NUses:0
 ; CHECK-NEXT:    %6: () = Branch<bb2()>(){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 100:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 100:i64){} NUses:1
 ; CHECK-NEXT:    %8: i32 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Return(%8){} NUses:0
 ; CHECK-NEXT:}
@@ -60,7 +60,7 @@ define i32 @fill_then_call(ptr %p) {
 ; CHECK-NEXT:  bb0(%0{}: ptr):
 ; CHECK-NEXT:    %1: () = INTRIN:MemSet(%0, 0:i8, 512:i64){} NUses:0
 ; CHECK-NEXT:    %2: () = Call(opaque){extTy: ()(); } NUses:0
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 100:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 100:i64){} NUses:1
 ; CHECK-NEXT:    %4: i32 = Load(%3){} NUses:1
 ; CHECK-NEXT:    %5: i32 = Return(%4){} NUses:0
 ; CHECK-NEXT:}
@@ -101,11 +101,11 @@ define i32 @copy_source_changes(ptr noalias %d, ptr noalias %s, i1 %c) {
 ; CHECK-NEXT:    %3: () = INTRIN:MemCpy(%0, %1, 512:i64){extTy: i8; } NUses:0
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(), bb2()>(%2){} NUses:0
 ; CHECK-NEXT:  bb1():
-; CHECK-NEXT:    %5: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%1, 8:i64){} NUses:1
 ; CHECK-NEXT:    %6: i32 = Store(%5, 5:i32){} NUses:0
 ; CHECK-NEXT:    %7: () = Branch<bb2()>(){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, 8:i64){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %10: i32 = Return(%9){} NUses:0
 ; CHECK-NEXT:}

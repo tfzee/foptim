@@ -17,7 +17,7 @@ define i8 @sum(ptr %a, i8 %v) {
 ; CHECK-NEXT:    %11: () = Branch<bb3(%5, %9)>(){} NUses:0
 ; CHECK-NEXT:  bb3(%12{}: i32, %13{}: 32@i8):
 ; CHECK-NEXT:    %14: i64 = SExt(%12){} NUses:1
-; CHECK-NEXT:    %15: ptr = PtrAdd(%0, %14){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %15: ptr = PtrAdd(%0, %14){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %16: 32@i8 = Load(%15){} NUses:1
 ; CHECK-NEXT:    %17: 32@i8 = IntAdd(%16, %10){} NUses:1
 ; CHECK-NEXT:    %18: 32@i8 = IntAdd(%17, %13){} NUses:2

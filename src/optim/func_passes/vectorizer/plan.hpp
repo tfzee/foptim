@@ -132,6 +132,8 @@ enum class NodeKind : u8 {
   Cmp,
   // loops: block argument inside the body, per lane the value of the edge taken
   Phi,
+  // zext (sub 0) or sext (sub 1) of integer lanes to wider integer lanes
+  Widen,
 };
 
 // One widened value of a plan. Nodes refer to each other by index into
@@ -206,7 +208,12 @@ struct LoopData {
   // number of header executions
   SCEVRef trip = InvalidSCEV;
   std::optional<i128> const_trip;
-  u32 elem_bits = 0;
+  // narrowest and widest lane of the vector values, they are the same for most
+  // loops, otherwise the vector values have several registers (parts)
+  u32 min_bits = 0;
+  u32 max_bits = 0;
+  // lanes of one register of every node at the chosen vf, 0 for scalars
+  TVec<u32> part_lanes;
   u32 n_vector_ops = 0;
   u32 n_scalar_ops = 0;
   u32 n_reductions = 0;

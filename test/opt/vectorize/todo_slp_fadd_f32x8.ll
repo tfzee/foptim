@@ -6,24 +6,24 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr, %2{}: ptr):
-; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%2, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%2, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %9: ptr = PtrAdd(%1, 12:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %10: ptr = PtrAdd(%2, 12:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%1, 16:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %12: ptr = PtrAdd(%2, 16:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %13: ptr = PtrAdd(%0, 20:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %14: ptr = PtrAdd(%1, 20:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %15: ptr = PtrAdd(%2, 20:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %16: ptr = PtrAdd(%1, 24:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %17: ptr = PtrAdd(%2, 24:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 28:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %19: ptr = PtrAdd(%1, 28:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %20: ptr = PtrAdd(%2, 28:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%0, 4:i64){} NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 4:i64){} NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%2, 4:i64){} NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%1, 8:i64){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%2, 8:i64){} NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, 12:i64){} NUses:1
+; CHECK-NEXT:    %9: ptr = PtrAdd(%1, 12:i64){} NUses:1
+; CHECK-NEXT:    %10: ptr = PtrAdd(%2, 12:i64){} NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%1, 16:i64){} NUses:1
+; CHECK-NEXT:    %12: ptr = PtrAdd(%2, 16:i64){} NUses:1
+; CHECK-NEXT:    %13: ptr = PtrAdd(%0, 20:i64){} NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%1, 20:i64){} NUses:1
+; CHECK-NEXT:    %15: ptr = PtrAdd(%2, 20:i64){} NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%1, 24:i64){} NUses:1
+; CHECK-NEXT:    %17: ptr = PtrAdd(%2, 24:i64){} NUses:1
+; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 28:i64){} NUses:1
+; CHECK-NEXT:    %19: ptr = PtrAdd(%1, 28:i64){} NUses:1
+; CHECK-NEXT:    %20: ptr = PtrAdd(%2, 28:i64){} NUses:1
 ; CHECK-NEXT:    %21: f32 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %22: f32 = Load(%2){} NUses:1
 ; CHECK-NEXT:    %23: f32 = Load(%4){} NUses:1

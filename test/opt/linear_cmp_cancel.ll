@@ -38,7 +38,7 @@ define i1 @loop_check(ptr %p, i8 %v, i32 %n) {
 ; CHECK-NEXT:    %3: () = Branch<bb1(0:i32, 0:i8)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%4{}: i32, %5{}: i8):
 ; CHECK-NEXT:    %6: i64 = SExt(%4){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, %6){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %8: i8 = Load(%7){} NUses:2
 ; CHECK-NEXT:    %9: i8 = IntSub(%8, %1){} NUses:1
 ; CHECK-NEXT:    %10: i8 = IntAdd(%9, %5){} NUses:1

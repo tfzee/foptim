@@ -23,7 +23,7 @@ define void @f(ptr noalias noundef %0, ptr noalias noundef %1, ptr noalias nound
 ; CHECK-NEXT:  bb3(%12{}: i32):
 ; CHECK-NEXT:    %13: i64 = SExt(%12){} NUses:1
 ; CHECK-NEXT:    %14: i64 = IntMul(%13, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %15: ptr = PtrAdd(%1, %14){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %15: ptr = PtrAdd(%1, %14){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %16: i32 = Load(%15){} NUses:1
 ; CHECK-NEXT:    %17: f32 = SI_FP(%16){} NUses:1
 ; CHECK-NEXT:    %18: f32 = Load(%7){} NUses:1
@@ -37,7 +37,7 @@ define void @f(ptr noalias noundef %0, ptr noalias noundef %1, ptr noalias nound
 ; CHECK-NEXT:    %25: i1 = IntSLT(%24, %3){} NUses:1
 ; CHECK-NEXT:    %26: i64 = SExt(%24){} NUses:1
 ; CHECK-NEXT:    %27: i64 = IntMul(%26, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %28: ptr = PtrAdd(%2, %27){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %28: ptr = PtrAdd(%2, %27){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %29: () = CondBranch<bb1(%24, %28), bb2()>(%25){} NUses:0
 ; CHECK-NEXT:}
   %5 = alloca ptr, align 8
@@ -149,7 +149,7 @@ define i64 @g(ptr noundef %0, ptr noundef %1, i32 noundef %2) #0 {
 ; CHECK-NEXT:    %23: i1 = IntSLT(%22, %2){} NUses:1
 ; CHECK-NEXT:    %24: i64 = SExt(%22){} NUses:1
 ; CHECK-NEXT:    %25: i64 = IntMul(%24, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %26: ptr = PtrAdd(%1, %25){NSW; NUW; InBounds; } NUses:1
+; CHECK-NEXT:    %26: ptr = PtrAdd(%1, %25){NSW; InBounds; } NUses:1
 ; CHECK-NEXT:    %27: () = CondBranch<bb1(%21, %22, %26), bb2(%21)>(%23){} NUses:0
 ; CHECK-NEXT:}
   %4 = alloca ptr, align 8

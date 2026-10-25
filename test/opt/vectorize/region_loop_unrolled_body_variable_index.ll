@@ -21,7 +21,7 @@ define void @f(ptr noalias %a, ptr noalias %b, i64 %n) {
 ; CHECK-NEXT:    %15: 4@i32 = Load(%14){} NUses:1
 ; CHECK-NEXT:    %16: 4@i32 = V.Broadcast(9:i32){} NUses:1
 ; CHECK-NEXT:    %17: 4@i32 = IntAdd(%15, %16){} NUses:1
-; CHECK-NEXT:    %18: ptr = PtrAdd(%0, %8){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %18: ptr = PtrAdd(%0, %8){} NUses:1
 ; CHECK-NEXT:    %19: 4@i32 = Store(%18, %17){} NUses:0
 ; CHECK-NEXT:    %20: i64 = IntAdd(%6, 1:i64){NSW; NUW; } NUses:2
 ; CHECK-NEXT:    %21: i1 = IntSLT(%20, %2){} NUses:1

@@ -8,10 +8,10 @@ define i32 @f(ptr %a) {
 ; CHECK-NEXT:    %1: 4@i64 = V.Broadcast(%0){} NUses:1
 ; CHECK-NEXT:    %2: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
 ; CHECK-NEXT:    %3: 4@i64 = PtrAdd(%1, %2){} NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 20:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 24:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 28:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%0, 16:i64){} NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 20:i64){} NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 24:i64){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 28:i64){} NUses:1
 ; CHECK-NEXT:    %8: 4@i32 = Load(%3){} NUses:1
 ; CHECK-NEXT:    %9: i32 = Load(%4){} NUses:1
 ; CHECK-NEXT:    %10: i32 = Load(%5){} NUses:1

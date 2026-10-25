@@ -61,42 +61,88 @@ bool reduction_legal(const PlanNode &n, u32 bits, const Features &features) {
   return false;
 }
 
+// A register of the backend: 128 or 256 bit, or a partial xmm that holds
+// 4 or 8 bytes (extend sources, truncate results).
+bool partial_vec_ok(u32 bits, u32 lanes) {
+  const u32 bytes = bits * lanes / 8;
+  if (bytes == 16 || bytes == 32) {
+    return true;
+  }
+  // the partial types are i8x4, i8x8, i16x4 and i32x2
+  return (bytes == 8 && bits <= 32) || (bytes == 4 && bits == 8);
+}
+
+// the lane width that decides the register type of the value of a node
+u32 node_lane_bits(const PlanNode &n) {
+  if (n.kind == NodeKind::Cmp) {
+    return n.op_type->get_bitwidth();
+  }
+  if (n.type->is_int() && n.type->get_bitwidth() == 1) {
+    return n.value.is_instr() ? mask_bits_of(n.value) : 0;
+  }
+  return n.type->get_bitwidth();
+}
+
 bool loop_legal(const Plan &plan, u32 vf, const Features &features) {
-  const u32 elem_bits = plan.loop.elem_bits;
-  if (elem_bits != 8 && elem_bits != 16 && elem_bits != 32 && elem_bits != 64) {
+  const auto &l = plan.loop;
+  const u32 min_bits = l.min_bits;
+  const u32 max_bits = l.max_bits;
+  for (u32 bits : {min_bits, max_bits}) {
+    if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
+      return false;
+    }
+  }
+  if (!std::has_single_bit(vf) || vf < 2) {
     return false;
   }
-  const u32 bits = vf * elem_bits;
-  // no 512 bit byte or word vectors, InstSimplify widens byte vectors <= 16
-  if (elem_bits < 32 && bits > 256) {
+  if (min_bits == max_bits) {
+    const u32 bits = vf * min_bits;
+    // no 512 bit byte or word vectors, InstSimplify widens byte vectors <= 16
+    if (min_bits < 32 && bits > 256) {
+      return false;
+    }
+    if (min_bits == 8 && vf < 32) {
+      return false;
+    }
+    if (bits < 128 || bits > max_vector_bits(features)) {
+      return false;
+    }
+  } else {
+    // vectors of several registers: at most four of the widest lanes
+    if (vf * max_bits > 1024 || vf * min_bits > 256) {
+      return false;
+    }
+    // the masks of the blocks would need conversions between lane widths
+    for (const auto &blk : l.blocks) {
+      if (!blk.always) {
+        return false;
+      }
+    }
+  }
+  TVec<u32> pl;
+  if (!assign_part_lanes(plan, vf, features, pl)) {
     return false;
   }
-  if (elem_bits == 8 && vf < 32) {
-    return false;
-  }
-  if (vf < 2 || !std::has_single_bit(vf) || bits < 128 ||
-      bits > max_vector_bits(features)) {
-    return false;
-  }
-  for (const auto &n : plan.nodes) {
+  for (u32 i = 0; i < plan.nodes.size(); i++) {
+    const auto &n = plan.nodes[i];
     if (!is_vector_shape(n.shape)) {
       continue;
     }
     if (n.kind == NodeKind::Reduction) {
-      if (!reduction_legal(n, bits, features)) {
+      if (!reduction_legal(n, pl[i] * n.type->get_bitwidth(), features)) {
         return false;
       }
       continue;
     }
-    if (!node_legal(n, LaneSpace::LoopIter, vf, features)) {
+    if (!node_legal(n, LaneSpace::LoopIter, pl[i], features)) {
       return false;
     }
-    if (n.kind == NodeKind::Phi && !mask_width_ok(elem_bits, vf)) {
+    if (n.kind == NodeKind::Phi && !mask_width_ok(node_lane_bits(n), pl[i])) {
       return false;
     }
     if ((n.kind == NodeKind::Load || n.kind == NodeKind::Store) &&
-        plan.loop.blocks[n.block].mask_bits != 0 &&
-        !mask_width_ok(plan.loop.blocks[n.block].mask_bits, vf)) {
+        l.blocks[n.block].mask_bits != 0 &&
+        !mask_width_ok(l.blocks[n.block].mask_bits, pl[i])) {
       return false;
     }
   }
@@ -108,23 +154,43 @@ bool loop_legal(const Plan &plan, u32 vf, const Features &features) {
 i64 loop_benefit(const Plan &plan, u32 vf, const Features &features,
                  u32 assumed_trip) {
   const auto &l = plan.loop;
+  TVec<u32> pl;
+  const bool parts_ok = assign_part_lanes(plan, vf, features, pl);
+  ASSERT(parts_ok);
   const i64 trip =
       l.const_trip ? static_cast<i64>(*l.const_trip) : assumed_trip;
   const i64 s = l.scalar_cost;
   const i64 scalar_total = trip * s;
   i64 body = 0;
-  for (const auto &n : plan.nodes) {
-    body += node_vec_cost(n, vf, features);
+  u32 max_parts = 1;
+  for (u32 i = 0; i < plan.nodes.size(); i++) {
+    const auto &n = plan.nodes[i];
+    if (!is_vector_shape(n.shape)) {
+      body += node_vec_cost(n, vf, features);
+      continue;
+    }
+    const i64 parts = vf / pl[i];
+    max_parts = std::max<u32>(max_parts, static_cast<u32>(parts));
+    i64 c = node_vec_cost(n, pl[i], features);
+    // a part of a wide source that is not loaded in parts needs a shuffle
+    if (n.kind == NodeKind::Widen) {
+      const u32 src = l.node_of.at(n.value.as_instr()->args[0]);
+      if (pl[src] > pl[i]) {
+        c += 1;
+      }
+    }
+    body += parts * c;
     // masked accesses are a bit slower than plain ones
     if ((n.kind == NodeKind::Load || n.kind == NodeKind::Store) &&
         l.blocks[n.block].mask_bits != 0) {
-      body += 1;
+      body += parts;
     }
   }
   body += 3 + l.mask_ops;
   const i64 vtrip = trip / vf * vf;
   const i64 rest = trip - vtrip;
-  i64 overhead = 8 + l.n_reductions * 2 * std::countr_zero(vf);
+  i64 overhead =
+      8 + l.n_reductions * (2 * std::countr_zero(vf) + (max_parts - 1));
   return scalar_total - (overhead + (vtrip / vf) * body + rest * s);
 }
 
@@ -676,6 +742,17 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     l.node_of[av] = static_cast<u32>(plan.nodes.size());
     plan.nodes.push_back(std::move(n));
   }
+  if (!have_counter && trip_bw == 64) {
+    // pointer style loop: the pointer that steps forward counts the iterations
+    for (u32 k = 0; k < hdr->args.size(); k++) {
+      const auto &n = plan.nodes[k];
+      if (n.kind == NodeKind::Induction && n.type->is_ptr() && n.stride > 0) {
+        have_counter = true;
+        l.counter = k;
+        break;
+      }
+    }
+  }
   if (!have_counter) {
     return false;
   }
@@ -843,7 +920,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     return false;
   }
 
-  // all vector values need the same element width
+  // the lane widths of the vector values
   for (const auto &n : plan.nodes) {
     if (!is_vector_shape(n.shape)) {
       continue;
@@ -855,11 +932,11 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     }
     const u32 bits = n.kind == NodeKind::Cmp ? n.op_type->get_bitwidth()
                                              : n.type->get_bitwidth();
-    if (l.elem_bits == 0) {
-      l.elem_bits = bits;
-    } else if (l.elem_bits != bits) {
-      return false;
-    }
+    l.min_bits = l.min_bits == 0 ? bits : std::min(l.min_bits, bits);
+    l.max_bits = std::max(l.max_bits, bits);
+  }
+  if (l.min_bits == 0) {
+    return false;
   }
 
   // check the uses outside of the loop and of the vector values
@@ -969,7 +1046,10 @@ class LoopSeedProvider final : public SeedProvider {
     if (!build_loop_plan(env, *seed.loop, evo, plan)) {
       return false;
     }
-    u32 max_vf = max_vector_bits(features) / plan.loop.elem_bits;
+    u32 max_vf =
+        plan.loop.min_bits == plan.loop.max_bits
+            ? max_vector_bits(features) / plan.loop.min_bits
+            : std::min(256 / plan.loop.min_bits, 1024 / plan.loop.max_bits);
     if (env.config.max_vf != 0) {
       max_vf = std::min(max_vf, env.config.max_vf);
     }
@@ -1013,6 +1093,154 @@ class LoopSeedProvider final : public SeedProvider {
   std::vector<std::unique_ptr<ScalarEvo>> evos;
 };
 }  // namespace
+
+bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
+                       TVec<u32> &pl) {
+  const auto &l = plan.loop;
+  const u32 reg_bits =
+      l.min_bits == l.max_bits ? max_vector_bits(features) : 256;
+  const auto natural = [&](u32 bits) { return std::min(vf, reg_bits / bits); };
+  const u32 n_nodes = static_cast<u32>(plan.nodes.size());
+  pl.assign(n_nodes, 0);
+  auto node_of = [&](fir::ValueR v) -> u32 {
+    const auto it = l.node_of.find(v);
+    return it == l.node_of.end() ? ~0U : it->second;
+  };
+  for (u32 i = 0; i < n_nodes; i++) {
+    const auto &n = plan.nodes[i];
+    if (!is_vector_shape(n.shape)) {
+      continue;
+    }
+    const u32 bits = node_lane_bits(n);
+    if (bits == 0) {
+      return false;
+    }
+    pl[i] = natural(bits);
+    const bool instr = n.value.is_instr();
+    if (n.kind == NodeKind::Store) {
+      // the parts of the stored value
+      const u32 v = node_of(n.value.as_instr()->args[1]);
+      if (v != ~0U) {
+        pl[i] = pl[v];
+      }
+    } else if (n.kind == NodeKind::ITrunc) {
+      pl[i] = pl[node_of(n.value.as_instr()->args[0])];
+    } else if (n.kind == NodeKind::Load && instr &&
+               l.blocks[n.block].mask_bits == 0) {
+      // only widened: load the lanes of one part of the wide result
+      u32 want = 0;
+      bool all_widen = n.value.as_instr()->get_n_uses() != 0;
+      for (const auto &u : n.value.as_instr()->uses) {
+        const u32 w = u.user->is_multi_result() || !u.user->has_result()
+                          ? ~0U
+                          : node_of(u.user.result());
+        if (w == ~0U || plan.nodes[w].kind != NodeKind::Widen) {
+          all_widen = false;
+          break;
+        }
+        const u32 wb = natural(plan.nodes[w].type->get_bitwidth());
+        if (want != 0 && want != wb) {
+          all_widen = false;
+          break;
+        }
+        want = wb;
+      }
+      if (all_widen && want < pl[i]) {
+        pl[i] = want;
+      }
+    }
+  }
+  // the parts have to be registers
+  for (u32 i = 0; i < n_nodes; i++) {
+    const auto &n = plan.nodes[i];
+    if (!is_vector_shape(n.shape)) {
+      continue;
+    }
+    if (n.kind == NodeKind::Store) {
+      continue;
+    }
+    const u32 bits = node_lane_bits(n);
+    const bool partial_ok = n.kind == NodeKind::ITrunc ||
+                            (n.kind == NodeKind::Load && pl[i] < natural(bits));
+    if (partial_ok ? !partial_vec_ok(bits, pl[i])
+                   : (bits * pl[i] != 128 && bits * pl[i] != 256 &&
+                      !(reg_bits == 512 && bits * pl[i] == 512))) {
+      return false;
+    }
+  }
+  // operands and users agree on the parts
+  for (u32 i = 0; i < n_nodes; i++) {
+    const auto &n = plan.nodes[i];
+    if (!is_vector_shape(n.shape)) {
+      continue;
+    }
+    if (n.kind == NodeKind::Reduction) {
+      continue;
+    }
+    if (!n.value.is_instr()) {
+      continue;
+    }
+    const auto instr = n.value.as_instr();
+    for (size_t a = 0; a < instr->args.size(); a++) {
+      const u32 j = node_of(instr->args[a]);
+      if (j == ~0U || !is_vector_shape(plan.nodes[j].shape)) {
+        continue;
+      }
+      if (n.kind == NodeKind::Store && a == 0) {
+        continue;
+      }
+      if (n.kind == NodeKind::Widen) {
+        if (pl[j] < pl[i] || pl[j] % pl[i] != 0) {
+          return false;
+        }
+      } else if (n.kind == NodeKind::Store) {
+        // stores take any parts
+      } else if (pl[j] != pl[i]) {
+        return false;
+      }
+    }
+  }
+  // a truncation only feeds stores, anything else would have to combine its
+  // partial results
+  for (u32 i = 0; i < n_nodes; i++) {
+    const auto &n = plan.nodes[i];
+    if (n.kind != NodeKind::ITrunc) {
+      continue;
+    }
+    for (const auto &u : n.value.as_instr()->uses) {
+      if (!u.user->is(fir::InstrType::StoreInstr) ||
+          u.type != fir::UseType::NormalArg || u.argId != 1) {
+        return false;
+      }
+    }
+  }
+  // accumulators and phis take the parts of the values they are fed
+  const auto &back_args = l.latch->get_terminator()->bbs[l.back_edge].args;
+  for (u32 k = 0; k < back_args.size(); k++) {
+    if (plan.nodes[k].kind != NodeKind::Reduction) {
+      continue;
+    }
+    const u32 j = node_of(back_args[k]);
+    if (j == ~0U || pl[j] != pl[k]) {
+      return false;
+    }
+  }
+  for (u32 i = 0; i < n_nodes; i++) {
+    const auto &n = plan.nodes[i];
+    if (n.kind != NodeKind::Phi || !is_vector_shape(n.shape)) {
+      continue;
+    }
+    for (const auto &e : l.blocks[n.block].in_edges) {
+      const auto v =
+          l.blocks[e.from].bb->get_terminator()->bbs[e.slot].args[n.arg_id];
+      const u32 j = node_of(v);
+      if (j != ~0U && is_vector_shape(plan.nodes[j].shape) && pl[j] != pl[i]) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
 
 u32 max_vector_bits(const Features &features) {
   return features.avx512f ? 512 : 256;

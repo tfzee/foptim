@@ -6,12 +6,12 @@ define void @f(ptr %a, ptr %b) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
-; CHECK-NEXT:    %2: ptr = PtrAdd(%1, 2:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 6:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %2: ptr = PtrAdd(%1, 2:i64){} NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 4:i64){} NUses:1
+; CHECK-NEXT:    %4: ptr = PtrAdd(%1, 6:i64){} NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%0, 4:i64){} NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, 8:i64){} NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %8: i16 = Load(%1){} NUses:1
 ; CHECK-NEXT:    %9: i16 = Load(%2){} NUses:1
 ; CHECK-NEXT:    %10: i16 = Load(%3){} NUses:1

@@ -8,22 +8,22 @@ define void @f(ptr %a, ptr %b) {
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: ptr):
 ; CHECK-NEXT:    %2: i32 = Load(%1){} NUses:1
-; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %3: ptr = PtrAdd(%1, 4:i64){} NUses:1
 ; CHECK-NEXT:    %4: i32 = Load(%3){} NUses:1
-; CHECK-NEXT:    %5: ptr = PtrAdd(%1, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %5: ptr = PtrAdd(%1, 8:i64){} NUses:1
 ; CHECK-NEXT:    %6: i32 = Load(%5){} NUses:1
-; CHECK-NEXT:    %7: ptr = PtrAdd(%1, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %7: ptr = PtrAdd(%1, 12:i64){} NUses:1
 ; CHECK-NEXT:    %8: i32 = Load(%7){} NUses:1
 ; CHECK-NEXT:    %9: i32 = INTRIN:PopCnt(%2){} NUses:1
 ; CHECK-NEXT:    %10: i32 = INTRIN:PopCnt(%4){} NUses:1
 ; CHECK-NEXT:    %11: i32 = INTRIN:PopCnt(%6){} NUses:1
 ; CHECK-NEXT:    %12: i32 = INTRIN:PopCnt(%8){} NUses:1
 ; CHECK-NEXT:    %13: i32 = Store(%0, %9){} NUses:0
-; CHECK-NEXT:    %14: ptr = PtrAdd(%0, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %14: ptr = PtrAdd(%0, 4:i64){} NUses:1
 ; CHECK-NEXT:    %15: i32 = Store(%14, %10){} NUses:0
-; CHECK-NEXT:    %16: ptr = PtrAdd(%0, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %16: ptr = PtrAdd(%0, 8:i64){} NUses:1
 ; CHECK-NEXT:    %17: i32 = Store(%16, %11){} NUses:0
-; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 12:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %18: ptr = PtrAdd(%0, 12:i64){} NUses:1
 ; CHECK-NEXT:    %19: i32 = Store(%18, %12){} NUses:0
 ; CHECK-NEXT:    %20: () = Return(){} NUses:0
 ; CHECK-NEXT:}

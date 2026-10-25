@@ -203,6 +203,11 @@ enum class X86Subtype : u32 {
   vgather,
   vpcmpeq,
   vpcmpgt,
+  // vpack(dst, a, b): unsigned saturating pack of the lanes of a and b into
+  // lanes of half the width (vpackusdw for 32 bit, vpackuswb for 16 bit)
+  vpack,
+  // vshufps(dst, a, b, imm)
+  vshufps,
   // vmaskload(dst, mask, mem), vmaskstore(mem, mask, src): lanes with a clear
   // mask are not accessed (vmaskmovps / vpmaskmovd and friends)
   vmaskload,
@@ -269,6 +274,12 @@ enum class Type : u16 {
   Int64x8 = 21,
   Float32x16 = 22,
   Float64x8 = 23,
+  // partial xmm vectors, only the low bytes hold lanes (extend sources,
+  // truncate results)
+  Int8x4 = 24,
+  Int8x8 = 25,
+  Int16x4 = 26,
+  Int32x2 = 27,
 };
 
 /*Returns the size in bytes of the given type*/
@@ -320,8 +331,47 @@ static constexpr u32 get_size(fmir::Type type) {
       return 32;
     case Type::Int16x16:
       return 32;
+    case Type::Int8x4:
+      return 4;
+    case Type::Int8x8:
+    case Type::Int16x4:
+    case Type::Int32x2:
+      return 8;
     case fmir::Type::INVALID:
       TODO("INVALID TYPE");
+  }
+}
+
+/*Bits of one lane of a vector type, 0 for scalars*/
+static constexpr u32 vec_lane_bits(fmir::Type type) {
+  switch (type) {
+    case Type::Int8x4:
+    case Type::Int8x8:
+    case Type::Int8x16:
+    case Type::Int8x32:
+      return 8;
+    case Type::Int16x4:
+    case Type::Int16x8:
+    case Type::Int16x16:
+      return 16;
+    case Type::Float32x2:
+    case Type::Float32x4:
+    case Type::Float32x8:
+    case Type::Float32x16:
+    case Type::Int32x2:
+    case Type::Int32x4:
+    case Type::Int32x8:
+    case Type::Int32x16:
+      return 32;
+    case Type::Float64x2:
+    case Type::Float64x4:
+    case Type::Float64x8:
+    case Type::Int64x2:
+    case Type::Int64x4:
+    case Type::Int64x8:
+      return 64;
+    default:
+      return 0;
   }
 }
 
@@ -844,6 +894,10 @@ class MArgument {
       case Type::Int16x8:
       case Type::Int8x32:
       case Type::Int16x16:
+      case Type::Int8x4:
+      case Type::Int8x8:
+      case Type::Int16x4:
+      case Type::Int32x2:
         return true;
     }
     return ty == Type::Float32 || ty == Type::Float64;

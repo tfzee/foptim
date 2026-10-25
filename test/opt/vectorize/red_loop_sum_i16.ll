@@ -11,7 +11,7 @@ define i16 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %4: () = CondBranch<bb1(0:i64, 0:i16), bb2(0:i16)>(%2){} NUses:0
 ; CHECK-NEXT:  bb3(%5{}: i64, %6{}: i16):
 ; CHECK-NEXT:    %7: i64 = IntMul(%5, 2:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %8: ptr = PtrAdd(%0, %7){} NUses:1
 ; CHECK-NEXT:    %9: i16 = Load(%8){} NUses:1
 ; CHECK-NEXT:    %10: i16 = IntAdd(%9, %6){} NUses:2
 ; CHECK-NEXT:    %11: i64 = IntAdd(%5, 1:i64){NSW; NUW; } NUses:2
@@ -27,7 +27,7 @@ define i16 @f(ptr %a, i64 %n) {
 ; CHECK-NEXT:    %22: () = CondBranch<bb3(%16, %17), bb4(%16, %21)>(%20){} NUses:0
 ; CHECK-NEXT:  bb4(%23{}: i64, %24{}: 16@i16):
 ; CHECK-NEXT:    %25: i64 = IntMul(%23, 2:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %26: ptr = PtrAdd(%0, %25){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %26: ptr = PtrAdd(%0, %25){} NUses:1
 ; CHECK-NEXT:    %27: 16@i16 = Load(%26){} NUses:1
 ; CHECK-NEXT:    %28: 16@i16 = IntAdd(%27, %24){} NUses:2
 ; CHECK-NEXT:    %29: i64 = IntAdd(%23, 16:i64){} NUses:3

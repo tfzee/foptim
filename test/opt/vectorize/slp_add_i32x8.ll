@@ -14,7 +14,7 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %8: 4@i64 = PtrAdd(%6, %7){} NUses:1
 ; CHECK-NEXT:    %9: 4@i64 = Load(G(const_legalizeVec_f_2)){} NUses:1
 ; CHECK-NEXT:    %10: 4@i64 = PtrAdd(%5, %9){} NUses:1
-; CHECK-NEXT:    %11: ptr = PtrAdd(%0, 16:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %11: ptr = PtrAdd(%0, 16:i64){} NUses:1
 ; CHECK-NEXT:    %12: 4@i64 = Load(G(const_legalizeVec_f_1)){} NUses:1
 ; CHECK-NEXT:    %13: 4@i64 = PtrAdd(%4, %12){} NUses:1
 ; CHECK-NEXT:    %14: 4@i64 = Load(G(const_legalizeVec_f_0)){} NUses:1
