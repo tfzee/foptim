@@ -202,7 +202,7 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
           }
         }
       }
-      auto collect = [&](fir::ValueR val) {
+      auto collect = [&](fir::ValueR val, u32 def_node) {
         UsedAfter ua{.val = val, .exit_bb = 0, .uses = {}};
         bool found_exit = false;
         for (auto use : *val.get_uses()) {
@@ -217,7 +217,10 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
               break;
             }
           }
-          if (exit == ~0U || (found_exit && exit != ua.exit_bb)) {
+          // the value has to reach every edge into the exit, which only holds
+          // when its block dominates the exit target
+          if (exit == ~0U || (found_exit && exit != ua.exit_bb) ||
+              !dom.dominates(def_node, exit)) {
             return false;
           }
           found_exit = true;
@@ -232,15 +235,15 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       bool ok = true;
       for (auto node : info.body_nodes) {
         for (auto arg : cfg.bbrs[node].bb->args) {
-          ok = ok && collect(fir::ValueR{arg});
+          ok = ok && collect(fir::ValueR{arg}, node);
         }
         for (auto instr : cfg.bbrs[node].bb->instructions) {
           if (instr.is_multi_result()) {
             for (u8 r = 0; r < instr->n_results(); r++) {
-              ok = ok && collect(instr.result(r));
+              ok = ok && collect(instr.result(r), node);
             }
           } else {
-            ok = ok && collect(instr.result());
+            ok = ok && collect(instr.result(), node);
           }
         }
       }
