@@ -1,4 +1,5 @@
 #include "matcher.hpp"
+#include "ir/helpers.hpp"
 
 #include <algorithm>
 #include <ranges>
