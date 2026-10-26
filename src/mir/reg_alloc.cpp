@@ -30,11 +30,13 @@ VReg DumbRegAlloc::get_new_register(Type type) {
 }
 
 VReg DumbRegAlloc::get_register(fir::ValueR value) {
-  if (!mapping.contains({value, 0})) {
-    auto new_reg = get_new_register(value_type(value));
-    mapping.insert({{.v = value, .id = 0}, new_reg});
+  const IndexedValue key{.v = value, .id = 0};
+  if (auto it = mapping.find(key); it != mapping.end()) {
+    return it->second;
   }
-  return mapping.at({value, 0});
+  auto new_reg = get_new_register(value_type(value));
+  mapping.emplace(key, new_reg);
+  return new_reg;
 }
 
 }  // namespace foptim::fmir

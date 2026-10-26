@@ -82,6 +82,8 @@ class AttributeAnalysis {
   bool force_update = false;
   // already in the worklist, an analysis is queued at most once
   bool queued = false;
+  // already in the list of analyses run() has to materialize
+  bool pending_materialize = false;
 
   AttributeAnalysis() = default;
   // called once associatedValue is set, before the first update
@@ -114,6 +116,10 @@ class AttributerManager {
     u32 next;
   };
   TVec<DepNode> _dep_nodes;
+  // analyses that need a first update, and the ones created or updated since
+  // the last materialize, so run() does not look at every analysis it holds
+  TVec<AttributeAnalysis *> _forced;
+  TVec<AttributeAnalysis *> _to_materialize;
   AttributeAnalysis *_currently_updating = nullptr;
   Worklist _worklist;
 
@@ -149,8 +155,17 @@ class AttributerManager {
     }
     _inverse_dependencies.clear();
     _dep_nodes.clear();
+    _forced.clear();
+    _to_materialize.clear();
     _chunk = 0;
     _chunk_off = 0;
+  }
+
+  void mark_for_materialize(AttributeAnalysis *att) {
+    if (!att->pending_materialize) {
+      att->pending_materialize = true;
+      _to_materialize.push_back(att);
+    }
   }
 
   template <class AAna>
@@ -190,6 +205,7 @@ class AttributerManager {
       }
       analysis->associatedValue = loc;
       analysis->init();
+      mark_for_materialize(analysis);
       _attribs.at(aa_typeid).insert({loc, analysis});
     } else {
       analysis = std::launder(
@@ -200,7 +216,10 @@ class AttributerManager {
       _dep_nodes.push_back({_currently_updating, it->second});
       it->second = static_cast<u32>(_dep_nodes.size() - 1);
     } else {
-      analysis->force_update = true;
+      if (!analysis->force_update) {
+        analysis->force_update = true;
+        _forced.push_back(analysis);
+      }
     }
     ASSERT(analysis);
     return analysis;
@@ -209,11 +228,12 @@ class AttributerManager {
   // returns whether the IR changed
   bool materialize(fir::Context &ctx) {
     bool modified = false;
-    for (auto &[_, loc] : _attribs) {
-      for (auto &[_, att] : loc) {
-        modified |= att->materialize_impl(ctx, *this);
-      }
+    for (size_t i = 0; i < _to_materialize.size(); i++) {
+      auto *att = _to_materialize[i];
+      att->pending_materialize = false;
+      modified |= att->materialize_impl(ctx, *this);
     }
+    _to_materialize.clear();
     return modified;
   }
 
@@ -222,21 +242,21 @@ class AttributerManager {
     ZoneScopedNC("Attributer::run", COLOR_ANALY);
     Worklist &worklist = _worklist;
     worklist.clear();
-    for (auto &[_, loc] : _attribs) {
-      for (auto &[_, att] : loc) {
-        if (att->force_update) {
-          if (!att->queued) {
-            worklist.push_back(att);
-            att->queued = true;
-          }
-          att->force_update = false;
+    for (auto *att : _forced) {
+      if (att->force_update) {
+        if (!att->queued) {
+          worklist.push_back(att);
+          att->queued = true;
         }
+        att->force_update = false;
       }
     }
+    _forced.clear();
     while (!worklist.empty()) {
       auto *curr_ptr = worklist.front();
       worklist.pop_front();
       curr_ptr->queued = false;
+      mark_for_materialize(curr_ptr);
       _currently_updating = curr_ptr;
       ASSERT(curr_ptr->associatedValue.is_valid(true));
       if (curr_ptr->update_impl(*this, worklist) ==
