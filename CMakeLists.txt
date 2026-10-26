@@ -163,6 +163,7 @@ add_library (foptim OBJECT
                 ./src/optim/analysis/attributer/KnownBits.cpp
                 ./src/optim/func_passes/mem2reg.cpp
                 ./src/optim/func_passes/loop_unroll.cpp
+                ./src/optim/func_passes/loop_hoist.cpp
                 ./src/optim/func_passes/loop_unswitch.cpp
                 ./src/optim/func_passes/loop_rotate.cpp
                 ./src/optim/func_passes/vectorizer/vectorizer.cpp

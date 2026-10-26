@@ -169,6 +169,8 @@ std::optional<PassConfig *> setup_pass(std::string_view name, toml::table &cnf,
       pass = new FunctionDedupDiffConf{};
     } else if (name == "LoopUnswitch") {
       pass = new LoopUnswitchConf{};
+    } else if (name == "LoopHoist") {
+      pass = new LoopHoistConf{};
     } else if (name == "LoopUnroll") {
       pass = new LoopUnrollConf{};
     } else if (name == "PrintAnalysis") {

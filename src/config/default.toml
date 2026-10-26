@@ -54,19 +54,19 @@ passes = [
         "DCE", "LLVMIntrinsicLowering", "IntrinSimplify", "SORA", "Mem2Reg",
         "DCE", "IntrinSimplify", "InstSimplify", "DCE", "SimplifyCFG", "LVN", "DSE", "DCE",
         "FuncPropAnnotator", "GlobalPromotion", "ArgPromotion", "GDCE", "EarlySheduler",
-        "DCE", "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
+        "DCE", "CmpKnownValProp", "ConstraintProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopHoist", "LoopRotate",
         "SimplifyCFG", "DCE", "IntrinConv",
 ]
 
 [pipeline.fir.default_release_middle]
 passes = [
-      "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopRotate",
+      "DCE", "CmpKnownValProp", "SimplifyCFG", "TailRecElim", "LICM", "LoopHoist", "LoopRotate",
       "LoopSimplify", "SimplifyCFG", "DCE", "LVN", "SCCP", "IntrinSimplify", "InstSimplify",
       "DCE", "SimplifyCFG", "StackKnownBits", "SORA", "Mem2Reg",
       "SimplifyCFG", "DCE", "LVN", "InstSimplify", "ConstLoopEval", "LoopSimplify",
       "InstSimplify", "SimplifyCFG", "FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline",
       "ArgPromotion", "GDCE", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "CmpKnownValProp", "ConstraintProp",
-      "InstSimplify", "SimplifyCFG", "LICM", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer",
+      "InstSimplify", "SimplifyCFG", "LICM", "LoopHoist", "DCE", "LoopSimplify", "LoopUnswitch", "IntrinConv", "DCE", "SLPVectorizer", "LoopUnroll", "SimplifyCFG", "DCE", "SLPVectorizer",
       "LVN", "SCCP", "IntrinSimplify", "InstSimplify", "ConstLoopEval", "InstSimplify",
       "CmpKnownValProp", "SimplifyCFG", "DCE","FuncPropAnnotator", "IPCP", "GlobalPromotion", "Inline",
       "ArgPromotion", "FunctionDedupSame", "GDCE", "FuncPropAnnotator", "SimplifyCFG", "InstSimplify",
@@ -96,7 +96,7 @@ passes = [
 
 [pipeline.fir.default_release_cleanup_round]
 passes = [
-  "InstSimplify", "LVN", "InstSimplify", "SCCP", "SimplifyCFG", "DCE", "LICM", "SORA",
+  "InstSimplify", "LVN", "InstSimplify", "SCCP", "SimplifyCFG", "DCE", "LICM", "LoopHoist", "SORA",
   "Mem2Reg", "InstSimplify", "LVN", "SCCP", "SimplifyCFG", "DCE", "DSE",
   "LoopSimplify", "InstSimplify", "SimplifyCFG", "DCE",
 ]
@@ -147,6 +147,7 @@ max_live_ins = 8
 
 #func
 [pass.fir.LoopUnswitch]
+[pass.fir.LoopHoist]
 [pass.fir.LoopUnroll]
 maxUnroll = 32
 maxInstr = 32

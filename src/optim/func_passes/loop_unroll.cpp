@@ -19,6 +19,12 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
     }
   }
   ASSERT(head_id >= 0);
+  i64 tail_id = head_id;
+  for (u64 i = 0; i < loop.body_nodes.size(); i++) {
+    if (loop.body_nodes[i] == loop.tails[0]) {
+      tail_id = static_cast<i64>(i);
+    }
+  }
   ASSERT(peel_factor <= 16);
   TVec<fir::BasicBlock> new_bbs[16];
   fir::ContextData::V2VMap subs;
@@ -51,9 +57,10 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
       func.append_bbr(bb);
     }
     if (known_to_iterate_more) {
-      auto old_term = first_bb->get_terminator();
-      auto bb = fir::Builder(first_bb);
-      bb.at_end(first_bb);
+      auto tail_bb = new_bbs[u][tail_id];
+      auto old_term = tail_bb->get_terminator();
+      auto bb = fir::Builder(tail_bb);
+      bb.at_end(tail_bb);
       auto new_branch = bb.build_branch(sec_bb);
       auto id = old_term.get_bb_id(sec_bb);
       for (auto arg : old_term->bbs[id].args) {
@@ -80,9 +87,10 @@ void peel_it(CFG &cfg, LoopInfo &loop, u8 peel_factor, fir::Context &ctx,
     }
 
     if (known_to_iterate_more) {
-      auto old_term = first_bb->get_terminator();
-      auto bb = fir::Builder(first_bb);
-      bb.at_end(first_bb);
+      auto tail_bb = new_bbs[peel_factor - 1][tail_id];
+      auto old_term = tail_bb->get_terminator();
+      auto bb = fir::Builder(tail_bb);
+      bb.at_end(tail_bb);
       auto new_branch = bb.build_branch(sec_bb);
       auto id = old_term.get_bb_id(sec_bb);
       for (auto arg : old_term->bbs[id].args) {
@@ -122,6 +130,13 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
     }
   }
   ASSERT(head_id >= 0);
+  ASSERT(loop.tails.size() == 1);
+  i64 tail_id = head_id;
+  for (u64 i = 0; i < loop.body_nodes.size(); i++) {
+    if (loop.body_nodes[i] == loop.tails[0]) {
+      tail_id = static_cast<i64>(i);
+    }
+  }
 
   ASSERT(unroll_factor <= 32);
   TVec<fir::BasicBlock> new_bbs[32];
@@ -156,9 +171,10 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
       }
       func.append_bbr(bb);
     }
-    auto old_term = first_bb->get_terminator();
-    auto bb = fir::Builder(first_bb);
-    bb.at_end(first_bb);
+    auto tail_bb = new_bbs[u][tail_id];
+    auto old_term = tail_bb->get_terminator();
+    auto bb = fir::Builder(tail_bb);
+    bb.at_end(tail_bb);
     auto new_branch = bb.build_branch(sec_bb);
     auto id = old_term.get_bb_id(sec_bb);
     for (auto arg : old_term->bbs[id].args) {
@@ -182,9 +198,10 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
       func.append_bbr(bb);
     }
 
-    auto old_term = first_bb->get_terminator();
-    auto bb = fir::Builder(first_bb);
-    bb.at_end(first_bb);
+    auto tail_bb = new_bbs[unroll_factor - 1][tail_id];
+    auto old_term = tail_bb->get_terminator();
+    auto bb = fir::Builder(tail_bb);
+    bb.at_end(tail_bb);
     auto new_branch = bb.build_branch(sec_bb);
     auto id = old_term.get_bb_id(sec_bb);
     for (auto arg : old_term->bbs[id].args) {
@@ -203,7 +220,7 @@ void unroll_it(CFG &cfg, LoopInfo &loop, u8 unroll_factor, fir::Context &ctx,
     }
 
     if (is_full_unroll) {
-      auto orig_bb = cfg.bbrs[loop.body_nodes[head_id]].bb;
+      auto orig_bb = cfg.bbrs[loop.body_nodes[tail_id]].bb;
       auto term = orig_bb->get_terminator();
       ASSERT(term->is(fir::InstrType::CondBranchInstr));
 
@@ -451,12 +468,15 @@ PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
   while (restart) {
     restart = false;
     for (auto &loop : linfo.info) {
-      if (std::ranges::contains(done, cfg.bbrs[loop.head].bb)) {
+      // the latch stays the same block when a loop is unrolled, the header
+      // does not
+      if (loop.tails.size() == 1 &&
+          std::ranges::contains(done, cfg.bbrs[loop.tails[0]].bb)) {
         continue;
       }
       // ensure loop is do while loop
       ScalarEvo evo{cfg, loop};
-      if (!tc.update(cfg, dom, loop, evo)) {
+      if (!tc.update(cfg, dom, loop, evo, true)) {
         if (peel_condition(cfg, loop, ctx, func, evo)) {
           return PreservedAnalysis::none();
         }
@@ -469,13 +489,14 @@ PreservedAnalysis LoopUnroll::apply(fir::Context &ctx, fir::Function &func) {
                  .loc = {cfg.bbrs[loop.head].bb}});
         continue;
       }
-      if (loop.tails.size() != 1 || loop.head != loop.tails[0]) {
-        failure({.reason = "Need a simple do while loop",
+      if (loop.tails.size() != 1 || loop.leaving_nodes.size() != 1 ||
+          loop.leaving_nodes[0] != loop.tails[0]) {
+        failure({.reason = "Need a do while loop",
                  .loc = {cfg.bbrs[loop.head].bb}});
         continue;
       }
 
-      auto head_bb = cfg.bbrs[loop.head].bb;
+      auto head_bb = cfg.bbrs[loop.tails[0]].bb;
       if (apply_it(cfg, loop, ctx, func, tc)) {
         utils::StatCollector::get().addi(1, "loopUnrolled",
                                          utils::StatCollector::StatFOptim);

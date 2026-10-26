@@ -20,6 +20,7 @@
 #include "optim/func_passes/llvm_intrin_lowering.hpp"
 #include "optim/func_passes/loop_rotate.hpp"
 #include "optim/func_passes/loop_simplify.hpp"
+#include "optim/func_passes/loop_hoist.hpp"
 #include "optim/func_passes/loop_unroll.hpp"
 #include "optim/func_passes/loop_unswitch.hpp"
 #include "optim/func_passes/lvn.hpp"
@@ -401,6 +402,12 @@ struct LegalizeVecsConf : public FunctionPassConf<LegalizeVecsConf> {
 struct LoopUnswitchConf : public FunctionPassConf<LoopUnswitchConf> {
   static constexpr const char *BaseName = "LoopUnswitch";
   using Pass = optim::LoopUnswitch;
+  bool pass_parse(toml::table & /*unused*/) { return true; }
+  void construct_function_pass(Pass & /*unused*/) {};
+};
+struct LoopHoistConf : public FunctionPassConf<LoopHoistConf> {
+  static constexpr const char *BaseName = "LoopHoist";
+  using Pass = optim::LoopHoist;
   bool pass_parse(toml::table & /*unused*/) { return true; }
   void construct_function_pass(Pass & /*unused*/) {};
 };
