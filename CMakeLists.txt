@@ -306,7 +306,6 @@ add_custom_target(check-unit
     USES_TERMINAL
 )
 add_custom_target(check-all
-    COMMAND foptim_unit_test
     COMMAND lit ${ALL_LIT_DIRS} -v
     DEPENDS foptim_unit_test foptim_main
     COMMENT "Running all registered test suites..."

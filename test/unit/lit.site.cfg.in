@@ -1,0 +1,11 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+import lit.formats
+
+config.name = "unit"
+config.test_format = lit.formats.GoogleTest(".", "foptim_unit_test")
+config.suffixes = []
+
+# the test binary is linked into the suite directory, which is its own source root
+config.test_source_root = "@CMAKE_CURRENT_BINARY_DIR@/unit"
+config.test_exec_root = "@CMAKE_CURRENT_BINARY_DIR@/unit"
