@@ -14,7 +14,8 @@ import re
 import sys
 from traceback import print_exc
 
-# from UpdateTestChecks import common
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from UpdateTestChecks import common
 
 # Regex to capture "func <name> (<args>)\n<body>"
 # Stops when it hits the next "func ", "DEFAULT", or "+" boundary.

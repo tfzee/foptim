@@ -74,6 +74,18 @@ u32 Legalizer::move_fp_const_to_reg(MBB &bb, u32 indx, u8 arg_id, Type ty) {
     return indx + 1;
   }
 
+  // all bits set, a 32 bit constant keeps its bits in the low half
+  const u64 imm_bits = std::bit_cast<u64>(old_arg.immf);
+  if (imm_bits == (int_version == Type::Int32
+                       ? std::numeric_limits<u32>::max()
+                       : std::numeric_limits<u64>::max())) {
+    bb.instrs[indx].args[arg_id] = new_float_reg;
+    bb.instrs.insert(bb.instrs.begin() + indx,
+                     MInstr{X86Subtype::vpcmpeq, new_float_reg, new_float_reg,
+                            new_float_reg});
+    return indx + 1;
+  }
+
   ASSERT(int_version != Type::INVALID);
   auto new_int_reg = get_reg(int_version);
   // Update the type since it is a constant and its type might be bigger

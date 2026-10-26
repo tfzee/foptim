@@ -2,6 +2,8 @@
 #include <fmt/base.h>
 #include <fmt/core.h>
 
+#include <limits>
+
 #include "config/compiler_config.hpp"
 #include "ir/builder.hpp"
 #include "ir/constant_value_ref.hpp"
@@ -15,6 +17,9 @@
 namespace foptim::optim {
 
 class LegalizeVecs final : public FunctionPass {
+  // one global per distinct scalar float constant of a function
+  using FloatPool = TMap<std::pair<u32, u64>, fir::Global>;
+
   // loads the constant from a new global right before instr
   fir::ValueR load_constant_global(fir::Context &ctx, fir::Instr instr,
                                    fir::ConstantValueR constant) {
@@ -36,6 +41,43 @@ class LegalizeVecs final : public FunctionPass {
     return bb.build_load(constant->type,
                          fir::ValueR{ctx->get_constant_value(global)}, false,
                          false);
+  }
+
+  // scalar float constants are read from memory, the alternative is a movabs
+  // and a move into the vector register for every use
+  bool make_scalar_float_global(fir::Context &ctx, fir::Instr instr,
+                                u32 arg_indx, FloatPool &pool) {
+    auto constant = instr->args[arg_indx].as_constant();
+    const u32 bits = constant->type->get_bitwidth();
+    const u64 pattern = bits == 32
+                            ? std::bit_cast<u32>(constant->as_f32())
+                            : std::bit_cast<u64>(constant->as_f64());
+    // zero and all ones are made in the register (vxor, vpcmpeq)
+    if (pattern == 0 ||
+        pattern == (bits == 32 ? std::numeric_limits<u32>::max()
+                               : std::numeric_limits<u64>::max())) {
+      return false;
+    }
+    auto &global = pool[{bits, pattern}];
+    if (global == nullptr) {
+      const auto size = bits / 8;
+      auto func = instr->get_parent()->get_parent();
+      IRString name;
+      fmt::format_to(std::back_inserter(name), "const_legalizeVec_{}_{}",
+                     func->name.c_str(), func->n_vec_constants++);
+      global = ctx->insert_global(std::move(name), size);
+      global->is_constant = true;
+      global->linkage = fir::Linkage::Internal;
+      global->init_value = foptim::utils::IRAlloc<uint8_t>{}.allocate(size);
+      memset(global->init_value, 0, size);
+      convert_constant_init(global->init_value, constant, global);
+    }
+    fir::Builder bb{instr};
+    auto load = bb.build_load(constant->type,
+                              fir::ValueR{ctx->get_constant_value(global)},
+                              false, false);
+    instr.replace_arg(arg_indx, load);
+    return true;
   }
 
   void make_constant_global(fir::Context &ctx, fir::Instr instr, u32 arg_indx) {
@@ -65,9 +107,20 @@ class LegalizeVecs final : public FunctionPass {
   }
 
   bool legalize(fir::Context &ctx, fir::Instr instr,
-                TVec<fir::Instr> &worklist) {
+                TVec<fir::Instr> &worklist, FloatPool &pool) {
     // constant vector operands get moved into globals, whatever else happens
     bool changed = false;
+    if ((instr->is(fir::BinaryInstrSubType::FloatAdd) ||
+         instr->is(fir::BinaryInstrSubType::FloatSub) ||
+         instr->is(fir::BinaryInstrSubType::FloatMul) ||
+         instr->is(fir::BinaryInstrSubType::FloatDiv)) &&
+        !instr->result_type()->is_vec()) {
+      for (u32 arg_indx = 0; arg_indx < 2; arg_indx++) {
+        if (instr->args[arg_indx].is_constant_float()) {
+          changed |= make_scalar_float_global(ctx, instr, arg_indx, pool);
+        }
+      }
+    }
     for (size_t arg_indx = 0; arg_indx < instr->args.size(); arg_indx++) {
       auto arg = instr->args[arg_indx];
       // the matcher reads the mask of a shuffle as an immediate
@@ -206,6 +259,7 @@ class LegalizeVecs final : public FunctionPass {
  public:
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     TVec<fir::Instr> worklist;
+    FloatPool pool;
     // TODO(PERF): do prefiltering
     for (auto bb : func.basic_blocks) {
       for (auto instruction : bb->instructions) {
@@ -217,7 +271,7 @@ class LegalizeVecs final : public FunctionPass {
     while (!worklist.empty()) {
       auto curr = worklist.back();
       worklist.pop_back();
-      modified |= legalize(ctx, curr, worklist);
+      modified |= legalize(ctx, curr, worklist, pool);
     }
     return modified ? PreservedAnalysis::none() : PreservedAnalysis::all();
   }

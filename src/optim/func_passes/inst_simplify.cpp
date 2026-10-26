@@ -1531,9 +1531,9 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
       auto arg_argc = argi->args[1].as_constant()->as_vec();
       auto expected_spacing = instr->result_type()->as_vec().bitwidth;
       bool spacing_matches = true;
-      u32 base_offset = 0;
+      i64 base_offset = 0;
       if (arg_argc.members[0]->is_int()) {
-        base_offset = arg_argc.members[0]->as_int();
+        base_offset = static_cast<i64>(arg_argc.members[0]->as_int());
         for (size_t i = 1; i < arg_argc.members.size(); i++) {
           auto v1 = arg_argc.members[i - 1];
           auto v2 = arg_argc.members[i];

@@ -6,7 +6,7 @@ define void @f(ptr noalias %a, ptr noalias %o) {
 ; CHECK-LABEL: func f<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{noalias; }: ptr, %1{noalias; }: ptr):
-; CHECK-NEXT:    %2: 4@i32 = Load(G(const_legalizeVec_f_1)){} NUses:1
+; CHECK-NEXT:    %2: 4@i32 = Load(G(const_legalizeVec_f_2)){} NUses:1
 ; CHECK-NEXT:    %3: 4@f64 = INTRIN:Gather(%0, %2){} NUses:1
 ; CHECK-NEXT:    %4: 4@f64 = V.Broadcast(3FF0000000000000:f64){} NUses:1
 ; CHECK-NEXT:    %5: 4@f64 = FloatAdd(%3, %4){} NUses:1
