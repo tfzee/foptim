@@ -7,6 +7,7 @@
 #include "ir/access_meta.hpp"
 #include "ir/attributable.hpp"
 #include "ir/helpers.hpp"
+#include "ir/libfunc.hpp"
 #include "types_ref.hpp"
 #include "utils/bitset.hpp"
 #include "utils/string.hpp"
@@ -46,6 +47,8 @@ class Function : public Attributable, public LockedUsed {
     u8 mem_write_only : 1 = 0;
     u8 mem_read_only : 1 = 0;
     u8 mem_read_none : 1 = 0;
+    // set by the loader for declarations that are a known C library function
+    LibFunc libfunc = LibFunc::None;
 
     // mark as potentially be able to be whole function vectorized (but verify
     // before applying since it can easliy be invalidated)

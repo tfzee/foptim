@@ -346,6 +346,42 @@ bool simplify_switch_branch(fir::Instr instr, fir::BasicBlock bb,
       return true;
     }
   }
+  // switch on a select of two constants is a conditional branch
+  if (!instr->args.empty() && instr->bbs.size() == instr->args.size() &&
+      instr->args.back().is_instr() &&
+      instr->args.back().as_instr()->is(fir::InstrType::SelectInstr)) {
+    auto sel = instr->args.back().as_instr();
+    auto target_of = [&](fir::ValueR v) -> fir::BBRefWithArgs * {
+      if (!v.is_constant() || !v.as_constant()->is_int()) {
+        return nullptr;
+      }
+      for (size_t arg_id = 0; arg_id + 1 < instr->args.size(); arg_id++) {
+        if (!instr->args[arg_id].is_constant()) {
+          return nullptr;
+        }
+        if (instr->args[arg_id].as_constant()->eql(
+                *v.as_constant().operator->())) {
+          return &instr->bbs[arg_id];
+        }
+      }
+      return &instr->bbs.back();
+    };
+    auto *t_true = target_of(sel->args[1]);
+    auto *t_false = target_of(sel->args[2]);
+    if (t_true != nullptr && t_false != nullptr) {
+      fir::Builder b(bb);
+      b.at_end(bb);
+      auto br = b.build_cond_branch(sel->args[0], t_true->bb, t_false->bb);
+      for (auto arg : t_true->args) {
+        br.add_bb_arg(0, arg);
+      }
+      for (auto arg : t_false->args) {
+        br.add_bb_arg(1, arg);
+      }
+      instr.remove_from_parent();
+      return true;
+    }
+  }
   bool changed = false;
 
   // if theres any bb+arg that is the same as default forward it to it
@@ -1038,6 +1074,46 @@ bool simplify_store(fir::Instr instr) {
   return false;
 }
 
+static bool fold_libfunc_call(fir::Instr instr, fir::LibFunc lf,
+                              fir::Context &ctx, WorkList &worklist) {
+  const bool binary = lf == fir::LibFunc::Pow;
+  if (instr->args.size() != (binary ? 3U : 2U) || !instr->has_one_result()) {
+    return false;
+  }
+  for (size_t i = 1; i < instr->args.size(); i++) {
+    if (!instr->args[i].is_constant() ||
+        !instr->args[i].as_constant()->is_float() ||
+        instr->args[i].get_type() != instr.result_type()) {
+      return false;
+    }
+  }
+  const auto ty = instr.result_type();
+  fir::ConstantValueR res;
+  if (ty->is_f64()) {
+    const auto r = fir::fold_libfunc<f64>(
+        lf, instr->args[1].as_constant()->as_f64(),
+        binary ? instr->args[2].as_constant()->as_f64() : 0.0);
+    if (!r) {
+      return false;
+    }
+    res = ctx->get_constant_value(*r, ty);
+  } else if (ty->is_f32()) {
+    const auto r = fir::fold_libfunc<f32>(
+        lf, instr->args[1].as_constant()->as_f32(),
+        binary ? instr->args[2].as_constant()->as_f32() : 0.0F);
+    if (!r) {
+      return false;
+    }
+    res = ctx->get_constant_value(*r, ty);
+  } else {
+    return false;
+  }
+  push_all_uses(worklist, instr);
+  instr->replace_all_uses(fir::ValueR{res});
+  instr.destroy();
+  return true;
+}
+
 bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
@@ -1051,6 +1127,11 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
     if (instr->get_n_uses() == 0 &&
         (funci->attribs.mem_read_none || funci->attribs.mem_read_only)) {
       instr.destroy();
+      return true;
+    }
+
+    if (funci->attribs.libfunc != fir::LibFunc::None &&
+        fold_libfunc_call(instr, funci->attribs.libfunc, ctx, worklist)) {
       return true;
     }
 

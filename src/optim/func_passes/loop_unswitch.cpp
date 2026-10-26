@@ -36,18 +36,48 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       continue;
     }
 
-    // figure out if the target cond is evaluated outside the loop -> loop
-    // invariante
-    u32 cond_bb = 0;
-    if (target_cond.is_instr()) {
-      cond_bb = cfg.get_bb_id(target_cond.as_instr()->get_parent());
-    } else if (target_cond.is_bb_arg()) {
-      cond_bb = cfg.get_bb_id(target_cond.as_bb_arg()->get_parent());
-    } else {
-      UNREACH();
-    }
-    if (std::ranges::find(info.body_nodes, cond_bb) != info.body_nodes.end()) {
-      continue;
+    auto is_invariant = [&](fir::ValueR v) {
+      u32 def_bb = 0;
+      if (v.is_instr()) {
+        def_bb = cfg.get_bb_id(v.as_instr()->get_parent());
+      } else if (v.is_bb_arg()) {
+        def_bb = cfg.get_bb_id(v.as_bb_arg()->get_parent());
+      } else {
+        return false;
+      }
+      return std::ranges::find(info.body_nodes, def_bb) ==
+             info.body_nodes.end();
+    };
+    // and / or with one invariant operand is unswitched on that operand
+    enum class CondKind { Plain, And, Or };
+    CondKind cond_kind = CondKind::Plain;
+    fir::ValueR rest_cond;
+    if (!is_invariant(target_cond)) {
+      if (!target_cond.is_instr() ||
+          !target_cond.as_instr()->is(fir::InstrType::BinaryInstr)) {
+        continue;
+      }
+      auto bin = target_cond.as_instr();
+      if (bin->is(fir::BinaryInstrSubType::And)) {
+        cond_kind = CondKind::And;
+      } else if (bin->is(fir::BinaryInstrSubType::Or)) {
+        cond_kind = CondKind::Or;
+      } else {
+        continue;
+      }
+      if (!bin->result_type()->is_int() ||
+          bin->result_type()->as_int() != 1) {
+        continue;
+      }
+      if (is_invariant(bin->args[0])) {
+        target_cond = bin->args[0];
+        rest_cond = bin->args[1];
+      } else if (is_invariant(bin->args[1])) {
+        target_cond = bin->args[1];
+        rest_cond = bin->args[0];
+      } else {
+        continue;
+      }
     }
 
     // split the loop into A CondIf CondElse C
@@ -136,8 +166,15 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
         saved_instr += cfg.bbrs[bb].bb->n_instrs();
       }
 
+      // small loops are cheap to copy
+      constexpr u32 MaxSmallLoopInstrs = 48;
+      u32 loop_instrs = 0;
+      for (auto n : info.body_nodes) {
+        loop_instrs += cfg.bbrs[n].bb->n_instrs();
+      }
       // TODO: do a better heuristic good enough for now
-      if (duplicated_instr * 2 > saved_instr) {
+      if (loop_instrs > MaxSmallLoopInstrs &&
+          duplicated_instr * 2 > saved_instr) {
         continue;
       }
     }
@@ -247,34 +284,41 @@ bool LoopUnswitch::apply(fir::Context &ctx, CFG &cfg, LoopInfo &info,
       }
     }
 
-    // doing the true if target
-    {
-      buh.at_end(target_bb);
-      auto branch = buh.build_branch(target_term->bbs[0].bb);
-      for (auto arg : target_term->bbs[0].args) {
+    // the original runs with the condition true, the copy with it false
+    auto replace_with_branch = [&](fir::BasicBlock bb, u32 target) {
+      auto term = bb->get_terminator();
+      buh.at_end(bb);
+      auto branch = buh.build_branch(term->bbs[target].bb);
+      for (auto arg : term->bbs[target].args) {
         branch.add_bb_arg(0, arg);
       }
-      target_term.destroy();
+      term.destroy();
+    };
+    u32 copied_target_bb_id = 0;
+    for (size_t i = 0; i < info.body_nodes.size(); i++) {
+      if (cfg.bbrs[info.body_nodes[i]].bb == target_bb) {
+        copied_target_bb_id = i;
+        break;
+      }
     }
-    // doing the copied false target
-    {
-      // we however need to find out out of our copied bbs which one is our
-      // target bb
-      u32 copied_target_bb_id = 0;
-      for (size_t i = 0; i < info.body_nodes.size(); i++) {
-        if (cfg.bbrs[info.body_nodes[i]].bb == target_bb) {
-          copied_target_bb_id = i;
-          break;
-        }
-      }
-      auto copied_target_bb = copied_loop[copied_target_bb_id];
-      buh.at_end(copied_target_bb);
-      auto copied_term = copied_target_bb->get_terminator();
-      auto branch = buh.build_branch(copied_term->bbs[1].bb);
-      for (auto arg : copied_term->bbs[1].args) {
-        branch.add_bb_arg(0, arg);
-      }
-      copied_term.destroy();
+    auto copied_target_bb = copied_loop[copied_target_bb_id];
+    auto copied_rest = [&]() {
+      auto it = help.map.find(rest_cond);
+      return it == help.map.end() ? rest_cond : it->second;
+    };
+    switch (cond_kind) {
+      case CondKind::Plain:
+        replace_with_branch(target_bb, 0);
+        replace_with_branch(copied_target_bb, 1);
+        break;
+      case CondKind::And:
+        target_term.replace_arg(0, rest_cond);
+        replace_with_branch(copied_target_bb, 1);
+        break;
+      case CondKind::Or:
+        replace_with_branch(target_bb, 0);
+        copied_target_bb->get_terminator().replace_arg(0, copied_rest());
+        break;
     }
 
     // merge the used after values at the exit targets

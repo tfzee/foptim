@@ -30,6 +30,7 @@
 #include "ir/global.hpp"
 #include "ir/helpers.hpp"
 #include "ir/instruction_data.hpp"
+#include "ir/libfunc.hpp"
 #include "ir/types.hpp"
 #include "ir/types_ref.hpp"
 #include "ir/value.hpp"
@@ -231,6 +232,66 @@ constexpr foptim::fir::Ordering convert_ordering(
   UNREACH();
 }
 
+// long double is f64 in FIR, so its libm calls must use the double versions
+static const char *double_libm_name(const llvm::Function &func) {
+  if (!func.empty()) {
+    return nullptr;
+  }
+  const auto *fty = func.getFunctionType();
+  bool has_f80 = fty->getReturnType()->isX86_FP80Ty();
+  for (const auto *param : fty->params()) {
+    has_f80 |= param->isX86_FP80Ty();
+  }
+  if (!has_f80) {
+    return nullptr;
+  }
+  const auto name = func.getName();
+  const auto info = foptim::fir::lookup_libfunc(name.str());
+  if (!info || name.size() != info->name.size() + 1 || !name.ends_with("l")) {
+    return nullptr;
+  }
+  return info->name.data();
+}
+
+// name and shape of a C library function, if cstdlib is assumed or builtin
+static foptim::fir::LibFunc detect_libfunc(const llvm::Function &func,
+                                           bool assume_cstdlib) {
+  if (!func.empty() || func.hasFnAttribute(llvm::Attribute::NoBuiltin)) {
+    return foptim::fir::LibFunc::None;
+  }
+  const auto info = foptim::fir::lookup_libfunc(func.getName().str());
+  if (!info || func.arg_size() != info->n_args) {
+    return foptim::fir::LibFunc::None;
+  }
+  const auto *fty = func.getFunctionType();
+  const auto *ret = fty->getReturnType();
+  if (!ret->isFloatingPointTy()) {
+    return foptim::fir::LibFunc::None;
+  }
+  for (const auto *param : fty->params()) {
+    if (param != ret) {
+      return foptim::fir::LibFunc::None;
+    }
+  }
+  bool builtin = assume_cstdlib;
+  for (const auto *user : func.users()) {
+    if (const auto *call = llvm::dyn_cast<llvm::CallBase>(user)) {
+      if (call->isNoBuiltin()) {
+        return foptim::fir::LibFunc::None;
+      }
+      builtin |= call->hasFnAttr(llvm::Attribute::Builtin);
+    }
+  }
+  return builtin ? info->func : foptim::fir::LibFunc::None;
+}
+
+static std::string fir_function_name(const llvm::Function &func) {
+  if (const char *mapped = double_libm_name(func)) {
+    return mapped;
+  }
+  return func.getName().str();
+}
+
 inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
                                              foptim::fir::Context &fctx,
                                              foptim::fir::FunctionR ffunc,
@@ -288,8 +349,8 @@ inline foptim::fir::ValueR convert_instr_arg(const llvm::Value *value,
     }
   }
   if (nullptr != llvm::dyn_cast_or_null<llvm::Function>(value)) {
-    return foptim::fir::ValueR(fctx->get_constant_value(
-        fctx->get_function(value->getName().str().c_str())));
+    return foptim::fir::ValueR(fctx->get_constant_value(fctx->get_function(
+        fir_function_name(*llvm::cast<llvm::Function>(value)).c_str())));
   }
   if (const auto *vec_const =
           llvm::dyn_cast_or_null<llvm::ConstantDataVector>(value)) {
@@ -1731,7 +1792,7 @@ bool convert_decl(llvm::Function &func, foptim::fir::Context &fctx,
                  "llvm.experimental.noalias.scope.decl")) {
     return false;
   }
-  foptim::IRString func_name = func.getName().str().c_str();
+  foptim::IRString func_name = fir_function_name(func).c_str();
   if (!fctx->has_function(func_name.c_str())) {
     fctx.data->storage.functions.insert(
         func_name, std::make_unique<foptim::fir::Function>(
@@ -1787,7 +1848,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
     }
   }
 
-  const auto foff_func = fctx->get_function(func.getName().str().c_str());
+  const auto foff_func = fctx->get_function(fir_function_name(func).c_str());
   if (func.isVarArg()) {
     foff_func->attribs.variadic = true;
   }
@@ -1865,6 +1926,12 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   foff_func->attribs.cold =
       func.hasFnAttribute(llvm::Attribute::AttrKind::Cold);
 
+  if (const auto lf =
+          detect_libfunc(func, fctx.config->optim.assume_cstdlib_beheaviour);
+      lf != foptim::fir::LibFunc::None) {
+    foff_func->attribs.libfunc = lf;
+  }
+
   if (func.doesNotAccessMemory()) {
     foff_func->attribs.mem_read_none = true;
   } else if (func.onlyReadsMemory()) {
@@ -1882,8 +1949,7 @@ void convert(llvm::Function &func, foptim::fir::Context &fctx,
   //   return convert_decl(func, fctx);
   // }
 
-  auto name = func.getName();
-  auto ffunc = fctx->get_function(name.str().c_str());
+  auto ffunc = fctx->get_function(fir_function_name(func).c_str());
 
   // func.getMemoryEffects()
   // func.isConvergent()
@@ -2182,7 +2248,7 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
         } else if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(
                        gep->getPointerOperand())) {
           reloc_ref = fctx->get_constant_value(
-              fctx->get_function(func->getName().str().c_str()));
+              fctx->get_function(fir_function_name(*func).c_str()));
         } else {
           TODO("impl");
         }
@@ -2217,7 +2283,7 @@ void convert_constant_init(const uint8_t *output, const llvm::Constant *val,
           } else if (const auto *func = llvm::dyn_cast_or_null<llvm::Function>(
                          gep->getPointerOperand())) {
             reloc_ref = fctx->get_constant_value(
-                fctx->get_function(func->getName().str().c_str()));
+                fctx->get_function(fir_function_name(*func).c_str()));
           } else {
             TODO("impl");
           }

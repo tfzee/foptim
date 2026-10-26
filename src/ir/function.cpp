@@ -156,6 +156,9 @@ fmt::appender fmt::formatter<foptim::fir::Function>::format(
   if (func.attribs.mem_read_only) {
     app = fmt::format_to(app, "MEM(READ), ");
   }
+  if (func.attribs.libfunc != foptim::fir::LibFunc::None) {
+    app = fmt::format_to(app, "LIBFUNC, ");
+  }
   if (func.attribs.maybe_can_wfvec) {
     app = fmt::format_to(app, "WFVEC, ");
   }
