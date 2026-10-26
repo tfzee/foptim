@@ -95,7 +95,7 @@ class AliasSetTable {
   [[nodiscard]] std::optional<SetId> find_union(const FVec<SetId> &parts,
                                                 u64 hash) const;
   [[nodiscard]] FVec<SetId> leaves_of(SetId s) const;
-  SetId widen(const FVec<SetId> &parts) const;
+  [[nodiscard]] SetId widen(const FVec<SetId> &parts) const;
   SetId add_node(Node n);
 
   const AliasSetTable *parent = nullptr;

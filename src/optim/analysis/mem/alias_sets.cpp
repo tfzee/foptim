@@ -29,7 +29,7 @@ const AliasSetTable &AliasSetTable::roots() {
   return table;
 }
 
-AliasSetTable::AliasSetTable(RootsTag) {
+AliasSetTable::AliasSetTable(RootsTag /*unused*/) {
   create(std::span<const SetId>{});  // Unknown
   const SetId top[] = {Unknown};
   create(top);  // Foreign

@@ -249,7 +249,10 @@ class TripCountAnalysis {
   bool cmp_unsigned = false;
 
   TripCountAnalysis() = default;
-  bool update(CFG &cfg, Dominators &dom, LoopInfo &info, ScalarEvo &evo);
+  // loops around other loops are only accepted if the exit test is not part of
+  // an inner loop and allow_inner_loops is set
+  bool update(CFG &cfg, Dominators &dom, LoopInfo &info, ScalarEvo &evo,
+              bool allow_inner_loops = false);
 };
 
 // Values of the loop's values when the loop is left through the trip count

@@ -1939,7 +1939,7 @@ std::optional<i128> poly_exit_iteration(const ScalarEvo &evo, ICmpSub pred,
 }  // namespace
 
 bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
-                               ScalarEvo &evo) {
+                               ScalarEvo &evo, bool allow_inner_loops) {
   exit_iter = InvalidSCEV;
   const_exit_iter = std::nullopt;
   cmp_rec = InvalidSCEV;
@@ -1964,7 +1964,26 @@ bool TripCountAnalysis::update(CFG &cfg, Dominators &dom, LoopInfo &linfo,
     for (auto succ : cfg.bbrs[node].succ) {
       if (succ != linfo.head && dom.dominates(succ, node) &&
           std::ranges::find(linfo.body_nodes, succ) != linfo.body_nodes.end()) {
-        return false;
+        if (!allow_inner_loops) {
+          return false;
+        }
+        // the nodes of the inner loop are the ones that reach the back edge
+        // without passing its header
+        TVec<u32> work{node};
+        TVec<u32> seen{succ, node};
+        while (!work.empty()) {
+          const u32 n = work.back();
+          work.pop_back();
+          for (auto p : cfg.bbrs[n].pred) {
+            if (std::ranges::find(seen, p) == seen.end()) {
+              seen.push_back(p);
+              work.push_back(p);
+            }
+          }
+        }
+        if (std::ranges::find(seen, leaving) != seen.end()) {
+          return false;
+        }
       }
     }
   }
