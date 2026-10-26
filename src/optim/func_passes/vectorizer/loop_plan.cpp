@@ -71,8 +71,7 @@ bool reduction_legal(const PlanNode &n, u32 bits, const Features &features) {
     case RedKind::UMin:
     case RedKind::UMax:
       // 64 bit integer min and max need avx512vl
-      return halving &&
-             (elem != 64 || (features.avx512f && features.avx512vl));
+      return halving && (elem != 64 || (features.avx512f && features.avx512vl));
     case RedKind::Mul:
       return false;
   }
@@ -1056,10 +1055,14 @@ class LoopSeedProvider final : public SeedProvider {
   void finalize(const conf::CompConf & /*conf*/) final {}
 
   bool plan(PlanEnv &env, Seed &seed, Plan &plan) final {
+    return plan_pure(env, seed, plan) && plan_finish(env, seed, plan);
+  }
+
+  bool plan_pure(PlanEnv &env, Seed &seed, Plan &plan) final {
     const auto &features = env.ctx.config->target.features;
     plan.space = LaneSpace::LoopIter;
-    evos.push_back(std::make_unique<ScalarEvo>(*env.cfg, *seed.loop));
-    ScalarEvo &evo = *evos.back();
+    plan.evo_owner = std::make_unique<ScalarEvo>(*env.cfg, *seed.loop);
+    ScalarEvo &evo = *plan.evo_owner;
     plan.evo = &evo;
     if (!build_loop_plan(env, *seed.loop, evo, plan)) {
       return reject(__LINE__);
@@ -1071,21 +1074,8 @@ class LoopSeedProvider final : public SeedProvider {
     if (env.config.max_vf != 0) {
       max_vf = std::min(max_vf, env.config.max_vf);
     }
-    u32 best_vf = 0;
-    i64 best_benefit = 0;
     for (u32 vf = max_vf; vf >= 2; vf /= 2) {
       if (!loop_legal(plan, vf, features)) {
-        continue;
-      }
-      LoopMemDep dep{evo, env.aa};
-      bool deps_ok = true;
-      const auto &acc = plan.loop.accesses;
-      for (size_t i = 0; i < acc.size() && deps_ok; i++) {
-        for (size_t j = i + 1; j < acc.size() && deps_ok; j++) {
-          deps_ok = dep.query(acc[i], acc[j], vf) == MemDep::Independent;
-        }
-      }
-      if (!deps_ok) {
         continue;
       }
       const i64 benefit =
@@ -1093,7 +1083,30 @@ class LoopSeedProvider final : public SeedProvider {
       if (benefit <= 0) {
         continue;
       }
-      if (best_vf == 0 || benefit > best_benefit) {
+      plan.loop.vf_options.emplace_back(vf, benefit);
+    }
+    if (plan.loop.vf_options.empty()) {
+      return reject(__LINE__);
+    }
+    return true;
+  }
+
+  bool plan_finish(PlanEnv &env, Seed & /*seed*/, Plan &plan) final {
+    LoopMemDep dep{*plan.evo, env.aa};
+    const auto &acc = plan.loop.accesses;
+    u32 best_vf = 0;
+    i64 best_benefit = 0;
+    for (const auto &[vf, benefit] : plan.loop.vf_options) {
+      if (best_vf != 0 && benefit <= best_benefit) {
+        continue;
+      }
+      bool deps_ok = true;
+      for (size_t i = 0; i < acc.size() && deps_ok; i++) {
+        for (size_t j = i + 1; j < acc.size() && deps_ok; j++) {
+          deps_ok = dep.query(acc[i], acc[j], vf) == MemDep::Independent;
+        }
+      }
+      if (deps_ok) {
         best_vf = vf;
         best_benefit = benefit;
       }
@@ -1105,10 +1118,6 @@ class LoopSeedProvider final : public SeedProvider {
     plan.benefit = best_benefit;
     return true;
   }
-
- private:
-  // plans point into these
-  std::vector<std::unique_ptr<ScalarEvo>> evos;
 };
 }  // namespace
 

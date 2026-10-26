@@ -7,6 +7,8 @@
 #include "optim/func_passes/vectorizer/loop.hpp"
 #include "optim/func_passes/vectorizer/region.hpp"
 #include "optim/func_passes/vectorizer/seeds.hpp"
+#include "utils/arena.hpp"
+#include "utils/job_system.hpp"
 #include "utils/stats.hpp"
 
 namespace foptim::optim {
@@ -109,68 +111,107 @@ bool Vectorizer::vectorize_loops(fir::Context &ctx, fir::Function &func,
   bool changed = false;
 
   // The vector loop (vector types) and the remainder (two entries) are never
-  // candidates again. Applying a plan changes the CFG, so one loop per round.
-  for (u32 round = 0; round < 64; round++) {
-    for (auto &loop : linfo.info) {
-      changed |= route_exit_uses(ctx, cfg, loop);
-    }
-    auto provider = make_loop_seeds();
-    for (auto &loop : linfo.info) {
-      SeedRegion region{.info = nullptr,
-                        .loop = &loop,
-                        .aa = aa,
-                        .conf = *ctx.config,
-                        .config = config};
-      provider->scan(region);
-    }
-    provider->finalize(*ctx.config);
-    PlanEnv env{.ctx = ctx,
-                .func = func,
-                .cfg = &cfg,
-                .dom = &dom,
-                .aa = aa,
-                .config = config};
-    RegionTree tree{cfg, linfo.info};
-    TVec<Plan> plans;
-    plans.reserve(provider->seeds.size());
-    auto &stats = utils::StatCollector::get();
-    stats.addi(static_cast<i64>(provider->seeds.size()), "LoopSeeds",
-               utils::StatCollector::StatFOptim);
-    for (auto &seed : provider->seeds) {
-      Plan plan;
-      if (!provider->plan(env, seed, plan)) {
-        stats.addi(1, "LoopRejectedNoPlan", utils::StatCollector::StatFOptim);
-        continue;
+  // candidates again. Plans of different loops are independent, so all are
+  // planned and selected once and then every chosen plan is applied.
+  for (auto &loop : linfo.info) {
+    changed |= route_exit_uses(ctx, cfg, loop);
+  }
+  auto provider = make_loop_seeds();
+  for (auto &loop : linfo.info) {
+    SeedRegion region{.info = nullptr,
+                      .loop = &loop,
+                      .aa = aa,
+                      .conf = *ctx.config,
+                      .config = config};
+    provider->scan(region);
+  }
+  provider->finalize(*ctx.config);
+  PlanEnv env{.ctx = ctx,
+              .func = func,
+              .cfg = &cfg,
+              .dom = &dom,
+              .aa = aa,
+              .config = config};
+  RegionTree tree{cfg, linfo.info};
+  auto &stats = utils::StatCollector::get();
+  stats.addi(static_cast<i64>(provider->seeds.size()), "LoopSeeds",
+             utils::StatCollector::StatFOptim);
+  // seeds are planned on several threads, a plan lives in the arena of its
+  // seed because the temp arena of a worker is rewound after its job
+  struct SlotArenas {
+    std::vector<Arena> arenas;
+    ~SlotArenas() {
+      for (auto &a : arenas) {
+        arena_free(&a);
       }
-      plans.push_back(std::move(plan));
-      tree.regions[static_cast<u32>(seed.loop - linfo.info.data())].plan =
-          &plans.back();
     }
-    if (plans.empty()) {
-      break;
+  };
+  const size_t n_seeds = provider->seeds.size();
+  SlotArenas slots;
+  slots.arenas.resize(n_seeds);
+  TVec<Plan> plans(n_seeds);
+  TVec<char> planned(n_seeds, 0);
+  auto *shed = JobSheduler::current;
+  const bool threaded = shed != nullptr && shed->n_threads > 0 && n_seeds > 1;
+  auto plan_seed = [&](u32 i) {
+    if (!threaded) {
+      planned[i] = provider->plan_pure(env, provider->seeds[i], plans[i]);
+      return;
     }
-    const auto chosen = select_plans(
-        tree, config.assumed_trip,
-        [&](fir::BasicBlock bb) { return slp_benefit(ctx, aa, bb); });
-    stats.addi(
-        static_cast<i64>(plans.size() - std::min(plans.size(), chosen.size())),
-        "LoopRejectedSelector", utils::StatCollector::StatFOptim);
-    if (chosen.empty()) {
-      break;
+    const auto size = ::temp_arena_size;
+    std::swap(::temp_arena, slots.arenas[i]);
+    planned[i] = provider->plan_pure(env, provider->seeds[i], plans[i]);
+    std::swap(::temp_arena, slots.arenas[i]);
+    ::temp_arena_size = size;
+  };
+  if (threaded) {
+    shed->parallel_for(static_cast<u32>(n_seeds), plan_seed);
+  } else {
+    for (u32 i = 0; i < n_seeds; i++) {
+      plan_seed(i);
     }
-    auto &plan = *tree.regions[chosen[0]].plan;
+  }
+  for (size_t i = 0; i < n_seeds; i++) {
+    if (planned[i]) {
+      planned[i] = provider->plan_finish(env, provider->seeds[i], plans[i]);
+    }
+  }
+  size_t n_plans = 0;
+  for (size_t i = 0; i < provider->seeds.size(); i++) {
+    if (!planned[i]) {
+      stats.addi(1, "LoopRejectedNoPlan", utils::StatCollector::StatFOptim);
+      continue;
+    }
+    n_plans++;
+    tree.regions[static_cast<u32>(provider->seeds[i].loop - linfo.info.data())]
+        .plan = &plans[i];
+  }
+  if (n_plans == 0) {
+    return changed;
+  }
+  const auto chosen = select_plans(
+      tree, config.assumed_trip,
+      [&](fir::BasicBlock bb) { return slp_benefit(ctx, aa, bb); });
+  stats.addi(static_cast<i64>(n_plans - std::min(n_plans, chosen.size())),
+             "LoopRejectedSelector", utils::StatCollector::StatFOptim);
+  if (chosen.empty()) {
+    return changed;
+  }
+  for (auto id : chosen) {
+    auto &plan = *tree.regions[id].plan;
+    // the entry is the remainder of an earlier loop, now a second path in
+    if (std::ranges::find(claimed, plan.evo->entry_block()) != claimed.end()) {
+      stats.addi(1, "LoopRejectedSelector", utils::StatCollector::StatFOptim);
+      continue;
+    }
     const auto header = plan.loop.header;
     const auto blocks = emit_loop(ctx, plan);
     claimed.push_back(header);
     claimed.push_back(blocks.pre);
     claimed.push_back(blocks.vector);
     claimed.push_back(blocks.middle);
-    utils::StatCollector::get().addi(1, "loopVectorized",
-                                     utils::StatCollector::StatFOptim);
+    stats.addi(1, "loopVectorized", utils::StatCollector::StatFOptim);
     changed = true;
-    cfg.update(func, false);
-    dom.update(cfg);
-    linfo.update(dom);
   }
   return changed;
 }

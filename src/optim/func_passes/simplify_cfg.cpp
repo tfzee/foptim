@@ -366,6 +366,15 @@ bool has_true_use(fir::BBArgument v, TVec<fir::Use> &worklist,
       }
     }
   };
+  // most live arguments have a direct user that is a real use, look for it
+  // before following the forwarding chains
+  for (auto use : v->get_uses()) {
+    if (use.type == fir::UseType::NormalArg &&
+        (use.user->is_critical() || use.user->pot_modifies_mem() ||
+         use.user->has_pot_sideeffects())) {
+      return true;
+    }
+  }
   push_uses(v->get_uses());
   while (!worklist.empty()) {
     auto item = worklist.back();

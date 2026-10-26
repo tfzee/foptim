@@ -1,5 +1,6 @@
 #pragma once
 #include <algorithm>
+#include <memory>
 #include <optional>
 
 #include "config/compiler_config.hpp"
@@ -349,6 +350,8 @@ struct LoopData {
   TVec<LoopMemDep::Access> accesses;
   // instructions of the body without the terminator
   u32 scalar_cost = 0;
+  // legal vfs with their benefit, largest first, dependences not checked yet
+  TVec<std::pair<u32, i64>> vf_options;
 };
 
 // The unit of selection. Planning is read only, only apply mutates the IR.
@@ -358,6 +361,7 @@ struct Plan {
   TVec<PlanNode> nodes;
   // LoopIter only
   LoopData loop;
+  std::unique_ptr<ScalarEvo> evo_owner;
   ScalarEvo *evo = nullptr;
   // bundles: the lanes of the root
   u32 vf = 0;
@@ -421,6 +425,16 @@ class SeedProvider {
   virtual void scan(SeedRegion &region) = 0;
   virtual void finalize(const conf::CompConf &conf) = 0;
   virtual bool plan(PlanEnv &env, Seed &seed, Plan &plan) = 0;
+  // plan() in two parts: plan_pure only reads the IR and may run on any
+  // thread, plan_finish asks alias questions and runs on the applying thread.
+  // The defaults do everything in plan().
+  virtual bool plan_pure(PlanEnv &env, Seed &seed, Plan &out) {
+    return this->plan(env, seed, out);
+  }
+  virtual bool plan_finish(PlanEnv & /*env*/, Seed & /*seed*/,
+                           Plan & /*plan*/) {
+    return true;
+  }
   virtual ~SeedProvider() = default;
 };
 
