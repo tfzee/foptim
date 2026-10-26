@@ -475,7 +475,9 @@ bool plan_bundle(fir::Context &ctx, const Features &features, Seed &b,
 namespace {
 // destroys the links of a build once nothing uses them
 void destroy_dead_build(fir::ValueR v) {
-  if (!lane_instr(v) || v.get_n_uses() != 0) {
+  // an earlier link may already have destroyed it
+  if (!v.is_instr() || !v.as_instr().is_valid() || !lane_instr(v) ||
+      v.get_n_uses() != 0) {
     return;
   }
   auto instr = v.as_instr();
@@ -488,7 +490,9 @@ void destroy_dead_build(fir::ValueR v) {
   }
   TVec<fir::ValueR> operands;
   for (auto a : instr->args) {
-    operands.push_back(a);
+    if (std::find(operands.begin(), operands.end(), a) == operands.end()) {
+      operands.push_back(a);
+    }
   }
   instr.destroy();
   for (auto a : operands) {
@@ -516,7 +520,12 @@ void apply_bundle(fir::Context &ctx, const Plan &plan, Seed &seed,
       }
       d.instr.destroy();
     }
+    TVec<fir::ValueR> done;
     for (auto v : built) {
+      if (std::find(done.begin(), done.end(), v) != done.end()) {
+        continue;
+      }
+      done.push_back(v);
       destroy_dead_build(v);
     }
   }

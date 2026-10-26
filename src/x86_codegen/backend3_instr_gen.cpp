@@ -1863,6 +1863,7 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64:
           req.mnemonic = ZYDIS_MNEMONIC_VMULSD;
           break;
+        case fmir::Type::Float32x2:
         case fmir::Type::Float32x4:
         case fmir::Type::Float32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VMULPS;
@@ -1924,6 +1925,7 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64:
           req.mnemonic = ZYDIS_MNEMONIC_VADDSD;
           break;
+        case fmir::Type::Float32x2:
         case fmir::Type::Float32x4:
         case fmir::Type::Float32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VADDPS;
@@ -1964,6 +1966,7 @@ size_t emit_gvec(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Float64:
           req.mnemonic = ZYDIS_MNEMONIC_VSUBSD;
           break;
+        case fmir::Type::Float32x2:
         case fmir::Type::Float32x4:
         case fmir::Type::Float32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VSUBPS;

@@ -49,6 +49,11 @@ class ConstLoopEval final : public FunctionPass {
         }
       }
       for (auto instr : f.basic_blocks[id]->instructions) {
+        // the interpreter only knows scalars
+        if (instr->has_result() && !instr.is_multi_result() &&
+            instr.result_type()->is_vec()) {
+          return false;
+        }
         switch (instr->instr_type) {
           case fir::InstrType::FCmp:
           case fir::InstrType::UnaryInstr:

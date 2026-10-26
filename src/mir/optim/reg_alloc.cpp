@@ -401,7 +401,9 @@ bool handle_spill_addr_mode(IRVec<MInstr> &bbm, size_t &instr_id,
              instr.is(GVecSubtype::vmul) || instr.is(GVecSubtype::vdiv) ||
              instr.is(GVecSubtype::fMin) || instr.is(GVecSubtype::fMax)) {
     auto &a2 = instr.args[2];
-    if (a2.isMem() || !a2.uses_same_vreg(spill_vreg)) {
+    // the packed form reads 16 bytes, the slot of a pair only has 8
+    if (a2.isMem() || !a2.uses_same_vreg(spill_vreg) ||
+        a2.ty == Type::Float32x2) {
       return false;
     }
     a2 = MArgument::stack_slot(stack_slot_id, a2.ty);

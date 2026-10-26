@@ -508,6 +508,18 @@ bool Legalizer::legalize_floating_binary_ops(
     move_fp_const_to_reg(bb, indx, 2, instr.args[0].ty);
     return true;
   }
+  // the packed forms read 16 bytes, a pair in memory only has 8
+  if (instr.args[0].ty == Type::Float32x2) {
+    for (u32 i = 1; i < 3; i++) {
+      if (instr.args[i].isMem()) {
+        auto h = get_reg(Type::Float32x2);
+        bb.instrs.insert(bb.instrs.begin() + indx,
+                         {GBaseSubtype::mov, h, instr.args[i]});
+        bb.instrs[indx + 1].args[i] = h;
+        return true;
+      }
+    }
+  }
   // cant do 64 bit mul without avx512
   if (!conf.target.features.avx512dq && instr.is(GVecSubtype::vmul) &&
       (instr.args[0].ty == Type::Int64x2 ||

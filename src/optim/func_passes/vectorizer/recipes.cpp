@@ -476,6 +476,9 @@ bool unary_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
 }
 
 bool extract_match(const TVec<fir::ValueR> &values, BundleCtx & /*ctx*/) {
+  if (!lane_instr(values.back())) {
+    return false;
+  }
   auto base_v = values.back().as_instr();
   auto exp_off = 0;
   auto input_val = base_v->args[0];

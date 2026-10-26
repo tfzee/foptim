@@ -1138,7 +1138,7 @@ bool assign_part_lanes(const Plan &plan, u32 vf, const Features &features,
     if (n.kind == NodeKind::Store) {
       // the parts of the stored value
       const u32 v = node_of(n.value.as_instr()->args[1]);
-      if (v != ~0U) {
+      if (v != ~0U && is_vector_shape(plan.nodes[v].shape)) {
         pl[i] = pl[v];
       }
     } else if (n.kind == NodeKind::ITrunc) {
