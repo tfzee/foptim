@@ -2458,6 +2458,20 @@ void base_rules(RuleSet &rules) {
         v128 = Type::Int32x4;
         wide = true;
         break;
+      case Type::Int16x8:
+        v128 = Type::Int16x8;
+        break;
+      case Type::Int16x16:
+        v128 = Type::Int16x8;
+        wide = true;
+        break;
+      case Type::Int8x16:
+        v128 = Type::Int8x16;
+        break;
+      case Type::Int8x32:
+        v128 = Type::Int8x16;
+        wide = true;
+        break;
       case Type::Int64x2:
         v128 = Type::Int64x2;
         break;
@@ -2545,9 +2559,36 @@ void base_rules(RuleSet &rules) {
       combine(next, cur, MArgument{moved_reg.retype(v128), v128});
       cur = next;
     };
+    // lanes shifted out are zero, only lane 0 of the result is read
+    auto fold_shift = [&](u8 bits) {
+      auto moved_reg = data.alloc.get_new_register(Type::Int32x4);
+      auto moved = MArgument{moved_reg, Type::Int32x4};
+      res.result.emplace_back(X86Subtype::psrl, moved, as_dwords(cur),
+                              MArgument::Int(bits, Type::Int8));
+      auto next = fresh();
+      combine(next, cur, MArgument{moved_reg.retype(v128), v128});
+      cur = next;
+    };
     fold(0xEE);
-    if (v128 == Type::Int32x4 || v128 == Type::Float32x4) {
+    if (v128 != Type::Int64x2 && v128 != Type::Float64x2) {
       fold(0x55);
+    }
+    const bool words = v128 == Type::Int16x8 || v128 == Type::Int8x16;
+    if (words) {
+      fold_shift(16);
+    }
+    if (v128 == Type::Int8x16) {
+      fold_shift(8);
+    }
+    if (words) {
+      auto lane_reg = data.alloc.get_new_register(Type::Int32);
+      res.result.emplace_back(X86Subtype::vpextr,
+                              MArgument{lane_reg, Type::Int32}, as_dwords(cur),
+                              MArgument(static_cast<u8>(0)));
+      const Type scalar = v128 == Type::Int8x16 ? Type::Int8 : Type::Int16;
+      res.result.emplace_back(GBaseSubtype::mov, res_reg,
+                              MArgument{lane_reg.retype(scalar), scalar});
+      return true;
     }
     if (res_reg.is_fp()) {
       res.result.emplace_back(GBaseSubtype::mov, res_reg, cur);

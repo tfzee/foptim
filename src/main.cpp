@@ -175,8 +175,16 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
           }
           glob.size = size;
           if (v->data->init_value != nullptr) {
-            glob.data.resize(size, 0);
-            memcpy(glob.data.data(), v->data->init_value, size);
+            const auto *init = v->data->init_value;
+            const bool all_zero =
+                v->data->reloc_info.empty() && size > 0 &&
+                std::all_of(init, init + size, [](uint8_t b) { return b == 0; });
+            if (all_zero) {
+              glob.zero_init = true;
+            } else {
+              glob.data.resize(size, 0);
+              memcpy(glob.data.data(), init, size);
+            }
           }
           globals.push_back(glob);
         }

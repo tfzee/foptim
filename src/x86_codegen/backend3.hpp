@@ -17,6 +17,7 @@ enum class ProEpilogueType {
 enum class RelocSection : u8 {
   INVALID,
   Data,
+  Bss,
   Text,
   InitArray,
   Extern,

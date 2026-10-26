@@ -379,13 +379,16 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   ELFIO::relocation_section_accessor text_rela(writer, text_rel_sec);
 
   ELFIO::section *data_sec = writer.sections.add(".data");
+  ELFIO::section *bss_sec = writer.sections.add(".bss");
+  u64 bss_size = 0;
+  u64 bss_align = 4;
   u8 *start_data = nullptr;
   {
     data_sec->set_type(SHT_PROGBITS);
     data_sec->set_flags(SHF_ALLOC | SHF_WRITE);
     data_sec->set_addr_align(0x4);
     size_t global_data_size = 0;
-    for (auto global : globals) {
+    for (const auto &global : globals) {
       global_data_size += global.data.size();
     }
     start_data = utils::TempAlloc<u8>{}.allocate(global_data_size);
@@ -393,6 +396,19 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     // TODO: alignment
     data_sec->set_address(0x1000);
     for (const auto &global : globals) {
+      if (global.zero_init) {
+        const u64 align = std::max<u64>(global.min_align, 1);
+        bss_size = (bss_size + align - 1) / align * align;
+        auto &label = label_usage_map.label_map[global.name];
+        label.def_loc = bss_size;
+        label.kind = RelocKind::Data;
+        label.section = RelocSection::Bss;
+        label.size = global.size;
+        label.vis = global.vis;
+        bss_size += global.size;
+        bss_align = std::max(bss_align, align);
+        continue;
+      }
       if (strcmp(global.name, "llvm.global_ctors") == 0) {
         label_usage_map.label_map[global.name].def_loc = 0;
         label_usage_map.label_map[global.name].kind = RelocKind::Data;
@@ -466,6 +482,10 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
       curr_data_ptr += global.data.size();
     }
     data_sec->set_data(reinterpret_cast<char *>(start_data), global_data_size);
+    bss_sec->set_type(ELFIO::SHT_NOBITS);
+    bss_sec->set_flags(SHF_ALLOC | SHF_WRITE);
+    bss_sec->set_addr_align(bss_align);
+    bss_sec->set_size(bss_size);
   }
 
   ELFIO::section *data_rel_sec = writer.sections.add(".rela.data");
@@ -494,6 +514,9 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         break;
       case RelocSection::Data:
         sec_indx = data_sec->get_index();
+        break;
+      case RelocSection::Bss:
+        sec_indx = bss_sec->get_index();
         break;
       case RelocSection::Text:
         sec_indx = text_sec->get_index();
@@ -552,6 +575,8 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                                     symbol, R_X86_64_64,
                                     static_cast<i64>(loc.addent));
           break;
+        case RelocSection::Bss:
+          UNREACH();
         case RelocSection::Data:
           data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
                               static_cast<Elf_Sxword>(loc.addent));
@@ -563,6 +588,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
             case RelocSection::InitArray:
               UNREACH();
             case RelocSection::Data:
+            case RelocSection::Bss:
               text_rela.add_entry(data.op_addr - start_txt, symbol,
                                   R_X86_64_PC32,
                                   static_cast<Elf_Sxword>(

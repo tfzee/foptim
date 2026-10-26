@@ -13,6 +13,23 @@ namespace foptim::optim::vec {
 namespace {
 using BinSub = fir::BinaryInstrSubType;
 
+// prints the line of every rejection of the loop planner
+constexpr bool DebugLoopRejects = false;
+
+bool reject(int line) {
+  if constexpr (DebugLoopRejects) {
+    fmt::println("rej {}", line);
+  }
+  return false;
+}
+
+bool reject(int line, fir::Instr instr) {
+  if constexpr (DebugLoopRejects) {
+    fmt::println("rej {} {}", line, instr);
+  }
+  return false;
+}
+
 bool is_reduction_sub(BinSub sub, bool assoc_float) {
   switch (sub) {
     case BinSub::IntAdd:
@@ -37,11 +54,11 @@ bool is_int_minmax(fir::IntrinsicSubType sub) {
 }
 
 // The backend has no horizontal multiply (and no 512 bit integer add). The
-// other operations are lowered by halving the vector, which exists for 32 and
-// 64 bit lanes in 128 and 256 bit vectors.
+// other operations are lowered by halving the vector, which exists for all
+// lane widths in 128 and 256 bit vectors.
 bool reduction_legal(const PlanNode &n, u32 bits, const Features &features) {
   const u32 elem = n.type->get_bitwidth();
-  const bool halving = (elem == 32 || elem == 64) && bits >= 128 && bits <= 256;
+  const bool halving = bits >= 128 && bits <= 256;
   switch (n.red) {
     case RedKind::Add:
       return !(n.type->is_int() && bits > 256);
@@ -54,7 +71,8 @@ bool reduction_legal(const PlanNode &n, u32 bits, const Features &features) {
     case RedKind::UMin:
     case RedKind::UMax:
       // 64 bit integer min and max need avx512vl
-      return halving && (elem == 32 || (features.avx512f && features.avx512vl));
+      return halving &&
+             (elem != 64 || (features.avx512f && features.avx512vl));
     case RedKind::Mul:
       return false;
   }
@@ -345,21 +363,21 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
   auto &cfg = *env.cfg;
   auto &l = plan.loop;
   if (!collect_blocks(cfg, loop, l)) {
-    return false;
+    return reject(__LINE__);
   }
   auto hdr = l.header;
   auto latch = l.latch;
   auto term = latch->get_terminator();
   if (!term->is(fir::InstrType::CondBranchInstr) || term->bbs.size() != 2) {
-    return false;
+    return reject(__LINE__);
   }
   if (term->bbs[0].bb == hdr && term->bbs[1].bb == hdr) {
-    return false;
+    return reject(__LINE__);
   }
   l.back_edge = term->bbs[0].bb == hdr ? 0 : 1;
   l.exit_edge = 1 - l.back_edge;
   if (term->bbs[l.back_edge].bb != hdr) {
-    return false;
+    return reject(__LINE__);
   }
   const auto &back_args = term->bbs[l.back_edge].args;
   const auto &exit_args = term->bbs[l.exit_edge].args;
@@ -367,11 +385,11 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
   TripCountAnalysis tc;
   if (!tc.update(cfg, *env.dom, loop, evo) || tc.exit_iter == InvalidSCEV ||
       tc.from_bb != latch || !evo.is_expandable(tc.exit_iter)) {
-    return false;
+    return reject(__LINE__);
   }
   auto entry = evo.entry_block();
   if (!entry.is_valid()) {
-    return false;
+    return reject(__LINE__);
   }
   if (tc.cmp_rec != InvalidSCEV && (tc.cmp_signed || tc.cmp_unsigned)) {
     evo.assume_no_wrap(tc.cmp_rec, tc.cmp_signed);
@@ -383,7 +401,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
       edges += e.bb == hdr ? 1 : 0;
     }
     if (edges != 1) {
-      return false;
+      return reject(__LINE__);
     }
   }
   l.trip = tc.exit_iter;
@@ -410,7 +428,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     fir::ValueR av{hdr->args[k]};
     const auto ty = av.get_type();
     if (!elem_type_ok(ty) && !ty->is_ptr()) {
-      return false;
+      return reject(__LINE__);
     }
     PlanNode n;
     n.value = av;
@@ -432,7 +450,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
       // The update may be conditional: a select of acc2 and acc, or a block
       // argument that takes either one of them.
       if (!env.config.reductions) {
-        return false;
+        return reject(__LINE__);
       }
       auto update_of = [&](fir::ValueR v) -> fir::Instr {
         if (!v.is_instr() || !block_of(v.as_instr()->get_parent())) {
@@ -552,7 +570,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
         sel = back.as_instr();
         const auto sb = block_of(sel->get_parent());
         if (!sb || !l.blocks[*sb].always) {
-          return false;
+          return reject(__LINE__);
         }
         if (sel->args[2] == av) {
           next = update_of(sel->args[1]);
@@ -575,7 +593,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
         const auto jb = block_of(join);
         if (!jb || *jb == 0 || !l.blocks[*jb].always ||
             l.blocks[*jb].in_edges.size() != 2) {
-          return false;
+          return reject(__LINE__);
         }
         for (u32 j = 0; j < join->args.size(); j++) {
           if (fir::ValueR{join->args[j]} == back) {
@@ -640,12 +658,12 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
         const auto nb =
             next.is_valid() ? block_of(next->get_parent()) : std::nullopt;
         if (!nb || !l.blocks[*nb].always) {
-          return false;
+          return reject(__LINE__);
         }
       }
       if (!next.is_valid() && form != Form::PhiMinMax &&
           form != Form::SelectMinMax) {
-        return false;
+        return reject(__LINE__);
       }
       for (const auto &u : av.as_bb_arg()->uses) {
         const bool ok =
@@ -657,7 +675,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
             ((form == Form::Phi || form == Form::PhiMinMax) &&
              only_term_edge(u, join, join_arg));
         if (!ok) {
-          return false;
+          return reject(__LINE__);
         }
       }
       // the users of the combined value
@@ -683,7 +701,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
             break;
         }
         if (!ok) {
-          return false;
+          return reject(__LINE__);
         }
       }
       if (form != Form::Direct) {
@@ -694,7 +712,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
         for (const auto &u : uses) {
           if (u.user != term || u.type != fir::UseType::BBArg ||
               (u.argId == l.back_edge && u.bbArgId != k)) {
-            return false;
+            return reject(__LINE__);
           }
         }
       }
@@ -754,7 +772,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     }
   }
   if (!have_counter) {
-    return false;
+    return reject(__LINE__);
   }
 
   // the lane width of the compares that the condition of an edge is made of
@@ -785,12 +803,12 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
         const auto eb = edge_cond_bits(l.blocks[e.from]);
         // an edge that takes every lane would make the block unmasked
         if (!eb || *eb == 0 || (bits != 0 && bits != *eb)) {
-          return false;
+          return reject(__LINE__);
         }
         bits = *eb;
       }
       if (bits == 0) {
-        return false;
+        return reject(__LINE__);
       }
       blk.mask_bits = bits;
       l.mask_ops += 2 * static_cast<u32>(blk.in_edges.size());
@@ -803,7 +821,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
         fir::ValueR av{bb->args[k]};
         const auto ty = av.get_type();
         if (blk.in_edges.size() < 2) {
-          return false;
+          return reject(__LINE__);
         }
         auto edge_arg = [&](const LoopEdge &e) {
           return l.blocks[e.from].bb->get_terminator()->bbs[e.slot].args[k];
@@ -830,16 +848,16 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
           }
         } else {
           if (!elem_type_ok(ty)) {
-            return false;
+            return reject(__LINE__);
           }
           for (const auto &e : blk.in_edges) {
             if (shape_of(mc, edge_arg(e)) == LaneShape::Strided) {
-              return false;
+              return reject(__LINE__);
             }
             // every edge but the last needs a mask of the width of the data
             const auto eb = edge_cond_bits(l.blocks[e.from]);
             if (!eb || *eb != ty->get_bitwidth()) {
-              return false;
+              return reject(__LINE__);
             }
           }
           n.shape = LaneShape::Varying;
@@ -850,7 +868,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     }
     BlockMemAccesses mem{bb};
     if (mem.n_barriers() != 0) {
-      return false;
+      return reject(__LINE__);
     }
     const auto n_instrs = bb->instructions.size();
     n_instrs_total += static_cast<u32>(n_instrs) - 1;
@@ -869,17 +887,17 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
       if (instr->is(fir::InstrType::LoadInstr) ||
           instr->is(fir::InstrType::StoreInstr)) {
         if (!has_loop_recipe || !recipe->match_loop(mc, instr, n)) {
-          return false;
+          return reject(__LINE__);
         }
         auto a = mem.index_of(instr);
         if (!a) {
-          return false;
+          return reject(__LINE__);
         }
         if (blk.mask_bits != 0 &&
             (blk.mask_bits != n.type->get_bitwidth() ||
              (blk.mask_bits != 32 && blk.mask_bits != 64))) {
           // only 32 and 64 bit lanes have masked loads and stores
-          return false;
+          return reject(__LINE__);
         }
         l.accesses.push_back(
             {.instr = instr,
@@ -889,14 +907,14 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
         l.n_vector_ops++;
       } else if (vector_operand) {
         if (!has_loop_recipe || !recipe->match_loop(mc, instr, n)) {
-          return false;
+          return reject(__LINE__, instr);
         }
         l.n_vector_ops++;
       } else {
         // computes the value of lane 0 (addresses, induction math), copied
         if (instr->has_pot_sideeffects() || instr->pot_reads_mem() ||
             instr->result_type()->is_vec()) {
-          return false;
+          return reject(__LINE__, instr);
         }
         n.kind = NodeKind::Scalar;
         n.type = instr->result_type();
@@ -917,7 +935,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
   (void)n_instrs_total;
   count_scalar_cost(l);
   if (l.n_vector_ops == 0 || l.accesses.empty()) {
-    return false;
+    return reject(__LINE__);
   }
 
   // the lane widths of the vector values
@@ -936,7 +954,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
     l.max_bits = std::max(l.max_bits, bits);
   }
   if (l.min_bits == 0) {
-    return false;
+    return reject(__LINE__);
   }
 
   // check the uses outside of the loop and of the vector values
@@ -946,7 +964,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
                      n->kind != NodeKind::Reduction;
     for (const auto &u : uses) {
       if (!block_of(u.user->get_parent())) {
-        return false;
+        return reject(__LINE__);
       }
       if (u.user->get_parent() != latch || u.user != term) {
         if (!vec || !(u.user->is(fir::InstrType::BranchInstr) ||
@@ -959,7 +977,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
           const auto dest = u.user->bbs[u.argId].bb;
           const auto di = block_of(dest);
           if (!di || *di == 0) {
-            return false;
+            return reject(__LINE__);
           }
         }
         continue;
@@ -972,7 +990,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
               plan.nodes[k].kind == NodeKind::Reduction && back_args[k] == v;
         }
         if (!is_next && u.type == fir::UseType::BBArg) {
-          return false;
+          return reject(__LINE__);
         }
       }
     }
@@ -984,7 +1002,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
       if (!check_uses(fir::ValueR{a}, it == l.node_of.end()
                                           ? nullptr
                                           : &plan.nodes[it->second])) {
-        return false;
+        return reject(__LINE__);
       }
     }
     const auto n_instrs = blk.bb->instructions.size();
@@ -992,7 +1010,7 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
       auto instr = blk.bb->instructions[idx];
       if (!check_uses(instr.result(),
                       &plan.nodes[l.node_of.at(instr.result())])) {
-        return false;
+        return reject(__LINE__);
       }
     }
   }
@@ -1007,13 +1025,13 @@ bool build_loop_plan(PlanEnv &env, LoopInfo &loop, ScalarEvo &evo, Plan &plan) {
            (kn.kind == NodeKind::Induction || kn.kind == NodeKind::Reduction);
     }
     if (!ok) {
-      return false;
+      return reject(__LINE__);
     }
   }
   for (u32 k = 0; k < back_args.size(); k++) {
     if (plan.nodes[k].kind == NodeKind::Reduction &&
         !l.node_of.contains(back_args[k])) {
-      return false;
+      return reject(__LINE__);
     }
   }
   return true;
@@ -1044,7 +1062,7 @@ class LoopSeedProvider final : public SeedProvider {
     ScalarEvo &evo = *evos.back();
     plan.evo = &evo;
     if (!build_loop_plan(env, *seed.loop, evo, plan)) {
-      return false;
+      return reject(__LINE__);
     }
     u32 max_vf =
         plan.loop.min_bits == plan.loop.max_bits
@@ -1081,7 +1099,7 @@ class LoopSeedProvider final : public SeedProvider {
       }
     }
     if (best_vf == 0) {
-      return false;
+      return reject(__LINE__);
     }
     plan.vf = best_vf;
     plan.benefit = best_benefit;

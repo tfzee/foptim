@@ -782,7 +782,10 @@ bool intrin_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
     default:
       break;
   }
-  if (n_operands == 0 || ty->get_bitwidth() < 32) {
+  // the backend has no byte and word abs
+  if (n_operands == 0 || (ty->get_bitwidth() < 32 &&
+                          static_cast<fir::IntrinsicSubType>(i->subtype) ==
+                              fir::IntrinsicSubType::Abs)) {
     return false;
   }
   for (size_t k = 0; k < n_operands; k++) {
@@ -828,10 +831,9 @@ bool intrin_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
     case fir::IntrinsicSubType::UMax:
     case fir::IntrinsicSubType::SMin:
     case fir::IntrinsicSubType::SMax:
-      // 8 and 16 bit lanes are not tested, 64 bit lanes need avx512vl
-      return n.type->get_bitwidth() == 32 ||
-             (n.type->get_bitwidth() == 64 && features.avx512f &&
-              features.avx512vl);
+      // 64 bit lanes need avx512vl
+      return n.type->get_bitwidth() != 64 ||
+             (features.avx512f && features.avx512vl);
     case fir::IntrinsicSubType::FMin:
     case fir::IntrinsicSubType::FMax:
     case fir::IntrinsicSubType::Abs:
