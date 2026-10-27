@@ -191,6 +191,7 @@ add_library (foptim OBJECT
                 ./src/optim/module_passes/arg_promotion.cpp
                 ./src/optim/module_passes/IPCP.cpp
                 ./src/optim/helper/inline.cpp
+                ./src/optim/helper/arg_gain.cpp
                 ./src/optim/helper/region_extractor.cpp
                 ./src/optim/module_passes/partial_inline_split.cpp
                 ./src/optim/module_passes/legalize_ints.cpp

@@ -16,6 +16,7 @@
 #include "test_multi_result.hpp"
 #include "test_provenance.hpp"
 #include "test_reg_alloc_solver.hpp"
+#include "test_arg_gain.hpp"
 #include "test_region_extractor.hpp"
 #include "test_stable_vec.hpp"
 #include "test_vec_selector.hpp"

@@ -437,6 +437,8 @@ struct InlineConf : public ModulePassConf<InlineConf>, optim::Inline<>::Config {
   bool pass_parse(toml::table &tbl) {
     allow_recursive = tbl["allow_recursive"].value_or(allow_recursive);
     allow_builtins = tbl["allow_builtins"].value_or(allow_builtins);
+    arg_gain_max_instrs =
+        tbl["arg_gain_max_instrs"].value_or(arg_gain_max_instrs);
     return true;
   }
 

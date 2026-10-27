@@ -1,0 +1,5 @@
+config_version = 1
+include = ["Default"]
+
+[pass.fir.Inline]
+arg_gain_max_instrs = 0

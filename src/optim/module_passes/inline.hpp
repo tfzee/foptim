@@ -6,6 +6,7 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/callgraph.hpp"
 #include "optim/analysis/dominators.hpp"
+#include "optim/helper/arg_gain.hpp"
 #include "optim/helper/inline.hpp"
 #include "optim/module_pass.hpp"
 #include "utils/job_system.hpp"
@@ -15,6 +16,8 @@ namespace foptim::optim {
 struct InlineConfig {
   bool allow_recursive = true;
   bool allow_builtins = true;
+  // biggest callee estimated with its constant arguments propagated, 0 is off
+  u32 arg_gain_max_instrs = 400;
 };
 
 // Looks through constant offset PtrAdds to find the alloca a pointer points
@@ -256,6 +259,27 @@ class BaseInlineAdvisor {
   }
 
  private:
+  // small enough once the constant arguments are propagated
+  [[nodiscard]] static bool arg_gain_accepts(const fir::Instr instr,
+                                             fir::FunctionR v, i64 threshold) {
+    const size_t n_args = instr->args.size() - 1;
+    if (n_args == 0 || v->get_entry()->n_args() != n_args) {
+      return false;
+    }
+    TVec<ArgFact> facts(n_args);
+    facts_of_call(instr, facts);
+    bool any_const = false;
+    for (const auto &f : facts) {
+      any_const |= f.is_const();
+    }
+    if (!any_const) {
+      return false;
+    }
+    const auto gain =
+        estimate_arg_gain(*v.func, facts, static_cast<u32>(threshold));
+    return !gain.exceeded;
+  }
+
   [[nodiscard]] bool _should_be_inlined(const fir::Instr instr,
                                         fir::FunctionR v,
                                         const InlineCallee &info,
@@ -381,6 +405,7 @@ class BaseInlineAdvisor {
     // cheaper
     if (!v->attribs.cold && !v->attribs.no_return && self_func != v) {
       i64 threshold = 20;
+      i64 alloca_threshold = 20;
       for (size_t i = 1; i < instr->args.size(); i++) {
         auto arg = instr->args[i];
         if (arg.is_constant()) {
@@ -389,12 +414,17 @@ class BaseInlineAdvisor {
           // stack object member, inlining lets the object be split up and
           // promoted since the pointer no longer escapes into the call
           threshold += 100;
+          alloca_threshold += 100;
         }
       }
       if (debug_print) {
         fmt::println("Score {} <= {}", called_n_instrs, threshold);
       }
       if (static_cast<i64>(called_n_instrs) <= threshold) {
+        return true;
+      }
+      if (called_n_instrs <= conf.arg_gain_max_instrs &&
+          arg_gain_accepts(instr, v, alloca_threshold)) {
         return true;
       }
     }
