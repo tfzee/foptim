@@ -45,9 +45,8 @@ define i8 @udiv_i8_10(i8 %x) {
 define i8 @udiv_i8_16(i8 %x) {
 ; CHECK: func udiv_i8_16 ($2: i8, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    mov_zx($rax: i64, $ldi: i8, )
-; CHECK-NEXT:    shr2($rax: i64, 4: i8, )
-; CHECK-NEXT:    itrunc($al: i8, $rax: i64, )
+; CHECK-NEXT:    $al: i8 = $ldi: i8
+; CHECK-NEXT:    shr2($al: i8, 4: i8, )
 ; CHECK-NEXT:    ret($al: i8, )
   %res = udiv i8 %x, 16
   ret i8 %res
@@ -117,13 +116,11 @@ define i8 @sdiv_i8_m5(i8 %x) {
 define i8 @sdiv_i8_16(i8 %x) {
 ; CHECK: func sdiv_i8_16 ($2: i8, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    mov_sx($rcx: i64, $ldi: i8, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
-; CHECK-NEXT:    shr2($rax: i64, 60: i8, )
-; CHECK-NEXT:    $rcx: i64 += $rax: i64
-; CHECK-NEXT:    sar2($rcx: i64, 4: i8, )
-; CHECK-NEXT:    itrunc($al: i8, $rcx: i64, )
+; CHECK-NEXT:    $al: i8 = $ldi: i8
+; CHECK-NEXT:    sar2($al: i8, 7: i8, )
+; CHECK-NEXT:    shr2($al: i8, 4: i8, )
+; CHECK-NEXT:    $al: i8 += $ldi: i8
+; CHECK-NEXT:    sar2($al: i8, 4: i8, )
 ; CHECK-NEXT:    ret($al: i8, )
   %res = sdiv i8 %x, 16
   ret i8 %res
@@ -359,9 +356,8 @@ define i16 @udiv_i16_100(i16 %x) {
 define i16 @udiv_i16_64(i16 %x) {
 ; CHECK: func udiv_i16_64 ($2: i16, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    mov_zx($rax: i64, $di: i16, )
-; CHECK-NEXT:    shr2($rax: i64, 6: i8, )
-; CHECK-NEXT:    itrunc($ax: i16, $rax: i64, )
+; CHECK-NEXT:    $ax: i16 = $di: i16
+; CHECK-NEXT:    shr2($ax: i16, 6: i16, )
 ; CHECK-NEXT:    ret($ax: i16, )
   %res = udiv i16 %x, 64
   ret i16 %res
@@ -431,13 +427,11 @@ define i16 @sdiv_i16_m9(i16 %x) {
 define i16 @sdiv_i16_64(i16 %x) {
 ; CHECK: func sdiv_i16_64 ($2: i16, )
 ; CHECK-NEXT:  0:
-; CHECK-NEXT:    mov_sx($rcx: i64, $di: i16, )
-; CHECK-NEXT:    $rax: i64 = $rcx: i64
-; CHECK-NEXT:    sar2($rax: i64, 63: i8, )
-; CHECK-NEXT:    shr2($rax: i64, 58: i8, )
-; CHECK-NEXT:    $rcx: i64 += $rax: i64
-; CHECK-NEXT:    sar2($rcx: i64, 6: i8, )
-; CHECK-NEXT:    itrunc($ax: i16, $rcx: i64, )
+; CHECK-NEXT:    $ax: i16 = $di: i16
+; CHECK-NEXT:    sar2($ax: i16, 15: i16, )
+; CHECK-NEXT:    shr2($ax: i16, 10: i16, )
+; CHECK-NEXT:    $ax: i16 += $di: i16
+; CHECK-NEXT:    sar2($ax: i16, 6: i16, )
 ; CHECK-NEXT:    ret($ax: i16, )
   %res = sdiv i16 %x, 64
   ret i16 %res
@@ -669,7 +663,7 @@ define i64 @udiv_i64_16(i64 %x) {
 ; CHECK: func udiv_i64_16 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    shr2($rax: i64, 4: i8, )
+; CHECK-NEXT:    shr2($rax: i64, 4: i64, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = udiv i64 %x, 16
   ret i64 %res
@@ -802,11 +796,10 @@ define i64 @sdiv_i64_16(i64 %x) {
 ; CHECK: func sdiv_i64_16 ($2: i64, )
 ; CHECK-NEXT:  0:
 ; CHECK-NEXT:    $rax: i64 = $rdi: i64
-; CHECK-NEXT:    $rcx: i64 = $rax: i64
-; CHECK-NEXT:    sar2($rcx: i64, 63: i8, )
-; CHECK-NEXT:    shr2($rcx: i64, 60: i8, )
-; CHECK-NEXT:    $rax: i64 += $rcx: i64
-; CHECK-NEXT:    sar2($rax: i64, 4: i8, )
+; CHECK-NEXT:    sar2($rax: i64, 63: i64, )
+; CHECK-NEXT:    shr2($rax: i64, 60: i64, )
+; CHECK-NEXT:    $rax: i64 += $rdi: i64
+; CHECK-NEXT:    sar2($rax: i64, 4: i64, )
 ; CHECK-NEXT:    ret($rax: i64, )
   %res = sdiv i64 %x, 16
   ret i64 %res

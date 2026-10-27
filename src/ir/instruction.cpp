@@ -427,6 +427,18 @@ fmt::appender fmt::formatter<foptim::fir::Instr>::format(
   if (instr->InBounds) {
     app = fmt::format_to(app, "InBounds; ");
   }
+  if (instr->Exact) {
+    app = fmt::format_to(app, "Exact; ");
+  }
+  if (instr->Disjoint) {
+    app = fmt::format_to(app, "Disjoint; ");
+  }
+  if (instr->NNeg) {
+    app = fmt::format_to(app, "NNeg; ");
+  }
+  if (instr->SameSign) {
+    app = fmt::format_to(app, "SameSign; ");
+  }
   if (instr->Atomic) {
     app = fmt::format_to(app, "ATOMIC; ");
   }

@@ -150,7 +150,9 @@ u64 AnalysisManager::hash_instr(fir::Instr instr) {
   h = mix(h, type_id(instr->extra_type));
   h = mix(h, static_cast<u64>(instr->NSW) | instr->NUW << 1 |
                  instr->InBounds << 2 | instr->Volatile << 3 |
-                 instr->Atomic << 4 | instr->Ordering << 5);
+                 instr->Atomic << 4 | instr->Ordering << 5 | instr->Exact << 8 |
+                 instr->Disjoint << 9 | instr->NNeg << 10 |
+                 instr->SameSign << 11);
   h = mix(h, instr->args.size());
   for (const auto &a : instr->args) {
     h = mix(h, hv(a));

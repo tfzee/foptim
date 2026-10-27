@@ -7,7 +7,7 @@ define i64 @udiv_mul(i64 %x) {
 ; CHECK-LABEL: func udiv_mul<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i64):
-; CHECK-NEXT:    %1: i64 = IntUDiv(%0, 8:i64){} NUses:0
+; CHECK-NEXT:    %1: i64 = LShR(%0, 3:i64){} NUses:0
 ; CHECK-NEXT:    %2: i64 = And(%0, -8:i64){} NUses:1
 ; CHECK-NEXT:    %3: i64 = Return(%2){} NUses:0
 ; CHECK-NEXT:}
@@ -20,9 +20,12 @@ define i64 @sdiv_mul(i64 %x) {
 ; CHECK-LABEL: func sdiv_mul<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i64):
-; CHECK-NEXT:    %1: i64 = IntSDiv(%0, 8:i64){} NUses:1
-; CHECK-NEXT:    %2: i64 = IntMul(%1, 8:i64){} NUses:1
-; CHECK-NEXT:    %3: i64 = Return(%2){} NUses:0
+; CHECK-NEXT:    %1: i64 = AShR(%0, 63:i64){} NUses:1
+; CHECK-NEXT:    %2: i64 = LShR(%1, 61:i64){} NUses:1
+; CHECK-NEXT:    %3: i64 = IntAdd(%0, %2){} NUses:1
+; CHECK-NEXT:    %4: i64 = AShR(%3, 3:i64){} NUses:1
+; CHECK-NEXT:    %5: i64 = IntMul(%4, 8:i64){} NUses:1
+; CHECK-NEXT:    %6: i64 = Return(%5){} NUses:0
 ; CHECK-NEXT:}
   %d = sdiv i64 %x, 8
   %m = mul i64 %d, 8

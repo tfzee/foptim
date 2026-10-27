@@ -577,6 +577,7 @@ bool simplify_extend(fir::Instr instr, fir::BasicBlock /*bb*/,
          argi->is(fir::BinaryInstrSubType::Or) ||
          argi->is(fir::BinaryInstrSubType::Xor) ||
          (argi->is(fir::BinaryInstrSubType::IntAdd) && is_non_overflowing) ||
+         (argi->is(fir::BinaryInstrSubType::IntSub) && is_non_overflowing) ||
          (argi->is(fir::BinaryInstrSubType::PtrAdd) && is_non_overflowing) ||
          (argi->is(fir::BinaryInstrSubType::IntMul) && is_non_overflowing) ||
          (iszext && argi->is(fir::BinaryInstrSubType::Shr)))) {
@@ -626,6 +627,28 @@ bool simplify_itrunc(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   // = +-* on smaller bitwidth
   // since lea doesnt like 1byte value we skip those for now
   auto new_bitwidth = instr.result_type()->get_bitwidth();
+
+  // trunc(zext(x) >> c) back to the width of x is x >> c
+  if (instr->args[0].is_instr()) {
+    auto shift = instr->args[0].as_instr();
+    if ((shift->is(fir::BinaryInstrSubType::Shr) ||
+         shift->is(fir::BinaryInstrSubType::AShr)) &&
+        shift->args[1].is_constant_int() && shift->args[0].is_instr() &&
+        shift->args[0].as_instr()->is(fir::InstrType::ZExt) &&
+        shift->args[0].as_instr()->args[0].get_type() == instr.result_type() &&
+        shift->args[1].as_constant()->as_apint().ult(
+            APInt(shift->args[1].as_constant()->as_apint().bits(),
+                  u64{new_bitwidth}))) {
+      fir::Builder b{instr};
+      auto amount = fir::ValueR{ctx->get_constant_int(
+          shift->args[1].as_constant()->as_apint_resized(new_bitwidth))};
+      auto res = b.build_lshr(shift->args[0].as_instr()->args[0], amount);
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(res);
+      instr.destroy();
+      return true;
+    }
+  }
 
   if (instr->args[0].is_bb_arg()) {
     auto arg = instr->args[0].as_bb_arg();

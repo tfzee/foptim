@@ -1337,6 +1337,41 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
         return true;
       }
     }
+    // division by a power of two is a shift, the signed one rounds towards
+    // zero so negative dividends get 2^k - 1 added first
+    if (c_idx == 1 && c_val->is_int() && instr->result_type()->is_int() &&
+        (instr->is(fir::BinaryInstrSubType::IntSDiv) ||
+         instr->is(fir::BinaryInstrSubType::IntUDiv))) {
+      const u32 bw = instr->result_type()->get_bitwidth();
+      const APInt val = c_val->as_apint_resized(bw);
+      const bool is_signed = instr->is(fir::BinaryInstrSubType::IntSDiv);
+      if (bw > 1 && val.is_pow2() && !val.is_one() &&
+          !(is_signed && val.is_neg())) {
+        const u32 k = val.log2();
+        fir::Builder bb{instr};
+        const auto shift = [&](u32 amount) {
+          return fir::ValueR{ctx->get_constant_int(APInt(bw, u64{amount}))};
+        };
+        fir::ValueR x = instr->args[0];
+        fir::ValueR res;
+        if (!is_signed) {
+          res = bb.build_lshr(x, shift(k));
+          res.as_instr()->Exact = instr->Exact;
+        } else if (instr->Exact) {
+          res = bb.build_ashr(x, shift(k));
+          res.as_instr()->Exact = true;
+        } else {
+          auto sign = bb.build_ashr(x, shift(bw - 1));
+          auto bias = bb.build_lshr(sign, shift(bw - k));
+          auto biased = bb.build_int_add(x, bias);
+          res = bb.build_ashr(biased, shift(k));
+        }
+        push_all_uses(worklist, instr);
+        instr->replace_all_uses(res);
+        instr.destroy();
+        return true;
+      }
+    }
     if (c_idx == 1 && c_val->is_int() &&
         instr->get_instr_subtype() ==
             static_cast<u32>(fir::BinaryInstrSubType::IntURem)) {
@@ -1441,6 +1476,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
                   sec_constant.sext_or_trunc(biggest_bitwidth));
               instr.replace_arg(0, a0->args[0]);
               instr.replace_arg(1, fir::ValueR(new_val));
+              instr->clear_poison_flags();
               push_all_uses(worklist, instr);
               return true;
             }
@@ -1450,6 +1486,7 @@ static bool simplify_binary_impl(fir::Instr instr, fir::BasicBlock bb,
                   sec_constant.sext_or_trunc(biggest_bitwidth));
               instr.replace_arg(0, a0->args[0]);
               instr.replace_arg(1, fir::ValueR(new_val));
+              instr->clear_poison_flags();
               push_all_uses(worklist, instr);
               return true;
             }

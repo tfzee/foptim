@@ -357,6 +357,27 @@ struct InstrAttribs {
   u8 Volatile : 1 = 0;
   u8 Atomic : 1 = 0;
   u8 Ordering : 3 = 0;
+  // exact for udiv sdiv lshr ashr, disjoint for or, nneg for zext, samesign
+  // for icmp
+  u8 Exact : 1 = 0;
+  u8 Disjoint : 1 = 0;
+  u8 NNeg : 1 = 0;
+  u8 SameSign : 1 = 0;
+
+  // keeps only the poison flags both instructions have, used when one
+  // instruction stands in for the other
+  void intersect_poison_flags(const InstrAttribs &o) {
+    NSW &= o.NSW;
+    NUW &= o.NUW;
+    InBounds &= o.InBounds;
+    Exact &= o.Exact;
+    Disjoint &= o.Disjoint;
+    NNeg &= o.NNeg;
+    SameSign &= o.SameSign;
+  }
+  void clear_poison_flags() {
+    NSW = NUW = InBounds = Exact = Disjoint = NNeg = SameSign = 0;
+  }
 };
 
 class InstrData : public Used, public InstrAttribs {

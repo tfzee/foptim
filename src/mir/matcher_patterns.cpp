@@ -1536,6 +1536,36 @@ static std::optional<u8> splat_shift_amount(fir::ValueR v) {
   return std::nullopt;
 }
 
+// every lane shifts by the same value of a register, vpsllw and friends take
+// the count from the low 64 bits of an xmm register
+static bool word_shift_by_scalar(fir::Instr shift_instr, X86Subtype op,
+                                 const MArgument &res_reg, const MArgument &a,
+                                 MatchResult &res, ExtraMatchData &data) {
+  const auto amount = shift_instr->args[1];
+  if (!amount.is_instr() ||
+      !amount.as_instr()->is(fir::VectorISubType::Broadcast)) {
+    fmt::println("{}", shift_instr);
+    TODO("word shift by a per lane amount");
+  }
+  auto scalar = valueToArg(amount.as_instr()->args[0], res.result, data.alloc);
+  auto gpr = MArgument{data.alloc.get_new_register(Type::Int32), Type::Int32};
+  if (scalar.isImm()) {
+    res.result.emplace_back(GBaseSubtype::mov, gpr,
+                            MArgument::Int(scalar.imm, Type::Int32));
+  } else if (get_size(scalar.ty) < 4) {
+    res.result.emplace_back(GConvSubtype::mov_zx, gpr, scalar);
+  } else {
+    res.result.emplace_back(
+        GBaseSubtype::mov, gpr,
+        MArgument{scalar.reg.retype(Type::Int32), Type::Int32});
+  }
+  auto xmm =
+      MArgument{data.alloc.get_new_register(Type::Float32), Type::Float32};
+  res.result.emplace_back(GBaseSubtype::mov, xmm, gpr);
+  res.result.emplace_back(op, res_reg, a, xmm);
+  return true;
+}
+
 void vec_rules(RuleSet &rules) {
   rules.add(pm::Broadcast, [](fir::Instr broad_instr, MatchResult &res,
                               ExtraMatchData &data) {
@@ -1747,13 +1777,13 @@ void base_binary_rules(RuleSet &rules) {
       switch (shift_instr->result_type()->as_vec().bitwidth) {
         case 16: {
           const auto amount = splat_shift_amount(shift_instr->args[1]);
-          if (!amount) {
-            fmt::println("{}", shift_instr);
-            TODO("word shift by a non constant amount");
+          if (amount) {
+            res.result.emplace_back(X86Subtype::psll, res_reg, a,
+                                    MArgument(*amount));
+            return true;
           }
-          res.result.emplace_back(X86Subtype::psll, res_reg, a,
-                                  MArgument(*amount));
-          return true;
+          return word_shift_by_scalar(shift_instr, X86Subtype::psll, res_reg, a,
+                                      res, data);
         }
         case 32:
         case 64:
@@ -1794,13 +1824,13 @@ void base_binary_rules(RuleSet &rules) {
       switch (shift_instr->result_type()->as_vec().bitwidth) {
         case 16: {
           const auto amount = splat_shift_amount(shift_instr->args[1]);
-          if (!amount) {
-            fmt::println("{}", shift_instr);
-            TODO("word shift by a non constant amount");
+          if (amount) {
+            res.result.emplace_back(X86Subtype::psrl, res_reg, a,
+                                    MArgument(*amount));
+            return true;
           }
-          res.result.emplace_back(X86Subtype::psrl, res_reg, a,
-                                  MArgument(*amount));
-          return true;
+          return word_shift_by_scalar(shift_instr, X86Subtype::psrl, res_reg, a,
+                                      res, data);
         }
         case 32:
         case 64:
@@ -1839,13 +1869,13 @@ void base_binary_rules(RuleSet &rules) {
       switch (shift_instr->result_type()->as_vec().bitwidth) {
         case 16: {
           const auto amount = splat_shift_amount(shift_instr->args[1]);
-          if (!amount) {
-            fmt::println("{}", shift_instr);
-            TODO("word shift by a non constant amount");
+          if (amount) {
+            res.result.emplace_back(X86Subtype::psra, res_reg, a,
+                                    MArgument(*amount));
+            return true;
           }
-          res.result.emplace_back(X86Subtype::psra, res_reg, a,
-                                  MArgument(*amount));
-          return true;
+          return word_shift_by_scalar(shift_instr, X86Subtype::psra, res_reg, a,
+                                      res, data);
         }
         case 32:
           res.result.emplace_back(GVecSubtype::vSar, res_reg, a, b);

@@ -3,6 +3,7 @@
 #include <fmt/core.h>
 
 #include <limits>
+#include <optional>
 
 #include "config/compiler_config.hpp"
 #include "ir/builder.hpp"
@@ -106,8 +107,131 @@ class LegalizeVecs final : public FunctionPass {
     }
   }
 
+  // shift amount when every lane of a vector shifts by the same constant
+  static std::optional<u64> splat_shift_amount(fir::ValueR v) {
+    if (v.is_instr() && v.as_instr()->is(fir::VectorISubType::Broadcast)) {
+      v = v.as_instr()->args[0];
+    }
+    if (v.is_constant() && v.as_constant()->is_int()) {
+      return static_cast<u64>(v.as_constant()->as_int());
+    }
+    if (v.is_constant() && v.as_constant()->is_vec()) {
+      const auto &members = v.as_constant()->as_vec().members;
+      if (members.empty() || !members[0]->is_int()) {
+        return std::nullopt;
+      }
+      for (const auto &m : members) {
+        if (!m->is_int() || m->as_int() != members[0]->as_int()) {
+          return std::nullopt;
+        }
+      }
+      return static_cast<u64>(members[0]->as_int());
+    }
+    return std::nullopt;
+  }
+
+  // there are no byte shifts: shift the words and clear the bits that came
+  // from the neighbouring byte, an arithmetic shift fills them with the sign
+  // by xor and sub of the moved sign bit
+  bool legalize_byte_shift(fir::Context &ctx, fir::Instr instr,
+                           TVec<fir::Instr> &worklist) {
+    using Sub = fir::BinaryInstrSubType;
+    if (!(instr->is(Sub::Shl) || instr->is(Sub::Shr) || instr->is(Sub::AShr)) ||
+        !instr->result_type()->is_vec()) {
+      return false;
+    }
+    const auto vt = instr->result_type()->as_vec();
+    const auto amount = splat_shift_amount(instr->args[1]);
+    if (vt.bitwidth == 16 && amount && *amount < 16 &&
+        instr->args[1].is_constant()) {
+      // the matcher takes the amount as an immediate, a constant vector
+      // would be moved into a global
+      fir::Builder wb{instr};
+      instr.replace_arg(
+          1, wb.build_vbroadcast(fir::ValueR{ctx->get_constant_int(
+                                     static_cast<i128>(*amount), 16)},
+                                 instr->args[1].get_type()));
+      return true;
+    }
+    if (vt.bitwidth != 8 || vt.member_number % 2 != 0) {
+      return false;
+    }
+    // one value in a register for all lanes, the masks are made from it
+    fir::ValueR var_amount;
+    bool has_var_amount = false;
+    if (!amount && instr->args[1].is_instr() &&
+        instr->args[1].as_instr()->is(fir::VectorISubType::Broadcast) &&
+        !instr->args[1].as_instr()->args[0].is_constant()) {
+      var_amount = instr->args[1].as_instr()->args[0];
+      has_var_amount = true;
+    } else if (!amount || *amount >= 8) {
+      return false;
+    }
+    fir::Builder b{instr};
+    if (!has_var_amount && *amount == 0) {
+      push_all_uses(worklist, instr);
+      instr->replace_all_uses(instr->args[0]);
+      instr.destroy();
+      return true;
+    }
+    const auto byte_ty = instr->result_type();
+    const auto word_ty =
+        ctx->get_vec_type(vt.type, 16, static_cast<u16>(vt.member_number / 2));
+    const auto i16_ty = ctx->get_int_type(16);
+    const auto i8_ty = ctx->get_int_type(8);
+    const auto splat = [&](u64 value, u32 bits, fir::TypeR ty) {
+      return b.build_vbroadcast(
+          fir::ValueR{ctx->get_constant_int(static_cast<i128>(value), bits)},
+          ty);
+    };
+    const bool left = instr->is(Sub::Shl);
+    // amount for the word shift and the byte masks as a vector each
+    fir::ValueR word_amount;
+    fir::ValueR keep_mask;
+    fir::ValueR sign_mask;
+    if (has_var_amount) {
+      auto wide = b.build_zext(var_amount, i16_ty);
+      word_amount = b.build_vbroadcast(wide, word_ty);
+      const auto scalar_mask = [&](u64 base, bool shift_left) {
+        auto c =
+            fir::ValueR{ctx->get_constant_int(static_cast<i128>(base), 16)};
+        auto m = shift_left ? b.build_shl(c, wide) : b.build_lshr(c, wide);
+        return b.build_vbroadcast(b.build_itrunc(m, i8_ty), byte_ty);
+      };
+      keep_mask = scalar_mask(0xFF, left);
+      if (instr->is(Sub::AShr)) {
+        sign_mask = scalar_mask(0x80, false);
+      }
+    } else {
+      word_amount = splat(*amount, 16, word_ty);
+      keep_mask = splat(left ? (0xFFu << *amount) & 0xFFu : 0xFFu >> *amount, 8,
+                        byte_ty);
+      if (instr->is(Sub::AShr)) {
+        sign_mask = splat(0x80u >> *amount, 8, byte_ty);
+      }
+    }
+    auto words = b.build_conversion_op(instr->args[0], word_ty,
+                                       fir::ConversionSubType::BitCast);
+    auto shifted_words = left ? b.build_shl(words, word_amount)
+                              : b.build_lshr(words, word_amount);
+    auto bytes = b.build_conversion_op(shifted_words, byte_ty,
+                                       fir::ConversionSubType::BitCast);
+    auto res = b.build_binary_op(bytes, keep_mask, Sub::And);
+    if (instr->is(Sub::AShr)) {
+      auto flipped = b.build_binary_op(res, sign_mask, Sub::Xor);
+      res = b.build_int_sub(flipped, sign_mask);
+    }
+    push_all_uses(worklist, instr);
+    instr->replace_all_uses(res);
+    instr.destroy();
+    return true;
+  }
+
   bool legalize(fir::Context &ctx, fir::Instr instr,
                 TVec<fir::Instr> &worklist, FloatPool &pool) {
+    if (legalize_byte_shift(ctx, instr, worklist)) {
+      return true;
+    }
     // constant vector operands get moved into globals, whatever else happens
     bool changed = false;
     if ((instr->is(fir::BinaryInstrSubType::FloatAdd) ||

@@ -81,16 +81,16 @@ class Builder {
   ValueR build_float_sub(ValueR a, ValueR b);
   ValueR build_float_mul(ValueR a, ValueR b);
   ValueR build_float_div(ValueR a, ValueR b);
-  ValueR build_itrunc(ValueR a, TypeR ty);
+  ValueR build_itrunc(ValueR a, TypeR ty, bool nuw = false, bool nsw = false);
   ValueR build_extract_element(ValueR stru, std::span<ValueR> indicies,
                                TypeR out_ty);
   ValueR build_insert_element(ValueR stru, ValueR v, std::span<ValueR> indicies,
                               TypeR out_ty);
   ValueR build_sext(ValueR a, TypeR ty);
-  ValueR build_zext(ValueR a, TypeR ty);
+  ValueR build_zext(ValueR a, TypeR ty, bool nneg = false);
   ValueR build_int_mul(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
-  ValueR build_int_sub(ValueR a, ValueR b);
-  ValueR build_shl(ValueR a, ValueR b);
+  ValueR build_int_sub(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
+  ValueR build_shl(ValueR a, ValueR b, bool nuw = false, bool nsw = false);
   ValueR build_ashr(ValueR a, ValueR b);
   ValueR build_lshr(ValueR a, ValueR b);
   ValueR build_int_cmp(ValueR a, ValueR b, ICmpInstrSubType ty);

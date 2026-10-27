@@ -211,6 +211,21 @@ bool binary_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
       !vector_operand_ok(c, i->args[0]) || !vector_operand_ok(c, i->args[1])) {
     return false;
   }
+  // byte and word shifts exist only for one amount in every lane
+  if (ty->is_int() && ty->get_bitwidth() < 32 &&
+      (i->subtype == static_cast<u32>(BinSub::Shl) ||
+       i->subtype == static_cast<u32>(BinSub::Shr) ||
+       i->subtype == static_cast<u32>(BinSub::AShr))) {
+    if (is_vector_shape(shape_of(c, i->args[1]))) {
+      return false;
+    }
+    if (i->args[1].is_constant_int() &&
+        i->args[1].as_constant()->as_apint().uge(
+            APInt(i->args[1].as_constant()->as_apint().bits(),
+                  u64{ty->get_bitwidth()}))) {
+      return false;
+    }
+  }
   // masks are never broadcast, so both operands have to be vectors
   if (ty->is_int() && ty->as_int() == 1 &&
       !(is_vector_shape(shape_of(c, i->args[0])) &&
@@ -228,8 +243,12 @@ bool binary_match_loop(LoopCtx &c, fir::Instr i, PlanNode &n) {
 bool binary_legal(const PlanNode &n, LaneSpace space, u32 /*vf*/,
                   const Features &features) {
   const auto sub = static_cast<BinSub>(n.sub);
+  // the amount of a narrow shift is the same in every lane, checked by
+  // match_loop
+  const bool shift =
+      sub == BinSub::Shl || sub == BinSub::Shr || sub == BinSub::AShr;
   if (n.type->is_int() && n.type->get_bitwidth() < 32 &&
-      (sub == BinSub::Shl || sub == BinSub::Shr || sub == BinSub::AShr ||
+      ((shift && space != LaneSpace::LoopIter) ||
        (sub == BinSub::IntMul && n.type->get_bitwidth() == 8))) {
     return false;
   }

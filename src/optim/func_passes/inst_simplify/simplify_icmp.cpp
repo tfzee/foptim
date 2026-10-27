@@ -311,6 +311,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
         // sext(x) != 0 => x != 0
         auto x = arg0->args[0];
         Builder bb{instr};
+        instr->SameSign = false;
         instr.replace_arg(0, x);
         instr.replace_arg(
             1, fir::ValueR{ctx->get_constant_int(
@@ -333,6 +334,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
         // TODO: technically this could also work if both are zext but different
         // types cause then we still
         //  could get rid of one of the zext
+        instr->SameSign = false;
         instr.replace_arg(0, a1i->args[0]);
         instr.replace_arg(1, a2i->args[0]);
         if (a1i->instr_type == InstrType::ZExt) {
@@ -400,6 +402,7 @@ bool simplify_icmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
               b.build_itrunc(a1i->args[0], ctx->get_int_type(amount));
           worklist.push_back({truncated_val.as_instr(),
                               truncated_val.as_instr()->get_parent()});
+          instr->SameSign = false;
           instr.replace_arg(0, truncated_val);
           auto truncated_o =
               b.build_itrunc(instr->args[1], ctx->get_int_type(amount));

@@ -1149,6 +1149,7 @@ bool convert_icmp(const llvm::Instruction *any_instr,
       UNREACH();
   }
   auto res = builder.build_int_cmp(a, b, pred);
+  res.as_instr()->SameSign = cmp_inst->hasSameSign();
   valueToValue.insert({any_instr, res});
   return true;
 }
@@ -1331,7 +1332,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx, mod);
-    auto res = builder.build_itrunc(arg, dest_ty);
+    auto res = builder.build_itrunc(arg, dest_ty, instr->hasNoUnsignedWrap(),
+                                    instr->hasNoSignedWrap());
     valueToValue.insert({any_instr, res});
     return;
   }
@@ -1347,7 +1349,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto arg = convert_instr_arg(instr->getOperand(0), fctx, ffunc, builder,
                                  valueToValue, mod, b2b);
     auto dest_ty = convert_type(instr->getDestTy(), fctx, mod);
-    auto res = builder.build_zext(arg, dest_ty);
+    auto res = builder.build_zext(arg, dest_ty, instr->hasNonNeg());
     valueToValue.insert({any_instr, res});
     return;
   }
@@ -1480,6 +1482,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_binary_op(
           left, right, foptim::fir::BinaryInstrSubType::IntSDiv);
+      add.as_instr()->Exact = any_instr->isExact();
       valueToValue.insert({any_instr, add});
       return;
     }
@@ -1492,6 +1495,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     if (any_instr->getType()->isIntegerTy()) {
       auto add = builder.build_binary_op(
           left, right, foptim::fir::BinaryInstrSubType::IntUDiv);
+      add.as_instr()->Exact = any_instr->isExact();
       valueToValue.insert({any_instr, add});
       return;
     }
@@ -1503,7 +1507,8 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
 
     auto *res_type = any_instr->getType();
     if (res_type->isIntegerTy() || res_type->isVectorTy()) {
-      auto add = builder.build_shl(left, right);
+      auto add = builder.build_shl(left, right, any_instr->hasNoUnsignedWrap(),
+                                   any_instr->hasNoSignedWrap());
       valueToValue.insert({any_instr, add});
       return;
     }
@@ -1516,6 +1521,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto *res_type = any_instr->getType();
     if (res_type->isIntegerTy() || res_type->isVectorTy()) {
       auto add = builder.build_ashr(left, right);
+      add.as_instr()->Exact = any_instr->isExact();
       valueToValue.insert({any_instr, add});
       return;
     }
@@ -1528,6 +1534,7 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
     auto *res_type = any_instr->getType();
     if (res_type->isIntegerTy() || res_type->isVectorTy()) {
       auto add = builder.build_lshr(left, right);
+      add.as_instr()->Exact = any_instr->isExact();
       valueToValue.insert({any_instr, add});
       return;
     }
@@ -1539,7 +1546,9 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
 
     auto *res_type = any_instr->getType();
     if (res_type->isIntegerTy() || res_type->isVectorTy()) {
-      auto sub = builder.build_int_sub(left, right);
+      auto sub =
+          builder.build_int_sub(left, right, any_instr->hasNoUnsignedWrap(),
+                                any_instr->hasNoSignedWrap());
       valueToValue.insert({any_instr, sub});
       return;
     }
@@ -1582,6 +1591,10 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
         res_type->isFloatTy()) {
       auto add = builder.build_binary_op(left, right,
                                          foptim::fir::BinaryInstrSubType::Or);
+      if (add.is_instr()) {
+        add.as_instr()->Disjoint =
+            llvm::cast<llvm::PossiblyDisjointInst>(any_instr)->isDisjoint();
+      }
       valueToValue.insert({any_instr, add});
       return;
     }

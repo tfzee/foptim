@@ -106,9 +106,15 @@ define i32 @sdiv_sdiv_wraps(i32 %x) {
 ; CHECK-LABEL: func sdiv_sdiv_wraps<CC: C, LINK: external, > Uses: 0
 ; CHECK-NEXT:{
 ; CHECK-NEXT:  bb0(%0{}: i32):
-; CHECK-NEXT:    %1: i32 = IntSDiv(%0, 65536:i32){} NUses:1
-; CHECK-NEXT:    %2: i32 = IntSDiv(%1, 65536:i32){} NUses:1
-; CHECK-NEXT:    %3: i32 = Return(%2){} NUses:0
+; CHECK-NEXT:    %1: i32 = AShR(%0, 31:i32){} NUses:1
+; CHECK-NEXT:    %2: i32 = LShR(%1, 16:i32){} NUses:1
+; CHECK-NEXT:    %3: i32 = IntAdd(%0, %2){} NUses:1
+; CHECK-NEXT:    %4: i32 = AShR(%3, 16:i32){} NUses:2
+; CHECK-NEXT:    %5: i32 = AShR(%4, 31:i32){} NUses:1
+; CHECK-NEXT:    %6: i32 = LShR(%5, 16:i32){} NUses:1
+; CHECK-NEXT:    %7: i32 = IntAdd(%4, %6){} NUses:1
+; CHECK-NEXT:    %8: i32 = AShR(%7, 16:i32){} NUses:1
+; CHECK-NEXT:    %9: i32 = Return(%8){} NUses:0
 ; CHECK-NEXT:}
   %a = sdiv i32 %x, 65536
   %b = sdiv i32 %a, 65536

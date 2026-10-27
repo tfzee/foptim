@@ -436,10 +436,12 @@ ValueR Builder::build_float_div(ValueR a, ValueR b) {
   return instr.result();
 }
 
-ValueR Builder::build_itrunc(ValueR a, TypeR ty) {
+ValueR Builder::build_itrunc(ValueR a, TypeR ty, bool nuw, bool nsw) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_itrunc(ty));
   instr.add_arg(a);
+  instr->NUW = nuw;
+  instr->NSW = nsw;
   bb.insert_instr(indx, instr);
   indx++;
   return instr.result();
@@ -454,10 +456,11 @@ ValueR Builder::build_sext(ValueR a, TypeR ty) {
   return instr.result();
 }
 
-ValueR Builder::build_zext(ValueR a, TypeR ty) {
+ValueR Builder::build_zext(ValueR a, TypeR ty, bool nneg) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_zext(ty));
   instr.add_arg(a);
+  instr->NNeg = nneg;
   bb.insert_instr(indx, instr);
   indx++;
   return instr.result();
@@ -498,21 +501,25 @@ ValueR Builder::build_int_mul(ValueR a, ValueR b, bool nuw, bool nsw) {
   return instr.result();
 }
 
-ValueR Builder::build_int_sub(ValueR a, ValueR b) {
+ValueR Builder::build_int_sub(ValueR a, ValueR b, bool nuw, bool nsw) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_sub(a.get_type()));
   instr.add_arg(a);
   instr.add_arg(b);
+  instr->NUW = nuw;
+  instr->NSW = nsw;
   bb.insert_instr(indx, instr);
   indx++;
   return instr.result();
 }
 
-ValueR Builder::build_shl(ValueR a, ValueR b) {
+ValueR Builder::build_shl(ValueR a, ValueR b, bool nuw, bool nsw) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_shl(a.get_type()));
   instr.add_arg(a);
   instr.add_arg(b);
+  instr->NUW = nuw;
+  instr->NSW = nsw;
   bb.insert_instr(indx, instr);
   indx++;
   return instr.result();

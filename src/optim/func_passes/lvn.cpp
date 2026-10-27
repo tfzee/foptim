@@ -129,6 +129,7 @@ bool apply_gvn(fir::Instr instr, fir::BasicBlock bb, const CFG &cfg,
         continue;
       }
       if (data.eql_expr(data2) && type == instr2.result_type()) {
+        instr2->intersect_poison_flags(*instr.get_raw_ptr());
         instr->replace_all_uses(instr2.result());
         instr.destroy();
         return true;
@@ -461,6 +462,7 @@ bool apply_lvn(fir::BasicBlock bb, const CFG &cfg, const Dominators &dom,
       }
       if (lvn_applicable(instr2)) {
         if (eql_instr_expr(instr, instr2)) {
+          instr->intersect_poison_flags(*instr2.get_raw_ptr());
           instr2->replace_all_uses(instr.result());
           ASSERT(instr2->get_n_uses() == 0);
           instr2.destroy();
