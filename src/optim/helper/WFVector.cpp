@@ -14,8 +14,8 @@ namespace foptim::optim {
 
 constexpr bool debug_print = false;
 
-std::optional<i64> can_whole_function_vectorize(fir::Function &func,
-                                                u64 lanes) {
+std::optional<i64> can_whole_function_vectorize(fir::Function &func, u64 lanes,
+                                                bool has_vector_popcnt) {
   // just ignore control flow for now
   // also ignore memory stuff for now
   if (!func.attribs.mem_read_none || func.attribs.variadic ||
@@ -104,9 +104,11 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func,
               cost += 10;
               break;
             case fir::IntrinsicSubType::PopCnt:
-              fmt::println("{}", instr);
-              IMPL("impl wfvector intrinsic");
-              return {};
+              // AVX2 has no vector popcnt
+              if (!has_vector_popcnt) {
+                return {};
+              }
+              TODO("wfvector cost of a vector popcnt");
             case fir::IntrinsicSubType::Bswap:
               return {};
             case fir::IntrinsicSubType::INVALID:

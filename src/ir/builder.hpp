@@ -59,6 +59,9 @@ class Builder {
                          VectorISubType sub_type);
   ValueR build_atomic_rmw(ValueR ptr, ValueR val, AtomicRMWSubType sub_type,
                           Ordering ordering);
+  // returns the old value
+  ValueR build_atomic_cmpxchg(ValueR ptr, ValueR expected, ValueR new_val,
+                              Ordering ordering, bool is_volatile = false);
   ValueR build_fence(Ordering ordering);
   ValueR build_ctlz(ValueR a, ValueR b);
   ValueR build_cttz(ValueR a, ValueR b);

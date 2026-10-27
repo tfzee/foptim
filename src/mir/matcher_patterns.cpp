@@ -2103,38 +2103,117 @@ void base_binary_rules(RuleSet &rules) {
 void base_rules(RuleSet &rules) {
   base_binary_rules(rules);
 
+  rules.add(pm::Fence, [](fir::Instr fence_instr, MatchResult &res,
+                          ExtraMatchData &) {
+    // x86 TSO only reorders a store with a later load, which only a seq_cst
+    // fence forbids
+    if (static_cast<fir::Ordering>(fence_instr->Ordering) ==
+        fir::Ordering::Seq_Cst) {
+      res.result.emplace_back(X86Subtype::mfence);
+    }
+    return true;
+  });
+
   rules.add(pm::AtomicRMW, [](fir::Instr atomic_instr, MatchResult &res,
                               ExtraMatchData &data) {
-    (void)data;
-    auto res_reg = valueToArg(atomic_instr.result(), res.result, data.alloc);
-
-    auto order = static_cast<fir::Ordering>(atomic_instr->Ordering);
-    auto ptr = valueToArg(atomic_instr->args[0], res.result, data.alloc);
-    auto val = valueToArg(atomic_instr->args[1], res.result, data.alloc);
-    auto op = static_cast<fir::AtomicRMWSubType>(atomic_instr->subtype);
-    // TODO: use order
-    (void)order;
-    switch (op) {
-      case fir::AtomicRMWSubType::INVALID:
-        UNREACH();
-      case fir::AtomicRMWSubType::Add:
-        res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
-        // xadd needs the pointer as memory operand [ptr]
-        ASSERT(ptr.isReg());
-        res.result.emplace_back(
-            X86Subtype::LockXAdd2,
-            MArgument::MemB(ptr.reg, convert_type(atomic_instr.result_type())),
-            res_reg);
-        return true;
-      case fir::AtomicRMWSubType::Xchg:
-      case fir::AtomicRMWSubType::Or:
-        fmt::print("{:cd}", atomic_instr);
-        TODO("implement");
+    // every locked instruction on x86 is seq_cst, so the ordering is not used
+    using Sub = fir::AtomicRMWSubType;
+    auto op = static_cast<Sub>(atomic_instr->subtype);
+    auto ty = convert_type(atomic_instr.result_type());
+    bool used = atomic_instr.result().get_n_uses() != 0;
+    if (!used && (op == Sub::Max || op == Sub::Min || op == Sub::UMax ||
+                  op == Sub::UMin || op == Sub::Nand)) {
+      TODO(
+          "atomicrmw without a single instruction has to be expanded by "
+          "IntrinExpand");
+    }
+    if (used && (op == Sub::And || op == Sub::Or || op == Sub::Xor)) {
+      TODO("atomicrmw with a used result has to be expanded by IntrinExpand");
     }
 
-    fmt::print("{:cd}", atomic_instr);
-    TODO("okka");
-    return true;
+    auto res_reg = valueToArg(atomic_instr.result(), res.result, data.alloc);
+    auto ptr = valueToArg(atomic_instr->args[0], res.result, data.alloc);
+    if (!ptr.isReg()) {
+      auto ptr_reg =
+          MArgument{data.alloc.get_new_register(Type::Int64), Type::Int64};
+      res.result.emplace_back(GBaseSubtype::mov, ptr_reg, ptr);
+      ptr = ptr_reg;
+    }
+    auto mem = MArgument::MemB(ptr.reg, ty);
+
+    auto in_reg = [&](MArgument arg) {
+      if (arg.isReg()) {
+        return arg;
+      }
+      auto reg = MArgument{data.alloc.get_new_register(ty), ty};
+      res.result.emplace_back(GBaseSubtype::mov, reg, arg);
+      return reg;
+    };
+    // immediate forms exist for 32 bit and 64 bit as sign extended 32 bit
+    auto operand = [&](MArgument arg) {
+      if (arg.isImm() && (ty == Type::Int32 || ty == Type::Int64) &&
+          std::bit_cast<i64>(arg.imm) == static_cast<i32>(arg.imm)) {
+        return arg;
+      }
+      return in_reg(arg);
+    };
+
+    if (op == Sub::CmpXchg) {
+      // expected goes in and the old value comes out of rax
+      auto rax = MArgument(VReg::EAX(), ty);
+      auto expected = valueToArg(atomic_instr->args[1], res.result, data.alloc);
+      auto new_val =
+          in_reg(valueToArg(atomic_instr->args[2], res.result, data.alloc));
+      res.result.emplace_back(GBaseSubtype::mov, rax, expected);
+      res.result.emplace_back(X86Subtype::LockCmpXchg3, mem, new_val, rax);
+      res.result.emplace_back(GBaseSubtype::mov, res_reg, rax);
+      return true;
+    }
+
+    auto val = valueToArg(atomic_instr->args[1], res.result, data.alloc);
+    switch (op) {
+      case Sub::INVALID:
+      case Sub::CmpXchg:
+        UNREACH();
+      case Sub::Add:
+        if (!used) {
+          res.result.emplace_back(X86Subtype::LockAdd2, mem, operand(val));
+          return true;
+        }
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+        res.result.emplace_back(X86Subtype::LockXAdd2, mem, res_reg);
+        return true;
+      case Sub::Sub:
+        if (!used) {
+          res.result.emplace_back(X86Subtype::LockSub2, mem, operand(val));
+          return true;
+        }
+        // old = xadd(-val)
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+        res.result.emplace_back(GArithSubtype::neg1, res_reg);
+        res.result.emplace_back(X86Subtype::LockXAdd2, mem, res_reg);
+        return true;
+      case Sub::Xchg:
+        res.result.emplace_back(GBaseSubtype::mov, res_reg, val);
+        res.result.emplace_back(X86Subtype::Xchg2, mem, res_reg);
+        return true;
+      case Sub::And:
+        res.result.emplace_back(X86Subtype::LockAnd2, mem, operand(val));
+        return true;
+      case Sub::Or:
+        res.result.emplace_back(X86Subtype::LockOr2, mem, operand(val));
+        return true;
+      case Sub::Xor:
+        res.result.emplace_back(X86Subtype::LockXor2, mem, operand(val));
+        return true;
+      case Sub::Nand:
+      case Sub::Max:
+      case Sub::Min:
+      case Sub::UMax:
+      case Sub::UMin:
+        UNREACH();
+    }
+    UNREACH();
   });
 
   rules.add(pm::Alloca, [](fir::Instr alloca_instr, MatchResult &res,

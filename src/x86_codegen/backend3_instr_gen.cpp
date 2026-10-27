@@ -1180,8 +1180,8 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       if (instr.args[0].ty == instr.args[1].ty) {
         req.mnemonic = ZYDIS_MNEMONIC_MOV;
       } else if (fmir::vec_lane_bits(instr.args[0].ty) != 0) {
-        req.mnemonic = vector_extend_mnemonic(instr.args[1].ty, instr.args[0].ty,
-                                              false);
+        req.mnemonic =
+            vector_extend_mnemonic(instr.args[1].ty, instr.args[0].ty, false);
         ASSERT(req.mnemonic != ZYDIS_MNEMONIC_INVALID);
       } else if (instr.args[0].isReg() &&
                  instr.args[0].ty == fmir::Type::Int64 &&
@@ -1261,8 +1261,8 @@ size_t emit_gconv(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       if (instr.args[0].ty == instr.args[1].ty) {
         req.mnemonic = ZYDIS_MNEMONIC_MOV;
       } else if (fmir::vec_lane_bits(instr.args[0].ty) != 0) {
-        req.mnemonic = vector_extend_mnemonic(instr.args[1].ty, instr.args[0].ty,
-                                              true);
+        req.mnemonic =
+            vector_extend_mnemonic(instr.args[1].ty, instr.args[0].ty, true);
         ASSERT(req.mnemonic != ZYDIS_MNEMONIC_INVALID);
       } else if (4 == get_size(instr.args[1].ty)) {
         req.mnemonic = ZYDIS_MNEMONIC_MOVSXD;
@@ -2361,17 +2361,60 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
+    case fmir::X86Subtype::mfence:
     case fmir::X86Subtype::vzeroupper: {
-      req.mnemonic = ZYDIS_MNEMONIC_VZEROUPPER;
+      req.mnemonic = static_cast<fmir::X86Subtype>(instr.sop) ==
+                             fmir::X86Subtype::mfence
+                         ? ZYDIS_MNEMONIC_MFENCE
+                         : ZYDIS_MNEMONIC_VZEROUPPER;
       req.operand_count = 0;
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
-    case fmir::X86Subtype::LockXAdd2: {
+    case fmir::X86Subtype::LockXAdd2:
+    case fmir::X86Subtype::Xchg2:
+    case fmir::X86Subtype::LockAdd2:
+    case fmir::X86Subtype::LockSub2:
+    case fmir::X86Subtype::LockAnd2:
+    case fmir::X86Subtype::LockOr2:
+    case fmir::X86Subtype::LockXor2:
+    case fmir::X86Subtype::LockCmpXchg3: {
+      // rax of the cmpxchg is implicit
+      if (instr.is(fmir::X86Subtype::LockCmpXchg3)) {
+        req.operand_count = 2;
+      }
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
       }
-      req.mnemonic = ZYDIS_MNEMONIC_XADD;
+      switch (static_cast<fmir::X86Subtype>(instr.sop)) {
+        case fmir::X86Subtype::LockXAdd2:
+          req.mnemonic = ZYDIS_MNEMONIC_XADD;
+          break;
+        case fmir::X86Subtype::LockAdd2:
+          req.mnemonic = ZYDIS_MNEMONIC_ADD;
+          break;
+        case fmir::X86Subtype::LockSub2:
+          req.mnemonic = ZYDIS_MNEMONIC_SUB;
+          break;
+        case fmir::X86Subtype::LockAnd2:
+          req.mnemonic = ZYDIS_MNEMONIC_AND;
+          break;
+        case fmir::X86Subtype::LockOr2:
+          req.mnemonic = ZYDIS_MNEMONIC_OR;
+          break;
+        case fmir::X86Subtype::LockXor2:
+          req.mnemonic = ZYDIS_MNEMONIC_XOR;
+          break;
+        case fmir::X86Subtype::LockCmpXchg3:
+          req.mnemonic = ZYDIS_MNEMONIC_CMPXCHG;
+          break;
+        default:
+          // xchg locks on its own
+          req.mnemonic = ZYDIS_MNEMONIC_XCHG;
+          ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length),
+                     req);
+          return length;
+      }
       req.prefixes |= ZYDIS_ATTRIB_HAS_LOCK;
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;

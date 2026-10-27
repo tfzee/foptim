@@ -467,6 +467,9 @@ KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
   for (u32 k = 0; k < kept->n_args(); k++) {
     if (kept->args[k] == a1.as_bb_arg()) {
       if (arg_map[k].is_invalid()) {
+        if (a1.get_type() != a2.get_type()) {
+          return KeptArg::Fail;
+        }
         arg_map[k] = a2;
         return KeptArg::Handled;
       }
@@ -526,6 +529,10 @@ KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
       }
     }
 
+    if (arg1.get_type() != arg2.get_type()) {
+      // the new block argument could only have one of the types
+      return false;
+    }
     difference_values.push_back({.use1 = fir::Use::norm(i1, i),
                                  .old_val = i1->args[i],
                                  .use2 = fir::Use::norm(i2, i)});
@@ -593,6 +600,9 @@ KeptArg match_kept_arg(fir::ValueR a1, fir::ValueR a2, fir::BasicBlock kept,
         if (a2I->get_parent() == i2->get_parent()) {
           return false;
         }
+      }
+      if (a1.get_type() != a2.get_type()) {
+        return false;
       }
       difference_values.push_back({fir::Use::bb_arg(i1, bb_id, arg_id), a1,
                                    fir::Use::bb_arg(i2, bb_id, arg_id)});

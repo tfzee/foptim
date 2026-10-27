@@ -122,6 +122,105 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memcpy(fir::Function &func,
   return {new_block};
 }
 
+std::optional<fir::BasicBlock> IntrinExpand::expand_atomic_rmw(
+    fir::Function &func, fir::BasicBlock bb, fir::Instr instr) {
+  using Sub = fir::AtomicRMWSubType;
+  if (!instr->is(fir::InstrType::AtomicRMW)) {
+    return {};
+  }
+  auto op = static_cast<Sub>(instr->subtype);
+  switch (op) {
+    case Sub::Nand:
+    case Sub::Max:
+    case Sub::Min:
+    case Sub::UMax:
+    case Sub::UMin:
+      break;
+    case Sub::And:
+    case Sub::Or:
+    case Sub::Xor:
+      // without a user the backend has a lock prefixed instruction for these
+      if (instr.result().get_n_uses() == 0) {
+        return {};
+      }
+      break;
+    case Sub::INVALID:
+    case Sub::Add:
+    case Sub::Sub:
+    case Sub::Xchg:
+    case Sub::CmpXchg:
+      return {};
+  }
+  auto *ctx = func.ctx;
+  auto ty = instr.result_type();
+  auto ptr = instr->args[0];
+  auto val = instr->args[1];
+  auto order = static_cast<fir::Ordering>(instr->Ordering);
+
+  auto new_block = split_block(instr);
+
+  fir::Builder buh{bb};
+  auto loop_bb = buh.append_bb();
+  auto old =
+      fir::ValueR{loop_bb.add_arg(ctx->storage.insert_bb_arg(loop_bb, ty))};
+  buh.at_end(bb);
+  // a stale first value only makes the first cmpxchg fail
+  auto first = buh.build_load(ty, ptr, true, instr->Volatile);
+  auto entry = buh.build_branch(loop_bb);
+  entry.add_bb_arg(0, first);
+  buh.at_end(loop_bb);
+
+  auto select_by = [&](fir::ICmpInstrSubType pred) {
+    auto cond = buh.build_int_cmp(old, val, pred);
+    return buh.build_select(ty, cond, old, val);
+  };
+  fir::ValueR next;
+  switch (op) {
+    case Sub::And:
+      next = buh.build_binary_op(old, val, fir::BinaryInstrSubType::And);
+      break;
+    case Sub::Or:
+      next = buh.build_binary_op(old, val, fir::BinaryInstrSubType::Or);
+      break;
+    case Sub::Xor:
+      next = buh.build_binary_op(old, val, fir::BinaryInstrSubType::Xor);
+      break;
+    case Sub::Nand:
+      next = buh.build_binary_op(
+          buh.build_binary_op(old, val, fir::BinaryInstrSubType::And),
+          fir::ValueR{ctx->get_constant_int(-1, ty->as_int())},
+          fir::BinaryInstrSubType::Xor);
+      break;
+    case Sub::Max:
+      next = select_by(fir::ICmpInstrSubType::SGT);
+      break;
+    case Sub::Min:
+      next = select_by(fir::ICmpInstrSubType::SLT);
+      break;
+    case Sub::UMax:
+      next = select_by(fir::ICmpInstrSubType::UGT);
+      break;
+    case Sub::UMin:
+      next = select_by(fir::ICmpInstrSubType::ULT);
+      break;
+    case Sub::INVALID:
+    case Sub::Add:
+    case Sub::Sub:
+    case Sub::Xchg:
+    case Sub::CmpXchg:
+      UNREACH();
+  }
+  auto seen = buh.build_atomic_cmpxchg(ptr, old, next, order, instr->Volatile);
+  auto done = buh.build_int_cmp(seen, old, fir::ICmpInstrSubType::EQ);
+  auto back = buh.build_cond_branch(done, new_block, loop_bb);
+  back.add_bb_arg(1, seen);
+  // new_block is only entered from loop_bb, so old dominates its uses
+  instr.result().replace_all_uses(old);
+  instr.destroy();
+
+  return {new_block};
+}
+
 static fir::LibFunc libc_func(fir::Instr instr) {
   if (instr->is(fir::IntrinsicSubType::Memcpy)) {
     return fir::LibFunc::Memcpy;

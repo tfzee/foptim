@@ -233,8 +233,20 @@ enum class X86Subtype : u32 {
   padd,
 
   LockXAdd2,
+  // xchg with a memory operand locks implicitly
+  Xchg2,
+  // lock op [mem], src, nothing but the memory is written
+  LockAdd2,
+  LockSub2,
+  LockAnd2,
+  LockOr2,
+  LockXor2,
+  // lock cmpxchg, args are mem, new, rax (expected in, old value out)
+  LockCmpXchg3,
 
   vzeroupper,
+  // full barrier, only emitted for a seq_cst fence
+  mfence,
 
   // avx512
   vextractf64x2,

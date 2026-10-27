@@ -152,11 +152,22 @@ class BBList {
   operator const Vec &() const { return vec_or_empty(); }
 };
 
+// args are (ptr, value), the result is the old value. CmpXchg takes
+// (ptr, expected, new) and stored new iff the old value equals expected.
 enum class AtomicRMWSubType : u16 {
   INVALID = 0,
   Add,
+  Sub,
   Xchg,
+  And,
   Or,
+  Xor,
+  Nand,
+  Max,
+  Min,
+  UMax,
+  UMin,
+  CmpXchg,
 };
 
 enum class VectorISubType : u16 {

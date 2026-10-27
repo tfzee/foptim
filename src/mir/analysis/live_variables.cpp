@@ -241,12 +241,23 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
         case X86Subtype::vzeroupper:
+        case X86Subtype::mfence:
           return;
         case X86Subtype::LockXAdd2:
+        case X86Subtype::Xchg2:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
           def[reg_to_uid(instr.args[1].reg)].set(true);
+          return;
+        case X86Subtype::LockAdd2:
+        case X86Subtype::LockSub2:
+        case X86Subtype::LockAnd2:
+        case X86Subtype::LockOr2:
+        case X86Subtype::LockXor2:
+          return;
+        case X86Subtype::LockCmpXchg3:
+          def[reg_to_uid(instr.args[2].reg)].set(true);
           return;
         case X86Subtype::vextractf64x2:
         case X86Subtype::vextractf64x4:
@@ -602,10 +613,22 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
         case X86Subtype::vzeroupper:
+        case X86Subtype::mfence:
           return;
         case X86Subtype::LockXAdd2:
+        case X86Subtype::Xchg2:
+        case X86Subtype::LockAdd2:
+        case X86Subtype::LockSub2:
+        case X86Subtype::LockAnd2:
+        case X86Subtype::LockOr2:
+        case X86Subtype::LockXor2:
           update_uses(instr.args[0], uses);
           update_uses(instr.args[1], uses);
+          return;
+        case X86Subtype::LockCmpXchg3:
+          update_uses(instr.args[0], uses);
+          update_uses(instr.args[1], uses);
+          update_uses(instr.args[2], uses);
           return;
         case X86Subtype::lea:
         case X86Subtype::popcnt:

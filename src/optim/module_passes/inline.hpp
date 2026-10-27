@@ -462,11 +462,16 @@ class Inline final : public ModulePass {
     // callees are final before their callers are visited
     CallSCCs sccs{ctx};
     InlineCalleeInfos callees;
+    grown_in_scc.clear();
     for (auto *f : sccs.order) {
       apply(*f, sccs, callees, analyMan);
     }
     return PreservedAnalysis::all();
   }
+
+  // functions of a recursive scc that got a call inlined in this run, their
+  // bodies are not inlined into the other members of the scc again
+  TSet<const fir::Function *> grown_in_scc;
 
   void apply(fir::Function &func, const CallSCCs &sccs,
              InlineCalleeInfos &callees, AnalysisManager &analyMan) {
@@ -508,11 +513,12 @@ class Inline final : public ModulePass {
           }
           // inside a recursive SCC callees are not final, only calls of the
           // original body are inlined (one level per pass run)
-          if (round > 0 && in_recursive_scc && instr->args[0].is_constant() &&
+          if (in_recursive_scc && instr->args[0].is_constant() &&
               instr->args[0].as_constant()->is_func()) {
-            auto it =
-                sccs.scc_of.find(instr->args[0].as_constant()->as_func().func);
-            if (it != sccs.scc_of.end() && it->second == own_scc) {
+            auto *callee = instr->args[0].as_constant()->as_func().func;
+            auto it = sccs.scc_of.find(callee);
+            if (it != sccs.scc_of.end() && it->second == own_scc &&
+                (round > 0 || grown_in_scc.contains(callee))) {
               continue;
             }
           }
@@ -535,6 +541,9 @@ class Inline final : public ModulePass {
         }
       }
       if (changed) {
+        if (in_recursive_scc) {
+          grown_in_scc.insert(&func);
+        }
         analyMan.touched_body(func);
         callees.invalidate(func);
       }

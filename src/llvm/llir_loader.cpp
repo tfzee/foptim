@@ -5,6 +5,7 @@
 #include <llvm/Config/llvm-config.h>
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/GlobalAlias.h>
+#include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instruction.h>
 #include <llvm/IR/LLVMContext.h>
@@ -869,6 +870,38 @@ void convert_call(const llvm::Instruction *any_instr,
                   foptim::fir::FunctionR ffunc, foptim::fir::Builder &builder,
                   V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   foptim::TVec<foptim::fir::ValueR> args = {};
+  if (call_instr->isInlineAsm()) {
+    // inline asm is not supported, running it aborts
+    generate_trap(fctx);
+    if (foptim::utils::verbose()) {
+      fmt::print(stderr, fg(fmt::color::red),
+                 "[WARNING] Unsupported inline asm in {}, the call aborts at "
+                 "runtime: {}\n",
+                 call_instr->getFunction()->getName().str(),
+                 llvm::cast<llvm::InlineAsm>(call_instr->getCalledOperand())
+                     ->getAsmString());
+    }
+    auto target_func = fctx->get_function("abort");
+    builder.build_call(
+        foptim::fir::ValueR{fctx->get_constant_value(target_func)},
+        target_func->func_ty, target_func->func_ty->as_func().return_type(),
+        {});
+    foptim::TVec<Leaf> info;
+    collect_leaves(call_instr->getType(), 0, fctx, mod, info);
+    foptim::TVec<foptim::fir::ValueR> leaves;
+    for (const auto &leaf : info) {
+      leaves.push_back(foptim::fir::ValueR{fctx->get_poisson_value(leaf.ty)});
+    }
+    if (call_instr->getType()->isVoidTy()) {
+      return;
+    }
+    if (call_instr->getType()->isAggregateType()) {
+      valueToValue.insert_agg(any_instr, std::move(leaves));
+    } else {
+      valueToValue.insert({any_instr, leaves[0]});
+    }
+    return;
+  }
   if (const auto *c = call_instr->getCalledFunction()) {
     if (c->getName().starts_with("llvm.experimental.noalias.scope.decl") ||
         c->getName().starts_with("llvm.assume")) {
@@ -1375,13 +1408,29 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
         op = foptim::fir::AtomicRMWSubType::Or;
         break;
       case llvm::AtomicRMWInst::Sub:
+        op = foptim::fir::AtomicRMWSubType::Sub;
+        break;
       case llvm::AtomicRMWInst::And:
+        op = foptim::fir::AtomicRMWSubType::And;
+        break;
       case llvm::AtomicRMWInst::Nand:
+        op = foptim::fir::AtomicRMWSubType::Nand;
+        break;
       case llvm::AtomicRMWInst::Xor:
+        op = foptim::fir::AtomicRMWSubType::Xor;
+        break;
       case llvm::AtomicRMWInst::Max:
+        op = foptim::fir::AtomicRMWSubType::Max;
+        break;
       case llvm::AtomicRMWInst::Min:
+        op = foptim::fir::AtomicRMWSubType::Min;
+        break;
       case llvm::AtomicRMWInst::UMax:
+        op = foptim::fir::AtomicRMWSubType::UMax;
+        break;
       case llvm::AtomicRMWInst::UMin:
+        op = foptim::fir::AtomicRMWSubType::UMin;
+        break;
       case llvm::AtomicRMWInst::FAdd:
       case llvm::AtomicRMWInst::FSub:
       case llvm::AtomicRMWInst::FMax:
@@ -1401,6 +1450,26 @@ void convert(llvm::Instruction *any_instr, foptim::fir::Context &fctx,
 
     auto res = builder.build_atomic_rmw(target_ptr, value, op, ordering);
     valueToValue.insert({any_instr, res});
+    return;
+  }
+  if (const auto *instr =
+          dyn_cast_or_null<llvm::AtomicCmpXchgInst>(any_instr)) {
+    auto target_ptr = convert_instr_arg(instr->getPointerOperand(), fctx, ffunc,
+                                        builder, valueToValue, mod, b2b);
+    auto expected = convert_instr_arg(instr->getCompareOperand(), fctx, ffunc,
+                                      builder, valueToValue, mod, b2b);
+    auto new_val = convert_instr_arg(instr->getNewValOperand(), fctx, ffunc,
+                                     builder, valueToValue, mod, b2b);
+    // weak never has to fail spuriously, lock cmpxchg is seq_cst anyway
+    auto old = builder.build_atomic_cmpxchg(
+        target_ptr, expected, new_val,
+        convert_ordering(instr->getSuccessOrdering()), instr->isVolatile());
+    auto success =
+        builder.build_int_cmp(old, expected, foptim::fir::ICmpInstrSubType::EQ);
+    foptim::TVec<foptim::fir::ValueR> leaves;
+    leaves.push_back(old);
+    leaves.push_back(success);
+    valueToValue.insert_agg(any_instr, std::move(leaves));
     return;
   }
   if (op_code == llvm::Instruction::SIToFP ||

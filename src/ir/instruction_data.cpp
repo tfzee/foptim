@@ -61,6 +61,24 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "AtomicRMW.Xchg";
         case AtomicRMWSubType::Or:
           return "AtomicRMW.Or";
+        case AtomicRMWSubType::Sub:
+          return "AtomicRMW.Sub";
+        case AtomicRMWSubType::And:
+          return "AtomicRMW.And";
+        case AtomicRMWSubType::Xor:
+          return "AtomicRMW.Xor";
+        case AtomicRMWSubType::Nand:
+          return "AtomicRMW.Nand";
+        case AtomicRMWSubType::Max:
+          return "AtomicRMW.Max";
+        case AtomicRMWSubType::Min:
+          return "AtomicRMW.Min";
+        case AtomicRMWSubType::UMax:
+          return "AtomicRMW.UMax";
+        case AtomicRMWSubType::UMin:
+          return "AtomicRMW.UMin";
+        case AtomicRMWSubType::CmpXchg:
+          return "AtomicRMW.CmpXchg";
       }
     case InstrType::VectorInstr:
       switch (static_cast<VectorISubType>(subtype)) {

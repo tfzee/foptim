@@ -351,5 +351,6 @@ inline constexpr Op<InstrType::AllocaInstr> Alloca;
 inline constexpr Op<InstrType::LoadInstr> Load;
 inline constexpr Op<InstrType::StoreInstr> Store;
 inline constexpr Op<InstrType::AtomicRMW> AtomicRMW;
+inline constexpr Op<InstrType::Fence> Fence;
 
 }  // namespace foptim::fmir::pm

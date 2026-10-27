@@ -1456,7 +1456,9 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                      curr.user->is(fir::ConversionSubType::IntToPtr) ||
                      curr.user->is(fir::InstrType::ITrunc) ||
                      curr.user->is(fir::InstrType::ZExt) ||
-                     curr.user->is(fir::InstrType::SExt)) {
+                     curr.user->is(fir::InstrType::SExt) ||
+                     (curr.user->is(fir::InstrType::ExtractElement) &&
+                      curr.argId == 0)) {
             alloca_worklist.insert(alloca_worklist.end(),
                                    curr.user->uses.begin(),
                                    curr.user->uses.end());
@@ -1464,8 +1466,10 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
                       curr.argId == 1) ||
                      curr.user->is(fir::InstrType::CallInstr) ||
                      curr.user->is(fir::InstrType::Intrinsic) ||
+                     curr.user->is(fir::InstrType::AtomicRMW) ||
                      curr.user->is(fir::InstrType::ReturnInstr) ||
                      curr.user->is(fir::InstrType::ICmp) ||
+                     curr.user->is(fir::InstrType::SwitchInstr) ||
                      curr.user->is(fir::InstrType::InsertElement) ||
                      curr.user->is(fir::BinaryInstrSubType::IntSDiv) ||
                      curr.user->is(fir::UnaryInstrSubType::Not)) {

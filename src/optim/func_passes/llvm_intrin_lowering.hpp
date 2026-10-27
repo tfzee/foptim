@@ -715,7 +715,7 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     auto sign =
         buh.build_binary_op(sign_inp, neg0Mask, fir::BinaryInstrSubType::And);
     auto mag = buh.build_binary_op(
-        neg0Mask, buh.build_unary_op(mag_inp, fir::UnaryInstrSubType::Not),
+        buh.build_unary_op(neg0Mask, fir::UnaryInstrSubType::Not), mag_inp,
         fir::BinaryInstrSubType::And);
     auto res = buh.build_binary_op(sign, mag, fir::BinaryInstrSubType::Or);
 

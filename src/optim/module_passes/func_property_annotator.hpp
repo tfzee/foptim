@@ -205,7 +205,8 @@ class FuncPropAnnotator final : public ModulePass {
         }
       }
       // after the memory attributes, it needs mem_read_none
-      auto new_wfvec = can_whole_function_vectorize(*v);
+      auto new_wfvec = can_whole_function_vectorize(
+          *v, 0, ctx.config->target.features.avx512vpopcntdq);
       if (static_cast<int>(new_wfvec.has_value()) !=
           v->attribs.maybe_can_wfvec) {
         v->attribs.maybe_can_wfvec = new_wfvec.has_value();

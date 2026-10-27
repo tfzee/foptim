@@ -213,14 +213,22 @@ T const_eval_bin(fir::Instr instr, fir::TypeR out_type, T a, T b) {
         return a & b;
       }
     case fir::BinaryInstrSubType::Xor:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
+      if constexpr (std::is_same_v<T, f32>) {
+        return std::bit_cast<f32>(std::bit_cast<u32>(a) ^
+                                  std::bit_cast<u32>(b));
+      } else if constexpr (std::is_same_v<T, f64>) {
+        return std::bit_cast<f64>(std::bit_cast<u64>(a) ^
+                                  std::bit_cast<u64>(b));
       } else {
         return a ^ b;
       }
     case fir::BinaryInstrSubType::Or:
-      if constexpr (std::is_floating_point_v<T>) {
-        UNREACH();
+      if constexpr (std::is_same_v<T, f32>) {
+        return std::bit_cast<f32>(std::bit_cast<u32>(a) |
+                                  std::bit_cast<u32>(b));
+      } else if constexpr (std::is_same_v<T, f64>) {
+        return std::bit_cast<f64>(std::bit_cast<u64>(a) |
+                                  std::bit_cast<u64>(b));
       } else {
         return a | b;
       }
@@ -684,7 +692,19 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         case fir::UnaryInstrSubType::IntNeg:
           return ConstantValue::Constant(ctx->get_constant_int(-a.as_apint()));
         case fir::UnaryInstrSubType::Not: {
-          // return ConstantValue::Bottom();
+          if (out_type->is_float() && out_type->get_bitwidth() == 32) {
+            return ConstantValue::Constant(ctx->get_constant_value(
+                std::bit_cast<f32>(~std::bit_cast<u32>(a.as_f32())),
+                out_type));
+          }
+          if (out_type->is_float() && out_type->get_bitwidth() == 64) {
+            return ConstantValue::Constant(ctx->get_constant_value(
+                std::bit_cast<f64>(~std::bit_cast<u64>(a.as_f64())),
+                out_type));
+          }
+          if (a.is_float()) {
+            return ConstantValue::Bottom();
+          }
           return ConstantValue::Constant(ctx->get_constant_int(~a.as_apint()));
         }
         case fir::UnaryInstrSubType::FloatSqrt: {

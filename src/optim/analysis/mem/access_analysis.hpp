@@ -72,6 +72,15 @@ static void useptr_access_analysis(fir::Use u, AccessResult &res,
     res.IsRead = true;
     return;
   }
+  if (i->is(fir::InstrType::AtomicRMW)) {
+    if (u.argId == 0) {
+      res.IsRead = true;
+      res.IsWriten = true;
+    } else {
+      res.Escapes = true;
+    }
+    return;
+  }
   if (i->is(fir::IntrinsicSubType::MaskedLoad) ||
       i->is(fir::IntrinsicSubType::Gather) ||
       i->is(fir::IntrinsicSubType::MaskedStore)) {

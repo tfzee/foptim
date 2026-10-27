@@ -479,6 +479,22 @@ ValueR Builder::build_atomic_rmw(ValueR ptr, ValueR val,
   return instr.result();
 }
 
+ValueR Builder::build_atomic_cmpxchg(ValueR ptr, ValueR expected,
+                                     ValueR new_val, Ordering ordering,
+                                     bool is_volatile) {
+  check_bb_set();
+  Instr instr = ctx->storage.insert_instr(
+      InstrData::get_atomic_rmw(new_val.get_type(), AtomicRMWSubType::CmpXchg));
+  instr->Ordering = static_cast<u64>(ordering);
+  instr->Volatile = is_volatile;
+  instr.add_arg(ptr);
+  instr.add_arg(expected);
+  instr.add_arg(new_val);
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr.result();
+}
+
 ValueR Builder::build_fence(Ordering ordering) {
   check_bb_set();
   Instr instr =

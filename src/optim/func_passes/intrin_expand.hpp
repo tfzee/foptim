@@ -17,6 +17,10 @@ class IntrinExpand final : public FunctionPass {
   std::optional<fir::BasicBlock> expand_memcpy(fir::Function &func,
                                                fir::BasicBlock bb,
                                                fir::Instr instr);
+  // atomicrmw ops without a single x86 instruction become a cmpxchg loop
+  std::optional<fir::BasicBlock> expand_atomic_rmw(fir::Function &func,
+                                                   fir::BasicBlock bb,
+                                                   fir::Instr instr);
 
  public:
   class Config {};
@@ -31,12 +35,14 @@ class IntrinExpand final : public FunctionPass {
     while (bb_iter != func.basic_blocks.end()) {
       bool broke = false;
       for (auto i : (*bb_iter)->instructions) {
-        if (!i->is(fir::InstrType::Intrinsic)) {
-          continue;
-        }
-        auto r = expand_memset(func, *bb_iter, i);
-        if (!r) {
-          r = expand_memcpy(func, *bb_iter, i);
+        std::optional<fir::BasicBlock> r;
+        if (i->is(fir::InstrType::AtomicRMW)) {
+          r = expand_atomic_rmw(func, *bb_iter, i);
+        } else if (i->is(fir::InstrType::Intrinsic)) {
+          r = expand_memset(func, *bb_iter, i);
+          if (!r) {
+            r = expand_memcpy(func, *bb_iter, i);
+          }
         }
         if (r) {
           // blocks were appended, the old iterator is gone and the tail of

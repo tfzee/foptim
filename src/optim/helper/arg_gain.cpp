@@ -152,6 +152,10 @@ class Walker {
   ArgFact get(fir::ValueR v) const {
     if (v.is_constant()) {
       auto c = v.as_constant();
+      if (c->is_int() && !v.get_type()->is_int()) {
+        // integer constant of a pointer or float type
+        return {};
+      }
       if (c->is_int()) {
         const u32 bits = v.get_type()->as_int();
         if (bits > MaxBits) {
@@ -261,6 +265,10 @@ void facts_of_call(fir::Instr call, std::span<ArgFact> out) {
     out[i] = ArgFact::unknown();
     if (arg.is_constant()) {
       auto c = arg.as_constant();
+      if (c->is_int() && !arg.get_type()->is_int()) {
+        // integer constant of a pointer or float type
+        continue;
+      }
       if (c->is_int()) {
         const u32 bits = arg.get_type()->as_int();
         if (bits <= MaxBits) {

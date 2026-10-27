@@ -171,6 +171,13 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, padd);
         ReturnString(X86Subtype, lea);
         ReturnString(X86Subtype, LockXAdd2);
+        ReturnString(X86Subtype, Xchg2);
+        ReturnString(X86Subtype, LockAdd2);
+        ReturnString(X86Subtype, LockSub2);
+        ReturnString(X86Subtype, LockAnd2);
+        ReturnString(X86Subtype, LockOr2);
+        ReturnString(X86Subtype, LockXor2);
+        ReturnString(X86Subtype, LockCmpXchg3);
         ReturnString(X86Subtype, vextract128);
         ReturnString(X86Subtype, vinsert128);
         ReturnString(X86Subtype, vinsertps);
@@ -205,6 +212,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, vmaskstore);
         ReturnString(X86Subtype, vround);
         ReturnString(X86Subtype, vzeroupper);
+        ReturnString(X86Subtype, mfence);
       }
   }
 }
@@ -362,6 +370,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
         case X86Subtype::vzeroupper:
+        case X86Subtype::mfence:
           return;
         case X86Subtype::lea:
         case X86Subtype::vextract128:
@@ -407,8 +416,20 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
           out.push_back({0, instr.args[0]});
           return;
         case X86Subtype::LockXAdd2:
+        case X86Subtype::Xchg2:
           out.push_back({0, instr.args[0]});
           out.push_back({1, instr.args[1]});
+          return;
+        case X86Subtype::LockAdd2:
+        case X86Subtype::LockSub2:
+        case X86Subtype::LockAnd2:
+        case X86Subtype::LockOr2:
+        case X86Subtype::LockXor2:
+          out.push_back({0, instr.args[0]});
+          return;
+        case X86Subtype::LockCmpXchg3:
+          out.push_back({0, instr.args[0]});
+          out.push_back({2, instr.args[2]});
           return;
       }
     case GOpcode::GBase:
@@ -656,6 +677,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
       switch (static_cast<X86Subtype>(instr.sop)) {
         case X86Subtype::INVALID:
         case X86Subtype::vzeroupper:
+        case X86Subtype::mfence:
           return;
         case X86Subtype::lea:
         case X86Subtype::popcnt:
@@ -667,6 +689,21 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vpabs:
         case X86Subtype::HAdd:
           out.push_back({1, instr.args[1]});
+          return;
+        case X86Subtype::LockXAdd2:
+        case X86Subtype::Xchg2:
+        case X86Subtype::LockAdd2:
+        case X86Subtype::LockSub2:
+        case X86Subtype::LockAnd2:
+        case X86Subtype::LockOr2:
+        case X86Subtype::LockXor2:
+          out.push_back({0, instr.args[0]});
+          out.push_back({1, instr.args[1]});
+          return;
+        case X86Subtype::LockCmpXchg3:
+          out.push_back({0, instr.args[0]});
+          out.push_back({1, instr.args[1]});
+          out.push_back({2, instr.args[2]});
           return;
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
@@ -680,7 +717,6 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vbroadcast:
         case X86Subtype::vpermil:
         case X86Subtype::vround:
-        case X86Subtype::LockXAdd2:
         case X86Subtype::psrl:
         case X86Subtype::psll:
         case X86Subtype::psra:
@@ -774,7 +810,9 @@ bool verify(const MInstr &instr, size_t arg_id) {
     return false;
   }
   if (arg.isMem() && (arg.reg.is_vec_reg() || arg.indx.is_vec_reg())) {
-    bool legal_instr = ((instr.is(X86Subtype::vgatherq) || instr.is(X86Subtype::vgather)) && arg_id == 1);
+    bool legal_instr =
+        ((instr.is(X86Subtype::vgatherq) || instr.is(X86Subtype::vgather)) &&
+         arg_id == 1);
     if (!legal_instr) {
       fmt::println("Cant use vec reg in a mem operand {}", arg);
       return false;

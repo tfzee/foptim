@@ -64,7 +64,15 @@ bool is_applicable(GOpcode op, u32 sop) {
     case GOpcode::X86:
       switch (static_cast<X86Subtype>(sop)) {
         case X86Subtype::LockXAdd2:
+        case X86Subtype::Xchg2:
+        case X86Subtype::LockAdd2:
+        case X86Subtype::LockSub2:
+        case X86Subtype::LockAnd2:
+        case X86Subtype::LockOr2:
+        case X86Subtype::LockXor2:
+        case X86Subtype::LockCmpXchg3:
         case X86Subtype::vzeroupper:
+        case X86Subtype::mfence:
         case X86Subtype::vmaskstore:
           // TOOD: if we knew it was reg-reg args then we could set it to true
           return false;
