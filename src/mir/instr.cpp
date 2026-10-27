@@ -166,6 +166,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, vcmp);
         ReturnString(X86Subtype, psrl);
         ReturnString(X86Subtype, psll);
+        ReturnString(X86Subtype, psra);
         ReturnString(X86Subtype, pmuludq);
         ReturnString(X86Subtype, padd);
         ReturnString(X86Subtype, lea);
@@ -400,6 +401,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vmaskstore:
         case X86Subtype::psrl:
         case X86Subtype::psll:
+        case X86Subtype::psra:
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
           out.push_back({0, instr.args[0]});
@@ -681,6 +683,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::LockXAdd2:
         case X86Subtype::psrl:
         case X86Subtype::psll:
+        case X86Subtype::psra:
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
         case X86Subtype::vpcmpeq:

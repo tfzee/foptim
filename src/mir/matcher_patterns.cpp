@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <optional>
 
 #include "ir/basic_block.hpp"
 #include "ir/function.hpp"
@@ -1523,6 +1524,18 @@ void arith_rules(RuleSet &rules) {
   });
 }
 
+// immediate shift amount of a vector shift when every lane shifts by the same
+// constant
+static std::optional<u8> splat_shift_amount(fir::ValueR v) {
+  if (v.is_instr() && v.as_instr()->is(fir::VectorISubType::Broadcast)) {
+    v = v.as_instr()->args[0];
+  }
+  if (v.is_constant() && v.as_constant()->is_int()) {
+    return static_cast<u8>(v.as_constant()->as_int());
+  }
+  return std::nullopt;
+}
+
 void vec_rules(RuleSet &rules) {
   rules.add(pm::Broadcast, [](fir::Instr broad_instr, MatchResult &res,
                               ExtraMatchData &data) {
@@ -1732,6 +1745,16 @@ void base_binary_rules(RuleSet &rules) {
     auto b = valueToArg(shift_instr->args[1], res.result, data.alloc);
     if (res_reg.is_vec_reg()) {
       switch (shift_instr->result_type()->as_vec().bitwidth) {
+        case 16: {
+          const auto amount = splat_shift_amount(shift_instr->args[1]);
+          if (!amount) {
+            fmt::println("{}", shift_instr);
+            TODO("word shift by a non constant amount");
+          }
+          res.result.emplace_back(X86Subtype::psll, res_reg, a,
+                                  MArgument(*amount));
+          return true;
+        }
         case 32:
         case 64:
           // vpsllvd ymm0, ymm1, ymm2
@@ -1769,6 +1792,16 @@ void base_binary_rules(RuleSet &rules) {
 
     if (res_reg.is_vec_reg()) {
       switch (shift_instr->result_type()->as_vec().bitwidth) {
+        case 16: {
+          const auto amount = splat_shift_amount(shift_instr->args[1]);
+          if (!amount) {
+            fmt::println("{}", shift_instr);
+            TODO("word shift by a non constant amount");
+          }
+          res.result.emplace_back(X86Subtype::psrl, res_reg, a,
+                                  MArgument(*amount));
+          return true;
+        }
         case 32:
         case 64:
           res.result.emplace_back(GVecSubtype::vShr, res_reg, a, b);
@@ -1804,6 +1837,16 @@ void base_binary_rules(RuleSet &rules) {
 
     if (res_reg.is_vec_reg()) {
       switch (shift_instr->result_type()->as_vec().bitwidth) {
+        case 16: {
+          const auto amount = splat_shift_amount(shift_instr->args[1]);
+          if (!amount) {
+            fmt::println("{}", shift_instr);
+            TODO("word shift by a non constant amount");
+          }
+          res.result.emplace_back(X86Subtype::psra, res_reg, a,
+                                  MArgument(*amount));
+          return true;
+        }
         case 32:
           res.result.emplace_back(GVecSubtype::vSar, res_reg, a, b);
           return true;

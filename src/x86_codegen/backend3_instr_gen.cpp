@@ -2272,9 +2272,32 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
         case fmir::Type::Int32x8:
           req.mnemonic = ZYDIS_MNEMONIC_VPSLLD;
           break;
+        case fmir::Type::Int16x8:
+        case fmir::Type::Int16x16:
+          req.mnemonic = ZYDIS_MNEMONIC_VPSLLW;
+          break;
         case fmir::Type::Int64x2:
         case fmir::Type::Int64x4:
           req.mnemonic = ZYDIS_MNEMONIC_VPSLLQ;
+          break;
+      }
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
+    case fmir::X86Subtype::psra: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      switch (instr.args[0].ty) {
+        default:
+          UNREACH();
+        case fmir::Type::Int32x4:
+        case fmir::Type::Int32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VPSRAD;
+          break;
+        case fmir::Type::Int16x8:
+        case fmir::Type::Int16x16:
+          req.mnemonic = ZYDIS_MNEMONIC_VPSRAW;
           break;
       }
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);

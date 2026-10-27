@@ -283,6 +283,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vround:
         case X86Subtype::psrl:
         case X86Subtype::psll:
+        case X86Subtype::psra:
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
         case X86Subtype::vblendv:
@@ -645,6 +646,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vround:
         case X86Subtype::psrl:
         case X86Subtype::psll:
+        case X86Subtype::psra:
         case X86Subtype::pmuludq:
         case X86Subtype::padd:
           if (!instr.args[0].isReg()) {

@@ -228,6 +228,7 @@ enum class X86Subtype : u32 {
   vround,
   psrl,
   psll,
+  psra,
   pmuludq,
   padd,
 
