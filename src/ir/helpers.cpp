@@ -38,8 +38,9 @@ void generate_trunc(foptim::fir::Context &fctx) {
 // pass, where no function can be added anymore. So the declarations stay in the
 // module even when nothing calls them yet, which needs external linkage
 // (GDCE keeps those).
-static void declare_external(foptim::fir::Context &fctx, const char *name,
+static void declare_external(foptim::fir::Context &fctx, LibFunc lf,
                              foptim::fir::FunctionTypeR func_ty) {
+  const char *name = libfunc_name(lf).data();
   if (fctx->has_function(name)) {
     return;
   }
@@ -47,11 +48,12 @@ static void declare_external(foptim::fir::Context &fctx, const char *name,
       name, std::make_unique<foptim::fir::Function>(fctx.operator->(), name,
                                                     func_ty));
   f->attribs.linkage = Linkage::External;
+  f->attribs.libfunc = lf;
 }
 
 void generate_memcpy(foptim::fir::Context &fctx) {
   declare_external(
-      fctx, "memcpy",
+      fctx, LibFunc::Memcpy,
       fctx->get_func_ty(fctx->get_ptr_type(),
                         {fctx->get_ptr_type(), fctx->get_ptr_type(),
                          fctx->get_int_type(64)}));
@@ -59,7 +61,7 @@ void generate_memcpy(foptim::fir::Context &fctx) {
 
 void generate_memset(foptim::fir::Context &fctx) {
   declare_external(
-      fctx, "memset",
+      fctx, LibFunc::Memset,
       fctx->get_func_ty(fctx->get_ptr_type(),
                         {fctx->get_ptr_type(), fctx->get_int_type(32),
                          fctx->get_int_type(64)}));
@@ -67,7 +69,7 @@ void generate_memset(foptim::fir::Context &fctx) {
 
 void generate_memmove(foptim::fir::Context &fctx) {
   declare_external(
-      fctx, "memmove",
+      fctx, LibFunc::Memmove,
       fctx->get_func_ty(fctx->get_ptr_type(),
                         {fctx->get_ptr_type(), fctx->get_ptr_type(),
                          fctx->get_int_type(64)}));
@@ -75,7 +77,7 @@ void generate_memmove(foptim::fir::Context &fctx) {
 
 void generate_memcmp(foptim::fir::Context &fctx) {
   declare_external(
-      fctx, "memcmp",
+      fctx, LibFunc::Memcmp,
       fctx->get_func_ty(fctx->get_int_type(32),
                         {fctx->get_ptr_type(), fctx->get_ptr_type(),
                          fctx->get_int_type(64)}));

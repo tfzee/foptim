@@ -253,6 +253,46 @@ static const char *double_libm_name(const llvm::Function &func) {
   return info->name.data();
 }
 
+// signature of the C library function on x86-64 (size_t is i64)
+static bool libfunc_shape_matches(foptim::fir::LibFunc f,
+                                  const llvm::FunctionType &fty) {
+  auto &lctx = fty.getContext();
+  auto *ptr = llvm::PointerType::getUnqual(lctx);
+  auto *i32 = llvm::Type::getInt32Ty(lctx);
+  auto *i64 = llvm::Type::getInt64Ty(lctx);
+  const auto sig = [&](llvm::Type *ret,
+                       std::initializer_list<llvm::Type *> params) {
+    return fty.getReturnType() == ret &&
+           std::ranges::equal(fty.params(), params);
+  };
+  using foptim::fir::LibFunc;
+  switch (f) {
+    case LibFunc::None:
+      return false;
+    case LibFunc::Strlen:
+      return sig(i64, {ptr});
+    case LibFunc::Strcmp:
+      return sig(i32, {ptr, ptr});
+    case LibFunc::Memcpy:
+    case LibFunc::Memmove:
+      return sig(ptr, {ptr, ptr, i64});
+    case LibFunc::Memset:
+      return sig(ptr, {ptr, i32, i64});
+    case LibFunc::Memcmp:
+      return sig(i32, {ptr, ptr, i64});
+    case LibFunc::MemcpyChk:
+      return sig(ptr, {ptr, ptr, i64, i64});
+    case LibFunc::MemsetChk:
+      return sig(ptr, {ptr, i32, i64, i64});
+    default:
+      // floating point functions, all parameters have the result type
+      return fty.getReturnType()->isFloatingPointTy() &&
+             std::ranges::all_of(fty.params(), [&](const llvm::Type *param) {
+               return param == fty.getReturnType();
+             });
+  }
+}
+
 // name and shape of a C library function, if cstdlib is assumed or builtin
 static foptim::fir::LibFunc detect_libfunc(const llvm::Function &func,
                                            bool assume_cstdlib) {
@@ -260,18 +300,9 @@ static foptim::fir::LibFunc detect_libfunc(const llvm::Function &func,
     return foptim::fir::LibFunc::None;
   }
   const auto info = foptim::fir::lookup_libfunc(func.getName().str());
-  if (!info || func.arg_size() != info->n_args) {
+  if (!info || func.arg_size() != info->n_args ||
+      !libfunc_shape_matches(info->func, *func.getFunctionType())) {
     return foptim::fir::LibFunc::None;
-  }
-  const auto *fty = func.getFunctionType();
-  const auto *ret = fty->getReturnType();
-  if (!ret->isFloatingPointTy()) {
-    return foptim::fir::LibFunc::None;
-  }
-  for (const auto *param : fty->params()) {
-    if (param != ret) {
-      return foptim::fir::LibFunc::None;
-    }
   }
   bool builtin = assume_cstdlib;
   for (const auto *user : func.users()) {
@@ -860,16 +891,14 @@ void convert_call(const llvm::Instruction *any_instr,
       valueToValue.insert({any_instr, res});
       return;
     }
-    if (c->getName() == "sqrt") {
-      if (!c->hasFnAttribute(llvm::Attribute::NoBuiltin) ||
-          c->hasFnAttribute(llvm::Attribute::Builtin)) {
-        auto res = builder.build_unary_op(
-            convert_instr_arg(call_instr->getOperand(0), fctx, ffunc, builder,
-                              valueToValue, mod, b2b),
-            foptim::fir::UnaryInstrSubType::FloatSqrt);
-        valueToValue.insert({any_instr, res});
-        return;
-      }
+    if (detect_libfunc(*c, fctx.config->optim.assume_cstdlib_beheaviour) ==
+        foptim::fir::LibFunc::Sqrt) {
+      auto res = builder.build_unary_op(
+          convert_instr_arg(call_instr->getOperand(0), fctx, ffunc, builder,
+                            valueToValue, mod, b2b),
+          foptim::fir::UnaryInstrSubType::FloatSqrt);
+      valueToValue.insert({any_instr, res});
+      return;
     }
   }
   for (size_t i = 0; i < call_instr->getNumOperands() - 1; i++) {

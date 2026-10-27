@@ -91,9 +91,8 @@ int main(int argc, char *argv[]) {
         }
         // the loader declares these for the passes that lower to them, only
         // keep them if the code really calls them
-        const bool libc_helper = f->name == "memcpy" || f->name == "memset" ||
-                                 f->name == "memmove" || f->name == "memcmp";
-        if (libc_helper && f->get_n_uses() == 0 &&
+        if (foptim::fir::is_mem_libfunc(f->attribs.libfunc) &&
+            f->get_n_uses() == 0 &&
             std::ranges::none_of(globals, [&](const auto &g) {
               return std::ranges::any_of(g.reloc_info, [&](const auto &r) {
                 return r.name == f->name;
@@ -176,9 +175,9 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
           glob.size = size;
           if (v->data->init_value != nullptr) {
             const auto *init = v->data->init_value;
-            const bool all_zero =
-                v->data->reloc_info.empty() && size > 0 &&
-                std::all_of(init, init + size, [](uint8_t b) { return b == 0; });
+            const bool all_zero = v->data->reloc_info.empty() && size > 0 &&
+                                  std::all_of(init, init + size,
+                                              [](uint8_t b) { return b == 0; });
             if (all_zero) {
               glob.zero_init = true;
             } else {

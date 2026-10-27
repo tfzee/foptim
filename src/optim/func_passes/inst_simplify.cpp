@@ -7,6 +7,9 @@
 
 #include <algorithm>
 #include <bit>
+#include <cstring>
+#include <optional>
+#include <string_view>
 
 #include "ir/basic_block_ref.hpp"
 #include "ir/builder.hpp"
@@ -1114,6 +1117,61 @@ static bool fold_libfunc_call(fir::Instr instr, fir::LibFunc lf,
   return true;
 }
 
+// the NUL terminated string a constant global initializes, if it has one
+static std::optional<std::string_view> constant_c_string(fir::ValueR v) {
+  if (!v.is_constant() || !v.as_constant()->is_global()) {
+    return std::nullopt;
+  }
+  auto g = v.as_constant()->as_global();
+  if (!g->is_constant || g->init_value == nullptr || !g->reloc_info.empty()) {
+    return std::nullopt;
+  }
+  const auto *str = reinterpret_cast<const char *>(g->init_value);
+  const size_t len = strnlen(str, g->n_bytes);
+  if (len == g->n_bytes) {
+    return std::nullopt;
+  }
+  return std::string_view{str, len};
+}
+
+static bool fold_string_libfunc(fir::Instr instr, fir::LibFunc lf,
+                                fir::Context &ctx, WorkList &worklist) {
+  const bool is_cmp = lf == fir::LibFunc::Strcmp;
+  if (instr->args.size() != (is_cmp ? 3U : 2U) || !instr->has_one_result()) {
+    return false;
+  }
+  const auto a = constant_c_string(instr->args[1]);
+  if (!a) {
+    return false;
+  }
+  i64 res = 0;
+  if (is_cmp) {
+    const auto b = constant_c_string(instr->args[2]);
+    if (!b) {
+      return false;
+    }
+    // the sign is all the standard specifies, the difference is what glibc
+    // returns
+    const size_t n = std::min(a->size(), b->size());
+    for (size_t i = 0; i <= n; i++) {
+      const int ca = i < a->size() ? static_cast<u8>((*a)[i]) : 0;
+      const int cb = i < b->size() ? static_cast<u8>((*b)[i]) : 0;
+      if (ca != cb) {
+        res = ca - cb;
+        break;
+      }
+    }
+  } else {
+    res = static_cast<i64>(a->size());
+  }
+  auto res_const =
+      ctx->get_constant_value(static_cast<i128>(res), instr.result_type());
+  push_all_uses(worklist, instr);
+  instr->replace_all_uses(fir::ValueR{res_const});
+  instr.destroy();
+  return true;
+}
+
 bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
                    WorkList &worklist) {
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
@@ -1130,28 +1188,21 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       return true;
     }
 
-    if (funci->attribs.libfunc != fir::LibFunc::None &&
-        fold_libfunc_call(instr, funci->attribs.libfunc, ctx, worklist)) {
+    if (fir::is_string_libfunc(funci->attribs.libfunc)) {
+      if (fold_string_libfunc(instr, funci->attribs.libfunc, ctx, worklist)) {
+        return true;
+      }
+    } else if (fir::is_math_libfunc(funci->attribs.libfunc) &&
+               fold_libfunc_call(instr, funci->attribs.libfunc, ctx,
+                                 worklist)) {
       return true;
     }
 
     if (ctx.config->optim.assume_cstdlib_beheaviour) {
-      // constant propagate strlen of string literals
-      if (funci->name == "strlen" && instr->args[1].is_constant() &&
-          instr->args[1].as_constant()->is_global()) {
-        auto g = instr->args[1].as_constant()->as_global();
-        if (g->is_constant && g->init_value != nullptr) {
-          auto len = strlen(reinterpret_cast<const char *>(g->init_value));
-          auto len_constant = ctx->get_constant_int(len, 64);
-          push_all_uses(worklist, instr);
-          instr->replace_all_uses(fir::ValueR{len_constant});
-          instr.destroy();
-          return true;
-        }
-      }
       // void * __memset_chk(void * dest, int c, size_t len, size_t destlen);
-      if (funci->name == "__memset_chk" && instr->args[3].is_constant() &&
-          instr->args[4].is_constant() && instr->get_n_uses() == 0) {
+      if (funci->attribs.libfunc == fir::LibFunc::MemsetChk &&
+          instr->args[3].is_constant() && instr->args[4].is_constant() &&
+          instr->get_n_uses() == 0) {
         auto len = std::bit_cast<u128>(instr->args[3].as_constant()->as_int());
         auto destlen =
             std::bit_cast<u128>(instr->args[4].as_constant()->as_int());
@@ -1169,8 +1220,9 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
       }
       // void * __memcpy_chk(void * dest, const void * src, size_t len, size_t
       // destlen);
-      if (funci->name == "__memcpy_chk" && instr->args[3].is_constant() &&
-          instr->args[4].is_constant() && instr->get_n_uses() == 0) {
+      if (funci->attribs.libfunc == fir::LibFunc::MemcpyChk &&
+          instr->args[3].is_constant() && instr->args[4].is_constant() &&
+          instr->get_n_uses() == 0) {
         auto len = std::bit_cast<u128>(instr->args[3].as_constant()->as_int());
         auto destlen =
             std::bit_cast<u128>(instr->args[4].as_constant()->as_int());
@@ -1574,9 +1626,9 @@ bool simplify_vector(fir::Instr instr, fir::BasicBlock /*bb*/,
     auto extend_to = v_t.member_number;
     // the vector becomes one integer of the same size, wider ones stay vectors
     // the stores of truncated lanes of the vectorizer are stored as they are
-    const bool trunc_store = instr->is(fir::InstrType::StoreInstr) &&
-                             instr->args[1].is_instr() &&
-                             instr->args[1].as_instr()->is(fir::InstrType::ITrunc);
+    const bool trunc_store =
+        instr->is(fir::InstrType::StoreInstr) && instr->args[1].is_instr() &&
+        instr->args[1].as_instr()->is(fir::InstrType::ITrunc);
     if ((extend_to == 4 || extend_to == 8) && !trunc_store) {
       const u32 n_out_elems = 1;
       auto out_type = ctx->get_int_type(extend_to * 8);

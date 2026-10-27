@@ -122,36 +122,38 @@ std::optional<fir::BasicBlock> IntrinExpand::expand_memcpy(fir::Function &func,
   return {new_block};
 }
 
-static const char *libc_name(fir::Instr instr) {
+static fir::LibFunc libc_func(fir::Instr instr) {
   if (instr->is(fir::IntrinsicSubType::Memcpy)) {
-    return "memcpy";
+    return fir::LibFunc::Memcpy;
   }
   if (instr->is(fir::IntrinsicSubType::Memset)) {
-    return "memset";
+    return fir::LibFunc::Memset;
   }
   if (instr->is(fir::IntrinsicSubType::Memmove)) {
-    return "memmove";
+    return fir::LibFunc::Memmove;
   }
   if (instr->is(fir::IntrinsicSubType::Memcmp)) {
-    return "memcmp";
+    return fir::LibFunc::Memcmp;
   }
-  return nullptr;
+  return fir::LibFunc::None;
 }
 
 static bool expand_to_libc_call(fir::Function &func, fir::Instr instr) {
-  const char *name = libc_name(instr);
-  if (name == nullptr) {
+  const auto lf = libc_func(instr);
+  if (lf == fir::LibFunc::None) {
     return false;
   }
+  const char *name = fir::libfunc_name(lf).data();
   auto *ctx = func.ctx;
-  const bool is_memcmp = instr->is(fir::IntrinsicSubType::Memcmp);
-  const bool is_memset = instr->is(fir::IntrinsicSubType::Memset);
+  const bool is_memcmp = lf == fir::LibFunc::Memcmp;
+  const bool is_memset = lf == fir::LibFunc::Memset;
   // a volatile copy is not what the libc function does, and the libc
-  // functions themselves must not call each other (or themselves)
+  // functions themselves must not call each other (or themselves). Those are
+  // definitions, which the loader does not mark, so ask the name table.
+  const auto self = fir::lookup_libfunc(func.name);
   const bool volatile_copy = instr->Volatile && !is_memcmp;
-  if (volatile_copy || !ctx->has_function(name) || func.name == "memcpy" ||
-      func.name == "memset" || func.name == "memmove" ||
-      func.name == "memcmp") {
+  if (volatile_copy || !ctx->has_function(name) ||
+      (self && fir::is_mem_libfunc(self->func))) {
     return false;
   }
   fir::Builder buh{instr};

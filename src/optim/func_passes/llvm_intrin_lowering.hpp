@@ -305,8 +305,9 @@ class LLVMInstrinsicLowering final : public FunctionPass {
   bool handle_libc_call(fir::Instr instr, fir::Function &func,
                         fir::FunctionR callee) {
     auto *ctx = func.ctx;
-    const bool is_memmove = callee.func->name == "memmove";
-    const bool is_memcmp = callee.func->name == "memcmp";
+    const bool is_memmove =
+        callee.func->attribs.libfunc == fir::LibFunc::Memmove;
+    const bool is_memcmp = callee.func->attribs.libfunc == fir::LibFunc::Memcmp;
     if ((!is_memmove && !is_memcmp) || instr->args.size() != 4 ||
         !instr->args[1].get_type()->is_ptr() ||
         !instr->args[2].get_type()->is_ptr() ||
