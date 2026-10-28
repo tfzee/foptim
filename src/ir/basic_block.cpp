@@ -88,7 +88,8 @@ void BasicBlockData::clear_args() {
 }
 
 void BasicBlockData::remove_from_parent(bool remove_references,
-                                        bool cleanup_instr, bool delete_instr) {
+                                        bool cleanup_instr, bool delete_instr,
+                                        size_t pos_hint) {
   if (remove_references) {
     // replace_all_uses(ValueR());
     for (auto &arg : args) {
@@ -99,6 +100,12 @@ void BasicBlockData::remove_from_parent(bool remove_references,
     while (!instructions.empty()) {
       remove_instr(instructions.size() - 1, delete_instr);
     }
+  }
+  if (pos_hint < func->basic_blocks.size() &&
+      func->basic_blocks[pos_hint].operator->() == this) {
+    func->basic_blocks.erase(func->basic_blocks.begin() +
+                             static_cast<i64>(pos_hint));
+    return;
   }
   for (size_t t = 0; t < func->basic_blocks.size(); t++) {
     if (func->basic_blocks[t].operator->() == this) {

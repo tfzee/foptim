@@ -31,7 +31,8 @@ class BasicBlockData : public Used {
   void clear_args();
   void remove_arg(size_t indx);
   void remove_from_parent(bool remove_references, bool cleanup_instr = true,
-                          bool delete_instr = false);
+                          bool delete_instr = false,
+                          size_t pos_hint = static_cast<size_t>(-1));
 
   void remove_instr(size_t indx, bool delete_instr);
   static TypeR get_type() { return TypeR(TypeR::invalid()); }

@@ -344,7 +344,7 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
         }
       }
     }
-    func.basic_blocks[bb_id]->remove_from_parent(true, true, true);
+    func.basic_blocks[bb_id]->remove_from_parent(true, true, true, bb_id);
     cfg.update_delete(bb_id);
     dom.update(cfg);
     return Res::Changed;
