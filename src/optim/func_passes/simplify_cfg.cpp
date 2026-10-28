@@ -628,7 +628,9 @@ u64 bb_signature(fir::BasicBlock bb) {
 }
 
 bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
-                           size_t &bb_id, TVec<u64> &sigs, bool &cfg_dirty,
+                           size_t &bb_id,
+                           TMap<u64, TVec<fir::BasicBlock>> &earlier,
+                           bool &cfg_dirty,
                            TVec<DiffValues> &difference_values,
                            TMap<fir::Instr, fir::Instr> &local_value_map,
                            TVec<fir::ValueR> &arg_map, CFG &cfg) {
@@ -643,11 +645,10 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
     return false;
   }
 
-  for (size_t bb2_id = 1; bb2_id < bb_id; bb2_id++) {
-    if (sigs[bb2_id] != sigs[bb_id]) {
-      continue;
-    }
-    const fir::BasicBlock bb2 = func.basic_blocks[bb2_id];
+  // the processed blocks with the same signature, in function order
+  auto &candidates = earlier[bb_signature(bb1)];
+  for (size_t cand = 0; cand < candidates.size(); cand++) {
+    const fir::BasicBlock bb2 = candidates[cand];
     if ((bb1->n_args() != 0 && bb2->n_args() != 0) ||
         bb1->instructions.size() != bb2->instructions.size()) {
       continue;
@@ -791,15 +792,15 @@ bool dup_bb_to_args_per_bb(fir::BasicBlock bb1, fir::Function &func,
       if (remove_bb1) {
         // the current block is gone, the caller moves on to the block that
         // took its place
-        sigs.erase(sigs.begin() + static_cast<i64>(bb_id));
         bb_id--;
-        break;
+        return modified;
       }
-      sigs.erase(sigs.begin() + static_cast<i64>(bb2_id));
-      bb2_id--;
+      candidates.erase(candidates.begin() + static_cast<i64>(cand));
+      cand--;
       bb_id--;
     }
   }
+  candidates.push_back(bb1);
 
   return modified;
 }
@@ -813,15 +814,11 @@ bool SimplifyCFG::dup_bb_to_args(fir::Function &func, CFG &cfg) {
   TVec<fir::ValueR> arg_map;
 
   bool cfg_dirty = false;
-  TVec<u64> sigs;
-  sigs.reserve(func.basic_blocks.size());
-  for (size_t i = 0; i < func.basic_blocks.size(); i++) {
-    sigs.push_back(bb_signature(func.basic_blocks[i]));
-  }
+  TMap<u64, TVec<fir::BasicBlock>> earlier;
 
   for (size_t bb_id = 1; bb_id < func.basic_blocks.size(); bb_id++) {
     bool mod = dup_bb_to_args_per_bb(func.basic_blocks[bb_id], func, bb_id,
-                                     sigs, cfg_dirty, difference_values,
+                                     earlier, cfg_dirty, difference_values,
                                      local_value_map, arg_map, cfg);
     cfg_dirty |= mod;
     modified |= mod;
@@ -1227,8 +1224,12 @@ bool SimplifyCFG::merge_empty_block_forwards(CFG &cfg, CFG::Node &curr,
 namespace {
 // succ has exactly one incoming edge, the unconditional branch at the end of
 // bb. Moves its instructions into bb and deletes it.
+// with dead the emptied succ is only collected there, the caller removes the
+// blocks from the function in one go
 void merge_into_predecessor(fir::Function &func, fir::BasicBlock bb,
-                            fir::BasicBlock succ) {
+                            fir::BasicBlock succ,
+                            TVec<fir::BasicBlock> *dead = nullptr,
+                            size_t pos_hint = static_cast<size_t>(-1)) {
   auto old_first_term = bb->get_terminator();
   if (succ->n_args() != 0) {
     for (u32 i = 0; i < succ->n_args(); i++) {
@@ -1243,7 +1244,12 @@ void merge_into_predecessor(fir::Function &func, fir::BasicBlock bb,
     b.move_instr(succ->instructions[0]);
   }
   old_first_term.remove_from_parent();
-  succ->remove_from_parent(true, true, true);
+  if (dead != nullptr) {
+    succ->release_contents(true, true, true);
+    dead->push_back(succ);
+  } else {
+    succ->remove_from_parent(true, true, true, pos_hint);
+  }
   (void)func;
 }
 
@@ -1306,6 +1312,7 @@ bool SimplifyCFG::merge_linear_blocks(fir::Function &func) {
   // merging removes blocks from the function
   TVec<fir::BasicBlock> blocks{func.get_bbs().begin(), func.get_bbs().end()};
   const auto entry = func.get_entry();
+  TVec<fir::BasicBlock> dead;
   for (auto bb : blocks) {
     // a merged away block is only taken out of the function, it stays valid
     // but has no instructions left
@@ -1323,7 +1330,7 @@ bool SimplifyCFG::merge_linear_blocks(fir::Function &func) {
         break;
       }
       if (succ != entry && succ->uses.size() == 1) {
-        merge_into_predecessor(func, bb, succ);
+        merge_into_predecessor(func, bb, succ, &dead);
         modified = true;
         continue;
       }
@@ -1333,6 +1340,7 @@ bool SimplifyCFG::merge_linear_blocks(fir::Function &func) {
       break;
     }
   }
+  func.remove_blocks(dead);
   return modified;
 }
 
@@ -1341,6 +1349,7 @@ bool SimplifyCFG::forward_empty_blocks(fir::Function &func) {
   bool modified = false;
   TVec<fir::BasicBlock> blocks{func.get_bbs().begin(), func.get_bbs().end()};
   const auto entry = func.get_entry();
+  TVec<fir::BasicBlock> dead;
   for (auto bb : blocks) {
     if (!bb.is_valid() || bb == entry || bb->n_instrs() != 1 ||
         bb->n_args() != 0) {
@@ -1370,9 +1379,11 @@ bool SimplifyCFG::forward_empty_blocks(fir::Function &func) {
       }
     }
     ASSERT(bb->get_n_uses() == 0);
-    bb->remove_from_parent(true, true, true);
+    bb->release_contents(true, true, true);
+    dead.push_back(bb);
     modified = true;
   }
+  func.remove_blocks(dead);
   return modified;
 }
 
@@ -1391,7 +1402,8 @@ SimplifyCFG::Res SimplifyCFG::merge_linear_relation(CFG &cfg, Dominators &dom,
 
   if (cfg.bbrs[succ_id].pred.size() == 1) {
     ZoneScopedN("merge linrel basic");
-    merge_into_predecessor(func, curr.bb, func.basic_blocks[succ_id]);
+    merge_into_predecessor(func, curr.bb, func.basic_blocks[succ_id], nullptr,
+                           succ_id);
     (void)dom;
     return Res::NeedUpdate;
   }

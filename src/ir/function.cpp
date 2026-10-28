@@ -54,6 +54,15 @@ void Function::dump_data_dependency_graph(const char *filename) const {
   std::abort();
 }
 
+void Function::remove_blocks(std::span<const BasicBlock> dead) {
+  if (dead.empty()) {
+    return;
+  }
+  ankerl::unordered_dense::set<BasicBlock> dead_set{dead.begin(), dead.end()};
+  std::erase_if(basic_blocks,
+                [&](const BasicBlock &bb) { return dead_set.contains(bb); });
+}
+
 bool Function::verify() const {
   if (basic_blocks.empty()) {
     return true;

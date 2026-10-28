@@ -30,6 +30,10 @@ class BasicBlockData : public Used {
 
   void clear_args();
   void remove_arg(size_t indx);
+  // what remove_from_parent does except taking the block out of the function,
+  // Function::remove_blocks does that for many blocks at once
+  void release_contents(bool remove_references, bool cleanup_instr,
+                        bool delete_instr);
   void remove_from_parent(bool remove_references, bool cleanup_instr = true,
                           bool delete_instr = false,
                           size_t pos_hint = static_cast<size_t>(-1));

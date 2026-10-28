@@ -105,6 +105,8 @@ class Function : public Attributable, public LockedUsed {
   }
 
   void dump_data_dependency_graph(const char *filename = "out.dot") const;
+  // takes the blocks out of the function in one pass
+  void remove_blocks(std::span<const BasicBlock> dead);
   bool is_decl() const { return basic_blocks.empty(); }
   IRString &getName() { return name; }
   const IRString &getName() const { return name; }

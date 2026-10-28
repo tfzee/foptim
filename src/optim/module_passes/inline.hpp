@@ -303,23 +303,16 @@ class BaseInlineAdvisor {
       return true;
     }
 
-    bool all_args_are_constant = true;
+
     bool all_args_are_constant_or_allocas = true;
     for (auto arg : instr->args) {
       if (!arg.is_constant()) {
-        all_args_are_constant = false;
         // TODO: could check for indexed allocas instructions
         if (!arg.is_instr() ||
             !arg.as_instr()->is(fir::InstrType::AllocaInstr)) {
           all_args_are_constant_or_allocas = false;
         }
       }
-    }
-    if (all_args_are_constant) {
-      if (debug_print) {
-        fmt::println("Y All args const");
-      }
-      return true;
     }
     // NOTE: this aint perfect it would also try to inlnie namespace std {
     // namespace min { void someFunc(); }}
