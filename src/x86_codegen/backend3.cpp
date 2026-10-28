@@ -19,6 +19,20 @@
 namespace foptim::codegen {
 
 namespace {
+RelocBinding binding_of(fir::Linkage linkage) {
+  switch (linkage) {
+    case fir::Linkage::Internal:
+      return RelocBinding::Local;
+    case fir::Linkage::External:
+      return RelocBinding::Global;
+    case fir::Linkage::Weak:
+    case fir::Linkage::WeakODR:
+    case fir::Linkage::LinkOnce:
+    case fir::Linkage::LinkOnceODR:
+      return RelocBinding::Weak;
+  }
+  UNREACH();
+}
 
 // void diss_print(u8 *buff) {
 //   ZydisDisassembledInstruction instruction;
@@ -167,6 +181,8 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
     reloc_map.label_map[func.name].def_loc = curr_loc - out_buff;
     reloc_map.label_map[func.name].section = RelocSection::Text;
     reloc_map.label_map[func.name].kind = RelocKind::Func;
+    reloc_map.label_map[func.name].binding = binding_of(func.linkage);
+    reloc_map.label_map[func.name].vis = func.vis;
 
     ProEpilogueType proepilogue = ProEpilogueType::None;
     // can only remove epi/pro logue if it doesnt touch any local stack stuff
@@ -405,6 +421,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         label.section = RelocSection::Bss;
         label.size = global.size;
         label.vis = global.vis;
+        label.binding = binding_of(global.linkage);
         bss_size += global.size;
         bss_align = std::max(bss_align, align);
         continue;
@@ -416,6 +433,8 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
             RelocSection::InitArray;
         label_usage_map.label_map[global.name].size = global.data.size();
         label_usage_map.label_map[global.name].vis = global.vis;
+        label_usage_map.label_map[global.name].binding =
+            binding_of(global.linkage);
         // fmt::println("CTOR {}", global.name);
         {  // handle reloccs
           int i = 0;
@@ -461,6 +480,8 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           global.data.empty() ? RelocSection::Extern : RelocSection::Data;
       label_usage_map.label_map[global.name].size = global.size;
       label_usage_map.label_map[global.name].vis = global.vis;
+      label_usage_map.label_map[global.name].binding =
+          binding_of(global.linkage);
 
       if (!global.data.empty()) {
         memcpy(curr_data_ptr, global.data.data(), global.data.size());
@@ -498,128 +519,141 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   }
   ELFIO::relocation_section_accessor data_rela(writer, data_rel_sec);
 
-  for (auto [label_name, label_data] : label_usage_map.label_map) {
-    // fmt::println("{}", label_name.c_str());
-    ASSERT(label_data.section != RelocSection::INVALID);
+  // local symbols have to come first, relocations keep the index add_symbol
+  // returned so they cannot be reordered afterwards
+  Elf_Word n_local_symbols = 0;
+  for (int pass = 0; pass < 2; pass++)
+    for (auto [label_name, label_data] : label_usage_map.label_map) {
+      if ((label_data.binding == RelocBinding::Local) != (pass == 0)) {
+        continue;
+      }
+      if (pass == 0) {
+        n_local_symbols++;
+      }
+      ASSERT(label_data.section != RelocSection::INVALID);
 
-    Elf_Half sec_indx = 0;
-    Elf_Word symbol_type = STT_FUNC;
-    Elf_Word symbol_binding = STB_GLOBAL;
+      Elf_Half sec_indx = 0;
+      Elf_Word symbol_type = STT_FUNC;
+      Elf_Word symbol_binding = STB_GLOBAL;
 
-    switch (label_data.section) {
-      case RelocSection::INVALID:
-        UNREACH();
-      case RelocSection::InitArray:
-        sec_indx = init_array_sec->get_index();
-        break;
-      case RelocSection::Data:
-        sec_indx = data_sec->get_index();
-        break;
-      case RelocSection::Bss:
-        sec_indx = bss_sec->get_index();
-        break;
-      case RelocSection::Text:
-        sec_indx = text_sec->get_index();
-        break;
-      case RelocSection::Extern:
-        sec_indx = 0;
-        break;
-    }
-    switch (label_data.kind) {
-      case RelocKind::INVALID:
-      case RelocKind::BB:
-        UNREACH();
-      case RelocKind::Func:
-        symbol_type = STT_FUNC;
-        break;
-      case RelocKind::Data:
-        symbol_type = STT_OBJECT;
-        break;
-    }
-    switch (label_data.binding) {
-      case RelocBinding::INVALID:
-        UNREACH();
-      case RelocBinding::Global:
-        symbol_binding = STB_GLOBAL;
-        break;
-      case RelocBinding::Weak:
-        symbol_binding = STB_WEAK;
-        break;
-    }
-
-    unsigned char other = 0;
-    switch (label_data.vis) {
-      case fir::LinkVisibility::Default:
-        other |= STV_DEFAULT;
-        break;
-      case fir::LinkVisibility::Hidden:
-        other |= STV_HIDDEN;
-        break;
-      case fir::LinkVisibility::Protected:
-        other |= STV_PROTECTED;
-        break;
-    }
-
-    auto symbol = syma.add_symbol(stra, label_name.c_str(), label_data.def_loc,
-                                  label_data.size, symbol_binding, symbol_type,
-                                  other, sec_indx);
-
-    for (auto loc : label_data.usage_loc) {
-      ASSERT(loc.usage_section != RelocSection::INVALID);
-      switch (loc.usage_section) {
+      switch (label_data.section) {
         case RelocSection::INVALID:
-        case RelocSection::Extern:
           UNREACH();
         case RelocSection::InitArray:
-          init_array_rela.add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
-                                    symbol, R_X86_64_64,
-                                    static_cast<i64>(loc.addent));
+          sec_indx = init_array_sec->get_index();
+          break;
+        case RelocSection::Data:
+          sec_indx = data_sec->get_index();
           break;
         case RelocSection::Bss:
-          UNREACH();
-        case RelocSection::Data:
-          data_rela.add_entry(loc.usage_instr - start_data, symbol, R_X86_64_64,
-                              static_cast<Elf_Sxword>(loc.addent));
+          sec_indx = bss_sec->get_index();
           break;
         case RelocSection::Text:
-          auto data = get_op_addr(loc.usage_instr, loc.operand_num);
-          switch (label_data.section) {
-            case RelocSection::INVALID:
-            case RelocSection::InitArray:
-              UNREACH();
-            case RelocSection::Data:
-            case RelocSection::Bss:
-              text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                  R_X86_64_PC32,
-                                  static_cast<Elf_Sxword>(
-                                      -data.op_off + data.op_val + loc.addent));
-              break;
-            case RelocSection::Extern:
-              if (label_data.kind == RelocKind::Func) {
+          sec_indx = text_sec->get_index();
+          break;
+        case RelocSection::Extern:
+          sec_indx = 0;
+          break;
+      }
+      switch (label_data.kind) {
+        case RelocKind::INVALID:
+        case RelocKind::BB:
+          UNREACH();
+        case RelocKind::Func:
+          symbol_type = STT_FUNC;
+          break;
+        case RelocKind::Data:
+          symbol_type = STT_OBJECT;
+          break;
+      }
+      switch (label_data.binding) {
+        case RelocBinding::INVALID:
+          UNREACH();
+        case RelocBinding::Global:
+          symbol_binding = STB_GLOBAL;
+          break;
+        case RelocBinding::Weak:
+          symbol_binding = STB_WEAK;
+          break;
+        case RelocBinding::Local:
+          symbol_binding = ELFIO::STB_LOCAL;
+          break;
+      }
+
+      unsigned char other = 0;
+      switch (label_data.vis) {
+        case fir::LinkVisibility::Default:
+          other |= STV_DEFAULT;
+          break;
+        case fir::LinkVisibility::Hidden:
+          other |= STV_HIDDEN;
+          break;
+        case fir::LinkVisibility::Protected:
+          other |= STV_PROTECTED;
+          break;
+      }
+
+      auto symbol = syma.add_symbol(
+          stra, label_name.c_str(), label_data.def_loc, label_data.size,
+          symbol_binding, symbol_type, other, sec_indx);
+
+      for (auto loc : label_data.usage_loc) {
+        ASSERT(loc.usage_section != RelocSection::INVALID);
+        switch (loc.usage_section) {
+          case RelocSection::INVALID:
+          case RelocSection::Extern:
+            UNREACH();
+          case RelocSection::InitArray:
+            init_array_rela.add_entry(
+                std::bit_cast<Elf64_Addr>(loc.usage_instr), symbol, R_X86_64_64,
+                static_cast<i64>(loc.addent));
+            break;
+          case RelocSection::Bss:
+            UNREACH();
+          case RelocSection::Data:
+            data_rela.add_entry(loc.usage_instr - start_data, symbol,
+                                R_X86_64_64,
+                                static_cast<Elf_Sxword>(loc.addent));
+            break;
+          case RelocSection::Text:
+            auto data = get_op_addr(loc.usage_instr, loc.operand_num);
+            switch (label_data.section) {
+              case RelocSection::INVALID:
+              case RelocSection::InitArray:
+                UNREACH();
+              case RelocSection::Data:
+              case RelocSection::Bss:
+                text_rela.add_entry(
+                    data.op_addr - start_txt, symbol, R_X86_64_PC32,
+                    static_cast<Elf_Sxword>(-data.op_off + data.op_val +
+                                            loc.addent));
+                break;
+              case RelocSection::Extern:
+                if (label_data.kind == RelocKind::Func) {
+                  text_rela.add_entry(
+                      data.op_addr - start_txt, symbol, R_X86_64_PLT32,
+                      static_cast<Elf_Sxword>(-data.op_off + data.op_val +
+                                              loc.addent));
+                } else if (label_data.kind == RelocKind::Data) {
+                  text_rela.add_entry(
+                      data.op_addr - start_txt, symbol, R_X86_64_GOTPCREL,
+                      static_cast<Elf_Sxword>(-data.op_off + data.op_val +
+                                              loc.addent));
+                } else {
+                  TODO("UNREACH?");
+                }
+                break;
+              case RelocSection::Text:
                 text_rela.add_entry(
                     data.op_addr - start_txt, symbol, R_X86_64_PLT32,
                     static_cast<Elf_Sxword>(-data.op_off + data.op_val +
                                             loc.addent));
-              } else if (label_data.kind == RelocKind::Data) {
-                text_rela.add_entry(
-                    data.op_addr - start_txt, symbol, R_X86_64_GOTPCREL,
-                    static_cast<Elf_Sxword>(-data.op_off + data.op_val +
-                                            loc.addent));
-              } else {
-                TODO("UNREACH?");
-              }
-              break;
-            case RelocSection::Text:
-              text_rela.add_entry(data.op_addr - start_txt, symbol,
-                                  R_X86_64_PLT32,
-                                  static_cast<Elf_Sxword>(
-                                      -data.op_off + data.op_val + loc.addent));
-              break;
-          }
-          break;
+                break;
+            }
+            break;
+        }
       }
     }
-  }
 
   ELFIO::section *note_gnu_stack_sec = writer.sections.add(".note.GNU-stack");
   {  // section .note.GNU-stack noalloc noexec nowrite progbits
@@ -633,17 +667,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     note_writer.add_note(0x01, "Created By Foptim", nullptr, 0);
   }
 
-  syma.arrange_local_symbols([&](Elf_Xword first, Elf_Xword second) {
-    Elf64_Addr off;
-    Elf_Word symbol;
-    unsigned int type;
-    Elf_Sxword addend;
-    if (!text_rela.get_entry(first, off, symbol, type, addend)) {
-      text_rela.swap_symbols(first, second);
-    } else if (!data_rela.get_entry(first, off, symbol, type, addend)) {
-      data_rela.swap_symbols(first, second);
-    }
-  });
+  sym_sec->set_info(n_local_symbols + 1);
 
   std::ofstream stream;
   ASSERT(!conf.output.out_file.empty());

@@ -1200,9 +1200,26 @@ bool simplify_call(fir::Instr instr, fir::BasicBlock bb, fir::Context &ctx,
   if constexpr (TRACY_DEBUG_INST_SIMPLIFY) {
     ZoneScopedN("SimplifyCall");
   }
-  (void)bb;
-  (void)ctx;
   (void)worklist;
+  if (instr->args[0].is_constant() &&
+      (instr->args[0].as_constant()->is_null() ||
+       instr->args[0].as_constant()->is_poison())) {
+    auto term = bb->get_terminator();
+    for (u32 r = 0; r < instr->n_results(); r++) {
+      if (instr.result(r).get_n_uses() > 0) {
+        instr.result(r).replace_all_uses(
+            fir::ValueR{ctx->get_poisson_value(instr.result_type(r))});
+      }
+    }
+    instr.destroy();
+    if (!term->is(fir::InstrType::Unreachable)) {
+      fir::Builder buh{bb};
+      buh.at_end(bb);
+      buh.build_unreach();
+      term.destroy();
+    }
+    return true;
+  }
   if (instr->args[0].is_constant() && instr->args[0].as_constant()->is_func()) {
     auto funci = instr->args[0].as_constant()->as_func();
     if (instr->get_n_uses() == 0 &&

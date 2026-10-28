@@ -32,6 +32,7 @@ enum class RelocBinding : u8 {
   INVALID,
   Global,
   Weak,
+  Local,
 };
 
 struct LabelRelocData {

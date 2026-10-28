@@ -1985,6 +1985,7 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
   switch (func.getLinkage()) {
     case llvm::GlobalValue::InternalLinkage:
     case llvm::GlobalValue::PrivateLinkage:
+    case llvm::GlobalValue::AvailableExternallyLinkage:
       foff_func->attribs.linkage = foptim::fir::Linkage::Internal;
       break;
     case llvm::GlobalValue::LinkOnceAnyLinkage:
@@ -2000,7 +2001,6 @@ void setup_function(llvm::Function &func, foptim::fir::Context &fctx,
       foff_func->attribs.linkage = foptim::fir::Linkage::WeakODR;
       break;
     case llvm::GlobalValue::ExternalLinkage:
-    case llvm::GlobalValue::AvailableExternallyLinkage:
     case llvm::GlobalValue::AppendingLinkage:
     case llvm::GlobalValue::ExternalWeakLinkage:
     case llvm::GlobalValue::CommonLinkage:

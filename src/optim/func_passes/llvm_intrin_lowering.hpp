@@ -604,6 +604,48 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     instr.destroy();
   }
 
+  void handle_va_copy(fir::Instr instr, fir::Function &func,
+                      fir::FunctionR /*callee*/) {
+    auto *ctx = func.ctx;
+    fir::Builder bb{instr};
+    // the x86-64 va_list is 24 bytes
+    auto size = fir::ValueR{ctx->get_constant_value(24, ctx->get_int_type(64))};
+    auto cpy = bb.build_intrinsic(instr->args[1], instr->args[2], size,
+                                  fir::IntrinsicSubType::Memcpy,
+                                  ctx->get_void_type());
+    cpy.as_instr()->extra_type = ctx->get_int_type(8);
+    instr.destroy();
+  }
+
+  void handle_thread_local_address(fir::Instr instr, fir::Function & /*funcy*/,
+                                   fir::FunctionR /*callee*/) {
+    // thread locals are plain globals for now
+    instr->replace_all_uses(instr->args[1]);
+    instr.destroy();
+  }
+
+  void handle_get_rounding(fir::Instr instr, fir::Function &func,
+                           fir::FunctionR /*callee*/) {
+    // round to nearest, the mode is never changed
+    auto *ctx = func.ctx;
+    instr->replace_all_uses(
+        fir::ValueR{ctx->get_constant_value(1, ctx->get_int_type(32))});
+    instr.destroy();
+  }
+
+  void handle_modf(fir::Instr instr, fir::Function & /*funcy*/,
+                   fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto x = instr->args[1];
+    auto ip = bb.build_intrinsic(x, fir::IntrinsicSubType::FTrunc);
+    // TODO: NOT EXACT, the fraction of an integer should have the sign of x
+    // and the fraction of an infinity is zero
+    auto frac = bb.build_float_sub(x, ip);
+    instr.result(0).replace_all_uses(frac);
+    instr.result(1).replace_all_uses(ip);
+    instr.destroy();
+  }
+
   void handle_minmaxnum(fir::Instr instr, fir::Function & /*funcy*/,
                         fir::FunctionR /*callee*/, bool is_min) {
     fir::Builder bb{instr};
@@ -800,6 +842,22 @@ class LLVMInstrinsicLowering final : public FunctionPass {
           modified = true;
         } else if (callee.func->name.starts_with("llvm.va_start")) {
           handle_va(instr, func, callee, true);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.va_copy")) {
+          handle_va_copy(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with(
+                       "llvm.threadlocal.address")) {
+          handle_thread_local_address(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.get.rounding")) {
+          handle_get_rounding(instr, func, callee);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.x86.sse2.pause")) {
+          instr.destroy();
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.modf.")) {
+          handle_modf(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.va_end")) {
           handle_va(instr, func, callee, false);

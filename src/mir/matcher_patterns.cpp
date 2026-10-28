@@ -3519,8 +3519,9 @@ void base_rules(RuleSet &rules) {
     if (call_instr->args[0].is_constant()) {
       calee = valueToArgPtr(call_instr->args[0], Type::Int64, res.result,
                             data.alloc);
-      is_var_arg =
-          call_instr->args[0].as_constant()->as_func()->attribs.variadic;
+      const auto callee_const = call_instr->args[0].as_constant();
+      is_var_arg = callee_const->is_func() &&
+                   callee_const->as_func()->attribs.variadic;
     } else {
       calee = valueToArg(call_instr->args[0], res.result, data.alloc);
     }
