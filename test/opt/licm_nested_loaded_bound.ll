@@ -137,20 +137,22 @@ define i64 @g(ptr noundef %0, ptr noundef %1, i32 noundef %2) #0 {
 ; CHECK-NEXT:    %10: () = CondBranch<bb3(%5, 0:i32), bb4(%5)>(%9){} NUses:0
 ; CHECK-NEXT:  bb3(%11{}: i64, %12{}: i32):
 ; CHECK-NEXT:    %13: i64 = SExt(%12){} NUses:2
-; CHECK-NEXT:    %14: i64 = Store(%7, %13){} NUses:0
-; CHECK-NEXT:    %15: i64 = IntAdd(%13, %11){} NUses:2
-; CHECK-NEXT:    %16: i32 = IntAdd(%12, 1:i32){} NUses:2
-; CHECK-NEXT:    %17: i1 = IntSLT(%16, %8){} NUses:1
-; CHECK-NEXT:    %18: () = CondBranch<bb3(%15, %16), bb4(%15)>(%17){} NUses:0
-; CHECK-NEXT:  bb2(%19{}: i64):
-; CHECK-NEXT:    %20: i64 = Return(%19){} NUses:0
-; CHECK-NEXT:  bb4(%21{}: i64):
-; CHECK-NEXT:    %22: i32 = IntAdd(%6, 1:i32){} NUses:3
-; CHECK-NEXT:    %23: i1 = IntSLT(%22, %2){} NUses:1
-; CHECK-NEXT:    %24: i64 = SExt(%22){} NUses:1
-; CHECK-NEXT:    %25: i64 = IntMul(%24, 8:i64){NSW; NUW; } NUses:1
-; CHECK-NEXT:    %26: ptr = PtrAdd(%1, %25){NSW; InBounds; } NUses:1
-; CHECK-NEXT:    %27: () = CondBranch<bb1(%21, %22, %26), bb2(%21)>(%23){} NUses:0
+; CHECK-NEXT:    %14: i64 = IntAdd(%13, %11){} NUses:2
+; CHECK-NEXT:    %15: i32 = IntAdd(%12, 1:i32){} NUses:2
+; CHECK-NEXT:    %16: i1 = IntSLT(%15, %8){} NUses:1
+; CHECK-NEXT:    %17: () = CondBranch<bb3(%14, %15), bb5()>(%16){} NUses:0
+; CHECK-NEXT:  bb2(%18{}: i64):
+; CHECK-NEXT:    %19: i64 = Return(%18){} NUses:0
+; CHECK-NEXT:  bb4(%20{}: i64):
+; CHECK-NEXT:    %21: i32 = IntAdd(%6, 1:i32){} NUses:3
+; CHECK-NEXT:    %22: i1 = IntSLT(%21, %2){} NUses:1
+; CHECK-NEXT:    %23: i64 = SExt(%21){} NUses:1
+; CHECK-NEXT:    %24: i64 = IntMul(%23, 8:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %25: ptr = PtrAdd(%1, %24){NSW; InBounds; } NUses:1
+; CHECK-NEXT:    %26: () = CondBranch<bb1(%20, %21, %25), bb2(%20)>(%22){} NUses:0
+; CHECK-NEXT:  bb5():
+; CHECK-NEXT:    %27: i64 = Store(%7, %13){} NUses:0
+; CHECK-NEXT:    %28: () = Branch<bb4(%14)>(){} NUses:0
 ; CHECK-NEXT:}
   %4 = alloca ptr, align 8
   %5 = alloca ptr, align 8

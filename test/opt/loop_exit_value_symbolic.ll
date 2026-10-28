@@ -185,18 +185,22 @@ define void @neg_store(ptr %p, i32 %n) {
 ; CHECK-NEXT:  bb0(%0{}: ptr, %1{}: i32):
 ; CHECK-NEXT:    %2: () = Branch<bb1(0:i32)>(){} NUses:0
 ; CHECK-NEXT:  bb1(%3{}: i32):
-; CHECK-NEXT:    %4: i32 = Store(%0, %3){} NUses:0
-; CHECK-NEXT:    %5: i32 = IntAdd(%3, 1:i32){NSW; } NUses:2
-; CHECK-NEXT:    %6: i1 = IntSLT(%5, %1){} NUses:1
-; CHECK-NEXT:    %7: () = CondBranch<bb1(%5), bb2()>(%6){} NUses:0
+; CHECK-NEXT:    %4: i64 = SExt(%3){} NUses:1
+; CHECK-NEXT:    %5: i64 = IntMul(%4, 4:i64){NSW; NUW; } NUses:1
+; CHECK-NEXT:    %6: ptr = PtrAdd(%0, %5){} NUses:1
+; CHECK-NEXT:    %7: i32 = Store(%6, %3){} NUses:0
+; CHECK-NEXT:    %8: i32 = IntAdd(%3, 1:i32){NSW; } NUses:2
+; CHECK-NEXT:    %9: i1 = IntSLT(%8, %1){} NUses:1
+; CHECK-NEXT:    %10: () = CondBranch<bb1(%8), bb2()>(%9){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %8: () = Return(){} NUses:0
+; CHECK-NEXT:    %11: () = Return(){} NUses:0
 ; CHECK-NEXT:}
 entry:
   br label %loop
 loop:
   %i = phi i32 [ 0, %entry ], [ %i.n, %loop ]
-  store i32 %i, ptr %p
+  %q = getelementptr i32, ptr %p, i32 %i
+  store i32 %i, ptr %q
   %i.n = add nsw i32 %i, 1
   %c = icmp slt i32 %i.n, %n
   br i1 %c, label %loop, label %exit

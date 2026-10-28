@@ -15,6 +15,8 @@
 #include "optim/analysis/cfg.hpp"
 #include "optim/analysis/dominators.hpp"
 #include "optim/analysis/loop_analysis.hpp"
+#include "optim/analysis/mem/alias_query.hpp"
+#include "optim/analysis/mem/mem_access.hpp"
 #include "optim/function_pass.hpp"
 #include "optim/helper/scev_expander.hpp"
 #include "utils/set.hpp"
@@ -328,9 +330,223 @@ class LoopSimplify final : public FunctionPass {
     return modified;
   }
 
+  // may instr in any iteration write (or with reads also read) what ref
+  // accesses, alias scopes are not used since they only hold in one iteration
+  static bool touches(AliasQuery &aq, fir::Instr instr, const MemAccess &a,
+                      fir::Instr ref, const MemLoc &loc, bool reads) {
+    if (a.is_load_store() && !a.ordered) {
+      if (a.kind == MemAccess::Kind::Load && !reads) {
+        return false;
+      }
+      return aq.alias(instr, ref, true) != AliasResult::No;
+    }
+    auto m = aq.mod_ref(instr, loc);
+    return reads ? m != ModRef::NoModRef : may_write(m);
+  }
+
+  // moves a store to an invariant address that nothing else in the loop touches
+  // to a new block on every exit edge, the store has to run before every exit
+  bool sink_store_to_exits(fir::Function &func, CFG &cfg, Dominators &dom,
+                           const LoopInfo &loop) {
+    auto in_loop = [&](u32 id) {
+      return std::ranges::contains(loop.body_nodes, id);
+    };
+    // unreachable loops have no header in their body
+    if (!in_loop(loop.head)) {
+      return false;
+    }
+    AliasQuery aq{AnalysisManager::provenance(func)};
+    for (auto sb : loop.body_nodes) {
+      for (auto store : cfg.bbrs[sb].bb->instructions) {
+        if (!store->is(fir::InstrType::StoreInstr)) {
+          continue;
+        }
+        auto ptr = store->args[0];
+        auto parent_id = [&](fir::ValueR v) -> std::optional<u32> {
+          if (v.is_instr()) {
+            return cfg.get_bb_id(v.as_instr()->get_parent());
+          }
+          if (v.is_bb_arg()) {
+            return cfg.get_bb_id(v.as_bb_arg()->get_parent());
+          }
+          return std::nullopt;
+        };
+        if (auto d = parent_id(ptr); d && in_loop(*d)) {
+          continue;
+        }
+        auto access = classify_access(store);
+        if (!access || access->ordered || access->loc.size == 0) {
+          continue;
+        }
+        bool ok = true;
+        for (auto b : loop.body_nodes) {
+          for (auto instr : cfg.bbrs[b].bb->instructions) {
+            if (instr == store) {
+              continue;
+            }
+            auto a = classify_access(instr);
+            if (a && touches(aq, instr, *a, store, access->loc, true)) {
+              ok = false;
+            }
+          }
+        }
+        if (!ok) {
+          continue;
+        }
+        TVec<std::pair<fir::Instr, u16>> exits;
+        for (auto b : loop.body_nodes) {
+          auto term = cfg.bbrs[b].bb->get_terminator();
+          for (u16 i = 0; i < term->bbs.size(); i++) {
+            if (!in_loop(cfg.get_bb_id(term->bbs[i].bb))) {
+              if (!dom.dominates(sb, b)) {
+                ok = false;
+              }
+              exits.emplace_back(term, i);
+            }
+          }
+        }
+        if (!ok || exits.empty()) {
+          continue;
+        }
+        auto value = store->args[1];
+        for (auto [term, i] : exits) {
+          TVec<fir::ValueR> old_args{term->bbs[i].args.begin(),
+                                     term->bbs[i].args.end()};
+          auto target = term->bbs[i].bb;
+          fir::Builder bld{target};
+          auto n = bld.append_bb();
+          bld.at_end(n);
+          bld.build_store(ptr, value, false, false);
+          auto br = bld.build_branch(target);
+          for (auto a : old_args) {
+            br.add_bb_arg(0, a);
+          }
+          term.replace_bb(i, n, false);
+        }
+        store.destroy();
+        utils::StatCollector::get().addi(1, "LoopStoreSink",
+                                         utils::StatCollector::StatFOptim);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // a header load from an invariant address whose only writer in the loop is
+  // one store after it (run every iteration) becomes a header argument, the
+  // store stays
+  bool promote_memory_accumulator(fir::Context &ctx, fir::Function &func,
+                                  CFG &cfg, Dominators &dom,
+                                  const LoopInfo &loop) {
+    auto in_loop = [&](u32 id) {
+      return std::ranges::contains(loop.body_nodes, id);
+    };
+    auto &preds = cfg.bbrs[loop.head].pred;
+    if (!in_loop(loop.head) || preds.size() != loop.tails.size() + 1) {
+      return false;
+    }
+    fir::BasicBlock pre{fir::BasicBlock::invalid()};
+    for (auto p : preds) {
+      if (!in_loop(p)) {
+        pre = cfg.bbrs[p].bb;
+      }
+    }
+    if (!pre.is_valid() ||
+        !pre->get_terminator()->is(fir::InstrType::BranchInstr)) {
+      return false;
+    }
+    auto header = cfg.bbrs[loop.head].bb;
+    AliasQuery aq{AnalysisManager::provenance(func)};
+
+    for (auto load : header->instructions) {
+      if (!load->is(fir::InstrType::LoadInstr)) {
+        continue;
+      }
+      auto ptr = load->args[0];
+      if (ptr.is_instr()) {
+        if (in_loop(cfg.get_bb_id(ptr.as_instr()->get_parent()))) {
+          continue;
+        }
+      } else if (ptr.is_bb_arg()) {
+        if (in_loop(cfg.get_bb_id(ptr.as_bb_arg()->get_parent()))) {
+          continue;
+        }
+      }
+      auto access = classify_access(load);
+      if (!access || access->ordered || access->loc.size == 0) {
+        continue;
+      }
+
+      std::optional<fir::Instr> store;
+      u32 store_bb = 0;
+      bool ok = true;
+      for (auto b : loop.body_nodes) {
+        for (auto instr : cfg.bbrs[b].bb->instructions) {
+          if (instr == load) {
+            continue;
+          }
+          auto a = classify_access(instr);
+          if (!a) {
+            continue;
+          }
+          if (a->kind == MemAccess::Kind::Store && !a->ordered &&
+              instr->args[0] == ptr) {
+            if (store || instr->args[1].get_type() != load.result_type()) {
+              ok = false;
+            }
+            store = instr;
+            store_bb = b;
+            continue;
+          }
+          if (touches(aq, instr, *a, load, access->loc, false)) {
+            ok = false;
+          }
+        }
+      }
+      if (!ok || !store) {
+        continue;
+      }
+      if (store_bb == loop.head &&
+          header->get_instr_id(*store) < header->get_instr_id(load)) {
+        continue;
+      }
+      if (!std::ranges::all_of(loop.tails, [&](u32 t) {
+            return dom.dominates(store_bb, t);
+          })) {
+        continue;
+      }
+
+      fir::Builder bld{pre->get_terminator()};
+      auto init = bld.build_load(load.result_type(), ptr, false, false);
+      auto acc = header.add_arg(
+          ctx->storage.insert_bb_arg(header, load.result_type()));
+      auto value = (*store)->args[1];
+
+      TVec<u32> pred_ids;
+      for (auto p : preds) {
+        if (!std::ranges::contains(pred_ids, p)) {
+          pred_ids.push_back(p);
+        }
+      }
+      for (auto p : pred_ids) {
+        auto term = cfg.bbrs[p].bb->get_terminator();
+        for (u16 i = 0; i < term->bbs.size(); i++) {
+          if (term->bbs[i].bb == header) {
+            term.add_bb_arg(i, in_loop(p) ? value : init);
+          }
+        }
+      }
+      load.result().replace_all_uses(fir::ValueR{acc});
+      load.destroy();
+      utils::StatCollector::get().addi(1, "LoopMemPromote",
+                                       utils::StatCollector::StatFOptim);
+      return true;
+    }
+    return false;
+  }
+
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override {
     ZoneScopedNC("LoopSimplify", COLOR_OPTIMF);
-    (void)ctx;
     CFG &cfg = AnalysisManager::cfg(func);
     Dominators &dom = AnalysisManager::dom(func);
     LoopInfoAnalysis loops{dom};
@@ -341,13 +557,18 @@ class LoopSimplify final : public FunctionPass {
     //  TODO: handle if its values are used after and their result value is
     //  known/can be calculated withuot loop
     for (; loop_ip1 <= loops.info.size(); loop_ip1++) {
+      if (promote_memory_accumulator(ctx, func, cfg, dom,
+                                     loops.info.at(loop_ip1 - 1))) {
+        modified = true;
+      }
       if (propagate_to_after_loop(cfg, loops, loop_ip1 - 1) ||
           merge_same_diret_induct_var(cfg, loops, loop_ip1 - 1)) {
         modified = true;
         // loop_ip1 = 0;
         // continue;
       }
-      if (dead_loop_elimination(cfg, loops, loop_ip1 - 1) ||
+      if (sink_store_to_exits(func, cfg, dom, loops.info.at(loop_ip1 - 1)) ||
+          dead_loop_elimination(cfg, loops, loop_ip1 - 1) ||
           const_exit_value(ctx, cfg, dom, loops, loop_ip1 - 1)) {
         modified = true;
         cfg.update(func, false);
