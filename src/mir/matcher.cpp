@@ -298,6 +298,8 @@ MFunc GreedyMatcher::apply(fir::Function &func, const conf::CompConf &conf) {
   split_cond_branch_edges(func);
   MFunc res_func;
   res_func.name = func.name;
+  res_func.linkage = func.attribs.linkage;
+  res_func.vis = func.attribs.linkvis;
   res_func.align = func.attribs.min_align;
   res_func.bbs.reserve(func.n_bbs());
   DumbRegAlloc alloc{};

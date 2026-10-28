@@ -16,6 +16,8 @@ class MFunc {
   IRVec<VReg> args;
 
   IRString name;
+  fir::Linkage linkage = fir::Linkage::External;
+  fir::LinkVisibility vis = fir::LinkVisibility::Default;
   bool variadic = false;
   bool needs_register_save_area = false;
   // bytes the entry block reserves with `sub rsp` for its static allocas, every

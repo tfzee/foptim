@@ -154,7 +154,8 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
                                        .size = 0,
                                        .reloc_info = {},
                                        .min_align = v->data->min_align,
-                                       .vis = v->data->linkvis};
+                                       .vis = v->data->linkvis,
+                                       .linkage = v->data->linkage};
           for (const auto &rel_inf : v->data->reloc_info) {
             if (rel_inf.ref->is_global()) {
               glob.reloc_info.push_back(foptim::fmir::Global::RelocationInfo{

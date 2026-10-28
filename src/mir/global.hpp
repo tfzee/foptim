@@ -23,6 +23,7 @@ struct Global {
   IRVec<RelocationInfo> reloc_info;
   u32 min_align = 0;
   fir::LinkVisibility vis;
+  fir::Linkage linkage = fir::Linkage::External;
 };
 
 }  // namespace foptim::fmir
