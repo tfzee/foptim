@@ -42,6 +42,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/alias_metadata.hpp"
+#include "llvm/inline_asm.hpp"
 #include "utils/APInt.hpp"
 #include "utils/arena.hpp"
 #include "utils/job_system.hpp"
@@ -52,6 +53,9 @@
 namespace {
 // set while a module is converted
 const foptim::AliasMetaReader *alias_meta = nullptr;
+// id of every inline asm of the module, set by convert before the jobs run
+const std::unordered_map<const llvm::InlineAsm *, foptim::u32> *asm_ids =
+    nullptr;
 
 void attach_access_meta(const llvm::Instruction *from, foptim::fir::ValueR to,
                         foptim::fir::FunctionR func) {
@@ -210,7 +214,8 @@ std::pair<u32, u32> leaf_range(const llvm::Type *ty,
 
 foptim::IRVec<foptim::fir::TypeR> convert_ret_types(llvm::Type *ret,
                                                     foptim::fir::Context &ctx,
-                                                    llvm::Module &module);
+                                                    llvm::Module &module,
+                                                    bool fit_ret_regs = true);
 
 constexpr foptim::fir::Ordering convert_ordering(
     llvm::AtomicOrdering ordering) {
@@ -560,7 +565,8 @@ foptim::fir::TypeR convert_type(llvm::Type *any_ty, foptim::fir::Context &ctx,
 
 foptim::IRVec<foptim::fir::TypeR> convert_ret_types(llvm::Type *ret,
                                                     foptim::fir::Context &ctx,
-                                                    llvm::Module &module) {
+                                                    llvm::Module &module,
+                                                    bool fit_ret_regs) {
   foptim::IRVec<foptim::fir::TypeR> res;
   if (ret->isAggregateType()) {
     foptim::TVec<Leaf> leaves;
@@ -571,7 +577,7 @@ foptim::IRVec<foptim::fir::TypeR> convert_ret_types(llvm::Type *ret,
       res.push_back(leaf.ty);
       (leaf.ty->is_float() || leaf.ty->is_vec() ? n_sse : n_int)++;
     }
-    if (n_int > 2 || n_sse > 2) {
+    if (fit_ret_regs && (n_int > 2 || n_sse > 2)) {
       IMPL("aggregate result that does not fit the return registers");
     }
     if (res.empty()) {
@@ -871,34 +877,42 @@ void convert_call(const llvm::Instruction *any_instr,
                   V2VMap &valueToValue, llvm::Module &mod, B2BMap &b2b) {
   foptim::TVec<foptim::fir::ValueR> args = {};
   if (call_instr->isInlineAsm()) {
-    // inline asm is not supported, running it aborts
-    generate_trap(fctx);
-    if (foptim::utils::verbose()) {
-      fmt::print(stderr, fg(fmt::color::red),
-                 "[WARNING] Unsupported inline asm in {}, the call aborts at "
-                 "runtime: {}\n",
-                 call_instr->getFunction()->getName().str(),
-                 llvm::cast<llvm::InlineAsm>(call_instr->getCalledOperand())
-                     ->getAsmString());
+    const auto *as =
+        llvm::cast<llvm::InlineAsm>(call_instr->getCalledOperand());
+    const foptim::u32 asm_entry = asm_ids->at(as);
+    const auto &info = fctx->asm_info(asm_entry);
+    bool pure = !info.sideeffect && !info.mem_clobber &&
+                !call_instr->getType()->isVoidTy();
+    for (const auto &op : info.operands) {
+      pure = pure && op.cls != foptim::fir::AsmOperandClass::Mem;
     }
-    auto target_func = fctx->get_function("abort");
-    builder.build_call(
-        foptim::fir::ValueR{fctx->get_constant_value(target_func)},
-        target_func->func_ty, target_func->func_ty->as_func().return_type(),
-        {});
-    foptim::TVec<Leaf> info;
-    collect_leaves(call_instr->getType(), 0, fctx, mod, info);
-    foptim::TVec<foptim::fir::ValueR> leaves;
-    for (const auto &leaf : info) {
-      leaves.push_back(foptim::fir::ValueR{fctx->get_poisson_value(leaf.ty)});
+    const auto asm_id = foptim::fir::ValueR{
+        fctx->get_constant_int(static_cast<foptim::i128>(asm_entry), 32)};
+    for (size_t i = 0; i < call_instr->arg_size(); i++) {
+      push_call_arg(call_instr->getArgOperand(i), args, fctx, ffunc, builder,
+                    valueToValue, mod, b2b);
     }
-    if (call_instr->getType()->isVoidTy()) {
+    auto *ret_type = call_instr->getType();
+    foptim::IRVec<foptim::fir::TypeR> rets;
+    if (ret_type->isAggregateType()) {
+      // outputs are not return registers, any number is fine
+      rets = convert_ret_types(ret_type, fctx, mod, false);
+    } else {
+      rets.push_back(convert_type(ret_type, fctx, mod));
+    }
+    auto instr = builder.build_inline_asm(
+        asm_id, args, std::span<const foptim::fir::TypeR>{rets}, pure);
+    if (ret_type->isVoidTy() || count_leaves(ret_type) == 0) {
       return;
     }
-    if (call_instr->getType()->isAggregateType()) {
+    if (ret_type->isAggregateType()) {
+      foptim::TVec<foptim::fir::ValueR> leaves;
+      for (foptim::u8 i = 0; i < rets.size(); i++) {
+        leaves.push_back(instr.result(i));
+      }
       valueToValue.insert_agg(any_instr, std::move(leaves));
     } else {
-      valueToValue.insert({any_instr, leaves[0]});
+      valueToValue.insert({any_instr, instr.result()});
     }
     return;
   }
@@ -2555,6 +2569,24 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
   foptim::AliasMetaReader meta_reader{fctx->alias_sets()};
   meta_reader.scan(mod);
   alias_meta = &meta_reader;
+  // interned serially so the ids do not depend on the job order
+  std::unordered_map<const llvm::InlineAsm *, foptim::u32> asm_id_map;
+  for (const auto &func : mod) {
+    for (const auto &bb : func) {
+      for (const auto &inst : bb) {
+        const auto *call = llvm::dyn_cast<llvm::CallInst>(&inst);
+        if (call == nullptr || !call->isInlineAsm()) {
+          continue;
+        }
+        const auto *as = llvm::cast<llvm::InlineAsm>(call->getCalledOperand());
+        if (!asm_id_map.contains(as)) {
+          asm_id_map[as] =
+              fctx->intern_asm(foptim::parse_inline_asm(*as, func.getName()));
+        }
+      }
+    }
+  }
+  asm_ids = &asm_id_map;
   {
     ZoneScopedN("Initializing Globals + Functions");
     setup_globals(mod, fctx, valueToValue);
@@ -2589,6 +2621,7 @@ void convert(llvm::Module &mod, foptim::fir::Context &fctx,
     shed.wait_till_done();
   }
   alias_meta = nullptr;
+  asm_ids = nullptr;
 }
 
 }  // namespace

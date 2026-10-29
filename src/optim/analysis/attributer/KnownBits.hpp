@@ -316,6 +316,8 @@ class KnownBits final : public AttributeAnalysis,
         case fir::IntrinsicSubType::Memcmp:
         case fir::IntrinsicSubType::MaskedLoad:
         case fir::IntrinsicSubType::Gather:
+        case fir::IntrinsicSubType::InlineAsm:
+        case fir::IntrinsicSubType::InlineAsmPure:
           // an arbitrary int
           break;
         case fir::IntrinsicSubType::Memset:

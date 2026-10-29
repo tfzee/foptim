@@ -73,8 +73,11 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case GBaseSubtype::arg_setup:
         case GBaseSubtype::ret:
         case GBaseSubtype::invoke:
+        case GBaseSubtype::asm_in:
+        case GBaseSubtype::inline_asm:
           return;
         case GBaseSubtype::ret_setup:
+        case GBaseSubtype::asm_out:
           if (instr.args[0].isReg()) {
             def[reg_to_uid(instr.args[0].reg)].set(true);
           }
@@ -579,7 +582,13 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           uses[reg_to_uid(CReg::SP)].set(true);
           update_uses(instr.args[0], uses);
           return;
+        case GBaseSubtype::inline_asm:
+          return;
+        case GBaseSubtype::asm_in:
+          update_uses(instr.args[0], uses);
+          return;
         case GBaseSubtype::ret_setup:
+        case GBaseSubtype::asm_out:
           if (!instr.args[0].isReg()) {
             update_uses(instr.args[0], uses);
           }

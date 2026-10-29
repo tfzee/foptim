@@ -149,6 +149,11 @@ static void useptr_access_analysis(fir::Use u, AccessResult &res,
     res.Escapes = true;
     return;
   }
+  if (i->is(fir::ConversionSubType::PtrToInt) ||
+      i->is(fir::ConversionSubType::BitCast)) {
+    res.Escapes = true;
+    return;
+  }
   fmt::println("{:cd}", u);
   fmt::println("{:cd}", u.user);
   TODO("okak");

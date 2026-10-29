@@ -219,6 +219,10 @@ void mark_returns_with_regs(IRVec<MInstr> &instrs,
 
 }  // namespace
 
+namespace {
+void lower_inline_asm(MFunc &func);
+}
+
 void CallingConvImpl::first_stage(MFunc &func, const CallingConvDefinition &cc,
                                   const conf::CompConf & /*unused*/) {
   gen_arg_mapping(func, cc);
@@ -249,7 +253,192 @@ void CallingConvImpl::first_stage(MFunc &func, const CallingConvDefinition &cc,
       }
     }
   }
+  lower_inline_asm(func);
 }
+
+// Pins inline asm operands to concrete registers so the allocator sees them
+// like call arguments.
+namespace {
+
+std::optional<CReg> asm_register(const IRString &name) {
+  static const struct {
+    const char *name;
+    CReg reg;
+  } legacy[] = {{"a", CReg::A},   {"b", CReg::B},   {"c", CReg::C},
+                {"d", CReg::D},   {"si", CReg::SI}, {"di", CReg::DI},
+                {"sp", CReg::SP}, {"bp", CReg::BP}};
+  std::string_view n{name};
+  // rax eax ax al -> a, r8 r8d r8w r8b -> r8
+  if (n.size() >= 2 && n[0] == 'r' && n[1] >= '0' && n[1] <= '9') {
+    u32 id = 0;
+    size_t pos = 1;
+    while (pos < n.size() && n[pos] >= '0' && n[pos] <= '9') {
+      id = id * 10 + static_cast<u32>(n[pos] - '0');
+      pos++;
+    }
+    if (id < 8 || id > 15 || (pos != n.size() && n.size() - pos != 1)) {
+      return std::nullopt;
+    }
+    return static_cast<CReg>(static_cast<u32>(CReg::R8) + id - 8);
+  }
+  if (n.size() == 3 && (n[0] == 'r' || n[0] == 'e')) {
+    n.remove_prefix(1);
+  }
+  if (n.size() == 2 && n[1] == 'l' && n[0] >= 'a' && n[0] <= 'd') {
+    n = n.substr(0, 1);
+  } else if (n.size() == 2 && n[1] == 'x' && n[0] >= 'a' && n[0] <= 'd') {
+    n = n.substr(0, 1);
+  } else if (n.size() == 2 &&
+             (n == "sp" || n == "bp" || n == "si" || n == "di")) {
+    // already the short name
+  } else if (n.size() == 3 && n[2] == 'l') {
+    // sil dil
+    n = n.substr(0, 2);
+  }
+  for (const auto &l : legacy) {
+    if (n == l.name) {
+      return l.reg;
+    }
+  }
+  return std::nullopt;
+}
+
+void lower_inline_asm(MFunc &func) {
+  static constexpr CReg pool[] = {
+      CReg::C,   CReg::D, CReg::SI, CReg::DI,  CReg::R8,  CReg::R9,  CReg::R10,
+      CReg::R11, CReg::A, CReg::B,  CReg::R12, CReg::R13, CReg::R14, CReg::R15};
+  for (auto &bb : func.bbs) {
+    for (size_t at = 0; at < bb.instrs.size(); at++) {
+      if (!bb.instrs[at].is(GBaseSubtype::inline_asm)) {
+        continue;
+      }
+      size_t first = at;
+      while (first > 0 && bb.instrs[first - 1].is(GBaseSubtype::asm_in)) {
+        first--;
+      }
+      size_t last = at + 1;
+      while (last < bb.instrs.size() &&
+             bb.instrs[last].is(GBaseSubtype::asm_out)) {
+        last++;
+      }
+      const auto &block = func.asm_blocks[bb.instrs[at].args[0].imm];
+      const size_t n_ops = block.operands.size();
+      auto fail = [&](const char *what, size_t op_id) {
+        fmt::println(stderr, "inline asm in {}: {} (operand {})\n  asm: {}",
+                     func.name.c_str(), what, op_id, block.tmpl.c_str());
+        IMPL("unsupported inline asm register constraint");
+      };
+
+      std::array<bool, numRegs> taken{};
+      taken[static_cast<size_t>(CReg::SP)] = true;
+      taken[static_cast<size_t>(CReg::BP)] = true;
+      std::vector<std::optional<CReg>> phys(n_ops);
+      for (size_t op_id = 0; op_id < n_ops; op_id++) {
+        const auto &op = block.operands[op_id];
+        if (op.cls != fir::AsmOperandClass::Fixed) {
+          continue;
+        }
+        auto reg = asm_register(op.reg);
+        if (!reg) {
+          fail("unknown register", op_id);
+        }
+        if (*reg == CReg::SP || *reg == CReg::BP) {
+          fail("rsp and rbp cannot be used", op_id);
+        }
+        phys[op_id] = reg;
+        taken[static_cast<size_t>(*reg)] = true;
+      }
+      auto pick = [&](size_t op_id) {
+        for (auto r : pool) {
+          if (!taken[static_cast<size_t>(r)]) {
+            taken[static_cast<size_t>(r)] = true;
+            phys[op_id] = r;
+            return;
+          }
+        }
+        fail("out of registers", op_id);
+      };
+      // outputs first, a tied input takes the register of its output
+      for (size_t op_id = 0; op_id < n_ops; op_id++) {
+        const auto &op = block.operands[op_id];
+        if (op.kind == fir::AsmOperandKind::Output && op.tied >= 0 &&
+            !phys[op_id]) {
+          phys[op_id] = phys[static_cast<size_t>(op.tied)];
+        }
+      }
+      for (size_t op_id = 0; op_id < n_ops; op_id++) {
+        const auto &op = block.operands[op_id];
+        if (op.kind == fir::AsmOperandKind::Output && !op.indirect &&
+            !phys[op_id]) {
+          pick(op_id);
+        }
+      }
+      for (size_t op_id = 0; op_id < n_ops; op_id++) {
+        const auto &op = block.operands[op_id];
+        if (op.kind != fir::AsmOperandKind::Output || op.tied < 0) {
+          continue;
+        }
+        const auto tied = static_cast<size_t>(op.tied);
+        if (!phys[tied]) {
+          phys[tied] = phys[op_id];
+        } else if (phys[tied] != phys[op_id]) {
+          fail("tied operands need different registers", op_id);
+        }
+      }
+      for (size_t op_id = 0; op_id < n_ops; op_id++) {
+        const auto &op = block.operands[op_id];
+        if (op.kind != fir::AsmOperandKind::Clobber &&
+            op.cls != fir::AsmOperandClass::Imm && !phys[op_id]) {
+          pick(op_id);
+        }
+      }
+
+      TVec<MInstr> pre;
+      TVec<MInstr> uses;
+      for (size_t i = first; i < at; i++) {
+        const auto &in = bb.instrs[i];
+        const auto op_id = in.args[1].imm;
+        if (!phys[op_id]) {
+          uses.push_back(in);
+          continue;
+        }
+        const MArgument reg{VReg{*phys[op_id], in.args[0].ty}, in.args[0].ty};
+        pre.emplace_back(GBaseSubtype::mov, reg, in.args[0]);
+        uses.emplace_back(GBaseSubtype::asm_in, reg, in.args[1]);
+      }
+      TVec<MInstr> defs;
+      TVec<MInstr> post;
+      for (size_t i = at + 1; i < last; i++) {
+        const auto &out = bb.instrs[i];
+        const auto op_id = out.args[1].imm;
+        const MArgument reg{VReg{*phys[op_id], out.args[0].ty}, out.args[0].ty};
+        defs.emplace_back(GBaseSubtype::asm_out, reg, out.args[1]);
+        post.emplace_back(GBaseSubtype::mov, out.args[0], reg);
+      }
+      for (size_t op_id = 0; op_id < n_ops; op_id++) {
+        if (block.operands[op_id].kind == fir::AsmOperandKind::Clobber) {
+          const MArgument reg{VReg{*phys[op_id], Type::Int64}, Type::Int64};
+          defs.emplace_back(GBaseSubtype::asm_out, reg,
+                            MArgument::Int(op_id, Type::Int32));
+        }
+      }
+
+      TVec<MInstr> repl;
+      repl.insert(repl.end(), pre.begin(), pre.end());
+      repl.insert(repl.end(), uses.begin(), uses.end());
+      repl.push_back(bb.instrs[at]);
+      repl.insert(repl.end(), defs.begin(), defs.end());
+      repl.insert(repl.end(), post.begin(), post.end());
+      bb.instrs.erase(bb.instrs.begin() + static_cast<long>(first),
+                      bb.instrs.begin() + static_cast<long>(last));
+      bb.instrs.insert(bb.instrs.begin() + static_cast<long>(first),
+                       repl.begin(), repl.end());
+      at = first + repl.size() - 1;
+    }
+  }
+}
+
+}  // namespace
 
 // ###################################################################################
 //  Second Stage

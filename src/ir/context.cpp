@@ -18,6 +18,27 @@ namespace foptim::fir {
 
 void AliasSetsDeleter::operator()(optim::AliasSetTable *p) const { delete p; }
 
+u32 ContextData::intern_asm(AsmInfo info) {
+  const std::lock_guard lock(asm_mtx);
+  const u64 h = info.hash_key();
+  auto [lo, hi] = asm_ids.equal_range(h);
+  for (auto it = lo; it != hi; ++it) {
+    if (asm_infos[it->second].same_key(info)) {
+      return it->second;
+    }
+  }
+  asm_infos.push_back(std::move(info));
+  const auto id = static_cast<u32>(asm_infos.size() - 1);
+  asm_ids.emplace(h, id);
+  return id;
+}
+
+const AsmInfo &ContextData::asm_info(u32 id) {
+  const std::lock_guard lock(asm_mtx);
+  ASSERT(id < asm_infos.size());
+  return asm_infos[id];
+}
+
 optim::AliasSetTable &ContextData::alias_sets() {
   std::call_once(alias_sets_once, [&] {
     alias_sets_.reset(new optim::AliasSetTable{optim::AliasSetTable::roots()});

@@ -180,6 +180,11 @@ enum class GBaseSubtype : u32 {
   //  that *cant* be generated and *need* to be lowered
   // used for each return value on caller size
   ret_setup,  // like move but second arg is pinned by cc
+  // asm_in / asm_out (value, operand index into MAsmBlock::operands) bracket
+  // the inline_asm (id of MFunc::asm_blocks)
+  asm_in,
+  inline_asm,
+  asm_out,
 };
 
 enum class X86Subtype : u32 {

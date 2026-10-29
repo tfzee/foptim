@@ -798,6 +798,10 @@ Res fold_fcmp(fir::Instr instr, fir::Context &ctx) {
 
 Res fold_intrinsic(fir::Instr instr, fir::Context &ctx) {
   const auto sub = static_cast<fir::IntrinsicSubType>(instr->subtype);
+  if (sub == fir::IntrinsicSubType::InlineAsm ||
+      sub == fir::IntrinsicSubType::InlineAsmPure) {
+    return std::nullopt;
+  }
   const auto type = instr->result_type();
   switch (sub) {
     case fir::IntrinsicSubType::Abs: {

@@ -265,6 +265,15 @@ enum class IntrinsicSubType : u16 {
   // many lanes as the result, masked off lanes are not accessed. The form
   // Gather(base, indices) with two operands reads every lane.
   Gather,
+  // InlineAsm(id, inputs...): operand 0 is an i32 constant, the id of an
+  // AsmInfo of the module table (ContextData::asm_info), the rest are the
+  // input values in constraint order. The results are the outputs. Acts like
+  // a call to an unknown function: reads and writes memory and has effects.
+  InlineAsm,
+  // Same operands, but the asm neither touches memory nor has other effects,
+  // so it is only a function of its inputs (no memory operands, no memory
+  // clobber, not volatile).
+  InlineAsmPure,
 };
 
 enum class ConversionSubType : u16 {

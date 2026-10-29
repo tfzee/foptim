@@ -1,4 +1,5 @@
 #pragma once
+#include "ir/inline_asm.hpp"
 #include "mir/instr.hpp"
 #include "utils/types.hpp"
 #include "utils/vec.hpp"
@@ -8,6 +9,14 @@ namespace foptim::fmir {
 class MBB {
  public:
   IRVec<MInstr> instrs;
+};
+
+// one inline asm statement of a function, copied from the module table
+struct MAsmBlock {
+  IRString tmpl;
+  IRVec<fir::AsmOperand> operands;
+  bool sideeffect = false;
+  bool mem_clobber = false;
 };
 
 class MFunc {
@@ -28,6 +37,7 @@ class MFunc {
   // IRVec<Type> arg_tys;
 
   IRVec<StackSlot> extra_stack_slots;
+  IRVec<MAsmBlock> asm_blocks;
 
   bool void_ret = true;
   u16 align = 0x10;

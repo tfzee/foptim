@@ -1017,6 +1017,8 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::MaskedLoad:
           case fir::IntrinsicSubType::Gather:
           case fir::IntrinsicSubType::MaskedStore:
+          case fir::IntrinsicSubType::InlineAsm:
+          case fir::IntrinsicSubType::InlineAsmPure:
             break;
         }
       case fir::InstrType::VectorInstr:

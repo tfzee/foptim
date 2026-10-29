@@ -841,6 +841,8 @@ bool intrin_legal(const PlanNode &n, LaneSpace /*space*/, u32 /*vf*/,
     case fir::IntrinsicSubType::MaskedLoad:
     case fir::IntrinsicSubType::MaskedStore:
     case fir::IntrinsicSubType::Bswap:
+    case fir::IntrinsicSubType::InlineAsm:
+    case fir::IntrinsicSubType::InlineAsmPure:
       return false;
     // no vector forms in the backend
     case fir::IntrinsicSubType::PopCnt:

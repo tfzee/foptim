@@ -123,6 +123,8 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func, u64 lanes,
             case fir::IntrinsicSubType::MaskedLoad:
             case fir::IntrinsicSubType::Gather:
             case fir::IntrinsicSubType::MaskedStore:
+            case fir::IntrinsicSubType::InlineAsm:
+            case fir::IntrinsicSubType::InlineAsmPure:
               return {};
           }
           break;
@@ -317,6 +319,8 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::MaskedLoad:
             case fir::IntrinsicSubType::Gather:
             case fir::IntrinsicSubType::MaskedStore:
+            case fir::IntrinsicSubType::InlineAsm:
+            case fir::IntrinsicSubType::InlineAsmPure:
               return {};
             case fir::IntrinsicSubType::INVALID:
             case fir::IntrinsicSubType::CTLZ:

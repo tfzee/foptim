@@ -11,6 +11,7 @@
 #include <optional>
 
 #include "ir/basic_block.hpp"
+#include "ir/context.hpp"
 #include "ir/function.hpp"
 #include "ir/instruction_data.hpp"
 #include "ir/types.hpp"
@@ -669,6 +670,66 @@ void memory_rules(RuleSet &rules) {
     res.result.emplace_back(X86Subtype::vmaskstore, mem, mask, value);
     return true;
   });
+  auto inline_asm_rule = [](fir::Instr asm_instr, MatchResult &res,
+                            ExtraMatchData &data) {
+    const auto id = static_cast<u32>(asm_instr->args[0].as_constant()->as_int());
+    const auto &info = asm_instr->get_parent()->get_parent()->ctx->asm_info(id);
+    const auto op_i32 = [](size_t i) {
+      return MArgument::Int(i, Type::Int32);
+    };
+
+    TVec<MInstr> ins;
+    for (size_t op_id = 0; op_id < info.operands.size(); op_id++) {
+      const auto &op = info.operands[op_id];
+      if (op.kind != fir::AsmOperandKind::Input &&
+          !(op.kind == fir::AsmOperandKind::Output && op.indirect)) {
+        continue;
+      }
+      auto val = asm_instr->args[static_cast<size_t>(op.arg) + 1];
+      MArgument arg;
+      if (op.cls == fir::AsmOperandClass::Imm) {
+        if (!val.is_constant_int()) {
+          fmt::println(stderr, "inline asm operand {} is not a constant: {}",
+                       op_id, info.tmpl);
+          IMPL("inline asm immediate operand is not constant");
+        }
+        arg = MArgument::Int(static_cast<u64>(val.as_constant()->as_int()),
+                             convert_type(val.get_type()));
+      } else {
+        arg = valueToArg(val, res.result, data.alloc);
+      }
+      ins.emplace_back(GBaseSubtype::asm_in, arg, op_i32(op_id));
+    }
+
+    MAsmBlock block;
+    block.tmpl = info.tmpl;
+    block.operands = info.operands;
+    block.sideeffect = info.sideeffect;
+    block.mem_clobber = info.mem_clobber;
+    const auto block_id = static_cast<u64>(data.func.asm_blocks.size());
+    data.func.asm_blocks.push_back(std::move(block));
+
+    for (const auto &in : ins) {
+      res.result.push_back(in);
+    }
+    res.result.emplace_back(GBaseSubtype::inline_asm,
+                            MArgument::Int(block_id, Type::Int32));
+
+    u8 result_id = 0;
+    for (size_t op_id = 0; op_id < info.operands.size(); op_id++) {
+      const auto &op = info.operands[op_id];
+      if (op.kind != fir::AsmOperandKind::Output || op.indirect) {
+        continue;
+      }
+      ASSERT(result_id < asm_instr.n_results());
+      auto out = valueToArg(asm_instr.result(result_id), res.result, data.alloc);
+      res.result.emplace_back(GBaseSubtype::asm_out, out, op_i32(op_id));
+      result_id++;
+    }
+    return true;
+  };
+  rules.add(pm::InlineAsm, inline_asm_rule);
+  rules.add(pm::InlineAsmPure, inline_asm_rule);
   rules.add(pm::Gather, [](fir::Instr gather_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(gather_instr.result(), res.result, data.alloc);

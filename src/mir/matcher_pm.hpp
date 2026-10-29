@@ -331,6 +331,8 @@ inline constexpr IntrinOp<Intrin::IsConstant> IsConstant;
 inline constexpr IntrinOp<Intrin::MaskedLoad> MaskedLoad;
 inline constexpr IntrinOp<Intrin::MaskedStore> MaskedStore;
 inline constexpr IntrinOp<Intrin::Gather> Gather;
+inline constexpr IntrinOp<Intrin::InlineAsm> InlineAsm;
+inline constexpr IntrinOp<Intrin::InlineAsmPure> InlineAsmPure;
 
 inline constexpr Op<InstrType::ICmp> ICmp;
 inline constexpr Op<InstrType::FCmp> FCmp;

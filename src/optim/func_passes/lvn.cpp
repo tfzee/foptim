@@ -19,15 +19,21 @@
 namespace foptim::optim {
 
 namespace {
+bool is_inline_asm(fir::Instr instr) {
+  return instr->is(fir::IntrinsicSubType::InlineAsm) ||
+         instr->is(fir::IntrinsicSubType::InlineAsmPure);
+}
 bool lvn_applicable(fir::Instr instr) {
   // reads of memory (memcmp) can see different values at two places
-  return !instr->pot_reads_mem() && !instr->is(fir::InstrType::LoadInstr) &&
+  return !is_inline_asm(instr) && !instr->pot_reads_mem() &&
+         !instr->is(fir::InstrType::LoadInstr) &&
          !instr->is(fir::InstrType::StoreInstr) &&
          !instr->is(fir::InstrType::AllocaInstr) &&
          !instr->is(fir::InstrType::CallInstr);
 }
 bool gvn_applicable(fir::Instr instr) {
-  return !instr->pot_reads_mem() && !instr->is(fir::InstrType::LoadInstr) &&
+  return !is_inline_asm(instr) && !instr->pot_reads_mem() &&
+         !instr->is(fir::InstrType::LoadInstr) &&
          !instr->is(fir::InstrType::StoreInstr) &&
          !instr->is(fir::InstrType::AllocaInstr) &&
          !instr->is(fir::InstrType::CallInstr) &&

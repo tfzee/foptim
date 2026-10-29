@@ -124,6 +124,7 @@ add_library (foptim OBJECT
                 #loading
                 ./src/llvm/llir_loader.cpp
                 ./src/llvm/alias_metadata.cpp
+                ./src/llvm/inline_asm.cpp
 
                 #ir
                 ./src/ir/context.cpp
@@ -221,6 +222,8 @@ add_library (foptim OBJECT
                 ./src/x86_codegen/backend3.cpp
                 ./src/x86_codegen/backend3_instr_gen.cpp
                 ./src/x86_codegen/backend3_print.cpp
+                ./src/x86_codegen/att_assembler.cpp
+                ./src/x86_codegen/inline_asm_emit.cpp
 
                 #utils
                 ./src/utils/job_system.cpp

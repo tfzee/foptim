@@ -30,6 +30,9 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(GBaseSubtype, arg_setup);
         ReturnString(GBaseSubtype, ret_setup);
         ReturnString(GBaseSubtype, invoke);
+        ReturnString(GBaseSubtype, asm_in);
+        ReturnString(GBaseSubtype, inline_asm);
+        ReturnString(GBaseSubtype, asm_out);
       }
     case GOpcode::GJmp:
       switch (static_cast<GJumpSubtype>(sop)) {
@@ -446,8 +449,11 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case GBaseSubtype::push:
         case GBaseSubtype::ret:
         case GBaseSubtype::arg_setup:
+        case GBaseSubtype::asm_in:
+        case GBaseSubtype::inline_asm:
           return;
         case GBaseSubtype::ret_setup:
+        case GBaseSubtype::asm_out:
           out.push_back({0, instr.args[0]});
           return;
         case GBaseSubtype::invoke:
@@ -478,9 +484,12 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case GBaseSubtype::call:
         case GBaseSubtype::invoke:
         case GBaseSubtype::arg_setup:
+        case GBaseSubtype::asm_in:
           out.push_back({0, instr.args[0]});
           return;
         case GBaseSubtype::ret_setup:
+        case GBaseSubtype::asm_out:
+        case GBaseSubtype::inline_asm:
         case GBaseSubtype::pop:
           return;
         case GBaseSubtype::ret:
@@ -1098,6 +1107,42 @@ fmt::appender fmt::formatter<foptim::fmir::MFunc>::format(
       app = fmt::format_to(app, "  {}:\n", bb_indx);
     }
     app = bb_fmt.format(func.bbs[bb_indx], ctx);
+  }
+  for (size_t asm_id = 0; asm_id < func.asm_blocks.size(); asm_id++) {
+    const auto &block = func.asm_blocks[asm_id];
+    app = fmt::format_to(app, "  asm {}: \"{}\"{}{}\n", asm_id,
+                         block.tmpl.c_str(),
+                         block.sideeffect ? " sideeffect" : "",
+                         block.mem_clobber ? " memory" : "");
+    for (size_t op_id = 0; op_id < block.operands.size(); op_id++) {
+      const auto &op = block.operands[op_id];
+      const char *kind =
+          op.kind == foptim::fir::AsmOperandKind::Output
+              ? "out"
+              : (op.kind == foptim::fir::AsmOperandKind::Input ? "in"
+                                                               : "clobber");
+      const char *cls = "reg";
+      switch (op.cls) {
+        case foptim::fir::AsmOperandClass::Reg:
+          break;
+        case foptim::fir::AsmOperandClass::Mem:
+          cls = "mem";
+          break;
+        case foptim::fir::AsmOperandClass::Imm:
+          cls = "imm";
+          break;
+        case foptim::fir::AsmOperandClass::Fixed:
+          cls = op.reg.c_str();
+          break;
+      }
+      app = fmt::format_to(app, "    {}: {} {}{}{}", op_id, kind, cls,
+                           op.early_clobber ? " early" : "",
+                           op.indirect ? " indirect" : "");
+      if (op.tied >= 0) {
+        app = fmt::format_to(app, " tied {}", op.tied);
+      }
+      app = fmt::format_to(app, "\n");
+    }
   }
   return app;
 }

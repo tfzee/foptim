@@ -1,12 +1,15 @@
 #pragma once
 #include <fmt/format.h>
 
+#include <deque>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 
 #include "ir/access_meta.hpp"
 #include "ir/basic_block_ref.hpp"
 #include "ir/constant_value_ref.hpp"
+#include "ir/inline_asm.hpp"
 #include "ir/intern_table.hpp"
 #include "storage.hpp"
 #include "types.hpp"
@@ -35,6 +38,12 @@ struct ContextData {
   // top. Only the loader and serial module passes add sets, so function
   // passes can read it in parallel.
   optim::AliasSetTable &alias_sets();
+
+  // Inline asm statements of the module, the id is operand 0 of the InlineAsm
+  // intrinsics. Safe to call from parallel jobs, entries are never removed and
+  // the returned reference stays valid.
+  u32 intern_asm(AsmInfo info);
+  const AsmInfo &asm_info(u32 id);
 
   // dest is the function the copy ends up in, null for the function of bb.
   // The access metadata is copied as far as meta allows.
@@ -100,6 +109,9 @@ struct ContextData {
   bool verify() const;
 
  private:
+  std::mutex asm_mtx;
+  std::deque<AsmInfo> asm_infos;
+  std::unordered_multimap<u64, u32> asm_ids;
   std::once_flag alias_sets_once;
   std::unique_ptr<optim::AliasSetTable, AliasSetsDeleter> alias_sets_;
 

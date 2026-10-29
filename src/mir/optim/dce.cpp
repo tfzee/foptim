@@ -59,6 +59,9 @@ bool is_applicable(GOpcode op, u32 sop) {
         case GBaseSubtype::arg_setup:
         case GBaseSubtype::ret_setup:
         case GBaseSubtype::invoke:
+        case GBaseSubtype::asm_in:
+        case GBaseSubtype::inline_asm:
+        case GBaseSubtype::asm_out:
           return false;
       }
     case GOpcode::X86:

@@ -42,6 +42,10 @@ class Builder {
   // any number of results, a single void entry means none
   Instr build_call(ValueR func_ptr, TypeR func_type,
                    std::span<const TypeR> ret_types, std::span<ValueR> args);
+  // asm_id is the i32 constant from ContextData::intern_asm, one result per
+  // ret type (a single void entry means none), pure picks InlineAsmPure
+  Instr build_inline_asm(ValueR asm_id, std::span<ValueR> args,
+                         std::span<const TypeR> ret_types, bool pure);
   ValueR build_int_srem(ValueR a, ValueR b);
   ValueR build_int_urem(ValueR a, ValueR b);
   ValueR build_binary_op(ValueR a, ValueR b, BinaryInstrSubType sub_type);

@@ -287,7 +287,9 @@ StackOffsetResult get_stack_offset(u64 &offset, fir::ValueR ptr,
       // local one
       return StackOffsetResult::UnknownLocal;
     }
-    if (ptr_instr->is(fir::InstrType::CallInstr)) {
+    if (ptr_instr->is(fir::InstrType::CallInstr) ||
+        ptr_instr->is(fir::IntrinsicSubType::InlineAsm) ||
+        ptr_instr->is(fir::IntrinsicSubType::InlineAsmPure)) {
       for (auto arg : ptr_instr->args) {
         if (arg.get_type()->is_ptr()) {
           u64 sub_offset = 0;
@@ -477,7 +479,10 @@ PreservedAnalysis StackKnownBits::apply(fir::Context &ctx,
         failure({.reason = "PtrToInt escape", .loc = instr});
         return PreservedAnalysis::all();
       }
-      if (instr->is(fir::InstrType::CallInstr)) {
+      // asm may write through its pointers like a call
+      if (instr->is(fir::InstrType::CallInstr) ||
+          instr->is(fir::IntrinsicSubType::InlineAsm) ||
+          instr->is(fir::IntrinsicSubType::InlineAsmPure)) {
         update_call(instr, new_in_one, new_in_zero, cache);
         load_stores.push_back(instr);
         // fmt::println("CALL\n{}\n{}", new_in_zero, new_in_one);

@@ -101,6 +101,23 @@ Instr Builder::build_call(ValueR func_ptr, TypeR func_type,
   return instr;
 }
 
+Instr Builder::build_inline_asm(ValueR asm_id, std::span<ValueR> args,
+                                std::span<const TypeR> ret_types, bool pure) {
+  check_bb_set();
+  ASSERT(!ret_types.empty());
+  Instr instr = ctx->storage.insert_instr(InstrData::get_intrinsic(
+      ret_types[0],
+      pure ? IntrinsicSubType::InlineAsmPure : IntrinsicSubType::InlineAsm));
+  instr->set_result_types(ret_types);
+  instr.add_arg(asm_id);
+  for (auto arg : args) {
+    instr.add_arg(arg);
+  }
+  bb.insert_instr(indx, instr);
+  indx++;
+  return instr;
+}
+
 ValueR Builder::build_int_srem(ValueR a, ValueR b) {
   check_bb_set();
   Instr instr = ctx->storage.insert_instr(InstrData::get_smod(a.get_type()));

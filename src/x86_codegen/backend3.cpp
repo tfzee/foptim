@@ -15,6 +15,7 @@
 #include "utils/arena.hpp"
 #include "utils/verbosity.hpp"
 #include "x86_codegen/backend3_instr_gen.hpp"
+#include "x86_codegen/inline_asm_emit.hpp"
 
 namespace foptim::codegen {
 
@@ -164,6 +165,7 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
              TLabelUsageMap &reloc_map, const conf::CompConf &conf) {
   ZoneScopedN("Assembling .text");
   u8 *curr_loc = out_buff;
+  u32 asm_id = 0;
   for (const auto &func : funcs) {
     // Do min align of 16 then we can be sure ABI is happy
     const auto final_align = std::max(static_cast<u16>(0x10), func.align);
@@ -242,7 +244,16 @@ u8 *assemble(std::span<const fmir::MFunc> funcs, u8 *const out_buff,
       reloc_map.bb_map[bb_id].section = RelocSection::Text;
       reloc_map.bb_map[bb_id].kind = RelocKind::BB;
 
-      for (const auto &instr : bb.instrs) {
+      for (size_t instr_id = 0; instr_id < bb.instrs.size(); instr_id++) {
+        const auto &instr = bb.instrs[instr_id];
+        if (instr.is(fmir::GBaseSubtype::asm_in) ||
+            instr.is(fmir::GBaseSubtype::asm_out)) {
+          continue;
+        }
+        if (instr.is(fmir::GBaseSubtype::inline_asm)) {
+          curr_loc += emit_inline_asm(func, bb, instr_id, curr_loc, asm_id++);
+          continue;
+        }
         curr_loc +=
             emit_instr(instr, curr_loc, bb_id, reloc_map, proepilogue, conf);
       }
@@ -681,6 +692,9 @@ void run(std::span<const fmir::MFunc> funcs, std::span<const IRString> decls,
          std::span<const fmir::Global> globals, const conf::CompConf &conf) {
   size_t n_instrs = 0;
   for (const auto &func : funcs) {
+    for (const auto &block : func.asm_blocks) {
+      n_instrs += block.tmpl.size() + 1;
+    }
     for (const auto &bb : func.bbs) {
       for (const auto &_ : bb.instrs) {
         n_instrs++;

@@ -97,6 +97,10 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
       }
     case InstrType::Intrinsic:
       switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::InlineAsm:
+          return "INTRIN:InlineAsm";
+        case IntrinsicSubType::InlineAsmPure:
+          return "INTRIN:InlineAsmPure";
         case IntrinsicSubType::INVALID:
           return "INTRINSIC_INVALID";
         case IntrinsicSubType::CTTZ:
@@ -617,8 +621,11 @@ u8 InstrData::default_n_results(InstrType ty, TypeR vty) {
 
 void InstrData::set_result_types(std::span<const TypeR> tys) {
   ASSERT(!tys.empty());
-  ASSERT_M(instr_type == InstrType::CallInstr,
-           "only calls can have several results for now");
+  ASSERT_M(instr_type == InstrType::CallInstr ||
+               (instr_type == InstrType::Intrinsic &&
+                (subtype == static_cast<u16>(IntrinsicSubType::InlineAsm) ||
+                 subtype == static_cast<u16>(IntrinsicSubType::InlineAsmPure))),
+           "only calls and inline asm can have several results for now");
   value_type_ = tys[0];
   if (tys.size() == 1) {
     bbs.clear_types();
@@ -654,6 +661,10 @@ bool InstrData::is_critical() const {
       return true;
     case InstrType::Intrinsic:
       switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::InlineAsm:
+          return true;
+        case IntrinsicSubType::InlineAsmPure:
+          return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
         case IntrinsicSubType::Abs:
@@ -737,6 +748,10 @@ bool InstrData::is_commutative() const {
       }
     case InstrType::Intrinsic:
       switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::InlineAsm:
+          return false;
+        case IntrinsicSubType::InlineAsmPure:
+          return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
         case IntrinsicSubType::VA_start:
@@ -837,6 +852,10 @@ bool InstrData::pot_modifies_mem() const {
       return true;
     case InstrType::Intrinsic:
       switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::InlineAsm:
+          return true;
+        case IntrinsicSubType::InlineAsmPure:
+          return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
         case IntrinsicSubType::CTLZ:
@@ -903,6 +922,10 @@ bool InstrData::pot_reads_mem() const {
       return true;
     case InstrType::Intrinsic:
       switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::InlineAsm:
+          return true;
+        case IntrinsicSubType::InlineAsmPure:
+          return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
         case IntrinsicSubType::CTLZ:
@@ -978,6 +1001,10 @@ bool InstrData::has_pot_sideeffects() const {
       return true;
     case InstrType::Intrinsic:
       switch (static_cast<IntrinsicSubType>(subtype)) {
+        case IntrinsicSubType::InlineAsm:
+          return true;
+        case IntrinsicSubType::InlineAsmPure:
+          return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
         case IntrinsicSubType::CTLZ:

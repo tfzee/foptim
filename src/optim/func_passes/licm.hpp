@@ -377,12 +377,37 @@ class LICM final : public FunctionPass {
       }
     }
 
+    // a direct call to a function that only reads memory, it can leave the
+    // loop like a load when nothing in the loop changes what it reads
+    auto is_readonly_call = [](fir::Instr instr) {
+      if (!instr->is(fir::InstrType::CallInstr) || instr->n_results() != 1) {
+        return false;
+      }
+      auto callee = instr->get_arg(0);
+      if (!callee.is_constant() || !callee.as_constant()->is_func()) {
+        return false;
+      }
+      const auto &attribs = callee.as_constant()->as_func()->attribs;
+      return attribs.mem_read_only && !attribs.mem_read_none;
+    };
+
     // Reads can fault, so they only leave the loop if they run on every entry
     // anyway: in the header, behind an unconditional edge from the
     // preheader, with nothing before them that has an effect.
     TSet<fir::Instr> runs_on_entry;
     if (pre_header->get_terminator()->is(fir::InstrType::BranchInstr)) {
       for (auto instr : cfg.bbrs[info.head].bb->instructions) {
+        if (is_readonly_call(instr)) {
+          runs_on_entry.insert(instr);
+          // it may not return, then nothing behind it runs on entry
+          if (!instr->get_arg(0)
+                   .as_constant()
+                   ->as_func()
+                   ->attribs.must_return) {
+            break;
+          }
+          continue;
+        }
         if (instr->has_pot_sideeffects() || instr->is_critical()) {
           break;
         }
@@ -431,6 +456,14 @@ class LICM final : public FunctionPass {
                                instr->result_type()->get_size())) {
           return true;
         }
+      } else if (is_readonly_call(instr)) {
+        auto [it, fresh] = unchanged_in_loop.try_emplace(instr, false);
+        if (fresh) {
+          it->second = sees_memory_of_entry(func, info, instr);
+        }
+        if (!it->second) {
+          return false;
+        }
       } else if (loop_writes_mem) {
         return false;
       }
@@ -439,14 +472,17 @@ class LICM final : public FunctionPass {
 
     for (auto bb : info.body_nodes) {
       for (auto instr : cfg.bbrs[bb].bb->instructions) {
-        if (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
-            instr->is_critical()) {
+        const bool ro_call = is_readonly_call(instr);
+        if (!ro_call &&
+            (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
+             instr->is_critical())) {
           continue;
         }
-        if (instr->pot_reads_mem()) {
+        if (ro_call || instr->pot_reads_mem()) {
           const bool is_load = instr->is(fir::InstrType::LoadInstr);
           const bool is_memcmp = instr->is(fir::IntrinsicSubType::Memcmp);
-          if ((!is_load && !is_memcmp) || !is_hoistable_read(instr)) {
+          if ((!is_load && !is_memcmp && !ro_call) ||
+              !is_hoistable_read(instr)) {
             continue;
           }
         }
@@ -460,9 +496,11 @@ class LICM final : public FunctionPass {
     while (!worklist.empty()) {
       auto instr = worklist.front();
       worklist.pop_front();
-      if (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
-          instr->is_critical() ||
-          (instr->pot_reads_mem() && !is_hoistable_read(instr)) ||
+      const bool ro_call = is_readonly_call(instr);
+      if ((!ro_call &&
+           (instr->pot_modifies_mem() || instr->has_pot_sideeffects() ||
+            instr->is_critical())) ||
+          ((ro_call || instr->pot_reads_mem()) && !is_hoistable_read(instr)) ||
           may_trap(instr)) {
         continue;
       }
