@@ -18,6 +18,8 @@ enum class RelocSection : u8 {
   INVALID,
   Data,
   Bss,
+  Tdata,
+  Tbss,
   Text,
   InitArray,
   Extern,
@@ -48,6 +50,8 @@ struct LabelRelocData {
   RelocKind kind = RelocKind::INVALID;
   RelocSection section = RelocSection::INVALID;
   RelocBinding binding = RelocBinding::Global;
+  // thread local variable, accessed through its offset in the TLS block
+  bool tls = false;
   fir::LinkVisibility vis = fir::LinkVisibility::Default;
   u64 def_loc = 0;
   u64 size = 0;

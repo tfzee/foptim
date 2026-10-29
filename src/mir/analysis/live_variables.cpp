@@ -269,6 +269,7 @@ void update_def(const MInstr &instr, utils::BitSet<> &def) {
         case X86Subtype::vinsert128:
         case X86Subtype::movlhps:
         case X86Subtype::movhlps:
+        case X86Subtype::tls_base:
         case X86Subtype::lea:
         case X86Subtype::HAdd:
         case X86Subtype::sqrt:
@@ -623,6 +624,7 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::INVALID:
         case X86Subtype::vzeroupper:
         case X86Subtype::mfence:
+        case X86Subtype::tls_base:
           return;
         case X86Subtype::LockXAdd2:
         case X86Subtype::Xchg2:
@@ -664,9 +666,6 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
         case X86Subtype::vinsertps:
         case X86Subtype::vpshuf:
         case X86Subtype::vbroadcast:
-        case X86Subtype::ffmadd132:
-        case X86Subtype::ffmadd213:
-        case X86Subtype::ffmadd231:
         case X86Subtype::vpextr:
         case X86Subtype::vpinsr:
         case X86Subtype::vgatherq:
@@ -688,6 +687,9 @@ void update_uses(const MInstr &instr, utils::BitSet<> &uses) {
           update_uses(instr.args[2], uses);
           return;
         case X86Subtype::vgather:
+        case X86Subtype::ffmadd132:
+        case X86Subtype::ffmadd213:
+        case X86Subtype::ffmadd231:
           update_uses(instr.args[0], uses);
           update_uses(instr.args[1], uses);
           update_uses(instr.args[2], uses);

@@ -354,7 +354,7 @@ void decide_value_load(fir::Instr instr, size_t &i,
   if (!decide_variable_value(instr->args[0], current_variable_value,
                              load_val)) {
     auto *ctx = instr->get_parent()->get_parent().func->ctx;
-    load_val = fir::ValueR(ctx->get_poisson_value(instr.result_type()));
+    load_val = uninit_load_value(ctx, instr.result_type());
   }
   if (load_val.get_type() != instr.result_type()) {
     if (load_val.is_constant() && load_val.as_constant()->is_poison()) {

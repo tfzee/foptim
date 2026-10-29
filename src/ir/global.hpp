@@ -57,6 +57,8 @@ struct GlobalData : public LockedUsed {
   u64 n_bytes;
   u32 min_align = 0;
   bool is_constant = false;
+  // one copy per thread, only reachable through the TlsAddress intrinsic
+  bool is_thread_local = false;
   uint8_t *init_value = nullptr;
   IRVec<RelocationInfo> reloc_info;
   Linkage linkage = Linkage::External;

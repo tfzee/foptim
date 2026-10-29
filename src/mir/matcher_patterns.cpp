@@ -730,6 +730,27 @@ void memory_rules(RuleSet &rules) {
   };
   rules.add(pm::InlineAsm, inline_asm_rule);
   rules.add(pm::InlineAsmPure, inline_asm_rule);
+  // the thread pointer plus the offset of the variable in the TLS block: local
+  // exec (an immediate the linker fills in) for a variable of this module,
+  // initial exec (the offset is read from the GOT) for an external one
+  rules.add(pm::TlsAddress, [](fir::Instr instr, MatchResult &res,
+                               ExtraMatchData &data) {
+    ASSERT(instr->args[0].is_constant() &&
+           instr->args[0].as_constant()->is_global());
+    auto global = instr->args[0].as_constant()->as_global();
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    auto off = MArgument(data.alloc.get_new_register(Type::Int64), Type::Int64);
+    if (global->init_value == nullptr) {
+      res.result.emplace_back(GBaseSubtype::mov, off,
+                              MArgument::MemL(global->name.c_str(), Type::Int64));
+    } else {
+      res.result.emplace_back(GBaseSubtype::mov, off,
+                              MArgument(global->name.c_str()));
+    }
+    res.result.emplace_back(X86Subtype::tls_base, res_reg);
+    res.result.emplace_back(GArithSubtype::add2, res_reg, off);
+    return true;
+  });
   rules.add(pm::Gather, [](fir::Instr gather_instr, MatchResult &res,
                            ExtraMatchData &data) {
     auto res_reg = valueToArg(gather_instr.result(), res.result, data.alloc);
@@ -1375,6 +1396,17 @@ void arith_rules(RuleSet &rules) {
         X86Subtype::lea, res_reg,
         MArgument::MemOBI(static_cast<u64>(static_cast<i64>(consti_val)), cpy_a,
                           cpy_b, res_ty));
+    return true;
+  });
+  rules.add(pm::Fma, [](fir::Instr instr, MatchResult &res,
+                        ExtraMatchData &data) {
+    auto res_reg = valueToArg(instr.result(), res.result, data.alloc);
+    auto a = valueToArg(instr->args[0], res.result, data.alloc);
+    auto b = valueToArg(instr->args[1], res.result, data.alloc);
+    auto c = valueToArg(instr->args[2], res.result, data.alloc);
+    // res = a * b + res
+    res.result.emplace_back(GBaseSubtype::mov, res_reg, c);
+    res.result.emplace_back(X86Subtype::ffmadd231, res_reg, a, b);
     return true;
   });
   rules.add(pm::IntMul, [](fir::Instr mul_instr, MatchResult &res,

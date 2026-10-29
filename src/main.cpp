@@ -174,6 +174,7 @@ void lower_to_mir_and_optimize(foptim::fir::Context &ctx,
             }
           }
           glob.size = size;
+          glob.is_tls = v->data->is_thread_local;
           if (v->data->init_value != nullptr) {
             const auto *init = v->data->init_value;
             const bool all_zero = v->data->reloc_info.empty() && size > 0 &&

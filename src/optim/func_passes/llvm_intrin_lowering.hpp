@@ -619,8 +619,15 @@ class LLVMInstrinsicLowering final : public FunctionPass {
 
   void handle_thread_local_address(fir::Instr instr, fir::Function & /*funcy*/,
                                    fir::FunctionR /*callee*/) {
-    // thread locals are plain globals for now
-    instr->replace_all_uses(instr->args[1]);
+    const auto addr = instr->args[1];
+    if (addr.is_constant() && addr.as_constant()->is_global() &&
+        addr.as_constant()->as_global()->is_thread_local) {
+      fir::Builder bb{instr};
+      auto tls = bb.build_intrinsic(addr, fir::IntrinsicSubType::TlsAddress);
+      instr->replace_all_uses(tls);
+    } else {
+      instr->replace_all_uses(addr);
+    }
     instr.destroy();
   }
 
@@ -703,6 +710,15 @@ class LLVMInstrinsicLowering final : public FunctionPass {
     fir::Builder bb{instr};
     auto res = fir::ValueR{};
     res = bb.build_intrinsic(instr->args[1], fir::IntrinsicSubType::FFloor);
+    instr->replace_all_uses(res);
+    instr.destroy();
+  }
+
+  void handle_fma(fir::Instr instr, fir::Function & /*funcy*/,
+                  fir::FunctionR /*callee*/) {
+    fir::Builder bb{instr};
+    auto res = bb.build_intrinsic(instr->args[1], instr->args[2],
+                                  instr->args[3], fir::IntrinsicSubType::Fma);
     instr->replace_all_uses(res);
     instr.destroy();
   }
@@ -922,6 +938,9 @@ class LLVMInstrinsicLowering final : public FunctionPass {
           modified = true;
         } else if (callee.func->name.starts_with("llvm.minimum")) {
           handle_minmax(instr, func, callee, false);
+          modified = true;
+        } else if (callee.func->name.starts_with("llvm.fma.")) {
+          handle_fma(instr, func, callee);
           modified = true;
         } else if (callee.func->name.starts_with("llvm.trunc.")) {
           handle_trunc(instr, func, callee);

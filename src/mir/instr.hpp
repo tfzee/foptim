@@ -252,6 +252,8 @@ enum class X86Subtype : u32 {
   vzeroupper,
   // full barrier, only emitted for a seq_cst fence
   mfence,
+  // dst = the thread pointer (mov dst, fs:[0]), the base of every TLS access
+  tls_base,
 
   // avx512
   vextractf64x2,

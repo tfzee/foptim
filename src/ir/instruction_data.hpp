@@ -224,6 +224,9 @@ enum class IntrinsicSubType : u16 {
   FCeil,
   FFloor,
   FTrunc,
+  // Fma(a, b, c): a * b + c with a single rounding (llvm.fma), floats and
+  // float vectors
+  Fma,
 
   IsConstant,
 
@@ -274,6 +277,10 @@ enum class IntrinsicSubType : u16 {
   // so it is only a function of its inputs (no memory operands, no memory
   // clobber, not volatile).
   InlineAsmPure,
+  // TlsAddress(global): address of the calling thread's copy of a thread
+  // local global (llvm.threadlocal.address). Touches no memory, same value for
+  // the whole life of a thread.
+  TlsAddress,
 };
 
 enum class ConversionSubType : u16 {

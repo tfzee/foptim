@@ -11,11 +11,12 @@ define double @f(i1 %c) {
 ; CHECK-NEXT:    %3: () = CondBranch<bb1(), bb2()>(%0){} NUses:0
 ; CHECK-NEXT:  bb1():
 ; CHECK-NEXT:    %4: i64 = Load(%2){} NUses:0
-; CHECK-NEXT:    %5: f64 = Load(%1){} NUses:0
-; CHECK-NEXT:    %6: f64 = Return(POISON){} NUses:0
+; CHECK-NEXT:    %5: f64 = BITCAST(0:i64){} NUses:1
+; CHECK-NEXT:    %6: f64 = Load(%1){} NUses:0
+; CHECK-NEXT:    %7: f64 = Return(%5){} NUses:0
 ; CHECK-NEXT:  bb2():
-; CHECK-NEXT:    %7: f64 = Load(%1){} NUses:0
-; CHECK-NEXT:    %8: f64 = Return(0:f64){} NUses:0
+; CHECK-NEXT:    %8: f64 = Load(%1){} NUses:0
+; CHECK-NEXT:    %9: f64 = Return(0:f64){} NUses:0
 ; CHECK-NEXT:}
   %1 = alloca double, align 8
   %2 = alloca i64, align 8

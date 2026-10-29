@@ -98,6 +98,7 @@ bool is_applicable(GOpcode op, u32 sop) {
         case X86Subtype::vpinsr:
         case X86Subtype::HAdd:
         case X86Subtype::lea:
+        case X86Subtype::tls_base:
         case X86Subtype::vpshuf:
         case X86Subtype::punpckl:
         case X86Subtype::vbroadcast:

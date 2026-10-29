@@ -110,6 +110,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func, u64 lanes,
               }
               TODO("wfvector cost of a vector popcnt");
             case fir::IntrinsicSubType::Bswap:
+            case fir::IntrinsicSubType::Fma:
               return {};
             case fir::IntrinsicSubType::INVALID:
             case fir::IntrinsicSubType::VA_start:
@@ -125,6 +126,7 @@ std::optional<i64> can_whole_function_vectorize(fir::Function &func, u64 lanes,
             case fir::IntrinsicSubType::MaskedStore:
             case fir::IntrinsicSubType::InlineAsm:
             case fir::IntrinsicSubType::InlineAsmPure:
+            case fir::IntrinsicSubType::TlsAddress:
               return {};
           }
           break;
@@ -321,6 +323,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::MaskedStore:
             case fir::IntrinsicSubType::InlineAsm:
             case fir::IntrinsicSubType::InlineAsmPure:
+            case fir::IntrinsicSubType::TlsAddress:
               return {};
             case fir::IntrinsicSubType::INVALID:
             case fir::IntrinsicSubType::CTLZ:
@@ -333,6 +336,7 @@ std::optional<fir::FunctionR> whole_function_vectorize(fir::Function &func,
             case fir::IntrinsicSubType::FCeil:
             case fir::IntrinsicSubType::FFloor:
             case fir::IntrinsicSubType::FTrunc:
+            case fir::IntrinsicSubType::Fma:
             case fir::IntrinsicSubType::IsConstant:
               fmt::println("{}", instr);
               TODO("impl");

@@ -23,6 +23,9 @@ fmt::appender fmt::formatter<foptim::fir::GlobalData>::format(
   } else {
     app = fmt::format_to(app, "GLOBAL");
   }
+  if (v.is_thread_local) {
+    app = fmt::format_to(app, " TLS");
+  }
   if (v.init_value == nullptr) {
     app = fmt::format_to(app, " DECL");
   }

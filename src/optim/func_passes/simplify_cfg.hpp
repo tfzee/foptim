@@ -22,6 +22,9 @@ class Dominators;
 // + [x] convert if else into cmove
 // + [ ]
 
+// bb args that reach an instruction with an effect, computed on demand
+struct LiveBBArgs;
+
 class SimplifyCFG final : public FunctionPass {
  public:
   static constexpr bool debug_print = false;
@@ -54,7 +57,8 @@ class SimplifyCFG final : public FunctionPass {
                                     Dominators &dom, CFG::Node &curr,
                                     size_t bb_id, bool is_entry);
   // if we got a bb arg that got no use remove it
-  bool remove_dead_bb_arg(CFG::Node &curr, fir::Function &func, bool is_entry);
+  bool remove_dead_bb_arg(CFG::Node &curr, fir::Function &func, bool is_entry,
+                          LiveBBArgs &live);
   // if only 1 pred we can replace all the bb args with just the values of
   // the pred
   bool remove_useless_bb_args(CFG &cfg, CFG::Node &curr);
@@ -125,7 +129,7 @@ class SimplifyCFG final : public FunctionPass {
  public:
   // simplifications on the bbargs which
   Res simplify_bb_args(fir::Context &ctx, CFG &cfg, Dominators &dom,
-                       fir::Function &func, size_t bb_id);
+                       fir::Function &func, size_t bb_id, LiveBBArgs &live);
   Res simplify_cfg(CFG &cfg, Dominators &dom, fir::Function &func,
                    size_t bb_id);
   PreservedAnalysis apply(fir::Context &ctx, fir::Function &func) override;

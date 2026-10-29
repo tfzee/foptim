@@ -35,7 +35,8 @@ static void useptr_access_analysis(fir::Use u, AccessResult &res,
     return;
   }
   if (i->is(fir::BinaryInstrSubType::IntAdd) ||
-      i->is(fir::BinaryInstrSubType::PtrAdd)) {
+      i->is(fir::BinaryInstrSubType::PtrAdd) ||
+      i->is(fir::IntrinsicSubType::TlsAddress)) {
     if (worklist != nullptr) {
       for (auto u : i->get_uses()) {
         worklist->push_back(u);

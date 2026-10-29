@@ -327,12 +327,14 @@ inline constexpr IntrinOp<Intrin::FRound> FRound;
 inline constexpr IntrinOp<Intrin::FCeil> FCeil;
 inline constexpr IntrinOp<Intrin::FFloor> FFloor;
 inline constexpr IntrinOp<Intrin::FTrunc> FTrunc;
+inline constexpr IntrinOp<Intrin::Fma> Fma;
 inline constexpr IntrinOp<Intrin::IsConstant> IsConstant;
 inline constexpr IntrinOp<Intrin::MaskedLoad> MaskedLoad;
 inline constexpr IntrinOp<Intrin::MaskedStore> MaskedStore;
 inline constexpr IntrinOp<Intrin::Gather> Gather;
 inline constexpr IntrinOp<Intrin::InlineAsm> InlineAsm;
 inline constexpr IntrinOp<Intrin::InlineAsmPure> InlineAsmPure;
+inline constexpr IntrinOp<Intrin::TlsAddress> TlsAddress;
 
 inline constexpr Op<InstrType::ICmp> ICmp;
 inline constexpr Op<InstrType::FCmp> FCmp;

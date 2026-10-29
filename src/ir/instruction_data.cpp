@@ -101,6 +101,8 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "INTRIN:InlineAsm";
         case IntrinsicSubType::InlineAsmPure:
           return "INTRIN:InlineAsmPure";
+        case IntrinsicSubType::TlsAddress:
+          return "INTRIN:TlsAddress";
         case IntrinsicSubType::INVALID:
           return "INTRINSIC_INVALID";
         case IntrinsicSubType::CTTZ:
@@ -139,6 +141,8 @@ bool BBRefWithArgs::operator==(const BBRefWithArgs &other) const {
           return "INTRIN:FCeil";
         case IntrinsicSubType::FTrunc:
           return "INTRIN:FTrunc";
+        case IntrinsicSubType::Fma:
+          return "INTRIN:Fma";
         case IntrinsicSubType::IsConstant:
           return "INTRIN:IsConstant";
         case IntrinsicSubType::PopCnt:
@@ -664,6 +668,7 @@ bool InstrData::is_critical() const {
         case IntrinsicSubType::InlineAsm:
           return true;
         case IntrinsicSubType::InlineAsmPure:
+        case IntrinsicSubType::TlsAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
@@ -684,6 +689,7 @@ bool InstrData::is_critical() const {
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::Fma:
         case IntrinsicSubType::CTTZ:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
@@ -751,6 +757,7 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::InlineAsm:
           return false;
         case IntrinsicSubType::InlineAsmPure:
+        case IntrinsicSubType::TlsAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTLZ:
@@ -765,6 +772,7 @@ bool InstrData::is_commutative() const {
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::Fma:
         case IntrinsicSubType::CTTZ:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::Memcpy:
@@ -855,6 +863,7 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::InlineAsm:
           return true;
         case IntrinsicSubType::InlineAsmPure:
+        case IntrinsicSubType::TlsAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
@@ -876,6 +885,7 @@ bool InstrData::pot_modifies_mem() const {
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::Fma:
         case IntrinsicSubType::Memcmp:
         case IntrinsicSubType::MaskedLoad:
         case IntrinsicSubType::Gather:
@@ -925,6 +935,7 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::InlineAsm:
           return true;
         case IntrinsicSubType::InlineAsmPure:
+        case IntrinsicSubType::TlsAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
@@ -946,6 +957,7 @@ bool InstrData::pot_reads_mem() const {
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::Fma:
         case fir::IntrinsicSubType::Memset:
         case fir::IntrinsicSubType::MaskedStore:
           return false;
@@ -1004,6 +1016,7 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::InlineAsm:
           return true;
         case IntrinsicSubType::InlineAsmPure:
+        case IntrinsicSubType::TlsAddress:
           return false;
         case IntrinsicSubType::INVALID:
         case IntrinsicSubType::CTTZ:
@@ -1025,6 +1038,7 @@ bool InstrData::has_pot_sideeffects() const {
         case IntrinsicSubType::FFloor:
         case IntrinsicSubType::FCeil:
         case IntrinsicSubType::FTrunc:
+        case IntrinsicSubType::Fma:
         case IntrinsicSubType::Memcmp:
         case IntrinsicSubType::MaskedLoad:
         case IntrinsicSubType::Gather:

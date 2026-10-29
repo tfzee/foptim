@@ -352,22 +352,68 @@ SimplifyCFG::Res SimplifyCFG::remove_dead_bb(CFG &cfg, Dominators &dom,
   return Res::NoChange;
 }
 
-namespace {
-// check for true uses (so a  bb arg  that is actually used in an instruction)
-//  we might have a loop of multiple bbs that just forward a bb so it will
-//  have uses but all are just forwarding to the next bb
-bool has_true_use(fir::BBArgument v, TVec<fir::Use> &worklist,
-                  TSet<fir::Use> &seen) {
-  // every use is queued at most once
-  auto push_uses = [&](auto &&uses) {
-    for (auto use : uses) {
-      if (seen.insert(use).second) {
-        worklist.push_back(use);
+// Everything that feeds an instruction with an effect: the operands of such
+// instructions, of live instructions and, through the branches into its block,
+// the values passed to a live bb arg. A bb arg outside of it only has uses that
+// forward it (possibly in a loop of blocks) or compute unused values.
+struct LiveBBArgs {
+  bool valid = false;
+  TSet<fir::Instr> instrs;
+  TSet<fir::BBArgument> args;
+
+  void compute(fir::Function &func) {
+    instrs.clear();
+    args.clear();
+    TVec<fir::ValueR> worklist;
+    auto mark = [&](fir::ValueR v) {
+      if (v.is_instr()) {
+        if (instrs.insert(v.as_instr()).second) {
+          worklist.push_back(v);
+        }
+      } else if (v.is_bb_arg()) {
+        if (args.insert(v.as_bb_arg()).second) {
+          worklist.push_back(v);
+        }
+      }
+    };
+    for (auto &bb : func.get_bbs()) {
+      for (auto &instr : bb->get_instrs()) {
+        if (instr->is_critical() || instr->pot_modifies_mem() ||
+            instr->has_pot_sideeffects()) {
+          if (instrs.insert(instr).second) {
+            for (auto a : instr->get_args()) {
+              mark(a);
+            }
+          }
+        }
       }
     }
-  };
-  // most live arguments have a direct user that is a real use, look for it
-  // before following the forwarding chains
+    while (!worklist.empty()) {
+      auto v = worklist.back();
+      worklist.pop_back();
+      if (v.is_instr()) {
+        for (auto a : v.as_instr()->get_args()) {
+          mark(a);
+        }
+      } else {
+        auto arg = v.as_bb_arg();
+        auto bb = arg->get_parent();
+        size_t idx = 0;
+        while (bb->args[idx] != arg) {
+          idx++;
+        }
+        for (auto use : bb->get_uses()) {
+          mark(use.user->bbs[use.argId].args[idx]);
+        }
+      }
+    }
+    valid = true;
+  }
+};
+
+namespace {
+// a use that is a real operand of an instruction with an effect
+bool has_direct_true_use(fir::BBArgument v) {
   for (auto use : v->get_uses()) {
     if (use.type == fir::UseType::NormalArg &&
         (use.user->is_critical() || use.user->pot_modifies_mem() ||
@@ -375,68 +421,45 @@ bool has_true_use(fir::BBArgument v, TVec<fir::Use> &worklist,
       return true;
     }
   }
-  push_uses(v->get_uses());
-  while (!worklist.empty()) {
-    auto item = worklist.back();
-    worklist.pop_back();
-
-    if (item.type == fir::UseType::NormalArg) {
-      if (!item.user->is_critical() && !item.user->pot_modifies_mem() &&
-          !item.user->has_pot_sideeffects()) {
-        push_uses(item.user->get_uses());
-      } else {
-        return true;
-      }
-    } else if (item.type == fir::UseType::BB) {
-      UNREACH();
-    } else if (item.type == fir::UseType::BBArg) {
-      auto new_item = item.user->bbs[item.argId].bb->args[item.bbArgId];
-      push_uses(new_item->get_uses());
-    }
-  }
   return false;
 }
 }  // namespace
 
 bool SimplifyCFG::remove_dead_bb_arg(CFG::Node &curr, fir::Function &func,
-                                     bool is_entry) {
-  if (curr.bb->n_args() != 0 && !is_entry) {
-    ZoneScopedN("rem dead bb arg");
-    TVec<fir::Use> worklist;
-    TSet<fir::Use> seen;
-
-    auto n_args = curr.bb->n_args();
-    for (u32 ip1 = n_args; ip1 > 0; ip1--) {
-      auto i = ip1 - 1;
-      auto &value = curr.bb->args[i];
-      if (value->get_n_uses() == 0) {
-        // remove from all uses where we jump into this bb
-        for (auto use : curr.bb->get_uses()) {
-          ASSERT(use.type == fir::UseType::BB);
-          use.user.remove_bb_arg(use.argId, i);
-        }
-
-        // drop this arg we cant have any uses
-        curr.bb->args.erase(curr.bb->args.begin() + i);
-        return true;
+                                     bool is_entry, LiveBBArgs &live) {
+  if (curr.bb->n_args() == 0 || is_entry) {
+    return false;
+  }
+  ZoneScopedN("rem dead bb arg");
+  bool changed = false;
+  auto n_args = curr.bb->n_args();
+  for (u32 ip1 = n_args; ip1 > 0; ip1--) {
+    auto i = ip1 - 1;
+    auto value = curr.bb->args[i];
+    if (value->get_n_uses() != 0) {
+      if (has_direct_true_use(value)) {
+        continue;
       }
-      worklist.clear();
-      seen.clear();
-      if (!has_true_use(value, worklist, seen)) {
-        for (auto use : curr.bb->get_uses()) {
-          ASSERT(use.type == fir::UseType::BB);
-          use.user.remove_bb_arg(use.argId, i);
-        }
-
-        value->replace_all_uses(
-            fir::ValueR{func.ctx->get_poisson_value(value->get_type())});
-
-        curr.bb->args.erase(curr.bb->args.begin() + i);
-        return true;
+      if (!live.valid) {
+        live.compute(func);
+      }
+      if (live.args.contains(value)) {
+        continue;
       }
     }
+    // remove from all uses where we jump into this bb
+    for (auto use : curr.bb->get_uses()) {
+      ASSERT(use.type == fir::UseType::BB);
+      use.user.remove_bb_arg(use.argId, i);
+    }
+    if (value->get_n_uses() != 0) {
+      value->replace_all_uses(
+          fir::ValueR{func.ctx->get_poisson_value(value->get_type())});
+    }
+    curr.bb->args.erase(curr.bb->args.begin() + i);
+    changed = true;
   }
-  return false;
+  return changed;
 }
 
 namespace {
@@ -1009,6 +1032,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::Bswap:
           case fir::IntrinsicSubType::FCeil:
           case fir::IntrinsicSubType::FTrunc:
+          case fir::IntrinsicSubType::Fma:
           case fir::IntrinsicSubType::IsConstant:
           case fir::IntrinsicSubType::Memset:
           case fir::IntrinsicSubType::Memcpy:
@@ -1019,6 +1043,7 @@ bool SimplifyCFG::remove_unreach(CFG &cfg, CFG::Node &curr, bool is_entry) {
           case fir::IntrinsicSubType::MaskedStore:
           case fir::IntrinsicSubType::InlineAsm:
           case fir::IntrinsicSubType::InlineAsmPure:
+          case fir::IntrinsicSubType::TlsAddress:
             break;
         }
       case fir::InstrType::VectorInstr:
@@ -1924,11 +1949,12 @@ bool SimplifyCFG::thread_const_cond_edges(CFG &cfg, CFG::Node &curr) {
 SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
                                                Dominators &dom,
                                                fir::Function &func,
-                                               size_t bb_id) {
+                                               size_t bb_id, LiveBBArgs &live) {
   (void)dom;
   auto &curr = cfg.bbrs[bb_id];
   bool is_entry = bb_id == cfg.entry;
-  if (remove_dead_bb_arg(curr, func, is_entry)) {
+  // removing dead args keeps the liveness valid, anything else may not
+  if (remove_dead_bb_arg(curr, func, is_entry, live)) {
     if constexpr (debug_print) {
       fmt::println("2");
     }
@@ -1938,18 +1964,21 @@ SimplifyCFG::Res SimplifyCFG::simplify_bb_args(fir::Context &ctx, CFG &cfg,
     if constexpr (debug_print) {
       fmt::println("3");
     }
+    live.valid = false;
     return Res::Changed;
   }
   if (remove_constant_bb_args(curr, is_entry)) {
     if constexpr (debug_print) {
       fmt::println("4");
     }
+    live.valid = false;
     return Res::Changed;
   }
   if (remove_useless_bb_args(cfg, curr)) {
     if constexpr (debug_print) {
       fmt::println("5");
     }
+    live.valid = false;
     return Res::Changed;
   }
   // auto r = conditional_block_duplication(ctx, cfg, dom, curr, bb_id,
@@ -2095,9 +2124,11 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
   bool resume_second_phase = false;
   std::optional<fir::BasicBlock> resume_bb;
   size_t resume_id = 0;
+  LiveBBArgs live;
   while (modified) {
     modified = false;
     needs_update = false;
+    live.valid = false;
     const bool partial_sweep = resume_bb.has_value();
     bool batch_modified = false;
     if (!partial_sweep) {
@@ -2124,7 +2155,7 @@ PreservedAnalysis SimplifyCFG::apply(fir::Context &ctx, fir::Function &func) {
     }
     if (!resume_second_phase) {
       for (size_t bb_id = start_id + 1; bb_id <= cfg.bbrs.size(); bb_id++) {
-        auto r1 = simplify_bb_args(ctx, cfg, dom, func, bb_id - 1);
+        auto r1 = simplify_bb_args(ctx, cfg, dom, func, bb_id - 1, live);
         modified |= (r1 == Res::Changed || r1 == Res::NeedUpdate);
         if (r1 == Res::NeedUpdate) {
           needs_update = true;

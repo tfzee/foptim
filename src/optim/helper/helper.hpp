@@ -1,11 +1,27 @@
 #pragma once
 #include "ir/basic_block_ref.hpp"
+#include "ir/context.hpp"
 #include "ir/instruction.hpp"
 #include "ir/types_ref.hpp"
 #include "utils/set.hpp"
 #include "utils/types.hpp"
 
 namespace foptim::optim {
+
+// Poison here would taint everything it is combined with (and x, 0 is not
+// poison for undef), so take zero where the type has one.
+inline fir::ValueR uninit_load_value(fir::ContextData *ctx, fir::TypeR ty) {
+  if (ty->is_float()) {
+    return fir::ValueR{ctx->get_constant_value(0.0, ty)};
+  }
+  if (ty->is_int()) {
+    return fir::ValueR{ctx->get_constant_value(0, ty)};
+  }
+  if (ty->is_ptr()) {
+    return fir::ValueR{ctx->get_constant_null()};
+  }
+  return fir::ValueR{ctx->get_poisson_value(ty)};
+}
 void flip_cond_branch(fir::Instr cond_term);
 
 struct GuessTypeResult {

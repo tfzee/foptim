@@ -1,5 +1,6 @@
 #include "backend3.hpp"
 
+#include <optional>
 #include <fmt/base.h>
 #include <fmt/core.h>
 
@@ -409,6 +410,10 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
   ELFIO::section *bss_sec = writer.sections.add(".bss");
   u64 bss_size = 0;
   u64 bss_align = 4;
+  std::vector<u8> tdata_buf;
+  u64 tdata_align = 1;
+  u64 tbss_size = 0;
+  u64 tbss_align = 1;
   u8 *start_data = nullptr;
   {
     data_sec->set_type(SHT_PROGBITS);
@@ -416,13 +421,56 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     data_sec->set_addr_align(0x4);
     size_t global_data_size = 0;
     for (const auto &global : globals) {
-      global_data_size += global.data.size();
+      global_data_size +=
+          global.data.size() + std::max<u64>(global.min_align, 1);
     }
     start_data = utils::TempAlloc<u8>{}.allocate(global_data_size);
+    memset(start_data, 0, global_data_size);
     auto *curr_data_ptr = start_data;
-    // TODO: alignment
+    u64 data_align = 4;
     data_sec->set_address(0x1000);
     for (const auto &global : globals) {
+      if (global.is_tls) {
+        auto &label = label_usage_map.label_map[global.name];
+        label.kind = RelocKind::Data;
+        label.tls = true;
+        label.size = global.size;
+        label.vis = global.vis;
+        label.binding = binding_of(global.linkage);
+        if (!global.zero_init && global.data.empty()) {
+          label.section = RelocSection::Extern;
+          continue;
+        }
+        const u64 align = std::max<u64>(global.min_align, 1);
+        if (global.zero_init) {
+          tbss_size = (tbss_size + align - 1) / align * align;
+          label.def_loc = tbss_size;
+          label.section = RelocSection::Tbss;
+          tbss_size += global.size;
+          tbss_align = std::max(tbss_align, align);
+        } else {
+          tdata_buf.resize((tdata_buf.size() + align - 1) / align * align, 0);
+          label.def_loc = tdata_buf.size();
+          label.section = RelocSection::Tdata;
+          const u64 base = tdata_buf.size();
+          tdata_buf.insert(tdata_buf.end(), global.data.begin(),
+                           global.data.end());
+          for (const auto &reloc_info : global.reloc_info) {
+            ASSERT(label_usage_map.label_map.contains(reloc_info.name));
+            // the offset in .tdata, the buffer is not final yet
+            label_usage_map.label_map[reloc_info.name].usage_loc.push_back(
+                LabelRelocData::Usage{
+                    .usage_instr = std::bit_cast<u8 *>(base +
+                                                       reloc_info.insert_offset),
+                    .operand_num = 0,
+                    .usage_section = RelocSection::Tdata,
+                    .addent = reloc_info.reloc_offset,
+                });
+          }
+          tdata_align = std::max(tdata_align, align);
+        }
+        continue;
+      }
       if (global.zero_init) {
         const u64 align = std::max<u64>(global.min_align, 1);
         bss_size = (bss_size + align - 1) / align * align;
@@ -484,6 +532,12 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         TODO("impl");
         continue;
       }
+      {
+        const u64 align = std::max<u64>(global.min_align, 1);
+        const u64 off = (curr_data_ptr - start_data + align - 1) / align * align;
+        curr_data_ptr = start_data + off;
+        data_align = std::max(data_align, align);
+      }
       label_usage_map.label_map[global.name].def_loc =
           curr_data_ptr - start_data;
       label_usage_map.label_map[global.name].kind = RelocKind::Data;
@@ -513,11 +567,42 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
 
       curr_data_ptr += global.data.size();
     }
-    data_sec->set_data(reinterpret_cast<char *>(start_data), global_data_size);
+    data_sec->set_addr_align(data_align);
+    data_sec->set_data(reinterpret_cast<char *>(start_data),
+                       curr_data_ptr - start_data);
     bss_sec->set_type(ELFIO::SHT_NOBITS);
     bss_sec->set_flags(SHF_ALLOC | SHF_WRITE);
     bss_sec->set_addr_align(bss_align);
     bss_sec->set_size(bss_size);
+  }
+
+  // thread locals: the sections are templates the runtime copies for every
+  // thread, symbols of them are offsets into the TLS block
+  ELFIO::section *tdata_sec = nullptr;
+  ELFIO::section *tbss_sec = nullptr;
+  if (!tdata_buf.empty()) {
+    tdata_sec = writer.sections.add(".tdata");
+    tdata_sec->set_type(SHT_PROGBITS);
+    tdata_sec->set_flags(SHF_ALLOC | SHF_WRITE | ELFIO::SHF_TLS);
+    tdata_sec->set_addr_align(tdata_align);
+    tdata_sec->set_data(reinterpret_cast<const char *>(tdata_buf.data()),
+                        tdata_buf.size());
+  }
+  ELFIO::section *tdata_rel_sec = nullptr;
+  if (tdata_sec != nullptr) {
+    tdata_rel_sec = writer.sections.add(".rela.tdata");
+    tdata_rel_sec->set_type(SHT_RELA);
+    tdata_rel_sec->set_info(tdata_sec->get_index());
+    tdata_rel_sec->set_addr_align(0x4);
+    tdata_rel_sec->set_entry_size(writer.get_default_entry_size(SHT_RELA));
+    tdata_rel_sec->set_link(sym_sec->get_index());
+  }
+  if (tbss_size > 0) {
+    tbss_sec = writer.sections.add(".tbss");
+    tbss_sec->set_type(ELFIO::SHT_NOBITS);
+    tbss_sec->set_flags(SHF_ALLOC | SHF_WRITE | ELFIO::SHF_TLS);
+    tbss_sec->set_addr_align(tbss_align);
+    tbss_sec->set_size(tbss_size);
   }
 
   ELFIO::section *data_rel_sec = writer.sections.add(".rela.data");
@@ -529,6 +614,11 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
     data_rel_sec->set_link(sym_sec->get_index());
   }
   ELFIO::relocation_section_accessor data_rela(writer, data_rel_sec);
+
+  std::optional<ELFIO::relocation_section_accessor> tdata_rela;
+  if (tdata_rel_sec != nullptr) {
+    tdata_rela.emplace(writer, tdata_rel_sec);
+  }
 
   // local symbols have to come first, relocations keep the index add_symbol
   // returned so they cannot be reordered afterwards
@@ -559,6 +649,12 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
         case RelocSection::Bss:
           sec_indx = bss_sec->get_index();
           break;
+        case RelocSection::Tdata:
+          sec_indx = tdata_sec->get_index();
+          break;
+        case RelocSection::Tbss:
+          sec_indx = tbss_sec->get_index();
+          break;
         case RelocSection::Text:
           sec_indx = text_sec->get_index();
           break;
@@ -574,7 +670,7 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
           symbol_type = STT_FUNC;
           break;
         case RelocKind::Data:
-          symbol_type = STT_OBJECT;
+          symbol_type = label_data.tls ? ELFIO::STT_TLS : STT_OBJECT;
           break;
       }
       switch (label_data.binding) {
@@ -619,7 +715,13 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                 std::bit_cast<Elf64_Addr>(loc.usage_instr), symbol, R_X86_64_64,
                 static_cast<i64>(loc.addent));
             break;
+          case RelocSection::Tdata:
+            tdata_rela->add_entry(std::bit_cast<Elf64_Addr>(loc.usage_instr),
+                                  symbol, R_X86_64_64,
+                                  static_cast<Elf_Sxword>(loc.addent));
+            break;
           case RelocSection::Bss:
+          case RelocSection::Tbss:
             UNREACH();
           case RelocSection::Data:
             data_rela.add_entry(loc.usage_instr - start_data, symbol,
@@ -632,6 +734,14 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
               case RelocSection::INVALID:
               case RelocSection::InitArray:
                 UNREACH();
+              case RelocSection::Tdata:
+              case RelocSection::Tbss:
+                // local exec, the immediate is the offset from the thread
+                // pointer
+                text_rela.add_entry(data.op_addr - start_txt, symbol,
+                                    ELFIO::R_X86_64_TPOFF32,
+                                    static_cast<Elf_Sxword>(loc.addent));
+                break;
               case RelocSection::Data:
               case RelocSection::Bss:
                 text_rela.add_entry(
@@ -646,8 +756,11 @@ void generate_obj_file(TLabelUsageMap &label_usage_map, u8 *start_txt,
                       static_cast<Elf_Sxword>(-data.op_off + data.op_val +
                                               loc.addent));
                 } else if (label_data.kind == RelocKind::Data) {
+                  // initial exec for thread locals, the GOT slot holds the
+                  // offset from the thread pointer
                   text_rela.add_entry(
-                      data.op_addr - start_txt, symbol, R_X86_64_GOTPCREL,
+                      data.op_addr - start_txt, symbol,
+                      label_data.tls ? ELFIO::R_X86_64_GOTTPOFF : R_X86_64_GOTPCREL,
                       static_cast<Elf_Sxword>(-data.op_off + data.op_val +
                                               loc.addent));
                 } else {

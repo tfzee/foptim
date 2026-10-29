@@ -2526,6 +2526,7 @@ inline void setup_globals(llvm::Module &mod, foptim::fir::Context &fctx,
           break;
       }
       global->is_constant = val->isConstant();
+      global->is_thread_local = val->isThreadLocal();
       if (!val->isDeclaration()) {
         global->init_value =
             foptim::utils::IRAlloc<uint8_t>{}.allocate(actual_size);

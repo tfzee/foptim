@@ -216,6 +216,7 @@ const char *getNameFromOpcode(GOpcode code, u32 sop) {
         ReturnString(X86Subtype, vround);
         ReturnString(X86Subtype, vzeroupper);
         ReturnString(X86Subtype, mfence);
+        ReturnString(X86Subtype, tls_base);
       }
   }
 }
@@ -375,6 +376,7 @@ void written_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::vzeroupper:
         case X86Subtype::mfence:
           return;
+        case X86Subtype::tls_base:
         case X86Subtype::lea:
         case X86Subtype::vextract128:
         case X86Subtype::vinsert128:
@@ -687,6 +689,7 @@ void read_args(const MInstr &instr, TVec<ArgData> &out) {
         case X86Subtype::INVALID:
         case X86Subtype::vzeroupper:
         case X86Subtype::mfence:
+        case X86Subtype::tls_base:
           return;
         case X86Subtype::lea:
         case X86Subtype::popcnt:

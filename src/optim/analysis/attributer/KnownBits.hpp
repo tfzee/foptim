@@ -290,6 +290,7 @@ class KnownBits final : public AttributeAnalysis,
         case fir::IntrinsicSubType::FCeil:
         case fir::IntrinsicSubType::FFloor:
         case fir::IntrinsicSubType::FTrunc:
+        case fir::IntrinsicSubType::Fma:
           fmt::println("BITS KNOWN {}", *this);
           fmt::println("TODO: ATTRIB KNOWN BITS intrinsic OP {}",
                        associatedValue.as_instr());
@@ -318,6 +319,7 @@ class KnownBits final : public AttributeAnalysis,
         case fir::IntrinsicSubType::Gather:
         case fir::IntrinsicSubType::InlineAsm:
         case fir::IntrinsicSubType::InlineAsmPure:
+        case fir::IntrinsicSubType::TlsAddress:
           // an arbitrary int
           break;
         case fir::IntrinsicSubType::Memset:

@@ -1026,6 +1026,7 @@ void Legalizer::apply_impl(MFunc &func, const foptim::conf::CompConf &conf) {
                 ioff = 0;
               }
               break;
+            case X86Subtype::ffmadd231:
             case X86Subtype::vcmp:
             case X86Subtype::vblendv:
               if (legalize_three_op_imm(bb, i)) {

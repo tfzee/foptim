@@ -1029,6 +1029,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
           }
           return a;
         }
+        case fir::IntrinsicSubType::Fma:
         case fir::IntrinsicSubType::INVALID:
         case fir::IntrinsicSubType::VA_start:
         case fir::IntrinsicSubType::VA_end:
@@ -1037,6 +1038,7 @@ SCCP::ConstantValue SCCP::eval_instr(fir::Context &ctx, fir::Instr instr) {
         case fir::IntrinsicSubType::Gather:
         case fir::IntrinsicSubType::InlineAsm:
         case fir::IntrinsicSubType::InlineAsmPure:
+        case fir::IntrinsicSubType::TlsAddress:
           return ConstantValue::Top();
         case fir::IntrinsicSubType::MaskedStore:
         case fir::IntrinsicSubType::Memset:

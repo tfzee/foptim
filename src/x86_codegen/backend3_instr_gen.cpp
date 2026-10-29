@@ -2364,6 +2364,21 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
       return length;
     }
+    case fmir::X86Subtype::tls_base: {
+      // mov dst, fs:[0]
+      req.mnemonic = ZYDIS_MNEMONIC_MOV;
+      req.operand_count = 2;
+      emit_operand(instr.args[0], req.operands[0], reloc_map, out_buff, 0);
+      req.operands[1].type = ZYDIS_OPERAND_TYPE_MEMORY;
+      req.operands[1].mem.base = ZYDIS_REGISTER_NONE;
+      req.operands[1].mem.index = ZYDIS_REGISTER_NONE;
+      req.operands[1].mem.scale = 0;
+      req.operands[1].mem.displacement = 0;
+      req.operands[1].mem.size = 8;
+      req.prefixes |= ZYDIS_ATTRIB_HAS_SEGMENT_FS;
+      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
+      return length;
+    }
     case fmir::X86Subtype::mfence:
     case fmir::X86Subtype::vzeroupper: {
       req.mnemonic = static_cast<fmir::X86Subtype>(instr.sop) ==
@@ -2727,16 +2742,6 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       }
       req.mnemonic = ZYDIS_MNEMONIC_POPCNT;
       return emit(out_buff, 0, &req);
-    case fmir::X86Subtype::ffmadd231: {
-      for (auto i = 0; i < req.operand_count; i++) {
-        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
-      }
-      bool is_f32 = instr.args[1].ty == fmir::Type::Float32;
-      req.mnemonic =
-          is_f32 ? ZYDIS_MNEMONIC_VFMADD231SS : ZYDIS_MNEMONIC_VFMADD231SD;
-      ZY_ASS_REQ(ZydisEncoderEncodeInstruction(&req, out_buff, &length), req);
-      return length;
-    }
     case fmir::X86Subtype::ffmadd132: {
       for (auto i = 0; i < req.operand_count; i++) {
         emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
@@ -2969,6 +2974,32 @@ size_t emit_x86(ZydisEncoderRequest &req, const fmir::MInstr &instr,
       ASSERT(bits == 16 || bits == 32);
       req.mnemonic =
           bits == 32 ? ZYDIS_MNEMONIC_VPACKUSDW : ZYDIS_MNEMONIC_VPACKUSWB;
+      return emit(out_buff, 0, &req);
+    }
+    case fmir::X86Subtype::ffmadd231: {
+      for (auto i = 0; i < req.operand_count; i++) {
+        emit_operand(instr.args[i], req.operands[i], reloc_map, out_buff, i);
+      }
+      assert(req.operand_count == 3);
+      switch (instr.args[0].ty) {
+        case fmir::Type::Float32:
+          req.mnemonic = ZYDIS_MNEMONIC_VFMADD231SS;
+          break;
+        case fmir::Type::Float64:
+          req.mnemonic = ZYDIS_MNEMONIC_VFMADD231SD;
+          break;
+        case fmir::Type::Float32x4:
+        case fmir::Type::Float32x8:
+          req.mnemonic = ZYDIS_MNEMONIC_VFMADD231PS;
+          break;
+        case fmir::Type::Float64x2:
+        case fmir::Type::Float64x4:
+          req.mnemonic = ZYDIS_MNEMONIC_VFMADD231PD;
+          break;
+        default:
+          fmt::println("{}", instr);
+          TODO("IMPL");
+      }
       return emit(out_buff, 0, &req);
     }
     case fmir::X86Subtype::vshufps: {

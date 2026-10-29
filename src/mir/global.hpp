@@ -20,6 +20,8 @@ struct Global {
   u64 size = 0;
   // all zero without relocations, data stays empty and it goes to bss
   bool zero_init = false;
+  // thread local, goes to .tdata / .tbss
+  bool is_tls = false;
   IRVec<RelocationInfo> reloc_info;
   u32 min_align = 0;
   fir::LinkVisibility vis;

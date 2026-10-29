@@ -24,6 +24,7 @@
 #include "optim/analysis/analysis_manager.hpp"
 #include "optim/analysis/attributer/KnownBits.hpp"
 #include "optim/analysis/attributer/attributer.hpp"
+#include "optim/helper/helper.hpp"
 #include "optim/analysis/mem/basic_alias_test.hpp"
 #include "optim/func_passes/inst_fold.hpp"
 #include "optim/func_passes/inst_simplify.hpp"
@@ -1536,7 +1537,7 @@ bool simplify_alloca(fir::Instr instr, fir::BasicBlock /*bb*/,
         if (access->is(fir::InstrType::LoadInstr)) {
           push_all_uses(worklist, access);
           access->replace_all_uses(
-              fir::ValueR{ctx->get_poisson_value(access->result_type())});
+              uninit_load_value(ctx.operator->(), access->result_type()));
         }
         access.destroy();
       }

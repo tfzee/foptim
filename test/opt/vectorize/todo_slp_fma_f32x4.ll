@@ -24,10 +24,10 @@ define void @f(ptr %a, ptr %b, ptr %c) {
 ; CHECK-NEXT:    %17: f32 = Load(%10){} NUses:1
 ; CHECK-NEXT:    %18: f32 = Load(%8){} NUses:2
 ; CHECK-NEXT:    %19: f32 = Load(%11){} NUses:1
-; CHECK-NEXT:    %20: f32 = Call(llvm.fma.f32, %12, %13, %12){extTy: f32(f32 f32 f32 ); } NUses:1
-; CHECK-NEXT:    %21: f32 = Call(llvm.fma.f32, %14, %15, %14){extTy: f32(f32 f32 f32 ); } NUses:1
-; CHECK-NEXT:    %22: f32 = Call(llvm.fma.f32, %16, %17, %16){extTy: f32(f32 f32 f32 ); } NUses:1
-; CHECK-NEXT:    %23: f32 = Call(llvm.fma.f32, %18, %19, %18){extTy: f32(f32 f32 f32 ); } NUses:1
+; CHECK-NEXT:    %20: f32 = INTRIN:Fma(%12, %13, %12){} NUses:1
+; CHECK-NEXT:    %21: f32 = INTRIN:Fma(%14, %15, %14){} NUses:1
+; CHECK-NEXT:    %22: f32 = INTRIN:Fma(%16, %17, %16){} NUses:1
+; CHECK-NEXT:    %23: f32 = INTRIN:Fma(%18, %19, %18){} NUses:1
 ; CHECK-NEXT:    %24: f32 = Store(%0, %20){} NUses:0
 ; CHECK-NEXT:    %25: f32 = Store(%3, %21){} NUses:0
 ; CHECK-NEXT:    %26: f32 = Store(%4, %22){} NUses:0
