@@ -177,7 +177,7 @@ bool simplify_fcmp_impl(fir::Instr instr, fir::BasicBlock /*bb*/,
         push_all_uses(worklist, instr);
         instr->replace_all_uses(new_cmp);
         instr.destroy();
-        if (arg0_i->get_n_uses() == 1) {
+        if (arg0_i->get_n_uses() == 0) {
           arg0_i.destroy();
         }
         return true;
